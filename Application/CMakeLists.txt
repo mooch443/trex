@@ -423,7 +423,9 @@ if(WITH_FFMPEG)
     find_library(LIBSWSSCALE_LIBRARY swscale)
 
     if(NOT AVCODEC_LIBRARY OR NOT AVFORMAT_LIBRARY OR NOT AVDEVICE_LIBRARY OR NOT LIBSWSSCALE_LIBRARY)
-        message(FATAL_ERROR "Cannot find the FFMPEG libraries (WITH_FFMPEG=ON) avformat:${AVFORMAT_LIBRARY} avdevice:${AVDEVICE_LIBRARY} swsscale:${LIBSWSSCALE_LIBRARY}")
+        message(STATUS "Cannot find the FFMPEG libraries (WITH_FFMPEG=ON) avformat:${AVFORMAT_LIBRARY} avdevice:${AVDEVICE_LIBRARY} swsscale:${LIBSWSSCALE_LIBRARY}")
+        message(STATUS "Disabling FFMPEG.")
+        set(WITH_FFMPEG OFF)
     else()
         set(FFMPEG_INCLUDE_DIRS ${AVCODEC_INCLUDE_DIR} ${AVFORMAT_INCLUDE_DIR} ${AVUTIL_INCLUDE_DIR} ${AVDEVICE_INCLUDE_DIR})
         set(FFMPEG_LIBRARIES ${AVCODEC_LIBRARY} ${AVFORMAT_LIBRARY} ${AVUTIL_LIBRARY} ${AVDEVICE_LIBRARY} ${LIBSWSSCALE_LIBRARY})
@@ -517,8 +519,9 @@ if((NOT ${TREX_BUILD_ZLIB}) AND ZLIB_FOUND AND ZLIB_VERSION_STRING VERSION_GREAT
     unset(ZLIB_LIBRARY)
     
 else()
-    message(STATUS "Building libZ")
+    message(STATUS "Building libZ and libZIP")
 	set(TREX_BUILD_ZLIB ON)
+    set(TREX_BUILD_ZIP ON)
     set(ZLIB_LIBRARY "z")
     set(zlib_install_dir "${CMAKE_BINARY_DIR}/zlib")
     
@@ -700,6 +703,28 @@ if(WIN32)
     set(OpenCV_STATIC ON)
 endif()
 
+if(NOT TREX_BUILD_OPENCV)
+    find_package( OpenCV )
+    
+    if(NOT OpenCV_FOUND)
+        set(TREX_BUILD_OPENCV ON)
+        message(STATUS "Cannot find OpenCV. Trying to build it.")
+    else()
+        include_directories( ${OpenCV_INCLUDE_DIRS} )
+        message(STATUS "Found OpenCV Version: ${OpenCV_VERSION} include: ${OpenCV_INCLUDE_DIRS} libs: ${OpenCV_LIBRARIES}")
+        set(OpenCV_LIBS ${OpenCV_LIBRARIES})
+    
+        add_library (TRex::OpenCV INTERFACE IMPORTED)
+        target_link_libraries (TRex::OpenCV INTERFACE ${OpenCV_LIBS})
+        if(UNIX AND NOT APPLE)
+            find_package(TIFF)
+            message(STATUS "TIFF libraries: ${TIFF_LIBRARIES}")
+            target_link_libraries(TRex::OpenCV INTERFACE tiff cairo)
+        endif()
+        set(OpenCV_LIBS TRex::OpenCV)
+    endif()
+endif()
+
 if(TREX_BUILD_OPENCV)
     set(trigger_build_dir ${CMAKE_BINARY_DIR}/force_opencv)
     set(BUILD_SHARED_LIBS OFF)
@@ -777,7 +802,7 @@ if(TREX_BUILD_OPENCV)
             -DBUILD_WITH_DEBUG_INFO=OFF
             -DWITH_EIGEN:BOOL=FALSE
             -DWITH_CUDA:BOOL=FALSE
-            -DWITH_FFMPEG:BOOL=TRUE
+            -DWITH_FFMPEG:BOOL=${WITH_FFMPEG}
             -DWITH_MSMF:BOOL=FALSE
             -DWITH_IPP:BOOL=FALSE
             -DWITH_PNG:BOOL=TRUE
@@ -891,21 +916,6 @@ if(TREX_BUILD_OPENCV)
     target_link_libraries (TRex::OpenCV INTERFACE ${OpenCV_LIBS})
     add_dependencies(TRex::OpenCV CustomOpenCV)
     message(STATUS "OpenCV: ${OpenCV_LIBS}")
-    set(OpenCV_LIBS TRex::OpenCV)
-else()
-    find_package( OpenCV REQUIRED )
-
-    include_directories( ${OpenCV_INCLUDE_DIRS} )
-    message(STATUS "OpenCV Version: ${OpenCV_VERSION} include: ${OpenCV_INCLUDE_DIRS} libs: ${OpenCV_LIBRARIES}")
-    set(OpenCV_LIBS ${OpenCV_LIBRARIES})
-    
-    add_library (TRex::OpenCV INTERFACE IMPORTED)
-    target_link_libraries (TRex::OpenCV INTERFACE ${OpenCV_LIBS})
-    if(UNIX AND NOT APPLE)
-        find_package(TIFF)
-        message(STATUS "TIFF libraries: ${TIFF_LIBRARIES}")
-        target_link_libraries(TRex::OpenCV INTERFACE tiff cairo)
-    endif()
     set(OpenCV_LIBS TRex::OpenCV)
 endif()
 

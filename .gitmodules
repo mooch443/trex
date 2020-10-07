@@ -1,0 +1,6 @@
+[submodule "Application/src/cnpy"]
+	path = Application/src/cnpy
+	url = https://github.com/mooch443/cnpy.git
+[submodule "Application/src/imgui"]
+	path = Application/src/imgui
+	url = https://github.com/mooch443/imgui.git
