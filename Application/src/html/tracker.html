@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+	<meta charset="utf-8">
+	
+    <link href="http://fonts.googleapis.com/css?family=Lato" rel='stylesheet' type='text/css'>
+    <link href="http://fonts.googleapis.com/css?family=Merriweather" rel='stylesheet' type='text/css'>
+    <link href="http://fonts.googleapis.com/css?family=PT+Sans+Caption" rel='stylesheet' type='text/css'>
+	<link href="format.css" rel='stylesheet' type='text/css'>
+	
+	<script type="text/javascript" src="jquery-3.0.0.min.js"></script>
+	<script src="konva.js"></script>
+	
+	<script type="text/javascript" src="common.js"></script>
+	<script type="text/javascript" src="settings.js"></script>
+	
+	<style >
+		
+	</style>
+</head>
+<body>
+	<div id="menu_bar">
+		<button id="quit">Quit</button>
+		
+		<select id="value_name" style="width:200px"></select>
+		<select id="value_value_select"></select>
+		<input id="value_value" /><button id="value_send">send</button>
+		
+		<span id="info_symbol">info</span>
+	</div>
+	
+	<div id="info_field">No file.</div>
+	
+	
+	<div id="options_holder">
+		<div id="output_graphs" style="display:none"></div>
+		<textarea id="current_value"></textarea>
+	</div>
+	
+	<div style="margin-top: 50px;width:100%;">
+		<center><canvas id="mycanvas" style="width:100%;height:100%"></canvas></center>
+	</div>
+	
+	<script type="text/javascript" src="gui.js"></script>
+</body>
+</html>

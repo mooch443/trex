@@ -1,0 +1,5 @@
+cmake .. -DCMAKE_PREFIX_PATH="C:/Users/User/Downloads/zlib1211/zlib-1.2.11/build/dist;C:/Users/User/Downloads/libzip-1.5.2/build/dist"
+
+-DLIBZIP_INCLUDE_DIR=C:/Users/User/Downloads/libzip-1.5.2/build/dist/include -DLIBZIP_LIBRARY=C:/Users/User/Downloads/libzip-1.5.2/build/dist/lib/zip.lib
+
+cmake .. -DCMAKE_PREFIX_PATH=C:/Users/User/Documents/opencv/build  

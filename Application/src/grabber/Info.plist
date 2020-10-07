@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>CFBundleIconFile</key>
+	<string>gfx/GrabberIcon</string>
+	<key>NSCameraUsageDescription</key>
+	<string>This app requires to access your camera 
+            to retrieve images and perform the demo</string>
+</dict>
+</plist>

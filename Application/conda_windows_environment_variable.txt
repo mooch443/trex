@@ -1,0 +1,7 @@
+PYTHONPATH=C:\Users\mooch\Anaconda3\envs\trex\DLLs;C:\Users\mooch\Anaconda3\envs\trex\Lib;C:\Users\mooch\Anaconda3\envs\trex\Lib\site-packages
+PYTHONHOME=
+
+conda activate trex
+
+# also important: install CUDA SDK beforehand
+# when getting an OpenCV found but cant be used error: only worked with cmake .. -DOpenCV_RUNTIME=vc15

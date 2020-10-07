@@ -1,0 +1,115 @@
+package:
+  name: trex
+  version: "1.0"
+  
+source:
+    git_url: http://134.76.19.68/CameraSoftware/FishTracker.git
+    git_rev: 9c0b463e0139ada0736a49402d42ceee79d5edd8
+    git_depth: 1
+
+build:
+    number: 1
+    string: saur
+    run_exports:
+        - {{ pin_compatible('ffmpeg', min_pin='x.x.x', max_pin='x.x.x') }}
+        - {{ pin_compatible('python', min_pin='x.x.x', max_pin='x.x.x') }}
+        - {{ pin_compatible('libgcc-ng', min_pin='x.x.x', max_pin='x.x.x') }} # [linux]
+        - {{ pin_compatible('libstdcxx-ng', min_pin='x.x.x', max_pin='x.x.x') }} # [linux]
+    ignore_run_exports:
+        - xorg-libxinerama
+    
+requirements:
+  build:
+    - m2-filesystem         # [win]
+    - m2w64-pkg-config      # [win]
+    - pkg-config            # [not win]
+    - jom                   # [win]
+    - make                  # [unix]
+    - python [win]
+    - python =3.6 [not win]
+    - {{ compiler('c') }}
+    - {{ compiler('cxx') }}
+    - cmake >=3.14
+    - {{ cdt('mesa-libgl-devel') }}  # [linux]
+    - {{ cdt('mesa-dri-drivers') }}  # [linux]
+    - {{ cdt('libselinux') }}  # [linux]
+    - {{ cdt('libxdamage') }}  # [linux]
+    - {{ cdt('libxxf86vm') }}  # [linux]
+    - {{ cdt('libxext') }}     # [linux]
+    - {{ cdt('xorg-x11-proto-devel') }}  # [linux]
+    - {{ cdt('libx11-devel') }}          # [linux]
+    - {{ cdt('libxcursor-devel') }}           # [linux]
+    - {{ cdt('libxcb') }}                # [linux]
+    - {{ cdt('libXfixes-devel') }}             # [linux]
+    - {{ cdt('libXxf86vm') }}            # [linux]
+    - {{ cdt('libxext-devel') }}         # [linux]
+    - {{ cdt('libxinerama-devel') }}         # [linux]
+    - {{ cdt('libxrandr-devel') }}       # [linux]
+    - {{ cdt('libxi-devel') }}           # [linux]
+    - {{ cdt('libxcursor-devel') }}           # [linux]
+    - {{ cdt('libxrender-devel') }}      # [linux]
+    - {{ cdt('mesa-libgl-devel') }}      # [linux]
+    - {{ cdt('mesa-dri-drivers') }}      # [linux]
+    - {{ cdt('libselinux') }}            # [linux]
+    - {{ cdt('libXdamage-devel') }}            # [linux]
+    - {{ cdt('libXau-devel') }}                # [linux]
+    - {{ cdt('libuuid-devel') }} # [linux]
+    
+  host:
+    - pthread-stubs  # [linux]
+    - ffmpeg [win]
+    - python [win]
+    - ffmpeg ==4.0 [not win]
+    - python =3.6 [not win]
+    - glfw3 [linux]
+    
+  run:
+    - tensorflow-gpu ==1.13.* [not osx]
+    - tensorflow ==1.13.* [osx]
+    - keras
+    - matplotlib
+    - pillow
+    - ffmpeg [win]
+    - python [win]
+    - ffmpeg ==4.0 [not win]
+    - python =3.6 [not win]
+    - py-opencv
+    - opencv
+    - glfw3 [linux]
+
+about:
+  home: https://trex.run
+  license: GPLv3
+  license_file:
+      - LICENSE
+      - Application/build/_deps/pybind11-src/LICENSE
+      - Application/build/opencv/src/CustomOpenCV/LICENSE
+      - Application/build/opencv_install/share/licenses/opencv4/ade-LICENSE  # [not win]
+      - Application/build/opencv_install/share/licenses/opencv4/ittnotify-LICENSE.GPL # [not win]
+      - Application/build/opencv_install/share/licenses/opencv4/ittnotify-LICENSE.BSD # [not win]
+      - Application/build/opencv_install/share/licenses/opencv4/libjpeg-turbo-LICENSE.md # [not win]
+      - Application/build/opencv_install/share/licenses/opencv4/libjpeg-turbo-README.md # [not win]
+      - Application/build/opencv_install/share/licenses/opencv4/libtiff-COPYRIGHT # [not win]
+      - Application/build/opencv_install/share/licenses/opencv4/protobuf-LICENSE # [not win]
+      - Application/build/opencv_install/share/licenses/opencv4/quirc-LICENSE # [not win]
+      - Application/build/opencv_install/share/licenses/opencv4/SoftFloat-COPYING.txt # [not win]
+      - Application/build/opencv_install/etc/licenses/ade-LICENSE  # [win]
+      - Application/build/opencv_install/etc/licenses/ffmpeg-license.txt # [win]
+      - Application/build/opencv_install/etc/licenses/ittnotify-LICENSE.GPL # [win]
+      - Application/build/opencv_install/etc/licenses/ittnotify-LICENSE.BSD # [win]
+      - Application/build/opencv_install/etc/licenses/libjpeg-turbo-LICENSE.md # [win]
+      - Application/build/opencv_install/etc/licenses/libjpeg-turbo-README.md # [win]
+      - Application/build/opencv_install/etc/licenses/libtiff-COPYRIGHT # [win]
+      - Application/build/opencv_install/etc/licenses/protobuf-LICENSE # [win]
+      - Application/build/opencv_install/etc/licenses/quirc-LICENSE # [win]
+      - Application/build/opencv_install/etc/licenses/SoftFloat-COPYING.txt # [win]
+      - licenses/glfw/LICENSE.md
+      - licenses/libpng/LICENSE
+      - licenses/libzip/LICENSE
+      - licenses/zlib/README
+  summary: TRex
+  description: >
+    TRex is an open source visual tracking software used to retrieve positional data from recorded collectives of individuals.
+    It also provides support for direct recording from cameras.
+  doc_url: https://trex.run/docs
+  dev_url: https://github.com/mooch443/trex.git

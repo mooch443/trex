@@ -1,0 +1,286 @@
+#pragma once
+
+#include <misc/defines.h>
+#include <misc/PVBlob.h>
+#include <misc/ThreadPool.h>
+#include <misc/Timer.h>
+#include <gui/Transform.h>
+#include <tracking/Individual.h>
+#include <misc/EnumClass.h>
+#include <tracking/TrainingData.h>
+#include <python/GPURecognition.h>
+#include <misc/EnumClass.h>
+
+namespace track {
+    class DatasetQuality;
+    
+    ENUM_CLASS(TrainingMode,
+        None,
+        Restart,
+        Apply,
+        Continue,
+        Accumulate,
+        LoadWeights
+    )
+    
+    struct FrameRanges {
+        std::set<Range<long_t>> ranges;
+        bool empty() const { return ranges.empty(); }
+        bool contains(long_t frame) const;
+        bool contains_all(const FrameRanges& other) const;
+        void merge(const FrameRanges& other);
+        
+        operator MetaObject() const;
+        static std::string class_name() {
+            return "FrameRanges";
+        }
+    };
+    
+    class Recognition {
+    protected:
+        GETTER(Size2, input_size)
+        GETTER(float, last_prediction_accuracy)
+        GETTER(long_t, last_checked_frame)
+        GETTER_SETTER(bool, trained)
+        GETTER_SETTER(bool, has_loaded_weights)
+        
+        std::mutex _mutex, _termination_mutex;
+        
+        std::shared_ptr<TrainingData> _last_training_data;
+        
+        std::map<long_t, std::map<uint32_t, std::vector<float>>> probs;
+        //std::set<long_t> identities;
+        //std::map<long_t, long_t> fish_id_to_idx;
+        std::map<long_t, long_t> fish_idx_to_id;
+        std::set<Rangel> gui_last_trained_ranges;
+        
+        typedef long_t fdx_t;
+        typedef long_t frame_t;
+        
+        struct FishInfo {
+            frame_t last_frame;
+            size_t number_frames;
+            
+            explicit FishInfo(frame_t last_frame = -1, size_t number_frames = 0) : last_frame(last_frame), number_frames(number_frames) {}
+            operator MetaObject() const;
+            static std::string class_name() {
+                return "FishInfo";
+            }
+        };
+        
+        std::map<frame_t, std::set<fdx_t>> _last_frames;
+        std::map<fdx_t, FishInfo> _fish_last_frame;
+        
+        std::map<long_t, std::map<Rangel, TrainingFilterConstraints>> custom_midline_lengths;
+        
+    public:
+        struct ImageData {
+            Image::Ptr image;
+            std::shared_ptr<TrainingFilterConstraints> filters;
+            //pv::BlobPtr blob;
+            struct Blob {
+                uint64_t num_pixels;
+                uint32_t blob_id;
+                long_t org_id;
+                long_t parent_id;
+                Bounds bounds;
+            } blob;
+            long_t frame;
+            FrameRange segment;
+            Individual *fish;
+            idx_t fdx;
+            gui::Transform midline_transform;
+            
+            ImageData(Blob blob = Blob{0,0,-1,-1}, long_t frame = -1, const FrameRange& segment = FrameRange(), Individual * fish = NULL, idx_t fdx = -1, const gui::Transform& transform = gui::Transform())
+                : image(nullptr), filters(nullptr), blob(blob), frame(frame), segment(segment), fish(fish), fdx(fdx), midline_transform(transform)
+            {}
+        };
+        
+    protected:
+        //! for internal analysis
+        Timer _last_data_added;
+        std::deque<ImageData> _data_queue;
+        //std::map<long_t, long_t> _last_frame_per_fish;
+        std::timed_mutex _data_queue_mutex;
+        
+        std::mutex _running_mutex;
+        std::atomic_bool _running;
+        std::string _running_reason;
+        
+        GETTER_SETTER(bool, internal_begin_analysis)
+        GETTER_PTR(DatasetQuality*, dataset_quality)
+        
+        std::mutex _filter_mutex;
+        std::map<const Individual*, std::map<Rangel, TrainingFilterConstraints>> _filter_cache_std, _filter_cache_no_std;
+        std::map<Individual*, std::map<FrameRange, std::tuple<TrainingFilterConstraints, std::set<long_t>>>> eligible_frames;
+        
+    public:
+        class Detail {
+        private:
+            std::mutex lock;
+            
+            size_t added_to_queue;
+            size_t processed;
+            float _percent;
+            
+            std::map<long_t, std::tuple<std::set<idx_t>, std::set<idx_t>, std::set<idx_t>>> added_individuals_per_frame;
+            std::vector<std::function<void()>> registered_callbacks;
+            
+            GETTER_SETTER(long_t, last_checked_frame)
+            GETTER_SETTER(float, processing_percent)
+            std::map<idx_t, long_t> _max_pre_frame;
+            std::map<idx_t, long_t> _max_pst_frame;
+            float _last_percent;
+            
+            GETTER(size_t, unavailable_blobs)
+            
+        public:
+            decltype(_max_pre_frame)& max_pre_frame() { return _max_pre_frame; }
+            decltype(_max_pre_frame)& max_pst_frame() { return _max_pst_frame; }
+            
+            void set_unavailable_blobs(size_t v) {
+                std::lock_guard<std::mutex> guard(lock);
+                _unavailable_blobs = v;
+            }
+            
+            struct Info {
+                size_t added, processed, N, max_frame, inproc;
+                float percent;
+                long_t last_frame;
+                std::map<idx_t, long_t> max_pre_frame;
+                std::map<idx_t, long_t> max_pst_frame;
+                size_t failed_blobs;
+                
+                Info() : added(0), processed(0), N(0), max_frame(0), inproc(0), percent(0), last_frame(-1), failed_blobs(0) {
+                    
+                }
+                
+                bool operator==(const Info& other) const {
+                    return added == other.added && processed == other.processed && N == other.N && inproc == other.inproc && last_frame == other.last_frame && max_pre_frame == other.max_pre_frame && max_pst_frame == other.max_pst_frame;
+                }
+                bool operator!=(const Info& other) const {
+                    return added != other.added || processed != other.processed || N == other.N || inproc != other.inproc || last_frame != other.last_frame || max_pre_frame != other.max_pre_frame || max_pst_frame != other.max_pst_frame;
+                }
+            };
+            
+            Detail() : added_to_queue(0), processed(0), _percent(0), _last_checked_frame(-1), _processing_percent(0), _unavailable_blobs(0) {
+                
+            }
+            
+            Info info();
+            
+            decltype(added_individuals_per_frame) added_frames() {
+                std::lock_guard<std::mutex> guard(lock);
+                return added_individuals_per_frame;
+            }
+            
+            void remove_frames(long_t after);
+            void remove_individual(idx_t fdx);
+            
+            void add_frame(long_t, long_t);
+            void inproc_frame(long_t, long_t);
+            void failed_frame(long_t, long_t);
+            
+            void finished_frames(const std::map<long_t, std::set<idx_t>>& individuals_per_frame);
+            void register_finished_callback(std::function<void()>&& fn);
+            void clear();
+        };
+        
+    protected:
+        std::mutex _status_lock;
+        GETTER_NCONST(Detail, detail)
+        
+    public:
+        Recognition();
+        ~Recognition();
+
+        static void fix_python();
+        //float p(long_t frame, uint32_t blob_id, const Individual *fish);
+        std::map<long_t, float> ps_raw(long_t frame, uint32_t blob_id);
+        //bool has(long_t frame, uint32_t blob_id);
+        //bool has(long_t frame, const Individual* fish);
+        //std::map<long_t, std::map<long_t, long_t>> check_identities(long_t frame, const std::vector<pv::BlobPtr>& blobs);
+        //bool has(long_t frame);
+        const decltype(probs)& data() const { return probs; }
+        decltype(probs)& data() { return probs; }
+        static Size2 image_size();
+        static size_t number_classes();
+        void prepare_shutdown();
+        
+        void check_last_prediction_accuracy();
+        
+        static bool train(std::shared_ptr<TrainingData> data, const FrameRange& global_range, TrainingMode::Class load_results, long_t gpu_max_epochs = -1, bool dont_save = false, float *worst_accuracy_per_class = NULL, int accumulation_step = -1);
+        static bool recognition_enabled();
+        static bool network_weights_available();
+        static bool can_initialize_python();
+        static bool python_available();
+        static void check_learning_module(bool force_reload_variables = false);
+        
+        static Image::Ptr calculate_diff_image_with_settings(const default_config::recognition_normalization_t::Class &normalize, const pv::BlobPtr& blob, const Recognition::ImageData& data, const Size2& output_shape);
+
+        //float available_weights_accuracy(std::shared_ptr<TrainingData> data);
+        void load_weights(std::string postfix = "");
+        static file::Path network_path();
+        
+        void update_dataset_quality();
+        
+        static bool eligible_for_training(const std::shared_ptr<Individual::BasicStuff>&, const std::shared_ptr<Individual::PostureStuff>&, const TrainingFilterConstraints& constraints);
+        
+        void remove_frames(long_t after);
+        void remove_individual(Individual*);
+        
+        TrainingFilterConstraints local_midline_length(const Individual* fish, long_t frame, const bool calculate_std = false);
+        TrainingFilterConstraints local_midline_length(const Individual* fish, const Rangel& frames, const bool calculate_std = false);
+        
+        void clear_filter_cache();
+        std::set<Rangel> trained_ranges();
+        
+        static void notify();
+        std::vector<std::vector<float>> predict_chunk(const std::vector<Image::Ptr>&);
+        void predict_chunk_internal(const std::vector<Image::Ptr>&, std::vector<std::vector<float>>&);
+        void reinitialize_network();
+        
+    private:
+        void add_async_prediction();
+        bool cached_filter(const Individual *fish, const Rangel& segment, TrainingFilterConstraints&, const bool with_std);
+        
+        bool load_weights_internal(std::string postfix = "");
+        bool train_internally(std::shared_ptr<TrainingData> data, const FrameRange& global_range, TrainingMode::Class load_results, long_t gpu_max_epochs, bool dont_save, float *worst_accuracy_per_class, int accumulation_step);
+        bool update_internal_training();
+        void reinitialize_network_internal();
+        void _notify();
+        
+        // expecting _data_queue_mutex to be locked
+        bool is_queue_full_enough() const;
+        
+        template<typename T>
+        void insert_in_queue(T begin, T end) {
+            for(auto it = begin; it != end; ++it)
+                _detail.inproc_frame(it->frame, it->fdx);
+            _data_queue.insert(_data_queue.end(), begin, end);
+            _last_data_added.reset();
+        }
+        
+        void insert_in_queue(const ImageData& data) {
+            _detail.inproc_frame(data.frame, data.fdx);
+            
+            _data_queue.push_back(data);
+            _last_data_added.reset();
+        }
+        
+        template<typename T>
+        struct LockVariable {
+            T* variable;
+            LockVariable(T* ptr) : variable(ptr) {
+                *variable = true;
+            }
+            ~LockVariable() {
+                *variable = false;
+            }
+        };
+        
+        std::shared_ptr<LockVariable<std::atomic_bool>> set_running(bool guarded, const std::string& reason);
+        void stop_running();
+        size_t update_elig_frames(std::map<long_t, std::map<uint32_t, ImageData>>&);
+    };
+}

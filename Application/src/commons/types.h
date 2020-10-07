@@ -1,0 +1,39 @@
+#ifndef VIDEO_TYPES_H
+#define VIDEO_TYPES_H
+
+#ifndef WIN32
+#if __cplusplus <= 199711L
+  #error This library needs at least a C++11 compliant compiler
+#endif
+#endif
+
+#include <misc/detail.h>
+
+/**
+ * ======================
+ * THREAD-SAFE methods
+ * ======================
+ */
+
+namespace cmn {
+    typedef std::vector<std::tuple<std::shared_ptr<std::vector<HorizontalLine>>, std::shared_ptr<std::vector<uchar>>>> blobs_t;
+}
+
+namespace tf {
+    void imshow(const std::string& name, const cv::Mat& mat, std::string label = "");
+    void show();
+    void waitKey(std::string name);
+}
+
+namespace gui {
+    using namespace cmn;
+}
+
+namespace track {
+    using namespace cmn;
+    typedef long_t idx_t;
+}
+
+#include <misc/vec2.h>
+
+#endif

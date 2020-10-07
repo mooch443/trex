@@ -1,0 +1,92 @@
+#include "SpriteMap.h"
+
+namespace std {
+size_t hash<cmn::sprite::PNameRef>::operator()(const cmn::sprite::PNameRef& k) const
+{
+    return std::hash<std::string>{}(k.name());
+}
+}
+
+namespace cmn {
+namespace sprite {
+    
+    // --------- PNameRef
+    
+    LockGuard::LockGuard(Map*map) {
+        obj = std::make_shared<decltype(obj)::element_type>(map->mutex());
+    }
+    LockGuard::~LockGuard() {
+    }
+    
+    PNameRef::PNameRef(const std::string& name)
+    : _nameOnly(name), _ref(NULL)
+    {
+    }
+    
+    PNameRef::PNameRef(const std::shared_ptr<PropertyType>& ref)
+    : _nameOnly(std::string()), _ref(ref)
+    {
+    }
+    
+    //PNameRef::PNameRef(const PropertyType& ref) : PNameRef(&ref) { }
+    
+    const std::string& PNameRef::name() const {
+        return _ref ? _ref->name() : _nameOnly;
+    }
+    
+    bool PNameRef::operator==(const PNameRef& other) const {
+        return (_ref && _ref == other._ref)
+        || (*this == other.name());
+    }
+    
+    bool PNameRef::operator==(const std::string& other) const {
+        return name() == other;
+    }
+    
+    bool PNameRef::operator<(const PNameRef& other) const {
+        return name() < other.name();
+    }
+    
+    
+    // -------- REFERENCE
+    
+    Reference::Reference(Map& container, PropertyType& type)
+    : Reference(container, type, type.name()) {}
+    
+	double Reference::speed() const { return _type.speed(); }
+	Reference& Reference::speed(double s) { _type.speed(s); return *this; }
+
+    _TOSTRING_RETURNTYPE Reference:: _TOSTRING_HEAD {
+        return _type.toStdString();
+    }
+    
+    _PRINT_NAME_RETURN_TYPE Reference:: _PRINT_NAME_HEAD {
+        return _type.print_name();
+    }
+    
+    bool Reference::operator==(const PropertyType& other) const {
+        return get().operator==(other);
+    }
+    
+    bool Reference::operator!=(const PropertyType& other) const {
+        return get().operator!=(other);
+    }
+    
+    _TOSTRING_RETURNTYPE ConstReference:: _TOSTRING_HEAD {
+        return _type.toStdString();
+    }
+    
+    _PRINT_NAME_RETURN_TYPE ConstReference:: _PRINT_NAME_HEAD {
+        return _type.print_name();
+    }
+    
+    bool ConstReference::operator==(const PropertyType& other) const {
+        return get().operator==(other);
+    }
+    
+    bool ConstReference::operator!=(const PropertyType& other) const {
+        return get().operator!=(other);
+    }
+
+}
+}

@@ -1,0 +1,404 @@
+#include "DrawFish.h"
+#include <gui/DrawSFBase.h>
+#include <misc/OutputLibrary.h>
+#include <cmath>
+#include <tracking/Fish.h>
+
+using namespace track;
+
+namespace gui {
+    Fish::Fish(const Individual& obj)
+        : gui::DrawableCollection("fish"+std::to_string(obj.identity().ID())+"-"),
+        _obj(obj),
+        _idx(-1),
+        _image(_obj.pixels(_safe_idx).size().height, _obj.pixels(_safe_idx).size().width, 4),
+        _probabilities(FishTracker::average().cols / 6.f, FishTracker::average().rows / 6.f, 4),
+        _body(Vec2(), Transparent),
+        _colored(_image, Vec2())
+    {
+        uint32_t ID = _obj.identity().ID();
+        set_clickable(true);
+        
+        add_event_handler(Events::MUP, [ID, this](float, float) {
+            if(Individual::currentID == long(ID)) {
+                Individual::currentID = -1;
+                this->draw_structure()->select(NULL);
+            }
+            else
+                Individual::currentID = ID;
+            
+            did_change();
+        });
+    }
+    
+    void Fish::set_data(long frameIndex, float time, const FishTracker::Frame &frame, const EventAnalysis::EventMap *events)
+    {
+        //const bool events_changed = (_events != events && (events == NULL || _events == NULL))
+        //            || (_events && events && _events->memory_size() != events->memory_size());
+        //if(_idx == frameIndex)
+        //    return;
+        
+        _idx = frameIndex;
+        _safe_idx = _obj.find_frame(frameIndex).first;
+        _time = time;
+        _frame = &frame;
+        _events = events;
+        
+        if(_idx != frameIndex)
+            did_change();
+    }
+    
+    void Fish::draw_occlusion(gui::DrawStructure &window) {
+        auto &blob = _obj.pixels(_safe_idx);
+        
+        auto pos = cv::Point2f(blob.pos());
+        cv::Point2f offset(-pos.x, -pos.y);
+        
+        /*_target = cv::Vec4b(255, 255, 255, 0);
+        
+        //uint index = 0;
+        for (auto &h : blob.horizontalLines()) {
+            for (auto x=h.x0; x<=h.x1; x++) {
+                //const char m = grey.at(index++);
+                
+                //if(m < SETTING(posture_threshold_constant).value<int>())
+                //    continue;
+                
+                if(h.y + offset.y < _target.rows) {
+                    if(x + offset.x < _target.cols) {
+                        char id = _obj.identity().ID() * 100;
+                        _target.at<cv::Vec4b>(h.y + offset.y, x + offset.x) = cv::Vec4b(id, id, id, 255);
+                    }
+                }
+            }
+        }*/
+        window.image(Vec2(pos.x, pos.y), _image);
+    }
+    
+    void Fish::update(DrawStructure &window) {
+        const bool wireframe = GlobalSettings::get("wireframe");
+        const int frame_rate = SETTING(frame_rate);
+        const float max_frame_distance = SETTING(max_frame_distance);
+        const float time_fade_percent = 1.0 - abs(FishTracker::properties(_idx).time - FishTracker::properties(_safe_idx).time) / max_frame_distance;
+        
+        auto clr = _obj.identity().color().alpha(((Individual::currentID == _obj.identity().ID() || _body.hovered()) ? 255 : 100) * time_fade_percent);
+        
+        auto &blob = _obj.pixels(_safe_idx);
+        auto pos = cv::Point2f(blob.pos());
+        
+        set_bounds(Bounds(Vec2(pos), Size2(blob.size())));
+        
+        cv::Point2f offset(-pos.x, -pos.y);
+        
+        const auto centroid = _obj.centroid(_safe_idx);
+        const auto head = _obj.head(_safe_idx);
+        
+        const bool hovered = this->hovered();
+        
+        auto current_time = _time;
+        auto next_time = FishTracker::has(_idx + 1) ? FishTracker::properties(_idx + 1).time : (current_time + 1.f/float(frame_rate));
+        
+        long max_frames = FAST_SETTINGS(frame_rate) * GlobalSettings::get("gui_max_path_time").value<float>();
+        paintPath(window, _safe_idx, cmn::max(_obj.start_frame(), _safe_idx - 1000l), max_frames);
+        
+        //! visualize probability that fish is going to be anywhere on the image in the next frame
+        /*if(_obj.identity().ID() == Individual::currentID && GlobalSettings::get("debug_probabilities"))
+        {
+            cv::Mat bg = _probabilities.get();
+            
+            const int padding = 3;
+            const int offset = (padding-(padding%2))/2;
+            
+            float p_time = _obj.time_probability(_idx + 1, next_time);
+            
+            for (int j=padding; j<bg.cols-padding; j+=padding) {
+                for (int i=padding; i<bg.rows-padding; i+=padding) {
+                    float p = _obj.position_probability(_idx + 1, next_time, cv::Point2f(j, i)*FAST_SETTINGS(cm_per_pixel)) * p_time * 255;
+                    cv::Vec4b value(p, p, p, 200 + p*0.18);
+                    
+                    for (int k=0; k<padding*padding; k++)
+                        bg.at<cv::Vec4b>(i + k%padding - offset, j + (k-k%padding)/padding - offset) = value;
+                }
+            }
+            
+            window.image(Vec2(0, 0), _probabilities, 6.f);
+        }*/
+        
+        // paint the pixels
+        if(!wireframe) {
+            cv::Mat target = _image.get();
+            target = cv::Scalar(0, 0, 0, 0);
+            
+            auto clr = _obj.identity().color();
+            
+            for (auto &h : blob.horizontalLines()) {
+                if(h.y + offset.y < target.rows) {
+                    for (auto x=h.x0; x<=h.x1; x++) {
+                        if(x + offset.x < target.cols) {
+                            target.at<cv::Vec4b>(h.y + offset.y, x + offset.x) = cv::Vec4b(clr[2], clr[1], clr[0], 255 * time_fade_percent);
+                        }
+                    }
+                }
+            }
+            
+            _colored.set_pos(Vec2(pos));
+            _colored.set_source(_image);
+            window.wrap_object(_colored);
+            
+        } else if(_obj.centroid(_idx)) {
+            // blobs are gonna be drawn by the gui anyway
+            /*long bdx = _obj.pixels(_idx).blob_id();
+            if(bdx < long(_frame->blobs.size())) {
+                auto b = _frame->blobs.at(bdx);
+                auto p = _frame->blob_to_pixels.at(b);
+                
+                cv::Mat mat;
+                lines2greyscale(blob.horizontalLines(), mat, p, FishTracker::settings.threshold_constant, &FishTracker::average());
+                cv::cvtColor(mat, mat, CV_GRAY2RGBA);
+                setAlpha(mat, 0, cv::Vec4b(0, 0, 0, 255));
+                
+                _body.set_pos(Vec2(blob.pos().x, blob.pos().y));
+                _body.set_source(Image(mat));
+                
+                window.wrap_object(_body);
+                
+            } else {
+                //Error("Cannot find blob %ld in frame %d.", bdx, _idx);
+            }*/
+        }
+        
+        if(hovered) {
+            //! Bounding box
+            _body.set_bounds(Bounds(Vec2(), Size2(blob.size())));
+            _body.set_lineclr(White.alpha(125));
+            
+            window.wrap_object(_body);
+        }
+        
+        auto outline = _obj.outline(_safe_idx);
+        auto midline = _obj.midline(_safe_idx);
+        //const float factor = wireframe ? 0.85 : 0.0;
+        
+        // DRAW OUTLINE / MIDLINE ON THE MAIN GRAYSCALE IMAGE
+        if(outline && midline) {
+            std::vector<MidlineSegment> midline_points;
+            {
+                Midline _midline(*midline);
+                float len = _obj.midline_length();
+                
+                if(len != INFINITY)
+                    _midline.fix_length(len);
+                
+                midline_points = _midline.segments();
+            }
+            
+            pos += cv::Point2f(blob.center());
+            
+            std::vector<Vertex> oline;
+            for (auto pt : *outline) {
+                pt += pos + offset;
+                oline.push_back(Vertex(pt, clr));
+            }
+            oline.push_back(Vertex(outline->front() + pos, clr));
+            window.vertices(oline);
+            
+            cv::Point2f prev(0, 0);
+            std::vector<Vertex> line;
+            
+            for (auto segment : midline_points) {
+                auto pt = segment.pos;
+                //auto pt = segment.pos;
+                float angle = midline->angle() + M_PI;
+                float x = (pt.x * cmn::cos(angle) - pt.y * cmn::sin(angle));
+                float y = (pt.x * cmn::sin(angle) + pt.y * cmn::cos(angle));
+                
+                pt = cv::Point2f(x, y);
+                pt += pos + offset + midline->offset();
+                
+                line.push_back(Vertex(pt, clr));
+            }
+            
+            window.vertices(line);
+            
+            if(head) {
+                window.circle(head->pos(track::PX_AND_SECONDS), 1);
+            }
+        }
+        
+        // DISPLAY LABEL AND POSITION
+        auto c_pos = centroid->pos(track::PX_AND_SECONDS) + offset;
+        auto v = 255 - int(FishTracker::average().at<uchar>(c_pos.y, c_pos.x)) * 0.5;
+        Color circle_clr(v);
+        
+        window.circle(c_pos, 1, White);
+        
+        std::stringstream text;
+        text << _obj.identity().ID(); //<< " area:" << _obj.average_pixels() / _obj.pixels_samples();
+        
+        float angle = -centroid->angle();
+        if (head) {
+            angle = -head->angle();
+        }
+        
+        cv::Point2f p(cos(angle), -sin(angle));
+        p = p * float(20 + text.str().length() - 1) + c_pos;
+        window.text(text.str(), Vec2(p.x - 2 * text.str().length(), p.y - 5),
+                    _idx == _safe_idx
+                        ? White
+                        : White.brighten(0.5), 0.5);
+        
+        // DISPLAY NEXT POSITION (estimated position in _idx + 1)
+        auto estimated = _obj.estimate_position_at(_idx + 1, next_time) + offset;
+        
+        window.line(c_pos, estimated, clr);
+        window.circle(estimated, 4, clr);
+        
+        float tdelta = next_time - current_time;
+        
+       //Debug("%d %f %f %d", _obj.identity().ID(), tdelta, prev_frame_time, _safe_idx);
+        window.circle(estimated, FAST_SETTINGS(fish_max_speed) * tdelta, Red);
+        
+        if(_idx >= _obj.start_frame() && GlobalSettings::get("debug_probabilities")) {
+            float w = 25, h = 25;
+            float padding = 5;
+            
+            for(size_t i=0; i<w; i++) {
+                for (size_t j=0; j<h; j++) {
+                    Vec2 pos = Vec2(estimated) + (Vec2(i, j) - Vec2(w*0.5, h*0.5)) * padding;
+                    
+                    float p = _obj.probability(_idx+1, next_time, pos);
+                    Color clr = White.alpha(255 * p * 0.8);
+                    if(p > 0.01)
+                        window.circle(pos, 3, clr, clr);
+                }
+            }
+        }
+        
+        if (_obj.identity().ID() == Individual::currentID) {
+            // draw circle around the fish
+            auto radius = max(blob.size().width, blob.size().height)*0.7f;
+            window.circle(c_pos, radius, circle_clr);
+            
+            // draw unit circle showing the angle of the fish
+            cv::Point2f pos(cmn::cos(angle), -cmn::sin(angle));
+            pos = pos * radius + c_pos;
+            
+            window.circle(pos, 3, circle_clr);
+            window.line(c_pos, pos, circle_clr);
+        }
+        
+        if (_obj.identity().ID() == Individual::currentID && false) {
+            auto midline = _obj.midline(_safe_idx);
+            auto angle = -head->angle();
+            
+            if(midline) {
+                const Vec2 a = _obj.centroid_posture(_safe_idx)->pos(track::PX_AND_SECONDS);
+                const auto individuals = FishTracker::instance->active_individuals(_safe_idx);
+                
+                Vec2 ad(cos(angle), -sin(angle));
+                ad /= length(ad);
+                
+                auto line0 = a - ad * 500.f;
+                auto line1 = a + ad * 500.f;
+                window.line(line0, line1, Red);
+                
+                for (auto other: individuals) {
+                    if (other != &_obj && other->centroid(_safe_idx) && other->midline(_safe_idx)) {
+                        auto oangle = -other->midline(_safe_idx)->angle() + M_PI * 0.5;
+                        
+                        Vec2 v = other->centroid_posture(_safe_idx)->pos(track::PX_AND_SECONDS);
+                        Vec2 vd(cos(oangle), -sin(oangle));
+                        vd /= length(vd);
+                        
+                        Vec2 line0 = v - vd * 500.f;
+                        Vec2 line1 = v + vd * 500.f;
+                        window.line(line0, line1, Blue);
+                        
+                        float at = cross(a - v, vd) / cross(vd, ad);
+                        Vec2 s = a + ad * at;
+                        
+                        //auto angle = atan2(v.y, v.x) - atan2(direction.y, direction.x);
+                        window.circle(s, 10, Red);
+                        
+                        window.line(v + 500.f * vd, v, Blue);
+                        window.line(s, a, Blue);
+                        
+                        at = (std::signbit(at) ? (-1) : 1) * length(a-v); //min(abs(at), length(a-v));
+                        
+                        break;
+                    }
+                }
+            }
+        }
+        
+    }
+    
+    void Fish::paintPath(DrawStructure& window, long to, long from, long max_frames) {
+        if (to == -1)
+            to = _obj.end_frame();
+        if (from == -1)
+            from = _obj.start_frame();
+        
+        cv::Point2f last = _obj.find_frame(to).second->pos(track::PX_AND_SECONDS);
+        int count = 0;
+        
+        const float max_speed = SETTING(fish_max_speed);
+        std::vector<Vertex> vertices;
+        
+        from = max(to-max_frames, from);
+        
+        std::vector<Circle*> events;
+        auto &parent_pos = pos();
+        
+        for (long i=to; i>=from; i--) {
+            // draw lines between previous locations
+            auto c = _obj.centroid(i);
+            if (c) {
+                auto pos = c->pos(track::PX_AND_SECONDS) - parent_pos;
+                auto clr = _obj.identity().color().alpha(255);
+                
+                float percent = c->speed(track::CM_AND_SECONDS) / max_speed * 7;
+                percent = min(1.f, percent) * 0.8;
+                
+                if (abs(lastframe - i) > 1)
+                    clr = Black;
+                else
+                    clr = clr * (1.0 - percent) + White * percent;
+                
+                float fade = (i - from);
+                if(max_frames != -1) {
+                    fade = min(float(max_frames), fade) / float(max_frames);
+                } else {
+                    fade /= float(to - from);
+                }
+                
+                if(_events) {
+                    auto it = _events->events.find(i);
+                    if(it != _events->events.end()) {
+                        events.push_back(new Circle(pos, 1, White.alpha(180 * fade)));
+                    }
+                }
+                
+                sf::Color clr0 = clr.alpha(fade * 255);
+                vertices.push_back(Vertex(pos, clr0));
+                //cv::circle(target, pos, 1, clr * (1.0 - percent) + original * percent, -1);
+                //cv::line(target, last, pos, clr * (1.0 - percent) + original * percent);
+                last = pos;
+                
+                lastframe = i;
+                count++;
+            }
+            
+            if (max_frames != -1 && count >= max_frames) {
+                break;
+            }
+        }
+        
+        if(vertices.size() > 1)
+            window.line(vertices, 2.0f);
+        
+        for(auto c : events) {
+            window.add_object(c);
+        }
+    }
+}

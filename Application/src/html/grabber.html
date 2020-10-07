@@ -1,0 +1,109 @@
+<html>
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+	
+    <link href="http://fonts.googleapis.com/css?family=Lato" rel='stylesheet' type='text/css'>
+    <link href="http://fonts.googleapis.com/css?family=Merriweather" rel='stylesheet' type='text/css'>
+    <link href="http://fonts.googleapis.com/css?family=PT+Sans+Caption" rel='stylesheet' type='text/css'>
+	<link href="format.css" rel='stylesheet' type='text/css'>
+	
+	<script type="text/javascript" src="jquery-3.0.0.min.js"></script>
+	<script src="konva.js"></script>
+	
+	<script type="text/javascript" src="common.js"></script>
+	<script type="text/javascript" src="settings.js"></script>
+	
+	<style>
+	</style>
+</head>
+<body>
+	<div id="menu_bar">
+		<button id="record">Record</button>
+		<button id="quit">Quit</button>
+		
+		<select id="value_name" style="width:200px"></select>
+		<select id="value_value_select"></select>
+		<input id="value_value" /><button id="value_send">send</button>
+
+		</div>
+		<div id="application_name">
+			<span class="name">FrameGrabber</span>&nbsp;<span class="version">1.0</span>&nbsp;<span class="fps"></span>
+		</div>
+	</div>
+	
+	<div id="options_holder">
+		<div id="output_graphs" style="display:none"></div>
+		<textarea style="display:none" id="current_value"></textarea>
+	</div>
+	
+	<div style="margin-top: 50px;width:100%;">
+		<center><canvas id="mycanvas" style="width:100%;height:100%"></canvas></center>
+	</div>
+	
+	<script>
+	$.get("/setting/app_name", function(data) {
+		$("#application_name .name").html(data);
+	});
+	
+	$.get("/setting/version", function(data) {
+		$("#application_name .version").html("v"+data);
+	});
+	
+	$.get("/setting/recording", function(data) {
+		if(data == "false") {
+			$("#record").html("Record");
+		} else
+			$("#record").html("Stop");
+	});
+	
+	$("#record").click(function() {
+		$.get("/setting/recording", function(data) {
+			if(data == "true") {
+				$("#record").html("Record");
+			} else
+				$("#record").html("Stop");
+			
+			$.post("/setting/", {
+                    "recording": data == "true" ? "false" : "true",
+				}, function(data) {
+					console.log("Got back: "+data);
+				}
+			);
+		});
+	});
+	</script>
+	
+	<script>
+		
+		var fps = {	
+			startTime : 0,	
+			frameNumber : 0,	
+			getFPS : function(){		
+				this.frameNumber++;		
+				var d = new Date().getTime(),			
+				currentTime = ( d - this.startTime ) / 1000,			
+				result = Math.floor( ( this.frameNumber / currentTime ) );		
+				if( currentTime > 1 ){			
+					this.startTime = new Date().getTime();			
+					this.frameNumber = 0;		
+				}	
+					
+				return result;
+			}
+		};
+		
+	
+	/*function update_settings() {
+		$.get("/info", function(data) {
+			var result = (data);
+			$(".fps").html(result);
+		});
+	}*/
+	</script>
+	
+	<script type="text/javascript" src="gui.js"></script>
+	<script>
+
+	</script>
+</body>
+</html>

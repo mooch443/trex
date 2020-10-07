@@ -1,0 +1,10 @@
+frame_rate = 24
+crop_offsets = [0.0, 0.0, 0.0, 0]
+fish_minmax_size = [0.05, 100000]
+threshold_constant = 30
+
+meta_real_width = 50
+cam_circle_mask = false
+cam_undistort = false
+recording = true
+

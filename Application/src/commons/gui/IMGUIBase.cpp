@@ -1,0 +1,1240 @@
+#include "IMGUIBase.h"
+#include <gui/DrawStructure.h>
+
+#include <algorithm>
+#include <limits>
+
+#include "MetalImpl.h"
+#if TREX_METAL_AVAILABLE
+#endif
+#include "GLImpl.h"
+
+#include <imgui/imgui.h>
+#include <imgui/imgui_internal.h>
+
+#define IM_NORMALIZE2F_OVER_ZERO(VX,VY)     { float d2 = VX*VX + VY*VY; if (d2 > 0.0f) { float inv_len = 1.0f / ImSqrt(d2); VX *= inv_len; VY *= inv_len; } }
+#define IM_FIXNORMAL2F(VX,VY)               { float d2 = VX*VX + VY*VY; if (d2 < 0.5f) d2 = 0.5f; float inv_lensq = 1.0f / d2; VX *= inv_lensq; VY *= inv_lensq; }
+
+#define GLFW_INCLUDE_GL3  /* don't drag in legacy GL headers. */
+#define GLFW_NO_GLU       /* don't drag in the old GLU lib - unless you must. */
+
+#include <GLFW/glfw3.h>
+
+#include <misc/metastring.h>
+#include <misc/GlobalSettings.h>
+
+#if GLFW_VERSION_MAJOR <= 3 && GLFW_VERSION_MINOR <= 2
+#define GLFW_HAVE_MONITOR_SCALE false
+#include <GLFW/glfw3native.h>
+#else
+#define GLFW_HAVE_MONITOR_SCALE true
+#endif
+
+namespace gui {
+#ifdef NDEBUG
+    class TextureCache;
+    std::set<ImTextureID> all_gpu_texture;
+#endif
+
+    class TextureCache : public CacheObject {
+        GETTER(TexturePtr, texture)
+        GETTER_NCONST(Size2, size)
+        GETTER_NCONST(Size2, gpu_size)
+        GETTER_PTR(IMGUIBase*, base)
+        GETTER_PTR(CrossPlatform*, platform)
+        GETTER_PTR(Drawable*, object)
+        GETTER_SETTER(uint32_t, channels)
+        
+        static std::unordered_map<const IMGUIBase*, std::set<std::shared_ptr<TextureCache>>> _all_textures;
+        static std::mutex _texture_mutex;
+        
+    public:
+        static std::shared_ptr<TextureCache> get(IMGUIBase* base) {
+            auto ptr = std::make_shared<TextureCache>();
+            ptr->set_base(base);
+            ptr->platform() = base->platform().get();
+            
+            std::lock_guard<std::mutex> guard(_texture_mutex);
+            _all_textures[base].insert(ptr);
+            
+            return ptr;
+        }
+        
+        static void remove_base(IMGUIBase* base) {
+            std::unique_lock<std::mutex> guard(_texture_mutex);
+            for(auto & tex : _all_textures[base]) {
+                tex->set_ptr(nullptr);
+                tex->set_base(nullptr);
+                tex->platform() = nullptr;
+            }
+            _all_textures.erase(base);
+        }
+        
+    public:
+        TextureCache()
+            : _texture(nullptr), _base(nullptr), _platform(nullptr), _object(nullptr), _channels(0)
+        {
+            
+        }
+        
+        TextureCache(TexturePtr&& ptr)
+            : _texture(std::move(ptr)), _base(nullptr), _platform(nullptr), _object(nullptr), _channels(0)
+        {
+            
+        }
+        
+    public:
+        void set_base(IMGUIBase* base) {
+            _base = base;
+        }
+        
+        void set_ptr(TexturePtr&& ptr) {
+            if(_texture) {
+                if(_platform) {
+                    assert(_base);
+                    _base->exec_main_queue([ptr = std::move(_texture), cache = this, base = _platform]() mutable
+                    {
+                        if(ptr) {
+#ifdef NDEBUG
+                            std::lock_guard<std::mutex> guard(_texture_mutex);
+                            auto it = all_gpu_texture.find(ptr->ptr);
+                            if(it != all_gpu_texture.end()) {
+                                all_gpu_texture.erase(it);
+                            } else
+                                Warning("Cannot find GPU texture of %X", cache);
+#endif
+                            base->clear_texture(std::move(ptr));
+                        }
+                    });
+                } else
+                    Except("Cannot clear texture because platform is gone.");
+            }
+            
+            _texture = std::move(ptr);
+            
+#ifdef NDEBUG
+            if(_texture) {
+                std::lock_guard<std::mutex> guard(_texture_mutex);
+                all_gpu_texture.insert(_texture->ptr);
+            }
+#endif
+        }
+        
+        static Size2 gpu_size_of(const ExternalImage* image) {
+            if(!image || !image->source())
+                return Size2();
+            return Size2(next_pow2((uint64_t)image->source()->bounds().width),
+                         next_pow2((uint64_t)image->source()->bounds().height));
+        }
+        
+        void update_with(const ExternalImage* image) {
+            auto image_size = image->source()->bounds().size();
+            auto image_channels = image->source()->dims;
+            auto gpusize = gpu_size_of(image);
+            //static size_t replacements = 0, adds = 0, created = 0;
+            if(!_texture) {
+                auto id = _platform->texture(image->source());
+                set_ptr(std::move(id));
+                _size = image_size;
+                _channels = image_channels;
+                //++created;
+                
+            } else if(gpusize.width > _texture->width
+                      || gpusize.height > _texture->height
+                      || gpusize.width < _texture->width/2
+                      || gpusize.height < _texture->height/2
+                      || channels() != image_channels)
+            {
+                auto id = _platform->texture(image->source());
+                set_ptr(std::move(id));
+                _size = image_size;
+                _channels = image_channels;
+                //++adds;
+                
+            } else if(changed()) {
+                _platform->update_texture(*_texture, image->source());
+                set_changed(false);
+                //++replacements;
+            }
+            
+            //if(replacements%100 == 0)
+            //    Debug("Replace: %lu, Add: %lu, Created: %lu", replacements, adds, created);
+        }
+        
+        void set_object(Drawable* o) {
+            auto pobj = _object;
+            if(pobj && pobj != o) {
+                _object = o;
+                pobj->remove_cache(_base);
+                if(o)
+                    Warning("Exchanging cache for object");
+            }
+        }
+        
+        ~TextureCache() {
+            set_ptr(nullptr);
+            
+            if(_base ) {
+                std::lock_guard<std::mutex> guard(_texture_mutex);
+                auto &tex = _all_textures[_base];
+                for(auto it=tex.begin(); it != tex.end(); ++it) {
+                    if(it->get() == this) {
+                        tex.erase(it);
+                        break;
+                    }
+                }
+            }
+        }
+    };
+
+    std::unordered_map<const IMGUIBase*, std::set<std::shared_ptr<TextureCache>>> TextureCache::_all_textures;
+    std::mutex TextureCache::_texture_mutex;
+
+    constexpr Codes glfw_key_map[GLFW_KEY_LAST + 1] {
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        
+        Codes::Space,
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        Codes::Unknown, // apostroph (39)
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        Codes::Comma, // 44
+        Codes::Subtract,
+        Codes::Period,
+        Codes::Slash,
+        Codes::Num0, Codes::Num1, Codes::Num2, Codes::Num3, Codes::Num4, Codes::Num5, Codes::Num6, Codes::Num7, Codes::Num8, Codes::Num9,
+        Codes::Unknown,
+        Codes::SemiColon, //(69),
+        Codes::Unknown,
+        Codes::Equal, // (61)
+        Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        Codes::A, Codes::B, Codes::C, Codes::D, Codes::E, Codes::F, Codes::G, Codes::H, Codes::I, Codes::J, Codes::K, Codes::L, Codes::M, Codes::N, Codes::O, Codes::P, Codes::Q, Codes::R, Codes::S, Codes::T, Codes::U, Codes::V, Codes::W, Codes::X, Codes::Z, Codes::Y,
+        Codes::LBracket,
+        Codes::BackSlash,
+        Codes::RBracket, // (93)
+        Codes::Unknown, Codes::Unknown,
+        Codes::Unknown, // (grave accent, 96)
+        
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        
+        Codes::Unknown, // world 1 (161)
+        Codes::Unknown, // world 2 (162)
+        
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, // 255
+        
+        Codes::Escape,
+        Codes::Return,
+        Codes::Tab,
+        Codes::BackSpace,
+        Codes::Insert,
+        Codes::Delete,
+        Codes::Right,
+        Codes::Left,
+        Codes::Down,
+        Codes::Up,
+        Codes::PageUp,
+        Codes::PageDown,
+        Codes::Home,
+        Codes::End, // 269
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        Codes::Unknown, // capslock (280)
+        Codes::Unknown, // scroll lock (281)
+        Codes::Unknown, // num_lock (282)
+        Codes::Unknown, // print screen (283)
+        Codes::Pause, // 284
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, 
+        // 290
+        Codes::F1, Codes::F2, Codes::F3, Codes::F4, Codes::F5, Codes::F6, Codes::F7, Codes::F8, Codes::F9, Codes::F10, Codes::F11, Codes::F12, Codes::F13, Codes::F14, Codes::F15, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, // 314
+        
+        Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        
+        Codes::Numpad0, Codes::Numpad1, Codes::Numpad2, Codes::Numpad3, Codes::Numpad4, Codes::Numpad5, Codes::Numpad6, Codes::Numpad7, Codes::Numpad8, Codes::Numpad9, // 329
+        
+        // numpad
+        Codes::Comma,
+        Codes::Divide,
+        Codes::Multiply,
+        Codes::Subtract,
+        Codes::Add,
+        Codes::Return,
+        Codes::Equal, // 336
+        
+        Codes::Unknown, Codes::Unknown, Codes::Unknown,
+        
+        Codes::LShift, // 340
+        Codes::LControl,
+        Codes::LAlt,
+        Codes::LSystem,
+        Codes::RShift,
+        Codes::RControl,
+        Codes::RAlt,
+        Codes::RSystem,
+        Codes::Menu // 348
+    };
+
+    /*struct CachedFont {
+        ImFont *ptr;
+        float base_size;
+        float line_spacing;
+    };*/
+
+    std::unordered_map<uint32_t, ImFont*> _fonts;
+    float im_font_scale = 2;
+
+    std::unordered_map<GLFWwindow*, IMGUIBase*> base_pointers;
+
+    ImU32 cvtClr(const gui::Color& clr) {
+        return ImColor(clr.r, clr.g, clr.b, clr.a);
+    }
+
+    void IMGUIBase::init(const std::string& title) {
+        _platform->init();
+        
+        GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+        
+        float xscale, yscale;
+#if GLFW_HAVE_MONITOR_SCALE
+        glfwGetMonitorContentScale(monitor, &xscale, &yscale);
+#else
+        xscale = yscale = 1;
+#endif
+        
+        int width = _graph->width(), height = _graph->height();
+        int mx, my, mw, mh;
+#if GLFW_HAVE_MONITOR_SCALE
+        glfwGetMonitorWorkarea(monitor, &mx, &my, &mw, &mh);
+#else
+        mx = my = 0;
+        glfwGetMonitorPhysicalSize(monitor, &mw, &mh);
+#endif
+        mw -= mx;
+        mh -= my;
+        
+#if WIN32
+        my += mh * 0.04;
+        mh *= 0.95; //! title bar
+#endif
+        
+        _work_area = Bounds(mx, my, mw, mh);
+        
+        if(width / float(mw) >= height / float(mh)) {
+            if(width > mw) {
+                float ratio = float(width) / float(height);
+                width = mw;
+                height = width * ratio;
+            }
+        } else {
+            if(height > mh) {
+                float ratio = float(width) / float(height);
+                height = mh;
+                width = ratio * height;
+            }
+        }
+        
+        _platform->create_window(width, height);
+        glfwSetWindowPos(_platform->window_handle(), mx + (mw - width) * 0.5, my + (mh - height) * 0.5);
+        
+        glfwSetDropCallback(_platform->window_handle(), [](GLFWwindow* window, int N, const char** texts){
+            std::vector<file::Path> _paths;
+            for(int i=0; i<N; ++i)
+                _paths.push_back(texts[i]);
+            if(base_pointers.count(window)) {
+                if(base_pointers[window]->_open_files_fn) {
+                    base_pointers[window]->_open_files_fn(_paths);
+                }
+            }
+        });
+        _platform->set_open_files_fn([this](auto& files) -> bool {
+            if(_open_files_fn)
+                return _open_files_fn(files);
+            return false;
+        });
+        
+        file::Path path("fonts/Quicksand-");
+        if (!path.add_extension("ttf").exists())
+            U_EXCEPTION("Cannot find file '%S'", &path.str());
+        
+        auto io = ImGui::GetIO();
+        //io.FontAllowUserScaling = true;
+        //io.WantCaptureMouse = false;
+        //io.WantCaptureKeyboard = false;
+        
+        int fw, fh;
+        glfwGetFramebufferSize(_platform->window_handle(), &fw, &fh);
+        _last_framebuffer_size = Size2(fw, fh);
+        
+        const float base_scale = 32;
+        float dpi_scale = max(float(fw) / float(width), float(fh) / float(height));
+        im_font_scale = max(1, dpi_scale) * 0.75;
+        _dpi_scale = dpi_scale;
+        
+        ImFontConfig config;
+        config.OversampleH = 3;
+        config.OversampleV = 1;
+        
+        auto load_font = [&](int no, std::string suffix) {
+            config.FontNo = no;
+            if(no > 0)
+                config.MergeMode = false;
+            
+            auto full = path.str() + suffix + ".ttf";
+            auto ptr = io.Fonts->AddFontFromFileTTF(full.c_str(), base_scale * im_font_scale, &config);
+            if(!ptr)
+                U_EXCEPTION("Cannot load font '%S' with index %d.", &path.str(), config.FontNo);
+            ptr->FontSize = base_scale * im_font_scale;
+            
+            return ptr;
+        };
+        
+        _fonts[Style::Regular] = load_font(0, "");
+        _fonts[Style::Italic] = load_font(0, "i");
+        _fonts[Style::Bold] = load_font(0, "b");
+        _fonts[Style::Bold | Style::Italic] = load_font(0, "bi");
+        
+        //io.DisplayFramebufferScale = ImVec2(0.5, 0.5);
+        Debug("im_font_scale = %f", im_font_scale);
+        
+        _platform->post_init();
+        _platform->set_title(title);
+        
+        base_pointers[_platform->window_handle()] = this;
+        
+        glfwSetKeyCallback(_platform->window_handle(), [](GLFWwindow* window, int key, int scancode, int action, int mods) {
+            auto base = base_pointers.at(window);
+            
+            Event e(EventType::KEY);
+            e.key.pressed = action == GLFW_PRESS || action == GLFW_REPEAT;
+            assert(key <= GLFW_KEY_LAST);
+            e.key.code = glfw_key_map[key];
+            e.key.shift = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS;
+            
+            base->event(e);
+            base->_graph->set_dirty(NULL);
+        });
+        glfwSetCursorPosCallback(_platform->window_handle(), [](GLFWwindow* window, double xpos, double ypos) {
+            Event e(EventType::MMOVE);
+            auto &io = ImGui::GetIO();
+            e.move.x = xpos * io.DisplayFramebufferScale.x;
+            e.move.y = ypos * io.DisplayFramebufferScale.y;
+            
+            auto base = base_pointers.at(window);
+            base->event(e);
+            
+            base->_graph->set_dirty(NULL);
+            /**/
+        });
+        glfwSetMouseButtonCallback(_platform->window_handle(), [](GLFWwindow* window, int button, int action, int mods) {
+            if(button != GLFW_MOUSE_BUTTON_LEFT && button != GLFW_MOUSE_BUTTON_RIGHT)
+                return;
+            
+            Event e(EventType::MBUTTON);
+            e.mbutton.pressed = action == GLFW_PRESS;
+            
+            double xpos, ypos;
+            glfwGetCursorPos(window, &xpos, &ypos);
+            auto &io = ImGui::GetIO();
+            e.mbutton.x = xpos * io.DisplayFramebufferScale.x;
+            e.mbutton.y = ypos * io.DisplayFramebufferScale.y;
+            e.mbutton.button = GLFW_MOUSE_BUTTON_RIGHT == button ? 1 : 0;
+            
+            auto base = base_pointers.at(window);
+            base->event(e);
+            base->_graph->set_dirty(NULL);
+        });
+        glfwSetScrollCallback(_platform->window_handle(), [](GLFWwindow* window, double xoff, double yoff) {
+            Event e(EventType::SCROLL);
+            e.scroll.delta = yoff;
+            
+            auto base = base_pointers.at(window);
+            base->event(e);
+            base->_graph->set_dirty(NULL);
+        });
+        glfwSetCharCallback(_platform->window_handle(), [](GLFWwindow* window, unsigned int c) {
+            Event e(EventType::TEXT_ENTERED);
+            e.text.c = c;
+            
+            auto base = base_pointers.at(window);
+            base->event(e);
+            base->_graph->set_dirty(NULL);
+        });
+        glfwSetWindowSizeCallback(_platform->window_handle(), [](GLFWwindow* window, int width, int height)
+        {
+            auto base = base_pointers.at(window);
+/*#ifndef WIN32
+            Size2 frame_size = base->window_dimensions();
+            width = frame_size.width;
+            height = frame_size.height;
+
+			if (!frame_size.empty()) 
+#endif*/
+			{
+				Event e(EventType::WINDOW_RESIZED);
+				e.size.width = width * base->dpi_scale();
+				e.size.height = height * base->dpi_scale();
+
+				base->event(e);
+			}
+            base->_graph->set_dirty(NULL);
+        });
+    }
+
+    IMGUIBase::~IMGUIBase() {
+        while(!_exec_main_queue.empty()) {
+            (*_exec_main_queue.front())();
+            _exec_main_queue.pop();
+        }
+        
+        TextureCache::remove_base(this);
+        
+        while(!_exec_main_queue.empty()) {
+            (*_exec_main_queue.front())();
+            _exec_main_queue.pop();
+        }
+        
+        base_pointers.erase(_platform->window_handle());
+    }
+
+    float IMGUIBase::dpi_scale() {
+        return _dpi_scale;
+    }
+
+    void IMGUIBase::set_background_color(const Color& color) {
+        if(_platform)
+            _platform->set_clear_color(color);
+    }
+
+    void IMGUIBase::event(const gui::Event &e) {
+        if(_graph->event(e) && e.type != EventType::MMOVE)
+            return;
+        
+        try {
+            _event_fn(e);
+        } catch(const std::invalid_argument& e) { }
+    }
+
+    void IMGUIBase::loop() {
+        _platform->loop(_custom_loop);
+    }
+
+    LoopStatus IMGUIBase::update_loop() {
+        {
+            std::unique_lock<std::mutex> guard(_mutex);
+            while (!_exec_main_queue.empty()) {
+                auto fn = std::move(_exec_main_queue.front());
+                
+                guard.unlock();
+                (*fn)();
+                guard.lock();
+                _exec_main_queue.pop();
+            }
+        }
+        
+        return _platform->update_loop();
+    }
+
+    void IMGUIBase::set_frame_recording(bool v) {
+        _frame_recording = v;
+        if(v) {
+            _platform->set_frame_capture_enabled(true);
+        } else if(_platform->frame_capture_enabled())
+            _platform->set_frame_capture_enabled(false);
+    }
+
+    Image::Ptr IMGUIBase::current_frame_buffer() {
+        return _platform->current_frame_buffer();
+    }
+
+    void IMGUIBase::paint(DrawStructure& s) {
+        int fw, fh;
+        auto window = _platform->window_handle();
+        glfwGetFramebufferSize(window, &fw, &fh);
+        if(fw > 0 && fh > 0 && fw != _last_framebuffer_size.width && fh != _last_framebuffer_size.height)
+        {
+#ifndef NDEBUG
+            Debug("Changed framebuffer size to %dx%d", fw, fh);
+#endif
+            _last_framebuffer_size = Size2(fw, fh);
+        }
+        
+        std::unique_lock<std::recursive_mutex> lock(s.lock());
+        auto objects = s.collect();
+        _objects_drawn = 0;
+        _skipped = 0;
+        _type_counts.clear();
+        _draw_order.clear();
+        
+        for (size_t i=0; i<objects.size(); i++) {
+            auto o =  objects[i];
+            redraw(o, _draw_order);
+        }
+        
+        std::sort(_draw_order.begin(), _draw_order.end(), [](const auto& A, const auto& B) {
+            return A.ptr->z_index() < B.ptr->z_index() || (A.ptr->z_index() == B.ptr->z_index() && A.index < B.index);
+        });
+        
+        //Debug("----");
+        for(auto & order : _draw_order) {
+            //Debug("Drawing %lu (%d) (%s)", order.index, order.ptr->z_index(), order.ptr->type().name());
+            draw_element(order);
+        }
+        
+#ifndef NDEBUG
+        if(_last_debug_print.elapsed() > 60) {
+            auto str = Meta::toStr(_type_counts);
+            Debug("%d drawn, %d skipped, types: %S", _objects_drawn, _skipped, &str);
+            _last_debug_print.reset();
+        }
+#endif
+    }
+
+bool LineSegementsIntersect(const Vec2& p, const Vec2& p2, const Vec2& q, const Vec2& q2, Vec2& intersection)
+{
+    constexpr bool considerCollinearOverlapAsIntersect = false;
+    
+    auto r = p2 - p;
+    auto s = q2 - q;
+    auto rxs = cross(r, s);
+    auto qpxr = cross(q - p, r);
+    
+    // If r x s = 0 and (q - p) x r = 0, then the two lines are collinear.
+    if (rxs == 0 && qpxr == 0)
+    {
+        // 1. If either  0 <= (q - p) * r <= r * r or 0 <= (p - q) * s <= * s
+        // then the two lines are overlapping,
+        if constexpr (considerCollinearOverlapAsIntersect)
+            if ((0 <= (q - p).dot(r) && (q - p).dot(r) <= r.dot(r)) || (0 <= (p - q).dot(s) && (p - q).dot(s) <= s.dot(s)))
+                return true;
+        
+        // 2. If neither 0 <= (q - p) * r = r * r nor 0 <= (p - q) * s <= s * s
+        // then the two lines are collinear but disjoint.
+        // No need to implement this expression, as it follows from the expression above.
+        return false;
+    }
+    
+    // 3. If r x s = 0 and (q - p) x r != 0, then the two lines are parallel and non-intersecting.
+    if (rxs == 0 && qpxr != 0)
+        return false;
+    
+    // t = (q - p) x s / (r x s)
+    auto t = cross(q - p,s)/rxs;
+    
+    // u = (q - p) x r / (r x s)
+    
+    auto u = cross(q - p, r)/rxs;
+    
+    // 4. If r x s != 0 and 0 <= t <= 1 and 0 <= u <= 1
+    // the two line segments meet at the point p + t r = q + u s.
+    if (rxs != 0 && (0 <= t && t < 1) && (0 <= u && u < 1))
+    {
+        // We can calculate the intersection point using either t or u.
+        intersection = p + t*r;
+        
+        // An intersection was found.
+        return true;
+    }
+    
+    // 5. Otherwise, the two line segments are not parallel but do not intersect.
+    return false;
+}
+
+/**
+ Source: https://github.com/ocornut/imgui/issues/760
+ */
+void PolyFillScanFlood(ImDrawList *draw, std::vector<ImVec2> *poly, ImColor color, int gap = 1, int strokeWidth = 1) {
+    using namespace std;
+
+    vector<ImVec2> scanHits;
+    static ImVec2 min, max; // polygon min/max points
+    auto &io = ImGui::GetIO();
+    bool isMinMaxDone = false;
+    unsigned int polysize = poly->size();
+
+    // find the orthagonal bounding box
+    // probably can put this as a predefined
+    if (!isMinMaxDone) {
+        min.x = min.y = DBL_MAX;
+        max.x = max.y = DBL_MIN;
+        for (auto p : *poly) {
+            if (p.x < min.x) min.x = p.x;
+            if (p.y < min.y) min.y = p.y;
+            if (p.x > max.x) max.x = p.x;
+            if (p.y > max.y) max.y = p.y;
+        }
+        isMinMaxDone = true;
+    }
+    
+    /*struct Edge {
+        int yMin;
+        int yMax;
+        float xHit;
+        float mInv;
+        
+        Edge() {}
+        
+        Edge(int yMin, int yMax, float xHit, float mInv)
+            : yMin(yMin), yMax(yMax), xHit(xHit), mInv(mInv)
+        {}
+        
+        bool operator<(const Edge& other) const {
+            return yMin < other.yMin || (yMin == other.yMin && xHit < other.xHit);
+        }
+    };
+    std::vector<Edge> segments;
+    segments.reserve(poly->size());
+    
+    for (size_t i=0; i<poly->size(); ++i) {
+        auto prev = i ? (i - 1) : (poly->size()-1);
+        
+        auto &A = (*poly)[prev];
+        auto &B = (*poly)[i];
+        
+        if(Vec2(A) == Vec2(B))
+            continue;
+        
+        if(cmn::min(A.x, B.x) > io.DisplaySize.x)
+            continue;
+        
+        if(cmn::max(A.x, B.x) < 0)
+            continue;
+        
+        if(A.y <= B.y) {
+            if(B.y < 0 || A.y > io.DisplaySize.y)
+                continue;
+            else
+                segments.emplace_back(A.y, B.y, A.x, (B.x - A.x) / (B.y - A.y));
+        } else {
+            if(A.y < 0 || B.y > io.DisplaySize.y)
+                continue;
+            else
+                segments.emplace_back(B.y, A.y, B.x, (A.x - B.x) / (A.y - B.y));
+        }
+    }
+    
+    std::sort(segments.begin(), segments.end());*/
+    
+    // Vertically clip
+    if (min.y < 0) min.y                = 0;
+    if (max.y > io.DisplaySize.y) max.y = io.DisplaySize.y;
+    
+    // traverse all y-coordinates
+    /*std::vector<Vec2> intersections;
+    int y = min.y;
+    std::vector<Edge> AET;
+    
+    while (!segments.empty()) {
+        AET.clear();
+        
+        for(auto it = segments.begin(); it != segments.end(); ) {
+            if(it->yMin == y) {
+                AET.push_back(*it);
+            }
+            
+            if(it->yMax == y)
+                it = segments.erase(it);
+            else ++it;
+        }
+        
+        std::sort(AET.begin(), AET.end(), [](const Edge&A, const Edge&B){
+            return A.xHit < B.xHit;
+        });
+        
+        bool parity = false;
+        float x;
+        for(auto &edge : AET) {
+            if(parity) {
+                //Debug("Line %f,%d - %f,%d", x,y, edge.xHit, y);
+                draw->AddLine(Vec2(x,y), Vec2(edge.xHit, y), color, strokeWidth);
+            } else {
+                x = edge.xHit;
+            }
+            parity = !parity;
+        }
+        
+        for(auto &edge : segments) {
+            if(!std::isinf(edge.mInv))
+                edge.xHit = edge.xHit + edge.mInv;
+        }
+        
+        ++y;
+    }
+    
+    return;*/
+
+    // Bounds check
+    if ((max.x < 0) || (min.x > io.DisplaySize.x) || (max.y < 0) || (min.y > io.DisplaySize.y)) return;
+
+
+    // so we know we start on the outside of the object we step out by 1.
+    min.x -= 1;
+    max.x += 1;
+
+    // Initialise our starting conditions
+    int y = min.y;
+
+    // Go through each scan line iteratively, jumping by 'gap' pixels each time
+    while (y < max.y) {
+
+        scanHits.resize(0);
+
+        {
+            int jump = 1;
+            ImVec2 fp = poly->at(0);
+
+            for (size_t i = 0; i < polysize - 1; i++) {
+                ImVec2 pa = poly->at(i);
+                ImVec2 pb = poly->at(i+1);
+
+                // jump double/dud points
+                if (pa.x == pb.x && pa.y == pb.y) continue;
+
+                // if we encounter our hull/poly start point, then we've now created the
+                // closed
+                // hull, jump the next segment and reset the first-point
+                if ((!jump) && (fp.x == pb.x) && (fp.y == pb.y)) {
+                    if (i < polysize - 2) {
+                        fp   = poly->at(i + 2);
+                        jump = 1;
+                        i++;
+                    }
+                } else {
+                    jump = 0;
+                }
+
+                // test to see if this segment makes the scan-cut.
+                if ((pa.y > pb.y && y < pa.y && y > pb.y) || (pa.y < pb.y && y > pa.y && y < pb.y)) {
+                    ImVec2 intersect;
+
+                    intersect.y = y;
+                    if (pa.x == pb.x) {
+                        intersect.x = pa.x;
+                    } else {
+                        intersect.x = (pb.x - pa.x) / (pb.y - pa.y) * (y - pa.y) + pa.x;
+                    }
+                    scanHits.push_back(intersect);
+                }
+            }
+
+            // Sort the scan hits by X, so we have a proper left->right ordering
+            sort(scanHits.begin(), scanHits.end(), [](ImVec2 const &a, ImVec2 const &b) { return a.x < b.x; });
+
+            // generate the line segments.
+            {
+                int i = 0;
+                int l = scanHits.size() - 1; // we need pairs of points, this prevents segfault.
+                for (i = 0; i < l; i += 2) {
+                    draw->AddLine(scanHits[i], scanHits[i + 1], color, strokeWidth);
+                }
+            }
+        }
+        y += gap;
+    } // for each scan line
+    scanHits.clear();
+}
+
+void IMGUIBase::draw_element(const DrawOrder& order) {
+    
+    auto list = ImGui::GetForegroundDrawList();
+    if(order.is_pop) {
+        if(list->_ClipRectStack.size() > 1) {
+            //Debug("Popped cliprect %.0f,%.0f", list->_ClipRectStack.back().x, list->_ClipRectStack.back().y);
+            list->PopClipRect();
+        } else
+            Warning("Cannot pop too many rects.");
+        return;
+    }
+    
+    auto o = order.ptr;
+    if(!o->visible())
+        return;
+    
+    ++_objects_drawn;
+    auto cache = o->cached(this);
+    
+    switch (o->type()) {
+        case Type::CIRCLE: {
+            auto ptr = static_cast<Circle*>(o);
+            
+            double e = 0.25;
+            double r = max(1, order.bounds.width * 0.5);
+            auto th = acos(2 * SQR(1 - e / r) - 1);
+            size_t num_segments = ceil(2*M_PI/th);
+            
+            if(num_segments <= 1)
+                break;
+            
+            auto centre = ImVec2(order.bounds.x + o->origin().x * order.bounds.width, order.bounds.y + o->origin().y * order.bounds.height);
+            const float a_max = M_PI*2.0f * ((float)num_segments - 1.0f) / (float)num_segments;
+            list->PathArcTo(centre, r, 0.0f, a_max, (int)num_segments - 1);
+            
+            if(ptr->fillclr() != Transparent) {
+                list->AddConvexPolyFilled(list->_Path.Data, list->_Path.Size, (ImColor)ptr->fillclr());
+                //list->AddCircleFilled(centre, ptr->radius(), cvtClr(ptr->fillclr()), num_segments);
+            }
+            if(ptr->color() != Transparent) {
+                list->AddPolyline(list->_Path.Data, list->_Path.Size, (ImColor)ptr->color(), true, 1);
+                //list->AddCircle(ImVec2(ptr->pos().x, ptr->pos().y), ptr->radius(), cvtClr(ptr->color()), num_segments);
+            }
+            
+            list->_Path.Size = 0;
+            
+            break;
+        }
+            
+        case Type::POLYGON: {
+            auto ptr = static_cast<Polygon*>(o);
+            static std::vector<ImVec2> points;
+            if(ptr->relative()) {
+                points.clear();
+                for(auto &pt : *ptr->relative()) {
+                    points.push_back(order.transform.transformPoint(pt));
+                }
+                
+                if(points.size() >= 3) {
+                    points.push_back(points.front());
+                    PolyFillScanFlood(list, &points, ptr->fill_clr());
+                }
+                
+                //list->AddConvexPolyFilled(points.data(), points.size(), (ImColor)ptr->fill_clr());
+                if(ptr->border_clr() != Transparent)
+                    list->AddPolyline(points.data(), points.size(), (ImColor)ptr->border_clr(), true, 1);
+            }
+            
+            break;
+        }
+            
+        case Type::TEXT: {
+            auto ptr = static_cast<Text*>(o);
+            
+            if(ptr->txt().empty())
+                break;
+            
+            //list->PushClipRect(ImVec2(bounds.x, bounds.y), ImVec2(bounds.width + bounds.x, bounds.height + bounds.y), false);
+            //list->AddRectFilled(ImVec2(bounds.x, bounds.y), ImVec2(bounds.width + bounds.x, bounds.height + bounds.y), cvtClr(Red.alpha(125)));
+
+            auto &io = ImGui::GetIO();
+            auto font = _fonts.at(ptr->font().style);
+            list->AddText(font, ptr->global_text_scale().x * font->FontSize * (ptr->font().size / im_font_scale / io.DisplayFramebufferScale.x), ImVec2(order.bounds.x, order.bounds.y), (ImColor)ptr->color(), ptr->txt().c_str());
+            
+            //list->PopClipRect();
+            break;
+        }
+            
+        case Type::ENTANGLED: {
+            list->PushClipRect(ImVec2(order.bounds.x, order.bounds.y), ImVec2(order.bounds.width + order.bounds.x, order.bounds.height + order.bounds.y), false);
+            
+            //Debug("Pushing cliprect of %.0f,%.0f", list->_ClipRectStack.back().x, list->_ClipRectStack.back().y);
+            break;
+        }
+            
+        case Type::IMAGE: {
+            if(!cache) {
+                auto tex_cache = TextureCache::get(this);
+                cache = tex_cache;
+                o->insert_cache(this, cache);
+                
+                //tex_cache->platform() = _platform.get();
+                //tex_cache->set_base(this);
+                tex_cache->set_object(o);
+                
+                //_all_textures[this].insert(tex_cache);
+            }
+            
+            auto image_size = static_cast<ExternalImage*>(o)->source()->bounds().size();
+            if(image_size.empty())
+                break;
+            
+            auto tex_cache = (TextureCache*)cache.get();
+            tex_cache->update_with(static_cast<ExternalImage*>(o));
+            
+            ImU32 col = IM_COL32_WHITE;
+            uchar a = static_cast<ExternalImage*>(o)->color().a;
+            if(a > 0 && static_cast<ExternalImage*>(o)->color() != White)
+                col = (ImColor)static_cast<ExternalImage*>(o)->color();
+            
+            list->AddImage(tex_cache->texture()->ptr, ImVec2(order.bounds.x, order.bounds.y), ImVec2(order.bounds.x + order.bounds.width, order.bounds.y + order.bounds.height), ImVec2(0, 0), ImVec2(tex_cache->texture()->image_width / float(tex_cache->texture()->width), tex_cache->texture()->image_height / float(tex_cache->texture()->height)), col);
+            break;
+        }
+            
+        case Type::RECT: {
+            auto ptr = static_cast<Rect*>(o);
+            auto &rect = order.bounds;
+            
+            if(rect.size().empty())
+                break;
+            
+            if(ptr->fillclr().a > 0)
+                list->AddRectFilled(ImVec2(rect.pos().x, rect.pos().y), ImVec2(rect.size().width + rect.pos().x, rect.size().height + rect.pos().y), cvtClr(ptr->fillclr()));
+            
+            if(ptr->lineclr().a > 0)
+                list->AddRect(ImVec2(rect.pos().x, rect.pos().y), ImVec2(rect.size().width + rect.pos().x, rect.size().height + rect.pos().y), cvtClr(ptr->lineclr()));
+            
+            break;
+        }
+            
+        case Type::VERTICES: {
+            auto ptr = static_cast<Vertices*>(o);
+            
+            // Non Anti-aliased Stroke
+            auto &points = ptr->points();
+            int points_count = (int)points.size();
+            int count = points_count - 1;
+            
+            if(points_count <= 1)
+                break;
+            
+            float thickness = ptr->thickness();
+            const ImVec2 uv = list->_Data->TexUvWhitePixel;
+            
+            const int idx_count = count*6;
+            const int vtx_count = count*4;      // FIXME-OPT: Not sharing edges
+            list->PrimReserve(idx_count, vtx_count);
+            assert(idx_count > 0 && vtx_count > 0);
+            
+            //Transform transform;
+            //transform.scale(_graph->scale());
+            //transform.combine(o->global_transform());
+            //auto transform = o->global_transform();
+
+            for (int i1 = 0; i1 < count; i1++)
+            {
+                const int i2 = (i1+1) == points_count ? 0 : i1+1;
+                auto p1 = order.transform.transformPoint(points[i1].position());
+                auto p2 = order.transform.transformPoint(points[i2].position());
+                
+                //const auto& p1 = points[i1].position();
+                //const auto& p2 = points[i2].position();
+                auto col = cvtClr(points[i1].color());
+
+                float dx = p2.x - p1.x;
+                float dy = p2.y - p1.y;
+                
+                
+                IM_NORMALIZE2F_OVER_ZERO(dx, dy);
+                dx *= (thickness * 0.5f);
+                dy *= (thickness * 0.5f);
+
+                list->_VtxWritePtr[0].pos.x = p1.x + dy; list->_VtxWritePtr[0].pos.y = p1.y - dx; list->_VtxWritePtr[0].uv = uv; list->_VtxWritePtr[0].col = col;
+                list->_VtxWritePtr[1].pos.x = p2.x + dy; list->_VtxWritePtr[1].pos.y = p2.y - dx; list->_VtxWritePtr[1].uv = uv; list->_VtxWritePtr[1].col = col;
+                list->_VtxWritePtr[2].pos.x = p2.x - dy; list->_VtxWritePtr[2].pos.y = p2.y + dx; list->_VtxWritePtr[2].uv = uv; list->_VtxWritePtr[2].col = col;
+                list->_VtxWritePtr[3].pos.x = p1.x - dy; list->_VtxWritePtr[3].pos.y = p1.y + dx; list->_VtxWritePtr[3].uv = uv; list->_VtxWritePtr[3].col = col;
+                list->_VtxWritePtr += 4;
+
+                list->_IdxWritePtr[0] = (ImDrawIdx)(list->_VtxCurrentIdx); list->_IdxWritePtr[1] = (ImDrawIdx)(list->_VtxCurrentIdx+1); list->_IdxWritePtr[2] = (ImDrawIdx)(list->_VtxCurrentIdx+2);
+                list->_IdxWritePtr[3] = (ImDrawIdx)(list->_VtxCurrentIdx); list->_IdxWritePtr[4] = (ImDrawIdx)(list->_VtxCurrentIdx+2); list->_IdxWritePtr[5] = (ImDrawIdx)(list->_VtxCurrentIdx+3);
+                list->_IdxWritePtr += 6;
+                list->_VtxCurrentIdx += 4;
+            }
+            
+            list->_Path.Size = 0;
+            
+            break;
+        }
+            
+        default:
+            break;
+    }
+    
+    if(!list->CmdBuffer.empty()) {
+        if(list->CmdBuffer.back().ElemCount == 0) {
+            (void)list->CmdBuffer;
+            ///Debug("Empty cmd buffer.");
+        }
+    }
+}
+
+    void IMGUIBase::redraw(Drawable *o, std::vector<DrawOrder>& draw_order, bool is_background) {
+        static auto entangled_will_texture = [](Entangled* e) {
+            assert(e);
+            if(e->scroll_enabled() && e->size().max() > 0) {
+                return true;
+            }
+            
+            return false;
+        };
+        
+        if(o->type() == Type::SINGLETON)
+            o = static_cast<SingletonObject*>(o)->ptr();
+        o->set_visible(false);
+        
+        auto &io = ImGui::GetIO();
+        Vec2 scale = (_graph->scale() / gui::interface_scale()) .div(Vec2(io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y));
+        Transform transform;
+        transform.scale(scale);
+        
+        if(is_background && o->parent() && o->parent()->type() == Type::ENTANGLED)
+        {
+            auto p = o->parent();
+            if(p)
+                transform.combine(p->global_transform());
+            
+        } else {
+            transform.combine(o->global_transform());
+        }
+        
+        auto bounds = transform.transformRect(Bounds(0, 0, o->width(), o->height()));
+        
+        if(o->type() == Type::ENTANGLED) {
+            auto bg = static_cast<Entangled*>(o)->background();
+            if(bg) {
+                redraw(bg, draw_order, true);
+            }
+        }
+        
+        //bool skip = false;
+        auto cache = o->cached(this);
+        auto dim = window_dimensions() / dpi_scale();
+        
+        if(!Bounds(0, 0, dim.width-0, dim.height-0).overlaps(bounds)) {
+            ++_skipped;
+            return;
+        }
+        
+        o->set_visible(true);
+        ++_type_counts[o->type()];
+        
+        switch (o->type()) {
+            case Type::ENTANGLED: {
+                auto ptr = static_cast<Entangled*>(o);
+                if(entangled_will_texture(ptr)) {
+                    draw_order.emplace_back(false, draw_order.size(), o, transform, bounds);
+                    
+                    for(auto c : ptr->children()) {
+                        if(ptr->scroll_enabled()) {
+                            auto b = c->local_bounds();
+                            
+                            //! Skip drawables that are outside the view
+                            //  TODO: What happens to Drawables that dont have width/height?
+                            float x = b.x;
+                            float y = b.y;
+                            
+                            if(y < -b.height || y > ptr->height()
+                               || x < -b.width || x > ptr->width())
+                            {
+                                continue;
+                            }
+                        }
+                        
+                        redraw(c, draw_order);
+                    }
+                    
+                    draw_order.emplace_back(true, draw_order.size(), ptr, transform, bounds);
+                    
+                } else {
+                    for(auto c : ptr->children())
+                        redraw(c, draw_order);
+                }
+                
+                break;
+            }
+                
+            default:
+                draw_order.emplace_back(false, draw_order.size(), o, transform, bounds);
+                break;
+        }
+    }
+
+    Bounds IMGUIBase::text_bounds(const std::string& text, Drawable* obj, const Font& font) {
+        /*Vec2 scale(1, 1);
+        
+        if(obj) {
+            try {
+                //scale = obj->global_text_scale();
+                //text.setScale(gscale.reciprocal());
+                //text.setCharacterSize(font.size * gscale.x * 25);
+                //font_size = font.size * gscale.x * font_size;
+                
+            } catch(const UtilsException& ex) {
+                Warning("Not initialising scale of (probably StaticText) fully because of a UtilsException.");
+                //text.setCharacterSize(font.size * 25);
+                //text.setScale(1, 1);
+            }
+            
+        } else {
+            //text.setCharacterSize(font.size * 25);
+            //text.setScale(1, 1);
+        }*/
+        
+        if(_fonts.empty()) {
+            Warning("Trying to retrieve text_bounds before fonts are available.");
+            return gui::Base::text_bounds(text, obj, font);
+        }
+        
+        auto imfont = _fonts.at(font.style);
+        ImVec2 size = imfont->CalcTextSizeA(imfont->FontSize * font.size / im_font_scale, FLT_MAX, -1.0f, text.c_str(), text.c_str() + text.length(), NULL);
+        // Round
+        //size.x = max(0, (float)(int)(size.x - 0.95f));
+        size.y = line_spacing(font);
+        //Debug("font.size = %f, FontSize = %f, im_font_scale = %f, size = (%f, %f) '%S'", font.size, im_font->FontSize, im_font_scale, size.x, size.y, &text);
+        //return text_size;
+        //auto size = ImGui::CalcTextSize(text.c_str());
+        return Bounds(0, 0, size.x, size.y);
+    }
+
+    uint32_t IMGUIBase::line_spacing(const Font& font) {
+        //Debug("font.size = %f, FontSize = %f, im_font_scale = %f", font.size, im_font->FontSize, im_font_scale);
+        if(_fonts.empty()) {
+            Warning("Trying to get line_spacing without a font loaded.");
+            return Base::line_spacing(font);
+        }
+        return font.size * _fonts.at(font.style)->FontSize / im_font_scale;
+    }
+
+    void IMGUIBase::set_title(std::string title) {
+        exec_main_queue([this, title](){
+            if(_platform)
+                _platform->set_title(title);
+        });
+    }
+
+    Size2 IMGUIBase::window_dimensions() {
+        //auto window = _platform->window_handle();
+        //int width, height;
+        //glfwGetWindowSize(window, &width, &height);
+        
+        
+        //glfwGetFramebufferSize(window, &width, &height);
+        //Size2 size(width, height);
+        
+        return _last_framebuffer_size;
+    }
+}

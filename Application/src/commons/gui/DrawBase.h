@@ -1,0 +1,74 @@
+#ifndef _DRAW_BASE_H
+#define _DRAW_BASE_H
+
+#include <types.h>
+
+#include <gui/GuiTypes.h>
+#include <gui/DrawStructure.h>
+#include <misc/Image.h>
+
+namespace gui {
+    typedef uint32_t uint;
+
+    enum class LoopStatus {
+        IDLE,
+        UPDATED,
+        END
+    };
+    
+    class Base {
+    protected:
+        GETTER(bool, frame_recording)
+        std::function<Bounds(const std::string&, Drawable*, const Font&)> _previous_line_bounds;
+        std::function<uint32_t(const Font&)> _previous_line_spacing;
+        Base *_previous_base;
+        
+    public:
+        Base();
+        virtual ~Base();
+        
+        virtual LoopStatus update_loop() { return LoopStatus::IDLE; }
+        
+        virtual float dpi_scale() { return 1; }
+        virtual void set_background_color(const Color&) {}
+        
+        virtual void set_frame_recording(bool v) {
+            _frame_recording = v;
+        }
+        
+        virtual Image::Ptr current_frame_buffer() {
+            return nullptr;
+        }
+        
+        virtual void paint(DrawStructure& s) = 0;
+        virtual void set_title(std::string) = 0;
+        virtual Size2 window_dimensions() { return Size2(-1); }
+        
+        virtual float text_width(const Text &text) const {
+            return text.txt().length() * 8.5f * text.font().size;
+        }
+        virtual float text_height(const Text &text) const {
+            return 18.f * text.font().size;
+        }
+        
+        static inline Size2 text_dimensions(const std::string& text, Drawable* obj = NULL, const Font& font = Font()) {
+            auto size = default_text_bounds(text, obj, font);
+            return size.pos() + size.size();
+        }
+        
+        virtual Bounds text_bounds(const std::string& text, Drawable*, const Font& font) {
+            return Bounds(0, 0, text.length() * 11.3 * font.size, 26 * font.size);
+        }
+        static Bounds default_text_bounds(const std::string& text, Drawable* obj = NULL, const Font& font = Font());
+        static void set_default_text_bounds(std::function<Bounds(const std::string&, Drawable*, const Font&)>);
+        
+        virtual uint32_t line_spacing(const Font& font) {
+            return roundf(25 * font.size);
+        }
+        
+        static uint32_t default_line_spacing(const Font& font);
+        static void set_default_line_spacing(std::function<uint32_t(const Font&)>);
+    };
+}
+
+#endif

@@ -1,0 +1,444 @@
+#include <types.h>
+#include <cstdio>
+
+#include <imgui/imgui.h>
+#include <imgui/examples/imgui_impl_glfw.h>
+
+#ifdef CMN_USE_OPENGL2
+#include <imgui/examples/imgui_impl_opengl2.h>
+using ImTextureID_t = ImGui_OpenGL2_TextureID;
+#else
+#include <imgui/examples/imgui_impl_opengl3.h>
+using ImTextureID_t = ImGui_OpenGL3_TextureID;
+#endif
+
+#if defined(IMGUI_IMPL_OPENGL_LOADER_GL3W)
+#include <GL/gl3w.h>    // Initialize with gl3wInit()
+#elif defined(IMGUI_IMPL_OPENGL_LOADER_GLEW)
+#include <GL/glew.h>    // Initialize with glewInit()
+#elif defined(IMGUI_IMPL_OPENGL_LOADER_GLAD)
+#include <glad/glad.h>  // Initialize with gladLoadGL()
+#else
+#include IMGUI_IMPL_OPENGL_LOADER_CUSTOM
+#endif
+
+#ifndef CMN_USE_OPENGL2
+#define GLFW_INCLUDE_GL3  /* don't drag in legacy GL headers. */
+#endif
+#define GLFW_NO_GLU       /* don't drag in the old GLU lib - unless you must. */
+
+#include <GLFW/glfw3.h>
+
+#if defined(_MSC_VER) && (_MSC_VER >= 1900) && !defined(IMGUI_DISABLE_WIN32_FUNCTIONS)
+#pragma comment(lib, "legacy_stdio_definitions")
+#endif
+
+#include "GLImpl.h"
+#include <misc/Timer.h>
+
+#define GLIMPL_CHECK_THREAD_ID() check_thread_id( __LINE__ , __FILE__ )
+
+//#include "misc/freetype/imgui_freetype.h"
+//#include "misc/freetype/imgui_freetype.cpp"
+
+static void glfw_error_callback(int error, const char* description)
+{
+    fprintf(stderr, "Glfw Error %d: %s\n", error, description);
+}
+
+namespace gui {
+
+GLImpl::GLImpl(std::function<void()> draw, std::function<bool()> new_frame_fn) : draw_function(draw), new_frame_fn(new_frame_fn)
+{
+}
+
+void GLImpl::init() {
+    glfwSetErrorCallback(glfw_error_callback);
+    if (!glfwInit())
+        U_EXCEPTION("[GL] Cannot initialize GLFW.");
+    
+    draw_calls = 0;
+    _update_thread = std::this_thread::get_id();
+}
+
+void GLImpl::post_init() {
+#ifdef CMN_USE_OPENGL2
+    ImGui_ImplOpenGL2_NewFrame();
+#else
+    ImGui_ImplOpenGL3_NewFrame(); // load the font texture before anything else is done in the program
+#endif
+}
+
+void GLImpl::set_icons(const std::vector<file::Path>& icons) {
+    std::vector<GLFWimage> images;
+    std::vector<Image::Ptr> data;
+
+    for (auto& path : icons) {
+        if (!path.exists()) {
+            Except("Cant find application icon '%S'.", &path.str());
+            continue;
+        }
+
+        cv::Mat image = cv::imread(path.str(), cv::IMREAD_UNCHANGED);
+        if (image.empty())
+            continue;
+
+        assert(image.channels() <= 4 && image.channels() != 2);
+
+        cv::cvtColor(image, image, image.channels() == 3 ? cv::COLOR_BGR2RGBA : (image.channels() == 4 ? cv::COLOR_BGRA2RGBA : cv::COLOR_GRAY2RGBA));
+
+        auto ptr = std::make_shared<Image>(image);
+        data.push_back(ptr);
+        images.push_back(GLFWimage());
+        images.back().pixels = ptr->data();
+        images.back().width = ptr->cols;
+        images.back().height = ptr->rows;
+    }
+
+    glfwSetWindowIcon(window, images.size(), images.data());
+}
+
+void GLImpl::create_window(int width, int height) {
+#if __APPLE__
+#ifdef CMN_USE_OPENGL2
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+#else
+    // GL 3.2 + GLSL 150
+    const char* glsl_version = "#version 150";
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // Required on Mac
+#endif
+#else
+#ifdef CMN_USE_OPENGL2
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+#else
+    // GL 3.0 + GLSL 130
+    const char* glsl_version = "#version 130";
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+#endif
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+    //glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
+    //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
+#endif
+    
+    // Create window with graphics context
+    window = glfwCreateWindow(width, height, "", NULL, NULL);
+    if (window == NULL)
+        U_EXCEPTION("[GL] Cannot create GLFW window.");
+    glfwMakeContextCurrent(window);
+    glfwSwapInterval(1); // Enable vsync
+    
+    // Initialize OpenGL loader
+#if defined(IMGUI_IMPL_OPENGL_LOADER_GL3W)
+    bool err = gl3wInit() != 0;
+#elif defined(IMGUI_IMPL_OPENGL_LOADER_GLEW)
+    bool err = glewInit() != GLEW_OK;
+#elif defined(IMGUI_IMPL_OPENGL_LOADER_GLAD)
+    bool err = gladLoadGL() == 0;
+#else
+    bool err = false; // If you use IMGUI_IMPL_OPENGL_LOADER_CUSTOM, your loader is likely to requires some form of initialization.
+#endif
+    if (err)
+    {
+        U_EXCEPTION("Failed to initialize OpenGL loader!");
+    }
+    
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+#ifdef CMN_USE_OPENGL2
+    ImGui_ImplOpenGL2_Init();
+#else
+    ImGui_ImplOpenGL3_Init(glsl_version);
+#endif
+}
+
+GLFWwindow* GLImpl::window_handle() {
+    return window;
+}
+
+LoopStatus GLImpl::update_loop() {
+    LoopStatus status = LoopStatus::IDLE;
+    glfwPollEvents();
+    
+    if(glfwWindowShouldClose(window))
+        return LoopStatus::END;
+    
+    if(new_frame_fn())
+    {
+#ifdef CMN_USE_OPENGL2
+        ImGui_ImplOpenGL2_NewFrame();
+#else
+        ImGui_ImplOpenGL3_NewFrame();
+#endif
+        ImGui_ImplGlfw_NewFrame();
+        
+        ImGui::NewFrame();
+        
+        draw_function();
+        
+        // Rendering
+        ImGui::Render();
+        int display_w, display_h;
+        glfwGetFramebufferSize(window, &display_w, &display_h);
+        glViewport(0, 0, display_w, display_h);
+        
+        if(_frame_capture_enabled)
+            init_pbo(display_w, display_h);
+        
+        glClearColor(_clear_color.r / 255.f, _clear_color.g / 255.f, _clear_color.b / 255.f, _clear_color.a / 255.f);
+        glClear(GL_COLOR_BUFFER_BIT);
+#ifdef CMN_USE_OPENGL2
+        ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
+#else
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+#endif
+        
+        if(_frame_capture_enabled)
+            update_pbo();
+        
+#ifdef CMN_USE_OPENGL2
+        glfwMakeContextCurrent(window);
+#endif
+        glfwSwapBuffers(window);
+        
+        ++draw_calls;
+        status = LoopStatus::UPDATED;
+        
+    }
+    
+    /*if(draw_timer.elapsed() >= 1) {
+        Debug("%f draw_calls / s", draw_calls);
+        draw_calls = 0;
+        draw_timer.reset();
+    }*/
+    
+    return status;
+}
+
+void GLImpl::init_pbo(uint width, uint height) {
+    if(!pboImage || pboImage->cols != width || pboImage->rows != height) {
+#ifndef CMN_USE_OPENGL2
+        if(pboImage) {
+            glDeleteBuffers(2, pboIds);
+        }
+        
+        pboImage = std::make_shared<Image>(height, width, 4);
+        pboOutput = std::make_shared<Image>(height, width, 4);
+        
+        glGenBuffers(2, pboIds);
+        auto nbytes = width * height * 4;
+        for(int i=0; i<2; ++i) {
+            glBindBuffer(GL_PIXEL_PACK_BUFFER, pboIds[i]);
+            glBufferData(GL_PIXEL_PACK_BUFFER, nbytes, NULL, GL_STREAM_READ);
+        }
+        glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+#endif
+    }
+}
+
+void GLImpl::update_pbo() {
+#ifndef CMN_USE_OPENGL2
+    // "index" is used to read pixels from framebuffer to a PBO
+    // "nextIndex" is used to update pixels in the other PBO
+    index = (index + 1) % 2;
+    nextIndex = (index + 1) % 2;
+
+    // set the target framebuffer to read
+    glReadBuffer(GL_BACK);
+
+    // read pixels from framebuffer to PBO
+    // glReadPixels() should return immediately.
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, pboIds[index]);
+    glReadPixels(0, 0, pboImage->cols, pboImage->rows, GL_BGRA, GL_UNSIGNED_BYTE, 0);
+
+    // map the PBO to process its data by CPU
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, pboIds[nextIndex]);
+    GLubyte* ptr = (GLubyte*)glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
+    if(ptr)
+    {
+        memcpy(pboImage->data(), ptr, pboImage->size());
+        glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+        
+        // flip vertically
+        cv::flip(pboImage->get(), pboOutput->get(), 0);
+    }
+
+    // back to conventional pixel operation
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+#endif
+}
+
+void GLImpl::loop(CrossPlatform::custom_function_t custom_loop) {
+    LoopStatus status = LoopStatus::IDLE;
+    
+    // Main loop
+    while (status != LoopStatus::END)
+    {
+        if(!custom_loop())
+            break;
+        
+        status = update_loop();
+    }
+}
+
+GLImpl::~GLImpl() {
+    glDeleteBuffers(2, pboIds);
+    
+    // Cleanup
+#ifdef CMN_USE_OPENGL2
+    ImGui_ImplOpenGL2_Shutdown();
+#else
+    ImGui_ImplOpenGL3_Shutdown();
+#endif
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+    
+    glfwDestroyWindow(window);
+    
+    glfwTerminate();
+}
+
+void GLImpl::enable_readback() {
+    
+}
+
+void GLImpl::disable_readback() {
+    
+}
+
+Image::Ptr GLImpl::current_frame_buffer() {
+    return _frame_capture_enabled ? pboOutput : nullptr;
+}
+
+void GLImpl::check_thread_id(int line, const char* file) const {
+#ifndef NDEBUG
+    if(std::this_thread::get_id() != _update_thread)
+        U_EXCEPTION("Wrong thread in '%s' line %d.", file, line);
+#endif
+}
+
+TexturePtr GLImpl::texture(const Image * ptr) {
+    GLIMPL_CHECK_THREAD_ID();
+    
+    // Turn the RGBA pixel data into an OpenGL texture:
+    GLuint my_opengl_texture;
+    glGenTextures(1, &my_opengl_texture);
+    if(my_opengl_texture == 0)
+        U_EXCEPTION("Cannot create texture of dimensions %dx%d", ptr->cols, ptr->rows);
+    glBindTexture(GL_TEXTURE_2D, my_opengl_texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, ptr->dims != 4 ? ptr->dims : 0);
+    
+#ifdef CMN_USE_OPENGL2
+    auto output_type = GL_RGBA, input_type = GL_RGBA;
+    if(ptr->dims == 1) {
+        output_type = GL_LUMINANCE;
+        input_type = GL_LUMINANCE;
+    }
+    if(ptr->dims == 2) {
+        output_type = GL_LUMINANCE_ALPHA;
+        input_type = GL_LUMINANCE_ALPHA;
+    }
+#else
+    auto output_type = GL_RGBA8, input_type = GL_RGBA;
+    if(ptr->dims == 1) {
+        output_type = GL_RED;
+        input_type = GL_RED;
+    }
+    if(ptr->dims == 2) {
+        output_type = GL_RG8;
+        input_type = GL_RG;
+        
+        GLint swizzleMask[] = {GL_RED, GL_ZERO, GL_ZERO, GL_GREEN};
+        glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask);
+    }
+#endif
+    
+    auto width = next_pow2(ptr->cols), height = next_pow2(ptr->rows);
+    glTexImage2D(GL_TEXTURE_2D, 0, output_type, width, height, 0, input_type, GL_UNSIGNED_BYTE, NULL);
+    glTexSubImage2D(GL_TEXTURE_2D,0,0,0, ptr->cols, ptr->rows, input_type, GL_UNSIGNED_BYTE, ptr->data());
+    glBindTexture(GL_TEXTURE_2D, 0);
+    //tf::imshow("image", ptr->get());
+    
+    return std::make_unique<PlatformTexture>(PlatformTexture{
+        new ImTextureID_t{ (uint64_t)my_opengl_texture, ptr->dims != 4 },
+        static_cast<int>(width), static_cast<int>(height),
+        static_cast<int>(ptr->cols), static_cast<int>(ptr->rows)
+    });
+}
+
+void GLImpl::clear_texture(TexturePtr&& id_) {
+    GLIMPL_CHECK_THREAD_ID();
+    
+    auto object = (ImTextureID_t*)id_->ptr;
+    GLuint _id = (GLuint) object->texture_id;
+    
+    glBindTexture(GL_TEXTURE_2D, _id);
+    glDeleteTextures(1, &_id);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    
+    delete object;
+}
+
+void GLImpl::bind_texture(const PlatformTexture& id_) {
+    GLIMPL_CHECK_THREAD_ID();
+    
+    auto object = (ImTextureID_t*)id_.ptr;
+    GLuint _id = (GLuint) object->texture_id;
+    
+    glBindTexture(GL_TEXTURE_2D, _id);
+}
+
+void GLImpl::update_texture(PlatformTexture& id_, const Image *ptr) {
+    GLIMPL_CHECK_THREAD_ID();
+    
+    auto object = (ImTextureID_t*)id_.ptr;
+    GLuint _id = (GLuint) object->texture_id;
+    
+    if(object->greyscale != (ptr->dims != 4))
+        U_EXCEPTION("Texture has not been allocated for number of color channels in Image (%d) != texture (%d)", ptr->dims, object->greyscale ? 1 : 4);
+    
+    glBindTexture(GL_TEXTURE_2D, _id);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, ptr->dims != 4 ? ptr->dims : 0);
+    
+#ifdef CMN_USE_OPENGL2
+    auto input_type = GL_RGBA;
+    if(ptr->dims == 1) {
+        input_type = GL_LUMINANCE;
+    }
+    if(ptr->dims == 2) {
+        input_type = GL_LUMINANCE_ALPHA;
+    }
+#else
+    auto input_type = GL_RGBA;
+    if(ptr->dims == 1) {
+        input_type = GL_RED;
+    }
+    if(ptr->dims == 2) {
+        input_type = GL_RG;
+    }
+#endif
+    
+    glTexSubImage2D(GL_TEXTURE_2D,0,0,0, ptr->cols, ptr->rows, input_type, GL_UNSIGNED_BYTE, ptr->data());
+    //glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, ptr->cols, ptr->rows, 0, GL_RGBA, GL_UNSIGNED_BYTE, ptr->data());
+    glBindTexture(GL_TEXTURE_2D, 0);
+    
+    id_.image_width = ptr->cols;
+    id_.image_height = ptr->rows;
+}
+
+void GLImpl::set_title(std::string title) {
+    glfwSetWindowTitle(window, title.c_str());
+}
+
+}

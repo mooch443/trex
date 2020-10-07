@@ -1,0 +1,6 @@
+tensorflow / tensorflow-gpu / theano
+keras
+matplotlib
+numpy
+opencv-python
+pillow

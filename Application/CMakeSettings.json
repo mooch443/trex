@@ -1,0 +1,25 @@
+{
+  // See https://go.microsoft.com//fwlink//?linkid=834763 for more information about this file.
+  "configurations": [
+    {
+      "name": "x64-Debug",
+      "generator": "Visual Studio 16 2019 Win64",
+      "configurationType": "Debug",
+      "inheritEnvironments": [ "msvc_x64" ],
+      "buildRoot": "${projectDir}\\build\\Debug",
+      "cmakeCommandArgs": "-DCMAKE_BUILD_TYPE=Debug",
+      "buildCommandArgs": "/v:m",
+      "ctestCommandArgs": ""
+    },
+    {
+      "name": "x64-Release",
+      "generator": "Visual Studio 16 2019 Win64",
+      "configurationType": "Release",
+      "inheritEnvironments": [ "msvc_x64" ],
+      "buildRoot": "${projectDir}\\build\\Release",
+      "cmakeCommandArgs": "-DCMAKE_BUILD_TYPE=Release",
+      "buildCommandArgs": "/v:m",
+      "ctestCommandArgs": ""
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+#!/bin/bash
+
+cd Application
+mkdir build
+cd build
+
+declare -a CMAKE_PLATFORM_FLAGS
+BUILD_GLFW="OFF"
+
+if [ "$(uname)" == "Linux" ]; then
+    # Fix up CMake for using conda's sysroot
+    # See https://docs.conda.io/projects/conda-build/en/latest/resources/compiler-tools.html?highlight=cmake#an-aside-on-cmake-and-sysroots
+    CMAKE_PLATFORM_FLAGS+=("-DCMAKE_TOOLCHAIN_FILE=${RECIPE_DIR}/conda_sysroot.cmake")
+else
+    echo "CONDA_BUILD_SYSROOT=$CONDA_BUILD_SYSROOT. forcing it."
+    export CONDA_BUILD_SYSROOT="/opt/MacOSX10.9.sdk"
+    CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_SYSROOT=${CONDA_BUILD_SYSROOT}")
+    BUILD_GLFW="ON"
+fi
+
+echo "Using system flags: ${CMAKE_PLATFORM_FLAGS[@]}"
+
+PKG_CONFIG_PATH="${PREFIX}/lib/pkgconfig;${BUILD_PREFIX}/${HOST}/sysroot/usr/lib64/pkgconfig" cmake .. -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
+    -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
+    -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DWITH_GITSHA1=ON \
+    -DCMAKE_INSTALL_PREFIX=$PREFIX \
+    -DWITH_PYLON=OFF \
+    -DTREX_BUILD_OPENCV=ON \
+    -DTREX_BUILD_GLFW=${BUILD_GLFW} \
+    -DTREX_BUILD_ZLIB=ON \
+    -DTREX_CONDA_PACKAGE_INSTALL=ON \
+    -DTREX_DONT_USE_PCH=ON \
+    -DTREX_WITH_TESTS=OFF \
+    -DCMAKE_PREFIX_PATH=$PREFIX \
+    -DCMAKE_INSTALL_RPATH_USE_LINK_PATH:BOOL=TRUE \
+    -DTREX_WITH_TESTS=OFF \
+    -DCMAKE_C_COMPILER=$CC \
+    -DCMAKE_CXX_COMPILER=$CXX \
+    ${CMAKE_PLATFORM_FLAGS[@]}
+
+if [ "$(uname)" == "Linux" ]; then
+    make -j$(( $(nproc) - 1 )) Z_LIB
+else
+    make -j$(( $(sysctl -n hw.ncpu) - 1 )) Z_LIB
+fi
+
+if [ "$(uname)" == "Linux" ]; then
+    make -j$(( $(nproc) - 1 )) CustomOpenCV
+else
+    make -j$(( $(sysctl -n hw.ncpu) - 1 )) CustomOpenCV
+fi
+
+cmake ..
+
+if [ "$(uname)" == "Linux" ]; then
+    make -j$(( $(nproc) - 1 )) && make install
+else
+    make -j$(( $(sysctl -n hw.ncpu) - 1 )) && make install
+fi

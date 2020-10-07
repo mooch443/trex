@@ -1,0 +1,13 @@
+name: trex
+channels:
+  - defaults
+dependencies:
+  - python=3.7
+  - matplotlib
+  - cmake
+  - tensorflow-gpu==1.14.0
+  - keras
+  - pillow
+  - certifi
+  - ffmpeg
+  - opencv
