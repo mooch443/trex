@@ -23,7 +23,6 @@ def figure_as_image():
     from PIL import Image
     import matplotlib.pyplot as plt
     import numpy as np
-    import cv2 as cv
     import os
     
     plt.gcf().set_tight_layout(True)
@@ -43,7 +42,6 @@ def show_figure(title="plot", output_path="", im = None):
     import TRex
     from PIL import Image
     import numpy as np
-    import cv2 as cv
     import os
 
     if type(im) == type(None):

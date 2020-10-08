@@ -12,7 +12,6 @@ from keras.models import Sequential
 import keras
 import keras.backend as K
 import numpy as np
-import cv2 as cv
 from keras.preprocessing.image import ImageDataGenerator
 from keras.utils import np_utils
 import TRex
