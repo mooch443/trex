@@ -308,7 +308,7 @@ void HeatmapController::sort_data_into_custom_grid() {
         }
     }
     
-    tf::imshow("Viridis", mat);
+    //tf::imshow("Viridis", mat);
         
     push_timing("sort_data_into_custom_grid", timer.elapsed());
 }
