@@ -12,11 +12,11 @@ Installation
 The easy way
 ************
 
-|trex| supports all major platforms. There is an easy way to install |trex| using Anaconda, by creating a new virtual environment (here named ``tracking``, which you can replace)::
+|trex| supports all major platforms. There is an easy way to install |trex| using Anaconda, by creating a new virtual environment (here named ``tracking``, which you can replace) -- the down-side is, that it needs to be compiled with fewer optimzations and features than a manually compiled one due to compatibility and licensing issues::
 
 	conda create -n tracking -c main -c conda-forge -c trexing trex
 
-The conda version does not offer support for Basler cameras. If you need to use |grabs| with machine vision cameras, please consider compiling the software yourself -- it has other advantages, too (such as enabling some Metal features on macOS and getting a squeaky clean, new version)!
+The conda version does not offer support for Basler cameras. If you need to use |grabs| with machine vision cameras, please consider compiling the software yourself -- it has other advantages, too (such as enabling some Metal features on macOS, architecture-specific optimizations and just getting a squeaky clean, new version)!
 
 Compile it yourself
 *******************
