@@ -22,6 +22,6 @@ cmake --build . --target libzip --config Release
 cmake --build . --target libpng_custom --config Release
 cmake --build . --target CustomOpenCV --config Release
 cmake ..
-cmake --build . --target INSTALL --config Release
+cmake --build . --config Release
 
 endlocal

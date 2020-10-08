@@ -347,7 +347,10 @@ namespace track {
                 if (!getenv("TREX_DONT_SET_PATHS")) {
                     std::string sep = "/";
                     auto home = Py_GetPythonHome();
-                    auto home2 = SETTING(python_path).value<file::Path>().remove_filename().str();
+                    auto home2 = SETTING(python_path).value<file::Path>().str();
+                    if(file::Path(home2).exists() && file::Path(home2).is_regular())
+                        home2 = file::Path(home2).remove_filename().str();
+                    Debug("Setting home to '%S'", &home2);
 
                     if (!home2.empty()) {
                         home2 = utils::find_replace(home2, "/", sep);
@@ -356,6 +359,7 @@ namespace track {
                         wchar_t* pwcsName = new wchar_t[nChars];
                         MultiByteToWideChar(CP_ACP, 0, home2.c_str(), -1, (LPWSTR)pwcsName, nChars);
                         Py_SetPythonHome(pwcsName);
+                        SetEnvironmentVariable("PYTHONHOME", home2.c_str());
 
                         // delete it
                         delete[] pwcsName;
