@@ -3,8 +3,8 @@ package:
   version: "1.0"
   
 source:
-    git_url: http://134.76.19.68/CameraSoftware/FishTracker.git
-    git_rev: 9c0b463e0139ada0736a49402d42ceee79d5edd8
+    git_url: https://github.com/mooch443/trex.git
+    git_rev: ff4deeec58f498ec189a80593c8a546bc84c855b
     git_depth: 1
 
 build:
@@ -61,7 +61,7 @@ requirements:
     - python [win]
     - ffmpeg ==4.0 [not win]
     - python =3.6 [not win]
-    - glfw3 [linux]
+    - glfw [linux]
     
   run:
     - tensorflow-gpu ==1.13.* [not osx]
@@ -75,7 +75,7 @@ requirements:
     - python =3.6 [not win]
     - py-opencv
     - opencv
-    - glfw3 [linux]
+    - glfw [linux]
 
 about:
   home: https://trex.run

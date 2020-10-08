@@ -1,7 +1,7 @@
 conda build purge
 
 if [ "$(uname)" == "Linux" ]; then
-	conda build . -c anaconda -c tom.schoonjans
+	conda build . -c conda-forge
 else
 	conda build . -c anaconda
 fi
