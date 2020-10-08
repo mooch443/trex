@@ -58,6 +58,9 @@ Just like with |grabs|, you can attach any number of additional parameters to th
 Frequently asked questions and solutions to weird problems
 ==========================================================
 
+I am using Windows and Python cannot be initialized successfully!
+	If you compiled or installed |trex| in a conda environment and it is having trouble finding the necessary files, you can try to help it by editing the default.settings file inside the application folder (be careful if you're compiling the program on your own, the one in the build folder gets replaced by the one in the folder ``[root]/Application/default.settings`` after every build that altered anything). Just put a ``python_path = "C:\Users\[USERNAME]\Anaconda3\envs\[ENVNAME]"`` inside it and try starting again! Otherwise, you can be more savage and set the ``PYTHONHOME`` variable to the same folder and add it to ``PATH``, too (this breaks other anaconda stuff most likely).
+
 Segmentation/objects barely visible or too large!
 	Is the background image good enough (if you're using background subtraction), e.g. are there artifacts from individuals visible in the background, or does the background change during the video?
 		If the background is dynamic, you might have to disable subtraction by setting :func:`enable_difference` to false, and adjusting :func:`threshold` to a cut-off greyscale value. Otherwise, consider using a different :func:`averaging_method`. For example, max/mode are good for white backgrounds and short videos, or barely moving individuals.
