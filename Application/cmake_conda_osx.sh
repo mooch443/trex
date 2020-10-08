@@ -40,10 +40,25 @@ if [ "$(uname)" == "Linux" ]; then
     fi
 
     if [ ${IN_CONDA} ]; then
-        CC=${CC} CXX=${CXX} PKG_CONFIG_PATH=$CONDA_PREFIX/lib/pkgconfig cmake .. -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())")  -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) -DPYTHON_EXECUTABLE:FILEPATH=$(which python3)  -DCMAKE_BUILD_TYPE=Release -DWITH_FFMPEG=ON -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DWITH_PYLON=ON
+        CC=${CC} CXX=${CXX} PKG_CONFIG_PATH=$CONDA_PREFIX/lib/pkgconfig cmake .. \
+            -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
+            -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
+            -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DWITH_FFMPEG=ON \
+            -DCMAKE_PREFIX_PATH="$CONDA_PREFIX;$CONDA_PREFIX/lib/pkgconfig;$CONDA_PREFIX/lib" \
+            -DWITH_PYLON=ON
     else
-        CC=${CC} CXX=${CXX} PKG_CONFIG_PATH=$CONDA_PREFIX/lib/pkgconfig cmake .. -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())")  -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py)  -DPYTHON_EXECUTABLE:FILEPATH=$(which python3)  -DCMAKE_BUILD_TYPE=Release -DWITH_FFMPEG=ON -DWITH_HTTPD=ON -DWITH_PYLON=ON
+        CC=${CC} CXX=${CXX} PKG_CONFIG_PATH=$CONDA_PREFIX/lib/pkgconfig cmake .. \
+            -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
+            -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
+            -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DWITH_FFMPEG=ON \
+            -DCMAKE_PREFIX_PATH="$PKG_CONFIG_PATH" \
+            -DWITH_PYLON=ON
     fi
+    
 else
     echo "Setting up for macOS."
     echo ""

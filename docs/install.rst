@@ -14,9 +14,9 @@ The easy way
 
 |trex| supports all major platforms. There is an easy way to install |trex| using Anaconda, by creating a new virtual environment (here named ``tracking``, which you can replace)::
 
-	conda create -n tracking -c conda-forge -c trexing trex
+	conda create -n tracking -c main -c conda-forge -c trexing trex
 
-The conda version does not offer support for Basler cameras. If you need to use |grabs| with machine vision cameras, please consider compiling the software yourself -- it has other advantages, too (such as enabling some Metal features on macOS and getting a squeaky new version)!
+The conda version does not offer support for Basler cameras. If you need to use |grabs| with machine vision cameras, please consider compiling the software yourself -- it has other advantages, too (such as enabling some Metal features on macOS and getting a squeaky clean, new version)!
 
 Compile it yourself
 *******************
@@ -31,7 +31,7 @@ Both are obviously connected (the local conda channel is essentially a script fo
 Local conda channel
 ===================
 
-In order to get your own conda channel, all you need to do is make sure you have Anaconda installed, as well as the ``conda-build`` package. This is a package that allows you to make your own packages from within the base environment. It creates a virtual environment, within which it compiles/tests the software you are trying to build. You can install it using::
+In order to get your own conda channel, all you need to do is make sure you have Anaconda installed, as well as the ``conda-build`` package. This is a package that allows you to make your own packages from within the base environment (use ``conda deactivate``, until it says ``base`` on the left). It creates a virtual environment, within which it compiles/tests the software you are trying to build. You can install it using::
 
 	conda install conda-build
 
@@ -42,9 +42,15 @@ After that, clone the |trex| repository using::
 
 Now, from within that folder, run::
 
-	conda build . -c conda-forge
+	./build_conda_package.sh
 
-This builds the program with all the settings inside ``meta.yaml`` (for dependencies) as well as ``build.sh`` (or ``bld.bat`` on Windows) for the CMake settings. If you want to enable/disable certain features (e.g. use the OpenCV from within the conda environment, etc.) the build script is the place where you can do that.
+This runs ``conda build``, which builds the program according to all the settings inside ``meta.yaml`` (for dependencies), using ``build.sh`` (or ``bld.bat`` on Windows) to configure CMake. If you want to enable/disable certain features (e.g. use the OpenCV from within the conda environment, etc.) the build script is the place where you can do that.
+
+After compilation was successful, |trex| can be installed using::
+
+	conda create -n tracking -c main -c conda-forge -c local trex
+
+Notice there is a ``-c local``, instead of the ``-c trexing`` from the first section.
 
 Compiling manually
 ==================
