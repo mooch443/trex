@@ -155,7 +155,10 @@ Image::Ptr Recognition::calculate_diff_image_with_settings(const default_config:
 #else
         exec = "./"+exec+" 2> /dev/null";
 #endif
-        
+        if ((SETTING(wd).value<file::Path>() / exec).exists()) {
+            exec = (SETTING(wd).value<file::Path>() / exec).str();
+            Debug("Exists in working dir: '%S'", &exec);
+        }
         auto ret = system(exec.c_str()) == 0;
 #if WIN32
         SetErrorMode(0);
@@ -180,7 +183,10 @@ Image::Ptr Recognition::calculate_diff_image_with_settings(const default_config:
 #ifdef TREX_PYTHON_PATH
         auto home = ::default_config::conda_environment_path().str();
         if (home.empty())
-            home = SETTING(python_path).value<file::Path>().remove_filename().str();
+            home = SETTING(python_path).value<file::Path>().str();
+        if (file::Path(home).exists() && file::Path(home).is_regular())
+            home = file::Path(home).remove_filename().str();
+        Debug("Setting home to '%S'", &home);
 
         if (!can_initialize_python() && !getenv("TREX_DONT_SET_PATHS")) {
             if (!SETTING(quiet))
