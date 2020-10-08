@@ -10,6 +10,13 @@ if [ ! $(which cmake) ]; then
     exit 1
 fi
 
+if [ ! $(which git) ]; then
+    echo "You need to have git installed to build this project."
+    exit 1
+fi
+
+git submodule update --recursive --init
+
 IN_CONDA=""
 if [ ! $(printenv CONDA_PREFIX_1) ] ]; then
     IN_CONDA=${CONDA_PREFIX}
