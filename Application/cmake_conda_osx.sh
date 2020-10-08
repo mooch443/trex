@@ -79,6 +79,7 @@ else
             -DPYTHON3_PACKAGES_PATH=$(python3 -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())") \
             -DTREX_BUILD_ZLIB=ON \
             -DTREX_BUILD_ZIP=ON \
+            -DTREX_BUILD_PNG=ON \
             -DCMAKE_PREFIX_PATH="$CONDA_PREFIX;$CONDA_PREFIX/lib/pkgconfig;$CONDA_PREFIX/lib"
     else
         echo "**************************************"

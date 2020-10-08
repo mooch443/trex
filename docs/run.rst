@@ -30,7 +30,7 @@ Running TGrabs
 
 Running |grabs| usually involves the following parameters::
 
-	./framegrabber -i [SOURCE] -o [DESTINATION] [ADDITIONAL]
+	./tgrabs -i [SOURCE] -o [DESTINATION] [ADDITIONAL]
 
 **Source** can be any of the following:
 
@@ -49,9 +49,9 @@ Running TRex
 
 The tracker only expects an input file::
 
-	./tracker -i [VIDEONAME]
+	./trex -i [VIDEONAME]
 
-``VIDEONAME`` is either a full path to the video file, or the name of a video file in the default output folder (``~/Videos`` by default). This will open the tracker with all settings set to default, except if there is a ``[VIDEONAME].settings`` file present next to the video file or in the default output folder.
+``VIDEONAME`` is either a full path to the video file, or the name of a video file in the default output folder (``~/Videos`` by default). This will open |trex| with all settings set to default, except if there is a ``[VIDEONAME].settings`` file present next to the video file or in the default output folder.
 
 Just like with |grabs|, you can attach any number of additional parameters to the command-line, simply using ``-PARAMETER VALUE`` (see :doc:`parameters_trex`).
 
@@ -68,14 +68,17 @@ Segmentation/objects barely visible or too large!
 		
 Trajectories jump around a lot for no particular reason!
 	Changing :func:`track_max_speed` might help to mitigate this problem. Generally this can be the symptom of many different problems that lead to individuals being lost: size, speed, visibility issues, etc.: Sometimes individuals are lost because they are moving too fast (faster than the maximally allowed speed), or because they are expected to move much faster. Try lowering or increasing that limit. To get a hint at which speed to set, open up |trex|, track a few frames and select an individual - if there are consecutive frames for that individual, it will display a cm/s speed in the top-left overlay.
-	
+
+I set :func:`track_max_individuals` to zero, but it still does not track all individuals!
+	Probably what's happening is that you have not created a ``.settings`` file for the given video yet (or not in the right folder). Try that, and then attach the command-line option again.
+
 |trex| is really **laggy** and frequently complains about **too many combinations**!
 	Pause the analysis (``,`` key, this may take a few seconds). The matching algorithm has diffculty separating individuals into distinct cliques of neighboring individuals, or there are simply too many of them. This could be because your video contains too many trackable objects and no limit on the number of individuals has been set (:func:`track_max_individuals`), or there are significant time-jumps in the video. If the number of individuals should be much lower than detected, check your :func:`track_threshold`/:func:`blob_size_ranges` settings. It is advisable to start |trex| with likely parameters, or pausing analysis to change parameters. Otherwise, if that does not fix anything, check your settings for :func:`track_max_speed`, which controls the size of the neighbourhood to be considered during matching, and reduce it until there are no further warnings.
 	
 |grabs| does not quit and only shows "[...] not properly closed [...]"!
 	You may have to forcibly quit the application, either using a task manager, or by finding and manually ending its process::
 		
-		ps aux | grep framegrabber
+		ps aux | grep tgrabs
 
 I have attached my Basler camera, and now |grabs| is stuck initializing the camera! 
 	Most likely the camera driver crashed. Try restarting your computer to fix it.

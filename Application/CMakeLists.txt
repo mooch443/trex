@@ -290,7 +290,7 @@ if(NOT TREX_BUILD_GLFW)
     find_package(GLFW)
     if(NOT GLFW_FOUND)
         message(STATUS "Cannot find GLFW. Trying to build it instead.")
-        set(TREX_BUILD_GLFW ON)
+        set(TREX_BUILD_GLFW ON CACHE BOOL "" FORCE)
     endif()
 endif()
 
@@ -495,7 +495,7 @@ if(NOT TREX_BUILD_PNG AND NOT ${TREX_BUILD_PNG})
     
     if(NOT PNG_FOUND)
         message(STATUS "Did not find PNG. Trying to build it.")
-        set(TREX_BUILD_PNG ON)
+        set(TREX_BUILD_PNG ON CACHE BOOL "" FORCE)
         
     else()
         include_directories(${PNG_INCLUDE_DIR})
@@ -520,8 +520,8 @@ if((NOT ${TREX_BUILD_ZLIB}) AND ZLIB_FOUND AND ZLIB_VERSION_STRING VERSION_GREAT
     
 else()
     message(STATUS "Building libZ and libZIP")
-	set(TREX_BUILD_ZLIB ON)
-    set(TREX_BUILD_ZIP ON)
+	set(TREX_BUILD_ZLIB ON CACHE BOOL "" FORCE)
+    set(TREX_BUILD_ZIP ON CACHE BOOL "" FORCE)
     set(ZLIB_LIBRARY "z")
     set(zlib_install_dir "${CMAKE_BINARY_DIR}/zlib")
     
@@ -565,7 +565,7 @@ if(NOT TREX_BUILD_ZIP)
     
     if(NOT Zip_FOUND)
         message(STATUS "Did not find ZIP. Trying to build it.")
-        set(TREX_BUILD_ZIP ON)
+        set(TREX_BUILD_ZIP ON CACHE BOOL "" FORCE)
         
     else()
         include_directories(${ZIP_INCLUDE_DIR})
@@ -649,7 +649,7 @@ if(${TREX_BUILD_PNG})
     if(WIN32)
         set(PNG_LIBRARY "libpng16_static$<IF:$<CONFIG:Debug>,d,>")
     else()
-        set(PNG_LIBRARY "png16$<IF:$<CONFIG:Debug>,d,>")
+        set(PNG_LIBRARY "${png_install_dir}/lib/libpng16$<IF:$<CONFIG:Debug>,d,>.a")
     endif()
 
     message(STATUS "PNG_LIBRARY = ${PNG_LIBRARY}")
@@ -703,13 +703,14 @@ if(WIN32)
     set(OpenCV_STATIC ON)
 endif()
 
-if(NOT TREX_BUILD_OPENCV)
+if(NOT ${TREX_BUILD_OPENCV})
+    message(STATUS "Trying to find OpenCV...")
     find_package( OpenCV )
     
     if(NOT OpenCV_FOUND)
-        set(TREX_BUILD_OPENCV ON)
+        set(TREX_BUILD_OPENCV ON CACHE BOOL "OpenCV Override" FORCE)
         message(STATUS "Cannot find OpenCV. Trying to build it.")
-    else()
+    else() 
         include_directories( ${OpenCV_INCLUDE_DIRS} )
         message(STATUS "Found OpenCV Version: ${OpenCV_VERSION} include: ${OpenCV_INCLUDE_DIRS} libs: ${OpenCV_LIBRARIES}")
         set(OpenCV_LIBS ${OpenCV_LIBRARIES})
@@ -725,9 +726,10 @@ if(NOT TREX_BUILD_OPENCV)
     endif()
 endif()
 
-if(TREX_BUILD_OPENCV)
+if(${TREX_BUILD_OPENCV})
     set(trigger_build_dir ${CMAKE_BINARY_DIR}/force_opencv)
     set(BUILD_SHARED_LIBS OFF)
+    message(STATUS "Building OpenCV...")
     
     if(UNIX)
         get_filename_component(PKG_CONFIG_PATH ${AVDEVICE_LIBRARY} DIRECTORY)
@@ -816,7 +818,7 @@ if(TREX_BUILD_OPENCV)
             -DBUILD_JPEG:BOOL=ON
             -DWITH_OPENJPEG:BOOL=OFF
             -DBUILD_JASPER:BOOL=OFF
-            -DBUILD_opencv_python3=OFF
+            -DBUILD_opencv_python3=ON
             -DBUILD_opencv_python2=OFF
             -DWITH_JASPER:BOOL=OFF
             -DBUILD_opencv_world:BOOL=OFF
