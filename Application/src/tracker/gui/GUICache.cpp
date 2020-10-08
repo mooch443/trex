@@ -6,8 +6,8 @@
 #include <gui/gui.h>
 
 namespace gui {
-    SimpleBlob::SimpleBlob(pv::BlobPtr b, int t)
-        : blob(b), threshold(t)
+    SimpleBlob::SimpleBlob(std::unique_ptr<ExternalImage>&& available, pv::BlobPtr b, int t)
+        : blob(b), threshold(t), ptr(std::move(available))
     {
         
     }
@@ -30,11 +30,17 @@ namespace gui {
         }
         
         //e->update_with(*image);
-        auto e = std::make_unique<ExternalImage>(std::move(image), image_pos);
-        e->add_custom_data("blob_id", (void*)(uint64_t)blob->blob_id());
-        if(e->name().empty())
-            e->set_name("SimpleBlob_"+Meta::toStr(blob->blob_id()));
-        return e;
+        if(!ptr)
+            ptr = std::make_unique<ExternalImage>(std::move(image), image_pos);
+        else {
+            ptr->update_with(*image);
+            ptr->set_pos(image_pos);
+        }
+        
+        ptr->add_custom_data("blob_id", (void*)(uint64_t)blob->blob_id());
+        if(ptr->name().empty())
+            ptr->set_name("SimpleBlob_"+Meta::toStr(blob->blob_id()));
+        return std::move(ptr);
     }
     
     GUICache::GUICache()
@@ -334,7 +340,14 @@ namespace gui {
                 
                 raw_blobs.clear();
                 display_blobs.clear();
+                
+                std::move(display_blobs_list.begin(), display_blobs_list.end(), std::back_inserter(available_blobs_list));
+                //std::reverse(available_blobs_list.begin(), available_blobs_list.end());
+                
+                //Debug("Size: %lu", available_blobs_list.size());
+                
                 display_blobs_list.clear();
+                
                 probabilities.clear();
                 checked_probs.clear();
                 
@@ -366,8 +379,15 @@ namespace gui {
                 
                 _num_pixels += blob->bounds().width * blob->bounds().height;
                 
-                if(reload_blobs)
-                    raw_blobs.push_back(std::make_shared<SimpleBlob>(blob, threshold));
+                if(reload_blobs) {
+                    std::unique_ptr<gui::ExternalImage> ptr;
+                    if(!available_blobs_list.empty()) {
+                        ptr = std::move(available_blobs_list.back());
+                        available_blobs_list.pop_back();
+                    }
+                    
+                    raw_blobs.push_back(std::make_shared<SimpleBlob>(std::move(ptr), blob, threshold));
+                }
             }
             
             for(auto blob : processed_frame.filtered_out) {
@@ -380,8 +400,15 @@ namespace gui {
                     max_vec = max(max_vec, blob->bounds().pos() + blob->bounds().size());
                 }
                 
-                if(reload_blobs)
-                    raw_blobs.push_back(std::make_shared<SimpleBlob>(blob, threshold));
+                if(reload_blobs) {
+                    std::unique_ptr<gui::ExternalImage> ptr;
+                    if(!available_blobs_list.empty()) {
+                        ptr = std::move(available_blobs_list.back());
+                        available_blobs_list.pop_back();
+                    }
+                    
+                    raw_blobs.push_back(std::make_shared<SimpleBlob>(std::move(ptr), blob, threshold));
+                }
             }
             
             if(reload_blobs) {

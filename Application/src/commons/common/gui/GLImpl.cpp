@@ -172,6 +172,14 @@ LoopStatus GLImpl::update_loop() {
     
     if(new_frame_fn())
     {
+        
+        {
+            std::lock_guard guard(texture_mutex);
+            for(auto & fn : _texture_updates)
+                fn();
+            _texture_updates.clear();
+        }
+        
 #ifdef CMN_USE_OPENGL2
         ImGui_ImplOpenGL2_NewFrame();
 #else
@@ -367,17 +375,32 @@ TexturePtr GLImpl::texture(const Image * ptr) {
     glTexImage2D(GL_TEXTURE_2D, 0, output_type, width, height, 0, input_type, GL_UNSIGNED_BYTE, NULL);
     glTexSubImage2D(GL_TEXTURE_2D,0,0,0, ptr->cols, ptr->rows, input_type, GL_UNSIGNED_BYTE, ptr->data());
     glBindTexture(GL_TEXTURE_2D, 0);
-    //tf::imshow("image", ptr->get());
     
-    return std::make_unique<PlatformTexture>(PlatformTexture{
+    return std::unique_ptr<PlatformTexture>(new PlatformTexture{
         new ImTextureID_t{ (uint64_t)my_opengl_texture, ptr->dims != 4 },
+        [this](void ** ptr) {
+            std::lock_guard guard(texture_mutex);
+            _texture_updates.emplace_back([this, object = (ImTextureID_t*)*ptr](){
+                GLIMPL_CHECK_THREAD_ID();
+                
+                GLuint _id = (GLuint) object->texture_id;
+                
+                glBindTexture(GL_TEXTURE_2D, _id);
+                glDeleteTextures(1, &_id);
+                glBindTexture(GL_TEXTURE_2D, 0);
+                
+                delete object;
+            });
+            
+            *ptr = nullptr;
+        },
         static_cast<int>(width), static_cast<int>(height),
         static_cast<int>(ptr->cols), static_cast<int>(ptr->rows)
     });
 }
 
 void GLImpl::clear_texture(TexturePtr&& id_) {
-    GLIMPL_CHECK_THREAD_ID();
+    /*GLIMPL_CHECK_THREAD_ID();
     
     auto object = (ImTextureID_t*)id_->ptr;
     GLuint _id = (GLuint) object->texture_id;
@@ -386,7 +409,7 @@ void GLImpl::clear_texture(TexturePtr&& id_) {
     glDeleteTextures(1, &_id);
     glBindTexture(GL_TEXTURE_2D, 0);
     
-    delete object;
+    delete object;*/
 }
 
 void GLImpl::bind_texture(const PlatformTexture& id_) {

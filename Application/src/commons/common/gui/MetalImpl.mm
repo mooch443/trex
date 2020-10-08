@@ -32,6 +32,8 @@
 
 #import <objc/runtime.h>
 
+#define GLIMPL_CHECK_THREAD_ID() check_thread_id( __LINE__ , __FILE__ )
+
 namespace gui {
 struct MetalData {
     id <MTLDevice> device;
@@ -134,6 +136,13 @@ static void glfw_error_callback(int error, const char* description)
 }
 
 namespace gui {
+void MetalImpl::check_thread_id(int line, const char* file) const {
+#ifndef NDEBUG
+    if(std::this_thread::get_id() != _update_thread)
+        U_EXCEPTION("Wrong thread in '%s' line %d.", file, line);
+#endif
+}
+
     MetalImpl::MetalImpl(std::function<void()> draw, std::function<bool()> new_frame_fn)
         : draw_function(draw), new_frame_fn(new_frame_fn), _data(new MetalData)
     {
@@ -141,6 +150,8 @@ namespace gui {
     }
 
     MetalImpl::~MetalImpl() {
+        GLIMPL_CHECK_THREAD_ID();
+        
         if(gui::metal::current_instance == this)
             gui::metal::current_instance = nullptr;
         
@@ -161,6 +172,8 @@ bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
 
     void MetalImpl::init()
     {
+        _update_thread = std::this_thread::get_id();
+        
         // Setup Dear ImGui binding
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
@@ -172,8 +185,6 @@ bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
         // Setup style
         ImGui::StyleColorsDark();
         //ImGui::StyleColorsClassic();
-        
-        
         
         // Setup window
         glfwSetErrorCallback(glfw_error_callback);
@@ -216,7 +227,15 @@ bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
     }
 
     LoopStatus MetalImpl::update_loop() {
+        GLIMPL_CHECK_THREAD_ID();
+        
         LoopStatus status = LoopStatus::IDLE;
+        static dispatch_semaphore_t _frameBoundarySemaphore = dispatch_semaphore_create(1);
+        static std::mutex mutex;
+        //dispatch_semaphore_wait(_frameBoundarySemaphore, DISPATCH_TIME_FOREVER);
+        
+        ++frame_index;
+        
         
         glfwPollEvents();
         if(glfwWindowShouldClose(window))
@@ -231,6 +250,7 @@ bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
             } else if(_current_framebuffer)
                 _current_framebuffer = nullptr;
             
+            
             @autoreleasepool {
                 
                 _data->layer.drawableSize = CGSizeMake(width, height);
@@ -242,12 +262,14 @@ bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
                 _data->renderPassDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
                 _data->renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
                 id <MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:_data->renderPassDescriptor];
-                [renderEncoder pushDebugGroup:@"metal rocks"];
+                [renderEncoder pushDebugGroup:@"TRex"];
                 
                 // Start the Dear ImGui frame
                 ImGui_ImplMetal_NewFrame(_data->renderPassDescriptor);
                 ImGui_ImplGlfw_NewFrame();
                 ImGui::NewFrame();
+                
+                auto lock = new std::lock_guard<std::mutex>(mutex);
                 
                 draw_function();
                 
@@ -262,11 +284,26 @@ bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
                 [renderEncoder endEncoding];
                 
                 [commandBuffer presentDrawable:drawable];
+                
+                [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> commandBuffer) {
+                    {
+                    }
+                    delete lock;
+                    {
+                        std::lock_guard<std::mutex> guard(_texture_mutex);
+                        for(auto ptr : _delete_textures) {
+                            id<MTLTexture> texture = (__bridge id<MTLTexture>)ptr;
+                            [texture release];
+                        }
+                        _delete_textures.clear();
+                    }
+                    //dispatch_semaphore_signal(_frameBoundarySemaphore);
+                }];
+                
                 [commandBuffer commit];
                 
                 if(_frame_capture_enabled) {
                     [commandBuffer waitUntilCompleted];
-                    
                     [drawable.texture getBytes:_current_framebuffer->data() bytesPerRow:_current_framebuffer->dims * _current_framebuffer->cols fromRegion:MTLRegionMake2D(0, 0, _current_framebuffer->cols, _current_framebuffer->rows) mipmapLevel:0];
                 }
             }
@@ -283,7 +320,8 @@ bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
             ++_draw_calls;
             status = LoopStatus::UPDATED;
             
-        }
+        } //else
+            //delete lock;
         
         /*if(_draw_timer.elapsed() >= 1) {
             Debug("%f draw_calls / s", _draw_calls);
@@ -314,6 +352,8 @@ bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
     }
 
     TexturePtr MetalImpl::texture(const Image * ptr) {
+        GLIMPL_CHECK_THREAD_ID();
+        
         int width = next_pow2(ptr->cols);
         int height = next_pow2(ptr->rows);
         
@@ -351,13 +391,21 @@ bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
         id <MTLTexture> texture = [_data->device newTextureWithDescriptor:textureDescriptor];
         [texture replaceRegion:MTLRegionMake2D(0, 0, ptr->cols, ptr->rows) mipmapLevel:0 withBytes:ptr->data() bytesPerRow:ptr->cols * ptr->dims];
         
-        return std::make_unique<PlatformTexture>(PlatformTexture{(__bridge void*)texture, width, height, static_cast<int>(ptr->cols), static_cast<int>(ptr->rows)});
+        return std::unique_ptr<PlatformTexture>(new PlatformTexture{(__bridge void*)texture, [this](void** ptr){
+            std::lock_guard<std::mutex> guard(_texture_mutex);
+            _delete_textures.emplace_back(*ptr);
+            
+            //Debug("Deleting %X", *ptr);
+            *ptr = nullptr;
+            //id<MTLTexture> texture = (__bridge id<MTLTexture>)ptr;
+            //[texture release];
+        }, width, height, static_cast<int>(ptr->cols), static_cast<int>(ptr->rows)});
     }
 
     void MetalImpl::clear_texture(TexturePtr&& tex) {
-        std::lock_guard<std::mutex> guard(_texture_mutex);
+        /*std::lock_guard<std::mutex> guard(_texture_mutex);
         id<MTLTexture> texture = (__bridge id<MTLTexture>)tex->ptr;
-        [texture release];
+        [texture release];*/
     }
 
     void MetalImpl::bind_texture(const PlatformTexture&) {
@@ -365,6 +413,8 @@ bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
     }
 
     void MetalImpl::update_texture(PlatformTexture& tex, const Image * ptr) {
+        GLIMPL_CHECK_THREAD_ID();
+        
         id<MTLTexture> texture = (__bridge id<MTLTexture>)tex.ptr;
         
         MTLRegion region = {

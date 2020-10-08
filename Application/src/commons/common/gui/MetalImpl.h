@@ -20,6 +20,10 @@ namespace gui {
         
         Image::Ptr _current_framebuffer;
         std::mutex _texture_mutex;
+        std::vector<void*> _delete_textures;
+        
+        std::atomic<size_t> frame_index;
+        std::thread::id _update_thread;
         
     public:
         MetalImpl(std::function<void()> draw, std::function<bool()> new_frame_fn);
@@ -40,6 +44,7 @@ namespace gui {
         GLFWwindow* window_handle() override;
     public:
         bool open_files(const std::vector<file::Path>&);
+        void check_thread_id(int line, const char* file) const;
     };
 }
 

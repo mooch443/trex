@@ -31,7 +31,24 @@
 #endif
 
 namespace gui {
-#ifdef NDEBUG
+
+
+size_t cache_misses = 0, cache_finds = 0;
+
+void cache_miss() {
+    ++cache_misses;
+}
+
+void cache_find() {
+    ++cache_finds;
+}
+
+void clear_cache() {
+    //Debug("Misses: %lu vs. finds: %lu", cache_misses, cache_finds);
+    cache_finds = cache_misses = 0;
+}
+
+#ifndef NDEBUG
     class TextureCache;
     std::set<ImTextureID> all_gpu_texture;
 #endif
@@ -89,13 +106,13 @@ namespace gui {
         }
         
         void set_ptr(TexturePtr&& ptr) {
-            if(_texture) {
+            /*if(_texture) {
                 if(_platform) {
                     assert(_base);
                     _base->exec_main_queue([ptr = std::move(_texture), cache = this, base = _platform]() mutable
                     {
                         if(ptr) {
-#ifdef NDEBUG
+#ifndef NDEBUG
                             std::lock_guard<std::mutex> guard(_texture_mutex);
                             auto it = all_gpu_texture.find(ptr->ptr);
                             if(it != all_gpu_texture.end()) {
@@ -103,16 +120,28 @@ namespace gui {
                             } else
                                 Warning("Cannot find GPU texture of %X", cache);
 #endif
-                            base->clear_texture(std::move(ptr));
+                            ptr = nullptr;
+                            //base->clear_texture(std::move(ptr));
                         }
                     });
                 } else
                     Except("Cannot clear texture because platform is gone.");
+            }*/
+            
+#ifndef NDEBUG
+            if(_texture) {
+                std::lock_guard<std::mutex> guard(_texture_mutex);
+                auto it = all_gpu_texture.find(_texture->ptr);
+                if(it != all_gpu_texture.end()) {
+                    all_gpu_texture.erase(it);
+                } else
+                    Warning("Cannot find GPU texture of %X", this);
             }
+#endif
             
             _texture = std::move(ptr);
             
-#ifdef NDEBUG
+#ifndef NDEBUG
             if(_texture) {
                 std::lock_guard<std::mutex> guard(_texture_mutex);
                 all_gpu_texture.insert(_texture->ptr);
@@ -141,10 +170,11 @@ namespace gui {
                 
             } else if(gpusize.width > _texture->width
                       || gpusize.height > _texture->height
-                      || gpusize.width < _texture->width/2
-                      || gpusize.height < _texture->height/2
+                      || gpusize.width < _texture->width/4
+                      || gpusize.height < _texture->height/4
                       || channels() != image_channels)
             {
+                //Debug("Texture of size %dx%d does not fit %.0fx%.0f", _texture->width, _texture->height, gpusize.width, gpusize.height);
                 auto id = _platform->texture(image->source());
                 set_ptr(std::move(id));
                 _size = image_size;

@@ -101,16 +101,21 @@ public:
 class OuterBlobs {
     std::unique_ptr<Image> image;
     Vec2 pos;
+    std::unique_ptr<gui::ExternalImage> ptr;
     
 public:
-    OuterBlobs(std::unique_ptr<Image>&& image = nullptr, const Vec2& pos = Vec2(), long_t id = -1) : image(std::move(image)), pos(pos) {
+    OuterBlobs(std::unique_ptr<Image>&& image = nullptr, std::unique_ptr<gui::ExternalImage>&& available = nullptr, const Vec2& pos = Vec2(), long_t id = -1) : image(std::move(image)), pos(pos), ptr(std::move(available)) {
         
     }
     
     std::unique_ptr<gui::ExternalImage> convert() {
-        auto ptr = std::make_unique<ExternalImage>(std::move(image), pos);
+        if(!ptr)
+            ptr = std::make_unique<ExternalImage>(std::move(image), pos);
+        else
+            ptr->set_source(std::move(image));
+        
         ptr->set_color(Red.alpha(255));
-        return ptr;
+        return std::move(ptr);
     }
 };
 
@@ -3417,7 +3422,7 @@ std::unique_ptr<ExternalImage> generate_outer(const pv::BlobPtr& blob) {
     
     cv::Mat tmp = outer - inner;
     
-    auto gimage = OuterBlobs(std::make_unique<Image>(tmp), offset, blob->blob_id()).convert();
+    auto gimage = OuterBlobs(std::make_unique<Image>(tmp), nullptr, offset, blob->blob_id()).convert();
     gimage->add_custom_data("blob_id", (void*)(uint64_t)blob->blob_id());
     return gimage;
 }

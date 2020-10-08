@@ -20,6 +20,9 @@ namespace gui {
         Image::Ptr pboOutput;
         std::thread::id _update_thread;
         
+        std::mutex texture_mutex;
+        std::vector<std::function<void()>> _texture_updates;
+        
     public:
         GLImpl(std::function<void()> draw, std::function<bool()> new_frame_fn);
         

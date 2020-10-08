@@ -75,6 +75,96 @@ namespace gui {
         std::lock_guard<std::mutex> guard(_proximity_bar.mutex);
         _recognition_image.set_source(Image());
     }*/
+
+void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const std::vector<Rangel>& other_consec, float scale) {
+    if(!_bar)
+        return;
+    
+    static Range<long_t> previous_consec(-1, -1);
+    static std::vector<Rangel> previous_other_consec = {};
+    static float previous_scale = 0;
+    if(scale < 1)
+        scale = 1;
+    float new_height = roundf(bar_height) + 5 * scale;
+    
+    if(consec == previous_consec
+       && other_consec == previous_other_consec
+       && scale == previous_scale
+       && _consecutives && _bar
+       && _bar->source()->cols == _consecutives->source()->cols
+       && _consecutives->source()->rows == new_height)
+        return;
+    
+    previous_consec = consec;
+    previous_other_consec = other_consec;
+    previous_scale = scale;
+    
+    const uchar alpha = 255 - GUI_SETTINGS(gui_background_color).a;
+    
+    if(!_consecutives
+       || _bar->source()->cols != _consecutives->source()->cols
+       || _consecutives->source()->rows != new_height)
+    {
+        auto image = std::make_unique<Image>(new_height, _bar->source()->cols, 4);
+        if(!_consecutives)
+            _consecutives = std::make_unique<ExternalImage>(std::move(image), Vec2());
+        else
+            _consecutives->update_with(*image);
+    }
+    
+    std::fill(_consecutives->source()->data(), _consecutives->source()->data() + _consecutives->source()->size(), 0);
+    auto mat = _consecutives->source()->get();
+    auto offset = Vec2(0,5) * scale;
+    
+    if(!consec.empty()) {
+        //Size2(max_w * percent / use_scale.x, bar_height);
+        auto position = offset + Vec2(max_w * consec.start / float(_frame_info.video_length), 0);
+        auto size = Size2(max_w * (consec.end - consec.start) / float(_frame_info.video_length), bar_height);
+        
+        std::deque<Color> colors {
+            Green,
+            Yellow,
+            Color(255,128,57,255),
+            Gray
+        };
+        
+        cv::rectangle(mat, position - Vec2(1), position - Vec2(1) + size + Size2(2), colors.front().alpha(50), cv::FILLED);
+        cv::rectangle(mat, position - Vec2(1), position - Vec2(1) + size + Size2(2), Color(alpha, alpha, alpha, 255));
+        //base.rect(Bounds(position - Vec2(1), size + Size2(2)), colors.front().alpha(50), Color(alpha, alpha, alpha, 255));
+        colors.pop_front();
+        
+        for(auto &consec : other_consec) {
+            position = offset + Vec2(max_w * consec.start / float(_frame_info.video_length), 0);
+            size = Size2(max_w * (consec.end - consec.start) / float(_frame_info.video_length), bar_height);
+            
+            cv::rectangle(mat, position - Vec2(1), position - Vec2(1) + size + Size2(2), colors.front().alpha(50), cv::FILLED);
+            cv::rectangle(mat, position - Vec2(1), position - Vec2(1) + size + Size2(2), Color(alpha, alpha, alpha, 255));
+            colors.pop_front();
+        }
+    }
+    
+    //base.line(pos - Vec2(0,1), pos + Vec2(max_w * tracker_endframe / float(_frame_info.video_length), 0) - Vec2(0,1), 1, Red.alpha(255));
+    for(auto &consec : _frame_info.consecutive) {
+        if( consec.length() > 2 && consec.length() >= consec.length() * 0.25) {
+            auto position = offset + Vec2(max_w * consec.start / float(_frame_info.video_length), 0);
+            auto size = Size2(max_w * consec.length() / float(_frame_info.video_length), bar_height);
+            
+            --position.y;
+            cv::line(mat, position, position + Vec2(size.width, 0), Green.alpha(alpha));
+            cv::line(mat, position, position + Vec2(0, -5 * scale), Green.alpha(alpha), scale);
+        }
+    }
+    
+    if(!_frame_info.training_ranges.empty()) {
+        for(auto range : _frame_info.training_ranges) {
+            auto position = offset + Vec2(max_w * range.start / float(_frame_info.video_length), 0);
+            auto size = Size2(max_w * range.length() / float(_frame_info.video_length), bar_height);
+            
+            cv::rectangle(mat, position - Vec2(1), position - Vec2(1, 0) + size + Size2(2), Red.alpha(50), cv::FILLED);
+            cv::rectangle(mat, position - Vec2(1), position - Vec2(1, 0) + size + Size2(2), Color(alpha, alpha, alpha, 255));
+        }
+    }
+}
     
     void Timeline::draw(gui::DrawStructure &base) {
         gui::DrawStructure::SectionGuard section(base, "timeline");
@@ -195,53 +285,11 @@ namespace gui {
             _bar->set_pos(pos);
             base.wrap_object(*_bar);
             
-            const uchar alpha = 255 - GUI_SETTINGS(gui_background_color).a;
-            
             if(FAST_SETTINGS(recognition_enable)) {
-                if(!consec.empty()) {
-                    //Size2(max_w * percent / use_scale.x, bar_height);
-                    auto position = pos + Vec2(max_w * consec.start / float(_frame_info.video_length), 0);
-                    auto size = Size2(max_w * (consec.end - consec.start) / float(_frame_info.video_length), bar_height);
-                    
-                    std::deque<Color> colors {
-                        Green,
-                        Yellow,
-                        Color(255,128,57,255),
-                        Gray
-                    };
-                    
-                    base.rect(Bounds(position - Vec2(1), size + Size2(2)), colors.front().alpha(50), Color(alpha, alpha, alpha, 255));
-                    colors.pop_front();
-                    
-                    for(auto &consec : other_consec) {
-                        position = pos + Vec2(max_w * consec.start / float(_frame_info.video_length), 0);
-                        size = Size2(max_w * (consec.end - consec.start) / float(_frame_info.video_length), bar_height);
-                        
-                        base.rect(Bounds(position - Vec2(1), size + Size2(2)), colors.front().alpha(50), Color(alpha, alpha, alpha, 255));
-                        colors.pop_front();
-                    }
-                }
-                
-                base.line(pos - Vec2(0,1), pos + Vec2(max_w * tracker_endframe / float(_frame_info.video_length), 0) - Vec2(0,1), 1, Red.alpha(255));
-                for(auto &consec : _frame_info.consecutive) {
-                    if( consec.length() > 2 && consec.length() >= consec.length() * 0.25) {
-                        auto position = pos + Vec2(max_w * consec.start / float(_frame_info.video_length), 0);
-                        auto size = Size2(max_w * consec.length() / float(_frame_info.video_length), bar_height);
-                        
-                        --position.y;
-                        base.line(position, position + Vec2(size.width, 0), 1, Green.alpha(alpha));
-                        base.line(position, position + Vec2(0, -5), 1, Green.alpha(alpha));
-                        //base.rect(Bounds(position - Vec2(1), size + Size2(2)), Transparent /*Yellow.alpha(50)*/, Yellow.alpha(alpha));
-                    }
-                }
-                
-                if(!_frame_info.training_ranges.empty()) {
-                    for(auto range : _frame_info.training_ranges) {
-                        auto position = pos + Vec2(max_w * range.start / float(_frame_info.video_length), 0);
-                        auto size = Size2(max_w * range.length() / float(_frame_info.video_length), bar_height);
-                        
-                        base.rect(Bounds(position - Vec2(1), size + Size2(2)), Red.alpha(50), Color(alpha, alpha, alpha, 255));
-                    }
+                update_consecs(max_w, consec, other_consec, use_scale.y * 0.75);
+                if(_consecutives) {
+                    _consecutives->set_pos(pos - Vec2(0,5) * max(1, use_scale.y * 0.75));
+                    base.wrap_object(*_consecutives);
                 }
             }
             

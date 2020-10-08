@@ -10,12 +10,17 @@ struct GLFWwindow;
 namespace gui {
     struct PlatformTexture {
         void* ptr = nullptr ;
+        std::function<void(void**)> deleter;
         int width;
         int height;
         int image_width;
         int image_height;
         
         PlatformTexture() = default;
+        ~PlatformTexture() {
+            if(deleter)
+                deleter(&ptr);
+        }
     };
     using TexturePtr = std::unique_ptr<PlatformTexture>;
 

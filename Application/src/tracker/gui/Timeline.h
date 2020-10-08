@@ -46,6 +46,7 @@ namespace gui {
         //Size2 size;
         
         GETTER(std::unique_ptr<ExternalImage>, bar)
+        GETTER(std::unique_ptr<ExternalImage>, consecutives)
         
         std::atomic<long_t> tracker_endframe, tracker_startframe;
         float tdelta;
@@ -111,6 +112,7 @@ namespace gui {
         
     private:
         void update_fois();
+        void update_consecs(float max_w, const Range<long_t>&, const std::vector<Rangel>&, float scale);
         //void update_recognition_rect();
     };
 }

@@ -13,8 +13,9 @@ namespace gui {
     struct SimpleBlob {
         pv::BlobPtr blob;
         int threshold;
+        std::unique_ptr<ExternalImage> ptr;
         
-        SimpleBlob(pv::BlobPtr b, int t);
+        SimpleBlob(std::unique_ptr<ExternalImage>&& available, pv::BlobPtr b, int t);
         std::unique_ptr<ExternalImage> convert();
     };
     
@@ -74,6 +75,7 @@ namespace gui {
         std::vector<std::shared_ptr<SimpleBlob>> raw_blobs;
         std::unordered_map<pv::Blob*, gui::ExternalImage*> display_blobs;
         std::vector<std::unique_ptr<gui::ExternalImage>> display_blobs_list;
+        std::vector<std::unique_ptr<gui::ExternalImage>> available_blobs_list;
         std::vector<Vec2> inactive_estimates;
         
     protected:
