@@ -111,4 +111,4 @@ fi
 cmake --build . --target Z_LIB --config Release
 cmake --build . --target CustomOpenCV --config Release
 cmake ..
-cmake --build . --target ALL_BUILD --config Release
+cmake --build . --config Release
