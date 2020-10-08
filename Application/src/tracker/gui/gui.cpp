@@ -3111,8 +3111,9 @@ void GUI::update_display_blobs(bool draw_blobs, Section* fishbowl) {
         static std::mutex vector_mutex;
         auto bowl = fishbowl->global_transform();
         auto screen_bounds = Bounds(Vec2(), screen_dimensions());
+        auto copy = _cache.display_blobs;
         
-        distribute_vector([&, copy = _cache.display_blobs](auto start, auto end, auto){
+        distribute_vector([&](auto start, auto end, auto){
             std::unordered_map<pv::Blob*, gui::ExternalImage*> map;
             std::vector<std::unique_ptr<gui::ExternalImage>> vector;
             
@@ -3140,7 +3141,7 @@ void GUI::update_display_blobs(bool draw_blobs, Section* fishbowl) {
         
 #ifndef NDEBUG
         if(_cache.frame_idx % 100 == 0)
-            Debug("%lu/%lu", _cache.display_blobs.size(), _cache.raw_blobs.size());
+            Debug("%lu/%lu %lu", _cache.display_blobs.size(), _cache.raw_blobs.size(), _cache.display_blobs_list.size());
 #endif
     }
 }
@@ -3478,8 +3479,9 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
             //std::vector<Outer> outers;
             std::mutex sync;
             std::atomic<size_t> added_items = 0;
+            auto copy = shown_ids;
             
-            distribute_vector([&id_to_ptr, &added_items, &sync, copy = shown_ids](auto start, auto end, auto) {
+            distribute_vector([&id_to_ptr, &added_items, &sync, &copy](auto start, auto end, auto) {
                 std::unordered_set<uint32_t> added_ids;
                 
                 for(auto it = start; it != end; ++it) {
