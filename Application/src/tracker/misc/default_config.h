@@ -32,7 +32,7 @@ namespace default_config {
     ENUM_CLASS(recognition_border_t, none, heatmap, outline, shapes, grid, circle);
     ENUM_CLASS_HAS_DOCS(recognition_border_t)
 
-    ENUM_CLASS(heatmap_normalization_t, none, value, cell);
+    ENUM_CLASS(heatmap_normalization_t, none, value, cell, variance);
     ENUM_CLASS_HAS_DOCS(heatmap_normalization_t)
 
     ENUM_CLASS(recognition_normalization_t, none, moments, posture, legacy);

@@ -119,6 +119,8 @@ public:
     }
 };
 
+static std::unique_ptr<gui::heatmap::HeatmapController> heatmapController;
+
 void drawOptFlowMap (const cv::Mat& flow, cv::Mat& map) {
     assert(flow.isContinuous());
     assert(map.isContinuous());
@@ -260,8 +262,11 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                         Tracker::LockGuard guard("setting_changed_"+name);
                         if(Tracker::recognition())
                             Tracker::recognition()->clear_filter_cache();
-                        if(Tracker::recognition() && Tracker::recognition()->dataset_quality())
-                        Tracker::recognition()->dataset_quality()->remove_frames(Tracker::start_frame());
+                        if(Tracker::recognition() && Tracker::recognition()->dataset_quality()) {
+                            auto start = Tracker::start_frame();
+                            Tracker::recognition()->dataset_quality()->remove_frames(start);
+                            removed_frames(start);
+                        }
                     }
                     
                     std::lock_guard<std::recursive_mutex> lock_guard(this->gui().lock());
@@ -1193,6 +1198,12 @@ void GUI::draw_menu(gui::DrawStructure &base) {
     DrawMenu::draw();
 }
 
+void GUI::removed_frames(long_t including) {
+    std::lock_guard<std::recursive_mutex> gguard(gui().lock());
+    if(heatmapController)
+        heatmapController->frames_deleted_from(including);
+}
+
 void GUI::reanalyse_from(long_t frame, bool in_thread) {
     if(!instance())
         return;
@@ -1209,6 +1220,7 @@ void GUI::reanalyse_from(long_t frame, bool in_thread) {
             if(frame <= Tracker::end_frame()) {
                 Tracker::instance()->wait();
                 Tracker::instance()->_remove_frames(frame);
+                gui->removed_frames(frame);
                 
                 Output::Library::clear_cache();
                 gui->_timeline->reset_events(frame);
@@ -1922,9 +1934,10 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                     s->set_pos(ptr_pos);
                 }
                 
-                static auto heatmap = std::make_unique<gui::heatmap::HeatmapController>();
-                heatmap->set_frame(frame());
-                base.wrap_object(*heatmap);
+                if(!heatmapController)
+                    heatmapController = std::make_unique<gui::heatmap::HeatmapController>();
+                heatmapController->set_frame(frame());
+                base.wrap_object(*heatmapController);
             });
         }
         
@@ -4489,7 +4502,9 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
             });
             
             Except("Cannot load results. Crashed with exception: %s", e.what());
-            Tracker::instance()->_remove_frames(Tracker::start_frame());
+            auto start = Tracker::start_frame();
+            Tracker::instance()->_remove_frames(start);
+            removed_frames(start);
         }
         
         //_analysis->reset_cache();

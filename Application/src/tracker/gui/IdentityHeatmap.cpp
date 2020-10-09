@@ -173,6 +173,8 @@ void HeatmapController::sort_data_into_custom_grid() {
     std::vector<double> values;
     std::fill(_array_samples.begin(), _array_samples.end(), _normalization == normalization_t::cell ? 1 : 0);
     std::fill(_array_grid.begin(), _array_grid.end(), 0);
+    if(_normalization == normalization_t::variance)
+        std::fill(_array_sqsum.begin(), _array_sqsum.end(), 0);
     
     if(_normalization == normalization_t::cell
        && isPowerOfTwo(uniform_grid_cell_size))
@@ -194,7 +196,7 @@ void HeatmapController::sort_data_into_custom_grid() {
         });
         
     } else if(isPowerOfTwo(uniform_grid_cell_size)
-              && (_normalization == normalization_t::none || _normalization == normalization_t::value))
+              && (_normalization == normalization_t::none || _normalization == normalization_t::value || _normalization == normalization_t::variance))
     {
         values.clear();
         
@@ -210,10 +212,15 @@ void HeatmapController::sort_data_into_custom_grid() {
             _array_grid.at(i) += r.value_sum();
             _array_samples[i] += r.size();
             
-            if(_normalization != normalization_t::none) {
-                values.push_back(r.value_range().start);
-                values.push_back(r.value_sum() / double(r.size()));
-                values.push_back(r.value_range().end);
+            if(_normalization == normalization_t::variance) {
+                _array_sqsum.at(i) += r.value_sqsum();
+                
+            } else {
+                if(_normalization != normalization_t::none) {
+                    values.push_back(r.value_range().start);
+                    values.push_back(r.value_sum() / double(r.size()));
+                    values.push_back(r.value_range().end);
+                }
             }
             
             //! do not traverse deeper
@@ -221,7 +228,7 @@ void HeatmapController::sort_data_into_custom_grid() {
         });
         
     } else {
-        if(_normalization == normalization_t::value)
+        if(_normalization != normalization_t::none)
             values.reserve(_grid.size());
         
         _grid.apply<Leaf>([&](const Leaf& leaf) -> bool {
@@ -246,11 +253,38 @@ void HeatmapController::sort_data_into_custom_grid() {
                 _array_grid[i] += v;
                 
             } else {
+                if(_normalization == normalization_t::variance) {
+                    _array_sqsum.at(i) += leaf.value_sqsum();
+                }
+                
                 _array_grid[i] += leaf.data().size();
             }
             
             return true;
         });
+    }
+    
+    // calculate standard deviation within each cell
+    if(_normalization == normalization_t::variance) {
+        minimum = maximum = infinity<double>();
+        auto m = _grid.root()->value_sum() / double(_grid.size());
+        
+        for (size_t i=0; i<_array_grid.size(); ++i) {
+            if(_array_samples[i] > 1) {
+                //auto m = _array_grid[i] / _array_samples[i];
+                _array_grid[i] = sqrt((- 2 * m * _array_grid[i] + _array_sqsum[i] + N * SQR(m))
+                                        / (_array_samples[i] - 1));
+                
+                if(minimum > _array_grid[i] || minimum == infinity<double>()) {
+                    minimum = _array_grid[i];
+                }
+                if(maximum < _array_grid[i] || maximum == infinity<double>()) {
+                    maximum = _array_grid[i];
+                }
+                
+            } else
+                _array_grid[i] = _array_samples[i] = 0;
+        }
     }
     
     if(_normalization != normalization_t::none // none never does any normalization
@@ -261,6 +295,9 @@ void HeatmapController::sort_data_into_custom_grid() {
         
     } else {
         switch(_normalization) {
+            case normalization_t::variance:
+                break;
+                
             case normalization_t::cell:
                 if(!_array_grid.empty()) {
                     minimum = 0;
@@ -291,7 +328,11 @@ void HeatmapController::sort_data_into_custom_grid() {
     auto mat = grid_image->get();
     
     static auto empty = (cv::Scalar)Viridis::value(0).alpha(0);
-    mat.setTo(empty);
+    static auto empty_variance = (cv::Scalar)Viridis::value(1).alpha(200);
+    if(_normalization == normalization_t::variance)
+        mat.setTo(empty_variance);
+    else
+        mat.setTo(empty);
     
     double percentage;
     double ML = maximum - minimum;
@@ -301,8 +342,10 @@ void HeatmapController::sort_data_into_custom_grid() {
     for (uint32_t x = 0; x < N; ++x) {
         for (uint32_t y = 0; y < N; ++y) {
             size_t i = y * N + x;
-            if(_array_grid[i] > 0) {
+            if(_array_samples[i] > 0) {
                 percentage = (_array_grid[i] / _array_samples[i] - minimum) / ML;
+                if(_normalization == normalization_t::variance)
+                    percentage = 1 - percentage;
                 mat.at<cv::Vec4b>(y, x) = Viridis::value(percentage).alpha(percentage * 200);
             }
         }
@@ -311,6 +354,12 @@ void HeatmapController::sort_data_into_custom_grid() {
     //tf::imshow("Viridis", mat);
         
     push_timing("sort_data_into_custom_grid", timer.elapsed());
+}
+
+void HeatmapController::frames_deleted_from(long_t frame) {
+    _iterators.clear();
+    _capacities.clear();
+    _grid.keep_only(Range<long_t>(0, max(0, frame-1)));
 }
 
 HeatmapController::UpdatedStats HeatmapController::update_data(long_t current_frame) {
@@ -332,6 +381,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(long_t current_fr
                                               current_frame + frame_range + 1);
             //Debug("Clearing grid (%lu).", _grid.size());
             _iterators.clear();
+            _capacities.clear();
             
         } else if(_frame_context != -1) {
             if(current_frame > _frame) {
@@ -374,8 +424,13 @@ HeatmapController::UpdatedStats HeatmapController::update_data(long_t current_fr
                 if(it == _iterators.end()) {
                     kit = fish->iterator_for(frame);
                     //Debug("Frame %d: fish%d, Reit", frame, fish->identity().ID());
-                } else
-                    kit = it->second;
+                } else {
+                    if(_capacities[fish] != fish->frame_segments().capacity()) {
+                        _capacities[fish] = fish->frame_segments().capacity();
+                        kit = fish->iterator_for(frame);
+                    } else
+                        kit = it->second;
+                }
                 
                 if(kit == fish->frame_segments().end() && range.end >= fish->start_frame())
                 {
@@ -516,6 +571,7 @@ bool HeatmapController::update_variables() {
         
         if(_array_grid.size() != N * N) {
             _array_grid.resize(N * N);
+            _array_sqsum.resize(N * N);
             _array_samples.resize(N * N);
         }
         
@@ -676,6 +732,7 @@ void Node::init(const Grid* grid, Node::Ptr parent, const Range<uint32_t>& x, co
     
     _frame_range.start = _frame_range.end = -1;
     _value_sum = 0;
+    _value_sqsum = 0;
     _value_range = Range<double>(infinity<double>(), infinity<double>());
     _IDs.clear();
 }
@@ -859,6 +916,7 @@ size_t Leaf::keep_only(const Range<long_t> &frames) {
 void Leaf::update_ranges() {
     _value_range = Range<double>(infinity<double>(), infinity<double>());
     _value_sum = 0;
+    _value_sqsum = 0;
     
     /*if(_IDs.size() != _grid->identities().size()) {
         _IDs.resize(_grid->identities().size());
@@ -877,6 +935,7 @@ void Leaf::update_ranges() {
             _value_range.end = d.value;
         
         _value_sum += d.value;
+        _value_sqsum += SQR(d.value);
         
         /*++_IDs[d.IDindex];
         _values_per_id[d.IDindex] += d.value;
@@ -1485,6 +1544,7 @@ void Region::insert(std::vector<DataPoint>::iterator start, std::vector<DataPoin
 
 void Region::update_ranges() {
     _value_sum = 0;
+    _value_sqsum = 0;
     _value_range.start = _value_range.end = infinity<double>();
     
     /*if(_IDs.size() != _grid->identities().size()) {
@@ -1508,6 +1568,7 @@ void Region::update_ranges() {
         
         _size += r->size();
         _value_sum += r->value_sum();
+        _value_sqsum += r->value_sqsum();
         
         if(_value_range.start > r->value_range().start)
             _value_range.start = r->value_range().start;
@@ -1620,6 +1681,7 @@ void Leaf::insert(std::vector<DataPoint>::iterator start, std::vector<DataPoint>
     
     for(auto it = start; it != end; ++it) {
         _value_sum += it->value;
+        _value_sqsum += SQR(it->value);
         
         if(_value_range.start > it->value)
             _value_range.start = it->value;

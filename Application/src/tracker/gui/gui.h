@@ -249,6 +249,8 @@ private:
     void draw_export_options(gui::DrawStructure& base);
     void draw_grid(gui::DrawStructure& base);
     
+    void removed_frames(long_t including);
+    
     void debug_binary(gui::DrawStructure& main_base, long_t frameIndex);
     void debug_optical_flow(gui::DrawStructure& base, long_t frameIndex);
     void redraw();
