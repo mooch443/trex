@@ -802,7 +802,7 @@ if(${TREX_BUILD_OPENCV})
             -DBUILD_DOCS:BOOL=FALSE
             -DBUILD_EXAMPLES:BOOL=FALSE
             -DBUILD_TESTS:BOOL=FALSE
-            -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_BUILD_TYPE=$<$<CONFIG:Debug>:Release>$<$<CONFIG:Release>:Debug>
             -DBUILD_SHARED_LIBS:BOOL=FALSE
             -DBUILD_NEW_PYTHON_SUPPORT:BOOL=OFF
             -DBUILD_WITH_DEBUG_INFO=OFF

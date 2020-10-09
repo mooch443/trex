@@ -332,6 +332,8 @@ void GLImpl::check_thread_id(int line, const char* file) const {
 #endif
 }
 
+static std::vector<uchar> empty;
+
 TexturePtr GLImpl::texture(const Image * ptr) {
     GLIMPL_CHECK_THREAD_ID();
     
@@ -372,7 +374,12 @@ TexturePtr GLImpl::texture(const Image * ptr) {
 #endif
     
     auto width = next_pow2(ptr->cols), height = next_pow2(ptr->rows);
-    glTexImage2D(GL_TEXTURE_2D, 0, output_type, width, height, 0, input_type, GL_UNSIGNED_BYTE, NULL);
+    auto capacity = size_t(ptr->dims) * size_t(width) * size_t(height);
+    if (empty.size() < capacity)
+        empty.resize(capacity, 0);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, output_type, width, height, 0, input_type, GL_UNSIGNED_BYTE, empty.data());
+
     glTexSubImage2D(GL_TEXTURE_2D,0,0,0, ptr->cols, ptr->rows, input_type, GL_UNSIGNED_BYTE, ptr->data());
     glBindTexture(GL_TEXTURE_2D, 0);
     
@@ -451,7 +458,16 @@ void GLImpl::update_texture(PlatformTexture& id_, const Image *ptr) {
         input_type = GL_RG;
     }
 #endif
-    
+
+    auto capacity = size_t(ptr->dims) * size_t(id_.width) * size_t(id_.height);
+    if (empty.size() < capacity)
+        empty.resize(capacity, 0);
+
+    if (ptr->cols != id_.width || ptr->rows != id_.height) {
+        glTexSubImage2D(GL_TEXTURE_2D, 0, ptr->cols, 0, id_.width - ptr->cols, id_.height, input_type, GL_UNSIGNED_BYTE, empty.data());
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, ptr->rows, ptr->cols, id_.height - ptr->rows, input_type, GL_UNSIGNED_BYTE, empty.data());
+        //glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, id_.width, id_.height, input_type, GL_UNSIGNED_BYTE, empty.data());
+    }
     glTexSubImage2D(GL_TEXTURE_2D,0,0,0, ptr->cols, ptr->rows, input_type, GL_UNSIGNED_BYTE, ptr->data());
     //glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, ptr->cols, ptr->rows, 0, GL_RGBA, GL_UNSIGNED_BYTE, ptr->data());
     glBindTexture(GL_TEXTURE_2D, 0);

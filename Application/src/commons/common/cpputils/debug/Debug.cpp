@@ -516,7 +516,7 @@ insert_start(tree, &current_node, e); }
                     case '<':
                     case '>':
                     case ':':
-                        if (current == '<' || (current == ':' && i < msg->buf.length() && msg->buf[i + 1] != ':' && (size_t)word_start != i)) {
+                        if (current == '<' || (current == ':' && i+1 < msg->buf.length() && msg->buf[i + 1] != ':' && (size_t)word_start != i)) {
                             TreeNode<DEBUG::PARSE_OBJECTS> *node;
                             long str_start = -1;
                             long off = 0;
@@ -564,7 +564,7 @@ insert_start(tree, &current_node, e); }
                         
                         if (current == ':') {
                             // match ':' pairs
-                            if ((i < msg->buf.length() && msg->buf[i + 1] == ':')
+                            if ((i+1 < msg->buf.length() && msg->buf[i + 1] == ':')
                                 || (i > 0 && msg->buf[i - 1] == ':'))
                             {
                                 INSERT_SINGLE(PARSE_OBJECTS::CLASSSEPERATOR, i);

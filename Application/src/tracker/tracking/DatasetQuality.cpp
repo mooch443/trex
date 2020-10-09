@@ -275,7 +275,8 @@ DatasetQuality::Single DatasetQuality::evaluate_single(idx_t id, Individual* fis
     long_t number_frames = 0;
     bool debug = false;
     
-    if(FAST_SETTINGS(manually_approved).find(_consec.start) != FAST_SETTINGS(manually_approved).end())
+    auto manually_approved = FAST_SETTINGS(manually_approved);
+    if(manually_approved.find(_consec.start) != manually_approved.end())
         debug = true;
     
     FrameRange consec(Rangel(-1, -1));
