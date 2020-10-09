@@ -9,6 +9,7 @@ Welcome to TRex's documentation!
    
    install
    run
+   formats
    parameters_trex
    parameters_tgrabs
 

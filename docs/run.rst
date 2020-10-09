@@ -55,6 +55,11 @@ The tracker only expects an input file::
 
 Just like with |grabs|, you can attach any number of additional parameters to the command-line, simply using ``-PARAMETER VALUE`` (see :doc:`parameters_trex`).
 
+Batch processing support
+========================
+
+
+
 Frequently asked questions and solutions to weird problems
 ==========================================================
 

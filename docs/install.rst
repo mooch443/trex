@@ -90,7 +90,7 @@ You can now clone the repository and change your directory to a build folder::
 	mkdir build
 	cd build
 	
-Now we have to generate the project files for the given platform and compiler. The following CMake command varies slightly depending on the operating system. Within the environment, go to the ``FishTracker/Application/build`` repository (created previously) and execute:
+Now we have to generate the project files for the given platform and compiler. The following CMake command varies slightly depending on the operating system. Within the environment, go to the ``FishTracker/Application/build`` repository (created previously) and execute either the prepared compile scripts for your platform (on a Unix system ``../trex_build_unix.sh``, or on Windows ``../trex_build_windows.bat``) or execute cmake yourself with custom settings:
 
 * **Windows**::
 
@@ -152,7 +152,7 @@ Now that your project files are set-up, execute these commands in order (for Uni
 	 && cmake .. \
 	 && cmake --build . --config Release
 
-or in PowerShell::
+or on Windows, and in PowerShell::
 
 	cmake --build . --target CustomOpenCV --config Release `
 	 -and cmake .. `
