@@ -767,13 +767,15 @@ if(${TREX_BUILD_OPENCV})
    if(TREX_BUILD_PNG)
        if(WIN32)
            set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
-                            -DPNG_LIBRARY_RELEASE:FILEPATH=${png_install_dir}/lib/libpng16_static.lib
-                            -DPNG_LIBRARY_DEBUG:FILEPATH=${png_install_dir}/lib/libpng16_staticd.lib)
+                -DPNG_LIBRARY_RELEASE:FILEPATH=${png_install_dir}/lib/libpng16_static.lib
+                -DPNG_LIBRARY_DEBUG:FILEPATH=${png_install_dir}/lib/libpng16_staticd.lib
+                -DPNG_PNG_INCLUDE_DIR:FILEPATH=${png_install_dir}/include)
        else()
             if(APPLE)
                 set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
                     -DPNG_LIBRARY_RELEASE:FILEPATH=${png_install_dir}/lib/libpng16.a
                     -DPNG_LIBRARY_DEBUG:FILEPATH=${png_install_dir}/lib/libpng16d.a
+                    -DPNG_PNG_INCLUDE_DIR:FILEPATH=${png_install_dir}/include
                 )
             endif()
        endif()
@@ -782,11 +784,13 @@ if(${TREX_BUILD_OPENCV})
    if(TREX_BUILD_ZLIB)
        if(WIN32)
            set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
+                            -DZLIB_INCLUDE_DIR:PATH=${zlib_install_dir}/include
                             -DZLIB_LIBRARY_DEBUG:FILEPATH=${zlib_install_dir}/lib/zlibd.lib
 							-DZLIB_LIBRARY_RELEASE:FILEPATH=${zlib_install_dir}/lib/zlib.lib)
        else()
             if(APPLE)
                 set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
+                    -DZLIB_INCLUDE_DIR:PATH=${zlib_install_dir}/include
                     -DZLIB_LIBRARY_RELEASE:FILEPATH=${zlib_install_dir}/lib/libz.a
                     -DZLIB_LIBRARY_DEBUG:FILEPATH=${zlib_install_dir}/lib/libzd.a
                 )
@@ -818,7 +822,7 @@ if(${TREX_BUILD_OPENCV})
             -DBUILD_JPEG:BOOL=ON
             -DWITH_OPENJPEG:BOOL=OFF
             -DBUILD_JASPER:BOOL=OFF
-            -DBUILD_opencv_python3=ON
+            -DBUILD_opencv_python3=OFF
             -DBUILD_opencv_python2=OFF
             -DWITH_JASPER:BOOL=OFF
             -DBUILD_opencv_world:BOOL=OFF
