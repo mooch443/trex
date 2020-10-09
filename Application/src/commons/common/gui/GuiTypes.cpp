@@ -173,7 +173,7 @@ Polygon::Polygon(const std::vector<Vertex>& vertices)
     _vertices = std::make_shared<std::vector<Vec2>>(vertices.begin(), vertices.end());
     if(!vertices.empty()) {
         set_border_clr(vertices.front().color());
-        set_fill_clr(vertices.front().color().alpha(50));
+        set_fill_clr(vertices.front().color().alpha(100));
     }
     update_size();
 }

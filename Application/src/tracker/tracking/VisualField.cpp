@@ -281,8 +281,8 @@ namespace track {
         _eyes[0].angle = angle + eye_separation;
         _eyes[1].angle = angle - eye_separation;
         
-        _eyes[0].clr = Color(0, 125, 255, 255);
-        _eyes[1].clr = Color(255, 125, 0, 255);
+        _eyes[0].clr = Color(0, 50, 255, 255);
+        _eyes[1].clr = Color(255, 50, 0, 255);
         
         for(auto &e : _eyes)
             correct_angle(e.angle);
@@ -389,7 +389,7 @@ namespace track {
         for(auto &eye : _eyes) {
             crosses.emplace_back(eye.pos, eye.clr);
             
-            for (size_t i=0; i<VisualField::field_resolution; i++) {
+            for (size_t i=6; i<VisualField::field_resolution-6; i++) {
                 if(eye._depth[i] < FLT_MAX) {
                     //auto w = (1 - sqrt(eye._depth[i]) / (sqrt(max_d) * 0.5));
                     crosses.emplace_back(eye._visible_points[i], eye.clr);
@@ -417,7 +417,9 @@ namespace track {
             crosses.emplace_back(eye.pos, eye.clr);
             base.circle(eye.pos, 3, White.alpha(125));
             //if(&eye == &_eyes[0])
-                base.add_object(new gui::Polygon(crosses));
+            auto poly = new gui::Polygon(crosses);
+            //poly->set_fill_clr(Transparent);
+                base.add_object(poly);
             crosses.clear();
         }
         
