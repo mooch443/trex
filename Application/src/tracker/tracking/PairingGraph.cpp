@@ -873,10 +873,9 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
            // Debug("%d: %d steps in %fms (%d)", frame(), objects, timer.elapsed()*1000, stack.size());
     }*/
     
-    const PairingGraph::Result& PairingGraph::get_optimal_pairing(bool debug, int mode) {
+    const PairingGraph::Result& PairingGraph::get_optimal_pairing(bool debug, default_config::matching_mode_t::Class match_mode) {
         static std::mutex _mutex;
         std::lock_guard<std::mutex> guard(_mutex);
-        const default_config::matching_mode_t::Class match_mode = mode == -1 ? FAST_SETTINGS(match_mode) : default_config::matching_mode_t::Class((default_config::matching_mode_t::data::values)mode);
         
         if(_optimal_pairing)
             delete _optimal_pairing;

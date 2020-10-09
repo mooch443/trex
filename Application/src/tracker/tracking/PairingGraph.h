@@ -189,7 +189,7 @@ namespace Match
         //cv::Point2f pos(const Individual*) const;
         //cv::Point2f pos(const Blob*) const;
         
-        const Result& get_optimal_pairing(bool print = false, int mode = -1);
+        const Result& get_optimal_pairing(bool print = false, default_config::matching_mode_t::Class mode = default_config::matching_mode_t::accurate);
         
     public:
         //psets_t _psets;

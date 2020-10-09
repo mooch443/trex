@@ -44,7 +44,8 @@ namespace default_config {
     ENUM_CLASS_DOCS(heatmap_normalization_t,
                     "No normalization at all. Values will only be averaged per cell.",
                     "Normalization based in value-space. The average of each cell will be divided by the maximum value encountered.",
-                    "The cell sum will be divided by the maximum cell value encountered."
+                    "The cell sum will be divided by the maximum cell value encountered.",
+                    "Displays the variation within each cell."
     )
 
     ENUM_CLASS_DOCS(gui_recording_format_t,

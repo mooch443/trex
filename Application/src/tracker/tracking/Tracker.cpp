@@ -2794,7 +2794,13 @@ void Tracker::clear_properties() {
     #endif
             
             try {
-                auto &optimal = graph.get_optimal_pairing(false, frame_uses_approximate ? (int)default_config::matching_mode_t::hungarian.value() : -1 );
+                auto match_mode = frame_uses_approximate
+                    ? default_config::matching_mode_t::hungarian
+                    : FAST_SETTINGS(match_mode);
+                
+                //if(match_mode == default_config::matching_mode_t::accurate)
+                //    U_EXCEPTION("Test %d", frameIndex);
+                auto &optimal = graph.get_optimal_pairing(false, match_mode);
                 
                 if(!frame_uses_approximate) {
                     std::lock_guard<std::mutex> guard(_statistics_mutex);
@@ -2808,7 +2814,7 @@ void Tracker::clear_properties() {
                     _statistics[frameIndex].match_mean_edges_per_fish = mean_edges_per_fish;
                     _statistics[frameIndex].match_improvements_made = optimal.improvements_made;
                     _statistics[frameIndex].match_leafs_visited = optimal.leafs_visited;
-                    _statistics[frameIndex].method_used = (int)FAST_SETTINGS(match_mode).value();
+                    _statistics[frameIndex].method_used = (int)match_mode.value();
                 }
                 
     #if defined(PAIRING_PRINT_STATS)
@@ -2829,7 +2835,6 @@ void Tracker::clear_properties() {
                 
                 graph.print_summary();
     #endif
-
                             
 #if defined(PAIRING_PRINT_STATS)
                 // matching did not work
@@ -2846,7 +2851,7 @@ void Tracker::clear_properties() {
                 Debug("gw ---");
 #endif
                 
-                auto &optimal = graph.get_optimal_pairing(false, (int)default_config::matching_mode_t::hungarian.value());
+                auto &optimal = graph.get_optimal_pairing(false, default_config::matching_mode_t::hungarian);
                 for (auto &p: optimal.pairings) {
                     assign_blob_individual(frameIndex, frame, p.first, ptr2ptr.at(p.second));
                     active_individuals.insert(p.first);
@@ -3500,6 +3505,9 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         
         _individual_add_iterator_map.clear();
         _segment_map_known_capacity.clear();
+        
+        if(_approximative_enabled_in_frame >= frameIndex)
+            _approximative_enabled_in_frame = -1;
         
         Debug("Removing frames after and including %ld", frameIndex);
         

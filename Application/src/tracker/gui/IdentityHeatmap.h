@@ -66,6 +66,7 @@ protected:
     GETTER(Ptr, parent)
     const Grid* _grid;
     GETTER(double, value_sum)
+    GETTER(double, value_sqsum)
     GETTER(Range<double>, value_range)
     
     GETTER(std::vector<uint32_t>, IDs)
@@ -332,10 +333,11 @@ protected:
     OptionsList<Output::Modifiers> _mods;
     std::shared_ptr<ExternalImage> _image;
     
-    std::vector<double> _array_grid, _array_samples;
+    std::vector<double> _array_grid, _array_sqsum, _array_samples;
     
     gpuMat _viridis, _gpuGrid;
     std::map<track::Individual*, track::Individual::segment_map::const_iterator> _iterators;
+    std::map<track::Individual*, size_t> _capacities;
     
 public:
     HeatmapController();
@@ -344,6 +346,8 @@ public:
     void update() override;
     void paint_heatmap();
     void save();
+    void frames_deleted_from(long_t frame);
+    
 private:
     struct UpdatedStats {
         size_t added;
