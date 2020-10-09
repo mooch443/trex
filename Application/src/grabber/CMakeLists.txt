@@ -222,6 +222,8 @@ install(TARGETS ${targets}
     CONFIGURATIONS Release
 )
 
+install(FILES ${CMAKE_SOURCE_DIR}/closed_loop.py DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
+
 if(APPLE)
 target_compile_definitions(tgrabs_starter PRIVATE -DTGRABS_TARGET_PATH="${CMAKE_INSTALL_PREFIX}/bin")
 endif()
