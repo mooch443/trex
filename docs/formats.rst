@@ -22,10 +22,17 @@ Upon hitting the ``S`` key/clicking the export tracking data button in the menu,
 	SPEED
 	AX                  (x-component of acceleration in cm/s)
 	AY                  (y-component *)
+	time                (time in seconds from start of the video, consistent across individuals)
+	frame               (monotonically increasing integer number, consistent across individuals)
+	num_pixels          (number of pixels in the object)
 	...
+
+Each of these metrics is saved per frame, meaning that each metric mentioned here has the same number of values per individual. However, not all individuals have the same number of frames and do not necessarily start at the same time (even though the time variable is consistent across individuals). If an individual is first detected later in the video (not in the first frame), then that frame is the first one to appear in the exported data. Individuals may also not appear towards the end of the video, in which case there also won't be any data exported for that part.
 
 .. NOTE::
 	There are a couple hashtags in there -- these simply mean that the data-source for that metric is different. For example, ``wcentroid`` means that this metric is centered on the centroid (weighted by pixel values) of each individual. If no hashtag is provided, the metric centers on the head of each individual. These are usually closely related, but are different from each other e.g. when the individual moves its head independently from other parts of the body. There the head-based metric would show much more wiggling around than the centroid-based metric.
+
+If one metric (such as anything posture-related) is not available in a frame -- either because the individual was not found, or because no valid posture was found -- then all affected metrics (sometimes all) will be set to infinity.
 
 Posture
 -------
