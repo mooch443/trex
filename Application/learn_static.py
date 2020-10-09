@@ -185,7 +185,7 @@ def plot_medians(title, train_X, train_Y, classes):
         del subdata
         
     TRex.log("#samples per class: "+str(lengths))
-    TRex.imshow(title, utils.figure_as_image())
+    #TRex.imshow(title, utils.figure_as_image())
     #utils.show_figure(title, output_path="")
 
 class UserCancelException(Exception):
@@ -313,8 +313,8 @@ class ValidationCallback(keras.callbacks.Callback):
         ax.set_ylabel('True label')
         ax.set_xlabel('Predicted label')
         
-        if do_show:
-            utils.show_figure("confusion matrix", output_path="")
+        #if do_show:
+        #    utils.show_figure("confusion matrix", output_path="")
         #plt.tight_layout()
         
     def plot_confusion(self, X_test, Y_test, predictions = None,  title = "", ax = None, cmap = None):
