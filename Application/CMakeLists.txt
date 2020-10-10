@@ -786,13 +786,11 @@ if(${TREX_BUILD_OPENCV})
                             -DZLIB_LIBRARY_DEBUG:FILEPATH=${zlib_install_dir}/lib/zlibd.lib
 							-DZLIB_LIBRARY_RELEASE:FILEPATH=${zlib_install_dir}/lib/zlib.lib)
        else()
-            if(APPLE)
-                set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
-                    -DZLIB_INCLUDE_DIR:PATH=${zlib_install_dir}/include
-                    -DZLIB_LIBRARY_RELEASE:FILEPATH=${zlib_install_dir}/lib/libz.a
-                    -DZLIB_LIBRARY_DEBUG:FILEPATH=${zlib_install_dir}/lib/libzd.a
-                )
-            endif()
+            set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
+                -DZLIB_INCLUDE_DIR:PATH=${zlib_install_dir}/include
+                -DZLIB_LIBRARY_RELEASE:FILEPATH=${zlib_install_dir}/lib/libz.a
+                -DZLIB_LIBRARY_DEBUG:FILEPATH=${zlib_install_dir}/lib/libzd.a
+            )
        endif()
    endif()
    set(OPENCV_CMAKE_ARGS -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
