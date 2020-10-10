@@ -576,16 +576,23 @@ if(NOT TREX_BUILD_ZIP)
     endif()
 endif()
 
-
-if(WIN32)
-	if(TREX_BUILD_ZLIB)
-		set(trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}
-			-DCMAKE_PREFIX_PATH=${zlib_install_dir}/lib/zlib.lib
+if(TREX_BUILD_ZLIB)
+    if(WIN32)
+        set(trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}
+            -DCMAKE_PREFIX_PATH=${zlib_install_dir}/lib/zlib.lib
             -DZLIB_LIBRARY:FILEPATH=${zlib_install_dir}/lib/zlib.lib
-			-DZLIB_LIBRARY_RELEASE:FILEPATH=${zlib_install_dir}/lib/zlib.lib 
-			-DZLIB_LIBRARY_RELWITHDEBINFO:FILEPATH=${zlib_install_dir}/lib/zlib.lib 
-			-DZLIB_LIBRARY_DEBUG:FILEPATH=${zlib_install_dir}/lib/zlibd.lib)
-	endif()
+            -DZLIB_LIBRARY_RELEASE:FILEPATH=${zlib_install_dir}/lib/zlib.lib
+            -DZLIB_LIBRARY_RELWITHDEBINFO:FILEPATH=${zlib_install_dir}/lib/zlib.lib
+            -DZLIB_LIBRARY_DEBUG:FILEPATH=${zlib_install_dir}/lib/zlibd.lib)
+        
+    else()
+        set(trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}
+            -DZLIB_INCLUDE_DIR:PATH=${zlib_install_dir}/include
+            -DZLIB_LIBRARY_RELEASE:FILEPATH=${zlib_install_dir}/lib/libz.a
+            -DZLIB_LIBRARY_RELWITHDEBINFO:FILEPATH=${zlib_install_dir}/lib/libz.a
+            -DZLIB_LIBRARY_DEBUG:FILEPATH=${zlib_install_dir}/lib/libzd.a
+        )
+    endif()
 endif()
 
 if(TREX_BUILD_ZIP)
