@@ -949,6 +949,7 @@ Image::Ptr Recognition::calculate_diff_image_with_settings(const default_config:
                 
                 auto custom_len = local_midline_length(e.fish, e.segment.range);
                 
+#ifndef NDEBUG
                 if(blob->num_pixels() != e.blob.num_pixels) {
                     static Timer printed;
                     if (printed.elapsed() >= 1) {
@@ -959,6 +960,7 @@ Image::Ptr Recognition::calculate_diff_image_with_settings(const default_config:
                     //_detail.set_unavailable_blobs(_detail.unavailable_blobs() + 1);
                     //continue;
                 }
+#endif
                 
                 assert(blob->pixels());
                 e.filters = std::make_shared<TrainingFilterConstraints>(custom_len);
