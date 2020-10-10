@@ -67,8 +67,6 @@ requirements:
     - tensorflow-gpu ==1.13.* [not osx]
     - tensorflow ==1.13.* [osx]
     - keras
-    - matplotlib
-    - pillow
     - ffmpeg [win]
     - python [win]
     - ffmpeg ==4.0 [not win]

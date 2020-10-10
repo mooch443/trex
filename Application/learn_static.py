@@ -4,9 +4,6 @@
 #except:
 #    pass
 
-import matplotlib
-matplotlib.use("Agg")
-
 from keras.layers import Dense, Dropout, Activation, Cropping2D, Flatten, Convolution1D, Convolution2D, MaxPooling1D,MaxPooling2D
 from keras.models import Sequential
 import keras
@@ -16,7 +13,6 @@ from keras.preprocessing.image import ImageDataGenerator
 from keras.utils import np_utils
 import TRex
 import utils
-import matplotlib.pyplot as plt
 
 import shutil
 
@@ -163,31 +159,6 @@ def reinitialize_network():
             metrics=['accuracy'])
     model.summary(print_fn=TRex.log)
 
-
-def plot_medians(title, train_X, train_Y, classes):
-    lengths = {}
-    f, axes = utils.axes_for_array(len(classes))
-    for ax, c in zip(axes, classes):
-        index = train_Y == c
-        ax.set_title(str(c)+": "+str(len(train_X[index])))
-        lengths[c] = len(train_X[index])
-        
-        subdata = np.copy(train_X[index])
-        
-        if len(subdata) == 0:
-            #TRex.log("skipping class "+str(c)+" because its empty")
-            continue
-        
-        img = np.max(subdata.astype(float), axis=0)[:,:,0]
-        img = np.stack((img, )*3, axis=2).astype(np.uint8)
-        ax.imshow(img)
-        
-        del subdata
-        
-    TRex.log("#samples per class: "+str(lengths))
-    #TRex.imshow(title, utils.figure_as_image())
-    #utils.show_figure(title, output_path="")
-
 class UserCancelException(Exception):
     """Raised when user clicks cancel"""
     pass
@@ -249,105 +220,11 @@ class ValidationCallback(keras.callbacks.Callback):
             
             distance = np.abs(Y - zeros).sum(axis=1)
 
-            if do_plot:
-                f, [ax, bx] = plt.subplots(1, 2, figsize=(15, 5))
-                ax.scatter(np.arange(len(distance)), distance, label="d", s = 1, c = np.ones(len(distance)), alpha = 0.5)
-                pts = np.argmax(Y, axis=1)
-                color = Y.sum(axis=1)
-
-                for j in range(len(color)):
-                    color[j] = color[j] * len(Y[j][Y[j] > 0.01])# / len(obj.classes)
-
-                pts = np.concatenate((pts, [0, ]), axis=0)
-                color = np.concatenate((color, [10, ]), axis=0)
-
-                im = bx.scatter(np.arange(len(pts)), pts, label="Y", s = 1, c = color, alpha = 0.5)
-                bx.set_yticks(np.arange(len(obj.classes_subset)))
-                bx.set_ylim(-1, len(obj.classes_subset))
-                #TRex.log(color.max(), color.min())
-                plt.colorbar(im)
-                plt.suptitle(c)
-                ax.legend()
-                bx.legend()
-                plt.show()
-                plt.close(f)
-
             result[i, 0] = np.median(np.argmax(Y, axis=1))
             result[i, 1] = distance.std()
             result[i, 2] = np.median(Y.sum(axis=1)) #distance.mean()
             result[i, 3] = (np.argmax(Y, axis=1) == i).sum() / len(Y)
         return result, predictions
-        
-    def plot_confusion_matrix(self, cm, classes,
-                                      normalize,
-                                      title,
-                                      cmap, ax = None):
-        """
-        This function prints and plots the confusion matrix.
-        Normalization can be applied by setting `normalize=True`.
-        """
-        do_show = False
-    
-        if normalize:
-            cm = cm.astype('float') / (1+cm.sum(axis=1)[:, np.newaxis])
-
-        if ax == None:
-            f, ax = plt.subplots(1,1)
-            do_show = True
-        
-        im = ax.imshow(cm, interpolation='nearest', cmap=cmap)
-        ax.set_title(title)
-        cbar = plt.colorbar(im, ax = ax)
-        cbar_ticks = np.linspace(0., 1., num=10, endpoint=True)
-        cbar.set_ticks(cbar_ticks)
-        
-        tick_marks = np.arange(len(classes))
-        ax.set_xticks(tick_marks)
-        ax.set_xticklabels([str(c) for c in classes])
-        ax.set_yticks(tick_marks)
-        ax.set_yticklabels([str(c) for c in classes])
-
-        fmt = '.2f' if normalize else 'd'
-        thresh = cm.max() / 2.
-    
-        ax.set_ylabel('True label')
-        ax.set_xlabel('Predicted label')
-        
-        #if do_show:
-        #    utils.show_figure("confusion matrix", output_path="")
-        #plt.tight_layout()
-        
-    def plot_confusion(self, X_test, Y_test, predictions = None,  title = "", ax = None, cmap = None):
-        classes = self.classes
-        #TRex.log("shapes:", X_test.shape, Y_test.shape)
-        
-        y = None
-        if type(predictions) == type(None):
-            y = self.model.predict(X_test)
-        else:
-            y = np.concatenate(predictions, axis=0)
-            assert len(y) == len(X_test)
-        
-        result = np.zeros_like(np.ndarray(shape=(len(classes),len(classes))), dtype=float)
-
-        wrong = 0
-        correct = 0
-        
-        for i in range(len(X_test)):
-            a = np.argmax(y[i,0:len(classes)])
-            b = np.argmax(Y_test[i,0:len(classes)])
-
-            if a == b:
-                correct = correct+1
-            else:
-                wrong = wrong + 1
-
-            result[a, b] = result[a, b] + 1
-            #result_x.append(a)
-            #result_y.append(b)
-
-        title = title + " (accuracy "+str(1-wrong/float(correct+wrong))+")"
-        self.plot_confusion_matrix(result, [str(classes[i]) for i in classes], normalize=True, title = title, ax = ax, cmap=cmap)
     
     def update_status(self, print_out = False, logs = {}):
         description = "epoch "+str(min(self.epoch+1, self.epochs))+"/"+str(self.epochs)
@@ -375,29 +252,11 @@ class ValidationCallback(keras.callbacks.Callback):
         
         update_work_percent(min(epoch + 1, self.epochs) / self.epochs)
         
-        #fig = plt.figure(figsize=(25,10))
-        #gs = fig.add_gridspec(2,2, width_ratios=[1,3])
-        #ax = fig.add_subplot(gs[0,0])
-        #dx = fig.add_subplot(gs[0,1])
-        #bx = fig.add_subplot(gs[1,:])
-        
         self.epoch = min(epoch + 1, self.epochs)
 
         if np.shape(self.X_test)[-1] > 0:
             result, predictions = self.plot_comparison_raw(do_plot = False, length = -1)
             
-            #dx.plot(np.arange(len(result)), result[:, 3], label="% correct")
-            #dx.scatter(np.arange(len(result)), result[:, 3])
-            #for i in np.arange(len(result)):
-            #    dx.annotate(str(classes[i])+": "+str(int(result[:, 3][i]*100))+"%", (i + 0.01, result[:, 3][i] + 0.01))
-            #dx.set_ylim(0, 1)
-            #dx.set_xticks(np.arange(len(result)))
-            #dx.set_xticklabels([str(classes[i]) for i in classes])
-            #plt.title("epoch "+str(epoch)+" range "+str(np.array(self.settings["global_segment"])))
-            #utils.show_figure("classes recognition")
-        
-            #self.plot_confusion(np.concatenate(self.X_test, axis=0), np.concatenate(self.Y_test, axis=0), predictions = predictions, ax = ax)
-
             for i in range(0, len(result[:, 3])):
                 if not i in self.per_class_accuracy:
                     self.per_class_accuracy[i] = []
@@ -406,12 +265,6 @@ class ValidationCallback(keras.callbacks.Callback):
             self.worst_values.append(np.min(result[:, 3]))
 
             set_per_class_accuracy(result[:, 3].astype(np.float))
-
-            #bx.fill_between(np.arange(len(self.worst_values)), self.worst_values, self.mean_values, where=np.array(self.worst_values) <= np.array(self.mean_values), facecolor="red", interpolate = True, alpha= 0.25)
-            
-            #bx.plot(np.arange(len(self.worst_values)), self.worst_values, label="min", color="blue")
-            #bx.plot(np.arange(len(self.mean_values)), self.mean_values, label="mean")
-
             worst_acc_per_class = np.min(result[:, 3])
         else:
             result = None
@@ -424,7 +277,6 @@ class ValidationCallback(keras.callbacks.Callback):
 
         self.uniquenesses.append(unique)
         set_uniqueness_history(self.uniquenesses)
-        #bx.plot(np.arange(len(self.uniquenesses)), self.uniquenesses, label="uniqueness", color="red")
 
         # check whether our worst value improved, but only use it if it wasnt the first epoch
         if unique > self.best_result["unique"] and (self.compare_acc <= 0 or unique >= self.compare_acc**2):
@@ -540,36 +392,7 @@ class ValidationCallback(keras.callbacks.Callback):
                         set_stop_reason("overfitting")
                         TRex.log("[STOP] overfitting. stopping with loss diffs: "+str(change))
                         self.model.stop_training = True
-        
-        #if worst_acc_per_class >= min_acceptable_value and (worst_acc_per_class >= 0.99 or (len(self.worst_values) >= min_number_iterations and self.worst_values[-1] >= min_acceptable_value)):
-         #   TRex.log("[STOP] stopping training with minimum validation accuracy of "+str(worst_acc_per_class)+" per class")
-          #  self.model.stop_training = True
-#else:
-#            TRex.log("\tcontinuing with worst accuracy of "+str(worst_value))
-        
-        #if len(self.better_values) > 0:
-        #    bx.scatter(np.array(self.better_values).T[0], np.array(self.better_values).T[1], label="improvements", color="red")
-        #    for i,j in zip(np.array(self.better_values).T[0], np.array(self.better_values).T[1]):
-        #        bx.annotate(str(int(j * 1000) / 10.0)+"%",xy=(i,j), xytext=(1,5), textcoords='offset points')
-        #if len(self.much_better_values) > 0:
-        #    bx.scatter(np.array(self.much_better_values).T[0], np.array(self.much_better_values).T[1], label="eligble", color="green")
-        
-        #if self.compare_acc > 0:
-        #    bx.axhline(y=self.compare_acc, label="previous best", color="gray", linestyle="--")
-        #    bx.axhline(y=self.compare_acc**2, label="previous accept.", color="gray", linestyle="--")
-        #bx.set_ylim(-0.05, 1.05)
-        
-        #if len(self.uniquenesses) < 20:
-        #    bx.set_xticks(np.arange(len(self.uniquenesses)))
-        #else:
-        #    bx.set_xticks(np.arange(len(self.uniquenesses), 5))
-        #bx.set_xlabel("epochs")
-        #bx.set_ylabel("accuracy")
-        #plt.legend()
-        #plt.close(plt.gcf())
-        #im = utils.figure_as_image()
-        #TRex.imshow("training overview", im)
-        #utils.show_figure(self.filename + self.prefix + " " + str(epoch) + " training overview", output_path=self.settings["output_path"], im = im)
+
         self.update_status(True, logs=logs)
         self.batches = 0
         return unique
@@ -675,7 +498,6 @@ def start_learning():
     for i, c in zip(np.arange(len(classes)), classes):
         mi = max(mi, len(Y_train[np.argmax(Y_train, axis=1) == c]))
 
-    plot_medians(filename + output_prefix + " dataset", X_train, np.argmax(Y_train, axis=1), np.array(classes, dtype=int))
     per_epoch = max(settings["min_iterations"], int(len(X_train) // batch_size ) * 0.5 ) #* 2.0) # i am using augmentation
     settings["per_epoch"] = per_epoch
     TRex.log(str(settings))

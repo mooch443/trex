@@ -239,7 +239,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
 namespace track {
     namespace py = pybind11;
     std::shared_ptr<py::scoped_interpreter> guard = nullptr;
-    pybind11::module utils, numpy, TRex, plt, matplotlib, _main;
+    pybind11::module numpy, TRex, _main;
     pybind11::dict* _locals = nullptr;
     std::mutex module_mutex;
 
@@ -424,24 +424,7 @@ namespace track {
                              "\t\tfound = False\nprint('setting version',sys.version,found,physical)\n" \
                              "set_version(sys.version, found, physical)\n");
                 
-                matplotlib = py::module::import("matplotlib");
-                
-        //#ifdef __linux__
-                matplotlib.attr("use")("Agg");
-        //#endif
-                
-                plt = py::module::import("matplotlib.pyplot");
-                //main.attr("array") = std::vector<float>{1,2,3,4};
-                //plt.attr("plot")(main.attr("array"));
-                //plt.attr("show")();
-                
                 numpy = _main.import("numpy");
-                try {
-                    track::utils = _main.import("utils");
-                } catch(py::error_already_set &e) {
-                    Debug("Python runtime error: '%s'", e.what());
-                    e.restore();
-                }
                 TRex = _main.import("TRex");
                 
                 _locals = new py::dict("model"_a="None");
@@ -489,7 +472,7 @@ namespace track {
             }
             
             try {
-                track::utils = track::numpy = track::TRex = track::plt = track::matplotlib = _main = pybind11::module();
+                track::numpy = track::TRex = _main = pybind11::module();
 
                 {
                     std::lock_guard<std::mutex> guard(module_mutex);

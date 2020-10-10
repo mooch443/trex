@@ -22,10 +22,6 @@ int main(int argc, char**argv) {
 #endif
     importlib.attr("find_loader")("keras").attr("name");
 #ifndef NDEBUG
-    printf("loading matplotlib...\n");
-#endif
-    importlib.attr("find_loader")("matplotlib").attr("name");
-#ifndef NDEBUG
     printf("success.\n");
 #endif
 	return 0;

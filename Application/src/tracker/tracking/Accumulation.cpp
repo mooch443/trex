@@ -101,7 +101,7 @@ void Accumulation::setup() {
     try {
         Recognition::check_learning_module();
     } catch(const std::future_error& error) {
-        SOFT_EXCEPTION("Checking the learning module failed ('%s'). Most likely one of the required libraries is missing from the current python environment (check for keras, tensorflow, matplotlib and pillow).", error.what());
+        SOFT_EXCEPTION("Checking the learning module failed ('%s'). Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow).", error.what());
     }
 }
 
