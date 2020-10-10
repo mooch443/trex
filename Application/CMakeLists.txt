@@ -771,13 +771,11 @@ if(${TREX_BUILD_OPENCV})
                 -DPNG_LIBRARY_DEBUG:FILEPATH=${png_install_dir}/lib/libpng16_staticd.lib
                 -DPNG_PNG_INCLUDE_DIR:FILEPATH=${png_install_dir}/include)
        else()
-            if(APPLE)
-                set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
-                    -DPNG_LIBRARY_RELEASE:FILEPATH=${png_install_dir}/lib/libpng16.a
-                    -DPNG_LIBRARY_DEBUG:FILEPATH=${png_install_dir}/lib/libpng16d.a
-                    -DPNG_PNG_INCLUDE_DIR:FILEPATH=${png_install_dir}/include
-                )
-            endif()
+            set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
+                -DPNG_LIBRARY_RELEASE:FILEPATH=${png_install_dir}/lib/libpng16.a
+                -DPNG_LIBRARY_DEBUG:FILEPATH=${png_install_dir}/lib/libpng16d.a
+                -DPNG_PNG_INCLUDE_DIR:FILEPATH=${png_install_dir}/include
+            )
        endif()
    endif()
    
