@@ -72,7 +72,7 @@ namespace default_config {
 #endif
         
         CONFIG("app_name", std::string("TGrabs"), "Name of the application.", SYSTEM);
-        CONFIG("version", std::string("RC6"), "Version of the application.", SYSTEM);
+        CONFIG("version", std::string("1.0"), "Version of the application.", SYSTEM);
         CONFIG("color_channel", size_t(1), "Index (0-2) of the color channel to be used during video conversion, if more than one channel is present in the video file.");
         CONFIG("system_memory_limit", uint64_t(0), "Custom override of how many bytes of system RAM the program is allowed to fill. If `approximate_length_minutes` or `stop_after_minutes` are set, this might help to increase the resulting RAW video footage frame_rate.");
         

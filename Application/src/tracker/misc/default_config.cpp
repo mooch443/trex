@@ -193,7 +193,7 @@ file::Path conda_environment_path() {
         Adding adding(config, docs, fn);
         
         CONFIG<std::string>("app_name", "TRex", "Name of the application.", SYSTEM);
-        CONFIG("version", std::string("RC6"), "Current application version.", SYSTEM);
+        CONFIG("version", std::string("1.0"), "Current application version.", SYSTEM);
         CONFIG("build", std::string(), "Current build version", SYSTEM);
         CONFIG("cmd_line", std::string(), "An approximation of the command-line arguments passed to the program.", SYSTEM);
         CONFIG("ffmpeg_path", file::Path(), "Path to an ffmpeg executable file. This is used for converting videos after recording them (from the GUI). It is not a critical component of the software, but mostly for convenience.");
