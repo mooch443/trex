@@ -251,7 +251,8 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                 this->set_redraw();
             }
         
-            if((name == "track_threshold" || name == "grid_points" || name == "recognition_shapes" || name == "grid_points_scaling" || name == "recognition_border_shrink_percent" || name == "recognition_border" || name == "recognition_coeff" || name == "recognition_border_size_rescale") && Tracker::instance()) {
+            if((name == "track_threshold" || name == "grid_points" || name == "recognition_shapes" || name == "grid_points_scaling" || name == "recognition_border_shrink_percent" || name == "recognition_border" || name == "recognition_coeff" || name == "recognition_border_size_rescale") && Tracker::instance())
+            {
                 this->work().add_queue("updating border", [this, name](){
                     if(name == "recognition_coeff" || name == "recognition_border_shrink_percent" || name == "recognition_border_size_rescale" || name == "recognition_border") {
                         _tracker.border().clear();
@@ -265,7 +266,6 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                         if(Tracker::recognition() && Tracker::recognition()->dataset_quality()) {
                             auto start = Tracker::start_frame();
                             Tracker::recognition()->dataset_quality()->remove_frames(start);
-                            removed_frames(start);
                         }
                     }
                     
