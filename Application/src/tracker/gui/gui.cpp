@@ -1677,14 +1677,18 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
     Float2_t mw = _average_image.cols;
     Float2_t mh = _average_image.rows;
     if(target_pos.x / target_scale.x < -mw * 0.95) {
+#ifndef NDEBUG
         Debug("target_pos.x = %f target_scale.x = %f", target_pos.x, target_scale.x);
+#endif
         target_pos.x = -mw * target_scale.x * 0.95;
     }
     if(target_pos.y / target_scale.y < -mh * 0.95)
         target_pos.y = -mh * target_scale.y * 0.95;
     
     if(target_pos.x / target_scale.x > mw * 0.95) {
+#ifndef NDEBUG
         Debug("target_pos.x = %f target_scale.x = %f screen_center.x = %f screen_dimensions.x = %f window_dimensions.x = %f", target_pos.x, target_scale.x, screen_center.width, screen_dimensions.width, base()->window_dimensions().width);
+#endif
         target_pos.x = mw * target_scale.x * 0.95;
     }
     if(target_pos.y / target_scale.y > mh * 0.95)
