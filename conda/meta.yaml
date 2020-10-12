@@ -4,7 +4,7 @@ package:
   
 source:
     git_url: https://github.com/mooch443/trex.git
-    git_rev: 7da8b2fa733a08d0485a65d1dbec79d1acc60c39
+    git_rev: 76598268fcd9586fe4838d22c580d40080dc9a84
     git_depth: 1
 
 build:
