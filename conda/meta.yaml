@@ -4,7 +4,7 @@ package:
   
 source:
     git_url: https://github.com/mooch443/trex.git
-    git_rev: 90e1c23457dfa623376617607373b433511dc4b1
+    git_rev: 44084670980f0bf7509a61afdb41196553096c24
     git_depth: 1
 
 build:
@@ -62,6 +62,7 @@ requirements:
     - ffmpeg ==4.0 [not win]
     - python =3.6 [not win]
     - glfw [linux]
+    - nomkl [osx]
     
   run:
     - tensorflow-gpu ==1.13.* [not osx]
@@ -72,6 +73,7 @@ requirements:
     - ffmpeg ==4.0 [not win]
     - python =3.6 [not win]
     - glfw [linux]
+    - nomkl [osx]
 
 about:
   home: https://trex.run
