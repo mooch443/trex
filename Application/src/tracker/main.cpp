@@ -228,6 +228,8 @@ int main(int argc, char** argv)
     progname = *(argv);
 #ifndef WIN32
     std::atexit(at_exit);
+#else
+    setenv("KMP_DUPLICATE_LIB_OK", "True", 1);
 #endif
     init_signals();
     
