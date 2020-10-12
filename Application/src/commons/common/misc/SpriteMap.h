@@ -327,9 +327,12 @@ namespace sprite {
         
         std::vector<std::string> keys() const {
             std::vector<std::string> result;
-            for (auto &p: _props) {
+            result.reserve(_props.size());
+
+            for (auto &p: _props)
                 result.push_back(p.first.name());
-            }
+
+            std::sort(result.begin(), result.end());
             return result;
         }
         

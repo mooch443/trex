@@ -29,8 +29,10 @@ if(APPLE)
     set(SRCS ${SRCS} ${CMAKE_CURRENT_SOURCE_DIR}/gfx/GrabberIcon.icns)
 endif()
 
+set(TREX_ADDITIONAL_SOURCES "")
 if(WITH_GITSHA1)
-    list(APPEND SRCS "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h)
+	set(TREX_ADDITIONAL_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h)
+    list(APPEND SRCS ${TREX_ADDITIONAL_SOURCES})
 endif()
 
 if(WIN32)
@@ -59,7 +61,7 @@ COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:trex_check_python> $<TARGET_FILE_
 endif()
 add_dependencies(${TGRABS_EXEC_NAME} trex_check_python TRex::OpenCV)
 
-add_executable(pvconvert pvconvert.cpp gif.h)
+add_executable(pvconvert pvconvert.cpp gif.h ${TREX_ADDITIONAL_SOURCES})
 target_link_libraries(pvconvert PUBLIC
     tracker_gui
     pv
@@ -100,7 +102,7 @@ if(WITH_HTTPD)
     add_dependencies(${TGRABS_EXEC_NAME} LibMicroHttpd)
 endif()
 
-add_executable(pvinfo pvinfo.cpp pvinfo_merge.cpp pvinfo_merge.h)
+add_executable(pvinfo pvinfo.cpp pvinfo_merge.cpp pvinfo_merge.h ${TREX_ADDITIONAL_SOURCES})
 
 target_link_libraries(pvinfo PRIVATE
 	cnpy

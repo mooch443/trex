@@ -2,6 +2,7 @@
 #include <misc/SpriteMap.h>
 #include <file/Path.h>
 #include <misc/BlobSizeRange.h>
+#include "GitSHA1.h"
 
 #ifndef WIN32
 #include <unistd.h>
@@ -180,6 +181,15 @@ file::Path conda_environment_path() {
 #ifdef WIN32
 #define PYTHON_TIPPS " (containing pythonXX.exe)"
 #endif
+
+
+    constexpr std::string_view is_ndebug_enabled() {
+#ifndef NDEBUG
+        return std::string_view("debug");
+#else
+        return std::string_view("release");
+#endif
+    }
     
     void get(sprite::Map& config, GlobalSettings::docs_map_t& docs, decltype(GlobalSettings::set_access_level)* fn)
     {
@@ -194,6 +204,9 @@ file::Path conda_environment_path() {
         
         CONFIG<std::string>("app_name", "TRex", "Name of the application.", SYSTEM);
         CONFIG("version", std::string("1.0"), "Current application version.", SYSTEM);
+        CONFIG("build_type", std::string(g_TREX_BUILD_TYPE), "The mode the application was built in.", SYSTEM);
+        CONFIG("build_is_debug", std::string(is_ndebug_enabled()), "If built in debug mode, this will show 'debug'.", SYSTEM);
+        CONFIG("build_cxx_options", std::string(g_TREX_BUILD_CXX_OPTIONS), "The mode the application was built in.", SYSTEM);
         CONFIG("build", std::string(), "Current build version", SYSTEM);
         CONFIG("cmd_line", std::string(), "An approximation of the command-line arguments passed to the program.", SYSTEM);
         CONFIG("ffmpeg_path", file::Path(), "Path to an ffmpeg executable file. This is used for converting videos after recording them (from the GUI). It is not a critical component of the software, but mostly for convenience.");
@@ -617,7 +630,7 @@ file::Path conda_environment_path() {
             // UPDATE: write only keys with values that have changed compared
             // to the default options
             if(!config.has(key) || config[key] != GlobalSettings::get(key)) {
-                if((include_build_number && key == "build")
+                if((include_build_number && utils::beginsWith(key, "build"))
                    || (GlobalSettings::access_level(key) <= AccessLevelType::STARTUP
                        && !contains(exclude_fields, key)
                        && !contains(additional_exclusions, key)))
