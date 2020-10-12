@@ -203,17 +203,7 @@ if(XCODE)
 endif()
 #endif()
 
-if(WIN32)
-    set(trex_subproject_CMAKE_ARGS
-        -DCMAKE_C_FLAGS_DEBUG="/MTd"
-        -DCMAKE_C_FLAGS_RELEASE="/MT"
-        -DCMAKE_C_FLAGS_RELWITHDEBINFO="/MT"
-        -DCMAKE_CXX_FLAGS_DEBUG=/MTd
-        -DCMAKE_CXX_FLAGS_RELEASE=/MT
-        -DCMAKE_CXX_FLAGS_RELWITHDEBINFO=/MT)
-else()
-    set(trex_subproject_CMAKE_ARGS "")
-endif()
+ set(trex_subproject_CMAKE_ARGS "")
 
 
 SET(trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}
@@ -746,10 +736,12 @@ if(${TREX_BUILD_OPENCV})
     endif()
     
     set(OPENCV_PREFIX_PATH ${png_install_dir} ${zlib_install_dir} ${CMAKE_PREFIX_PATH} )
-    set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS} "-DCMAKE_CXX_FLAGS_DEBUG=${CMAKE_CXX_FLAGS_DEBUG}"
+    set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS} 
+			"-DCMAKE_CXX_FLAGS_DEBUG=${CMAKE_CXX_FLAGS_DEBUG}"
             "-DCMAKE_CXX_FLAGS_RELEASE=${CMAKE_CXX_FLAGS_RELEASE}"
             "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=${CMAKE_CXX_FLAGS_RELWITHDEBINFO}"
             "-DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}"
+			"-DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}"
             "-DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}")
             
     if(APPLE AND CMAKE_COMPILER_IS_GNUCXX)
@@ -762,14 +754,6 @@ if(${TREX_BUILD_OPENCV})
             "-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}"
             "-DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}")
     endif()
-   
-   if(WIN32)
-        set(OPENCV_EXTRA_FLAGS_
-                        ${OPENCV_EXTRA_FLAGS_}
-						"-DCMAKE_CXX_FLAGS_DEBUG=/MTd"
-                        "-DCMAKE_CXX_FLAGS_RELEASE=/MT"
-                        "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=/MT")
-   endif()
    
    if(TREX_BUILD_PNG)
        if(WIN32)
@@ -807,6 +791,7 @@ if(${TREX_BUILD_OPENCV})
    else()
 		set(TREX_CMAKE_BUILD_TYPE $<$<CONFIG:Debug>:Release>$<$<CONFIG:Release>:Debug>)
    endif()
+   message(STATUS "TREX_CMAKE_BUILD_TYPE ${TREX_CMAKE_BUILD_TYPE}")
    set(OPENCV_CMAKE_ARGS ${OPENCV_CMAKE_ARGS} 
 			-DCMAKE_BUILD_TYPE=${TREX_CMAKE_BUILD_TYPE}
 			-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
