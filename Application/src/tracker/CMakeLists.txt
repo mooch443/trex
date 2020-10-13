@@ -214,6 +214,20 @@ target_link_libraries(trex_starter PRIVATE
     ${EXTRA_LIBS})
 set_target_properties(trex_starter PROPERTIES OUTPUT_NAME trex)
 set(targets ${targets} trex_starter)
+
+if(TREX_CONDA_PACKAGE_INSTALL)
+    set(CONDA_PREFIX_VAR "$ENV{PREFIX}")
+    string(REPLACE "\\" "\\\\" CONDA_PREFIX_VAR "${CONDA_PREFIX_VAR}")
+    target_compile_definitions(trex_starter PRIVATE TREX_PYTHON_PATH="${CONDA_PREFIX_VAR}")
+    message(STATUS "Setting TREX_PYTHON_PATH=${CONDA_PREFIX_VAR}")
+else()
+    message(STATUS "Adding compile definitions: ${PYTHON_EXECUTABLE}")
+    target_compile_definitions(trex_starter PRIVATE
+        TREX_PYTHON_PATH="${PYTHON_EXECUTABLE}"
+    )
+    message(STATUS "Setting TREX_PYTHON_PATH=${PYTHON_EXECUTABLE}")
+endif()
+
 endif()
 
 install(TARGETS ${targets}

@@ -128,6 +128,19 @@ set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES
   MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist
 )
 
+if(TREX_CONDA_PACKAGE_INSTALL)
+    set(CONDA_PREFIX_VAR "$ENV{PREFIX}")
+else()
+    set(CONDA_PREFIX_VAR "${PYTHON_EXECUTABLE}")
+endif()
+    
+string(REPLACE "\\" "\\\\" CONDA_PREFIX_VAR "${CONDA_PREFIX_VAR}")
+message(STATUS "Setting TREX_PYTHON_PATH=${CONDA_PREFIX_VAR}")
+
+target_compile_definitions(pvinfo PRIVATE TREX_PYTHON_PATH="${CONDA_PREFIX_VAR}")
+target_compile_definitions(pvconvert PRIVATE TREX_PYTHON_PATH="${CONDA_PREFIX_VAR}")
+target_compile_definitions(${TGRABS_EXEC_NAME} PRIVATE TREX_PYTHON_PATH="${CONDA_PREFIX_VAR}")
+
 set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/gfx/GrabberIcon.icns PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 
 set(RESOURCE_COPY_FILES
@@ -203,6 +216,7 @@ if(APPLE)
     target_link_libraries(tgrabs_starter PRIVATE cpputils)
     set_target_properties(tgrabs_starter PROPERTIES OUTPUT_NAME tgrabs)
     set(targets ${targets} tgrabs_starter)
+    target_compile_definitions(tgrabs_starter PRIVATE TREX_PYTHON_PATH="${CONDA_PREFIX_VAR}")
 endif()
 
 

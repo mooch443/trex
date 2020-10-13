@@ -283,8 +283,8 @@ int main(int argc, char** argv)
     else
         Error("Cannot change directory to '%S'.", &_wd);
 #elif defined(TREX_CONDA_PACKAGE_INSTALL)
-    char *conda_prefix = getenv("CONDA_PREFIX");
-    if(conda_prefix != nullptr) {
+    auto conda_prefix = ::default_config::conda_environment_path().str();
+    if(!conda_prefix.empty()) {
         file::Path _wd(conda_prefix);
         _wd = _wd / "usr" / "share" / "trex";
         //Debug("change directory to conda environment resource folder: '%S'", &_wd.str());

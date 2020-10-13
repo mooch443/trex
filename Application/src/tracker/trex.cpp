@@ -13,12 +13,20 @@
 #endif
 
 std::string conda_environment_path(const char* argv) {
+#ifdef TREX_PYTHON_PATH
+    auto compiled_path = file::Path(TREX_PYTHON_PATH).is_regular() ? file::Path(TREX_PYTHON_PATH).remove_filename().str() : file::Path(TREX_PYTHON_PATH).str();
+#else
+    std::string compiled_path = "";
+#endif
+    
 #ifdef TREX_CONDA_PACKAGE_INSTALL
+    return compiled_path;
+#else
     auto conda_prefix = getenv("CONDA_PREFIX");
     std::string envs = "envs";
     envs += OS_SEP;
     
-    std::string home;
+    std::string home = compiled_path;
     if(conda_prefix) {
         // we are inside a conda environment
         home = conda_prefix;
@@ -39,8 +47,6 @@ std::string conda_environment_path(const char* argv) {
         }
     }
     return home;
-#else
-    return "";
 #endif
 }
 
