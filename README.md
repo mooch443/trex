@@ -2,13 +2,15 @@
 
 # Hey there
 
-Welcome to the git repository of **TRex** (https://trex.run), a video-based multi-object tracking software with recording and visual identification capabilities.
+Welcome to the git repository of **TRex** (https://trex.run) -- a software designed to track and identify individuals and other moving entities using computer vision and machine learning. The work-load is split into two (not entirely separate) tools:
+
+* **TGrabs**: Record or convert existing videos, perform live-tracking and closed-loop experiments
+* **TRex**: Track converted videos (in PV format), use the automatic visual recognition, explore the data with visual helpers, export task-specific data, and adapt tracking parameters to specific use-cases
 
 TRex can track 256 individuals in real-time, or up to 128 with all fancy features like posture estimation enabled, and for up to 100 individuals allows you to 
 (when realtime speed is not required) visually recognize individuals and automatically correct potential tracking errors.
 
-This package includes a complementary tool, called **TGrabs**, which is used to directly process already saved videos, or to record directly from 
-webcams and/or Basler machine-vision cameras (but can be extended for other APIs with a bit of C++ knowledge) with integrated and customizable closed-loop support.
+**TGrabs**, which is used to directly process already saved videos or to record directly from webcams and/or Basler machine-vision cameras with integrated and customizable closed-loop support. Camera support can be extended for other APIs with a bit of C++ knowledge, of course.
 
 # Installation
 
