@@ -24,7 +24,11 @@ target_link_libraries(tracker_misc PRIVATE
 add_dependencies(tracker_misc TRex::OpenCV)
 
 if(TREX_CONDA_PACKAGE_INSTALL)
-	set(CONDA_PREFIX_VAR "$ENV{PREFIX}")
+	if(WIN32)
+		set(CONDA_PREFIX_VAR "$ENV{BUILD_PREFIX}")
+	else()
+		set(CONDA_PREFIX_VAR "$ENV{PREFIX}")
+	endif()
 	string(REPLACE "\\" "\\\\" CONDA_PREFIX_VAR "${CONDA_PREFIX_VAR}")
     target_compile_definitions(tracker_misc PRIVATE TREX_PYTHON_PATH="${CONDA_PREFIX_VAR}")
     message(STATUS "Setting TREX_PYTHON_PATH=${CONDA_PREFIX_VAR}")
