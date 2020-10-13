@@ -53,6 +53,9 @@ if [ "$(uname)" == "Linux" ]; then
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
             -DCMAKE_BUILD_TYPE=Release \
             -DWITH_FFMPEG=ON \
+            -DTREX_BUILD_ZLIB=ON \
+            -DTREX_BUILD_ZIP=ON \
+            -DTREX_BUILD_PNG=ON \
             -DCMAKE_PREFIX_PATH="$CONDA_PREFIX;$CONDA_PREFIX/lib/pkgconfig;$CONDA_PREFIX/lib" \
             -DWITH_PYLON=ON
     else
@@ -62,6 +65,9 @@ if [ "$(uname)" == "Linux" ]; then
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
             -DCMAKE_BUILD_TYPE=Release \
             -DWITH_FFMPEG=ON \
+            -DTREX_BUILD_ZLIB=ON \
+            -DTREX_BUILD_ZIP=ON \
+            -DTREX_BUILD_PNG=ON \
             -DCMAKE_PREFIX_PATH="$PKG_CONFIG_PATH" \
             -DWITH_PYLON=ON
     fi
@@ -103,6 +109,9 @@ else
             -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
             -DCMAKE_BUILD_TYPE=Release  \
+            -DTREX_BUILD_ZLIB=ON \
+            -DTREX_BUILD_ZIP=ON \
+            -DTREX_BUILD_PNG=ON \
             -G Xcode \
             -DWITH_FFMPEG=ON
     fi
