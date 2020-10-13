@@ -102,12 +102,24 @@ namespace default_config {
 file::Path conda_environment_path() {
 #ifdef TREX_PYTHON_PATH
     auto compiled_path = file::Path(TREX_PYTHON_PATH).is_regular() ? file::Path(TREX_PYTHON_PATH).remove_filename().str() : file::Path(TREX_PYTHON_PATH).str();
+#ifdef __linux__
+    if(utils::endsWith(compiled_path, "/bin"))
+        compiled_path = file::Path(compiled_path).remove_filename().str();
+#endif
 #else
     std::string compiled_path = "";
 #endif
     
     auto home = SETTING(python_path).value<file::Path>().str();
+    if(file::Path(home).is_regular())
+	home = file::Path(home).remove_filename().str();
+#ifdef __linux__
+    if(utils::endsWith(home, "/bin"))
+	home = file::Path(home).remove_filename().str();
+#endif
+
     if(home != "CONDA_PREFIX" && home != "" && home != compiled_path) {
+	Debug("Reset conda prefix '%S' / '%S'", &home, &compiled_path);
         auto conda_prefix = getenv("CONDA_PREFIX");
         
         if(conda_prefix) {
