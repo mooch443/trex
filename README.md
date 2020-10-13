@@ -36,10 +36,6 @@ If you have any issues running the software please consult the documentation fir
 and if this does not solve your problem, please file an issue using the [issue tracker](https://github.com/mooch443/trex/issues) here on github. 
 If you experience problems with [Tensorflow](https://tensorflow.org), such as installing CUDA or cuDNN dependencies, then please direct issues to those development teams.
 
-# Example data
-
-See https://trex.run/docs/examples.html.
-
 # License
 
 Released under the GPLv3 License (see [LICENSE](https://github.com/mooch443/trex/blob/master/LICENSE)).
