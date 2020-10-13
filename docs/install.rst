@@ -12,43 +12,46 @@ Installation
 The easy way
 ************
 
-|trex| supports all major platforms. There is an easy way to install |trex| using Anaconda, by creating a new virtual environment (here named ``tracking``, which you can replace) -- the down-side is, that it needs to be compiled with fewer optimzations and features than a manually compiled one due to compatibility and licensing issues::
+|trex| supports all major platforms. There is an easy way to install |trex| using Anaconda, by creating a new virtual environment (here named ``tracking``, which you can replace)::
 
-	conda create -n tracking -c main -c conda-forge -c trexing trex
+	conda create -n tracking -c trexing trex                  # macOS, Windows
+	conda create -n tracking -c conda-forge -c trexing trex   # Linux
 
-The conda version does not offer support for Basler cameras. If you need to use |grabs| with machine vision cameras, please consider compiling the software yourself -- it has other advantages, too (such as enabling some Metal features on macOS, architecture-specific optimizations and just getting a squeaky clean, new version)!
+The down-side is that pre-built binaries are compiled with fewer optimzations and features than a manually compiled one (due to compatibility and licensing issues) and thus are slightly slower =(. For example, the conda version does not offer support for Basler cameras. If you need to use |grabs| with machine vision cameras, or need as much speed as possible/the newest version, please consider compiling the software yourself.
 
 Compile it yourself
 *******************
 
 There are two ways to get your own version of |trex|:
 
-* creating a local conda channel
-* running CMake/build manually
+* creating a local conda channel, and installing from there
+* running CMake/build manually with customized options
 
-Both are obviously connected (the local conda channel is essentially a script for the manual procedure), but there are differences. For example, the conda build is limited to certain compiler and OS-SDK versions -- which is something that you may want to change in order to enable certain OS features. We start out here by describing the easier way, followed by a description of how to do everything manually.
+Both are obviously similar in result, but there *are* differences (the local channel is essentially a script for the manual procedure, with some caveats). For example, the conda build is limited to certain compiler and OS-SDK versions -- which is something that you may want to change in order to enable certain optimizations. We start out here by describing the more automated way using conda, followed by a description of how to do everything manually.
 
 Local conda channel
 ===================
 
-In order to get your own conda channel, all you need to do is make sure you have Anaconda installed, as well as the ``conda-build`` package. This is a package that allows you to make your own packages from within the base environment (use ``conda deactivate``, until it says ``base`` on the left). It creates a virtual environment, within which it compiles/tests the software you are trying to build. You can install it using::
+In order to get your own (local) conda channel, all you need to do is make sure you have Anaconda installed, as well as the ``conda-build`` package. This is a package that allows you to make your own packages from within the base environment (use ``conda deactivate``, until it says ``base`` on the left). It creates a virtual environment, within which it compiles/tests the software you are trying to build. You can install it using::
 
 	conda install conda-build
 
-After that, clone the |trex| repository using::
+After that, from within the conda ``base`` environment, clone the |trex| repository using::
 
 	git clone --recursive https://github.com/mooch443/trex
 	cd FishTracker/conda
 
 Now, from within that folder, run::
 
-	./build_conda_package.sh
+	./build_conda_package.bat # Windows
+	./build_conda_package.sh  # Linux, macOS
 
-This runs ``conda build``, which builds the program according to all the settings inside ``meta.yaml`` (for dependencies), using ``build.sh`` (or ``bld.bat`` on Windows) to configure CMake. If you want to enable/disable certain features (e.g. use the OpenCV from within the conda environment, etc.) the build script is the place where you can do that.
+This runs ``conda build .``, which builds the program according to all the settings inside ``meta.yaml`` (for dependencies), using ``build.sh`` (or ``bld.bat`` on Windows) to configure CMake. If you want to enable/disable certain features (e.g. use the OpenCV from within the conda environment, etc.) the build script, for your OS, is the place where you can do that.
 
 After compilation was successful, |trex| can be installed using::
 
-	conda create -n tracking -c main -c conda-forge -c local trex
+	conda create -n tracking -c local trex                  # macOS, Windows
+	conda create -n tracking -c conda-forge -c local trex   # Linux
 
 Notice there is a ``-c local``, instead of the ``-c trexing`` from the first section.
 
@@ -71,7 +74,7 @@ As well as the general requirements:
 
 The easiest way to ensure that all requirements are met, is by using conda to create a new environment::
 
-	conda create -n tracking -c conda-forge cmake ffmpeg tensorflow=1.13 keras
+	conda create -n tracking cmake ffmpeg tensorflow=1 keras py-opencv
 	
 under Linux, you may have to add the ``gtk2`` package as well.
 
@@ -121,14 +124,6 @@ Now we have to generate the project files for the given platform and compiler. T
 		conda install -c conda-forge xorg-libxinerama xorg-libxcursor \
 					xorg-libxi xorg-libxrandr xorg-libxdamage libxxf86vm-cos6-x86_64 \
 					libselinux-cos6-x86_64 mesa-dri-drivers-cos6-x86_64
-	 
-.. 
-	NOTE:: 
-	Under Linux, you might also have to install the OpenGL library and Xorg dependencies -- depending on your platform. For example:: 
-..	
-		conda install mesa-libgl-devel-cos6-x86_64 xorg-libxinerama xorg-libxcursor \
-			xorg-libxi xorg-libxrandr xorg-libxdamage libxxf86vm-cos6-x86_64 \
-			libselinux-cos6-x86_64 mesa-dri-drivers-cos6-x86_64
 	
 * **macOS**::
 

@@ -17,8 +17,8 @@ fi
 
 git submodule update --recursive --init
 
-IN_CONDA=""
-if [ ! $(printenv CONDA_PREFIX_1) ] ]; then
+IN_CONDA=$(printenv CONDA_PREFIX_1)
+if [ ! $IN_CONDA ]; then
     IN_CONDA=${CONDA_PREFIX}
 fi
 
@@ -45,8 +45,15 @@ if [ "$(uname)" == "Linux" ]; then
         echo "No g++ compiler found. Please provide it in PATH or as a CXX environment variable."
         exit 1
     fi
+    
+    echo "Building GLFW, ZIP, and ZLIB - checking for OpenCV."
 
     if [ ${IN_CONDA} ]; then
+        echo "**************************************"
+        echo "Using conda environment $CONDA_PREFIX"
+        echo "If you dont want this, please deactivate the conda environment first."
+        echo "**************************************"
+        
         CC=${CC} CXX=${CXX} PKG_CONFIG_PATH=$CONDA_PREFIX/lib/pkgconfig cmake .. \
             -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
             -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
@@ -59,7 +66,16 @@ if [ "$(uname)" == "Linux" ]; then
             -DCMAKE_PREFIX_PATH="$CONDA_PREFIX;$CONDA_PREFIX/lib/pkgconfig;$CONDA_PREFIX/lib" \
             -DWITH_PYLON=ON
     else
-        CC=${CC} CXX=${CXX} PKG_CONFIG_PATH=$CONDA_PREFIX/lib/pkgconfig cmake .. \
+        echo "**************************************"
+        echo "Not in a conda environment."
+        echo "Trying to build everything on my own."
+        echo "If you wish to use a conda environment, please activate it first."
+        echo "**************************************"
+        
+        echo "If you want to specify an FFMPEG path, please set the PKG_CONFIG_PATH environment variable accordingly."
+        echo ""
+        
+        CC=${CC} CXX=${CXX} cmake .. \
             -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
             -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
@@ -75,6 +91,7 @@ if [ "$(uname)" == "Linux" ]; then
 else
     echo "Setting up for macOS."
     echo ""
+    echo "Building GLFW, ZIP, and ZLIB - checking for OpenCV."
     
     if [ ${IN_CONDA} ]; then
         echo "**************************************"
@@ -101,7 +118,7 @@ else
         echo "If you wish to use a conda environment, please activate it first."
         echo "**************************************"
         
-        echo "Building GLFW, checking for OpenCV. If you want to specify an FFMPEG path, please set the PKG_CONFIG_PATH environment variable accordingly."
+        echo "If you want to specify an FFMPEG path, please set the PKG_CONFIG_PATH environment variable accordingly."
         echo ""
         
         cmake .. \
