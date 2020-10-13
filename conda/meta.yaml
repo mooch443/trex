@@ -4,7 +4,7 @@ package:
   
 source:
     git_url: https://github.com/mooch443/trex.git
-    git_rev: b17da2c1901622e26d177710d596b61976e5d2b1
+    git_rev: 0912f97b8d8f4417d05dcec73ac23818ac66961f
     git_depth: 1
 
 build:
@@ -17,6 +17,7 @@ build:
         - {{ pin_compatible('libstdcxx-ng', min_pin='x.x.x', max_pin='x.x.x') }} # [linux]
     ignore_run_exports:
         - xorg-libxinerama
+    detect_binary_files_with_prefix: True
     
 requirements:
   build:
