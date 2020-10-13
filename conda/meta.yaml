@@ -18,6 +18,13 @@ build:
     ignore_run_exports:
         - xorg-libxinerama
     detect_binary_files_with_prefix: True
+    files_with_prefix:
+        - bin/trex
+        - bin/tgrabs
+        - bin/pvinfo
+        - bin/pvconvert
+        - bin/TRex.app/Contents/MacOS/TRex [osx]
+        - bin/TGrabs.app/Contents/MacOS/TGrabs [osx]
     
 requirements:
   build:
