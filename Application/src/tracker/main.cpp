@@ -290,7 +290,7 @@ int main(int argc, char** argv)
         //Debug("change directory to conda environment resource folder: '%S'", &_wd.str());
         
         if(chdir(_wd.c_str()))
-            U_EXCEPTION("Cannot change directory to '%S'", &_wd.str());
+            Except("Cannot change directory to '%S'", &_wd.str());
     }
 #endif
     
