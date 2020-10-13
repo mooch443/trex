@@ -25,7 +25,7 @@ add_dependencies(tracker_misc TRex::OpenCV)
 
 if(TREX_CONDA_PACKAGE_INSTALL)
 	if(WIN32)
-		set(CONDA_PREFIX_VAR "$ENV{BUILD_PREFIX}")
+		set(CONDA_PREFIX_VAR "CONDA_PREFIX")
 	else()
 		set(CONDA_PREFIX_VAR "$ENV{PREFIX}")
 	endif()

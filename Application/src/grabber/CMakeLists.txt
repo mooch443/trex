@@ -129,7 +129,11 @@ set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES
 )
 
 if(TREX_CONDA_PACKAGE_INSTALL)
-    set(CONDA_PREFIX_VAR "$ENV{PREFIX}")
+    if(WIN32)
+		set(CONDA_PREFIX_VAR "CONDA_PREFIX")
+	else()
+		set(CONDA_PREFIX_VAR "$ENV{PREFIX}")
+	endif()
 else()
     set(CONDA_PREFIX_VAR "${PYTHON_EXECUTABLE}")
 endif()
