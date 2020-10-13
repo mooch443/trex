@@ -130,7 +130,6 @@ void clear_cache() {
             
 #ifndef NDEBUG
             if(_texture) {
-                std::lock_guard<std::mutex> guard(_texture_mutex);
                 auto it = all_gpu_texture.find(_texture->ptr);
                 if(it != all_gpu_texture.end()) {
                     all_gpu_texture.erase(it);
@@ -143,7 +142,6 @@ void clear_cache() {
             
 #ifndef NDEBUG
             if(_texture) {
-                std::lock_guard<std::mutex> guard(_texture_mutex);
                 all_gpu_texture.insert(_texture->ptr);
             }
 #endif

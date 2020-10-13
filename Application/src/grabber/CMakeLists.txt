@@ -213,7 +213,7 @@ set(targets ${TGRABS_EXEC_NAME} pvinfo pvconvert)
 
 if(APPLE)
     add_executable(tgrabs_starter tgrabs.cpp)
-    target_link_libraries(tgrabs_starter PRIVATE cpputils)
+    target_link_libraries(tgrabs_starter PRIVATE commons cnpy)
     set_target_properties(tgrabs_starter PROPERTIES OUTPUT_NAME tgrabs)
     set(targets ${targets} tgrabs_starter)
     target_compile_definitions(tgrabs_starter PRIVATE TREX_PYTHON_PATH="${CONDA_PREFIX_VAR}")

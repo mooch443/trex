@@ -28,6 +28,16 @@ Overview
 * **TGrabs**: Record or convert existing videos, perform live-tracking and closed-loop experiments
 * **TRex**: Track converted videos (in PV format), use the automatic visual recognition, explore the data with visual helpers, export task-specific data, and adapt tracking parameters to specific use-cases
 
+.. raw:: html
+
+    <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%; height: auto;">
+		<video autoplay muted loop playsinline id="myVideo">
+				<source src="composite_tracking_video.webm" type='video/webm; codecs="vp9"' />
+				<source src="composite_tracking_video_.mp4" type='video/mp4; codecs="avc1"'>
+				<source src="composite_tracking_video.mov" type='video/mp4; codecs="h264"' />
+		</video>
+    </div>
+
 |grabs| always has to be used first. |trex| is optional in some cases. Use-cases where |trex| is not required include:
 
 * *Just give me tracks*: The user has a video and wants positional, or posture-related data for the individuals seen in the video. Maintaining identities is not required.
