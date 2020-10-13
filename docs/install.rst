@@ -66,21 +66,17 @@ First, make sure that you fulfill the platform-specific requirements:
 
 As well as the general requirements:
 
-* **Python**: We use version ``3.6.7``.
+* **Python**: We use version ``>= 3.6``.
 * **CMake**: Version ``>= 3.16``.
 
 .. NOTE::
-	We will be using Anaconda here. However, it is not *required* to use Anaconda when compiling |trex| -- it is just a straight-forward way to obtain all required dependencies. In case you do not want to use Anaconda, please make sure that all mentioned dependencies are installed in a way that can be detected by CMake. You may also add necessary paths to the CMake command-line, such as ``-DOpenCV_DIR=/path/to/opencv`` and use switches to compile certain libraries (such as OpenCV) statically with |trex|.
+	We will be using Anaconda here. However, it is not *required* to use Anaconda when compiling |trex| -- it is just a straight-forward way to obtain dependencies. In case you do not want to use Anaconda, please make sure that all mentioned dependencies are installed in a way that can be detected by CMake. You may also add necessary paths to the CMake command-line, such as ``-DOpenCV_DIR=/path/to/opencv`` and use switches to compile certain libraries (such as OpenCV) statically with |trex|.
 
 The easiest way to ensure that all requirements are met, is by using conda to create a new environment::
 
-	conda create -n tracking cmake ffmpeg tensorflow=1 keras py-opencv
-	
-under Linux, you may have to add the ``gtk2`` package as well.
+	conda create -n tracking cmake ffmpeg tensorflow=1.13 keras=2.3 opencv
 
 If your GPU is supported by TensorFlow, you can modify the above line by appending ``-gpu`` to ``tensorflow`` to get ``tensorflow-gpu=1.13``.
-
-Notice that we are omitting some runtime dependencies here, which will be added at the end of this section. If we (for example) install OpenCV for python *now*, then we might run into issues -- especially on Windows -- since the custom OpenCV version might interfere destructively with the existing version.
 	
 Next, switch to the conda environment using::
 
@@ -93,69 +89,11 @@ You can now clone the repository and change your directory to a build folder::
 	mkdir build
 	cd build
 	
-Now we have to generate the project files for the given platform and compiler. The following CMake command varies slightly depending on the operating system. Within the environment, go to the ``FishTracker/Application/build`` repository (created previously) and execute either the prepared compile scripts for your platform (on a Unix system ``../trex_build_unix.sh``, or on Windows ``../trex_build_windows.bat``) or execute cmake yourself with custom settings:
+Now we have to generate the project files for the given platform and compiler. The required CMake command varies slightly depending on the operating system. Within the environment, go to the ``FishTracker/Application/build`` repository (created in the previous step) and execute the compile script for your platform (on a Unix system ``../trex_build_unix.sh``, or on Windows ``../trex_build_windows.bat``) or execute cmake yourself with custom settings (have a look at the compile script for your platform for inspiration). You can also modify them, and add switches to the cmake commands.
 
-* **Windows**::
+Regarding switches, TRex offers a couple of additional options, with which you can decide to either compile libraries on your own or use existing ones in your system/environment path -- see next section.
 
-	cmake .. -DPYTHON_INCLUDE_DIR:FILEPATH=$(python -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") `
-	 -DPYTHON_LIBRARY:FILEPATH=$(python ../find_library.py) `
-	 -DPYTHON_EXECUTABLE:FILEPATH=$(Get-Command python | Select-Object -ExpandProperty Definition) `
-	 -DCMAKE_BUILD_TYPE=Release `
-	 -DTREX_BUILD_OPENCV=ON `
-	 -DTREX_BUILD_GLFW=ON `
-	 -DWITH_FFMPEG=ON `
-	 -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
-
-* **Linux**::
-
-	CC=/usr/bin/gcc CXX=/usr/bin/g++ PKG_CONFIG_PATH=$CONDA_PREFIX/lib/pkgconfig \
-	cmake .. -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
-	 -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
-	 -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
-	 -DCMAKE_BUILD_TYPE=Release \
-	 -DTREX_BUILD_OPENCV=ON \
-	 -DTREX_BUILD_GLFW=ON \
-	 -DWITH_FFMPEG=ON \
-	 -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
-	 
-.. NOTE::
-	Under Linux, you might also have to install the OpenGL library, and further Xorg dependencies. For example::
-	
-		conda install -c conda-forge xorg-libxinerama xorg-libxcursor \
-					xorg-libxi xorg-libxrandr xorg-libxdamage libxxf86vm-cos6-x86_64 \
-					libselinux-cos6-x86_64 mesa-dri-drivers-cos6-x86_64
-	
-* **macOS**::
-
-	PKG_CONFIG_PATH=$CONDA_PREFIX/lib/pkgconfig \
-	cmake .. -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
-	 -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
-	 -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
-	 -DCMAKE_BUILD_TYPE=Release \
-	 -G Xcode \
-	 -DTREX_BUILD_OPENCV=ON \
-	 -DTREX_BUILD_GLFW=ON \
-	 -DWITH_FFMPEG=ON \
-	 -DCMAKE_PREFIX_PATH=$CONDA_PREFIX \
-	 -DPYTHON3_PACKAGES_PATH=$(python3 -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
-
-The CMake list offers a couple of options, with which you can decide to either compile libraries on your own or use existing ones in your system/environment path -- see next section.
-
-Now that your project files are set-up, execute these commands in order (for Unix systems)::
-
-	cmake --build . --target CustomOpenCV --config Release \
-	 && cmake .. \
-	 && cmake --build . --config Release
-
-or on Windows, and in PowerShell::
-
-	cmake --build . --target CustomOpenCV --config Release `
-	 -and cmake .. `
-	 -and cmake --build . --config Release
-	 
-To be able to run |trex|, you will need to install additional python dependencies, which have been omitted previously to avoid linking to the wrong libraries::
-
-	conda install -c conda-forge matplotlib pillow opencv
+The compile scripts will attempt to compile the software in Release mode. To compile in a different mode, simply run ``cmake --build . --config mode``. If compilation succeeds, you should now be able to run |trex| and |grabs| from the command-line, within the environment selected during compilation.
 
 Special needs
 =============

@@ -44,6 +44,10 @@ Running |grabs| usually involves the following parameters::
 
 **Additional** can be any number of parameters -- be it for tracking or image processing. A full reference of available parameters for |grabs| can be found at :doc:`parameters_tgrabs`.
 
+If multiple files match the **pattern**, then they will be concatenated into one long video. This can be useful for videos that have been split into many small parts, or just a convenient way of e.g. training visual identification on multiple videos of the same individuals.
+
+If there are ``[XXXXX].npz`` files (named exactly like the video files but with a different extension) in the video folder, then |grabs| will attempt to use them for frame-timestamps.
+
 Running TRex
 ------------
 
@@ -58,6 +62,14 @@ Just like with |grabs|, you can attach any number of additional parameters to th
 Batch processing support
 ========================
 
+|trex| and |grabs| both offer full batch processing support. All parameters that can be setup via the settings box (and even some that are read-only when the program is already started), can be appended to the command-line -- as mentioned above. For batch processing, special parameters are available::
+
+	auto_quit              # automatically saves all requested data to the output folder and quits the app
+	auto_train             # automatically attempts to train the visual identification if successfully tracked
+	auto_apply             # automatically attempts to load weights from a previous training and auto correct the video
+	auto_no_results        # do not save a .results file
+	auto_no_tracking_data  # do not save the data/file_fishX.npz files
+	auto_no_memory_stats   # (enabled by default) do not save memory statistics
 
 
 Frequently asked questions and solutions to weird problems
