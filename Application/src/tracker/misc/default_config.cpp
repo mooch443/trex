@@ -120,8 +120,8 @@ file::Path conda_environment_path() {
         home = file::Path(home).remove_filename().str();
 #endif
 
-    if(home != "CONDA_PREFIX" && home != "" && home != compiled_path) {
-	Debug("Reset conda prefix '%S' / '%S'", &home, &compiled_path);
+    if(home == "CONDA_PREFIX" || home == "" || home == compiled_path) {
+	    Debug("Reset conda prefix '%S' / '%S'", &home, &compiled_path);
         auto conda_prefix = getenv("CONDA_PREFIX");
         
         if(conda_prefix) {
