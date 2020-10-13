@@ -7,7 +7,7 @@
 Basic usage
 ===========
 
-|trex| can be launched simply by double-clicking it, or launching it from the command-line without parameters, which will show a file opening dialog. Its younger twin, |grabs|, can only be started from the terminal at the moment (we will be working on changing that). The following sections address the issue of directly providing parameters using the command-line for both softwares (e.g. in a batch processing, or generally a more command-line affine use-case). If you're launching |trex| by double-clicking it (or using voice commands), most parameters can be adjusted after loading a video -- others can be modified before that (e.g. the number of expected individuals).
+|trex| can be launched simply by double-clicking it, or launching it from the command-line without parameters, which will show a file opening dialog. Its younger sibling, |grabs|, also offers a graphical user interface, but can only be started from the terminal at the moment (we will be working on changing that, and also potentially integrating it completely with |trex|). The following sections address the issue of directly providing parameters using the command-line for both softwares (e.g. in a batch processing, or generally a more command-line affine use-case). If you're launching |trex| by double-clicking it (or using voice commands), most parameters (except system-variables) can be adjusted after loading a video.
 
 Basic principles
 ----------------
@@ -20,10 +20,11 @@ Otherwise, if your problem cannot be solved by repeatedly mashing the same seque
 
 .. NOTE::
 
-	Explicitly discouraging this specific kind of problem-solving is motivated by the results of informal (but extensive) user-studies conducted in the last three years.
+	Explicitly discouraging this specific kind of problem-solving is motivated by the results of informal (but extensive) user-studies conducted in the last four years.
 
-Parameters are either changed directly as part of the command-line (using ``-PARAMETER VALUE``), in settings files or from within the graphical user interface (or magically). Settings files are called [VIDEONAME].settings, and located either in the same folder as the video, or in the output folder (set using ``-d /folder/path``, or ``~/Videos`` by default). These settings files are automatically loaded along with the video. Command-line parameters always override settings files. They can be generated automatically by opening |trex|, changing parameters and pressing ``menu -> save config``.
+Parameters are either changed directly as part of the command-line (using ``-PARAMETER VALUE``), in settings files or from within the graphical user interface (or magically). Settings files are called [VIDEONAME].settings, and located either in the same folder as the video, or in the output folder (``~/Videos`` by default, or set using the command-line option ``-d /folder/path``). These settings files are automatically loaded along with the video. Settings that were changed by command-line parameters can be saved by pressing ``menu -> save config``.
 
+Command-line parameters always override settings files.
 
 Running TGrabs
 --------------
@@ -46,7 +47,10 @@ Running |grabs| usually involves the following parameters::
 
 If multiple files match the **pattern**, then they will be concatenated into one long video. This can be useful for videos that have been split into many small parts, or just a convenient way of e.g. training visual identification on multiple videos of the same individuals.
 
-If there are ``[XXXXX].npz`` files (named exactly like the video files but with a different extension) in the video folder, then |grabs| will attempt to use them for frame-timestamps.
+If there are ``[XXXXX].npz`` files (named exactly like the video files but with a different extension) in the video folder, then |grabs| will attempt to use them for frame-timestamps. The format of these files is expected to be::
+
+	- 'frame_time': an array of N doubles for all N frames in the video segment
+	- 'imgshape': a tuple of integers (width, height) of the video
 
 Running TRex
 ------------
