@@ -102,6 +102,8 @@ namespace default_config {
 file::Path conda_environment_path() {
 #ifdef TREX_PYTHON_PATH
     auto compiled_path = file::Path(TREX_PYTHON_PATH).is_regular() ? file::Path(TREX_PYTHON_PATH).remove_filename().str() : file::Path(TREX_PYTHON_PATH).str();
+    if(compiled_path == "CONDA_PREFIX")
+        compiled_path = "";
 #if defined(__linux__) || defined(__APPLE__)
     if(utils::endsWith(compiled_path, "/bin"))
         compiled_path = file::Path(compiled_path).remove_filename().str();
