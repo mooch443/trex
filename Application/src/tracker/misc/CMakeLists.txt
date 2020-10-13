@@ -24,7 +24,7 @@ target_link_libraries(tracker_misc PRIVATE
 add_dependencies(tracker_misc TRex::OpenCV)
 
 if(TREX_CONDA_PACKAGE_INSTALL)
-    target_compile_definitions(tracker_misc PRIVATE TREX_PYTHON_PATH="CONDA_PREFIX")
+    target_compile_definitions(tracker_misc PRIVATE TREX_PYTHON_PATH="$ENV{CONDA_PREFIX}")
 else()
     message(STATUS "Adding compile definitions: ${PYTHON_EXECUTABLE}")
     target_compile_definitions(tracker_misc PRIVATE
