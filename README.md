@@ -17,11 +17,11 @@ TRex can track 256 individuals in real-time, or up to 128 with all fancy feature
 Create a new virtual conda environment on macOS/Windows, using:
 
 ```
-conda create -n tracking -c trexing trex                   # macOS, Windows
+conda create -n tracking -c trexing trex                           # macOS, Windows
 ```
 or, add the `conda-forge` channel for Linux:
 ```
-conda create -n tracking -c conda-forge -c trexing trex    # Linux
+conda create -n tracking -c main -c conda-forge -c trexing trex    # Linux
 ```
 
 If you want compatibility with the Basler API (or other things with licensing/portability issues), please 
@@ -35,10 +35,6 @@ If you want to contribute, please submit a pull request on github and I will be 
 If you have any issues running the software please consult the documentation first (especially the FAQ section) 
 and if this does not solve your problem, please file an issue using the [issue tracker](https://github.com/mooch443/trex/issues) here on github. 
 If you experience problems with [Tensorflow](https://tensorflow.org), such as installing CUDA or cuDNN dependencies, then please direct issues to those development teams.
-
-# Example data
-
-See https://trex.run/docs/examples.html.
 
 # License
 
