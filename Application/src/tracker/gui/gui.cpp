@@ -3026,7 +3026,7 @@ void GUI::update_recognition_rect() {
         auto worker = [&border_distance, max_h](ushort x) {
             for (ushort y = 0; y < max_h; ++y) {
                 if(Tracker::instance()->border().in_recognition_bounds(Vec2(x, y)))
-                    border_distance->set_pixel(y, x, DarkCyan.alpha(15));
+                    border_distance->set_pixel(x, y, DarkCyan.alpha(15));
             }
         };
         
@@ -3043,20 +3043,21 @@ void GUI::update_recognition_rect() {
         _recognition_image.set_source(std::move(border_distance));
         _cache.set_tracking_dirty();
         _cache.set_blobs_dirty();
+        _cache.set_raw_blobs_dirty();
         _cache.set_redraw();
     }
     
-    if(!FAST_SETTINGS(track_whitelist).empty())
+    if(!FAST_SETTINGS(track_include).empty())
     {
-        auto keys = extract_keys(_whitelist_rects);
+        auto keys = extract_keys(_include_shapes);
         
-        for(auto &rect : FAST_SETTINGS(track_whitelist)) {
-            auto it = _whitelist_rects.find(rect);
-            if(it == _whitelist_rects.end()) {
+        for(auto &rect : FAST_SETTINGS(track_include)) {
+            auto it = _include_shapes.find(rect);
+            if(it == _include_shapes.end()) {
                 if(rect.size() == 2) {
                     auto ptr = std::make_shared<Rect>(Bounds(rect[0], rect[1] - rect[0]), Green.alpha(25), Green.alpha(100));
                     ptr->set_clickable(true);
-                    _whitelist_rects[rect] = ptr;
+                    _include_shapes[rect] = ptr;
                     
                 } else if(rect.size() > 2) {
                     //auto r = std::make_shared<std::vector<Vec2>>(rect);
@@ -3065,34 +3066,34 @@ void GUI::update_recognition_rect() {
                     ptr->set_fill_clr(Green.alpha(25));
                     ptr->set_border_clr(Green.alpha(100));
                     ptr->set_clickable(true);
-                    _whitelist_rects[rect] = ptr;
+                    _include_shapes[rect] = ptr;
                 }
-                _cache.set_redraw();
             }
             keys.erase(rect);
         }
         
         for(auto &key : keys) {
-            _whitelist_rects.erase(key);
-            _cache.set_redraw();
+            _include_shapes.erase(key);
         }
         
-    } else if(FAST_SETTINGS(track_whitelist).empty() && !_whitelist_rects.empty()) {
-        _whitelist_rects.clear();
-        _cache.set_redraw();
+        _cache.set_raw_blobs_dirty();
+        
+    } else if(FAST_SETTINGS(track_include).empty() && !_include_shapes.empty()) {
+        _include_shapes.clear();
+        _cache.set_raw_blobs_dirty();
     }
     
-    if(!FAST_SETTINGS(track_blacklist).empty())
+    if(!FAST_SETTINGS(track_ignore).empty())
     {
-        auto keys = extract_keys(_blacklist_rects);
+        auto keys = extract_keys(_ignore_shapes);
         
-        for(auto &rect : FAST_SETTINGS(track_blacklist)) {
-            auto it = _blacklist_rects.find(rect);
-            if(it == _blacklist_rects.end()) {
+        for(auto &rect : FAST_SETTINGS(track_ignore)) {
+            auto it = _ignore_shapes.find(rect);
+            if(it == _ignore_shapes.end()) {
                 if(rect.size() == 2) {
                     auto ptr = std::make_shared<Rect>(Bounds(rect[0], rect[1] - rect[0]), Red.alpha(25), Red.alpha(100));
                     ptr->set_clickable(true);
-                    _blacklist_rects[rect] = ptr;
+                    _ignore_shapes[rect] = ptr;
                     
                 } else if(rect.size() > 2) {
                     //auto r = std::make_shared<std::vector<Vec2>>(rect);
@@ -3101,21 +3102,21 @@ void GUI::update_recognition_rect() {
                     ptr->set_fill_clr(Red.alpha(25));
                     ptr->set_border_clr(Red.alpha(100));
                     ptr->set_clickable(true);
-                    _blacklist_rects[rect] = ptr;
+                    _ignore_shapes[rect] = ptr;
                 }
-                _cache.set_redraw();
             }
             keys.erase(rect);
         }
         
         for(auto &key : keys) {
-            _blacklist_rects.erase(key);
-            _cache.set_redraw();
+            _ignore_shapes.erase(key);
         }
         
-    } else if(FAST_SETTINGS(track_blacklist).empty() && !_blacklist_rects.empty()) {
-        _blacklist_rects.clear();
-        _cache.set_redraw();
+        _cache.set_raw_blobs_dirty();
+        
+    } else if(FAST_SETTINGS(track_ignore).empty() && !_ignore_shapes.empty()) {
+        _ignore_shapes.clear();
+        _cache.set_raw_blobs_dirty();
     }
 }
 
@@ -3228,7 +3229,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
         }
         
         if(_timeline->visible()) {
-            for(auto && [rect, ptr] : _whitelist_rects) {
+            for(auto && [rect, ptr] : _include_shapes) {
                 base.wrap_object(*ptr);
                 
                 if(ptr->hovered()) {
@@ -3238,7 +3239,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
                 }
             }
             
-            for(auto && [rect, ptr] : _blacklist_rects) {
+            for(auto && [rect, ptr] : _ignore_shapes) {
                 base.wrap_object(*ptr);
                 
                 if(ptr->hovered()) {

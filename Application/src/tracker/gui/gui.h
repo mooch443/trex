@@ -175,7 +175,7 @@ protected:
     gui::WorkProgress *_work_progress;
     
     gui::ExternalImage _recognition_image;
-    std::map<std::vector<Vec2>, std::shared_ptr<gui::Drawable>> _blacklist_rects, _whitelist_rects;
+    std::map<std::vector<Vec2>, std::shared_ptr<gui::Drawable>> _ignore_shapes, _include_shapes;
     
     GETTER_SETTER(bool, info_visible)
     

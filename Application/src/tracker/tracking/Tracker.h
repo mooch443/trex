@@ -72,8 +72,8 @@ CREATE_STRUCT(Settings,
   (std::vector<Vec2>, grid_points),
   (std::vector<std::vector<Vec2>>, recognition_shapes),
   (float, grid_points_scaling),
-  (std::vector<std::vector<Vec2>>, track_blacklist),
-  (std::vector<std::vector<Vec2>>, track_whitelist),
+  (std::vector<std::vector<Vec2>>, track_ignore),
+  (std::vector<std::vector<Vec2>>, track_include),
   (bool, huge_timestamp_ends_segment),
   (double, huge_timestamp_seconds),
   (mapproved_t, manually_approved),
@@ -158,67 +158,6 @@ CREATE_STRUCT(Settings,
         static std::string thread_name_holding();
         
     #define FAST_SETTINGS(NAME) track::Settings::copy<track::Settings:: NAME>()
-        /*struct Settings {
-            uint32_t smooth_window;
-            float cm_per_pixel;
-            int frame_rate;
-            float track_max_reassign_time;
-            float speed_extrapolation;
-            bool calculate_posture;
-            float track_max_speed;
-            bool debug;
-            BlobSizeRange blob_size_ranges;
-            int track_threshold;
-            int track_threshold_2;
-            Rangef threshold_ratio_range;
-            idx_t track_max_individuals;
-            int track_posture_threshold;
-            uint8_t outline_smooth_step;
-            uint8_t outline_smooth_samples;
-            float outline_resample;
-            std::map<long_t, std::map<idx_t, int64_t>> manual_matches;
-            std::map<long_t, std::set<int64_t>> manual_splits;
-            int curvature_range;
-            uint32_t midline_resolution;
-            uint64_t midline_samples;
-            float meta_mass_mg;
-            std::map<idx_t, std::string> individual_names;
-            float midline_stiff_percentage;
-            float matching_probability_threshold;
-            size_t posture_direction_smoothing;
-            file::Path tags_path;
-            std::set<idx_t> manual_identities;
-            //bool correct_luminance;
-            std::vector<Vec2> grid_points;
-            std::vector<std::vector<Vec2>> recognition_shapes;
-            float grid_points_scaling;
-            std::vector<std::vector<Vec2>> track_blacklist;
-            std::vector<std::vector<Vec2>> track_whitelist;
-            bool huge_timestamp_ends_segment;
-            double huge_timestamp_seconds;
-            std::map<long_t,long_t> manually_approved;
-            size_t pixel_grid_cells;
-            float track_speed_decay;
-            bool midline_invert;
-            bool track_time_probability_enabled;
-            float posture_head_percentage;
-            bool enable_absolute_difference;
-            float blobs_per_thread;
-            std::string individual_prefix;
-            size_t video_length;
-            std::pair<long_t,long_t> analysis_range;
-            bool recognition_enable;
-            float visual_field_eye_offset;
-            float visual_field_eye_separation;
-            bool track_end_segment_for_speed;
-            default_config::matching_mode_t::Class match_mode;
-            bool track_do_history_split;
-            uint8_t posture_closing_steps;
-            uint8_t posture_closing_size;
-            float recognition_image_scale;
-            bool analysis_paused;
-            float track_trusted_probability;
-        };*/
         
         struct Statistics {
             float adding_seconds;

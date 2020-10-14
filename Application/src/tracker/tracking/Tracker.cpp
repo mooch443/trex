@@ -226,224 +226,6 @@ const FrameProperties* Tracker::properties(long_t frameIndex, const CacheHints* 
     }
 
     bool callback_registered = false;
-    /*std::vector<std::string> read_these {
-        "smooth_window",
-        "cm_per_pixel",
-        "frame_rate",
-        "track_max_reassign_time",
-        "calculate_posture",
-        "track_max_speed",
-        "debug",
-        "blob_size_ranges",
-        "track_threshold",
-        "track_threshold_2",
-        "threshold_ratio_range",
-        "track_max_individuals",
-        "track_posture_threshold",
-        "outline_smooth_step",
-        "outline_smooth_samples",
-        "outline_resample",
-        "manual_matches",
-        "curvature_range",
-        "midline_resolution",
-        "midline_samples",
-        "meta_mass_mg",
-        "individual_names",
-        "midline_stiff_percentage",
-        "matching_probability_threshold",
-        "posture_direction_smoothing",
-        "tags_path",
-        "manual_identities",
-        //"correct_luminance",
-        "grid_points",
-        "recognition_shapes",
-        "grid_points_scaling",
-        "track_blacklist",
-        "track_whitelist",
-        "huge_timestamp_ends_segment",
-        "huge_timestamp_seconds",
-        "manually_approved",
-        "pixel_grid_cells",
-        "track_speed_decay",
-        "midline_invert",
-        "manual_splits",
-        "track_time_probability_enabled",
-        "posture_head_percentage",
-        "enable_absolute_difference",
-        "blobs_per_thread",
-        "individual_prefix",
-        "video_length",
-        "analysis_range",
-        "recognition_enable",
-        "visual_field_eye_offset",
-        "visual_field_eye_separation",
-        "track_end_segment_for_speed",
-        "match_mode",
-        "track_do_history_split",
-        "posture_closing_steps",
-        "posture_closing_size",
-        "recognition_image_scale",
-        "analysis_paused",
-        "track_trusted_probability"
-    };*/
-
-    /*void Tracker::changed_setting(const sprite::Map&, const std::string &key, const sprite::PropertyType& value) {
-        if(contains(read_these, key)) {
-            LockGuard guard("Tracker::changed_setting "+key);
-            
-    #define UPDATE_VALUE(NAME) (key == #NAME ) \
-                FAST_SETTINGS(NAME) = value.value< \
-                    std::remove_cv< \
-                        std::remove_reference< \
-                            decltype(FAST_SETTINGS(NAME)) \
-                        >::type \
-                    >::type>()
-    #define UPDATE_VALUE_(TYPE, NAME) (key == #NAME ) FAST_SETTINGS(NAME) = value.value< TYPE >()
-            
-            if UPDATE_VALUE_(int, smooth_window);
-            else if UPDATE_VALUE(cm_per_pixel);
-            else if UPDATE_VALUE(frame_rate);
-            else if UPDATE_VALUE(track_max_reassign_time);
-            else if UPDATE_VALUE(speed_extrapolation);
-            else if UPDATE_VALUE(calculate_posture);
-            else if UPDATE_VALUE(track_max_speed);
-            else if UPDATE_VALUE(track_end_segment_for_speed);
-            else if UPDATE_VALUE(match_mode);
-            else if UPDATE_VALUE(debug);
-            else if UPDATE_VALUE(blob_size_ranges);
-            else if UPDATE_VALUE(track_threshold);
-            else if UPDATE_VALUE(track_threshold_2);
-            else if UPDATE_VALUE(threshold_ratio_range);
-            else if UPDATE_VALUE(track_max_individuals);
-            else if UPDATE_VALUE(track_posture_threshold);
-            else if UPDATE_VALUE(outline_smooth_step);
-            else if UPDATE_VALUE(outline_smooth_samples);
-            //else if UPDATE_VALUE(outline_resample);
-            //else if UPDATE_VALUE(manual_matches);
-            else if UPDATE_VALUE(curvature_range);
-            else if UPDATE_VALUE_(int, midline_resolution);
-            else if UPDATE_VALUE(midline_samples);
-            else if UPDATE_VALUE(meta_mass_mg);
-            else if UPDATE_VALUE(individual_names);
-            else if UPDATE_VALUE(midline_stiff_percentage);
-            else if UPDATE_VALUE(recognition_image_scale);
-            else if UPDATE_VALUE(track_trusted_probability);
-            else if UPDATE_VALUE(analysis_paused);
-            else if UPDATE_VALUE(matching_probability_threshold);
-            //else if UPDATE_VALUE(posture_direction_smoothing);
-            else if (key == "posture_direction_smoothing") {
-                static_assert(std::is_same<decltype(_settings.posture_direction_smoothing), size_t>::value, "posture_direction_smoothing assumed to be size_t.");
-                size_t v = value.value<size_t>();
-                
-                if(v != FAST_SETTINGS(posture_direction_smoothing)) {
-                    FAST_SETTINGS(posture_direction_smoothing) = v;
-                    
-                    Debug("Updating midlines / head positions...");
-                    auto worker = [key](){
-                        LockGuard guard("Updating midlines in changed_setting("+key+")");
-                        
-                        for (auto && [id, fish] : Tracker::individuals()) {
-                            Tracker::instance()->_thread_pool.enqueue([](long_t id, Individual *fish){
-                                Debug("\t%d", id);
-                                fish->clear_post_processing();
-                                fish->update_midlines(nullptr);
-                            }, id, fish);
-                        }
-                        
-                        Tracker::instance()->_thread_pool.wait();
-                        if(Tracker::recognition() && Tracker::recognition()->dataset_quality()) {
-                            Tracker::recognition()->dataset_quality()->remove_frames(start_frame());
-                            Tracker::recognition()->update_dataset_quality();
-                        }
-                    };
-                    
-                    if(GUI::instance()) {
-                        GUI::work().add_queue("updating midlines / head positions...", worker);
-                    } else
-                        worker();
-                }
-            }
-            else if UPDATE_VALUE(tags_path);
-            else if UPDATE_VALUE(manual_identities);
-            //else if UPDATE_VALUE(correct_luminance);
-            else if UPDATE_VALUE(grid_points);
-            else if UPDATE_VALUE(recognition_shapes);
-            else if UPDATE_VALUE(grid_points_scaling);
-            else if (key == "track_blacklist" || key == "track_whitelist") {
-                Tracker::instance()->thread_pool().enqueue([key](std::vector<std::vector<Vec2>> tmp)
-                {
-                    bool changed = false;
-                    for(auto &vec : tmp) {
-                        if(vec.size() > 2) {
-                            auto ptr = poly_convex_hull(&vec);
-                            if(ptr) {
-                                if(vec != *ptr) {
-                                    vec = *ptr;
-                                    changed = true;
-                                }
-                            }
-                        }
-                    }
-                    
-                    if(changed)
-                        GlobalSettings::get(key) = tmp;
-                }, value.value<std::vector<std::vector<Vec2>>>());
-                
-                if(key == "track_blacklist")
-                    FAST_SETTINGS(track_blacklist) = value.value<std::vector<std::vector<Vec2>>>();
-                else if(key == "track_whitelist")
-                    FAST_SETTINGS(track_whitelist) = value.value<std::vector<std::vector<Vec2>>>();
-            }
-            //else if UPDATE_VALUE(track_blacklist);
-            //else if UPDATE_VALUE(track_whitelist);
-            else if UPDATE_VALUE(huge_timestamp_ends_segment);
-            else if UPDATE_VALUE(huge_timestamp_seconds);
-            else if (key == "manually_approved") {
-                FAST_SETTINGS(manually_approved) = value.value<std::map<long_t, long_t>>();
-                
-                if(recognition() && recognition()->dataset_quality()) {
-                    recognition()->update_dataset_quality();
-                }
-            } //UPDATE_VALUE(manually_approved);
-            else if UPDATE_VALUE(pixel_grid_cells);
-            else if UPDATE_VALUE(track_speed_decay);
-            else if UPDATE_VALUE(track_time_probability_enabled);
-            else if UPDATE_VALUE(midline_invert);
-            else if UPDATE_VALUE(posture_head_percentage);
-            else if UPDATE_VALUE(enable_absolute_difference);
-            else if UPDATE_VALUE(track_do_history_split);
-            else if UPDATE_VALUE(posture_closing_steps);
-            else if UPDATE_VALUE(posture_closing_size);
-            else if UPDATE_VALUE(blobs_per_thread);
-            else if UPDATE_VALUE(individual_prefix);
-            else if UPDATE_VALUE(video_length);
-            else if UPDATE_VALUE(analysis_range);
-            else if UPDATE_VALUE(recognition_enable);
-            else if UPDATE_VALUE(visual_field_eye_offset);
-            else if UPDATE_VALUE(visual_field_eye_separation);
-            else if(key == "outline_resample") {
-                //! Dont allow outline_resample to be 0 (currently because of compression).
-                static_assert(std::is_same<decltype(_settings.outline_resample), float>::value, "outline_resample assumed to be float.");
-                float v = value.value<float>();
-                
-                if(v <= 0) {
-                    Warning("outline_resample defaulting to 1.0 instead of %f", v);
-                    SETTING(outline_resample) = v = 1.f;
-                }
-                
-                if(FAST_SETTINGS(outline_resample) != v)
-                    FAST_SETTINGS(outline_resample) = v;
-            }
-            
-            if(key == "frame_rate") {
-                std::lock_guard<std::mutex> guard(_properties_mutex);
-                _properties_cache.clear(); //! TODO: need to refill as well
-            }
-            
-    #undef UPDATE_VALUE_
-    #undef UPDATE_VALUE
-        }
-    }*/
     
     Recognition* Tracker::recognition() {
         if(!_instance)
@@ -489,8 +271,9 @@ const FrameProperties* Tracker::properties(long_t frameIndex, const CacheHints* 
             }
         });
         
-        auto track_list_update = [](auto&key, auto&value){
-            Tracker::instance()->thread_pool().enqueue([key](Settings::track_blacklist_t tmp)
+        auto track_list_update = [](auto&key, auto&value)
+        {
+            auto update = [key = key, tmp = value.template value<Settings::track_ignore_t>()]() mutable
             {
                 bool changed = false;
                 for(auto &vec : tmp) {
@@ -505,12 +288,21 @@ const FrameProperties* Tracker::properties(long_t frameIndex, const CacheHints* 
                     }
                 }
                 
-                if(changed)
+                if(changed && GUI::instance()) {
+                    std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
                     GlobalSettings::get(key) = tmp;
-            }, value.template value<Settings::track_blacklist_t>());
+                } else if(changed) {
+                    GlobalSettings::get(key) = tmp;
+                }
+            };
+            
+            if(GUI::instance()) {
+                GUI::work().add_queue("", update);
+            } else
+                update();
         };
-        Settings::set_callback(Settings::track_blacklist, track_list_update);
-        Settings::set_callback(Settings::track_whitelist, track_list_update);
+        Settings::set_callback(Settings::track_ignore, track_list_update);
+        Settings::set_callback(Settings::track_include, track_list_update);
         Settings::set_callback(Settings::frame_rate, [this](auto&, auto&){
             std::lock_guard<std::mutex> guard(_properties_mutex);
             _properties_cache.clear(); //! TODO: need to refill as well
@@ -549,7 +341,10 @@ const FrameProperties* Tracker::properties(long_t frameIndex, const CacheHints* 
         
         
         if (!callback_registered) {
-            auto variable_changed = [](auto&map, auto&key, auto&value){ if(contains(Settings::names(), key)) { Tracker::LockGuard guard("changed_settings"); Settings :: variable_changed(map, key, value); }};
+            auto variable_changed = [](auto&map, auto&key, auto&value){ if(contains(Settings::names(), key)) {
+                Tracker::LockGuard guard("changed_settings");
+                Settings :: variable_changed(map, key, value);
+            }};
             cmn::GlobalSettings::map().register_callback((void*)"Settings", variable_changed);
             for(auto &n : Settings :: names())
                 variable_changed(cmn::GlobalSettings::map(), n, cmn::GlobalSettings::get(n).get());
@@ -1044,15 +839,15 @@ bool operator<(long_t frame, const FrameProperties& props) {
             
             float recount = b->recount(result->threshold, *result->background);
             
-            if(!FAST_SETTINGS(track_blacklist).empty()) {
-                if(blob_matches_shapes(b, FAST_SETTINGS(track_blacklist))) {
+            if(!FAST_SETTINGS(track_ignore).empty()) {
+                if(blob_matches_shapes(b, FAST_SETTINGS(track_ignore))) {
                     filtered_out.push_back(b);
                     continue;
                 }
             }
             
-            if(!FAST_SETTINGS(track_whitelist).empty()) {
-                if(!blob_matches_shapes(b, FAST_SETTINGS(track_whitelist))) {
+            if(!FAST_SETTINGS(track_include).empty()) {
+                if(!blob_matches_shapes(b, FAST_SETTINGS(track_include))) {
                     filtered_out.push_back(b);
                     continue;
                 }
@@ -1240,7 +1035,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
         const int threshold = FAST_SETTINGS(track_threshold);
         const BlobSizeRange& fish_size = FAST_SETTINGS(blob_size_ranges);
         const float cm_sq = SQR(FAST_SETTINGS(cm_per_pixel));
-        auto blacklist = FAST_SETTINGS(track_blacklist);
+        auto blacklist = FAST_SETTINGS(track_ignore);
         std::mutex _mutex;
         
         auto work = [&](auto b, std::vector<pv::BlobPtr>& big_filtered, std::vector<pv::BlobPtr>& noise){

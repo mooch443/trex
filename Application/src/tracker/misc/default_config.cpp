@@ -90,8 +90,10 @@ namespace default_config {
         {"fish_time_probability_enabled", "track_time_probability_enabled"},
         {"number_fish", "track_max_individuals"},
         {"outline_remove_loops", ""},
-        {"whitelist_rect", "track_whitelist"},
-        {"exclude_rect", "track_blacklist"},
+        {"whitelist_rect", "track_include"},
+        {"track_whitelist", "track_include"},
+        {"exclude_rect", "track_ignore"},
+        {"track_blacklist", "track_ignore"},
         {"posture_threshold_constant", "track_posture_threshold"},
         {"threshold_constant", "track_threshold"},
         {"recognition_rect", "recognition_shapes"},
@@ -522,8 +524,8 @@ file::Path conda_environment_path() {
         CONFIG("manually_approved", std::map<long_t,long_t>(), "A list of ranges of manually approved frames that may be used for generating training datasets {232:232,5555:5560}.");
         CONFIG("gui_focus_group", std::vector<idx_t>(), "Focus on this group of individuals.");
         
-        CONFIG("track_blacklist", std::vector<std::vector<Vec2>>(), "If this is not empty, objects within the given rectangles or polygons (>= 3 points) [[x0,y0],[x1,y1](, ...)], ...] will be ignored during tracking.");
-        CONFIG("track_whitelist", std::vector<std::vector<Vec2>>(), "If this is not empty, objects within the given rectangles or polygons (>= 3 points) [[x0,y0],[x1,y1](, ...)], ...] will be the only objects being tracked. (overwrites `track_blacklist`)");
+        CONFIG("track_ignore", std::vector<std::vector<Vec2>>(), "If this is not empty, objects within the given rectangles or polygons (>= 3 points) [[x0,y0],[x1,y1](, ...)], ...] will be ignored during tracking.");
+        CONFIG("track_include", std::vector<std::vector<Vec2>>(), "If this is not empty, objects within the given rectangles or polygons (>= 3 points) [[x0,y0],[x1,y1](, ...)], ...] will be the only objects being tracked. (overwrites `track_ignore`)");
         
         CONFIG("huge_timestamp_ends_segment", true, "");
         CONFIG("track_trusted_probability", float(0.5), "If the probability, that is used to assign an individual to an object, is smaller than this value, the current segment will be ended (thus this will also not be a consecutive segment anymore for this individual).");

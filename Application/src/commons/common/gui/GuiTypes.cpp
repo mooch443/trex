@@ -180,7 +180,13 @@ Polygon::Polygon(const std::vector<Vertex>& vertices)
 
 bool Polygon::in_bounds(float x, float y) {
     if(Drawable::in_bounds(x, y)) {
-        return pnpoly(*_vertices, Vec2(x, y));
+        std::vector<Vec2> points;
+        points.reserve(_relative->size());
+        auto transform = global_transform();
+        for(auto &pt : *_relative) {
+            points.push_back(transform.transformPoint(pt));
+        }
+        return pnpoly(points, Vec2(x, y));
     }
     return false;
 }
