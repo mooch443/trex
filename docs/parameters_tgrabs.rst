@@ -182,16 +182,6 @@ TGrabs parameters
 
 
 
-.. function:: video_source(string)
-	:noindex:
-
-	**default value:** "basler"
-
-
-	Where the video is recorded from. Can be the name of a file, or one of the keywords ['basler', 'webcam', 'test_image'].
-
-
-
 .. function:: video_conversion_range(pair<int,int>)
 	:noindex:
 
@@ -271,6 +261,16 @@ TGrabs parameters
 
 
 	The given settings values will be written to the video file.
+
+
+
+.. function:: video_source(string)
+	:noindex:
+
+	**default value:** "basler"
+
+
+	Where the video is recorded from. Can be the name of a file, or one of the keywords ['basler', 'webcam', 'test_image'].
 
 
 

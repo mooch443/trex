@@ -57,6 +57,15 @@ TRex parameters
 
 
 
+.. function:: huge_timestamp_seconds(double)
+
+	**default value:** 0.2
+
+
+	Defaults to 0.5s (500ms), can be set to any value that should be recognized as being huge.
+
+
+
 .. function:: huge_timestamp_ends_segment(bool)
 
 	**default value:** true
@@ -66,7 +75,7 @@ TRex parameters
 
 
 
-.. function:: track_blacklist(array<array<vec>>)
+.. function:: track_ignore(array<array<vec>>)
 
 	**default value:** []
 
@@ -309,6 +318,16 @@ TRex parameters
 	Maximum number of images that are being output per tracklet given that `output_image_per_tracklet` is true. If the number is 0, then every image will be exported that has been recognized as an individual.
 
 	.. seealso:: :func:`output_image_per_tracklet`, 
+
+
+.. function:: track_include(array<array<vec>>)
+
+	**default value:** []
+
+
+	If this is not empty, objects within the given rectangles or polygons (>= 3 points) [[x0,y0],[x1,y1](, ...)], ...] will be the only objects being tracked. (overwrites `track_ignore`)
+
+	.. seealso:: :func:`track_ignore`, 
 
 
 .. function:: cm_per_pixel(float)
@@ -759,7 +778,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "RC6"
+	**default value:** "1.0"
 
 
 	Current application version.
@@ -819,43 +838,6 @@ TRex parameters
 
 	The percentage of the midline-length that the head is moved away from the front of the body.
 
-
-
-.. function:: output_image_per_tracklet(bool)
-
-	**default value:** false
-
-
-	If set to true, the program will output one median image per tracklet (time-series segment) and save it alongside the npz/csv files.
-
-
-
-.. function:: gui_show_texts(bool)
-
-	**default value:** true
-
-
-	Showing or hiding individual identity (and related) texts in tracking view.
-
-
-
-.. function:: postures_per_thread(float)
-
-	**default value:** 1
-
-
-	Number of individuals for which postures will be estimated per thread.
-
-
-
-.. function:: outline_curvature_range_ratio(float)
-
-	**default value:** 0.03
-
-
-	Determines the ratio between number of outline points and distance used to calculate its curvature. Program will look at index +- `ratio * size()` and calculate the distance between these points (see posture window red/green color).
-
-	.. seealso:: :func:`ratio * size()`, 
 
 
 .. function:: event_min_peak_offset(float)
@@ -937,6 +919,33 @@ TRex parameters
 
 
 	Equivalent to the checkbox visible in GUI on the bottom-left.
+
+
+
+.. function:: postures_per_thread(float)
+
+	**default value:** 1
+
+
+	Number of individuals for which postures will be estimated per thread.
+
+
+
+.. function:: build_type(string)
+
+	**default value:** "$<$<CONFIG:Debug>:Release>$<$<CONFIG:Release>:Debug>"
+
+
+	The mode the application was built in.
+
+
+
+.. function:: gui_show_texts(bool)
+
+	**default value:** true
+
+
+	Showing or hiding individual identity (and related) texts in tracking view.
 
 
 
@@ -1037,6 +1046,15 @@ TRex parameters
 
 
 	If set to true (and the number of individuals is set to a number > 0), the tracker will show whenever an individual enters the recognition boundary. Indicated by an expanding cyan circle around it.
+
+
+
+.. function:: build_cxx_options(string)
+
+	**default value:** " -Wno-c++98-compat-pedantic -fvisibility=hidden -O3 -DNDEBUG -O3 -Wno-nullability-extension"
+
+
+	The mode the application was built in.
 
 
 
@@ -1172,33 +1190,6 @@ TRex parameters
 
 
 	Show/hide uniqueness overview after training.
-
-
-
-.. function:: web_time_threshold(float)
-
-	**default value:** 0.05
-
-
-	Maximum refresh rate in seconds for the web interface.
-
-
-
-.. function:: midline_walk_offset(float)
-
-	**default value:** 0.025
-
-
-	This percentage of the number of outline points is the amount of points that the midline-algorithm is allowed to move left and right upon each step. Higher numbers will make midlines more straight, especially when extremities are present (that need to be skipped over), but higher numbers will also potentially decrease accuracy for less detailed objects.
-
-
-
-.. function:: gui_show_histograms(bool)
-
-	**default value:** false
-
-
-	Equivalent to the checkbox visible in GUI on the bottom-left.
 
 
 
@@ -1348,24 +1339,6 @@ TRex parameters
 
 
 
-.. function:: error_terminate(bool)
-
-	**default value:** false
-
-
-	
-
-
-
-.. function:: exec(path)
-
-	**default value:** ""
-
-
-	This can be set to the path of an additional settings file that is executed after the normal settings file.
-
-
-
 .. function:: gui_heatmap_frames(uint)
 
 	**default value:** 0
@@ -1393,11 +1366,58 @@ TRex parameters
 		- `none`: No normalization at all. Values will only be averaged per cell.
 		- `value`: Normalization based in value-space. The average of each cell will be divided by the maximum value encountered.
 		- `cell`: The cell sum will be divided by the maximum cell value encountered.
+		- `variance`: Displays the variation within each cell.
 
 	Normalization used for the heatmaps. If `value` is selected, then the maximum of all values encountered will be used to normalize the average of each cell. If `cell` is selected, the sum of each cell will be divided by the maximum cell value encountered.
 
 
 	.. seealso:: :func:`value`, :func:`cell`, 
+
+
+.. function:: blob_split_global_shrink_limit(float)
+
+	**default value:** 0.2
+
+
+	The minimum percentage of the minimum in `blob_size_ranges`, that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.
+
+	.. seealso:: :func:`blob_size_ranges`, 
+
+
+.. function:: blobs_per_thread(float)
+
+	**default value:** 150
+
+
+	Number of blobs for which properties will be calculated per thread.
+
+
+
+.. function:: gui_heatmap_smooth(double)
+
+	**default value:** 0
+
+
+	Value between 0 and 1, think of as `gui_heatmap_smooth` times video width, indicating the maximum upscaled size of the heatmaps shown in the tracker. Makes them prettier.
+
+
+
+.. function:: error_terminate(bool)
+
+	**default value:** false
+
+
+	
+
+
+
+.. function:: exec(path)
+
+	**default value:** ""
+
+
+	This can be set to the path of an additional settings file that is executed after the normal settings file.
+
 
 
 .. function:: midline_stiff_percentage(float)
@@ -1500,15 +1520,6 @@ TRex parameters
 
 
 
-.. function:: huge_timestamp_seconds(double)
-
-	**default value:** 0.2
-
-
-	Defaults to 0.5s (500ms), can be set to any value that should be recognized as being huge.
-
-
-
 .. function:: auto_no_tracking_data(bool)
 
 	**default value:** false
@@ -1583,34 +1594,6 @@ TRex parameters
 
 
 
-.. function:: blob_split_global_shrink_limit(float)
-
-	**default value:** 0.2
-
-
-	The minimum percentage of the minimum in `blob_size_ranges`, that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.
-
-	.. seealso:: :func:`blob_size_ranges`, 
-
-
-.. function:: blobs_per_thread(float)
-
-	**default value:** 150
-
-
-	Number of blobs for which properties will be calculated per thread.
-
-
-
-.. function:: gui_heatmap_smooth(double)
-
-	**default value:** 0
-
-
-	Value between 0 and 1, think of as `gui_heatmap_smooth` times video width, indicating the maximum upscaled size of the heatmaps shown in the tracker. Makes them prettier.
-
-
-
 .. function:: auto_minmax_size(bool)
 
 	**default value:** false
@@ -1639,15 +1622,6 @@ TRex parameters
 
 
 
-.. function:: track_do_history_split(bool)
-
-	**default value:** true
-
-
-	If disabled, blobs will not be split automatically in order to separate overlapping individuals. This usually happens based on their history.
-
-
-
 .. function:: outline_smooth_samples(uchar)
 
 	**default value:** 4
@@ -1665,6 +1639,208 @@ TRex parameters
 	Shows what is contained within tht recognition boundary as a cyan background. (See `recognition_border` for details.)
 
 	.. seealso:: :func:`recognition_border`, 
+
+
+.. function:: auto_no_memory_stats(bool)
+
+	**default value:** true
+
+
+	If set to true, no memory statistics will be saved on auto_quit.
+
+
+
+.. function:: track_max_reassign_time(float)
+
+	**default value:** 0.5
+
+
+	Distance in time (seconds) where the matcher will stop trying to reassign an individual based on previous position. After this time runs out, depending on the settings, the tracker will try to find it based on other criteria, or generate a new individual.
+
+
+
+.. function:: build_is_debug(string)
+
+	**default value:** "debug"
+
+
+	If built in debug mode, this will show 'debug'.
+
+
+
+.. function:: ffmpeg_path(path)
+
+	**default value:** ""
+
+
+	Path to an ffmpeg executable file. This is used for converting videos after recording them (from the GUI). It is not a critical component of the software, but mostly for convenience.
+
+
+
+.. function:: recognition_normalization(recognition_normalization_t)
+
+	**default value:** posture
+
+	**possible values:**
+		- `none`: No normalization. Images will only be cropped out and used as-is.
+		- `moments`: Images will be cropped out and aligned as in idtracker.ai using the main axis calculated using `image moments`.
+		- `posture`: Images will be cropped out and rotated so that the head will be fixed in one position and only the tail moves.
+		- `legacy`: Images will be aligned parallel to the x axis.
+
+	This enables or disable normalizing the images before training. If set to `none`, the images will be sent to the GPU raw - they will only be cropped out. Otherwise they will be normalized based on head orientation (posture) or the main axis calculated using `image moments`.
+
+
+	.. seealso:: :func:`none`, :func:`image moments`, 
+
+
+.. function:: tracklet_restore_split_blobs(bool)
+
+	**default value:** true
+
+
+	If enabled, all exported tracklet images are checked for missing pixels. When a blob is too close to another blob, parts of the other blob might be erased so the individuals can be told apart. If enabled, another mask will be saved, that contains only the blob in focus, without the rest-pixels.
+
+
+
+.. function:: output_prefix(string)
+
+	**default value:** ""
+
+
+	A prefix that is prepended to all output files (csv/npz).
+
+
+
+.. function:: video_length(ulong)
+
+	**default value:** 0
+
+
+	The length of the video in frames
+
+
+
+.. function:: log_file(path)
+
+	**default value:** ""
+
+
+	Set this to a path you want to save the log file to.
+
+
+
+.. function:: auto_apply(bool)
+
+	**default value:** false
+
+
+	If set to true, the application will automatically apply the network with existing weights once the analysis is done. It will then automatically correct and reanalyse the video.
+
+
+
+.. function:: build(string)
+
+	**default value:** ""
+
+
+	Current build version
+
+
+
+.. function:: web_time_threshold(float)
+
+	**default value:** 0.05
+
+
+	Maximum refresh rate in seconds for the web interface.
+
+
+
+.. function:: midline_walk_offset(float)
+
+	**default value:** 0.025
+
+
+	This percentage of the number of outline points is the amount of points that the midline-algorithm is allowed to move left and right upon each step. Higher numbers will make midlines more straight, especially when extremities are present (that need to be skipped over), but higher numbers will also potentially decrease accuracy for less detailed objects.
+
+
+
+.. function:: gui_show_histograms(bool)
+
+	**default value:** false
+
+
+	Equivalent to the checkbox visible in GUI on the bottom-left.
+
+
+
+.. function:: track_do_history_split(bool)
+
+	**default value:** true
+
+
+	If disabled, blobs will not be split automatically in order to separate overlapping individuals. This usually happens based on their history.
+
+
+
+.. function:: output_image_per_tracklet(bool)
+
+	**default value:** false
+
+
+	If set to true, the program will output one median image per tracklet (time-series segment) and save it alongside the npz/csv files.
+
+
+
+.. function:: outline_curvature_range_ratio(float)
+
+	**default value:** 0.03
+
+
+	Determines the ratio between number of outline points and distance used to calculate its curvature. Program will look at index +- `ratio * size()` and calculate the distance between these points (see posture window red/green color).
+
+	.. seealso:: :func:`ratio * size()`, 
+
+
+.. function:: gui_show_midline(bool)
+
+	**default value:** true
+
+
+	Showing or hiding individual midlines in tracking view.
+
+
+
+.. function:: outline_smooth_step(uchar)
+
+	**default value:** 1
+
+
+	Jump over N outline points when smoothing (reducing accuracy).
+
+
+
+.. function:: gui_playback_speed(float)
+
+	**default value:** 1
+
+
+	Playback speed when pressing SPACE.
+
+
+
+.. function:: gui_recording_format(gui_recording_format_t)
+
+	**default value:** avi
+
+	**possible values:**
+		- `avi`: AVI / video format (codec FFV1 is used in unix systems)
+		- `jpg`: individual images in JPEG format
+		- `png`: individual images in PNG format
+
+	Sets the format for recording mode (when R is pressed in the GUI). Supported formats are 'avi', 'jpg' and 'png'. JPEGs have 75%% compression, AVI is using MJPEG compression.
+
+
 
 
 .. function:: debug_recognition_output_all_methods(bool)
@@ -1727,144 +1903,6 @@ TRex parameters
 
 
 
-.. function:: log_file(path)
-
-	**default value:** ""
-
-
-	Set this to a path you want to save the log file to.
-
-
-
-.. function:: auto_apply(bool)
-
-	**default value:** false
-
-
-	If set to true, the application will automatically apply the network with existing weights once the analysis is done. It will then automatically correct and reanalyse the video.
-
-
-
-.. function:: build(string)
-
-	**default value:** ""
-
-
-	Current build version
-
-
-
-.. function:: auto_no_memory_stats(bool)
-
-	**default value:** true
-
-
-	If set to true, no memory statistics will be saved on auto_quit.
-
-
-
-.. function:: track_max_reassign_time(float)
-
-	**default value:** 0.5
-
-
-	Distance in time (seconds) where the matcher will stop trying to reassign an individual based on previous position. After this time runs out, depending on the settings, the tracker will try to find it based on other criteria, or generate a new individual.
-
-
-
-.. function:: ffmpeg_path(path)
-
-	**default value:** ""
-
-
-	Path to an ffmpeg executable file. This is used for converting videos after recording them (from the GUI). It is not a critical component of the software, but mostly for convenience.
-
-
-
-.. function:: recognition_normalization(recognition_normalization_t)
-
-	**default value:** posture
-
-	**possible values:**
-		- `none`: No normalization. Images will only be cropped out and used as-is.
-		- `moments`: Images will be cropped out and aligned as in idtracker.ai using the main axis calculated using `image moments`.
-		- `posture`: Images will be cropped out and rotated so that the head will be fixed in one position and only the tail moves.
-		- `legacy`: Images will be aligned parallel to the x axis.
-
-	This enables or disable normalizing the images before training. If set to `none`, the images will be sent to the GPU raw - they will only be cropped out. Otherwise they will be normalized based on head orientation (posture) or the main axis calculated using `image moments`.
-
-
-	.. seealso:: :func:`none`, :func:`image moments`, 
-
-
-.. function:: tracklet_restore_split_blobs(bool)
-
-	**default value:** true
-
-
-	If enabled, all exported tracklet images are checked for missing pixels. When a blob is too close to another blob, parts of the other blob might be erased so the individuals can be told apart. If enabled, another mask will be saved, that contains only the blob in focus, without the rest-pixels.
-
-
-
-.. function:: output_prefix(string)
-
-	**default value:** ""
-
-
-	A prefix that is prepended to all output files (csv/npz).
-
-
-
-.. function:: video_length(ulong)
-
-	**default value:** 0
-
-
-	The length of the video in frames
-
-
-
-.. function:: gui_show_midline(bool)
-
-	**default value:** true
-
-
-	Showing or hiding individual midlines in tracking view.
-
-
-
-.. function:: outline_smooth_step(uchar)
-
-	**default value:** 1
-
-
-	Jump over N outline points when smoothing (reducing accuracy).
-
-
-
-.. function:: gui_playback_speed(float)
-
-	**default value:** 1
-
-
-	Playback speed when pressing SPACE.
-
-
-
-.. function:: gui_recording_format(gui_recording_format_t)
-
-	**default value:** avi
-
-	**possible values:**
-		- `avi`: AVI / video format (codec FFV1 is used in unix systems)
-		- `jpg`: individual images in JPEG format
-		- `png`: individual images in PNG format
-
-	Sets the format for recording mode (when R is pressed in the GUI). Supported formats are 'avi', 'jpg' and 'png'. JPEGs have 75%% compression, AVI is using MJPEG compression.
-
-
-
-
 .. function:: gui_heatmap_resolution(uint)
 
 	**default value:** 75
@@ -1909,16 +1947,6 @@ TRex parameters
 
 	An approximation of the command-line arguments passed to the program.
 
-
-
-.. function:: track_whitelist(array<array<vec>>)
-
-	**default value:** []
-
-
-	If this is not empty, objects within the given rectangles or polygons (>= 3 points) [[x0,y0],[x1,y1](, ...)], ...] will be the only objects being tracked. (overwrites `track_blacklist`)
-
-	.. seealso:: :func:`track_blacklist`, 
 
 
 .. function:: calculate_posture(bool)
