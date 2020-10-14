@@ -83,7 +83,7 @@ namespace gui {
         std::set<idx_t> checked_probs;
         
     public:
-        std::map<Individual*, gui::Fish*> _fish_map;
+        std::map<Individual*, std::unique_ptr<gui::Fish>> _fish_map;
         std::map<long_t, track::Tracker::Statistics> _statistics;
         
         long_t connectivity_last_frame;

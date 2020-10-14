@@ -2355,7 +2355,7 @@ std::unique_ptr<Image> Individual::calculate_normalized_diff_image(const gui::Tr
     return std::make_unique<Image>(padded);
 }
 
-std::tuple<Image::Ptr, Vec2> Individual::calculate_diff_image(pv::BlobPtr blob, const Size2& output_size) {
+std::tuple<std::unique_ptr<Image>, Vec2> Individual::calculate_diff_image(pv::BlobPtr blob, const Size2& output_size) {
     cv::Mat mask, image;
     cv::Mat padded;
     
@@ -2421,7 +2421,7 @@ std::tuple<Image::Ptr, Vec2> Individual::calculate_diff_image(pv::BlobPtr blob, 
     
     //Debug("Came in with %fx%f -> %fx%f", blob->bounds().pos().x, blob->bounds().pos().y, bounds.x, bounds.y);
     
-    return { std::make_shared<Image>(padded), bounds.pos() };
+    return { std::make_unique<Image>(padded), bounds.pos() };
 }
 
 bool Individual::evaluate_fitness() const {

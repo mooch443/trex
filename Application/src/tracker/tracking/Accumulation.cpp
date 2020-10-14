@@ -1491,7 +1491,7 @@ bool Accumulation::start() {
                     video_file.read_frame(video_frame.frame(), frame);
                     Tracker::instance()->preprocess_frame(video_frame, active, NULL);
                     
-                    std::map<long_t, pv::BlobPtr> blob_to_id;
+                    std::map<uint32_t, pv::BlobPtr> blob_to_id;
                     for (auto b : video_frame.blobs)
                         blob_to_id[b->blob_id()] = b;
                     

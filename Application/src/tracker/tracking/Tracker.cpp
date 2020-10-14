@@ -964,7 +964,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
         static Timing timing("filter_blobs", 20);
         TakeTiming take(timing);
         
-        const BlobSizeRange& fish_size = FAST_SETTINGS(blob_size_ranges);
+        const BlobSizeRange fish_size = FAST_SETTINGS(blob_size_ranges);
         const uint32_t num_blobs = (uint32_t)frame.blobs.size();
         const int threshold = FAST_SETTINGS(track_threshold);
         
@@ -1033,7 +1033,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
     {
         std::vector<pv::BlobPtr> result;
         const int threshold = FAST_SETTINGS(track_threshold);
-        const BlobSizeRange& fish_size = FAST_SETTINGS(blob_size_ranges);
+        const BlobSizeRange fish_size = FAST_SETTINGS(blob_size_ranges);
         const float cm_sq = SQR(FAST_SETTINGS(cm_per_pixel));
         auto blacklist = FAST_SETTINGS(track_ignore);
         std::mutex _mutex;
@@ -1832,7 +1832,7 @@ void Tracker::clear_properties() {
         std::unordered_map<Individual*, bool> fish_assigned;
         
         const uint32_t number_fish = (uint32_t)FAST_SETTINGS(track_max_individuals);
-        const BlobSizeRange& minmax = FAST_SETTINGS(blob_size_ranges);
+        const BlobSizeRange minmax = FAST_SETTINGS(blob_size_ranges);
         
         size_t assigned_count = 0;
         
@@ -1910,16 +1910,10 @@ void Tracker::clear_properties() {
         static grid::ProximityGrid blob_grid(_average->bounds().size());
         blob_grid.clear();
         
-        const auto& manual_identities = FAST_SETTINGS(manual_identities);
+        const auto manual_identities = FAST_SETTINGS(manual_identities);
         if(!number_fish && !manual_identities.empty()) {
             SETTING(manual_identities) = Settings::manual_identities_t();
         }
-        
-        //std::set<idx_t> manual_identities(FAST_SETTINGS(manual_identities).begin(), FAST_SETTINGS(manual_identities).end());
-        
-        //bool huge_jump = frameIndex != _startFrame && frame.time - properties(frameIndex-1).time >= FAST_SETTINGS(track_max_reassign_time);
-        //if(huge_jump)
-        //    Warning("Huge tdelta in frame %d: %fs", frameIndex, frame.time - properties(frameIndex-1).time);
         
         for(auto b : frame.blobs) {
             id_to_blob[b->blob_id()] = b;
@@ -3234,8 +3228,9 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         }
         
         if(!manual) {*/
+        auto manual_identities = FAST_SETTINGS(manual_identities);
             for(auto fish : active) {
-                if(FAST_SETTINGS(manual_identities).empty() || FAST_SETTINGS(manual_identities).count(fish->identity().ID())) {
+                if(manual_identities.empty() || manual_identities.count(fish->identity().ID())) {
                     if(!fish->has(frameIndex) /*|| fish->centroid_weighted(frameIndex)->speed() >= FAST_SETTINGS(track_max_speed) * 0.25*/) {
                         all_good = false;
                         break;
@@ -3330,12 +3325,13 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
             }
         }
         
+        auto manual_identities = FAST_SETTINGS(manual_identities);
         std::vector<idx_t> to_delete;
         std::vector<Individual*> ptrs;
         for(auto && [fdx, fish] : _individuals) {
             fish->remove_frame(frameIndex);
             
-            if(FAST_SETTINGS(track_max_individuals) == 0 || FAST_SETTINGS(manual_identities).find(fdx) == FAST_SETTINGS(manual_identities).end()) {
+            if(FAST_SETTINGS(track_max_individuals) == 0 || manual_identities.find(fdx) == manual_identities.end()) {
                 if(fish->empty()) {
                     to_delete.push_back(fdx);
                     ptrs.push_back(fish);
@@ -3467,7 +3463,8 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         LockGuard guard("Tracker::max_range()");
         if(_global_segment_order.empty()) {
             std::set<Rangel> manuals;
-            for(auto && [from, to] : FAST_SETTINGS(manually_approved))
+            auto manually_approved = FAST_SETTINGS(manually_approved);
+            for(auto && [from, to] : manually_approved)
                 manuals.insert(Rangel(from, to));
             
             std::set<Rangel, std::function<bool(Rangel, Rangel)>> ordered([&manuals](Rangel A, Rangel B) -> bool {
@@ -3478,10 +3475,10 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                 return (recognition() && recognition()->dataset_quality() ? ((recognition()->dataset_quality()->has(A) ? recognition()->dataset_quality()->quality(A) : DatasetQuality::Quality()) > (recognition()->dataset_quality()->has(B) ? recognition()->dataset_quality()->quality(B) : DatasetQuality::Quality())) : (A.length() > B.length()));
             });
             
-            if(!FAST_SETTINGS(manually_approved).empty()) {
-                auto str = Meta::toStr(FAST_SETTINGS(manually_approved));
+            if(!manually_approved.empty()) {
+                auto str = Meta::toStr(manually_approved);
                 //Debug("Inserting %S", &str);
-                for(auto && [from, to] : FAST_SETTINGS(manually_approved)) {
+                for(auto && [from, to] : manually_approved) {
                     ordered.insert(Rangel(from, to));
                 }
             }
@@ -3587,8 +3584,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         LockGuard guard("check_segments_identities");
         Debug("Updating automatic ranges starting from %d", after_frame == -1 ? 0 : after_frame);
         
-        const auto& manual_identities = FAST_SETTINGS(manual_identities);
-        //std::set<idx_t> manual_identities(FAST_SETTINGS(manual_identities).begin(), FAST_SETTINGS(manual_identities).end());
+        const auto manual_identities = FAST_SETTINGS(manual_identities);
         size_t count=0;
         
         recognition_pool.wait();
@@ -3858,9 +3854,9 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         log(f, "----");
         
         decltype(unassigned_ranges) still_unassigned;
-        
+        //auto manual_identities = FAST_SETTINGS(manual_identities);
         for(auto && [fdx, fish] : _individuals) {
-            if(!FAST_SETTINGS(manual_identities).count(fdx))
+            if(!manual_identities.count(fdx))
                 continue;
             
             for(auto && [start, segment] : fish->recognition_segments()) {
@@ -4090,16 +4086,16 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
             fclose(f);
     }
 
-pv::BlobPtr Tracker::find_blob_noisy(std::map<long_t, pv::BlobPtr>& blob_to_id, long_t bid, long_t pid, const Bounds& bounds, long_t frame)
+pv::BlobPtr Tracker::find_blob_noisy(std::map<uint32_t, pv::BlobPtr>& blob_to_id, uint32_t bid, int64_t pid, const Bounds& bounds, long_t frame)
 {
     if(blob_to_id.count(bid) == 0) {
         if(pid != -1) {
-            if(blob_to_id.count(pid) != 0) {
-                auto b = blob_to_id.at(pid);
+            if(blob_to_id.count((uint32_t)pid) != 0) {
+                auto b = blob_to_id.at((uint32_t)pid);
                 auto blobs = pixel::threshold_blob(b, FAST_SETTINGS(track_threshold), Tracker::instance()->background());
                 
                 for(auto & sub : blobs) {
-                    if((long_t)sub->blob_id() == bid) {
+                    if(sub->blob_id() == bid) {
                         //Debug("Found perfect match for %d in blob %d", bid, b->blob_id());
                         blob_to_id[bid] = sub;
                         break;

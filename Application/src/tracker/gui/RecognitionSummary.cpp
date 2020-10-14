@@ -16,8 +16,9 @@ namespace gui {
         Font side_font(0.8 / interface_scale, Align::Right);
         Font bottom_font(0.8 / interface_scale, Align::Center);
         
-        std::set<idx_t> sorted(FAST_SETTINGS(manual_identities).begin(), FAST_SETTINGS(manual_identities).end());
-        for(auto id : FAST_SETTINGS(manual_identities)) {
+        auto manual_identities = FAST_SETTINGS(manual_identities);
+        std::set<idx_t> sorted(manual_identities.begin(), manual_identities.end());
+        for(auto id : manual_identities) {
             if(cache.individuals.find(id) == cache.individuals.end())
                 sorted.erase(id);
         }
@@ -95,8 +96,9 @@ namespace gui {
                 }
                 
                 auto pos = Vec2(margin + sidebar_width, margin + title_height);
+                auto bounds = Bounds(pos, image->bounds().size());
                 base.advance(new ExternalImage(std::move(image), pos));
-                base.advance(new Rect(Bounds(pos, image->bounds().size()), Transparent, White.alpha(200)));
+                base.advance(new Rect(bounds, Transparent, White.alpha(200)));
                 
                 // draw vertical bar (active fish)
                 pos = Vec2(margin) + Vec2(sidebar_width - 10 / interface_scale, bar_width * 0.5 - Base::default_line_spacing(font) * 0.5 + title_height);
@@ -109,7 +111,7 @@ namespace gui {
                 }
                 
                 // draw horizontal bar (matched fish from network)
-                pos = Vec2(margin) + Vec2(sidebar_width + bar_width * 0.5, image->bounds().height + margin + Base::default_line_spacing(font) * 0.5 + title_height);
+                pos = Vec2(margin) + Vec2(sidebar_width + bar_width * 0.5, bounds.height + margin + Base::default_line_spacing(font) * 0.5 + title_height);
                 for(size_t idx = 0; idx < output_size; ++idx) {
                     base.advance(new Text(Meta::toStr(idx), pos, White, bottom_font));
                     pos += Vec2(bar_width, 0);

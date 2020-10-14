@@ -2037,8 +2037,8 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                         empty_map = NULL;
                     
                     if(_cache._fish_map.find(fish) == _cache._fish_map.end()) {
-                        _cache._fish_map[fish] = new gui::Fish(*fish);
-                        fish->register_delete_callback(_cache._fish_map[fish], [this](Individual *f) {
+                        _cache._fish_map[fish] = std::make_unique<gui::Fish>(*fish);
+                        fish->register_delete_callback(_cache._fish_map[fish].get(), [this](Individual *f) {
                             //std::lock_guard<std::mutex> lock(_individuals_frame._mutex);
                             if(!GUI::instance())
                                 return;
@@ -2047,7 +2047,6 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                             
                             auto it = _cache._fish_map.find(f);
                             if(it != _cache._fish_map.end()) {
-                                delete it->second;
                                 _cache._fish_map.erase(f);
                             }
                         });
@@ -2105,8 +2104,7 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                 
                 for(auto it = _cache._fish_map.cbegin(); it != _cache._fish_map.cend();) {
                     if(!it->second->enabled()) {
-                        it->first->unregister_delete_callback(it->second);
-                        delete it->second;
+                        it->first->unregister_delete_callback(it->second.get());
                         _cache._fish_map.erase(it++);
                     } else
                         it++;

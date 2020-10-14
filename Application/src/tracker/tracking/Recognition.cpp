@@ -39,7 +39,7 @@ Recognition::FishInfo::operator MetaObject() const {
     return MetaObject("FishInfo<frame:"+Meta::toStr(last_frame)+" N:"+Meta::toStr(number_frames)+">", "FishInfo");
 }
 
-Image::Ptr Recognition::calculate_diff_image_with_settings(const default_config::recognition_normalization_t::Class &normalize, const pv::BlobPtr& blob, const Recognition::ImageData& data, const Size2& output_shape) {
+std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const default_config::recognition_normalization_t::Class &normalize, const pv::BlobPtr& blob, const Recognition::ImageData& data, const Size2& output_shape) {
     if(normalize == default_config::recognition_normalization_t::posture)
         return Individual::calculate_normalized_diff_image(data.midline_transform, blob, data.filters ? data.filters->median_midline_length_px : 0, output_shape, false);
     else if(normalize == default_config::recognition_normalization_t::legacy)
@@ -57,7 +57,7 @@ Image::Ptr Recognition::calculate_diff_image_with_settings(const default_config:
     }
     else {
         auto && [img, pos] = Individual::calculate_diff_image(blob, output_shape);
-        return img;
+        return std::move(img);
     }
 }
 
@@ -631,7 +631,9 @@ Image::Ptr Recognition::calculate_diff_image_with_settings(const default_config:
                     
                     if(!blob || ((normalize == default_config::recognition_normalization_t::posture || normalize == default_config::recognition_normalization_t::legacy) && !midline))
                     {
+#ifndef NDEBUG
                         Warning("Blob or midline of fish %d is nullptr, which is not supposed to happen.", fdx);
+#endif
                         continue;
                     }
                     
@@ -921,7 +923,9 @@ Image::Ptr Recognition::calculate_diff_image_with_settings(const default_config:
                 }
             }
             
-            std::map<long_t, pv::BlobPtr> blob_to_id;
+            std::map<uint32_t, pv::BlobPtr> blob_to_id;
+            for (auto b : frame.original_blobs)
+                blob_to_id[b->blob_id()] = b;
             for (auto b : frame.blobs)
                 blob_to_id[b->blob_id()] = b;
             for (auto b : frame.filtered_out)
@@ -965,7 +969,7 @@ Image::Ptr Recognition::calculate_diff_image_with_settings(const default_config:
                 assert(blob->pixels());
                 e.filters = std::make_shared<TrainingFilterConstraints>(custom_len);
                 e.image = calculate_diff_image_with_settings(normalize, blob, e, output_shape);
-                    
+                
                 if(e.image != nullptr) {
                     _detail.add_frame(e.frame, e.fdx);
                     waiting.push_back(e);
