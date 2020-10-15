@@ -62,7 +62,7 @@ namespace gui {
         _status_text2.set_clickable(true);
         
         _pause.on_click([](auto) {
-            SETTING(analysis_paused) = !SETTING(analysis_paused);
+            Tracker::analysis_state((Tracker::AnalysisState)!SETTING(analysis_paused));
         });
         
         _update_events_thread = std::make_shared<std::thread>([this](){

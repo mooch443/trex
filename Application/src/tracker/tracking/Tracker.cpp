@@ -234,6 +234,14 @@ const FrameProperties* Tracker::properties(long_t frameIndex, const CacheHints* 
         return _instance->_recognition;
     }
 
+void Tracker::analysis_state(AnalysisState pause) {
+    if(!instance())
+        U_EXCEPTION("No tracker instance can be used to pause.");
+    instance()->recognition_pool.enqueue([](bool value){
+        SETTING(analysis_paused) = value;
+    }, pause == AnalysisState::PAUSED);
+}
+
     Tracker::Tracker()
           : _thread_pool(max(1u, cmn::hardware_concurrency())),
             recognition_pool(max(1u, cmn::hardware_concurrency())),
@@ -484,7 +492,7 @@ const FrameProperties* Tracker::properties(long_t frameIndex, const CacheHints* 
                 //bool analysis_paused = SETTING(analysis_paused);
                 GUI::reanalyse_from(first_change, true);
                 //if(!analysis_paused)
-                SETTING(analysis_paused) = false;
+                Tracker::analysis_state(Tracker::AnalysisState::UNPAUSED);
                 
                 /*add_work_queue("removing frames", [this, first_change](){
                     bool before = analysis()->is_paused();
@@ -4077,7 +4085,8 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                     SETTING(manual_matches) = automatic_matches;
                 if(after_frame == -1)
                     SETTING(manual_splits) = manual_splits;
-                SETTING(analysis_paused) = false;
+                
+                Tracker::analysis_state(Tracker::AnalysisState::UNPAUSED);
             }, "");
         }
         

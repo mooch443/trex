@@ -284,6 +284,12 @@ CREATE_STRUCT(Settings,
         static void emergency_finish();
         static void delete_automatic_assignments(long_t fish_id, const FrameRange& frame_range);
         
+        enum class AnalysisState {
+            PAUSED,
+            UNPAUSED
+        };
+        static void analysis_state(AnalysisState);
+        
     protected:
         friend class track::Posture;
         static void increase_midline_errors() {

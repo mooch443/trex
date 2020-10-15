@@ -107,7 +107,7 @@ std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const def
             Timer timer;
             std::mutex thread_mutex;
             std::unique_lock<std::mutex> guard(thread_mutex);
-            while (!SETTING(terminate) && !terminate_thread) {
+            while (!GUI_SETTINGS(terminate) && !terminate_thread) {
                 
                 bool wait_long(true);
                 auto info = _detail.info();
@@ -119,9 +119,7 @@ std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const def
                 if(!FAST_SETTINGS(recognition_enable) || this->_running || timer.elapsed() < 1)
                     continue;
                 
-                //Debug("Calling update_internal_training...");
-                std::unique_lock<std::mutex> gil(_termination_mutex);
-                if(!SETTING(terminate) && !terminate_thread) {
+                if(!GUI_SETTINGS(terminate) && !terminate_thread) {
                     this->update_internal_training();
                 }
                 
@@ -229,7 +227,7 @@ std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const def
     Recognition::~Recognition() {
         prepare_shutdown();
         
-        std::lock_guard<std::mutex> guard(_termination_mutex);
+        Tracker::LockGuard guard("update_dataset_quality");
         if(_dataset_quality)
             delete _dataset_quality;
     }
@@ -302,9 +300,7 @@ std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const def
     }
     
     void Recognition::prepare_shutdown() {
-        std::unique_lock<std::mutex> gil(_termination_mutex);
         terminate_thread = true;
-        gil.unlock();
         
         if(update_thread) {
             update_thread->join();
@@ -1328,14 +1324,13 @@ std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const def
                     }
                 }
                 
-                std::lock_guard<std::mutex> guard(_termination_mutex);
                 if(GUI::instance()) {
                     std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
                     GUI::instance()->cache().set_tracking_dirty();
                     GUI::instance()->set_redraw();
                 }
 
-                if(SETTING(terminate))
+                if(GUI_SETTINGS(terminate))
                    break;
             }
            

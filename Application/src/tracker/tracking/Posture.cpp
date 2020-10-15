@@ -412,7 +412,8 @@ namespace track {
                 
                 cv::cvtColor(colored, colored, cv::COLOR_BGR2RGB);
                 tf::imshow("image", colored);
-                SETTING(analysis_paused) = true;
+                
+                Tracker::analysis_state(Tracker::AnalysisState::PAUSED);
             }
         }
     }
