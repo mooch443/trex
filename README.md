@@ -39,3 +39,7 @@ If you experience problems with [Tensorflow](https://tensorflow.org), such as in
 # License
 
 Released under the GPLv3 License (see [LICENSE](https://github.com/mooch443/trex/blob/master/LICENSE)).
+
+# Reference
+
+A preprint is available at https://preprint.trex.run/.
