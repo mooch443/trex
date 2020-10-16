@@ -12,6 +12,7 @@
 #include "pvinfo_merge.h"
 #include <misc/Output.h>
 #include <gui/IdentityHeatmap.h>
+#include <opencv2/core/utils/logger.hpp>
 
 using namespace cmn;
 
@@ -21,6 +22,9 @@ ENUM_CLASS(Arguments,
 ENUM_CLASS(parameter_format_t, settings, minimal)
 
 int main(int argc, char**argv) {
+#ifdef NDEBUG
+    cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_ERROR);
+#endif
     DEBUG::set_runtime_quiet();
     
     auto OS_ACTIVITY_DT_MODE = getenv("OS_ACTIVITY_DT_MODE");

@@ -51,6 +51,7 @@
 
 #include <gui/IMGUIBase.h>
 #include <python/GPURecognition.h>
+#include <opencv2/core/utils/logger.hpp>
 
 //-Functions-------------------------------------------------------------------
 
@@ -175,6 +176,9 @@ using namespace file;
 
 int main(int argc, char** argv)
 {
+#ifdef NDEBUG
+    cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_ERROR);
+#endif
 #if __linux__
     XInitThreads();
 #endif

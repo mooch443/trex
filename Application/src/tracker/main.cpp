@@ -76,6 +76,8 @@
 #include <shellapi.h>
 #endif
 
+#include <opencv2/core/utils/logger.hpp>
+
 //-Functions-------------------------------------------------------------------
 
 using namespace track;
@@ -186,6 +188,10 @@ void init_signals() {
 
 int main(int argc, char** argv)
 {
+#ifdef NDEBUG
+    cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_ERROR);
+#endif
+    
 #if __APPLE__
     std::string PATH = (std::string)getenv("PATH");
     if(!utils::contains(PATH, "/usr/local/bin")) {
