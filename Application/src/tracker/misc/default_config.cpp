@@ -104,7 +104,14 @@ namespace default_config {
         {"recognition_rect", "recognition_shapes"},
         {"recognition_normalize_direction", "recognition_normalization"},
         {"match_use_approximate", "match_mode"},
-        {"output_npz", "output_format"}
+        {"output_npz", "output_format"},
+        {"gui_heatmap_value_range", "heatmap_value_range"},
+        {"gui_heatmap_smooth", "heatmap_smooth"},
+        {"gui_heatmap_frames", "heatmap_frames"},
+        {"gui_heatmap_dynamic", "heatmap_dynamic"},
+        {"gui_heatmap_resolution", "heatmap_resolution"},
+        {"gui_heatmap_normalization", "heatmap_normalization"},
+        {"gui_heatmap_source", "heatmap_source"},
     };
 
 file::Path conda_environment_path() {
