@@ -21,11 +21,14 @@ ENUM_CLASS(Arguments,
 ENUM_CLASS(parameter_format_t, settings, minimal)
 
 int main(int argc, char**argv) {
-    //DEBUG::set_runtime_quiet();
+    DEBUG::set_runtime_quiet();
+    
     auto OS_ACTIVITY_DT_MODE = getenv("OS_ACTIVITY_DT_MODE");
+#ifndef NDEBUG
     if(OS_ACTIVITY_DT_MODE) {
         Debug("OS_ACTIVITY_DT_MODE: %s", OS_ACTIVITY_DT_MODE);
     }
+#endif
     //SETTING(quiet) = true;
     default_config::register_default_locations();
     

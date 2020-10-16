@@ -68,10 +68,28 @@ The tracker only expects an input file::
 
 Just like with |grabs|, you can attach any number of additional parameters to the command-line, simply using ``-PARAMETER VALUE`` (see :doc:`parameters_trex`).
 
-Tools
------
+Other command-line tools
+------------------------
 
-Another tool is included, called ``pvinfo``, which can be used programmatically (e.g. in jupyter notebooks) to retrieve information about converted videos and the settings used to track them. The usual way to make use of it within python is::
+Another tool is included, called ``pvinfo``, which can be used programmatically (e.g. in jupyter notebooks) to retrieve information about converted videos and the settings used to track them::
+
+	$ pvinfo -i <VIDEO> -print_parameters [analysis_range,video_size] -quiet
+	analysis_range = [1000,50000]
+	video_size = [3712,3712]
+	
+If no settings (apart from ``-i <pv-videopath>``) are provided, it displays some information on the PV file::
+
+	$ pvinfo -i group_1
+	[15:24:00] pv::File<V6, 182.97MB, '/Users/tristan/Videos/group_1', [3712 x 3712], 19317 frames, no mask>
+	
+	crop_offsets: [0,0,0,0]
+	Time of recording: 'Tue Apr 28 06:42:28 2020'
+	Length of recording: '00d:00h:10m:03s'
+	Framerate: 32fps (31.25ms)
+	
+	Metadata: {"meta_species": "Zebrafish", "meta_age_days": 25, "meta_conditions": "", "meta_misc": "", "cam_limit_exposure": 5500, "meta_real_width": 30, "meta_source_path": "/media/nvme/group_1.avi", "meta_cmd": " ./tgrabs -i /media/nvme/group_1.avi -s /media/nvme/convert_group_1.settings -enable_live_tracking", "meta_build": "<hash>", "meta_conversion_time": "28-04-2020 06:42:09", "frame_rate": 32}
+
+It can be useful for retrieving values of tracking parameters from external scripts, like in python (also things like ``video_size``)::
 
 	def get_parameter(video, parameter, root = "", prefix = "", info_path = "/path/to/pvinfo"):
 		"""Uses the pvinfo utility to retrieve information about tracked videos. 
@@ -129,6 +147,15 @@ Another tool is included, called ``pvinfo``, which can be used programmatically 
 But it has many other uses, too! For example, it can be used to save heatmap information that can be visualized in |trex| (but can not currently be saved directly from |trex| -> will be soon)::
 
 	pvinfo -i video -heatmap -heatmap_source SPEED -heatmap_resolution 128 -heatmap_frames 100 -heatmap_dynamic
+	
+Or to display information about objects inside the saved frames::
+
+	$ pvinfo -i <VIDEO> -blob_detail -quiet
+	[15:24:07] 190315246 bytes (190.32MB) of blob data
+	[15:24:07] Images average at 512.654519 px / blob and the range is [2-2154] with a median of 616.
+	[15:24:07] There are 10 blobs in each frame (median).
+
+
 
 Batch processing support
 ========================
