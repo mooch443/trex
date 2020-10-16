@@ -46,6 +46,9 @@ namespace default_config {
 
     ENUM_CLASS(matching_mode_t, accurate, approximate, hungarian, benchmark)
     ENUM_CLASS_HAS_DOCS(matching_mode_t)
+
+    ENUM_CLASS(output_format_t, csv, npz)
+    ENUM_CLASS_HAS_DOCS(output_format_t)
 }
 
 namespace gui {

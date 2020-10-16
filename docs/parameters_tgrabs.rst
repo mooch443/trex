@@ -212,6 +212,16 @@ TGrabs parameters
 
 
 
+.. function:: crop_offsets(offsets)
+	:noindex:
+
+	**default value:** [0,0,0,0]
+
+
+	Percentage offsets [left, top, right, bottom] that will be cut off the input images (e.g. [0.1,0.1,0.5,0.5] will remove 10%% from the left and top and 50%% from the right and bottom and the video will be 60%% smaller in X and Y).
+
+
+
 .. function:: blob_size_range(rangef)
 	:noindex:
 
@@ -429,33 +439,13 @@ TGrabs parameters
 
 
 
-.. function:: crop_offsets(offsets)
+.. function:: cam_limit_exposure(int)
 	:noindex:
 
-	**default value:** [0,0,0,0]
+	**default value:** 5500
 
 
-	Percentage offsets [left, top, right, bottom] that will be cut off the input images (e.g. [0.1,0.1,0.5,0.5] will remove 10%% from the left and top and 50%% from the right and bottom and the video will be 60%% smaller in X and Y).
-
-
-
-.. function:: equalize_histogram(bool)
-	:noindex:
-
-	**default value:** false
-
-
-	Equalizes the histogram of the image before thresholding and background subtraction.
-
-
-
-.. function:: crop_window(bool)
-	:noindex:
-
-	**default value:** false
-
-
-	If set to true, the grabber will open a window before the analysis starts where the user can drag+drop points defining the crop_offsets.
+	[BASLER] Sets the cameras exposure time in micro seconds.
 
 
 
@@ -480,13 +470,23 @@ TGrabs parameters
 	.. seealso:: :func:`closing_size`, 
 
 
-.. function:: cam_limit_exposure(int)
+.. function:: equalize_histogram(bool)
 	:noindex:
 
-	**default value:** 5500
+	**default value:** false
 
 
-	[BASLER] Sets the cameras exposure time in micro seconds.
+	Equalizes the histogram of the image before thresholding and background subtraction.
+
+
+
+.. function:: crop_window(bool)
+	:noindex:
+
+	**default value:** false
+
+
+	If set to true, the grabber will open a window before the analysis starts where the user can drag+drop points defining the crop_offsets.
 
 
 

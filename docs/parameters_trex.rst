@@ -300,14 +300,17 @@ TRex parameters
 	.. seealso:: :func:`output_dir`, :func:`fish_data_dir`, :func:`filename`, 
 
 
-.. function:: output_npz(bool)
+.. function:: output_format(output_format_t)
 
-	**default value:** true
+	**default value:** npz
+
+	**possible values:**
+		- `csv`: A standard data format, comma-separated columns for each data stream.
+		- `npz`: NPZ is basically a collection of binary arrays, readable by NumPy and other plugins (there are plugins available for Matlab and R).
+
+	When pressing the S(ave) button or using auto_quit, this setting allows to switch between CSV and NPZ output. NPZ files are recommended and will be used by default - some functionality (such as visual fields, posture data, etc.) will remain in NPZ format due to technical constraints.
 
 
-	When pressing the S(ave) button or using auto_quit, this setting allows to switch between CSV and NPZ output. If set to true, all output will be NPZ files (recommended). If set to false, some output (`output_graphs`) will be CSV files, while others (posture data, etc.) will remain in NPZ format due to technical constraints.
-
-	.. seealso:: :func:`output_graphs`, 
 
 
 .. function:: tracklet_max_images(ulong)
@@ -486,6 +489,15 @@ TRex parameters
 
 
 	JPEG quality of images transferred over the web interface.
+
+
+
+.. function:: heatmap_smooth(double)
+
+	**default value:** 0.05
+
+
+	Value between 0 and 1, think of as `heatmap_smooth` times video width, indicating the maximum upscaled size of the heatmaps shown in the tracker. Makes them prettier, but maybe much slower.
 
 
 
@@ -794,6 +806,34 @@ TRex parameters
 
 
 
+.. function:: recognition_border_size_rescale(float)
+
+	**default value:** 0.5
+
+
+	The amount that blob sizes for calculating the heatmap are allowed to go below or above blob_size_ranges (e.g. 0.5 means that the sizes can range between blob_size_ranges.min * (1 - 0.5) and blob_size_ranges.max * (1 + 0.5)).
+
+
+
+.. function:: gui_show_inactive_individuals(bool)
+
+	**default value:** true
+
+
+	Show/hide individuals that have not been seen for longer than `track_max_reassign_time`.
+
+	.. seealso:: :func:`track_max_reassign_time`, 
+
+
+.. function:: outline_use_dft(bool)
+
+	**default value:** true
+
+
+	If enabled, the program tries to reduce outline noise by convolution of the curvature array with a low pass filter.
+
+
+
 .. function:: grid_points_scaling(float)
 
 	**default value:** 0.8
@@ -873,15 +913,6 @@ TRex parameters
 
 
 	
-
-
-
-.. function:: gui_heatmap_value_range(range<double>)
-
-	**default value:** [-1,-1]
-
-
-	Give a custom value range that is used to normalize heatmap cell values.
 
 
 
@@ -1193,25 +1224,6 @@ TRex parameters
 
 
 
-.. function:: outline_use_dft(bool)
-
-	**default value:** true
-
-
-	If enabled, the program tries to reduce outline noise by convolution of the curvature array with a low pass filter.
-
-
-
-.. function:: gui_show_inactive_individuals(bool)
-
-	**default value:** true
-
-
-	Show/hide individuals that have not been seen for longer than `track_max_reassign_time`.
-
-	.. seealso:: :func:`track_max_reassign_time`, 
-
-
 .. function:: output_statistics(bool)
 
 	**default value:** true
@@ -1249,24 +1261,6 @@ TRex parameters
 
 
 
-.. function:: gpu_min_iterations(ulong)
-
-	**default value:** 100
-
-
-	Minimum number of iterations per epoch for training a recognition network.
-
-
-
-.. function:: gui_show_memory_stats(bool)
-
-	**default value:** false
-
-
-	Showing or hiding memory statistics.
-
-
-
 .. function:: panic_button(int)
 
 	**default value:** 0
@@ -1294,111 +1288,39 @@ TRex parameters
 
 
 
-.. function:: video_info(string)
+.. function:: midline_stiff_percentage(float)
 
-	**default value:** ""
-
-
-	Information on the current video as provided by PV.
+	**default value:** 0.15
 
 
-
-.. function:: gui_connectivity_matrix(map<int,array<float>>)
-
-	**default value:** {}
-
-
-	Internally used to store the connectivity matrix.
+	Percentage of the midline that can be assumed to be stiff. If the head position seems poorly approximated (straighened out too much), then decrease this value.
 
 
 
-.. function:: gui_single_identity_color(color)
+.. function:: heatmap_value_range(range<double>)
 
-	**default value:** [0,0,0,0]
-
-
-	If set to something else than transparent, all individuals will be displayed with this color.
+	**default value:** [-1,-1]
 
 
-
-.. function:: gui_heatmap_source(string)
-
-	**default value:** ""
-
-
-	If empty, the source will simply be an individuals identity. Otherwise, information from export data sources will be used.
+	Give a custom value range that is used to normalize heatmap cell values.
 
 
 
-.. function:: gui_heatmap_dynamic(bool)
+.. function:: gpu_min_iterations(ulong)
+
+	**default value:** 100
+
+
+	Minimum number of iterations per epoch for training a recognition network.
+
+
+
+.. function:: gui_show_memory_stats(bool)
 
 	**default value:** false
 
 
-	If enabled the heatmap will only show frames before the frame currently displayed in the graphical user interface.
-
-
-
-.. function:: gui_heatmap_frames(uint)
-
-	**default value:** 0
-
-
-	If `gui_heatmap_dynamic` is enabled, this variable determines the range of frames that are considered. If set to 0, all frames up to the current frame are considered. Otherwise, this number determines the number of frames previous to the current frame that are considered.
-
-	.. seealso:: :func:`gui_heatmap_dynamic`, 
-
-
-.. function:: recognition_border_size_rescale(float)
-
-	**default value:** 0.5
-
-
-	The amount that blob sizes for calculating the heatmap are allowed to go below or above blob_size_ranges (e.g. 0.5 means that the sizes can range between blob_size_ranges.min * (1 - 0.5) and blob_size_ranges.max * (1 + 0.5)).
-
-
-
-.. function:: gui_heatmap_normalization(heatmap_normalization_t)
-
-	**default value:** cell
-
-	**possible values:**
-		- `none`: No normalization at all. Values will only be averaged per cell.
-		- `value`: Normalization based in value-space. The average of each cell will be divided by the maximum value encountered.
-		- `cell`: The cell sum will be divided by the maximum cell value encountered.
-		- `variance`: Displays the variation within each cell.
-
-	Normalization used for the heatmaps. If `value` is selected, then the maximum of all values encountered will be used to normalize the average of each cell. If `cell` is selected, the sum of each cell will be divided by the maximum cell value encountered.
-
-
-	.. seealso:: :func:`value`, :func:`cell`, 
-
-
-.. function:: blob_split_global_shrink_limit(float)
-
-	**default value:** 0.2
-
-
-	The minimum percentage of the minimum in `blob_size_ranges`, that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.
-
-	.. seealso:: :func:`blob_size_ranges`, 
-
-
-.. function:: blobs_per_thread(float)
-
-	**default value:** 150
-
-
-	Number of blobs for which properties will be calculated per thread.
-
-
-
-.. function:: gui_heatmap_smooth(double)
-
-	**default value:** 0
-
-
-	Value between 0 and 1, think of as `gui_heatmap_smooth` times video width, indicating the maximum upscaled size of the heatmaps shown in the tracker. Makes them prettier.
+	Showing or hiding memory statistics.
 
 
 
@@ -1417,15 +1339,6 @@ TRex parameters
 
 
 	This can be set to the path of an additional settings file that is executed after the normal settings file.
-
-
-
-.. function:: midline_stiff_percentage(float)
-
-	**default value:** 0.15
-
-
-	Percentage of the midline that can be assumed to be stiff. If the head position seems poorly approximated (straighened out too much), then decrease this value.
 
 
 
@@ -1502,6 +1415,50 @@ TRex parameters
 	.. seealso:: :func:`filename`, :func:`filename`, 
 
 
+.. function:: gui_playback_speed(float)
+
+	**default value:** 1
+
+
+	Playback speed when pressing SPACE.
+
+
+
+.. function:: heatmap_normalization(heatmap_normalization_t)
+
+	**default value:** cell
+
+	**possible values:**
+		- `none`: No normalization at all. Values will only be averaged per cell.
+		- `value`: Normalization based in value-space. The average of each cell will be divided by the maximum value encountered.
+		- `cell`: The cell sum will be divided by the maximum cell value encountered.
+		- `variance`: Displays the variation within each cell.
+
+	Normalization used for the heatmaps. If `value` is selected, then the maximum of all values encountered will be used to normalize the average of each cell. If `cell` is selected, the sum of each cell will be divided by the maximum cell value encountered.
+
+
+	.. seealso:: :func:`value`, :func:`cell`, 
+
+
+.. function:: build_is_debug(string)
+
+	**default value:** "debug"
+
+
+	If built in debug mode, this will show 'debug'.
+
+
+
+.. function:: heatmap_resolution(uint)
+
+	**default value:** 64
+
+
+	Square resolution of individual heatmaps displayed with `gui_show_heatmap`. Will generate a square grid, each cell with dimensions (video_width / N, video_height / N), and sort all positions of each identity into it.
+
+	.. seealso:: :func:`gui_show_heatmap`, 
+
+
 .. function:: filename(path)
 
 	**default value:** ""
@@ -1564,6 +1521,24 @@ TRex parameters
 
 
 	This is where the webserver tries to establish a socket. If it fails, this will be set to the port that was chosen.
+
+
+
+.. function:: log_file(path)
+
+	**default value:** ""
+
+
+	Set this to a path you want to save the log file to.
+
+
+
+.. function:: heatmap_source(string)
+
+	**default value:** ""
+
+
+	If empty, the source will simply be an individuals identity. Otherwise, information from export data sources will be used.
 
 
 
@@ -1641,6 +1616,15 @@ TRex parameters
 	.. seealso:: :func:`recognition_border`, 
 
 
+.. function:: video_info(string)
+
+	**default value:** ""
+
+
+	Information on the current video as provided by PV.
+
+
+
 .. function:: auto_no_memory_stats(bool)
 
 	**default value:** true
@@ -1656,15 +1640,6 @@ TRex parameters
 
 
 	Distance in time (seconds) where the matcher will stop trying to reassign an individual based on previous position. After this time runs out, depending on the settings, the tracker will try to find it based on other criteria, or generate a new individual.
-
-
-
-.. function:: build_is_debug(string)
-
-	**default value:** "debug"
-
-
-	If built in debug mode, this will show 'debug'.
 
 
 
@@ -1720,21 +1695,39 @@ TRex parameters
 
 
 
-.. function:: log_file(path)
-
-	**default value:** ""
-
-
-	Set this to a path you want to save the log file to.
-
-
-
 .. function:: auto_apply(bool)
 
 	**default value:** false
 
 
 	If set to true, the application will automatically apply the network with existing weights once the analysis is done. It will then automatically correct and reanalyse the video.
+
+
+
+.. function:: gui_connectivity_matrix(map<int,array<float>>)
+
+	**default value:** {}
+
+
+	Internally used to store the connectivity matrix.
+
+
+
+.. function:: gui_single_identity_color(color)
+
+	**default value:** [0,0,0,0]
+
+
+	If set to something else than transparent, all individuals will be displayed with this color.
+
+
+
+.. function:: heatmap_dynamic(bool)
+
+	**default value:** false
+
+
+	If enabled the heatmap will only show frames before the frame currently displayed in the graphical user interface.
 
 
 
@@ -1820,13 +1813,14 @@ TRex parameters
 
 
 
-.. function:: gui_playback_speed(float)
+.. function:: heatmap_frames(uint)
 
-	**default value:** 1
+	**default value:** 0
 
 
-	Playback speed when pressing SPACE.
+	If `heatmap_dynamic` is enabled, this variable determines the range of frames that are considered. If set to 0, all frames up to the current frame are considered. Otherwise, this number determines the number of frames previous to the current frame that are considered.
 
+	.. seealso:: :func:`heatmap_dynamic`, 
 
 
 .. function:: gui_recording_format(gui_recording_format_t)
@@ -1903,14 +1897,23 @@ TRex parameters
 
 
 
-.. function:: gui_heatmap_resolution(uint)
+.. function:: blob_split_global_shrink_limit(float)
 
-	**default value:** 75
+	**default value:** 0.2
 
 
-	Square resolution of individual heatmaps displayed with `gui_show_heatmap`. Will generate a square grid, each cell with dimensions (video_width / N, video_height / N), and sort all positions of each identity into it.
+	The minimum percentage of the minimum in `blob_size_ranges`, that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.
 
-	.. seealso:: :func:`gui_show_heatmap`, 
+	.. seealso:: :func:`blob_size_ranges`, 
+
+
+.. function:: blobs_per_thread(float)
+
+	**default value:** 150
+
+
+	Number of blobs for which properties will be calculated per thread.
+
 
 
 .. function:: tracklet_normalize_orientation(bool)

@@ -156,7 +156,7 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
     auto previous_output_frame_window = SETTING(output_frame_window).value<long_t>();
     auto output_image_per_tracklet = GUI::instance() ? SETTING(output_image_per_tracklet).value<bool>() : false;
     auto recognition_enable = FAST_SETTINGS(recognition_enable);
-    auto output_npz = SETTING(output_npz).value<bool>();
+    auto output_format = SETTING(output_format).value<default_config::output_format_t::Class>();
     auto output_posture_data = SETTING(output_posture_data).value<bool>();
     auto output_min_frames = SETTING(output_min_frames).value<size_t>();
     auto no_tracking_data = SETTING(auto_no_tracking_data).value<bool>();
@@ -191,7 +191,7 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
     else
         Debug("[exporting] Exporting all frames (%d)", tracker.number_frames());
     auto individual_prefix = FAST_SETTINGS(individual_prefix);
-    Debug("[exporting] Writing data from `output_graphs` to '%S/%S_%S*.%s'", &fishdata.str(), &filename, &individual_prefix, output_npz ? "npz" : ".sv");
+    Debug("[exporting] Writing data from `output_graphs` to '%S/%S_%S*.%s'", &fishdata.str(), &filename, &individual_prefix, output_format.name());
     if(output_posture_data)
         Debug("[exporting] Writing posture data to '%S'", &posture_path);
     if(recognition_enable)
@@ -266,7 +266,7 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                     else
                         fish_graphs.at(thread_index)->setup_graph(fish->start_frame(), Rangel(fish->start_frame(), fish->end_frame()), fish, library_cache.at(thread_index));
                     
-                    file::Path path = (SETTING(filename).value<file::Path>().filename().to_string() + "_" + fish->identity().name() + (output_npz ? ".npz" : ".csv"));
+                    file::Path path = (SETTING(filename).value<file::Path>().filename().to_string() + "_" + fish->identity().name() + "." + output_format.name());
                     
                     /**
                      * There is sometimes a problem when people save to network harddrives.
@@ -284,7 +284,7 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                     }
                     
                     try {
-                        if(output_npz) {
+                        if(output_format == default_config::output_format_t::npz) {
                             fish_graphs.at(thread_index)->graph().save_npz(use_path.str(), &callback, true);
                             
                             std::vector<long_t> segment_borders;

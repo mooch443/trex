@@ -777,8 +777,6 @@ void FrameGrabber::initialize_video() {
         }
     }
     
-    //_video = new VideoSource("/Users/Tristan/Desktop/angela/CLIP0000125_", "mp4", 1, 2, 3);
-    
     if(path.exists()) {
         if(SETTING(reset_average)) {
             Warning("Average exists, but will not be used because 'reset_average' is set to true.");

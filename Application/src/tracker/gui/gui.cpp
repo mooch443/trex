@@ -4148,7 +4148,7 @@ void GUI::key_event(const gui::Event &event) {
             break;
             
         case Codes::S:
-            work().add_queue("Saving to "+std::string(SETTING(output_npz) ? "NPZ" : "CSV")+"...", [this]() { export_tracks(); });
+            work().add_queue("Saving to "+(std::string)GUI_SETTINGS(output_format).name()+" ...", [this]() { export_tracks(); });
             break;
             
         case Codes::T:

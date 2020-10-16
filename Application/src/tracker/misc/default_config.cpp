@@ -66,6 +66,11 @@ namespace default_config {
         "The hungarian algorithm (as implemented in O(n^3) by Mattias Andrée `https://github.com/maandree/hungarian-algorithm-n3`).",
         "Runs all algorithms and pits them against each other, outputting statistics every few frames."
     )
+
+    ENUM_CLASS_DOCS(output_format_t,
+        "A standard data format, comma-separated columns for each data stream.",
+        "NPZ is basically a collection of binary arrays, readable by NumPy and other plugins (there are plugins available for Matlab and R)."
+    )
     
     static const std::map<std::string, std::string> deprecated = {
         {"outline_step", "outline_smooth_step"},
@@ -98,7 +103,8 @@ namespace default_config {
         {"threshold_constant", "track_threshold"},
         {"recognition_rect", "recognition_shapes"},
         {"recognition_normalize_direction", "recognition_normalization"},
-        {"match_use_approximate", "match_mode"}
+        {"match_use_approximate", "match_mode"},
+        {"output_npz", "output_format"}
     };
 
 file::Path conda_environment_path() {
@@ -477,7 +483,7 @@ file::Path conda_environment_path() {
         CONFIG("tracklet_normalize_orientation", true, "If enabled, all exported tracklet images are normalized according to the calculated posture orientation, so that all heads are looking to the left and only the body moves.");
         CONFIG("tracklet_restore_split_blobs", true, "If enabled, all exported tracklet images are checked for missing pixels. When a blob is too close to another blob, parts of the other blob might be erased so the individuals can be told apart. If enabled, another mask will be saved, that contains only the blob in focus, without the rest-pixels.");
         CONFIG("output_image_per_tracklet", false, "If set to true, the program will output one median image per tracklet (time-series segment) and save it alongside the npz/csv files.");
-        CONFIG("output_npz", true, "When pressing the S(ave) button or using auto_quit, this setting allows to switch between CSV and NPZ output. If set to true, all output will be NPZ files (recommended). If set to false, some output (`output_graphs`) will be CSV files, while others (posture data, etc.) will remain in NPZ format due to technical constraints.");
+        CONFIG("output_format", output_format_t::npz, "When pressing the S(ave) button or using auto_quit, this setting allows to switch between CSV and NPZ output. NPZ files are recommended and will be used by default - some functionality (such as visual fields, posture data, etc.) will remain in NPZ format due to technical constraints.");
         CONFIG("output_statistics", true, "Save an NPZ file containing an array with shape Nx5 and contents [[adding_frame_seconds, combined_posture_seconds, track_max_individuals, loading_seconds, posture_seconds],...] and an 1D-array containing all frame numbers. If set to true, a file called '`output_dir`/`fish_data_dir`/`filename`_statistics.npz' will be created. This will not output anything interesting, if the data was loaded instead of analysed.");
         CONFIG("output_posture_data", false, "Save posture data npz file along with the usual NPZ/CSV files containing positions and such. If set to true, a file called '`output_dir`/`fish_data_dir`/`filename`_posture_fishXXX.npz' will be created for each individual XXX.");
         CONFIG("output_recognition_data", false, "Save recognition / probability data npz file along with the usual NPZ/CSV files containing positions and such. If set to true, a file called '`output_dir`/`fish_data_dir`/`filename`_recognition_fishXXX.npz' will be created for each individual XXX.");
@@ -764,6 +770,10 @@ void load_string_with_deprecations(const file::Path& settings_file, const std::s
                         }
                         
                         map[r] = value;
+                        
+                    } else if(key == "output_npz") {
+                        auto value = Meta::fromStr<bool>(val);
+                        GlobalSettings::load_from_string(deprecations(), map, r + " = " + (value ? "npz" : "csv") + "\n", accessLevel);
                         
                     } else if(key == "match_use_approximate") {
                         auto value = Meta::fromStr<bool>(val);
