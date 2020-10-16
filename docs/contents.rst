@@ -40,6 +40,8 @@ Whereas other use-cases are:
    
    install
    run
+   examples
    formats
    parameters_trex
    parameters_tgrabs
+   faq

@@ -37,7 +37,17 @@ If one metric (such as anything posture-related) is not available in a frame -- 
 Posture
 -------
 
+(todo)
 
+Tracklet images
+---------------
+
+(todo)
+
+Visual fields
+-------------
+
+(todo)
 
 PreprocessedVideo (pv)
 **********************

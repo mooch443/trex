@@ -758,6 +758,14 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                     Tracker::instance()->preprocess_frame(obj, active, &_blob_thread_pool);
                 }
                 
+                std::map<uint32_t, pv::BlobPtr> blob_to_id;
+                for(auto &blob : obj.blobs)
+                    blob_to_id[blob->blob_id()] = blob;
+                for(auto &blob : obj.filtered_out)
+                    blob_to_id[blob->blob_id()] = blob;
+                for(auto &blob : obj.original_blobs)
+                    blob_to_id[blob->blob_id()] = blob;
+                
                 for(auto && [id, data] : vec) {
                     struct ImagePosition {
                         std::unique_ptr<Image> image;
@@ -765,7 +773,11 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                         pv::BlobPtr blob;
                     } reduced, full;
                     
-                    for (auto b : obj.blobs) {
+                    reduced.blob = Tracker::find_blob_noisy(blob_to_id, data.blob.blob_id, data.blob.parent_id, Bounds(), data.frame);
+                    if(data.blob.org_id != -1) {
+                        full.blob = Tracker::find_blob_noisy(blob_to_id, data.blob.org_id, data.blob.parent_id, Bounds(), data.frame);
+                    }
+                    /*for (auto b : obj.blobs) {
                         if(data.blob.org_id != -1) {
                             if(b->blob_id() == (uint32_t)data.blob.org_id) {
                                 //Debug("%ld == %d", data.blob.org_id, b->blob_id());
@@ -778,7 +790,7 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                         
                         if((reduced.blob && full.blob) || (reduced.blob && data.blob.org_id == -1))
                             break;
-                    }
+                    }*/
                     
                     if(data.blob.org_id != -1 && !full.blob)//if(!reduced.blob)
                     {
