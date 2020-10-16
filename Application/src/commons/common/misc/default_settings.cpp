@@ -223,24 +223,24 @@ namespace cmn {
             ss << extra_text;
         
         auto array = utils::split(filter, ';');
+        auto keys = extract_keys(docs);
         
-        for (auto &k : docs) {
-            if(contains(array, k.first))
+        for (auto &key : keys) {
+            if(contains(array, key))
                 continue;
             
-            auto value = config[k.first].get().valueString();
+            auto value = config[key].get().valueString();
             std::string doc = "";
-            if(docs.find(k.first) != docs.end()) {
-                doc = docs.at(k.first);
+            if(docs.find(key) != docs.end()) {
+                doc = docs.at(key);
             }
             
             std::string access_level = "PUBLIC";
-            auto key = k.first;
             auto it = fn.find(key);
             if(it != fn.end() && it->second > AccessLevelType::PUBLIC)
                 access_level = it->second.name();
             
-            print_parameter(k.first, config[k.first].get().type_name(), value, doc);
+            print_parameter(key, config[key].get().type_name(), value, doc);
         }
         
         return ss.str();

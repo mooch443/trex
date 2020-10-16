@@ -749,8 +749,8 @@ namespace cmn {
     template< typename tMap >
     first_t< typename tMap::value_type > first( const tMap& ) { return first_t< typename tMap::value_type >(); }
     
-    template<typename KeyType, typename ValueType>
-    inline std::set<KeyType> extract_keys(const std::map<KeyType, ValueType>& m) {
+    template<typename Map, typename KeyType = typename Map::key_type>
+    inline std::set<KeyType> extract_keys(const Map& m) {
         std::set<KeyType> v;
         std::transform( m.begin(), m.end(), std::inserter( v, v.end() ), first(m) );
         return v;
