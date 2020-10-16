@@ -3,6 +3,9 @@
 Welcome to TRex's documentation!
 ================================
 
+.. NOTE::
+	This page (and the github repository at https://github.com/mooch443/trex) will be updated frequently at the moment, since |trex| is still in active development. If you find any issues, please report them using the github issue tracker!
+
 |trex| is a tracking software designed to track and identify individuals and other moving entities using computer vision and machine learning. The work-load is split into two (not entirely separate) tools:
 
 * **TGrabs**: Record or convert existing videos, perform live-tracking and closed-loop experiments
@@ -15,6 +18,9 @@ Welcome to TRex's documentation!
 		<source src="composite_tracking_video_.mp4" type='video/mp4; codecs="avc1"'>
 		<source src="composite_tracking_video.mov" type='video/mp4; codecs="h264"' />
 	</video>
+
+Workflow
+--------
 
 |grabs| always has to be used first. |trex| is optional in some cases. Use-cases where |trex| is not required include:
 

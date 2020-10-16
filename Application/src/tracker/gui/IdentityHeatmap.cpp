@@ -562,7 +562,7 @@ bool HeatmapController::update_variables() {
         set_content_changed(true);
     }
     
-    const uint32_t res = max(2u, min((uint32_t)(Tracker::average().bounds().size().min() * 0.5),  SETTING(gui_heatmap_resolution).value<uint32_t>()));
+    const uint32_t res = max(2u, min((uint32_t)(Tracker::average().bounds().size().min() * 0.5),  SETTING(heatmap_resolution).value<uint32_t>()));
     
     if(res != uniform_grid_cell_size) {
         uniform_grid_cell_size = res;
@@ -578,29 +578,29 @@ bool HeatmapController::update_variables() {
         has_to_paint = true;
     }
     
-    const Range<double> custom_value_range = SETTING(gui_heatmap_value_range).value<Range<double>>();
+    const Range<double> custom_value_range = SETTING(heatmap_value_range).value<Range<double>>();
     if(custom_value_range != custom_heatmap_value_range) {
         custom_heatmap_value_range = custom_value_range;
         has_to_paint = true;
     }
     
-    const double gui_heatmap_smooth = max(0, min(1, SETTING(gui_heatmap_smooth).value<double>()));
-    if(smooth_heatmap_factor != gui_heatmap_smooth) {
-        smooth_heatmap_factor = gui_heatmap_smooth;
+    const double heatmap_smooth = max(0, min(1, SETTING(heatmap_smooth).value<double>()));
+    if(smooth_heatmap_factor != heatmap_smooth) {
+        smooth_heatmap_factor = heatmap_smooth;
         has_to_paint = true;
     }
     
-    //SETTING(gui_heatmap_resolution) = uniform_grid_cell_size + 1;
+    //SETTING(heatmap_resolution) = uniform_grid_cell_size + 1;
     
-    auto norm = SETTING(gui_heatmap_normalization).value<default_config::heatmap_normalization_t::Class>();
+    auto norm = SETTING(heatmap_normalization).value<default_config::heatmap_normalization_t::Class>();
     if(norm != _normalization) {
         _normalization = norm;
         has_to_paint = true;
     }
     
     long_t context;
-    if(SETTING(gui_heatmap_dynamic)) {
-        context = max(1, (long_t)SETTING(gui_heatmap_frames).value<uint32_t>());
+    if(SETTING(heatmap_dynamic)) {
+        context = max(1, (long_t)SETTING(heatmap_frames).value<uint32_t>());
         
     } else {
         context = -1;
@@ -612,7 +612,7 @@ bool HeatmapController::update_variables() {
         _frame_context = context;
     }
     
-    std::string source = SETTING(gui_heatmap_source);
+    std::string source = SETTING(heatmap_source);
     
     if(_original_source != source) {
         _original_source = source;

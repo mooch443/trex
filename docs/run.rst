@@ -51,6 +51,11 @@ If there are ``[XXXXX].npz`` files (named exactly like the video files but with 
 
 	- 'frame_time': an array of N doubles for all N frames in the video segment
 	- 'imgshape': a tuple of integers (width, height) of the video
+	
+Other useful options are::
+
+	- 'meta_real_width': The width of what is seen in the video in cms. This is used to convert px -> cm internally, and is saved as meta information inside the .pv file.
+	- 'meta_species': Species (meta-information, entirely optional)
 
 Running TRex
 ------------
@@ -63,15 +68,77 @@ The tracker only expects an input file::
 
 Just like with |grabs|, you can attach any number of additional parameters to the command-line, simply using ``-PARAMETER VALUE`` (see :doc:`parameters_trex`).
 
+Tools
+-----
+
+Another tool is included, called ``pvinfo``, which can be used programmatically (e.g. in jupyter notebooks) to retrieve information about converted videos and the settings used to track them. The usual way to make use of it within python is::
+
+	def get_parameter(video, parameter, root = "", prefix = "", info_path = "/path/to/pvinfo"):
+		"""Uses the pvinfo utility to retrieve information about tracked videos. 
+		This information is usually saved in the .pv files / .settings / .results files. 
+		The pvinfo utility will emulate a call to TRex + loading existing .results files 
+		and settings files in the same order.
+
+		Parameters
+		----------
+		video : str
+			Name of the video, or absolute path to the video
+		parameter : str
+			Name of the parameter to retrieve (see https://trex.run/docs/parameters_trex.html)
+		root : str, optional
+			Either empty (default), or path to the folder the video is in
+		prefix : str, optional
+			Either empty (default), or name of the output_prefix to be used
+		info_path : str
+			Absolute path to the pvinfo utility executable
+
+		Returns
+		-------
+		object
+			The return type is determined by the type of the parameter requested
+		"""
+	
+		from subprocess import Popen, PIPE
+		import ast
+	
+		if type(info_path) == type(None):
+			process = Popen(["which", "tgrabs"], stdout=PIPE)
+			(output, err) = process.communicate()
+			exit_code = process.wait()
+			if exit_code != 0:
+				raise Exception("Cannot retrieve info path.")
+			info_path = output.decode("utf-8").split("=")[-1][1:-1]
+			info_path = info_path.split("/tgrabs")[0] + "/info"
+			print(info_path)
+	
+		parameter_list = [info_path]
+		if root != "":
+			parameter_list += ["-d",root]
+		if prefix != "":
+			parameter_list += ["-p", prefix]
+	
+		parameter_list += ["-i", video,"-quiet","-print_parameters","["+parameter+"]"]
+	
+		process = Popen(parameter_list, stdout=PIPE)
+		(output, err) = process.communicate()
+		exit_code = process.wait()
+		if exit_code == 0:
+			return ast.literal_eval(output.decode("utf-8").split("=")[-1][1:-1])
+		raise Exception("Cannot retrieve "+parameter+" from "+video+": "+output.decode("utf-8")+" ("+str(exit_code)+") "+" ".join(parameter_list))
+
+But it has many other uses, too! For example, it can be used to save heatmap information that can be visualized in |trex| (but can not currently be saved directly from |trex| -> will be soon)::
+
+	pvinfo -i video -heatmap -heatmap_source SPEED -heatmap_resolution 128 -heatmap_frames 100 -heatmap_dynamic
+
 Batch processing support
 ========================
 
 |trex| and |grabs| both offer full batch processing support. All parameters that can be setup via the settings box (and even some that are read-only when the program is already started), can be appended to the command-line -- as mentioned above. For batch processing, special parameters are available::
 
-	auto_quit              # automatically saves all requested data to the output folder and quits the app
-	auto_train             # automatically attempts to train the visual identification if successfully tracked
-	auto_apply             # automatically attempts to load weights from a previous training and auto correct the video
-	auto_no_results        # do not save a .results file
+	auto_quit			  # automatically saves all requested data to the output folder and quits the app
+	auto_train			 # automatically attempts to train the visual identification if successfully tracked
+	auto_apply			 # automatically attempts to load weights from a previous training and auto correct the video
+	auto_no_results		# do not save a .results file
 	auto_no_tracking_data  # do not save the data/file_fishX.npz files
 	auto_no_memory_stats   # (enabled by default) do not save memory statistics
 
