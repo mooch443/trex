@@ -72,11 +72,11 @@ int main(int argc, char** argv) {
     }
     
 #if __APPLE__
-    ss << "open '";
+    ss << "";
 #endif
     ss << target_path;
 #if __APPLE__
-    ss << "TRex.app' --args";
+    ss << "TRex.app/Contents/MacOS/TRex";
 #else
     U_EXCEPTION("Only apple supported.");
 #endif

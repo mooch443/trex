@@ -74,11 +74,11 @@ int main(int argc, char** argv) {
     }
     
 #if __APPLE__
-    ss << "open '";
+    ss << "";
 #endif
     ss << target_path;
 #if __APPLE__
-    ss << "TGrabs.app' --args";
+    ss << "TGrabs.app/Contents/MacOS/TGrabs";
 #else
     U_EXCEPTION("Only Apple is supported.");
 #endif
