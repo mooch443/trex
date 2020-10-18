@@ -53,6 +53,9 @@ using ImTextureID_t = ImGui_OpenGL2_TextureID;
 
 #define GLIMPL_CHECK_THREAD_ID() check_thread_id( __LINE__ , __FILE__ )
 
+namespace gl {
+int major = 0, minor = 0;
+}
 //#include "misc/freetype/imgui_freetype.h"
 //#include "misc/freetype/imgui_freetype.cpp"
 
@@ -74,11 +77,6 @@ void GLImpl::init() {
     
     draw_calls = 0;
     _update_thread = std::this_thread::get_id();
-    
-    if OPENGL3_CONDITION
-        Debug("Using OpenGL3.2 (seems supported).");
-    else
-        Debug("Using OpenGL2.0");
 }
 
 void GLImpl::post_init() {
@@ -122,17 +120,17 @@ void GLImpl::create_window(int width, int height) {
     // GL 3.2 + GLSL 150
     const char* glsl_version = "#version 150";
     
-    if OPENGL3_CONDITION {
+#if !CMN_USE_OPENGL2
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
 
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // Required on Mac
-        
-    } else {
+#else
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-    }
+#endif
+    
 #else
     // GL 3.0 + GLSL 130
     const char* glsl_version = "#version 130";
@@ -169,6 +167,14 @@ void GLImpl::create_window(int width, int height) {
     {
         U_EXCEPTION("Failed to initialize OpenGL loader!");
     }
+    
+    glGetIntegerv(GL_MAJOR_VERSION, &gl::major);
+    glGetIntegerv(GL_MINOR_VERSION, &gl::minor);
+    
+    if OPENGL3_CONDITION
+        Debug("Using OpenGL3.2 (seems supported, %d.%d %s).", gl::major, gl::minor, glGetString(GL_VERSION));
+    else
+        Debug("Using OpenGL2.0 (%d.%d) %s", gl::major, gl::minor, glGetString(GL_VERSION));
     
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
