@@ -4,16 +4,6 @@
 #include <imgui/imgui.h>
 #include <imgui/examples/imgui_impl_glfw.h>
 
-#ifndef GL_VERSION_3_2
-#define OPENGL3_CONDITION (false)
-#define GL_PIXEL_PACK_BUFFER 0
-#define GL_RG8 0
-#define GL_TEXTURE_SWIZZLE_RGBA 0
-#define GL_RG 0
-#else
-#define OPENGL3_CONDITION (!CMN_USE_OPENGL2 && ((GLVersion.major == 3 && GLVersion.minor >= 2) || (GLVersion.major > 3)))
-#endif
-
 #include <imgui/examples/imgui_impl_opengl2.h>
 using ImTextureID_t = ImGui_OpenGL2_TextureID;
 
@@ -28,6 +18,25 @@ using ImTextureID_t = ImGui_OpenGL2_TextureID;
 #include <glad/glad.h>  // Initialize with gladLoadGL()
 #else
 #include IMGUI_IMPL_OPENGL_LOADER_CUSTOM
+#endif
+
+#ifndef GL_VERSION_3_2
+#define OPENGL3_CONDITION (false)
+#else
+#define OPENGL3_CONDITION (!CMN_USE_OPENGL2 && ((GLVersion.major == 3 && GLVersion.minor >= 2) || (GLVersion.major > 3)))
+#endif
+
+#ifndef GL_PIXEL_PACK_BUFFER
+#define GL_PIXEL_PACK_BUFFER 0
+#endif
+#ifndef GL_RG
+#define GL_RG 0
+#endif
+#ifndef GL_RG8
+#define GL_RG8 0
+#endif
+#ifndef GL_TEXTURE_SWIZZLE_RGBA
+#define GL_TEXTURE_SWIZZLE_RGBA 0
 #endif
 
 //#define GLFW_INCLUDE_GL3  /* don't drag in legacy GL headers. */
