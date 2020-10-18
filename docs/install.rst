@@ -39,7 +39,7 @@ In order to get your own (local) conda channel, all you need to do is make sure 
 After that, from within the conda ``base`` environment, clone the |trex| repository using::
 
 	git clone --recursive https://github.com/mooch443/trex
-	cd FishTracker/conda
+	cd trex/conda
 
 Now, from within that folder, run::
 
@@ -54,6 +54,8 @@ After compilation was successful, |trex| can be installed using::
 	conda create -n tracking -c main -c conda-forge -c local trex   # Linux
 
 Notice there is a ``-c local``, instead of the ``-c trexing`` from the first section.
+
+Finally, to run it simply switch to the environment you just created (tracking) using ``conda activate tracking`` and run ``trex`` to see if the window appears!
 
 Compiling manually
 ==================
@@ -85,11 +87,11 @@ Next, switch to the conda environment using::
 You can now clone the repository and change your directory to a build folder::
 
 	git clone --recursive https://github.com/mooch443/trex
-	cd FishTracker/Application
+	cd trex/Application
 	mkdir build
 	cd build
 	
-Now we have to generate the project files for the given platform and compiler. The required CMake command varies slightly depending on the operating system. Within the environment, go to the ``FishTracker/Application/build`` repository (created in the previous step) and execute the compile script for your platform (on a Unix system ``../trex_build_unix.sh``, or on Windows ``../trex_build_windows.bat``) or execute cmake yourself with custom settings (have a look at the compile script for your platform for inspiration). You can also modify them, and add switches to the cmake commands.
+Now we have to generate the project files for the given platform and compiler. The required CMake command varies slightly depending on the operating system. Within the environment, go to the ``trex/Application/build`` repository (created in the previous step) and execute the compile script for your platform (on a Unix system ``../trex_build_unix.sh``, or on Windows ``../trex_build_windows.bat``) or execute cmake yourself with custom settings (have a look at the compile script for your platform for inspiration). You can also modify them, and add switches to the cmake commands.
 
 Regarding switches, TRex offers a couple of additional options, with which you can decide to either compile libraries on your own or use existing ones in your system/environment path -- see next section.
 

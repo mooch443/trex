@@ -11,6 +11,12 @@ This section contains an assortment of common usage examples, taken from the rea
 TGrabs
 ******
 
+Ground-roules:
+
+	- Converting/recording has to be done before (or at the same time) as tracking!
+	- Everything that appears pink in |grabs| is considered to be noise. If |grabs| is too choosy in your opinion, consider lowering ``threshold``, change ``blob_size_range`` to include the objects that are considered noise, or enabling ``use_closing``!
+	- You should not delete your AVI after converting it to PV. Objects that are not considered noise, are saved losslessly in PV, but the rest is removed (that's the compression here).
+
 Converting videos
 =================
 
@@ -26,6 +32,22 @@ The background will be saved to a png file in the output folder. You can edit it
 
 Record using a Basler camera
 ============================
+
+Same options as above, but the input is different (note that you'll have to compile the software yourself in order to use this - with the Basler SDK enabled/installed on your system)::
+
+	tgrabs -i basler
+
+Closed-loop
+===========
+
+To enable closed-loop, edit the ``closed_loop.py`` file (it contains a few examples) and open tgrabs using::
+
+	tgrabs -i basler -enable_closed_loop -threshold 35 -track_threshold 35
+
+.. NOTE::
+	Now you also have to attach ``track_`` parameters and set everything up properly for tracking (see next section)!
+
+Every frame that has been tracked will be forwarded to your python script. Be aware that if your script takes too long, frames might be dropped and the tracking might become less reliable. In cases like that, or with many individuals, it might be beneficial to change ``match_mode`` to ``approximate`` (if you don't need extremely good identity consistency, just general position information).
 
 TRex
 ****

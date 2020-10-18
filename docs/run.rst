@@ -11,8 +11,8 @@ Basic usage
 
 This page is a reference for some commonly used parameters of our software. Some common real-life usage examples can be found at :doc:`examples`.
 
-Basic principles
-----------------
+Basic principles & Good practices
+---------------------------------
 
 Both |grabs| and |trex| offer many parameters that can be set by users. However, that does not mean that all parameters have to be considered in all cases. In fact, most of them will already be set to reasonable values that work in many situations:
 
@@ -23,6 +23,10 @@ Otherwise, if your problem cannot be solved by repeatedly mashing the same seque
 Parameters are either changed directly as part of the command-line (using ``-PARAMETER VALUE``), in settings files or from within the graphical user interface (or magically). Settings files are called [VIDEONAME].settings, and located either in the same folder as the video, or in the output folder (``~/Videos`` by default, or set using the command-line option ``-d /folder/path``). These settings files are automatically loaded along with the video. Settings that were changed by command-line parameters can be saved by pressing ``menu -> save config``.
 
 Command-line parameters always override settings files.
+
+If you know the number of individuals, specify before you do the tracking (using the parameter ``track_max_individuals``).
+
+If you have more than 200 individuals and they are always in very close proximity to each other (or you get a lot of warnings), the tree-based matching method might be in trouble (combinatorically speaking). Consider changing your matching algorithm (``match_mode``) to ``approximate`` or ``hungarian``. These algorithms have down-sides to them, but they do scale better for many individuals. If you need something trustworthy: ``hungarian`` is the well-known Hungarian algorithm (https://en.wikipedia.org/wiki/Hungarian_algorithm)!
 
 Running TGrabs
 --------------
