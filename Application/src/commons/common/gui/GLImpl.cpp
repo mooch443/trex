@@ -53,9 +53,6 @@ using ImTextureID_t = ImGui_OpenGL2_TextureID;
 
 #define GLIMPL_CHECK_THREAD_ID() check_thread_id( __LINE__ , __FILE__ )
 
-namespace gl {
-int major = 0, minor = 0;
-}
 //#include "misc/freetype/imgui_freetype.h"
 //#include "misc/freetype/imgui_freetype.cpp"
 
@@ -162,13 +159,10 @@ void GLImpl::create_window(int width, int height) {
         U_EXCEPTION("Failed to initialize OpenGL loader!");
     }
     
-    glGetIntegerv(GL_MAJOR_VERSION, &gl::major);
-    glGetIntegerv(GL_MINOR_VERSION, &gl::minor);
-    
     if OPENGL3_CONDITION
-        Debug("Using OpenGL3.2 (seems supported, %d.%d %s).", gl::major, gl::minor, glGetString(GL_VERSION));
+        Debug("Using OpenGL3.2 (seems supported, %s).", glGetString(GL_VERSION));
     else
-        Debug("Using OpenGL2.0 (%d.%d) %s", gl::major, gl::minor, glGetString(GL_VERSION));
+        Debug("Using OpenGL2.0 (%s)", glGetString(GL_VERSION));
     
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
