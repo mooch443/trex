@@ -1,6 +1,6 @@
 package:
   name: trex
-  version: "1.0"
+  version: "1.0.1"
   
 source:
     git_url: https://github.com/mooch443/trex.git
@@ -37,6 +37,10 @@ requirements:
     - {{ compiler('c') }}
     - {{ compiler('cxx') }}
     - cmake >=3.14
+    - xorg-libxcursor
+    - xorg-libx11
+    - xorg-libxrandr
+    - xorg-libxinerama
     - {{ cdt('mesa-libgl-devel') }}  # [linux]
     - {{ cdt('mesa-dri-drivers') }}  # [linux]
     - {{ cdt('libselinux') }}  # [linux]
@@ -68,7 +72,6 @@ requirements:
     - python [win]
     - ffmpeg ==4.0 [not win]
     - python =3.6 [not win]
-    - glfw [linux]
     - nomkl [osx]
     
   run:
@@ -79,7 +82,6 @@ requirements:
     - python [win]
     - ffmpeg ==4.0 [not win]
     - python =3.6 [not win]
-    - glfw [linux]
     - nomkl [osx]
     - xorg-libx11 [linux]
 
