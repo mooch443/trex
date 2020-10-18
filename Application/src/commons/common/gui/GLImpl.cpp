@@ -4,13 +4,21 @@
 #include <imgui/imgui.h>
 #include <imgui/examples/imgui_impl_glfw.h>
 
-#ifdef CMN_USE_OPENGL2
+#ifndef GL_VERSION_3_2
+#define OPENGL3_CONDITION (false)
+#define GL_PIXEL_PACK_BUFFER 0
+#define GL_RG8 0
+#define GL_TEXTURE_SWIZZLE_RGBA 0
+#define GL_RG 0
+#else
+#define OPENGL3_CONDITION (!CMN_USE_OPENGL2 && ((GLVersion.major == 3 && GLVersion.minor >= 2) || (GLVersion.major > 3)))
+#endif
+
 #include <imgui/examples/imgui_impl_opengl2.h>
 using ImTextureID_t = ImGui_OpenGL2_TextureID;
-#else
+
 #include <imgui/examples/imgui_impl_opengl3.h>
-using ImTextureID_t = ImGui_OpenGL3_TextureID;
-#endif
+//using ImTextureID_t = ImGui_OpenGL3_TextureID;
 
 #if defined(IMGUI_IMPL_OPENGL_LOADER_GL3W)
 #include <GL/gl3w.h>    // Initialize with gl3wInit()
@@ -22,9 +30,7 @@ using ImTextureID_t = ImGui_OpenGL3_TextureID;
 #include IMGUI_IMPL_OPENGL_LOADER_CUSTOM
 #endif
 
-#ifndef CMN_USE_OPENGL2
-#define GLFW_INCLUDE_GL3  /* don't drag in legacy GL headers. */
-#endif
+//#define GLFW_INCLUDE_GL3  /* don't drag in legacy GL headers. */
 #define GLFW_NO_GLU       /* don't drag in the old GLU lib - unless you must. */
 
 #include <GLFW/glfw3.h>
@@ -59,14 +65,18 @@ void GLImpl::init() {
     
     draw_calls = 0;
     _update_thread = std::this_thread::get_id();
+    
+    if OPENGL3_CONDITION
+        Debug("Using OpenGL3.2 (seems supported).");
+    else
+        Debug("Using OpenGL2.0");
 }
 
 void GLImpl::post_init() {
-#ifdef CMN_USE_OPENGL2
-    ImGui_ImplOpenGL2_NewFrame();
-#else
-    ImGui_ImplOpenGL3_NewFrame(); // load the font texture before anything else is done in the program
-#endif
+    if OPENGL3_CONDITION {
+        ImGui_ImplOpenGL3_NewFrame();
+    } else
+        ImGui_ImplOpenGL2_NewFrame();
 }
 
 void GLImpl::set_icons(const std::vector<file::Path>& icons) {
@@ -100,26 +110,30 @@ void GLImpl::set_icons(const std::vector<file::Path>& icons) {
 
 void GLImpl::create_window(int width, int height) {
 #if __APPLE__
-#ifdef CMN_USE_OPENGL2
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-#else
     // GL 3.2 + GLSL 150
     const char* glsl_version = "#version 150";
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+    
+    if OPENGL3_CONDITION {
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
 
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // Required on Mac
-#endif
-#else
-#ifdef CMN_USE_OPENGL2
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
+        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // Required on Mac
+        
+    } else {
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+    }
 #else
     // GL 3.0 + GLSL 130
     const char* glsl_version = "#version 130";
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-#endif
+    
+    if OPENGL3_CONDITION {
+        
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    } else {
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+    }
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
     //glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
     //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
@@ -152,11 +166,11 @@ void GLImpl::create_window(int width, int height) {
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     
     ImGui_ImplGlfw_InitForOpenGL(window, true);
-#ifdef CMN_USE_OPENGL2
-    ImGui_ImplOpenGL2_Init();
-#else
-    ImGui_ImplOpenGL3_Init(glsl_version);
-#endif
+
+    if OPENGL3_CONDITION
+        ImGui_ImplOpenGL3_Init(glsl_version);
+    else
+        ImGui_ImplOpenGL2_Init();
 }
 
 GLFWwindow* GLImpl::window_handle() {
@@ -180,11 +194,10 @@ LoopStatus GLImpl::update_loop() {
             _texture_updates.clear();
         }
         
-#ifdef CMN_USE_OPENGL2
-        ImGui_ImplOpenGL2_NewFrame();
-#else
-        ImGui_ImplOpenGL3_NewFrame();
-#endif
+        if OPENGL3_CONDITION
+            ImGui_ImplOpenGL3_NewFrame();
+        else
+            ImGui_ImplOpenGL2_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         
         ImGui::NewFrame();
@@ -202,18 +215,17 @@ LoopStatus GLImpl::update_loop() {
         
         glClearColor(_clear_color.r / 255.f, _clear_color.g / 255.f, _clear_color.b / 255.f, _clear_color.a / 255.f);
         glClear(GL_COLOR_BUFFER_BIT);
-#ifdef CMN_USE_OPENGL2
-        ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
-#else
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-#endif
+        if OPENGL3_CONDITION {
+            ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        } else {
+            ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
+        }
         
         if(_frame_capture_enabled)
             update_pbo();
         
-#ifdef CMN_USE_OPENGL2
-        glfwMakeContextCurrent(window);
-#endif
+        if(!OPENGL3_CONDITION)
+            glfwMakeContextCurrent(window);
         glfwSwapBuffers(window);
         
         ++draw_calls;
@@ -232,55 +244,55 @@ LoopStatus GLImpl::update_loop() {
 
 void GLImpl::init_pbo(uint width, uint height) {
     if(!pboImage || pboImage->cols != width || pboImage->rows != height) {
-#ifndef CMN_USE_OPENGL2
-        if(pboImage) {
-            glDeleteBuffers(2, pboIds);
+        if OPENGL3_CONDITION {
+            if(pboImage) {
+                glDeleteBuffers(2, pboIds);
+            }
+            
+            pboImage = std::make_shared<Image>(height, width, 4);
+            pboOutput = std::make_shared<Image>(height, width, 4);
+            
+            glGenBuffers(2, pboIds);
+            auto nbytes = width * height * 4;
+            for(int i=0; i<2; ++i) {
+                glBindBuffer(GL_PIXEL_PACK_BUFFER, pboIds[i]);
+                glBufferData(GL_PIXEL_PACK_BUFFER, nbytes, NULL, GL_STREAM_READ);
+            }
+            glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
         }
-        
-        pboImage = std::make_shared<Image>(height, width, 4);
-        pboOutput = std::make_shared<Image>(height, width, 4);
-        
-        glGenBuffers(2, pboIds);
-        auto nbytes = width * height * 4;
-        for(int i=0; i<2; ++i) {
-            glBindBuffer(GL_PIXEL_PACK_BUFFER, pboIds[i]);
-            glBufferData(GL_PIXEL_PACK_BUFFER, nbytes, NULL, GL_STREAM_READ);
-        }
-        glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
-#endif
     }
 }
 
 void GLImpl::update_pbo() {
-#ifndef CMN_USE_OPENGL2
-    // "index" is used to read pixels from framebuffer to a PBO
-    // "nextIndex" is used to update pixels in the other PBO
-    index = (index + 1) % 2;
-    nextIndex = (index + 1) % 2;
+    if OPENGL3_CONDITION {
+        // "index" is used to read pixels from framebuffer to a PBO
+        // "nextIndex" is used to update pixels in the other PBO
+        index = (index + 1) % 2;
+        nextIndex = (index + 1) % 2;
 
-    // set the target framebuffer to read
-    glReadBuffer(GL_BACK);
+        // set the target framebuffer to read
+        glReadBuffer(GL_BACK);
 
-    // read pixels from framebuffer to PBO
-    // glReadPixels() should return immediately.
-    glBindBuffer(GL_PIXEL_PACK_BUFFER, pboIds[index]);
-    glReadPixels(0, 0, pboImage->cols, pboImage->rows, GL_BGRA, GL_UNSIGNED_BYTE, 0);
+        // read pixels from framebuffer to PBO
+        // glReadPixels() should return immediately.
+        glBindBuffer(GL_PIXEL_PACK_BUFFER, pboIds[index]);
+        glReadPixels(0, 0, pboImage->cols, pboImage->rows, GL_BGRA, GL_UNSIGNED_BYTE, 0);
 
-    // map the PBO to process its data by CPU
-    glBindBuffer(GL_PIXEL_PACK_BUFFER, pboIds[nextIndex]);
-    GLubyte* ptr = (GLubyte*)glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
-    if(ptr)
-    {
-        memcpy(pboImage->data(), ptr, pboImage->size());
-        glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
-        
-        // flip vertically
-        cv::flip(pboImage->get(), pboOutput->get(), 0);
+        // map the PBO to process its data by CPU
+        glBindBuffer(GL_PIXEL_PACK_BUFFER, pboIds[nextIndex]);
+        GLubyte* ptr = (GLubyte*)glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
+        if(ptr)
+        {
+            memcpy(pboImage->data(), ptr, pboImage->size());
+            glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+            
+            // flip vertically
+            cv::flip(pboImage->get(), pboOutput->get(), 0);
+        }
+
+        // back to conventional pixel operation
+        glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
     }
-
-    // back to conventional pixel operation
-    glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
-#endif
 }
 
 void GLImpl::loop(CrossPlatform::custom_function_t custom_loop) {
@@ -300,11 +312,11 @@ GLImpl::~GLImpl() {
     glDeleteBuffers(2, pboIds);
     
     // Cleanup
-#ifdef CMN_USE_OPENGL2
-    ImGui_ImplOpenGL2_Shutdown();
-#else
-    ImGui_ImplOpenGL3_Shutdown();
-#endif
+    if OPENGL3_CONDITION
+        ImGui_ImplOpenGL3_Shutdown();
+    else
+        ImGui_ImplOpenGL2_Shutdown();
+    
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
     
@@ -348,30 +360,37 @@ TexturePtr GLImpl::texture(const Image * ptr) {
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     glPixelStorei(GL_UNPACK_ALIGNMENT, ptr->dims != 4 ? ptr->dims : 0);
     
-#ifdef CMN_USE_OPENGL2
-    auto output_type = GL_RGBA, input_type = GL_RGBA;
-    if(ptr->dims == 1) {
-        output_type = GL_LUMINANCE;
-        input_type = GL_LUMINANCE;
-    }
-    if(ptr->dims == 2) {
-        output_type = GL_LUMINANCE_ALPHA;
-        input_type = GL_LUMINANCE_ALPHA;
-    }
-#else
-    auto output_type = GL_RGBA8, input_type = GL_RGBA;
-    if(ptr->dims == 1) {
-        output_type = GL_RED;
-        input_type = GL_RED;
-    }
-    if(ptr->dims == 2) {
-        output_type = GL_RG8;
-        input_type = GL_RG;
-        
-        GLint swizzleMask[] = {GL_RED, GL_ZERO, GL_ZERO, GL_GREEN};
-        glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask);
-    }
+#if !CMN_USE_OPENGL2
+#define GL_LUMINANCE 0x1909
+#define GL_LUMINANCE_ALPHA 0x190A
 #endif
+    
+    auto output_type = GL_RGBA8, input_type = GL_RGBA;
+    if OPENGL3_CONDITION {
+        if(ptr->dims == 1) {
+            output_type = GL_RED;
+            input_type = GL_RED;
+        }
+        if(ptr->dims == 2) {
+            output_type = GL_RG8;
+            input_type = GL_RG;
+            
+            GLint swizzleMask[] = {GL_RED, GL_ZERO, GL_ZERO, GL_GREEN};
+            glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask);
+        }
+        
+    } else {
+        output_type = GL_RGBA;
+        
+        if(ptr->dims == 1) {
+            output_type = GL_LUMINANCE;
+            input_type = GL_LUMINANCE;
+        }
+        if(ptr->dims == 2) {
+            output_type = GL_LUMINANCE_ALPHA;
+            input_type = GL_LUMINANCE_ALPHA;
+        }
+    }
     
     auto width = next_pow2(ptr->cols), height = next_pow2(ptr->rows);
     auto capacity = size_t(ptr->dims) * size_t(width) * size_t(height);
@@ -441,23 +460,23 @@ void GLImpl::update_texture(PlatformTexture& id_, const Image *ptr) {
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     glPixelStorei(GL_UNPACK_ALIGNMENT, ptr->dims != 4 ? ptr->dims : 0);
     
-#ifdef CMN_USE_OPENGL2
     auto input_type = GL_RGBA;
-    if(ptr->dims == 1) {
-        input_type = GL_LUMINANCE;
+    if OPENGL3_CONDITION {
+        if(ptr->dims == 1) {
+            input_type = GL_RED;
+        }
+        if(ptr->dims == 2) {
+            input_type = GL_RG;
+        }
+        
+    } else {
+        if(ptr->dims == 1) {
+            input_type = GL_LUMINANCE;
+        }
+        if(ptr->dims == 2) {
+            input_type = GL_LUMINANCE_ALPHA;
+        }
     }
-    if(ptr->dims == 2) {
-        input_type = GL_LUMINANCE_ALPHA;
-    }
-#else
-    auto input_type = GL_RGBA;
-    if(ptr->dims == 1) {
-        input_type = GL_RED;
-    }
-    if(ptr->dims == 2) {
-        input_type = GL_RG;
-    }
-#endif
 
     auto capacity = size_t(ptr->dims) * size_t(id_.width) * size_t(id_.height);
     if (empty.size() < capacity)

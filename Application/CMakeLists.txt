@@ -368,6 +368,7 @@ if(CMN_USE_OPENGL2)
 else()
     set(GLAD_PROFILE "core")
     set(GLAD_API "gl=4.1")
+    add_definitions(-DCMN_USE_OPENGL2=false)
 endif()
 
 ExternalProject_Add(gladex PREFIX gladex
@@ -396,9 +397,8 @@ file(GLOB imgui_sources ${imgui_path}/*.cpp ${imgui_path}/*.h
     ${imgui_path}/examples/imgui_impl_glfw*.cpp ${imgui_path}/examples/imgui_impl_glfw*.h
 )
 
-if(CMN_USE_OPENGL2)
-    set(imgui_sources ${imgui_sources} ${imgui_path}/examples/imgui_impl_opengl2.cpp ${imgui_path}/examples/imgui_impl_opengl2.h)
-else()
+set(imgui_sources ${imgui_sources} ${imgui_path}/examples/imgui_impl_opengl2.cpp ${imgui_path}/examples/imgui_impl_opengl2.h)
+if(NOT CMN_USE_OPENGL2)
     set(imgui_sources ${imgui_sources} ${imgui_path}/examples/imgui_impl_opengl3.cpp ${imgui_path}/examples/imgui_impl_opengl3.h)
 endif()
 
