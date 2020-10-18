@@ -84,6 +84,19 @@ else()
     set(BUILD_SHARED_LIBS OFF)
 endif()
 
+if(TREX_BUILD_GLFW OR UNIX)
+    if(WIN32)
+        find_package(OpenGL REQUIRED)
+        message(STATUS "OpenGL library ${OPENGL_LIBRARY}")
+    elseif(UNIX AND NOT APPLE)
+        find_package(OpenGL REQUIRED)
+        SET(OPENGL_LIBRARY OpenGL::GL)
+        message(STATUS "OpenGL library ${OPENGL_LIBRARY}")
+    else()
+        find_library(OPENGL_LIBRARY OpenGL)
+    endif()
+endif()
+
 if(APPLE)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-undefined,error -framework IOKit -framework CoreFoundation -framework CoreGraphics -framework CoreVideo -framework OpenCL -framework Cocoa -framework AppKit -framework AVKit -framework AVFoundation -framework CoreMedia -framework QuartzCore -framework Accelerate")
     
@@ -949,19 +962,6 @@ get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTO
 foreach(dir ${dirs})
   message(STATUS "dir='${dir}'")
 endforeach()
-
-if(TREX_BUILD_GLFW OR UNIX)
-    if(WIN32)
-        find_package(OpenGL REQUIRED)
-        message(STATUS "OpenGL library ${OPENGL_LIBRARY}")
-    elseif(UNIX AND NOT APPLE)
-        find_package(OpenGL REQUIRED)
-        SET(OPENGL_LIBRARY OpenGL::GL)
-        message(STATUS "OpenGL library ${OPENGL_LIBRARY}")
-    else()
-        find_library(OPENGL_LIBRARY OpenGL)
-    endif()
-endif()
 
 
 
