@@ -20,6 +20,14 @@ jobs:
         python-version: ["3.7"]
     steps:
     - uses: actions/checkout@v2
+    - name: Cache conda
+      uses: actions/cache@v1
+      env:
+        # Increase this value to reset cache if etc/example-environment.yml has not changed
+        CACHE_NUMBER: 0
+      with:
+        path: ~/conda_pkgs_dir
+        key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('.github/environment.yml') }}
     - uses: conda-incubator/setup-miniconda@v1
       with:
         environment-file: .github/environment.yml
@@ -27,6 +35,8 @@ jobs:
         python-version: ${{ matrix.python-version }}
         channels: main,conda-forge
         auto-activate-base: true
+        auto-update-conda: true
+        use-only-tar-bz2: true
     - shell: bash -l {0}
       run: |
         conda info
@@ -41,5 +51,5 @@ jobs:
       shell: bash
       # Execute the build.  You can specify a specific target with "--target <NAME>"
       run: |
-        cd conda
+        cd $GITHUB_WORKSPACE/conda
         conda build . -c main -c conda-forge
