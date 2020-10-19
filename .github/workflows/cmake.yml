@@ -47,7 +47,7 @@ jobs:
         conda list
 
     - name: Build
-      working-directory: ${{runner.workspace}}/Application/build
+      working-directory: ${{runner.workspace}}
       shell: bash
       # Execute the build.  You can specify a specific target with "--target <NAME>"
       run: |
