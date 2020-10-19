@@ -243,6 +243,9 @@ namespace cmn {
         struct has_tostr_method;
     
         template <typename T>
+        struct has_internal_tostr_method;
+    
+        template <typename T>
         struct has_fromstr_method;
     }
 
@@ -501,6 +504,16 @@ namespace cmn {
         template<class Q>
         std::string toStr(const typename std::enable_if< is_instantiation<std::shared_ptr, Q>::value && (Meta::has_tostr_method<typename Q::element_type>::value || std::is_convertible<typename Q::element_type, MetaObject>::value), Q >::type& obj) {
             return "ptr<"+Meta::name<typename Q::element_type>()+">" + (obj == nullptr ? "null" : Meta::toStr<typename Q::element_type>(*obj));//MetaType<typename std::remove_pointer<typename Q::element_type>::type>::toStr(*obj);
+        }
+    
+        template<class Q>
+        std::string toStr(const typename std::enable_if< is_instantiation<std::shared_ptr, Q>::value && (Meta::has_internal_tostr_method<typename Q::element_type>::value), Q >::type& obj) {
+            return "ptr<"+Q::class_name()+">" + (obj == nullptr ? "null" : obj->toStr());
+        }
+    
+        template<class Q>
+        std::string toStr(const typename std::enable_if< !is_instantiation<std::shared_ptr, Q>::value && (Meta::has_internal_tostr_method<Q>::value), Q >::type& obj) {
+            return "ptr<"+Q::class_name()+">" + obj.toStr();
         }
         
         template<class Q>
@@ -962,6 +975,21 @@ namespace cmn {
             
             template <typename C, typename P>
             static auto test(P * p) -> decltype(static_cast<void>(sizeof(decltype(_Meta::name<C>()))), std::true_type());
+            
+            template <typename, typename>
+            static std::false_type test(...);
+            
+            typedef decltype(test<T, dummy>(nullptr)) type;
+            static const bool value = std::is_same<std::true_type, decltype(test<T, dummy>(nullptr))>::value;
+        };
+    
+        template <typename T>
+        struct has_internal_tostr_method
+        {
+            struct dummy {  };
+            
+            template <typename C, typename P>
+            static auto test(C * p) -> decltype(static_cast<void>(sizeof(decltype(p->toStr()))), std::true_type());
             
             template <typename, typename>
             static std::false_type test(...);

@@ -385,7 +385,7 @@ file::Path conda_environment_path() {
         CONFIG("auto_number_individuals", false, "Program will automatically try to find the number of individuals (with sizes given in `blob_size_ranges`) and set `track_max_individuals` to that value.");
         
         CONFIG("track_speed_decay", float(0.7), "The amount the expected speed is reduced over time when an individual is lost. When individuals collide, depending on the expected behavior for the given species, one should choose different values for this variable. If the individuals usually stop when they collide, this should be set to a value > 0.8. If the individuals are expected to move over one another, the value should be set to a small value > 0.");
-        CONFIG("track_max_speed", float(50), "The maximum speed an individual can have (=> the maximum distance an individual can travel within one second) in cm/s. Uses `meta_real_width`.");
+        CONFIG("track_max_speed", float(10), "The maximum speed an individual can have (=> the maximum distance an individual can travel within one second) in cm/s. Uses `meta_real_width`.");
         CONFIG("posture_direction_smoothing", size_t(0), "Enables or disables smoothing of the posture orientation based on previous frames (not good for fast turns).");
         CONFIG("speed_extrapolation", float(3), "Used for matching when estimating the next position of an individual. Smaller values are appropriate for lower frame rates. The higher this value is, the more previous frames will have significant weight in estimating the next position (with an exponential decay).");
         CONFIG("track_intensity_range", Rangel(-1, -1), "When set to valid values, objects will be filtered to have an average pixel intensity within the given range.");
