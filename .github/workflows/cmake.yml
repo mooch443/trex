@@ -37,19 +37,15 @@ jobs:
         auto-activate-base: true
         auto-update-conda: true
         use-only-tar-bz2: true
-    - shell: bash -l {0}
+    - name: Build
+      shell: bash -l {0}
+      working-directory: ${{runner.workspace}}
       run: |
         conda info
         conda list
+        cd $GITHUB_WORKSPACE/conda
+        conda build . -c main -c conda-forge
     - shell: pwsh
       run: |
         conda info
         conda list
-
-    - name: Build
-      working-directory: ${{runner.workspace}}
-      shell: bash
-      # Execute the build.  You can specify a specific target with "--target <NAME>"
-      run: |
-        cd $GITHUB_WORKSPACE/conda
-        conda build . -c main -c conda-forge
