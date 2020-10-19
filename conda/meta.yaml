@@ -1,10 +1,11 @@
 package:
   name: trex
-  version: "1.0"
+  version: "1.0.1"
   
 source:
     git_url: https://github.com/mooch443/trex.git
     git_depth: 1
+    git_rev: 6fd5efeb4733c7ad2f83fdae0b86fb3f4aef1894
 
 build:
     number: 4
@@ -32,11 +33,15 @@ requirements:
     - pkg-config            # [not win]
     - jom                   # [win]
     - make                  # [unix]
-    - python [win]
-    - python =3.6 [not win]
+    - python # [win]
+    - python =3.6 # [not win]
     - {{ compiler('c') }}
     - {{ compiler('cxx') }}
     - cmake >=3.14
+    - xorg-libxcursor # [linux]
+    - xorg-libx11 # [linux]
+    - xorg-libxrandr # [linux]
+    - xorg-libxinerama # [linux]
     - {{ cdt('mesa-libgl-devel') }}  # [linux]
     - {{ cdt('mesa-dri-drivers') }}  # [linux]
     - {{ cdt('libselinux') }}  # [linux]
@@ -64,24 +69,22 @@ requirements:
     
   host:
     - pthread-stubs  # [linux]
-    - ffmpeg [win]
-    - python [win]
-    - ffmpeg ==4.0 [not win]
-    - python =3.6 [not win]
-    - glfw [linux]
-    - nomkl [osx]
+    - ffmpeg # [win]
+    - python # [win]
+    - ffmpeg ==4.0 # [not win]
+    - python =3.6 # [not win]
+    - nomkl # [osx]
     
   run:
-    - tensorflow-gpu ==1.13.* [not osx]
-    - tensorflow ==1.13.* [osx]
+    - tensorflow-gpu ==1.13.* # [not osx]
+    - tensorflow ==1.13.* # [osx]
     - keras
-    - ffmpeg [win]
-    - python [win]
-    - ffmpeg ==4.0 [not win]
-    - python =3.6 [not win]
-    - glfw [linux]
-    - nomkl [osx]
-    - xorg-libx11 [linux]
+    - ffmpeg # [win]
+    - python # [win]
+    - ffmpeg ==4.0 # [not win]
+    - python =3.6 # [not win]
+    - nomkl # [osx]
+    - xorg-libx11 # [linux]
 
 about:
   home: https://trex.run

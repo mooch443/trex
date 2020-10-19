@@ -84,6 +84,19 @@ else()
     set(BUILD_SHARED_LIBS OFF)
 endif()
 
+if(TREX_BUILD_GLFW OR UNIX)
+    if(WIN32)
+        find_package(OpenGL REQUIRED)
+        message(STATUS "OpenGL library ${OPENGL_LIBRARY}")
+    elseif(UNIX AND NOT APPLE)
+        find_package(OpenGL REQUIRED)
+        SET(OPENGL_LIBRARY OpenGL::GL)
+        message(STATUS "OpenGL library ${OPENGL_LIBRARY}")
+    else()
+        find_library(OPENGL_LIBRARY OpenGL)
+    endif()
+endif()
+
 if(APPLE)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-undefined,error -framework IOKit -framework CoreFoundation -framework CoreGraphics -framework CoreVideo -framework OpenCL -framework Cocoa -framework AppKit -framework AVKit -framework AVFoundation -framework CoreMedia -framework QuartzCore -framework Accelerate")
     
@@ -368,6 +381,7 @@ if(CMN_USE_OPENGL2)
 else()
     set(GLAD_PROFILE "core")
     set(GLAD_API "gl=4.1")
+    add_definitions(-DCMN_USE_OPENGL2=false)
 endif()
 
 ExternalProject_Add(gladex PREFIX gladex
@@ -396,9 +410,8 @@ file(GLOB imgui_sources ${imgui_path}/*.cpp ${imgui_path}/*.h
     ${imgui_path}/examples/imgui_impl_glfw*.cpp ${imgui_path}/examples/imgui_impl_glfw*.h
 )
 
-if(CMN_USE_OPENGL2)
-    set(imgui_sources ${imgui_sources} ${imgui_path}/examples/imgui_impl_opengl2.cpp ${imgui_path}/examples/imgui_impl_opengl2.h)
-else()
+set(imgui_sources ${imgui_sources} ${imgui_path}/examples/imgui_impl_opengl2.cpp ${imgui_path}/examples/imgui_impl_opengl2.h)
+if(NOT CMN_USE_OPENGL2)
     set(imgui_sources ${imgui_sources} ${imgui_path}/examples/imgui_impl_opengl3.cpp ${imgui_path}/examples/imgui_impl_opengl3.h)
 endif()
 
@@ -949,19 +962,6 @@ get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTO
 foreach(dir ${dirs})
   message(STATUS "dir='${dir}'")
 endforeach()
-
-if(TREX_BUILD_GLFW OR UNIX)
-    if(WIN32)
-        find_package(OpenGL REQUIRED)
-        message(STATUS "OpenGL library ${OPENGL_LIBRARY}")
-    elseif(UNIX AND NOT APPLE)
-        find_package(OpenGL REQUIRED)
-        SET(OPENGL_LIBRARY OpenGL::GL)
-        message(STATUS "OpenGL library ${OPENGL_LIBRARY}")
-    else()
-        find_library(OPENGL_LIBRARY OpenGL)
-    endif()
-endif()
 
 
 

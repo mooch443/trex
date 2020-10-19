@@ -11,6 +11,7 @@ if [ "$(uname)" == "Linux" ]; then
     # Fix up CMake for using conda's sysroot
     # See https://docs.conda.io/projects/conda-build/en/latest/resources/compiler-tools.html?highlight=cmake#an-aside-on-cmake-and-sysroots
     CMAKE_PLATFORM_FLAGS+=("-DCMAKE_TOOLCHAIN_FILE=${RECIPE_DIR}/conda_sysroot.cmake")
+    BUILD_GLFW="ON"
 else
     echo "CONDA_BUILD_SYSROOT=$CONDA_BUILD_SYSROOT. forcing it."
     export CONDA_BUILD_SYSROOT="/opt/MacOSX10.9.sdk"
@@ -34,6 +35,7 @@ PKG_CONFIG_PATH="${PREFIX}/lib/pkgconfig;${BUILD_PREFIX}/${HOST}/sysroot/usr/lib
     -DTREX_BUILD_ZIP=ON \
     -DTREX_CONDA_PACKAGE_INSTALL=ON \
     -DTREX_DONT_USE_PCH=ON \
+    -DCMN_USE_OPENGL2=OFF \
     -DTREX_WITH_TESTS=OFF \
     -DCMAKE_PREFIX_PATH=$PREFIX \
     -DCMAKE_INSTALL_RPATH_USE_LINK_PATH:BOOL=TRUE \
