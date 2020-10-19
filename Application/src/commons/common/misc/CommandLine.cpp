@@ -68,16 +68,29 @@ namespace cmn {
             if(!argptr)
                 return;
             
+            std::string sval(val ? val : "");
+            size_t offset = 0;
+            for(size_t i=0; i+1<sval.length(); ++i) {
+                if(sval[i] == '\'' || sval[i] == '"') {
+                    if(sval[sval.length()-1-i] == sval[i]) {
+                        offset = i+1;
+                    } else break;
+                } else break;
+            }
+            
+            if(offset)
+                sval = sval.substr(offset, sval.length()-offset*2);
+            
             std::string key = argptr;
             if(contains(keys, key)) {
-                _settings.push_back({key, val ? val : ""});
+                _settings.push_back({key, sval});
                 
             } else if(deprecated.find(key) != deprecated.end()) {
                 Warning("Found deprecated key '%S' = '%s' in command-line (replaced by '%S').", &key, val ? val : "", &deprecated.at(key));
-                _settings.push_back({deprecated.at(key), val ? val : ""});
+                _settings.push_back({deprecated.at(key), sval});
                 
             } else {
-                _options.push_back({key, val ? val : ""});
+                _options.push_back({key, sval});
             }
         };
         
