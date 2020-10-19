@@ -1,5 +1,7 @@
 <p align="center"><img src="https://github.com/mooch443/trex/blob/master/images/Icon1024.png" width="160px"></p>
 
+![CondaBuild](https://github.com/mooch443/trex/workflows/CondaBuild/badge.svg)
+
 # Hey there
 
 Welcome to the git repository of **TRex** (https://trex.run) -- a software designed to track and identify individuals and other moving entities using computer vision and machine learning. The work-load is split into two (not entirely separate) tools:
