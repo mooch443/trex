@@ -1,0 +1,9 @@
+name: tracking
+dependencies:
+  - ffmpeg # [win]
+  - opencv
+  - pthread-stubs  # [linux]
+  - python # [win]
+  - ffmpeg ==4.0 # [not win]
+  - python =3.6 # [not win]
+  - nomkl # [osx]
