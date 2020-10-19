@@ -42,4 +42,4 @@ Released under the GPLv3 License (see [LICENSE](https://github.com/mooch443/trex
 
 # Reference
 
-A preprint is available at https://preprint.trex.run/.
+A preprint is available at http://preprint.trex.run/.
