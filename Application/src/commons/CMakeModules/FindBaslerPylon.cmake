@@ -28,28 +28,28 @@ FIND_PATH(	PYLON_INCLUDE_DIR pylon/PylonBase.h
 
 FIND_LIBRARY(	PYLONBASE_LIBRARY 
 				NAMES 
-				pylonbase PylonBase_MD_VC100 PylonBase_v6_0
+				pylonbase PylonBase_MD_VC100 PylonBase_v6_0 PylonBase_v5_2
 				PATHS
 				${PYLON_LIBRARY}
 )
 
 FIND_LIBRARY(	PYLON_UTILITY_LIBRARY 
 				NAMES 
-				pylonutility PylonUtility_MD_VC100 PylonUtility_v6_0
+				pylonutility PylonUtility_MD_VC100 PylonUtility_v6_0 PylonUtility_v5_2
 				PATHS
 				${PYLON_LIBRARY}
 )
 
 FIND_LIBRARY( PYLON_GEN_LIBRARY
 	NAMES
-	GenApi_gcc_v3_0_Basler_pylon_v5_0 GenApi_MD_VC141_v3_1_Basler_pylon
+	GenApi_gcc_v3_0_Basler_pylon_v5_0 GenApi_gcc_v3_1_Basler_pylon GenApi_MD_VC141_v3_1_Basler_pylon
 	PATHS
 	${PYLON_LIBRARY}
 )
 
 FIND_LIBRARY( PYLON_GEN2_LIBRARY
 	NAMES
-	GCBase_gcc_v3_0_Basler_pylon_v5_0 GCBase_MD_VC141_v3_1_Basler_pylon
+	GCBase_gcc_v3_0_Basler_pylon_v5_0 GCBase_gcc_v3_1_Basler_pylon GCBase_MD_VC141_v3_1_Basler_pylon
 	PATHS
 	${PYLON_LIBRARY}
 )
