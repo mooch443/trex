@@ -181,6 +181,7 @@ namespace gui {
         }
 
         clear_cache();
+        _event_handlers.clear();
         
         for(auto && [name, pair] : _custom_data)
             std::get<1>(pair)(std::get<0>(pair));

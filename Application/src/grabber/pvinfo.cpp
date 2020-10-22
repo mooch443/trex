@@ -832,4 +832,6 @@ int main(int argc, char**argv) {
         pv::File video(input);
         video.start_reading();
     }
+    
+    return 0;
 }

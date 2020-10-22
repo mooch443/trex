@@ -378,7 +378,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
                     float distance2frame = FLT_MAX;
                     long_t framemOver = -1;
                     
-                    if(_bar->hovered()) {
+                    if(_bar && _bar->hovered()) {
                         //Vec2 pp(max_w / float(_frame_info.video_length) * idx.first, 50);
                         //float dis = abs(e.hover.x - pp.x);
                         static Timing timing("Scrubbing", 0.01);

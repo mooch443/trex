@@ -93,58 +93,60 @@ If no settings (apart from ``-i <pv-videopath>``) are provided, it displays some
 
 It can be useful for retrieving values of tracking parameters from external scripts, like in python (also things like ``video_size``)::
 
-	def get_parameter(video, parameter, root = "", prefix = "", info_path = "/path/to/pvinfo"):
-		"""Uses the pvinfo utility to retrieve information about tracked videos. 
-		This information is usually saved in the .pv files / .settings / .results files. 
-		The pvinfo utility will emulate a call to TRex + loading existing .results files 
-		and settings files in the same order.
+	def get_parameter(video, parameter, root = "", prefix = "", conda_env = "", info_path = "pvinfo"):
+	    """Uses the pvinfo utility to retrieve information about tracked videos.
+	    This information is usually saved in the .pv files / .settings / .results files.
+	    The pvinfo utility will emulate a call to TRex + loading existing .results files
+	    and settings files in the same order.
+    
+	    Parameters
+	    ----------
+	    video : str
+	            Name of the video, or absolute path to the video
+	    parameter : str
+	            Name of the parameter to retrieve (see https://trex.run/docs/parameters_trex.html)
+	    root : str, optional
+	            Either empty (default), or path to the folder the video is in
+	    prefix : str, optional
+	            Either empty (default), or name of the output_prefix to be used
+	    conda_env : path, optional
+	            Either empty (default), or an absolute path to the conda environment in which pvinfo is installed 
+	            (e.g. C:\\Users\\Tristan\\Anaconda3\\envs\\tracking)
+	    info_path : str
+	            Absolute path to the pvinfo utility executable
 
-		Parameters
-		----------
-		video : str
-			Name of the video, or absolute path to the video
-		parameter : str
-			Name of the parameter to retrieve (see https://trex.run/docs/parameters_trex.html)
-		root : str, optional
-			Either empty (default), or path to the folder the video is in
-		prefix : str, optional
-			Either empty (default), or name of the output_prefix to be used
-		info_path : str
-			Absolute path to the pvinfo utility executable
+	    Returns
+	    -------
+	    object
+	            The return type is determined by the type of the parameter requested
+	    """
 
-		Returns
-		-------
-		object
-			The return type is determined by the type of the parameter requested
-		"""
-	
-		from subprocess import Popen, PIPE
-		import ast
-	
-		if type(info_path) == type(None):
-			process = Popen(["which", "tgrabs"], stdout=PIPE)
-			(output, err) = process.communicate()
-			exit_code = process.wait()
-			if exit_code != 0:
-				raise Exception("Cannot retrieve info path.")
-			info_path = output.decode("utf-8").split("=")[-1][1:-1]
-			info_path = info_path.split("/tgrabs")[0] + "/info"
-			print(info_path)
-	
-		parameter_list = [info_path]
-		if root != "":
-			parameter_list += ["-d",root]
-		if prefix != "":
-			parameter_list += ["-p", prefix]
-	
-		parameter_list += ["-i", video,"-quiet","-print_parameters","["+parameter+"]"]
-	
-		process = Popen(parameter_list, stdout=PIPE)
-		(output, err) = process.communicate()
-		exit_code = process.wait()
-		if exit_code == 0:
-			return ast.literal_eval(output.decode("utf-8").split("=")[-1][1:-1])
-		raise Exception("Cannot retrieve "+parameter+" from "+video+": "+output.decode("utf-8")+" ("+str(exit_code)+") "+" ".join(parameter_list))
+	    from subprocess import Popen, PIPE
+	    import os
+	    import ast
+    
+	    if len(conda_env) > 0:
+	        if info_path == "pvinfo":
+	            info_path = conda_env+os.sep+"bin"+os.sep+"pvinfo"
+	    parameter_list = [info_path]
+	    if root != "":
+	            parameter_list += ["-d",root]
+	    if prefix != "":
+	            parameter_list += ["-p", prefix]
+
+	    parameter_list += ["-i", video,"-quiet", "-print_parameters","["+parameter+"]"]
+
+	    my_env = os.environ.copy()
+	    if len(conda_env) > 0:
+	        my_env["CONDA_PREFIX"] = conda_env
+	        my_env["PATH"] = conda_env+";"+conda_env+os.sep+"bin;"+my_env["PATH"]
+
+	    process = Popen(parameter_list, stdout=PIPE, env=my_env)
+	    (output, err) = process.communicate()
+	    exit_code = process.wait()
+	    if exit_code == 0:
+	        return ast.literal_eval(output.decode("utf-8").split("=")[-1][1:-1])
+	    raise Exception("Cannot retrieve "+parameter+" from "+video+": "+output.decode("utf-8")+" ("+str(exit_code)+") "+" ".join(parameter_list))
 
 But it has many other uses, too! For example, it can be used to save heatmap information that can be visualized in |trex| (but can not currently be saved directly from |trex| -> will be soon)::
 
@@ -157,16 +159,3 @@ Or to display information about objects inside the saved frames::
 	[15:24:07] Images average at 512.654519 px / blob and the range is [2-2154] with a median of 616.
 	[15:24:07] There are 10 blobs in each frame (median).
 
-
-
-Batch processing support
-========================
-
-|trex| and |grabs| both offer full batch processing support. All parameters that can be setup via the settings box (and even some that are read-only when the program is already started), can be appended to the command-line -- as mentioned above. For batch processing, special parameters are available::
-
-	auto_quit			  # automatically saves all requested data to the output folder and quits the app
-	auto_train			 # automatically attempts to train the visual identification if successfully tracked
-	auto_apply			 # automatically attempts to load weights from a previous training and auto correct the video
-	auto_no_results		# do not save a .results file
-	auto_no_tracking_data  # do not save the data/file_fishX.npz files
-	auto_no_memory_stats   # (enabled by default) do not save memory statistics
