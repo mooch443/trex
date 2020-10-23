@@ -201,6 +201,16 @@ int main(int argc, char**argv) {
     CommandLine cmd(argc, argv, true);
     cmd.cd_home();
     
+    std::vector<std::pair<std::string, std::string>> updated_settings;
+    std::vector<std::string> remove_settings;
+    
+    bool fix = false, repair_index = false, save_background = false;
+    bool be_quiet = false, print_plain = false, heatmap = false, auto_param = false;
+
+    SETTING(quiet) = false;
+    cmd.load_settings();
+    be_quiet = SETTING(quiet);
+    
 #if !defined(__APPLE__) && defined(TREX_CONDA_PACKAGE_INSTALL)
     auto conda_prefix = ::default_config::conda_environment_path().str();
     if(!conda_prefix.empty()) {
@@ -218,16 +228,6 @@ int main(int argc, char**argv) {
         default_config::warn_deprecated("default.settings", GlobalSettings::load_from_file(default_config::deprecations(), "default.settings", AccessLevelType::STARTUP));
         //DebugHeader("LOADED 'default.settings'");
     }
-    
-    std::vector<std::pair<std::string, std::string>> updated_settings;
-    std::vector<std::string> remove_settings;
-    
-    bool fix = false, repair_index = false, save_background = false;
-    bool be_quiet = false, print_plain = false, heatmap = false, auto_param = false;
-
-    SETTING(quiet) = false;
-    cmd.load_settings();
-    be_quiet = SETTING(quiet);
     
     //const char *command = NULL, *value = NULL;
     size_t i=0;
