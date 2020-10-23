@@ -136,7 +136,8 @@ file::Path conda_environment_path() {
 #endif
 
     if(home == "CONDA_PREFIX" || home == "" || home == compiled_path) {
-	    Debug("Reset conda prefix '%S' / '%S'", &home, &compiled_path);
+        if(!SETTING(quiet))
+            Debug("Reset conda prefix '%S' / '%S'", &home, &compiled_path);
         auto conda_prefix = getenv("CONDA_PREFIX");
         
         if(conda_prefix) {
@@ -161,7 +162,9 @@ file::Path conda_environment_path() {
     } else
         home = compiled_path;
     
-    return home;;
+    if(!SETTING(quiet))
+        Debug("Set conda environment path = '%S'", &home);
+    return home;
 }
     
     const std::map<std::string, std::string>& deprecations() {

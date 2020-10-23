@@ -40,6 +40,8 @@ Whereas other use-cases are:
    
    install
    run
+   gui
+   batch
    examples
    formats
    parameters_trex

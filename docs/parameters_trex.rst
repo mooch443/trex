@@ -1797,7 +1797,7 @@ TRex parameters
 
 .. function:: track_max_speed(float)
 
-	**default value:** 50
+	**default value:** 10
 
 
 	The maximum speed an individual can have (=> the maximum distance an individual can travel within one second) in cm/s. Uses `meta_real_width`.
