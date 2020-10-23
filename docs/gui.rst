@@ -14,6 +14,57 @@ Generally, all the parameters for one specific task will be prefixed by ``task_`
 
 Some parameter values cannot be changed (such as the build version of the software), but most parameters can be changed at runtime. When changing tracking parameters (prefixed by ``track_``), or posture parameters (prefixed either by ``outline_``, ``midline_``, or ``posture_``), then the video has to be reanalysed to see an effect. This is done by simply clicking on the "reanalyse" button on the top right (1). This button triggers |trex| to delete everything including the current and all following frames, and analyse them again with the new parameters. Some functionality will trigger such behavior automatically, for example when manually correcting identities (see below) where the video will be reanalysed automatically -- starting from the first assignment that has been changed. If you want to reanalyse the entire video, go to the first frame and click "reanalyse".
 
+Keyboard shortcuts
+------------------
+
++-----------+------------------------------------------------------------------------------------------------+
+| Key       | Action                                                                                         |
++===========+================================================================================================+
+| Esc       | Terminate                                                                                      |
++-----------+------------------------------------------------------------------------------------------------+
+| Return    | Next frame                                                                                     |
++-----------+------------------------------------------------------------------------------------------------+
+| Backspace | Previous frame                                                                                 |
++-----------+------------------------------------------------------------------------------------------------+
+| Space     | Start/stop playback                                                                            |
++-----------+------------------------------------------------------------------------------------------------+
+| Comma     | Resume/pause analysis                                                                          |
++-----------+------------------------------------------------------------------------------------------------+
+| B         | Show/hide posture preview when an individual is selected                                       |
++-----------+------------------------------------------------------------------------------------------------+
+| T         | Show/hide timeline and some interface elements                                                 |
++-----------+------------------------------------------------------------------------------------------------+
+| G         | Show/hide graph when an individual is selected                                                 |
++-----------+------------------------------------------------------------------------------------------------+
+| D         | Switch to RAW mode and back                                                                    |
++-----------+------------------------------------------------------------------------------------------------+
+| M         | Jump to next frame where the number of recognized individuals changed (yellow in timeline)     |
++-----------+------------------------------------------------------------------------------------------------+
+| N         | Jump to previous frame where the number of recognized individuals changed (yellow in timeline) |
++-----------+------------------------------------------------------------------------------------------------+
+| R         | Playback frame-by-frame and save what you see in the tracker window as `<output_dir>/frames`   |
++-----------+------------------------------------------------------------------------------------------------+
+| S         | Export data in :func:`output_graphs` to CSV files in `<output_dir>/data`                       |
++-----------+------------------------------------------------------------------------------------------------+
+| Z         | Save program state to `<videoname>.results`                                                    |
++-----------+------------------------------------------------------------------------------------------------+
+| L         | Load program state from `<videoname>.results`                                                  |
++-----------+------------------------------------------------------------------------------------------------+
+| O         | Cycle through fish based on ID (backwards)                                                     |
++-----------+------------------------------------------------------------------------------------------------+
+| P         | Cycle through fish based on ID (forward)                                                       |
++-----------+------------------------------------------------------------------------------------------------+
+
+Timeline
+--------
+
+The timeline works like the position indicator in your typical video player application. Click on it, hold the mouse button down and slide it around on the timeline to switch between frames.
+
+It has some extra functionality, however. Sometimes you will see colorful things up there. If you set the number of individuals (:func:`track_max_individuals`), then you might get a green, a red, a yellow and a grey rectangle up there -- overlayed on the timeline. These indicate "good" segments for training (ranked as listed previously). If they are yellow/pink/etc. lines on your timeline, then they indicate problematic frames in your video. You can jump between them using the ``M``/``N`` keys on your keyboard (see `Keyboard shortcuts`_). The type of problem depends on your selection of "foi types" in the top menu.
+
+Display menu
+------------
+
 Different visualisations can be enabled or disabled using the display menu (4) on the bottom left. Expand the "display" list by clicking on it, and you will see various options -- including the heatmaps feature, posture (for which you can also use the ``B`` key), outlines/midlines (a full list can be found below):
 
 .. image:: ../images/trex_display_options.png

@@ -92,7 +92,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
        && scale == previous_scale
        && _consecutives && _bar
        && _bar->source()->cols == _consecutives->source()->cols
-       && _consecutives->source()->rows == new_height)
+       && _consecutives->source()->rows == uint(new_height))
         return;
     
     previous_consec = consec;
