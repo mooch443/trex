@@ -526,44 +526,48 @@ int main(int argc, char** argv)
         if((GlobalSettings::map().has("nowindow") ? SETTING(nowindow).value<bool>() : false) == false) {
             gui::VideoOpener opener;
             opening_result = opener._result;
-            if(!opening_result.selected_file.empty()) {
-                if(opening_result.tab.extension == "pv") {
-                    if(opening_result.load_results)
-                        load_results = true;
-                    if(!opening_result.load_results_from.empty())
-                        load_results_from = opening_result.load_results_from;
-                } else {
-                    auto wd = SETTING(wd).value<file::Path>();
-                    Debug("Opening a video file: '%S', '%S'", &opening_result.tab.name, &wd.str());
-    #if defined(__APPLE__)
-                    wd = wd / ".." / ".." / ".." / "TGrabs.app" / "Contents" / "MacOS" / "TGrabs";
-    #else
-                    wd = wd / "tgrabs";
-    #endif
-                    auto exec = wd.str() + " " + opening_result.cmd;
-                    Debug("Executing '%S'", &exec);
-                    
-#if defined(WIN32)
-                    STARTUPINFO info={sizeof(info)};
-                    PROCESS_INFORMATION processInfo;
-                    if (CreateProcess(wd.c_str(), opening_result.cmd.c_str(), NULL, NULL, TRUE, 0, NULL, NULL, &info, &processInfo))
-                    {
-                        WaitForSingleObject(processInfo.hProcess, INFINITE);
-                        CloseHandle(processInfo.hProcess);
-                        CloseHandle(processInfo.hThread);
-                    }
-#else
-                    auto pid = fork();
-                    if(pid == 0) {
-                        file::exec(exec.c_str());
-                        exit(0);
-                    }
-#endif
-                    return 0;
-                }
-            } else
-                SETTING(filename) = file::Path();
         }
+
+        if (!opening_result.selected_file.empty()) {
+            if (opening_result.tab.extension == "pv") {
+                if (opening_result.load_results)
+                    load_results = true;
+                if (!opening_result.load_results_from.empty())
+                    load_results_from = opening_result.load_results_from;
+            }
+            else {
+                auto wd = SETTING(wd).value<file::Path>();
+                Debug("Opening a video file: '%S', '%S'", &opening_result.tab.name, &wd.str());
+#if defined(__APPLE__)
+                wd = wd / ".." / ".." / ".." / "TGrabs.app" / "Contents" / "MacOS" / "TGrabs";
+#else
+                wd = wd / "tgrabs";
+#endif
+                auto exec = wd.str() + " " + opening_result.cmd;
+                Debug("Executing '%S'", &exec);
+
+#if defined(WIN32)
+                //file::exec(exec.c_str());                    
+                STARTUPINFO info = { sizeof(info) };
+                PROCESS_INFORMATION processInfo;
+                if (CreateProcess(NULL, exec.data(), NULL, NULL, TRUE, 0, NULL, NULL, &info, &processInfo))
+                {
+                    WaitForSingleObject(processInfo.hProcess, INFINITE);
+                    CloseHandle(processInfo.hProcess);
+                    CloseHandle(processInfo.hThread);
+                }
+#else
+                auto pid = fork();
+                if (pid == 0) {
+                    file::exec(exec.c_str());
+                    exit(0);
+            }
+#endif
+                return 0;
+        }
+    }
+        else
+            SETTING(filename) = file::Path();
         
         if(SETTING(filename).value<Path>().empty()) {
             Except("Please specify a file to be opened using ./tracker -i <filename>");
