@@ -6,10 +6,15 @@
 #include <tracker/misc/Output.h>
 #include <misc/default_settings.h>
 #include <gui/types/StaticText.h>
+#include <processing/RawProcessing.h>
+#include <grabber/default_config.h>
 
 namespace gui {
 
 VideoOpener::VideoOpener() {
+    grab::default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+    ::default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+    
     _horizontal = std::make_shared<gui::HorizontalLayout>();
     _extra = std::make_shared<gui::VerticalLayout>();
     _infos = std::make_shared<gui::VerticalLayout>();
@@ -19,6 +24,54 @@ VideoOpener::VideoOpener() {
     _infos->set_policy(gui::VerticalLayout::LEFT);
     
     _horizontal->set_children({_infos, _extra});
+    
+    SETTING(output_name) = file::Path("video");
+    
+    _horizontal_raw = std::make_shared<gui::HorizontalLayout>();
+    _raw_settings = std::make_shared<gui::VerticalLayout>();
+    _raw_info = std::make_shared<gui::VerticalLayout>();
+    _raw_info->set_policy(gui::VerticalLayout::LEFT);
+    _screenshot = std::make_shared<gui::ExternalImage>();
+    _text_fields.clear();
+    _text_fields["output_name"] = LabeledField("output name");
+    _text_fields["output_name"]._text_field->set_text(SETTING(output_name).get().valueString());
+    _text_fields["output_name"]._text_field->on_text_changed([this](){
+        file::Path number = _text_fields["output_name"]._text_field->text();
+        SETTING(output_name) = number;
+    });
+    
+    _text_fields["threshold"] = LabeledField("threshold");
+    _text_fields["threshold"]._text_field->set_text(SETTING(threshold).get().valueString());
+    _text_fields["threshold"]._text_field->on_text_changed([this](){
+        auto number = Meta::fromStr<int>(_text_fields["threshold"]._text_field->text());
+        SETTING(threshold) = number;
+        
+        if(_buffer) {
+            _buffer->_threshold = number;
+        }
+    });
+    _text_fields["average_samples"] = LabeledField("average_samples");
+    _text_fields["average_samples"]._text_field->set_text(SETTING(average_samples).get().valueString());
+    _text_fields["average_samples"]._text_field->on_text_changed([this](){
+        auto number = Meta::fromStr<int>(_text_fields["average_samples"]._text_field->text());
+        SETTING(average_samples) = number;
+        
+        if(_buffer) {
+            _buffer->restart_background();
+        }
+    });
+    
+    std::vector<Layout::Ptr> objects{};
+    for(auto &[key, ptr] : _text_fields) {
+        objects.push_back(ptr._joint);
+    }
+    
+    _raw_settings->set_children(objects);
+    
+    _raw_description = std::make_shared<gui::StaticText>("Info", Vec2(), Size2(500, -1));
+    _raw_info->set_children({_screenshot, _raw_description});
+    _horizontal_raw->set_children({_raw_settings, _raw_info});
+    _horizontal_raw->set_policy(gui::HorizontalLayout::TOP);
     
     _settings_to_show = {
         "track_max_individuals",
@@ -35,7 +88,10 @@ VideoOpener::VideoOpener() {
     
     _output_prefix = SETTING(output_prefix).value<std::string>();
     
-    _file_chooser = std::make_shared<gui::FileChooser>(SETTING(output_dir).value<file::Path>(), ".pv", [this](const file::Path& path)
+    _file_chooser = std::make_shared<gui::FileChooser>(
+        SETTING(output_dir).value<file::Path>(),
+        "pv",
+        [this](const file::Path& path, std::string tab) mutable
     {
         if(!path.empty()) {
             auto tmp = path;
@@ -88,6 +144,14 @@ VideoOpener::VideoOpener() {
             
             if(!first)
                 _result.extra_command_lines = str;
+            _result.tab = _file_chooser->current_tab();
+            _result.tab.content = nullptr;
+            
+            if(_result.tab.extension == "pv") {
+                // PV file, no need to add cmd
+            } else {
+                _result.cmd = "-i '" + path.str() + "' " + "-o '"+SETTING(output_name).value<file::Path>().str()+"' -threshold "+SETTING(threshold).get().valueString()+" -average_samples "+SETTING(average_samples).get().valueString()+ " -reset_average";
+            }
             
             if(_load_results_checkbox && _load_results_checkbox->checked()) {
                 _result.load_results = true;
@@ -96,18 +160,274 @@ VideoOpener::VideoOpener() {
             
         }
         
-    }, [this](auto& path){ select_file(path); }, _horizontal);
+    }, [this](auto& path, std::string tab){ select_file(path); });
+    
+    _file_chooser->set_tabs({
+        FileChooser::Settings{std::string("Pre-processed (PV)"), std::string("pv"), _horizontal},
+        FileChooser::Settings{std::string("Convert (RAW)"), std::string("mp4;avi;mov;flv;m4v;webm"), _horizontal_raw}
+    });
+    
+    _file_chooser->set_on_update([this](auto&) mutable {
+        std::lock_guard guard(_video_mutex);
+        if(_buffer) {
+            auto image = _buffer->next();
+            if(image) {
+                _screenshot->set_source(std::move(image));
+                
+                if(_screenshot->size().max() != _screenshot_previous_size) {
+                    _screenshot_previous_size = _screenshot->size().max();
+                    
+                    const double max_width = 500;
+                    auto ratio = max_width / _screenshot_previous_size;
+                    Debug("%f (%f / %f)", ratio, max_width, _screenshot_previous_size);
+                    _screenshot->set_scale(Vec2(ratio));
+                    
+                    _raw_info->auto_size(Margin{0, 0});
+                    _raw_settings->auto_size(Margin{0, 0});
+                    _horizontal_raw->auto_size(Margin{0, 0});
+                }
+            }
+        }
+    });
+    
+    _file_chooser->set_validity_check([this](file::Path path) {
+        if((path.exists() && path.is_folder())
+           || _file_chooser->current_tab().is_valid_extension(path))
+            return true;
+        return false;
+    });
     
     _file_chooser->open();
 }
 
+VideoOpener::BufferedVideo::BufferedVideo(const file::Path& path) : _path(path) {
+}
+
+VideoOpener::BufferedVideo::~BufferedVideo() {
+    _terminate = true;
+    _terminate_background = true;
+    
+    if(_update_thread)
+        _update_thread->join();
+    if(_background_thread)
+        _background_thread->join();
+    
+    _background_video = nullptr;
+}
+
+void VideoOpener::BufferedVideo::restart_background() {
+    _terminate_background = true;
+    if(_background_thread)
+        _background_thread->join();
+    
+    _terminate_background = false;
+    
+    std::lock_guard guard(_frame_mutex);
+    cv::Mat img;
+    _background_video->frame(0, img);
+    if(max(img.cols, img.rows) > 500)
+        resize_image(img, 500 / double(max(img.cols, img.rows)));
+    
+    img.convertTo(_background_image, CV_32FC1);
+    _background_image.copyTo(_accumulator);
+    
+    _background_samples = 1;
+    _background_video_index = 0;
+    //_accumulator = cv::Mat::zeros(img.rows, img.cols, CV_32FC1);
+    
+    _background_thread = std::make_unique<std::thread>([this](){
+        int step = max(1, int(_background_video->length() / max(2.0, double(SETTING(average_samples).value<int>()))));
+        Debug("Start calculating background in %d steps", step);
+        cv::Mat flt, img;
+        
+        while(!_terminate_background && _background_video_index+1+step < _background_video->length()) {
+            _background_video_index += step;
+            
+            _background_video->frame(_background_video_index, img);
+            if(max(img.cols, img.rows) > 500)
+                resize_image(img, 500 / double(max(img.cols, img.rows)));
+            
+            img.convertTo(flt, CV_32FC1);
+            if(!_accumulator.empty())
+                cv::add(_accumulator, flt, _accumulator);
+            else
+                flt.copyTo(_accumulator);
+            ++_background_samples;
+            Debug("%d/%d (%d)", _background_video_index, _background_video->length(), step);
+            
+            std::lock_guard guard(_frame_mutex);
+            cv::divide(_accumulator, cv::Scalar(_background_samples), _background_copy);
+            _set_copy_background = true;
+        }
+        
+        Debug("Done calculating background");
+    });
+}
+
+void VideoOpener::BufferedVideo::open() {
+    std::lock_guard guard(_video_mutex);
+    _video = std::make_unique<VideoSource>(_path.str());
+    
+    _video->frame(0, _local);
+    _local.copyTo(_img);
+    
+    _background_video = std::make_unique<VideoSource>(_path.str());
+    _cached_frame = std::make_unique<Image>(_local);
+    
+    _playback_index = 0;
+    _video_timer.reset();
+    
+    restart_background();
+    
+    // playback at 2x speed
+    _seconds_between_frames = 1 / double(_video->framerate());
+
+    _update_thread = std::make_unique<std::thread>([this](){
+        while(!_terminate) {
+            std::lock_guard guard(_video_mutex);
+            auto dt = _video_timer.elapsed();
+            if(dt < _seconds_between_frames)
+                continue;
+            
+            _playback_index = _playback_index + 1; // loading is too slow...
+            
+            if((uint32_t)_playback_index.load() % 100 == 0)
+                Debug("Playback %.2fms / %.2fms ...", dt * 1000, _seconds_between_frames * 1000);
+            
+            if(dt > _seconds_between_frames) {
+                
+            } //else
+                //_playback_index = _playback_index + dt / _seconds_between_frames;
+            _video_timer.reset();
+            
+            if(_playback_index+1 >= _video->length())
+                _playback_index = 0;
+            
+            update_loop();
+        }
+    });
+}
+
+void VideoOpener::BufferedVideo::update_loop() {
+    try {
+        _video->frame((size_t)_playback_index, _local);
+        _local.copyTo(_img);
+        if(max(_img.cols, _img.rows) > 500)
+            resize_image(_img, 500 / double(max(_img.cols, _img.rows)));
+        _img.convertTo(_flt, CV_32FC1);
+
+        if(_alpha.empty()) {
+            _alpha = gpuMat(_img.rows, _img.cols, CV_8UC1);
+            _alpha.setTo(cv::Scalar(255));
+        }
+        
+        {
+            std::lock_guard frame_guard(_frame_mutex);
+            if(_set_copy_background) {
+                _set_copy_background = false;
+                _background_copy.copyTo(_background_image);
+            }
+            cv::absdiff(_background_image, _flt, _diff);
+        }
+        
+        cv::inRange(_diff, _threshold.load(), 255, _mask);
+        cv::merge(std::vector<gpuMat>{_mask, _img, _img, _alpha}, _output);
+        _output.copyTo(_local);
+        
+        std::lock_guard frame_guard(_frame_mutex);
+        _cached_frame = std::make_unique<Image>(_local);
+        
+    } catch(const std::exception& e) {
+        Except("Caught exception while updating '%s'", e.what());
+    }
+}
+
+Size2 VideoOpener::BufferedVideo::size() {
+    std::lock_guard guard(_video_mutex);
+    return Size2(_video->size());
+}
+
+std::unique_ptr<Image> VideoOpener::BufferedVideo::next() {
+    std::lock_guard guard(_frame_mutex);
+    return std::move(_cached_frame);
+}
+
 void VideoOpener::select_file(const file::Path &p) {
+    const double max_width = 500;
+    
+    if(!p.empty() && (!p.has_extension() || p.extension() != "pv")) {
+        try {
+            Debug("Opening '%S'", &p.str());
+            
+            std::lock_guard guard(_video_mutex);
+            {
+                SETTING(output_name) = file::Path("video");
+                auto filename = p;
+                
+                if(p.has_extension())
+                    filename = filename.remove_extension();
+                
+                if(utils::contains(p.filename().to_string(), '%')) {
+                    filename = filename.remove_filename();
+                }
+                
+                filename = filename.filename();
+                
+                SETTING(output_name) = filename;
+                if(SETTING(output_name).value<file::Path>().empty()) {
+                    Warning("No output filename given. Defaulting to 'video'.");
+                } else
+                    Warning("Given empty filename, the program will default to using input basename '%S'.", &filename.str());
+                
+                _text_fields["output_name"]._text_field->set_text(filename.str());
+            }
+            
+            _buffer = std::make_unique<BufferedVideo>(p);
+            _buffer->open();
+            _screenshot->set_source(std::move(_buffer->next()));
+            _screenshot_previous_size = 0;
+            
+            try {
+                auto number = _text_fields["threshold"]._text_field->text();
+                if(!number.empty())
+                    _buffer->_threshold = Meta::fromStr<uint32_t>(number);
+                
+            } catch(const std::exception &e) {
+                Except("Converting number: '%s'", e.what());
+            }
+            
+            auto ratio = max_width / _screenshot->size().max();
+            Debug("%f (%f / %f)", ratio, max_width, _screenshot->size().max());
+            _screenshot->set_scale(Vec2(ratio));
+            
+            _raw_info->auto_size(Margin{0, 0});
+            _raw_settings->auto_size(Margin{0, 0});
+            _horizontal_raw->auto_size(Margin{0, 0});
+            
+        } catch(const std::exception& e) {
+            Except("Cannot open file '%S' (%s)", &p.str(), e.what());
+            
+            cv::Mat img = cv::Mat::zeros(max_width, max_width, CV_8UC1);
+            cv::putText(img, "Cannot open video.", Vec2(50, 220), cv::FONT_HERSHEY_PLAIN, 1, White);
+            _screenshot->set_source(std::make_unique<Image>(img));
+            _screenshot->set_scale(Vec2(1));
+            _buffer = nullptr;
+        }
+        return;
+        
+    } else {
+        std::lock_guard guard(_video_mutex);
+        if(_buffer) {
+            _buffer = nullptr;
+        }
+    }
+    
     using namespace gui;
     using namespace file;
     
     GlobalSettings::map().dont_print("filename");
-    _selected = p;
-    SETTING(filename) = p;
+    _selected = p.remove_extension();
+    SETTING(filename) = p.remove_extension();
     
     Path settings_file = pv::DataLocation::parse("settings");
     sprite::Map tmp;
@@ -148,10 +468,14 @@ void VideoOpener::select_file(const file::Path &p) {
         } else if(name == "output_prefix") {
             std::vector<std::string> folders;
             for(auto &p : _selected.remove_filename().find_files()) {
-                if(p.is_folder() && p.filename() != "data" && p.filename() != "..") {
-                    if(!p.find_files().empty()) {
-                        folders.push_back(p.filename().to_string());
+                try {
+                    if(p.is_folder() && p.filename() != "data" && p.filename() != "..") {
+                        if(!p.find_files().empty()) {
+                            folders.push_back(p.filename().to_string());
+                        }
                     }
+                } catch(const UtilsException& ex) {
+                    continue; // cannot read folder
                 }
             }
             

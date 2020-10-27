@@ -234,6 +234,18 @@ namespace file {
         
         return rmdir(str().c_str()) == 0;
     }
+        
+        bool valid_extension(const file::Path& path, const std::string& filter_extension) {
+            if(filter_extension.empty())
+                return true;
+            
+            auto extensions = utils::split(utils::lowercase(filter_extension), ';');
+            if(path.has_extension()) {
+                return contains(extensions, path.extension().to_string());
+            }
+            
+            return false;
+        }
     
     std::set<Path> Path::find_files(const std::string& filter_extension) const {
         if(!is_folder())
@@ -250,7 +262,7 @@ namespace file {
                 if(file == "." || file == "..")
                     continue;
                 
-                if(ent->d_type & DT_DIR || filter_extension.empty() || utils::endsWith(utils::lowercase(ent->d_name), filter_extension))
+                if(ent->d_type & DT_DIR || valid_extension(file::Path(ent->d_name), filter_extension))
                     result.insert(*this / ent->d_name);
             }
             closedir (dir);

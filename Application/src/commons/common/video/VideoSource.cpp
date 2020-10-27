@@ -1,6 +1,6 @@
 #include "VideoSource.h"
 #include "Video.h"
-#include <iomanip>
+#include <regex>
 #include <file/Path.h>
 #include <misc/GlobalSettings.h>
 #include <misc/ThreadPool.h>
@@ -207,7 +207,54 @@ VideoSource::~VideoSource() {
     }
 }
 
-VideoSource::VideoSource(const std::vector<file::Path>& files) : _last_file(NULL), _length(0), _has_timestamps(false), _framerate(-1)
+VideoSource::VideoSource(const std::string& source) {
+    std::smatch m;
+    std::regex rplaceholder ("%[0-9]+(\\.[0-9]+(.[1-9][0-9]*)?)?d$"), rext(".*(\\..+)$");
+    
+    long_t number_length = -1, start_number = 0, end_number = VIDEO_SEQUENCE_UNSPECIFIED_VALUE;
+    
+    std::string base_name, extension;
+    if(std::regex_search(source,m,rext)) {
+        auto x = m[1];
+        extension = x.str().substr(1);
+        base_name = source.substr(0, m.position(1));
+        
+        Debug("Extension '%S' basename '%S'", &extension, &base_name);
+        
+    } else {
+        U_EXCEPTION("File extension not found in '%S'", &source);
+    }
+    
+    if(std::regex_search (base_name,m,rplaceholder)) {
+        auto x = m[0];
+        
+        std::string s = x.str();
+        auto p = m.position();
+        
+        s = s.substr(1, s.length()-2);
+        auto split = utils::split(s, '.');
+        
+        if(split.size()>1) {
+            start_number = std::stoi(split[1]);
+        }
+        if(split.size()>2) {
+            end_number = std::stoi(split[2]);
+        }
+        
+        number_length = std::stoi(split[0]);
+        base_name = base_name.substr(0, p);
+        Debug("match '%S' at %d with nr %d", &s, p, number_length);
+    }
+    
+    if(number_length != -1) {
+        // no placeholders found, just load file.
+        open(base_name, extension, start_number, end_number, number_length);
+    } else {
+        open(base_name, extension);
+    }
+}
+
+VideoSource::VideoSource(const std::vector<file::Path>& files)
 {
     for(auto &path : files) {
         auto extension = path.extension().to_string();
@@ -229,8 +276,9 @@ VideoSource::VideoSource(const std::vector<file::Path>& files) : _last_file(NULL
     _has_timestamps = _files_in_seq.front()->has_timestamps();
 }
 
-VideoSource::VideoSource(const std::string& basename, const std::string& extension, int seq_start, int seq_end, int padding) : _last_file(NULL), _length(0), _has_timestamps(false), _framerate(-1) {
-    
+VideoSource::VideoSource() {}
+void VideoSource::open(const std::string& basename, const std::string& extension, int seq_start, int seq_end, int padding)
+{
     if (seq_start == VIDEO_SEQUENCE_INVALID_VALUE || seq_end == VIDEO_SEQUENCE_INVALID_VALUE) {
         File *f = File::open(0, basename, extension);
 
@@ -288,8 +336,8 @@ VideoSource::VideoSource(const std::string& basename, const std::string& extensi
             ss << basename << std::setfill('0') << std::setw(padding) << i;
             
             File *f = File::open(i-seq_start, ss.str(), extension, i != seq_start);
-			if(!f)
-				U_EXCEPTION("Cannot find file '%s.%S' in sequence %d-%d.", ss.str().c_str(), &extension, seq_start, seq_end);
+            if(!f)
+                U_EXCEPTION("Cannot find file '%s.%S' in sequence %d-%d.", ss.str().c_str(), &extension, seq_start, seq_end);
             _files_in_seq.push_back(f);
             
             _length += f->length();
@@ -305,9 +353,9 @@ VideoSource::VideoSource(const std::string& basename, const std::string& extensi
             U_EXCEPTION("Provided an empty video sequence for video source '%S'.", &basename);
     }
     
-	if(_files_in_seq.empty())
-		U_EXCEPTION("Cannot load video sequence '%S' (it is empty).", &basename);
-	
+    if(_files_in_seq.empty())
+        U_EXCEPTION("Cannot load video sequence '%S' (it is empty).", &basename);
+    
     _size = _files_in_seq.at(0)->resolution();
     _has_timestamps = _files_in_seq.front()->has_timestamps();
     
@@ -336,6 +384,7 @@ VideoSource::VideoSource(const std::string& basename, const std::string& extensi
 }
 
 void VideoSource::frame(uint64_t globalIndex, gpuMat& output) {
+    U_EXCEPTION("Using empty function.");
 }
 
 void VideoSource::frame(uint64_t globalIndex, cv::Mat& output) {

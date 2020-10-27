@@ -87,6 +87,8 @@ namespace file {
     bool operator!=(const Path& lhs, const Path& rhs);
     
     std::string exec(const char* cmd);
+
+    bool valid_extension(const file::Path&, const std::string& filter_extension);
 }
 
 std::ostream& operator<<(std::ostream& os, const file::Path& p);

@@ -4,18 +4,15 @@
 
 namespace gui {
 
-FileChooser::FileChooser(const file::Path& start,
-                         const std::string& filter_extension,
-                         std::function<void(const file::Path&)> callback,
-                         std::function<void(const file::Path&)> on_select_callback,
-                         derived_ptr<Entangled> extra)
+FileChooser::FileChooser(const file::Path& start, const std::string& extension,
+                         std::function<void(const file::Path&, std::string)> callback,
+                         std::function<void(const file::Path&, std::string)> on_select_callback)
 :
-    _graph(1300, 750),
+    _graph(std::make_unique<DrawStructure>(1300, 820)),
     _description(std::make_shared<Text>("Please choose a file in order to continue.", Vec2(10, 10), White, Font(0.75))),
-    _extra(extra),
     _columns(std::make_shared<HorizontalLayout>()),
     _overall(std::make_shared<VerticalLayout>()),
-    _base("Choose file", _graph, [this](){
+    _base("Choose file", *_graph, [this](){
         using namespace gui;
         
         {
@@ -29,25 +26,36 @@ FileChooser::FileChooser(const file::Path& start,
         if(!_list)
             return false;
         
-        //_graph.wrap_object(*_textfield);
-        //_graph.wrap_object(*_list);
-        _graph.wrap_object(*_overall);
+        //_graph->wrap_object(*_textfield);
+        //_graph->wrap_object(*_list);
+        _graph->wrap_object(*_overall);
+        if(_on_update)
+            _on_update(*_graph);
         
         if(!_selected_file.empty()) {
 
-            //auto text = _graph.text("Selected: "+_selected_file.str(), _list->bounds().pos() + Vec2(0, _list->bounds().height + 10), White, Font(0.6));
+            //auto text = _graph->text("Selected: "+_selected_file.str(), _list->bounds().pos() + Vec2(0, _list->bounds().height + 10), White, Font(0.6));
             //_button->set_pos(text->pos() + Vec2(0, text->height() + 10));
-            //_graph.wrap_object(*_button);
+            //_graph->wrap_object(*_button);
         }
         if (SETTING(terminate))
             _running = false;
 
         return _running;
-    }, [](gui::Event e) {
+    }, [this](gui::Event e) {
         // --
+        if(e.type == gui::WINDOW_RESIZED) {
+            using namespace gui;
+            {
+                std::lock_guard guard(_graph->lock());
+                Size2 size(e.size.width, e.size.height);
+                auto scale = _base.dpi_scale();
+                _graph->set_size(size.div(scale));
+            }
+            update_size();
+        }
     }),
     _path(start),
-    _filter(filter_extension),
     _running(true),
     _files([](const file::Path& A, const file::Path& B) -> bool {
         return (A.is_folder() && !B.is_folder()) || (A.is_folder() == B.is_folder() && A.str() < B.str()); //A.str() == ".." || (A.str() != ".." && ((A.is_folder() && !B.is_folder()) || (A.is_folder() == B.is_folder() && A.str() < B.str())));
@@ -55,16 +63,20 @@ FileChooser::FileChooser(const file::Path& start,
     _callback(callback),
     _on_select_callback(on_select_callback)
 {
+    _default_tab.extension = extension;
+    set_tab("");
+    
     _base.set_open_files_fn([this](const std::vector<file::Path>& paths) -> bool{
         if(paths.size() != 1)
             return false;
         
         auto path = paths.front();
-        if(path.exists() || path.str() == "/" || path.add_extension("pv").exists()) {
+        if(!_validity || _validity(path)) //path.exists() || path.str() == "/" || path.add_extension("pv").exists())
+        {
             file_selected(0, path.str());
             return true;
         } else {
-            Error("Path '%S' cannot be found.", &path.str());
+            Error("Path '%S' cannot be opened.", &path.str());
         }
         return false;
     });
@@ -74,12 +86,7 @@ FileChooser::FileChooser(const file::Path& start,
     _overall->set_policy(VerticalLayout::CENTER);
     //_overall->set_background(Transparent, Blue);
     
-    if(_extra) {
-        _extra->auto_size(Margin{0,0});
-        _extra->set_name("Extra");
-    }
-    
-    _list = std::make_shared<ScrollableList<FileItem>>(Bounds(0, 0, _graph.width() - 20 - (_extra ? _extra->width() + 5 : 0), _graph.height() - 70 - 10 - 70));
+    _list = std::make_shared<ScrollableList<FileItem>>(Bounds(0, 0, _graph->width() - 20 - (_current_tab.content ? _current_tab.content->width() + 5 : 0), _graph->height() - 70 - 10 - 70));
     _list->set_stays_toggled(true);
     //if(_extra)
     //    _extra->set_background(Transparent, Green);
@@ -93,10 +100,12 @@ FileChooser::FileChooser(const file::Path& start,
     _textfield->on_enter([&](){
         auto path = file::Path(_textfield->text());
         
-        if(path.exists() || path.str() == "/" || path.add_extension("pv").exists()) {
+        //if(path.exists() || path.str() == "/" || path.add_extension("pv").exists())
+        if(!_validity || _validity(path))
+        {
             file_selected(0, path.str());
         } else {
-            Error("Path '%S' cannot be found.", &path.str());
+            Error("Path '%S' cannot be opened.", &path.str());
         }
         
     });
@@ -109,8 +118,8 @@ FileChooser::FileChooser(const file::Path& start,
     _columns->set_name("Columns");
     _rows->set_name("Rows");
     
-    if(_extra)
-        _columns->set_children({_rows, _extra});
+    if(_current_tab.content)
+        _columns->set_children({_rows, _current_tab.content});
     else
         _columns->set_children({_rows});
     
@@ -120,21 +129,29 @@ FileChooser::FileChooser(const file::Path& start,
     
     if(!_path.exists())
         _path = ".";
-    auto files = _path.find_files(_filter);
-    _files.clear();
-    _files.insert(files.begin(), files.end());
-    _files.insert("..");
+    
+    try {
+        auto files = _path.find_files(_current_tab.extension);
+        _files.clear();
+        _files.insert(files.begin(), files.end());
+        _files.insert("..");
+        
+    } catch(const UtilsException& ex) {
+        Error("Cannot list folder '%S'.", &_path);
+    }
     
     update_names();
     _textfield->set_text(_path.str());
     
-    _graph.set_scale(_base.dpi_scale() * gui::interface_scale());
+    _graph->set_scale(_base.dpi_scale() * gui::interface_scale());
     _list->on_select([this](auto i, auto&path){ file_selected(i, path.path()); });
     
     _button->set_font(gui::Font(0.6, Align::Center));
     _button->on_click([this](auto){
         _running = false;
         _confirmed_file = _selected_file;
+        if(_on_open)
+            _on_open(_confirmed_file);
     });
     
     _list->set_font(gui::Font(0.6, gui::Align::Left));
@@ -144,6 +161,87 @@ FileChooser::FileChooser(const file::Path& start,
         "gfx/"+SETTING(app_name).value<std::string>()+"Icon32.png",
         "gfx/"+SETTING(app_name).value<std::string>()+"Icon64.png"
     });
+}
+
+void FileChooser::set_on_update(std::function<void (DrawStructure &)> && fn) {
+    _on_update = std::move(fn);
+}
+
+void FileChooser::set_tabs(const std::vector<Settings>& tabs) {
+    _tabs.clear();
+    tabs_elements.clear();
+    
+    for(auto tab : tabs) {
+        if(tab.extension == "")
+            tab.extension = _default_tab.extension;
+        _tabs[tab.name] = tab;
+        
+        auto button = new Button(tab.name, Bounds(0, 0, Base::default_text_bounds(tab.name).width + 20, 33));
+        button->set_toggleable(true);
+        button->on_click([this, button](auto e){
+            if(button->toggled()) {
+                set_tab(button->txt());
+            }
+        });
+        auto ptr = std::shared_ptr<Drawable>(button);
+        tabs_elements.push_back(ptr);
+    }
+    
+    if(_tabs.size() > 1) {
+        _tabs_bar = std::make_shared<HorizontalLayout>(tabs_elements);
+    } else {
+        _tabs_bar = nullptr;
+    }
+    
+    if(_tabs_bar) {
+        _rows->set_children(std::vector<Layout::Ptr>{
+            _description, _textfield, _list
+        });
+    } else {
+        _rows->set_children(std::vector<Layout::Ptr>{
+            _description, _textfield, _list
+        });
+    }
+    
+    if(!_tabs.empty())
+        set_tab(tabs.front().name);
+    else
+        set_tab("");
+}
+
+void FileChooser::set_tab(std::string tab) {
+    if(tab != _current_tab.name) {
+        
+    } else
+        return;
+    
+    if(tab.empty()) {
+        _current_tab = _default_tab;
+    } else if(!_tabs.count(tab)) {
+        auto str = Meta::toStr(_tabs);
+        Except("FileChooser %S does not contain tab '%S'.", &str, &tab);
+    } else {
+        _current_tab = _tabs.at(tab);
+    }
+    
+    for(auto &ptr : tabs_elements) {
+        if(static_cast<Button*>(ptr.get())->txt() != tab) {
+            static_cast<Button*>(ptr.get())->set_toggle(false);
+            static_cast<Button*>(ptr.get())->set_clickable(true);
+        } else
+            static_cast<Button*>(ptr.get())->set_clickable(false);
+    }
+    
+    change_folder(_path);
+    if(!_selected_file.empty())
+        file_selected(0, _selected_file);
+    
+    if(_current_tab.content) {
+        _current_tab.content->auto_size(Margin{0,0});
+        _current_tab.content->set_name("Extra");
+    }
+    
+    _graph->set_dirty(&_base);
 }
 
 void FileChooser::update_names() {
@@ -174,16 +272,18 @@ Color FileChooser::FileItem::text_color() const {
 
 void FileChooser::open() {
     _base.loop();
-    _callback(_confirmed_file);
+    if(_callback)
+        _callback(_confirmed_file, _current_tab.name);
 }
 
-void FileChooser::file_selected(size_t, file::Path p) {
+void FileChooser::change_folder(const file::Path& p) {
     auto org = _path;
+    auto copy = _files;
     
     if(p.str() == "..") {
         try {
             _path = _path.remove_filename();
-            auto files = _path.find_files(_filter);
+            auto files = _path.find_files(_current_tab.extension);
             _files.clear();
             _files.insert(files.begin(), files.end());
             _files.insert("..");
@@ -193,16 +293,14 @@ void FileChooser::file_selected(size_t, file::Path p) {
             
         } catch(const UtilsException&e) {
             _path = org;
-            auto files = _path.find_files(_filter);
-            _files.clear();
-            _files.insert(files.begin(), files.end());
-            _files.insert("..");
+            _files = copy;
         }
+        update_names();
         
     } else if(p.is_folder()) {
         try {
             _path = p;
-            auto files = _path.find_files(_filter);
+            auto files = _path.find_files(_current_tab.extension);
             _files.clear();
             _files.insert(files.begin(), files.end());
             _files.insert("..");
@@ -212,29 +310,40 @@ void FileChooser::file_selected(size_t, file::Path p) {
             
         } catch(const UtilsException&e) {
             _path = org;
-            auto files = _path.find_files(_filter);
-            _files.clear();
-            _files.insert(files.begin(), files.end());
-            _files.insert("..");
+            _files = copy;
         }
-        
+        update_names();
     }
-    else {
-        _selected_file = p.remove_extension();
+}
+
+void FileChooser::file_selected(size_t, file::Path p) {
+    if(p.str() == ".." || p.is_folder()) {
+        change_folder(p);
+    } else {
+        _selected_file = p;
         if(!_selected_text)
             _selected_text = std::make_shared<StaticText>("Selected: "+_selected_file.str(), Vec2(), Vec2(700, 0), Font(0.6));
         else
             _selected_text->set_txt("Selected: "+_selected_file.str());
         
-        _overall->set_children({
-            _columns,
-            _selected_text,
-            _button
-        });
+        if(_tabs_bar)
+            _overall->set_children({
+                _tabs_bar,
+                _columns,
+                _selected_text,
+                _button
+            });
+        else
+            _overall->set_children({
+                _columns,
+                _selected_text,
+                _button
+            });
         _overall->update_layout();
         //update_size();
         
-        _on_select_callback(_selected_file);
+        if(_on_select_callback)
+            _on_select_callback(_selected_file, _current_tab.extension);
         update_size();
     }
     
@@ -242,12 +351,15 @@ void FileChooser::file_selected(size_t, file::Path p) {
 }
 
 void FileChooser::update_size() {
-    float left_column_width = _graph.width() - 20 - (_extra && _extra->width() > 20 ? _extra->width() + 10 : 0) - 10;
+    float left_column_width = _graph->width() - 20 - (_current_tab.content && _current_tab.content->width() > 20 ? _current_tab.content->width() + 10 : 0) - 10;
     if(_selected_text) {
-        _selected_text->set_max_size(Size2(left_column_width));
+        _selected_text->set_max_size(Size2(_graph->width() - 20));
     }
     
-    float left_column_height = _graph.height() - 70 - 10 - (_overall->children().size() > 1 ? _button->height() + 10 : 0);
+    if(_tabs_bar) _tabs_bar->auto_size(Margin{0,0});
+    if(_tabs_bar) _tabs_bar->update_layout();
+    
+    float left_column_height = _graph->height() - 70 - 10 - (_overall->children().size() > 1 ? _button->height() + 10 : 0) - (_tabs_bar ? _tabs_bar->height() + 10 : 0) - (_selected_text && !_selected_file.empty() ? _selected_text->height() : 0);
     _list->set_bounds(Bounds(0, 0, left_column_width, left_column_height - 70));
     
     _textfield->set_bounds(Bounds(0, 0, left_column_width, 30));
@@ -256,7 +368,12 @@ void FileChooser::update_size() {
     if(_rows) _rows->auto_size(Margin{0,0});
     if(_rows) _rows->update_layout();
     
-    if(_extra) _extra->auto_size(Margin{0,0});
+    if(_current_tab.content)
+        _columns->set_children({_rows, _current_tab.content});
+    else
+        _columns->set_children({_rows});
+    
+    if(_current_tab.content) _current_tab.content->auto_size(Margin{0,0});
     _columns->auto_size(Margin{0,0});
     _columns->update_layout();
     

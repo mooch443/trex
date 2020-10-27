@@ -452,7 +452,7 @@ int main(int argc, char** argv)
                             fwrite(rst.data(), sizeof(char), rst.length(), f);
                             fclose(f);
                             
-                            printf("%s\n", rst.c_str());
+                            //printf("%s\n", rst.c_str());
                             Debug("Saved at '%S'.", &path.str());
                             
                             exit(0);

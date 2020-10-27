@@ -1,4 +1,4 @@
-#include <regex>
+
 #include <cstdio>
 
 #include "grabber.h"
@@ -701,51 +701,7 @@ void FrameGrabber::initialize_video() {
     }
     
     if(filenames.size() == 1) {
-        std::string source = filenames.front().str();
-        std::smatch m;
-        std::regex rplaceholder ("%[0-9]+(\\.[0-9]+(.[1-9][0-9]*)?)?d$"), rext(".*(\\..+)$");
-        
-        long_t number_length = -1, start_number = 0, end_number = VIDEO_SEQUENCE_UNSPECIFIED_VALUE;
-        
-        std::string base_name, extension;
-        if(std::regex_search(source,m,rext)) {
-            auto x = m[1];
-            extension = x.str().substr(1);
-            base_name = source.substr(0, m.position(1));
-            
-            Debug("Extension '%S' basename '%S'", &extension, &base_name);
-            
-        } else {
-            U_EXCEPTION("File extension not found in '%S'", &source);
-        }
-        
-        if(std::regex_search (base_name,m,rplaceholder)) {
-            auto x = m[0];
-            
-            std::string s = x.str();
-            auto p = m.position();
-            
-            s = s.substr(1, s.length()-2);
-            auto split = utils::split(s, '.');
-            
-            if(split.size()>1) {
-                start_number = std::stoi(split[1]);
-            }
-            if(split.size()>2) {
-                end_number = std::stoi(split[2]);
-            }
-            
-            number_length = std::stoi(split[0]);
-            base_name = base_name.substr(0, p);
-            Debug("match '%S' at %d with nr %d", &s, p, number_length);
-        }
-        
-        if(number_length != -1) {
-            // no placeholders found, just load file.
-            _video = new VideoSource(base_name, extension, start_number, end_number, number_length);
-        } else {
-            _video = new VideoSource(base_name, extension);
-        }
+        _video = new VideoSource(filenames.front());
         
     } else {
         _video = new VideoSource(filenames);

@@ -184,7 +184,7 @@ TRex parameters
 
 .. function:: build_is_debug(string)
 
-	**default value:** "debug"
+	**default value:** "release"
 
 
 	If built in debug mode, this will show 'debug'.

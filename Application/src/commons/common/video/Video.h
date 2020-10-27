@@ -206,6 +206,9 @@ private:
      */
     cv::Size _size;
     
+    //! Temporary read cache
+    cv::Mat read;
+    
     /**
      * Calculates maps using OpenCVs initUndistortRectifyMap method, which are later
      * used to undistort frames of this video.

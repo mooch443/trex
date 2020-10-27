@@ -169,7 +169,9 @@ void Video::frame(long_t index, cv::Mat& frame, bool lazy) {
         //Warning("Have to reset video index from %d to %d (%S)", _last_index, index, &_filename);
         _cap->set(cv::CAP_PROP_POS_FRAMES, index);
     } else if(index > _last_index+1) {
+#ifndef NDEBUG
         Warning("Have to skip from video index from %d to %d (%S)", _last_index, index-1, &_filename);
+#endif
         for(; _last_index+1 < index; _last_index++)
             _cap->grab();
     }
@@ -177,7 +179,6 @@ void Video::frame(long_t index, cv::Mat& frame, bool lazy) {
     _last_index = index;
     
     // Read requested frame
-    static cv::Mat read;
     if(!_cap->read(read))
         U_EXCEPTION("Cannot read frame %d of video '%S'.", index, &_filename);
 #endif

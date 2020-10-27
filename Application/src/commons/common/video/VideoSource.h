@@ -67,21 +67,23 @@ private:
      */
     std::vector<File*> _files_in_seq;
     
-    File* _last_file;
+    File* _last_file = nullptr;
     cv::Size _size;
-    uint64_t _length;
+    uint64_t _length = 0;
     cv::Mat _average;
     cv::Mat _mask;
-    bool _has_timestamps;
-    short _framerate;
+    bool _has_timestamps = false;
+    short _framerate = -1;
     
 public:
     /**
      * Automatically load a range of files with a certain extension called
      * {basename}{seq_start<=number<=seq_end}.{extension}
      */
-    VideoSource(const std::string& basename, const std::string& extension, int seq_start = VIDEO_SEQUENCE_INVALID_VALUE, int seq_end = VIDEO_SEQUENCE_INVALID_VALUE, int padding = 4);
+    VideoSource();
+    VideoSource(const std::string& source);
     VideoSource(const std::vector<file::Path>& files);
+    void open(const std::string& basename, const std::string& extension, int seq_start = VIDEO_SEQUENCE_INVALID_VALUE, int seq_end = VIDEO_SEQUENCE_INVALID_VALUE, int padding = 4);
     
     ~VideoSource();
     

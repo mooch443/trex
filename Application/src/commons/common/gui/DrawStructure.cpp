@@ -719,4 +719,9 @@ namespace gui {
         else
             _root.insert_cache(base, std::make_shared<CacheObject>());
     }
+
+    void DrawStructure::set_size(const Size2& size) {
+        _width = size.width;
+        _height = size.height;
+    }
 }

@@ -66,8 +66,10 @@ namespace gui {
         
     public:
         template<typename impl_t = default_impl_t>
-        IMGUIBase(std::string title, DrawStructure& base, CrossPlatform::custom_function_t custom_loop, std::function<void(const gui::Event&)> event_fn) : _graph(&base), _custom_loop(custom_loop), _event_fn(event_fn)
+        IMGUIBase(std::string title, DrawStructure& base, CrossPlatform::custom_function_t custom_loop, std::function<void(const gui::Event&)> event_fn) : _custom_loop(custom_loop), _event_fn(event_fn)
         {
+            set_graph(base);
+            
             auto ptr = new impl_t([this](){
                 if(_graph == NULL)
                     return;
@@ -97,6 +99,10 @@ namespace gui {
             init(title);
         }
         
+        void set_graph(DrawStructure& base) {
+            _graph = &base;
+            
+        }
         void init(const std::string& title);
         ~IMGUIBase();
         

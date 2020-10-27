@@ -20,6 +20,8 @@ file(GLOB SRCS
     main.cpp
     VideoOpener.cpp
     VideoOpener.h
+    ../grabber/default_config.cpp
+    ../grabber/default_config.h
     gfx/TRexIcon16.png
     gfx/TRexIcon32.png
     gfx/TRexIcon64.png

@@ -1,14 +1,6 @@
 #ifndef _STRINGUTILS_H
 #define _STRINGUTILS_H
 
-#ifdef _WIN32
-#include <direct.h>
-#define GetCurrentDir _getcwd
-#else
-#include <unistd.h>
-#define GetCurrentDir getcwd
-#endif
-
 #include <string>
 #include <vector>
 #include <cctype>

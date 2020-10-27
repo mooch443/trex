@@ -1007,6 +1007,9 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
                 //_all_textures[this].insert(tex_cache);
             }
             
+            if(!static_cast<ExternalImage*>(o)->source())
+                break;
+            
             auto image_size = static_cast<ExternalImage*>(o)->source()->bounds().size();
             if(image_size.empty())
                 break;

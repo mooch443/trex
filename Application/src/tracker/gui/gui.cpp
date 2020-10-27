@@ -882,23 +882,29 @@ void GUI::start_recording() {
         }
         
         size_t max_number = 0;
-        for(auto &file : frames.find_files()) {
-            auto name = file.filename().to_string();
-            if(utils::beginsWith(name, "clip")) {
-                try {
-                    if(utils::endsWith(name, ".avi"))
-                        name = name.substr(0, name.length() - 4);
-                    auto number = Meta::fromStr<size_t>(name.substr(std::string("clip").length()));
-                    if(number > max_number)
-                        max_number = number;
-                    
-                } catch(const std::exception& e) {
-                    Except("%S not a number ('%s').", &name, e.what());
+        try {
+            for(auto &file : frames.find_files()) {
+                auto name = file.filename().to_string();
+                if(utils::beginsWith(name, "clip")) {
+                    try {
+                        if(utils::endsWith(name, ".avi"))
+                            name = name.substr(0, name.length() - 4);
+                        auto number = Meta::fromStr<size_t>(name.substr(std::string("clip").length()));
+                        if(number > max_number)
+                            max_number = number;
+                        
+                    } catch(const std::exception& e) {
+                        Except("%S not a number ('%s').", &name, e.what());
+                    }
                 }
             }
+            
+            ++max_number;
+            
+        } catch(const UtilsException& ex) {
+            Warning("Cannot iterate on folder '%S'. Defaulting to index 0.", &frames.str());
         }
         
-        ++max_number;
         Debug("Clip index is %d. Starting at frame %d.", max_number, frame());
         
         frames = frames / ("clip" + Meta::toStr(max_number));

@@ -88,8 +88,8 @@ namespace gui {
         GETTER_PTR(Drawable*, hovered_object)
         GETTER_PTR(Drawable*, selected_object)
         
-        GETTER_CONST(const uint16_t, width)
-        GETTER_CONST(const uint16_t, height)
+        GETTER(uint16_t, width)
+        GETTER(uint16_t, height)
         GETTER(Vec2, scale)
         GETTER(std::atomic_bool, changed)
         GETTER_SETTER(Vec2, dialog_window_size)
@@ -123,6 +123,7 @@ namespace gui {
         }
         
         void draw_log_messages();
+        void set_size(const Size2& size);
         
         std::vector<Drawable*> collect();
         bool is_key_pressed(Codes code) const;

@@ -22,39 +22,74 @@ class FileChooser {
         operator std::string() const override;
     };
     
-    DrawStructure _graph;
+public:
+    struct Settings {
+        std::string name;
+        std::string extension;
+        derived_ptr<Entangled> content;
+        
+        bool is_valid_extension(const file::Path& path) const {
+            return file::valid_extension(path, extension);
+        }
+        
+        std::string toStr() const {
+            return name;
+        }
+        
+        static std::string class_name() {
+            return "FileChooser::Settings";
+        }
+    };
+    
+protected:
+    GETTER_NCONST(std::unique_ptr<DrawStructure>, graph)
     derived_ptr<Text> _description;
     derived_ptr<StaticText> _selected_text;
-    derived_ptr<Entangled> _extra;
     derived_ptr<ScrollableList<FileItem>> _list;
-    derived_ptr <Button> _button;
-    derived_ptr <Textfield> _textfield;
+    derived_ptr<Button> _button;
+    derived_ptr<Textfield> _textfield;
     derived_ptr<VerticalLayout> _rows;
     derived_ptr<HorizontalLayout> _columns;
     derived_ptr<VerticalLayout> _overall;
+    derived_ptr<HorizontalLayout> _tabs_bar;
+    std::vector<Layout::Ptr> tabs_elements;
     IMGUIBase _base;
     std::vector<FileItem> _names;
     
     file::Path _path;
-    std::string _filter;
     bool _running;
     
     std::set<file::Path, std::function<bool(const file::Path&, const file::Path&)>> _files;
     file::Path _selected_file, _confirmed_file;
-    std::function<void(const file::Path&)> _callback, _on_select_callback;
+    std::function<void(const file::Path&, std::string)> _callback, _on_select_callback;
+    std::function<void(DrawStructure&)> _on_update;
+    std::function<bool(file::Path)> _validity;
+    std::function<void(file::Path)> _on_open;
     std::queue<std::function<void()>> _execute;
     std::mutex _execute_mutex;
+    std::map<std::string, Settings> _tabs;
+    GETTER(Settings, current_tab)
+    Settings _default_tab;
     
 public:
-    FileChooser(const file::Path& start, const std::string& filter_extension, std::function<void(const file::Path&)> callback, std::function<void(const file::Path&)> on_select_callback= [](auto&){}, derived_ptr<Entangled> extra = nullptr);
+    FileChooser(const file::Path& start, const std::string& extension,
+                std::function<void(const file::Path&, std::string)> callback,
+                std::function<void(const file::Path&, std::string)> on_select_callback = nullptr);
     
+    void set_tabs(const std::vector<Settings>&);
+    void set_tab(std::string);
     void open();
     void execute(std::function<void()>&&);
     void update_size();
+    void set_on_update(std::function<void(DrawStructure&)>&&);
+    void set_on_open(std::function<void(file::Path)>&& fn) { _on_open = std::move(fn); }
+    void set_validity_check(std::function<bool(file::Path)>&& fn) { _validity = std::move(fn); }
     
 private:
     void file_selected(size_t i, file::Path path);
     void update_names();
+    void update_tabs();
+    void change_folder(const file::Path&);
 };
 
 }

@@ -78,6 +78,14 @@
 
 #include <opencv2/core/utils/logger.hpp>
 
+#ifdef _WIN32
+#include <direct.h>
+#define GetCurrentDir _getcwd
+#else
+#include <unistd.h>
+#define GetCurrentDir getcwd
+#endif
+
 //-Functions-------------------------------------------------------------------
 
 using namespace track;
@@ -432,7 +440,7 @@ int main(int argc, char** argv)
                         fwrite(rst.data(), sizeof(char), rst.length(), f);
                         fclose(f);
                         
-                        printf("%s\n", rst.c_str());
+                        //printf("%s\n", rst.c_str());
                         Debug("Saved at '%S'.", &path.str());
                         
                         exit(0);
@@ -518,11 +526,25 @@ int main(int argc, char** argv)
         if((GlobalSettings::map().has("nowindow") ? SETTING(nowindow).value<bool>() : false) == false) {
             gui::VideoOpener opener;
             opening_result = opener._result;
-
-            if(opening_result.load_results)
-                load_results = true;
-            if(!opening_result.load_results_from.empty())
-                load_results_from = opening_result.load_results_from;
+            
+            if(opening_result.tab.extension == "pv") {
+                if(opening_result.load_results)
+                    load_results = true;
+                if(!opening_result.load_results_from.empty())
+                    load_results_from = opening_result.load_results_from;
+            } else {
+                auto wd = SETTING(wd).value<file::Path>();
+                Debug("Opening a video file: '%S', '%S'", &opening_result.tab.name, &wd.str());
+#if defined(__APPLE__)
+                wd = wd / ".." / ".." / ".." / "TGrabs.app" / "Contents" / "MacOS" / "TGrabs";
+#else
+                wd = wd / "tgrabs";
+#endif
+                auto exec = wd.str() + " " + opening_result.cmd;
+                Debug("Executing '%S'", &exec);
+                file::exec(exec.c_str());
+                exit(0);
+            }
         }
         
         if(SETTING(filename).value<Path>().empty()) {

@@ -188,8 +188,8 @@ namespace gui {
         
         if(c) {
 #ifndef NDEBUG
-            if(!Drawable::name().empty())
-                Debug("Changed '%S' content (%d children, %f width).", &Drawable::name(), _children.size(), width());
+//            if(!Drawable::name().empty())
+//                Debug("Changed '%S' content (%d children, %f width).", &Drawable::name(), _children.size(), width());
 #endif
             /*SectionInterface* p = this;
             while((p = p->parent()) != nullptr) {
@@ -212,10 +212,6 @@ namespace gui {
     
     void Entangled::before_draw() {
         _content_changed_while_updating = false;
-#ifndef NDEBUG
-        if(!Drawable::name().empty() && _content_changed)
-            Debug("Calling before draw: '%S' (%d).", &Drawable::name(), _content_changed ? 1 : 0);
-#endif
         update();
         
         for(auto c : _children) {

@@ -25,6 +25,7 @@ set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "")
 
 #set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 
+option(TREX_BUILD_DOCS OFF)
 option(TREX_WITH_TESTS OFF)
 option(TREX_BUILD_GLFW OFF)
 option(TREX_BUILD_PNG OFF)
@@ -963,6 +964,25 @@ foreach(dir ${dirs})
   message(STATUS "dir='${dir}'")
 endforeach()
 
-
-
 add_subdirectory(src)
+
+if(NOT WIN32 AND ${TREX_BUILD_DOCS})
+find_package(Sphinx)
+if(NOT Sphinx_FOUND)
+message(ERROR "Cannot find Sphinx executable")
+else()
+message(STATUS "Found sphinx.")
+
+add_custom_target(
+  doc ALL
+  COMMAND $<TARGET_FILE:TRex> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
+  COMMAND $<TARGET_FILE:TGrabs> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
+  COMMAND make html
+  DEPENDS
+    TRex
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/../docs
+  COMMENT "Generating API documentation with Doxygen"
+  VERBATIM
+)
+endif()
+endif()
