@@ -542,11 +542,23 @@ int main(int argc, char** argv)
     #endif
                     auto exec = wd.str() + " " + opening_result.cmd;
                     Debug("Executing '%S'", &exec);
+                    
+#if defined(WIN32)
+                    STARTUPINFO info={sizeof(info)};
+                    PROCESS_INFORMATION processInfo;
+                    if (CreateProcess(wd.c_str(), opening_result.cmd.c_str(), NULL, NULL, TRUE, 0, NULL, NULL, &info, &processInfo))
+                    {
+                        WaitForSingleObject(processInfo.hProcess, INFINITE);
+                        CloseHandle(processInfo.hProcess);
+                        CloseHandle(processInfo.hThread);
+                    }
+#else
                     auto pid = fork();
                     if(pid == 0) {
                         file::exec(exec.c_str());
                         exit(0);
                     }
+#endif
                     return 0;
                 }
             } else
