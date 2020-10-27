@@ -9,11 +9,15 @@
 #include <processing/RawProcessing.h>
 #include <grabber/default_config.h>
 
+#define TEMP_SETTING(NAME) (gui::temp_settings[#NAME])
+
 namespace gui {
+GlobalSettings::docs_map_t temp_docs;
+sprite::Map temp_settings;
 
 VideoOpener::VideoOpener() {
-    grab::default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
-    ::default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+    grab::default_config::get(temp_settings, temp_docs, nullptr);
+    //::default_config::get(GlobalSettings::map(), temp_docs, nullptr);
     
     _horizontal = std::make_shared<gui::HorizontalLayout>();
     _extra = std::make_shared<gui::VerticalLayout>();
@@ -25,7 +29,7 @@ VideoOpener::VideoOpener() {
     
     _horizontal->set_children({_infos, _extra});
     
-    SETTING(output_name) = file::Path("video");
+    TEMP_SETTING(output_name) = file::Path("video");
     
     _horizontal_raw = std::make_shared<gui::HorizontalLayout>();
     _raw_settings = std::make_shared<gui::VerticalLayout>();
@@ -34,18 +38,18 @@ VideoOpener::VideoOpener() {
     _screenshot = std::make_shared<gui::ExternalImage>();
     _text_fields.clear();
     _text_fields["output_name"] = LabeledField("output name");
-    _text_fields["output_name"]._text_field->set_text(SETTING(output_name).get().valueString());
+    _text_fields["output_name"]._text_field->set_text(TEMP_SETTING(output_name).get().valueString());
     _text_fields["output_name"]._text_field->on_text_changed([this](){
         file::Path number = _text_fields["output_name"]._text_field->text();
-        SETTING(output_name) = number;
+        TEMP_SETTING(output_name) = number;
     });
     
     _text_fields["threshold"] = LabeledField("threshold");
-    _text_fields["threshold"]._text_field->set_text(SETTING(threshold).get().valueString());
+    _text_fields["threshold"]._text_field->set_text(TEMP_SETTING(threshold).get().valueString());
     _text_fields["threshold"]._text_field->on_text_changed([this](){
         try {
             auto number = Meta::fromStr<int>(_text_fields["threshold"]._text_field->text());
-            SETTING(threshold) = number;
+            TEMP_SETTING(threshold) = number;
             
             if(_buffer) {
                 _buffer->_threshold = number;
@@ -56,11 +60,11 @@ VideoOpener::VideoOpener() {
         }
     });
     _text_fields["average_samples"] = LabeledField("average_samples");
-    _text_fields["average_samples"]._text_field->set_text(SETTING(average_samples).get().valueString());
+    _text_fields["average_samples"]._text_field->set_text(TEMP_SETTING(average_samples).get().valueString());
     _text_fields["average_samples"]._text_field->on_text_changed([this](){
         try {
             auto number = Meta::fromStr<int>(_text_fields["average_samples"]._text_field->text());
-            SETTING(average_samples) = number;
+            TEMP_SETTING(average_samples) = number;
             
             if(_buffer) {
                 _buffer->restart_background();
@@ -161,7 +165,7 @@ VideoOpener::VideoOpener() {
             if(_result.tab.extension == "pv") {
                 // PV file, no need to add cmd
             } else if(!_result.selected_file.empty()) {
-                _result.cmd = "-i '" + path.str() + "' " + "-o '"+SETTING(output_name).value<file::Path>().str()+"' -threshold "+SETTING(threshold).get().valueString()+" -average_samples "+SETTING(average_samples).get().valueString()+ " -reset_average";
+                _result.cmd = "-i '" + path.str() + "' " + "-o '"+TEMP_SETTING(output_name).value<file::Path>().str()+"' -threshold "+TEMP_SETTING(threshold).get().valueString()+" -average_samples "+TEMP_SETTING(average_samples).get().valueString()+ " -reset_average";
             }
             
             if(_load_results_checkbox && _load_results_checkbox->checked()) {
@@ -247,7 +251,7 @@ void VideoOpener::BufferedVideo::restart_background() {
     //_accumulator = cv::Mat::zeros(img.rows, img.cols, CV_32FC1);
     
     _background_thread = std::make_unique<std::thread>([this](){
-        int step = max(1, int(_background_video->length() / max(2.0, double(SETTING(average_samples).value<int>()))));
+        int step = max(1, int(_background_video->length() / max(2.0, double(TEMP_SETTING(average_samples).value<int>()))));
         Debug("Start calculating background in %d steps", step);
         cv::Mat flt, img;
         
@@ -372,7 +376,7 @@ void VideoOpener::select_file(const file::Path &p) {
             
             std::lock_guard guard(_video_mutex);
             {
-                SETTING(output_name) = file::Path("video");
+                TEMP_SETTING(output_name) = file::Path("video");
                 auto filename = p;
                 
                 if(p.has_extension())
@@ -384,8 +388,8 @@ void VideoOpener::select_file(const file::Path &p) {
                 
                 filename = filename.filename();
                 
-                SETTING(output_name) = filename;
-                if(SETTING(output_name).value<file::Path>().empty()) {
+                TEMP_SETTING(output_name) = filename;
+                if(TEMP_SETTING(output_name).value<file::Path>().empty()) {
                     Warning("No output filename given. Defaulting to 'video'.");
                 } else
                     Warning("Given empty filename, the program will default to using input basename '%S'.", &filename.str());
