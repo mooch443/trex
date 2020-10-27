@@ -31,7 +31,7 @@ public:
         cv::Mat _local;
         gpuMat _flt, _img, _mask, _diff, _alpha, _output;
         cv::Mat _accumulator, _background_copy;
-        bool _set_copy_background;
+        bool _set_copy_background = false;
         uint64_t _background_samples = 0;
         uint64_t _background_video_index = 0;
         
@@ -42,7 +42,7 @@ public:
         std::atomic<bool> _terminate = false, _terminate_background = false;
         std::atomic<double> _playback_index = 0;
         Timer _video_timer;
-        double _seconds_between_frames;
+        double _seconds_between_frames = 0;
         
         std::atomic<uint32_t> _threshold = 0;
         

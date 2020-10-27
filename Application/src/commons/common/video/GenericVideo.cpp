@@ -1,6 +1,7 @@
 #include "GenericVideo.h"
 #include <misc/Timer.h>
 #include <misc/GlobalSettings.h>
+#include <grabber/default_config.h>
 
 using namespace cmn;
 
@@ -111,8 +112,8 @@ void GenericVideo::generate_average(cv::Mat &av, uint64_t frameIndex) {
     gpuMat f, ref;
     std::vector<gpuMat> vec;
     
-    std::string averaging_method = GlobalSettings::has("averaging_method") ?  utils::lowercase(SETTING(averaging_method).value<std::string>()) : "mean";
-    bool use_mean = averaging_method != "max" && averaging_method != "min";
+    auto averaging_method = GlobalSettings::has("averaging_method") ?  SETTING(averaging_method).value<grab::averaging_method_t::Class>() : grab::averaging_method_t::mean;
+    bool use_mean = averaging_method != grab::averaging_method_t::max && averaging_method != grab::averaging_method_t::min;
     Debug("Use max: %d", !use_mean);
     
     if(average.empty() || average.cols != size().width || average.rows != size().height) {
@@ -146,7 +147,7 @@ void GenericVideo::generate_average(cv::Mat &av, uint64_t frameIndex) {
         } else {
             ref.copyTo(local);
             
-            if(averaging_method == "max")
+            if(averaging_method == grab::averaging_method_t::max)
                 av = cv::max(av, local);
             else
                 av = cv::min(av, local);

@@ -4,6 +4,9 @@
 #include <misc/GlobalSettings.h>
 
 namespace grab {
+    ENUM_CLASS(averaging_method_t, mean, mode, max, min);
+    ENUM_CLASS_HAS_DOCS(averaging_method_t);
+
 namespace default_config {
     using namespace cmn;
     

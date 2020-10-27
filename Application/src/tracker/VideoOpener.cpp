@@ -37,6 +37,7 @@ VideoOpener::VideoOpener() {
     _raw_info->set_policy(gui::VerticalLayout::LEFT);
     _screenshot = std::make_shared<gui::ExternalImage>();
     _text_fields.clear();
+
     _text_fields["output_name"] = LabeledField("output name");
     _text_fields["output_name"]._text_field->set_text(TEMP_SETTING(output_name).get().valueString());
     _text_fields["output_name"]._text_field->on_text_changed([this](){
@@ -54,11 +55,10 @@ VideoOpener::VideoOpener() {
             if(_buffer) {
                 _buffer->_threshold = number;
             }
-            
-        } catch(...) {
-            
-        }
+
+        } catch(...) {}
     });
+
     _text_fields["average_samples"] = LabeledField("average_samples");
     _text_fields["average_samples"]._text_field->set_text(TEMP_SETTING(average_samples).get().valueString());
     _text_fields["average_samples"]._text_field->on_text_changed([this](){
@@ -69,9 +69,23 @@ VideoOpener::VideoOpener() {
             if(_buffer) {
                 _buffer->restart_background();
             }
-        } catch(...) {
-            
+
+        } catch(...) {}
+    });
+
+    _text_fields["averaging_method"] = LabeledField("averaging_method");
+    _text_fields["averaging_method"]._text_field->set_text(TEMP_SETTING(average_samples).get().valueString());
+    _text_fields["averaging_method"]._text_field->on_text_changed([this]() {
+        try {
+            auto number = Meta::fromStr<grab::averaging_method_t::Class>(_text_fields["averaging_method"]._text_field->text());
+            TEMP_SETTING(average_samples) = number;
+
+            if (_buffer) {
+                _buffer->restart_background();
+            }
+
         }
+        catch (...) {}
     });
     
     std::vector<Layout::Ptr> objects{};

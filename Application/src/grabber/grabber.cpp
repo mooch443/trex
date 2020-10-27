@@ -791,8 +791,8 @@ bool FrameGrabber::add_image_to_average(const Image_t& current) {
             _current_image = nullptr;
         }
         
-        static std::string averaging_method = GlobalSettings::has("averaging_method") ?  utils::lowercase(SETTING(averaging_method).value<std::string>()) : "mean";
-        static bool use_mean = averaging_method != "max" && averaging_method != "min";
+        static auto averaging_method = GlobalSettings::has("averaging_method") ?  utils::lowercase(SETTING(averaging_method).value<grab::averaging_method_t::Class>()) : grab::averaging_method_t::mean;
+        static bool use_mean = averaging_method != grab::averaging_method_t::max && averaging_method != grab::averaging_method_t::max;
         static gpuMat empty_image;
         if(empty_image.empty())
             empty_image = gpuMat::zeros(_cropped_size.height, _cropped_size.width, CV_8UC1);
@@ -815,9 +815,9 @@ bool FrameGrabber::add_image_to_average(const Image_t& current) {
                 _current_average.copyTo(local_av);
                 empty_image.copyTo(local);
                 
-                if(averaging_method == "max")
+                if(averaging_method == grab::averaging_method_t::max)
                     _current_average = cv::max(local, local_av);
-                else if(averaging_method == "min")
+                else if(averaging_method == grab::averaging_method_t::min)
                     _current_average = cv::min(local, local_av);
             }
         }

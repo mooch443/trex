@@ -12,6 +12,8 @@
 
 namespace grab {
 
+    ENUM_CLASS_DOCS(averaging_method_t, "Mean", "Mode", "Min", "Max");
+
 #ifndef WIN32
 struct passwd *pw = getpwuid(getuid());
 const char *homedir = pw->pw_dir;
@@ -118,7 +120,7 @@ namespace default_config {
         CONFIG("correct_luminance", false, "Attempts to correct for badly lit backgrounds by evening out luminance across the background.", STARTUP);
         CONFIG("equalize_histogram", false, "Equalizes the histogram of the image before thresholding and background subtraction.");
         CONFIG("quit_after_average", false, "If set to true, this will terminate the program directly after generating (or loading) a background average image.", STARTUP);
-        CONFIG("averaging_method", std::string("mean"), "This can be either 'mean', 'mode', 'min' or 'max'. All accumulated background images (to be used for generating an average background) will be combined using the max or mean function.");
+        CONFIG("averaging_method", averaging_method_t::mean, "Determines the way in which the background samples are combined. The background generated in the process will be used to subtract background from foreground objects during conversion.");
         CONFIG("average_samples", int(100), "Number of samples taken to generate an average image. Usually has to be less if `average_method` is set to max.");
         CONFIG("reset_average", false, "If set to true, the average will be regenerated using the live stream of images (video or camera).");
         
