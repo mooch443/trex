@@ -212,6 +212,10 @@ VideoOpener::VideoOpener() {
         return false;
     });
     
+    _file_chooser->set_on_open([this](auto){
+        _buffer = nullptr;
+    });
+    
     _file_chooser->open();
 }
 

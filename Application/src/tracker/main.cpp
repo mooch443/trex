@@ -542,8 +542,12 @@ int main(int argc, char** argv)
     #endif
                     auto exec = wd.str() + " " + opening_result.cmd;
                     Debug("Executing '%S'", &exec);
-                    file::exec(exec.c_str());
-                    exit(0);
+                    auto pid = fork();
+                    if(pid == 0) {
+                        file::exec(exec.c_str());
+                        exit(0);
+                    }
+                    return 0;
                 }
             } else
                 SETTING(filename) = file::Path();
