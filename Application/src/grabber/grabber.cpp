@@ -701,7 +701,7 @@ void FrameGrabber::initialize_video() {
     }
     
     if(filenames.size() == 1) {
-        _video = new VideoSource(filenames.front());
+        _video = new VideoSource(filenames.front().str());
         
     } else {
         _video = new VideoSource(filenames);
@@ -725,11 +725,7 @@ void FrameGrabber::initialize_video() {
     if(!SETTING(mask_path).value<file::Path>().empty()) {
         auto path = pv::DataLocation::parse("input", SETTING(mask_path).value<file::Path>());
         if(path.exists()) {
-            auto folder = path.remove_filename();
-            auto ext = path.extension().to_string();
-            auto base = path.remove_extension();
-            
-            _video_mask = new VideoSource(base.str(), ext);
+            _video_mask = new VideoSource(path.str());
         }
     }
     

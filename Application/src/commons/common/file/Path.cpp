@@ -1,4 +1,5 @@
 #include "Path.h"
+#include <cstdlib>
 #if WIN32
 #include "../dirent.h"
 #define OS_SEP '\\'
@@ -161,8 +162,7 @@ namespace file {
 #if WIN32
 			if (!folder.empty() && folder.back() == ':')
 				continue;
-
-			if(_mkdir(folder.c_str()) != 0) {
+			if(CreateDirectory(folder.c_str(), NULL)) {
 #else
             if(mkdir(folder.c_str(), ACCESSPERMS) != 0) {
 #endif
@@ -231,8 +231,11 @@ namespace file {
                     U_EXCEPTION("Unknown file type '%S'.", &file.str());
             }
         }
-        
+#if defined(WIN32)
+        return RemoveDirectory(str().c_str());
+#else
         return rmdir(str().c_str()) == 0;
+#endif
     }
         
         bool valid_extension(const file::Path& path, const std::string& filter_extension) {
