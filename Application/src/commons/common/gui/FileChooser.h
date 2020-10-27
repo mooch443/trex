@@ -60,7 +60,8 @@ protected:
     bool _running;
     
     std::set<file::Path, std::function<bool(const file::Path&, const file::Path&)>> _files;
-    file::Path _selected_file, _confirmed_file;
+    file::Path _selected_file;
+    GETTER(file::Path, confirmed_file)
     std::function<void(const file::Path&, std::string)> _callback, _on_select_callback;
     std::function<void(DrawStructure&)> _on_update;
     std::function<bool(file::Path)> _validity;

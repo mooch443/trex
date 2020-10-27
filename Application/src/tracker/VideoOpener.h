@@ -16,6 +16,7 @@ public:
         std::string load_results_from;
         std::string cmd;
         FileChooser::Settings tab;
+        file::Path selected_file;
         bool load_results;
         
         Result() : load_results(false) {}
@@ -76,12 +77,12 @@ public:
     struct LabeledField {
         gui::derived_ptr<gui::Text> _text;
         gui::derived_ptr<gui::Textfield> _text_field;
-        gui::derived_ptr<gui::HorizontalLayout> _joint;
+        //gui::derived_ptr<gui::HorizontalLayout> _joint;
         
         LabeledField(const std::string& name = "")
             : _text(std::make_shared<gui::Text>(name)),
-              _text_field(std::make_shared<gui::Textfield>("", Bounds(0, 0, 500 - _text->width() - 80, 33))),
-              _joint(std::make_shared<gui::HorizontalLayout>(std::vector<Layout::Ptr>{_text, _text_field}))
+              _text_field(std::make_shared<gui::Textfield>("", Bounds(0, 0, 400, 33)))
+              //_joint(std::make_shared<gui::HorizontalLayout>(std::vector<Layout::Ptr>{_text, _text_field}))
         {
             _text->set_font(Font(0.75, Style::Bold));
             _text->set_color(White);

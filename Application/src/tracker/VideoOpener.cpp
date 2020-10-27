@@ -43,27 +43,37 @@ VideoOpener::VideoOpener() {
     _text_fields["threshold"] = LabeledField("threshold");
     _text_fields["threshold"]._text_field->set_text(SETTING(threshold).get().valueString());
     _text_fields["threshold"]._text_field->on_text_changed([this](){
-        auto number = Meta::fromStr<int>(_text_fields["threshold"]._text_field->text());
-        SETTING(threshold) = number;
-        
-        if(_buffer) {
-            _buffer->_threshold = number;
+        try {
+            auto number = Meta::fromStr<int>(_text_fields["threshold"]._text_field->text());
+            SETTING(threshold) = number;
+            
+            if(_buffer) {
+                _buffer->_threshold = number;
+            }
+            
+        } catch(...) {
+            
         }
     });
     _text_fields["average_samples"] = LabeledField("average_samples");
     _text_fields["average_samples"]._text_field->set_text(SETTING(average_samples).get().valueString());
     _text_fields["average_samples"]._text_field->on_text_changed([this](){
-        auto number = Meta::fromStr<int>(_text_fields["average_samples"]._text_field->text());
-        SETTING(average_samples) = number;
-        
-        if(_buffer) {
-            _buffer->restart_background();
+        try {
+            auto number = Meta::fromStr<int>(_text_fields["average_samples"]._text_field->text());
+            SETTING(average_samples) = number;
+            
+            if(_buffer) {
+                _buffer->restart_background();
+            }
+        } catch(...) {
+            
         }
     });
     
     std::vector<Layout::Ptr> objects{};
     for(auto &[key, ptr] : _text_fields) {
-        objects.push_back(ptr._joint);
+        objects.push_back(ptr._text);
+        objects.push_back(ptr._text_field);
     }
     
     _raw_settings->set_children(objects);
@@ -146,10 +156,11 @@ VideoOpener::VideoOpener() {
                 _result.extra_command_lines = str;
             _result.tab = _file_chooser->current_tab();
             _result.tab.content = nullptr;
+            _result.selected_file = _file_chooser->confirmed_file();
             
             if(_result.tab.extension == "pv") {
                 // PV file, no need to add cmd
-            } else {
+            } else if(!_result.selected_file.empty()) {
                 _result.cmd = "-i '" + path.str() + "' " + "-o '"+SETTING(output_name).value<file::Path>().str()+"' -threshold "+SETTING(threshold).get().valueString()+" -average_samples "+SETTING(average_samples).get().valueString()+ " -reset_average";
             }
             

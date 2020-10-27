@@ -193,15 +193,18 @@ void FileChooser::set_tabs(const std::vector<Settings>& tabs) {
         _tabs_bar = nullptr;
     }
     
-    if(_tabs_bar) {
-        _rows->set_children(std::vector<Layout::Ptr>{
-            _description, _textfield, _list
-        });
-    } else {
-        _rows->set_children(std::vector<Layout::Ptr>{
-            _description, _textfield, _list
-        });
+    std::vector<Layout::Ptr> childs;
+    if(_tabs_bar)
+        childs.push_back(_tabs_bar);
+    
+    childs.push_back(_columns);
+    
+    if(_selected_text && _button) {
+        childs.push_back(_selected_text);
+        childs.push_back(_button);
     }
+    
+    _overall->set_children(childs);
     
     if(!_tabs.empty())
         set_tab(tabs.front().name);
@@ -359,7 +362,7 @@ void FileChooser::update_size() {
     if(_tabs_bar) _tabs_bar->auto_size(Margin{0,0});
     if(_tabs_bar) _tabs_bar->update_layout();
     
-    float left_column_height = _graph->height() - 70 - 10 - (_overall->children().size() > 1 ? _button->height() + 10 : 0) - (_tabs_bar ? _tabs_bar->height() + 10 : 0) - (_selected_text && !_selected_file.empty() ? _selected_text->height() : 0);
+    float left_column_height = _graph->height() - 70 - 10 - (!_selected_file.empty() ? _button->height() + 10 : 0) - (_tabs_bar ? _tabs_bar->height() + 10 : 0) - (_selected_text && !_selected_file.empty() ? _selected_text->height() : 0);
     _list->set_bounds(Bounds(0, 0, left_column_width, left_column_height - 70));
     
     _textfield->set_bounds(Bounds(0, 0, left_column_width, 30));
