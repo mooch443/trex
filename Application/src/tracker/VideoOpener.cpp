@@ -215,7 +215,8 @@ VideoOpener::VideoOpener() {
             if(_result.tab.extension == "pv") {
                 // PV file, no need to add cmd
             } else if(!_result.selected_file.empty()) {
-                _result.cmd = "-i '" + path.str() + "' " + "-o '"+TEMP_SETTING(output_name).value<file::Path>().str()+"' -threshold "+TEMP_SETTING(threshold).get().valueString()+" -average_samples "+TEMP_SETTING(average_samples).get().valueString()+ " -reset_average";
+                _result.cmd = "-i '" + path.str() + "' " + "-o '"+TEMP_SETTING(output_name).value<file::Path>().str()+"' -threshold "+TEMP_SETTING(threshold).get().valueString()+" -average_samples "+TEMP_SETTING(average_samples).get().valueString()+ " -reset_average"
+                    +" -averaging_method "+TEMP_SETTING(averaging_method).get().valueString();
             }
             
             if(_load_results_checkbox && _load_results_checkbox->checked()) {
