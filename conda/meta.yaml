@@ -1,10 +1,11 @@
 package:
   name: trex
-  version: "1.0.3"
+  version: "1.0.4"
   
 source:
     git_url: https://github.com/mooch443/trex.git
     git_depth: 1
+    git_rev: 3454b0cbcea146ee3d5790189adea6447837eb3b
 
 build:
     number: 5
