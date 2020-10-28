@@ -274,11 +274,22 @@ void FrameGrabber::prepare_average() {
     Debug("--- done preparing");
 }
 
+template<typename F>
+auto async_deferred(F&& func) -> std::future<decltype(func())>
+{
+    auto task   = std::packaged_task<decltype(func())()>(std::forward<F>(func));
+    auto future = task.get_future();
+
+    std::thread(std::move(task)).detach();
+
+    return std::move(future);
+}
+
 FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_starting)
   : //_current_image(NULL),
     _current_average_timestamp(0),
     _average_finished(false),
-    _average_samples(0),
+    _average_samples(0), _last_index(0),
     _video(NULL), _video_mask(NULL),
     _camera(NULL),
     _current_fps(0), _fps(0),
@@ -367,11 +378,64 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
         _current_average_timestamp = 1337;
         
     } else {
-        initialize_video();
+        std::vector<file::Path> filenames;
+        auto video_source = SETTING(video_source).value<std::string>();
+        try {
+            filenames = Meta::fromStr<std::vector<file::Path>>(video_source);
+            if(filenames.size() > 1) {
+                Debug("Found an array of filenames (%d).", filenames.size());
+            } else if(filenames.size() == 1) {
+                SETTING(video_source) = filenames.front();
+                filenames.clear();
+            } else
+                U_EXCEPTION("Empty input filename '%S'. Please specify an input name.", &video_source);
+            
+        } catch(const illegal_syntax& e) {
+            // ... do nothing
+        }
+        
+        if(filenames.empty()) {
+            auto filepath = file::Path(SETTING(video_source).value<std::string>());
+            if(filepath.remove_filename().empty()) {
+                auto path = (SETTING(output_dir).value<file::Path>() / filepath);
+                filenames.push_back(path);
+            } else
+                filenames.push_back(filepath);
+        }
+        
+        for(auto &name : filenames) {
+            name = pv::DataLocation::parse("input", name);
+        }
+        
+        if(filenames.size() == 1) {
+            _video = new VideoSource(filenames.front().str());
+            
+        } else {
+            _video = new VideoSource(filenames);
+        }
+        
+        int frame_rate = _video->framerate();
+        if(frame_rate == -1) {
+            frame_rate = 25;
+        }
+        
+        if(SETTING(frame_rate).value<int>() == -1) {
+            Debug("Setting frame rate to %d (from video).", frame_rate);
+            SETTING(frame_rate) = frame_rate;
+        } else if(SETTING(frame_rate).value<int>() != frame_rate) {
+            Warning("Overwriting default frame rate of %d with %d.", frame_rate, SETTING(frame_rate).value<int>());
+        }
+        
+        if(!SETTING(mask_path).value<file::Path>().empty()) {
+            auto path = pv::DataLocation::parse("input", SETTING(mask_path).value<file::Path>());
+            if(path.exists()) {
+                _video_mask = new VideoSource(path.str());
+            }
+        }
     }
     
     // determine recording resolution and set it
-	_cam_size = determine_resolution();
+    _cam_size = determine_resolution();
     SETTING(video_size) = Size2(_cam_size) * GRAB_SETTINGS(cam_scale);
     
 #if WITH_FFMPEG
@@ -402,6 +466,39 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
         tracker = new track::Tracker();
         Output::Library::Init();
     }
+    
+    // determine offsets
+    CropOffsets roff = SETTING(crop_offsets);
+    _processed.set_offsets(roff);
+    
+    _crop_rect = roff.toPixels(_cam_size);
+    _cropped_size = cv::Size(_crop_rect.width * GRAB_SETTINGS(cam_scale), _crop_rect.height * GRAB_SETTINGS(cam_scale));
+    
+    {
+        std::lock_guard<std::mutex> guard(_camera_lock);
+        if(_camera) {
+            _processed.set_resolution(_cropped_size);
+            _camera->set_crop(_crop_rect);
+        }
+    }
+    
+    // create mask if necessary
+    if(SETTING(cam_circle_mask)) {
+        cv::Mat mask = cv::Mat::zeros(_cropped_size.height, _cropped_size.width, CV_8UC1);
+        cv::circle(mask, cv::Point(mask.cols/2, mask.rows/2), min(mask.cols, mask.rows)/2, cv::Scalar(1), -1);
+        _processed.set_mask(mask);
+    }
+    
+    _task._complete = false;
+    _task._future = async_deferred([this, callback = std::move(callback_before_starting)]() mutable {
+        initialize(std::move(callback));
+        _task._complete = true;
+    });
+}
+
+void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_before_starting) {
+    if(_video)
+        initialize_video();
     
     if (GRAB_SETTINGS(enable_closed_loop)) {
         track::PythonIntegration::set_settings(GlobalSettings::instance());
@@ -452,21 +549,6 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
     _average.copyTo(_original_average);
     callback_before_starting(*this);
     
-    // determine offsets
-    CropOffsets roff = SETTING(crop_offsets);
-    _processed.set_offsets(roff);
-    
-    _crop_rect = roff.toPixels(_cam_size);
-    _cropped_size = cv::Size(_crop_rect.width * GRAB_SETTINGS(cam_scale), _crop_rect.height * GRAB_SETTINGS(cam_scale));
-    
-    {
-        std::lock_guard<std::mutex> guard(_camera_lock);
-        if(_camera) {
-            _processed.set_resolution(_cropped_size);
-            _camera->set_crop(_crop_rect);
-        }
-    }
-    
     if(_video) {
         _average.copyTo(_original_average);
         prepare_average();
@@ -474,17 +556,10 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
         _current_average_timestamp = 42;
     }
     
-    // create mask if necessary
-    if(SETTING(cam_circle_mask)) {
-        cv::Mat mask = cv::Mat::zeros(_cropped_size.height, _cropped_size.width, CV_8UC1);
-        cv::circle(mask, cv::Point(mask.cols/2, mask.rows/2), min(mask.cols, mask.rows)/2, cv::Scalar(1), -1);
-        _processed.set_mask(mask);
-    }
-    
     //auto epoch = std::chrono::time_point<std::chrono::system_clock>();
     _start_timing = _video && !_video->has_timestamps() ? 0 : UINT64_MAX;//Image::clock_::now();
     _real_timing = std::chrono::system_clock::now();
-	
+    
     _analysis = new std::decay<decltype(*_analysis)>::type(
           [&]() -> Image_t* { // create object
               return new Image_t(_cam_size.height, _cam_size.width);
@@ -671,63 +746,8 @@ file::Path FrameGrabber::average_name() const {
 }
 
 void FrameGrabber::initialize_video() {
-    std::vector<file::Path> filenames;
-    auto video_source = SETTING(video_source).value<std::string>();
-    try {
-        filenames = Meta::fromStr<std::vector<file::Path>>(video_source);
-        if(filenames.size() > 1) {
-            Debug("Found an array of filenames (%d).", filenames.size());
-        } else if(filenames.size() == 1) {
-            SETTING(video_source) = filenames.front();
-            filenames.clear();
-        } else
-            U_EXCEPTION("Empty input filename '%S'. Please specify an input name.", &video_source);
-        
-    } catch(const illegal_syntax& e) {
-        // ... do nothing
-    }
-    
-    if(filenames.empty()) {
-        auto filepath = file::Path(SETTING(video_source).value<std::string>());
-        if(filepath.remove_filename().empty()) {
-            auto path = (SETTING(output_dir).value<file::Path>() / filepath);
-            filenames.push_back(path);
-        } else
-            filenames.push_back(filepath);
-    }
-    
-    for(auto &name : filenames) {
-        name = pv::DataLocation::parse("input", name);
-    }
-    
-    if(filenames.size() == 1) {
-        _video = new VideoSource(filenames.front().str());
-        
-    } else {
-        _video = new VideoSource(filenames);
-    }
-    
-    int frame_rate = _video->framerate();
-    if(frame_rate == -1) {
-        frame_rate = 25;
-    }
-    
     auto path = average_name();
     Debug("Saving average at or loading from '%S'.", &path.str());
-    
-    if(SETTING(frame_rate).value<int>() == -1) {
-        Debug("Setting frame rate to %d (from video).", frame_rate);
-        SETTING(frame_rate) = frame_rate;
-    } else if(SETTING(frame_rate).value<int>() != frame_rate) {
-        Warning("Overwriting default frame rate of %d with %d.", frame_rate, SETTING(frame_rate).value<int>());
-    }
-    
-    if(!SETTING(mask_path).value<file::Path>().empty()) {
-        auto path = pv::DataLocation::parse("input", SETTING(mask_path).value<file::Path>());
-        if(path.exists()) {
-            _video_mask = new VideoSource(path.str());
-        }
-    }
     
     if(path.exists()) {
         if(SETTING(reset_average)) {
@@ -791,8 +811,9 @@ bool FrameGrabber::add_image_to_average(const Image_t& current) {
             _current_image = nullptr;
         }
         
-        static auto averaging_method = GlobalSettings::has("averaging_method") ?  utils::lowercase(SETTING(averaging_method).value<grab::averaging_method_t::Class>()) : grab::averaging_method_t::mean;
-        static bool use_mean = averaging_method != grab::averaging_method_t::max && averaging_method != grab::averaging_method_t::max;
+        static auto averaging_method = GlobalSettings::has("averaging_method") ? SETTING(averaging_method).value<averaging_method_t::Class>() : averaging_method_t::mean;
+        static bool use_mean = averaging_method != averaging_method_t::max
+            && averaging_method != averaging_method_t::max;
         static gpuMat empty_image;
         if(empty_image.empty())
             empty_image = gpuMat::zeros(_cropped_size.height, _cropped_size.width, CV_8UC1);
@@ -815,9 +836,9 @@ bool FrameGrabber::add_image_to_average(const Image_t& current) {
                 _current_average.copyTo(local_av);
                 empty_image.copyTo(local);
                 
-                if(averaging_method == grab::averaging_method_t::max)
+                if(averaging_method == averaging_method_t::max)
                     _current_average = cv::max(local, local_av);
-                else if(averaging_method == grab::averaging_method_t::min)
+                else if(averaging_method == averaging_method_t::min)
                     _current_average = cv::min(local, local_av);
             }
         }
@@ -1355,6 +1376,11 @@ void FrameGrabber::update_fps(long_t index, uint64_t stamp, uint64_t tdelta, uin
 Queue::Code FrameGrabber::process_image(Image_t& current) {
     static Timing timing("process_image", 10);
     TakeTiming take(timing);
+    
+    if(_task._valid && _task._complete) {
+        _task._future.get();
+        _task._valid = false;
+    }
     
     ensure_average_is_ready();
     

@@ -30,9 +30,9 @@ public:
         gpuMat _background_image;
         cv::Mat _local;
         gpuMat _flt, _img, _mask, _diff, _alpha, _output;
-        cv::Mat _accumulator, _background_copy;
-        bool _set_copy_background = false;
-        uint64_t _background_samples = 0;
+        std::unique_ptr<Image> _background_copy;
+        std::unique_ptr<AveragingAccumulator<>> _accumulator;
+        //uint64_t _background_samples = 0;
         uint64_t _background_video_index = 0;
         
         std::mutex _frame_mutex;
@@ -81,7 +81,7 @@ public:
         
         LabeledField(const std::string& name = "")
             : _text(std::make_shared<gui::Text>(name)),
-              _text_field(std::make_shared<gui::Textfield>("", Bounds(0, 0, 400, 33)))
+              _text_field(std::make_shared<gui::Textfield>("", Bounds(0, 0, 300, 33)))
               //_joint(std::make_shared<gui::HorizontalLayout>(std::vector<Layout::Ptr>{_text, _text_field}))
         {
             _text->set_font(Font(0.75, Style::Bold));

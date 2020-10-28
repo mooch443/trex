@@ -108,9 +108,21 @@ public:
     typedef ImageThreads AnalysisType;
     
     static track::Tracker* tracker_instance();
+    struct Task {
+        std::future<void> _future;
+        std::atomic<bool> _complete = false;
+        std::atomic<bool> _valid = true;
+        
+        Task() = default;
+        Task(Task&& task)
+            : _future(std::move(task._future)), _complete(task._complete.load()), _valid(task._valid.load())
+        {}
+    };
     
 protected:
-    cv::Size _cam_size;
+    Task _task;
+    
+    GETTER(cv::Size, cam_size)
     GETTER(cv::Size, cropped_size)
     GETTER(Bounds, crop_rect)
     
@@ -254,6 +266,7 @@ private:
     
     void crop_and_scale(gpuMat&);
     bool add_image_to_average(const Image_t&);
+    void initialize(std::function<void(FrameGrabber&)>&& callback_before_starting);
 };
 
 #endif

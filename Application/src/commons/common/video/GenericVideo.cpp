@@ -2,8 +2,18 @@
 #include <misc/Timer.h>
 #include <misc/GlobalSettings.h>
 #include <grabber/default_config.h>
+#include <misc/Image.h>
 
 using namespace cmn;
+
+namespace cmn {
+ENUM_CLASS_DOCS(averaging_method_t,
+    "Sum all samples and divide by N.",
+    "Calculate a per-pixel median of the samples.",
+    "Use a per-pixel minimum across samples.",
+    "Use a per-pixel maximum across samples."
+);
+}
 
 CropOffsets GenericVideo::crop_offsets() const {
     return SETTING(crop_offsets);
@@ -98,75 +108,38 @@ void GenericVideo::processImage(const gpuMat& display, gpuMat&out, bool do_mask)
 }
 
 void GenericVideo::generate_average(cv::Mat &av, uint64_t frameIndex) {
-    gpuMat average;
-    av.copyTo(average);
+    if(length() < 10) {
+        gpuMat average;
+        av.copyTo(average);
+        this->processImage(average, average);
+        return;
+    }
+    AveragingAccumulator accumulator;
     
-    Debug("Generating average for frame %d...", frameIndex);
+    Debug("Generating average for frame %d (method='%s')...", frameIndex, accumulator.mode().name());
     
-    //const uint64_t channel = SETTING(color_channel);
     double count = 0;
     float samples = GlobalSettings::has("average_samples") ? SETTING(average_samples).value<int>() : (length() * 0.01);
     const int step = max(1, length() / samples);
     
-    gpuMat float_mat;
-    gpuMat f, ref;
-    std::vector<gpuMat> vec;
-    
-    auto averaging_method = GlobalSettings::has("averaging_method") ?  SETTING(averaging_method).value<grab::averaging_method_t::Class>() : grab::averaging_method_t::mean;
-    bool use_mean = averaging_method != grab::averaging_method_t::max && averaging_method != grab::averaging_method_t::min;
-    Debug("Use max: %d", !use_mean);
-    
-    if(average.empty() || average.cols != size().width || average.rows != size().height) {
-        average = gpuMat::zeros(size().height, size().width, use_mean ? CV_32FC1 : CV_8UC1);
-    } else
-        average = cv::Scalar(0);
-    
-    if (length() < 10) {
-        processImage(average, average);
-        return;
-    }
-    
-    if(use_mean)
-        float_mat = gpuMat::zeros(average.rows, average.cols, CV_32FC1);
-    else
-        float_mat = gpuMat::zeros(average.rows, average.cols, CV_8UC1);
-    
-    cv::Mat local;
-    //for (uint64_t i=0; i<length(); i+=step) {
+    cv::Mat f;
     uint64_t counted = 0;
     for(long_t i=length() ? length()-1 : 0; i>=0; i-=step) {
         frame(i, f);
         
         assert(f.channels() == 1);
-        ref = f;
-        
-        if(use_mean) {
-            ref.convertTo(float_mat, CV_32FC1, 1.0/255.0);
-            //Debug("%d,%d - %d,%d", float_mat.cols, float_mat.rows, average.cols, average.rows);
-            cv::add(average, float_mat, average);
-        } else {
-            ref.copyTo(local);
-            
-            if(averaging_method == grab::averaging_method_t::max)
-                av = cv::max(av, local);
-            else
-                av = cv::min(av, local);
-        }
-        
-        ++count;
+        accumulator.add(f);
         counted += step;
         
         if(counted > float(length()) * 0.1) {
             Debug("generating average: %d/%d step:%d (frame %d)", (samples - i) / step, int(samples), step, i);
             counted = 0;
         }
+        
         if(GlobalSettings::has("terminate") && SETTING(terminate))
             break;
     }
     
-    if(use_mean) {
-        cv::divide(average, cv::Scalar(count), average);
-        average.convertTo(av, CV_8UC1, 255.0);
-    } else
-        average.copyTo(av);
+    auto image = accumulator.finalize();
+    image->get().copyTo(av);
 }

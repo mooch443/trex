@@ -478,21 +478,14 @@ void VideoSource::generate_average(cv::Mat &av, uint64_t) {
     gpuMat float_mat, f, ref;
     std::vector<gpuMat> vec;
     
-    AveragingMethod::Class method(AveragingMethod::mean);
-    if(GlobalSettings::has("averaging_method")) {
-        auto name = SETTING(averaging_method).value<std::string>();
-        if(AveragingMethod::has(name))
-            method = AveragingMethod::get(name);
-        else {
-            auto str = Meta::toStr(AveragingMethod::names);
-            Warning("Invalid value for 'averaging_method': '%S'. Known methods are: %S", &name, &str);
-        }
-    }
+    averaging_method_t::Class method(averaging_method_t::mean);
+    if(GlobalSettings::has("averaging_method"))
+        method = SETTING(averaging_method).value<averaging_method_t::Class>();
     //bool use_mean = GlobalSettings::has("averaging_method") && utils::lowercase(SETTING(averaging_method).value<std::string>()) != "max";
     Debug("Use averaging method: '%s'", method.name());
     
     if(average.empty() || average.cols != size().width || average.rows != size().height) {
-        average = gpuMat::zeros(size().height, size().width, method == AveragingMethod::mean ? CV_32FC1 : CV_8UC1);
+        average = gpuMat::zeros(size().height, size().width, method == averaging_method_t::mean ? CV_32FC1 : CV_8UC1);
     } else
         average = cv::Scalar(0);
     
@@ -501,10 +494,10 @@ void VideoSource::generate_average(cv::Mat &av, uint64_t) {
         return;
     }
     
-    if(method == AveragingMethod::mean)
+    if(method == averaging_method_t::mean)
         float_mat = gpuMat::zeros(average.rows, average.cols, CV_32FC1);
     else {
-        if(method == AveragingMethod::min) {
+        if(method == averaging_method_t::min) {
             cv::Mat tmp = cv::Mat::ones(average.rows, average.cols, CV_8UC1);
             tmp = tmp.mul(255);
             tmp.copyTo(float_mat);
@@ -517,14 +510,14 @@ void VideoSource::generate_average(cv::Mat &av, uint64_t) {
     uint64_t step = max(1, _files_in_seq.size() < samples ? 1 : ceil(_files_in_seq.size() / samples));
     uint64_t frames_per_file = max(1, _files_in_seq.size() < samples ? (length() / _files_in_seq.size()) / (length() / samples) : 1);
     
-    if(samples > 255 && method == AveragingMethod::mode)
+    if(samples > 255 && method == averaging_method_t::mode)
         U_EXCEPTION("Cannot take more than 255 samples with 'averaging_method' = 'mode'. Choose fewer samples or a different averaging method.");
     std::map<File*, std::set<uint64_t>> file_indexes;
     
     //std::vector<std::map<uchar, uint8_t>> spatial_histogram;
     std::vector<std::array<uint8_t, 256>> spatial_histogram;
     std::vector<std::unique_ptr<std::mutex>> spatial_mutex;
-    if(method == AveragingMethod::mode) {
+    if(method == averaging_method_t::mode) {
         spatial_histogram.resize(average.cols * average.rows);
         for(uint64_t i=0; i<spatial_histogram.size(); ++i) {
             std::fill(spatial_histogram.at(i).begin(), spatial_histogram.at(i).end(), 0);
@@ -556,7 +549,7 @@ void VideoSource::generate_average(cv::Mat &av, uint64_t) {
             cv::Mat float_mat;
             cv::Mat average;
             
-            if(method == AveragingMethod::min) {
+            if(method == averaging_method_t::min) {
                 average = cv::Mat::ones(gAverage->rows, gAverage->cols, gAverage->type());
                 cv::multiply(average, cv::Scalar(255), average);
             } else
@@ -569,12 +562,12 @@ void VideoSource::generate_average(cv::Mat &av, uint64_t) {
                     file->frame(index, f, true);
                     assert(f.channels() == 1);
                     
-                    if(method == AveragingMethod::mean) {
+                    if(method == averaging_method_t::mean) {
                         //Debug("%d,%d - %d,%d", float_mat.cols, float_mat.rows, average.cols, average.rows);
                         f.convertTo(float_mat, CV_32FC1, 1.0/255.0);
                         cv::add(average, float_mat, average);
                         
-                    } else if(method == AveragingMethod::mode) {
+                    } else if(method == averaging_method_t::mode) {
                         assert(f.isContinuous());
                         
                         auto ptr = f.data;
@@ -594,9 +587,9 @@ void VideoSource::generate_average(cv::Mat &av, uint64_t) {
                                 ++(*array_ptr)[*ptr];
                         }
                         
-                    } else if(method == AveragingMethod::max) {
+                    } else if(method == averaging_method_t::max) {
                         average = cv::max(average, f);
-                    } else if(method == AveragingMethod::min) {
+                    } else if(method == averaging_method_t::min) {
                         average = cv::min(average, f);
                     } else
                         U_EXCEPTION("Unknown averaging_method '%s'.", method.name())
@@ -618,15 +611,15 @@ void VideoSource::generate_average(cv::Mat &av, uint64_t) {
             file->close();
             
             std::lock_guard<std::mutex> guard(mutex);
-            if(method == AveragingMethod::mean) {
+            if(method == averaging_method_t::mean) {
                 *gCount += count;
                 cv::add(average, *gAverage, *gAverage);
-            } else if(method == AveragingMethod::mode) {
+            } else if(method == averaging_method_t::mode) {
                 
             } else {
                 if(gAv->empty())
                     *gAv = average;
-                else if(method == AveragingMethod::max)
+                else if(method == averaging_method_t::max)
                     *gAv = cv::max(average, *gAv);
                 else
                     *gAv = cv::min(average, *gAv);
@@ -645,11 +638,11 @@ void VideoSource::generate_average(cv::Mat &av, uint64_t) {
     if(SETTING(terminate))
         return;
     
-    if(method == AveragingMethod::mean) {
+    if(method == averaging_method_t::mean) {
         cv::divide(average, cv::Scalar(count), average);
         average.convertTo(av, CV_8UC1, 255.0);
         
-    } else if(method == AveragingMethod::mode) {
+    } else if(method == averaging_method_t::mode) {
         Debug("Combining mode image...");
         average.copyTo(av);
         

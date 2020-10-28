@@ -74,11 +74,11 @@ VideoOpener::VideoOpener() {
     });
 
     _text_fields["averaging_method"] = LabeledField("averaging_method");
-    _text_fields["averaging_method"]._text_field->set_text(TEMP_SETTING(average_samples).get().valueString());
+    _text_fields["averaging_method"]._text_field->set_text(TEMP_SETTING(averaging_method).get().valueString());
     _text_fields["averaging_method"]._text_field->on_text_changed([this]() {
         try {
-            auto number = Meta::fromStr<grab::averaging_method_t::Class>(_text_fields["averaging_method"]._text_field->text());
-            TEMP_SETTING(average_samples) = number;
+            auto number = Meta::fromStr<averaging_method_t::Class>(_text_fields["averaging_method"]._text_field->text());
+            TEMP_SETTING(averaging_method) = number;
 
             if (_buffer) {
                 _buffer->restart_background();
@@ -262,9 +262,11 @@ void VideoOpener::BufferedVideo::restart_background() {
         resize_image(img, 500 / double(max(img.cols, img.rows)));
     
     img.convertTo(_background_image, CV_32FC1);
-    _background_image.copyTo(_accumulator);
+    _accumulator = std::make_unique<AveragingAccumulator<>>(TEMP_SETTING(averaging_method).value<averaging_method_t::Class>());
+    _accumulator->add(img);
+    //_background_image.copyTo(_accumulator);
     
-    _background_samples = 1;
+    //_background_samples = 1;
     _background_video_index = 0;
     //_accumulator = cv::Mat::zeros(img.rows, img.cols, CV_32FC1);
     
@@ -280,17 +282,20 @@ void VideoOpener::BufferedVideo::restart_background() {
             if(max(img.cols, img.rows) > 500)
                 resize_image(img, 500 / double(max(img.cols, img.rows)));
             
-            img.convertTo(flt, CV_32FC1);
+            /*img.convertTo(flt, CV_32FC1);
             if(!_accumulator.empty())
                 cv::add(_accumulator, flt, _accumulator);
             else
                 flt.copyTo(_accumulator);
-            ++_background_samples;
+            ++_background_samples;*/
+            
+            _accumulator->add(img);
+            
             Debug("%d/%d (%d)", _background_video_index, _background_video->length(), step);
+            auto image = _accumulator->finalize();
             
             std::lock_guard guard(_frame_mutex);
-            cv::divide(_accumulator, cv::Scalar(_background_samples), _background_copy);
-            _set_copy_background = true;
+            _background_copy = std::move(image);
         }
         
         Debug("Done calculating background");
@@ -356,9 +361,9 @@ void VideoOpener::BufferedVideo::update_loop() {
         
         {
             std::lock_guard frame_guard(_frame_mutex);
-            if(_set_copy_background) {
-                _set_copy_background = false;
-                _background_copy.copyTo(_background_image);
+            if(_background_copy) {
+                _background_copy->get().convertTo(_background_image, CV_32FC1);
+                _background_copy = nullptr;
             }
             cv::absdiff(_background_image, _flt, _diff);
         }

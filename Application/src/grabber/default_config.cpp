@@ -2,6 +2,7 @@
 #include <misc/SpriteMap.h>
 #include <file/Path.h>
 #include <misc/CropOffsets.h>
+#include <video/GenericVideo.h>
 
 #ifndef WIN32
 #include <unistd.h>
@@ -11,9 +12,6 @@
 #include <misc/default_settings.h>
 
 namespace grab {
-
-    ENUM_CLASS_DOCS(averaging_method_t, "Mean", "Mode", "Min", "Max");
-
 #ifndef WIN32
 struct passwd *pw = getpwuid(getuid());
 const char *homedir = pw->pw_dir;

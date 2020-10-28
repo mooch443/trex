@@ -26,7 +26,7 @@ GUI* GUI::instance() {
 GUI::GUI(FrameGrabber& grabber)
 : _grabber(grabber),
     _crop_offsets(SETTING(crop_offsets).value<CropOffsets>()),
-    _size(grabber.processed().header().resolution),
+    _size(grabber.cam_size().width, grabber.cam_size().height),
     _cropped_size(grabber.cropped_size()),
     //_window_scale(min((sf::VideoMode::getDesktopMode().height - 250 > _cropped_size.height * 1.8f ? 1.8f : ((sf::VideoMode::getDesktopMode().height - 250) / float(_cropped_size.height))),
     //               (sf::VideoMode::getDesktopMode().width - 250 > _cropped_size.width * 1.8f ? 1.8f : ((sf::VideoMode::getDesktopMode().width - 250) / float(_cropped_size.width))))),

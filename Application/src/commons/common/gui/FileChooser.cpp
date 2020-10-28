@@ -14,6 +14,7 @@ FileChooser::FileChooser(const file::Path& start, const std::string& extension,
     _overall(std::make_shared<VerticalLayout>()),
     _base("Choose file", *_graph, [this](){
         using namespace gui;
+        tf::show();
         
         {
             std::lock_guard<std::mutex> guard(_execute_mutex);

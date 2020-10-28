@@ -8,13 +8,6 @@
 #define VIDEO_SEQUENCE_INVALID_VALUE (-1)
 #define VIDEO_SEQUENCE_UNSPECIFIED_VALUE (-2)
 
-ENUM_CLASS(AveragingMethod,
-           mean,
-           max,
-           min,
-           mode
-)
-
 namespace cmn {
     class Video;
     class VideoSource;

@@ -39,13 +39,19 @@ TGrabs parameters
 	.. seealso:: :func:`average_method`, 
 
 
-.. function:: averaging_method(string)
+.. function:: averaging_method(averaging_method_t)
 	:noindex:
 
-	**default value:** "mean"
+	**default value:** mean
 
+	**possible values:**
+		- `mean`: Sum all samples and divide by N.
+		- `mode`: Calculate a per-pixel median of the samples.
+		- `max`: Use a per-pixel minimum across samples.
+		- `min`: Use a per-pixel maximum across samples.
 
-	This can be either 'mean', 'mode', 'min' or 'max'. All accumulated background images (to be used for generating an average background) will be combined using the max or mean function.
+	Determines the way in which the background samples are combined. The background generated in the process will be used to subtract background from foreground objects during conversion.
+
 
 
 
