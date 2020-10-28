@@ -83,7 +83,7 @@ public:
             : _text(std::make_shared<gui::Text>(name))
               //_joint(std::make_shared<gui::HorizontalLayout>(std::vector<Layout::Ptr>{_text, _text_field}))
         {
-            _text->set_font(Font(0.75, Style::Bold));
+            _text->set_font(Font(0.6));
             _text->set_color(White);
         }
         
@@ -111,6 +111,16 @@ public:
         void add_to(std::vector<Layout::Ptr>& v) override {
             LabeledField::add_to(v);
             v.push_back(_dropdown);
+        }
+        void update() override;
+    };
+    struct LabeledCheckbox : public LabeledField {
+        gui::derived_ptr<gui::Checkbox> _checkbox;
+        sprite::Reference _ref;
+        LabeledCheckbox(const std::string& name = "");
+        void add_to(std::vector<Layout::Ptr>& v) override {
+            LabeledField::add_to(v);
+            v.push_back(_checkbox);
         }
         void update() override;
     };

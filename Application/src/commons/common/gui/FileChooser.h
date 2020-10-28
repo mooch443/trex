@@ -66,6 +66,7 @@ protected:
     std::function<void(DrawStructure&)> _on_update;
     std::function<bool(file::Path)> _validity;
     std::function<void(file::Path)> _on_open;
+    std::function<void(std::string)> _on_tab_change;
     std::queue<std::function<void()>> _execute;
     std::mutex _execute_mutex;
     std::map<std::string, Settings> _tabs;
@@ -82,8 +83,9 @@ public:
     void open();
     void execute(std::function<void()>&&);
     void update_size();
-    void set_on_update(std::function<void(DrawStructure&)>&&);
-    void set_on_open(std::function<void(file::Path)>&& fn) { _on_open = std::move(fn); }
+    void on_update(std::function<void(DrawStructure&)>&& fn) { _on_update = std::move(fn); }
+    void on_open(std::function<void(file::Path)>&& fn) { _on_open = std::move(fn); }
+    void on_tab_change(std::function<void(std::string)>&& fn) { _on_tab_change = std::move(fn); }
     void set_validity_check(std::function<bool(file::Path)>&& fn) { _validity = std::move(fn); }
     
 private:

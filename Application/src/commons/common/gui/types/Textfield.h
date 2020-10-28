@@ -50,6 +50,8 @@ namespace gui {
             
             _font = font;
             _text_display.set_font(font);
+            if(_placeholder)
+                _placeholder->set_font(font);
             
             set_content_changed(true);
         }

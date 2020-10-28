@@ -15,12 +15,33 @@ namespace gui {
 GlobalSettings::docs_map_t temp_docs;
 sprite::Map temp_settings;
 
+VideoOpener::LabeledCheckbox::LabeledCheckbox(const std::string& name)
+    : LabeledField(name),
+      _checkbox(std::make_shared<gui::Checkbox>(Vec2(), name)),
+      _ref(gui::temp_settings[name])
+{
+    _checkbox->set_checked(_ref.value<bool>());
+    _checkbox->set_font(Font(0.6));
+
+    _checkbox->on_change([this](){
+        try {
+            _ref.get() = _checkbox->checked();
+
+        } catch(...) {}
+    });
+}
+
+void VideoOpener::LabeledCheckbox::update() {
+    _checkbox->set_checked(_ref.value<bool>());
+}
+
 VideoOpener::LabeledTextField::LabeledTextField(const std::string& name)
     : LabeledField(name),
-      _text_field(std::make_shared<gui::Textfield>("", Bounds(0, 0, 300, 33))),
+      _text_field(std::make_shared<gui::Textfield>("", Bounds(0, 0, 300, 28))),
       _ref(gui::temp_settings[name])
 {
     _text_field->set_placeholder(name);
+    _text_field->set_font(Font(0.6));
 
     _text_field->set_text(_ref.get().valueString());
     _text_field->on_text_changed([this](){
@@ -37,9 +58,10 @@ void VideoOpener::LabeledTextField::update() {
 
 VideoOpener::LabeledDropDown::LabeledDropDown(const std::string& name)
     : LabeledField(name),
-      _dropdown(std::make_shared<gui::Dropdown>(Bounds(0, 0, 300, 33))),
+      _dropdown(std::make_shared<gui::Dropdown>(Bounds(0, 0, 300, 28))),
       _ref(gui::temp_settings[name])
 {
+    _dropdown->textfield()->set_font(Font(0.6));
     assert(_ref.get().is_enum());
     std::vector<Dropdown::TextItem> items;
     int index = 0;
@@ -79,6 +101,7 @@ VideoOpener::VideoOpener() {
     TEMP_SETTING(output_name) = file::Path("video");
     
     _horizontal_raw = std::make_shared<gui::HorizontalLayout>();
+    _horizontal_raw->set_clickable(true);
     _raw_settings = std::make_shared<gui::VerticalLayout>();
     _raw_info = std::make_shared<gui::VerticalLayout>();
     _raw_info->set_policy(gui::VerticalLayout::LEFT);
@@ -101,14 +124,16 @@ VideoOpener::VideoOpener() {
     _text_fields["average_samples"] = std::make_unique<LabeledTextField>("average_samples");
     _text_fields["averaging_method"] = std::make_unique<LabeledDropDown>("averaging_method");
     
-    std::vector<Layout::Ptr> objects{};
+    std::vector<Layout::Ptr> objects{
+        Layout::Ptr(std::make_shared<Text>("Settings", Vec2(), White, gui::Font(0.8, Style::Bold)))
+    };
     for(auto &[key, ptr] : _text_fields)
         ptr->add_to(objects);
     
     _raw_settings->set_children(objects);
     
-    _raw_description = std::make_shared<gui::StaticText>("Info", Vec2(), Size2(500, -1));
-    _raw_info->set_children({_screenshot, _raw_description});
+    _raw_description = std::make_shared<gui::StaticText>("Info", Vec2(), Size2(400, -1), Font(0.6));
+    _raw_info->set_children({Layout::Ptr(std::make_shared<Text>("Preview", Vec2(), White, gui::Font(0.8, Style::Bold))), _screenshot, _raw_description});
     _horizontal_raw->set_children({_raw_settings, _raw_info});
     _horizontal_raw->set_policy(gui::HorizontalLayout::TOP);
     
@@ -200,14 +225,16 @@ VideoOpener::VideoOpener() {
             
         }
         
-    }, [this](auto& path, std::string tab){ select_file(path); });
+    }, [this](auto& path, std::string tab) {
+        select_file(path);
+    });
     
     _file_chooser->set_tabs({
         FileChooser::Settings{std::string("Pre-processed (PV)"), std::string("pv"), _horizontal},
         FileChooser::Settings{std::string("Convert (RAW)"), std::string("mp4;avi;mov;flv;m4v;webm"), _horizontal_raw}
     });
     
-    _file_chooser->set_on_update([this](auto&) mutable {
+    _file_chooser->on_update([this](auto&) mutable {
         std::lock_guard guard(_video_mutex);
         if(_buffer) {
             auto image = _buffer->next();
@@ -237,7 +264,11 @@ VideoOpener::VideoOpener() {
         return false;
     });
     
-    _file_chooser->set_on_open([this](auto){
+    _file_chooser->on_open([this](auto){
+        _buffer = nullptr;
+    });
+    
+    _file_chooser->on_tab_change([this](auto){
         _buffer = nullptr;
     });
     
@@ -403,9 +434,12 @@ std::unique_ptr<Image> VideoOpener::BufferedVideo::next() {
 
 void VideoOpener::select_file(const file::Path &p) {
     const double max_width = 500;
+    std::lock_guard guard(_file_chooser->graph()->lock());
     
-    if(!p.empty() && (!p.has_extension() || p.extension() != "pv")) {
+    if(_file_chooser->current_tab().extension != "pv") {
         try {
+            if(p.empty())
+                U_EXCEPTION("No file selected.");
             Debug("Opening '%S'", &p.str());
             
             std::lock_guard guard(_video_mutex);
@@ -443,6 +477,17 @@ void VideoOpener::select_file(const file::Path &p) {
                 Except("Converting number: '%s'", e.what());
             }
             
+            {
+                std::string info_text = "<h3>Info</h3>\n";
+                info_text += "<key>resolution</key>: <ref><nr>"+Meta::toStr(_buffer->_video->size().width)+"</nr>x<nr>"+Meta::toStr(_buffer->_video->size().height)+"</nr></ref>\n";
+                
+                DurationUS us{ uint64_t( _buffer->_video->length() / double(_buffer->_video->framerate()) * 1000.0 * 1000.0 ) };
+                auto len = us.to_html();
+                info_text += "<key>length</key>: <ref>"+len+"</ref>";
+                
+                _raw_description->set_txt(info_text);
+            }
+            
             auto ratio = max_width / _screenshot->size().max();
             Debug("%f (%f / %f)", ratio, max_width, _screenshot->size().max());
             _screenshot->set_scale(Vec2(ratio));
@@ -452,6 +497,7 @@ void VideoOpener::select_file(const file::Path &p) {
             _horizontal_raw->auto_size(Margin{0, 0});
             
         } catch(const std::exception& e) {
+            std::lock_guard guard(_video_mutex);
             Except("Cannot open file '%S' (%s)", &p.str(), e.what());
             
             cv::Mat img = cv::Mat::zeros(max_width, max_width, CV_8UC1);
@@ -503,6 +549,7 @@ void VideoOpener::select_file(const file::Path &p) {
     std::vector<Layout::Ptr> children {
         Layout::Ptr(std::make_shared<Text>("Settings", Vec2(), White, gui::Font(0.8, Style::Bold)))
     };
+    
     for(auto &name : _settings_to_show) {
         std::string start;
         if(tmp[name].is_type<std::string>())
@@ -511,7 +558,7 @@ void VideoOpener::select_file(const file::Path &p) {
             start = tmp[name].get().valueString();
         
         if(tmp[name].is_type<bool>()) {
-            children.push_back( Layout::Ptr(std::make_shared<Checkbox>(Vec2(), name, tmp[name].get().value<bool>(), gui::Font(0.7, Style::Bold))) );
+            children.push_back( Layout::Ptr(std::make_shared<Checkbox>(Vec2(), name, tmp[name].get().value<bool>(), gui::Font(0.6))) );
         } else if(name == "output_prefix") {
             std::vector<std::string> folders;
             for(auto &p : _selected.remove_filename().find_files()) {
@@ -526,12 +573,14 @@ void VideoOpener::select_file(const file::Path &p) {
                 }
             }
             
-            children.push_back( Layout::Ptr(std::make_shared<Text>(name, Vec2(), White, gui::Font(0.7, Style::Bold))) );
-            children.push_back( Layout::Ptr(std::make_shared<Dropdown>(Bounds(0, 0, 300, 30), folders)) );
+            children.push_back( Layout::Ptr(std::make_shared<Text>(name, Vec2(), White, gui::Font(0.6))) );
+            children.push_back( Layout::Ptr(std::make_shared<Dropdown>(Bounds(0, 0, 300, 28), folders)) );
+            ((Dropdown*)children.back().get())->textfield()->set_font(Font(0.6));
             
         } else {
-            children.push_back( Layout::Ptr(std::make_shared<Text>(name, Vec2(), White, gui::Font(0.7, Style::Bold))) );
-            children.push_back( Layout::Ptr(std::make_shared<Textfield>(start, Bounds(0, 0, 300, 30))));
+            children.push_back( Layout::Ptr(std::make_shared<Text>(name, Vec2(), White, gui::Font(0.6))) );
+            children.push_back( Layout::Ptr(std::make_shared<Textfield>(start, Bounds(0, 0, 300, 28))));
+            ((Textfield*)children.back().get())->set_font(Font(0.6));
         }
         
         if(name == "output_prefix") {

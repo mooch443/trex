@@ -1186,6 +1186,8 @@ int main(int argc, char** argv)
                         Debug("Paused.");
                     }
                 });
+                
+                Debug("Added.");
             }
         }
     });

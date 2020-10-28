@@ -71,6 +71,31 @@ namespace cmn {
             return ss.str();
         }
         
+        std::string to_html() const {
+            static constexpr std::array<cmn::string_view, 5> names{{"us", "ms", "s", "min", "h"}};
+            static constexpr std::array<double, 5> ratios{{1000, 1000, 60, 60, 24}};
+            
+            double scaled = timestamp, previous_scaled = 0;
+            size_t i = 0;
+            while(i < ratios.size()-1 && scaled >= ratios[i]) {
+                scaled /= ratios[i];
+                
+                previous_scaled = scaled - size_t(scaled);
+                previous_scaled *= ratios[i];
+                
+                i++;
+            }
+            
+            size_t sub_part = (size_t)previous_scaled;
+            
+            std::stringstream ss;
+            ss << "<nr>" << std::fixed << std::setprecision(0) << scaled << "</nr>";
+            if(i>0 && i > 2)
+                ss << ":<nr>" << std::setfill('0') << std::setw(2) << sub_part << "</nr>";
+            ss << std::string(names[i].begin(), names[i].end());
+            return ss.str();
+        }
+        
         static DurationUS fromStr(const std::string&) {
             U_EXCEPTION("Not implemented.");
             return DurationUS{0};

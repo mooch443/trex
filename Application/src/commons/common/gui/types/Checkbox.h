@@ -21,7 +21,7 @@ protected:
 public:
     Checkbox(const Vec2& pos, const std::string& text = "", bool checked = false, const Font& font = Font(0.75));
     
-    void set_callback(const decltype(_callback)& callback) {
+    void on_change(const decltype(_callback)& callback) {
         _callback = callback;
     }
     

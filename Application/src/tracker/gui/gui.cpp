@@ -1220,11 +1220,12 @@ void GUI::reanalyse_from(long_t frame, bool in_thread) {
             gui->analysis()->set_paused(true).get();
         
         {
+            Tracker::instance()->wait();
+            
             std::lock_guard<std::recursive_mutex> gguard(gui->gui().lock());
             Tracker::LockGuard guard("reanalyse_from");
             
             if(frame <= Tracker::end_frame()) {
-                Tracker::instance()->wait();
                 Tracker::instance()->_remove_frames(frame);
                 gui->removed_frames(frame);
                 

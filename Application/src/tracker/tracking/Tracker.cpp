@@ -350,9 +350,10 @@ void Tracker::analysis_state(AnalysisState pause) {
         
         if (!callback_registered) {
             auto variable_changed = [](auto&map, auto&key, auto&value){ if(contains(Settings::names(), key)) {
-                Tracker::LockGuard guard("changed_settings");
-                Settings :: variable_changed(map, key, value);
-            }};
+                    Tracker::LockGuard guard("changed_settings");
+                    Settings :: variable_changed(map, key, value);
+                }
+            };
             cmn::GlobalSettings::map().register_callback((void*)"Settings", variable_changed);
             for(auto &n : Settings :: names())
                 variable_changed(cmn::GlobalSettings::map(), n, cmn::GlobalSettings::get(n).get());
@@ -3458,7 +3459,6 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
     }
 
     void Tracker::wait() {
-        LockGuard guard("Tracker::wait()");
         recognition_pool.wait();
     }
 
