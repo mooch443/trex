@@ -28,7 +28,7 @@ void GenericVideo::undistort(const gpuMat& disp, gpuMat &image) const {
         if(map2.empty())
             GlobalSettings::get("cam_undistort2").value<cv::Mat>().copyTo(map2);
         
-        if(map1.cols == disp.cols && map1.rows == disp.cols && map2.cols == disp.cols && map2.rows == disp.rows)
+        if(map1.cols == disp.cols && map1.rows == disp.rows && map2.cols == disp.cols && map2.rows == disp.rows)
         {
             if(!map1.empty() && !map2.empty()) {
                 Debug("Undistorting %dx%d", disp.cols, disp.rows);

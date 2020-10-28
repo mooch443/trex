@@ -913,7 +913,7 @@ void SectionInterface::set_z_index(int index) {
         }
     }
     
-    Drawable* SectionInterface::find(float x, float y) {
+    void SectionInterface::find(float x, float y, std::vector<Drawable*>& results) {
         for(auto it = children().rbegin(); it != children().rend(); ++it) {
             auto ptr = *it;
             
@@ -924,19 +924,17 @@ void SectionInterface::set_z_index(int index) {
             if(ptr->clickable()) {
                 if(ptr->type() == Type::SECTION || ptr->type() == Type::ENTANGLED)
                 {
-                    auto found = static_cast<SectionInterface*>(ptr)->find(x, y);
-                    if(found)
-                        return found;
+                    static_cast<SectionInterface*>(ptr)->find(x, y, results);
                     
                 } else if(ptr->in_bounds(x, y))
-                    return ptr;
+                    results.push_back(ptr);
             }
         }
         
         if(!_clickable || !global_bounds().contains(x, y))
-            return NULL;
+            return;
         
-        return this;
+        results.push_back(this);
     }
     
     Drawable* SectionInterface::find(const std::string& search) {

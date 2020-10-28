@@ -6,6 +6,7 @@
 #include <gui/types/Checkbox.h>
 #include <file/Path.h>
 #include <video/VideoSource.h>
+#include <gui/types/Dropdown.h>
 
 namespace gui {
 
@@ -76,20 +77,44 @@ public:
     
     struct LabeledField {
         gui::derived_ptr<gui::Text> _text;
-        gui::derived_ptr<gui::Textfield> _text_field;
         //gui::derived_ptr<gui::HorizontalLayout> _joint;
         
         LabeledField(const std::string& name = "")
-            : _text(std::make_shared<gui::Text>(name)),
-              _text_field(std::make_shared<gui::Textfield>("", Bounds(0, 0, 300, 33)))
+            : _text(std::make_shared<gui::Text>(name))
               //_joint(std::make_shared<gui::HorizontalLayout>(std::vector<Layout::Ptr>{_text, _text_field}))
         {
             _text->set_font(Font(0.75, Style::Bold));
             _text->set_color(White);
-            _text_field->set_placeholder(name);
         }
+        
+        virtual ~LabeledField() {}
+        
+        virtual void add_to(std::vector<Layout::Ptr>& v) {
+            v.push_back(_text);
+        }
+        virtual void update() {}
     };
-    std::map<std::string, LabeledField> _text_fields;
+    struct LabeledTextField : public LabeledField {
+        gui::derived_ptr<gui::Textfield> _text_field;
+        sprite::Reference _ref;
+        LabeledTextField(const std::string& name = "");
+        void add_to(std::vector<Layout::Ptr>& v) override {
+            LabeledField::add_to(v);
+            v.push_back(_text_field);
+        }
+        void update() override;
+    };
+    struct LabeledDropDown : public LabeledField {
+        gui::derived_ptr<gui::Dropdown> _dropdown;
+        sprite::Reference _ref;
+        LabeledDropDown(const std::string& name = "");
+        void add_to(std::vector<Layout::Ptr>& v) override {
+            LabeledField::add_to(v);
+            v.push_back(_dropdown);
+        }
+        void update() override;
+    };
+    std::map<std::string, std::unique_ptr<LabeledField>> _text_fields;
     
     gui::Checkbox *_load_results_checkbox = nullptr;
     std::string _output_prefix;

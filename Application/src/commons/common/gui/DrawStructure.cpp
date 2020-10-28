@@ -483,7 +483,18 @@ namespace gui {
     
     Drawable* DrawStructure::find(float x, float y) {
         _root.update_bounds();
-        return _root.find(x, y);
+        std::vector<Drawable*> results;
+        _root.find(x, y, results);
+        
+        int64_t Z = -1;
+        Drawable* found = nullptr;
+        for(auto ptr : results) {
+            if(!found || ptr->z_index() > Z) {
+                Z = ptr->z_index();
+                found = ptr;
+            }
+        }
+        return found;
     }
     
     Drawable* DrawStructure::mouse_move(float x, float y) {

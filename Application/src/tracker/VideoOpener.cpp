@@ -15,6 +15,53 @@ namespace gui {
 GlobalSettings::docs_map_t temp_docs;
 sprite::Map temp_settings;
 
+VideoOpener::LabeledTextField::LabeledTextField(const std::string& name)
+    : LabeledField(name),
+      _text_field(std::make_shared<gui::Textfield>("", Bounds(0, 0, 300, 33))),
+      _ref(gui::temp_settings[name])
+{
+    _text_field->set_placeholder(name);
+
+    _text_field->set_text(_ref.get().valueString());
+    _text_field->on_text_changed([this](){
+        try {
+            _ref.get().set_value_from_string(_text_field->text());
+
+        } catch(...) {}
+    });
+}
+
+void VideoOpener::LabeledTextField::update() {
+    _text_field->set_text(_ref.get().valueString());
+}
+
+VideoOpener::LabeledDropDown::LabeledDropDown(const std::string& name)
+    : LabeledField(name),
+      _dropdown(std::make_shared<gui::Dropdown>(Bounds(0, 0, 300, 33))),
+      _ref(gui::temp_settings[name])
+{
+    assert(_ref.get().is_enum());
+    std::vector<Dropdown::TextItem> items;
+    int index = 0;
+    for(auto &name : _ref.get().enum_values()()) {
+        items.push_back(Dropdown::TextItem(name, index++));
+    }
+    _dropdown->set_items(items);
+    _dropdown->select_item(_ref.get().enum_index()());
+    _dropdown->textfield()->set_text(_ref.get().valueString());
+    
+    _dropdown->on_select([this](auto index, auto) {
+        try {
+            _ref.get().set_value_from_string(_ref.get().enum_values()().at(index));
+        } catch(...) {}
+        _dropdown->set_opened(false);
+    });
+}
+
+void VideoOpener::LabeledDropDown::update() {
+    _dropdown->select_item(_ref.get().enum_index()());
+}
+
 VideoOpener::VideoOpener() {
     grab::default_config::get(temp_settings, temp_docs, nullptr);
     //::default_config::get(GlobalSettings::map(), temp_docs, nullptr);
@@ -37,62 +84,26 @@ VideoOpener::VideoOpener() {
     _raw_info->set_policy(gui::VerticalLayout::LEFT);
     _screenshot = std::make_shared<gui::ExternalImage>();
     _text_fields.clear();
-
-    _text_fields["output_name"] = LabeledField("output name");
-    _text_fields["output_name"]._text_field->set_text(TEMP_SETTING(output_name).get().valueString());
-    _text_fields["output_name"]._text_field->on_text_changed([this](){
-        file::Path number = _text_fields["output_name"]._text_field->text();
-        TEMP_SETTING(output_name) = number;
-    });
     
-    _text_fields["threshold"] = LabeledField("threshold");
-    _text_fields["threshold"]._text_field->set_text(TEMP_SETTING(threshold).get().valueString());
-    _text_fields["threshold"]._text_field->on_text_changed([this](){
-        try {
-            auto number = Meta::fromStr<int>(_text_fields["threshold"]._text_field->text());
-            TEMP_SETTING(threshold) = number;
+    gui::temp_settings.register_callback((void*)this, [this](auto&map, auto&key, auto&value){
+        if(key == "threshold") {
+            if(_buffer)
+                _buffer->_threshold = value.template value<int>();
             
-            if(_buffer) {
-                _buffer->_threshold = number;
-            }
-
-        } catch(...) {}
-    });
-
-    _text_fields["average_samples"] = LabeledField("average_samples");
-    _text_fields["average_samples"]._text_field->set_text(TEMP_SETTING(average_samples).get().valueString());
-    _text_fields["average_samples"]._text_field->on_text_changed([this](){
-        try {
-            auto number = Meta::fromStr<int>(_text_fields["average_samples"]._text_field->text());
-            TEMP_SETTING(average_samples) = number;
-            
-            if(_buffer) {
+        } else if(key == "average_samples" || key == "averaging_method") {
+            if(_buffer)
                 _buffer->restart_background();
-            }
-
-        } catch(...) {}
-    });
-
-    _text_fields["averaging_method"] = LabeledField("averaging_method");
-    _text_fields["averaging_method"]._text_field->set_text(TEMP_SETTING(averaging_method).get().valueString());
-    _text_fields["averaging_method"]._text_field->on_text_changed([this]() {
-        try {
-            auto number = Meta::fromStr<averaging_method_t::Class>(_text_fields["averaging_method"]._text_field->text());
-            TEMP_SETTING(averaging_method) = number;
-
-            if (_buffer) {
-                _buffer->restart_background();
-            }
-
         }
-        catch (...) {}
     });
+
+    _text_fields["output_name"] = std::make_unique<LabeledTextField>("output_name");
+    _text_fields["threshold"] = std::make_unique<LabeledTextField>("threshold");
+    _text_fields["average_samples"] = std::make_unique<LabeledTextField>("average_samples");
+    _text_fields["averaging_method"] = std::make_unique<LabeledDropDown>("averaging_method");
     
     std::vector<Layout::Ptr> objects{};
-    for(auto &[key, ptr] : _text_fields) {
-        objects.push_back(ptr._text);
-        objects.push_back(ptr._text_field);
-    }
+    for(auto &[key, ptr] : _text_fields)
+        ptr->add_to(objects);
     
     _raw_settings->set_children(objects);
     
@@ -417,7 +428,7 @@ void VideoOpener::select_file(const file::Path &p) {
                 } else
                     Warning("Given empty filename, the program will default to using input basename '%S'.", &filename.str());
                 
-                _text_fields["output_name"]._text_field->set_text(filename.str());
+                _text_fields["output_name"]->update();
             }
             
             _buffer = std::make_unique<BufferedVideo>(p);
@@ -426,9 +437,7 @@ void VideoOpener::select_file(const file::Path &p) {
             _screenshot_previous_size = 0;
             
             try {
-                auto number = _text_fields["threshold"]._text_field->text();
-                if(!number.empty())
-                    _buffer->_threshold = Meta::fromStr<uint32_t>(number);
+                _buffer->_threshold = TEMP_SETTING(threshold).value<int>();
                 
             } catch(const std::exception &e) {
                 Except("Converting number: '%s'", e.what());

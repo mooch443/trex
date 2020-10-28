@@ -364,7 +364,7 @@ namespace gui {
         
         virtual std::vector<Drawable*>& children() = 0;
         
-        virtual Drawable* find(float x, float y);
+        virtual void find(float x, float y, std::vector<Drawable*>& results);
         virtual Drawable* find(const std::string& search);
         
         virtual void set_stage(DrawStructure*);

@@ -333,11 +333,11 @@ namespace gui {
         SectionInterface::update_bounds();
     }
     
-    Drawable* Section::find(float x, float y) {
+    void Section::find(float x, float y, std::vector<Drawable*>& results) {
         if(!enabled())
-            return NULL;
+            return;
         
-        return SectionInterface::find(x, y);
+        SectionInterface::find(x, y, results);
     }
     
     void Section::clear() {
