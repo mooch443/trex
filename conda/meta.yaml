@@ -5,10 +5,9 @@ package:
 source:
     git_url: https://github.com/mooch443/trex.git
     git_depth: 1
-    git_rev: 4ff9645ea75ab4b1be21ce409080763bcb0359ea
 
 build:
-    number: 5
+    number: 6
     string: saur
     run_exports:
         - {{ pin_compatible('ffmpeg', min_pin='x.x.x', max_pin='x.x.x') }}
