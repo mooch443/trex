@@ -99,6 +99,7 @@ VideoOpener::VideoOpener() {
     _horizontal->set_children({_infos, _extra});
     
     TEMP_SETTING(output_name) = file::Path("video");
+    TEMP_SETTING(cmd_parameters) = std::string("-reset_average");
     
     _horizontal_raw = std::make_shared<gui::HorizontalLayout>();
     _horizontal_raw->set_clickable(true);
@@ -123,6 +124,7 @@ VideoOpener::VideoOpener() {
     _text_fields["threshold"] = std::make_unique<LabeledTextField>("threshold");
     _text_fields["average_samples"] = std::make_unique<LabeledTextField>("average_samples");
     _text_fields["averaging_method"] = std::make_unique<LabeledDropDown>("averaging_method");
+    _text_fields["cmd_parameters"] = std::make_unique<LabeledTextField>("cmd_parameters");
     
     std::vector<Layout::Ptr> objects{
         Layout::Ptr(std::make_shared<Text>("Settings", Vec2(), White, gui::Font(0.8, Style::Bold)))
@@ -221,8 +223,10 @@ VideoOpener::VideoOpener() {
             if(_result.tab.extension == "pv") {
                 // PV file, no need to add cmd
             } else if(!_result.selected_file.empty()) {
-                _result.cmd = "-i '" + path.str() + "' " + "-o '"+TEMP_SETTING(output_name).value<file::Path>().str()+"' -threshold "+TEMP_SETTING(threshold).get().valueString()+" -average_samples "+TEMP_SETTING(average_samples).get().valueString()+ " -reset_average"
-                    +" -averaging_method "+TEMP_SETTING(averaging_method).get().valueString();
+                auto add = TEMP_SETTING(cmd_parameters).value<std::string>();
+                _result.cmd = "-i '" + path.str() + "' " + "-o '"+TEMP_SETTING(output_name).value<file::Path>().str()+"' -threshold "+TEMP_SETTING(threshold).get().valueString()+" -average_samples "+TEMP_SETTING(average_samples).get().valueString()
+                    +" -averaging_method "+TEMP_SETTING(averaging_method).get().valueString()
+                    +(add.empty() ? "" : " ")+add;
             }
             
             if(_load_results_checkbox && _load_results_checkbox->checked()) {
