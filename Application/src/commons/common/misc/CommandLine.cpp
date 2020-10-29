@@ -129,7 +129,7 @@ namespace cmn {
     
     void CommandLine::cd_home() {
 #if defined(WIN32)
-        if(SetCurrentDirectoryA(_wd.c_str()))
+        if(!SetCurrentDirectoryA(_wd.c_str()))
 #else
         if (chdir(_wd.str().c_str()))
 #endif
