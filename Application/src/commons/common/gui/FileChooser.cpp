@@ -33,6 +33,8 @@ FileChooser::FileChooser(const file::Path& start, const std::string& extension,
         if(_on_update)
             _on_update(*_graph);
         _graph->draw_log_messages();
+        if(_tooltip)
+            _graph->wrap_object(*_tooltip);
         
         if(!_selected_file.empty()) {
 
@@ -267,6 +269,20 @@ void FileChooser::update_names() {
             _names.push_back(FileItem(f));
     }
     _list->set_items(_names);
+}
+
+void FileChooser::set_tooltip(Drawable* ptr, const std::string& docs) {
+    if(!ptr)
+        _tooltip = nullptr;
+    else {
+        if(!_tooltip) {
+            _tooltip = std::make_shared<Tooltip>(ptr, 400);
+            _tooltip->text().set_default_font(Font(0.5));
+        } else
+            _tooltip->set_other(ptr);
+        
+        _tooltip->set_text(docs);
+    }
 }
 
 FileChooser::FileItem::FileItem(const file::Path& path) : _path(path)

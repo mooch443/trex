@@ -20,6 +20,8 @@ VideoOpener::LabeledCheckbox::LabeledCheckbox(const std::string& name)
       _checkbox(std::make_shared<gui::Checkbox>(Vec2(), name)),
       _ref(gui::temp_settings[name])
 {
+    _docs = gui::temp_docs[name];
+    
     _checkbox->set_checked(_ref.value<bool>());
     _checkbox->set_font(Font(0.6));
 
@@ -42,6 +44,8 @@ VideoOpener::LabeledTextField::LabeledTextField(const std::string& name)
 {
     _text_field->set_placeholder(name);
     _text_field->set_font(Font(0.6));
+    
+    _docs = gui::temp_docs[name];
 
     _text_field->set_text(_ref.get().valueString());
     _text_field->on_text_changed([this](){
@@ -61,6 +65,8 @@ VideoOpener::LabeledDropDown::LabeledDropDown(const std::string& name)
       _dropdown(std::make_shared<gui::Dropdown>(Bounds(0, 0, 300, 28))),
       _ref(gui::temp_settings[name])
 {
+    _docs = gui::temp_docs[name];
+    
     _dropdown->textfield()->set_font(Font(0.6));
     assert(_ref.get().is_enum());
     std::vector<Dropdown::TextItem> items;
@@ -99,7 +105,9 @@ VideoOpener::VideoOpener() {
     _horizontal->set_children({_infos, _extra});
     
     TEMP_SETTING(output_name) = file::Path("video");
+    gui::temp_docs["output_name"] = "Basename of the converted video in PV-format.";
     TEMP_SETTING(cmd_parameters) = std::string("-reset_average");
+    gui::temp_docs["cmd_parameters"] = "Additional command-line parameters for TGrabs.";
     
     _horizontal_raw = std::make_shared<gui::HorizontalLayout>();
     _horizontal_raw->set_clickable(true);
@@ -246,6 +254,49 @@ VideoOpener::VideoOpener() {
     });
     
     _file_chooser->on_update([this](auto&) mutable {
+        Drawable* found = nullptr;
+        std::string name;
+        std::unique_ptr<sprite::Reference> ref;
+        
+        if(_file_chooser->current_tab().extension == "pv") {
+            for(auto& [key, ptr] : pointers) {
+                if(ptr->hovered()) {
+                    found = ptr;
+                    name = key;
+                    ref = std::make_unique<sprite::Reference>(GlobalSettings::get(name));
+                }
+            }
+            
+        } else {
+            for(auto & [key, ptr] : _text_fields) {
+                ptr->_text->set_clickable(true);
+                
+                if(ptr->representative()->hovered()) {
+                    found = ptr->representative();
+                    name = key;
+                }
+            }
+            
+            if(found) {
+                ref = std::make_unique<sprite::Reference>(temp_settings[name]);
+            }
+        }
+        
+        if(found && ref) {
+            auto str = "<h3>"+name+"</h3>";
+            
+            str += "type: " +settings::htmlify(ref->get().type_name()) + "\n";
+            if(GlobalSettings::defaults().has(name)) {
+                auto ref = GlobalSettings::defaults().operator[](name);
+                str += "default: " +settings::htmlify(ref.get().valueString()) + "\n";
+            }
+            if(gui::temp_docs.find(name) != gui::temp_docs.end())
+                str += "\n" + settings::htmlify(gui::temp_docs[name]);
+            
+            _file_chooser->set_tooltip(found, str);
+        } else
+            _file_chooser->set_tooltip(nullptr, "");
+        
         std::lock_guard guard(_video_mutex);
         if(_buffer) {
             auto image = _buffer->next();

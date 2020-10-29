@@ -70,6 +70,7 @@ namespace gui {
         virtual const Size2& size() override;
         virtual const Bounds& bounds() override;
         void set_max_size(const Size2&);
+        void set_default_font(const Font&);
         
     private:
         void update_text();

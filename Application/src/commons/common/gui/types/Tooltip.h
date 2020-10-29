@@ -1,10 +1,12 @@
+#pragma once
+
 #include <gui/types/Entangled.h>
 #include <gui/types/StaticText.h>
 
 namespace gui {
     class Tooltip : public Entangled {
         GETTER_PTR(Drawable*, other)
-        StaticText _text;
+        GETTER_NCONST(StaticText, text)
         float _max_width;
         
     public:

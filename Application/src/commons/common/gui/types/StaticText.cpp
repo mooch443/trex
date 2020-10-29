@@ -73,6 +73,15 @@ namespace gui {
         if(_origin != Vec2(0))
             structure_changed(true);
     }
+
+void StaticText::set_default_font(const Font& font) {
+    if(font == _default_font)
+        return;
+    
+    _default_font = font;
+    set_content_changed(true);
+    update_text();
+}
             
     void StaticText::set_max_size(const Size2 &size) {
         if(size != _max_size) {

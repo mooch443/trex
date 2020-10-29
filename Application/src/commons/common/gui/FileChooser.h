@@ -7,6 +7,7 @@
 #include <gui/types/Button.h>
 #include <gui/types/Textfield.h>
 #include <gui/types/Layout.h>
+#include <gui/types/Tooltip.h>
 
 namespace gui {
 
@@ -52,6 +53,7 @@ protected:
     derived_ptr<HorizontalLayout> _columns;
     derived_ptr<VerticalLayout> _overall;
     derived_ptr<HorizontalLayout> _tabs_bar;
+    derived_ptr<Tooltip> _tooltip;
     std::vector<Layout::Ptr> tabs_elements;
     IMGUIBase _base;
     std::vector<FileItem> _names;
@@ -88,6 +90,7 @@ public:
     void on_tab_change(std::function<void(std::string)>&& fn) { _on_tab_change = std::move(fn); }
     void set_validity_check(std::function<bool(file::Path)>&& fn) { _validity = std::move(fn); }
     void deselect();
+    void set_tooltip(Drawable*, const std::string&);
     
 private:
     void file_selected(size_t i, file::Path path);

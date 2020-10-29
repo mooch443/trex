@@ -7,6 +7,7 @@
 #include <file/Path.h>
 #include <video/VideoSource.h>
 #include <gui/types/Dropdown.h>
+#include <gui/types/Tooltip.h>
 
 namespace gui {
 
@@ -81,6 +82,7 @@ public:
     
     struct LabeledField {
         gui::derived_ptr<gui::Text> _text;
+        std::string _docs;
         //gui::derived_ptr<gui::HorizontalLayout> _joint;
         
         LabeledField(const std::string& name = "")
@@ -97,6 +99,7 @@ public:
             v.push_back(_text);
         }
         virtual void update() {}
+        virtual Drawable* representative() { return _text.get(); }
     };
     struct LabeledTextField : public LabeledField {
         gui::derived_ptr<gui::Textfield> _text_field;
@@ -107,6 +110,7 @@ public:
             v.push_back(_text_field);
         }
         void update() override;
+        Drawable* representative() override { return _text_field.get(); }
     };
     struct LabeledDropDown : public LabeledField {
         gui::derived_ptr<gui::Dropdown> _dropdown;
@@ -117,6 +121,7 @@ public:
             v.push_back(_dropdown);
         }
         void update() override;
+        Drawable* representative() override { return _dropdown.get(); }
     };
     struct LabeledCheckbox : public LabeledField {
         gui::derived_ptr<gui::Checkbox> _checkbox;
@@ -127,6 +132,7 @@ public:
             v.push_back(_checkbox);
         }
         void update() override;
+        Drawable* representative() override { return _checkbox.get(); }
     };
     std::map<std::string, std::unique_ptr<LabeledField>> _text_fields;
     
