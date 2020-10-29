@@ -132,8 +132,14 @@ VideoOpener::VideoOpener() {
     
     _raw_settings->set_children(objects);
     
+    _loading_text = std::make_shared<gui::Text>("generating average", Vec2(100,0), Cyan, gui::Font(0.5));
+    
     _raw_description = std::make_shared<gui::StaticText>("Info", Vec2(), Size2(400, -1), Font(0.6));
-    _raw_info->set_children({Layout::Ptr(std::make_shared<Text>("Preview", Vec2(), White, gui::Font(0.8, Style::Bold))), _screenshot, _raw_description});
+    _raw_info->set_children({
+        Layout::Ptr(std::make_shared<Text>("Preview", Vec2(), White, gui::Font(0.8, Style::Bold))),
+        _screenshot,
+        _raw_description
+    });
     _horizontal_raw->set_children({_raw_settings, _raw_info});
     _horizontal_raw->set_policy(gui::HorizontalLayout::TOP);
     
@@ -247,13 +253,22 @@ VideoOpener::VideoOpener() {
                     
                     const double max_width = 500;
                     auto ratio = max_width / _screenshot_previous_size;
-                    Debug("%f (%f / %f)", ratio, max_width, _screenshot_previous_size);
                     _screenshot->set_scale(Vec2(ratio));
                     
                     _raw_info->auto_size(Margin{0, 0});
                     _raw_settings->auto_size(Margin{0, 0});
                     _horizontal_raw->auto_size(Margin{0, 0});
                 }
+            }
+            
+            if(!_buffer->_terminated_background_task) {
+                if(!contains(_raw_info->children(), (Drawable*)_loading_text.get()))
+                    _raw_info->add_child(2, _loading_text);
+                //_loading_text->set_pos(_screenshot->pos());
+                _loading_text->set_txt("generating average ("+Meta::toStr(min(TEMP_SETTING(average_samples).value<int>(), (int)_buffer->_number_samples.load()))+"/"+TEMP_SETTING(average_samples).get().valueString()+")");
+                
+            } else if(contains(_raw_info->children(), (Drawable*)_loading_text.get())) {
+                _raw_info->remove_child(_loading_text);
             }
         }
     });
@@ -305,43 +320,35 @@ void VideoOpener::BufferedVideo::restart_background() {
         resize_image(img, 500 / double(max(img.cols, img.rows)));
     
     img.convertTo(_background_image, CV_32FC1);
+    
+    _background_video_index = 0;
     _accumulator = std::make_unique<AveragingAccumulator<>>(TEMP_SETTING(averaging_method).value<averaging_method_t::Class>());
     _accumulator->add(img);
-    //_background_image.copyTo(_accumulator);
-    
-    //_background_samples = 1;
-    _background_video_index = 0;
-    //_accumulator = cv::Mat::zeros(img.rows, img.cols, CV_32FC1);
     
     _background_thread = std::make_unique<std::thread>([this](){
+        _terminated_background_task = false;
+        
         int step = max(1, int(_background_video->length() / max(2.0, double(TEMP_SETTING(average_samples).value<int>()))));
-        Debug("Start calculating background in %d steps", step);
         cv::Mat flt, img;
+        _number_samples = 0;
         
         while(!_terminate_background && _background_video_index+1+step < _background_video->length()) {
             _background_video_index += step;
+            _number_samples += 1;
             
             _background_video->frame(_background_video_index, img);
             if(max(img.cols, img.rows) > 500)
                 resize_image(img, 500 / double(max(img.cols, img.rows)));
             
-            /*img.convertTo(flt, CV_32FC1);
-            if(!_accumulator.empty())
-                cv::add(_accumulator, flt, _accumulator);
-            else
-                flt.copyTo(_accumulator);
-            ++_background_samples;*/
-            
             _accumulator->add(img);
             
-            Debug("%d/%d (%d)", _background_video_index, _background_video->length(), step);
             auto image = _accumulator->finalize();
             
             std::lock_guard guard(_frame_mutex);
             _background_copy = std::move(image);
         }
         
-        Debug("Done calculating background");
+        _terminated_background_task = true;
     });
 }
 
@@ -370,15 +377,7 @@ void VideoOpener::BufferedVideo::open() {
             if(dt < _seconds_between_frames)
                 continue;
             
-            _playback_index = _playback_index + 1; // loading is too slow...
-            
-            if((uint32_t)_playback_index.load() % 100 == 0)
-                Debug("Playback %.2fms / %.2fms ...", dt * 1000, _seconds_between_frames * 1000);
-            
-            if(dt > _seconds_between_frames) {
-                
-            } //else
-                //_playback_index = _playback_index + dt / _seconds_between_frames;
+            _playback_index = _playback_index + 1;
             _video_timer.reset();
             
             if(_playback_index+1 >= _video->length())
@@ -458,11 +457,6 @@ void VideoOpener::select_file(const file::Path &p) {
                 filename = filename.filename();
                 
                 TEMP_SETTING(output_name) = filename;
-                if(TEMP_SETTING(output_name).value<file::Path>().empty()) {
-                    Warning("No output filename given. Defaulting to 'video'.");
-                } else
-                    Warning("Given empty filename, the program will default to using input basename '%S'.", &filename.str());
-                
                 _text_fields["output_name"]->update();
             }
             
@@ -490,7 +484,6 @@ void VideoOpener::select_file(const file::Path &p) {
             }
             
             auto ratio = max_width / _screenshot->size().max();
-            Debug("%f (%f / %f)", ratio, max_width, _screenshot->size().max());
             _screenshot->set_scale(Vec2(ratio));
             
             _raw_info->auto_size(Margin{0, 0});
@@ -505,6 +498,7 @@ void VideoOpener::select_file(const file::Path &p) {
             cv::putText(img, "Cannot open video.", Vec2(50, 220), cv::FONT_HERSHEY_PLAIN, 1, White);
             _screenshot->set_source(std::make_unique<Image>(img));
             _screenshot->set_scale(Vec2(1));
+            _file_chooser->deselect();
             _buffer = nullptr;
         }
         return;
@@ -628,7 +622,7 @@ void VideoOpener::select_file(const file::Path &p) {
     _load_results_checkbox = nullptr;
     auto path = Output::TrackingResults::expected_filename();
     if(path.exists()) {
-        children.push_back( Layout::Ptr(std::make_shared<Checkbox>(Vec2(), "load results", false, gui::Font(0.7, Style::Bold))) );
+        children.push_back( Layout::Ptr(std::make_shared<Checkbox>(Vec2(), "load results", false, gui::Font(0.6))) );
         _load_results_checkbox = dynamic_cast<Checkbox*>(children.back().get());
     } else
         children.push_back( Layout::Ptr(std::make_shared<Text>("No loadable results found.", Vec2(), Gray, gui::Font(0.7, Style::Bold))) );

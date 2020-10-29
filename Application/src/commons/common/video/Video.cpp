@@ -108,8 +108,8 @@ int Video::framerate() const {
  * Length (in frames) of the current video.
  * @return int
  */
-int Video::length() const {
-    return (int)_cap->get(cv::CAP_PROP_FRAME_COUNT);
+int64_t Video::length() const {
+    return (int64_t)_cap->get(cv::CAP_PROP_FRAME_COUNT);
 }
 
 /**
@@ -137,7 +137,7 @@ const cv::Size& Video::size() const {
  * @param index
  * @return cv::Mat
  */
-void Video::frame(long_t index, cv::Mat& frame, bool lazy) {
+void Video::frame(int64_t index, cv::Mat& frame, bool lazy) {
     /*if(_frames.count(index)) {
         return _frames.at(index);
     }*/

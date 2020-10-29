@@ -89,11 +89,10 @@ namespace gui {
         auto it = std::find(_objects.begin(), _objects.end(), ptr);
         if(it == _objects.end())
             return;
+        _objects.erase(it);
         
         Entangled::remove_child(ptr.get());
 
-        _objects.erase(it);
-        
         set_content_changed(true);
         update();
     }

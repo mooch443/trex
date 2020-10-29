@@ -44,7 +44,7 @@ namespace gui {
                 if(hovered()) {
                     clr = clr.brighten(0.7);
                 } else
-                    clr = clr.brighten(0.5);
+                    clr = clr.brighten(0.3);
                 
             } else if(hovered()) {
                 clr = clr.brighten(1.5);

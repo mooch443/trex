@@ -32,6 +32,7 @@ FileChooser::FileChooser(const file::Path& start, const std::string& extension,
         _graph->wrap_object(*_overall);
         if(_on_update)
             _on_update(*_graph);
+        _graph->draw_log_messages();
         
         if(!_selected_file.empty()) {
 
@@ -174,6 +175,7 @@ void FileChooser::set_tabs(const std::vector<Settings>& tabs) {
         _tabs[tab.name] = tab;
         
         auto button = new Button(tab.name, Bounds(0, 0, Base::default_text_bounds(tab.name).width + 20, 33));
+        button->set_fill_clr(Color(100, 100, 100, 255));
         button->set_toggleable(true);
         button->on_click([this, button](auto e){
             if(button->toggled()) {
@@ -209,6 +211,10 @@ void FileChooser::set_tabs(const std::vector<Settings>& tabs) {
         set_tab("");
 }
 
+void FileChooser::deselect() {
+    file_selected(0, "");
+}
+
 void FileChooser::set_tab(std::string tab) {
     if(tab != _current_tab.name) {
     } else
@@ -219,7 +225,7 @@ void FileChooser::set_tab(std::string tab) {
         
         if(_on_tab_change)
             _on_tab_change(_current_tab.name);
-        file_selected(0, "");
+        deselect();
         
     } else if(!_tabs.count(tab)) {
         auto str = Meta::toStr(_tabs);
@@ -228,15 +234,17 @@ void FileChooser::set_tab(std::string tab) {
         _current_tab = _tabs.at(tab);
         if(_on_tab_change)
             _on_tab_change(_current_tab.name);
-        file_selected(0, "");
+        deselect();
     }
     
     for(auto &ptr : tabs_elements) {
         if(static_cast<Button*>(ptr.get())->txt() != tab) {
             static_cast<Button*>(ptr.get())->set_toggle(false);
             static_cast<Button*>(ptr.get())->set_clickable(true);
-        } else
+        } else {
+            static_cast<Button*>(ptr.get())->set_toggle(true);
             static_cast<Button*>(ptr.get())->set_clickable(false);
+        }
     }
     
     change_folder(_path);

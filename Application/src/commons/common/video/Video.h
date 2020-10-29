@@ -56,7 +56,7 @@ public:
     /**
      * Length (in frames) of the current video.
      */
-    int length() const;
+    int64_t length() const;
     
     /**
      * True if a video is loaded.
@@ -78,7 +78,7 @@ public:
      * will be set instead
      */
     //void frame(long_t index, cv::Mat& output, bool lazy = false);
-    void frame(long_t index, cv::Mat& output, bool lazy = false);
+    void frame(int64_t index, cv::Mat& output, bool lazy = false);
     
     /**
      * Sets a callback function for video playback. If a new frame is ready, this
@@ -143,7 +143,7 @@ public:
     void clear();
     
 private:
-    long_t _last_index;
+    int64_t _last_index;
     
     /**
      * The intrinsic parameters of the camera the video was recorded with.

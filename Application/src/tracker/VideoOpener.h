@@ -36,6 +36,9 @@ public:
         //uint64_t _background_samples = 0;
         uint64_t _background_video_index = 0;
         
+        std::atomic<bool> _terminated_background_task;
+        std::atomic<size_t> _number_samples;
+        
         std::mutex _frame_mutex;
         std::mutex _video_mutex;
         
@@ -72,6 +75,7 @@ public:
     gui::derived_ptr<gui::VerticalLayout> _extra, _infos, _raw_info, _raw_settings;
     gui::derived_ptr<gui::HorizontalLayout> _horizontal, _horizontal_raw;
     gui::derived_ptr<gui::ExternalImage> _screenshot;
+    gui::derived_ptr<gui::Text> _loading_text;
     gui::derived_ptr<gui::StaticText> _raw_description;
     double _screenshot_previous_size;
     

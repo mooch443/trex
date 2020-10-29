@@ -87,6 +87,7 @@ public:
     void on_open(std::function<void(file::Path)>&& fn) { _on_open = std::move(fn); }
     void on_tab_change(std::function<void(std::string)>&& fn) { _on_tab_change = std::move(fn); }
     void set_validity_check(std::function<bool(file::Path)>&& fn) { _validity = std::move(fn); }
+    void deselect();
     
 private:
     void file_selected(size_t i, file::Path path);
