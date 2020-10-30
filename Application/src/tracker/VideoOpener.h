@@ -28,11 +28,7 @@ public:
     struct BufferedVideo {
         file::Path _path;
         std::unique_ptr<VideoSource> _video;
-        std::unique_ptr<VideoSource> _background_video;
         std::unique_ptr<Image> _background_copy;
-        std::unique_ptr<AveragingAccumulator<>> _accumulator;
-        //uint64_t _background_samples = 0;
-        uint64_t _background_video_index = 0;
         
         std::atomic<bool> _terminated_background_task = true;
         std::atomic<size_t> _number_samples = 0;
@@ -40,6 +36,8 @@ public:
         std::mutex _frame_mutex;
         std::mutex _video_mutex;
         
+        std::mutex _background_mutex;
+        std::unique_ptr<std::thread> _previous_background_thread;
         std::unique_ptr<Image> _cached_frame;
         std::atomic<bool> _terminate = false, _terminate_background = false;
         

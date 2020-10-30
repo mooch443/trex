@@ -434,51 +434,73 @@ VideoOpener::BufferedVideo::BufferedVideo(const file::Path& path) : _path(path) 
 
 VideoOpener::BufferedVideo::~BufferedVideo() {
     _terminate = true;
-    _terminate_background = true;
     
     if(_update_thread)
         _update_thread->join();
-    if(_background_thread)
-        _background_thread->join();
     
-    _background_video = nullptr;
+    {
+        std::lock_guard guard(_background_mutex);
+        _terminate_background = true;
+        
+        if(_background_thread)
+            _background_thread->join();
+    }
 }
 
 void VideoOpener::BufferedVideo::restart_background() {
-    _terminate_background = true;
-    if(_background_thread)
-        _background_thread->join();
-    
-    _terminate_background = false;
-    
-    std::lock_guard guard(_frame_mutex);
-    cv::Mat img;
-    _background_video->frame(0, img);
-    if(max(img.cols, img.rows) > 500)
-        resize_image(img, 500 / double(max(img.cols, img.rows)));
-    
-    _background_video_index = 0;
-    _accumulator = std::make_unique<AveragingAccumulator<>>(TEMP_SETTING(averaging_method).value<averaging_method_t::Class>());
-    _accumulator->add(img);
+    {
+        std::lock_guard guard(_background_mutex);
+        if(_background_thread)
+            _previous_background_thread = std::move(_background_thread);
+    }
     
     _background_thread = std::make_unique<std::thread>([this](){
-        _terminated_background_task = false;
+        { // close old background task, if present
+            std::lock_guard guard(_background_mutex);
+            if(_previous_background_thread) {
+                _terminate_background = true;
+                _previous_background_thread->join();
+                _previous_background_thread = nullptr;
+            }
+            _terminate_background = false;
+        }
         
-        int step = max(1, int(_background_video->length() / max(2.0, double(TEMP_SETTING(average_samples).value<int>()))));
-        cv::Mat flt, img;
-        _number_samples = 0;
+        std::unique_ptr<VideoSource> background_video;
+        uint64_t background_video_index = 0;
+        std::unique_ptr<AveragingAccumulator<>> accumulator;
         
-        while(!_terminate_background && _background_video_index+1+step < _background_video->length()) {
-            _background_video_index += step;
-            _number_samples += 1;
+        { // open video and load first frame
+            background_video = std::make_unique<VideoSource>(_path.str());
             
-            _background_video->frame(_background_video_index, img);
+            std::lock_guard guard(_frame_mutex);
+            cv::Mat img;
+            background_video->frame(0, img);
             if(max(img.cols, img.rows) > 500)
                 resize_image(img, 500 / double(max(img.cols, img.rows)));
             
-            _accumulator->add(img);
+            background_video_index = 0;
+            accumulator = std::make_unique<AveragingAccumulator<>>(TEMP_SETTING(averaging_method).value<averaging_method_t::Class>());
+            accumulator->add(img);
+        }
+        
+        _terminated_background_task = false;
+        
+        int step = max(1, int(background_video->length() / max(2.0, double(TEMP_SETTING(average_samples).value<int>()))));
+        cv::Mat flt, img;
+        _number_samples = 0;
+        
+        while(!_terminate_background && background_video_index+1+step < background_video->length())
+        {
+            background_video_index += step;
+            _number_samples += 1;
             
-            auto image = _accumulator->finalize();
+            background_video->frame(background_video_index, img);
+            if(max(img.cols, img.rows) > 500)
+                resize_image(img, 500 / double(max(img.cols, img.rows)));
+            
+            accumulator->add(img);
+            
+            auto image = accumulator->finalize();
             
             std::lock_guard guard(_frame_mutex);
             _background_copy = std::move(image);
@@ -494,6 +516,7 @@ void VideoOpener::BufferedVideo::open(std::function<void(const bool)>&& callback
         int64_t playback_index = 0;
         Timer video_timer;
         double seconds_between_frames = 0;
+        static std::mutex _gpu_mutex; // in case multiple videos are still "open"
         
         cv::Mat local;
         gpuMat background_image;
@@ -503,11 +526,8 @@ void VideoOpener::BufferedVideo::open(std::function<void(const bool)>&& callback
             {
                 std::lock_guard guard(_video_mutex);
                 _video = std::make_unique<VideoSource>(_path.str());
-                
                 _video->frame(0, local);
                 local.copyTo(img);
-                
-                _background_video = std::make_unique<VideoSource>(_path.str());
                 
                 playback_index = 0;
                 video_timer.reset();
@@ -541,6 +561,8 @@ void VideoOpener::BufferedVideo::open(std::function<void(const bool)>&& callback
                     _video->frame((size_t)playback_index, local);
                     
                     if(_number_samples.load() > 1) {
+                        std::lock_guard gpu_guard(_gpu_mutex);
+                        
                         local.copyTo(img);
                         if(max(img.cols, img.rows) > 500)
                             resize_image(img, 500 / double(max(img.cols, img.rows)));
