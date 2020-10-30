@@ -34,7 +34,7 @@ TGrabs parameters
 	**default value:** 100
 
 
-	Number of samples taken to generate an average image. Usually has to be less if `average_method` is set to max.
+	Number of samples taken to generate an average image. Usually fewer are necessary for `average_method`s max, and min.
 
 	.. seealso:: :func:`average_method`, 
 
@@ -46,9 +46,9 @@ TGrabs parameters
 
 	**possible values:**
 		- `mean`: Sum all samples and divide by N.
-		- `mode`: Calculate a per-pixel median of the samples.
-		- `max`: Use a per-pixel minimum across samples.
-		- `min`: Use a per-pixel maximum across samples.
+		- `mode`: Calculate a per-pixel median of the samples to avoid noise. More computationally involved than mean, but often better results.
+		- `max`: Use a per-pixel minimum across samples. Usually a good choice for short videos with black backgrounds and individuals that do not move much.
+		- `min`: Use a per-pixel maximum across samples. Usually a good choice for short videos with white backgrounds and individuals that do not move much.
 
 	Determines the way in which the background samples are combined. The background generated in the process will be used to subtract background from foreground objects during conversion.
 

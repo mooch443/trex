@@ -115,9 +115,13 @@ VideoOpener::VideoOpener() {
                 guard.unlock();
                 try {
                     auto path = ptr->_path;
+#ifndef NDEBUG
                     Debug("Removing stale buffer '%S'...", &path.str());
+#endif
                     ptr = nullptr;
+#ifndef NDEBUG
                     Debug("Removed stale buffer '%S'.", &path.str());
+#endif
                 } catch(const std::exception& e) {
                     Except("Exception while freeing stale buffer '%s'.", e.what());
                 }
@@ -125,12 +129,16 @@ VideoOpener::VideoOpener() {
                 
                 ++i;
             }
-            
+      
+#ifndef NDEBUG
             if(i)
                 Debug("Removed %d stale buffers", i);
+#endif
         }
         
+#ifndef NDEBUG
         Debug("Quit stale thread.");
+#endif
     });
     
     _horizontal = std::make_shared<gui::HorizontalLayout>();
