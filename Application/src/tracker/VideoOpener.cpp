@@ -8,6 +8,7 @@
 #include <gui/types/StaticText.h>
 #include <processing/RawProcessing.h>
 #include <grabber/default_config.h>
+#include <opencv2/core/ocl.hpp>
 
 #define TEMP_SETTING(NAME) (gui::temp_settings[#NAME])
 
@@ -510,6 +511,16 @@ void VideoOpener::BufferedVideo::restart_background() {
     });
 }
 
+void flush_ocl_queue() {
+    cv::ocl::finish();
+    volatile auto const cleanupQueueFlusher = gpuMat::zeros(1, 1, CV_8UC1);
+    /*cv::BufferPoolController* c = cv::ocl::getOpenCLAllocator()->getBufferPoolController();
+    if (c)
+    {
+        c->setMaxReservedSize(0);
+    }*/
+}
+
 void VideoOpener::BufferedVideo::open(std::function<void(const bool)>&& callback) {
     std::lock_guard guard(_video_mutex);
     _update_thread = std::make_unique<std::thread>([this, cb = std::move(callback)]() mutable {
@@ -527,7 +538,13 @@ void VideoOpener::BufferedVideo::open(std::function<void(const bool)>&& callback
                 std::lock_guard guard(_video_mutex);
                 _video = std::make_unique<VideoSource>(_path.str());
                 _video->frame(0, local);
-                local.copyTo(img);
+                
+                {
+                    std::lock_guard gpu_guard(_gpu_mutex);
+                    flush_ocl_queue();
+                    local.copyTo(img);
+                    flush_ocl_queue();
+                }
                 
                 playback_index = 0;
                 video_timer.reset();
@@ -562,6 +579,7 @@ void VideoOpener::BufferedVideo::open(std::function<void(const bool)>&& callback
                     
                     if(_number_samples.load() > 1) {
                         std::lock_guard gpu_guard(_gpu_mutex);
+                        flush_ocl_queue();
                         
                         local.copyTo(img);
                         if(max(img.cols, img.rows) > 500)
@@ -585,6 +603,8 @@ void VideoOpener::BufferedVideo::open(std::function<void(const bool)>&& callback
                         cv::inRange(diff, _threshold.load(), 255, mask);
                         cv::merge(std::vector<gpuMat>{mask, img, img, alpha}, output);
                         output.copyTo(local);
+                        
+                        flush_ocl_queue();
                     }
                     
                     std::lock_guard frame_guard(_frame_mutex);
@@ -601,6 +621,17 @@ void VideoOpener::BufferedVideo::open(std::function<void(const bool)>&& callback
         } catch(...) {
             cb(false);
         }
+        
+        std::lock_guard gpu_guard(_gpu_mutex);
+        flush_ocl_queue();
+        background_image.release();
+        flt.release();
+        img.release();
+        mask.release();
+        diff.release();
+        alpha.release();
+        output.release();
+        flush_ocl_queue();
     });
 }
 
