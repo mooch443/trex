@@ -87,4 +87,8 @@ Different visualisations can be enabled or disabled using the display menu (4) o
 - confusion
 	A matrix in the center of the screen, only available after clicking "menu" -> "auto correct" -> "No".
 - dataset
-	
+	Display information about the consecutive segment in the currently viewed frame. This includes stats per individual like midline length variance, as well as (if available) identities as predicted by the neural network.
+- #individuals
+	A graph that shows the number of individuals per frame (only shows data for frames analysed in the current session, not loaded frames).
+- heatmap
+	Show a heatmap with customizable properties. Search ``heatmap_`` in the settings box to find all available options. By default it shows a density map for positions of individuals in the whole video.
