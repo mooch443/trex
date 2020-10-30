@@ -94,6 +94,44 @@ VideoOpener::VideoOpener() {
     grab::default_config::get(temp_settings, temp_docs, nullptr);
     //::default_config::get(GlobalSettings::map(), temp_docs, nullptr);
     
+    _stale_thread = std::make_unique<std::thread>([this](){
+        std::unique_lock guard(_stale_mutex);
+        bool quit = false;
+        
+        while(!quit) {
+            _stale_variable.wait(guard);
+            
+            size_t i=0;
+            while(!_stale_buffers.empty()) {
+                auto ptr = std::move(_stale_buffers.front());
+                _stale_buffers.pop();
+                
+                if(ptr == nullptr) {
+                    quit = true;
+                    continue;
+                }
+                
+                guard.unlock();
+                try {
+                    auto path = ptr->_path;
+                    Debug("Removing stale buffer '%S'...", &path.str());
+                    ptr = nullptr;
+                    Debug("Removed stale buffer '%S'.", &path.str());
+                } catch(const std::exception& e) {
+                    Except("Exception while freeing stale buffer '%s'.", e.what());
+                }
+                guard.lock();
+                
+                ++i;
+            }
+            
+            if(i)
+                Debug("Removed %d stale buffers", i);
+        }
+        
+        Debug("Quit stale thread.");
+    });
+    
     _horizontal = std::make_shared<gui::HorizontalLayout>();
     _extra = std::make_shared<gui::VerticalLayout>();
     _infos = std::make_shared<gui::VerticalLayout>();
@@ -144,7 +182,7 @@ VideoOpener::VideoOpener() {
     
     _loading_text = std::make_shared<gui::Text>("generating average", Vec2(100,0), Cyan, gui::Font(0.5));
     
-    _raw_description = std::make_shared<gui::StaticText>("Info", Vec2(), Size2(400, -1), Font(0.6));
+    _raw_description = std::make_shared<gui::StaticText>("Info", Vec2(), Size2(500, -1), Font(0.6));
     _raw_info->set_children({
         Layout::Ptr(std::make_shared<Text>("Preview", Vec2(), White, gui::Font(0.8, Style::Bold))),
         _screenshot,
@@ -303,16 +341,37 @@ VideoOpener::VideoOpener() {
             if(image) {
                 _screenshot->set_source(std::move(image));
                 
-                if(_screenshot->size().max() != _screenshot_previous_size) {
-                    _screenshot_previous_size = _screenshot->size().max();
-                    
-                    const double max_width = 500;
-                    auto ratio = max_width / _screenshot_previous_size;
+                const auto mw = _file_chooser->graph()->width() * 0.3;
+                if(_raw_description->max_size().x != mw) {
+                    _raw_description->set_max_size(Size2(mw, -1));
+                    _screenshot_previous_size = 0;
+                }
+                
+                auto size = _screenshot->size().max();
+                if(size != _screenshot_previous_size) {
+                    auto ratio = mw / size;
                     _screenshot->set_scale(Vec2(ratio));
                     
                     _raw_info->auto_size(Margin{0, 0});
                     _raw_settings->auto_size(Margin{0, 0});
                     _horizontal_raw->auto_size(Margin{0, 0});
+                    
+                    if(_screenshot_previous_size == 0) {
+                        {
+                            std::string info_text = "<h3>Info</h3>\n";
+                            info_text += "<key>resolution</key>: <ref><nr>"+Meta::toStr(_buffer->_video->size().width)+"</nr>x<nr>"+Meta::toStr(_buffer->_video->size().height)+"</nr></ref>\n";
+                            
+                            DurationUS us{ uint64_t( _buffer->_video->length() / double(_buffer->_video->framerate()) * 1000.0 * 1000.0 ) };
+                            auto len = us.to_html();
+                            info_text += "<key>length</key>: <ref>"+len+"</ref>";
+                            
+                            _raw_description->set_txt(info_text);
+                        }
+                        
+                        _file_chooser->update_size();
+                    }
+                    
+                    _screenshot_previous_size = size;
                 }
             }
             
@@ -336,14 +395,38 @@ VideoOpener::VideoOpener() {
     });
     
     _file_chooser->on_open([this](auto){
-        _buffer = nullptr;
+        move_to_stale(std::move(_buffer));
     });
     
     _file_chooser->on_tab_change([this](auto){
-        _buffer = nullptr;
+        move_to_stale(std::move(_buffer));
     });
     
     _file_chooser->open();
+}
+
+VideoOpener::~VideoOpener() {
+    {
+        std::lock_guard guard(_stale_mutex);
+        if(_buffer)
+            _stale_buffers.push(std::move(_buffer));
+        _stale_buffers.push(nullptr);
+    }
+    
+    _stale_variable.notify_all();
+    _stale_thread->join();
+}
+
+void VideoOpener::move_to_stale(std::unique_ptr<BufferedVideo>&& ptr) {
+    if(!ptr)
+        return;
+    
+    {
+        std::lock_guard guard(_stale_mutex);
+        _stale_buffers.push(std::move(ptr));
+    }
+    
+    _stale_variable.notify_one();
 }
 
 VideoOpener::BufferedVideo::BufferedVideo(const file::Path& path) : _path(path) {
@@ -373,8 +456,6 @@ void VideoOpener::BufferedVideo::restart_background() {
     _background_video->frame(0, img);
     if(max(img.cols, img.rows) > 500)
         resize_image(img, 500 / double(max(img.cols, img.rows)));
-    
-    img.convertTo(_background_image, CV_32FC1);
     
     _background_video_index = 0;
     _accumulator = std::make_unique<AveragingAccumulator<>>(TEMP_SETTING(averaging_method).value<averaging_method_t::Class>());
@@ -407,74 +488,98 @@ void VideoOpener::BufferedVideo::restart_background() {
     });
 }
 
-void VideoOpener::BufferedVideo::open() {
+void VideoOpener::BufferedVideo::open(std::function<void(const bool)>&& callback) {
     std::lock_guard guard(_video_mutex);
-    _video = std::make_unique<VideoSource>(_path.str());
-    
-    _video->frame(0, _local);
-    _local.copyTo(_img);
-    
-    _background_video = std::make_unique<VideoSource>(_path.str());
-    _cached_frame = std::make_unique<Image>(_local);
-    
-    _playback_index = 0;
-    _video_timer.reset();
-    
-    restart_background();
-    
-    // playback at 2x speed
-    _seconds_between_frames = 1 / double(_video->framerate());
+    _update_thread = std::make_unique<std::thread>([this, cb = std::move(callback)]() mutable {
+        int64_t playback_index = 0;
+        Timer video_timer;
+        double seconds_between_frames = 0;
+        
+        cv::Mat local;
+        gpuMat background_image;
+        gpuMat flt, img, mask, diff, alpha, output;
+        
+        try {
+            {
+                std::lock_guard guard(_video_mutex);
+                _video = std::make_unique<VideoSource>(_path.str());
+                
+                _video->frame(0, local);
+                local.copyTo(img);
+                
+                _background_video = std::make_unique<VideoSource>(_path.str());
+                
+                playback_index = 0;
+                video_timer.reset();
+                
+                restart_background();
+                
+                // playback at 2x speed
+                seconds_between_frames = 1 / double(_video->framerate());
+            }
+            
+            {
+                std::lock_guard gaurd(_frame_mutex);
+                _cached_frame = std::make_unique<Image>(local);
+            }
+            
+            cb(true);
+        
+            while(!_terminate) {
+                std::lock_guard guard(_video_mutex);
+                auto dt = video_timer.elapsed();
+                if(dt < seconds_between_frames)
+                    continue;
+                
+                ++playback_index;
+                video_timer.reset();
+                
+                if((uint64_t)playback_index+1 >= _video->length())
+                    playback_index = 0;
+                
+                try {
+                    _video->frame((size_t)playback_index, local);
+                    
+                    if(_number_samples.load() > 1) {
+                        local.copyTo(img);
+                        if(max(img.cols, img.rows) > 500)
+                            resize_image(img, 500 / double(max(img.cols, img.rows)));
+                        img.convertTo(flt, CV_32FC1);
 
-    _update_thread = std::make_unique<std::thread>([this](){
-        while(!_terminate) {
-            std::lock_guard guard(_video_mutex);
-            auto dt = _video_timer.elapsed();
-            if(dt < _seconds_between_frames)
-                continue;
+                        if(alpha.empty()) {
+                            alpha = gpuMat(img.rows, img.cols, CV_8UC1);
+                            alpha.setTo(cv::Scalar(255));
+                        }
+                        
+                        {
+                            std::lock_guard frame_guard(_frame_mutex);
+                            if(_background_copy) {
+                                _background_copy->get().convertTo(background_image, CV_32FC1);
+                                _background_copy = nullptr;
+                            }
+                            cv::absdiff(background_image, flt, diff);
+                        }
+                        
+                        cv::inRange(diff, _threshold.load(), 255, mask);
+                        cv::merge(std::vector<gpuMat>{mask, img, img, alpha}, output);
+                        output.copyTo(local);
+                    }
+                    
+                    std::lock_guard frame_guard(_frame_mutex);
+                    _cached_frame = std::make_unique<Image>(local);
+                    
+                } catch(const std::exception& e) {
+                    Except("Caught exception while updating '%s'", e.what());
+                }
+            }
             
-            _playback_index = _playback_index + 1;
-            _video_timer.reset();
-            
-            if(_playback_index+1 >= _video->length())
-                _playback_index = 0;
-            
-            update_loop();
+        } catch(const UtilsException& ex) {
+            // pass
+            cb(false);
+        } catch(...) {
+            cb(false);
         }
     });
-}
-
-void VideoOpener::BufferedVideo::update_loop() {
-    try {
-        _video->frame((size_t)_playback_index, _local);
-        _local.copyTo(_img);
-        if(max(_img.cols, _img.rows) > 500)
-            resize_image(_img, 500 / double(max(_img.cols, _img.rows)));
-        _img.convertTo(_flt, CV_32FC1);
-
-        if(_alpha.empty()) {
-            _alpha = gpuMat(_img.rows, _img.cols, CV_8UC1);
-            _alpha.setTo(cv::Scalar(255));
-        }
-        
-        {
-            std::lock_guard frame_guard(_frame_mutex);
-            if(_background_copy) {
-                _background_copy->get().convertTo(_background_image, CV_32FC1);
-                _background_copy = nullptr;
-            }
-            cv::absdiff(_background_image, _flt, _diff);
-        }
-        
-        cv::inRange(_diff, _threshold.load(), 255, _mask);
-        cv::merge(std::vector<gpuMat>{_mask, _img, _img, _alpha}, _output);
-        _output.copyTo(_local);
-        
-        std::lock_guard frame_guard(_frame_mutex);
-        _cached_frame = std::make_unique<Image>(_local);
-        
-    } catch(const std::exception& e) {
-        Except("Caught exception while updating '%s'", e.what());
-    }
 }
 
 Size2 VideoOpener::BufferedVideo::size() {
@@ -488,10 +593,26 @@ std::unique_ptr<Image> VideoOpener::BufferedVideo::next() {
 }
 
 void VideoOpener::select_file(const file::Path &p) {
-    const double max_width = 500;
+    const double max_width = _file_chooser->graph()->width() * 0.3;
     std::lock_guard guard(_file_chooser->graph()->lock());
     
     if(_file_chooser->current_tab().extension != "pv") {
+        auto callback = [this, p, max_width](const bool success){
+            if(!success) {
+                // immediately move to stale
+                std::lock_guard gui_lock(_file_chooser->graph()->lock());
+                std::lock_guard guard(_video_mutex);
+                Except("Could not open file '%S'.", &p.str());
+                
+                cv::Mat img = cv::Mat::zeros(max_width, max_width, CV_8UC1);
+                cv::putText(img, "Cannot open video.", Vec2(50, 220), cv::FONT_HERSHEY_PLAIN, 1, White);
+                _screenshot->set_source(std::make_unique<Image>(img));
+                _screenshot->set_scale(Vec2(1));
+                _file_chooser->deselect();
+                move_to_stale(std::move(_buffer));
+            }
+        };
+        
         try {
             if(p.empty())
                 U_EXCEPTION("No file selected.");
@@ -515,11 +636,10 @@ void VideoOpener::select_file(const file::Path &p) {
                 _text_fields["output_name"]->update();
             }
             
-            _buffer = std::make_unique<BufferedVideo>(p);
-            _buffer->open();
-            _screenshot->set_source(std::move(_buffer->next()));
-            _screenshot_previous_size = 0;
+            move_to_stale(std::move(_buffer));
             
+            _screenshot_previous_size = 0;
+            _buffer = std::make_unique<BufferedVideo>(p);
             try {
                 _buffer->_threshold = TEMP_SETTING(threshold).value<int>();
                 
@@ -527,42 +647,17 @@ void VideoOpener::select_file(const file::Path &p) {
                 Except("Converting number: '%s'", e.what());
             }
             
-            {
-                std::string info_text = "<h3>Info</h3>\n";
-                info_text += "<key>resolution</key>: <ref><nr>"+Meta::toStr(_buffer->_video->size().width)+"</nr>x<nr>"+Meta::toStr(_buffer->_video->size().height)+"</nr></ref>\n";
-                
-                DurationUS us{ uint64_t( _buffer->_video->length() / double(_buffer->_video->framerate()) * 1000.0 * 1000.0 ) };
-                auto len = us.to_html();
-                info_text += "<key>length</key>: <ref>"+len+"</ref>";
-                
-                _raw_description->set_txt(info_text);
-            }
-            
-            auto ratio = max_width / _screenshot->size().max();
-            _screenshot->set_scale(Vec2(ratio));
-            
-            _raw_info->auto_size(Margin{0, 0});
-            _raw_settings->auto_size(Margin{0, 0});
-            _horizontal_raw->auto_size(Margin{0, 0});
+            _buffer->open(callback);
             
         } catch(const std::exception& e) {
-            std::lock_guard guard(_video_mutex);
             Except("Cannot open file '%S' (%s)", &p.str(), e.what());
-            
-            cv::Mat img = cv::Mat::zeros(max_width, max_width, CV_8UC1);
-            cv::putText(img, "Cannot open video.", Vec2(50, 220), cv::FONT_HERSHEY_PLAIN, 1, White);
-            _screenshot->set_source(std::make_unique<Image>(img));
-            _screenshot->set_scale(Vec2(1));
-            _file_chooser->deselect();
-            _buffer = nullptr;
+            callback(false);
         }
         return;
         
     } else {
         std::lock_guard guard(_video_mutex);
-        if(_buffer) {
-            _buffer = nullptr;
-        }
+        move_to_stale(std::move(_buffer));
     }
     
     using namespace gui;

@@ -1293,7 +1293,7 @@ int main(int argc, char** argv)
     
     gui::IMGUIBase *imgui_base = nullptr;
     if((GlobalSettings::map().has("nowindow") ? SETTING(nowindow).value<bool>() : false) == false) {
-        imgui_base = new gui::IMGUIBase("", gui.gui(), [&](){
+        imgui_base = new gui::IMGUIBase(gui.window_title(), gui.gui(), [&](){
             //std::lock_guard<std::recursive_mutex> lock(gui.gui().lock());
             if(SETTING(terminate))
                 return false;

@@ -112,7 +112,7 @@ void GLImpl::set_icons(const std::vector<file::Path>& icons) {
     glfwSetWindowIcon(window, images.size(), images.data());
 }
 
-void GLImpl::create_window(int width, int height) {
+void GLImpl::create_window(const char* title, int width, int height) {
 #if __APPLE__
     // GL 3.2 + GLSL 150
     const char* glsl_version = "#version 150";

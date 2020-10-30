@@ -58,16 +58,25 @@ VideoSource::File::File(long_t index, const std::string& basename, const std::st
             _video = new Video();
             auto npz = file::Path(_filename).replace_extension("npz");
             if(npz.exists()) {
-                static bool message = false;
-                if(!message) {
-                    Debug("Found timestamps for file '%S'.", &npz.str());
-                    message = true;
+                try {
+                    static bool message = false;
+                    if(!message) {
+                        Debug("Found timestamps for file '%S'.", &npz.str());
+                        message = true;
+                    }
+                    
+                    _timestamps = cnpy::npz_load(npz.str(), "frame_time").as_vec<double>();
+                    auto res = cnpy::npz_load(npz.str(), "imgshape").as_vec<int64_t>();
+                    _size = cv::Size( (int)res[1], (int)res[0] );
+                    _length = (long_t)_timestamps.size();
+                } catch(...) {
+                    Except("Failed opening NPZ archive '%S' with (presumably) timestamps in them for video '%S'. Proceeding without.", &npz.str(), &_filename);
+                    
+                    if(!_video->open(_filename))
+                        U_EXCEPTION("Opening Video '%S' failed.", &_filename);
+                    _length = _video->length();
+                    _video->close();
                 }
-                
-                _timestamps = cnpy::npz_load(npz.str(), "frame_time").as_vec<double>();
-                auto res = cnpy::npz_load(npz.str(), "imgshape").as_vec<int64_t>();
-                _size = cv::Size( (int)res[1], (int)res[0] );
-                _length = (long_t)_timestamps.size();
                 
             } else {
                 if(!_video->open(_filename))

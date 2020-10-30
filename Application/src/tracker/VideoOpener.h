@@ -29,25 +29,19 @@ public:
         file::Path _path;
         std::unique_ptr<VideoSource> _video;
         std::unique_ptr<VideoSource> _background_video;
-        gpuMat _background_image;
-        cv::Mat _local;
-        gpuMat _flt, _img, _mask, _diff, _alpha, _output;
         std::unique_ptr<Image> _background_copy;
         std::unique_ptr<AveragingAccumulator<>> _accumulator;
         //uint64_t _background_samples = 0;
         uint64_t _background_video_index = 0;
         
-        std::atomic<bool> _terminated_background_task;
-        std::atomic<size_t> _number_samples;
+        std::atomic<bool> _terminated_background_task = true;
+        std::atomic<size_t> _number_samples = 0;
         
         std::mutex _frame_mutex;
         std::mutex _video_mutex;
         
         std::unique_ptr<Image> _cached_frame;
         std::atomic<bool> _terminate = false, _terminate_background = false;
-        std::atomic<double> _playback_index = 0;
-        Timer _video_timer;
-        double _seconds_between_frames = 0;
         
         std::atomic<uint32_t> _threshold = 0;
         
@@ -59,15 +53,15 @@ public:
         ~BufferedVideo();
         
         std::unique_ptr<Image> next();
-        void open();
+        void open(std::function<void(const bool)>&& callback);
         Size2 size();
         
         void restart_background();
-        void update_loop();
     };
     
     std::mutex _video_mutex;
     std::unique_ptr<BufferedVideo> _buffer;
+    std::queue<std::unique_ptr<BufferedVideo>> _stale_buffers;
     
     std::shared_ptr<FileChooser> _file_chooser;
     std::map<std::string, gui::Drawable*> pointers;
@@ -78,6 +72,9 @@ public:
     gui::derived_ptr<gui::ExternalImage> _screenshot;
     gui::derived_ptr<gui::Text> _loading_text;
     gui::derived_ptr<gui::StaticText> _raw_description;
+    std::unique_ptr<std::thread> _stale_thread;
+    std::condition_variable _stale_variable;
+    
     double _screenshot_previous_size;
     
     struct LabeledField {
@@ -143,9 +140,13 @@ public:
     
 public:
     VideoOpener();
+    ~VideoOpener();
     
 private:
     void select_file(const file::Path& path);
+    
+    std::mutex _stale_mutex;
+    void move_to_stale(std::unique_ptr<BufferedVideo>&&);
 };
 
 }

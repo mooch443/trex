@@ -399,7 +399,7 @@ void clear_cache() {
             }
         }
         
-        _platform->create_window(width, height);
+        _platform->create_window(title.c_str(), width, height);
         glfwSetWindowPos(_platform->window_handle(), mx + (mw - width) * 0.5, my + (mh - height) * 0.5);
         
         glfwSetDropCallback(_platform->window_handle(), [](GLFWwindow* window, int N, const char** texts){

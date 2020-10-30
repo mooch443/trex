@@ -9,9 +9,9 @@ using namespace cmn;
 namespace cmn {
 ENUM_CLASS_DOCS(averaging_method_t,
     "Sum all samples and divide by N.",
-    "Calculate a per-pixel median of the samples.",
-    "Use a per-pixel minimum across samples.",
-    "Use a per-pixel maximum across samples."
+    "Calculate a per-pixel median of the samples to avoid noise. More computationally involved than mean, but often better results.",
+    "Use a per-pixel minimum across samples. Usually a good choice for short videos with black backgrounds and individuals that do not move much.",
+    "Use a per-pixel maximum across samples. Usually a good choice for short videos with white backgrounds and individuals that do not move much."
 );
 }
 

@@ -198,10 +198,10 @@ bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
         _data->commandQueue = [_data->device newCommandQueue];
     }
     
-    void MetalImpl::create_window(int width, int height) {
+    void MetalImpl::create_window(const char* title, int width, int height) {
         // Create window with graphics context
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        window = glfwCreateWindow(width, height, "Dear ImGui GLFW+Metal example", NULL, NULL);
+        window = glfwCreateWindow(width, height, "", NULL, NULL);
         if (window == NULL)
             U_EXCEPTION("[METAL] Cannot create GLFW window.");
         

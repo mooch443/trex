@@ -119,7 +119,7 @@ namespace default_config {
         CONFIG("equalize_histogram", false, "Equalizes the histogram of the image before thresholding and background subtraction.");
         CONFIG("quit_after_average", false, "If set to true, this will terminate the program directly after generating (or loading) a background average image.", STARTUP);
         CONFIG("averaging_method", averaging_method_t::mean, "Determines the way in which the background samples are combined. The background generated in the process will be used to subtract background from foreground objects during conversion.");
-        CONFIG("average_samples", int(100), "Number of samples taken to generate an average image. Usually has to be less if `average_method` is set to max.");
+        CONFIG("average_samples", int(100), "Number of samples taken to generate an average image. Usually fewer are necessary for `average_method`s max, and min.");
         CONFIG("reset_average", false, "If set to true, the average will be regenerated using the live stream of images (video or camera).");
         
         CONFIG("video_size", Size2(-1,-1), "Is set to the dimensions of the resulting image.", SYSTEM);

@@ -35,7 +35,7 @@ namespace gui {
         virtual ~CrossPlatform() {}
         virtual void init() = 0;
         virtual void post_init() = 0;
-        virtual void create_window(int width, int height) = 0;
+        virtual void create_window(const char* title, int width, int height) = 0;
         virtual void loop(custom_function_t) = 0;
         virtual LoopStatus update_loop() = 0;
         //virtual void* texture(uint width, uint height) = 0;
