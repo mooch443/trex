@@ -1,5 +1,4 @@
-#ifndef _META_STRING_H
-#define _META_STRING_H
+#pragma once
 
 #include <types.h>
 #include <file/Path.h>
@@ -1045,6 +1044,10 @@ template<typename To, typename From>
 constexpr To narrow_cast(From&& value, struct tag::warn_on_error) {
     using FromType = typename remove_cvref<From>::type;
     using ToType = typename remove_cvref<To>::type;
+
+    if constexpr (sizeof(FromType) <= sizeof(ToType))
+        return static_cast<ToType>(std::forward<From>(value));
+
     static_assert(sizeof(FromType) > sizeof(ToType) || (std::is_unsigned<FromType>::value && std::is_signed<ToType>::value), "From type has to be bigger than to type.");
     //static_assert(std::numeric_limits<ToType>::max() <= std::numeric_limits<FromType>::max(), "Maximum numeric limits of To type are larger than From type.");
     //static_assert(std::numeric_limits<ToType>::min() >= std::numeric_limits<FromType>::min(), "Minimum numeric limits of To type are smaller than From type.");
@@ -1130,5 +1133,3 @@ constexpr To narrow_cast(From&& value) {
     return narrow_cast<To, From>(std::forward<From>(value), tag::warn_on_error{});
 }
 }
-
-#endif

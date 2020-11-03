@@ -18,9 +18,9 @@ namespace cmn {
             height = bounds.y + bounds.height - y;
         
         if(width < 0)
-            width = 0;
+            width = x = 0;
         if(height < 0)
-            height = 0;
+            height = y = 0;
     }
     
     Float2_t Bounds::distance(const Vec2& p) const {

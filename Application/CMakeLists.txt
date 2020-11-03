@@ -565,6 +565,7 @@ else()
 
         INSTALL_DIR ${zlib_install_dir}
         CMAKE_ARGS ${trex_subproject_CMAKE_ARGS1} -DCMAKE_DEBUG_POSTFIX=d -DBUILD_STATIC_AND_SHARED=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=${zlib_install_dir}
+		-DBUILD_STATIC_AND_SHARED=OFF -DBUILD_SHARED_LIBS=OFF
     )
     
     add_library (TRex::LibZ INTERFACE IMPORTED)
@@ -705,6 +706,7 @@ if(${TREX_BUILD_PNG})
             INSTALL_DIR ${png_install_dir}
             CMAKE_ARGS ${trex_subproject_CMAKE_ARGS} -DCMAKE_PREFIX_PATH=${zlib_install_dir} # to find zlib
             -DPNG_TESTS=OFF
+			-DPNG_SHARED=OFF
         )
 
         include_directories(${png_install_dir}/include)

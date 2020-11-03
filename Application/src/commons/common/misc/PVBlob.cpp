@@ -359,6 +359,7 @@ bool Blob::operator==(const pv::Blob& other) const {
             auto image_ptr = image->data() + ((line.y - _y) * image->cols + line.x0 - _x);
             for (ushort x=line.x0; x<=line.x1; ++x, ++ptr, ++image_ptr) {
                 assert(ptr < _pixels->data() + _pixels->size());
+                assert(image_ptr < image->data() + image->size());
                 *image_ptr = *ptr;
             }
         }
