@@ -1004,7 +1004,8 @@ Node::Node(float x, float y, const std::array<int, 9>& neighbors) : x(x), y(y), 
             
             auto prev = line->back();
             for(auto pt : *line) {
-                cv::line(output, OFFSET(prev), OFFSET(pt), DarkCyan, max(1, 0.025 * scale));
+                auto t = max(1, min(0.025 * scale, CV_MAX_THICKNESS));
+                cv::line(output, OFFSET(prev), OFFSET(pt), DarkCyan, t);
                 prev = pt;
             }
             cv::circle(output, OFFSET(node->position), 0.1 * scale, DarkCyan, max(1, 0.025 * scale));

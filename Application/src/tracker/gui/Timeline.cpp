@@ -76,15 +76,14 @@ namespace gui {
         _recognition_image.set_source(Image());
     }*/
 
-void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const std::vector<Rangel>& other_consec, float scale) {
+void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const std::vector<Rangel>& other_consec, float _scale) {
     if(!_bar)
         return;
     
     static Range<long_t> previous_consec(-1, -1);
     static std::vector<Rangel> previous_other_consec = {};
     static float previous_scale = 0;
-    if(scale < 1)
-        scale = 1;
+    const double scale = max(1, min(_scale, CV_MAX_THICKNESS));
     float new_height = roundf(bar_height) + 5 * scale;
     
     if(consec == previous_consec
@@ -128,8 +127,8 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
             Gray
         };
         
-        cv::rectangle(mat, position - Vec2(1), position - Vec2(1) + size + Size2(2), colors.front().alpha(50), cv::FILLED);
-        cv::rectangle(mat, position - Vec2(1), position - Vec2(1) + size + Size2(2), Color(alpha, alpha, alpha, 255));
+        DEBUG_CV(cv::rectangle(mat, position - Vec2(1), position - Vec2(1) + size + Size2(2), colors.front().alpha(50)));
+        DEBUG_CV(cv::rectangle(mat, position - Vec2(1), position - Vec2(1) + size + Size2(2), Color(alpha, alpha, alpha, 255)));
         //base.rect(Bounds(position - Vec2(1), size + Size2(2)), colors.front().alpha(50), Color(alpha, alpha, alpha, 255));
         colors.pop_front();
         
@@ -137,21 +136,25 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
             position = offset + Vec2(max_w * consec.start / float(_frame_info.video_length), 0);
             size = Size2(max_w * (consec.end - consec.start) / float(_frame_info.video_length), bar_height);
             
-            cv::rectangle(mat, position - Vec2(1), position - Vec2(1) + size + Size2(2), colors.front().alpha(50), cv::FILLED);
-            cv::rectangle(mat, position - Vec2(1), position - Vec2(1) + size + Size2(2), Color(alpha, alpha, alpha, 255));
+            DEBUG_CV(cv::rectangle(mat, position - Vec2(1), position - Vec2(1) + size + Size2(2), colors.front().alpha(50), cv::FILLED));
+            DEBUG_CV(cv::rectangle(mat, position - Vec2(1), position - Vec2(1) + size + Size2(2), Color(alpha, alpha, alpha, 255)));
             colors.pop_front();
         }
     }
     
     //base.line(pos - Vec2(0,1), pos + Vec2(max_w * tracker_endframe / float(_frame_info.video_length), 0) - Vec2(0,1), 1, Red.alpha(255));
+    
+    auto thickness = narrow_cast<int>(scale);
+    assert(thickness > 0);
+    
     for(auto &consec : _frame_info.consecutive) {
         if( consec.length() > 2 && consec.length() >= consec.length() * 0.25) {
             auto position = offset + Vec2(max_w * consec.start / float(_frame_info.video_length), 0);
             auto size = Size2(max_w * consec.length() / float(_frame_info.video_length), bar_height);
             
             --position.y;
-            cv::line(mat, position, position + Vec2(size.width, 0), Green.alpha(alpha));
-            cv::line(mat, position, position + Vec2(0, -5 * scale), Green.alpha(alpha), scale);
+            DEBUG_CV(cv::line(mat, position, position + Vec2(size.width, 0), Green.alpha(alpha)));
+            DEBUG_CV(cv::line(mat, position, position + Vec2(0, -5 * scale), Green.alpha(alpha), thickness));
         }
     }
     
@@ -160,8 +163,8 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
             auto position = offset + Vec2(max_w * range.start / float(_frame_info.video_length), 0);
             auto size = Size2(max_w * range.length() / float(_frame_info.video_length), bar_height);
             
-            cv::rectangle(mat, position - Vec2(1), position - Vec2(1, 0) + size + Size2(2), Red.alpha(50), cv::FILLED);
-            cv::rectangle(mat, position - Vec2(1), position - Vec2(1, 0) + size + Size2(2), Color(alpha, alpha, alpha, 255));
+            DEBUG_CV(cv::rectangle(mat, position - Vec2(1), position - Vec2(1, 0) + size + Size2(2), Red.alpha(50), cv::FILLED));
+            DEBUG_CV(cv::rectangle(mat, position - Vec2(1), position - Vec2(1, 0) + size + Size2(2), Color(alpha, alpha, alpha, 255)));
         }
     }
 }
@@ -544,8 +547,8 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
                 if(previous_point.x != -1 && previous_point.x != x)
                 {
                     Vec2 point(x, individual_coverage(tracker_endframe) * img.rows);
-                    cv::line(img, previous_point, Vec2(x-1, previous_point.y), Red);
-                    cv::line(img, Vec2(x-1, previous_point.y), point, Red);
+                    DEBUG_CV(cv::line(img, previous_point, Vec2(x-1, previous_point.y), Red));
+                    DEBUG_CV(cv::line(img, Vec2(x-1, previous_point.y), point, Red));
                 }
             }
             
@@ -685,7 +688,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
                     float x1 = Tracker::average().cols;
                     
                     Debug("Clearing from %f to %f", x0, x1 + pos.x);
-                    cv::rectangle(img, Vec2(x0, 0), Vec2(pos + Vec2(x1, img.rows)), Transparent, -1);
+                    DEBUG_CV(cv::rectangle(img, Vec2(x0, 0), Vec2(pos + Vec2(x1, img.rows)), Transparent, -1));
                 }
             }
             

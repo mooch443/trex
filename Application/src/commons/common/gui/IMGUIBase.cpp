@@ -715,7 +715,9 @@ void PolyFillScanFlood(ImDrawList *draw, std::vector<ImVec2> *poly, ImColor colo
     static ImVec2 min, max; // polygon min/max points
     auto &io = ImGui::GetIO();
     bool isMinMaxDone = false;
-    unsigned int polysize = poly->size();
+    const auto polysize = poly->size();
+    if(polysize < 3)
+        return; // smaller shapes (lines and points) cannot be filled
 
     // find the orthagonal bounding box
     // probably can put this as a predefined
@@ -887,9 +889,8 @@ void PolyFillScanFlood(ImDrawList *draw, std::vector<ImVec2> *poly, ImColor colo
 
             // generate the line segments.
             {
-                int i = 0;
-                int l = scanHits.size() - 1; // we need pairs of points, this prevents segfault.
-                for (i = 0; i < l; i += 2) {
+                auto l = scanHits.size(); // we need pairs of points, this prevents segfault.
+                for (size_t i = 0; i+1 < l; i += 2) {
                     draw->AddLine(scanHits[i], scanHits[i + 1], color, strokeWidth);
                 }
             }
@@ -964,7 +965,7 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
                 
                 //list->AddConvexPolyFilled(points.data(), points.size(), (ImColor)ptr->fill_clr());
                 if(ptr->border_clr() != Transparent)
-                    list->AddPolyline(points.data(), points.size(), (ImColor)ptr->border_clr(), true, 1);
+                    list->AddPolyline(points.data(), (int)points.size(), (ImColor)ptr->border_clr(), true, 1);
             }
             
             break;

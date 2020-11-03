@@ -339,8 +339,8 @@ std::unique_ptr<Image> TrainingData::draw_coverage(const std::map<long_t, float>
                 smooth_points[i].y = smooth_points[i].y * 0.5 + unique_points[i].y / weight * 0.5;
             
             if(i > 0)
-                cv::line(mat, smooth_points[i], smooth_points[i-1], color.alpha(200), 2, cv::LINE_AA);
-            cv::circle(mat, unique_points[i], 2, color.alpha(200));
+                DEBUG_CV(cv::line(mat, smooth_points[i], smooth_points[i-1], color.alpha(200), 2, cv::LINE_AA));
+            DEBUG_CV(cv::circle(mat, unique_points[i], 2, color.alpha(200)));
         }
         unique_points = smooth_points;
     };
@@ -362,8 +362,8 @@ std::unique_ptr<Image> TrainingData::draw_coverage(const std::map<long_t, float>
         for(auto &range : added_ranges) {
             Vec2 topleft((range.start - analysis_range.start) * column_width, 0);
             Vec2 bottomright((range.end - analysis_range.start + 1) * column_width, 1);
-            cv::rectangle(mat, topleft, bottomright, gui::Green.alpha(100 + 100), cv::FILLED);
-            cv::putText(mat, Meta::toStr(range), (topleft + (bottomright - topleft) * 0.5) + Vec2(0,10), cv::FONT_HERSHEY_PLAIN, 0.5, gui::Green);
+            DEBUG_CV(cv::rectangle(mat, topleft, bottomright, gui::Green.alpha(100 + 100), cv::FILLED));
+            DEBUG_CV(cv::putText(mat, Meta::toStr(range), (topleft + (bottomright - topleft) * 0.5) + Vec2(0,10), cv::FONT_HERSHEY_PLAIN, 0.5, gui::Green));
         }
     }
     
@@ -377,20 +377,20 @@ std::unique_ptr<Image> TrainingData::draw_coverage(const std::map<long_t, float>
             
             Vec2 topleft((next_range.start - analysis_range.start) * column_width, 0);
             Vec2 bottomright((next_range.end - analysis_range.start + 1) * column_width, 1);
-            cv::rectangle(mat, topleft, bottomright, color.alpha(100 + 100), cv::FILLED);
+            DEBUG_CV(cv::rectangle(mat, topleft, bottomright, color.alpha(100 + 100), cv::FILLED));
             
             if(it == --next_ranges.rend())
-                cv::putText(mat, "next: "+Meta::toStr(next_range), (topleft + (bottomright - topleft) * 0.5) + Vec2(10), cv::FONT_HERSHEY_PLAIN, 0.5, color);
+                DEBUG_CV(cv::putText(mat, "next: "+Meta::toStr(next_range), (topleft + (bottomright - topleft) * 0.5) + Vec2(10), cv::FONT_HERSHEY_PLAIN, 0.5, color));
             
             if(assigned_unique_averages.count(next_range)) {
                 auto && [distance, extended_range] = assigned_unique_averages.at(next_range);
                 
                 Vec2 rtl((extended_range.start() - analysis_range.start) * column_width, (1 - distance / 110.0) * mat.rows + 5);
                 Vec2 rbr((extended_range.end() - analysis_range.start + 1) * column_width, (1 - distance / 110.0) * mat.rows + 2 + 5);
-                cv::rectangle(mat, rtl, rbr, color);
+                DEBUG_CV(cv::rectangle(mat, rtl, rbr, color));
                 
-                cv::line(mat, Vec2(rtl.x, rtl.y), Vec2(topleft.x, bottomright.y), gui::Cyan);
-                cv::line(mat, Vec2(rbr.x, rtl.y), Vec2(bottomright.x, bottomright.y), gui::Cyan.alpha(50));
+                DEBUG_CV(cv::line(mat, Vec2(rtl.x, rtl.y), Vec2(topleft.x, bottomright.y), gui::Cyan));
+                DEBUG_CV(cv::line(mat, Vec2(rbr.x, rtl.y), Vec2(bottomright.x, bottomright.y), gui::Cyan.alpha(50)));
             }
         }
     }
@@ -400,13 +400,13 @@ std::unique_ptr<Image> TrainingData::draw_coverage(const std::map<long_t, float>
             for(size_t i=0; i<per.frame_indexes.size(); ++i) {
                 Vec2 topleft((per.frame_indexes[i] - analysis_range.start) * column_width, row_height * (id + 0.2));
                 Vec2 bottomright((per.frame_indexes[i] - analysis_range.start + 1) * column_width, row_height * (id + 0.8));
-                cv::rectangle(mat, topleft, bottomright, gui::White.alpha(100 + 100), cv::FILLED);
+                DEBUG_CV(cv::rectangle(mat, topleft, bottomright, gui::White.alpha(100 + 100), cv::FILLED));
             }
         }
     }
     
     for(auto id : all_classes())
-        cv::putText(mat, Meta::toStr(id), Vec2(10, row_height * (id + 0.25)), cv::FONT_HERSHEY_PLAIN, 0.75, gui::White);
+        DEBUG_CV(cv::putText(mat, Meta::toStr(id), Vec2(10, row_height * (id + 0.25)), cv::FONT_HERSHEY_PLAIN, 0.75, gui::White));
     
     return image;
 }

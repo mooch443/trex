@@ -126,9 +126,9 @@ namespace gui {
                         
                         if(i)
 #if CV_MAJOR_VERSION >= 3
-                            cv::line(_window, prev, (cv::Point2f)p.position(), cv::Scalar(c.b, c.g, c.r, c.a), t, cv::LINE_AA);
+                            DEBUG_CV(cv::line(_window, prev, (cv::Point2f)p.position(), cv::Scalar(c.b, c.g, c.r, c.a), t, cv::LINE_AA));
 #else
-                        cv::line(_window, prev, (cv::Point2f)p.position(), cv::Scalar(c.b, c.g, c.r, c.a), t);
+                        DEBUG_CV(cv::line(_window, prev, (cv::Point2f)p.position(), cv::Scalar(c.b, c.g, c.r, c.a), t));
 #endif
                         prev = p.position();
                     }
@@ -139,9 +139,9 @@ namespace gui {
                         auto &c = p.color();
                         
 #if CV_MAJOR_VERSION >= 3
-                        cv::line(_window, (cv::Point2f)ptr->points().at(i < ptr->points().size()-1 ? i+1 : 0), (cv::Point2f)p.position(), cv::Scalar(c.b, c.g, c.r, c.a), t, cv::LINE_AA);
+                        DEBUG_CV(cv::line(_window, (cv::Point2f)ptr->points().at(i < ptr->points().size()-1 ? i+1 : 0), (cv::Point2f)p.position(), cv::Scalar(c.b, c.g, c.r, c.a), t, cv::LINE_AA));
 #else
-                        cv::line(_window, (cv::Point2f)ptr->points().at(i < ptr->points().size()-1 ? i+1 : 0), (cv::Point2f)p.position(), cv::Scalar(c.b, c.g, c.r, c.a), t);
+                        DEBUG_CV(cv::line(_window, (cv::Point2f)ptr->points().at(i < ptr->points().size()-1 ? i+1 : 0), (cv::Point2f)p.position(), cv::Scalar(c.b, c.g, c.r, c.a), t));
 #endif
                     }
                 }

@@ -124,7 +124,7 @@ namespace gui {
         template<typename F>
         void exec_main_queue(F&& fn) {
             std::lock_guard<std::mutex> guard(_mutex);
-            _exec_main_queue.push(std::move(std::unique_ptr<baseFunctor>(new functor<F>(std::move(fn)))));
+            _exec_main_queue.push(std::unique_ptr<baseFunctor>(new functor<F>(std::move(fn))));
             //_exec_main_queue.push(std::bind([](F& fn){ fn(); }, std::move(fn)));
         }
         

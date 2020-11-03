@@ -4095,7 +4095,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
             fclose(f);
     }
 
-pv::BlobPtr Tracker::find_blob_noisy(std::map<uint32_t, pv::BlobPtr>& blob_to_id, uint32_t bid, int64_t pid, const Bounds& bounds, long_t frame)
+pv::BlobPtr Tracker::find_blob_noisy(std::map<uint32_t, pv::BlobPtr>& blob_to_id, int64_t bid, int64_t pid, const Bounds& bounds, long_t frame)
 {
     if(blob_to_id.count(bid) == 0) {
         if(pid != -1) {

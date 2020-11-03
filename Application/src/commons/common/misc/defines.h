@@ -301,11 +301,6 @@ namespace cmn {
     template< class T1 , class T2 >
     struct is_pair< std::pair< T1 , T2 > > : public std::true_type {};
     
-    template<class T, class U>
-    constexpr T narrow_cast(U&& u) noexcept {
-        return static_cast<T>(std::forward<U>(u));
-    }
-    
     class IndexedDataTransport {
     protected:
         GETTER_SETTER(long_t, index)

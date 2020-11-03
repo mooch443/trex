@@ -271,7 +271,7 @@ CREATE_STRUCT(Settings,
         void prepare_shutdown();
         void wait();
         
-        static pv::BlobPtr find_blob_noisy(std::map<uint32_t, pv::BlobPtr>& blob_to_id, uint32_t bid, int64_t pid, const Bounds& bounds, long_t frame);
+        static pv::BlobPtr find_blob_noisy(std::map<uint32_t, pv::BlobPtr>& blob_to_id, int64_t bid, int64_t pid, const Bounds& bounds, long_t frame);
         
         //static bool generate_training_images(pv::File&, std::map<long_t, std::set<long_t>> individuals_per_frame, TrainingData&, const std::function<void(float)>& = [](float){}, const TrainingData* source = nullptr);
         //static bool generate_training_images(pv::File&, const std::set<long_t>& frames, TrainingData&, const std::function<void(float)>& = [](float){});
