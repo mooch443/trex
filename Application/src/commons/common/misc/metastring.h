@@ -1035,4 +1035,100 @@ namespace cmn {
     }
 }
 
+namespace cmn {
+namespace tag {
+struct warn_on_error {};
+struct fail_on_error {};
+}
+
+template<typename To, typename From>
+constexpr To narrow_cast(From&& value, struct tag::warn_on_error) {
+    using FromType = typename remove_cvref<From>::type;
+    using ToType = typename remove_cvref<To>::type;
+    static_assert(sizeof(FromType) > sizeof(ToType) || (std::is_unsigned<FromType>::value && std::is_signed<ToType>::value), "From type has to be bigger than to type.");
+    //static_assert(std::numeric_limits<ToType>::max() <= std::numeric_limits<FromType>::max(), "Maximum numeric limits of To type are larger than From type.");
+    //static_assert(std::numeric_limits<ToType>::min() >= std::numeric_limits<FromType>::min(), "Minimum numeric limits of To type are smaller than From type.");
+    
+    bool out_ranged = value > (FromType)std::numeric_limits<To>::max()
+                       || value < (FromType)std::numeric_limits<To>::min();
+    if constexpr(
+           std::is_floating_point<FromType>::value
+        || (std::is_unsigned<FromType>::value && std::is_unsigned<ToType>::value)
+        || (std::is_signed<FromType>::value && std::is_signed<ToType>::value)
+      ) {
+        // unsigned to unsigned
+        
+    } else if constexpr(std::is_unsigned<FromType>::value && std::is_signed<ToType>::value) {
+        // unsigned to signed
+        using signed_t = int64_t;
+        out_ranged = static_cast<signed_t>(value) > static_cast<signed_t>(std::numeric_limits<To>::max());
+        
+    } else {
+        static_assert(std::is_signed<FromType>::value && std::is_unsigned<ToType>::value, "Expecting signed to unsigned conversion");
+        // signed to unsigned
+        using unsigned_t = typename std::make_unsigned<FromType>::type;
+        out_ranged = value < 0 || static_cast<unsigned_t>(value) > static_cast<unsigned_t>(std::numeric_limits<To>::max());
+    }
+    
+    if(out_ranged) {
+        auto vstr = Meta::toStr(value);
+        auto lstr = Meta::toStr(std::numeric_limits<To>::min());
+        auto rstr = Meta::toStr(std::numeric_limits<To>::max());
+        
+        auto tstr = Meta::name<To>();
+        auto fstr = Meta::name<From>();
+        Warning("Value '%S' in narrowing conversion of %S -> %S is not within limits [%S,%S].", &vstr, &fstr, &tstr, &lstr, &rstr);
+    }
+    
+    return static_cast<To>(std::forward<From>(value));
+}
+
+template<typename To, typename From>
+constexpr To narrow_cast(From&& value, struct tag::fail_on_error) {
+    using FromType = typename remove_cvref<From>::type;
+    using ToType = typename remove_cvref<To>::type;
+    static_assert(sizeof(FromType) > sizeof(ToType) || (std::is_unsigned<FromType>::value && std::is_signed<ToType>::value), "From type has to be bigger than to type.");
+    //static_assert(std::numeric_limits<ToType>::max() <= std::numeric_limits<FromType>::max(), "Maximum numeric limits of To type are larger than From type.");
+    //static_assert(std::numeric_limits<ToType>::min() >= std::numeric_limits<FromType>::min(), "Minimum numeric limits of To type are smaller than From type.");
+    
+    bool out_ranged = value > (FromType)std::numeric_limits<To>::max()
+                       || value < (FromType)std::numeric_limits<To>::min();
+    if constexpr(
+           std::is_floating_point<FromType>::value
+        || (std::is_unsigned<FromType>::value && std::is_unsigned<ToType>::value)
+        || (std::is_signed<FromType>::value && std::is_signed<ToType>::value)
+      ) {
+        // unsigned to unsigned
+        
+    } else if constexpr(std::is_unsigned<FromType>::value && std::is_signed<ToType>::value) {
+        // unsigned to signed
+        using signed_t = int64_t;
+        out_ranged = static_cast<signed_t>(value) > static_cast<signed_t>(std::numeric_limits<To>::max());
+        
+    } else {
+        static_assert(std::is_signed<FromType>::value && std::is_unsigned<ToType>::value, "Expecting signed to unsigned conversion");
+        // signed to unsigned
+        using unsigned_t = typename std::make_unsigned<FromType>::type;
+        out_ranged = value < 0 || static_cast<unsigned_t>(value) > static_cast<unsigned_t>(std::numeric_limits<To>::max());
+    }
+    
+    if(out_ranged) {
+        auto vstr = Meta::toStr(value);
+        auto lstr = Meta::toStr(std::numeric_limits<To>::min());
+        auto rstr = Meta::toStr(std::numeric_limits<To>::max());
+        
+        auto tstr = Meta::name<To>();
+        auto fstr = Meta::name<From>();
+        U_EXCEPTION("Value '%S' in narrowing conversion of %S -> %S is not within limits [%S,%S].", &vstr, &fstr, &tstr, &lstr, &rstr);
+    }
+    
+    return static_cast<To>(std::forward<From>(value));
+}
+
+template<typename To, typename From>
+constexpr To narrow_cast(From&& value) {
+    return narrow_cast<To, From>(std::forward<From>(value), tag::warn_on_error{});
+}
+}
+
 #endif

@@ -113,7 +113,7 @@ namespace gui {
                 auto ptr = static_cast<Vertices*>(o);
                 float t = 1;
                 if(dynamic_cast<Line*>(o))
-                    t = static_cast<Line*>(o)->thickness();
+                    t = max(1, min(static_cast<Line*>(o)->thickness(), CV_MAX_THICKNESS));
                 
                 if(ptr->primitive() != LineStrip && ptr->primitive() != Lines)
                     U_EXCEPTION("Does not support other primitive types yet.");

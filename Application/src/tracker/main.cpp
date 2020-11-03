@@ -1158,7 +1158,7 @@ int main(int argc, char** argv)
                 auto ptr = unused.front();
                 unused.pop();
                 
-                ptr->set_index(++currentID);
+                ptr->set_index(narrow_cast<long_t>(++currentID));
                 
                 analysis->add(ptr);
             }
