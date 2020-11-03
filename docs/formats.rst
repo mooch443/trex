@@ -37,7 +37,35 @@ If one metric (such as anything posture-related) is not available in a frame -- 
 Posture
 -------
 
-(todo)
+For each individual, |trex| writes a file ``[FILENAME]_posture_*.npz`` containing the following fields:
+
+.. raw:: html
+
+	<style>
+	.wy-table-responsive table td, .wy-table-responsive table th {
+		white-space: normal !important;
+	}
+	.rst-content table.docutils th {
+		border-color: #939799;
+	}
+	</style>
+
+.. csv-table::
+	:header: Name,Description
+	:widths: 15, 35
+	:stub-columns: 1
+	
+	frames, "Frame index for all data contained in all other arrays."
+	offset, "Top-left corner (px) of the object that this posture was generated from."
+	midline_lengths, "Number of points in the midline."
+	midline_centimeters, "Length of the midline in cms (based on the :func:`cm_per_pixel` parameter)"
+ 	midline_offsets, "A bit obscure: Angle (rad) from start to end of the midline (line through first and last point)."
+	midline_angle, "Angle (rad) of a line from head-position (first midline segment) through the midline segment at a fraction of :func:`midline_stiff_percentage` of the midline - approximating the heading of the individual."
+	posture_area, "Area of the polygon spanned by the outline points (calculated using the Shoe lace formula)."
+	midline_points, "2D Points (px) of the midline in real-world coordinates."
+	midline_points_raw, "2D Points (px) of the midline in normalized coordinates."
+	outline_lengths, "Number of points in the outline."
+	outline_points, "Each outline point consists of X and Y, but each outline can be of a different length. To iterate through these points, one must keep a current index that increases by ``outline_lengths[frame]`` per frame."
 
 Tracklet images
 ---------------
