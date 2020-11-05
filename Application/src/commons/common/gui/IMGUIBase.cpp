@@ -851,8 +851,8 @@ void PolyFillScanFlood(ImDrawList *draw, std::vector<ImVec2> *poly, ImColor colo
             ImVec2 fp = poly->at(0);
 
             for (size_t i = 0; i < polysize - 1; i++) {
-                ImVec2 pa = poly->at(i);
-                ImVec2 pb = poly->at(i+1);
+                ImVec2 pa = (*poly)[i];
+                ImVec2 pb = (*poly)[i+1];
 
                 // jump double/dud points
                 if (pa.x == pb.x && pa.y == pb.y) continue;
@@ -862,7 +862,7 @@ void PolyFillScanFlood(ImDrawList *draw, std::vector<ImVec2> *poly, ImColor colo
                 // hull, jump the next segment and reset the first-point
                 if ((!jump) && (fp.x == pb.x) && (fp.y == pb.y)) {
                     if (i < polysize - 2) {
-                        fp   = poly->at(i + 2);
+                        fp   = (*poly)[i + 2];
                         jump = 1;
                         i++;
                     }

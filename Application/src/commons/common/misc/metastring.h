@@ -1077,6 +1077,7 @@ void fail_type(From&& value) {
 
 template<typename To, typename From>
 constexpr To sign_cast(From&& value) {
+#ifndef NDEBUG
     using FromType = typename remove_cvref<From>::type;
     using ToType = typename remove_cvref<To>::type;
     
@@ -1096,12 +1097,13 @@ constexpr To sign_cast(From&& value) {
                 fail_type<To, From>(std::forward<From>(value));
         }
     }
-    
+#endif
     return static_cast<To>(std::forward<From>(value));
 }
 
 template<typename To, typename From>
 constexpr bool check_narrow_cast(const From& value) {
+#ifndef NDEBUG
     using FromType = typename remove_cvref<From>::type;
     using ToType = typename remove_cvref<To>::type;
 
@@ -1165,10 +1167,14 @@ constexpr bool check_narrow_cast(const From& value) {
 #endif
         return value >= 0 && static_cast<unsigned_t>(value) <= static_cast<unsigned_t>(std::numeric_limits<To>::max());
     }
+#else
+    return true;
+#endif
 }
 
 template<typename To, typename From>
 constexpr To narrow_cast(From&& value, struct tag::warn_on_error) {
+#ifndef NDEBUG
     if (!check_narrow_cast<To, From>(value)) {
         auto vstr = Meta::toStr(value);
         auto lstr = Meta::toStr(std::numeric_limits<To>::min());
@@ -1178,12 +1184,13 @@ constexpr To narrow_cast(From&& value, struct tag::warn_on_error) {
         auto fstr = Meta::name<From>();
         Warning("Value '%S' in narrowing conversion of %S -> %S is not within limits [%S,%S].", &vstr, &fstr, &tstr, &lstr, &rstr);
     }
-
+#endif
     return static_cast<To>(std::forward<From>(value));
 }
 
 template<typename To, typename From>
 constexpr To narrow_cast(From&& value, struct tag::fail_on_error) {
+#ifndef NDEBUG
     if (!check_narrow_cast<To, From>(value)) {
         auto vstr = Meta::toStr(value);
         auto lstr = Meta::toStr(std::numeric_limits<To>::min());
@@ -1193,7 +1200,7 @@ constexpr To narrow_cast(From&& value, struct tag::fail_on_error) {
         auto fstr = Meta::name<From>();
         U_EXCEPTION("Value '%S' in narrowing conversion of %S -> %S is not within limits [%S,%S].", &vstr, &fstr, &tstr, &lstr, &rstr);
     }
-
+#endif
     return static_cast<To>(std::forward<From>(value));
 }
 
