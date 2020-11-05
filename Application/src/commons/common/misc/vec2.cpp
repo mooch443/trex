@@ -17,10 +17,14 @@ namespace cmn {
         if(y + height >= bounds.y + bounds.height)
             height = bounds.y + bounds.height - y;
         
-        if(width < 0)
-            width = x = 0;
-        if(height < 0)
-            height = y = 0;
+        if(width < 0) {
+            width = 0;
+            x = std::clamp(x, bounds.x, bounds.x + bounds.width);
+        }
+        if(height < 0) {
+            height = 0;
+            y = std::clamp(y, bounds.y, bounds.y + bounds.height);
+        }
     }
     
     Float2_t Bounds::distance(const Vec2& p) const {

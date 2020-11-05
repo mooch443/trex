@@ -210,7 +210,7 @@ void ImageThreads::processing() {
 
 file::Path FrameGrabber::make_filename() {
     auto path = pv::DataLocation::parse("output", SETTING(filename).value<file::Path>());
-    if(path.extension().to_string() == "pv")
+    if(path.extension() == "pv")
         return path.remove_extension();
     
     return path;
@@ -741,7 +741,7 @@ FrameGrabber::~FrameGrabber() {
 }
 
 file::Path FrameGrabber::average_name() const {
-    auto path = pv::DataLocation::parse("output", "average_" + SETTING(filename).value<file::Path>().filename().to_string() + ".png");
+    auto path = pv::DataLocation::parse("output", "average_" + (std::string)SETTING(filename).value<file::Path>().filename() + ".png");
     return path;
 }
 

@@ -1770,9 +1770,9 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
 }
 
 void GUI::label_fish(gui::DrawStructure &base, track::Individual *fish, long_t frameNr, const Vec2& scale, bool highlighted) {
-    const Font font((highlighted ? 0.85 : 0.85) / (1 - ((1 - GUI::instance()->cache().zoom_level()) * 0.5)), Align::Left);
+    const Font font((highlighted ? 0.85f : 0.85f) / (1 - ((1 - GUI::instance()->cache().zoom_level()) * 0.5f)), Align::Left);
     Font secondary_font = font;
-    secondary_font.size *= 0.9;
+    secondary_font.size *= 0.9f;
     
     //const Font font(0.9 * 0.75 + 0.25 * 0.9 / interface_scale);
     Vec2 factor = Vec2(Base::default_line_spacing(font)).mul(scale.mul(base.scale()) / font.size );//.mul(Vec2(0.5,1 + GUI::instance()->cache().zoom_level() * 0.5));
@@ -1786,27 +1786,27 @@ void GUI::label_fish(gui::DrawStructure &base, track::Individual *fish, long_t f
     auto transform = base.active_section()->global_transform();
     auto screen = transform.getInverse().transformRect(Bounds(Vec2(), Size2(base.width(), base.height())));
     
-    Vec2 text_pos = _cache._fish_map[fish]->pos() + Vec2(_cache._fish_map[fish]->size().width * 0.5, 0);
+    Vec2 text_pos = _cache._fish_map[fish]->pos() + Vec2(_cache._fish_map[fish]->size().width * 0.5f, 0);
     
     if(blob) {
         auto blob_center = _cache._fish_map[fish]->fish_pos();
         
-        auto gpos = transform.transformPoint(blob_center) - Vec2(gui().width(), gui().height() * 2.25) * 0.5;
-        gpos = gpos.div(Size2(gui().width() * 0.5, gui().height() * 0.5));
+        auto gpos = transform.transformPoint(blob_center) - Vec2(gui().width(), gui().height() * 2.25f) * 0.5f;
+        gpos = gpos.div(Size2(gui().width() * 0.5f, gui().height() * 0.5f));
         //gpos = gpos.mul(gpos);
         factor = factor.mul(Vec2(- gpos.x, - gpos.y) * 10);
         //secondary_text = Meta::toStr(gpos);//+" |"+Meta::toStr(factor);
         
         auto L = factor.length();
         factor = factor / L;
-        L = L * min(gui().width(), gui().height()) / 1000.f * 0.06 / gui::interface_scale();
+        L = L * min(gui().width(), gui().height()) / 1000.f * 0.06f / gui::interface_scale();
         //L = SQR(L) * 0.5;
         
         auto text_offset = Vec2(0, Base::default_line_spacing(font));
         auto offset_from_blob = blob->calculate_bounds().height * 0.25;
         auto line_start = offset_from_blob;
         auto line_end = L + line_start;
-        text_pos = blob_center - factor * (line_end + Base::default_line_spacing(Font(0.5)));
+        text_pos = blob_center - factor * (line_end + Base::default_line_spacing(Font(0.5f)));
         
         Vec2 end = blob_center - factor * line_end;
             
@@ -3166,11 +3166,6 @@ void GUI::update_display_blobs(bool draw_blobs, Section* fishbowl) {
             //_cache.display_blobs_list.insert(_cache.display_blobs_list.end(), vector.begin(), vector.end());
             
         }, _blob_thread_pool, _cache.raw_blobs.begin(), _cache.raw_blobs.end());
-        
-#ifndef NDEBUG
-        if(_cache.frame_idx % 100 == 0)
-            Debug("%lu/%lu %lu", _cache.display_blobs.size(), _cache.raw_blobs.size(), _cache.display_blobs_list.size());
-#endif
     }
 }
 
@@ -3998,9 +3993,7 @@ void GUI::key_event(const gui::Event &event) {
                 
                 play_direction() = 1;
                 
-                long_t new_frame = frame() + inc;
-                if(size_t(frame()) > _video_source->length()-1)
-                    new_frame = _video_source->length()-1;
+                long_t new_frame = min((long_t)_video_source->length()-1, frame() + inc);
                 SETTING(gui_frame) = new_frame;
                 
                 last_increase_timer.reset();
@@ -4051,7 +4044,7 @@ void GUI::key_event(const gui::Event &event) {
                 
                 play_direction() = -1;
                 
-                long_t new_frame = frame() - inc;
+                long_t new_frame = max(0, frame() - inc);
                 if(frame() < 0)
                     new_frame = 0;
                 SETTING(gui_frame) = new_frame;

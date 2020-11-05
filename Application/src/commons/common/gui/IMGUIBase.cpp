@@ -1048,17 +1048,17 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
             
             // Non Anti-aliased Stroke
             auto &points = ptr->points();
-            int points_count = (int)points.size();
-            int count = points_count - 1;
+            auto points_count = points.size();
             
             if(points_count <= 1)
                 break;
             
+            auto count = points_count - 1;
             float thickness = ptr->thickness();
             const ImVec2 uv = list->_Data->TexUvWhitePixel;
             
-            const int idx_count = count*6;
-            const int vtx_count = count*4;      // FIXME-OPT: Not sharing edges
+            const auto idx_count = count*6;
+            const auto vtx_count = count*4;      // FIXME-OPT: Not sharing edges
             list->PrimReserve(idx_count, vtx_count);
             assert(idx_count > 0 && vtx_count > 0);
             
@@ -1067,9 +1067,9 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
             //transform.combine(o->global_transform());
             //auto transform = o->global_transform();
 
-            for (int i1 = 0; i1 < count; i1++)
+            for (size_t i1 = 0; i1 < count; i1++)
             {
-                const int i2 = (i1+1) == points_count ? 0 : i1+1;
+                const size_t i2 = (i1+1) == points_count ? 0 : i1+1;
                 auto p1 = order.transform.transformPoint(points[i1].position());
                 auto p2 = order.transform.transformPoint(points[i2].position());
                 

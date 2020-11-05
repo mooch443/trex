@@ -219,7 +219,7 @@ int main(int argc, char** argv)
             settings_file = SETTING(output_dir).value<file::Path>() / settings_file;
         }
         
-        if(!settings_file.has_extension() || settings_file.extension().to_string() != "settings")
+        if(!settings_file.has_extension() || settings_file.extension() != "settings")
             settings_file = settings_file.add_extension("settings");
         
         Debug("settings: %S", &settings_file.str());
@@ -250,11 +250,11 @@ int main(int argc, char** argv)
     });
     
     pv::DataLocation::register_path("output_settings", [](file::Path) -> file::Path {
-        file::Path settings_file = SETTING(filename).value<Path>().filename().to_string();
+        file::Path settings_file(SETTING(filename).value<Path>().filename());
         if(settings_file.empty())
             U_EXCEPTION("settings_file is an empty string.");
         
-        if(!settings_file.has_extension() || settings_file.extension().to_string() != "settings")
+        if(!settings_file.has_extension() || settings_file.extension() != "settings")
             settings_file = settings_file.add_extension("settings");
         
         return pv::DataLocation::parse("output", settings_file);
@@ -579,11 +579,11 @@ int main(int argc, char** argv)
                 if(filename.has_extension())
                     filename = filename.remove_extension();
                 
-                if(utils::contains(filename.filename().to_string(), '%')) {
+                if(utils::contains((std::string)filename.filename(), '%')) {
                     filename = filename.remove_filename();
                 }
                 
-                SETTING(filename) = file::Path(file::Path(filename).filename().to_string());
+                SETTING(filename) = file::Path(file::Path(filename).filename());
                 if(SETTING(filename).value<file::Path>().empty()) {
                     SETTING(filename) = file::Path("video");
                     Warning("No output filename given. Defaulting to 'video'.");

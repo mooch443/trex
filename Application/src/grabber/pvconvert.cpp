@@ -20,7 +20,7 @@ int main(int argc, char**argv) {
             settings_file = SETTING(output_dir).value<file::Path>() / settings_file;
         }
         
-        if(!settings_file.has_extension() || settings_file.extension().to_string() != "settings")
+        if(!settings_file.has_extension() || settings_file.extension() != "settings")
             settings_file = settings_file.add_extension("settings");
         
         return settings_file;
