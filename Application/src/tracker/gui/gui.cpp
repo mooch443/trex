@@ -884,7 +884,7 @@ void GUI::start_recording() {
         size_t max_number = 0;
         try {
             for(auto &file : frames.find_files()) {
-                auto name = file.filename().to_string();
+                auto name = std::string(file.filename());
                 if(utils::beginsWith(name, "clip")) {
                     try {
                         if(utils::endsWith(name, ".avi"))
@@ -982,7 +982,7 @@ void GUI::stop_recording() {
         }
         
     } else {
-        auto clip_name = _recording_path.filename().to_string();
+        auto clip_name = std::string(_recording_path.filename());
         printf("ffmpeg -start_number %d -i %s/%%06d.%s -vcodec libx264 -crf 13 -vf 'scale=trunc(iw/2)*2:trunc(ih/2)*2' -profile:v main -pix_fmt yuv420p %s.mp4\n", _recording_start, _recording_path.str().c_str(), _recording_format.name(), clip_name.c_str());
     }
     
@@ -1000,7 +1000,7 @@ std::string GUI::window_title() const {
     auto output_prefix = SETTING(output_prefix).value<std::string>();
     return SETTING(app_name).value<std::string>()
         + (SETTING(version).value<std::string>().empty() ? "" : (" " + SETTING(version).value<std::string>()))
-        + " (" + SETTING(filename).value<file::Path>().filename().to_string() + ")"
+        + " (" + (std::string)SETTING(filename).value<file::Path>().filename() + ")"
         + (output_prefix.empty() ? "" : (" ["+output_prefix+"]"));
 }
 
@@ -2514,7 +2514,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                 auto && [unique, unique_map, up] = Accumulation::calculate_uniqueness(false, images, map);
                 auto coverage = data->draw_coverage(unique_map);
                 
-                auto path = pv::DataLocation::parse("output", "uniqueness"+video_source()->filename().filename().to_string()+".png");
+                auto path = pv::DataLocation::parse("output", "uniqueness"+(std::string)video_source()->filename().filename()+".png");
                 
                 Debug("Uniqueness: %f (output to '%S')", unique, &path.str());
                 cv::imwrite(path.str(), coverage->get());
@@ -4378,7 +4378,7 @@ void GUI::save_state(GUI::GUIType type, bool force_overwrite) {
                             if(file->remove_filename().empty()) {
                                 *file = file::Path("backup_" + file->str());
                             } else
-                                *file = file->remove_filename() / ("backup_" + file->filename().to_string());
+                                *file = file->remove_filename() / ("backup_" + (std::string)file->filename());
                         } while(file->exists());
                         
                         auto expected = Output::TrackingResults::expected_filename();
@@ -4577,7 +4577,7 @@ void GUI::save_visual_fields() {
     if(!fishdata.exists())
         if(!fishdata.create_folder())
             U_EXCEPTION("Cannot create folder '%S' for saving fishdata.", &fishdata.str());
-    auto filename = SETTING(filename).value<file::Path>().filename().to_string();
+    auto filename = (std::string)SETTING(filename).value<file::Path>().filename();
     
     if(selected) {
         auto path = fishdata / (filename + "_visual_field_"+selected->identity().name());
@@ -4661,7 +4661,7 @@ void GUI::export_tracks(const file::Path& , long_t fdx, Rangel range) {
 }
 
 file::Path GUI::frame_output_dir() const {
-    return pv::DataLocation::parse("output", file::Path("frames") / SETTING(filename).value<file::Path>().filename().to_string());
+    return pv::DataLocation::parse("output", file::Path("frames") / (std::string)SETTING(filename).value<file::Path>().filename());
 }
 
 std::string GUI::info(bool escape) {

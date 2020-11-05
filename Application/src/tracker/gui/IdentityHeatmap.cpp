@@ -116,7 +116,7 @@ void HeatmapController::paint_heatmap() {
 void HeatmapController::save() {
     update_variables();
     
-    file::Path path = pv::DataLocation::parse("output", file::Path(SETTING(filename).value<file::Path>().filename().to_string()+ "_heatmap_"+Meta::toStr(uniform_grid_cell_size)+"_"+Meta::toStr(N)+"x"+Meta::toStr(N)+".npz"));
+    file::Path path = pv::DataLocation::parse("output", file::Path((std::string)SETTING(filename).value<file::Path>().filename()+ "_heatmap_"+Meta::toStr(uniform_grid_cell_size)+"_"+Meta::toStr(N)+"x"+Meta::toStr(N)+".npz"));
     DebugHeader("Saving heatmap to '%S'...", &path.str());
     
     _frame_context = 0;
@@ -134,7 +134,7 @@ void HeatmapController::save() {
     
     size_t count_frames = 0;
     size_t max_frames = Tracker::end_frame() - Tracker::start_frame();
-    size_t print_step = max_frames * 0.1 + 1;
+    size_t print_step = max_frames / 10 + 1;
     std::vector<long_t> frames;
     for(long_t frame = Tracker::start_frame(); frame <= Tracker::end_frame(); ++frame) {
         update_data(frame);
@@ -169,7 +169,7 @@ void HeatmapController::sort_data_into_custom_grid() {
     static Timer timer;
     timer.reset();
     
-    double minimum = 0, maximum = 0;
+    Float2_t minimum = 0, maximum = 0;
     std::vector<double> values;
     std::fill(_array_samples.begin(), _array_samples.end(), _normalization == normalization_t::cell ? 1 : 0);
     std::fill(_array_grid.begin(), _array_grid.end(), 0);
@@ -183,8 +183,8 @@ void HeatmapController::sort_data_into_custom_grid() {
             if(r.pixel_size() > uniform_grid_cell_size)
                 return true;
             
-            int64_t cx = (double((double)r.x().start + 0.5) / stride);
-            int64_t cy = (double((double)r.y().start + 0.5) / stride);
+            auto cx = sign_cast<uint64_t>((double((double)r.x().start + 0.5) / stride));
+            auto cy = sign_cast<uint64_t>((double((double)r.y().start + 0.5) / stride));
             
             size_t i = cy * N + cx;
             _array_grid.at(i) += r.size();
@@ -204,8 +204,8 @@ void HeatmapController::sort_data_into_custom_grid() {
             if(r.pixel_size() > uniform_grid_cell_size)
                 return true;
             
-            int64_t cx = (double((double)r.x().start + 0.5) / stride);
-            int64_t cy = (double((double)r.y().start + 0.5) / stride);
+            auto cx = sign_cast<uint64_t>((double((double)r.x().start + 0.5) / stride));
+            auto cy = sign_cast<uint64_t>((double((double)r.y().start + 0.5) / stride));
             
             size_t i = cy * N + cx;
             
@@ -232,8 +232,8 @@ void HeatmapController::sort_data_into_custom_grid() {
             values.reserve(_grid.size());
         
         _grid.apply<Leaf>([&](const Leaf& leaf) -> bool {
-            int64_t cx = (double((double)leaf.x().start + 0.5) / double(stride));
-            int64_t cy = (double((double)leaf.y().start + 0.5) / double(stride));
+            auto cx = sign_cast<uint64_t>((double((double)leaf.x().start + 0.5) / double(stride)));
+            auto cy = sign_cast<uint64_t>((double((double)leaf.y().start + 0.5) / double(stride)));
             
             size_t i = cy * N + cx;
             assert((size_t)i < _array_grid.size());
@@ -334,8 +334,8 @@ void HeatmapController::sort_data_into_custom_grid() {
     else
         mat.setTo(empty);
     
-    double percentage;
-    double ML = maximum - minimum;
+    Float2_t percentage;
+    auto ML = maximum - minimum;
     if(ML == 0)
         ML = 1;
     
@@ -346,7 +346,7 @@ void HeatmapController::sort_data_into_custom_grid() {
                 percentage = (_array_grid[i] / _array_samples[i] - minimum) / ML;
                 if(_normalization == normalization_t::variance)
                     percentage = 1 - percentage;
-                mat.at<cv::Vec4b>(y, x) = Viridis::value(percentage).alpha(percentage * 200);
+                mat.at<cv::Vec4b>(y, x) = Viridis::value(percentage).alpha(uint8_t(percentage * 200));
             }
         }
     }

@@ -57,7 +57,7 @@ namespace gui {
                 _get_y(get_y), _type(type), _name(name), _unit_name(unit_name)
             { }
             
-            float operator()(float x) const {
+            double operator()(double x) const {
                 return _get_y(x);
             }
             

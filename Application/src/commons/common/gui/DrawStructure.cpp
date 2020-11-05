@@ -26,8 +26,8 @@ namespace gui {
                 std::chrono::duration<float> d = std::chrono::system_clock::now() - last;
                 auto d_ = std::chrono::duration_cast<std::chrono::milliseconds>(d).count() / 1000.f;
                 
-                alpha -= 0.25 * d_;
-                clr.a = saturate(255 * alpha);
+                alpha -= 0.25f * d_;
+                clr.a = (uint8_t)saturate(255.f * alpha);
             }
             
             last = std::chrono::system_clock::now();
@@ -82,7 +82,7 @@ namespace gui {
             Vec2 pos = Vec2(width()-10, 0) + Vec2(0, 100).mul(scale().reciprocal());
             for (size_t i=min(size_t(20), error_messages.size()); i>0; i--) {
                 auto &e = error_messages.at(i-1);
-                auto t = text(e.msg, pos, e.clr, Font(0.6, Align::Right), scale().reciprocal());
+                auto t = text(e.msg, pos, e.clr, Font(0.6f, Align::Right), scale().reciprocal());
                 
                 //t->set_scale(Vec2(1/interface_scale));
                 
@@ -98,8 +98,8 @@ namespace gui {
     Dialog::Dialog(DrawStructure& d, const std::function<void(Result)>& callback, const std::string &text, const std::string& title, const std::string& okay, const std::string& abort, const std::string& second, const std::string& third, const std::string& fourth)
       : _closed(false),
         _title_bg(Bounds(), White.alpha(100)),
-        _text(std::make_shared<StaticText>(text, Vec2(250, 135), Size2(500, 50), Font(0.8))),
-        _title(title, Vec2(), White, Font(0.9, Style::Bold)),
+        _text(std::make_shared<StaticText>(text, Vec2(250, 135), Size2(500, 50), Font(0.8f))),
+        _title(title, Vec2(), White, Font(0.9f, Style::Bold)),
         _okay(std::make_shared<Button>(okay, Bounds())),
         _abort(abort.empty() ? nullptr : std::make_shared<Button>(abort, Bounds())),
         _second(second.empty() ? nullptr : std::make_shared<Button>(second, Bounds())),
@@ -113,8 +113,8 @@ namespace gui {
         if(!d.dialog_window_size().empty())
             size = d.dialog_window_size();
         
-        _title_bg.set_bounds(Bounds(5,10,max(650, min(900, size.width * 0.25)),60));
-        _okay->set_bounds(Bounds(Vec2(_title_bg.width() * 0.5, 230), Size2(100, 40)));
+        _title_bg.set_bounds(Bounds(5,10,max(650, min(900, size.width * 0.25f)),60));
+        _okay->set_bounds(Bounds(Vec2(_title_bg.width() * 0.5f, 230), Size2(100, 40)));
         if(_abort)
             _abort->set_bounds(Bounds(310, 230, 140, 40));
         if(_second)
@@ -144,7 +144,7 @@ namespace gui {
             buttons.push_back(_abort);
         _buttons->set_children(buttons);
         
-        set_background(DarkCyan.brighten(0.2).alpha(220), Black);
+        set_background(DarkCyan.brighten(0.2f).alpha(220), Black);
         
         _text->set_background(Transparent, Transparent);
         _title.set_origin(Vec2(0.5));
@@ -225,7 +225,7 @@ namespace gui {
         //d.wrap_object(*_text);
         d.wrap_object(_title);
         
-        _title.set_pos(_title_bg.size() * 0.5 + Vec2(0, _title_bg.height() * 0.2));
+        _title.set_pos(_title_bg.size() * 0.5f + Vec2(0, _title_bg.height() * 0.2f));
         
         _layout.set_policy(gui::VerticalLayout::Policy::CENTER);
         _buttons->set_policy(gui::HorizontalLayout::Policy::CENTER);
@@ -234,8 +234,8 @@ namespace gui {
         
         _layout.update();
         _text->update();
-        _layout.set_origin(Vec2(0.5, 0));
-        _layout.set_pos(Vec2(0.5 * width(), _layout.pos().y));
+        _layout.set_origin(Vec2(0.5f, 0));
+        _layout.set_pos(Vec2(0.5f * width(), _layout.pos().y));
         
         set_size(Size2(width(), _layout.height() + _layout.pos().y + 10));
         

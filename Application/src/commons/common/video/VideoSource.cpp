@@ -24,7 +24,7 @@ std::string VideoSource::File::complete_name(const std::string &basename, const 
     return basename + "." + ext;
 }
 
-VideoSource::File * VideoSource::File::open(long_t index, const std::string& basename, const std::string& ext, bool no_check) {
+VideoSource::File * VideoSource::File::open(size_t index, const std::string& basename, const std::string& ext, bool no_check) {
     if(no_check) {
         return new File(index, basename, ext);
     }
@@ -38,7 +38,7 @@ VideoSource::File * VideoSource::File::open(long_t index, const std::string& bas
     return NULL;
 }
 
-VideoSource::File::File(long_t index, const std::string& basename, const std::string& extension) : _index(index), _video(NULL), _size(0, 0) {
+VideoSource::File::File(size_t index, const std::string& basename, const std::string& extension) : _index(index), _video(NULL), _size(0, 0) {
     _filename = complete_name(basename, extension);
     
     // check the extension(-type)
@@ -68,7 +68,7 @@ VideoSource::File::File(long_t index, const std::string& basename, const std::st
                     _timestamps = cnpy::npz_load(npz.str(), "frame_time").as_vec<double>();
                     auto res = cnpy::npz_load(npz.str(), "imgshape").as_vec<int64_t>();
                     _size = cv::Size( (int)res[1], (int)res[0] );
-                    _length = (long_t)_timestamps.size();
+                    _length = _timestamps.size();
                 } catch(...) {
                     Except("Failed opening NPZ archive '%S' with (presumably) timestamps in them for video '%S'. Proceeding without.", &npz.str(), &_filename);
                     
@@ -88,7 +88,7 @@ VideoSource::File::File(long_t index, const std::string& basename, const std::st
         }
             
         case IMAGE:
-            _length = 1;
+            _length = 1u;
             break;
             
         default:
@@ -156,7 +156,7 @@ short VideoSource::File::framerate() {
             _video->open(_filename);
         auto fps = _video->framerate();
         _video->close();
-        return fps;
+        return narrow_cast<short>(fps);
     }
 }
 
@@ -172,7 +172,7 @@ uint64_t VideoSource::File::timestamp(uint64_t frameIndex) const {
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(point);
     //uint64_t seconds = std::chrono::duration_cast<std::chrono::seconds>(duration).count();
     //uint64_t ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
-    uint64_t ns = std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
+    auto ns = narrow_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(duration).count());
     return ns;
 }
 
@@ -226,7 +226,7 @@ VideoSource::VideoSource(const std::string& source) {
     if(std::regex_search(source,m,rext)) {
         auto x = m[1];
         extension = x.str().substr(1);
-        base_name = source.substr(0, m.position(1));
+        base_name = source.substr(0u, (uint64_t)m.position(1));
         
         Debug("Extension '%S' basename '%S'", &extension, &base_name);
         
@@ -238,7 +238,7 @@ VideoSource::VideoSource(const std::string& source) {
         auto x = m[0];
         
         std::string s = x.str();
-        auto p = m.position();
+        auto p = (uint64_t)m.position();
         
         s = s.substr(1, s.length()-2);
         auto split = utils::split(s, '.');
@@ -251,7 +251,7 @@ VideoSource::VideoSource(const std::string& source) {
         }
         
         number_length = std::stoi(split[0]);
-        base_name = base_name.substr(0, p);
+        base_name = base_name.substr(0u, p);
         Debug("match '%S' at %d with nr %d", &s, p, number_length);
     }
     
@@ -266,14 +266,14 @@ VideoSource::VideoSource(const std::string& source) {
 VideoSource::VideoSource(const std::vector<file::Path>& files)
 {
     for(auto &path : files) {
-        auto extension = path.extension().to_string();
+        auto extension = std::string(path.extension());
         auto basename = path.remove_extension().str();
         auto f = File::open(_files_in_seq.size(), basename, extension);
         if(!f)
             U_EXCEPTION("Cannot open file '%S'.", &path.str());
         
         _files_in_seq.push_back(f);
-        _length += (long_t)f->length();
+        _length += f->length();
     }
     
     if(_files_in_seq.empty()) {
@@ -296,13 +296,13 @@ void VideoSource::open(const std::string& basename, const std::string& extension
 
         if(f) {
             _files_in_seq.push_back(f);
-            _length += (long_t)f->length();
+            _length += f->length();
         } else {
             U_EXCEPTION("Input source '%S' not found.", &basename);
         }
         
     } else if(seq_end == VIDEO_SEQUENCE_UNSPECIFIED_VALUE) {
-        auto base = file::Path(basename).is_folder() ? "" : file::Path(basename).filename().to_string();
+        auto base = file::Path(basename).is_folder() ? "" : file::Path(basename).filename();
         Debug("Trying to find the last file (starting at %d) pattern '%S%%%dd.%S'...", seq_start, &base, padding, &extension);
         
         _files_in_seq.reserve(10000);
@@ -313,7 +313,7 @@ void VideoSource::open(const std::string& basename, const std::string& extension
             
             try {
                 ss << basename << std::setfill('0') << std::setw(padding) << i;
-                File *file = File::open(i - seq_start, ss.str(), extension);
+                File *file = File::open(sign_cast<size_t>(i - seq_start), ss.str(), extension);
                 if(!file) {
                     break;
                 }
@@ -515,8 +515,8 @@ void VideoSource::generate_average(cv::Mat &av, uint64_t) {
             float_mat = gpuMat::zeros(average.rows, average.cols, CV_8UC1);
     }
     
-    float samples = GlobalSettings::has("average_samples") ? SETTING(average_samples).value<int>() : (length() * 0.01);
-    uint64_t step = max(1, _files_in_seq.size() < samples ? 1 : ceil(_files_in_seq.size() / samples));
+    float samples = GlobalSettings::has("average_samples") ? (float)SETTING(average_samples).value<uint32_t>() : (length() * 0.01f);
+    uint64_t step = max(1u, _files_in_seq.size() < samples ? 1u : (uint64_t)ceil(_files_in_seq.size() / samples));
     uint64_t frames_per_file = max(1, _files_in_seq.size() < samples ? (length() / _files_in_seq.size()) / (length() / samples) : 1);
     
     if(samples > 255 && method == averaging_method_t::mode)
@@ -527,7 +527,7 @@ void VideoSource::generate_average(cv::Mat &av, uint64_t) {
     std::vector<std::array<uint8_t, 256>> spatial_histogram;
     std::vector<std::unique_ptr<std::mutex>> spatial_mutex;
     if(method == averaging_method_t::mode) {
-        spatial_histogram.resize(average.cols * average.rows);
+        spatial_histogram.resize(size_t(average.cols) * size_t(average.rows));
         for(uint64_t i=0; i<spatial_histogram.size(); ++i) {
             std::fill(spatial_histogram.at(i).begin(), spatial_histogram.at(i).end(), 0);
             spatial_mutex.push_back(std::make_unique<std::mutex>());
@@ -542,7 +542,7 @@ void VideoSource::generate_average(cv::Mat &av, uint64_t) {
         auto file = _files_in_seq.at(i);
         file_indexes[file].insert(0);
         if(frames_per_file > 1) {
-            auto step = max(1, ceil(file->length() / frames_per_file));
+            auto step = max(1u, (uint64_t)ceil((uint64_t)file->length() / frames_per_file));
             for(uint64_t i=step; i<(uint64_t)file->length(); i+= step) {
                 file_indexes[file].insert(i);
             }

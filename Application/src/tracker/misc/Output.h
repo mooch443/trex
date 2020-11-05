@@ -109,8 +109,9 @@ namespace Output {
             V_29, // removing Vec2 from individuals for centroid position
             V_30, // add analysis_range information to header
             V_31, // add number of individuals per frame
+            V_32, // change ShortHorizontalLine format
             
-            current = V_31
+            current = V_32
         };
         
     private:

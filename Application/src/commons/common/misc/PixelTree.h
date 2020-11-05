@@ -101,7 +101,7 @@ namespace pixel {
         }
         
         constexpr static int64_t leaf_index(int64_t x, int32_t y) {
-            return ( ( (int64_t(x) << 32) & 0xFFFFFFFF00000000 ) | int32_t(y) );
+            return int64_t( ( (int64_t(x) << 32) & 0xFFFFFFFF00000000 ) | int64_t(y) );
         }
     };
     

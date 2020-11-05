@@ -2,7 +2,7 @@
 #define _PATH_H
 
 #include <types.h>
-#include <misc/string_view.h>
+#include <string_view>
 
 namespace file {
     using namespace cmn;
@@ -15,7 +15,7 @@ namespace file {
     public:
         Path(const std::string& s = "");
         Path(const char* c);
-        Path(string_view sv);
+        Path(std::string_view sv);
         
         const char* c_str() const { return _str.c_str(); }
         
@@ -29,7 +29,7 @@ namespace file {
         bool empty() const { return _str.empty(); }
         
         //! Returns the last filename, removes the path
-        string_view filename() const;
+        std::string_view filename() const;
         
         //! Returns path, removes last filename
         Path remove_filename() const;
@@ -64,14 +64,14 @@ namespace file {
         //! Moves the file to given destination
         bool move_to(const file::Path& to);
         
-        Path replace_extension(string_view ext) const;
-        Path add_extension(string_view ext) const;
+        Path replace_extension(std::string_view ext) const;
+        Path add_extension(std::string_view ext) const;
         bool has_extension() const;
         Path remove_extension() const;
         
         FILE* fopen(const std::string& access_rights) const;
         
-        string_view extension() const;
+        std::string_view extension() const;
         
         bool operator<(const Path& other) const;
         bool operator<=(const Path& other) const;

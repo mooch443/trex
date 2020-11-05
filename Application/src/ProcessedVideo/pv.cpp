@@ -161,14 +161,27 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
         // declared outside so memory doesnt have to be freed/allocated all the time
         static DataPackage pixels;
         static std::vector<Header::line_type> mask((NoInitializeAllocator<Header::line_type>()));
+        static std::vector<LegacyShortHorizontalLine> mask_legacy((NoInitializeAllocator<LegacyShortHorizontalLine>()));
         
         for(int i=0; i<_n; i++) {
             uint16_t start_y, mask_size;
             ptr->read<uint16_t>(start_y);
             ptr->read<uint16_t>(mask_size);
-            mask.resize(mask_size);
             
-            ptr->read_data(mask_size * ref.header().line_size, (char*)mask.data());
+            if(ref.header().version < V_7) {
+                mask_legacy.resize(mask_size);
+                mask.clear();
+                mask.reserve(mask_legacy.size());
+                
+                assert(ref.header().line_size == sizeof(LegacyShortHorizontalLine));
+                
+                ptr->read_data(mask_size * ref.header().line_size, (char*)mask_legacy.data());
+                std::copy(mask_legacy.begin(), mask_legacy.end(), std::back_inserter(mask));
+                
+            } else {
+                mask.resize(mask_size);
+                ptr->read_data(mask_size * ref.header().line_size, (char*)mask.data());
+            }
             
             uint64_t num_pixels = 0;
             for(auto &l : mask) {
@@ -186,7 +199,7 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
                 for (auto &l : *uncompressed) {
                     for (int x=l.x0; x<=l.x1; x++) {
                         auto &p = ptr[idx++];
-                        p = min(UCHAR_MAX, max(0, int(ref.average().at<uchar>(l.y, x)) - p));
+                        p = (uchar)saturate(int(ref.average().at<uchar>(l.y, x)) - int(p));
                     }
                 }
             }
@@ -274,8 +287,7 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
             auto ptr = full_image.ptr(line_ptr->y, line_ptr->x0);
             assert(line_ptr->x1 >= line_ptr->x0);
             long_t N = long_t(line_ptr->x1) - long_t(line_ptr->x0) + 1;
-            assert(N > 0);
-            memcpy(pixel_ptr, ptr, N);
+            memcpy(pixel_ptr, ptr, sign_cast<size_t>(N));
             pixel_ptr += N;
         }
         
@@ -307,7 +319,7 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
         pack.write(_timestamp); // force uint32_t because it should have been turned
         pack.write(_n);         // into a relative timestamp by now // V_4 use uint64_t anyway
         
-        for(int i=0; i<_n; i++) {
+        for(uint16_t i=0; i<_n; i++) {
             auto &mask = _mask.at(i);
             auto &pixels = _pixels.at(i);
             
@@ -361,7 +373,7 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
         ref.read<std::string>(version_str);
         
         if(version_str.length() > 2) {
-            uchar nr = version_str.at(version_str.length()-1) - '0';
+            auto nr = version_str.at(version_str.length()-1u) - uchar('0');
             version = (Version)(nr-1);
             
         } else {
@@ -413,7 +425,7 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
         if(average)
             delete average;
         
-        average = new Image(this->resolution.height, this->resolution.width, channels);
+        average = new Image((uint)this->resolution.height, (uint)this->resolution.width, channels);
         _average_offset = ref.current_offset();
         ref.read_data(average->size(), (char*)average->data());
         
@@ -426,7 +438,7 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
             ref.read<uint64_t>(mask_size);
             if(mask_size) {
                 // does it use a mask?
-                mask = new Image(this->resolution.height /*- (offsets.y + offsets.height)*/, this->resolution.width /*- (offsets.x + offsets.width)*/, channels);
+                mask = new Image((uint)this->resolution.height /*- (offsets.y + offsets.height)*/, (uint)this->resolution.width /*- (offsets.x + offsets.width)*/, channels);
                 
                 //Debug("Reading mask with %dx%d", mask->cols, mask->rows);
                 ref.read_data(mask->size(), (char*)mask->data());
@@ -510,12 +522,12 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
         _index_offset = ref.write(decltype(index_offset)(0));
         _timestamp_offset = ref.write(timestamp);
         
-        ref.write<std::string>(file::Path(name).filename().to_string());
+        ref.write<std::string>((std::string)file::Path(name).filename());
         
         if(average)
             _average_offset = ref.write_data(average->size(), (char*)average->data());
         else {
-            Image tmp(resolution.height, resolution.width, 1);
+            Image tmp((uint)resolution.height, (uint)resolution.width, 1);
             _average_offset = ref.write_data(tmp.size(), (char*)tmp.data());
         }
         
@@ -603,7 +615,7 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
         std::chrono::microseconds ns_l, ns_e;
         
         if(!_open_for_writing){
-            uint64_t idx = length() * 0.5;
+            uint64_t idx = length() / 2u;
             uint64_t edx = length()-1;
             if(idx < length()) {
                 pv::Frame lastframe;
@@ -652,7 +664,7 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
     
     void File::set_start_time(std::chrono::time_point<std::chrono::system_clock> tp) {
         assert(!open());
-        _header.timestamp = std::chrono::time_point_cast<std::chrono::microseconds>(tp).time_since_epoch().count();
+        _header.timestamp = narrow_cast<uint64_t>(std::chrono::time_point_cast<std::chrono::microseconds>(tp).time_since_epoch().count());
     }
     
     const pv::Frame& File::last_frame() {
@@ -708,7 +720,7 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
                     
                     _compression_value = _compression_value + size / float(in_len);
                     _compression_samples ++;
-                    _compression_ratio = _compression_value / float(_compression_samples);
+                    _compression_ratio = _compression_value / double(_compression_samples);
                 }
                 
                 if(size < in_len) {
@@ -790,7 +802,7 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
         else
             output = cv::Mat::zeros(header().resolution.height, header().resolution.width, CV_8UC1);
         
-        for (int i=0; i<frame.n(); i++) {
+        for (uint16_t i=0; i<frame.n(); i++) {
             uint64_t index = 0;
             auto &mask = frame.mask().at(i);
             auto &pixels = frame.pixels().at(i);
@@ -937,7 +949,7 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
         uint64_t start_frame = 0;
         std::set<long_t> samples;
         while(timer.elapsed() < 1 && pixel_values.size() < 10000000 && start_frame < length()) {
-            auto range = arange<long_t>((long_t)start_frame, (long_t)length(), max(1, (long_t)length() * 0.1));
+            auto range = arange<long_t>((long_t)start_frame, (long_t)length(), max(1, long_t(length() * 0.1)));
             pv::Frame frame;
             uint64_t big_loop_size = samples.size();
             
@@ -950,7 +962,7 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
                 if(samples.size() == prev_size)
                     continue;
                 
-                read_frame(frame, frameIndex);
+                read_frame(frame, (uint64_t)frameIndex);
                 for(uint64_t i=0; i<frame.n(); ++i) {
                     pixel_values.insert(frame.pixels().at(i)->begin(), frame.pixels().at(i)->end());
                 }
@@ -974,12 +986,12 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
         return p;
     }
     
-    uint64_t File::generate_average_tdelta() {
-        if(!_open_for_writing && _header.average_tdelta == 0) {
+    double File::generate_average_tdelta() {
+        if(!_open_for_writing && _header.average_tdelta == 0 && length()>0) {
             // readable
             double average = 0;
             uint64_t samples = 0;
-            const uint64_t step = max(1, (length()-1) * 0.1);
+            const uint64_t step = max(1u, (length()-1) / 10u);
             pv::Frame frame;
             for (uint64_t i=1; i<length(); i+=step) {
                 read_frame(frame, i);

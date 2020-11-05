@@ -289,7 +289,7 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
   : //_current_image(NULL),
     _current_average_timestamp(0),
     _average_finished(false),
-    _average_samples(0), _last_index(0),
+    _average_samples(0u), _last_index(0),
     _video(NULL), _video_mask(NULL),
     _camera(NULL),
     _current_fps(0), _fps(0),
@@ -798,7 +798,7 @@ bool FrameGrabber::add_image_to_average(const Image_t& current) {
             
             // to protect _last_frame
             std::lock_guard<std::mutex> guard(_frame_lock);
-            _average_samples = 0;
+            _average_samples = 0u;
             _average_finished = false;
             if(fname.exists()) {
                 if(!fname.delete_file()) {
@@ -845,7 +845,7 @@ bool FrameGrabber::add_image_to_average(const Image_t& current) {
         
         _average_samples++;
         
-        if(_average_samples >= SETTING(average_samples).value<int>()) { //|| fname.is_regular()) {
+        if(_average_samples >= SETTING(average_samples).value<uint32_t>()) { //|| fname.is_regular()) {
             if(use_mean) {
                 _current_average /= float(_average_samples);
                 std::lock_guard<std::mutex> guard(_frame_lock);

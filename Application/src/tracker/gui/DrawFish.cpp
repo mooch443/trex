@@ -352,7 +352,7 @@ CREATE_STRUCT(CachedGUIOptions,
                         auto && [dpos, difference] = b->difference_image(*Tracker::instance()->background(), 0);
                         auto rgba = std::make_unique<Image>(difference->rows, difference->cols, 4);
                         
-                        float maximum_grey = 0, minimum_grey = std::numeric_limits<float>::max();
+                        uchar maximum_grey = 0, minimum_grey = std::numeric_limits<uchar>::max();
                         for(size_t i=0; i<difference->size(); ++i) {
                             auto c = difference->data()[i];
                             maximum_grey = max(maximum_grey, c);
@@ -361,7 +361,7 @@ CREATE_STRUCT(CachedGUIOptions,
                                 minimum_grey = min(minimum_grey, c);
                         }
                         for(size_t i=0; i<difference->size(); ++i)
-                            difference->data()[i] = min(255, float(difference->data()[i]) / maximum_grey * 255);
+                            difference->data()[i] = (uchar)min(255, float(difference->data()[i]) / maximum_grey * 255);
                         
                         if(minimum_grey == maximum_grey)
                             minimum_grey = maximum_grey - 1;
@@ -400,12 +400,12 @@ CREATE_STRUCT(CachedGUIOptions,
                             
                             auto rgba = std::make_unique<Image>(image->rows, image->cols, 4);
                             
-                            float maximum = 0;
+                            uchar maximum = 0;
                             for(size_t i=0; i<difference->size(); ++i) {
                                 maximum = max(maximum, difference->data()[i]);
                             }
                             for(size_t i=0; i<difference->size(); ++i)
-                                difference->data()[i] = min(255, float(difference->data()[i]) / maximum * 255);
+                                difference->data()[i] = (uchar)min(255, float(difference->data()[i]) / maximum * 255);
                             
                             rgba->set_channels(image->data(), {0, 1, 2});
                             rgba->set_channel(3, difference->data());

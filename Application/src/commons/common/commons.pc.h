@@ -1,5 +1,14 @@
 #pragma once
 
+#pragma warning(push, 0)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wall"
+#pragma clang diagnostic ignored "-Wextra"
+#pragma clang diagnostic ignored "-Wsign-conversion"
+#pragma clang diagnostic ignored "-Wimplicit-int-conversion"
+#pragma clang diagnostic ignored "-Wimplicit-float-conversion"
+#pragma clang diagnostic ignored "-Wfloat-conversion"
+
 #ifdef WIN32
 #include <windows.h>
 #endif
@@ -72,3 +81,7 @@ typedef int32_t long_t;
 #include <commons/common/cpputils/utilsexception.h>
 #include <commons/common/cpputils/debug/Printable.h>
 #include <cnpy.h>
+
+// Code that produces warnings...
+#pragma clang diagnostic pop
+#pragma warning(pop)

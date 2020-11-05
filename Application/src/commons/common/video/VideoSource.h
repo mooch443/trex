@@ -23,15 +23,15 @@ public:
             IMAGE
         };
         
-        static File *open(long_t index, const std::string& basename, const std::string& ext, bool no_check = false);
+        static File *open(size_t index, const std::string& basename, const std::string& ext, bool no_check = false);
         static std::string complete_name(const std::string& basename, const std::string& ext);
         
     private:
         static std::vector<std::pair<std::string, Type>> _extensions;
         
-        GETTER(long_t, index)
+        GETTER(size_t, index)
         GETTER(std::string, filename)
-        long_t _length;
+        size_t _length;
         Video *_video;
         Type _type;
         
@@ -39,11 +39,11 @@ public:
         cv::Size _size;
         
     private:
-        File(long_t index, const std::string& basename, const std::string& extension);
+        File(size_t index, const std::string& basename, const std::string& extension);
         
     public:
         ~File();
-        long_t length() const { return _length; }
+        size_t length() const { return _length; }
         const cv::Size& resolution();
         
         void frame(long_t frameIndex, cv::Mat& output, bool lazy_video = false) const;

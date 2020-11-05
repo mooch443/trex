@@ -630,8 +630,8 @@ void Graph::save_npz(const std::string &filename, std::function<void(float)> *pe
     for (auto &f : _functions)
         results[&f].reserve(_x_range.length()+1);
     
-    int print_step = max(1, int((rx.end - rx.start) * 0.1));
-    for(int x=rx.start; x<=rx.end; x++) {
+    int print_step = max(1, int((rx.end - rx.start) * 0.1f));
+    for(float x=rx.start; x<=rx.end; x++) {
         for (auto &f : _functions) {
             float y0 = f._get_y(x);
             
@@ -645,11 +645,11 @@ void Graph::save_npz(const std::string &filename, std::function<void(float)> *pe
             }
         }
         
-        if (x%print_step == 0 && rx.end - rx.start > 10000 && !quiet) {
+        if (int(x)%print_step == 0 && rx.end - rx.start > 10000 && !quiet) {
             Debug("%d/%.0f done", x, rx.end);
         }
         
-        if(percent_callback && x%100 == 0) {
+        if(percent_callback && int(x)%100 == 0) {
             (*percent_callback)(cmn::abs(x-rx.start) / cmn::abs(rx.end - rx.start));
         }
     }

@@ -18,14 +18,6 @@
 namespace cmn {
 typedef std::vector<std::tuple<std::shared_ptr<std::vector<HorizontalLine>>, std::shared_ptr<std::vector<uchar>>>> blobs_t;
 constexpr int CV_MAX_THICKNESS = 32767;
-
-template< class T >
-struct remove_cvref {
-    typedef std::remove_cv_t<std::remove_reference_t<T>> type;
-};
-
-template< class T >
-using remove_cvref_t = typename remove_cvref<T>::type;
 }
 
 

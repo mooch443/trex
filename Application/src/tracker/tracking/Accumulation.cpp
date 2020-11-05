@@ -385,7 +385,7 @@ void Accumulation::update_coverage(const TrainingData &data) {
         cv::Mat copy;
         cv::cvtColor(image->get(), copy, cv::COLOR_BGRA2RGBA);
         
-        auto image_path = pv::DataLocation::parse("output", "coverage_"+SETTING(filename).value<file::Path>().filename().to_string()+"_a"+Meta::toStr(_accumulation_step)+"_e"+Meta::toStr(_counted_steps)+".png");
+        auto image_path = pv::DataLocation::parse("output", "coverage_"+SETTING(filename).value<file::Path>().filename()+"_a"+Meta::toStr(_accumulation_step)+"_e"+Meta::toStr(_counted_steps)+".png");
         _coverage_paths.push_back(image_path);
         cv::imwrite(image_path.str(), copy);
         //tf::imshow("coverage", copy);
@@ -764,7 +764,7 @@ bool Accumulation::start() {
         if(SETTING(recognition_save_training_images)) {
             try {
                 auto data = _collected_data->join_split_data();
-                auto ranges_path = pv::DataLocation::parse("output", Path(SETTING(filename).value<file::Path>().filename().to_string()+"_validation_data.npz"));
+                auto ranges_path = pv::DataLocation::parse("output", Path(SETTING(filename).value<file::Path>().filename()+"_validation_data.npz"));
                 
                 const Size2 dims = SETTING(recognition_image_size);
                 FileSize size((data.validation_images.size() + data.training_images.size()) * dims.width * dims.height);
@@ -1330,7 +1330,7 @@ bool Accumulation::start() {
     // save validation data
     try {
         auto data = _collected_data->join_split_data();
-        auto ranges_path = pv::DataLocation::parse("output", Path(SETTING(filename).value<file::Path>().filename().to_string()+"_validation_data.npz"));
+        auto ranges_path = pv::DataLocation::parse("output", Path(SETTING(filename).value<file::Path>().filename()+"_validation_data.npz"));
         
         const Size2 dims = SETTING(recognition_image_size);
         FileSize size((data.validation_images.size() + data.training_images.size()) * dims.width * dims.height);
@@ -1488,7 +1488,7 @@ bool Accumulation::start() {
                             ? std::unordered_set<Individual*>()
                             : Tracker::active_individuals(frame-1);
                     
-                    video_file.read_frame(video_frame.frame(), frame);
+                    video_file.read_frame(video_frame.frame(), sign_cast<uint64_t>(frame));
                     Tracker::instance()->preprocess_frame(video_frame, active, NULL);
                     
                     std::map<uint32_t, pv::BlobPtr> blob_to_id;
@@ -1511,8 +1511,8 @@ bool Accumulation::start() {
                         if(bidx == -1 || pidx == -1)
                             continue;
                         
-                        auto &basic = fish->basic_stuff()[bidx];
-                        auto posture = pidx != -1 ? fish->posture_stuff()[pidx] : nullptr;
+                        auto &basic = fish->basic_stuff()[size_t(bidx)];
+                        auto posture = pidx > -1 ? fish->posture_stuff()[size_t(pidx)] : nullptr;
 
                         auto bid = basic->blob.blob_id();
                         auto pid = basic->blob.parent_id;
@@ -1555,7 +1555,7 @@ bool Accumulation::start() {
                 // save validation data
                 try {
                     //auto data = _collected_data->join_split_data();
-                    auto ranges_path = pv::DataLocation::parse("output", Path(SETTING(filename).value<file::Path>().filename().to_string()+"_validation_data_"+method.name()+".npz"));
+                    auto ranges_path = pv::DataLocation::parse("output", Path(SETTING(filename).value<file::Path>().filename()+"_validation_data_"+method.name()+".npz"));
                     
                     
                     const Size2 dims = SETTING(recognition_image_size);
@@ -1566,7 +1566,7 @@ bool Accumulation::start() {
                         total_images+=img.size();
                     }
                     
-                    FileSize size(total_images * dims.width * dims.height);
+                    FileSize size(uint64_t(total_images * dims.width * dims.height));
                     auto ss = size.to_string();
                     Debug("Images are %S big. Saving to '%S'.", &ss, &ranges_path.str());
                     
@@ -1596,7 +1596,7 @@ bool Accumulation::start() {
         size_t gpu_max_epochs = SETTING(gpu_max_epochs);
         float acc = best_uniqueness();
         current_best = 0;
-        Recognition::train(_collected_data, FrameRange(), TrainingMode::Accumulate, max(3, gpu_max_epochs * 0.25), true, &acc, -2);
+        Recognition::train(_collected_data, FrameRange(), TrainingMode::Accumulate, narrow_cast<int>(max(3.f, gpu_max_epochs * 0.25f)), true, &acc, -2);
         
         if(acc >= best_uniqueness()) {
             {
@@ -1625,7 +1625,7 @@ bool Accumulation::start() {
     }
     
     try {
-        auto path = pv::DataLocation::parse("output", Path(SETTING(filename).value<file::Path>().filename().to_string()+"_range_history.npz"));
+        auto path = pv::DataLocation::parse("output", Path(SETTING(filename).value<file::Path>().filename()+"_range_history.npz"));
         npz_save(path.str(), "tried_ranges", _checked_ranges_output.data(), {_checked_ranges_output.size() / 2, 2});
         Debug("[Accumulation STOP] Saved range history to '%S'.", &path.str());
         
@@ -1643,7 +1643,7 @@ bool Accumulation::start() {
 }
 
 float Accumulation::accepted_uniqueness(float base) const {
-    return (base == -1 ? best_uniqueness() : base) * 0.98;
+    return (base == -1 ? best_uniqueness() : base) * 0.98f;
 }
 
 void Accumulation::end_a_step(Result reason) {
@@ -1813,7 +1813,7 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
             Vec2 offset;
             float previous = accepted_uniqueness();
             size_t i=0;
-            const Font font(0.6, Align::Center);
+            const Font font(0.6f, Align::Center);
             
             for(auto &d : history) {
                 if(long_t(i) < long_t(history.size()) - 10) {

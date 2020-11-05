@@ -356,7 +356,7 @@ int main(int argc, char** argv)
                                 continue;
                             
                             Debug("Found file '%S'", &file.str());
-                            auto filename = file.filename().to_string();
+                            auto filename = (std::string)file.filename();
                             
                             bool all_contained = true;
                             size_t offset = 0;
@@ -778,9 +778,9 @@ int main(int argc, char** argv)
         std::vector<Median<long_t>> medians;
         medians.resize(values.size());
         
-        int start_threshold = 5;
-        int end_threshold = 230;
-        float threshold_step = (end_threshold - 20 - start_threshold) / float(values.size());
+        float start_threshold = 5;
+        float end_threshold = 230;
+        float threshold_step = (end_threshold - 20 - start_threshold) / narrow_cast<float>(values.size());
         
         GenericThreadPool pool(cmn::hardware_concurrency());
         std::mutex sync;
@@ -796,17 +796,18 @@ int main(int argc, char** argv)
                 video.read_frame(frame, i);
             //video.read_frame(next_frame, i+1);
             
-                for(int threshold = start_threshold, j = 0; threshold <= end_threshold; threshold += threshold_step, ++j)
+                size_t j = 0;
+                for(float threshold = start_threshold; threshold <= end_threshold; threshold += threshold_step, ++j)
                 {
                     
                     float pixel_average = 0, pixel_samples = 0;
                     float number = 0;
                     
-                    for (int k=0; k<frame.n(); ++k) {
+                    for (uint16_t k=0; k<frame.n(); ++k) {
                         if(frame.pixels().at(k)->size() > 30) {
                             // consider blob
                             auto blob = std::make_shared<pv::Blob>(frame.mask().at(k), frame.pixels().at(k));
-                            auto blobs = pixel::threshold_blob(blob, threshold, Tracker::instance()->background());
+                            auto blobs = pixel::threshold_blob(blob, narrow_cast<int>(threshold), Tracker::instance()->background());
                             float pixels = 0, samps = 0;
                             
                             for(auto &b : blobs) {
@@ -833,7 +834,7 @@ int main(int argc, char** argv)
                         values.at(j).y += pixel_average;
                         values.at(j).x = j;
                         numbers[j] += number / pixel_samples;
-                        medians.at(j).addNumber(number);
+                        medians.at(j).addNumber(narrow_cast<int>(number));
                     }
                 }
                 
@@ -862,8 +863,8 @@ int main(int argc, char** argv)
         graph.set_ranges(Rangef(0, 255), Rangef(0, 1));
         graph.add_function(gui::Graph::Function("sizes", gui::Graph::Type::DISCRETE, [&, max_val = max_value](float x) -> float {
             auto threshold = (x - start_threshold) / threshold_step;
-            if(threshold >= 0 && threshold < values.size()) {
-                return values.at(threshold).y / max_val;
+            if(size_t(threshold) < values.size()) {
+                return values.at(size_t(threshold)).y / max_val;
             }
             return infinity<float>();
         }));
@@ -879,8 +880,8 @@ int main(int argc, char** argv)
         
         graph.add_function(gui::Graph::Function("samples", gui::Graph::Type::DISCRETE, [&, max_val = max_value](float x) -> float {
             auto threshold = (x - start_threshold) / float(end_threshold - start_threshold) * numbers.size();
-            if(threshold >= 0 && threshold < numbers.size()) {
-                return numbers.at(threshold) / max_val;
+            if(size_t(threshold) < numbers.size()) {
+                return numbers.at(size_t(threshold)) / max_val;
             }
             return infinity<float>();
         }));
@@ -893,15 +894,16 @@ int main(int argc, char** argv)
         
         graph.add_function(gui::Graph::Function("median_number", gui::Graph::Type::DISCRETE, [&, max_val = max_value](float x) -> float {
             auto threshold = (x - start_threshold) / float(end_threshold - start_threshold) * numbers.size();
-            if(threshold >= 0 && threshold < numbers.size()) {
-                return medians.at(threshold).getValue() / max_val;
+            if(size_t(threshold) < numbers.size()) {
+                return medians.at(size_t(threshold)).getValue() / max_val;
             }
             return infinity<float>();
         }));
         
-        for(int threshold = start_threshold, j = 0; threshold <= end_threshold && j < (int)values.size(); threshold += threshold_step, ++j)
+        size_t j=0;
+        for(auto threshold = start_threshold; threshold <= end_threshold && j < values.size(); threshold += threshold_step, ++j)
         {
-            printf("%d : %f (%d), %f\n", threshold, numbers.at(j), medians.at(j).getValue(), values.at(j).y);
+            printf("%f : %f (%d), %f\n", threshold, numbers.at(j), medians.at(j).getValue(), values.at(j).y);
         }
         printf("\n");
         
@@ -1023,7 +1025,7 @@ int main(int argc, char** argv)
             ptr->frame().set_index(idx);
             Tracker::preprocess_frame(*ptr, {}, pool.num_threads() > 1 ? &pool : NULL, NULL, false);
 
-            ptr->frame().set_loading_time(timer.elapsed());
+            ptr->frame().set_loading_time(narrow_cast<float>(timer.elapsed()));
 
             return true;
         },
@@ -1110,7 +1112,7 @@ int main(int argc, char** argv)
                         //Debug("frame %lu/%lu (%.2fMB/s @ %.2ffps)", ptr->index(), video.length(), data_sec / 1024.0, frames_sec);
                     }
 
-                    gui.frameinfo().current_fps = frames_sec;
+                    gui.frameinfo().current_fps = narrow_cast<int>(frames_sec);
                 }
 
                 frames_count++;

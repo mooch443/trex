@@ -198,7 +198,7 @@ void DataFormat::start_reading() {
     if ((fd = ::open(_filename.c_str(), O_RDONLY)) == -1)
         U_EXCEPTION("Cannot open file '%S'.", &_filename);
 
-    if ((_data = (char*)mmap((caddr_t)0, sbuf.st_size, PROT_READ, MAP_SHARED, fd, 0)) == (caddr_t)(-1))
+    if ((_data = (char*)mmap((caddr_t)0, (size_t)sbuf.st_size, PROT_READ, MAP_SHARED, fd, 0)) == (caddr_t)(-1))
         U_EXCEPTION("Cannot mmap file '%S'.", &_filename);
 #endif
     _supports_fast = true;
@@ -336,7 +336,7 @@ uint64_t Data::write(const std::string& val) {
 template<>
 void Data::read(std::string& str) {
     std::stringstream ss;
-    uchar c = -1;
+    uchar c = UCHAR_MAX;
     while (c != 0) {
         read<uchar>(c);
         //read_data(1, (char*)&c);

@@ -42,7 +42,7 @@ namespace gui {
         float padding;
         float _y_label_width;
         //std::vector<float> _sum_bin;
-        float _max_samples;
+        size_t _max_samples;
         Vec2 element;
         frange yticks;
         Text _title_obj;

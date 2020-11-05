@@ -95,7 +95,7 @@ namespace track {
         std::map<idx_t, IndividualCache> cached_individuals;
         std::map<uint32_t, std::set<long_t>> blob_cliques, fish_cliques;
         std::set<uint32_t> split_blobs;
-        std::map<long_t, pv::BlobPtr> bdx_to_ptr;
+        std::map<uint32_t, pv::BlobPtr> bdx_to_ptr;
         grid::ProximityGrid blob_grid;
         
         PPFrame();

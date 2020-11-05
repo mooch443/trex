@@ -1,4 +1,5 @@
 #include "DrawCVBase.h"
+#include <misc/metastring.h>
 
 namespace gui {
     IMPLEMENT(CVBase::_static_pixels);
@@ -33,10 +34,10 @@ namespace gui {
                     uchar &r = *pixel++;
                     uchar &a = *pixel++;
                     
-                    b *= (color.b / 255.f);
-                    g *= (color.g / 255.f);
-                    r *= (color.r / 255.f);
-                    a *= (color.a / 255.f);
+                    b = (uchar)saturate(float(b) * (color.b / 255.f));
+                    g = (uchar)saturate(float(g) * (color.g / 255.f));
+                    r = (uchar)saturate(float(r) * (color.r / 255.f));
+                    a = (uchar)saturate(float(a) * (color.a / 255.f));
                 }
             }
         }
@@ -49,7 +50,7 @@ namespace gui {
         
         auto &pos = ptr->pos();
         if(pos.x + mat.cols <= _window.cols && pos.y + mat.rows <= _window.rows)
-            mat.copyTo(_window(cv::Rect(pos.x, pos.y, mat.cols, mat.rows)), split[3]);
+            mat.copyTo(_window(Bounds(pos.x, pos.y, mat.cols, mat.rows)), split[3]);
         
         else if(   pos.x < _window.cols
                 && pos.x + _window.cols >= 0
@@ -63,10 +64,10 @@ namespace gui {
             float mx = pos.x < 0 ? -pos.x : 0;
             float my = pos.y < 0 ? -pos.x : 0;
             
-            cv::Mat small = mat(cv::Rect(mx, my, w, h));
-            cv::Mat big = _window(cv::Rect(pos.x >= 0 ? pos.x : 0, pos.y >= 0 ? pos.y : 0, w, h));
+            cv::Mat small = mat(Bounds(mx, my, w, h));
+            cv::Mat big = _window(Bounds(pos.x >= 0 ? pos.x : 0, pos.y >= 0 ? pos.y : 0, w, h));
             
-            small.copyTo(big, split[3](cv::Rect(mx, my, w, h)));
+            small.copyTo(big, split[3](Bounds(mx, my, w, h)));
             
         } else {
             Debug("Didnt draw %f,%f %dx%d. (%dx%d) in window %dx%d", pos.x, pos.y, mat.cols, mat.rows, mat.cols, mat.rows, _window.cols, _window.rows);
@@ -111,7 +112,7 @@ namespace gui {
                 
             case Type::VERTICES: {
                 auto ptr = static_cast<Vertices*>(o);
-                float t = 1;
+                int t = 1;
                 if(dynamic_cast<Line*>(o))
                     t = max(1, min(static_cast<Line*>(o)->thickness(), CV_MAX_THICKNESS));
                 
@@ -164,7 +165,7 @@ namespace gui {
             case Type::CIRCLE: {
                 auto ptr = static_cast<Circle*>(o);
                 auto &color = ptr->color();
-                cv::circle(_window, (cv::Point2f)Vec2(ptr->pos()), ptr->radius(), cv::Scalar(color.b, color.g, color.r, color.a), 1
+                cv::circle(_window, (cv::Point2f)Vec2(ptr->pos()), narrow_cast<int>(ptr->radius()), cv::Scalar(color.b, color.g, color.r, color.a), 1
 #if CV_MAJOR_VERSION >= 3
                            , cv::LINE_AA
 #endif

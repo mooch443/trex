@@ -102,7 +102,7 @@ namespace cmn {
         
     private:
         constexpr size_t num_steps() const {
-            return ((last - first) / step + T(1));
+            return size_t((last - first) / step + T(1));
         }
         
     public:
@@ -150,7 +150,7 @@ namespace cmn {
             bool operator!=(const _iterator& rhs) const { return value != rhs.value; }
 
             reference operator*() {
-                return value_type(ptr_->first + value_type(value * ptr_->step));
+                return value_type(ptr_->first + value_type(value) * value_type(ptr_->step));
             }
             pointer operator->() {
                 return *ptr_;
@@ -787,7 +787,7 @@ namespace cmn {
     //! Escapes html reserved characters in a string
     inline std::string escape_html(const std::string& data) {
         std::string buffer;
-        buffer.reserve(data.size()*1.1f);
+        buffer.reserve(size_t(data.size()*1.1f));
         for(size_t pos = 0; pos != data.size(); ++pos) {
             switch(data[pos]) {
                 case '&':  buffer.append("&amp;");       break;
@@ -842,7 +842,7 @@ namespace cmn {
                                 const std::function<void(std::shared_ptr<K>, std::shared_ptr<V>)>& prepare = nullptr)
     {
         // Delete elements from the end of vector if its too long
-        for(size_t i=vector.size()-1; !vector.empty() && i>=compare.size(); i--) {
+        for(int64_t i=int64_t(vector.size())-1; !vector.empty() && i>=(int64_t)compare.size(); i--) {
             vector.erase(vector.begin() + i);
         }
         
@@ -864,11 +864,11 @@ namespace cmn {
         }
     }
     
-    inline uint32_t hardware_concurrency() {
+    inline uint8_t hardware_concurrency() {
 #if TRACKER_GLOBAL_THREADS
         return TRACKER_GLOBAL_THREADS;
 #else
-        uint32_t c = std::thread::hardware_concurrency();
+        auto c = (uint8_t)saturate(std::thread::hardware_concurrency());
         if(!c)
             return 1;
         return c;

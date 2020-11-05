@@ -198,16 +198,13 @@ if(TREX_ENABLE_CPP20)
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX)
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -pedantic -Wall -Wextra -Wno-long-long -ggdb -DOM_DEBUG -O0 -march='haswell' -no-pie")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -march='haswell' -g0 -no-pie")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O3 -march='haswell' -ggdb -no-pie")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -no-pie -fPIC -march='haswell'")
-set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3")
-set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} -O3 -ggdb")
-set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -pedantic -Wall -Wextra -Wno-long-long -ggdb -DOM_DEBUG -O0")
-#if(APPLE)
-#set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -isystem ")
-#endif()
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -pedantic -Wall -Wextra -Wno-long-long -ggdb -DOM_DEBUG -O0 -march='haswell' -no-pie")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -march='haswell' -g0 -no-pie")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O3 -march='haswell' -ggdb -no-pie")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -no-pie -fPIC -march='haswell'")
+    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3")
+    set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} -O3 -ggdb")
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -pedantic -Wall -Wextra -Wno-long-long -ggdb -DOM_DEBUG -O0")
 endif()
 
 if(XCODE)
@@ -230,10 +227,8 @@ if(XCODE)
     set(CMAKE_XCODE_ATTRIBUTE_CLANG_WARN_CONSTANT_CONVERSION "YES")
     set(CMAKE_XCODE_ATTRIBUTE_GCC_WARN_NON_VIRTUAL_DESTRUCTOR "YES")
 endif()
-#endif()
 
- set(trex_subproject_CMAKE_ARGS "")
-
+set(trex_subproject_CMAKE_ARGS "")
 
 SET(trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}
     "-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}"

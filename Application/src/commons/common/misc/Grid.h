@@ -78,8 +78,8 @@ namespace grid {
         
         const decltype(grid)& get_grid() const { return grid; }
         
-        size_t idx(float x, float y) const {
-            return max(0, floorf(min(_resolution.width-1,x) / _scale.x)) + max(0, floorf(min(_resolution.height-1, y) / _scale.y)) * _n;
+        int64_t idx(float x, float y) const {
+            return int64_t(max(0, floorf(min(_resolution.width-1,x) / _scale.x)) + max(0, floorf(min(_resolution.height-1, y) / _scale.y)) * _n);
         }
         
         std::tuple<size_t, size_t> point2grid(float x, float y) const {
@@ -114,9 +114,9 @@ namespace grid {
         }
         
         virtual T query(float x, float y) const {
-            size_t idx = this->idx(x, y);
+            auto idx = this->idx(x, y);
             
-            assert(idx < grid.size());
+            assert((size_t)idx < grid.size());
             auto cell = grid.begin() + idx;
             auto it = find(cell, pixel<T>(x, y));
             if(it == cell->end())
@@ -138,8 +138,8 @@ namespace grid {
             auto cell = grid.begin() + (long)(gx + gy * _n);
             pixel<T> px(x0, y);
             auto it = find(cell, px);
-            size_t i=0;
-            const size_t L = x1 - x0;
+            float i=0;
+            const auto L = x1 - x0;
             
             for(; i<=L && i + x0 < _resolution.width;){
                 if(it == cell->end() || it->y != y) {
@@ -159,16 +159,16 @@ namespace grid {
                 }
                 
                 if(it == cell->end() || it->y != y)
-                    data[i] = T();
+                    data[size_t(i)] = T();
                 else if(it->x != x0 + i) {
                     ++it;
                     assert(it->x > x0 + i);
-                    std::fill(data + i, data + (size_t)min(it->x - x0 + 1, L + 1), T());
+                    std::fill(data + size_t(i), data + (size_t)cmn::min(it->x - x0 + 1, L + 1), T());
                     i = it->x - x0;
                     continue;
                 }
                 else {
-                    data[i] = it->v;
+                    data[size_t(i)] = it->v;
                     ++it;
                 }
                 

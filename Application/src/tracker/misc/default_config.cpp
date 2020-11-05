@@ -684,11 +684,11 @@ file::Path conda_environment_path() {
                 path = SETTING(settings_file).value<Path>();
             if(path.empty()) {
                 path = SETTING(filename).value<Path>();
-                if(path.has_extension() && path.extension().to_string() == "pv")
+                if(path.has_extension() && path.extension() == "pv")
                     path = path.remove_extension();
             }
             
-            if(!path.has_extension() || path.extension().to_string() != "settings")
+            if(!path.has_extension() || path.extension() != "settings")
                 path = path.add_extension("settings");
             
             auto settings_file = pv::DataLocation::parse("input", path);
@@ -699,11 +699,11 @@ file::Path conda_environment_path() {
         });
         
         pv::DataLocation::register_path("output_settings", [](file::Path) -> file::Path {
-            file::Path settings_file = SETTING(filename).value<Path>().filename().to_string();
+            file::Path settings_file = SETTING(filename).value<Path>().filename();
             if(settings_file.empty())
                 U_EXCEPTION("settings_file is an empty string.");
             
-            if(!settings_file.has_extension() || settings_file.extension().to_string() != "settings")
+            if(!settings_file.has_extension() || settings_file.extension() != "settings")
                 settings_file = settings_file.add_extension("settings");
             
             return pv::DataLocation::parse("output", settings_file);

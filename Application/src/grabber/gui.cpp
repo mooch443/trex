@@ -336,7 +336,7 @@ void GUI::draw(gui::DrawStructure &base) {
                 base.wrap_object(*background);
             }
             
-            base.text("generating average ("+std::to_string(_grabber.average_samples())+"/"+std::to_string(SETTING(average_samples).value<int>())+")", Vec2(_size.width/2, _size.height/2), Red, Font(0.8, Align::Center), base.scale().reciprocal());
+            base.text("generating average ("+std::to_string(_grabber.average_samples())+"/"+std::to_string(SETTING(average_samples).value<uint32_t>())+")", Vec2(_size.width/2, _size.height/2), Red, Font(0.8, Align::Center), base.scale().reciprocal());
         } else {
             base.text("waiting for frame...", Vec2(_size.width/2, _size.height/2), Red, Font(0.8, Align::Center), base.scale().reciprocal());
         }

@@ -229,7 +229,7 @@ namespace cmn {
         const file::Path& filename() const { return _filename; }
         const std::string& project_name() const { return _project_name; }
         
-        long read_size() const { if(!_mmapped) U_EXCEPTION("Must be mmapped."); return _reading_file_size; }
+        //long read_size() const { if(!_mmapped) U_EXCEPTION("Must be mmapped."); return _reading_file_size; }
 		uint64_t current_offset() const;
 		virtual uint64_t tell() const override;
         

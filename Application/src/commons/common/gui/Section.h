@@ -136,7 +136,7 @@ namespace gui {
             }
             else {
                 //Debug("Have to insert object of type '%S'", &type);
-                _children.insert(_children.begin() + _index, d);
+                _children.insert(_children.begin() + (int64_t)_index, d);
                 
                 //if(d->type() == Type::VERTICES)
                 //    static_cast<Vertices*>(d)->prepare();

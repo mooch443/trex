@@ -41,7 +41,7 @@ public:
         std::unique_ptr<Image> _cached_frame;
         std::atomic<bool> _terminate = false, _terminate_background = false;
         
-        std::atomic<uint32_t> _threshold = 0;
+        std::atomic<int32_t> _threshold = 0;
         
         std::unique_ptr<std::thread> _update_thread;
         std::unique_ptr<std::thread> _background_thread;
@@ -84,7 +84,7 @@ public:
             : _text(std::make_shared<gui::Text>(name))
               //_joint(std::make_shared<gui::HorizontalLayout>(std::vector<Layout::Ptr>{_text, _text_field}))
         {
-            _text->set_font(Font(0.6));
+            _text->set_font(Font(0.6f));
             _text->set_color(White);
         }
         

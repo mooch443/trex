@@ -150,7 +150,7 @@ FileChooser::FileChooser(const file::Path& start, const std::string& extension,
     _graph->set_scale(_base.dpi_scale() * gui::interface_scale());
     _list->on_select([this](auto i, auto&path){ file_selected(i, path.path()); });
     
-    _button->set_font(gui::Font(0.6, Align::Center));
+    _button->set_font(gui::Font(0.6f, Align::Center));
     _button->on_click([this](auto){
         _running = false;
         _confirmed_file = _selected_file;
@@ -158,7 +158,7 @@ FileChooser::FileChooser(const file::Path& start, const std::string& extension,
             _on_open(_confirmed_file);
     });
     
-    _list->set_font(gui::Font(0.6, gui::Align::Left));
+    _list->set_font(gui::Font(0.6f, gui::Align::Left));
     
     _base.platform()->set_icons({
         "gfx/"+SETTING(app_name).value<std::string>()+"Icon16.png",
@@ -265,7 +265,7 @@ void FileChooser::set_tab(std::string tab) {
 void FileChooser::update_names() {
     _names.clear();
     for(auto &f : _files) {
-        if(f.str() == ".." || !utils::beginsWith(f.filename().to_string(), '.'))
+        if(f.str() == ".." || !utils::beginsWith((std::string)f.filename(), '.'))
             _names.push_back(FileItem(f));
     }
     _list->set_items(_names);
@@ -291,7 +291,7 @@ FileChooser::FileItem::FileItem(const file::Path& path) : _path(path)
 }
 
 FileChooser::FileItem::operator std::string() const {
-    return _path.filename().to_string();
+    return std::string(_path.filename());
 }
 
 Color FileChooser::FileItem::base_color() const {
@@ -369,7 +369,7 @@ void FileChooser::file_selected(size_t, file::Path p) {
             
         } else {
             if(!_selected_text)
-                _selected_text = std::make_shared<StaticText>("Selected: "+_selected_file.str(), Vec2(), Vec2(700, 0), Font(0.6));
+                _selected_text = std::make_shared<StaticText>("Selected: "+_selected_file.str(), Vec2(), Vec2(700, 0), Font(0.6f));
             else
                 _selected_text->set_txt("Selected: "+_selected_file.str());
             

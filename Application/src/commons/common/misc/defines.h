@@ -1,5 +1,14 @@
 #pragma once
 
+#pragma warning(push, 0)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wall"
+#pragma clang diagnostic ignored "-Wextra"
+#pragma clang diagnostic ignored "-Wsign-conversion"
+#pragma clang diagnostic ignored "-Wimplicit-int-conversion"
+#pragma clang diagnostic ignored "-Wimplicit-float-conversion"
+#pragma clang diagnostic ignored "-Wfloat-conversion"
+
 #include <commons/common/commons.pc.h>
 
 #ifdef _MSC_VER
@@ -17,6 +26,9 @@
         #define CMN_WITH_IMGUI_INSTALLED false
     #endif
 #endif
+
+#pragma clang diagnostic pop
+#pragma warning(pop)
 
 #include <misc/MetaObject.h>
 #include <misc/EnumClass.h>
@@ -127,6 +139,15 @@ namespace cv {
 #endif
 
 namespace cmn {
+
+template< class T >
+struct remove_cvref {
+    typedef std::remove_cv_t<std::remove_reference_t<T>> type;
+};
+
+template< class T >
+using remove_cvref_t = typename remove_cvref<T>::type;
+
 #if __has_cpp_attribute(deprecated)
 #define DEPRECATED [[deprecated]]
 #else
@@ -175,18 +196,22 @@ namespace cmn {
         return std::isnan(x.x) || std::isnan(x.y);
     }
 
-    template<typename T0, typename T1>
-    constexpr inline auto min(const T0& x, const T1& y,
-                              typename std::enable_if<(!(std::is_unsigned<T0>::value ^ std::is_unsigned<T1>::value)
-                                                       && std::is_integral<T0>::value) // allow only same-signedness
-                              || std::is_floating_point<T0>::value, bool>::type * = NULL)
-    -> decltype(x+y)
+    template<typename T0, typename T1,
+        typename T0_ = typename remove_cvref<T0>::type,
+        typename T1_ = typename remove_cvref<T1>::type,
+        typename Result = typename std::conditional<(sizeof(T0_) > sizeof(T1_)), T0_, T1_>::type >
+    constexpr inline auto min(T0&& x, T1&& y)
+        -> typename std::enable_if< std::is_signed<T0_>::value == std::is_signed<T1_>::value
+                                && (std::is_integral<T0_>::value || std::is_floating_point<T0_>::value)
+                                && (std::is_integral<T1_>::value || std::is_floating_point<T1_>::value), Result>::type
     {
-        return std::min(decltype(x+y)(x), decltype(x+y)(y));
+        return std::min(Result(x), Result(y));
     }
     
     template<typename T0, typename T1>
-    constexpr inline T0 min(const T0& x, const T1& y, typename std::enable_if<std::is_same<decltype(x.x), decltype(x.y)>::value, bool>::type * =NULL) {
+    constexpr inline auto min(const T0& x, const T1& y)
+        -> typename std::enable_if<std::is_same<decltype(x.x), decltype(x.y)>::value, T0>::type
+    {
         return T0(std::min(decltype(x.x+y.x)(x.x), decltype(x.x+y.x)(y.x)),
                   std::min(decltype(x.y+y.y)(x.y), decltype(x.y+y.y)(y.y)));
     }
@@ -201,19 +226,23 @@ namespace cmn {
     constexpr inline auto min(const T0& x, const T1& y, const T2& z) -> decltype(x+y+z) {
         return std::min(decltype(x+y+z)(x), std::min(decltype(x+y+z)(y), decltype(x+y+z)(z)));
     }
-    
-    template<typename T0, typename T1>
-    constexpr inline auto max(const T0& x, const T1& y,
-                              typename std::enable_if<(!(std::is_unsigned<T0>::value ^ std::is_unsigned<T1>::value)
-                                                       && std::is_integral<T0>::value) // allow only same-signedness
-                              || std::is_floating_point<T0>::value, bool>::type * = NULL)
-    -> decltype(x+y)
+        
+    template<typename T0, typename T1,
+        typename T0_ = typename remove_cvref<T0>::type,
+        typename T1_ = typename remove_cvref<T1>::type,
+        typename Result = typename std::conditional<(sizeof(T0_) > sizeof(T1_)), T0_, T1_>::type >
+    constexpr inline auto max(T0&& x, T1&& y)
+        -> typename std::enable_if< std::is_signed<T0_>::value == std::is_signed<T1_>::value
+                                && (std::is_integral<T0_>::value || std::is_floating_point<T0_>::value)
+                                && (std::is_integral<T1_>::value || std::is_floating_point<T1_>::value), Result>::type
     {
-        return std::max(decltype(x+y)(x), decltype(x+y)(y));
+        return std::max(Result(x), Result(y));
     }
     
     template<typename T0, typename T1>
-    constexpr inline T0 max(const T0& x, const T1& y, typename std::enable_if<std::is_same<decltype(x.x), decltype(x.y)>::value, bool>::type * =NULL) {
+    constexpr inline auto max(const T0& x, const T1& y)
+        -> typename std::enable_if<std::is_same<decltype(x.x), decltype(x.y)>::value, T0>::type
+    {
         return T0(std::max(decltype(x.x+y.x)(x.x), decltype(x.x+y.x)(y.x)),
                   std::max(decltype(x.y+y.y)(x.y), decltype(x.y+y.y)(y.y)));
     }
@@ -313,7 +342,7 @@ namespace cmn {
     typename T::value_type percentile(const T& values, float percent, typename std::enable_if<is_set<T>::value || is_container<T>::value, T>::type* = NULL)
     {
         using C = typename std::conditional<std::is_floating_point<typename T::value_type>::value,
-            typename T::value_type, float>::type;
+            typename T::value_type, double>::type;
         
         auto start = values.begin();
         
@@ -321,7 +350,7 @@ namespace cmn {
             return std::numeric_limits<typename T::value_type>::max();
         
         C stride = C(values.size()-1) * percent;
-        std::advance(start, stride);
+        std::advance(start, (int64_t)stride);
         C A = *start;
         
         auto second = start;

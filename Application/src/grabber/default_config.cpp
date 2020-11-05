@@ -53,13 +53,13 @@ namespace default_config {
         Adding adding(config, docs, fn);
         
         std::vector<float> buffer {
-            -0.2576632 , -0.19233586,  0.00245493,  0.00398822,  0.35924019
+            -0.2576632f , -0.19233586f,  0.00245493f,  0.00398822f,  0.35924019f
         };
         
         std::vector<float> matrix = {
-            2.94508959e+03,   0.00000000e+00,   6.17255441e+02,
-            0.00000000e+00,   2.94282514e+03,   6.82473623e+02,
-            0.00000000e+00,   0.00000000e+00,   1.00000000e+00
+            2.94508959e+03f,   0.00000000e+00f,   6.17255441e+02f,
+            0.00000000e+00f,   2.94282514e+03f,   6.82473623e+02f,
+            0.00000000e+00f,   0.00000000e+00f,   1.00000000e+00f
         };
         
         CONFIG("cam_undistort_vector", buffer, "");
@@ -77,7 +77,7 @@ namespace default_config {
         CONFIG("system_memory_limit", uint64_t(0), "Custom override of how many bytes of system RAM the program is allowed to fill. If `approximate_length_minutes` or `stop_after_minutes` are set, this might help to increase the resulting RAW video footage frame_rate.");
         
         CONFIG("frame_rate", int(-1), "Frame rate of the video will be set according to `cam_framerate` or the framerate of a given video for conversion.");
-        CONFIG("blob_size_range", Rangef(0.01, 500000), "Minimum or maximum size of the individuals on screen after thresholding. Anything smaller or bigger than these values will be disregarded as noise.");
+        CONFIG("blob_size_range", Rangef(0.01f, 500000.f), "Minimum or maximum size of the individuals on screen after thresholding. Anything smaller or bigger than these values will be disregarded as noise.");
         CONFIG("crop_offsets", CropOffsets(), "Percentage offsets [left, top, right, bottom] that will be cut off the input images (e.g. [0.1,0.1,0.5,0.5] will remove 10%% from the left and top and 50%% from the right and bottom and the video will be 60%% smaller in X and Y).");
         CONFIG("crop_window", false, "If set to true, the grabber will open a window before the analysis starts where the user can drag+drop points defining the crop_offsets.");
         

@@ -37,7 +37,7 @@ namespace cmn {
         uint64_t timestamp;
         
         std::string to_string() const {
-            static constexpr std::array<cmn::string_view, 5> names{{"us", "ms", "s", "min", "h"}};
+            static constexpr std::array<std::string_view, 5> names{{"us", "ms", "s", "min", "h"}};
             static constexpr std::array<double, 5> ratios{{1000, 1000, 60, 60, 24}};
             
             double scaled = timestamp, previous_scaled = 0;
@@ -62,7 +62,7 @@ namespace cmn {
         }
         
         std::string to_html() const {
-            static constexpr std::array<cmn::string_view, 5> names{{"us", "ms", "s", "min", "h"}};
+            static constexpr std::array<std::string_view, 5> names{{"us", "ms", "s", "min", "h"}};
             static constexpr std::array<double, 5> ratios{{1000, 1000, 60, 60, 24}};
             
             double scaled = timestamp, previous_scaled = 0;
@@ -628,7 +628,7 @@ namespace cmn {
         {
             if(!str.empty() && str[0] == '\'' && str.back() == '\'')
                 return Q(std::stod(str.substr(1,str.length()-2)));
-            return std::stod(str);
+            return (Q)std::stod(str);
         }
         
         template<class T, class Q = typename std::remove_cv<T>::type>
@@ -877,8 +877,8 @@ namespace cmn {
                 throw CustomException<std::invalid_argument>("Illegal Rangef format.");
             }
             
-            float x = Meta::fromStr<double>(parts[0]);
-            float y = Meta::fromStr<double>(parts[1]);
+            auto x = Meta::fromStr<double>(parts[0]);
+            auto y = Meta::fromStr<double>(parts[1]);
             
             return Range<double>(x, y);
         }
@@ -891,8 +891,8 @@ namespace cmn {
                 throw CustomException<std::invalid_argument>("Illegal Rangef format.");
             }
             
-            float x = Meta::fromStr<float>(parts[0]);
-            float y = Meta::fromStr<float>(parts[1]);
+            auto x = Meta::fromStr<float>(parts[0]);
+            auto y = Meta::fromStr<float>(parts[1]);
             
             return Rangef(x, y);
         }
@@ -905,10 +905,10 @@ namespace cmn {
                 throw CustomException<std::invalid_argument>("Illegal Rangel format.");
             }
             
-            long_t x = Meta::fromStr<long_t>(parts[0]);
-            long_t y = Meta::fromStr<long_t>(parts[1]);
+            auto x = Meta::fromStr<long_t>(parts[0]);
+            auto y = Meta::fromStr<long_t>(parts[1]);
             
-            return Rangel(x, y);
+            return Range(x, y);
         }
         
         template<class Q>
@@ -1055,6 +1055,50 @@ typename std::conditional<
 	std::make_signed<T>,
 	double
 >::type;
+
+template<typename To, typename From>
+void fail_type(From&& value) {
+    using FromType = typename remove_cvref<From>::type;
+    using ToType = typename remove_cvref<To>::type;
+    
+    auto type1 = Meta::name<FromType>();
+    auto type2 = Meta::name<ToType>();
+    
+    auto value1 = Meta::toStr(value);
+    
+    auto start1 = Meta::toStr(std::numeric_limits<FromType>::min());
+    auto end1 = Meta::toStr(std::numeric_limits<FromType>::max());
+    
+    auto start2 = Meta::toStr(std::numeric_limits<ToType>::min());
+    auto end2 = Meta::toStr(std::numeric_limits<ToType>::max());
+    
+    Warning("Failed converting %S(%S) [%S,%S] -> type %S [%S,%S]", &type1, &value1, &start1, &end1, &type2, &start2, &end2);
+}
+
+template<typename To, typename From>
+constexpr To sign_cast(From&& value) {
+    using FromType = typename remove_cvref<From>::type;
+    using ToType = typename remove_cvref<To>::type;
+    
+    if constexpr(!std::is_floating_point<ToType>::value
+                 && std::is_integral<ToType>::value)
+    {
+        if constexpr(std::is_signed<ToType>::value) {
+            if constexpr(value > std::numeric_limits<ToType>::max())
+                fail_type<To, From>(std::forward<FromType>(value));
+            
+        } else if constexpr(std::is_signed<FromType>::value) {
+            if (value < 0)
+                fail_type<To, From>(std::forward<From>(value));
+            
+            using bigger_type = typename std::conditional<(sizeof(FromType) > sizeof(ToType)), FromType, ToType>::type;
+            if (bigger_type(value) > bigger_type(std::numeric_limits<ToType>::max()))
+                fail_type<To, From>(std::forward<From>(value));
+        }
+    }
+    
+    return static_cast<To>(std::forward<From>(value));
+}
 
 template<typename To, typename From>
 constexpr bool check_narrow_cast(const From& value) {

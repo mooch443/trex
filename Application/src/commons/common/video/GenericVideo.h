@@ -10,8 +10,10 @@ namespace cmn {
 ENUM_CLASS(averaging_method_t, mean, mode, max, min);
 ENUM_CLASS_HAS_DOCS(averaging_method_t);
 
-template<typename Mat = cv::Mat, bool threaded = false>
 class AveragingAccumulator {
+public:
+    using Mat = cv::Mat;
+    
 protected:
     GETTER(averaging_method_t::Class, mode)
     Mat _accumulator;
@@ -33,6 +35,7 @@ public:
         : _mode(mode)
     { }
     
+    template<bool threaded = false>
     void add(const Mat &f) {
         assert(f.channels() == 1);
         assert(f.type() == CV_8UC1);
@@ -40,12 +43,12 @@ public:
         // initialization code
         if(_accumulator.empty()) {
             _size = Size2(f.cols, f.rows);
-            _accumulator = cv::Mat::zeros(_size.height, _size.width, _mode == averaging_method_t::mean ? CV_32FC1 : CV_8UC1);
+            _accumulator = cv::Mat::zeros((int)_size.height, (int)_size.width, _mode == averaging_method_t::mean ? CV_32FC1 : CV_8UC1);
             if(_mode == averaging_method_t::min)
                 _accumulator.setTo(255);
             
             if(_mode == averaging_method_t::mode) {
-                spatial_histogram.resize(f.cols * f.rows);
+                spatial_histogram.resize(size_t(f.cols) * size_t(f.rows));
                 for(uint64_t i=0; i<spatial_histogram.size(); ++i) {
                     std::fill(spatial_histogram.at(i).begin(), spatial_histogram.at(i).end(), 0);
                     spatial_mutex.push_back(std::make_unique<std::mutex>());
@@ -87,39 +90,7 @@ public:
             U_EXCEPTION("Unknown averaging_method '%s'.", _mode.name())
     }
     
-    std::unique_ptr<cmn::Image> finalize() {
-        auto image = std::make_unique<cmn::Image>(_accumulator.rows, _accumulator.cols, 1);
-        
-        if(_mode == averaging_method_t::mean) {
-            cv::divide(_accumulator, cv::Scalar(count), _local);
-            _local.convertTo(image->get(), CV_8UC1);
-            
-        } else if(_mode == averaging_method_t::mode) {
-            _accumulator.copyTo(image->get());
-            
-            auto ptr = image->data();
-            const auto end = image->data() + image->cols * image->rows;
-            auto array_ptr = spatial_histogram.data();
-            
-            for (; ptr != end; ++ptr, ++array_ptr) {
-                uchar max_code = 0;
-                uint8_t max_number = 0;
-                //for(auto && [code, number] : *array_ptr) {
-                for(uint64_t code=0; code<array_ptr->size(); ++code) {
-                    const auto& number = (*array_ptr)[code];
-                    if(number > max_number) {
-                        max_number = number;
-                        max_code = code;
-                    }
-                }
-                
-                *ptr = max_code;
-            }
-        } else
-            _accumulator.copyTo(image->get());
-        
-        return std::move(image);
-    }
+    std::unique_ptr<cmn::Image> finalize();
 };
 
 }

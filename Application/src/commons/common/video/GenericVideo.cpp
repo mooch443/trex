@@ -19,6 +19,41 @@ CropOffsets GenericVideo::crop_offsets() const {
     return SETTING(crop_offsets);
 }
 
+std::unique_ptr<cmn::Image> AveragingAccumulator::finalize() {
+    auto image = std::make_unique<cmn::Image>(_accumulator.rows, _accumulator.cols, 1);
+    
+    if(_mode == averaging_method_t::mean) {
+        cv::divide(_accumulator, cv::Scalar(count), _local);
+        _local.convertTo(image->get(), CV_8UC1);
+        
+    } else if(_mode == averaging_method_t::mode) {
+        _accumulator.copyTo(image->get());
+        
+        auto ptr = image->data();
+        const auto end = image->data() + image->cols * image->rows;
+        auto array_ptr = spatial_histogram.data();
+        
+        for (; ptr != end; ++ptr, ++array_ptr) {
+            uint8_t max_code = 0;
+            uint8_t max_number = 0;
+            uint8_t N = narrow_cast<uint8_t>(array_ptr->size());
+            //for(auto && [code, number] : *array_ptr) {
+            for(uint8_t code=0; code<N; ++code) {
+                const auto& number = (*array_ptr)[code];
+                if(number > max_number) {
+                    max_number = number;
+                    max_code = code;
+                }
+            }
+            
+            *ptr = max_code;
+        }
+    } else
+        _accumulator.copyTo(image->get());
+    
+    return std::move(image);
+}
+
 void GenericVideo::undistort(const gpuMat& disp, gpuMat &image) const {
     if (GlobalSettings::map().has("cam_undistort") && SETTING(cam_undistort)) {
         static cv::Mat map1;
@@ -119,13 +154,13 @@ void GenericVideo::generate_average(cv::Mat &av, uint64_t frameIndex) {
     Debug("Generating average for frame %d (method='%s')...", frameIndex, accumulator.mode().name());
     
     double count = 0;
-    float samples = GlobalSettings::has("average_samples") ? SETTING(average_samples).value<int>() : (length() * 0.01);
-    const int step = max(1, length() / samples);
+    float samples = GlobalSettings::has("average_samples") ? (float)SETTING(average_samples).value<uint32_t>() : (length() * 0.1f);
+    const auto step = narrow_cast<uint>(max(1, length() / samples));
     
     cv::Mat f;
     uint64_t counted = 0;
     for(long_t i=length() ? length()-1 : 0; i>=0; i-=step) {
-        frame(i, f);
+        frame((uint64_t)i, f);
         
         assert(f.channels() == 1);
         accumulator.add(f);

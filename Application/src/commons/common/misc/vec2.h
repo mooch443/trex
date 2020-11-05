@@ -55,7 +55,7 @@ namespace cmn {
         {}
         
         template<typename T>
-        operator cv::Point_<T>() const { return cv::Point_<T>(A(), B()); }
+        operator cv::Point_<T>() const { return cv::Point_<T>((int)A(), (int)B()); }
         
         operator const Float2<!is_size>&() const { return *((const Float2<!is_size>*)this); }
         operator Float2<!is_size>&() { return *((Float2<!is_size>*)this); }
@@ -97,7 +97,7 @@ namespace cmn {
         }
         
         static constexpr inline bool almost_equal(Float2_t a, Float2_t b) {
-            constexpr Float2_t epsilon = 0.001;
+            constexpr auto epsilon = Float2_t(0.001);
             return cmn::abs(a - b) <= epsilon;
         }
         
@@ -258,7 +258,7 @@ constexpr inline T operator SIGN(Float2_t s, const T& v) { return T(s SIGN v.A()
     
     TEMPLATE_FLOAT2
     inline std::ostream &operator <<(std::ostream &os, const T& obj) {
-        uint _x = roundf(obj.A()), _y = roundf(obj.B());
+        uint _x = (uint)roundf(obj.A()), _y = (uint)roundf(obj.B());
         //assert(obj.A() >= SHRT_MIN && obj.B() >= SHRT_MIN && obj.A() <= SHRT_MAX && obj.B() <= SHRT_MAX);
         
         uint both = (_x << 16) & 0xFFFF0000;
@@ -316,7 +316,7 @@ constexpr inline T operator SIGN(Float2_t s, const T& v) { return T(s SIGN v.A()
         Bounds(const cv::Rect_<T>& rect) : Bounds(rect.x, rect.y, rect.width, rect.height) {}
         
         template<typename T>
-        operator cv::Rect_<T>() const { return cv::Rect_<T>(x, y, width, height); }
+        operator cv::Rect_<T>() const { return cv::Rect_<T>((int)x, (int)y, (int)width, (int)height); }
         
         constexpr const Vec2& pos() const { return this->_pos; }
         constexpr Vec2& pos() { return this->_pos; }
@@ -415,8 +415,9 @@ constexpr inline T operator SIGN(Float2_t s, const T& v) { return T(s SIGN v.A()
         
     inline bool pnpoly(const std::vector<Vec2>& pts, const Vec2& pt)
     {
-        int npol = (int)pts.size();
-        int i, j;
+        assert(pts.size() < std::numeric_limits<int>::max());
+        size_t npol = pts.size();
+        size_t i, j;
         bool c = false;
         for (i = 0, j = npol-1; i < npol; j = i++) {
             if ((((pts[i].y <= pt.y) && (pt.y < pts[j].y)) ||
@@ -454,12 +455,12 @@ constexpr inline T operator SIGN(Float2_t s, const T& v) { return T(s SIGN v.A()
         if(count > 2 && count <= 64) {
             // No hulls with less than 3 vertices (ensure actual polygon)
             assert( count > 2 && count <= 64 );
-            count = std::min( (int32_t)count, 64 );
+            count = std::min( count, 64u );
             auto _points = std::make_shared<std::vector<Vec2>>();
             _points->resize(count);
             
             // Find the right most point on the hull
-            int32_t rightMost = 0;
+            uint32_t rightMost = 0;
             double highestXCoord = (*_vertices)[0].x;
             for(uint32_t i = 1; i < count; ++i)
             {
@@ -476,9 +477,9 @@ constexpr inline T operator SIGN(Float2_t s, const T& v) { return T(s SIGN v.A()
                         rightMost = i;
             }
             
-            int32_t hull[64];
-            int32_t outCount = 0;
-            int32_t indexHull = rightMost;
+            uint32_t hull[64];
+            uint32_t outCount = 0;
+            uint32_t indexHull = rightMost;
             
             for (;;)
             {
@@ -487,8 +488,8 @@ constexpr inline T operator SIGN(Float2_t s, const T& v) { return T(s SIGN v.A()
                 // Search for next index that wraps around the hull
                 // by computing cross products to find the most counter-clockwise
                 // vertex in the set, given the previos hull index
-                int32_t nextHullIndex = 0;
-                for(int32_t i = 1; i < (int32_t)count; ++i)
+                uint32_t nextHullIndex = 0;
+                for(uint32_t i = 1; i < count; ++i)
                 {
                     // Skip if same coordinate as we need three unique
                     // points in the set to perform a cross product

@@ -302,7 +302,7 @@ CREATE_STRUCT(Settings,
         
     private:
         static void filter_blobs(PPFrame& frame, GenericThreadPool *pool);
-        static std::map<long_t, pv::BlobPtr> fill_proximity_grid(cmn::grid::ProximityGrid&, const std::vector<pv::BlobPtr>& blobs);
+        static std::map<uint32_t, pv::BlobPtr> fill_proximity_grid(cmn::grid::ProximityGrid&, const std::vector<pv::BlobPtr>& blobs);
         void history_split(PPFrame& frame, const std::unordered_set<Individual*>& active_individuals, std::ostream* out = NULL, GenericThreadPool* pool = NULL);
         
         struct split_expectation {

@@ -187,7 +187,7 @@ bool FOI::operator==(const FOI& other) const {
     
     uint64_t FOI::last_change() {
         std::lock_guard<std::recursive_mutex> guard(_mutex);
-        return last_change_time.time_since_epoch().count();
+        return (uint64_t)last_change_time.time_since_epoch().count();
     }
     
     void FOI::changed() {

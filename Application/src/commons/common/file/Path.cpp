@@ -25,6 +25,8 @@
 #include <filesystem>
 #endif
 
+#include <misc/metastring.h>
+
 namespace file {
     char Path::os_sep() { return OS_SEP; }
     
@@ -42,8 +44,8 @@ namespace file {
         : Path(std::string(c))
     {}
 
-    Path::Path(string_view sv)
-        : Path(sv.to_string())
+    Path::Path(std::string_view sv)
+        : Path(std::string(sv))
     {}
 
     Path& Path::operator/=(const Path &other) {
@@ -59,14 +61,14 @@ namespace file {
 #endif
     }
 
-    string_view Path::filename() const {
+std::string_view Path::filename() const {
         if(empty())
             return _str;
         
         const char *ptr = _str.data() + _str.length() - 1;
         for(; ptr >= _str.data(); ptr--) {
             if(*ptr == OS_SEP)
-                return string_view(ptr+1, _str.data() + _str.length() - (ptr+1));
+                return std::string_view(ptr+1u, size_t(_str.data() + _str.length() - (ptr+1u)));
         }
         
         return _str;
@@ -88,11 +90,11 @@ namespace file {
         if(count != position+1)
             U_EXCEPTION("Path only contains %d segments (requested split at %d).", count, position);
         
-        return {Path(string_view(_str.data(), before_len)), Path(string_view(_str.data() + before_len, _str.length() - before_len))};
+        return {Path(std::string_view(_str.data(), before_len)), Path(std::string_view(_str.data() + before_len, _str.length() - before_len))};
     }
 
     Path Path::remove_filename() const {
-        return Path(string_view(_str.data(), _str.length() - filename().length()).to_string());
+        return Path(std::string_view(_str.data(), _str.length() - filename().length()));
     }
 
     Path operator/(const Path& lhs, const Path& rhs) {
@@ -100,7 +102,7 @@ namespace file {
     }
 
     Path operator+(const Path& lhs, const Path& rhs) {
-        return Path(lhs.str() + OS_SEP + rhs.str());
+        return Path(lhs.str() + rhs.str());
     }
 
     bool Path::exists() const {
@@ -121,22 +123,22 @@ namespace file {
         struct stat sbuf;
         if (stat(c_str(), &sbuf) == -1)
             U_EXCEPTION("Cannot stat file '%S'.", &str());
-        return sbuf.st_size;
+        return narrow_cast<uint64_t>(sbuf.st_size);
 #endif
     }
 
-    string_view Path::extension() const {
+    std::string_view Path::extension() const {
         if(empty())
-            return string_view(_str);
+            return std::string_view(_str);
         
         const char *ptr = &_str.back();
         for(; ptr != _str.data(); --ptr) {
             if (*ptr == '.') {
-                return string_view(ptr+1, &_str.back() - ptr);
+                return std::string_view(ptr+1, size_t(&_str.back() - ptr));
             }
         }
         
-        return string_view(_str.data() + _str.length() - 1, 0);
+        return std::string_view(_str.data() + _str.length() - 1, 0);
     }
     
     bool Path::has_extension() const {
@@ -244,7 +246,7 @@ namespace file {
             
             auto extensions = utils::split(utils::lowercase(filter_extension), ';');
             if(path.has_extension()) {
-                return contains(extensions, path.extension().to_string());
+                return contains(extensions, path.extension());
             }
             
             return false;
@@ -276,15 +278,15 @@ namespace file {
         return result;
     }
 
-    Path Path::replace_extension(string_view ext) const {
-        string_view e = extension();
-        return string_view(_str.data(), max(0, e.data() - _str.data() - 1)).to_string() + "." + ext.to_string();
+    Path Path::replace_extension(std::string_view ext) const {
+        auto e = extension();
+        return std::string_view(_str.data(), size_t(max(0, e.data() - _str.data() - 1))) + "." + ext;
     }
 
-    Path Path::add_extension(string_view ext) const {
+    Path Path::add_extension(std::string_view ext) const {
         auto current = extension();
         if(ext != current)
-            return Path(_str + "." + ext.to_string());
+            return Path(_str + "." + ext);
         return *this;
     }
     

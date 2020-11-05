@@ -12,6 +12,43 @@ namespace pv {
     using namespace cmn;
     class File;
     class Blob;
+
+    struct LegacyShortHorizontalLine {
+    private:
+        //! starting and end position on x
+        //  the last bit of _x1 is a flag telling the program
+        //  whether this line is the last line on the current y coordinate.
+        //  the following lines are on current_y + 1.
+        uint16_t _x0 = 0, _x1 = 0;
+        
+    public:
+        //! compresses an array of HorizontalLines to an array of ShortHorizontalLines
+        static std::vector<LegacyShortHorizontalLine> compress(const std::vector<cmn::HorizontalLine>& lines);
+        //! uncompresses an array of ShortHorizontalLines back to HorizontalLines
+        static std::shared_ptr<std::vector<cmn::HorizontalLine>> uncompress(uint16_t start_y, const std::vector<LegacyShortHorizontalLine>& compressed);
+        
+    public:
+        constexpr LegacyShortHorizontalLine() {}
+        
+        constexpr LegacyShortHorizontalLine(uint16_t x0, uint16_t x1, bool eol = false)
+            : _x0(x0), _x1(uint16_t(x1 << 1) + uint16_t(eol))
+        {
+            assert(x1 < 32768); // MAGIC NUMBERZ (uint16_t - 1 bit)
+        }
+        
+        constexpr uint16_t x0() const { return _x0; }
+        constexpr uint16_t x1() const { return (_x1 & 0xFFFE) >> 1; }
+        
+        //! returns true if this is the last element on the current y coordinate
+        //  if true, the following lines are on current_y + 1.
+        //  @note stored in the last bit of _x1
+        constexpr bool eol() const { return _x1 & 0x1; }
+        void eol(bool v) { _x1 = v ? (_x1 | 0x1) : (_x1 & 0xFFFE); }
+        
+        constexpr operator pv::ShortHorizontalLine() const {
+            return pv::ShortHorizontalLine(x0(), x1(), eol());
+        }
+    };
     
     enum Version {
         V_1 = 0,
@@ -37,7 +74,10 @@ namespace pv {
          */
         V_6,
         
-        current = V_6
+        /** Changed format of ShortHorizontalLine */
+        V_7,
+        
+        current = V_7
     };
     
     class Frame : public IndexedDataTransport {
@@ -177,7 +217,7 @@ namespace pv {
         uint64_t _prev_frame_time;
         
         // debug compression
-        GETTER(std::atomic<float>, compression_ratio)
+        GETTER(std::atomic<double>, compression_ratio)
         double _compression_value;
         uint32_t _compression_samples;
         
@@ -274,7 +314,7 @@ namespace pv {
         virtual uint64_t timestamp(uint64_t) const override;
         virtual uint64_t start_timestamp() const override;
         virtual short framerate() const override;
-        uint64_t generate_average_tdelta();
+        double generate_average_tdelta();
         
         UTILS_TOSTRING("pv::File<V" << _header.version+1 << ", " << filesize() << ", '" << filename() << "', " << _header.resolution << ", " << _header.num_frames << " frames, "<< (_header.mask ? "with mask" : "no mask") << ">");
         
@@ -297,7 +337,7 @@ namespace pv {
             uint64_t fps_l = 0;
             
             if(!_open_for_writing){
-                uint64_t idx = length() * 0.5;
+                uint64_t idx = length() / 2u;
                 //uint64_t edx = length()-1;
                 if(idx < length()) {
                     pv::Frame lastframe;

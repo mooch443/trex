@@ -58,7 +58,7 @@ namespace track {
     
     inline void analyse_posture_pack(long_t frameIndex, const std::vector<std::tuple<Individual*, std::shared_ptr<Individual::BasicStuff>>>& p) {
         Timer t;
-        float collected = 0;
+        double collected = 0;
         for(auto && [f, b] : p) {
             t.reset();
             f->save_posture(b, frameIndex);
@@ -66,7 +66,7 @@ namespace track {
         }
         
         std::lock_guard<std::mutex> guard(Tracker::instance()->_statistics_mutex);
-        Tracker::instance()->_statistics[frameIndex].combined_posture_seconds += collected;
+        Tracker::instance()->_statistics[frameIndex].combined_posture_seconds += narrow_cast<float>(collected);
     }
     
     //std::map<long_t, std::map<uint32_t, long_t>> automatically_assigned_blobs;
@@ -582,8 +582,8 @@ bool operator<(long_t frame, const FrameProperties& props) {
         }
         
         std::lock_guard<std::mutex> lguard(_statistics_mutex);
-        _statistics[frame.index()].adding_seconds = overall_timer.elapsed();
-        _statistics[frame.index()].loading_seconds = frame.frame().loading_time();
+        _statistics[frame.index()].adding_seconds = (float)overall_timer.elapsed();
+        _statistics[frame.index()].loading_seconds = (float)frame.frame().loading_time();
     }
 
     class PairProbability {
@@ -706,9 +706,9 @@ bool operator<(long_t frame, const FrameProperties& props) {
         }*/
     }
             
-    std::map<long_t, pv::BlobPtr> Tracker::fill_proximity_grid(grid::ProximityGrid &grid, const std::vector<pv::BlobPtr> &blobs)
+    std::map<uint32_t, pv::BlobPtr> Tracker::fill_proximity_grid(grid::ProximityGrid &grid, const std::vector<pv::BlobPtr> &blobs)
     {
-        std::map<long_t, pv::BlobPtr> bdx_to_ptr;
+        std::map<uint32_t, pv::BlobPtr> bdx_to_ptr;
         size_t calls = 0;
         size_t all_pixels = 0;
         
@@ -719,7 +719,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
             
             auto &size = b->bounds().size();
             const size_t step_size = 2;
-            const size_t step_size_x = max(1, size.width * 0.1);
+            const size_t step_size_x = (size_t)max(1, size.width * 0.1);
             
             all_pixels += b->num_pixels();
             
@@ -984,7 +984,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
         
         size_t available_threads = 1 + (pool ? pool->num_threads() : 0);
         size_t maximal_threads = frame.blobs.size();
-        size_t needed_threads = min(maximal_threads / FAST_SETTINGS(blobs_per_thread), available_threads);
+        size_t needed_threads = min(maximal_threads / (size_t)FAST_SETTINGS(blobs_per_thread), available_threads);
         
         if (maximal_threads > 1 && needed_threads > 1 && available_threads > 1 && pool) {
             size_t used_threads = min(needed_threads, available_threads);
@@ -4204,7 +4204,7 @@ pv::BlobPtr Tracker::find_blob_noisy(std::map<uint32_t, pv::BlobPtr>& blob_to_id
                                 U_EXCEPTION("Range starts at %d, but frame is not set for fish %d.", range.start(), fish->identity().ID());
                             uint32_t start_blob_id = fish->blob(range.start())->blob_id();
                             
-                            file::Path path(tags_path / SETTING(filename).value<file::Path>().filename().to_string() / ("frame"+std::to_string(range.start())+"_blob"+std::to_string(start_blob_id)+".npz"));
+                            file::Path path(tags_path / SETTING(filename).value<file::Path>().filename() / ("frame"+std::to_string(range.start())+"_blob"+std::to_string(start_blob_id)+".npz"));
                             if(!path.remove_filename().exists()) {
                                 if(!path.remove_filename().create_folder())
                                     U_EXCEPTION("Cannot create folder '%S' please check permissions.", &path.remove_filename().str());

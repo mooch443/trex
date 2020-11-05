@@ -82,7 +82,7 @@ namespace gui {
         }
         
 #ifdef HAS_IMGUI
-        constexpr Color(const ImColor& c) : Color(c.Value.x, c.Value.y, c.Value.z, c.Value.w) {}
+        constexpr Color(const ImColor& c) : Color(uint8_t(c.Value.x * 255), uint8_t(c.Value.y * 255), uint8_t(c.Value.z * 255), uint8_t(c.Value.w * 255)) {}
         operator ImColor() const { return ImColor(r, g, b, a); }
 #endif
         
@@ -102,10 +102,10 @@ namespace gui {
         }
         
         constexpr Color float_multiply(const Color& other) const {
-            return Color(r * float(other.r) / 255.f,
-                         g * float(other.g) / 255.f,
-                         b * float(other.b) / 255.f,
-                         a * float(other.a) / 255.f);
+            return Color(uint8_t(r * float(other.r) / 255.f),
+                         uint8_t(g * float(other.g) / 255.f),
+                         uint8_t(b * float(other.b) / 255.f),
+                         uint8_t(a * float(other.a) / 255.f));
         }
         
         constexpr uint32_t to_integer() const {
@@ -122,13 +122,13 @@ namespace gui {
         
         constexpr inline Color brighten(float factor) const {
             Color hsv(toHSV());
-            Color rgb(Color(hsv.r, hsv.g, saturate(factor * hsv.b), hsv.a).HSV2RGB());
+            Color rgb(Color(hsv.r, hsv.g, (uint8_t)saturate(factor * hsv.b), hsv.a).HSV2RGB());
             return Color(rgb.r, rgb.g, rgb.b, this->a);
         }
         
         constexpr inline Color brightenHSL(float factor) const {
             Color hsl(toHSL());
-            Color rgb(hsl.blue(saturate(hsl.b * factor)).HSL2RGB());
+            Color rgb(hsl.blue((uint8_t)saturate(hsl.b * factor)).HSL2RGB());
             return Color(rgb.r, rgb.g, rgb.b, this->a);
         }
         
@@ -147,7 +147,7 @@ namespace gui {
         
         constexpr inline Color saturation(float factor) const {
             Color hsv(toHSV());
-            Color rgb(Color(hsv.r, saturate(factor * hsv.g), hsv.b, hsv.a).HSV2RGB());
+            Color rgb(Color(hsv.r, (uint8_t)saturate(factor * hsv.g), hsv.b, hsv.a).HSV2RGB());
             return Color(rgb.r, rgb.g, rgb.b, this->a);
         }
         
@@ -155,7 +155,7 @@ namespace gui {
             float h = r / 255.f, s = g / 255.f, v = b / 255.f;
             float R = 0, G = 0, B = 0;
             
-            int i = const_funcs::floor(h * 6);
+            auto i = (int)const_funcs::floor(h * 6);
             auto f = h * 6 - i;
             auto p = v * (1 - s);
             auto q = v * (1 - f * s);
@@ -170,7 +170,7 @@ namespace gui {
                 case 5: R = v; G = p; B = q; break;
             }
             
-            return Color(R * 255, G * 255, B * 255, 255);
+            return Color(uint8_t(R * 255), uint8_t(G * 255), uint8_t(B * 255), uint8_t(255));
         }
         
         constexpr Color toHSV() const {
@@ -193,7 +193,7 @@ namespace gui {
             ? 0
             : d / Cmax;
             
-            return Color(saturate(H / 360.f * 255), S * 255, Cmax * 255);
+            return Color((uint8_t)saturate(H / 360.f * 255), uint8_t(S * 255), uint8_t(Cmax * 255));
         }
         
         constexpr Color toHSL() const {
@@ -239,7 +239,7 @@ namespace gui {
                     H -= 1;
             }
             
-            return Color(H * 255.f, S * 255.f, L * 255.f);
+            return Color(uint8_t(H * 255.f), uint8_t(S * 255.f), uint8_t(L * 255.f));
         }
         
         constexpr static float Hue_2_RGB( float v1, float v2, float vH )             //Function Hue_2_RGB
@@ -283,7 +283,7 @@ namespace gui {
                 B = 255.f * Hue_2_RGB( var_1, var_2, H - ( 1 / 3.f ) );
             }
             
-            return Color(R, saturate(G), saturate(B));
+            return Color(uint8_t(R), (uint8_t)saturate(G), (uint8_t)saturate(B));
         }
         
         constexpr float diff(const Color& other) const {
@@ -313,31 +313,31 @@ namespace gui {
          Transparent = Color(0, 0, 0, 0);
     
     constexpr inline Color operator*(const Color& c0, const Color& c1) {
-        return Color(saturate((int)c0.r * (int)c1.r),
-                     saturate((int)c0.g * (int)c1.g),
-                     saturate((int)c0.b * (int)c1.b),
-                     saturate((int)c0.a * (int)c1.a));
+        return Color((uint8_t)saturate((int)c0.r * (int)c1.r),
+                     (uint8_t)saturate((int)c0.g * (int)c1.g),
+                     (uint8_t)saturate((int)c0.b * (int)c1.b),
+                     (uint8_t)saturate((int)c0.a * (int)c1.a));
     }
     
     constexpr inline Color operator*(const Color& c0, float scalar) {
-        return Color(saturate((float)c0.r * scalar),
-                     saturate((float)c0.g * scalar),
-                     saturate((float)c0.b * scalar),
-                     saturate((float)c0.a * scalar));
+        return Color((uint8_t)saturate((float)c0.r * scalar),
+                     (uint8_t)saturate((float)c0.g * scalar),
+                     (uint8_t)saturate((float)c0.b * scalar),
+                     (uint8_t)saturate((float)c0.a * scalar));
     }
     
     constexpr inline Color operator-(const Color& c0, const Color& c1) {
-        return Color(saturate((int)c0.r - (int)c1.r),
-                     saturate((int)c0.g - (int)c1.g),
-                     saturate((int)c0.b - (int)c1.b),
-                     saturate((int)c0.a - (int)c1.a));
+        return Color((uint8_t)saturate((int)c0.r - (int)c1.r),
+                     (uint8_t)saturate((int)c0.g - (int)c1.g),
+                     (uint8_t)saturate((int)c0.b - (int)c1.b),
+                     (uint8_t)saturate((int)c0.a - (int)c1.a));
     }
     
     constexpr inline Color operator+(const Color& c0, const Color& c1) {
-        return Color(saturate((int)c0.r + (int)c1.r),
-                     saturate((int)c0.g + (int)c1.g),
-                     saturate((int)c0.b + (int)c1.b),
-                     saturate((int)c0.a + (int)c1.a));
+        return Color((uint8_t)saturate((int)c0.r + (int)c1.r),
+                     (uint8_t)saturate((int)c0.g + (int)c1.g),
+                     (uint8_t)saturate((int)c0.b + (int)c1.b),
+                     (uint8_t)saturate((int)c0.a + (int)c1.a));
     }
 
     class Vertex {

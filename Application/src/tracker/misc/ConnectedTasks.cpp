@@ -46,7 +46,7 @@ namespace cmn {
                         _finish_condition.notify_one();
                         
                         if(result) {
-                            stage.timings += stage.timer.elapsed();
+                            stage.timings += (float)stage.timer.elapsed();
                             stage.samples ++;
                             stage.average_time = stage.timings / stage.samples;
                         }

@@ -64,13 +64,13 @@ class ColorWheel {
     //int _offset;
     
 public:
-    constexpr ColorWheel(long_t index = 0) : _index(index), _hue(255 + index * (index + 1) * 0.5 * step) {
+    constexpr ColorWheel(long_t index = 0) : _index(index), _hue(int(255 + index * (index + 1) * 0.5 * step)) {
         
     }
     constexpr gui::Color next() {
         //if (_index >= sizeof(colors) / sizeof(gui::Color)) {
         
-        const uint32_t s = _hue % 255;
+        const uint8_t s = _hue % 255;
         //const uint32_t h = s % 100;
         const gui::Color hsv(s, 255, 255);
         //_hue += step;

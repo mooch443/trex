@@ -212,8 +212,18 @@ void Output::ResultsFormat::read_blob(Data& ref, pv::CompressedBlob& blob) const
     ref.read<uint16_t>(start_y);
     ref.read<uint16_t>(len);
     
-    blob.lines.resize(len);
-    ref.read_data(elem_size * len, (char*)blob.lines.data());
+    if(_header.version < Output::ResultsFormat::Versions::V_32) {
+        std::vector<pv::LegacyShortHorizontalLine> legacy(len);
+        blob.lines.clear();
+        blob.lines.reserve(len);
+        
+        ref.read_data(sizeof(pv::LegacyShortHorizontalLine) * len, (char*)legacy.data());
+        std::copy(legacy.begin(), legacy.end(), std::back_inserter(blob.lines));
+        
+    } else {
+        blob.lines.resize(len);
+        ref.read_data(elem_size * len, (char*)blob.lines.data());
+    }
     
     blob.status_byte = byte;
     blob.start_y = start_y;
@@ -311,7 +321,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         ID = (uint32_t)sid;
     }
     
-    Individual *fish = new Individual(ID);
+    Individual *fish = new Individual(narrow_cast<long_t>(ID));
     
     if(_header.version <= Output::ResultsFormat::Versions::V_15) {
         ref.seek(ref.tell() + sizeof(data_long_t) * 2);
@@ -330,10 +340,10 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         std::string name;
         ref.read<std::string>(name);
         
-        Identity id(ID);
+        Identity id((long_t)ID);
         if(name != id.raw_name() && !name.empty()) {
             auto map = FAST_SETTINGS(individual_names);
-            map[ID] = name;
+            map[(long_t)ID] = name;
             SETTING(individual_names) = map;
         }
     }
@@ -350,7 +360,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         }
     }
     
-    fish->identity().set_ID(ID);
+    fish->identity().set_ID((long_t)ID);
     
     //PhysicalProperties *prev = NULL;
     //PhysicalProperties *prev_weighted = NULL;
@@ -669,7 +679,7 @@ template<> void Data::read(Individual*& out_ptr) {
             double N_written = results->_N_written.load();
             if(N <= 100 || results->_N_written % max(100u, uint64_t(N * 0.01)) == 0) {
                 Debug("Read individual %.0f/%lu (%.0f%%)...", N_written, N, N_written / float(N) * 100);
-                results->_update_progress("", N_written / float(N), results->filename().str()+"\n<ref>loading individual</ref> <number>"+Meta::toStr(results->_N_written)+"</number> <ref>of</ref> <number>"+Meta::toStr(N)+"</number>");
+                results->_update_progress("", narrow_cast<float>(N_written / double(N)), results->filename().str()+"\n<ref>loading individual</ref> <number>"+Meta::toStr(results->_N_written)+"</number> <ref>of</ref> <number>"+Meta::toStr(N)+"</number>");
             }
         }
     });
@@ -749,7 +759,7 @@ uint64_t Data::write(const Individual& val) {
         pos += ptr->current_offset();
         
         if(pos - ptr->last_callback > ptr->estimated_size * 0.01) {
-            ptr->_update_progress("", min(1, double(pos)/double(ptr->estimated_size)), "");
+            ptr->_update_progress("", narrow_cast<float>(min(1.0, double(pos)/double(ptr->estimated_size))), "");
             ptr->last_callback = pos;
         }
     };
@@ -946,13 +956,13 @@ namespace Output {
                 read<uint32_t>(start);
                 read<uint32_t>(end);
                 
-                _header.consecutive_segments.push_back(Rangel(start, end));
+                _header.consecutive_segments.push_back(Rangel(narrow_cast<long_t>(start), narrow_cast<long_t>(end)));
             }
             
             read<Size2>(_header.video_resolution);
             read<uint64_t>(_header.video_length);
             
-            _header.average.create(_header.video_resolution.height, _header.video_resolution.width, 1);
+            _header.average.create((uint)_header.video_resolution.height, (uint)_header.video_resolution.width, 1);
             read_data(_header.average.size(), (char*)_header.average.data());
         }
         
@@ -989,8 +999,8 @@ namespace Output {
         auto consecutive = Tracker::instance()->consecutive();
         write<uint32_t>((uint32_t)consecutive.size());
         for (auto &c : consecutive) {
-            write<uint32_t>(c.start);
-            write<uint32_t>(c.end);
+            write<uint32_t>(sign_cast<uint32_t>(c.start));
+            write<uint32_t>(sign_cast<uint32_t>(c.end));
         }
         
         write<Size2>(Tracker::average().bounds().size());
@@ -1006,7 +1016,7 @@ namespace Output {
     
     uint64_t ResultsFormat::write_data(uint64_t num_bytes, const char *buffer) {
         if(current_offset() - last_callback > estimated_size * 0.01) {
-            _update_progress("", min(1, double(current_offset()+num_bytes)/double(estimated_size)), "");
+            _update_progress("", narrow_cast<float>(min(1.0, double(current_offset()+num_bytes)/double(estimated_size))), "");
             last_callback = current_offset();
         }
         
@@ -1084,8 +1094,8 @@ namespace Output {
     }
     
     Path TrackingResults::expected_filename() {        
-        file::Path filename = SETTING(filename).value<Path>().filename().to_string();
-        filename = filename.extension().to_string() == "pv" ?
+        file::Path filename = SETTING(filename).value<Path>().filename();
+        filename = filename.extension() == "pv" ?
         filename.replace_extension("results") : filename.add_extension("results");
         return pv::DataLocation::parse("output", filename);
     }
@@ -1102,7 +1112,7 @@ namespace Output {
         filename = filename.add_extension("tmp01");
         
         ResultsFormat file(filename.str(), update_progress);
-        file.header().gui_frame = SETTING(gui_frame).value<long_t>();
+        file.header().gui_frame = sign_cast<uint64_t>(SETTING(gui_frame).value<long_t>());
         file.start_writing(true);
         file.write_file(_tracker._added_frames, _tracker._active_individuals_frame, _tracker._individuals, exclude_settings);
         file.close();
@@ -1180,7 +1190,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         prev_props = &props;
         prev_frame = props.frame;
         
-        if(props.frame % max(1u, uint64_t(_tracker._added_frames.size() * 0.1)) == 0) {
+        if((uint)props.frame % max(1u, uint64_t(_tracker._added_frames.size() / 10u)) == 0) {
             update_progress("FOIs...", props.frame / float(_tracker.end_frame()), Meta::toStr(props.frame)+" / "+Meta::toStr(_tracker.end_frame()));
             if(!SETTING(quiet))
                 Debug("\tupdate_fois %d / %d\r", props.frame, _tracker.end_frame());
@@ -1203,7 +1213,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
 
         if(!filename.exists()) {
             file::Path file = SETTING(filename).value<Path>();
-            file = file.extension().to_string() == "pv" ?
+            file = file.extension() == "pv" ?
             file.replace_extension("results") : file.add_extension("results");
             
             //file = pv::DataLocation::parse("input", filename.filename());
@@ -1331,7 +1341,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             }
         }
         
-        track::Identity::set_running_id(uint32_t(biggest_id+1));
+        track::Identity::set_running_id(biggest_id+1);
         
         uint64_t n;
         data_long_t ID;

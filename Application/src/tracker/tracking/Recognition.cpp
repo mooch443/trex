@@ -47,7 +47,7 @@ std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const def
     else if (normalize == default_config::recognition_normalization_t::moments)
     {
         gui::Transform tr;
-        float angle = -blob->orientation() + M_PI * 0.25;
+        float angle = narrow_cast<float>(-blob->orientation() + M_PI * 0.25);
         
         tr.rotate(DEGREE(angle));
         tr.translate( -blob->bounds().size() * 0.5);
@@ -69,7 +69,7 @@ std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const def
         std::transform(v.begin(), v.end(), diff.begin(), [mean](double x) { return x - mean; });
         double sq_sum = std::inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
         
-        return std::sqrt(sq_sum / v.size());
+        return (float)std::sqrt(sq_sum / v.size());
     }
     
     void Recognition::notify() {
@@ -581,7 +581,7 @@ std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const def
         size_t waiting_images = 0;
         
         const float cache_capacity_megabytes = SETTING(gpu_max_cache).value<float>() * 1000;
-        const float image_megabytes = output_shape.width * output_shape.height / 1000.0 / 1000.0;
+        const float image_megabytes = output_shape.width * output_shape.height / 1000.f / 1000.f;
         
         auto set_frame_for_fish = [this](fdx_t fdx, frame_t frame) {
             auto it = _fish_last_frame.find(fdx);
@@ -726,11 +726,11 @@ std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const def
         if (!python_available())
             return false;
         
-        auto running = set_running(true, "update_internal_training");
         
         // collect a number of images to analyse until a certain limit is reached
         // the limit can be in time or because of the number of fish
         std::shared_ptr<Tracker::LockGuard> tracker_guard = std::make_shared<Tracker::LockGuard>("update_internal_training");
+        auto running = set_running(true, "update_internal_training");
         std::unique_lock<decltype(_data_queue_mutex)> guard(_data_queue_mutex);
         std::map<long_t, std::map<uint32_t, ImageData>> waiting_for_pixels;
         
@@ -832,9 +832,12 @@ std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const def
                             if(index < 0)
                                 continue;
                             
-                            auto &posture = fish->posture_stuff().at(index);
+                            auto &posture = fish->posture_stuff().at((size_t)index);
                             auto bid = segment.basic_stuff(posture->frame);
-                            auto &basic = fish->basic_stuff().at(bid);
+                            if(bid < 0)
+                                continue;
+                            
+                            auto &basic = fish->basic_stuff().at((size_t)bid);
                             
                             if(!eligible_for_training(basic, posture, filters))
                                 continue;
@@ -847,7 +850,7 @@ std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const def
                             if(index < 0)
                                 continue;
                             
-                            auto &basic = fish->basic_stuff().at(index);
+                            auto &basic = fish->basic_stuff().at((size_t)index);
                             if(!eligible_for_training(basic, nullptr, filters))
                                 continue;
                             
@@ -914,7 +917,7 @@ std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const def
                         return false;
                     }
                     
-                    GUI::instance()->video_source()->read_frame(frame.frame(), i);
+                    GUI::instance()->video_source()->read_frame(frame.frame(), (uint64_t)i);
                     Tracker::instance()->preprocess_frame(frame, prev_active, &Tracker::instance()->thread_pool());
                 }
             }
@@ -944,6 +947,8 @@ std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const def
                 if(!blob) {
                     _detail.set_unavailable_blobs(_detail.unavailable_blobs() + 1);
                     _detail.failed_frame(e.frame, e.fdx);
+                    static size_t counter = 0;
+                    Debug("Blob cannot be found (%lu).", ++counter);
                     continue;
                 }
                 
@@ -973,6 +978,7 @@ std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const def
                 } else {
                     _detail.set_unavailable_blobs(_detail.unavailable_blobs() + 1);
                     _detail.failed_frame(e.frame, e.fdx);
+                    Debug("Image is nullptr");
                 }
                 
                 if(waiting.size() >= SETTING(gpu_min_elements).value<size_t>() && !_running) {
@@ -1015,7 +1021,7 @@ std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const def
             ++since_tick;
             
             if(timer.elapsed() >= 1) {
-                fps = since_tick / timer.elapsed();
+                fps = narrow_cast<float>(since_tick / timer.elapsed());
                 since_tick = 0;
                 timer.reset();
                 
@@ -1318,8 +1324,8 @@ std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const def
 
                 {
                     std::lock_guard<std::mutex> guard(_mutex);
-                    for(size_t j=0; j<indexes.size(); ++j) {
-                        size_t i = indexes.at(j);
+                    for(int64_t j=0; j<(int64_t)indexes.size(); ++j) {
+                        size_t i = narrow_cast<size_t>(indexes.at((size_t)j));
                         probs[data[i].frame][data[i].blob.blob_id] = std::vector<float>(values.begin() + j * FAST_SETTINGS(track_max_individuals), values.begin() + (j + 1) * FAST_SETTINGS(track_max_individuals));
                     }
                 }
@@ -1396,8 +1402,8 @@ void Recognition::predict_chunk_internal(const std::vector<Image::Ptr> & data, s
         
         {
             std::lock_guard<std::mutex> guard(_mutex);
-            for(size_t j=0; j<indexes.size(); ++j) {
-                size_t i = start_index + indexes.at(j);
+            for(int64_t j=0; j<(int64_t)indexes.size(); ++j) {
+                size_t i = start_index + narrow_cast<size_t>(indexes.at((size_t)j));
                 probabilities[i] = std::vector<float>(values.begin() + j * FAST_SETTINGS(track_max_individuals), values.begin() + (j + 1) * FAST_SETTINGS(track_max_individuals));
             }
         }
@@ -1408,8 +1414,8 @@ void Recognition::predict_chunk_internal(const std::vector<Image::Ptr> & data, s
 }
     
     file::Path Recognition::network_path() {
-        file::Path filename = SETTING(filename).value<file::Path>().filename().to_string();
-        filename = filename.extension().to_string() == "pv"
+        file::Path filename = SETTING(filename).value<file::Path>().filename();
+        filename = filename.extension() == "pv"
                 ? filename.remove_extension()
                 : filename;
         filename = pv::DataLocation::parse("output", filename.str() + "_weights");
@@ -1444,7 +1450,7 @@ void Recognition::check_learning_module(bool force) {
     {
         auto result = PythonIntegration::check_module("learn_static");
         if(result || force || py::is_none("classes", "learn_static")) {
-            size_t N = FAST_SETTINGS(track_max_individuals) ? FAST_SETTINGS(track_max_individuals) : 1;
+            size_t N = FAST_SETTINGS(track_max_individuals) ? (size_t)FAST_SETTINGS(track_max_individuals) : 1u;
             std::vector<idx_t> ids;
             ids.resize(N);
             
@@ -1478,7 +1484,7 @@ void Recognition::check_learning_module(bool force) {
             
             py::set_variable("output_path", filename.str(), "learn_static");
             py::set_variable("output_prefix", SETTING(output_prefix).value<std::string>(), "learn_static");
-            py::set_variable("filename", SETTING(filename).value<file::Path>().filename().to_string(), "learn_static");
+            py::set_variable("filename", (std::string)SETTING(filename).value<file::Path>().filename(), "learn_static");
         }
         
         if(result || force || py::is_none("update_work_percent", "learn_static")) {

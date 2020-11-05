@@ -137,7 +137,7 @@ protected:
     std::atomic<double> _tracking_time, _saving_time;
     
     GETTER(std::atomic_bool, average_finished)
-    GETTER(long, average_samples)
+    GETTER(uint32_t, average_samples)
     GETTER(std::atomic_long, last_index)
     
     //std::chrono::time_point<Image::clock_> _start_timing;

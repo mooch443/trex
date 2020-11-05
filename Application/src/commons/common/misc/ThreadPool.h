@@ -93,14 +93,14 @@ namespace cmn {
 
 template<typename F, typename Iterator, typename Pool>
 void distribute_vector(F&& fn, Pool& pool, Iterator start, Iterator end, const uint8_t per_thread_items = 5) {
-    static const uint8_t threads = cmn::hardware_concurrency();
-    size_t i = 0, N = std::distance(start, end);
-    const size_t per_thread = max(1u, N / threads);
+    static const auto threads = cmn::hardware_concurrency();
+    int64_t i = 0, N = std::distance(start, end);
+    const int64_t per_thread = max(1, N / threads);
     
     Iterator nex = start;
     
     for(auto it = start; it != end;) {
-        size_t step = i + per_thread < N ? per_thread : (N - i);
+        auto step = i + per_thread < N ? per_thread : (N - i);
         std::advance(nex, step);
         
         assert(step > 0);
