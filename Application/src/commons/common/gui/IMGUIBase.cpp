@@ -433,7 +433,7 @@ void clear_cache() {
         
         const float base_scale = 32;
         float dpi_scale = max(float(fw) / float(width), float(fh) / float(height));
-        im_font_scale = max(1, dpi_scale) * 0.75;
+        im_font_scale = max(1, dpi_scale) * 0.75f;
         _dpi_scale = dpi_scale;
         
         ImFontConfig config;

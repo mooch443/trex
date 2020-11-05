@@ -60,13 +60,13 @@ namespace pixel {
         std::array<Subnode*, 2> edges;
         //std::vector<std::shared_ptr<Subnode>> edges;
         bool walked;
-        int64_t index;
+        uint64_t index;
         
         Subnode() : walked(false), index(0) {
             edges[0] = edges[1] = nullptr;
         }
         
-        Subnode(int64_t index, const Vec2& position, Subnode* first) : position(position), walked(false), index(index) {
+        Subnode(uint64_t index, const Vec2& position, Subnode* first) : position(position), walked(false), index(index) {
             edges[0] = first;
             edges[1] = nullptr;
         }
@@ -80,7 +80,7 @@ namespace pixel {
     class Node {
     public:
         float x,y;
-        int64_t index;
+        uint64_t index;
         
 #ifdef TREE_WITH_PIXELS
         Vec2 gradient; // pixel value gradient
@@ -100,8 +100,8 @@ namespace pixel {
             return x == other.x && y == other.y;
         }
         
-        constexpr static int64_t leaf_index(int64_t x, int32_t y) {
-            return int64_t( ( (int64_t(x) << 32) & 0xFFFFFFFF00000000 ) | int64_t(y) );
+        constexpr static uint64_t leaf_index(int64_t x, int32_t y) {
+            return uint64_t( ( (uint64_t(x) << 32) & 0xFFFFFFFF00000000 ) | (uint64_t(y) & 0x00000000FFFFFFFF) );
         }
     };
     

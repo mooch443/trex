@@ -99,23 +99,22 @@ namespace pv {
         static std::shared_ptr<std::vector<cmn::HorizontalLine>> uncompress(uint16_t start_y, const std::vector<ShortHorizontalLine>& compressed);
         
     public:
-        ShortHorizontalLine() {}
+        constexpr ShortHorizontalLine() : _x0(0), _x1(0) {}
         
-        ShortHorizontalLine(uint16_t x0, uint16_t x1, bool eol = false) {
+        constexpr ShortHorizontalLine(uint16_t x0, uint16_t x1, bool eol = false)
+            : _x0(x0), _x1((x1 & 0x7FFF) | uint16_t(eol << 15))
+        {
             assert(x1 < 32768); // MAGIC NUMBERZ (uint16_t - 1 bit)
-            
-            _x0 = x0;
-            _x1 = (x1 << 1) + eol;
         }
         
-        uint16_t x0() const { return _x0; }
-        uint16_t x1() const { return (_x1 & 0xFFFE) >> 1; }
+        constexpr uint16_t x0() const { return _x0; }
+        constexpr uint16_t x1() const { return _x1 & 0x7FFF; }
         
         //! returns true if this is the last element on the current y coordinate
         //  if true, the following lines are on current_y + 1.
         //  @note stored in the last bit of _x1
-        bool eol() const { return _x1 & 0x1; }
-        void eol(bool v) { _x1 = v ? (_x1 | 0x1) : (_x1 & 0xFFFE); }
+        constexpr bool eol() const { return (_x1 & 0x8000) != 0; }
+        constexpr void eol(bool v) { _x1 = (_x1 & 0x7FFF) | uint16_t(v << 15); }
     };
 
     struct CompressedBlob {

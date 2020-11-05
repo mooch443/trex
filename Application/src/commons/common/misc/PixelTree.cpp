@@ -709,8 +709,8 @@ inline blobs_t _threshold_blob(pv::BlobPtr blob,const std::vector<uchar>& differ
 #endif
         
         decltype(non_full_nodes.begin()) it;
-        int64_t out_idx = Node::leaf_index(int64_t(out.x * 10), int32_t(out.y * 10));
-        int64_t in_idx = Node::leaf_index(int64_t(in.x * 10), int32_t(in.y * 10));
+        uint64_t out_idx = Node::leaf_index(int64_t(out.x * 10), int32_t(out.y * 10));
+        uint64_t in_idx = Node::leaf_index(int64_t(in.x * 10), int32_t(in.y * 10));
         
         Subnode *in_node  = nullptr,
                 *out_node = nullptr;
@@ -799,7 +799,7 @@ Node::Node(float x, float y, const std::array<int, 9>& neighbors) : x(x), y(y), 
     
     std::vector<std::shared_ptr<std::vector<Vec2>>> Tree::generate_edges() {
 #undef IS_SET
-#define IS_SET(NAME) (node->neighbors[ indexes[NAME] ])//node->neighbors.find( (Direction)NAME ) != node->neighbors.end())
+#define IS_SET(NAME) (node->neighbors[ (size_t)indexes[NAME] ])
         
         //! we now have the pixel positions of all pixels with at least one border. now we have to find the half-pixel edges around these pixels and connect them.
         constexpr int max_val = (int)TOPL + 1;
@@ -808,7 +808,7 @@ Node::Node(float x, float y, const std::array<int, 9>& neighbors) : x(x), y(y), 
         };
         //Debug("");
         
-        static constexpr auto linear_search = [](int64_t idx, auto &nodes) -> pixel::Node* {
+        static constexpr auto linear_search = [](uint64_t idx, auto &nodes) -> pixel::Node* {
             for(auto &node : nodes) {
                 if(node->index == idx) {
                     return node.get();
@@ -876,7 +876,7 @@ Node::Node(float x, float y, const std::array<int, 9>& neighbors) : x(x), y(y), 
                     int opposite = (int)border + 2;
                     if(opposite >= max_val) opposite -= max_val;
                     
-                    auto v = offset + vectors[left];
+                    auto v = offset + vectors[(size_t)left];
                     //Debug("\t%s is set. add %f,%f (%s with sides %s -> %s %f,%f)", NAME(left), v.x, v.y, NAME(left), NAME(border), NAME(opposite), vectors[left].x, vectors[left].y);
                     auto ptr = linear_search(LEAF_INDEX(v), _nodes);
                     if(ptr)
