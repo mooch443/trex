@@ -30,12 +30,12 @@ namespace track {
         std::shared_ptr<std::vector<Vec2>> _outline_points;
         
         long_t frameIndex;
-        long_t fishID;
+        uint32_t fishID;
         GETTER(Outline, outline)
         GETTER_PTR(Midline::Ptr, normalized_midline)
         
     public:
-        Posture(long_t frameIndex, long_t fishID);
+        Posture(long_t frameIndex, uint32_t fishID);
         ~Posture() {
         }
         

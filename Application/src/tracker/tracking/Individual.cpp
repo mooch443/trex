@@ -26,15 +26,15 @@ using prob_t = track::Match::prob_t;
 
 PPFrame::PPFrame() : blob_grid(Tracker::average().bounds().size()) {}
 
-std::atomic<idx_t> RUNNING_ID(0);
+std::atomic<uint32_t> RUNNING_ID(0);
 
-void Identity::set_running_id(idx_t value) { RUNNING_ID = value; }
-idx_t Identity::running_id() { return RUNNING_ID; }
+void Identity::set_running_id(uint32_t value) { RUNNING_ID = value; }
+uint32_t Identity::running_id() { return RUNNING_ID; }
 
-Identity::Identity(idx_t myID)
-    : _color(myID != -1 ? ColorWheel(myID).next() : ColorWheel(RUNNING_ID+1).next()), _myID(myID != -1 ? myID : (++RUNNING_ID)), _name(Meta::toStr(_myID))
+Identity::Identity(uint32_t myID)
+    : _color(myID != InvalidID ? ColorWheel(myID).next() : ColorWheel(RUNNING_ID).next()), _myID(myID != InvalidID ? myID : (RUNNING_ID++)), _name(Meta::toStr(_myID))
 {
-    if(myID != -1 && RUNNING_ID < myID) {
+    if(myID != InvalidID && RUNNING_ID < myID) {
         RUNNING_ID = myID + 1;
     }
 }
@@ -439,7 +439,8 @@ MinimalOutline::Ptr Individual::outline(long_t frameIndex) const {
     return ptr ? ptr->outline : nullptr;
 }
 
-Individual::Individual(long_t id) : _identity(id), _last_posture_added(-1), _startFrame(-1), _endFrame(-1)
+Individual::Individual(Identity&& id)
+    : _identity(std::move(id))
 {
     if(FAST_SETTINGS(manual_identities).count(identity().ID()))
         identity().set_manual(true);

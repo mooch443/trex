@@ -565,7 +565,7 @@ TRex parameters
 
 
 
-.. function:: gui_focus_group(array<int>)
+.. function:: gui_focus_group(array<uint>)
 
 	**default value:** []
 
@@ -1067,7 +1067,7 @@ TRex parameters
 
 
 
-.. function:: individual_names(map<int,string>)
+.. function:: individual_names(map<uint,string>)
 
 	**default value:** {}
 
@@ -1112,7 +1112,7 @@ TRex parameters
 
 
 
-.. function:: manual_identities(set<int>)
+.. function:: manual_identities(set<uint>)
 
 	**default value:** []
 
@@ -1777,7 +1777,7 @@ TRex parameters
 
 
 
-.. function:: track_max_individuals(int)
+.. function:: track_max_individuals(uint)
 
 	**default value:** 0
 

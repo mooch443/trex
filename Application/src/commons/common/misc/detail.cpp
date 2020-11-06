@@ -996,11 +996,11 @@ namespace cmn {
         Viridis::value_t {0.99324789,  0.90615657,  0.1439362 }
     }};
     
-    gui::Color Viridis::value(float percent) {
-        size_t index = min(1.f, cmn::abs(percent)) * 255;
+    gui::Color Viridis::value(double percent) {
+        size_t index = size_t(min(1.0, cmn::abs(percent)) * 255);
         auto& [r, g, b] = data_bgr[index];
         
-        return gui::Color(r * 255, g * 255, b * 255, 255);
+        return gui::Color((uint8_t)saturate(r * 255), (uint8_t)saturate(g * 255), (uint8_t)saturate(b * 255), 255);
     }
     
     HorizontalLine::operator MetaObject() const {

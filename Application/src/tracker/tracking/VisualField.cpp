@@ -8,7 +8,7 @@
 namespace track {
     static constexpr double right_angle = RADIANS(90);
     
-    VisualField::VisualField(idx_t fish_id, long_t frame, const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture, bool blocking)
+    VisualField::VisualField(uint32_t fish_id, long_t frame, const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture, bool blocking)
     : max_d(SQR(Tracker::average().cols) + SQR(Tracker::average().rows)), _fish_id(fish_id), _frame(frame)
     {
         calculate(basic, posture, blocking);
@@ -59,10 +59,10 @@ namespace track {
         if(x1 == -1)
             x1 = x0;
         
-        const int start = max(0, x0 - 0.5);
-        const int end = x1 + 0.5;
+        const uint start = (uint)max(0, x0 - 0.5);
+        const uint end = (uint)max(0, x1 + 0.5);
         
-        for (int i=start; i<=end && i < int(field_resolution); i++) {
+        for (uint i=start; i<=end && i < field_resolution; ++i) {
             //! Remember multiple depth map layers,
             //  but only remember each fish once per angle.
             //  (layers are only there in order to account for missing Z components)
@@ -81,11 +81,11 @@ namespace track {
                 e._depth[i] = d;
                 e._visible_ids[i] = (long_t)id;
                 e._visible_points[i] = point;
-                e._fov[i] = min(1.0, SQR(1.0 - d / max_d)) * 255;
+                e._fov[i] = uchar(SQR(1.0 - min(1.0, max(0.0, d / max_d))) * 255);
                 e._visible_head_distance[i] = hd;
                 
                 /* remove 2. stage after self occlusions */
-                if(id == _fish_id) {
+                if(id == (int64_t)_fish_id) {
                     if(e._depth[i + field_resolution] != FLT_MAX)
                         e._depth[i + field_resolution] = FLT_MAX;
                 }
@@ -97,7 +97,7 @@ namespace track {
                 e._depth[i + field_resolution] = d;
                 e._visible_ids[i + field_resolution] = (long_t)id;
                 e._visible_points[i + field_resolution] = point;
-                e._fov[i + field_resolution] = min(1.0, SQR(1.0 - d / max_d)) * 255;
+                e._fov[i + field_resolution] = uchar(SQR(1.0 - min(1.0, max(0.0, d / max_d))) * 255);
                 e._visible_head_distance[i + field_resolution] = hd;
                 
                 static_assert(layers == 2, "only tested with 2 layers");
@@ -400,17 +400,17 @@ namespace track {
                     static const Rangef fov_range(-VisualField::symmetric_fov, VisualField::symmetric_fov);
                     static const double len = fov_range.end - fov_range.start;
                     double percent = double(i) / double(VisualField::field_resolution) * len + fov_range.start + eye.angle;
-                    crosses.emplace_back(eye.pos + Vec2(cos(percent), sin(percent)) * sqrt(max_d) * 0.5, eye.clr);
+                    crosses.emplace_back(eye.pos + Vec2(Float2_t(cos(percent)), Float2_t( sin(percent))) * sqrtf(max_d) * 0.5f, eye.clr);
                     
                     //if(&eye == &_eyes[0])
                     //    base.line(eye.pos, eye.pos + Vec2(cos(percent), sin(percent)) * max_d, Red.alpha(100));
                 }
                 
-                if(eye._depth[i + VisualField::field_resolution] < FLT_MAX && eye._visible_ids[i + VisualField::field_resolution] != fish->identity().ID())
+                if(eye._depth[i + VisualField::field_resolution] < FLT_MAX && eye._visible_ids[i + VisualField::field_resolution] != (long_t)fish->identity().ID())
                 {
                     auto w = (1 - sqrt(eye._depth[i + VisualField::field_resolution]) / (sqrt(max_d) * 0.5));
                     //crosses.push_back(eye._visible_points[i + VisualField::field_resolution]);
-                    base.line(eye.pos, eye._visible_points[i + VisualField::field_resolution], Black.alpha(50 * w * w + 10));
+                    base.line(eye.pos, eye._visible_points[i + VisualField::field_resolution], Black.alpha((uint8_t)saturate(50 * w * w + 10)));
                 }
             }
             
@@ -428,10 +428,10 @@ namespace track {
             
             base.line(eye.pos, eye.pos + straight * 11, 1, Black);
             
-            auto left = Vec2(cos(eye.angle - symmetric_fov),
-                             sin(eye.angle - symmetric_fov));
-            auto right = Vec2(cos(eye.angle + symmetric_fov),
-                              sin(eye.angle + symmetric_fov));
+            auto left = Vec2((Float2_t)cos(eye.angle - symmetric_fov),
+                             (Float2_t)sin(eye.angle - symmetric_fov));
+            auto right = Vec2((Float2_t)cos(eye.angle + symmetric_fov),
+                              (Float2_t)sin(eye.angle + symmetric_fov));
             
             /*std::vector<Vertex> vertices;
             for (int i=0; i<15; ++i) {
@@ -446,8 +446,8 @@ namespace track {
             ptr->set_fill_clr(eye.clr.alpha(80));
             base.add_object(ptr);*/
             
-            base.line(eye.pos, eye.pos + left * 100, 1, eye.clr.brighten(0.65));
-            base.line(eye.pos, eye.pos + right * 100, 1, eye.clr.brighten(0.65));
+            base.line(eye.pos, eye.pos + left * 100, 1, eye.clr.brighten(0.65f));
+            base.line(eye.pos, eye.pos + right * 100, 1, eye.clr.brighten(0.65f));
         }
         
     }
@@ -484,7 +484,7 @@ namespace track {
             
             if(ptr) {
                 assert(ptr->eyes().size() == 2);
-                for(int j=0; j<2; j++) {
+                for(uint j=0; j<2; j++) {
                     auto &e = ptr->eyes()[j];
                     //Image mat(e._colored);
                     
@@ -509,14 +509,14 @@ namespace track {
                             }
                         }
                         
-                        clr = clr.alpha(clr.a * 1.0);
+                        clr = clr.alpha(clr.a);
                         cids.at<cv::Vec4b>(0, i) = cv::Scalar(clr);
                         
                         clr = Black;
                         if(d != -1) {
                             clr = Color(d, d, d, 255);
                         }
-                        clr = clr.alpha(clr.a * 1.0);
+                        clr = clr.alpha(clr.a);
                         
                         cd.at<cv::Vec4b>(0, i) = cv::Scalar(clr);
                     }
@@ -529,9 +529,9 @@ namespace track {
         
         float y = 0;
         float scale_x = 2;
-        float scale_y = float(Tracker::average().rows * s->scale().reciprocal().y - 125 * 2) * 0.25 / (range + 1);
+        float scale_y = float(Tracker::average().rows * s->scale().reciprocal().y - 125 * 2) * 0.25f / (range + 1);
         int height_per_row = scale_y * (range + 1);
-        Vec2 offset((Tracker::average().cols * s->scale().reciprocal().x - VisualField::field_resolution * scale_x) * 0.5 - 10,
+        Vec2 offset((Tracker::average().cols * s->scale().reciprocal().x - VisualField::field_resolution * scale_x) * 0.5f - 10,
                     125);
         
         for(int i=0; i<2; i++) {

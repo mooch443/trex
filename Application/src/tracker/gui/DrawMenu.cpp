@@ -439,9 +439,9 @@ public:
                 for(auto key : to_delete)
                     overall.sizes.erase(key);
                 
-                stats->set_origin(Vec2(0.5));
-                Size2 intended_size(ddsize.width * base.scale().x * 0.85, ddsize.height * base.scale().y * 0.3);
-                float margin = intended_size.width * 0.005;
+                stats->set_origin(Vec2(0.5f));
+                Size2 intended_size(ddsize.width * base.scale().x * 0.85f, ddsize.height * base.scale().y * 0.3f);
+                float margin = intended_size.width * 0.005f;
                 
                 stats->update([&](Entangled& base) {
                     Size2 bars(intended_size.width / float(overall.sizes.size()), intended_size.height - margin * 2 - 20 * 3);
@@ -470,11 +470,11 @@ public:
                     size_t i=0;
                     for(auto && [name, size] : overall.sizes) {
                         auto color = wheel.next();
-                        double h = double((size - mi) / double(ma - mi)) * bars.height;
+                        float h = float((size - mi) / float(ma - mi)) * bars.height;
                         //Debug("%S: %f (%lu, %lu)", &name, h, size - mi, ma - mi);
                         base.advance(new Rect(Bounds(x + margin, margin + bars.height - h, bars.width - margin * 2, h), color));
                         auto text = elements.at(i);
-                        auto pos = Vec2(x + bars.width * 0.5, margin + bars.height + margin);
+                        auto pos = Vec2(x + bars.width * 0.5f, margin + bars.height + margin);
                         if(!text) {
                             text = std::make_shared<StaticText>(utils::trim(utils::find_replace(name, "_", " ")) + "\n<ref>" + Meta::toStr(FileSize{size})+"</ref>", pos, Vec2(bars.width, 20));
                             elements.at(i) = text;

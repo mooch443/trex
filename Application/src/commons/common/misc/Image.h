@@ -71,6 +71,8 @@ namespace cmn {
         
         //! access pixel at y,x and channel
         uchar at(uint y, uint x, uint channel = 0) const;
+        uchar* ptr(uint y, uint x) const;
+        
         void set_pixel(uint x, uint y, const gui::Color& color) const;
         
         void get(cv::Mat& matrix) const;

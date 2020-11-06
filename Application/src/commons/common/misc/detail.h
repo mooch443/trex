@@ -892,6 +892,6 @@ namespace cmn {
     private:
         static const std::array<value_t, 256> data_bgr;
     public:
-        static gui::Color value(float percent);
+        static gui::Color value(double percent);
     };
 }

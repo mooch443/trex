@@ -468,7 +468,7 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<long
     return {data, disc_images, disc_frame_map};
 }
 
-std::tuple<float, std::map<long_t, float>, float> Accumulation::calculate_uniqueness(bool internal, const std::vector<Image::Ptr>& images, const std::map<long_t, Range<size_t>>& map_indexes)
+std::tuple<float, std::map<uint32_t, float>, float> Accumulation::calculate_uniqueness(bool internal, const std::vector<Image::Ptr>& images, const std::map<long_t, Range<size_t>>& map_indexes)
 {
     std::vector<std::vector<float>> predictions;
     if(internal) {
@@ -513,18 +513,18 @@ std::tuple<float, std::map<long_t, float>, float> Accumulation::calculate_unique
     size_t good_frames = 0;
     size_t bad_frames = 0;
     double percentages = 0, rpercentages = 0;
-    std::map<long_t, float> unique_percent;
-    std::map<long_t, float> unique_percent_raw;
+    std::map<uint32_t, float> unique_percent;
+    std::map<uint32_t, float> unique_percent_raw;
     
-    std::map<long_t, float> unique_percent_per_identity;
-    std::map<long_t, float> per_identity_samples;
+    std::map<uint32_t, float> unique_percent_per_identity;
+    std::map<uint32_t, float> per_identity_samples;
     
     for(auto && [frame, range] : map_indexes) {
-        std::set<long_t> unique_ids;
-        std::map<long_t, float> probs;
+        std::set<uint32_t> unique_ids;
+        std::map<uint32_t, float> probs;
         
         for (auto i = range.start; i < range.end; ++i) {
-            long_t max_id = -1;
+            int64_t max_id = -1;
             float max_p = 0;
             
             if(predictions.at(i).size() < FAST_SETTINGS(manual_identities).size()) {
@@ -541,8 +541,8 @@ std::tuple<float, std::map<long_t, float>, float> Accumulation::calculate_unique
             }
             
             if(max_id != -1) {
-                unique_ids.insert(max_id);
-                probs[max_id] = max(probs[max_id], max_p);
+                unique_ids.insert((uint32_t)max_id);
+                probs[(uint32_t)max_id] = max(probs[(uint32_t)max_id], max_p);
             }
         }
         
@@ -598,7 +598,7 @@ std::tuple<float, std::map<long_t, float>, float> Accumulation::calculate_unique
 }
 
 float Accumulation::good_uniqueness() {
-    return (float(FAST_SETTINGS(manual_identities).size()) - 0.5) / float(FAST_SETTINGS(manual_identities).size());
+    return (float(FAST_SETTINGS(manual_identities).size()) - 0.5f) / float(FAST_SETTINGS(manual_identities).size());
 }
 
 Accumulation::Accumulation(TrainingMode::Class mode) : _mode(mode), _accumulation_step(0), _counted_steps(0), _last_step(1337) {

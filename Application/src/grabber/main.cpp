@@ -636,10 +636,10 @@ int main(int argc, char** argv)
             Debug("Logging to '%S'.", &path.str());
         }
         
-        if(SETTING(manual_identities).value<std::set<track::idx_t>>().empty() && SETTING(track_max_individuals).value<track::idx_t>() != 0)
+        if(SETTING(manual_identities).value<std::set<uint32_t>>().empty() && SETTING(track_max_individuals).value<uint32_t>() != 0)
         {
-            std::set<track::idx_t> vector;
-            for(track::idx_t i=0; i<SETTING(track_max_individuals).value<track::idx_t>(); ++i) {
+            std::set<uint32_t> vector;
+            for(uint32_t i=0; i<SETTING(track_max_individuals).value<uint32_t>(); ++i) {
                 vector.insert(i);
             }
             SETTING(manual_identities) = vector;

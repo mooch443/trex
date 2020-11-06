@@ -237,11 +237,11 @@ void TrainingData::apply_mapping(const std::map<long_t, long_t>& mapping) {
     }
 }
 
-void TrainingData::set_classes(const std::set<long_t>& classes) {
+void TrainingData::set_classes(const std::set<uint32_t>& classes) {
     _all_classes = classes;
 }
 
-std::unique_ptr<Image> TrainingData::draw_coverage(const std::map<long_t, float>& unique_percentages, const std::vector<Rangel>& next_ranges, const std::vector<Rangel>& added_ranges, const std::map<long_t, float>& uniquenesses_temp, std::shared_ptr<TrainingData::DataRange> current_salt, const std::map<Rangel, std::tuple<double, FrameRange>>& assigned_unique_averages) const
+std::unique_ptr<Image> TrainingData::draw_coverage(const std::map<uint32_t, float>& unique_percentages, const std::vector<Rangel>& next_ranges, const std::vector<Rangel>& added_ranges, const std::map<uint32_t, float>& uniquenesses_temp, std::shared_ptr<TrainingData::DataRange> current_salt, const std::map<Rangel, std::tuple<double, FrameRange>>& assigned_unique_averages) const
 {
     auto analysis_range = Tracker::analysis_range();
     auto image = std::make_unique<Image>(500, 1800, 4);
@@ -781,7 +781,7 @@ std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::share
     std::map<long_t, std::tuple<size_t, size_t, size_t, size_t>> individual_added_salt;
     std::map<long_t, std::tuple<size_t, size_t>> individual_samples_before_after;
     
-    const double number_classes = SETTING(track_max_individuals).value<idx_t>();
+    const double number_classes = SETTING(track_max_individuals).value<uint32_t>();
     const double gpu_max_sample_mb = double(SETTING(gpu_max_sample_gb).value<float>()) * 1000;
     const Size2 output_size = SETTING(recognition_image_size);
     const double max_images_per_class = gpu_max_sample_mb * 1000 * 1000 / number_classes / output_size.width / output_size.height / 4;

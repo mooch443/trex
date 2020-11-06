@@ -70,6 +70,12 @@ namespace cmn {
         return data()[x * dims + channel + y * cols * dims];
     }
 
+    uchar* Image::ptr(uint y, uint x) const {
+        assert(y < rows);
+        assert(x < cols);
+        return data() + (x * dims + y * cols * dims);
+    }
+
     void Image::set_pixel(uint x, uint y, const gui::Color& color) const {
         assert(y < rows);
         assert(x < cols);

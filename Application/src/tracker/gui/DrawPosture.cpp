@@ -256,7 +256,7 @@ namespace gui {
         set_content_changed(true);
         
         // if this map gets too big (cached scale values), remove a few of them
-        if((track::idx_t)_scale.size() > FAST_SETTINGS(track_max_individuals)) {
+        if((uint32_t)_scale.size() > FAST_SETTINGS(track_max_individuals)) {
             for (auto it = _scale.begin(); it != _scale.end();) {
                 if(!_fish || it->first != _fish->identity().ID()) {
                     it = _scale.erase(it);

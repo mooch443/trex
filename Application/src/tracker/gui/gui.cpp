@@ -2255,7 +2255,7 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
         if(SETTING(gui_show_uniqueness)) {
             static Graph graph(Bounds(50, 100, 800, 400), "uniqueness");
             static std::mutex mutex;
-            static std::map<long_t, float> estimated_uniqueness;
+            static std::map<uint32_t, float> estimated_uniqueness;
             static std::vector<Vec2> uniquenesses;
             static bool running = false;
             
@@ -3928,7 +3928,7 @@ void GUI::key_event(const gui::Event &event) {
     if(key.code >= Codes::Num0 && key.code <= Codes::Num9) {
         std::lock_guard<std::recursive_mutex> lock(_gui.lock());
         Identity id(int(key.code - Codes::Num0));
-        SETTING(gui_focus_group) = std::vector<idx_t>{id.ID()};
+        SETTING(gui_focus_group) = std::vector<uint32_t>{id.ID()};
         set_redraw();
         return;
     }
@@ -4109,7 +4109,7 @@ void GUI::key_event(const gui::Event &event) {
             } else
                 break;
             
-            SETTING(gui_focus_group) = std::vector<idx_t>{id.ID()};
+            SETTING(gui_focus_group) = std::vector<uint32_t>{id.ID()};
             
             break;
         }
@@ -4134,7 +4134,7 @@ void GUI::key_event(const gui::Event &event) {
             } else
                 break;
             
-            SETTING(gui_focus_group) = std::vector<idx_t>{id.ID()};
+            SETTING(gui_focus_group) = std::vector<uint32_t>{id.ID()};
             
             break;
         }

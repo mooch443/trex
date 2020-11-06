@@ -11,13 +11,13 @@ namespace gui {
         
         const float interface_scale = GUI_SETTINGS(gui_interface_scale);
         
-        Font title_font(0.9 / interface_scale, Style::Bold, Align::Center);
-        Font font(0.8 / interface_scale);
-        Font side_font(0.8 / interface_scale, Align::Right);
-        Font bottom_font(0.8 / interface_scale, Align::Center);
+        Font title_font(0.9f / interface_scale, Style::Bold, Align::Center);
+        Font font(0.8f / interface_scale);
+        Font side_font(0.8f / interface_scale, Align::Right);
+        Font bottom_font(0.8f / interface_scale, Align::Center);
         
         auto manual_identities = FAST_SETTINGS(manual_identities);
-        std::set<idx_t> sorted(manual_identities.begin(), manual_identities.end());
+        std::set<uint32_t> sorted(manual_identities.begin(), manual_identities.end());
         for(auto id : manual_identities) {
             if(cache.individuals.find(id) == cache.individuals.end())
                 sorted.erase(id);
@@ -27,7 +27,7 @@ namespace gui {
         obj.set_scale(base.scale().reciprocal().mul(interface_scale));
 
         const float margin = 5 / interface_scale,
-        bar_width = 80 / (interface_scale * 1.25),
+        bar_width = 80 / (interface_scale * 1.25f),
         title_height = Base::default_line_spacing(title_font) + margin;
 
         float sidebar_width = 0;
@@ -39,14 +39,14 @@ namespace gui {
         sidebar_width += 3 * margin;
 
         obj.set_origin(Vec2(0.5));
-        obj.set_bounds(Bounds(Vec2(Tracker::average().cols, Tracker::average().rows) * 0.5,
-                              Size2(sidebar_width * 1.5, Base::default_line_spacing(font) + margin + title_height) + Size2(margin * 2) + bar_width * Size2(output_size, sorted.size())));
+        obj.set_bounds(Bounds(Vec2(Tracker::average().cols, Tracker::average().rows) * 0.5f,
+                              Size2(sidebar_width * 1.5f, Base::default_line_spacing(font) + margin + title_height) + Size2(margin * 2) + bar_width * Size2(output_size, sorted.size())));
         obj.set_background(Black.alpha(150));
 
         if(!cache.recognition_updated) {
             obj.update([&] (Entangled& base) {
                 std::vector<float> outputs;
-                base.advance(new Text("recognition summary", Vec2(obj.width() * 0.5, margin + (title_height - margin) * 0.5), White, title_font));
+                base.advance(new Text("recognition summary", Vec2(obj.width() * 0.5f, margin + (title_height - margin) * 0.5f), White, title_font));
                 
                 size_t counter = 0, j = 0;
                 std::map<long_t, size_t> fdx_to_idx;
@@ -101,7 +101,7 @@ namespace gui {
                 base.advance(new Rect(bounds, Transparent, White.alpha(200)));
                 
                 // draw vertical bar (active fish)
-                pos = Vec2(margin) + Vec2(sidebar_width - 10 / interface_scale, bar_width * 0.5 - Base::default_line_spacing(font) * 0.5 + title_height);
+                pos = Vec2(margin) + Vec2(sidebar_width - 10 / interface_scale, bar_width * 0.5f - Base::default_line_spacing(font) * 0.5f + title_height);
                 
                 size_t row = 0;
                 for(auto id : sorted) {
@@ -111,7 +111,7 @@ namespace gui {
                 }
                 
                 // draw horizontal bar (matched fish from network)
-                pos = Vec2(margin) + Vec2(sidebar_width + bar_width * 0.5, bounds.height + margin + Base::default_line_spacing(font) * 0.5 + title_height);
+                pos = Vec2(margin) + Vec2(sidebar_width + bar_width * 0.5f, bounds.height + margin + Base::default_line_spacing(font) * 0.5f + title_height);
                 for(size_t idx = 0; idx < output_size; ++idx) {
                     base.advance(new Text(Meta::toStr(idx), pos, White, bottom_font));
                     pos += Vec2(bar_width, 0);

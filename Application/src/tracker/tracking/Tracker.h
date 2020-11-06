@@ -36,7 +36,7 @@ namespace track {
 
 using mmatches_t = std::map<long_t, std::map<idx_t, int64_t>>;
 using msplits_t = std::map<long_t, std::set<int64_t>>;
-using inames_t = std::map<idx_t, std::string>;
+using inames_t = std::map<uint32_t, std::string>;
 using mapproved_t = std::map<long_t,long_t>;
 using analrange_t = std::pair<long_t,long_t>;
 
@@ -53,7 +53,7 @@ CREATE_STRUCT(Settings,
   (int, track_threshold),
   (int, track_threshold_2),
   (Rangef, threshold_ratio_range),
-  (idx_t, track_max_individuals),
+  (uint32_t, track_max_individuals),
   (int, track_posture_threshold),
   (uint8_t, outline_smooth_step),
   (uint8_t, outline_smooth_samples),
@@ -68,7 +68,7 @@ CREATE_STRUCT(Settings,
   (float, matching_probability_threshold),
   (size_t, posture_direction_smoothing),
   (file::Path, tags_path),
-  (std::set<idx_t>, manual_identities),
+  (std::set<uint32_t>, manual_identities),
   (std::vector<Vec2>, grid_points),
   (std::vector<std::vector<Vec2>>, recognition_shapes),
   (float, grid_points_scaling),

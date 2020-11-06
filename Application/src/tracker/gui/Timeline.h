@@ -26,7 +26,7 @@ namespace gui {
         float mx, my;
         
         size_t small_count;
-        track::idx_t current_count;
+        uint32_t current_count;
         size_t big_count;
         size_t up_to_this_frame;
         

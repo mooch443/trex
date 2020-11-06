@@ -396,7 +396,7 @@ void reduce_vertex_line(const std::vector<Vertex>& points, std::vector<Vertex>& 
         // returns [-1,1] values from 180°-0° (upper half of the unit circle)
         // 90°-180° is < 0, while 0°-90° is >= 0
         // move it to [-2,0], take absolute and multiply by 0.5, so we get 0-180° -> [0,1]
-        float a = cmn::abs(previous_vec.dot(line) - 1) * 0.5;
+        float a = cmn::abs(previous_vec.dot(line) - 1) * 0.5f;
         //Debug("%f (%f,%f) -> (%f,%f) : %f | %f, len:%f", previous_vec.dot(line), previous_vec.x, previous_vec.y, line.x, line.y, a, threshold, len);
         if (cumlen < dim * threshold * 0.005 && color_diff < threshold * 0.01 && a < threshold * 0.1)
             continue;
@@ -541,7 +541,7 @@ void ExternalImage::update_with(const gpuMat& mat) {
               || (int)_source->rows != mat.rows
               || (int)_source->dims != mat.channels())
     {
-        _source->create(mat.rows, mat.cols, mat.dims);
+        _source->create((uint)mat.rows, (uint)mat.cols, (uint)mat.dims);
         set_size(Vec2(_source->cols, _source->rows));
     }
     

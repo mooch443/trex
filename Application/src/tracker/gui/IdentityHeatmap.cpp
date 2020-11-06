@@ -90,7 +90,7 @@ void HeatmapController::paint_heatmap() {
     _image->update_with(_viridis);
     //_viridis.copyTo(_image->get());
     _image->set_pos(Vec2());
-    _image->set_scale(Vec2(smooth_heatmap_factor > 0 ? 1.0 / smooth_heatmap_factor : stride));
+    _image->set_scale(Vec2(smooth_heatmap_factor > 0 ? 1.0f / smooth_heatmap_factor : stride));
     
     push_timing("gui_heatmap", timer.elapsed());
     
@@ -134,7 +134,7 @@ void HeatmapController::save() {
     per_frame.reserve(expected);
     
     size_t count_frames = 0;
-    size_t max_frames = Tracker::end_frame() - Tracker::start_frame();
+    size_t max_frames = sign_cast<size_t>(Tracker::end_frame() - Tracker::start_frame());
     size_t print_step = max_frames / 10 + 1;
     std::vector<long_t> frames;
     for(long_t frame = Tracker::start_frame(); frame <= Tracker::end_frame(); ++frame) {
@@ -170,7 +170,7 @@ void HeatmapController::sort_data_into_custom_grid() {
     static Timer timer;
     timer.reset();
     
-    Float2_t minimum = 0, maximum = 0;
+    double minimum = 0, maximum = 0;
     std::vector<double> values;
     std::fill(_array_samples.begin(), _array_samples.end(), _normalization == normalization_t::cell ? 1 : 0);
     std::fill(_array_grid.begin(), _array_grid.end(), 0);
@@ -335,12 +335,27 @@ void HeatmapController::sort_data_into_custom_grid() {
     else
         mat.setTo(empty);
     
-    Float2_t percentage;
+    double percentage;
     auto ML = maximum - minimum;
     if(ML == 0)
         ML = 1;
     
-    for (uint32_t x = 0; x < N; ++x) {
+    auto samples = _array_samples.data();
+    auto grid_values = _array_grid.data();
+    
+    static_assert(sizeof(Color) == sizeof(cv::Vec4b), "sizeof(Color) and cv::Vec4b are assumed to be equal.");
+    for (auto ptr = (Color*)grid_image->data(), to = ptr + grid_image->cols * grid_image->rows; ptr != to; ++ptr, ++samples, ++grid_values)
+    {
+        if(*samples > 0) {
+            percentage = (*grid_values / *samples - minimum) / ML;
+            if(_normalization == normalization_t::variance)
+                percentage = 1 - percentage;
+            
+            *ptr = Viridis::value(percentage).alpha(uint8_t(percentage * 200));
+        }
+    }
+    
+    /*for (uint32_t x = 0; x < N; ++x) {
         for (uint32_t y = 0; y < N; ++y) {
             size_t i = y * N + x;
             if(_array_samples[i] > 0) {
@@ -350,8 +365,7 @@ void HeatmapController::sort_data_into_custom_grid() {
                 mat.at<cv::Vec4b>(y, x) = Viridis::value(percentage).alpha(uint8_t(percentage * 200));
             }
         }
-    }
-    
+    }*/
     //tf::imshow("Viridis", mat);
         
     push_timing("sort_data_into_custom_grid", timer.elapsed());
@@ -410,7 +424,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(long_t current_fr
         
         if(!updated.add_range.empty()) {
             data.clear();
-            data.reserve(frame_range * 2 * max(1, FAST_SETTINGS(track_max_individuals)));
+            data.reserve(frame_range * 2u * max(1u, FAST_SETTINGS(track_max_individuals)));
             Individual::segment_map::const_iterator kit;
             
             auto &range = updated.add_range;

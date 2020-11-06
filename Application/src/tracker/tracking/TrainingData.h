@@ -163,10 +163,10 @@ private:
     
     using d_type = std::set<std::shared_ptr<DataRange>>;
     GETTER(d_type, data)
-    GETTER(std::set<long_t>, all_classes)
+    GETTER(std::set<uint32_t>, all_classes)
     GETTER_NCONST(MidlineFilters, filters)
     
-    using s_type = std::map<long_t, std::set<FrameRange>>;
+    using s_type = std::map<uint32_t, std::set<FrameRange>>;
     GETTER(s_type, included_segments)
     
     //FrameRanges frames;
@@ -241,9 +241,9 @@ public:
     }
     
     //! used as an override for when data is just used to initialize the network and nothing more.
-    void set_classes(const std::set<long_t>& classes);
+    void set_classes(const std::set<uint32_t>& classes);
     
-    std::unique_ptr<Image> draw_coverage(const std::map<long_t, float>& uniquenesses = {}, const std::vector<Rangel>& = {}, const std::vector<Rangel>& added_ranges = {}, const std::map<long_t, float>& uniquenesses_temp = {}, std::shared_ptr<DataRange> current_salt = nullptr, const std::map<Rangel, std::tuple<double, FrameRange>>& assigned_unique_averages = {}) const;
+    std::unique_ptr<Image> draw_coverage(const std::map<uint32_t, float>& uniquenesses = {}, const std::vector<Rangel>& = {}, const std::vector<Rangel>& added_ranges = {}, const std::map<uint32_t, float>& uniquenesses_temp = {}, std::shared_ptr<DataRange> current_salt = nullptr, const std::map<Rangel, std::tuple<double, FrameRange>>& assigned_unique_averages = {}) const;
 };
 
 }

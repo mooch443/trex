@@ -18,7 +18,7 @@ namespace track {
     
     struct DebugInfo {
         long_t frameIndex;
-        long_t fdx;
+        uint32_t fdx;
         bool debug;
         //Vec2 previous_position;
     };

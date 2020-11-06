@@ -5,7 +5,7 @@
 #include <gui/types/Basic.h>
 
 class ColorWheel {
-    long_t _index;
+    uint32_t _index;
     /*constexpr static gui::Color colors[] = {
         gui::Color(0,0,255),
         gui::Color(80,170,0),
@@ -64,7 +64,7 @@ class ColorWheel {
     //int _offset;
     
 public:
-    constexpr ColorWheel(long_t index = 0) : _index(index), _hue(int(255 + index * (index + 1) * 0.5 * step)) {
+    constexpr ColorWheel(uint32_t index = 0) : _index(index), _hue(int(255 + index * (index + 1) * 0.5 * step)) {
         
     }
     constexpr gui::Color next() {

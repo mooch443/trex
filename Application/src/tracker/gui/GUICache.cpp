@@ -80,18 +80,18 @@ namespace gui {
         selected.clear();
     }
     
-    bool GUICache::is_selected(idx_t id) const {
+    bool GUICache::is_selected(uint32_t id) const {
         return contains(selected, id);
     }
     
-    void GUICache::do_select(idx_t id) {
+    void GUICache::do_select(uint32_t id) {
         if(!is_selected(id)) {
             selected.push_back(id);
             SETTING(gui_focus_group) = selected;
         }
     }
     
-    void GUICache::deselect(idx_t id) {
+    void GUICache::deselect(uint32_t id) {
         auto it = std::find(selected.begin(), selected.end(), id);
         if(it != selected.end()) {
             selected.erase(it);
@@ -99,7 +99,7 @@ namespace gui {
         }
     }
     
-    void GUICache::deselect_all_select(idx_t id) {
+    void GUICache::deselect_all_select(uint32_t id) {
         selected.clear();
         selected.push_back(id);
         
@@ -170,7 +170,7 @@ namespace gui {
             
         } else if(_statistics.size() > _tracker._statistics.size()) {
             auto start = _statistics.begin();
-            std::advance(start, _tracker._statistics.size());
+            std::advance(start, (int64_t)_tracker._statistics.size());
             _statistics.erase(start, _statistics.end());
         }
         
@@ -178,7 +178,7 @@ namespace gui {
         if(properties) {
             active = _tracker.active_individuals(frameIndex);
             individuals = _tracker.individuals();
-            selected = SETTING(gui_focus_group).value<std::vector<idx_t>>();
+            selected = SETTING(gui_focus_group).value<std::vector<uint32_t>>();
             active_blobs.clear();
             inactive_ids.clear();
             active_ids.clear();
@@ -189,7 +189,7 @@ namespace gui {
             auto delete_callback = [this](Individual* fish) {
                 std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
                 
-                auto id = fish->identity().ID();
+                auto id = narrow_cast<int32_t>(fish->identity().ID());
                 auto it = individuals.find(id);
                 if(it != individuals.end())
                     individuals.erase(it);
@@ -221,7 +221,7 @@ namespace gui {
             } else {
                 
                 for(auto id : FAST_SETTINGS(manual_identities)) {
-                    auto it = individuals.find(id);
+                    auto it = individuals.find((idx_t)id);
                     if(it != individuals.end()) {
                         it->second->register_delete_callback((void*)12341337, delete_callback);
                     }
@@ -286,7 +286,7 @@ namespace gui {
             } else {
                 // display blobs that are selected
                 for(auto id : selected) {
-                    auto it = individuals.find(id);
+                    auto it = individuals.find((idx_t)id);
                     if(it != individuals.end()) {
                         auto blob = it->second->compressed_blob(frameIndex);
                         if(blob)
@@ -328,7 +328,7 @@ namespace gui {
                     
                     try {
                         auto file = static_cast<pv::File*>(GUI::instance()->video_source());
-                        file->read_frame(processed_frame.frame(), frameIndex);
+                        file->read_frame(processed_frame.frame(), (size_t)frameIndex);
                         
                         std::lock_guard<std::mutex> guard(GUI::instance()->blob_thread_pool_mutex());
                         Tracker::instance()->preprocess_frame(processed_frame, prev_active, &GUI::instance()->blob_thread_pool());
@@ -377,7 +377,7 @@ namespace gui {
                     max_vec = max(max_vec, blob->bounds().pos() + blob->bounds().size());
                 }
                 
-                _num_pixels += blob->bounds().width * blob->bounds().height;
+                _num_pixels += size_t(blob->bounds().width * blob->bounds().height);
                 
                 if(reload_blobs) {
                     std::unique_ptr<gui::ExternalImage> ptr;
@@ -448,7 +448,7 @@ namespace gui {
         }
     }
 
-    bool GUICache::has_probs(long_t fdx) {
+    bool GUICache::has_probs(uint32_t fdx) {
         if(checked_probs.find(fdx) != checked_probs.end()) {
             return probabilities.find(fdx) != probabilities.end();
         }
@@ -456,7 +456,7 @@ namespace gui {
         return probs(fdx) != nullptr;
     }
 
-    const std::map<uint32_t, Individual::Probability>* GUICache::probs(long_t fdx) {
+    const std::map<uint32_t, Individual::Probability>* GUICache::probs(uint32_t fdx) {
         if(checked_probs.find(fdx) != checked_probs.end()) {
             auto it = probabilities.find(fdx);
             if(it  != probabilities.end())
@@ -472,7 +472,7 @@ namespace gui {
             if(it != processed_frame.cached_individuals.end()) {
                 auto && [fdx, cache] = *it;
                 for(auto blob : processed_frame.blobs) {
-                    auto p = individuals.count(fdx) ? individuals.at(fdx)->probability(cache, frame_idx, blob) : Individual::Probability{0,0,0,0};
+                    auto p = individuals.count((idx_t)fdx) ? individuals.at((idx_t)fdx)->probability(cache, frame_idx, blob) : Individual::Probability{0,0,0,0};
                     if(p.p >= FAST_SETTINGS(matching_probability_threshold))
                         probabilities[fdx][blob->blob_id()] = p;
                 }

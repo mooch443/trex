@@ -92,7 +92,7 @@ namespace track {
         std::vector<std::shared_ptr<pv::Blob>> blobs, original_blobs;
         std::vector<std::shared_ptr<pv::Blob>> filtered_out;
         
-        std::map<idx_t, IndividualCache> cached_individuals;
+        std::map<uint32_t, IndividualCache> cached_individuals;
         std::map<uint32_t, std::set<long_t>> blob_cliques, fish_cliques;
         std::set<uint32_t> split_blobs;
         std::map<uint32_t, pv::BlobPtr> bdx_to_ptr;
@@ -113,17 +113,25 @@ namespace track {
     };
     
     class Identity {
+    public:
+        static constexpr auto InvalidID = std::numeric_limits<uint32_t>::infinity();
+        
+    protected:
         GETTER_SETTER(gui::Color, color)
-        idx_t _myID;
+        uint32_t _myID;
         std::string _name;
         GETTER_SETTER(bool, manual)
         
     public:
-        static void set_running_id(idx_t value);
-        static idx_t running_id();
-        Identity(idx_t myID = -1);
+        static void set_running_id(uint32_t value);
+        static uint32_t running_id();
+        Identity(uint32_t myID = InvalidID);
         decltype(_myID) ID() const { return _myID; }
-        void set_ID(idx_t val) { _color = ColorWheel(val).next(); _myID = val; _name = Meta::toStr(_myID); }
+        void set_ID(uint32_t val) {
+            _color = ColorWheel(val).next();
+            _myID = val;
+            _name = Meta::toStr(_myID);
+        }
         const std::string& raw_name();
         std::string raw_name() const;
         std::string name() const;
@@ -210,7 +218,7 @@ namespace track {
     protected:
         //! dense array of all posture related stuff we are saving
         GETTER(std::vector<std::shared_ptr<PostureStuff>>, posture_stuff)
-        long_t _last_posture_added;
+        long_t _last_posture_added = -1;
         
     public:
         struct SegmentInformation : public FrameRange {
@@ -276,7 +284,7 @@ namespace track {
         std::map<long_t, float> _average_recognition;
         GETTER(size_t, average_recognition_samples)
         
-        long_t _startFrame, _endFrame;
+        long_t _startFrame = -1, _endFrame = -1;
         
     public:
         //! These data are generated in order to reduce work-load
@@ -326,7 +334,7 @@ namespace track {
         std::set<long_t> added_postures;
         
     public:
-        Individual(long_t id = -1);
+        Individual(Identity&& id = Identity());
         ~Individual();
         
 #if DEBUG_ORIENTATION

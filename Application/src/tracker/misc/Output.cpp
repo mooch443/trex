@@ -322,7 +322,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         ID = (uint32_t)sid;
     }
     
-    Individual *fish = new Individual(narrow_cast<long_t>(ID));
+    Individual *fish = new Individual(ID);
     
     if(_header.version <= Output::ResultsFormat::Versions::V_15) {
         ref.seek(ref.tell() + sizeof(data_long_t) * 2);
@@ -341,10 +341,10 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         std::string name;
         ref.read<std::string>(name);
         
-        Identity id((long_t)ID);
+        Identity id(ID);
         if(name != id.raw_name() && !name.empty()) {
             auto map = FAST_SETTINGS(individual_names);
-            map[(long_t)ID] = name;
+            map[ID] = name;
             SETTING(individual_names) = map;
         }
     }
@@ -361,7 +361,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         }
     }
     
-    fish->identity().set_ID((long_t)ID);
+    fish->identity().set_ID(ID);
     
     //PhysicalProperties *prev = NULL;
     //PhysicalProperties *prev_weighted = NULL;
@@ -1185,7 +1185,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             prev_props = nullptr;
         
         _tracker.update_consecutive(active, props.frame, false);
-        _tracker.update_warnings(props.frame, props.time, number_fish, (long_t)n, (long_t)prev, &props, prev_props, active, iterator_map);
+        _tracker.update_warnings(props.frame, props.time, (long_t)number_fish, n, prev, &props, prev_props, active, iterator_map);
         
         prev = n;
         prev_props = &props;
@@ -1310,7 +1310,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             file._property_cache->push(prop.frame, &prop);
         
         // read the individuals
-        std::map<long_t, Individual*> map_id_ptr;
+        std::map<uint32_t, Individual*> map_id_ptr;
         std::vector<Individual*> fishes;
         
         file.read<uint64_t>(L);
@@ -1338,7 +1338,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
                 if(biggest_id < fish->identity().ID())
                     biggest_id = fish->identity().ID();
                 map_id_ptr[fish->identity().ID()] = fish;
-                _tracker._individuals[fish->identity().ID()] = fish;
+                _tracker._individuals[(long_t)fish->identity().ID()] = fish;
             }
         }
         
@@ -1359,7 +1359,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
                 if(check_analysis_range && (frameIndex > analysis_range.end || frameIndex < analysis_range.start))
                     continue;
                 
-                auto it = map_id_ptr.find((long_t)ID);
+                auto it = map_id_ptr.find(ID);
                 if (it == map_id_ptr.end())
                     U_EXCEPTION("Cannot find individual with ID %ld in map.", ID);
                 active.insert(it->second);
@@ -1429,9 +1429,9 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             }
             
             if(config.has("gui_focus_group")) {
-                SETTING(gui_focus_group) = config["gui_focus_group"].value<std::vector<idx_t>>();
+                SETTING(gui_focus_group) = config["gui_focus_group"].value<std::vector<uint32_t>>();
             } else
-                SETTING(gui_focus_group) = std::vector<idx_t>{};
+                SETTING(gui_focus_group) = std::vector<uint32_t>{};
             
             SETTING(gui_frame).value<long_t>() = (long_t)file.header().gui_frame;
         }

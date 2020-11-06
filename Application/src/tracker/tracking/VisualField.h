@@ -43,11 +43,11 @@ namespace track {
         GETTER(Vec2, fish_pos)
         GETTER(double, fish_angle)
         
-        GETTER(idx_t, fish_id)
+        GETTER(uint32_t, fish_id)
         GETTER(long_t, frame)
         
     public:
-        VisualField(idx_t fish_id, long_t frame,const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture, bool blocking);
+        VisualField(uint32_t fish_id, long_t frame,const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture, bool blocking);
         
         const decltype(_eyes)& eyes() const { return _eyes; }
         void calculate(const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture, bool blocking = true);

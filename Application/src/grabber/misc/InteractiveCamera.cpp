@@ -78,12 +78,12 @@ InteractiveCamera::InteractiveCamera() {
     _size = cv::Size(SETTING(cam_resolution).value<cv::Size>().width, SETTING(cam_resolution).value<cv::Size>().height);
     
     if constexpr(use_dynamic) {
-        const size_t number_individuals = SETTING(track_max_individuals).value<long_t>();
+        const auto number_individuals = SETTING(track_max_individuals).value<uint32_t>();
         constexpr auto random_number = [](const Rangel& range) {
             return Float2_t(rand()) / Float2_t(RAND_MAX) * range.length() + range.start;
         };
         
-        _fishies.resize(number_individuals ? number_individuals : 3);
+        _fishies.resize(number_individuals ? number_individuals : 3u);
         for(auto &fish : _fishies) {
             fish.position = Vec2(random_number(Rangel(0, _size.width)),
                                  random_number(Rangel(0, _size.height)));

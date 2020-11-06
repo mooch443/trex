@@ -215,7 +215,7 @@ LoopStatus GLImpl::update_loop() {
         glViewport(0, 0, display_w, display_h);
         
         if(_frame_capture_enabled)
-            init_pbo(display_w, display_h);
+            init_pbo((uint)display_w, (uint)display_h);
         
         glClearColor(_clear_color.r / 255.f, _clear_color.g / 255.f, _clear_color.b / 255.f, _clear_color.a / 255.f);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -280,7 +280,7 @@ void GLImpl::update_pbo() {
         // read pixels from framebuffer to PBO
         // glReadPixels() should return immediately.
         glBindBuffer(GL_PIXEL_PACK_BUFFER, pboIds[index]);
-        glReadPixels(0, 0, pboImage->cols, pboImage->rows, GL_BGRA, GL_UNSIGNED_BYTE, 0);
+        glReadPixels(0, 0, (GLsizei)pboImage->cols, (GLsizei)pboImage->rows, GL_BGRA, GL_UNSIGNED_BYTE, 0);
 
         // map the PBO to process its data by CPU
         glBindBuffer(GL_PIXEL_PACK_BUFFER, pboIds[nextIndex]);
@@ -362,14 +362,16 @@ TexturePtr GLImpl::texture(const Image * ptr) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, ptr->dims != 4 ? ptr->dims : 0);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, ptr->dims != 4 ? (GLint)ptr->dims : 0);
     
 #if !CMN_USE_OPENGL2
 #define GL_LUMINANCE 0x1909
 #define GL_LUMINANCE_ALPHA 0x190A
 #endif
     
-    auto output_type = GL_RGBA8, input_type = GL_RGBA;
+    GLint output_type = GL_RGBA8;
+    GLenum input_type = GL_RGBA;
+    
     if OPENGL3_CONDITION {
         if(ptr->dims == 1) {
             output_type = GL_RED;
@@ -403,7 +405,7 @@ TexturePtr GLImpl::texture(const Image * ptr) {
 
     glTexImage2D(GL_TEXTURE_2D, 0, output_type, width, height, 0, input_type, GL_UNSIGNED_BYTE, empty.data());
 
-    glTexSubImage2D(GL_TEXTURE_2D,0,0,0, ptr->cols, ptr->rows, input_type, GL_UNSIGNED_BYTE, ptr->data());
+    glTexSubImage2D(GL_TEXTURE_2D,0,0,0, (GLsizei)ptr->cols, (GLsizei)ptr->rows, input_type, GL_UNSIGNED_BYTE, ptr->data());
     glBindTexture(GL_TEXTURE_2D, 0);
     
     return std::unique_ptr<PlatformTexture>(new PlatformTexture{
@@ -462,9 +464,9 @@ void GLImpl::update_texture(PlatformTexture& id_, const Image *ptr) {
     
     glBindTexture(GL_TEXTURE_2D, _id);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, ptr->dims != 4 ? ptr->dims : 0);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, ptr->dims != 4 ? (GLint)ptr->dims : 0);
     
-    auto input_type = GL_RGBA;
+    GLenum input_type = GL_RGBA;
     if OPENGL3_CONDITION {
         if(ptr->dims == 1) {
             input_type = GL_RED;
@@ -486,17 +488,17 @@ void GLImpl::update_texture(PlatformTexture& id_, const Image *ptr) {
     if (empty.size() < capacity)
         empty.resize(capacity, 0);
 
-    if (ptr->cols != id_.width || ptr->rows != id_.height) {
-        glTexSubImage2D(GL_TEXTURE_2D, 0, ptr->cols, 0, id_.width - ptr->cols, id_.height, input_type, GL_UNSIGNED_BYTE, empty.data());
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, ptr->rows, ptr->cols, id_.height - ptr->rows, input_type, GL_UNSIGNED_BYTE, empty.data());
+    if (ptr->cols != (uint)id_.width || ptr->rows != (uint)id_.height) {
+        glTexSubImage2D(GL_TEXTURE_2D, 0, (GLint)ptr->cols, 0, GLint(id_.width) - GLint(ptr->cols), id_.height, input_type, GL_UNSIGNED_BYTE, empty.data());
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, (GLint)ptr->rows, (GLint)ptr->cols, GLint(id_.height) - GLint(ptr->rows), input_type, GL_UNSIGNED_BYTE, empty.data());
         //glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, id_.width, id_.height, input_type, GL_UNSIGNED_BYTE, empty.data());
     }
-    glTexSubImage2D(GL_TEXTURE_2D,0,0,0, ptr->cols, ptr->rows, input_type, GL_UNSIGNED_BYTE, ptr->data());
+    glTexSubImage2D(GL_TEXTURE_2D,0,0,0, (GLint)ptr->cols, (GLint)ptr->rows, input_type, GL_UNSIGNED_BYTE, ptr->data());
     //glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, ptr->cols, ptr->rows, 0, GL_RGBA, GL_UNSIGNED_BYTE, ptr->data());
     glBindTexture(GL_TEXTURE_2D, 0);
     
-    id_.image_width = ptr->cols;
-    id_.image_height = ptr->rows;
+    id_.image_width = int(ptr->cols);
+    id_.image_height = int(ptr->rows);
 }
 
 void GLImpl::set_title(std::string title) {

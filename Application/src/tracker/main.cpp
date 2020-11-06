@@ -925,7 +925,7 @@ int main(int argc, char** argv)
         
         if(SETTING(auto_number_individuals).value<bool>() == default_map.get<bool>("auto_number_individuals").value())
         {
-            SETTING(auto_number_individuals) = SETTING(track_max_individuals).value<idx_t>() == default_map.get<idx_t>("track_max_individuals").value();
+            SETTING(auto_number_individuals) = SETTING(track_max_individuals).value<uint32_t>() == default_map.get<uint32_t>("track_max_individuals").value();
         }
         
         if(SETTING(auto_minmax_size).value<bool>() == default_map.get<bool>("auto_minmax_size").value())
@@ -936,10 +936,10 @@ int main(int argc, char** argv)
     
     Tracker::auto_calculate_parameters(video);
     
-    if(SETTING(manual_identities).value<std::set<idx_t>>().empty() && SETTING(track_max_individuals).value<idx_t>() != 0)
+    if(SETTING(manual_identities).value<std::set<uint32_t>>().empty() && SETTING(track_max_individuals).value<uint32_t>() != 0)
     {
-        std::set<idx_t> vector;
-        for(idx_t i=0; i<SETTING(track_max_individuals).value<idx_t>(); ++i) {
+        std::set<uint32_t> vector;
+        for(uint32_t i=0; i<SETTING(track_max_individuals).value<uint32_t>(); ++i) {
             vector.insert(i);
         }
         SETTING(manual_identities) = vector;

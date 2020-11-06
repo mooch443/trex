@@ -1926,11 +1926,11 @@ void Tracker::clear_properties() {
         
         for(auto b : frame.blobs) {
             id_to_blob[b->blob_id()] = b;
-            blob_grid.insert(b->bounds().x + b->bounds().width * 0.5, b->bounds().y + b->bounds().height * 0.5, b->blob_id());
+            blob_grid.insert(b->bounds().x + b->bounds().width * 0.5f, b->bounds().y + b->bounds().height * 0.5f, b->blob_id());
         }
         for(auto b : frame.filtered_out) {
             id_to_blob[b->blob_id()] = b;
-            blob_grid.insert(b->bounds().x + b->bounds().width * 0.5, b->bounds().y + b->bounds().height * 0.5, b->blob_id());
+            blob_grid.insert(b->bounds().x + b->bounds().width * 0.5f, b->bounds().y + b->bounds().height * 0.5f, b->blob_id());
         }
         
         // see if there are manually fixed matches for this frame
@@ -2240,7 +2240,7 @@ void Tracker::clear_properties() {
             // create correct identities
             //assert(_individuals.empty());
             
-            idx_t max_id = Identity::running_id();
+            uint32_t max_id = Identity::running_id();
             
             for (auto m : manual_identities) {
                 if(_individuals.find(m) == _individuals.end()) {
@@ -3224,7 +3224,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
     }
 
     void Tracker::update_consecutive(const Tracker::set_of_individuals_t &active, long_t frameIndex, bool update_dataset) {
-        bool all_good = FAST_SETTINGS(track_max_individuals) == (track::idx_t)active.size();
+        bool all_good = FAST_SETTINGS(track_max_individuals) == (uint32_t)active.size();
         //bool manual = false;
         /*Rangel manual_approval;
         
@@ -3617,7 +3617,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         while (recognition_pool.queue_length() && count < _individuals.size()) {
             recognition_pool.wait_one();
             
-            callback(count / float(_individuals.size()) * 0.5);
+            callback(count / float(_individuals.size()) * 0.5f);
             ++count;
         }
         
@@ -3654,10 +3654,10 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         };
         
         static const auto sigmoid = [](Match::prob_t x) {
-            return 1.f/(1.f + expf((0.5f-x)*2.f*M_PI));
+            return 1.f/(1.f + expf((0.5f-x)*2.f*float(M_PI)));
         };
         
-        const size_t n_lower_bound = max(5, FAST_SETTINGS(frame_rate) * 0.1);
+        const size_t n_lower_bound = max(5, FAST_SETTINGS(frame_rate) * 0.1f);
         
         // iterate through segments, find matches for segments.
         // try to find the longest segments and assign them to virtual fish
@@ -4239,7 +4239,7 @@ pv::BlobPtr Tracker::find_blob_noisy(std::map<uint32_t, pv::BlobPtr>& blob_to_id
             Median<float> blob_size;
             pv::Frame frame;
             std::multiset<float> values;
-            const uint32_t number_fish = (uint32_t)SETTING(track_max_individuals).value<idx_t>();
+            const uint32_t number_fish = SETTING(track_max_individuals).value<uint32_t>();
             
             std::vector<std::multiset<float>> blobs;
             Median<float> median;
@@ -4323,7 +4323,7 @@ pv::BlobPtr Tracker::find_blob_noisy(std::map<uint32_t, pv::BlobPtr>& blob_to_id
                 if(SETTING(auto_number_individuals).value<bool>()) {
                     if(!quiet)
                         Debug("Setting number of individuals as %d.", median_number);
-                    SETTING(track_max_individuals) = track::idx_t(median_number);
+                    SETTING(track_max_individuals) = uint32_t(median_number);
                 }
             }
         }

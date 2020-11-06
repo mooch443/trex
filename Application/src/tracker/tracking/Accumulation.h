@@ -47,7 +47,7 @@ class Accumulation {
     std::vector<Image::Ptr> _disc_images;
     std::map<long_t, Range<size_t>> _disc_frame_map;
     std::vector<long_t> _checked_ranges_output;
-    std::map<long_t, float> unique_map, temp_unique;
+    std::map<uint32_t, float> unique_map, temp_unique;
     std::map<Rangel, std::tuple<double, FrameRange>> assigned_unique_averages;
     size_t _accumulation_step;
     size_t _counted_steps, _last_step;
@@ -89,7 +89,7 @@ public:
     void confirm_weights();
     void update_coverage(const TrainingData& data);
     
-    static std::tuple<float, std::map<long_t, float>, float> calculate_uniqueness(bool internal, const std::vector<Image::Ptr>&, const std::map<long_t, Range<size_t>>&);
+    static std::tuple<float, std::map<uint32_t, float>, float> calculate_uniqueness(bool internal, const std::vector<Image::Ptr>&, const std::map<long_t, Range<size_t>>&);
     static std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<long_t, Range<size_t>>> generate_discrimination_data(const std::shared_ptr<TrainingData>& source = nullptr);
     static void setup();
     static void unsetup();

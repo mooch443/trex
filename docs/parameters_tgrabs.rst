@@ -28,7 +28,7 @@ TGrabs parameters
 	.. seealso:: :func:`stop_after_minutes`, 
 
 
-.. function:: average_samples(int)
+.. function:: average_samples(uint)
 	:noindex:
 
 	**default value:** 100

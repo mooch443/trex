@@ -4,6 +4,7 @@
 #include <gui/DrawSFBase.h>
 #include <misc/cnpy_wrapper.h>
 #include <misc/metastring.h>
+#include <misc/checked_casts.h>
 
 using namespace cmn;
 using namespace gui;
@@ -133,8 +134,8 @@ void Graph::update() {
         return !(A == highlighted || (B != highlighted && A < B));
     });
     
-    advance(new Vertices(Vec2(0, (1.0 - y_offset_percent) * max_height) + _margin,
-                         Vec2(max_width, (1.0 - y_offset_percent) * max_height) + _margin,
+    advance(new Vertices(Vec2(0, (1.0f - y_offset_percent) * max_height) + _margin,
+                         Vec2(max_width, (1.0f - y_offset_percent) * max_height) + _margin,
                          fg));
     
     advance(new Vertices(Vec2(custom_y_axis_offset, 0) + _margin,
@@ -146,7 +147,7 @@ void Graph::update() {
         if(lengthx > 5)
             value = roundf(value * 100) / 100;
         
-        Vec2 pt(x, (1.0 - y_offset_percent) * max_height);
+        Vec2 pt(x, (1.0f - y_offset_percent) * max_height);
         pt += _margin;
         
         std::stringstream ss;
@@ -154,7 +155,7 @@ void Graph::update() {
         std::string str = ss.str();
         
         advance(new Vertices(pt - Vec2(0, 2), pt + Vec2(0, 2), fg));
-        return advance(new Text(str, pt + Vec2(0, Base::default_line_spacing(x_label_font)*0.5+5), fg, x_label_font));
+        return advance(new Text(str, pt + Vec2(0, Base::default_line_spacing(x_label_font)*0.5f+5), fg, x_label_font));
     };
     
     auto label_point_y = [&](float y_visual, float value) {
@@ -170,7 +171,7 @@ void Graph::update() {
         std::string str = ss.str();
         
         advance(new Vertices(pt - Vec2(2, 0), pt + Vec2(2, 0), fg));
-        advance(new Text(str, pt - Vec2(5, Base::default_line_spacing(y_label_font)*0.5), fg, y_label_font));
+        advance(new Text(str, pt - Vec2(5, Base::default_line_spacing(y_label_font)*0.5f), fg, y_label_font));
     };
 #define TYPE_IS(X) ( (int)f._type & (int)Type:: X )
     
@@ -184,7 +185,7 @@ void Graph::update() {
         }
         
         if(has_discrete) {
-            float spacing = max(1, round(rx.length() * 0.1));
+            float spacing = max(1, round(rx.length() * 0.1f));
             for(auto i = round(rx.start); i<=round(rx.end); i+=spacing) {
                 float x = (i-rx.start) / lengthx + x_offset_percent;
                 label_point_x(x, i);
@@ -192,7 +193,7 @@ void Graph::update() {
             
         } else {
             // label x starting at 0 / rx.start
-            float spacing = lengthx * 0.1;
+            float spacing = lengthx * 0.1f;
             for (float i=rx.start < 0 && rx.end > 0 ? 0 : rx.start; i<rx.end; i+=spacing) {
                 float x = (i-rx.start) / lengthx + x_offset_percent;
                 label_point_x(x, i);
@@ -210,7 +211,7 @@ void Graph::update() {
     
     if(_xyaxis & (char)Axis::Y) {
         // label y
-        auto spacing = (lengthy) * 0.1;
+        auto spacing = (lengthy) * 0.1f;
         float limit = ry.start < 0 && ry.end > 0 ? 0 : ry.start;
         for (float i=10-y_offset_percent*10; i>=0; i--) {
             float x = limit + i * spacing;
@@ -229,7 +230,7 @@ void Graph::update() {
     
     auto split_polygon = [this, &max_height, &y_offset_percent](const std::vector<Vertex>& vertices){
         auto work = std::make_shared<std::vector<Vec2>>();
-        const Vec2 null = Vec2(0, (1.0 - y_offset_percent) * max_height + _margin.y);
+        const Vec2 null = Vec2(0, (1.0f - y_offset_percent) * max_height + _margin.y);
         
         auto make_polygon = [&]() {
             if(work->empty())
@@ -282,7 +283,7 @@ void Graph::update() {
                     float percentx = (pt.x-rx.start) / lengthx + x_offset_percent;
                     
                     float x = percentx * max_width - y_axis_offset;
-                    float y = (1.0 - (pt.y / lengthy + y_offset_percent)) * max_height;
+                    float y = (1.0f - (pt.y / lengthy + y_offset_percent)) * max_height;
                     
                     auto current = Vec2(x, y) + _margin;
                     auto ptr = std::make_shared<Circle>(OFFSET(current), 3, f._color);
@@ -310,8 +311,8 @@ void Graph::update() {
             continue;
         }
         
-        const int step_nr = max_width * (TYPE_IS(DISCRETE) || TYPE_IS(POINTS) ? 1.0 : 0.25);
-        const float step_size = 1.0 / step_nr;
+        const int step_nr = narrow_cast<int>(max_width / (TYPE_IS(DISCRETE) || TYPE_IS(POINTS) ? 1 : 4));
+        const float step_size = 1.0f / step_nr;
         const float stepx = lengthx * step_size;
         
         Vec2 prev(0, 0);
@@ -339,7 +340,7 @@ void Graph::update() {
             float percentx = (x0-rx.start) / lengthx + x_offset_percent;
             float x = percentx * max_width - y_axis_offset;
             
-            float y0 = f._get_y(x0);
+            float y0 = narrow_cast<float>(f._get_y(x0));
             float y;
             
             if (cmn::isinf(y0)) {
@@ -348,7 +349,7 @@ void Graph::update() {
                 y = prev_y0;
                 clr = fg;
             } else
-                y = (1.0 - ((y0) / lengthy + y_offset_percent)) * max_height;
+                y = (1.0f - ((y0) / lengthy + y_offset_percent)) * max_height;
             
             prev_y0 = y0;
             prev_x0 = x0;
@@ -441,7 +442,7 @@ Vec2 Graph::transform_point(Vec2 pt) {
     
     float percentx = (pt.x-rx.start) / lengthx + x_offset_percent;
     float x = percentx * max_width - y_axis_offset;
-    float y = (1.0 - (pt.y / lengthy + y_offset_percent)) * max_height;
+    float y = (1.0f - (pt.y / lengthy + y_offset_percent)) * max_height;
     
     return Vec2(x, y) + _margin;
 }
@@ -562,16 +563,16 @@ void Graph::export_data(const std::string &filename, std::function<void(float)> 
     
     Table table(header);
     const Rangef& rx = _x_range;
-    table.reserve(cmn::abs(rx.end - rx.start));
+    table.reserve(sign_cast<size_t>(cmn::abs(rx.end - rx.start)));
     
     Row row;
     int print_step = max(1, int((rx.end - rx.start) * 0.1));
-    for(int x=rx.start; x<=rx.end; x++) {
+    for(float x=rx.start; x<=rx.end; x++) {
         row.clear();
         row.add(x);
         
         for (auto &f : _functions) {
-            float y0 = f._get_y(x);
+            auto y0 = f._get_y(x);
             
             if (cmn::isinf(y0)) {
                 // no value can be found at this location
@@ -584,11 +585,11 @@ void Graph::export_data(const std::string &filename, std::function<void(float)> 
         }
         table.add(row);
         
-        if (x%print_step == 0 && rx.end - rx.start > 10000) {
+        if (int(x)%print_step == 0 && rx.end - rx.start > 10000) {
             Debug("%d/%.0f done", x, rx.end);
         }
         
-        if(percent_callback && x%100 == 0) {
+        if(percent_callback && int(x)%100 == 0) {
             (*percent_callback)(cmn::abs(x-rx.start) / cmn::abs(rx.end - rx.start));
         }
     }
@@ -628,12 +629,12 @@ void Graph::save_npz(const std::string &filename, std::function<void(float)> *pe
     
     std::unordered_map<const gui::Graph::Function*, std::vector<float>> results;
     for (auto &f : _functions)
-        results[&f].reserve(_x_range.length()+1);
+        results[&f].reserve((size_t)_x_range.length()+1);
     
     int print_step = max(1, int((rx.end - rx.start) * 0.1f));
     for(float x=rx.start; x<=rx.end; x++) {
         for (auto &f : _functions) {
-            float y0 = f._get_y(x);
+            auto y0 = f._get_y(x);
             
             if (cmn::isinf(y0)) {
                 // no value can be found at this location
@@ -641,7 +642,7 @@ void Graph::save_npz(const std::string &filename, std::function<void(float)> *pe
                 results[&f].push_back(infinity<float>());
                 
             } else {
-                results[&f].push_back(y0);
+                results[&f].push_back(float(y0));
             }
         }
         

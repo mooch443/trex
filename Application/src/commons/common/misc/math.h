@@ -113,9 +113,11 @@ namespace cmn {
         return ::atan2f(y, x);
     }
     
-    template<typename T>
-    constexpr inline T abs(const T& x, typename std::enable_if< std::is_integral<T>::value || std::is_floating_point<T>::value, bool>::type * = NULL) {
-        return std::copysign(x, static_cast<T>(1));
+    template<typename T, typename K = typename std::remove_reference<typename std::remove_cv<T>::type>::type>
+    constexpr inline auto abs(T&& x)
+        -> typename std::enable_if< std::is_integral< K >::value || std::is_floating_point< K >::value, K >::type
+    {
+        return std::copysign(std::forward<T>(x), static_cast<K>(1));
     }
     
     template<typename T>

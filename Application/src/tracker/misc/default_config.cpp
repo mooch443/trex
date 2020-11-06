@@ -353,7 +353,7 @@ file::Path conda_environment_path() {
         CONFIG("gui_single_identity_color", gui::Transparent, "If set to something else than transparent, all individuals will be displayed with this color.");
         CONFIG("gui_zoom_limit", Size2(300, 300), "");
         CONFIG("gui_recording_format", gui_recording_format_t::avi, "Sets the format for recording mode (when R is pressed in the GUI). Supported formats are 'avi', 'jpg' and 'png'. JPEGs have 75%% compression, AVI is using MJPEG compression.");
-        CONFIG("individual_names", std::map<idx_t, std::string>{}, "A map of {individual-id: \"individual-name\", ...} that names individuals in the GUI and exported data.");
+        CONFIG("individual_names", std::map<uint32_t, std::string>{}, "A map of {individual-id: \"individual-name\", ...} that names individuals in the GUI and exported data.");
         CONFIG("individual_prefix", std::string("fish"), "The prefix that is added to all the files containing certain IDs. So individual 0 will turn into '[prefix]0' for all the npz files and within the program.");
         CONFIG("outline_approximate", uint8_t(3), "If this is a number > 0, the outline detected from the image will be passed through an elliptical fourier transform with `outline_approximate` number of coefficients. When the given number is sufficiently low, the outline will be smoothed significantly (and more so for lower numbers of coefficients).");
         CONFIG("outline_smooth_step", uint8_t(1), "Jump over N outline points when smoothing (reducing accuracy).");
@@ -376,7 +376,7 @@ file::Path conda_environment_path() {
         CONFIG("matching_probability_threshold", float(0.1), "The probability below which a possible connection between blob and identity is considered too low. The probability depends largely upon settings like `track_max_speed`.");
         CONFIG("track_do_history_split", true, "If disabled, blobs will not be split automatically in order to separate overlapping individuals. This usually happens based on their history.");
         CONFIG("track_end_segment_for_speed", true, "Sometimes individuals might be assigned to blobs that are far away from the previous position. This could indicate wrong assignments, but not necessarily. If this variable is set to true, consecutive frame segments will end whenever high speeds are reached, just to be on the safe side. For scenarios with lots of individuals (and no recognition) this might spam yellow bars in the timeline and may be disabled.");
-        CONFIG("track_max_individuals", idx_t(0), "The maximal number of individual that are assigned at the same time (infinite if set to zero). If the given number is below the actual number of individual, then only a (random) subset of individual are assigned and a warning is shown.");
+        CONFIG("track_max_individuals", uint32_t(0), "The maximal number of individual that are assigned at the same time (infinite if set to zero). If the given number is below the actual number of individual, then only a (random) subset of individual are assigned and a warning is shown.");
         CONFIG("blob_size_ranges", BlobSizeRange({Rangef(0.1f, 3)}), "Blobs below the lower bound are recognized as noise instead of individuals. Blobs bigger than the upper bound are considered to potentially contain more than one individual. The unit is #pixels * (`meta_real_width` / video_width).");
         CONFIG("blob_split_max_shrink", float(0.2), "The minimum percentage of the starting blob size (after thresholding), that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.");
         CONFIG("blob_split_global_shrink_limit", float(0.2), "The minimum percentage of the minimum in `blob_size_ranges`, that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.");
@@ -399,7 +399,7 @@ file::Path conda_environment_path() {
         CONFIG("enable_absolute_difference", true, "If set to true, the threshold values will be applied to abs(image - background). Otherwise max(0, image - background).");
         CONFIG("track_time_probability_enabled", bool(true), "");
         CONFIG("track_max_reassign_time", float(0.5), "Distance in time (seconds) where the matcher will stop trying to reassign an individual based on previous position. After this time runs out, depending on the settings, the tracker will try to find it based on other criteria, or generate a new individual.");
-        CONFIG("manual_identities", std::set<idx_t>{}, "", SYSTEM);
+        CONFIG("manual_identities", std::set<uint32_t>{}, "", SYSTEM);
         CONFIG("pixel_grid_cells", size_t(25), "");
         
         CONFIG("web_quality", int(75), "JPEG quality of images transferred over the web interface.");
@@ -538,7 +538,7 @@ file::Path conda_environment_path() {
         CONFIG("terminate_training", bool(false), "Setting this to true aborts the training in progress.");
         
         CONFIG("manually_approved", std::map<long_t,long_t>(), "A list of ranges of manually approved frames that may be used for generating training datasets {232:232,5555:5560}.");
-        CONFIG("gui_focus_group", std::vector<idx_t>(), "Focus on this group of individuals.");
+        CONFIG("gui_focus_group", std::vector<uint32_t>(), "Focus on this group of individuals.");
         
         CONFIG("track_ignore", std::vector<std::vector<Vec2>>(), "If this is not empty, objects within the given rectangles or polygons (>= 3 points) [[x0,y0],[x1,y1](, ...)], ...] will be ignored during tracking.");
         CONFIG("track_include", std::vector<std::vector<Vec2>>(), "If this is not empty, objects within the given rectangles or polygons (>= 3 points) [[x0,y0],[x1,y1](, ...)], ...] will be the only objects being tracked. (overwrites `track_ignore`)");
@@ -649,7 +649,7 @@ file::Path conda_environment_path() {
         if(GUI::instance() && SETTING(frame_rate).value<int>() == GUI::instance()->video_source()->framerate())
             exclude_fields.push_back("frame_rate");
         
-        if((track::idx_t)FAST_SETTINGS(manual_identities).size() == FAST_SETTINGS(track_max_individuals))
+        if((uint32_t)FAST_SETTINGS(manual_identities).size() == FAST_SETTINGS(track_max_individuals))
             exclude_fields.push_back("manual_identities");
         
         /**
