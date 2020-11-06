@@ -130,7 +130,7 @@ void update_settings(const sprite::Map &, const std::string &key, const sprite::
         //if(std::isinf(offset))
         //    state.current_energy.push_back(0);
         //else
-            state.current_energy.push_back(0.5 * FAST_SETTINGS(meta_mass_mg) * SQR(offset));
+            state.current_energy.push_back(0.5f * FAST_SETTINGS(meta_mass_mg) * SQR(offset));
         
         if(cmn::isinf(offset)) {
             if(state.last_event_start != -1) {
@@ -147,7 +147,9 @@ void update_settings(const sprite::Map &, const std::string &key, const sprite::
                 state.last_event_start = frame;
                 state.current_maximum = 0;
                 state.current_energy.clear();
-                state.v_before = state.v_samples ? state.v_current / state.v_samples : Vec2(0, 0);
+                state.v_before = state.v_samples != 0
+                    ? state.v_current / state.v_samples
+                    : Vec2(0, 0);
                 state.v_current = Vec2(0, 0);
                 state.v_samples = 0;
             }
@@ -191,7 +193,7 @@ void update_settings(const sprite::Map &, const std::string &key, const sprite::
                     U_EXCEPTION("Energy is infinite.");
                 
                 map.events[state.last_event_start] = Event(state.last_event_start, state.last_event_end, energy, angle_change, acceleration, length(state.v_before), length(velocity));
-                map.lengths[state.last_event_start] = len;
+                map.lengths[state.last_event_start] = sign_cast<size_t>(len);
                 //Debug("%d: Adding event %d", fish->identity().ID(), state.last_event_start);
             }
             
@@ -320,7 +322,7 @@ void update_settings(const sprite::Map &, const std::string &key, const sprite::
             for(auto &map : individual_maps) {
                 Debug("Erasing... %d(%d-%d): %d - %d", map.first->identity().ID(), map.first->start_frame(), map.first->end_frame(), map.second.start_frame, map.second.end_frame);
                 if(map.second.start_frame != -1 && map.second.end_frame >= after_frame) {
-                    size_t count = 0;
+                    int64_t count = 0;
                     if(map.second.start_frame >= after_frame) {
                         count = map.second.end_frame - map.second.start_frame + 1;
                         map.second.clear();
@@ -359,7 +361,7 @@ void update_settings(const sprite::Map &, const std::string &key, const sprite::
                         map.second.end_frame = map.second.start_frame = -1;
                     }
                     
-                    Debug("Erased %lu events for fish %d (%d-%d).", count, map.first->identity().ID(), map.second.start_frame,map.second.end_frame);
+                    Debug("Erased %ld events for fish %d (%d-%d).", count, map.first->identity().ID(), map.second.start_frame,map.second.end_frame);
                 }
             }
         }

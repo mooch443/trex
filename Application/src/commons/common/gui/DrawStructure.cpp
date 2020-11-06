@@ -90,7 +90,7 @@ namespace gui {
                 e.update();
                 
                 if(e.alpha <= 0)
-                    error_messages.erase(error_messages.begin() + (i - 1));
+                    error_messages.erase(error_messages.begin() + int64_t(i - 1));
             }
         }
     }
@@ -437,14 +437,14 @@ namespace gui {
                 auto it = std::find(parent->children().begin(), parent->children().end(), s);
                 if(it != parent->children().end()) {
                     //Debug("Section '%S' is at %lu, while index is %d/%lu in '%S'", &name, std::distance(parent->children().begin(), it), parent->_index, parent->children().size(), &parent->HasName::name());
-                    if(it != parent->children().begin()+parent->_index) {
+                    if(it != parent->children().begin() + (int64_t)parent->_index) {
                         if(parent->_index >= size_t(it - parent->children().begin())) {
                             parent->_index--;
                             //Debug("Decreasing index to %d, deleting and inserting element '%S'", parent->_index, &name);
                         }
                         parent->children().erase(it);
                         
-                        parent->children().insert(parent->children().begin() + parent->_index, s);
+                        parent->children().insert(parent->children().begin() + (int64_t)parent->_index, s);
 #ifndef NDEBUG
                         Debug("Moved section '%S' (%d)", &name, parent->_index);
 #endif
@@ -732,7 +732,7 @@ namespace gui {
     }
 
     void DrawStructure::set_size(const Size2& size) {
-        _width = size.width;
-        _height = size.height;
+        _width = narrow_cast<uint16_t>(size.width);
+        _height = narrow_cast<uint16_t>(size.height);
     }
 }

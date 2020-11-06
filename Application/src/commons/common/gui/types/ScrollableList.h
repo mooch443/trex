@@ -2,6 +2,7 @@
 
 #include <gui/types/Entangled.h>
 #include <gui/DrawSFBase.h>
+#include <misc/metastring.h>
 
 namespace gui {
     class CustomItem {
@@ -47,7 +48,7 @@ namespace gui {
     public:
         ScrollableList(const Bounds& bounds,
                        const std::vector<T>& objs = {},
-                       const Font& font = Font(0.75, Align::Center),
+                       const Font& font = Font(0.75f, Align::Center),
                        const decltype(_on_hovered)& on_hover = [](size_t){})
             : item_padding(5,5),
               _callback([](auto, const auto&){}),
@@ -75,7 +76,7 @@ namespace gui {
                 this->set_dirty();
                 
                 if(!e.mbutton.pressed && e.mbutton.button == 0) {
-                    size_t idx = floorf((scroll_offset().y + e.mbutton.y) / _line_spacing);
+                    size_t idx = size_t(floorf((scroll_offset().y + e.mbutton.y) / _line_spacing));
                     select_item(idx);
                 }
             });
@@ -188,7 +189,7 @@ namespace gui {
             }
         }
         
-        void highlight_item(float index) {
+        void highlight_item(long index) {
             float first_visible = scroll_offset().y / _line_spacing;
             float last_visible = (scroll_offset().y + height()) / _line_spacing;
             
@@ -206,20 +207,20 @@ namespace gui {
             update();
             
             first_visible = floorf(scroll_offset().y / _line_spacing);
-            last_visible = min(_items.size()-1.0, floorf((scroll_offset().y + height()) / _line_spacing));
+            last_visible = min(_items.size()-1.0f, floorf((scroll_offset().y + height()) / _line_spacing));
             _last_hovered_item = index;
             
             //draw_structure()->do_hover(_rects.at(index - first_visible));
             
             if(index >= first_visible && index <= last_visible) {
                 if(stage())
-                    stage()->do_hover(_rects.at(index - first_visible));
+                    stage()->do_hover(_rects.at(sign_cast<size_t>(index - first_visible)));
             }
         }
         
-        void select_item(size_t index) {
-            if(_items.size() > index && index >= 0) {
-                _last_selected_item = index;
+        void select_item(uint64_t index) {
+            if(_items.size() > index) {
+                _last_selected_item = narrow_cast<long>(index);
                 set_content_changed(true);
                 
                 _callback(index, _items.at(index).value());
@@ -230,13 +231,14 @@ namespace gui {
             if(!stage())
                 return;
             
-            select_item(_last_hovered_item);
+            if(_last_hovered_item > 0)
+                select_item((uint64_t)_last_hovered_item);
         }
         
     private:
         void update_items() {
             const float item_height = _line_spacing;
-            size_t N = ceilf(height() / _line_spacing) + 1; // one item will almost always be half-visible
+            size_t N = size_t(ceilf(height() / _line_spacing)) + 1u; // one item will almost always be half-visible
             
             if(N != _rects.size()) {
                 if(N < _rects.size()) {
@@ -245,8 +247,8 @@ namespace gui {
                         delete _texts.at(i);
                     }
                     
-                    _rects.erase(_rects.begin() + N, _rects.end());
-                    _texts.erase(_texts.begin() + N, _texts.end());
+                    _rects.erase(_rects.begin() + int64_t(N), _rects.end());
+                    _texts.erase(_texts.begin() + int64_t(N), _texts.end());
                 }
                 
                 for(size_t i=0; i<_rects.size(); i++) {
@@ -263,7 +265,7 @@ namespace gui {
                         if(rect_to_idx.count(r)) {
                             auto idx = rect_to_idx.at(r);
                             if(_last_hovered_item != (long)idx) {
-                                _last_hovered_item = idx;
+                                _last_hovered_item = long(idx);
                                 _on_hovered(idx);
                             }
                         }
@@ -295,8 +297,8 @@ namespace gui {
                 
                 begin();
                 
-                size_t first_visible = floorf(scroll_offset().y / _line_spacing);
-                size_t last_visible = floorf((scroll_offset().y + height()) / _line_spacing);
+                size_t first_visible = (size_t)floorf(scroll_offset().y / _line_spacing);
+                size_t last_visible = (size_t)floorf((scroll_offset().y + height()) / _line_spacing);
                 
                 //Debug("DIsplaying %lu-%lu %f %f", first_visible, last_visible, scroll_offset().y, _line_spacing);
                 
@@ -315,7 +317,7 @@ namespace gui {
                     rect_to_idx[_rects.at(idx)] = i;
                     
                     if(_font.align == Align::Center)
-                        _texts.at(idx)->set_pos(Vec2(width() * 0.5, y + _line_spacing*0.5));
+                        _texts.at(idx)->set_pos(Vec2(width() * 0.5f, y + _line_spacing*0.5f));
                     else if(_font.align == Align::Left)
                         _texts.at(idx)->set_pos(Vec2(0, y) + item_padding);
                     else
@@ -330,7 +332,7 @@ namespace gui {
                 const float last_y = _line_spacing * (_items.size()-1);
                 set_scroll_limits(Rangef(),
                                   Rangef(0,
-                                         (height() < last_y ? last_y + _line_spacing - height() : 0.1)));
+                                         (height() < last_y ? last_y + _line_spacing - height() : 0.1f)));
                 auto scroll = scroll_offset();
                 set_scroll_offset(Vec2());
                 set_scroll_offset(scroll);
@@ -342,9 +344,9 @@ namespace gui {
                     auto item = static_cast<const CustomItem*>(&_items[idx].value());
                     
                     if(rect->pressed() || (_stays_toggled && (long)rect_to_idx[rect] == _last_selected_item))
-                        rect->set_fillclr(item->base_color().brightenHSL(0.15));
+                        rect->set_fillclr(item->base_color().brightenHSL(0.15f));
                     else if(rect->hovered())
-                        rect->set_fillclr(item->base_color().brightenHSL(1.25));
+                        rect->set_fillclr(item->base_color().brightenHSL(1.25f));
                     else
                         rect->set_fillclr(item->base_color());
                 }
@@ -352,9 +354,9 @@ namespace gui {
             } else {
                 for(auto rect : _rects) {
                     if(rect->pressed() || (_stays_toggled && (long)rect_to_idx[rect] == _last_selected_item))
-                        rect->set_fillclr(_item_color.brighten(0.15));
+                        rect->set_fillclr(_item_color.brighten(0.15f));
                     else if(rect->hovered())
-                        rect->set_fillclr(_item_color.brighten(1.25));
+                        rect->set_fillclr(_item_color.brighten(1.25f));
                     else
                         rect->set_fillclr(Transparent);
                 }

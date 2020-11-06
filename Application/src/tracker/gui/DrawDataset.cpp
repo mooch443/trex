@@ -177,7 +177,7 @@ namespace gui {
         float y = 10, max_w = 0;
         Font font(0.75);
         
-        y += advance(new Text("Identities", Vec2(10, y), White, Font(0.8, Style::Bold)))->height();
+        y += advance(new Text("Identities", Vec2(10, y), White, Font(0.8f, Style::Bold)))->height();
         y += 10;
         
         for(auto && [id, tup] : _cache) {
@@ -238,7 +238,7 @@ namespace gui {
                 advance_wrap(*text);
                 
                 text->set_txt(ss.str());
-                text->set_pos(Vec2(x, y_ + offset_y + (h - text->height()) * 0.5));
+                text->set_pos(Vec2(x, y_ + offset_y + (h - text->height()) * 0.5f));
                 gy = text->pos().y + text->height();
                 
                 if(text->pos().x + text->width() > max_w)
@@ -250,11 +250,11 @@ namespace gui {
         };
         
         if(_last_current_frames.start != -1 && !_meta_current.empty()) {
-            h = advance(new Text("Current segment "+Meta::toStr(_last_current_frames)+" ("+Meta::toStr(_current_quality)+")", Vec2(x, 10), White, Font(0.8, Style::Bold)))->height();
+            h = advance(new Text("Current segment "+Meta::toStr(_last_current_frames)+" ("+Meta::toStr(_current_quality)+")", Vec2(x, 10), White, Font(0.8f, Style::Bold)))->height();
             display_dataset(_meta_current, 0);
             
             if(!_meta.empty()) {
-                h = advance(new Text("Best segment "+Meta::toStr(_last_consecutive_frames)+" ("+Meta::toStr(_quality)+")", Vec2(x, 10 + y + 5), White, Font(0.8, Style::Bold)))->height();
+                h = advance(new Text("Best segment "+Meta::toStr(_last_consecutive_frames)+" ("+Meta::toStr(_quality)+")", Vec2(x, 10 + y + 5), White, Font(0.8f, Style::Bold)))->height();
             
                 float cy = y + 5 + 10 + 10 + h;
                 
@@ -270,7 +270,7 @@ namespace gui {
             }
             
         } else if(!_meta.empty()) {
-            h = advance(new Text("Best segment "+Meta::toStr(_last_consecutive_frames)+" ("+Meta::toStr(_quality)+")", Vec2(x, 10), White, Font(0.8, Style::Bold)))->height();
+            h = advance(new Text("Best segment "+Meta::toStr(_last_consecutive_frames)+" ("+Meta::toStr(_quality)+")", Vec2(x, 10), White, Font(0.8f, Style::Bold)))->height();
             display_dataset(_meta, 0);
         }
         
@@ -302,12 +302,12 @@ namespace gui {
             
             Vec2 pp = pos();
             auto bds = global_bounds();
-            if(pp.x > screen_dimensions.width + bds.width * 0.5)
-                pp.x = screen_dimensions.width - 10 + bds.width * 0.5;
+            if(pp.x > screen_dimensions.width + bds.width * 0.5f)
+                pp.x = screen_dimensions.width - 10 + bds.width * 0.5f;
             if(pp.y > screen_dimensions.height + bds.height * 0.5)
-                pp.y = screen_dimensions.height - 10 + bds.height * 0.5;
-            if(pp.x < bds.width * 0.5)
-                pp.x = bds.width * 0.5 + 10;
+                pp.y = screen_dimensions.height - 10 + bds.height * 0.5f;
+            if(pp.x < bds.width * 0.5f)
+                pp.x = bds.width * 0.5f + 10;
             
             auto &bar = GUI::instance()->timeline().bar();
             auto bar_height = bar ? bar->global_bounds().y + bar->global_bounds().height + 10 : 10;

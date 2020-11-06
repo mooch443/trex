@@ -58,7 +58,7 @@ namespace gui {
               _filter(filter),
               _display(display),
               _needs_update(true),
-              _title_obj(title, Vec2(margin, margin), White, Font(0.7, Style::Bold))
+              _title_obj(title, Vec2(margin, margin), White, Font(0.7f, Style::Bold))
         {
             //set_background(Black.alpha(125));
             set_bounds(size);
@@ -316,13 +316,13 @@ namespace gui {
                 bin_y.resize(bin_x.size());
                 
                 size_t bin = 0, next = 1, end = bin_y.size();
-                float border = bin_x.at(bin) + range.step * 0.5;
+                float border = bin_x.at(bin) + range.step * 0.5f;
                 
                 for(auto &v : vec) {
                     while(next != end && v > border) {
                         ++bin;
                         ++next;
-                        border = bin_x[bin] + range.step * 0.5;
+                        border = bin_x[bin] + range.step * 0.5f;
                     }
                     bin_y[bin]++;
                 }
@@ -369,12 +369,12 @@ namespace gui {
                 std::vector<Vertex> vertices;
                 vertices.push_back({ pos + Vec2(-axes_width * 0.5f, 0), White });
                 vertices.push_back({ Vec2(pos.x - axes_width * 0.5f,
-                                          size.height - margin - axes_width * 0.5), White });
+                                          size.height - margin - axes_width * 0.5f), White });
                 
                 vertices.push_back({ pos + Vec2(-axes_width * 0.5f,
-                                                element.y + axes_width * 0.5), White });
+                                                element.y + axes_width * 0.5f), White });
                 vertices.push_back({ Vec2(size.width - margin,
-                                          pos.y + element.y + axes_width * 0.5), White });
+                                          pos.y + element.y + axes_width * 0.5f), White });
                 
                 if(!_data.empty()) {
                     //Vec2 pos(size.x + margin + axes_width * 0.5f,
@@ -434,8 +434,8 @@ namespace gui {
                         if(i == 0) {
                             // label for x-axis
                             text = new Text(Meta::toStr(v),
-                                            Vec2(bar_pos.x + element.x * 0.5,
-                                               bar_pos.y + element.y + axes_width + text_height * 0.5),
+                                            Vec2(bar_pos.x + element.x * 0.5f,
+                                               bar_pos.y + element.y + axes_width + text_height * 0.5f),
                                             White,
                                             Font(0.5, Align::Center));
                             
@@ -445,11 +445,11 @@ namespace gui {
                                 last_text.x = text_x;
                                 
                                 // tick on x-axis
-                                vertices.push_back({ Vec2(bar_pos.x + element.x * 0.5,
-                                                          bar_pos.y + element.y + axes_width * 0.5 - 3),
+                                vertices.push_back({ Vec2(bar_pos.x + element.x * 0.5f,
+                                                          bar_pos.y + element.y + axes_width * 0.5f - 3),
                                                      White });
-                                vertices.push_back({ Vec2(bar_pos.x + element.x * 0.5,
-                                                          bar_pos.y + element.y + axes_width * 0.5 + 3),
+                                vertices.push_back({ Vec2(bar_pos.x + element.x * 0.5f,
+                                                          bar_pos.y + element.y + axes_width * 0.5f + 3),
                                                      White });
                                 
                             } else

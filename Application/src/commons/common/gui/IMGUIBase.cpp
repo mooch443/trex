@@ -389,18 +389,18 @@ void clear_cache() {
             if(width > mw) {
                 float ratio = float(width) / float(height);
                 width = mw;
-                height = width * ratio;
+                height = int(width * ratio);
             }
         } else {
             if(height > mh) {
                 float ratio = float(width) / float(height);
                 height = mh;
-                width = ratio * height;
+                width = int(ratio * height);
             }
         }
         
         _platform->create_window(title.c_str(), width, height);
-        glfwSetWindowPos(_platform->window_handle(), mx + (mw - width) * 0.5, my + (mh - height) * 0.5);
+        glfwSetWindowPos(_platform->window_handle(), mx + (mw - width) / 2, my + (mh - height) / 2);
         
         glfwSetDropCallback(_platform->window_handle(), [](GLFWwindow* window, int N, const char** texts){
             std::vector<file::Path> _paths;
@@ -482,8 +482,8 @@ void clear_cache() {
         glfwSetCursorPosCallback(_platform->window_handle(), [](GLFWwindow* window, double xpos, double ypos) {
             Event e(EventType::MMOVE);
             auto &io = ImGui::GetIO();
-            e.move.x = xpos * io.DisplayFramebufferScale.x;
-            e.move.y = ypos * io.DisplayFramebufferScale.y;
+            e.move.x = float(xpos * io.DisplayFramebufferScale.x);
+            e.move.y = float(ypos * io.DisplayFramebufferScale.y);
             
             auto base = base_pointers.at(window);
             base->event(e);
@@ -501,8 +501,8 @@ void clear_cache() {
             double xpos, ypos;
             glfwGetCursorPos(window, &xpos, &ypos);
             auto &io = ImGui::GetIO();
-            e.mbutton.x = xpos * io.DisplayFramebufferScale.x;
-            e.mbutton.y = ypos * io.DisplayFramebufferScale.y;
+            e.mbutton.x = float(xpos * io.DisplayFramebufferScale.x);
+            e.mbutton.y = float(ypos * io.DisplayFramebufferScale.y);
             e.mbutton.button = GLFW_MOUSE_BUTTON_RIGHT == button ? 1 : 0;
             
             auto base = base_pointers.at(window);
@@ -511,7 +511,7 @@ void clear_cache() {
         });
         glfwSetScrollCallback(_platform->window_handle(), [](GLFWwindow* window, double xoff, double yoff) {
             Event e(EventType::SCROLL);
-            e.scroll.delta = yoff;
+            e.scroll.delta = float(yoff);
             
             auto base = base_pointers.at(window);
             base->event(e);
@@ -519,7 +519,7 @@ void clear_cache() {
         });
         glfwSetCharCallback(_platform->window_handle(), [](GLFWwindow* window, unsigned int c) {
             Event e(EventType::TEXT_ENTERED);
-            e.text.c = c;
+            e.text.c = char(c);
             
             auto base = base_pointers.at(window);
             base->event(e);
@@ -722,8 +722,8 @@ void PolyFillScanFlood(ImDrawList *draw, std::vector<ImVec2> *poly, ImColor colo
     // find the orthagonal bounding box
     // probably can put this as a predefined
     if (!isMinMaxDone) {
-        min.x = min.y = DBL_MAX;
-        max.x = max.y = DBL_MIN;
+        min.x = min.y = FLT_MAX;
+        max.x = max.y = -FLT_MAX;
         for (auto p : *poly) {
             if (p.x < min.x) min.x = p.x;
             if (p.y < min.y) min.y = p.y;
@@ -839,7 +839,7 @@ void PolyFillScanFlood(ImDrawList *draw, std::vector<ImVec2> *poly, ImColor colo
     max.x += 1;
 
     // Initialise our starting conditions
-    int y = min.y;
+    int y = int(min.y);
 
     // Go through each scan line iteratively, jumping by 'gap' pixels each time
     while (y < max.y) {
@@ -923,16 +923,16 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
         case Type::CIRCLE: {
             auto ptr = static_cast<Circle*>(o);
             
-            double e = 0.25;
-            double r = max(1, order.bounds.width * 0.5);
+            auto e = 0.25f;
+            auto r = max(1, order.bounds.width * 0.5f);
             auto th = acos(2 * SQR(1 - e / r) - 1);
-            size_t num_segments = ceil(2*M_PI/th);
+            int64_t num_segments = (int64_t)ceil(2*M_PI/th);
             
             if(num_segments <= 1)
                 break;
             
             auto centre = ImVec2(order.bounds.x + o->origin().x * order.bounds.width, order.bounds.y + o->origin().y * order.bounds.height);
-            const float a_max = M_PI*2.0f * ((float)num_segments - 1.0f) / (float)num_segments;
+            const float a_max = (float)M_PI*2.0f * ((float)num_segments - 1.0f) / (float)num_segments;
             list->PathArcTo(centre, r, 0.0f, a_max, (int)num_segments - 1);
             
             if(ptr->fillclr() != Transparent) {
@@ -1248,7 +1248,7 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
             Warning("Trying to get line_spacing without a font loaded.");
             return Base::line_spacing(font);
         }
-        return font.size * _fonts.at(font.style)->FontSize / im_font_scale;
+        return sign_cast<uint32_t>(font.size * _fonts.at(font.style)->FontSize / im_font_scale);
     }
 
     void IMGUIBase::set_title(std::string title) {

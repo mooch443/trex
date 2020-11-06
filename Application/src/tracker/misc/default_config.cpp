@@ -377,7 +377,7 @@ file::Path conda_environment_path() {
         CONFIG("track_do_history_split", true, "If disabled, blobs will not be split automatically in order to separate overlapping individuals. This usually happens based on their history.");
         CONFIG("track_end_segment_for_speed", true, "Sometimes individuals might be assigned to blobs that are far away from the previous position. This could indicate wrong assignments, but not necessarily. If this variable is set to true, consecutive frame segments will end whenever high speeds are reached, just to be on the safe side. For scenarios with lots of individuals (and no recognition) this might spam yellow bars in the timeline and may be disabled.");
         CONFIG("track_max_individuals", idx_t(0), "The maximal number of individual that are assigned at the same time (infinite if set to zero). If the given number is below the actual number of individual, then only a (random) subset of individual are assigned and a warning is shown.");
-        CONFIG("blob_size_ranges", BlobSizeRange({Rangef(0.1, 3)}), "Blobs below the lower bound are recognized as noise instead of individuals. Blobs bigger than the upper bound are considered to potentially contain more than one individual. The unit is #pixels * (`meta_real_width` / video_width).");
+        CONFIG("blob_size_ranges", BlobSizeRange({Rangef(0.1f, 3)}), "Blobs below the lower bound are recognized as noise instead of individuals. Blobs bigger than the upper bound are considered to potentially contain more than one individual. The unit is #pixels * (`meta_real_width` / video_width).");
         CONFIG("blob_split_max_shrink", float(0.2), "The minimum percentage of the starting blob size (after thresholding), that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.");
         CONFIG("blob_split_global_shrink_limit", float(0.2), "The minimum percentage of the minimum in `blob_size_ranges`, that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.");
         
@@ -553,13 +553,13 @@ file::Path conda_environment_path() {
         CONFIG("gui_connectivity_matrix", std::map<long_t, std::vector<float>>(), "Internally used to store the connectivity matrix.", STARTUP);
         
         std::vector<float> buffer {
-            -0.2576632 , -0.19233586,  0.00245493,  0.00398822,  0.35924019
+            -0.2576632f , -0.19233586f,  0.00245493f,  0.00398822f,  0.35924019f
         };
         
         std::vector<float> matrix = {
-            2.94508959e+03,   0.00000000e+00,   6.17255441e+02,
-            0.00000000e+00,   2.94282514e+03,   6.82473623e+02,
-            0.00000000e+00,   0.00000000e+00,   1.00000000e+00
+            2.94508959e+03f,   0.00000000e+00f,   6.17255441e+02f,
+            0.00000000e+00f,   2.94282514e+03f,   6.82473623e+02f,
+            0.00000000e+00f,   0.00000000e+00f,   1.00000000e+00f
         };
         
         CONFIG("cam_undistort_vector", buffer, "");

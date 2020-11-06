@@ -246,7 +246,7 @@ std::string_view Path::filename() const {
             
             auto extensions = utils::split(utils::lowercase(filter_extension), ';');
             if(path.has_extension()) {
-                return contains(extensions, path.extension());
+                return contains(extensions, utils::lowercase((std::string)path.extension()));
             }
             
             return false;

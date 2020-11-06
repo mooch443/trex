@@ -128,7 +128,7 @@ CREATE_STRUCT(CachedGUIOptions,
         const auto single_identity = GUIOPTION(gui_single_identity_color);
         const auto properties = Tracker::properties(_idx);
         const auto safe_properties = Tracker::properties(_safe_idx);
-        const float time_fade_percent = 1.0 - (properties ? cmn::abs(properties->time - safe_properties->time) : 0) / track_max_reassign_time;
+        const float time_fade_percent = 1.0f - float(properties ? cmn::abs(properties->time - safe_properties->time) : 0) / track_max_reassign_time;
         auto &cache = GUI::instance()->cache();
         
         auto && [basic, posture] = _obj.all_stuff(_safe_idx);
@@ -148,7 +148,7 @@ CREATE_STRUCT(CachedGUIOptions,
         const float max_color = timeline_visible ? 255 : GUIOPTION(gui_faded_brightness);
         
         auto base_color = single_identity != Transparent ? single_identity : _obj.identity().color();
-        auto clr = base_color.alpha(saturate(((cache.is_selected(_obj.identity().ID()) || hovered) ? max_color : max_color * 0.4) * time_fade_percent));
+        auto clr = base_color.alpha(saturate(((cache.is_selected(_obj.identity().ID()) || hovered) ? max_color : max_color * 0.4f) * time_fade_percent));
         _color = clr;
         
         auto current_time = _time;
@@ -188,7 +188,7 @@ CREATE_STRUCT(CachedGUIOptions,
                 }
                 
                 float r = float(rand()) / float(RAND_MAX);
-                _plus_angle += sinf(0.5 * (r - 0.5) * 2 * M_PI * GUI::cache().dt());
+                _plus_angle += sinf(0.5f * (r - 0.5f) * 2 * float(M_PI) * GUI::cache().dt());
                 window.set_rotation(_plus_angle);
                 
                 //r = float(rand()) / float(RAND_MAX);
@@ -198,7 +198,7 @@ CREATE_STRUCT(CachedGUIOptions,
                 Vec2 distance = _position - (panic_button == 1 ? mp : Vec2());
                 auto CL = distance.length();
                 if(std::isnan(CL))
-                    CL = 0.0001;
+                    CL = 0.0001f;
                 
                 const float stiffness = 50, spring_L = panic_button == 1 ? 2 : 0, spring_damping = 20;
                 
@@ -232,7 +232,7 @@ CREATE_STRUCT(CachedGUIOptions,
                         _polygon->set_origin(Vec2(0.5));
                     }
                     _polygon->set_vertices(points);
-                    float size = Tracker::average().bounds().size().length() * 0.0025;
+                    float size = Tracker::average().bounds().size().length() * 0.0025f;
                     Vec2 scaling(SQR(offset.x / float(Tracker::average().cols)),
                                  SQR(offset.y / float(Tracker::average().rows)));
                     _polygon->set_pos(scaling * size + fish->size() * 0.5);
@@ -243,7 +243,7 @@ CREATE_STRUCT(CachedGUIOptions,
                 
                 // check if we actually have a tail index
                 if(GUIOPTION(gui_show_midline) && _cached_midline && _cached_midline->tail_index() != -1)
-                    window.entangle(new Circle(points.at(_cached_midline->tail_index()), 2, Blue.alpha(max_color * 0.3)));
+                    window.entangle(new Circle(points.at(_cached_midline->tail_index()), 2, Blue.alpha(max_color * 0.3f)));
                 
                 //float right_side = outline->tail_index() + 1;
                 //float left_side = points.size() - outline->tail_index();

@@ -269,23 +269,23 @@ namespace Output {
         });
         
         _cache_func[Functions::MIDLINE_DERIV.name()] = LIBFNC({
-            float current = get("normalized_midline", info, frame);
-            float previous = get("normalized_midline", info, frame-1);
+            auto current = get("normalized_midline", info, frame);
+            auto previous = get("normalized_midline", info, frame-1);
             
             if(cmn::isinf(previous))
                 previous = 0;
             if(cmn::isinf(current))
                 return infinity<float>();
             
-            return current - previous;
+            return narrow_cast<float>(current - previous);
         });
         
         _cache_func[Functions::BINARY.name()] = LIBFNC({
             if(frame >= fish->start_frame()+1 && frame <= fish->end_frame()-1)
             {
                 //Vec2 p0(x-1, cache_access(fish, Cache::MIDLINE, x-1));
-                Vec2 p1(frame, get(Functions::MIDLINE_OFFSET.name(), info, frame));
-                Vec2 p2(frame+1, get(Functions::MIDLINE_OFFSET.name(), info, frame+1));
+                Vec2 p1(frame, (Float2_t)get(Functions::MIDLINE_OFFSET.name(), info, frame));
+                Vec2 p2(frame+1, (Float2_t)get(Functions::MIDLINE_OFFSET.name(), info, frame+1));
                 
                 int c = crosses_abs_height(p1, p2, SETTING(limit).value<float>());
                 return c == 0 ? infinity<float>() : c;
@@ -336,7 +336,7 @@ namespace Output {
                 }
             }
             
-            return samples ? d / samples : infinity<float>();
+            return samples > 0 ? d / samples : infinity<float>();
         });
         
         _cache_func["time"] = LIBGLFNC({
@@ -394,7 +394,7 @@ namespace Output {
                            continue;
                        }
                        
-                       oangle += M_PI * 0.5;
+                       oangle += float(M_PI * 0.5);
                        
                        auto v = oh->pos();
                        if(length(v - a) > 100) {
@@ -438,8 +438,8 @@ namespace Output {
                    
                    //auto angle = atan2(line.y, line.x);
                    
-                   Vec2 dir0(cos(a0), -sin(a0));
-                   Vec2 dir1(cos(a1), -sin(a1));
+                   Vec2 dir0((float)cos(a0), -(float)sin(a0));
+                   Vec2 dir1((float)cos(a1), -(float)sin(a1));
                    
                    line = line / length(line);
                    dir0 /= length(dir0);
@@ -456,7 +456,8 @@ namespace Output {
         });
         
         _cache_func["L_V"] = LIBFNC({
-            const Vec2 v(get(Functions::VX.name(), info, frame), get(Functions::VY.name(), info, frame));
+            const Vec2 v((Float2_t)get(Functions::VX.name(), info, frame),
+                         (Float2_t)get(Functions::VY.name(), info, frame));
             const auto individuals = Tracker::instance()->active_individuals(frame);
 
             float d = 0.0;
@@ -466,7 +467,8 @@ namespace Output {
                if (other != fish && other->centroid(frame)) {
                    info.fish = other;
                    
-                   const Vec2 ov(get(Functions::VX.name(), info, frame), get(Functions::VY.name(), info, frame));
+                   const Vec2 ov((Float2_t)get(Functions::VX.name(), info, frame),
+                                 (Float2_t)get(Functions::VY.name(), info, frame));
                    d += euclidean_distance(v, ov);
                    samples++;
                }
@@ -476,17 +478,19 @@ namespace Output {
         });
         
         _cache_func["DOT_V"] = LIBFNC({
-            Vec2 v(get(Functions::VX.name(), info, frame), get(Functions::VY.name(), info, frame));
+            Vec2 v((Float2_t)get(Functions::VX.name(), info, frame),
+                   (Float2_t)get(Functions::VY.name(), info, frame));
             const auto individuals = Tracker::instance()->active_individuals(frame);
 
             for (auto other: individuals) {
               if (other != fish && other->centroid(frame)) {
                   info.fish = other;
                   
-                  Vec2 ov(get(Functions::VX.name(), info, frame), get(Functions::VY.name(), info, frame));
+                  Vec2 ov((Float2_t)get(Functions::VX.name(), info, frame),
+                          (Float2_t)get(Functions::VY.name(), info, frame));
                   float n = length(v) * length(ov);
                   
-                  if(!length(v) || !length(ov))
+                  if(length(v) > 0 || length(ov) > 0)
                       return infinity<float>();
                   
                   return cmn::abs(atan2(v.y, v.x) - atan2(ov.y,  ov.x));
@@ -501,7 +505,7 @@ namespace Output {
         _cache_func["tailbeat_peak"] = LIBFNC( return SETTING(event_min_peak_offset).value<float>(); );
         
         _cache_func["threshold_reached"] = LIBFNC({
-            return EventAnalysis::threshold_reached(info.fish, frame) ? M_PI * 0.3 : infinity<float>();
+            return EventAnalysis::threshold_reached(info.fish, frame) ? float(M_PI * 0.3) : infinity<float>();
         });
         
         _cache_func["sqrt_a"] = LIBFNC({
@@ -543,7 +547,7 @@ namespace Output {
             
             //Debug("%f", sqrt(sum) / (average * 0.05));
             
-            return sqrt(sum) / (average * 0.5);
+            return sqrt(sum) / (average * 0.5f);
         });
         
         _cache_func["events"] = LIBFNC({
@@ -553,7 +557,7 @@ namespace Output {
                 for(auto &e : it->second.events) {
                     if(e.second.begin <= frame && e.second.end >= frame) {
                         delete events;
-                        return M_PI * 0.25;
+                        return float(M_PI * 0.25);
                     }
                 }
             }
@@ -755,7 +759,7 @@ namespace Output {
                 }
             }
             
-            if(samples)
+            if(samples > 0)
                 average /= samples;
             
             return average.length();
@@ -788,7 +792,7 @@ namespace Output {
                 }
             }
             
-            if(samples)
+            if(samples > 0)
                 average /= samples;
             
             float distances = 0;
@@ -1113,17 +1117,17 @@ namespace Output {
     float Library::tailbeats(long_t frame, Output::Library::LibInfo info) {
         auto fish = info.fish;
         
-        float right = 0;
-        float left = 0;
-        float mx = -FLT_MAX;
-        float mi = FLT_MAX;
+        double right = 0;
+        double left = 0;
+        double mx = -FLT_MAX;
+        double mi = FLT_MAX;
         
         for (long_t offset=0; offset<100 && frame-offset >= fish->start_frame() && frame+offset <= fish->end_frame(); offset++)
         {
             auto f_l = frame-offset;
             auto f_r = frame+offset;
             
-            if(!left) {
+            if(left == 0) {
                 auto v_l = Library::get(Functions::BINARY.name(), info, f_l);
                 if(!cmn::isinf(v_l)) {
                     left = v_l;
@@ -1140,7 +1144,7 @@ namespace Output {
                 }
             }
             
-            if(!right && offset) {
+            if(right == 0 && offset) {
                 auto v_r = Library::get(Functions::BINARY.name(), info, f_r);
                 if(!cmn::isinf(v_r)) {
                     right = v_r;
@@ -1157,16 +1161,16 @@ namespace Output {
                 }
             }
             
-            if(left && right)
+            if(left != 0 && right != 0)
                 break;
         }
         
         auto y = Library::get("MIDLINE_OFFSET", info, frame);
-        if (right
-            && left
+        if (right != 0
+            && left != 0
             && cmn::abs(y) >= SETTING(limit).value<float>())
         {
-            return mx;
+            return float(mx);
         }
         
         return 0;
