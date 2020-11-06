@@ -1,6 +1,20 @@
 #pragma once
 
+#ifdef _MSC_VER
 #pragma warning(push, 0)
+#endif
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wall"
+#pragma GCC diagnostic ignored "-Wextra"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+#pragma GCC diagnostic ignored "-Wimplicit-int-conversion"
+#pragma GCC diagnostic ignored "-Wimplicit-float-conversion"
+#pragma GCC diagnostic ignored "-Wfloat-conversion"
+#endif
+
+#ifdef __llvm__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wall"
 #pragma clang diagnostic ignored "-Wextra"
@@ -8,6 +22,7 @@
 #pragma clang diagnostic ignored "-Wimplicit-int-conversion"
 #pragma clang diagnostic ignored "-Wimplicit-float-conversion"
 #pragma clang diagnostic ignored "-Wfloat-conversion"
+#endif
 
 #include <commons/common/commons.pc.h>
 
@@ -27,8 +42,17 @@
     #endif
 #endif
 
+#ifdef __llvm__
 #pragma clang diagnostic pop
+#endif
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
+#ifdef _MSC_VER
 #pragma warning(pop)
+#endif
 
 #include <misc/MetaObject.h>
 #include <misc/EnumClass.h>
