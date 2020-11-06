@@ -4,6 +4,7 @@
 #include <file/Path.h>
 #include <misc/GlobalSettings.h>
 #include <misc/ThreadPool.h>
+#include <misc/checked_casts.h>
 
 using namespace cmn;
 
@@ -534,7 +535,7 @@ void VideoSource::generate_average(cv::Mat &av, uint64_t) {
         }
     }
     
-    Debug("generating average in threads step %d for %d files (%d per file)", step, _files_in_seq.size(), frames_per_file);
+    Debug("generating average in threads step %lu for %lu files (%lu per file)", step, _files_in_seq.size(), frames_per_file);
     
     std::mutex mutex;
     GenericThreadPool pool(cmn::hardware_concurrency(), [](auto e) { std::rethrow_exception(e); }, "AverageImage");

@@ -1,5 +1,5 @@
 #include "DrawCVBase.h"
-#include <misc/metastring.h>
+#include <misc/checked_casts.h>
 
 namespace gui {
     IMPLEMENT(CVBase::_static_pixels);

@@ -50,6 +50,7 @@ using ImTextureID_t = ImGui_OpenGL2_TextureID;
 
 #include "GLImpl.h"
 #include <misc/Timer.h>
+#include <misc/checked_casts.h>
 
 #define GLIMPL_CHECK_THREAD_ID() check_thread_id( __LINE__ , __FILE__ )
 
@@ -105,8 +106,8 @@ void GLImpl::set_icons(const std::vector<file::Path>& icons) {
         data.push_back(ptr);
         images.push_back(GLFWimage());
         images.back().pixels = ptr->data();
-        images.back().width = ptr->cols;
-        images.back().height = ptr->rows;
+        images.back().width = sign_cast<int>(ptr->cols);
+        images.back().height = sign_cast<int>(ptr->rows);
     }
 
     glfwSetWindowIcon(window, images.size(), images.data());

@@ -3,6 +3,7 @@
 #include <misc/GlobalSettings.h>
 #include <grabber/default_config.h>
 #include <misc/Image.h>
+#include <misc/checked_casts.h>
 
 using namespace cmn;
 

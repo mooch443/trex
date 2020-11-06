@@ -12,6 +12,7 @@
 #include <misc/default_settings.h>
 #include <gui/Graph.h>
 #include <gui/types/StaticText.h>
+#include <misc/checked_casts.h>
 
 namespace track {
 using namespace file;
@@ -258,14 +259,14 @@ std::tuple<bool, std::map<long_t, long_t>> Accumulation::check_additional_range(
     
     for(auto && [id, tup] : averages) {
         auto & [samples, values] = tup;
-        long_t max_index = -1;
+        int64_t max_index = -1;
         float max_p = 0;
         if(samples > 0) {
             for(auto & v : values)
                 v /= samples;
         }
         
-        for(long_t i=0; i<(long_t)values.size(); ++i) {
+        for(uint32_t i=0; i<values.size(); ++i) {
             auto v = values[i];
             if(v > max_p) {
                 max_index = i;
@@ -424,7 +425,7 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<long
         
         std::map<long_t, std::set<long_t>> disc_individuals_per_frame;
         
-        for(long_t frame = analysis_range.start; frame <= analysis_range.end; frame += max(1, analysis_range.length() * 0.003))
+        for(long_t frame = analysis_range.start; frame <= analysis_range.end; frame += max(1, analysis_range.length() / 333))
         {
             if(frame < Tracker::start_frame())
                 continue;

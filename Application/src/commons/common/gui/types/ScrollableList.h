@@ -2,7 +2,7 @@
 
 #include <gui/types/Entangled.h>
 #include <gui/DrawSFBase.h>
-#include <misc/metastring.h>
+#include <misc/checked_casts.h>
 
 namespace gui {
     class CustomItem {

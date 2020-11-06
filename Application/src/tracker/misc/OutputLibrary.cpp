@@ -4,6 +4,7 @@
 #include <misc/EventAnalysis.h>
 #include <file/CSVExport.h>
 #include <misc/cnpy_wrapper.h>
+#include <misc/checked_casts.h>
 
 namespace Output {
     using namespace gui;

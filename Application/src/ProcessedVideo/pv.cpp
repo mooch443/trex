@@ -4,6 +4,7 @@
 #include <misc/GlobalSettings.h>
 #include <misc/Timer.h>
 #include <misc/PVBlob.h>
+#include <misc/checked_casts.h>
 
 /**
  * =============================

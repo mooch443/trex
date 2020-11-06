@@ -10,6 +10,7 @@
 #include <misc/cnpy_wrapper.h>
 #include <tracker/misc/MemoryStats.h>
 #include <pv.h>
+#include <misc/checked_casts.h>
 
 #if WIN32
 #include <io.h>

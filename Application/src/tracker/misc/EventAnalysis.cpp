@@ -2,6 +2,7 @@
 #include <tracking/Tracker.h>
 #include <numeric>
 #include <misc/Timer.h>
+#include <misc/checked_casts.h>
 
 namespace track {
 namespace EventAnalysis {

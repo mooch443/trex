@@ -30,6 +30,8 @@
 #define GLFW_HAVE_MONITOR_SCALE true
 #endif
 
+#include <misc/checked_casts.h>
+
 namespace gui {
 
 

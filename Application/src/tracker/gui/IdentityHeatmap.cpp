@@ -3,6 +3,7 @@
 #include <tracker/gui/gui.h>
 #include <tracking/Individual.h>
 #include <misc/cnpy_wrapper.h>
+#include <misc/checked_casts.h>
 
 namespace gui {
 namespace heatmap {

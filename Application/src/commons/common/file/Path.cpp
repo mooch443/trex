@@ -25,7 +25,7 @@
 #include <filesystem>
 #endif
 
-#include <misc/metastring.h>
+#include <misc/checked_casts.h>
 
 namespace file {
     char Path::os_sep() { return OS_SEP; }

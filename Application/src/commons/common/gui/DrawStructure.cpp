@@ -3,6 +3,7 @@
 #include <gui/types/StaticText.h>
 #include <gui/types/Button.h>
 #include <misc/GlobalSettings.h>
+#include <misc/checked_casts.h>
 
 namespace gui {
     struct ErrorMessage {

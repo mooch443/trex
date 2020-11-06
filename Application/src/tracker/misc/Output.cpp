@@ -6,6 +6,7 @@
 #include <lzo/minilzo.h>
 #include <gui/gui.h>
 #include <gui/WorkProgress.h>
+#include <misc/checked_casts.h>
 
 using namespace track;
 typedef int64_t data_long_t;

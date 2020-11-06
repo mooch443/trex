@@ -392,7 +392,7 @@ VideoOpener::VideoOpener() {
                 if(!contains(_raw_info->children(), (Drawable*)_loading_text.get()))
                     _raw_info->add_child(2, _loading_text);
                 //_loading_text->set_pos(_screenshot->pos());
-                _loading_text->set_txt("generating average ("+Meta::toStr(min(TEMP_SETTING(average_samples).value<int>(), (int)_buffer->_number_samples.load()))+"/"+TEMP_SETTING(average_samples).get().valueString()+")");
+                _loading_text->set_txt("generating average ("+Meta::toStr(min(TEMP_SETTING(average_samples).value<uint32_t>(), _buffer->_number_samples.load()))+"/"+TEMP_SETTING(average_samples).get().valueString()+")");
                 
             } else if(contains(_raw_info->children(), (Drawable*)_loading_text.get())) {
                 _raw_info->remove_child(_loading_text);
@@ -498,7 +498,7 @@ void VideoOpener::BufferedVideo::restart_background() {
         
         _terminated_background_task = false;
         
-        uint step = max(1u, uint(background_video->length() / max(2u, uint(TEMP_SETTING(average_samples).value<int>()))));
+        uint step = max(1u, uint(background_video->length() / max(2u, uint(TEMP_SETTING(average_samples).value<uint32_t>()))));
         cv::Mat flt, img;
         _number_samples = 0;
         

@@ -12,6 +12,7 @@
 #include <gui/DrawCVBase.h>
 #include <misc/default_config.h>
 #include <misc/create_struct.h>
+#include <misc/checked_casts.h>
 
 using namespace track;
 //#define _DEBUG_MEMORY
