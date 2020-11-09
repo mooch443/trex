@@ -596,6 +596,8 @@ file::Path conda_environment_path() {
             "video_length",
             "terminate",
             "cam_limit_exposure",
+            "cam_undistort_vector",
+            "gpu_accepted_uniqueness",
             //"output_graphs",
             "auto_minmax_size",
             "auto_number_individuals",
