@@ -114,14 +114,13 @@ namespace cmn {
     }
     
     template<typename T, typename K = typename std::remove_reference<typename std::remove_cv<T>::type>::type>
-    constexpr inline auto abs(T&& x)
-        -> typename std::enable_if< std::is_integral< K >::value || std::is_floating_point< K >::value, K >::type
+    constexpr inline auto abs(T&& x, typename std::enable_if_t< std::is_arithmetic<K>::value> * = NULL)
     {
-        return std::copysign(std::forward<T>(x), static_cast<K>(1));
+        return std::abs(std::forward<T>(x));
     }
     
     template<typename T>
-    inline T abs(const T& x, typename std::enable_if< !std::is_integral<T>::value && !std::is_floating_point<T>::value, bool>::type* = NULL) {
+    inline T abs(const T& x, typename std::enable_if< !std::is_arithmetic<T>::value, bool>::type* = NULL) {
         return T(cmn::abs(x.x), cmn::abs(x.y));
     }
     
