@@ -283,7 +283,7 @@ VideoOpener::VideoOpener() {
                 // PV file, no need to add cmd
             } else if(!_result.selected_file.empty()) {
                 auto add = TEMP_SETTING(cmd_parameters).value<std::string>();
-                _result.cmd = "-i '" + path.str() + "' " + "-o '"+TEMP_SETTING(output_name).value<file::Path>().str()+"' -threshold "+TEMP_SETTING(threshold).get().valueString()+" -average_samples "+TEMP_SETTING(average_samples).get().valueString()
+                _result.cmd = "-i \"" + path.str() + "\" " + "-o \""+TEMP_SETTING(output_name).value<file::Path>().str()+"\" -threshold "+TEMP_SETTING(threshold).get().valueString()+" -average_samples "+TEMP_SETTING(average_samples).get().valueString()
                     +" -averaging_method "+TEMP_SETTING(averaging_method).get().valueString()
                     +(add.empty() ? "" : " ")+add;
             }
