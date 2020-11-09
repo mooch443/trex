@@ -301,6 +301,13 @@ inline constexpr auto infinity()
     return std::numeric_limits<T>::infinity();
 }
 
+template<typename T>
+inline constexpr auto infinity()
+    -> typename std::enable_if<std::is_integral<T>::value, T>::type
+{
+    return std::numeric_limits<T>::max();
+}
+
 inline uint64_t next_pow2(uint64_t x) {
     return x == 1 ? 1 : 1<<(64-__builtin_clzl(x-1));
 }
