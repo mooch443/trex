@@ -23,9 +23,10 @@ namespace gui {
         template <typename Q = T>
         class Item {
             GETTER(Q, value)
+            GETTER_SETTER(bool, hovered)
             
         public:
-            Item(T v) : _value(v) {}
+            Item(T v) : _value(v), _hovered(false) {}
         };
         
         GETTER(std::vector<Item<T>>, items)
@@ -342,7 +343,8 @@ namespace gui {
                 for(auto rect : _rects) {
                     auto idx = rect_to_idx[rect];
                     auto item = static_cast<const CustomItem*>(&_items[idx].value());
-                    
+                    _items[idx].set_hovered(rect->hovered());
+
                     if(rect->pressed() || (_stays_toggled && (long)rect_to_idx[rect] == _last_selected_item))
                         rect->set_fillclr(item->base_color().brightenHSL(0.15f));
                     else if(rect->hovered())
@@ -353,6 +355,9 @@ namespace gui {
                 
             } else {
                 for(auto rect : _rects) {
+                    auto idx = rect_to_idx[rect];
+                    _items[idx].set_hovered(rect->hovered());
+
                     if(rect->pressed() || (_stays_toggled && (long)rect_to_idx[rect] == _last_selected_item))
                         rect->set_fillclr(_item_color.brighten(0.15f));
                     else if(rect->hovered())

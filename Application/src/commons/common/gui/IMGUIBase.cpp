@@ -422,7 +422,7 @@ void clear_cache() {
         
         file::Path path("fonts/Quicksand-");
         if (!path.add_extension("ttf").exists())
-            U_EXCEPTION("Cannot find file '%S'", &path.str());
+            Except("Cannot find file '%S'", &path.str());
         
         auto io = ImGui::GetIO();
         //io.FontAllowUserScaling = true;
@@ -449,8 +449,11 @@ void clear_cache() {
             
             auto full = path.str() + suffix + ".ttf";
             auto ptr = io.Fonts->AddFontFromFileTTF(full.c_str(), base_scale * im_font_scale, &config);
-            if(!ptr)
-                U_EXCEPTION("Cannot load font '%S' with index %d.", &path.str(), config.FontNo);
+            if (!ptr) {
+                Warning("Cannot load font '%S' with index %d.", &path.str(), config.FontNo);
+                ptr = io.Fonts->AddFontDefault();
+                im_font_scale = max(1, dpi_scale) * 0.5;
+            }
             ptr->FontSize = base_scale * im_font_scale;
             
             return ptr;

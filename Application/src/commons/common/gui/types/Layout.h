@@ -22,7 +22,7 @@ namespace gui {
         bool operator<(derived_ptr<Base> other) const { return get() < other.get(); }
         
         operator bool() const { return get() != nullptr; }
-        Base* operator ->() { return get(); }
+        Base* operator ->() const { return get(); }
         
         template<typename T>
         operator derived_ptr<T> () {
