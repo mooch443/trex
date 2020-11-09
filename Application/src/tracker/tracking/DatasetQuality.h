@@ -26,7 +26,7 @@ namespace track {
             
             long_t number_frames;
             
-            Single(idx_t id = std::numeric_limits<idx_t>::max())
+            Single(idx_t id = infinity<idx_t>())
                 : id(id), midline_len(0), midline_std(0), distance_travelled(0), grid_cells_visited(0), median_angle_var(0), number_frames(0)
             { }
             
