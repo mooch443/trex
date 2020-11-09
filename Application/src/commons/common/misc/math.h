@@ -295,7 +295,9 @@ namespace cmn {
     }
 
 template<typename T>
-inline constexpr T infinity() {
+inline constexpr auto infinity()
+    -> typename std::enable_if<std::is_floating_point<T>::value, T>::type
+{
     return std::numeric_limits<T>::infinity();
 }
 

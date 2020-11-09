@@ -2249,7 +2249,7 @@ void Tracker::clear_properties() {
                     assert(fish->identity().ID() == m);
                     max_id = max(max_id, m);
                     
-                    _individuals[fish->identity().ID()] = fish;
+                    _individuals[m] = fish;
                     //active_individuals.push_back(fish);
                 }
             }

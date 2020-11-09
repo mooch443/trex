@@ -114,7 +114,7 @@ namespace track {
     
     class Identity {
     public:
-        static constexpr auto InvalidID = std::numeric_limits<uint32_t>::infinity();
+        static constexpr auto InvalidID = std::numeric_limits<uint32_t>::max();
         
     protected:
         GETTER_SETTER(gui::Color, color)
