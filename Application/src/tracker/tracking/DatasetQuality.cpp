@@ -125,7 +125,7 @@ bool DatasetQuality::calculate_segment(const Rangel &consec, const long_t video_
     
     Tracker::instance()->thread_pool().wait();
     
-    if(num_average)
+    if(num_average != 0)
         average_samples /= num_average;
     
     /*std::set<float> values;
@@ -233,7 +233,7 @@ Rangel DatasetQuality::best_range() const {
     return Rangel(-1,-1);
 }
 
-std::map<idx_t, DatasetQuality::Single> DatasetQuality::per_fish(const Rangel &range) const {
+std::map<Idx_t, DatasetQuality::Single> DatasetQuality::per_fish(const Rangel &range) const {
     auto it = _cache.find(range);
     if(it == _cache.end())
         return {};
@@ -245,7 +245,7 @@ bool DatasetQuality::has(const Rangel& range) const {
     return it != _cache.end() && !it->second.empty();
 }
 
-DatasetQuality::Single DatasetQuality::evaluate_single(idx_t id, Individual* fish, const Rangel &_consec, const Tracker::LockGuard&)
+DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fish, const Rangel &_consec, const Tracker::LockGuard&)
 {
     //assert(Tracker::individuals().find(id) != Tracker::individuals().end());
     

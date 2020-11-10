@@ -426,8 +426,8 @@ TexturePtr GLImpl::texture(const Image * ptr) {
             
             *ptr = nullptr;
         },
-        static_cast<int>(width), static_cast<int>(height),
-        static_cast<int>(ptr->cols), static_cast<int>(ptr->rows)
+        static_cast<uint>(width), static_cast<uint>(height),
+        ptr->cols, ptr->rows
     });
 }
 

@@ -8,7 +8,7 @@ namespace track {
     class DatasetQuality {
     public:
         struct Single {
-            idx_t id;
+            Idx_t id;
             
             float midline_len;
             float midline_std;
@@ -26,7 +26,7 @@ namespace track {
             
             long_t number_frames;
             
-            Single(idx_t id = infinity<idx_t>())
+            Single(Idx_t id = Idx_t())
                 : id(id), midline_len(0), midline_std(0), distance_travelled(0), grid_cells_visited(0), median_angle_var(0), number_frames(0)
             { }
             
@@ -65,7 +65,7 @@ namespace track {
         
     private:
         Rangel _manually_selected;
-        std::map<Rangel, std::map<idx_t, Single>> _cache;
+        std::map<Rangel, std::map<Idx_t, Single>> _cache;
         std::map<Rangel, Quality> _quality;
         Rangel _last_seen;
         std::set<Rangel> _previous_selected;
@@ -81,13 +81,13 @@ namespace track {
         //Quality quality(float frame) const;
         bool has(const Rangel& range) const;
         Rangel best_range() const;
-        std::map<idx_t, Single> per_fish(const Rangel&) const;
+        std::map<Idx_t, Single> per_fish(const Rangel&) const;
         
         void print_info() const;
         
     private:
         void remove_segment(const Rangel& range);
         bool calculate_segment(const Rangel&, const long_t video_length, const Tracker::LockGuard&);
-        Single evaluate_single(idx_t id, Individual* fish, const Rangel& consec, const Tracker::LockGuard& guard);
+        Single evaluate_single(Idx_t id, Individual* fish, const Rangel& consec, const Tracker::LockGuard& guard);
     };
 }

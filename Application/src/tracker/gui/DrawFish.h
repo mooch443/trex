@@ -17,7 +17,7 @@ namespace gui {
         const track::PPFrame* _frame;
         GETTER(long_t, idx)
         long_t _safe_idx;
-        float _time;
+        double _time;
         std::unique_ptr<ExternalImage> _image;
         Midline::Ptr _cached_midline;
         MinimalOutline::Ptr _cached_outline;

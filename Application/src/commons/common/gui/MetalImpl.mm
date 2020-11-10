@@ -354,8 +354,8 @@ bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
     TexturePtr MetalImpl::texture(const Image * ptr) {
         GLIMPL_CHECK_THREAD_ID();
         
-        int width = next_pow2(ptr->cols);
-        int height = next_pow2(ptr->rows);
+        uint width = next_pow2(ptr->cols);
+        uint height = next_pow2(ptr->rows);
         
         auto input_format = MTLPixelFormatRGBA8Unorm;
         if(ptr->dims == 1) {
@@ -399,7 +399,7 @@ bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
             *ptr = nullptr;
             //id<MTLTexture> texture = (__bridge id<MTLTexture>)ptr;
             //[texture release];
-        }, width, height, static_cast<int>(ptr->cols), static_cast<int>(ptr->rows)});
+        }, width, height, ptr->cols, ptr->rows});
     }
 
     void MetalImpl::clear_texture(TexturePtr&& tex) {

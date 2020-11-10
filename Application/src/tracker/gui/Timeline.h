@@ -106,8 +106,8 @@ namespace gui {
         void update_thread();
         void reset_events(long_t after_frame = -1);
         //void update_border();
-        void next_poi(long_t fdx = -1);
-        void prev_poi(long_t fdx = -1);
+        void next_poi(Idx_t fdx = Idx_t());
+        void prev_poi(Idx_t fdx = Idx_t());
         static std::tuple<Vec2, float> timeline_offsets();
         
     private:

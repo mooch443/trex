@@ -2,6 +2,7 @@
 #define _FISHP_H
 
 #include <types.h>
+#include <tracker/misc/idx_t.h>
 #include <gui/colors.h>
 #include <misc/Blob.h>
 #include "Posture.h"
@@ -92,7 +93,7 @@ namespace track {
         std::vector<std::shared_ptr<pv::Blob>> blobs, original_blobs;
         std::vector<std::shared_ptr<pv::Blob>> filtered_out;
         
-        std::map<uint32_t, IndividualCache> cached_individuals;
+        std::map<Idx_t, IndividualCache> cached_individuals;
         std::map<uint32_t, std::set<long_t>> blob_cliques, fish_cliques;
         std::set<uint32_t> split_blobs;
         std::map<uint32_t, pv::BlobPtr> bdx_to_ptr;
@@ -118,7 +119,7 @@ namespace track {
         
     protected:
         GETTER_SETTER(gui::Color, color)
-        uint32_t _myID;
+        Idx_t _myID;
         std::string _name;
         GETTER_SETTER(bool, manual)
         
@@ -129,7 +130,7 @@ namespace track {
         decltype(_myID) ID() const { return _myID; }
         void set_ID(uint32_t val) {
             _color = ColorWheel(val).next();
-            _myID = val;
+            _myID = Idx_t(val);
             _name = Meta::toStr(_myID);
         }
         const std::string& raw_name();
@@ -276,12 +277,12 @@ namespace track {
         
         //! Contains a map with individual -> probability for the blob that has been
         //  assigned to this individual.
-        std::map<long_t, std::tuple<size_t, std::map<long_t, float>>> average_recognition_segment;
-        std::map<long_t, std::tuple<size_t, std::map<long_t, float>>> average_processed_segment;
+        std::map<long_t, std::tuple<size_t, std::map<Idx_t, float>>> average_recognition_segment;
+        std::map<long_t, std::tuple<size_t, std::map<Idx_t, float>>> average_processed_segment;
         
         //! Contains a map from fish id to probability that averages over
         //  all available segments when "check identities" was last clicked
-        std::map<long_t, float> _average_recognition;
+        std::map<Idx_t, float> _average_recognition;
         GETTER(size_t, average_recognition_samples)
         
         long_t _startFrame = -1, _endFrame = -1;
@@ -390,7 +391,7 @@ namespace track {
         //const decltype(average_recognition_segment)::mapped_type& average_recognition(long_t segment_start) const;
         const decltype(average_recognition_segment)::mapped_type average_recognition(long_t segment_start);
         const decltype(average_recognition_segment)::mapped_type processed_recognition(long_t segment_start);
-        std::tuple<size_t, long_t, float> average_recognition_identity(long_t segment_start) const;
+        std::tuple<size_t, Idx_t, float> average_recognition_identity(long_t segment_start) const;
         
         //! Properties based on centroid:
         const PhysicalProperties* centroid(long_t frameIndex) const;

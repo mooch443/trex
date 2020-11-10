@@ -111,9 +111,9 @@ Accumulation* Accumulation::current() {
     return _current_accumulation;
 }
 
-std::map<long_t, std::set<long_t>> Accumulation::generate_individuals_per_frame(const Rangel& range, TrainingData* data, std::map<long_t, std::set<std::shared_ptr<Individual::SegmentInformation>>>* coverage) {
+std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(const Rangel& range, TrainingData* data, std::map<Idx_t, std::set<std::shared_ptr<Individual::SegmentInformation>>>* coverage) {
     Tracker::LockGuard guard("Accumulation::generate_individuals_per_frame");
-    std::map<long_t, std::set<long_t>> individuals_per_frame;
+    std::map<Frame_t, std::set<Idx_t>> individuals_per_frame;
     const bool calculate_posture = FAST_SETTINGS(calculate_posture);
     
     for(auto id : FAST_SETTINGS(manual_identities)) {
@@ -143,7 +143,7 @@ std::map<long_t, std::set<long_t>> Accumulation::generate_individuals_per_frame(
         it->second->iterate_frames(overall_range, [&individuals_per_frame, id, &used_segments, &current_segment, calculate_posture](long_t frame, const std::shared_ptr<Individual::SegmentInformation>& segment, const std::shared_ptr<Individual::BasicStuff> & basic, const std::shared_ptr<Individual::PostureStuff> & posture) -> bool
         {
             if(basic && (posture || !calculate_posture)) {
-                individuals_per_frame[frame].insert(id);
+                individuals_per_frame[Frame_t(frame)].insert(Idx_t(id));
                 if(segment != current_segment) {
                     used_segments.insert(segment);
                     current_segment = segment;
@@ -159,12 +159,12 @@ std::map<long_t, std::set<long_t>> Accumulation::generate_individuals_per_frame(
         
         if(data) {
             for(auto &segment : used_segments) {
-                data->filters().set(id, *segment, Tracker::recognition()->local_midline_length(it->second, segment->range, false));
+                data->filters().set(Idx_t(id), *segment, Tracker::recognition()->local_midline_length(it->second, segment->range, false));
             }
         }
         
         if(coverage)
-            (*coverage)[id].insert(used_segments.begin(), used_segments.end());
+            (*coverage)[Idx_t(id)].insert(used_segments.begin(), used_segments.end());
     }
     
     /*std::map<long_t, long_t> lengths;
@@ -178,7 +178,7 @@ std::map<long_t, std::set<long_t>> Accumulation::generate_individuals_per_frame(
     return individuals_per_frame;
 }
 
-std::tuple<bool, std::map<long_t, long_t>> Accumulation::check_additional_range(const Rangel& range, TrainingData& data, bool check_length, DatasetQuality::Quality quality) {
+std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(const Rangel& range, TrainingData& data, bool check_length, DatasetQuality::Quality quality) {
     const float pure_chance = 1.f / FAST_SETTINGS(manual_identities).size();
    // data.set_normalized(SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>());
     
@@ -186,18 +186,18 @@ std::tuple<bool, std::map<long_t, long_t>> Accumulation::check_additional_range(
         Tracker::LockGuard guard("Accumulation::generate_training_data");
         GUI::work().set_progress("generating images", 0);
         
-        std::map<long_t, std::set<std::shared_ptr<Individual::SegmentInformation>>> segments;
+        std::map<Idx_t, std::set<std::shared_ptr<Individual::SegmentInformation>>> segments;
         auto coverage = generate_individuals_per_frame(range, &data, &segments);
         
         if(check_length) {
-            std::map<long_t, size_t> counts;
+            std::map<Idx_t, size_t> counts;
             for(auto && [frame, ids] : coverage) {
                 for(auto id : ids)
                     ++counts[id];
             }
             
             size_t min_size = std::numeric_limits<size_t>::max(), max_size = 0;
-            long_t min_id = -1;
+            Idx_t min_id;
             
             for(auto && [id, count] : counts) {
                 if(count < min_size) {
@@ -228,13 +228,13 @@ std::tuple<bool, std::map<long_t, long_t>> Accumulation::check_additional_range(
     
     Tracker::LockGuard guard("Accumulation::generate_training_data");
 
-    std::map<long_t, std::tuple<float, std::vector<float>>> averages;
+    std::map<Idx_t, std::tuple<float, std::vector<float>>> averages;
     for(auto id : FAST_SETTINGS(manual_identities)) {
-        std::get<1>(averages[id]).resize(FAST_SETTINGS(manual_identities).size());
-        std::get<0>(averages[id]) = 0;
+        std::get<1>(averages[Idx_t(id)]).resize(FAST_SETTINGS(manual_identities).size());
+        std::get<0>(averages[Idx_t(id)]) = 0;
     }
     
-    std::set<long_t> added_ids, not_added_ids;
+    std::set<Idx_t> added_ids, not_added_ids;
     for(size_t i=0; i<images.size(); ++i) {
         auto & ps = probabilities[i];
         
@@ -253,9 +253,9 @@ std::tuple<bool, std::map<long_t, long_t>> Accumulation::check_additional_range(
     auto str1 = Meta::toStr(not_added_ids);
     Debug("\tCalculated assignments for range %d-%d based on previous training (ids %S / missing %S):", range.start, range.end, &str, &str1);
     
-    std::map<long_t, long_t> max_indexes;
-    std::map<long_t, float> max_probs;
-    std::map<long_t, std::tuple<long_t, float>> print_out;
+    std::map<Idx_t, Idx_t> max_indexes;
+    std::map<Idx_t, float> max_probs;
+    std::map<Idx_t, std::tuple<long_t, float>> print_out;
     
     for(auto && [id, tup] : averages) {
         auto & [samples, values] = tup;
@@ -274,9 +274,11 @@ std::tuple<bool, std::map<long_t, long_t>> Accumulation::check_additional_range(
             }
         }
         
+        assert(max_index >= 0);
+        
         auto str = Meta::toStr(values);
         Debug("\t\t%d: %S (%f, %d = %f)", id, &str, samples, max_index, max_p);
-        max_indexes[id] = max_index;
+        max_indexes[id] = Idx_t((uint32_t)max_index);
         max_probs[id] = max_p;
         print_out[id] = {max_index, max_p};
     }
@@ -284,7 +286,7 @@ std::tuple<bool, std::map<long_t, long_t>> Accumulation::check_additional_range(
     str = Meta::toStr(print_out);
     Debug("%S", &str);
     
-    std::set<long_t> unique_ids;
+    std::set<Idx_t> unique_ids;
     float min_prob = std::numeric_limits<float>::infinity();
     for(auto && [my_id, p] : max_probs)
         min_prob = min(min_prob, p);
@@ -294,7 +296,9 @@ std::tuple<bool, std::map<long_t, long_t>> Accumulation::check_additional_range(
     
     if(unique_ids.size() == FAST_SETTINGS(manual_identities).size() - 1 && min_prob > pure_chance * 1.5) {
         Debug("\tOnly one missing id in predicted ids. Guessing solution...");
-        long_t missing_predicted_id=0;
+        
+        //! Searching for consecutive numbers, finding the gap
+        Idx_t missing_predicted_id(0);
         for(auto id : unique_ids) {
             if(id != missing_predicted_id) {
                 // missing id i
@@ -302,12 +306,12 @@ std::tuple<bool, std::map<long_t, long_t>> Accumulation::check_additional_range(
                 break;
             }
             
-            ++missing_predicted_id;
+            missing_predicted_id = Idx_t((uint32_t)missing_predicted_id + 1u);
         }
         
         // find out which one is double
-        long_t original_id0 = -1, original_id1 = -1;
-        std::map<long_t, long_t> assign;
+        Idx_t original_id0, original_id1;
+        std::map<Idx_t, Idx_t> assign;
         for(auto && [my_id, pred_id] : max_indexes) {
             if(assign.count(pred_id)) {
                 original_id0 = my_id;
@@ -318,7 +322,7 @@ std::tuple<bool, std::map<long_t, long_t>> Accumulation::check_additional_range(
                 assign[pred_id] = my_id;
             }
         }
-        assert(original_id1 != -1);
+        assert(original_id1.valid());
         
         Debug("\tPossible choices are %d (%f) and %d (%f).", original_id0, max_probs.at(original_id0), original_id1, max_probs.at(original_id1));
         
@@ -407,7 +411,7 @@ void Accumulation::update_coverage(const TrainingData &data) {
         });
 }
 
-std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<long_t, Range<size_t>>> Accumulation::generate_discrimination_data(const std::shared_ptr<TrainingData>& source)
+std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Frame_t, Range<size_t>>> Accumulation::generate_discrimination_data(const std::shared_ptr<TrainingData>& source)
 {
     auto data = std::make_shared<TrainingData>();
     
@@ -423,9 +427,9 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<long
         auto analysis_range = Tracker::analysis_range();
         auto &individuals = Tracker::individuals();
         
-        std::map<long_t, std::set<long_t>> disc_individuals_per_frame;
+        std::map<Frame_t, std::set<Idx_t>> disc_individuals_per_frame;
         
-        for(long_t frame = analysis_range.start; frame <= analysis_range.end; frame += max(1, analysis_range.length() / 333))
+        for(Frame_t frame(analysis_range.start); frame <= analysis_range.end; frame += max(1, analysis_range.length() / 333))
         {
             if(frame < Tracker::start_frame())
                 continue;
@@ -444,10 +448,10 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<long
                     {
                         auto frange = fish->get_segment(frame);
                         if(frange.contains(frame)) {
-                            if(!data->filters().has(id, frange)) {
-                                data->filters().set(id, frange,  Tracker::recognition()->local_midline_length(fish, frame, false));
+                            if(!data->filters().has(Idx_t(id), frange)) {
+                                data->filters().set(Idx_t(id), frange,  Tracker::recognition()->local_midline_length(fish, frame, false));
                             }
-                            disc_individuals_per_frame[frame].insert(id);
+                            disc_individuals_per_frame[frame].insert(Idx_t(id));
                         }
                     }
                 }
@@ -468,7 +472,7 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<long
     return {data, disc_images, disc_frame_map};
 }
 
-std::tuple<float, std::map<uint32_t, float>, float> Accumulation::calculate_uniqueness(bool internal, const std::vector<Image::Ptr>& images, const std::map<long_t, Range<size_t>>& map_indexes)
+std::tuple<float, std::map<Frame_t, float>, float> Accumulation::calculate_uniqueness(bool internal, const std::vector<Image::Ptr>& images, const std::map<Frame_t, Range<size_t>>& map_indexes)
 {
     std::vector<std::vector<float>> predictions;
     if(internal) {
@@ -513,18 +517,18 @@ std::tuple<float, std::map<uint32_t, float>, float> Accumulation::calculate_uniq
     size_t good_frames = 0;
     size_t bad_frames = 0;
     double percentages = 0, rpercentages = 0;
-    std::map<uint32_t, float> unique_percent;
-    std::map<uint32_t, float> unique_percent_raw;
+    std::map<Frame_t, float> unique_percent;
+    std::map<Frame_t, float> unique_percent_raw;
     
-    std::map<uint32_t, float> unique_percent_per_identity;
-    std::map<uint32_t, float> per_identity_samples;
+    std::map<Idx_t, float> unique_percent_per_identity;
+    std::map<Idx_t, float> per_identity_samples;
     
     for(auto && [frame, range] : map_indexes) {
-        std::set<uint32_t> unique_ids;
-        std::map<uint32_t, float> probs;
+        std::set<Idx_t> unique_ids;
+        std::map<Idx_t, float> probs;
         
         for (auto i = range.start; i < range.end; ++i) {
-            int64_t max_id = -1;
+            Idx_t max_id;
             float max_p = 0;
             
             if(predictions.at(i).size() < FAST_SETTINGS(manual_identities).size()) {
@@ -536,13 +540,13 @@ std::tuple<float, std::map<uint32_t, float>, float> Accumulation::calculate_uniq
                 auto p = predictions.at(i).at(id);
                 if(p > max_p) {
                     max_p = p;
-                    max_id = id;
+                    max_id = Idx_t(id);
                 }
             }
             
-            if(max_id != -1) {
-                unique_ids.insert((uint32_t)max_id);
-                probs[(uint32_t)max_id] = max(probs[(uint32_t)max_id], max_p);
+            if(max_id.valid()) {
+                unique_ids.insert(max_id);
+                probs[max_id] = max(probs[max_id], max_p);
             }
         }
         
@@ -555,19 +559,19 @@ std::tuple<float, std::map<uint32_t, float>, float> Accumulation::calculate_uniq
         }
         
         auto logic_regression = [](float x) {
-            static const float NORMAL = (1+expf(-1*M_PI*1));
+            static const float NORMAL = (1+expf(-1*float(M_PI)*1));
             return 1/(1+exp(-x*M_PI*1))*NORMAL;
             //return 1.f/(1.f+expf(-x*10));
         };
         
-        unique_percent_raw[frame] = p;
+        unique_percent_raw[frame] = float(p);
         rpercentages += p;
         
         if(!probs.empty())
             p = logic_regression(accum_p / float(probs.size())) * p;
             //p = (accum_p / float(probs.size()) + p) * 0.5;
         
-        unique_percent[frame] = p;
+        unique_percent[frame] = float(p);
         percentages += p;
         
         if(unique_ids.size() == range.length() - 1) {
@@ -658,7 +662,8 @@ bool Accumulation::start() {
         Accumulation::setup();
         
         auto data = std::make_shared<TrainingData>();
-        data->set_classes(FAST_SETTINGS(manual_identities));
+        auto manual = FAST_SETTINGS(manual_identities);
+        data->set_classes(std::set<Idx_t>(manual.begin(), manual.end()));
         auto result = Recognition::train(data, FrameRange(), TrainingMode::Apply, -1, true);
         
         if(result) {
@@ -768,7 +773,7 @@ bool Accumulation::start() {
                 auto ranges_path = pv::DataLocation::parse("output", Path(SETTING(filename).value<file::Path>().filename()+"_validation_data.npz"));
                 
                 const Size2 dims = SETTING(recognition_image_size);
-                FileSize size((data.validation_images.size() + data.training_images.size()) * dims.width * dims.height);
+                FileSize size((data.validation_images.size() + data.training_images.size()) * size_t(dims.width * dims.height));
                 std::vector<uchar> all_images;
                 all_images.resize(size.bytes);
                 
@@ -876,9 +881,9 @@ bool Accumulation::start() {
                             range_distance = min(r.start - range.end, range_distance);
                     }
                     
-                    const long frames_around_center = max(1, analysis_range.length() * 0.1);
+                    const long frames_around_center = max(1, analysis_range.length() / 10);
                     
-                    auto center = range.length() * 0.5 + range.start;
+                    auto center = range.length() / 2 + range.start;
                     FrameRange extended_range(Rangel(
                         max(analysis_range.start, center - frames_around_center),
                         min(analysis_range.end, center + frames_around_center))
@@ -901,7 +906,7 @@ bool Accumulation::start() {
                     if(distance < min_distance) min_distance = distance;
                     //distance = roundf((1 - SQR(average)) * 10) * 10;
                     
-                    range_distance = next_pow2(range_distance);
+                    range_distance = narrow_cast<int64_t>(next_pow2(range_distance));
                     
                     copied_sorted.insert({distance, range_distance, q, cached, range, extended_range, samples});
                 } else {
@@ -1085,7 +1090,7 @@ bool Accumulation::start() {
                         //}
                     }
                     
-                    if(acceptance) {
+                    if(acceptance > 0) {
                         _added_ranges.push_back(range);
                         
                         auto str = Meta::toStr(*second_data);
@@ -1153,7 +1158,7 @@ bool Accumulation::start() {
             return {false, success ? second_data : nullptr};
         };
         
-        auto update_meta_start_acc = [&](std::string prefix, Rangel next_range, DatasetQuality::Quality quality, float average_unique) {
+        auto update_meta_start_acc = [&](std::string prefix, Rangel next_range, DatasetQuality::Quality quality, double average_unique) {
             Debug("");
             auto qual_str = Meta::toStr(quality);
             Debug("[Accumulation %d%S] %d ranges remaining for accumulation (%d cached that did not predict unique ids yet), range %d-%d (%S, %f unique weight).", steps, &prefix, sorted.size(), tried_ranges.size(), next_range.start, next_range.end, &qual_str, average_unique);
@@ -1172,12 +1177,12 @@ bool Accumulation::start() {
                 return false;
             }
             
-            std::map<long_t, size_t> sizes;
+            std::map<Idx_t, int64_t> sizes;
             for(auto id : FAST_SETTINGS(manual_identities)) {
-                sizes[id] = 0;
+                sizes[Idx_t(id)] = 0;
             }
             
-            std::map<long_t, std::set<FrameRange>> assigned_ranges;
+            std::map<Idx_t, std::set<FrameRange>> assigned_ranges;
             
             for(auto & d : _collected_data->data()) {
                 /*for(auto && [id, per] : d->mappings) {
@@ -1193,8 +1198,8 @@ bool Accumulation::start() {
                 }
             }
             
-            std::map<long_t, std::set<FrameRange>> gaps;
-            std::map<long_t, long_t> frame_gaps;
+            std::map<Idx_t, std::set<FrameRange>> gaps;
+            std::map<Idx_t, long_t> frame_gaps;
             for(auto && [id, ranges] : assigned_ranges)
             {
                 long_t previous_frame = analysis_range.start;
@@ -1367,7 +1372,7 @@ bool Accumulation::start() {
     }
     
     if(!GUI::work().item_aborted() && SETTING(gpu_accumulation_enable_final_step)) {
-        std::map<long_t, size_t> images_per_class;
+        std::map<Idx_t, size_t> images_per_class;
         size_t overall_images = 0;
         for(auto &d : _collected_data->data()) {
             for(auto &image : d->images) {
@@ -1463,8 +1468,8 @@ bool Accumulation::start() {
                 Collect all frames for all individuals.
                 Then generate all frames for all normalization methods.
              */
-            std::map<long_t, std::set<long_t>> frames_collected;
-            std::map<long_t, std::map<long_t, long_t>> frames_assignment;
+            std::map<long_t, std::set<Idx_t>> frames_collected;
+            std::map<long_t, std::map<Idx_t, Idx_t>> frames_assignment;
             for(auto &data : _collected_data->data()) {
                 for(auto && [id, per] : data->mappings) {
                     auto org = data->unmap(id);
@@ -1477,7 +1482,7 @@ bool Accumulation::start() {
             
             for(auto method : default_config::recognition_normalization_t::values)
             {
-                std::map<long_t, std::vector<Image::Ptr>> images;
+                std::map<Idx_t, std::vector<Image::Ptr>> images;
                 PPFrame video_frame;
                 auto &video_file = *GUI::instance()->video_source();
                 
@@ -1538,7 +1543,7 @@ bool Accumulation::start() {
                         
                         using namespace default_config;
                         auto midline = posture ? fish->calculate_midline_for(basic, posture) : nullptr;
-                        Recognition::ImageData image_data(Recognition::ImageData::Blob{blob->num_pixels(), blob->blob_id(), -1, blob->parent_id(), blob->bounds()}, frame, (FrameRange)(*it->get()), fish, fish->identity().ID(), midline ? midline->transform(method) : gui::Transform());
+                        Recognition::ImageData image_data(Recognition::ImageData::Blob{blob->num_pixels(), blob->blob_id(), -1, blob->parent_id(), blob->bounds()}, frame, (FrameRange)(*it->get()), fish, Idx_t(fish->identity().ID()), midline ? midline->transform(method) : gui::Transform());
                         image_data.filters = std::make_shared<TrainingFilterConstraints>(filters);
                         
                         image = Recognition::calculate_diff_image_with_settings(method, blob, image_data, output_size);
@@ -1560,7 +1565,7 @@ bool Accumulation::start() {
                     
                     
                     const Size2 dims = SETTING(recognition_image_size);
-                    std::vector<long_t> ids;
+                    std::vector<Idx_t> ids;
                     size_t total_images = 0;
                     for(auto && [id, img]: images) {
                         ids.insert(ids.end(), img.size(), id);

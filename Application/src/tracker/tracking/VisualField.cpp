@@ -8,7 +8,7 @@
 namespace track {
     static constexpr double right_angle = RADIANS(90);
     
-    VisualField::VisualField(uint32_t fish_id, long_t frame, const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture, bool blocking)
+    VisualField::VisualField(Idx_t fish_id, long_t frame, const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture, bool blocking)
     : max_d(SQR(Tracker::average().cols) + SQR(Tracker::average().rows)), _fish_id(fish_id), _frame(frame)
     {
         calculate(basic, posture, blocking);
@@ -16,8 +16,8 @@ namespace track {
     
     template<typename T>
     inline void correct_angle(T& angle) {
-        while (angle > M_PI) angle -= M_PI*2;
-        while (angle <= -M_PI) angle += M_PI*2;
+        while (angle > T(M_PI)) angle -= T(M_PI)*2;
+        while (angle <= -T(M_PI)) angle += T(M_PI)*2;
     }
     
     template<typename K, typename T = K, typename V = K>
@@ -48,7 +48,7 @@ namespace track {
             std::get<1>(t) = -1;
     };
     
-    void VisualField::plot_projected_line(eye& e, std::tuple<float, float>& tuple, double d, const Vec2& point, idx_t id, float hd)
+    void VisualField::plot_projected_line(eye& e, std::tuple<float, float>& tuple, double d, const Vec2& point, Idx_t id, float hd)
     {
         auto x0 = std::get<0>(tuple), x1 = std::get<1>(tuple);
         if(x0 == x1 && x0 == -1)
@@ -494,15 +494,15 @@ namespace track {
                     auto cd = distances[j]->get().row(int(i+range-frameNr));
                     
                     for(int i=0; i<(int)ids[j]->cols; i++) {
-                        auto id = e._visible_ids[i];
+                        auto id = e._visible_ids[i] != -1 ? Idx_t(e._visible_ids[i]) : Idx_t();
                         auto d = 255 - min(255, e._visible_head_distance[i]);
                         
                         Color clr(Black);
-                        if(id != -1) {
+                        if(id.valid()) {
                             if(id == selected->identity().ID())
                                 clr = White;
                             else {
-                                auto it = Tracker::individuals().find((idx_t)id);
+                                auto it = Tracker::individuals().find(id);
                                 if(it != Tracker::individuals().end()) {
                                     clr = it->second->identity().color().alpha(e._fov.data()[i]);
                                 }

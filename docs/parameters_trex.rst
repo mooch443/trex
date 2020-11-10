@@ -565,7 +565,7 @@ TRex parameters
 
 
 
-.. function:: gui_focus_group(array<uint>)
+.. function:: gui_focus_group(array<Idx_t>)
 
 	**default value:** []
 
@@ -1112,7 +1112,7 @@ TRex parameters
 
 
 
-.. function:: manual_identities(set<uint>)
+.. function:: manual_identities(set<Idx_t>)
 
 	**default value:** []
 
@@ -1121,7 +1121,7 @@ TRex parameters
 
 
 
-.. function:: manual_matches(map<int,map<int,int64>>)
+.. function:: manual_matches(map<int,map<Idx_t,int64>>)
 
 	**default value:** {}
 
@@ -1900,7 +1900,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "1.0.4"
+	**default value:** "1.0.5"
 
 
 	Current application version.

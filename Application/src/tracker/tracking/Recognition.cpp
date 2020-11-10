@@ -270,15 +270,15 @@ std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const def
         return false;
     }*/
     
-    std::map<long_t, float> Recognition::ps_raw(long_t frame, uint32_t blob_id) {
+    std::map<Idx_t, float> Recognition::ps_raw(long_t frame, uint32_t blob_id) {
         std::lock_guard<std::mutex> probs_guard(_mutex);
         auto entry = probs.find(frame);
         if (entry != probs.end()) {
             auto it = entry->second.find(blob_id);
             if(it != entry->second.end()) {
-                std::map<long_t, float> map;
+                std::map<Idx_t, float> map;
                 for (size_t i=0; i<it->second.size(); i++) {
-                    map[fish_idx_to_id.empty() ? i : fish_idx_to_id.at(i)] = it->second[i];
+                    map[fish_idx_to_id.empty() ? Idx_t(i) : fish_idx_to_id.at(Idx_t(i))] = it->second[i];
                 }
                 return map;
             }
@@ -778,7 +778,7 @@ std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const def
             
             _fish_last_frame.clear();
             for(auto id : identities)
-                _fish_last_frame[id] = FishInfo();
+                _fish_last_frame[Idx_t(id)] = FishInfo();
         }
         
         auto str = Meta::toStr(_fish_last_frame);
@@ -1076,19 +1076,19 @@ std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const def
         return obj;
     }
     
-    void Recognition::Detail::inproc_frame(long_t frame, long_t fdx) {
+    void Recognition::Detail::inproc_frame(long_t frame, Idx_t fdx) {
         std::lock_guard<std::mutex> guard(lock);
         auto & [add, inp, proc] = added_individuals_per_frame[frame];
         inp.insert(fdx);
     }
     
-    void Recognition::Detail::add_frame(long_t frame, long_t fdx) {
+    void Recognition::Detail::add_frame(long_t frame, Idx_t fdx) {
         std::lock_guard<std::mutex> guard(lock);
         auto & [add, inp, proc] = added_individuals_per_frame[frame];
         add.insert(fdx);
     }
 
-    void Recognition::Detail::failed_frame(long_t frame, long_t fdx) {
+    void Recognition::Detail::failed_frame(long_t frame, Idx_t fdx) {
         std::lock_guard<std::mutex> guard(lock);
         auto & [add, inp, proc] = added_individuals_per_frame[frame];
         add.insert(fdx);
@@ -1096,7 +1096,7 @@ std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const def
         proc.insert(fdx);
     }
     
-    void Recognition::Detail::finished_frames(const std::map<long_t, std::set<idx_t> > &individuals_per_frame) {
+    void Recognition::Detail::finished_frames(const std::map<long_t, std::set<Idx_t> > &individuals_per_frame) {
         size_t added_frames;
         Rangel analysis_range;
         long_t end_frame, video_length;
@@ -1206,7 +1206,7 @@ std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const def
         _last_checked_frame = min(_last_checked_frame, after);
     }
     
-    void Recognition::Detail::remove_individual(idx_t fdx) {
+    void Recognition::Detail::remove_individual(Idx_t fdx) {
         std::lock_guard<std::mutex> guard(lock);
         std::set<long_t> frames;
         for (auto & [frame, tup] : added_individuals_per_frame) {
@@ -1289,7 +1289,7 @@ std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const def
 
                 std::vector<ImageData> data;
                 std::vector<Image::Ptr> images;
-                std::map<long_t, std::set<idx_t>> uploaded_frames;
+                std::map<long_t, std::set<Idx_t>> uploaded_frames;
 
                 {
                     //! TODO: only exit if this is not the end of the video
@@ -1451,7 +1451,7 @@ void Recognition::check_learning_module(bool force) {
         auto result = PythonIntegration::check_module("learn_static");
         if(result || force || py::is_none("classes", "learn_static")) {
             size_t N = FAST_SETTINGS(track_max_individuals) ? (size_t)FAST_SETTINGS(track_max_individuals) : 1u;
-            std::vector<idx_t> ids;
+            std::vector<int32_t> ids;
             ids.resize(N);
             
             for(size_t i=0; i<N; ++i)
@@ -1881,7 +1881,7 @@ void Recognition::load_weights(std::string postfix) {
                     auto joined_data = data->join_split_data();
                     
                     if(FAST_SETTINGS(manual_identities).size() > classes.size()) {
-                        std::set<idx_t> missing;
+                        std::set<Idx_t> missing;
                         for(auto id : FAST_SETTINGS(manual_identities)) {
                             if(std::find(classes.begin(), classes.end(), id) == classes.end())
                                 missing.insert(id);

@@ -15,16 +15,17 @@
 #include <misc/Image.h>
 #include <misc/SoftException.h>
 #include <misc/GlobalSettings.h>
+#include <misc/idx_t.h>
 
 namespace track {
     using namespace cmn;
 
     class TREX_EXPORT PythonIntegration {
         std::atomic_bool _terminate;
-        std::map<idx_t, std::deque<std::tuple<long_t, Image::Ptr>>> _classes;
-        std::map<idx_t, std::set<long_t>> _received;
-        std::map<idx_t, std::set<long_t>> _sent_to_training;
-        std::map<idx_t, std::vector<Image::Ptr>> _test_data;
+        std::map<Idx_t, std::deque<std::tuple<long_t, Image::Ptr>>> _classes;
+        std::map<Idx_t, std::set<long_t>> _received;
+        std::map<Idx_t, std::set<long_t>> _sent_to_training;
+        std::map<Idx_t, std::vector<Image::Ptr>> _test_data;
         
         std::queue<std::packaged_task<bool()>> tasks;
         

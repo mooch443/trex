@@ -70,11 +70,11 @@ namespace track {
     }
     
     //std::map<long_t, std::map<uint32_t, long_t>> automatically_assigned_blobs;
-    std::map<long_t, std::map<Rangel, std::vector<long_t>>> automatically_assigned_ranges;
+    std::map<Idx_t, std::map<Rangel, std::vector<int64_t>>> automatically_assigned_ranges;
     
-    inline std::map<long_t, long_t> automatically_assigned(long_t frame) {
+    inline std::map<Idx_t, long_t> automatically_assigned(long_t frame) {
         //LockGuard guard;
-        std::map<long_t, long_t> blob_for_fish;
+        std::map<Idx_t, long_t> blob_for_fish;
         
         for(auto && [fdx, bff] : automatically_assigned_ranges) {
             blob_for_fish[fdx] = -1;
@@ -82,7 +82,7 @@ namespace track {
             for(auto && [range, blob_ids] : bff) {
                 if(range.contains(frame)) {
                     assert(frame >= range.start && range.end >= frame);
-                    blob_for_fish[fdx] = blob_ids.at(frame - range.start);
+                    blob_for_fish[fdx] = blob_ids.at(sign_cast<size_t>(frame - range.start));
                     break;
                 }
             }
@@ -208,7 +208,7 @@ const FrameProperties* Tracker::properties(long_t frameIndex, const CacheHints* 
         stats.print();
     }
 
-    void Tracker::delete_automatic_assignments(long_t fish_id, const FrameRange& frame_range) {
+    void Tracker::delete_automatic_assignments(Idx_t fish_id, const FrameRange& frame_range) {
         auto it = automatically_assigned_ranges.find(fish_id);
         if(it == automatically_assigned_ranges.end()) {
             Except("Cannot find fish %d in automatic assignments");
@@ -249,7 +249,7 @@ void Tracker::analysis_state(AnalysisState pause) {
             _startFrame(-1), _endFrame(-1), _max_individuals(0),
             _background(NULL), _recognition(NULL),
             _approximative_enabled_in_frame(std::numeric_limits<long_t>::lowest()),
-            _inactive_individuals([this](long_t A, long_t B){
+            _inactive_individuals([this](Idx_t A, Idx_t B){
                 auto it = _individuals.find(A);
                 assert(it != _individuals.end());
                 const Individual* a = it->second;
@@ -1681,7 +1681,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
         }
     }
     
-    Individual* Tracker::create_individual(idx_t ID, Tracker::set_of_individuals_t& active_individuals) {
+    Individual* Tracker::create_individual(Idx_t ID, Tracker::set_of_individuals_t& active_individuals) {
         if(_individuals.find(ID) != _individuals.end())
             U_EXCEPTION("Cannot assign identity (%d) twice.", ID);
         
@@ -1976,9 +1976,9 @@ void Tracker::clear_properties() {
         
         // prepare active_individuals array and assign fixed matches for which
         // the individuals already exist
-        std::map<uint32_t, std::set<idx_t>> cannot_find;
-        std::map<uint32_t, std::set<idx_t>> double_find;
-        std::map<uint32_t, idx_t> actually_assign;
+        std::map<uint32_t, std::set<Idx_t>> cannot_find;
+        std::map<uint32_t, std::set<Idx_t>> double_find;
+        std::map<uint32_t, Idx_t> actually_assign;
         
         for(auto && [fdx, bdx] : current_fixed_matches) {
             auto it = _individuals.find(fdx);
@@ -2077,7 +2077,7 @@ void Tracker::clear_properties() {
         }
         
         if(!cannot_find.empty()) {
-            std::map<uint32_t, std::vector<std::tuple<idx_t, Vec2, uint32_t>>> assign_blobs;
+            std::map<uint32_t, std::vector<std::tuple<Idx_t, Vec2, uint32_t>>> assign_blobs;
             
             for(auto && [bdx, fdxs] : cannot_find) {
                 assert(bdx >= 0);
@@ -2098,7 +2098,7 @@ void Tracker::clear_properties() {
             //auto str = prettify_array(Meta::toStr(assign_blobs));
             //Debug("replacing blobids / potentially splitting:\n%S", &str);
             
-            std::map<idx_t, uint32_t> actual_assignments;
+            std::map<Idx_t, uint32_t> actual_assignments;
             
             for(auto && [bdx, clique] : assign_blobs) {
                 //if(clique.size() > 1)
@@ -2240,21 +2240,21 @@ void Tracker::clear_properties() {
             // create correct identities
             //assert(_individuals.empty());
             
-            uint32_t max_id = Identity::running_id();
+            Idx_t max_id(Identity::running_id());
             
             for (auto m : manual_identities) {
                 if(_individuals.find(m) == _individuals.end()) {
-                    Individual *fish = new Individual(m);
+                    Individual *fish = new Individual((uint32_t)m);
                     //fish->identity().set_ID(m);
                     assert(fish->identity().ID() == m);
-                    max_id = max(max_id, m);
+                    max_id = Idx_t(max((uint32_t)max_id, (uint32_t)m));
                     
                     _individuals[m] = fish;
                     //active_individuals.push_back(fish);
                 }
             }
             
-            if(max_id > -1) {
+            if(max_id.valid()) {
                 Identity::set_running_id(max_id + 1);
             }
         }
@@ -2866,7 +2866,7 @@ void Tracker::clear_properties() {
         
 #ifndef NDEBUG
         if(!number_fish) {
-            static std::set<idx_t> lost_ids;
+            static std::set<Idx_t> lost_ids;
             for(auto && [fdx, fish] : _individuals) {
                 if(active_individuals.find(fish) == active_individuals.end() && _inactive_individuals.find(fdx) == _inactive_individuals.end()) {
                     if(lost_ids.find(fdx) != lost_ids.end())
@@ -3004,7 +3004,7 @@ void Tracker::clear_properties() {
         _statistics[frameIndex].posture_seconds = posture_seconds;
     }
 
-void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individuals_t& active_individuals, std::unordered_map<long_t, Individual::segment_map::const_iterator>& individual_iterators)
+void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individuals_t& active_individuals, std::unordered_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators)
 {
     for(auto fish : active_individuals) {
         auto fit = individual_iterators.find(fish->identity().ID());
@@ -3039,7 +3039,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
     }
 }
             
-    void Tracker::update_warnings(long_t frameIndex, double time, long_t /*number_fish*/, long_t n_found, long_t n_prev, const FrameProperties *props, const FrameProperties *prev_props, const Tracker::set_of_individuals_t& active_individuals, std::unordered_map<long_t, Individual::segment_map::const_iterator>& individual_iterators) {
+    void Tracker::update_warnings(long_t frameIndex, double time, long_t /*number_fish*/, long_t n_found, long_t n_prev, const FrameProperties *props, const FrameProperties *prev_props, const Tracker::set_of_individuals_t& active_individuals, std::unordered_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators) {
         std::map<std::string, std::set<FOI::fdx_t>> merge;
         
         if(n_found < n_prev-1) {
@@ -3082,11 +3082,11 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
             if(it != fish->frame_segments().end() && (*it)->contains(frameIndex - 1)) {
                 // prev
                 auto idx = (*it)->basic_stuff(frameIndex - 1);
-                property.prev = idx != -1 ? fish->basic_stuff()[idx]->centroid : nullptr;
+                property.prev = idx != -1 ? fish->basic_stuff()[uint32_t(idx)]->centroid : nullptr;
                 
                 // current
                 idx = (*it)->basic_stuff(frameIndex);
-                property.current = idx != -1 ? fish->basic_stuff()[idx]->centroid : nullptr;
+                property.current = idx != -1 ? fish->basic_stuff()[uint32_t(idx)]->centroid : nullptr;
                 
             } else
                 property.prev = property.current = nullptr;
@@ -3094,7 +3094,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         
 #ifndef NDEBUG
         for(auto &fish : active_individuals) {
-            if((long_t)_warn_individual_status.size() <= fish->identity().ID()) {
+            if(_warn_individual_status.size() <= fish->identity().ID()) {
                 assert(!fish->has(frameIndex-1));
                 continue;
             }
@@ -3151,11 +3151,11 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
             
 #ifndef NDEBUG
             for(auto id : segment_end) {
-                assert(individuals().at(id.id)->segment_for(frameIndex) != individuals().at(id.id)->segment_for(frameIndex-1));
+                assert(individuals().at(Idx_t(id.id))->segment_for(frameIndex) != individuals().at(Idx_t(id.id))->segment_for(frameIndex-1));
             }
             for(auto id : fdx) {
-                assert(!individuals().at(id.id)->has(frameIndex));
-                assert(frameIndex != start_frame() && _individuals.at(id.id)->has(frameIndex-1));
+                assert(!individuals().at(Idx_t(id.id))->has(frameIndex));
+                assert(frameIndex != start_frame() && _individuals.at(Idx_t(id.id))->has(frameIndex-1));
             }
 #endif
             
@@ -3335,7 +3335,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         }
         
         auto manual_identities = FAST_SETTINGS(manual_identities);
-        std::vector<idx_t> to_delete;
+        std::vector<Idx_t> to_delete;
         std::vector<Individual*> ptrs;
         for(auto && [fdx, fish] : _individuals) {
             fish->remove_frame(frameIndex);
@@ -3623,7 +3623,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         
         recognition_pool.wait();
         
-        using fdx_t = long_t;
+        using fdx_t = Idx_t;
         using range_t = FrameRange;
         using namespace Match;
         
@@ -3631,10 +3631,10 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
             std::set<range_t> segments;
             std::map<range_t, Match::prob_t> probs;
             std::map<range_t, size_t> samples;
-            std::map<Rangel, idx_t> track_ids;
+            std::map<Rangel, Idx_t> track_ids;
         };
         
-        std::map<long_t, std::map<track::idx_t, int64_t>> automatic_matches;
+        std::map<long_t, std::map<Idx_t, int64_t>> automatic_matches;
         std::map<fdx_t, VirtualFish> virtual_fish;
         
         // wrong fish -> set of unassigned ranges
@@ -3648,7 +3648,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
             return pair0.second < pair1.second;
         };*/
         
-        static const auto compare_greatest = [](const std::pair<long_t, Match::prob_t>& pair0, const std::pair<long_t, Match::prob_t>& pair1)
+        static const auto compare_greatest = [](const std::pair<Idx_t, Match::prob_t>& pair0, const std::pair<Idx_t, Match::prob_t>& pair1)
         {
             return pair0.second > pair1.second;
         };
@@ -3675,7 +3675,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                     if(n >= n_lower_bound || (segment.start() == fish->start_frame() && n > 0)) {
                         log(f, "fish %d: segment %d-%d has %d samples", fdx, segment.start(), segment.end(), n);
                         
-                        std::set<std::pair<long_t, Match::prob_t>, decltype(compare_greatest)> sorted(compare_greatest);
+                        std::set<std::pair<Idx_t, Match::prob_t>, decltype(compare_greatest)> sorted(compare_greatest);
                         sorted.insert(average.begin(), average.end());
                         
                         // check if the values for this segment are too close, this probably
@@ -3755,7 +3755,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                         virtual_fish[it->first].segments.insert(segment);
                         virtual_fish[it->first].probs[segment] = it->second;
                         virtual_fish[it->first].samples[segment] = n;
-                        virtual_fish[it->first].track_ids[segment.range] = (idx_t)fdx;
+                        virtual_fish[it->first].track_ids[segment.range] = fdx;
                         
                         assigned_ranges[fdx][segment.range] = it->first;
                     }
@@ -3817,7 +3817,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                 if(blob && blob->split() && blob->parent_id != -1)
                     manual_splits[segment.start()].insert(blob->parent_id);
                 
-                std::vector<long_t> blob_ids;
+                std::vector<int64_t> blob_ids;
                 for(long_t frame=segment.start(); frame<=segment.end(); ++frame) {
                     blob = track->compressed_blob(frame);
                     if(blob) {
@@ -3851,7 +3851,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                             tmp_assigned_ranges[fdx].erase(range);
                         
                         auto str = Meta::toStr(remove_from);
-                        Warning("While assigning %d,%d to %d -> same fish already assigned in ranges %S", frame, blob ? (long_t)blob->blob_id() : -1, fdx, &str);
+                        Warning("While assigning %d,%d to %d -> same fish already assigned in ranges %S", frame, blob ? (int64_t)blob->blob_id() : -1, fdx, &str);
                     }
                 }
                 
@@ -3892,7 +3892,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                 }
                 
                 if(next != fish->recognition_segments().end() && /*previous.start() != -1 &&*/ next->second.start() != -1) {
-                    fdx_t prev_id = -1, next_id = -1;
+                    Idx_t prev_id, next_id;
                     PhysicalProperties *prev_pos = nullptr, *next_pos = nullptr;
                     long_t prev_blob = -1;
                     
@@ -3950,7 +3950,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                         }
                     }
                     
-                    if(next_id != -1 && prev_id != -1 && next_id == prev_id && prev_pos && next_pos) {
+                    if(next_id.valid() && prev_id.valid() && next_id == prev_id && prev_pos && next_pos) {
                         //Debug("Fish %d: virtual prev_id %d == virtual next_id %d, assigning...", fdx, prev_id, next_id);
                         Vec2 pos_start(FLT_MAX), pos_end(FLT_MAX);
                         auto blob_start = fish->centroid_weighted(segment.start());
@@ -3963,7 +3963,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                         if(blob_start && blob_end) {
                             auto dprev = euclidean_distance(prev_pos->pos(), pos_start) / Tracker::time_delta(blob_start->frame(), prev_pos->frame());
                             auto dnext = euclidean_distance(next_pos->pos(), pos_end) / Tracker::time_delta(next_pos->frame(), blob_end->frame());
-                            long_t chosen_id = -1;
+                            Idx_t chosen_id;
                             
                             if(dnext < dprev) {
                                 if(dprev < FAST_SETTINGS(track_max_speed) * 0.1)
@@ -3971,18 +3971,18 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                             } else if(dnext < FAST_SETTINGS(track_max_speed) * 0.1)
                                 chosen_id = prev_id;
                             
-                            if(chosen_id != -1) {
+                            if(chosen_id.valid()) {
                                 if(segment.start() == 0) {
                                     log(f, "Fish %d: chosen_id %d, assigning %d-%d (%f / %f)...", fdx, chosen_id, segment.start(), segment.end(), dprev, dnext);
                                 }
                                 
-                                if(prev_blob != -1 && prev_id != -1) {
+                                if(prev_blob != -1 && prev_id.valid()) {
                                     // we found the previous blob/segment quickly:
-                                    auto range = _individuals.at((idx_t)prev_id)->get_segment_safe(prev_blob);
+                                    auto range = _individuals.at(prev_id)->get_segment_safe(prev_blob);
                                     if(!range.empty()) {
                                         long_t frame = range.end();
                                         while(frame >= range.start()) {
-                                            auto blob = _individuals.at((idx_t)prev_id)->compressed_blob(frame);
+                                            auto blob = _individuals.at(prev_id)->compressed_blob(frame);
                                             if(blob->split()) {
                                                 if(blob->parent_id != -1) {
                                                     //manual_splits[frame].insert(blob->parent_id());
@@ -4013,7 +4013,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                                 
                                 std::set<Rangel> remove_from;
                                 
-                                std::vector<long_t> blob_ids;
+                                std::vector<int64_t> blob_ids;
                                 for(long_t frame=segment.start(); frame<=segment.end(); ++frame) {
                                     auto blob = fish->compressed_blob(frame);
                                     
@@ -4039,9 +4039,9 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                                     //    automatically_assigned_ranges[chosen_id].erase(range);
                                     
                                     auto str = Meta::toStr(remove_from);
-                                    Warning("[ignore] While assigning %d-%d to %d -> same fish already assigned in ranges %S", segment.range.start, segment.range.end, chosen_id, &str);
+                                    Warning("[ignore] While assigning %d-%d to %d -> same fish already assigned in ranges %S", segment.range.start, segment.range.end, (uint32_t)chosen_id, &str);
                                 } else {
-                                    assert((long_t)blob_ids.size() == segment.range.end - segment.range.start + 1);
+                                    assert((int64_t)blob_ids.size() == segment.range.end - segment.range.start + 1);
                                     tmp_assigned_ranges[chosen_id][segment.range] = blob_ids;
                                     
                                     auto blob = fish->blob(segment.start());
@@ -4182,7 +4182,7 @@ pv::BlobPtr Tracker::find_blob_noisy(std::map<uint32_t, pv::BlobPtr>& blob_to_id
                         std::vector<uchar> image_data;
                         Size2 shape;
                         
-                        printf("tags for %d: ", fish->identity().ID());
+                        printf("tags for %u: ", (uint32_t)fish->identity().ID());
                         for(auto && [var, bid, ptr, frame] : *set) {
                             shape = Size2(ptr->cols, ptr->rows);
                             // had previous frame, lost in this frame (finalize segment)

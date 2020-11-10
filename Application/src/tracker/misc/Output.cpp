@@ -1036,7 +1036,7 @@ namespace Output {
         return pack_size;
     }
     
-    void ResultsFormat::write_file(const std::vector<track::FrameProperties> &frames, const std::unordered_map<long_t, Tracker::set_of_individuals_t > &active_individuals_frame, const std::unordered_map<idx_t, Individual *> &individuals, const std::vector<std::string>& exclude_settings)
+    void ResultsFormat::write_file(const std::vector<track::FrameProperties> &frames, const std::unordered_map<long_t, Tracker::set_of_individuals_t > &active_individuals_frame, const std::unordered_map<Idx_t, Individual *> &individuals, const std::vector<std::string>& exclude_settings)
     {
         estimated_size = sizeof(uint64_t)*3 + frames.size() * (sizeof(data_long_t)+sizeof(CompatibilityFrameProperties)) + active_individuals_frame.size() * (sizeof(data_long_t)+sizeof(uint64_t)+(active_individuals_frame.empty() ? individuals.size() : active_individuals_frame.begin()->second.size())*sizeof(data_long_t));
         
@@ -1166,7 +1166,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
     const track::FrameProperties* prev_props = nullptr;
     data_long_t prev_frame = -1;
     
-    std::unordered_map<long_t, Individual::segment_map::const_iterator> iterator_map;
+    std::unordered_map<Idx_t, Individual::segment_map::const_iterator> iterator_map;
     
     for(const auto &props : _tracker._added_frames) {
         prev_time = props.time;
@@ -1338,7 +1338,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
                 if(biggest_id < fish->identity().ID())
                     biggest_id = fish->identity().ID();
                 map_id_ptr[fish->identity().ID()] = fish;
-                _tracker._individuals[(long_t)fish->identity().ID()] = fish;
+                _tracker._individuals[fish->identity().ID()] = fish;
             }
         }
         
@@ -1429,9 +1429,9 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             }
             
             if(config.has("gui_focus_group")) {
-                SETTING(gui_focus_group) = config["gui_focus_group"].value<std::vector<uint32_t>>();
+                SETTING(gui_focus_group) = config["gui_focus_group"].value<std::vector<Idx_t>>();
             } else
-                SETTING(gui_focus_group) = std::vector<uint32_t>{};
+                SETTING(gui_focus_group) = std::vector<Idx_t>{};
             
             SETTING(gui_frame).value<long_t>() = (long_t)file.header().gui_frame;
         }

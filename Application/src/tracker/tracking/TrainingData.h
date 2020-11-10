@@ -5,6 +5,7 @@
 #include <misc/Image.h>
 #include <pv.h>
 #include <tracker/misc/default_config.h>
+#include <tracker/misc/idx_t.h>
 
 namespace track {
 
@@ -39,10 +40,10 @@ public:
             std::set<FrameRange> ranges;
         };
         
-        std::map<long_t, PerIndividual> mappings;
-        std::map<long_t, long_t> applied_mapping;
-        std::set<long_t> classes;
-        std::vector<long_t> ids;
+        std::map<Idx_t, PerIndividual> mappings;
+        std::map<Idx_t, Idx_t> applied_mapping;
+        std::set<Idx_t> classes;
+        std::vector<Idx_t> ids;
         std::vector<Image::Ptr> images;
         
         Rangel frames;
@@ -54,8 +55,8 @@ public:
         
         DataRange(bool salt = false) : frames(-1, -1), salty(salt) {}
         
-        long_t map(long_t) const;
-        long_t unmap(long_t) const;
+        Idx_t map(Idx_t) const;
+        Idx_t unmap(Idx_t) const;
         void reverse_mapping();
         
         operator MetaObject() const;
@@ -65,13 +66,13 @@ public:
     };
     
     struct MidlineFilters {
-        std::map<long_t, std::map<FrameRange, TrainingFilterConstraints>> filters;
+        std::map<Idx_t, std::map<FrameRange, TrainingFilterConstraints>> filters;
         
         MidlineFilters(const decltype(filters)& filters = {})
             : filters(filters)
         {}
         
-        bool has(long_t ID, const FrameRange& range = FrameRange()) const {
+        bool has(Idx_t ID, const FrameRange& range = FrameRange()) const {
             if(range.empty())
                 return filters.count(ID) != 0;
             else {
@@ -89,7 +90,7 @@ public:
             }
         }
         
-        bool has(long_t ID, long_t frame) const {
+        bool has(Idx_t ID, long_t frame) const {
             auto it = filters.find(ID);
             if(it == filters.end())
                 return false;
@@ -112,7 +113,7 @@ public:
             return false;
         }
         
-        void set(long_t ID, const TrainingFilterConstraints& filter) {
+        void set(Idx_t ID, const TrainingFilterConstraints& filter) {
             if(has(ID))
                 Warning("[TrainingFilter] %d is already present. Replacing.", ID);
             
@@ -121,7 +122,7 @@ public:
             filters[ID][FrameRange()] = filter;
         }
         
-        void set(long_t ID, const FrameRange& range, const TrainingFilterConstraints& filter) {
+        void set(Idx_t ID, const FrameRange& range, const TrainingFilterConstraints& filter) {
             if(has(ID, range))
                 Warning("[TrainingFilter] %d in range %d-%d is already present. Replacing.", ID, range.start(), range.end());
             if(filters[ID].find(FrameRange()) != filters[ID].end())
@@ -130,7 +131,7 @@ public:
             filters[ID][range] = filter;
         }
         
-        const TrainingFilterConstraints& get(long_t ID, long_t frame) const {
+        const TrainingFilterConstraints& get(Idx_t ID, long_t frame) const {
             auto fit = filters.find(ID);
             if(fit == filters.end())
                 U_EXCEPTION("Cannot find ID %d in TrainingFilterConstraints.", ID);
@@ -163,10 +164,10 @@ private:
     
     using d_type = std::set<std::shared_ptr<DataRange>>;
     GETTER(d_type, data)
-    GETTER(std::set<uint32_t>, all_classes)
+    GETTER(std::set<Idx_t>, all_classes)
     GETTER_NCONST(MidlineFilters, filters)
     
-    using s_type = std::map<uint32_t, std::set<FrameRange>>;
+    using s_type = std::map<Idx_t, std::set<FrameRange>>;
     GETTER(s_type, included_segments)
     
     //FrameRanges frames;
@@ -190,9 +191,9 @@ public:
     class TrainingImageData : public Image::CustomData {
     public:
         ImageClass type;
-        const long_t original_id;
+        const int64_t original_id;
         const std::string source;
-        TrainingImageData(std::string source, long_t oid) : type(ImageClass::NONE), original_id(oid), source(source) {}
+        TrainingImageData(std::string source, int64_t oid) : type(ImageClass::NONE), original_id(oid), source(source) {}
         ~TrainingImageData() {}
     };
     
@@ -224,26 +225,26 @@ public:
     }
     
     TrainingAndValidation join_split_data() const;
-    std::tuple<std::vector<Image::Ptr>, std::vector<long_t>> join_arrays() const;
-    std::tuple<std::vector<Image::Ptr>, std::vector<long_t>, std::vector<long_t>, std::map<long_t, Range<size_t>>> join_arrays_ordered() const;
+    std::tuple<std::vector<Image::Ptr>, std::vector<Idx_t>> join_arrays() const;
+    std::tuple<std::vector<Image::Ptr>, std::vector<Idx_t>, std::vector<long_t>, std::map<Frame_t, Range<size_t>>> join_arrays_ordered() const;
     
-    bool generate(const std::string& step_description, pv::File& video_file, std::map<long_t, std::set<long_t> > individuals_per_frame, const std::function<void(float)>& callback, const TrainingData* source);
+    bool generate(const std::string& step_description, pv::File& video_file, std::map<Frame_t, std::set<Idx_t> > individuals_per_frame, const std::function<void(float)>& callback, const TrainingData* source);
     
     //bool generate(pv::File& video_file, const std::map<long_t, std::set<FrameRange>>&, const std::function<void(float)>& callback);
     
     std::shared_ptr<DataRange> add_salt(const std::shared_ptr<TrainingData>& source, const std::string& purpose);
     
-    void add_frame(std::shared_ptr<DataRange> ptr, long_t frame_index, long_t id, long_t original_id, Image::Ptr image, const Vec2& pos, size_t px, const FrameRange& from_range);
-    void apply_mapping(const std::map<long_t, long_t>&);
+    void add_frame(std::shared_ptr<DataRange> ptr, long_t frame_index, Idx_t id, int64_t original_id, Image::Ptr image, const Vec2& pos, size_t px, const FrameRange& from_range);
+    void apply_mapping(const std::map<Idx_t, Idx_t>&);
     operator MetaObject() const;
     static std::string class_name() {
         return "TrainingData";
     }
     
     //! used as an override for when data is just used to initialize the network and nothing more.
-    void set_classes(const std::set<uint32_t>& classes);
+    void set_classes(const std::set<Idx_t>& classes);
     
-    std::unique_ptr<Image> draw_coverage(const std::map<uint32_t, float>& uniquenesses = {}, const std::vector<Rangel>& = {}, const std::vector<Rangel>& added_ranges = {}, const std::map<uint32_t, float>& uniquenesses_temp = {}, std::shared_ptr<DataRange> current_salt = nullptr, const std::map<Rangel, std::tuple<double, FrameRange>>& assigned_unique_averages = {}) const;
+    std::unique_ptr<Image> draw_coverage(const std::map<Frame_t, float>& uniquenesses = {}, const std::vector<Rangel>& = {}, const std::vector<Rangel>& added_ranges = {}, const std::map<Frame_t, float>& uniquenesses_temp = {}, std::shared_ptr<DataRange> current_salt = nullptr, const std::map<Rangel, std::tuple<double, FrameRange>>& assigned_unique_averages = {}) const;
 };
 
 }

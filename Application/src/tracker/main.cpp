@@ -936,11 +936,11 @@ int main(int argc, char** argv)
     
     Tracker::auto_calculate_parameters(video);
     
-    if(SETTING(manual_identities).value<std::set<uint32_t>>().empty() && SETTING(track_max_individuals).value<uint32_t>() != 0)
+    if(SETTING(manual_identities).value<std::set<track::Idx_t>>().empty() && SETTING(track_max_individuals).value<uint32_t>() != 0)
     {
-        std::set<uint32_t> vector;
+        std::set<track::Idx_t> vector;
         for(uint32_t i=0; i<SETTING(track_max_individuals).value<uint32_t>(); ++i) {
-            vector.insert(i);
+            vector.insert(track::Idx_t(i));
         }
         SETTING(manual_identities) = vector;
     }
@@ -1131,7 +1131,7 @@ int main(int argc, char** argv)
     analysis = std::make_shared<ConnectedTasks>(tasks);
     analysis->start(// main thread
         [&]() {
-            auto endframe = tracker.end_frame();
+            auto endframe = (long_t)tracker.end_frame();
             if(currentID > endframe + cache_size
                || currentID == -1
                || (analysis->stage_empty(0) && analysis->stage_empty(1))

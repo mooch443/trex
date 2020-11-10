@@ -35,7 +35,6 @@ namespace gui {
 
 namespace track {
     using namespace cmn;
-    typedef long_t idx_t;
 }
 
 #include <misc/vec2.h>

@@ -43,17 +43,17 @@ namespace track {
         GETTER(Vec2, fish_pos)
         GETTER(double, fish_angle)
         
-        GETTER(uint32_t, fish_id)
+        GETTER(Idx_t, fish_id)
         GETTER(long_t, frame)
         
     public:
-        VisualField(uint32_t fish_id, long_t frame,const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture, bool blocking);
+        VisualField(Idx_t fish_id, long_t frame,const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture, bool blocking);
         
         const decltype(_eyes)& eyes() const { return _eyes; }
         void calculate(const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture, bool blocking = true);
         void show(gui::DrawStructure &graph);
         static void show_ts(gui::DrawStructure &graph, long_t frameNr, Individual* selected);
-        void plot_projected_line(eye& e, std::tuple<float, float>& tuple, double d, const Vec2& point, idx_t id, float hd);
+        void plot_projected_line(eye& e, std::tuple<float, float>& tuple, double d, const Vec2& point, Idx_t id, float hd);
     };
 }
 

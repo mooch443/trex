@@ -296,7 +296,7 @@ void InfoCard::update() {
         
         auto blob_id = _fish->compressed_blob(_frameNr)->blob_id();
         auto && [valid, segment] = _fish->has_processed_segment(_frameNr);
-        std::map<long_t, float> raw;
+        std::map<Idx_t, float> raw;
         std::string title = "recognition";
         
         if(valid) {

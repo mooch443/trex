@@ -40,17 +40,17 @@ public:
 class ItemIndividual : public gui::List::Item {
 protected:
     GETTER_SETTER(std::string, name)
-    GETTER_SETTER(long_t, ptr)
+    GETTER_SETTER(Idx_t, ptr)
     GETTER_SETTER(long_t, selected_blob_id)
     
 public:
-    ItemIndividual(long_t fish = -1, long_t blob = -1)
+    ItemIndividual(Idx_t fish = Idx_t(), long_t blob = -1)
     : gui::List::Item(fish),
     _ptr(fish),
     _selected_blob_id(blob)
     {
-        if(fish != -1) {
-            Identity id((idx_t)_ptr);
+        if(fish.valid()) {
+            Identity id(_ptr);
             _name = id.name();
         }
     }
@@ -140,7 +140,7 @@ public:
           [this](List*, const List::Item& item) {
               Debug("%d %d", item.ID(), item.selected());
               if(!item.selected() && item.ID() >= 0) {
-                  GUI::instance()->add_manual_match(GUI::instance()->frameinfo().frameIndex, _list->selected_item() >= 0 ? (idx_t)_list->selected_item() : std::numeric_limits<idx_t>::max(), item.ID());
+                  GUI::instance()->add_manual_match(GUI::instance()->frameinfo().frameIndex, _list->selected_item() >= 0 ? Idx_t(_list->selected_item()) : Idx_t(), item.ID());
               }
           }
         );
@@ -286,10 +286,10 @@ public:
              * Try and match the last displayed fish items to the currently existing ones
              */
             struct FishAndBlob {
-                idx_t fish;
+                Idx_t fish;
                 long_t blob;
                 
-                FishAndBlob(idx_t fish = 0, long_t blob = -1) : fish(fish), blob(blob)
+                FishAndBlob(Idx_t fish = Idx_t(), long_t blob = -1) : fish(fish), blob(blob)
                 {}
                 
                 void convert(std::shared_ptr<List::Item> ptr) {
@@ -408,7 +408,7 @@ public:
             tooltip = new Tooltip(nullptr, 300);
         }
         
-        if((overall.id == -1 || memory_timer.elapsed() > 10) && GUI::cache().tracked_frames.end != last_end_frame) {
+        if((!overall.id.valid() || memory_timer.elapsed() > 10) && GUI::cache().tracked_frames.end != last_end_frame) {
             Tracker::LockGuard guard("memory_stats", 100);
             if(guard.locked()) {
                 overall.clear();

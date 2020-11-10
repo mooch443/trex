@@ -65,7 +65,7 @@ namespace gui {
                 return;
             }
             
-            using dataset_t = std::tuple<std::map<track::idx_t, DatasetQuality::Single>, DatasetQuality::Quality>;
+            using dataset_t = std::tuple<std::map<track::Idx_t, DatasetQuality::Single>, DatasetQuality::Quality>;
             //_current_quality = dataset ? dataset->quality(frame) : -1;
                 
             for(auto id : FAST_SETTINGS(manual_identities)) {
@@ -119,7 +119,7 @@ namespace gui {
             
             auto && [per_fish, quality] = dataset
                 ? dataset_t{ dataset->per_fish(consec), dataset->quality(consec) }
-                : dataset_t{ std::map<track::idx_t, DatasetQuality::Single>{}, DatasetQuality::Quality() };
+                : dataset_t{ std::map<track::Idx_t, DatasetQuality::Single>{}, DatasetQuality::Quality() };
             
             _meta = per_fish;
             _last_consecutive_frames = consec;
@@ -145,16 +145,16 @@ namespace gui {
          * is available for given individual.
          */
         
-        std::set<long_t> identities_found;
-        std::set<long_t> double_identities;
-        std::map<long_t, std::tuple<size_t, long_t, float>> max_identity;
+        std::set<Idx_t> identities_found;
+        std::set<Idx_t> double_identities;
+        std::map<Idx_t, std::tuple<size_t, Idx_t, float>> max_identity;
         
         for(auto && [id, tup] : _cache) {
             auto & [samples, map] = tup;
             float max_p = 0;
-            long_t max_id = -1;
+            Idx_t max_id;
             for(auto & [id, p] : map) {
-                if(p > max_p) {
+                if(!max_id.valid() || p > max_p) {
                     max_p = p;
                     max_id = id;
                 }
@@ -162,7 +162,7 @@ namespace gui {
             
             max_identity[id] = { samples, max_id, max_p };
             
-            if(max_id != -1) {
+            if(max_id.valid()) {
                 if(identities_found.find(max_id) != identities_found.end()
                    && double_identities.find(max_id) == double_identities.end())
                 {
@@ -173,7 +173,7 @@ namespace gui {
             identities_found.insert(max_id);
         }
         
-        std::map<long_t, std::tuple<float, float>> fish_offset;
+        std::map<Idx_t, std::tuple<float, float>> fish_offset;
         float y = 10, max_w = 0;
         Font font(0.75);
         
@@ -191,7 +191,7 @@ namespace gui {
                 color = Yellow.alpha(200);
             
             Drawable *secondary;
-            if(max_id != -1)
+            if(max_id.valid())
                 secondary = advance(new Text(Meta::toStr(max_id)+" ("+Meta::toStr(max_p)+", "+Meta::toStr(samples)+" samples)", text->pos() + Vec2(text->width(), 0), color, font));
             else
                 secondary = advance(new Text("N/A ("+Meta::toStr(samples)+" samples)", text->pos() + Vec2(text->width(), 0), DarkCyan.brightenHSL(1.5).alpha(200), font));
@@ -278,7 +278,7 @@ namespace gui {
         advance(new Line(Vec2(x - 10, 5), Vec2(x - 10, y + 5), White.alpha(150)));
         
         if(index < _texts.size())
-            _texts.erase(_texts.begin() + index, _texts.end());
+            _texts.erase(_texts.begin() + (int64_t)index, _texts.end());
         
         end();
         

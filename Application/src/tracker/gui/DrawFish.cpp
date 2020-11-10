@@ -39,7 +39,7 @@ CREATE_STRUCT(CachedGUIOptions,
     {
         CachedGUIOptions::init();
         
-        assert(_obj.identity().ID() < std::numeric_limits<idx_t>::max());
+        assert(_obj.identity().ID().valid());
         auto ID = _obj.identity().ID();
         set_clickable(true);
         _circle.set_clickable(true);
@@ -49,7 +49,7 @@ CREATE_STRUCT(CachedGUIOptions,
             GUI::cache().set_tracking_dirty();
         });
         on_click([ID, this](auto) {
-            std::vector<uint32_t> selections = SETTING(gui_focus_group);
+            std::vector<Idx_t> selections = SETTING(gui_focus_group);
 
             if(stage() && !(stage()->is_key_pressed(gui::LShift) || stage()->is_key_pressed(gui::RShift))) {
                 if(!selections.empty() && selections.front() == ID)

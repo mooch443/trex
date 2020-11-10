@@ -429,7 +429,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(long_t current_fr
             
             auto &range = updated.add_range;
             for(auto [id, fish] : Tracker::individuals()) {
-                auto frame = max(Tracker::start_frame(), range.start);
+                auto frame = max((long_t)Tracker::start_frame(), range.start);
                 if(fish->end_frame() < frame)
                     continue;
                 if(fish->start_frame() > range.end)
@@ -472,7 +472,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(long_t current_fr
 //                            Debug("Cannot find segment for frame %d in fish %d", frame, fish->identity().ID());
                 Output::Library::LibInfo info(fish, _mods);
                 
-                for(; frame < min(Tracker::end_frame(), range.end); ++frame) {
+                for(; frame < min((long_t)Tracker::end_frame(), range.end); ++frame) {
                     if(_grid.root()->frame_range().contains(frame))
                         continue;
                     //break;
@@ -500,7 +500,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(long_t current_fr
                     
                     auto bid = (*kit)->basic_stuff(frame);
                     if(bid != -1) {
-                        auto &basic = fish->basic_stuff()[bid];
+                        auto &basic = fish->basic_stuff()[(uint32_t)bid];
                         auto pos = basic->centroid->pos(Units::PX_AND_SECONDS);
                         //auto speed = basic->centroid->speed(Units::PX_AND_SECONDS);
                         

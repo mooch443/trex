@@ -30,11 +30,11 @@ namespace gui {
         _visible(true),
         _mOverFrame(-1),
         _title_layout({}, Vec2(20, 20), Bounds(0, 0, 17, 0)),
-        _status_text("", Vec2(), White, 0.8),
-        _status_text2("", Vec2(), White, 0.8),
-        _status_text3("", Vec2(), White, 0.8),
-        _raw_text("[RAW]", Vec2(), Black, Font(0.8, Style::Bold)),
-        _auto_text("", Vec2(), Black, Font(0.8, Style::Bold)),
+        _status_text("", Vec2(), White, 0.8f),
+        _status_text2("", Vec2(), White, 0.8f),
+        _status_text3("", Vec2(), White, 0.8f),
+        _raw_text("[RAW]", Vec2(), Black, Font(0.8f, Style::Bold)),
+        _auto_text("", Vec2(), Black, Font(0.8f, Style::Bold)),
         _pause("pause", Size2(100,27))
     {
         _instance = this;
@@ -83,7 +83,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
     static Range<long_t> previous_consec(-1, -1);
     static std::vector<Rangel> previous_other_consec = {};
     static float previous_scale = 0;
-    const double scale = max(1, min(_scale, CV_MAX_THICKNESS));
+    const float scale = max(1, min(_scale, CV_MAX_THICKNESS));
     float new_height = roundf(bar_height) + 5 * scale;
     
     if(consec == previous_consec
@@ -221,7 +221,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
             consec_color = Green;
         
         if(_status_text2.hovered())
-            consec_color = consec_color.brightenHSL(0.9);
+            consec_color = consec_color.brightenHSL(0.9f);
         _status_text2.set_color(consec_color);
         
         _status_text2.set_txt(number.str());
@@ -289,14 +289,14 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
             base.wrap_object(*_bar);
             
             if(FAST_SETTINGS(recognition_enable)) {
-                update_consecs(max_w, consec, other_consec, use_scale.y * 0.75);
+                update_consecs(max_w, consec, other_consec, use_scale.y * 0.75f);
                 if(_consecutives) {
-                    _consecutives->set_pos(pos - Vec2(0,5) * max(1, use_scale.y * 0.75));
+                    _consecutives->set_pos(pos - Vec2(0,5) * max(1, use_scale.y * 0.75f));
                     base.wrap_object(*_consecutives);
                 }
             }
             
-            base.add_object(new Text(Meta::toStr(tracker_endframe.load()), pos + Vec2(max_w * tracker_endframe / float(_frame_info.video_length) + 5, bar_height * 0.5), Black, Font(0.5), Vec2(1), Vec2(0,0.5)));
+            base.add_object(new Text(Meta::toStr(tracker_endframe.load()), pos + Vec2(max_w * tracker_endframe / float(_frame_info.video_length) + 5, bar_height * 0.5f), Black, Font(0.5), Vec2(1), Vec2(0,0.5)));
             
             // display hover sign with frame number
             if(_mOverFrame != -1) {
@@ -304,19 +304,19 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
                 //if(it != _proximity_bar.changed_frames.end() || _mOverFrame >= _proximity_bar.end)
                 {
                     std::string t = "Frame "+std::to_string(_mOverFrame);
-                    auto dims = Base::text_dimensions(t, &_title_layout, Font(0.7));
+                    auto dims = Base::text_dimensions(t, &_title_layout, Font(0.7f));
                     
-                    Vec2 pp(max_w / float(_frame_info.video_length) * _mOverFrame, _bar->pos().y + _bar->global_bounds().height / use_scale.y + dims.height * 0.5 + 2);
+                    Vec2 pp(max_w / float(_frame_info.video_length) * _mOverFrame, _bar->pos().y + _bar->global_bounds().height / use_scale.y + dims.height * 0.5f + 2);
                     
-                    if(pp.x < dims.width * 0.5)
-                        pp.x = dims.width * 0.5;
-                    if(pp.x + dims.width * 0.5 > max_w)
-                        pp.x = max_w - dims.width * 0.5;
+                    if(pp.x < dims.width * 0.5f)
+                        pp.x = dims.width * 0.5f;
+                    if(pp.x + dims.width * 0.5f > max_w)
+                        pp.x = max_w - dims.width * 0.5f;
                     
                     pp -= offset;
                     
-                    base.rect(pp - dims * 0.5 - Vec2(5, 2), dims + Vec2(10, 4), Black.alpha(125));
-                    base.text(t, pp, gui::White, Font(0.7, Align::Center));
+                    base.rect(pp - dims * 0.5f - Vec2(5, 2), dims + Vec2(10, 4), Black.alpha(125));
+                    base.text(t, pp, gui::White, Font(0.7f, Align::Center));
                 }
             }
         }
@@ -385,7 +385,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
                         //Vec2 pp(max_w / float(_frame_info.video_length) * idx.first, 50);
                         //float dis = abs(e.hover.x - pp.x);
                         static Timing timing("Scrubbing", 0.01);
-                        long_t idx = roundf(e.hover.x / max_w_ * float(_frame_info.video_length));
+                        int64_t idx = roundf(e.hover.x / max_w_ * float(_frame_info.video_length));
                         auto it = _proximity_bar.changed_frames.find(idx);
                         if(it != _proximity_bar.changed_frames.end()) {
                             framemOver = idx;
@@ -707,7 +707,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
         }
     }
     
-    void Timeline::next_poi(long_t _s_fdx) {
+    void Timeline::next_poi(Idx_t _s_fdx) {
         auto frame = GUI::frame();
         long_t next_frame = frame;
         std::set<FOI::fdx_t> fdx;
@@ -715,7 +715,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
         {
             std::lock_guard<std::mutex> guard(_proximity_bar.mutex);
             for(auto && [idx, number] : _proximity_bar.changed_frames) {
-                if(_s_fdx != -1) {
+                if(_s_fdx.valid()) {
                     if(number.find(FOI::fdx_t(_s_fdx)) == number.end())
                         continue;
                 }
@@ -731,20 +731,20 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
         if(frame != next_frame) {
             SETTING(gui_frame) = next_frame;
             
-            if(_s_fdx == -1) {
+            if(_s_fdx.valid()) {
                 auto &cache = GUI::instance()->cache();
                 if(!fdx.empty()) {
                     cache.deselect_all();
                     for(auto id : fdx) {
-                        if(!cache.is_selected(id.id))
-                            cache.do_select(id.id);
+                        if(!cache.is_selected(Idx_t(id.id)))
+                            cache.do_select(Idx_t(id.id));
                     }
                 }
             }
         }
     }
     
-    void Timeline::prev_poi(long_t _s_fdx) {
+    void Timeline::prev_poi(Idx_t _s_fdx) {
         auto frame = GUI::frame();
         long_t next_frame = frame;
         std::set<FOI::fdx_t> fdx;
@@ -752,7 +752,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
         {
             std::lock_guard<std::mutex> guard(_proximity_bar.mutex);
             for(auto && [idx, number] : MakeReverse(_proximity_bar.changed_frames)) {
-                if(_s_fdx != -1) {
+                if(_s_fdx.valid()) {
                     if(number.find(FOI::fdx_t(_s_fdx)) == number.end())
                         continue;
                 }
@@ -768,13 +768,13 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
         if(frame != next_frame && next_frame != -1) {
             SETTING(gui_frame) = next_frame;
             
-            if(_s_fdx == -1) {
+            if(_s_fdx.valid()) {
                 auto &cache = GUI::instance()->cache();
                 if(!fdx.empty()) {
                     cache.deselect_all();
                     for(auto id : fdx) {
-                        if(!cache.is_selected(id.id))
-                            cache.do_select(id.id);
+                        if(!cache.is_selected(Idx_t(id.id)))
+                            cache.do_select(Idx_t(id.id));
                     }
                 }
             }

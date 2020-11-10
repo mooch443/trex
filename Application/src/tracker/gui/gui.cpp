@@ -611,7 +611,7 @@ void GUI::run_loop(gui::DrawStructure&) {
         
         if(inc >= 1) {
             auto before = image_index;
-            image_index = min(_tracker.end_frame(), image_index + inc);
+            image_index = min((float)_tracker.end_frame(), image_index + inc);
             
             t = 0;
             if(before != image_index) {
@@ -1687,30 +1687,30 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
 #ifndef NDEBUG
         Debug("target_pos.x = %f target_scale.x = %f", target_pos.x, target_scale.x);
 #endif
-        target_pos.x = -mw * target_scale.x * 0.95;
+        target_pos.x = -mw * target_scale.x * 0.95f;
     }
-    if(target_pos.y / target_scale.y < -mh * 0.95)
-        target_pos.y = -mh * target_scale.y * 0.95;
+    if(target_pos.y / target_scale.y < -mh * 0.95f)
+        target_pos.y = -mh * target_scale.y * 0.95f;
     
-    if(target_pos.x / target_scale.x > mw * 0.95) {
+    if(target_pos.x / target_scale.x > mw * 0.95f) {
 #ifndef NDEBUG
         Debug("target_pos.x = %f target_scale.x = %f screen_center.x = %f screen_dimensions.x = %f window_dimensions.x = %f", target_pos.x, target_scale.x, screen_center.width, screen_dimensions.width, base()->window_dimensions().width);
 #endif
-        target_pos.x = mw * target_scale.x * 0.95;
+        target_pos.x = mw * target_scale.x * 0.95f;
     }
-    if(target_pos.y / target_scale.y > mh * 0.95)
-        target_pos.y = mh * target_scale.y * 0.95;
+    if(target_pos.y / target_scale.y > mh * 0.95f)
+        target_pos.y = mh * target_scale.y * 0.95f;
     
     _cache.set_zoom_level(target_scale.x);
     
     static Timer timer;
-    float e = _recording ? cache().dt() : timer.elapsed(); //_recording ? (1 / float(FAST_SETTINGS(frame_rate))) : timer.elapsed();
+    auto e = _recording ? cache().dt() : timer.elapsed(); //_recording ? (1 / float(FAST_SETTINGS(frame_rate))) : timer.elapsed();
     //e = cache().dt();
     
     e = min(0.1, e);
     e *= 3;
     
-    auto check_target = [](const Vec2& start, const Vec2& target, float e) {
+    auto check_target = [](const Vec2& start, const Vec2& target, double e) {
         Vec2 direction = target - start;
         double speed = direction.length();
         if(speed > 0)
@@ -1803,7 +1803,7 @@ void GUI::label_fish(gui::DrawStructure &base, track::Individual *fish, long_t f
         //L = SQR(L) * 0.5;
         
         auto text_offset = Vec2(0, Base::default_line_spacing(font));
-        auto offset_from_blob = blob->calculate_bounds().height * 0.25;
+        auto offset_from_blob = blob->calculate_bounds().height * 0.25f;
         auto line_start = offset_from_blob;
         auto line_end = L + line_start;
         text_pos = blob_center - factor * (line_end + Base::default_line_spacing(Font(0.5f)));
@@ -2077,7 +2077,7 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                         std::vector<std::vector<float>> all;
                         std::vector<float> lengths;
                         
-                        std::map<track::idx_t, Individual*> search;
+                        std::map<track::Idx_t, Individual*> search;
                         
                         if(FAST_SETTINGS(manual_identities).empty()) {
                             for(auto fish : _cache.active) {
@@ -2152,14 +2152,14 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                     _cache.connectivity_reload = false;
                     _cache.connectivity_last_frame = frameIndex;
                     
-                    const idx_t number_fish = FAST_SETTINGS(track_max_individuals);
-                    for (idx_t i=0; i<number_fish; ++i) {
-                        if(!_cache.individuals.count(i)) {
+                    const auto number_fish = FAST_SETTINGS(track_max_individuals);
+                    for (uint32_t i=0; i<number_fish; ++i) {
+                        if(!_cache.individuals.count(Idx_t(i))) {
                             Except("Individuals seem to be named differently than 0-%d. Cannot find %d.", FAST_SETTINGS(track_max_individuals), i);
                             continue;
                         }
                         
-                        auto fish0 = _cache.individuals.at(i);
+                        auto fish0 = _cache.individuals.at(Idx_t(i));
                         Vec2 p0(infinity<Float2_t>());
                         
                         if(!fish0->has(frameIndex)) {
@@ -2174,13 +2174,13 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                         if(cmn::isinf(p0.x))
                             continue;
                         
-                        for(idx_t j=i+1; j<number_fish; ++j) {
-                            if(!_cache.individuals.count(j)) {
+                        for(uint32_t j=i+1; j<number_fish; ++j) {
+                            if(!_cache.individuals.count(Idx_t(j))) {
                                 Except("Individuals seem to be named differently than 0-%d. Cannot find %d.", FAST_SETTINGS(track_max_individuals), j);
                                 continue;
                             }
                             
-                            auto fish1 = _cache.individuals.at(j);
+                            auto fish1 = _cache.individuals.at(Idx_t(j));
                             Vec2 p1(infinity<Float2_t>());
                             
                             if(!fish1->has(frameIndex)) {
@@ -2255,7 +2255,7 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
         if(SETTING(gui_show_uniqueness)) {
             static Graph graph(Bounds(50, 100, 800, 400), "uniqueness");
             static std::mutex mutex;
-            static std::map<uint32_t, float> estimated_uniqueness;
+            static std::map<Frame_t, float> estimated_uniqueness;
             static std::vector<Vec2> uniquenesses;
             static bool running = false;
             
@@ -2311,7 +2311,7 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                     if(graph.empty()) {
                         graph.add_function(Graph::Function("raw", Graph::Type::DISCRETE, [uq = &estimated_uniqueness](float x) -> float {
                             std::lock_guard<std::mutex> guard(mutex);
-                            auto it = uq->upper_bound(x);
+                            auto it = uq->upper_bound(Frame_t(narrow_cast<long_t>(x)));
                             if(!uq->empty() && it != uq->begin())
                                 --it;
                             if(it != uq->end() && it->second <= x) {
@@ -3722,7 +3722,7 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
                             SETTING(manual_splits) = copy;
                         });
                     } else {
-                        auto it = _cache.individuals.find(item.ID() - 1);
+                        auto it = _cache.individuals.find(Idx_t(item.ID() - 1));
                         if(it != _cache.individuals.end()) {
                             auto fish = it->second;
                             auto id = it->first;
@@ -3928,7 +3928,7 @@ void GUI::key_event(const gui::Event &event) {
     if(key.code >= Codes::Num0 && key.code <= Codes::Num9) {
         std::lock_guard<std::recursive_mutex> lock(_gui.lock());
         Identity id(int(key.code - Codes::Num0));
-        SETTING(gui_focus_group) = std::vector<uint32_t>{id.ID()};
+        SETTING(gui_focus_group) = std::vector<Idx_t>{id.ID()};
         set_redraw();
         return;
     }
@@ -3943,8 +3943,8 @@ void GUI::key_event(const gui::Event &event) {
             if(!cache._current_foi.foi.fdx().empty()) {
                 cache.deselect_all();
                 for(auto id : cache._current_foi.foi.fdx()) {
-                    if(!cache.is_selected(id.id))
-                        cache.do_select(id.id);
+                    if(!cache.is_selected(Idx_t(id.id)))
+                        cache.do_select(Idx_t(id.id));
                 }
             }
         }
@@ -4109,7 +4109,7 @@ void GUI::key_event(const gui::Event &event) {
             } else
                 break;
             
-            SETTING(gui_focus_group) = std::vector<uint32_t>{id.ID()};
+            SETTING(gui_focus_group) = std::vector<Idx_t>{id.ID()};
             
             break;
         }
@@ -4134,7 +4134,7 @@ void GUI::key_event(const gui::Event &event) {
             } else
                 break;
             
-            SETTING(gui_focus_group) = std::vector<uint32_t>{id.ID()};
+            SETTING(gui_focus_group) = std::vector<Idx_t>{id.ID()};
             
             break;
         }
@@ -4194,8 +4194,8 @@ void GUI::key_event(const gui::Event &event) {
                     if(!cache._current_foi.foi.fdx().empty()) {
                         cache.deselect_all();
                         for(auto id : cache._current_foi.foi.fdx()) {
-                            if(!cache.is_selected(id.id))
-                                cache.do_select(id.id);
+                            if(!cache.is_selected(Idx_t(id.id)))
+                                cache.do_select(Idx_t(id.id));
                         }
                     }
                 }
@@ -5053,7 +5053,7 @@ void GUI::generate_training_data_faces(const file::Path& path) {
     }
 }
 
-void GUI::add_manual_match(long_t frameIndex, idx_t fish_id, long_t blob_id) {
+void GUI::add_manual_match(long_t frameIndex, Idx_t fish_id, long_t blob_id) {
     Debug("Requesting change of fish %d to blob %d in frame %d", fish_id, blob_id, frameIndex);
     
     auto matches = FAST_SETTINGS(manual_matches);

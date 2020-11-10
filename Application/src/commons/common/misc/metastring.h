@@ -258,6 +258,9 @@ namespace cmn {
         struct has_tostr_method;
     
         template <typename T>
+        struct has_classname_method;
+    
+        template <typename T>
         struct has_internal_tostr_method;
     
         template <typename T>
@@ -303,7 +306,7 @@ namespace cmn {
         template<class Q> std::string name(const typename std::enable_if< std::is_same<DurationUS, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "time"; }
         
         template<class Q>
-        std::string name(const typename std::enable_if< std::is_convertible<Q, MetaObject>::value, Q >::type* =nullptr) {
+        std::string name(const typename std::enable_if< std::is_convertible<Q, MetaObject>::value || Meta::has_classname_method<Q>::value, Q >::type* =nullptr) {
             //MetaObject obj = Q();
             //return obj.class_name();
             return Q::class_name();
@@ -994,6 +997,21 @@ namespace cmn {
             
             template <typename C, typename P>
             static auto test(P * p) -> decltype(static_cast<void>(sizeof(decltype(_Meta::name<C>()))), std::true_type());
+            
+            template <typename, typename>
+            static std::false_type test(...);
+            
+            typedef decltype(test<T, dummy>(nullptr)) type;
+            static const bool value = std::is_same<std::true_type, decltype(test<T, dummy>(nullptr))>::value;
+        };
+    
+        template <typename T>
+        struct has_classname_method
+        {
+            struct dummy {  };
+            
+            template <typename C, typename P>
+            static auto test(C * p) -> decltype(static_cast<void>(sizeof(decltype(C::class_name()))), std::true_type());
             
             template <typename, typename>
             static std::false_type test(...);

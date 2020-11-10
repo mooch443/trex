@@ -11,10 +11,10 @@ namespace gui {
     struct PlatformTexture {
         void* ptr = nullptr ;
         std::function<void(void**)> deleter;
-        int width;
-        int height;
-        int image_width;
-        int image_height;
+        uint width = 0;
+        uint height = 0;
+        uint image_width = 0;
+        uint image_height = 0;
         
         PlatformTexture() = default;
         ~PlatformTexture() {

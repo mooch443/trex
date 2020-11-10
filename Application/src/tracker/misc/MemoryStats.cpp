@@ -5,6 +5,10 @@
 
 namespace mem {
 
+uint64_t memory_selector(MemoryStats& stats, const Idx_t& obj, const std::string& name) {
+    return sizeof(Idx_t);
+}
+
 template <typename K, typename V>
 uint64_t memory_selector(MemoryStats& stats, const std::map<K, V>& map, const std::string& name) {
     //using map_t = typename remove_cvref<decltype(map)>::type;
@@ -227,7 +231,7 @@ TrackerMemoryStats::TrackerMemoryStats() {
     sizes["fois"] = foi_bytes;
     bytes += foi_bytes;
     
-    id = -2;
+    id = Idx_t(std::numeric_limits<uint32_t>::max()-1);
 }
 
 IndividualMemoryStats::IndividualMemoryStats(Individual *fish) {
@@ -306,7 +310,7 @@ OutputLibraryMemoryStats::OutputLibraryMemoryStats(Output::LibraryCache::Ptr ptr
     }
     bytes += sizeof(decltype(cache)::element_type);
     
-    id = -2;
+    id = Idx_t(std::numeric_limits<uint32_t>::max()-1);
 }
 
 void IndividualMemoryStats::print() const {
@@ -336,7 +340,7 @@ void MemoryStats::print() const {
     
     auto str = prettify_array(Meta::toStr(vec));
     auto overall = Meta::toStr(FileSize{bytes});
-    auto id_str = id == -2 ? std::string("overall") : (id == -1 ? "<empty>" : Meta::toStr(id));
+    auto id_str = id == Idx_t(std::numeric_limits<uint32_t>::max()-1) ? std::string("overall") : (!id.valid() ? "<empty>" : Meta::toStr(id));
     
     Debug("%S: %S\n%S", &id_str, &overall, &str);
 }

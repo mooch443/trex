@@ -80,18 +80,18 @@ namespace gui {
         selected.clear();
     }
     
-    bool GUICache::is_selected(uint32_t id) const {
+    bool GUICache::is_selected(Idx_t id) const {
         return contains(selected, id);
     }
     
-    void GUICache::do_select(uint32_t id) {
+    void GUICache::do_select(Idx_t id) {
         if(!is_selected(id)) {
             selected.push_back(id);
             SETTING(gui_focus_group) = selected;
         }
     }
     
-    void GUICache::deselect(uint32_t id) {
+    void GUICache::deselect(Idx_t id) {
         auto it = std::find(selected.begin(), selected.end(), id);
         if(it != selected.end()) {
             selected.erase(it);
@@ -99,7 +99,7 @@ namespace gui {
         }
     }
     
-    void GUICache::deselect_all_select(uint32_t id) {
+    void GUICache::deselect_all_select(Idx_t id) {
         selected.clear();
         selected.push_back(id);
         
@@ -152,7 +152,7 @@ namespace gui {
             
             Tracker::instance()->thread_pool().enqueue([this](){
                 Debug("Percentiles...");
-                auto percentiles = GUI::instance()->video_source()->calculate_percentiles({0.05, 0.95});
+                auto percentiles = GUI::instance()->video_source()->calculate_percentiles({0.05f, 0.95f});
                 
                 if(GUI::instance()) {
                     std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
@@ -178,7 +178,7 @@ namespace gui {
         if(properties) {
             active = _tracker.active_individuals(frameIndex);
             individuals = _tracker.individuals();
-            selected = SETTING(gui_focus_group).value<std::vector<uint32_t>>();
+            selected = SETTING(gui_focus_group).value<std::vector<Idx_t>>();
             active_blobs.clear();
             inactive_ids.clear();
             active_ids.clear();
@@ -189,7 +189,7 @@ namespace gui {
             auto delete_callback = [this](Individual* fish) {
                 std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
                 
-                auto id = narrow_cast<int32_t>(fish->identity().ID());
+                auto id = fish->identity().ID();
                 auto it = individuals.find(id);
                 if(it != individuals.end())
                     individuals.erase(it);
@@ -221,7 +221,7 @@ namespace gui {
             } else {
                 
                 for(auto id : FAST_SETTINGS(manual_identities)) {
-                    auto it = individuals.find((idx_t)id);
+                    auto it = individuals.find(id);
                     if(it != individuals.end()) {
                         it->second->register_delete_callback((void*)12341337, delete_callback);
                     }
@@ -286,7 +286,7 @@ namespace gui {
             } else {
                 // display blobs that are selected
                 for(auto id : selected) {
-                    auto it = individuals.find((idx_t)id);
+                    auto it = individuals.find(id);
                     if(it != individuals.end()) {
                         auto blob = it->second->compressed_blob(frameIndex);
                         if(blob)
@@ -448,7 +448,7 @@ namespace gui {
         }
     }
 
-    bool GUICache::has_probs(uint32_t fdx) {
+    bool GUICache::has_probs(Idx_t fdx) {
         if(checked_probs.find(fdx) != checked_probs.end()) {
             return probabilities.find(fdx) != probabilities.end();
         }
@@ -456,7 +456,7 @@ namespace gui {
         return probs(fdx) != nullptr;
     }
 
-    const std::map<uint32_t, Individual::Probability>* GUICache::probs(uint32_t fdx) {
+    const std::map<uint32_t, Individual::Probability>* GUICache::probs(Idx_t fdx) {
         if(checked_probs.find(fdx) != checked_probs.end()) {
             auto it = probabilities.find(fdx);
             if(it  != probabilities.end())
@@ -472,7 +472,7 @@ namespace gui {
             if(it != processed_frame.cached_individuals.end()) {
                 auto && [fdx, cache] = *it;
                 for(auto blob : processed_frame.blobs) {
-                    auto p = individuals.count((idx_t)fdx) ? individuals.at((idx_t)fdx)->probability(cache, frame_idx, blob) : Individual::Probability{0,0,0,0};
+                    auto p = individuals.count(fdx) ? individuals.at(fdx)->probability(cache, frame_idx, blob) : Individual::Probability{0,0,0,0};
                     if(p.p >= FAST_SETTINGS(matching_probability_threshold))
                         probabilities[fdx][blob->blob_id()] = p;
                 }

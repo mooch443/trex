@@ -2,6 +2,7 @@
 #include <misc/SpriteMap.h>
 #include <file/Path.h>
 #include <misc/BlobSizeRange.h>
+#include <misc/idx_t.h>
 #include "GitSHA1.h"
 
 #ifndef WIN32
@@ -238,7 +239,7 @@ file::Path conda_environment_path() {
         Adding adding(config, docs, fn);
         
         CONFIG<std::string>("app_name", "TRex", "Name of the application.", SYSTEM);
-        CONFIG("version", std::string("1.0.4"), "Current application version.", SYSTEM);
+        CONFIG("version", std::string("1.0.5"), "Current application version.", SYSTEM);
         CONFIG("build_type", std::string(g_TREX_BUILD_TYPE), "The mode the application was built in.", SYSTEM);
         CONFIG("build_is_debug", std::string(is_ndebug_enabled()), "If built in debug mode, this will show 'debug'.", SYSTEM);
         CONFIG("build_cxx_options", std::string(g_TREX_BUILD_CXX_OPTIONS), "The mode the application was built in.", SYSTEM);
@@ -370,7 +371,7 @@ file::Path conda_environment_path() {
         CONFIG("midline_start_with_head", false, "If enabled, the midline is going to be estimated starting at the head instead of the tail.");
         CONFIG("midline_invert", false, "If enabled, all midlines will be inverted (tail/head swapped).");
         CONFIG("peak_mode", peak_mode_t::pointy, "This determines whether the tail of an individual should be expected to be pointy or broad.");
-        CONFIG("manual_matches", std::map<long_t, std::map<idx_t, int64_t>>{ }, "A map of manually defined matches (also updated by GUI menu for assigning manual identities). {{frame: {fish0: blob2, fish1: blob0}}, ...}");
+        CONFIG("manual_matches", std::map<long_t, std::map<track::Idx_t, int64_t>>{ }, "A map of manually defined matches (also updated by GUI menu for assigning manual identities). {{frame: {fish0: blob2, fish1: blob0}}, ...}");
         CONFIG("manual_splits", std::map<long_t, std::set<int64_t>>{}, "This map contains {frame: [blobid1,blobid2,...]} where frame and blobid are integers. When this is read during tracking for a frame, the tracker will attempt to force-split the given blob ids.");
         CONFIG("match_mode", matching_mode_t::accurate, "Changes the default algorithm to be used for matching blobs in one frame to blobs in the next frame. The accurate algorithm performs best, but also scales less well for more individuals than the approximate one. However, if it is too slow (temporarily) in a few frames, the program falls back to using the approximate one that doesnt slow down.");
         CONFIG("matching_probability_threshold", float(0.1), "The probability below which a possible connection between blob and identity is considered too low. The probability depends largely upon settings like `track_max_speed`.");
@@ -399,7 +400,7 @@ file::Path conda_environment_path() {
         CONFIG("enable_absolute_difference", true, "If set to true, the threshold values will be applied to abs(image - background). Otherwise max(0, image - background).");
         CONFIG("track_time_probability_enabled", bool(true), "");
         CONFIG("track_max_reassign_time", float(0.5), "Distance in time (seconds) where the matcher will stop trying to reassign an individual based on previous position. After this time runs out, depending on the settings, the tracker will try to find it based on other criteria, or generate a new individual.");
-        CONFIG("manual_identities", std::set<uint32_t>{}, "", SYSTEM);
+        CONFIG("manual_identities", std::set<track::Idx_t>{}, "", SYSTEM);
         CONFIG("pixel_grid_cells", size_t(25), "");
         
         CONFIG("web_quality", int(75), "JPEG quality of images transferred over the web interface.");
@@ -538,7 +539,7 @@ file::Path conda_environment_path() {
         CONFIG("terminate_training", bool(false), "Setting this to true aborts the training in progress.");
         
         CONFIG("manually_approved", std::map<long_t,long_t>(), "A list of ranges of manually approved frames that may be used for generating training datasets {232:232,5555:5560}.");
-        CONFIG("gui_focus_group", std::vector<uint32_t>(), "Focus on this group of individuals.");
+        CONFIG("gui_focus_group", std::vector<Idx_t>(), "Focus on this group of individuals.");
         
         CONFIG("track_ignore", std::vector<std::vector<Vec2>>(), "If this is not empty, objects within the given rectangles or polygons (>= 3 points) [[x0,y0],[x1,y1](, ...)], ...] will be ignored during tracking.");
         CONFIG("track_include", std::vector<std::vector<Vec2>>(), "If this is not empty, objects within the given rectangles or polygons (>= 3 points) [[x0,y0],[x1,y1](, ...)], ...] will be the only objects being tracked. (overwrites `track_ignore`)");

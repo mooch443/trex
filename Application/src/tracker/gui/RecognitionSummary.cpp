@@ -17,7 +17,7 @@ namespace gui {
         Font bottom_font(0.8f / interface_scale, Align::Center);
         
         auto manual_identities = FAST_SETTINGS(manual_identities);
-        std::set<uint32_t> sorted(manual_identities.begin(), manual_identities.end());
+        std::set<Idx_t> sorted(manual_identities.begin(), manual_identities.end());
         for(auto id : manual_identities) {
             if(cache.individuals.find(id) == cache.individuals.end())
                 sorted.erase(id);
@@ -49,7 +49,7 @@ namespace gui {
                 base.advance(new Text("recognition summary", Vec2(obj.width() * 0.5f, margin + (title_height - margin) * 0.5f), White, title_font));
                 
                 size_t counter = 0, j = 0;
-                std::map<long_t, size_t> fdx_to_idx;
+                std::map<Idx_t, size_t> fdx_to_idx;
                 std::map<size_t, long_t> idx_to_fdx;
                 
                 outputs.resize(output_size * sorted.size());

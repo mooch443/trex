@@ -51,10 +51,10 @@ namespace track {
         std::map<long_t, std::map<uint32_t, std::vector<float>>> probs;
         //std::set<long_t> identities;
         //std::map<long_t, long_t> fish_id_to_idx;
-        std::map<long_t, long_t> fish_idx_to_id;
+        std::map<Idx_t, Idx_t> fish_idx_to_id;
         std::set<Rangel> gui_last_trained_ranges;
         
-        typedef long_t fdx_t;
+        typedef Idx_t fdx_t;
         typedef long_t frame_t;
         
         struct FishInfo {
@@ -71,7 +71,7 @@ namespace track {
         std::map<frame_t, std::set<fdx_t>> _last_frames;
         std::map<fdx_t, FishInfo> _fish_last_frame;
         
-        std::map<long_t, std::map<Rangel, TrainingFilterConstraints>> custom_midline_lengths;
+        std::map<Idx_t, std::map<Rangel, TrainingFilterConstraints>> custom_midline_lengths;
         
     public:
         struct ImageData {
@@ -88,10 +88,10 @@ namespace track {
             long_t frame;
             FrameRange segment;
             Individual *fish;
-            idx_t fdx;
+            Idx_t fdx;
             gui::Transform midline_transform;
             
-            ImageData(Blob blob = Blob{0,0,-1,-1}, long_t frame = -1, const FrameRange& segment = FrameRange(), Individual * fish = NULL, idx_t fdx = -1, const gui::Transform& transform = gui::Transform())
+            ImageData(Blob blob = Blob{0,0,-1,-1}, long_t frame = -1, const FrameRange& segment = FrameRange(), Individual * fish = NULL, Idx_t fdx = Idx_t(), const gui::Transform& transform = gui::Transform())
                 : image(nullptr), filters(nullptr), blob(blob), frame(frame), segment(segment), fish(fish), fdx(fdx), midline_transform(transform)
             {}
         };
@@ -123,13 +123,13 @@ namespace track {
             size_t processed;
             float _percent;
             
-            std::map<long_t, std::tuple<std::set<idx_t>, std::set<idx_t>, std::set<idx_t>>> added_individuals_per_frame;
+            std::map<long_t, std::tuple<std::set<Idx_t>, std::set<Idx_t>, std::set<Idx_t>>> added_individuals_per_frame;
             std::vector<std::function<void()>> registered_callbacks;
             
             GETTER_SETTER(long_t, last_checked_frame)
             GETTER_SETTER(float, processing_percent)
-            std::map<idx_t, long_t> _max_pre_frame;
-            std::map<idx_t, long_t> _max_pst_frame;
+            std::map<Idx_t, long_t> _max_pre_frame;
+            std::map<Idx_t, long_t> _max_pst_frame;
             float _last_percent;
             
             GETTER(size_t, unavailable_blobs)
@@ -147,8 +147,8 @@ namespace track {
                 size_t added, processed, N, max_frame, inproc;
                 float percent;
                 long_t last_frame;
-                std::map<idx_t, long_t> max_pre_frame;
-                std::map<idx_t, long_t> max_pst_frame;
+                std::map<Idx_t, long_t> max_pre_frame;
+                std::map<Idx_t, long_t> max_pst_frame;
                 size_t failed_blobs;
                 
                 Info() : added(0), processed(0), N(0), max_frame(0), inproc(0), percent(0), last_frame(-1), failed_blobs(0) {
@@ -175,13 +175,13 @@ namespace track {
             }
             
             void remove_frames(long_t after);
-            void remove_individual(idx_t fdx);
+            void remove_individual(Idx_t fdx);
             
-            void add_frame(long_t, long_t);
-            void inproc_frame(long_t, long_t);
-            void failed_frame(long_t, long_t);
+            void add_frame(long_t, Idx_t);
+            void inproc_frame(long_t, Idx_t);
+            void failed_frame(long_t, Idx_t);
             
-            void finished_frames(const std::map<long_t, std::set<idx_t>>& individuals_per_frame);
+            void finished_frames(const std::map<long_t, std::set<Idx_t>>& individuals_per_frame);
             void register_finished_callback(std::function<void()>&& fn);
             void clear();
         };
@@ -196,7 +196,7 @@ namespace track {
 
         static void fix_python();
         //float p(long_t frame, uint32_t blob_id, const Individual *fish);
-        std::map<long_t, float> ps_raw(long_t frame, uint32_t blob_id);
+        std::map<Idx_t, float> ps_raw(long_t frame, uint32_t blob_id);
         //bool has(long_t frame, uint32_t blob_id);
         //bool has(long_t frame, const Individual* fish);
         //std::map<long_t, std::map<long_t, long_t>> check_identities(long_t frame, const std::vector<pv::BlobPtr>& blobs);

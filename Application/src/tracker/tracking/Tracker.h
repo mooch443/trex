@@ -10,7 +10,7 @@
 #include <tracking/Border.h>
 #include <misc/Timer.h>
 #include <misc/BlobSizeRange.h>
-
+#include <misc/idx_t.h>
 #include <misc/create_struct.h>
 
 namespace Output {
@@ -34,7 +34,7 @@ namespace track {
         IndividualStatus() : prev(nullptr), current(nullptr) {}
     };
 
-using mmatches_t = std::map<long_t, std::map<idx_t, int64_t>>;
+using mmatches_t = std::map<long_t, std::map<Idx_t, int64_t>>;
 using msplits_t = std::map<long_t, std::set<int64_t>>;
 using inames_t = std::map<uint32_t, std::string>;
 using mapproved_t = std::map<long_t,long_t>;
@@ -68,7 +68,7 @@ CREATE_STRUCT(Settings,
   (float, matching_probability_threshold),
   (size_t, posture_direction_smoothing),
   (file::Path, tags_path),
-  (std::set<uint32_t>, manual_identities),
+  (std::set<Idx_t>, manual_identities),
   (std::vector<Vec2>, grid_points),
   (std::vector<std::vector<Vec2>>, recognition_shapes),
   (float, grid_points_scaling),
@@ -125,7 +125,7 @@ CREATE_STRUCT(Settings,
         uint32_t _current_midline_errors, _overall_midline_errors;
         
         //! All the individuals that have been detected and are being maintained
-        std::unordered_map<idx_t, Individual*> _individuals;
+        std::unordered_map<Idx_t, Individual*> _individuals;
         friend class Individual;
         
         set_of_individuals_t _active_individuals;
@@ -139,8 +139,8 @@ CREATE_STRUCT(Settings,
         GETTER_PTR(StaticBackground*, background)
         Recognition* _recognition;
         
-        std::unordered_map<long_t, Individual::segment_map::const_iterator> _individual_add_iterator_map;
-        std::unordered_map<long_t, size_t> _segment_map_known_capacity;
+        std::unordered_map<Idx_t, Individual::segment_map::const_iterator> _individual_add_iterator_map;
+        std::unordered_map<Idx_t, size_t> _segment_map_known_capacity;
         std::vector<IndividualStatus> _warn_individual_status;
         
     public:
@@ -187,7 +187,7 @@ CREATE_STRUCT(Settings,
         long_t _approximative_enabled_in_frame;
         
         GETTER(std::deque<Range<long_t>>, consecutive)
-        std::set<long_t, std::function<bool(long_t,long_t)>> _inactive_individuals;
+        std::set<Idx_t, std::function<bool(Idx_t,Idx_t)>> _inactive_individuals;
         
     public:
         Tracker();
@@ -231,8 +231,8 @@ CREATE_STRUCT(Settings,
         static const FrameProperties* add_next_frame(const FrameProperties&);
         static void clear_properties();
         
-        static long_t start_frame() { return (long_t)instance()->_startFrame; }
-        static long_t end_frame() { return (long_t)instance()->_endFrame; }
+        static Frame_t start_frame() { return Frame_t(instance()->_startFrame.load()); }
+        static Frame_t end_frame() { return Frame_t(instance()->_endFrame.load()); }
         static size_t number_frames() { return instance()->_added_frames.size(); }
         static bool blob_matches_shapes(const pv::BlobPtr&, const std::vector<std::vector<Vec2>>&);
         
@@ -240,7 +240,7 @@ CREATE_STRUCT(Settings,
         static void preprocess_frame(PPFrame &frame, const std::unordered_set<Individual*>& active_individuals, GenericThreadPool* pool, std::ostream* = NULL, bool do_history_split = true);
         
         friend class VisualField;
-        static const std::unordered_map<idx_t, Individual*>& individuals() {
+        static const std::unordered_map<Idx_t, Individual*>& individuals() {
             LockGuard guard("individuals()");
             return instance()->_individuals;
         }
@@ -265,7 +265,7 @@ CREATE_STRUCT(Settings,
         
         void update_history_log();
         
-        long_t update_with_manual_matches(const std::map<long_t, std::map<idx_t, int64_t>>& manual_matches);
+        long_t update_with_manual_matches(const std::map<long_t, std::map<Idx_t, int64_t>>& manual_matches);
         void check_segments_identities(bool auto_correct, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue = [](auto,auto,auto){}, long_t after_frame = -1);
         void clear_segments_identities();
         void prepare_shutdown();
@@ -282,7 +282,7 @@ CREATE_STRUCT(Settings,
         static void global_segment_order_changed();
         static void auto_calculate_parameters(pv::File& video, bool quiet = false);
         static void emergency_finish();
-        static void delete_automatic_assignments(long_t fish_id, const FrameRange& frame_range);
+        static void delete_automatic_assignments(Idx_t fish_id, const FrameRange& frame_range);
         
         enum class AnalysisState {
             PAUSED,
@@ -298,7 +298,7 @@ CREATE_STRUCT(Settings,
         }
         
         void update_consecutive(const set_of_individuals_t& active, long_t frameIndex, bool update_dataset = false);
-        void update_warnings(long_t frameIndex, double time, long_t number_fish, long_t n_found, long_t n_prev, const FrameProperties *props, const FrameProperties *prev_props, const set_of_individuals_t& active_individuals, std::unordered_map<long_t, Individual::segment_map::const_iterator>& individual_iterators);
+        void update_warnings(long_t frameIndex, double time, long_t number_fish, long_t n_found, long_t n_prev, const FrameProperties *props, const FrameProperties *prev_props, const set_of_individuals_t& active_individuals, std::unordered_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators);
         
     private:
         static void filter_blobs(PPFrame& frame, GenericThreadPool *pool);
@@ -326,7 +326,7 @@ CREATE_STRUCT(Settings,
         void generate_pairdistances(long_t frameIndex);
         void check_save_tags(long_t frameIndex, const std::unordered_map<uint32_t, Individual*>&, const std::vector<tags::blob_pixel>&, const std::vector<tags::blob_pixel>&, const file::Path&);
         
-        Individual* create_individual(idx_t ID, set_of_individuals_t& active_individuals);
+        Individual* create_individual(Idx_t ID, set_of_individuals_t& active_individuals);
         
         struct PrefilterBlobs {
             std::vector<pv::BlobPtr> filtered;
@@ -350,7 +350,7 @@ CREATE_STRUCT(Settings,
         
         static void prefilter(std::shared_ptr<PrefilterBlobs>, std::vector<pv::BlobPtr>::const_iterator it, std::vector<pv::BlobPtr>::const_iterator end);
         
-        void update_iterator_maps(long_t frame, const set_of_individuals_t& active_individuals, std::unordered_map<long_t, Individual::segment_map::const_iterator>& individual_iterators);
+        void update_iterator_maps(long_t frame, const set_of_individuals_t& active_individuals, std::unordered_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators);
     };
 }
 

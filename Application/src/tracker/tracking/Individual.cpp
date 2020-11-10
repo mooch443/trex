@@ -2602,7 +2602,7 @@ void Individual::calculate_average_recognition() {
     _average_recognition_samples = 0;
     _average_recognition.clear();
     
-    std::map<long_t, size_t> samples;
+    std::map<Idx_t, size_t> samples;
     const float frame_limit = FAST_SETTINGS(frame_rate) * 2;
     
     for(auto & segment : _frame_segments) {
@@ -2707,7 +2707,7 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
             return {0, {}};
         }
         
-        std::map<long_t, std::tuple<long_t, float>> samples;
+        std::map<Idx_t, std::tuple<long_t, float>> samples;
         size_t overall = 0;
         
         for(long_t i = segment.start; i < segment.end; ++i) {
@@ -2720,14 +2720,14 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
                 ++overall;
                 
                 for (auto && [fdx, p] : raw) {
-                    ++std::get<0>(samples[fdx]);
-                    std::get<1>(samples[fdx]) += p;
+                    ++std::get<0>(samples[Idx_t(fdx)]);
+                    std::get<1>(samples[Idx_t(fdx)]) += p;
                 }
             }
         }
         
         if(overall > 0) {
-            std::map<long_t, float> average;
+            std::map<Idx_t, float> average;
             float s = 0;
             for (auto && [key, value] : samples) {
                 float n = std::get<0>(value);
@@ -2767,7 +2767,7 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
             return {0, {}};
         }
         
-        std::map<long_t, std::tuple<long_t, float>> samples;
+        std::map<Idx_t, std::tuple<long_t, float>> samples;
         size_t overall = 0;
         
         for(long_t i = segment.start; i < segment.end; ++i) {
@@ -2780,14 +2780,14 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
                 ++overall;
                 
                 for (auto && [fdx, p] : raw) {
-                    ++std::get<0>(samples[fdx]);
-                    std::get<1>(samples[fdx]) += p;
+                    ++std::get<0>(samples[Idx_t(fdx)]);
+                    std::get<1>(samples[Idx_t(fdx)]) += p;
                 }
             }
         }
         
         if(overall > 0) {
-            std::map<long_t, float> average;
+            std::map<Idx_t, float> average;
             float s = 0;
             for (auto && [key, value] : samples) {
                 float n = std::get<0>(value);
@@ -2808,17 +2808,17 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
     return average_recognition_segment.at(segment_start);
 }
 
-std::tuple<size_t, long_t, float> Individual::average_recognition_identity(long_t segment_start) const {
+std::tuple<size_t, Idx_t, float> Individual::average_recognition_identity(long_t segment_start) const {
     auto it = average_recognition_segment.find(segment_start);
     if(it == average_recognition_segment.end()) {
-        return {0, -1, 0};
+        return {0, Idx_t(), 0};
     }
     
-    long_t mdx = -1;
+    Idx_t mdx;
     float mdx_p = 0;
     
     for(auto && [fdx, p] : std::get<1>(it->second)) {
-        if(p > mdx_p) {
+        if(!mdx.valid() || p > mdx_p) {
             mdx_p = p;
             mdx = fdx;
         }

@@ -452,7 +452,7 @@ void clear_cache() {
             if (!ptr) {
                 Warning("Cannot load font '%S' with index %d.", &path.str(), config.FontNo);
                 ptr = io.Fonts->AddFontDefault();
-                im_font_scale = max(1, dpi_scale) * 0.5;
+                im_font_scale = max(1, dpi_scale) * 0.5f;
             }
             ptr->FontSize = base_scale * im_font_scale;
             

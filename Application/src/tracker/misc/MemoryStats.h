@@ -3,6 +3,7 @@
 #include <types.h>
 #include <tracking/Individual.h>
 #include <misc/OutputLibrary.h>
+#include <misc/idx_t.h>
 
 namespace mem {
 using namespace track;
@@ -10,7 +11,7 @@ using namespace track;
 struct MemoryStats {
     MemoryStats();
     
-    idx_t id;
+    Idx_t id;
     uint64_t bytes;
     std::map<std::string, uint64_t> sizes;
     std::map<std::string, std::map<std::string, uint64_t>> details;
@@ -21,7 +22,7 @@ struct MemoryStats {
     }
     
     void operator +=(const MemoryStats& other) {
-        if(id == -1) {
+        if(!id.valid()) {
             *this = other;
             return;
         }
@@ -37,12 +38,12 @@ struct MemoryStats {
             }
         }
         
-        id = -2;
+        id = Idx_t(std::numeric_limits<uint32_t>::max()-1);
     }
     
     void clear() {
         bytes = 0;
-        id = -1;
+        id = Idx_t();
         sizes.clear();
     }
     virtual void print() const;

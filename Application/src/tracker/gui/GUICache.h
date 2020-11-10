@@ -28,7 +28,7 @@ namespace gui {
         int last_threshold;
         long_t last_frame;
         Bounds boundary;
-        std::vector<uint32_t> previous_active_fish;
+        std::vector<Idx_t> previous_active_fish;
         std::set<uint32_t> previous_active_blobs, active_blobs;
         Vec2 previous_mouse_position;
         bool _dirty;
@@ -60,16 +60,16 @@ namespace gui {
         
         std::map<uint32_t, long_t> automatic_assignments;
         
-        std::unordered_map<idx_t, Individual*> individuals;
-        std::set<uint32_t> active_ids;
-        std::set<uint32_t> inactive_ids;
-        std::set<uint32_t> recognized_ids;
-        std::map<uint32_t, std::shared_ptr<gui::Circle>> recognition_circles;
-        std::map<uint32_t, Timer> recognition_timer;
+        std::unordered_map<Idx_t, Individual*> individuals;
+        std::set<Idx_t> active_ids;
+        std::set<Idx_t> inactive_ids;
+        std::set<Idx_t> recognized_ids;
+        std::map<Idx_t, std::shared_ptr<gui::Circle>> recognition_circles;
+        std::map<Idx_t, Timer> recognition_timer;
         
         Tracker::set_of_individuals_t _registered_callback;
         
-        std::map<uint32_t, long_t> fish_selected_blobs;
+        std::map<Idx_t, long_t> fish_selected_blobs;
         Tracker::set_of_individuals_t active;
         //std::vector<std::shared_ptr<gui::ExternalImage>> blob_images;
         std::vector<std::shared_ptr<SimpleBlob>> raw_blobs;
@@ -79,7 +79,7 @@ namespace gui {
         std::vector<Vec2> inactive_estimates;
         
     protected:
-        std::map<uint32_t, std::map<uint32_t, Individual::Probability>> probabilities;
+        std::map<Idx_t, std::map<uint32_t, Individual::Probability>> probabilities;
         std::set<uint32_t> checked_probs;
         
     public:
@@ -90,20 +90,20 @@ namespace gui {
         std::vector<float> connectivity_matrix;
         
         PPFrame processed_frame;
-        std::vector<uint32_t> selected;
+        std::vector<Idx_t> selected;
         
     public:
         bool has_selection() const;
         Individual * primary_selection() const;
         void deselect_all();
-        bool is_selected(uint32_t id) const;
-        void do_select(uint32_t id);
+        bool is_selected(Idx_t id) const;
+        void do_select(Idx_t id);
         
-        void deselect(uint32_t id);
-        void deselect_all_select(uint32_t id);
+        void deselect(Idx_t id);
+        void deselect_all_select(Idx_t id);
         
-        const std::map<uint32_t, Individual::Probability>* probs(uint32_t fdx);
-        bool has_probs(uint32_t fdx);
+        const std::map<uint32_t, Individual::Probability>* probs(Idx_t fdx);
+        bool has_probs(Idx_t fdx);
         
         void set_tracking_dirty();
         void set_blobs_dirty();

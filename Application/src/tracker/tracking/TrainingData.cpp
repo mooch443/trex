@@ -107,7 +107,7 @@ TrainingData::DataRange::operator MetaObject() const {
     return MetaObject(ss.str(), "DataRange");
 }
 
-void TrainingData::add_frame(std::shared_ptr<TrainingData::DataRange> data, long_t frame_index, long_t id, long_t original_id, Image::Ptr image, const Vec2 & pos, size_t px, const FrameRange& from_range)
+void TrainingData::add_frame(std::shared_ptr<TrainingData::DataRange> data, long_t frame_index, Idx_t id, int64_t original_id, Image::Ptr image, const Vec2 & pos, size_t px, const FrameRange& from_range)
 {
     /*auto it = original_ids_check.find(image.get());
     if(it  == original_ids_check.end())
@@ -175,7 +175,7 @@ void TrainingData::add_frame(std::shared_ptr<TrainingData::DataRange> data, long
         _all_classes.insert(id);
 }
 
-void TrainingData::apply_mapping(const std::map<long_t, long_t>& mapping) {
+void TrainingData::apply_mapping(const std::map<Idx_t, Idx_t>& mapping) {
     bool found = false;
     for(auto && [id, ID] : mapping) {
         if(id != ID) {
@@ -201,7 +201,7 @@ void TrainingData::apply_mapping(const std::map<long_t, long_t>& mapping) {
             Debug("Changed mapping with %S for %d-%d", &str, data->frames.start, data->frames.end);
         }
         
-        std::map<long_t, DataRange::PerIndividual> map;
+        std::map<Idx_t, DataRange::PerIndividual> map;
         for(auto && [from, to] : mapping) {
             auto it = data->mappings.find(from);
             if(it != data->mappings.end())
@@ -237,11 +237,11 @@ void TrainingData::apply_mapping(const std::map<long_t, long_t>& mapping) {
     }
 }
 
-void TrainingData::set_classes(const std::set<uint32_t>& classes) {
+void TrainingData::set_classes(const std::set<Idx_t>& classes) {
     _all_classes = classes;
 }
 
-std::unique_ptr<Image> TrainingData::draw_coverage(const std::map<uint32_t, float>& unique_percentages, const std::vector<Rangel>& next_ranges, const std::vector<Rangel>& added_ranges, const std::map<uint32_t, float>& uniquenesses_temp, std::shared_ptr<TrainingData::DataRange> current_salt, const std::map<Rangel, std::tuple<double, FrameRange>>& assigned_unique_averages) const
+std::unique_ptr<Image> TrainingData::draw_coverage(const std::map<Frame_t, float>& unique_percentages, const std::vector<Rangel>& next_ranges, const std::vector<Rangel>& added_ranges, const std::map<Frame_t, float>& uniquenesses_temp, std::shared_ptr<TrainingData::DataRange> current_salt, const std::map<Rangel, std::tuple<double, FrameRange>>& assigned_unique_averages) const
 {
     auto analysis_range = Tracker::analysis_range();
     auto image = std::make_unique<Image>(500, 1800, 4);
@@ -255,7 +255,7 @@ std::unique_ptr<Image> TrainingData::draw_coverage(const std::map<uint32_t, floa
     float row_height = float(image->rows) / float(rows);
     float column_width = float(image->cols) / float(analysis_range.length());
     
-    auto draw_range = [column_width, row_height, analysis_range, &colors](cv::Mat& mat, const Rangel& range, long_t id, uint8_t alpha = 200){
+    auto draw_range = [column_width, row_height, analysis_range, &colors](cv::Mat& mat, const Rangel& range, Idx_t id, uint8_t alpha = 200){
         Vec2 topleft((range.start - analysis_range.start) * column_width, row_height * id);
         Vec2 bottomright((range.end - analysis_range.start) * column_width, row_height * (id + 1));
         cv::rectangle(mat, topleft, bottomright, colors[id].alpha(alpha * 0.5), cv::FILLED);
@@ -538,9 +538,9 @@ size_t TrainingData::size() const {
     return n;
 }
 
-std::tuple<std::vector<Image::Ptr>, std::vector<long_t>> TrainingData::join_arrays() const {
+std::tuple<std::vector<Image::Ptr>, std::vector<Idx_t>> TrainingData::join_arrays() const {
     std::vector<Image::Ptr> images;
-    std::vector<long_t> ids;
+    std::vector<Idx_t> ids;
     
     const size_t L = size();
     ids.reserve(L);
@@ -621,12 +621,12 @@ typename std::vector<T>::iterator
         );
 }
 
-long_t TrainingData::DataRange::map(long_t id) const {
+Idx_t TrainingData::DataRange::map(Idx_t id) const {
     if(applied_mapping.empty()) return id;
     return applied_mapping.at(id);
 }
 
-long_t TrainingData::DataRange::unmap(long_t id) const {
+Idx_t TrainingData::DataRange::unmap(Idx_t id) const {
     if(applied_mapping.empty()) return id;
     for (auto && [original, mapped] : applied_mapping) {
         if(mapped == id) {
@@ -647,7 +647,7 @@ void TrainingData::DataRange::reverse_mapping() {
     auto str = Meta::toStr(applied_mapping);
     Debug("Reversing mapping with %S for %d-%d", &str, frames.start, frames.end);
     
-    std::map<long_t, DataRange::PerIndividual> map;
+    std::map<Idx_t, DataRange::PerIndividual> map;
     for(auto && [to, from] : applied_mapping) {
         auto it = mappings.find(from);
         if(it != mappings.end()) {
@@ -664,12 +664,12 @@ void TrainingData::DataRange::reverse_mapping() {
 std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::shared_ptr<TrainingData>& source, const std::string& purpose) {
     const size_t Nmax = 1000;
     
-    std::map<long_t, std::set<FrameRange>> individual_ranges;
-    std::map<long_t, std::tuple<size_t, size_t>> individual_samples;
+    std::map<Idx_t, std::set<FrameRange>> individual_ranges;
+    std::map<Idx_t, std::tuple<size_t, size_t>> individual_samples;
     
-    std::map<long_t, std::vector<FrameRange>> combined_ranges_per_individual;
+    std::map<Idx_t, std::vector<FrameRange>> combined_ranges_per_individual;
     
-    auto add_combined_range = [&combined_ranges_per_individual](const FrameRange& range, long_t id) {
+    auto add_combined_range = [&combined_ranges_per_individual](const FrameRange& range, Idx_t id) {
         auto& combined_ranges = combined_ranges_per_individual[id];
         
         bool found = false;
@@ -747,8 +747,8 @@ std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::share
             maximum_samples_per_individual = sum;
     }
     
-    std::map<long_t, std::set<std::tuple<FrameRange, const DataRange::PerIndividual*, const DataRange*, long_t>>> ranges_to_add;
-    std::map<long_t, std::set<long_t>> source_frames_per_individual;
+    std::map<Idx_t, std::set<std::tuple<FrameRange, const DataRange::PerIndividual*, const DataRange*, long_t>>> ranges_to_add;
+    std::map<Idx_t, std::set<long_t>> source_frames_per_individual;
     
     auto add_range = std::make_shared<DataRange>(true);
     for(auto &d : data()) {
@@ -778,8 +778,8 @@ std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::share
     }
     
     // add maximum of Nmax images per individual
-    std::map<long_t, std::tuple<size_t, size_t, size_t, size_t>> individual_added_salt;
-    std::map<long_t, std::tuple<size_t, size_t>> individual_samples_before_after;
+    std::map<Idx_t, std::tuple<size_t, size_t, size_t, size_t>> individual_added_salt;
+    std::map<Idx_t, std::tuple<size_t, size_t>> individual_samples_before_after;
     
     const double number_classes = SETTING(track_max_individuals).value<uint32_t>();
     const double gpu_max_sample_mb = double(SETTING(gpu_max_sample_gb).value<float>()) * 1000;
@@ -817,7 +817,7 @@ std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::share
         
         size_t actually_added = 0;
         for(auto && [range, ptr, d, ID] : ranges) {
-            long_t step_size = max(1, ceil(SR / (max_images_per_class * double(range.length()) / double(N))));
+            size_t step_size = max(1u, (size_t)ceil(SR / (max_images_per_class * double(range.length()) / double(N))));
             
             std::vector<std::tuple<long_t, Image::Ptr, Vec2, size_t>> frames;
             for(size_t i=0; i<ptr->frame_indexes.size(); ++i) {
@@ -865,7 +865,7 @@ std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::share
     return add_range;
 }
 
-bool TrainingData::generate(const std::string& step_description, pv::File & video_file, std::map<long_t, std::set<long_t> > individuals_per_frame, const std::function<void(float)>& callback, const TrainingData* source) {
+bool TrainingData::generate(const std::string& step_description, pv::File & video_file, std::map<Frame_t, std::set<Idx_t> > individuals_per_frame, const std::function<void(float)>& callback, const TrainingData* source) {
     auto frames = extract_keys(individuals_per_frame);
     
     Tracker::LockGuard guard("generate_training_data");
@@ -873,8 +873,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
     const Size2 output_size = SETTING(recognition_image_size);
     const auto& custom_midline_lengths = filters();
     
-    std::map<long_t, std::set<long_t>> illegal_frames;
-    //std::map<long_t, std::set<long_t>> add_from_source;
+    std::map<Idx_t, std::set<Frame_t>> illegal_frames;
     
     for(auto && [frame, ids] : individuals_per_frame) {
         for(auto id : ids) {
@@ -901,13 +900,13 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
         }
     }
     
-    std::map<long_t, long_t> lengths;
+    std::map<Idx_t, double> lengths;
     for(auto && [frame, ids] : individuals_per_frame) {
         for(auto id : ids)
             ++lengths[id];
     }
     
-    long_t fewest_samples = std::numeric_limits<long_t>::max(), most_samples = 0;
+    double fewest_samples = std::numeric_limits<double>::max(), most_samples = 0;
     for(auto && [id, L] : lengths) {
         if(L < fewest_samples)
             fewest_samples = L;
@@ -915,7 +914,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             most_samples = L;
     }
     
-    if(fewest_samples == std::numeric_limits<long_t>::max())
+    if(fewest_samples == std::numeric_limits<size_t>::max())
         fewest_samples = most_samples = 0;
     
     const double number_classes = FAST_SETTINGS(manual_identities).size();
@@ -935,7 +934,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
     // sub-sample any classes that need sub-sampling
     for(auto && [id, L] : lengths) {
         if(L > percentile) {
-            float step_size = percentile / L;
+            auto step_size = percentile / L;
             //if(step_size == 1)
             //    continue;
             
@@ -943,9 +942,9 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             
             // collect all frames where this individual is present
             
-            std::set<long_t> empty_frames;
-            long_t count = 0, after = 0;
-            float acc = 0;
+            std::set<Frame_t> empty_frames;
+            size_t count = 0, after = 0;
+            double acc = 0;
             
             for(auto && [frame, ids] : individuals_per_frame) {
                 if(ids.find(id) != ids.end()) {
@@ -985,10 +984,9 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
     Size2 minmum_size(FLT_MAX), maximum_size(0);
     Median<Float2_t> median_size_x, median_size_y;
     long_t inserted_start = std::numeric_limits<long_t>::max(), inserted_end = -1;
-    std::map<long_t, std::set<FrameRange>> added_from_source;
     
     // copy available images to map for easy access
-    std::map<long_t, std::map<long_t, std::tuple<long_t, Image::Ptr>>> available_images;
+    std::map<Idx_t, std::map<long_t, std::tuple<long_t, Image::Ptr>>> available_images;
     if(source) {
         for(auto & data : source->data()) {
             for(auto && [id, per] : data->mappings) {
@@ -1027,7 +1025,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
     size_t N_validation_images = 0, N_training_images = 0;
     size_t N_reused_images = 0;
     const bool calculate_posture = FAST_SETTINGS(calculate_posture);
-    std::map<long_t, std::vector<std::tuple<long_t, Image::Ptr>>> individual_training_images;
+    std::map<Idx_t, std::vector<std::tuple<long_t, Image::Ptr>>> individual_training_images;
     size_t failed_blobs = 0, found_blobs = 0;
     
     for(auto frame : frames) {
@@ -1043,11 +1041,11 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
         }
         
         // check so that we do not generate images again, that we have generated before
-        std::set<long_t> filtered_ids;
+        std::set<Idx_t> filtered_ids;
         
         for(auto id : FAST_SETTINGS(manual_identities)) {
-            if(individuals_per_frame.at(frame).find(id) != individuals_per_frame.at(frame).end())
-                filtered_ids.insert(id);
+            if(individuals_per_frame.at(frame).find(Idx_t(id)) != individuals_per_frame.at(frame).end())
+                filtered_ids.insert(Idx_t(id));
         }
         
         if(frame < inserted_start)
@@ -1252,9 +1250,9 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
     return N_training_images + N_validation_images > 0;
 }
 
-std::tuple<std::vector<Image::Ptr>, std::vector<long_t>, std::vector<long_t>, std::map<long_t, Range<size_t>>> TrainingData::join_arrays_ordered() const
+std::tuple<std::vector<Image::Ptr>, std::vector<Idx_t>, std::vector<long_t>, std::map<Frame_t, Range<size_t>>> TrainingData::join_arrays_ordered() const
 {
-    using fdx_t = long_t;
+    using fdx_t = Idx_t;
     using frame_t = long_t;
     
     std::vector<Image::Ptr> images;
@@ -1282,11 +1280,11 @@ std::tuple<std::vector<Image::Ptr>, std::vector<long_t>, std::vector<long_t>, st
         }
     }
     
-    std::map<frame_t, Range<size_t>> start_indexes;
+    std::map<Frame_t, Range<size_t>> start_indexes;
     
     for(auto && [frame, data] : collector) {
         auto & [_ids, _images] = data;
-        start_indexes[frame] = Range<size_t>(ids.size(), ids.size() + _ids.size());
+        start_indexes[Frame_t(frame)] = Range<size_t>(ids.size(), ids.size() + _ids.size());
         
         images.insert(images.end(), _images.begin(), _images.end());
         ids.insert(ids.end(), _ids.begin(), _ids.end());

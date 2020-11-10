@@ -678,7 +678,7 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                     temporary_save(final_path, [&](file::Path path){
                         Debug("Generating memory stats...");
                         mem::IndividualMemoryStats overall;
-                        std::map<track::idx_t, mem::IndividualMemoryStats> indstats;
+                        std::map<track::Idx_t, mem::IndividualMemoryStats> indstats;
                         for(auto && [fdx, fish] : tracker.individuals()) {
                             mem::IndividualMemoryStats stats(fish);
                             indstats[fdx] = stats;
