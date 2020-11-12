@@ -137,8 +137,10 @@ file::Path conda_environment_path() {
 #endif
 
     if(home == "CONDA_PREFIX" || home == "" || home == compiled_path) {
+#ifndef NDEBUG
         if(!SETTING(quiet))
             Debug("Reset conda prefix '%S' / '%S'", &home, &compiled_path);
+#endif
         auto conda_prefix = getenv("CONDA_PREFIX");
         
         if(conda_prefix) {
@@ -163,8 +165,10 @@ file::Path conda_environment_path() {
     } else
         home = compiled_path;
     
+#ifndef NDEBUG
     if(!SETTING(quiet))
         Debug("Set conda environment path = '%S'", &home);
+#endif
     return home;
 }
     

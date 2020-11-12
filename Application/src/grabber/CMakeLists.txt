@@ -239,7 +239,7 @@ install(TARGETS ${targets}
     RUNTIME DESTINATION bin
     BUNDLE DESTINATION bin
     INCLUDES DESTINATION include
-    CONFIGURATIONS Release
+    CONFIGURATIONS Debug
 )
 
 install(FILES ${CMAKE_SOURCE_DIR}/closed_loop.py DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)

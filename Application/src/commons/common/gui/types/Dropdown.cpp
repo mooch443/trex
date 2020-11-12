@@ -17,7 +17,7 @@ namespace gui {
     { }
     
     Dropdown::Dropdown(const Bounds& bounds, const std::vector<TextItem>& options, Type type)
-    : _list(Bounds(0, bounds.height, bounds.width, 230), options, Font(0.6, Align::Left), [this](size_t s) { _selected_item = s; }),
+    : _list(Bounds(0, bounds.height, bounds.width, 230), options, Font(0.6f, Align::Left), [this](size_t s) { _selected_item = s; }),
           _on_select([](auto, auto&){}),
           _items(options),
           _opened(false),
@@ -191,8 +191,8 @@ namespace gui {
         
         if(index < 0)
             index = 0;
-        else if(index > (long)_list.items().size()-1)
-            index = _list.items().size()-1;
+        else if((size_t)index+1 > _list.items().size())
+            index = (long)_list.items().size()-1;
         
         if(_list.items().empty())
             index = -1;

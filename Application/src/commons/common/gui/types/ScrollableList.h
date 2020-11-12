@@ -232,7 +232,7 @@ namespace gui {
             if(!stage())
                 return;
             
-            if(_last_hovered_item > 0)
+            if(_last_hovered_item >= 0)
                 select_item((uint64_t)_last_hovered_item);
         }
         
