@@ -57,7 +57,7 @@ namespace DEBUG {
     
     struct RuntimeCheck {
         ~RuntimeCheck() {
-            if(out != stdout) {
+            if(out && out != stdout) {
                 if(!runtime_quiet())
                     DebugHeader("PROGRAM TERMINATED");
                 
@@ -178,10 +178,10 @@ insert_start(tree, &current_node, e); }
 #if _XCODE_COLORS_DISABLE
             if(!out || out == stdout) {
                 out = fopen("cout.log", "wb");
-                if (NULL == out) { perror("opening cout.log"); throw std::runtime_error("cannot write cout.log"); }
+                if (NULL == out) { perror("opening cout.log"); }
                 
                 err = fopen("cerr.log", "wb");
-                if (NULL == err) { perror("opening cerr.log"); throw std::runtime_error("cannot write cerr.log"); }
+                if (NULL == err) { perror("opening cerr.log"); }
             }
             
             ENABLE_COLORS = CONSOLE_COLOR_STATE::ENABLE_UNIX;
@@ -212,7 +212,7 @@ insert_start(tree, &current_node, e); }
         
         va_end(args);
         
-        if(out != stdout) {
+        if(out && out != stdout) {
             fwrite(str.data(), sizeof(char), str.length(), out);
             fflush(out);
         }
@@ -268,7 +268,7 @@ insert_start(tree, &current_node, e); }
             }
             
 #if __APPLE__
-            if(out != stdout)
+            if(out && out != stdout)
                 fprintf(out, "\033[fg%d,%d,%d;", r, g, b);
             else
 #endif
@@ -307,7 +307,7 @@ insert_start(tree, &current_node, e); }
             }
             
 #if __APPLE__
-            if(out != stdout)
+            if(out && out != stdout)
                 fprintf(out, "\033[%02d;%dm", prefix, final);
             else
 #endif
