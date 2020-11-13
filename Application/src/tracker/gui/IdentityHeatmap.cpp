@@ -117,26 +117,64 @@ void HeatmapController::paint_heatmap() {
 void HeatmapController::save() {
     update_variables();
     
-    file::Path path = pv::DataLocation::parse("output", file::Path((std::string)SETTING(filename).value<file::Path>().filename()+ "_heatmap_"+Meta::toStr(uniform_grid_cell_size)+"_"+Meta::toStr(N)+"x"+Meta::toStr(N)+".npz"));
-    DebugHeader("Saving heatmap to '%S'...", &path.str());
-    
     _frame_context = 0;
     _normalization = normalization_t::value;
     custom_heatmap_value_range = Range<double>(0, 1);
     
+    size_t count_frames = 0, package_count = 0;
+    size_t max_frames = sign_cast<size_t>(Tracker::end_frame() - Tracker::start_frame());
+    size_t print_step = max_frames / 10 + 1;
+
     std::vector<double> per_frame;
-    uint64_t expected = uint64_t(Tracker::number_frames() * N * N * 2);
+    uint64_t expected = uint64_t((max_frames + 1) * N * N * 2);
     const bool be_quiet = SETTING(quiet);
-    if(!be_quiet) {
+    //if (!be_quiet) 
+    {
         auto str = FileSize{ expected * sizeof(double) }.to_string();
         Debug("Likely memory size: %S", &str);
     }
-    per_frame.reserve(expected);
-    
-    size_t count_frames = 0;
-    size_t max_frames = sign_cast<size_t>(Tracker::end_frame() - Tracker::start_frame());
-    size_t print_step = max_frames / 10 + 1;
+
+    const uint64_t value_size = sizeof(decltype(per_frame)::value_type);
+    const uint64_t maximum_package_size = uint64_t(4.0 * 1024.0 * 1024.0 * 1024.0 / double(value_size));
+    bool enable_packages = expected >= maximum_package_size;
+
+    Debug("ValueSize=%lu MaximumPackageSize=%lu", value_size, maximum_package_size);
+
+    if (enable_packages) {
+        per_frame.reserve(maximum_package_size);
+    } else
+        per_frame.reserve(expected);
+
     std::vector<long_t> frames;
+    size_t package_index = 0;
+
+    auto save_package = [&]() {
+        std::vector<size_t> shape = {
+            package_count, 2, N, N
+        };
+
+        auto str = Meta::toStr(shape);
+        Debug("Done (%lu / %lu, shape %S).", expected, per_frame.size(), &str);
+
+        file::Path path = pv::DataLocation::parse("output", 
+            file::Path((std::string)SETTING(filename).value<file::Path>().filename() 
+                + "_heatmap" 
+                + "_p" + Meta::toStr(package_index) + "_"
+                + Meta::toStr(uniform_grid_cell_size) 
+                + "_" + Meta::toStr(N) + "x" + Meta::toStr(N) 
+                + ".npz"));
+        DebugHeader("Saving package %lu to '%S'...", package_index, &path.str());
+
+        cmn::npz_save(path.str(), "heatmap", per_frame.data(), shape);
+        cmn::npz_save(path.str(), "frames", frames, "a");
+        Debug("Saved to '%S'.", &path.str());
+
+        per_frame.clear();
+        frames.clear();
+        package_count = 0;
+        ++package_index;
+    };
+
     for(long_t frame = Tracker::start_frame(); frame <= Tracker::end_frame(); ++frame) {
         update_data(frame);
         sort_data_into_custom_grid();
@@ -146,23 +184,22 @@ void HeatmapController::save() {
         frames.push_back(frame);
         
         if(!be_quiet && count_frames % print_step == 0) {
-            Debug("Saving heatmap %.2f%% ... (frame %d / %d, path:'%S')", double(count_frames) / double(max_frames) * 100, frame, Tracker::end_frame(), &path.str());
+            Debug("Saving heatmap %.2f%% ... (frame %d / %d)", double(count_frames) / double(max_frames) * 100, frame, Tracker::end_frame());
         }
-        
+
         ++count_frames;
+        ++package_count;
+        
+        if (enable_packages && per_frame.size() >= maximum_package_size) {
+            auto size0 = FileSize{ per_frame.size() * sizeof(decltype(per_frame)::value_type) }.to_string(), 
+                 size1 = FileSize{ maximum_package_size * sizeof(decltype(per_frame)::value_type) }.to_string();
+            Debug("Splitting package at %S / %S.", &size0, &size1);
+
+            save_package();
+        }
     }
-    
-    std::vector<size_t> shape = {
-        count_frames, 2, N, N
-    };
-    
-    auto str = Meta::toStr(shape);
-    Debug("Done (%lu / %lu, shape %S).", expected, per_frame.size(), &str);
-    
-    cmn::npz_save(path.str(), "heatmap", per_frame.data(), shape);
-    cmn::npz_save(path.str(), "frames", frames, "a");
-    Debug("Saved to '%S'.", &path.str());
-    
+
+    save_package();
     update_variables();
 }
 
