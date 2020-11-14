@@ -149,7 +149,7 @@ public:
         second_list->set_toggle(true);
         second_list->set_foldable(false);
         
-        menu = std::make_shared<gui::List>(Bounds(Vec2(), Size2(150,33)), "menu", std::vector<std::shared_ptr<List::Item>>{
+        menu = std::make_shared<gui::List>(Bounds(Vec2(), Size2(200,33)), "menu", std::vector<std::shared_ptr<List::Item>>{
             std::make_shared<TextItem>("load state [L]", LOAD),
             std::make_shared<TextItem>("save state [Z]", SAVE),
             std::make_shared<TextItem>("save config", CONFIG),
