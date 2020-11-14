@@ -3937,7 +3937,7 @@ void GUI::key_event(const gui::Event &event) {
     
     if(key.code >= Codes::Num0 && key.code <= Codes::Num9) {
         std::lock_guard<std::recursive_mutex> lock(_gui.lock());
-        Identity id(int(key.code - Codes::Num0));
+        Identity id(narrow_cast<uint32_t>(key.code - Codes::Num0));
         SETTING(gui_focus_group) = std::vector<Idx_t>{id.ID()};
         set_redraw();
         return;
