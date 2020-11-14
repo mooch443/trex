@@ -1255,6 +1255,10 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             uint64_t size, vsize;
             uint32_t bid;
             
+            if(L > 0) {
+                file._header.has_recognition_data = true;
+            }
+            
             for(uint64_t i=0; i<L; ++i) {
                 file.read<data_long_t>(frame);
                 file.read<uint64_t>(size);
@@ -1442,6 +1446,15 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         }
         
         if(Recognition::recognition_enabled()) {
+            GUI::instance()->work().add_queue("", [](){
+                Tracker::instance()->check_segments_identities(false, [](float x) { },
+                [](const std::string&t, const std::function<void()>& fn, const std::string&b)
+                {
+                    if(GUI::instance())
+                        GUI::instance()->work().add_queue(t, fn, b);
+                });
+            });
+            
             if(GUI::instance()) {
                 /*update_progress("apply network...", -1, "");
                 

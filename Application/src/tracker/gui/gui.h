@@ -40,7 +40,7 @@ CREATE_STRUCT(Cache,
     (bool, terminate),
     (bool, gui_show_blobs),
     (bool, gui_show_paths),
-    (bool, gui_show_manual_matches),
+    //(bool, gui_show_manual_matches),
     (bool, gui_show_texts),
     (bool, gui_show_selections),
     (bool, gui_show_inactive_individuals),
@@ -236,6 +236,7 @@ public:
     void load_connectivity_matrix();
     
     void toggle_fullscreen();
+    void open_docs();
     
     std::string window_title() const;
     

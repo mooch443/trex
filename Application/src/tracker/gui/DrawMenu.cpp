@@ -91,6 +91,7 @@ class DrawMenuPrivate {
         EXPORT,
         EXPORT_VF,
         START_VALIDATION,
+        DOCS,
         QUIT
     };
     
@@ -149,19 +150,22 @@ public:
         second_list->set_foldable(false);
         
         menu = std::make_shared<gui::List>(Bounds(Vec2(), Size2(150,33)), "menu", std::vector<std::shared_ptr<List::Item>>{
-            std::make_shared<TextItem>("load state", LOAD),
-            std::make_shared<TextItem>("save state", SAVE),
+            std::make_shared<TextItem>("load state [L]", LOAD),
+            std::make_shared<TextItem>("save state [Z]", SAVE),
             std::make_shared<TextItem>("save config", CONFIG),
-            std::make_shared<TextItem>("train network", TRAINING),
+            std::make_shared<TextItem>("save tracking data [S]", EXPORT),
+            
             std::make_shared<TextItem>("load settings", LOAD_SETTINGS),
             //std::make_shared<TextItem>("training faces", FACES),
+            std::make_shared<TextItem>("visual identification", TRAINING),
             std::make_shared<TextItem>("auto correct", CHECK),
             std::make_shared<TextItem>("clear auto-matches", CLEAR),
-            std::make_shared<TextItem>("debug posture", DEBUG),
-            std::make_shared<TextItem>("export tracking data", EXPORT),
-            std::make_shared<TextItem>("export visual field", EXPORT_VF),
+            //std::make_shared<TextItem>("debug posture", DEBUG),
+            std::make_shared<TextItem>("export visual fields", EXPORT_VF),
             std::make_shared<TextItem>("validation", START_VALIDATION),
-            std::make_shared<TextItem>("quit", QUIT)
+            
+            std::make_shared<TextItem>("online docs [F1]", DOCS),
+            std::make_shared<TextItem>("quit [Esc]", QUIT)
             
         }, [this](auto, const List::Item& item) {
             auto gPtr = GUI::instance();
@@ -249,6 +253,10 @@ public:
                     gPtr->confirm_terminate();
                     break;
                     
+                case DOCS: {
+                    gPtr->open_docs();
+                    break;
+                }
                 default:
                     Warning("Unknown action '%S'.", &(const std::string&)item);
             }

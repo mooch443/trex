@@ -44,7 +44,7 @@ namespace gui {
     }
     
     GUICache::GUICache()
-        : last_threshold(-1), last_frame(-1), _dirty(true), _calculating_pixel_percentiles(false), _equalize_histograms(true), _blobs_dirty(false), _raw_blobs_dirty(false), _mode(mode_t::tracking), _zoom_level(1),  _tracking_dirty(false), recognition_updated(false)
+        : last_threshold(-1), last_frame(-1), _dirty(true), _equalize_histograms(true), _blobs_dirty(false), _raw_blobs_dirty(false), _mode(mode_t::tracking), _zoom_level(1),  _tracking_dirty(false), recognition_updated(false)
     {}
     
     bool GUICache::has_selection() const {
@@ -147,18 +147,22 @@ namespace gui {
         
         frame_idx = frameIndex;
         
-        if(!_calculating_pixel_percentiles) {
-            _calculating_pixel_percentiles = true;
+        static std::atomic_bool done_calculating = false;
+        static auto percentile_ptr = std::make_unique<std::thread>([this](){
+            Debug("Percentiles...");
+            auto percentiles = GUI::instance()->video_source()->calculate_percentiles({0.05f, 0.95f});
             
-            Tracker::instance()->thread_pool().enqueue([this](){
-                Debug("Percentiles...");
-                auto percentiles = GUI::instance()->video_source()->calculate_percentiles({0.05f, 0.95f});
-                
-                if(GUI::instance()) {
-                    std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
-                    pixel_value_percentiles = percentiles;
-                }
-            });
+            if(GUI::instance()) {
+                std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
+                pixel_value_percentiles = percentiles;
+            }
+            
+            done_calculating = true;
+        });
+        
+        if(percentile_ptr && done_calculating) {
+            percentile_ptr->join();
+            percentile_ptr = nullptr;
         }
         
         if(_statistics.size() < _tracker._statistics.size()) {

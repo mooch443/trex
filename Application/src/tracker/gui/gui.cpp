@@ -2694,7 +2694,7 @@ void GUI::draw_footer(DrawStructure& base) {
     static List options_dropdown(Size2(150, 33 + 2), "display", {
         std::make_shared<SITEM(gui_show_blobs)>("blobs"),
         std::make_shared<SITEM(gui_show_paths)>("paths"),
-        std::make_shared<SITEM(gui_show_manual_matches)>("manual matches"),
+        //std::make_shared<SITEM(gui_show_manual_matches)>("manual matches"),
         std::make_shared<SITEM(gui_show_texts)>("texts"),
         std::make_shared<SITEM(gui_show_selections)>("selections"),
         std::make_shared<SITEM(gui_show_inactive_individuals)>("inactive"),
@@ -2722,7 +2722,7 @@ void GUI::draw_footer(DrawStructure& base) {
     
     auto h = screen_dimensions().height;
     layout.set_pos(Vec2(20, h - 10) - bg_offset / base.scale().x);
-    layout.set_scale(1.1 * base.scale().reciprocal());
+    layout.set_scale(1.1f * base.scale().reciprocal());
     
     auto layout_scale = layout.scale().x;
     auto stretch_w = status_layout.global_bounds().pos().x - 20 - textfield.global_bounds().pos().x;
@@ -2731,19 +2731,7 @@ void GUI::draw_footer(DrawStructure& base) {
     else
         textfield.set_size(Size2(300, textfield.height()));
     
-    /*static PieChart pie(Vec2(_average_image.cols,_average_image.rows) * 0.5, min(_average_image.cols, _average_image.rows) * 0.25 * 0.5,
-    {
-        PieChart::Slice("view"),
-        PieChart::Slice("load"),
-        PieChart::Slice("save"),
-        PieChart::Slice("identity"),
-        PieChart::Slice("quit")
-    });
-    
-    pie.set_alpha(0.75);*/
-    
-    static FlowMenu pie( min(_average_image.cols, _average_image.rows) * 0.25 * 0.5, [](size_t , const std::string& item){
-        Debug("Leaf %S", &item);
+    static FlowMenu pie( min(_average_image.cols, _average_image.rows) * 0.25f * 0.5f, [](size_t , const std::string& item){
         SETTING(enable_pie_chart) = false;
     });
     
@@ -3920,6 +3908,26 @@ void GUI::start_backup() {
     });
 }
 
+void GUI::open_docs() {
+    std::string filename("https://trex.run/docs");
+    Debug("Opening '%S' in browser...", &filename);
+#if __linux__
+    auto pid = fork();
+    if (pid == 0) {
+        execl("/usr/bin/xdg-open", "xdg-open", filename.c_str(), (char *)0);
+        exit(0);
+    }
+#elif __APPLE__
+    auto pid = fork();
+    if (pid == 0) {
+        execl("/usr/bin/open", "open", filename.c_str(), (char *)0);
+        exit(0);
+    }
+#else
+    ShellExecute(0, 0, filename.c_str(), 0, 0 , SW_SHOW );
+#endif
+}
+
 void GUI::key_event(const gui::Event &event) {
     auto &key = event.key;
     if(!key.pressed)
@@ -3951,6 +3959,9 @@ void GUI::key_event(const gui::Event &event) {
     };
     
     switch (key.code) {
+        case Codes::F1:
+            open_docs();
+            break;
         case Codes::F11:
             if(_base)
                 toggle_fullscreen();

@@ -175,7 +175,7 @@ TRex parameters
 
 .. function:: build_cxx_options(string)
 
-	**default value:** " -Wno-c++98-compat-pedantic -fvisibility=hidden -O3 -DNDEBUG -O3 -Wno-nullability-extension"
+	**default value:** " -Wno-c++98-compat-pedantic -fvisibility=hidden -Wno-missing-field-initializers -Wno-missing-prototypes -Wnon-virtual-dtor -Woverloaded-virtual -Wno-exit-time-destructors -Wmissing-braces -Wparentheses -Wswitch -Wunused-function -Wno-unused-label -Wno-unused-parameter -Wno-unused-variable -Wunused-value -Wempty-body -Wuninitialized -Wno-unknown-pragmas -Wno-shadow -Wno-four-char-constants -Wconversion -Wconstant-conversion -Wint-conversion -Wbool-conversion -Wenum-conversion -Wfloat-conversion -Wnon-literal-null-conversion -Wobjc-literal-conversion -Wsign-compare -Wno-shorten-64-to-32 -Wnewline-eof -Wno-c++11-extensions -O3 -DNDEBUG -O3 -Wno-nullability-extension"
 
 
 	The mode the application was built in.
@@ -758,15 +758,6 @@ TRex parameters
 	Show/hide individuals that have not been seen for longer than `track_max_reassign_time`.
 
 	.. seealso:: :func:`track_max_reassign_time`, 
-
-
-.. function:: gui_show_manual_matches(bool)
-
-	**default value:** true
-
-
-	Show/hide manual matches in path.
-
 
 
 .. function:: gui_show_memory_stats(bool)

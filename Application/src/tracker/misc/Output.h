@@ -125,14 +125,15 @@ namespace Output {
         
         struct Header {
             Versions version;
-            uint64_t gui_frame;
+            uint64_t gui_frame = 0;
             std::string settings;
             std::string cmd_line;
             std::vector<Rangel> consecutive_segments;
             Size2 video_resolution;
-            uint64_t video_length;
+            uint64_t video_length = 0;
             Image average;
             Range<int64_t> analysis_range;
+            bool has_recognition_data = false;
         };
         
         GETTER_NCONST(Header, header)

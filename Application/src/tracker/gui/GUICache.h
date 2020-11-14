@@ -37,7 +37,6 @@ namespace gui {
 
         long_t frame_idx;
         
-        bool _calculating_pixel_percentiles;
         std::vector<float> pixel_value_percentiles;
         bool _equalize_histograms;
         
