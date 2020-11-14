@@ -3583,7 +3583,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
     void Tracker::check_segments_identities(bool auto_correct, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue, long_t after_frame) {
         
         Debug("Waiting for gui...");
-        if(GUI::instance() && auto_correct) {
+        if(GUI::instance()) {
             std::lock_guard<decltype(GUI::instance()->gui().lock())> guard(GUI::instance()->gui().lock());
             GUI::work().set_item("updating with automatic ranges");
         }
