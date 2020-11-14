@@ -50,5 +50,5 @@ install(TARGETS trex_check_python
     RUNTIME DESTINATION usr/share/trex
     BUNDLE DESTINATION usr/share/trex
     INCLUDES DESTINATION usr/share/trex/include
-    CONFIGURATIONS Debug
+    CONFIGURATIONS Release
 )
