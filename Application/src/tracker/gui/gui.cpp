@@ -42,6 +42,8 @@
 #include <gui/DrawMenu.h>
 
 #if WIN32
+#include <Shellapi.h>
+
 #define access(X, Y) _access(X, Y)
 #define W_OK 2
 #endif
