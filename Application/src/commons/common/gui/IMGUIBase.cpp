@@ -621,7 +621,7 @@ void clear_cache() {
         int fw, fh;
         auto window = _platform->window_handle();
         glfwGetFramebufferSize(window, &fw, &fh);
-        if(fw > 0 && fh > 0 && fw != _last_framebuffer_size.width && fh != _last_framebuffer_size.height)
+        if(fw > 0 && fh > 0 && (fw != _last_framebuffer_size.width || fh != _last_framebuffer_size.height))
         {
 #ifndef NDEBUG
             Debug("Changed framebuffer size to %dx%d", fw, fh);
