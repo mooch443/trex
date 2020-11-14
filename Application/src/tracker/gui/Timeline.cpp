@@ -731,7 +731,8 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
         if(frame != next_frame) {
             SETTING(gui_frame) = next_frame;
             
-            if(_s_fdx.valid()) {
+            if(!_s_fdx.valid())
+            {
                 auto &cache = GUI::instance()->cache();
                 if(!fdx.empty()) {
                     cache.deselect_all();
@@ -768,7 +769,8 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
         if(frame != next_frame && next_frame != -1) {
             SETTING(gui_frame) = next_frame;
             
-            if(_s_fdx.valid()) {
+            if(!_s_fdx.valid())
+            {
                 auto &cache = GUI::instance()->cache();
                 if(!fdx.empty()) {
                     cache.deselect_all();
