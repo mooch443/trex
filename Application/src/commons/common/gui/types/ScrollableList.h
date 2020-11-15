@@ -239,7 +239,7 @@ namespace gui {
     private:
         void update_items() {
             const float item_height = _line_spacing;
-            size_t N = size_t(ceilf(height() / _line_spacing)) + 1u; // one item will almost always be half-visible
+            size_t N = size_t(ceilf(max(0.f, height()) / _line_spacing)) + 1u; // one item will almost always be half-visible
             
             if(N != _rects.size()) {
                 if(N < _rects.size()) {
@@ -305,7 +305,7 @@ namespace gui {
                 
                 rect_to_idx.clear();
                 
-                for(size_t i=first_visible, idx = 0; i<=last_visible && i<_items.size(); i++, idx++) {
+                for(size_t i=first_visible, idx = 0; i<=last_visible && i<_items.size() && idx < _rects.size(); i++, idx++) {
                     auto& item = _items[i];
                     const float y = i * _line_spacing;
                     

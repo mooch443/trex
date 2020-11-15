@@ -174,8 +174,8 @@ namespace gui {
         //    Debug("Updating horizontal layout '%S' to width %f", &Drawable::name(), width());
         
         //Debug("Updating layout at %f with width %f -> %f", pos().x, width(), x);
-        if(Size2(x, max_height) != size()) {
-            set_size(Size2(x, max_height));
+        if(Size2(x, max(0, max_height)) != size()) {
+            set_size(Size2(x, max(0, max_height)));
             set_content_changed(true);
         }
     }
@@ -225,7 +225,7 @@ namespace gui {
             y += local.height + _margins.height;
         }
         
-        set_size(Size2(max_width, y));
+        set_size(Size2(max_width, max(0.f, y)));
     }
     
     void VerticalLayout::set_policy(Policy policy) {

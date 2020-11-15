@@ -162,7 +162,7 @@ namespace gui {
             ma = max(bds.pos() + bds.size(), ma);
         }
         
-        ma += Vec2(margin.right, margin.bottom);
+        ma += Vec2(max(0.f, margin.right), max(0.f, margin.bottom));
         
 #ifndef NDEBUG
         if(!Drawable::name().empty() && ma != _bounds.size())
