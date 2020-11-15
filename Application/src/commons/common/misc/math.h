@@ -1,5 +1,28 @@
 #pragma once
 
+#ifdef WIN32
+#define _USE_MATH_DEFINES
+#include <cmath>
+
+#if (_MSC_VER <= 1916)
+    // visual studio 2017 does not have __builtin_clzl
+    #include <intrin.h>
+
+    static inline int __builtin_clz(unsigned x) {
+        return (int)__lzcnt(x);
+    }
+
+    static inline int __builtin_clzll(unsigned long long x) {
+        return (int)__lzcnt64(x);
+    }
+
+    static inline int __builtin_clzl(unsigned long x) {
+        return sizeof(x) == 8 ? __builtin_clzll(x) : __builtin_clz((uint32_t)x);
+    }
+#endif
+
+#endif
+
 namespace cmn {
     template<typename T = double>
     inline T cos(const T& s) {

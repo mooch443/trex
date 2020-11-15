@@ -398,7 +398,7 @@ TexturePtr GLImpl::texture(const Image * ptr) {
         }
     }
     
-    auto width = next_pow2(ptr->cols), height = next_pow2(ptr->rows);
+    auto width = next_pow2(sign_cast<uint64_t>(ptr->cols)), height = next_pow2(sign_cast<uint64_t>(ptr->rows));
     auto capacity = size_t(ptr->dims) * size_t(width) * size_t(height);
     if (empty.size() < capacity)
         empty.resize(capacity, 0);

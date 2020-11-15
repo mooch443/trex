@@ -54,8 +54,7 @@ constexpr To sign_cast(From&& value) {
     using FromType = typename remove_cvref<From>::type;
     using ToType = typename remove_cvref<To>::type;
     
-    if constexpr(!std::is_floating_point<ToType>::value
-                 && std::is_integral<ToType>::value)
+    if constexpr(std::is_integral<ToType>::value)
     {
         if constexpr(std::is_signed<ToType>::value) {
             if (value > std::numeric_limits<ToType>::max())

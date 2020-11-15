@@ -804,7 +804,7 @@ void Leaf::clear() {
 }
 
 void Grid::create(const Size2 &image_dimensions) {
-    uint32_t dim = (uint32_t)image_dimensions.max();
+    auto dim = sign_cast<uint32_t>(image_dimensions.max());
     dim = (uint32_t)next_pow2(dim); // ensure that it is always divisible by two
     Debug("Creating a grid of size %ux%u (for image of size %.0fx%.0f)", dim, dim, image_dimensions.width, image_dimensions.height);
     

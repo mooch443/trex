@@ -152,8 +152,8 @@ void clear_cache() {
         static Size2 gpu_size_of(const ExternalImage* image) {
             if(!image || !image->source())
                 return Size2();
-            return Size2(next_pow2((uint64_t)image->source()->bounds().width),
-                         next_pow2((uint64_t)image->source()->bounds().height));
+            return Size2(next_pow2(sign_cast<uint64_t>(image->source()->bounds().width)),
+                         next_pow2(sign_cast<uint64_t>(image->source()->bounds().height)));
         }
         
         void update_with(const ExternalImage* image) {

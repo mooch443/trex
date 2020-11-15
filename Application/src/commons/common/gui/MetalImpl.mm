@@ -2,6 +2,7 @@
 
 #include <types.h>
 #include <misc/metastring.h>
+#include <misc/checked_casts.h>
 #include "MetalImpl.h"
 
 #include <imgui/imgui.h>
@@ -354,8 +355,8 @@ bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
     TexturePtr MetalImpl::texture(const Image * ptr) {
         GLIMPL_CHECK_THREAD_ID();
         
-        uint width = next_pow2(ptr->cols);
-        uint height = next_pow2(ptr->rows);
+        uint width = next_pow2(sign_cast<uint64_t>(ptr->cols));
+        uint height = next_pow2(sign_cast<uint64_t>(ptr->rows));
         
         auto input_format = MTLPixelFormatRGBA8Unorm;
         if(ptr->dims == 1) {
