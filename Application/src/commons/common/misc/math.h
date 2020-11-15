@@ -3,11 +3,9 @@
 #ifdef WIN32
 #define _USE_MATH_DEFINES
 #include <cmath>
+#include <intrin.h>
 
-#if (_MSC_VER <= 1916)
-    // visual studio 2017 does not have __builtin_clzl
-    #include <intrin.h>
-
+#if defined(_MSC_VER)
     static inline int __builtin_clz(unsigned x) {
         return (int)__lzcnt(x);
     }
