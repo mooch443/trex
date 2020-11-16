@@ -627,6 +627,8 @@ file::Path conda_environment_path() {
             "cmd_line",
             "ffmpeg_path",
             "httpd_port",
+            "cam_undistort1",
+            "cam_undistort2",
             
             // from info utility
             "print_parameters",
