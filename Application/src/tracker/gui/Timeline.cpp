@@ -116,10 +116,6 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
     auto offset = Vec2(0,5) * scale;
     
     if(!consec.empty()) {
-        //Size2(max_w * percent / use_scale.x, bar_height);
-        auto position = offset + Vec2(max_w * consec.start / float(_frame_info.video_length), 0);
-        auto size = Size2(max_w * (consec.end - consec.start) / float(_frame_info.video_length), bar_height);
-        
         std::deque<Color> colors {
             Green,
             Yellow,
@@ -127,18 +123,15 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
             Gray
         };
         
-        DEBUG_CV(cv::rectangle(mat, position - Vec2(1), position - Vec2(1) + size + Size2(2), colors.front().alpha(50)));
-        DEBUG_CV(cv::rectangle(mat, position - Vec2(1), position - Vec2(1) + size + Size2(2), Color(alpha, alpha, alpha, 255)));
-        //base.rect(Bounds(position - Vec2(1), size + Size2(2)), colors.front().alpha(50), Color(alpha, alpha, alpha, 255));
-        colors.pop_front();
-        
         for(auto &consec : other_consec) {
-            position = offset + Vec2(max_w * consec.start / float(_frame_info.video_length), 0);
-            size = Size2(max_w * (consec.end - consec.start) / float(_frame_info.video_length), bar_height);
+            auto position = offset + Vec2(max_w * consec.start / float(_frame_info.video_length), 0);
+            auto size = Size2(max_w * (consec.end - consec.start) / float(_frame_info.video_length), bar_height);
             
             DEBUG_CV(cv::rectangle(mat, position - Vec2(1), position - Vec2(1) + size + Size2(2), colors.front().alpha(50), cv::FILLED));
             DEBUG_CV(cv::rectangle(mat, position - Vec2(1), position - Vec2(1) + size + Size2(2), Color(alpha, alpha, alpha, 255)));
-            colors.pop_front();
+            
+            if(!colors.empty())
+                colors.pop_front();
         }
     }
     
@@ -154,7 +147,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
             
             --position.y;
             DEBUG_CV(cv::line(mat, position, position + Vec2(size.width, 0), Green.alpha(alpha)));
-            DEBUG_CV(cv::line(mat, position, position + Vec2(0, -5 * scale), Green.alpha(alpha), thickness));
+            DEBUG_CV(cv::line(mat, position, position - offset, Green.alpha(alpha), thickness));
         }
     }
     
@@ -210,8 +203,8 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
         auto consec = _frame_info.global_segment_order.empty() ? Rangel(-1,-1) : _frame_info.global_segment_order.front();
         std::vector<Rangel> other_consec;
         if(_frame_info.global_segment_order.size() > 1) {
-            for (int i=0; i<3 && i+1 < (int)_frame_info.global_segment_order.size(); ++i) {
-                other_consec.push_back(_frame_info.global_segment_order.at(i+1));
+            for (size_t i=0; i<3 && i < _frame_info.global_segment_order.size(); ++i) {
+                other_consec.push_back(_frame_info.global_segment_order.at(i));
             }
         }
         number << "consec: " << consec.start << "-" << consec.end << " (" << consec.end - consec.start << ")";
@@ -273,9 +266,9 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
         
         pos = Vec2(0, y) - offset;
         
-        gui::Color red_bar_clr(250, 250, 250, _bar && _bar->hovered() ? 180 : 150);
+        gui::Color red_bar_clr(250, 250, 250, _bar && _bar->hovered() ? 220 : 180);
         
-        base.rect(pos, Vec2(max_w, bar_height), White.alpha(125));
+        base.rect(pos, Vec2(max_w, bar_height), White.alpha(175));
         
         float percent = float(tracker_endframe) / _frame_info.video_length;
         base.rect(pos, Size2(max_w * percent, bar_height), red_bar_clr);
@@ -284,14 +277,14 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
             std::lock_guard<std::mutex> guard(_proximity_bar.mutex);
             float new_height = roundf(bar_height);
             _bar->set_scale(Vec2(1, new_height));
-            _bar->set_color(White.alpha(150));
+            _bar->set_color(White.alpha(200));
             _bar->set_pos(pos);
             base.wrap_object(*_bar);
             
             if(FAST_SETTINGS(recognition_enable)) {
-                update_consecs(max_w, consec, other_consec, use_scale.y * 0.75f);
+                update_consecs(max_w, consec, other_consec, 1);
                 if(_consecutives) {
-                    _consecutives->set_pos(pos - Vec2(0,5) * max(1, use_scale.y * 0.75f));
+                    _consecutives->set_pos(pos - Vec2(0,5));
                     base.wrap_object(*_consecutives);
                 }
             }

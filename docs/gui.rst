@@ -60,6 +60,11 @@ Timeline
 
 The timeline works like the position indicator in your typical video player application. Click on it, hold the mouse button down and slide it around on the timeline to switch between frames.
 
+.. image:: ../images/timeline.png
+	:width: 700
+	:alt: The timeline (outlined in red)
+	:align: center
+
 It has some extra functionality, however. Sometimes you will see colorful things up there. If you set the number of individuals (:func:`track_max_individuals`), then you might get a green, a red, a yellow and a grey rectangle up there -- overlayed on the timeline. These indicate "good" segments for training (ranked as listed previously). If they are yellow/pink/etc. lines on your timeline, then they indicate problematic frames in your video. You can jump between them using the ``M``/``N`` keys on your keyboard (see `Keyboard shortcuts`_). The type of problem depends on your selection of "foi types" in the top menu.
 
 Display menu
@@ -73,7 +78,7 @@ Different visualisations can be enabled or disabled using the display menu (4) o
 	:align: center
 
 - export options
-	Toggles a movable window showing all possible output fields (for when you press ``S``/click on "menu" -> "export tracking data"). (This currently a bit crude and will be updated in a future version.)
+	Toggles a movable window showing all possible output fields (for when you press ``S``/click on "menu" -> "save tracking data"). (This is currently a bit basic and will be updated in a future version.)
 - zoom on selected
 	Whether to zoom in on the selected individual or not. Can be combined with the next option.
 - auto zoom
