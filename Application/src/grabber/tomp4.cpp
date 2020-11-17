@@ -554,9 +554,10 @@ void FFMPEGQueue::finalize_one_image(uint64_t stamp, const cmn::Image& image) {
     
     Debug("sws_scale#2 %f", timer.elapsed());*/
     
+    pkt->stream_index = pts;
     frame->pts = pts++;
-    //pkt->dts = AV_NOPTS_VALUE;
-    //pkt->pts = AV_NOPTS_VALUE;
+    pkt->dts = AV_NOPTS_VALUE;
+    pkt->pts = AV_NOPTS_VALUE;
     
     // have to do muxing https://ffmpeg.org/doxygen/trunk/doc_2examples_2muxing_8c-example.html
     encode(c, frame, pkt, f);

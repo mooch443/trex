@@ -92,6 +92,27 @@ track::Tracker* FrameGrabber::tracker_instance() {
     return tracker;
 }
 
+ImageThreads::ImageThreads(const decltype(_fn_create)& create,
+                           const decltype(_fn_prepare)& prepare,
+                           const decltype(_fn_load)& load,
+                           const decltype(_fn_process)& process)
+  : _fn_create(create),
+    _fn_prepare(prepare),
+    _fn_load(load),
+    _fn_process(process),
+    _terminate(false),
+    _load_thread(NULL),
+    _process_thread(NULL)
+{
+    // create the cache
+    std::unique_lock<std::mutex> lock(_image_lock);
+    for (int i=0; i<10; i++) {
+        _unused.push_front(_fn_create());
+    }
+    
+    _load_thread = new std::thread([this](){loading();});
+    _process_thread = new std::thread([this](){ processing();});
+}
 
 void FrameGrabber::apply_filters(gpuMat& gpu_buffer) {
     if(GRAB_SETTINGS(image_adjust)) {
@@ -189,6 +210,7 @@ void ImageThreads::loading() {
 
 void ImageThreads::processing() {
     std::unique_lock<std::mutex> lock(_image_lock);
+    ocl::init_ocl();
     
     while(!_terminate) {
         // process images and write to file
@@ -289,7 +311,7 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
   : //_current_image(NULL),
     _current_average_timestamp(0),
     _average_finished(false),
-    _average_samples(0u), _last_index(0),
+    _average_samples(0u), _last_index(-1),
     _video(NULL), _video_mask(NULL),
     _camera(NULL),
     _current_fps(0), _fps(0),
@@ -1411,9 +1433,6 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
     static cv::Mat local;
     
     if(!current.mask()) {
-        //static std::deque<std::shared_ptr<RawProcessing>> processings;
-        static std::mutex mute;
-        
         static RawProcessing raw(gpu_average, nullptr);
         static gpuMat gpu_buffer;
         
@@ -1452,12 +1471,13 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
         gpu.copyTo(local);
     }
     
+    static size_t global_index = 1;
+    /*cv::putText(current.get(), Meta::toStr(global_index)+" "+Meta::toStr(current.index()), Vec2(50), cv::FONT_HERSHEY_PLAIN, 2, gui::White);
+    cv::putText(local, Meta::toStr(global_index)+" "+Meta::toStr(current.index()), Vec2(50), cv::FONT_HERSHEY_PLAIN, 2, gui::White);*/
+    
     {
         std::lock_guard<std::mutex> guard(_frame_lock);
         _current_image = std::make_unique<Image>(current);
-        
-        //tf::imshow("current", _current_image->get());
-        //tf::imshow("local", local);
     }
     
     /**
@@ -1467,7 +1487,7 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
      */
     struct Task {
         size_t index;
-        std::unique_ptr<Image> current;
+        std::unique_ptr<Image> current, raw;
         std::unique_ptr<pv::Frame> frame;
         Timer timer;
         std::vector<pv::BlobPtr> filtered, filtered_out;
@@ -1479,16 +1499,16 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
     static std::vector<std::thread*> thread_pool;
     static std::condition_variable single_variable;
     
-    static const auto in_main_thread = [&](Task&& task){
+    static const auto in_main_thread = [&](Task& task){
         long_t used_index_here = infinity<long_t>();
         bool added = false;
         
-        static size_t last_task_processed = 0;
+        static int64_t last_task_processed = -1;
         {
             std::unique_lock<std::mutex> guard(to_main_mutex);
             Timer timer;
-            while(last_task_processed + 1 != task.index && !_terminate_tracker) {
-                single_variable.wait_for(guard, std::chrono::seconds(30));
+            while(last_task_processed + 1 != task.current->index() && !_terminate_tracker) {
+                single_variable.wait_for(guard, std::chrono::milliseconds(30));
                 
                 if(timer.elapsed() >= 1) {
                     //Debug("Still waiting to finalize task %d (%d)", task.index, last_task_processed);
@@ -1526,6 +1546,7 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
         auto stamp = task.current->timestamp();
         auto index = task.current->index();
         
+        assert(index == _last_index + 1);
         _last_index = index;
         
         if(added && tracker) {
@@ -1564,7 +1585,7 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
     #if WITH_FFMPEG
         if(mp4_queue && used_index_here != -1) {
             task.current->set_index(used_index_here);
-            mp4_queue->add(std::move(task.current));
+            mp4_queue->add(std::move(task.raw));
             
             // try and get images back
             //std::lock_guard<std::mutex> guard(process_image_mutex);
@@ -1573,16 +1594,16 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
     #endif
         _processing_timing = _processing_timing * 0.75 + task.timer.elapsed() * 0.25;
         
+        update_fps(index, stamp, tdelta, now);
+        
         {
             std::lock_guard<std::mutex> guard(to_main_mutex);
-            last_task_processed = task.index; //! allow next task
+            last_task_processed = index; //! allow next task
         }
-        
-        update_fps(index, stamp, tdelta, now);
         single_variable.notify_all();
     };
     
-    static const auto threadable_task = [in_main_thread = &in_main_thread](Task&& task) {
+    static const auto threadable_task = [in_main_thread = &in_main_thread](Task& task) {
         const Rangef min_max = GRAB_SETTINGS(blob_size_range);
         static const float cm_per_pixel = SQR(SETTING(cm_per_pixel).value<float>());
         
@@ -1632,7 +1653,7 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
             }
         }
         
-        (*in_main_thread)(std::move(task));
+        (*in_main_thread)(task);
     };
     
     std::call_once(flag, [&](){
@@ -1658,7 +1679,7 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
                         
                         try {
                             auto index = task.index;
-                            threadable_task(std::move(task));
+                            threadable_task(task);
                             
                         } catch(const std::exception& ex) {
                             Except("std::exception from threadable task: %s", ex.what());
@@ -1683,7 +1704,6 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
     if(GRAB_SETTINGS(grabber_use_threads)) {
         {
             std::unique_lock<std::mutex> guard(to_pool_mutex);
-            static size_t global_index = 1;
             Timer timer;
             while(for_the_pool.size() >= 8 && !_terminate_tracker) {
                 _multi_variable.wait_for(guard, std::chrono::milliseconds(1));
@@ -1695,15 +1715,29 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
             }
             
             if(!_terminate_tracker) {
-                for_the_pool.push(Task{global_index++, std::make_unique<Image>(local, current.index(), current.timestamp()), nullptr});
+                for_the_pool.push(Task{global_index++,
+                    std::make_unique<Image>(local, current.index(), current.timestamp()),
+#if WITH_FFMPEG
+                    mp4_queue ? std::make_unique<Image>(current) : nullptr,
+#else
+                    nullptr,
+#endif
+                    nullptr});
             }
         }
         
         _multi_variable.notify_one();
         
     } else {
-        static size_t global_index = 1;
-        threadable_task(Task{global_index++, std::make_unique<Image>(local, current.index(), current.timestamp()), nullptr});
+        Task task{global_index++,
+            std::make_unique<Image>(local, current.index(), current.timestamp()),
+#if WITH_FFMPEG
+            mp4_queue ? std::make_unique<Image>(current) : nullptr,
+#else
+            nullptr,
+#endif
+            nullptr};
+        threadable_task(task);
     }
     
     /**

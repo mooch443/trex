@@ -49,24 +49,7 @@ public:
     ImageThreads(const decltype(_fn_create)& create,
                  const decltype(_fn_prepare)& prepare,
                  const decltype(_fn_load)& load,
-                 const decltype(_fn_process)& process)
-      : _fn_create(create),
-        _fn_prepare(prepare),
-        _fn_load(load),
-        _fn_process(process),
-        _terminate(false),
-        _load_thread(NULL),
-        _process_thread(NULL)
-    {
-        // create the cache
-        std::unique_lock<std::mutex> lock(_image_lock);
-        for (int i=0; i<10; i++) {
-            _unused.push_front(_fn_create());
-        }
-        
-        _load_thread = new std::thread([this](){loading();});
-        _process_thread = new std::thread([this](){processing();});
-    }
+                 const decltype(_fn_process)& process);
     
     ~ImageThreads() {
         terminate();

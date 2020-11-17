@@ -783,13 +783,13 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
         
         frame.read_from(*this, (long_t)frame_to_read);
     }
-    
+#ifdef USE_GPU_MAT
     void File::frame(uint64_t frameIndex, gpuMat &output) {
         cv::Mat local;
         frame_optional_background(frameIndex, local, true);
         local.copyTo(output);
     }
-
+#endif
     void File::frame(uint64_t frameIndex, cv::Mat &output) {
         frame_optional_background(frameIndex, output, true);
     }

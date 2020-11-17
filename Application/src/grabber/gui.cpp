@@ -190,6 +190,12 @@ void GUI::draw(gui::DrawStructure &base) {
         auto image = _grabber.latest_image();
         auto noise = _grabber.noise();
         
+#ifndef NDEBUG
+        static long last_index = -1;
+        if(image && image->index() < last_index)
+            Warning("Last index = %d and current = %d", last_index, image->index());
+#endif
+        
         if(frame)
             _frame = std::move(frame);
         if(image)

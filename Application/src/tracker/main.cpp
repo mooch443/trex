@@ -296,28 +296,30 @@ int main(int argc, char** argv)
     } else
         SETTING(ffmpeg_path) = file::Path(std::string(filename));
 #else
-    auto PATH = getenv("PATH");
-    if(PATH) {
-        auto parts = utils::split(std::string(PATH), ':');
-        auto conda_prefix = ::default_config::conda_environment_path().str();
-        if(!conda_prefix.empty()) {
-            parts.insert(parts.begin(), conda_prefix+"/bin");
-        }
-        
-        for(auto &part : parts) {
-            if(file::Path(part).exists()) {
-                auto files = file::Path(part).find_files();
-                for(auto file : files) {
-                    if(file.filename() == "ffmpeg") {
-                        Debug("Found ffmpeg in '%S'", &file.str());
-                        SETTING(ffmpeg_path) = file;
-                        break;
-                    }
-                }
+    {
+        auto PATH = getenv("PATH");
+        if(PATH) {
+            auto parts = utils::split(std::string(PATH), ':');
+            auto conda_prefix = ::default_config::conda_environment_path().str();
+            if(!conda_prefix.empty()) {
+                parts.insert(parts.begin(), conda_prefix+"/bin");
             }
             
-            if(!SETTING(ffmpeg_path).value<file::Path>().empty())
-                break;
+            for(auto &part : parts) {
+                if(file::Path(part).exists()) {
+                    auto files = file::Path(part).find_files();
+                    for(auto file : files) {
+                        if(file.filename() == "ffmpeg") {
+                            Debug("Found ffmpeg in '%S'", &file.str());
+                            SETTING(ffmpeg_path) = file;
+                            break;
+                        }
+                    }
+                }
+                
+                if(!SETTING(ffmpeg_path).value<file::Path>().empty())
+                    break;
+            }
         }
     }
 #endif
