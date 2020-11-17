@@ -272,10 +272,23 @@ int main(int argc, char** argv)
     GlobalSettings::map().dont_print("gui_focus_group");
     
     file::Path load_results_from;
-    
-    std::string output = exec("which ffmpeg");
+#ifdef WIN32
+    LPSTR lpFilePart;
+    char filename[MAX_PATH];
+
+    if(!SearchPath( NULL, "ffmpeg", ".exe", MAX_PATH, filename, &lpFilePart))
+    {
+         //error handling here
+    } else
+        SETTING(ffmpeg_path) = file::Path(std::string(filename));
+#else
+    std::string output = exec("/bin/sh -c 'which ffmpeg'");
     if(!output.empty())
         SETTING(ffmpeg_path) = file::Path(output);
+    else
+        SETTING(ffmpeg_path) = file::Path("/Users/tristan/opt/anaconda3/envs/only_ffmpeg/bin/ffmpeg");
+#endif
+
 #if WITH_GITSHA1
     SETTING(build) = std::string(g_GIT_SHA1);
 #else

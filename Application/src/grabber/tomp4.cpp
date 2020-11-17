@@ -381,11 +381,11 @@ void FFMPEGQueue::open_video() {
     codec = avcodec_find_encoder_by_name(codec_name);
     if (!codec) {
         Warning("Cannot record with '%s'. Searching for 'libx264'.", codec_name);
-        codec = avcodec_find_encoder_by_name("libx264");
+        codec = avcodec_find_encoder_by_name("h264");
     }
     
     if(!codec)
-        U_EXCEPTION("Codec '%s' not found, and 'libx264' could not be found either.", codec_name);
+        U_EXCEPTION("Codec '%s' not found, and 'h264' could not be found either.", codec_name);
     
     c = avcodec_alloc_context3(codec);
     if (!c)

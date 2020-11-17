@@ -251,6 +251,6 @@ int main(int argc, char**argv) {
         std::string file = ss.str();
         
         Debug("For conversion using ffmpeg try this command:");
-        printf("\tffmpeg -framerate %d -start_number %d -i %s/frame%%07d.jpg -vcodec libx264 -vf \"fps=60,format=yuv420p\" output.mp4\n", (int)framerate, start_frame, output_dir.str().c_str());
+        printf("\tffmpeg -framerate %d -start_number %d -i %s/frame%%07d.jpg -vcodec h264 -vf \"fps=60,format=yuv420p\" output.mp4\n", (int)framerate, start_frame, output_dir.str().c_str());
     }
 }

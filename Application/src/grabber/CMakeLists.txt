@@ -101,6 +101,9 @@ target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE
 if(WITH_HTTPD)
     add_dependencies(${TGRABS_EXEC_NAME} LibMicroHttpd)
 endif()
+if(WITH_FFMPEG)
+    target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE TRex::FFMPEG)
+endif()
 
 add_executable(pvinfo pvinfo.cpp pvinfo_merge.cpp pvinfo_merge.h ${TREX_ADDITIONAL_SOURCES})
 
@@ -223,6 +226,9 @@ if(APPLE)
     target_compile_definitions(tgrabs_starter PRIVATE TREX_PYTHON_PATH="${CONDA_PREFIX_VAR}")
 endif()
 
+if(WITH_FFMPEG)
+    target_compile_definitions(${TGRABS_EXEC_NAME} PRIVATE WITH_FFMPEG=true)
+endif()
 
 if(WIN32)
 	if(TREX_BUILD_OPENCV)

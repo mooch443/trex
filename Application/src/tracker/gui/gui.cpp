@@ -969,14 +969,16 @@ void GUI::stop_recording() {
         file::Path ffmpeg = SETTING(ffmpeg_path);
         if(!ffmpeg.empty()) {
             file::Path save_path = _recording_path.replace_extension("mov");
-            std::string cmd = ffmpeg.str()+" -i "+_recording_path.str()+" -vcodec libx264 -pix_fmt yuv420p -crf 15 -y "+save_path.str();
+            std::string cmd = ffmpeg.str()+" -i "+_recording_path.str()+" -vcodec h264 -pix_fmt yuv420p -crf 15 -y "+save_path.str();
             
             _gui.dialog([save_path, cmd, this](Dialog::Result result){
                 if(result == Dialog::OKAY) {
                     this->work().add_queue("converting video...", [cmd=cmd, save_path=save_path](){
                         Debug("Running '%S'..", &cmd);
-                        system(cmd.c_str());
-                        Debug("Saved video at '%S'.", &save_path.str());
+                        if(system(cmd.c_str()) == 0)
+                            Debug("Saved video at '%S'.", &save_path.str());
+                        else
+                            Error("Cannot save video at '%S'.", &save_path.str());
                     });
                 }
                 
@@ -985,7 +987,7 @@ void GUI::stop_recording() {
         
     } else {
         auto clip_name = std::string(_recording_path.filename());
-        printf("ffmpeg -start_number %d -i %s/%%06d.%s -vcodec libx264 -crf 13 -vf 'scale=trunc(iw/2)*2:trunc(ih/2)*2' -profile:v main -pix_fmt yuv420p %s.mp4\n", _recording_start, _recording_path.str().c_str(), _recording_format.name(), clip_name.c_str());
+        printf("ffmpeg -start_number %d -i %s/%%06d.%s -vcodec h264 -crf 13 -vf 'scale=trunc(iw/2)*2:trunc(ih/2)*2' -profile:v main -pix_fmt yuv420p %s.mp4\n", _recording_start, _recording_path.str().c_str(), _recording_format.name(), clip_name.c_str());
     }
     
     _recording = false;
