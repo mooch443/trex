@@ -303,7 +303,7 @@ void VideoSource::open(const std::string& basename, const std::string& extension
         }
         
     } else if(seq_end == VIDEO_SEQUENCE_UNSPECIFIED_VALUE) {
-        auto base = file::Path(basename).is_folder() ? "" : file::Path(basename).filename();
+        std::string base(file::Path(basename).is_folder() ? "" : file::Path(basename).filename());
         Debug("Trying to find the last file (starting at %d) pattern '%S%%%dd.%S'...", seq_start, &base, padding, &extension);
         
         _files_in_seq.reserve(10000);
