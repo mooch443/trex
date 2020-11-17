@@ -349,10 +349,55 @@ int main(int argc, char** argv)
         grab::default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
         
 #if WITH_FFMPEG
-        std::string ffmpeg_path = file::exec("which ffmpeg");
-        if(!ffmpeg_path.empty()) {
-            SETTING(ffmpeg_path) = file::Path(ffmpeg_path);
+#ifdef WIN32
+        LPSTR lpFilePart;
+        char filename[MAX_PATH];
+
+        if(!SearchPath( NULL, "ffmpeg", ".exe", MAX_PATH, filename, &lpFilePart))
+        {
+            auto conda_prefix = ::default_config::conda_environment_path().str();
+            Debug("Conda prefix: %S", &conda_prefix);
+            if(!conda_prefix.empty()) {
+                auto files = file::Path(conda_prefix+"/bin").find_files();
+                for(auto file : files) {
+                    if(file.filename() == "ffmpeg") {
+                        Debug("Found ffmpeg in '%S'", &file.str());
+                        SETTING(ffmpeg_path) = file;
+                        break;
+                    }
+                }
+            }
+            
+            if(SETTING(ffmpeg_path).value<file::Path>().empty())
+                Warning("Cannot find ffmpeg.exe in search paths.");
+        } else
+            SETTING(ffmpeg_path) = file::Path(std::string(filename));
+#else
+        auto PATH = getenv("PATH");
+        if(PATH) {
+            auto parts = utils::split(std::string(PATH), ':');
+            auto conda_prefix = ::default_config::conda_environment_path().str();
+            if(!conda_prefix.empty()) {
+                parts.insert(parts.begin(), conda_prefix+"/bin");
+            }
+            
+            for(auto &part : parts) {
+                if(file::Path(part).exists()) {
+                    auto files = file::Path(part).find_files();
+                    for(auto file : files) {
+                        if(file.filename() == "ffmpeg") {
+                            Debug("Found ffmpeg in '%S'", &file.str());
+                            SETTING(ffmpeg_path) = file;
+                            break;
+                        }
+                    }
+                }
+                
+                if(!SETTING(ffmpeg_path).value<file::Path>().empty())
+                    break;
+            }
         }
+#endif
 #endif
         
         // switch working directory

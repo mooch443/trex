@@ -9,7 +9,7 @@
 
 class FFMPEGQueue {
     std::mutex _mutex, _write_mutex;
-    std::set<std::tuple<uint64_t, cmn::Image*>> _queue;
+    std::vector<std::unique_ptr<cmn::Image>> _queue;
     std::condition_variable _condition, _write_condition;
     cmn::Size2 _size;
     cv::Mat _image;
@@ -36,8 +36,8 @@ class FFMPEGQueue {
     std::vector<long> mp4_indexes;
     std::deque<std::shared_ptr<Package>> packages;
     
-    std::mutex _vacant_mutex;
-    std::deque<cmn::Image*> _vacant_images;
+    //std::mutex _vacant_mutex;
+    //std::deque<cmn::Image*> _vacant_images;
     bool _direct;
     std::thread *write_thread;
     
@@ -50,12 +50,12 @@ public:
     void loop();
     void write_loop();
     void notify();
-    void add(cmn::Image_t* ptr);
+    void add(std::unique_ptr<cmn::Image>&& ptr);
     
-    void refill_queue(std::queue<cmn::Image*>& queue);
+    //void refill_queue(std::queue<std::unique_ptr<cmn::Image_t>>& queue);
     
 private:
-    void process_one_image(uint64_t stamp, cmn::Image* ptr, bool direct);
+    void process_one_image(uint64_t stamp, const std::unique_ptr<cmn::Image>& ptr, bool direct);
     void finalize_one_image(uint64_t stamp, const cmn::Image& image);
     void update_cache_strategy(double frame_ms, double compressed_size);
     

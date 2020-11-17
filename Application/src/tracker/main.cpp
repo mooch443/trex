@@ -278,15 +278,48 @@ int main(int argc, char** argv)
 
     if(!SearchPath( NULL, "ffmpeg", ".exe", MAX_PATH, filename, &lpFilePart))
     {
-         //error handling here
+        auto conda_prefix = ::default_config::conda_environment_path().str();
+        Debug("Conda prefix: %S", &conda_prefix);
+        if(!conda_prefix.empty()) {
+            auto files = file::Path(conda_prefix+"/bin").find_files();
+            for(auto file : files) {
+                if(file.filename() == "ffmpeg") {
+                    Debug("Found ffmpeg in '%S'", &file.str());
+                    SETTING(ffmpeg_path) = file;
+                    break;
+                }
+            }
+        }
+        
+        if(SETTING(ffmpeg_path).value<file::Path>().empty())
+            Warning("Cannot find ffmpeg.exe in search paths.");
     } else
         SETTING(ffmpeg_path) = file::Path(std::string(filename));
 #else
-    std::string output = exec("/bin/sh -c 'which ffmpeg'");
-    if(!output.empty())
-        SETTING(ffmpeg_path) = file::Path(output);
-    else
-        SETTING(ffmpeg_path) = file::Path("/Users/tristan/opt/anaconda3/envs/only_ffmpeg/bin/ffmpeg");
+    auto PATH = getenv("PATH");
+    if(PATH) {
+        auto parts = utils::split(std::string(PATH), ':');
+        auto conda_prefix = ::default_config::conda_environment_path().str();
+        if(!conda_prefix.empty()) {
+            parts.insert(parts.begin(), conda_prefix+"/bin");
+        }
+        
+        for(auto &part : parts) {
+            if(file::Path(part).exists()) {
+                auto files = file::Path(part).find_files();
+                for(auto file : files) {
+                    if(file.filename() == "ffmpeg") {
+                        Debug("Found ffmpeg in '%S'", &file.str());
+                        SETTING(ffmpeg_path) = file;
+                        break;
+                    }
+                }
+            }
+            
+            if(!SETTING(ffmpeg_path).value<file::Path>().empty())
+                break;
+        }
+    }
 #endif
 
 #if WITH_GITSHA1

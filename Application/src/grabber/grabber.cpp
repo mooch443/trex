@@ -1563,12 +1563,12 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
         
     #if WITH_FFMPEG
         if(mp4_queue && used_index_here != -1) {
-            current.set_index(used_index_here);
-            mp4_queue->add(ptr);
+            task.current->set_index(used_index_here);
+            mp4_queue->add(std::move(task.current));
             
             // try and get images back
-            std::lock_guard<std::mutex> guard(process_image_mutex);
-            mp4_queue->refill_queue(_unused_process_images);
+            //std::lock_guard<std::mutex> guard(process_image_mutex);
+            //mp4_queue->refill_queue(_unused_process_images);
         } else
     #endif
         _processing_timing = _processing_timing * 0.75 + task.timer.elapsed() * 0.25;

@@ -113,7 +113,7 @@ FFMPEGQueue::~FFMPEGQueue() {
 lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo_align_t) ]
 HEAP_ALLOC(wrkmem, LZO1X_1_MEM_COMPRESS);
 
-void FFMPEGQueue::add(Image_t* ptr) {
+void FFMPEGQueue::add(std::unique_ptr<Image>&& ptr) {
     /*Image *ptr = new Image(_ptr->rows, _ptr->cols, 1);
     _ptr->get().copyTo(ptr->get());
     ptr->set_index(_ptr->index());
@@ -127,7 +127,8 @@ void FFMPEGQueue::add(Image_t* ptr) {
         std::lock_guard<std::mutex> guard(_mutex);
         
         auto stamp = ptr->timestamp();
-        _queue.insert({stamp, ptr});
+        _queue.insert(_queue.begin(), std::move(ptr));
+        ptr = nullptr;
         
         if(stamp < _last_timestamp)
             Except("Timestamp %lu < last timestamp %lu", stamp, _last_timestamp);
@@ -217,11 +218,11 @@ void FFMPEGQueue::loop() {
                     per_frame.reset();
                 }
                 
-                auto [stamp, image] = *_queue.begin();
-                _queue.erase(_queue.begin());
+                auto image = std::move(_queue.back());
+                _queue.pop_back();
                 
                 guard.unlock();
-                process_one_image(stamp, image, _direct);
+                process_one_image(image->stamp(), image, _direct);
                 guard.lock();
                 
                 if(_direct) {
@@ -256,15 +257,15 @@ void FFMPEGQueue::Package::unpack(cmn::Image &image, lzo_uint& new_len) const {
     assert(new_len == image.size());
 }
 
-void FFMPEGQueue::process_one_image(uint64_t stamp, cmn::Image *image, bool direct) {
+void FFMPEGQueue::process_one_image(uint64_t stamp, const std::unique_ptr<cmn::Image>& image, bool direct) {
     if(direct) {
         finalize_one_image(stamp, *image);
         
-        if(!_terminate) {
+        /*if(!_terminate) {
             std::lock_guard<std::mutex> guard(_vacant_mutex);
             _vacant_images.push_back(image);
         } else
-            delete image;
+            delete image;*/
         return;
     }
     
@@ -299,20 +300,20 @@ void FFMPEGQueue::process_one_image(uint64_t stamp, cmn::Image *image, bool dire
         }
     }
     
-    if(!_terminate) {
+    /*if(!_terminate) {
         std::lock_guard<std::mutex> guard(_vacant_mutex);
         _vacant_images.push_back(image);
     } else
-        delete image;
+        delete image;*/
 }
 
-void FFMPEGQueue::refill_queue(std::queue<cmn::Image *> &queue) {
+/*void FFMPEGQueue::refill_queue(std::queue<std::unique_ptr<cmn::Image>> &queue) {
     std::lock_guard<std::mutex> guard(_vacant_mutex);
     while(!_vacant_images.empty()) {
         queue.push(_vacant_images.front());
         _vacant_images.pop_front();
     }
-}
+}*/
 
 void FFMPEGQueue::write_loop() {
     std::unique_lock<std::mutex> guard(_write_mutex);
@@ -380,12 +381,12 @@ void FFMPEGQueue::open_video() {
     /* find the mpeg1video encoder */
     codec = avcodec_find_encoder_by_name(codec_name);
     if (!codec) {
-        Warning("Cannot record with '%s'. Searching for 'libx264'.", codec_name);
-        codec = avcodec_find_encoder_by_name("h264");
+        Warning("Cannot record with '%s'. Searching for 'h264'.", codec_name);
+        codec = avcodec_find_encoder_by_name("h264_videotoolbox");
     }
     
     if(!codec)
-        U_EXCEPTION("Codec '%s' not found, and 'h264' could not be found either.", codec_name);
+        U_EXCEPTION("Codec '%s' not found, and 'h264_videotoolbox' could not be found either.", codec_name);
     
     c = avcodec_alloc_context3(codec);
     if (!c)
@@ -619,9 +620,8 @@ void FFMPEGQueue::update_cache_strategy(double needed_ms, double compressed_size
             if(skip_step > 0 && added_since >= frame_rate / skip_step) {
                 added_since = 0;
                 
-                auto && [stamp, image] = *_queue.begin();
-                delete image;
-                _queue.erase(_queue.begin());
+                auto image = std::move(_queue.back());
+                _queue.pop_back();
                 
                 static Timer last_message_timer;
                 if(last_message_timer.elapsed() > 10) {
@@ -637,9 +637,8 @@ void FFMPEGQueue::update_cache_strategy(double needed_ms, double compressed_size
                 Warning("Skipping frame (%f >= %f with queue size = %d)", needed_ms * _queue.size(), frame_ms * 5, _queue.size());
                 last_message_timer.reset();
             }
-            auto && [stamp, image] = *_queue.begin();
-            delete image;
-            _queue.erase(_queue.begin());
+            auto image = std::move(_queue.back());
+            _queue.pop_back();
         }
     }
 }

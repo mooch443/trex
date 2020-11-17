@@ -175,19 +175,7 @@ insert_start(tree, &current_node, e); }
         char *xcode_colors = getenv(XCODE_COLORS);
         if (xcode_colors && (strcmp(xcode_colors, "YES")==0))
         {
-#if _XCODE_COLORS_DISABLE
-            if(!out || out == stdout) {
-                out = fopen("cout.log", "wb");
-                if (NULL == out) { perror("opening cout.log"); }
-                
-                err = fopen("cerr.log", "wb");
-                if (NULL == err) { perror("opening cerr.log"); }
-            }
-            
-            ENABLE_COLORS = CONSOLE_COLOR_STATE::ENABLE_UNIX;
-#else
-            ENABLE_COLORS = CONSOLE_COLOR_STATE::ENABLE_XCODE;
-#endif
+            ENABLE_COLORS = CONSOLE_COLOR_STATE::DISABLE_COLORS;
         } else {
             if(isatty(fileno(stdout))) {
                 ENABLE_COLORS = CONSOLE_COLOR_STATE::ENABLE_UNIX;
