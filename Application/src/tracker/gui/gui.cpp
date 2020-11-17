@@ -2884,7 +2884,7 @@ void GUI::draw_footer(DrawStructure& base) {
         });
         textfield.on_enter([&](){
             try {
-                auto key = settings_dropdown.items().at(settings_dropdown.selected_id());
+                auto key = settings_dropdown.items().at(settings_dropdown.selected_id()).name();
                 if(GlobalSettings::access_level(key) == AccessLevelType::PUBLIC) {
                     GlobalSettings::get(key).get().set_value_from_string(textfield.text());
                     if(GlobalSettings::get(key).is_type<Color>())
