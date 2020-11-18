@@ -1,13 +1,13 @@
 package:
   name: trex
-  version: "1.0.5"
+  version: "1.0.6"
   
 source:
     git_url: https://github.com/mooch443/trex.git
     git_depth: 1
 
 build:
-    number: 8
+    number: 9
     string: saur
     run_exports:
         - {{ pin_compatible('ffmpeg', min_pin='x.x.x', max_pin='x.x.x') }}
