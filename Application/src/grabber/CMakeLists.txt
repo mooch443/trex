@@ -5,8 +5,15 @@ file(GLOB HTML html/*.html html/*.js html/*.css)
 # to include generated moc headers, since they are generated in binary dir
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
+set(TREX_ADDITIONAL_SOURCES "")
+if(WITH_GITSHA1)
+    set(TREX_ADDITIONAL_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h)
+    list(APPEND SRCS ${TREX_ADDITIONAL_SOURCES})
+endif()
+
 file(GLOB SRCS
     ${HTML}
+    ${TREX_ADDITIONAL_SOURCES}
 	tomp4.h
 	tomp4.cpp
 	grabber.h
@@ -27,12 +34,6 @@ file(GLOB SRCS
 
 if(APPLE)
     set(SRCS ${SRCS} ${CMAKE_CURRENT_SOURCE_DIR}/gfx/GrabberIcon.icns)
-endif()
-
-set(TREX_ADDITIONAL_SOURCES "")
-if(WITH_GITSHA1)
-	set(TREX_ADDITIONAL_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h)
-    list(APPEND SRCS ${TREX_ADDITIONAL_SOURCES})
 endif()
 
 if(WIN32)

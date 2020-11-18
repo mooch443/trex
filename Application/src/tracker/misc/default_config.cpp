@@ -243,7 +243,7 @@ file::Path conda_environment_path() {
         Adding adding(config, docs, fn);
         
         CONFIG<std::string>("app_name", "TRex", "Name of the application.", SYSTEM);
-        CONFIG("version", std::string("1.0.6"), "Current application version.", SYSTEM);
+        CONFIG("version", std::string(g_GIT_DESCRIBE_TAG), "Current application version.", SYSTEM);
         CONFIG("build_type", std::string(g_TREX_BUILD_TYPE), "The mode the application was built in.", SYSTEM);
         CONFIG("build_is_debug", std::string(is_ndebug_enabled()), "If built in debug mode, this will show 'debug'.", SYSTEM);
         CONFIG("build_cxx_options", std::string(g_TREX_BUILD_CXX_OPTIONS), "The mode the application was built in.", SYSTEM);
