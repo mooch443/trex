@@ -629,7 +629,7 @@ int main(int argc, char** argv)
     bool executed_a_settings = false;
     
     DebugHeader("LOADING FILE");
-    print_stacktrace();
+    
     pv::File video(SETTING(filename).value<Path>());
     video.start_reading();
     
