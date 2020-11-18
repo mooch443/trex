@@ -1891,7 +1891,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "1.0.5"
+	**default value:** "1.0.6"
 
 
 	Current application version.

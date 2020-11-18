@@ -199,6 +199,16 @@ TGrabs parameters
 
 
 
+.. function:: ffmpeg_crf(uint)
+	:noindex:
+
+	**default value:** 20
+
+
+	Quality for crf (see ffmpeg documentation) used when encoding as libx264.
+
+
+
 .. function:: grabber_force_settings(bool)
 	:noindex:
 
