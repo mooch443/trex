@@ -30,12 +30,25 @@ unsigned long long getTotalSystemMemory()
 }
 #else
 #include <unistd.h>
+#include <sys/sysctl.h>
 
 unsigned long long getTotalSystemMemory()
 {
+#ifdef __APPLE__
+    int mib[2];
+    size_t len;
+    
+    mib[0] = CTL_HW;
+    mib[1] = HW_MEMSIZE; /* gives a 64 bit int */
+    uint64_t totalphys64;
+    len = sizeof(totalphys64);
+    sysctl(mib, 2, &totalphys64, &len, NULL, 0);
+    return totalphys64;
+#else
     long pages = sysconf(_SC_PHYS_PAGES);
     long page_size = sysconf(_SC_PAGE_SIZE);
     return pages * page_size;
+#endif
 }
 #endif
 
