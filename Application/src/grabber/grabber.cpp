@@ -68,13 +68,8 @@ IMPLEMENT(FrameGrabber::instance) = NULL;
 IMPLEMENT(FrameGrabber::gpu_average);
 IMPLEMENT(FrameGrabber::gpu_average_original);
 
-std::unique_ptr<Image> FrameGrabber::latest_image() {
-    decltype(_current_image) current;
-    {
-        std::unique_lock<std::mutex> lock(_frame_lock);
-        current = std::move(_current_image);
-    }
-    return current;
+std::shared_ptr<Image> FrameGrabber::latest_image() {
+    return _current_image;
 }
 
 cv::Size FrameGrabber::determine_resolution() {
@@ -830,7 +825,7 @@ bool FrameGrabber::add_image_to_average(const Image_t& current) {
             }
             
             _last_frame = nullptr;
-            _current_image = nullptr;
+            std::atomic_store(&_current_image, std::shared_ptr<Image>());
         }
         
         static auto averaging_method = GlobalSettings::has("averaging_method") ? SETTING(averaging_method).value<averaging_method_t::Class>() : averaging_method_t::mean;
@@ -940,9 +935,10 @@ bool FrameGrabber::add_image_to_average(const Image_t& current) {
                 SETTING(terminate) = true;
         }
         
-        std::unique_lock<std::mutex> lock(_frame_lock);
-        _current_image = std::make_unique<Image>(current);
-        
+        if(!_current_image)
+            std::atomic_store(&_current_image, std::make_shared<Image>(current));
+        else
+            _current_image->set(current.index(), current.data());
         return true;
     }
     
@@ -1430,7 +1426,7 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
     assert(image.type() == CV_8UC1);
     
     const bool use_corrected = GRAB_SETTINGS(correct_luminance);
-    static cv::Mat local;
+    static cv::Mat local, current_copy;
     
     if(!current.mask()) {
         static RawProcessing raw(gpu_average, nullptr);
@@ -1439,6 +1435,7 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
         image.copyTo(gpu_buffer);
         
         crop_and_scale(gpu_buffer);
+        gpu_buffer.copyTo(current_copy);
 
         if (processed().has_mask()) {
             static gpuMat mask;
@@ -1468,17 +1465,15 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
         cv::multiply(gpu, mask, gpu);
         
         crop_and_scale(gpu);
+        apply_filters(gpu);
+        
         gpu.copyTo(local);
+        current_copy = local;
     }
     
     static size_t global_index = 1;
     /*cv::putText(current.get(), Meta::toStr(global_index)+" "+Meta::toStr(current.index()), Vec2(50), cv::FONT_HERSHEY_PLAIN, 2, gui::White);
     cv::putText(local, Meta::toStr(global_index)+" "+Meta::toStr(current.index()), Vec2(50), cv::FONT_HERSHEY_PLAIN, 2, gui::White);*/
-    
-    {
-        std::lock_guard<std::mutex> guard(_frame_lock);
-        _current_image = std::make_unique<Image>(current);
-    }
     
     /**
      * ==============
@@ -1545,6 +1540,11 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
         
         auto stamp = task.current->timestamp();
         auto index = task.current->index();
+        
+        if(!_current_image)
+            std::atomic_store(&_current_image, std::make_shared<Image>(*task.raw));
+        else
+            _current_image->set(index, task.raw->data());
         
         assert(index == _last_index + 1);
         _last_index = index;
@@ -1718,7 +1718,7 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
                 for_the_pool.push(Task{global_index++,
                     std::make_unique<Image>(local, current.index(), current.timestamp()),
 #if WITH_FFMPEG
-                    mp4_queue ? std::make_unique<Image>(current) : nullptr,
+                    /*mp4_queue ?*/ std::make_unique<Image>(current_copy) /*: nullptr*/,
 #else
                     nullptr,
 #endif
@@ -1732,7 +1732,7 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
         Task task{global_index++,
             std::make_unique<Image>(local, current.index(), current.timestamp()),
 #if WITH_FFMPEG
-            mp4_queue ? std::make_unique<Image>(current) : nullptr,
+            /*mp4_queue ?*/ std::make_unique<Image>(current_copy) /*: nullptr*/,
 #else
             nullptr,
 #endif

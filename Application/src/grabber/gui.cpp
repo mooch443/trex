@@ -199,7 +199,7 @@ void GUI::draw(gui::DrawStructure &base) {
         if(frame)
             _frame = std::move(frame);
         if(image)
-            _image = std::move(image);
+            _image = std::make_unique<Image>(*image);
         if(noise)
             _noise = std::move(noise);
     }
