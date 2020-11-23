@@ -111,59 +111,26 @@ ImageThreads::ImageThreads(const decltype(_fn_create)& create,
 
 void FrameGrabber::apply_filters(gpuMat& gpu_buffer) {
     if(GRAB_SETTINGS(image_adjust)) {
-        /*if(key == std::string("image_square_brightness"))
-            image_square_brightness = value.template value<bool>();
-        else if(key == std::string("image_contrast_increase"))
-            image_contrast_increase = value.template value<float>();
-        else if(key == std::string("image_brightness_increase"))
-            image_brightness_increase = value.template value<float>();*/
-        
         float alpha = GRAB_SETTINGS(image_contrast_increase) / 255.f;
         float beta = GRAB_SETTINGS(image_brightness_increase);
         
         static gpuMat buffer;
         
-        //cv::Mat local;
-       // gpu_buffer.copyTo(local);
-        //tf::imshow("before", local);
-        
         gpu_buffer.convertTo(buffer, CV_32FC1, alpha, beta);
-        
-        //gpu_buffer.convertTo(local, CV_8UC1, 255);
-        //tf::imshow("contrast", local);
         
         if(GRAB_SETTINGS(image_square_brightness)) {
             cv::multiply(buffer, buffer, buffer);
             cv::multiply(buffer, buffer, buffer);
-
-            //gpu_buffer.convertTo(local, CV_8UC1, 255);
-            //tf::imshow("square", local);
         }
         
         // normalize resulting values between 0 and 1
         cv::threshold(buffer, buffer, 1, 1, cv::THRESH_TRUNC);
         
-        //_buffer1.convertTo(_buffer0, CV_32FC1, 1./255.f);
-        
-        //cv::add(_buffer0, 1, _buffer1);
-        //cv::multiply(_buffer1, _buffer1, _buffer0);
-        //cv::multiply(_buffer0, _buffer0, _buffer1);
-        
-        
-        //cv::multiply(_buffer1, _buffer1, _buffer1);
-        //cv::subtract(_buffer1, 1, _buffer0);
-        
-        //cv::threshold(_buffer0, _buffer0, 1, 1, CV_THRESH_TRUNC);
-        //cv::multiply(_buffer0, 255, _buffer0);
-        
         buffer.convertTo(gpu_buffer, CV_8UC1, 255);
         
         if(GRAB_SETTINGS(equalize_histogram)) {
             cv::equalizeHist(gpu_buffer, gpu_buffer);
-            //gpu_buffer.copyTo(local);
-            //tf::imshow("histogram", local);
         }
-        //_buffer1.copyTo(local);
     }
 }
 

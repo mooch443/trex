@@ -65,9 +65,9 @@ typedef int32_t long_t;
 #ifndef _MSC_VER
 #define CV_STATIC_ANALYSIS 0
 #define CV_ErrorNoReturn(code, msg) cv::errorNoReturn( code, msg, CV_Func, __FILE__, __LINE__ )
+#endif
 
 #include <opencv2/opencv.hpp>
-#endif
 
 #include <commons/common/cpputils/cpputils.h>
 #include <commons/common/cpputils/debug/Debug.h>
