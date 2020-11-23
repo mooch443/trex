@@ -1356,7 +1356,7 @@ bool FrameGrabber::crop_and_scale(const gpuMat& gpu, gpuMat& output) {
         }
     }
     
-    return input != nullptr;
+    return input == nullptr;
 }
 
 void FrameGrabber::update_fps(long_t index, uint64_t stamp, uint64_t tdelta, uint64_t now) {
