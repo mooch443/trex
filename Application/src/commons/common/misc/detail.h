@@ -708,7 +708,8 @@ namespace cmn {
         cv::resize(mat, mat, cv::Size(), factor, factor, flags);
     }
     
-    inline void resize_image(const cv::Mat& mat, cv::Mat& output, double factor, int flags = cv::INTER_NEAREST)
+    template<typename T>
+    inline void resize_image(const T& mat, T& output, double factor, int flags = cv::INTER_NEAREST)
     {
         cv::resize(mat, output, cv::Size(), factor, factor, flags);
     }

@@ -149,14 +149,14 @@ std::string_view Path::filename() const {
         if(exists())
             return true;
         
-        std::deque<std::string> folders;
+        std::vector<std::string> folders;
         Path tmp = *this;
         while (!tmp.empty()) {
             if (tmp.exists()) {
                 break;
             }
             
-            folders.push_front(tmp.str());
+            folders.insert(folders.begin(), tmp.str());
             tmp = tmp.remove_filename();
         }
         

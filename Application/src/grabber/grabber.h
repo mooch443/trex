@@ -247,7 +247,8 @@ private:
     void ensure_average_is_ready();
     void update_fps(long_t index, uint64_t stamp, uint64_t tdelta, uint64_t now);
     
-    void crop_and_scale(gpuMat&);
+    //! returns true if an action was performed. does cam_scale, crop and undistort
+    bool crop_and_scale(const gpuMat&, gpuMat& output);
     bool add_image_to_average(const Image_t&);
     void initialize(std::function<void(FrameGrabber&)>&& callback_before_starting);
 };

@@ -1334,19 +1334,29 @@ void FrameGrabber::ensure_average_is_ready() {
     }
 }
 
-void FrameGrabber::crop_and_scale(gpuMat& gpu) {
-    if (GRAB_SETTINGS(cam_undistort)) {
-        static gpuMat undistorted;
-        _processed.undistort(gpu, undistorted);
-        undistorted(_crop_rect).copyTo(gpu);
-        
-    } else {
-        if(_crop_rect.width != _cam_size.width || _crop_rect.height != _cam_size.height)
-            gpu(_crop_rect).copyTo(gpu);
+bool FrameGrabber::crop_and_scale(const gpuMat& gpu, gpuMat& output) {
+    const gpuMat* input = &gpu;
+    static gpuMat scaled;
+    
+    if(GRAB_SETTINGS(cam_scale) != 1) {
+        resize_image(gpu, scaled, GRAB_SETTINGS(cam_scale));
+        input = &scaled;
     }
     
-    if(GRAB_SETTINGS(cam_scale) != 1)
-        resize_image(gpu, GRAB_SETTINGS(cam_scale));
+    if (GRAB_SETTINGS(cam_undistort)) {
+        static gpuMat undistorted;
+        _processed.undistort(*input, undistorted);
+        undistorted(_crop_rect).copyTo(output);
+        input = nullptr;
+        
+    } else {
+        if(_crop_rect.width != _cam_size.width || _crop_rect.height != _cam_size.height) {
+            (*input)(_crop_rect).copyTo(output);
+            input = nullptr;
+        }
+    }
+    
+    return input != nullptr;
 }
 
 void FrameGrabber::update_fps(long_t index, uint64_t stamp, uint64_t tdelta, uint64_t now) {
@@ -1430,31 +1440,37 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
     
     if(!current.mask()) {
         static RawProcessing raw(gpu_average, nullptr);
-        static gpuMat gpu_buffer;
+        static gpuMat gpu_buffer, scaled_buffer;
+        gpuMat *input = &gpu_buffer;
         
-        image.copyTo(gpu_buffer);
+        image.copyTo(*input);
         
-        crop_and_scale(gpu_buffer);
-        gpu_buffer.copyTo(current_copy);
+        // if anything is scaled, switch to scaled buffer
+        if(crop_and_scale(*input, scaled_buffer))
+            input = &scaled_buffer;
+        
+        input->copyTo(current_copy);
 
         if (processed().has_mask()) {
             static gpuMat mask;
             if (mask.empty())
                 processed().mask().copyTo(mask);
-            assert(processed().mask().cols == gpu_buffer.cols && processed().mask().rows == gpu_buffer.rows);
-            gpu_buffer = gpu_buffer.mul(mask);
+            assert(processed().mask().cols == input->cols && processed().mask().rows == input->rows);
+            cv::multiply(*input, mask, *input);
         }
 
         if(use_corrected && _grid) {
-            _grid->correct_image(gpu_buffer);
+            _grid->correct_image(*input);
         }
         
-        apply_filters(gpu_buffer);
-        raw.generate_binary(gpu_buffer, local);
+        apply_filters(*input);
+        raw.generate_binary(*input, local);
         
     } else {
-        static gpuMat gpu, mask;
-        image.copyTo(gpu);
+        static gpuMat gpu, mask, scaled;
+        static gpuMat *input = &gpu;
+        
+        image.copyTo(*input);
         
         if(current.rows != current.mask()->rows || current.cols != current.mask()->cols)
             cv::resize(current.mask()->get(), mask, cv::Size(current.rows, current.cols), 0, 0, cv::INTER_LINEAR);
@@ -1462,12 +1478,13 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
             current.mask()->get().copyTo(mask);
         
         cv::threshold(mask, mask, 0, 1, cv::THRESH_BINARY);
-        cv::multiply(gpu, mask, gpu);
+        cv::multiply(*input, mask, *input);
         
-        crop_and_scale(gpu);
-        apply_filters(gpu);
+        if(crop_and_scale(*input, scaled))
+            input = &scaled;
+        apply_filters(*input);
         
-        gpu.copyTo(local);
+        input->copyTo(local);
         current_copy = local;
     }
     
