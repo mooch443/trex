@@ -62,7 +62,8 @@ namespace ocl {
                 return;
             }
         }
-       /* cout << context.ndevices() << " GPU devices are detected." << endl;
+        
+        cout << context.ndevices() << " GPU devices are detected." << endl;
         for (size_t i = 0; i < context.ndevices(); i++)
         {
             cv::ocl::Device device = context.device(i);
@@ -73,8 +74,17 @@ namespace ocl {
             cout << endl;
         }
         
-        Debug("Choosing device 0.");*/
+        Debug("Choosing device 0.");
+        
         cv::ocl::Device(context.device(0));
+        
+        
+        
+        cv::BufferPoolController* c = cv::ocl::getOpenCLAllocator()->getBufferPoolController();
+        if (c)
+        {
+            c->setMaxReservedSize(0);
+        }
 #endif
     }
 }

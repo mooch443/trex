@@ -169,6 +169,7 @@ void FrameGrabber::apply_filters(gpuMat& gpu_buffer) {
 
 void ImageThreads::loading() {
     Image_t *last_loaded = NULL;
+    cmn::set_thread_name("ImageThreads::loading");
 
     while(!_terminate) {
         // retrieve images from camera
@@ -206,6 +207,7 @@ void ImageThreads::loading() {
 void ImageThreads::processing() {
     std::unique_lock<std::mutex> lock(_image_lock);
     ocl::init_ocl();
+    cmn::set_thread_name("ImageThreads::processing");
     
     while(!_terminate) {
         // process images and write to file
