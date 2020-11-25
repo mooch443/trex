@@ -155,13 +155,17 @@ void HeatmapController::save() {
 
         auto str = Meta::toStr(shape);
         Debug("Done (%lu / %lu, shape %S).", expected, per_frame.size(), &str);
-
+        auto source = _source;
+        if(source.find('#') != std::string::npos)
+            source = source.substr(0, source.find('#'));
+        
         file::Path path = pv::DataLocation::parse("output", 
             file::Path((std::string)SETTING(filename).value<file::Path>().filename() 
                 + "_heatmap" 
                 + "_p" + Meta::toStr(package_index) + "_"
                 + Meta::toStr(uniform_grid_cell_size) 
-                + "_" + Meta::toStr(N) + "x" + Meta::toStr(N) 
+                + "_" + Meta::toStr(N) + "x" + Meta::toStr(N)
+                + "_" + source
                 + ".npz"));
         DebugHeader("Saving package %lu to '%S'...", package_index, &path.str());
 
