@@ -118,8 +118,8 @@ void HeatmapController::save() {
     update_variables();
     
     _frame_context = 0;
-    _normalization = normalization_t::value;
-    custom_heatmap_value_range = Range<double>(0, 1);
+    _normalization = normalization_t::none;
+    custom_heatmap_value_range = Range<double>(-1, -1);
     
     size_t count_frames = 0, package_count = 0;
     size_t max_frames = sign_cast<size_t>(Tracker::end_frame() - Tracker::start_frame());

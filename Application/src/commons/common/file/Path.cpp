@@ -164,7 +164,7 @@ std::string_view Path::filename() const {
 #if WIN32
 			if (!folder.empty() && folder.back() == ':')
 				continue;
-			if(CreateDirectory(folder.c_str(), NULL)) {
+			if(!CreateDirectory(folder.c_str(), NULL)) {
 #else
             if(mkdir(folder.c_str(), ACCESSPERMS) != 0) {
 #endif
