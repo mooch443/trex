@@ -11,7 +11,7 @@ source:
     git_depth: 1
 
 build:
-    number: 10
+    number: 11
     string: "{{ hash }}_{{ number }}"
     run_exports:
         - {{ pin_compatible('ffmpeg', min_pin='x.x.x', max_pin='x.x.x') }}
