@@ -11,7 +11,7 @@ source:
     git_depth: 1
 
 build:
-    number: 11
+    number: 12
     string: "{{ hash }}_{{ number }}"
     run_exports:
         - {{ pin_compatible('ffmpeg', min_pin='x.x.x', max_pin='x.x.x') }}
@@ -72,9 +72,8 @@ requirements:
     
   host:
     - pthread-stubs  # [linux]
-    - ffmpeg # [win]
+    - ffmpeg
     - python # [win]
-    - ffmpeg ==4.0 # [not win]
     - python =3.6 # [not win]
     - nomkl # [osx]
     
@@ -82,9 +81,8 @@ requirements:
     - tensorflow-gpu ==1.13.* # [not osx]
     - tensorflow ==1.13.* # [osx]
     - keras
-    - ffmpeg # [win]
+    - ffmpeg
     - python # [win]
-    - ffmpeg ==4.0 # [not win]
     - python =3.6 # [not win]
     - nomkl # [osx]
     - xorg-libx11 # [linux]
