@@ -301,7 +301,7 @@ VideoOpener::VideoOpener() {
     
     _file_chooser->set_tabs({
         FileChooser::Settings{std::string("Pre-processed (PV)"), std::string("pv"), _horizontal},
-        FileChooser::Settings{std::string("Convert (RAW)"), std::string("mp4;avi;mov;flv;m4v;webm"), _horizontal_raw}
+        FileChooser::Settings{std::string("Convert (RAW)"), std::string("mp4;avi;mov;flv;m4v;webm;mkv"), _horizontal_raw}
     });
     
     _file_chooser->on_update([this](auto&) mutable {
