@@ -399,11 +399,10 @@ int main(int argc, char** argv)
                         Path folder = pv::DataLocation::parse("input", Path(option.value).remove_filename());
                         Debug("Scanning pattern '%S' in folder '%S'...", &option.value, &folder.str());
                         
-                        for(auto &file: folder.find_files(".pv")) {
+                        for(auto &file: folder.find_files("pv")) {
                             if(!file.is_regular())
                                 continue;
                             
-                            Debug("Found file '%S'", &file.str());
                             auto filename = (std::string)file.filename();
                             
                             bool all_contained = true;
@@ -423,7 +422,6 @@ int main(int argc, char** argv)
                                     break;
                                 }
                                 
-                                Debug("Found '%S' at offset %d (%d)", &part, index, offset);
                                 offset = index + part.length();
                             }
                             
@@ -441,10 +439,11 @@ int main(int argc, char** argv)
                             SETTING(filename) = path.remove_extension();
                             break;
                             
-                        } else {
+                        } else if(found.size() > 1) {
                             auto str = Meta::toStr(found);
-                            Debug("Found too many files matching the pattern: %S.", &str);
-                        }
+                            Debug("Found too many files matching the pattern '%S': %S.", &option.value, &str);
+                        } else
+                            Debug("No files found that match the pattern '%S'.", &option.value);
                     }
                     
                     Path path = pv::DataLocation::parse("input", Path(option.value).add_extension("pv"));
