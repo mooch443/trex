@@ -294,7 +294,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
         unique_ids.insert(pred_id);
     }
     
-    if(unique_ids.size() == FAST_SETTINGS(manual_identities).size() - 1 && min_prob > pure_chance * 1.5) {
+    if(unique_ids.size() == FAST_SETTINGS(manual_identities).size() - 1 && min_prob > pure_chance * FAST_SETTINGS(recognition_segment_add_factor)) {
         Debug("\tOnly one missing id in predicted ids. Guessing solution...");
         
         //! Searching for consecutive numbers, finding the gap
@@ -338,7 +338,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
     }
     
     auto quality_str = Meta::toStr(quality);
-    if(unique_ids.size() == FAST_SETTINGS(manual_identities).size() && min_prob > pure_chance * 1.5) {
+    if(unique_ids.size() == FAST_SETTINGS(manual_identities).size() && min_prob > pure_chance * FAST_SETTINGS(recognition_segment_add_factor)) {
         str = Meta::toStr(max_indexes);
         
         Debug("\t[+] Dataset range (%d-%d, %S) is acceptable for training with assignments: %S", range.start, range.end, &quality_str, &str);
@@ -348,8 +348,8 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
         end_a_step(Result(FrameRange(range), -1, AccumulationStatus::Cached, AccumulationReason::NoUniqueIDs, str));
         Debug("%S", &str);
         return {true, {}};
-    } else if(min_prob <= pure_chance * 1.5) {
-        auto str = DEBUG::format("\t[-] Dataset range (%d-%d, %S) minimal class-probability %f is lower than %f.", range.start, range.end, &quality_str, min_prob, pure_chance * 1.5);
+    } else if(min_prob <= pure_chance * FAST_SETTINGS(recognition_segment_add_factor)) {
+        auto str = DEBUG::format("\t[-] Dataset range (%d-%d, %S) minimal class-probability %f is lower than %f.", range.start, range.end, &quality_str, min_prob, pure_chance * FAST_SETTINGS(recognition_segment_add_factor));
         end_a_step(Result(FrameRange(range), -1, AccumulationStatus::Cached, AccumulationReason::ProbabilityTooLow, str));
         Debug("%S", &str);
         return {true, {}};
