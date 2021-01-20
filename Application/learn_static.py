@@ -455,7 +455,7 @@ def predict():
 def start_learning():
     global best_accuracy_worst_class, max_epochs, image_width, image_height
     global output_path, classes, learning_rate, accumulation_step, global_segment
-    global batch_size, X_val, Y_val, X, Y, run_training, save_weights_after, do_save_training_images
+    global batch_size, X_val, Y_val, X, Y, run_training, save_weights_after, do_save_training_images, min_iterations
 
     epochs = max_epochs
     #batch_size = 32
@@ -474,7 +474,7 @@ def start_learning():
         "accumulation_step": accumulation_step,
         "global_segment": np.array(global_segment, dtype=int),
         "per_epoch" : -1,
-        "min_iterations": 2
+        "min_iterations": min_iterations
         #"min_acceptable_value": 0.98
     }
 

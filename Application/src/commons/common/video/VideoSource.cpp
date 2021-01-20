@@ -11,6 +11,7 @@ using namespace cmn;
 std::vector<std::pair<std::string, VideoSource::File::Type>> VideoSource::File::_extensions = {
     { "mov", VIDEO },
     { "mp4", VIDEO },
+    { "mpg", VIDEO },
     { "mkv", VIDEO },
     { "mxf", VIDEO },
     { "avi", VIDEO },
