@@ -344,7 +344,8 @@ class ValidationCallback(keras.callbacks.Callback):
             #               self.model.stop_training = True
 
             # check for accuracy plateau
-            TRex.log("-- worst_value "+str(self.worst_values[-2:]))
+            long_time = int(max(5, self.epochs * 0.1))
+            TRex.log("-- worst_value "+str(self.worst_values[-2:])+" -- long time:"+str(long_time))
             if not self.model.stop_training and len(self.worst_values) >= 2 and self.settings["accumulation_step"] >= -1:
                 acc = np.array(self.worst_values[-2:]) #logs[akey][-2:]
                 if (acc > 0.97).all() or worst_acc_per_class >= 0.99:
@@ -353,9 +354,9 @@ class ValidationCallback(keras.callbacks.Callback):
                     self.model.stop_training = True
 
             # check whether we are plateauing at a certain uniqueness level for a long time
-            if not self.model.stop_training and len(self.uniquenesses) >= 10 and self.settings["accumulation_step"] > 0:
-                acc = np.diff(self.uniquenesses[-10:]).mean() #logs[akey][-2:]
-                TRex.log("Uniqueness plateau check:"+str(np.diff(self.uniquenesses[-10:]))+" -> "+str(acc))
+            if not self.model.stop_training and len(self.uniquenesses) >= long_time and self.settings["accumulation_step"] > 0:
+                acc = np.diff(self.uniquenesses[-long_time:]).mean() #logs[akey][-2:]
+                TRex.log("Uniqueness plateau check:"+str(np.diff(self.uniquenesses[-long_time:]))+" -> "+str(acc))
                 if acc <= 0.01:
                     set_stop_reason("uniqueness plateau")
                     TRex.log("[STOP] Uniqueness has been plateauing for several epochs. terminating. "+str(acc))
