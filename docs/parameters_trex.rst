@@ -175,7 +175,7 @@ TRex parameters
 
 .. function:: build_cxx_options(string)
 
-	**default value:** " -Wno-c++98-compat-pedantic -fvisibility=hidden -Wno-missing-field-initializers -Wno-missing-prototypes -Wnon-virtual-dtor -Woverloaded-virtual -Wno-exit-time-destructors -Wmissing-braces -Wparentheses -Wswitch -Wunused-function -Wno-unused-label -Wno-unused-parameter -Wno-unused-variable -Wunused-value -Wempty-body -Wuninitialized -Wno-unknown-pragmas -Wno-shadow -Wno-four-char-constants -Wconversion -Wconstant-conversion -Wint-conversion -Wbool-conversion -Wenum-conversion -Wfloat-conversion -Wnon-literal-null-conversion -Wobjc-literal-conversion -Wsign-compare -Wno-shorten-64-to-32 -Wnewline-eof -Wno-c++11-extensions -O3 -DNDEBUG -O3 -Wno-nullability-extension"
+	**default value:** " -Wno-c++98-compat-pedantic -fvisibility=hidden -O3 -DNDEBUG -O3 -Wno-nullability-extension"
 
 
 	The mode the application was built in.
@@ -1638,6 +1638,15 @@ TRex parameters
 
 
 
+.. function:: recognition_segment_add_factor(float)
+
+	**default value:** 1.5
+
+
+	This factor will be multiplied with the probability that would be pure chance, during the decision whether a segment is to be added or not. The default value of 1.5 suggests that the minimum probability for each identity has to be 1.5 times chance (e.g. 0.5 in the case of two individuals).
+
+
+
 .. function:: recognition_shapes(array<array<vec>>)
 
 	**default value:** []
@@ -1891,7 +1900,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "1.0.6"
+	**default value:** "v1.0.9"
 
 
 	Current application version.

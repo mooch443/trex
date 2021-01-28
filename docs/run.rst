@@ -7,7 +7,17 @@
 Basic usage
 ===========
 
-|trex| can be launched simply by double-clicking it, or launching it from the command-line without parameters, which will show a file opening dialog. Its younger sibling, |grabs|, also offers a graphical user interface, but can only be started from the terminal at the moment (we will be working on changing that, and also potentially integrating it completely with |trex|). The following sections address the issue of directly providing parameters using the command-line for both softwares (e.g. in a batch processing, or generally a more command-line affine use-case). If you're launching |trex| by double-clicking it (or using voice commands), most parameters (except system-variables) can be adjusted after loading a video.
+|trex| can be launched simply by double-clicking it, or launching it from the command-line without parameters, which will show a file opening dialog. Its younger sibling, |grabs|, also offers a graphical user interface, but can only be started from the terminal at the moment (we will be working on changing that, and also potentially integrating it completely with |trex|). The following sections address the issue of directly providing parameters using the command-line for both softwares (e.g. in a batch processing, or generally a more command-line affine use-case). Any additional number of parameters can be passed to both |grabs| and |trex| as::
+
+	./trex [...] -PARAMETER VALUE
+
+For example, in order to set the number of individuals to 5 and prefix all individuals names/files with "termite" instead of "fish", just change the values of ``track_max_individuals`` and ``individual_prefix`` when launching the application like so (we are also opening a file called "example" and use a different settings file)::
+
+	./trex -i example -s tmp.settings -track_max_individuals 5 -individual_prefix "termite"
+
+A full reference of available parameters for |grabs| can be found at :doc:`parameters_tgrabs`, and for |trex| at :doc:`parameters_trex`.
+
+If you're launching |trex| by double-clicking it (or using voice commands), most parameters (except system-variables) can be adjusted after loading a video.
 
 This page is a reference for some commonly used parameters of our software. Some common real-life usage examples can be found at :doc:`examples`.
 
