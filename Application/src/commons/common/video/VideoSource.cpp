@@ -8,6 +8,52 @@
 
 using namespace cmn;
 
+std::string load_string(const file::Path& npz, const std::string fname) {
+    libzip::archive zip(npz.str(), ZIP_RDONLY);
+    cnpy::npz_t arrays;
+
+    for (auto stat : zip) {
+      if (!(stat.valid & (ZIP_STAT_NAME | ZIP_STAT_SIZE))) {
+        // Skip files without name or size
+        continue;
+      }
+      std::string name(stat.name);
+        
+      auto file = zip.open(name);
+
+      // erase the lagging .npy
+      std::string varname = name.substr(0, name.size() - 4);
+        
+    if(varname == fname) {
+        std::string buffer = file.read(stat.size);
+
+        std::vector<size_t> shape;
+        size_t word_size;
+        bool fortran_order;
+        cnpy::parse_npy_header(buffer, word_size,
+                               shape, fortran_order);
+
+        shape = {word_size};
+        word_size = 4;
+        
+        cnpy::NpyArray format(shape, word_size, fortran_order);
+
+        uint64_t offset = stat.size - format.num_bytes();
+        memcpy(format.data<unsigned char>(), buffer.data() + offset,
+               format.num_bytes());
+        
+        std::stringstream ss;
+        for(auto ptr = format.data<uchar>(), end = format.data<uchar>() + format.num_bytes(); ptr != end; ptr += format.word_size) {
+            ss << (char)*ptr;
+        }
+        
+        return ss.str();
+    }
+    }
+    
+    return std::string();
+}
+
 std::vector<std::pair<std::string, VideoSource::File::Type>> VideoSource::File::_extensions = {
     { "mov", VIDEO },
     { "mp4", VIDEO },
@@ -67,6 +113,9 @@ VideoSource::File::File(size_t index, const std::string& basename, const std::st
                         Debug("Found timestamps for file '%S'.", &npz.str());
                         message = true;
                     }
+                    
+                    _format = load_string(npz, "format");
+                    Debug("Format: %S", &_format);
                     
                     _timestamps = cnpy::npz_load(npz.str(), "frame_time").as_vec<double>();
                     auto res = cnpy::npz_load(npz.str(), "imgshape").as_vec<int64_t>();
@@ -372,20 +421,26 @@ void VideoSource::open(const std::string& basename, const std::string& extension
     _has_timestamps = _files_in_seq.front()->has_timestamps();
     
     /**
-     * Because of a bug in loop bio software while saving specific videos,
-     * they sometimes put slightly wrong metadata in the accompanying npz files.
-     * In this case we have to disregard the dimensions stated within and use
-     * the actual ones from the frame.
+     * Because of a bug in older loop bio software, they sometimes report wrong image dimensions in the accompanying npz files ( https://github.com/loopbio/imgstore/issues/12 ).
+     * This was because certain file formats only understand powers-of-two image dimensions and the meta-data reported the original image size (before cropping to a valid size). This is solved by & -2, which truncates downwards to even (see https://github.com/mooch443/trex/issues/8 ).
      **/
     if(_has_timestamps) {
-        auto first = _files_in_seq.front();
-        cv::Mat image;
-        first->frame(0, image);
-        if(image.cols != _size.width || image.rows != _size.height) {
-            Warning("VideoSource '%S' reports resolution %dx%d in metadata, but is actually %dx%d. Going with the actual video dimensions for now.", &basename, _size.width, _size.height, image.cols, image.rows);
-            _size = cv::Size(image.cols, image.rows);
+        auto& format = _files_in_seq.front()->format();
+        if(utils::contains(format, "nvenc-") || utils::contains(format, "264")) {
+            // here we can be sure that size has been cropped to even
+            _size = cv::Size(_size.width & -2, _size.height & -2);
+            
+        } else {
+            // fallback to less elegant method, try to find out what happened
+            auto first = _files_in_seq.front();
+            cv::Mat image;
+            first->frame(0, image);
+            if(image.cols != _size.width || image.rows != _size.height) {
+                Warning("VideoSource '%S' reports resolution %dx%d in metadata, but is actually %dx%d. Going with the actual video dimensions for now.", &basename, _size.width, _size.height, image.cols, image.rows);
+                _size = cv::Size(image.cols, image.rows);
+            }
+            _last_file = first;
         }
-        _last_file = first;
     }
     
     Debug("Resolution of VideoSource '%S' is [%dx%d]", &basename, _size.width, _size.height);

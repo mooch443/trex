@@ -35,6 +35,8 @@ public:
         Video *_video;
         Type _type;
         
+        GETTER(std::string, format)
+        
         std::vector<double> _timestamps;
         cv::Size _size;
         
