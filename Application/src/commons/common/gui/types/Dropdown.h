@@ -76,6 +76,7 @@ namespace gui {
         
         std::map<size_t, size_t> filtered_items;
         std::function<void()> _on_text_changed;
+        std::function<void(std::string)> _custom_on_text_changed;
         std::function<void(bool)> _on_open;
         
     public:
@@ -91,6 +92,10 @@ namespace gui {
         
         void on_open(const std::function<void(bool)>& fn) {
             _on_open = fn;
+        }
+        
+        void on_text_changed(const std::function<void(std::string)>& fn) {
+            _custom_on_text_changed = fn;
         }
         
         void select_textfield();

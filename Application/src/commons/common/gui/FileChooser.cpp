@@ -33,8 +33,10 @@ FileChooser::FileChooser(const file::Path& start, const std::string& extension,
         if(_on_update)
             _on_update(*_graph);
         _graph->draw_log_messages();
-        if(_tooltip)
-            _graph->wrap_object(*_tooltip);
+        if(!_tooltips.empty()) {
+            for(auto && [ID, obj] : _tooltips)
+                _graph->wrap_object(*obj);
+        }
         
         if(!_selected_file.empty()) {
 
@@ -107,19 +109,29 @@ FileChooser::FileChooser(const file::Path& start, const std::string& extension,
     
     _button = std::make_shared<Button>("Open", Bounds(_list->pos() + Vec2(0, _list->height() + 40), Size2(100, 30)));
     
-    _textfield = std::make_shared<Textfield>("", Bounds(0, 0, _list->width(), 30));
-    
-    _textfield->on_enter([&](){
-        auto path = file::Path(_textfield->text());
-        
-        //if(path.exists() || path.str() == "/" || path.add_extension("pv").exists())
+    _textfield = std::make_shared<Dropdown>(Bounds(0, 0, _list->width(), 30));
+    //_textfield = std::make_shared
+    _textfield->on_select([this](long_t, const Dropdown::TextItem &item) {
+        auto path = file::Path((std::string)item);
         if(!_validity || _validity(path))
         {
             file_selected(0, path.str());
-        } else {
+            if(!path.is_regular())
+                _textfield->select_textfield();
+        } else
             Error("Path '%S' cannot be opened.", &path.str());
-        }
+    });
+    
+    _textfield->on_text_changed([this](std::string str) {
+        auto path = file::Path(str);
+        auto file = (std::string)path.filename();
         
+        if(path.empty() || (path == _path || ((!path.exists() || !path.is_folder()) && path.remove_filename() == _path)))
+        {
+            // still in the same folder
+        } else if(utils::endsWith(str, file::Path::os_sep()) && path != _path && path.is_folder()) {
+            file_selected(0, path);
+        }
     });
     
     _rows = std::make_shared<VerticalLayout>(std::vector<Layout::Ptr>{
@@ -153,7 +165,9 @@ FileChooser::FileChooser(const file::Path& start, const std::string& extension,
     }
     
     update_names();
-    _textfield->set_text(_path.str());
+    
+    _textfield->textfield()->set_text(_path.str());
+    //_textfield->set_text(_path.str());
     
     _graph->set_scale(_base.dpi_scale() * gui::interface_scale());
     _list->on_select([this](auto i, auto&path){ file_selected(i, path.path()); });
@@ -272,24 +286,33 @@ void FileChooser::set_tab(std::string tab) {
 
 void FileChooser::update_names() {
     _names.clear();
+    _search_items.clear();
     for(auto &f : _files) {
-        if(f.str() == ".." || !utils::beginsWith((std::string)f.filename(), '.'))
+        if(f.str() == ".." || !utils::beginsWith((std::string)f.filename(), '.')) {
             _names.push_back(FileItem(f));
+            _search_items.push_back(Dropdown::TextItem(f.str()));
+        }
     }
     _list->set_items(_names);
+    _textfield->set_items(_search_items);
 }
 
-void FileChooser::set_tooltip(Drawable* ptr, const std::string& docs) {
-    if(!ptr)
-        _tooltip = nullptr;
-    else {
-        if(!_tooltip) {
-            _tooltip = std::make_shared<Tooltip>(ptr, 400);
-            _tooltip->text().set_default_font(Font(0.5));
-        } else
-            _tooltip->set_other(ptr);
+void FileChooser::set_tooltip(int ID, Drawable* ptr, const std::string& docs)
+{
+    auto it = _tooltips.find(ID);
+    if(!ptr) {
+        if(it != _tooltips.end())
+            _tooltips.erase(it);
         
-        _tooltip->set_text(docs);
+    } else {
+        if(it == _tooltips.end()) {
+            _tooltips[ID] = std::make_shared<Tooltip>(ptr, 400);
+            _tooltips[ID]->text().set_default_font(Font(0.5));
+            it = _tooltips.find(ID);
+        } else
+            it->second->set_other(ptr);
+        
+        it->second->set_text(docs);
     }
 }
 
@@ -329,7 +352,7 @@ void FileChooser::change_folder(const file::Path& p) {
             _files.insert("..");
             
             _list->set_scroll_offset(Vec2());
-            _textfield->set_text(_path.str());
+            _textfield->textfield()->set_text(_path.str());
             
         } catch(const UtilsException&e) {
             _path = org;
@@ -346,7 +369,7 @@ void FileChooser::change_folder(const file::Path& p) {
             _files.insert("..");
             
             _list->set_scroll_offset(Vec2());
-            _textfield->set_text(_path.str());
+            _textfield->textfield()->set_text(_path.str()+"/");
             
         } catch(const UtilsException&e) {
             _path = org;
@@ -362,6 +385,10 @@ void FileChooser::file_selected(size_t, file::Path p) {
         
     } else {
         _selected_file = p;
+        if(!_selected_file.empty() && _selected_file.remove_filename() != _path) {
+            change_folder(_selected_file.remove_filename());
+        }
+        
         if(p.empty()) {
             _selected_file = file::Path();
             _selected_text = nullptr;

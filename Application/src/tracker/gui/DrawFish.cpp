@@ -148,7 +148,8 @@ CREATE_STRUCT(CachedGUIOptions,
         const float max_color = timeline_visible ? 255 : GUIOPTION(gui_faded_brightness);
         
         auto base_color = single_identity != Transparent ? single_identity : _obj.identity().color();
-        auto clr = base_color.alpha(saturate(((cache.is_selected(_obj.identity().ID()) || hovered) ? max_color : max_color * 0.4f) * time_fade_percent));
+        //auto clr = base_color.alpha(saturate(((cache.is_selected(_obj.identity().ID()) || hovered) ? max_color : max_color * 0.4f) * time_fade_percent));
+        auto clr = base_color.alpha(saturate(max_color));// * time_fade_percent));
         _color = clr;
         
         auto current_time = _time;
@@ -658,7 +659,7 @@ CREATE_STRUCT(CachedGUIOptions,
                     auto id = (*fit)->basic_stuff(i);
                     if(id != -1) {
                         auto stuff = _obj.basic_stuff().at(id);
-                        frame_vertices.push_front(FrameVertex{i, Vertex(stuff->centroid->pos(Units::PX_AND_SECONDS)), min(1, stuff->centroid->speed(Units::CM_AND_SECONDS))});
+                        frame_vertices.push_front(FrameVertex{i, Vertex(stuff->centroid->pos(Units::PX_AND_SECONDS)), min(1, stuff->centroid->speed(Units::CM_AND_SECONDS) / max_speed)});
                     }
                 }
             }
@@ -716,7 +717,7 @@ CREATE_STRUCT(CachedGUIOptions,
         auto prev = frame_vertices.empty() ? -1 : frame_vertices.begin()->frame;
         Vec2 prev_pos = frame_vertices.empty() ? Vec2(-1) : frame_vertices.begin()->vertex.position();
         for(auto & fv : frame_vertices) {
-            float percent = (fv.speed_percentage * 0.5 + 0.5) * (float(fv.frame - color_start) / float(color_end - color_start));
+            float percent = (fv.speed_percentage * 0.15 + 0.85) * (float(fv.frame - color_start) / float(color_end - color_start));
             percent = percent * percent;
             
             if(fv.frame - prev > 1 || (prev != -1 && euclidean_distance(prev_pos, fv.vertex.position()) >= max_distance)) {

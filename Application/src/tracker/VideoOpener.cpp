@@ -344,9 +344,9 @@ VideoOpener::VideoOpener() {
             if(gui::temp_docs.find(name) != gui::temp_docs.end())
                 str += "\n" + settings::htmlify(gui::temp_docs[name]);
             
-            _file_chooser->set_tooltip(found, str);
+            _file_chooser->set_tooltip(0, found, str);
         } else
-            _file_chooser->set_tooltip(nullptr, "");
+            _file_chooser->set_tooltip(0, nullptr, "");
         
         std::lock_guard guard(_video_mutex);
         if(_buffer) {
@@ -850,19 +850,33 @@ void VideoOpener::select_file(const file::Path &p) {
     try {
         pv::File video(SETTING(filename).value<file::Path>());
         video.start_reading();
-        auto text = video.get_info();
+        auto text = video.get_info(false);
         
+        _background = std::make_shared<ExternalImage>(std::move(std::make_unique<Image>(video.average())));
+        _background->set_scale(Vec2(300 / float(video.average().cols)));
 
         gui::derived_ptr<gui::Text> info_text = std::make_shared<gui::Text>("Selected", Vec2(), gui::White, gui::Font(0.8f, gui::Style::Bold));
         gui::derived_ptr<gui::StaticText> info_description = std::make_shared<gui::StaticText>(settings::htmlify(text), Vec2(), Size2(300, 600), gui::Font(0.5));
+        gui::derived_ptr<gui::Text> info_2 = std::make_shared<gui::Text>("Background", Vec2(), gui::White, gui::Font(0.8f, gui::Style::Bold));
         
         _infos->set_children({
             info_text,
-            info_description
+            info_description,
+            info_2,
+            _background
         });
         
         _infos->auto_size(Margin{0, 0});
         _infos->update_layout();
+        
+        _infos->on_hover([this, meta = "<h2>Metadata</h2>"+ settings::htmlify(video.header().metadata)](Event e){
+            if(e.hover.hovered) {
+                _file_chooser->set_tooltip(1, _background.get(), meta);
+            } else
+                _file_chooser->set_tooltip(1, nullptr, "");
+        });
+        
+        
         
     } catch(...) {
         Except("Caught an exception while reading info from '%S'.", &SETTING(filename).value<file::Path>().str());

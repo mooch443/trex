@@ -57,6 +57,9 @@ namespace gui {
             });
             
             _on_text_changed = [this](){
+                if(_custom_on_text_changed)
+                    _custom_on_text_changed(_textfield->text());
+                
                 filtered_items.clear();
                 
                 if(!_textfield->text().empty()) {
@@ -249,6 +252,10 @@ namespace gui {
             } else
                 set_inverted(false);
         }
+        
+        if(_textfield)
+            _textfield->set_size(Size2(width(), height()).div(scale()));
+        _list.set_size(Size2(width() / scale().x, _list.height()));
     }
     
     void Dropdown::set_inverted(bool invert) {

@@ -337,7 +337,7 @@ protected:
         
     public:
         ExternalImage() : ExternalImage(std::make_unique<Image>(), Vec2()) {}
-        ExternalImage(Ptr&& source, const Vec2& pos, const Vec2& scale = Vec2(1,1), const Color& color = Transparent);
+        ExternalImage(Ptr&& source, const Vec2& pos = Vec2(), const Vec2& scale = Vec2(1,1), const Color& color = Transparent);
         ~ExternalImage() { }
         ExternalImage(const ExternalImage& e) = delete;
         

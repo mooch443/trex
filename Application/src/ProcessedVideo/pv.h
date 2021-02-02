@@ -236,8 +236,8 @@ namespace pv {
         const pv::Frame& last_frame();
         
         std::vector<float> calculate_percentiles(const std::initializer_list<float>& percent);
-        std::string get_info();
-        std::string get_info_rich_text();
+        std::string get_info(bool full = true);
+        std::string get_info_rich_text(bool full = true);
         void print_info() { auto info = get_info(); Debug("%S", &info); }
         
         virtual CropOffsets crop_offsets() const override {

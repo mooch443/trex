@@ -67,9 +67,10 @@ public:
     
     gui::derived_ptr<gui::VerticalLayout> _extra, _infos, _raw_info, _raw_settings;
     gui::derived_ptr<gui::HorizontalLayout> _horizontal, _horizontal_raw;
-    gui::derived_ptr<gui::ExternalImage> _screenshot;
+    gui::derived_ptr<gui::ExternalImage> _screenshot, _background;
     gui::derived_ptr<gui::Text> _loading_text;
     gui::derived_ptr<gui::StaticText> _raw_description;
+    gui::derived_ptr<gui::Tooltip> _tooltip;
     std::unique_ptr<std::thread> _stale_thread;
     std::condition_variable _stale_variable;
     

@@ -588,8 +588,8 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
         return ret;
     }
     
-    std::string File::get_info() {
-        auto str = get_info_rich_text();
+    std::string File::get_info(bool full) {
+        auto str = get_info_rich_text(full);
         str = utils::find_replace(str, "<b>", "");
         str = utils::find_replace(str, "</b>", "");
         return str;
@@ -606,7 +606,7 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
         return Meta::toStr(FileSize(bytes));
     }
     
-    std::string File::get_info_rich_text() {
+    std::string File::get_info_rich_text(bool full) {
         std::stringstream ss;
         ss << this->toString() << "\n";
         
@@ -655,10 +655,12 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
         
         ss << std::endl;
         
-        if(header().metadata.empty())
-            ss << ("<b>Metadata empty.</b>");
-        else
-            ss << "<b>Metadata:</b> " << header().metadata ;
+        if(full) {
+            if(header().metadata.empty())
+                ss << ("<b>Metadata empty.</b>");
+            else
+                ss << "<b>Metadata:</b> " << header().metadata ;
+        }
         
         return ss.str();
     }

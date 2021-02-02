@@ -8,6 +8,7 @@
 #include <gui/types/Textfield.h>
 #include <gui/types/Layout.h>
 #include <gui/types/Tooltip.h>
+#include <gui/types/Dropdown.h>
 
 namespace gui {
 
@@ -48,15 +49,16 @@ protected:
     derived_ptr<StaticText> _selected_text;
     derived_ptr<ScrollableList<FileItem>> _list;
     derived_ptr<Button> _button;
-    derived_ptr<Textfield> _textfield;
+    derived_ptr<Dropdown> _textfield;
     derived_ptr<VerticalLayout> _rows;
     derived_ptr<HorizontalLayout> _columns;
     derived_ptr<VerticalLayout> _overall;
     derived_ptr<HorizontalLayout> _tabs_bar;
-    derived_ptr<Tooltip> _tooltip;
+    std::unordered_map<int, derived_ptr<Tooltip>> _tooltips;
     std::vector<Layout::Ptr> tabs_elements;
     IMGUIBase _base;
     std::vector<FileItem> _names;
+    std::vector<Dropdown::TextItem> _search_items;
     
     file::Path _path;
     bool _running;
@@ -90,7 +92,7 @@ public:
     void on_tab_change(std::function<void(std::string)>&& fn) { _on_tab_change = std::move(fn); }
     void set_validity_check(std::function<bool(file::Path)>&& fn) { _validity = std::move(fn); }
     void deselect();
-    void set_tooltip(Drawable*, const std::string&);
+    void set_tooltip(int ID, Drawable*, const std::string&);
     
 private:
     void file_selected(size_t i, file::Path path);
