@@ -98,7 +98,8 @@ CREATE_STRUCT(Settings,
   (float, recognition_image_scale),
   (bool, analysis_paused),
   (float, track_trusted_probability),
-  (float, recognition_segment_add_factor)
+  (float, recognition_segment_add_factor),
+  (bool, output_interpolate_positions)
 )
 
     class Tracker {

@@ -18,6 +18,77 @@ namespace Output {
     LibraryCache::Ptr LibraryCache::default_cache() {
         return _default_cache;
     }
+
+template<typename T = Individual::BasicStuff>
+auto find_stuffs(const Library::LibInfo& info, long_t frame) {
+    std::shared_ptr<T> start = nullptr, end = nullptr;
+    
+    auto it = info.fish->iterator_for(frame);
+    if(it != info.fish->frame_segments().end() && !(*it)->empty()) {
+        assert((*it)->start() < frame);
+        
+        if constexpr(std::is_same<T, Individual::BasicStuff>::value) {
+            start = info.fish->basic_stuff()[ (*it)->basic_index.back() ];
+            
+            ++it;
+            
+            // check if there are no segments after the current one, can not interpolate
+            if(it != info.fish->frame_segments().end() && !(*it)->empty())
+                end = info.fish->basic_stuff()[ (*it)->basic_index.front() ];
+            
+        } else {
+            auto index = (*it)->posture_index.empty() ? -1 : (*it)->posture_index.back();
+            if(index != -1)
+                start = info.fish->posture_stuff()[ index ];
+            
+            ++it;
+            if(it != info.fish->frame_segments().end() && !(*it)->empty()) {
+                index = (*it)->posture_index.empty() ? -1 : (*it)->posture_index.front();
+                if(index != -1)
+                    end = info.fish->posture_stuff()[ index ];
+            }
+        }
+    }
+    
+    return std::make_pair(start, end);
+}
+
+std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(const Library::LibInfo& info, long_t frame, float& percent) {
+    const PhysicalProperties *ptr0 = nullptr;
+    const PhysicalProperties *ptr1 = nullptr;
+    
+    if(info.modifiers.is(WEIGHTED_CENTROID) || info.modifiers.is(CENTROID)) {
+        auto pair = find_stuffs(info, frame);
+        if(pair.first && pair.second) {
+            // now we have start/end coordinates, interpolate
+            percent = float(frame - pair.first->frame) / float(pair.second->frame - pair.first->frame);
+            
+            ptr0 = pair.first->centroid;
+            ptr1 = pair.second->centroid;
+        }
+        
+    } else {
+        auto pair = find_stuffs<Individual::PostureStuff>(info, frame);
+        if(pair.first && pair.second) {
+            // now we have start/end coordinates, interpolate
+            percent = float(frame - pair.first->frame) / float(pair.second->frame - pair.first->frame);
+            
+            if(info.modifiers.is(POSTURE_CENTROID)) {
+                ptr0 = pair.first->centroid_posture;
+                ptr1 = pair.second->centroid_posture;
+            } else
+                ptr0 = pair.first->head;
+                ptr1 = pair.second->head;
+        }
+    }
+    
+    if(!ptr0 || !ptr1) {
+        percent = infinity<float>(); // there are no segments after this frame, cannot interpolate
+        return {ptr0, ptr1};
+    }
+    
+    return {ptr0, ptr1};
+}
     
     std::vector<std::string> Library::functions() {
         std::vector<std::string> ret;
@@ -161,11 +232,41 @@ namespace Output {
         
         using namespace track;
         
-        _cache_func[Functions::X.name()] =
-            LIBFNC( return (props->pos(Units::CM_AND_SECONDS, smooth).x - CENTER_X); );
+        _cache_func[Functions::X.name()] = LIBGLFNC( {
+            if(!props) {
+                if(!FAST_SETTINGS(output_interpolate_positions))
+                    return infinity<float>();
+                
+                float percent;
+                auto tup = interpolate_1d(info, frame, percent);
+                if(!std::get<0>(tup) || !std::get<1>(tup))
+                    return infinity<float>();
+                
+                return (1 - percent) * std::get<0>(tup)->pos(Units::CM_AND_SECONDS, smooth).x
+                     + percent       * std::get<1>(tup)->pos(Units::CM_AND_SECONDS, smooth).x
+                     - CENTER_X;
+                
+            } else
+                return (props->pos(Units::CM_AND_SECONDS, smooth).x - CENTER_X);
+        });
         
-        _cache_func[Functions::Y.name()] =
-            LIBFNC( return (props->pos(Units::CM_AND_SECONDS, smooth).y - CENTER_Y); );
+        _cache_func[Functions::Y.name()] = LIBGLFNC( {
+            if(!props) {
+                if(!FAST_SETTINGS(output_interpolate_positions))
+                    return infinity<float>();
+                
+                float percent;
+                auto tup = interpolate_1d(info, frame, percent);
+                if(!std::get<0>(tup) || !std::get<1>(tup))
+                    return infinity<float>();
+                
+                return (1 - percent) * std::get<0>(tup)->pos(Units::CM_AND_SECONDS, smooth).y
+                     + percent       * std::get<1>(tup)->pos(Units::CM_AND_SECONDS, smooth).y
+                     - CENTER_Y;
+                
+            } else
+                return (props->pos(Units::CM_AND_SECONDS, smooth).y - CENTER_Y);
+        });
         
         _cache_func[Functions::VX.name()] = LIBFNC ( return props->v(Units::CM_AND_SECONDS, smooth).x; );
         _cache_func[Functions::VY.name()] = LIBFNC( return props->v(Units::CM_AND_SECONDS, smooth).y; );
@@ -176,7 +277,23 @@ namespace Output {
         _cache_func[Functions::ANGULAR_V.name()] = LIBFNC( return props->angular_velocity(Units::DEFAULT, smooth); );
         _cache_func[Functions::ANGULAR_A.name()] = LIBFNC( return props->angular_acceleration(Units::DEFAULT, smooth); );
         
-        _cache_func[Functions::SPEED.name()] = LIBFNC( return props->speed(Units::CM_AND_SECONDS, smooth); );
+        _cache_func[Functions::SPEED.name()] = LIBGLFNC( {
+            if(!props) {
+                if(!FAST_SETTINGS(output_interpolate_positions))
+                    return infinity<float>();
+                
+                float percent;
+                auto tup = interpolate_1d(info, frame, percent);
+                if(!std::get<0>(tup) || !std::get<1>(tup))
+                    return infinity<float>();
+                
+                return (1 - percent) * std::get<0>(tup)->speed(Units::CM_AND_SECONDS, smooth)
+                     + percent       * std::get<1>(tup)->speed(Units::CM_AND_SECONDS, smooth);
+                
+            } else
+                return props->speed(Units::CM_AND_SECONDS, smooth);
+        });
+        
         _cache_func[Functions::ACCELERATION.name()] = LIBFNC( return props->acceleration(Units::CM_AND_SECONDS, smooth); );
         
         _cache_func[Functions::MIDLINE_OFFSET.name()] = LIBFNC({

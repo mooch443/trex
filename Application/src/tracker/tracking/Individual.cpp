@@ -948,19 +948,17 @@ std::shared_ptr<Individual::BasicStuff> Individual::add(long_t frameIndex, const
     
     // find valid previous frame
     //!TODO: can probably use segment ptr here
-    PhysicalProperties *prev_props = NULL;
     long_t prev_frame = frameIndex - 1;
     if(!empty()) {
         if(frameIndex > _startFrame) {
             auto previous = find_frame(frameIndex - 1);
             if(previous) {
-                prev_props = previous->centroid;
                 prev_frame = previous->frame;
             }
         }
     }
     
-    PhysicalProperties *current = new PhysicalProperties(this, prev_props, frame.index(), /*blob->pos() +*/ blob->center(), blob->orientation());
+    PhysicalProperties *current = new PhysicalProperties(this, frame.index(), blob->center(), blob->orientation());
     
     auto v = _local_cache.add(frameIndex, current);
     
@@ -1319,17 +1317,7 @@ Midline::Ptr Individual::update_frame_with_posture(const std::shared_ptr<BasicSt
         pt = Vec2(x, y);
         pt += bounds.pos() + midline->offset();
         
-        PhysicalProperties *prev = NULL, *prev_enhanced = NULL;
-        if (posture->frame > _startFrame) {
-            for (long_t x=posture->frame-1; x>=_startFrame; x--) {
-                if ((prev = head(x))) {
-                    prev_enhanced = centroid_posture(x);
-                    break;
-                }
-            }
-        }
-        
-        posture->head = new PhysicalProperties(this, prev, posture->frame, pt, midline->angle(), hints);
+        posture->head = new PhysicalProperties(this, posture->frame, pt, midline->angle(), hints);
         
          //ptr//.outline().original_angle();
 #if DEBUG_ORIENTATION
@@ -1362,7 +1350,7 @@ Midline::Ptr Individual::update_frame_with_posture(const std::shared_ptr<BasicSt
         centroid_point /= float(points.size());
         centroid_point += bounds.pos();
         
-        posture->centroid_posture = new PhysicalProperties(this, prev_enhanced, posture->frame, centroid_point, midline->angle(), hints);
+        posture->centroid_posture = new PhysicalProperties(this, posture->frame, centroid_point, midline->angle(), hints);
         posture->midline_angle = midline->angle();
         posture->midline_length = midline->len();
         

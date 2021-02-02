@@ -26,7 +26,7 @@ namespace track {
 #endif
     }
     
-    PhysicalProperties::PhysicalProperties(Individual* fish, PhysicalProperties* prev, long_t frame, const Vec2& pos, float angle, const CacheHints* hints) : //_prev(prev), _next(NULL),
+    PhysicalProperties::PhysicalProperties(Individual* fish, long_t frame, const Vec2& pos, float angle, const CacheHints* hints) :
     _fish(fish), _frame(frame)
     {
         _derivatives[(size_t)Type::POSITION] = (PropertyBase*)new Property<Vec2>(this, Type::POSITION);
@@ -34,10 +34,6 @@ namespace track {
         
         _derivatives[(size_t)Type::POSITION]->value(pos, Units::PX_AND_SECONDS, 0, hints);
         _derivatives[(size_t)Type::ANGLE]->value(angle, Units::DEFAULT, 0, hints);
-        
-        //if (prev)
-        //    prev->set_next(this);
-        
         
 #ifdef _DEBUG_MEMORY
         std::lock_guard<std::mutex> guard(all_mutex);
@@ -48,11 +44,6 @@ namespace track {
     PhysicalProperties::~PhysicalProperties() {
         for (auto d : _derivatives)
             delete d;
-        
-        /*if(_prev)
-            _prev->set_next(_next);
-        if(_next)
-            _next->_prev = _prev;*/
         
 #ifdef _DEBUG_MEMORY
         std::lock_guard<std::mutex> guard(all_mutex);
@@ -109,15 +100,29 @@ namespace track {
         
         const Property<T> *prev_property = NULL;
         if(!_mother->fish()->empty()
-           && _mother->_frame-1 >= _mother->_fish->start_frame()
+           && _mother->_frame-1 >= _mother->fish()->start_frame()
            && _mother->_frame-1 <= _mother->fish()->end_frame())
         {
-            auto previous_frame = _mother->_fish->find_frame(_mother->_frame - 1);
-            if(previous_frame && previous_frame->centroid)
-                prev_property = previous_frame->centroid->get(type()).is_type<T>();
-        }
+            auto it = _mother->_fish->iterator_for(_mother->_frame - 1);
+            if(it != _mother->_fish->frame_segments().end()) {
+                auto index = (*it)->basic_stuff(_mother->_frame-1);
+                if(index != -1) {
+                    // valid frame
+                    prev_property = _mother->fish()->basic_stuff()[ index ]->centroid->get(type()).is_type<T>();
+                } else {
+                    // invalid frame
+                    prev_property = _mother->fish()->basic_stuff()[ (*it)->basic_index.back() ]->centroid->get(type()).is_type<T>();
+                }
+            } else
+                Debug("No segment found for %d in fish%d", _mother->frame()-1, _mother->fish()->identity().ID());
+            //auto previous_frame = _mother->_fish->find_frame(_mother->_frame - 1);
+            //if(previous_frame && previous_frame->centroid)
+            //    prev_property = previous_frame->centroid->get(type()).is_type<T>();
+        } else if(_mother->frame() != 0)
+            Debug("Out of range for %d in fish%d (%d, %d)", _mother->frame()-1, _mother->fish()->identity().ID(), _mother->fish()->start_frame(), _mother->fish()->end_frame());
         
         if(!prev_property) {
+            Debug("Cannot find frame %d in fish%d", _mother->frame()-1, _mother->fish()->identity().ID());
             property.set_value(index, T(0));
             return;
         }

@@ -173,8 +173,6 @@ namespace track {
     private:
         friend class DataFormat;
         
-        //GETTER_PTR(PhysicalProperties*, prev)
-        //GETTER_PTR(PhysicalProperties*, next)
         GETTER_PTR(Individual*, fish)
         GETTER(long_t, frame)
         //GETTER(double, time)
@@ -184,7 +182,7 @@ namespace track {
         //std::map<Type, PropertyBase*> _derivatives;
         
     public:
-        PhysicalProperties(Individual* fish, PhysicalProperties* prev, long_t frame, const Vec2& pos, float angle, const CacheHints* hints = nullptr);
+        PhysicalProperties(Individual* fish, long_t frame, const Vec2& pos, float angle, const CacheHints* hints = nullptr);
         ~PhysicalProperties();
         
         const decltype(_derivatives)& derivatives() const { return _derivatives; }

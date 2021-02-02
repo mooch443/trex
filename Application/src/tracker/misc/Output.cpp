@@ -392,7 +392,6 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     std::thread worker([&mutex, &variable, &stuffs, &stop, fish, check_analysis_range, analysis_range, cache_ptr = cache]()
     {
         std::unique_lock<std::mutex> guard(mutex);
-        PhysicalProperties *prev = NULL;
         auto _no_cache = (const CacheHints*)0x1;
         
         while(!stop || !stuffs.empty()) {
@@ -405,12 +404,13 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                 {
                     const long_t& frameIndex = data.stuff->frame;
                     
-                    auto prop = new PhysicalProperties(fish, prev, frameIndex, data.pos, data.angle, cache_ptr);
-                    data.stuff->centroid = prop;
-                    
                     if(fish->_startFrame == -1)
                         fish->_startFrame = frameIndex;
                     fish->_endFrame = frameIndex;
+                    
+                    auto prop = new PhysicalProperties(fish, frameIndex, data.pos, data.angle, cache_ptr);
+                    data.stuff->centroid = prop;
+                    
                     
                     auto cache = fish->cache_for_frame(frameIndex, Tracker::properties(frameIndex, cache_ptr)->time, cache_ptr);
                     auto p = fish->probability(cache, frameIndex, data.stuff->blob).p;
@@ -422,11 +422,6 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                         &data.stuff->blob,
                         p
                     );
-                    
-                    if(check_analysis_range && (frameIndex > analysis_range.end || frameIndex <= analysis_range.start)) {
-                        prev = nullptr;
-                    } else
-                        prev = prop;
                     
                     segment->add_basic_at(frameIndex, (long_t)fish->_basic_stuff.size());
                     fish->_basic_stuff.push_back(data.stuff);
@@ -525,7 +520,6 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     // number of head positions
     if(_header.version <= Versions::V_24) {
         ref.read<uint64_t>(N);
-        PhysicalProperties *prev = NULL;
         
         for (uint64_t i=0; i<N; i++) {
             ref.read<data_long_t>(frameIndex);
@@ -546,10 +540,8 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                         ref.read_convert<float>(time);
                 }
                 
-                prop = new PhysicalProperties(fish, prev, frameIndex, pos, angle);
+                prop = new PhysicalProperties(fish, frameIndex, pos, angle);
             }
-            
-            prev = prop;
             
             auto midline = read_midline(ref);
             auto outline = read_outline(ref, midline);
@@ -572,7 +564,6 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                 
             } else {
                 delete prop;
-                prev = NULL;
             }
         }
         
