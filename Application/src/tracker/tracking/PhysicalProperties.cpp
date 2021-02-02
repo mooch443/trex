@@ -113,16 +113,13 @@ namespace track {
                     // invalid frame
                     prev_property = _mother->fish()->basic_stuff()[ (*it)->basic_index.back() ]->centroid->get(type()).is_type<T>();
                 }
-            } else
-                Debug("No segment found for %d in fish%d", _mother->frame()-1, _mother->fish()->identity().ID());
+            }
             //auto previous_frame = _mother->_fish->find_frame(_mother->_frame - 1);
             //if(previous_frame && previous_frame->centroid)
             //    prev_property = previous_frame->centroid->get(type()).is_type<T>();
-        } else if(_mother->frame() != 0)
-            Debug("Out of range for %d in fish%d (%d, %d)", _mother->frame()-1, _mother->fish()->identity().ID(), _mother->fish()->start_frame(), _mother->fish()->end_frame());
+        }
         
         if(!prev_property) {
-            Debug("Cannot find frame %d in fish%d", _mother->frame()-1, _mother->fish()->identity().ID());
             property.set_value(index, T(0));
             return;
         }
