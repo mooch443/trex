@@ -416,6 +416,7 @@ VideoOpener::VideoOpener() {
     });
     
     _file_chooser->open();
+    _file_chooser = nullptr;
 }
 
 VideoOpener::~VideoOpener() {

@@ -82,23 +82,26 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
     
     static Range<long_t> previous_consec(-1, -1);
     static std::vector<Rangel> previous_other_consec = {};
+    static uchar previous_alpha = 0;
     static float previous_scale = 0;
     const float scale = max(1, min(_scale, CV_MAX_THICKNESS));
     float new_height = roundf(bar_height) + 5 * scale;
+    
+    const uchar alpha = GUI_SETTINGS(gui_timeline_alpha);
     
     if(consec == previous_consec
        && other_consec == previous_other_consec
        && scale == previous_scale
        && _consecutives && _bar
        && _bar->source()->cols == _consecutives->source()->cols
-       && _consecutives->source()->rows == uint(new_height))
+       && _consecutives->source()->rows == uint(new_height)
+       && alpha == previous_alpha)
         return;
     
     previous_consec = consec;
     previous_other_consec = other_consec;
     previous_scale = scale;
-    
-    const uchar alpha = 255 - GUI_SETTINGS(gui_background_color).a;
+    previous_alpha = alpha;
     
     if(!_consecutives
        || _bar->source()->cols != _consecutives->source()->cols
@@ -160,6 +163,8 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
             DEBUG_CV(cv::rectangle(mat, position - Vec2(1), position - Vec2(1, 0) + size + Size2(2), Color(alpha, alpha, alpha, 255)));
         }
     }
+    
+    _consecutives->set_dirty();
 }
     
     void Timeline::draw(gui::DrawStructure &base) {
@@ -172,11 +177,11 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
         
         if(FAST_SETTINGS(analysis_paused)) {
             _pause.set_txt("continue");
-            _pause.set_fill_clr(Color(25,75,25,200));
+            _pause.set_fill_clr(Color(25,75,25,GUI_SETTINGS(gui_timeline_alpha)));
         }
         else {
             _pause.set_txt("pause");
-            _pause.set_fill_clr(Color(75,25,25,200));
+            _pause.set_fill_clr(Color(75,25,25,GUI_SETTINGS(gui_timeline_alpha)));
         }
         
         std::stringstream number;
@@ -266,7 +271,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
         
         pos = Vec2(0, y) - offset;
         
-        gui::Color red_bar_clr(250, 250, 250, _bar && _bar->hovered() ? 220 : 180);
+        gui::Color red_bar_clr(250, 250, 250, uchar(GUI_SETTINGS(gui_timeline_alpha) * (_bar && _bar->hovered() ? 1.f : 0.8f)));
         
         base.rect(pos, Vec2(max_w, bar_height), White.alpha(175));
         
@@ -277,7 +282,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
             std::lock_guard<std::mutex> guard(_proximity_bar.mutex);
             float new_height = roundf(bar_height);
             _bar->set_scale(Vec2(1, new_height));
-            _bar->set_color(White.alpha(200));
+            _bar->set_color(White.alpha(GUI_SETTINGS(gui_timeline_alpha)));
             _bar->set_pos(pos);
             base.wrap_object(*_bar);
             
@@ -442,7 +447,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
             
             if(!_bar
                || (uint)max_w != _bar->source()->cols
-               || (uint)new_height != _bar->source()->rows
+               || (uint)1 != _bar->source()->rows
                || _proximity_bar.end == -1)
             {
                 auto image = std::make_unique<Image>(1, max_w, 4);

@@ -991,7 +991,7 @@ TRex parameters
 	**default value:** 0.05
 
 
-	Value between 0 and 1, think of as `heatmap_smooth` times video width, indicating the maximum upscaled size of the heatmaps shown in the tracker. Makes them prettier, but maybe much slower.
+	Value between 0 and 1, think of as `heatmap_smooth` times video-width, indicating the maximum upscaled size of the heatmaps shown in the tracker. Makes them prettier, but maybe much slower.
 
 
 
@@ -1384,6 +1384,15 @@ TRex parameters
 
 
 	If set to true, the program will output one median image per tracklet (time-series segment) and save it alongside the npz/csv files.
+
+
+
+.. function:: output_interpolate_positions(bool)
+
+	**default value:** false
+
+
+	If turned on this function will linearly interpolate X/Y, and SPEED values, for all frames in which an individual is missing.
 
 
 
@@ -1900,7 +1909,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.0.9"
+	**default value:** "v1.0.9-4-g47269c7"
 
 
 	Current application version.

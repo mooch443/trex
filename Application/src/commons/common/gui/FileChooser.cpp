@@ -112,9 +112,17 @@ FileChooser::FileChooser(const file::Path& start, const std::string& extension,
     _textfield = std::make_shared<Dropdown>(Bounds(0, 0, _list->width(), 30));
     //_textfield = std::make_shared
     _textfield->on_select([this](long_t, const Dropdown::TextItem &item) {
-        auto path = file::Path((std::string)item);
+        file::Path path;
+        
+        if(((std::string)item).empty()) {
+            path = _textfield->textfield()->text();
+        } else
+            path = file::Path((std::string)item);
+        
+        Debug("Selected: %S", &path.str());
         if(!_validity || _validity(path))
         {
+            Debug("Selected.");
             file_selected(0, path.str());
             if(!path.is_regular())
                 _textfield->select_textfield();
@@ -369,7 +377,7 @@ void FileChooser::change_folder(const file::Path& p) {
             _files.insert("..");
             
             _list->set_scroll_offset(Vec2());
-            _textfield->textfield()->set_text(_path.str()+"/");
+            _textfield->textfield()->set_text(_path.str()+file::Path::os_sep());
             
         } catch(const UtilsException&e) {
             _path = org;

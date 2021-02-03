@@ -353,6 +353,7 @@ file::Path conda_environment_path() {
         CONFIG("gui_show_midline_histogram", false, "Displays a histogram for midline lengths.");
         CONFIG("gui_auto_scale", false, "If set to true, the tracker will always try to zoom in on the whole group. This is useful for some individuals in a huge video (because if they are too tiny, you cant see them and their posture anymore).");
         CONFIG("gui_auto_scale_focus_one", true, "If set to true (and `gui_auto_scale` set to true, too), the tracker will zoom in on the selected individual, if one is selected.");
+        CONFIG("gui_timeline_alpha", uchar(200), "Determines the Alpha value for the timeline / consecutive segments display.");
         CONFIG("gui_background_color", gui::Color(0,0,0,150), "Values < 255 will make the background more transparent in standard view. This might be useful with very bright backgrounds.");
         CONFIG("gui_fish_color", std::string("identity"), "");
         CONFIG("gui_single_identity_color", gui::Transparent, "If set to something else than transparent, all individuals will be displayed with this color.");
