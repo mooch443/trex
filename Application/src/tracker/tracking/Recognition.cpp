@@ -1944,7 +1944,11 @@ void Recognition::load_weights(std::string postfix) {
                     best_accuracy_worst_class = -1;
                     
                     py::set_function("gui_terminated", (std::function<bool()>)[]() -> bool {
-                        return SETTING(terminate_training).value<bool>() || GUI::work().item_aborted();
+                        return SETTING(terminate_training).value<bool>() || (GUI::instance() && GUI::work().item_aborted());
+                    }, "learn_static");
+                    
+                    py::set_function("gui_custom_button", (std::function<bool()>)[]() -> bool {
+                        return GUI::instance() && GUI::work().item_custom_triggered();
                     }, "learn_static");
                     
                     py::set_function("do_save_training_images", (std::function<bool()>)[]() -> bool {
@@ -1957,6 +1961,10 @@ void Recognition::load_weights(std::string postfix) {
                         //std::string str = utils::read_file("learn_static.py");
                         //py::execute(str);
                         PythonIntegration::run("learn_static", "start_learning");
+                        
+                        if(GUI::work().item_custom_triggered()) {
+                            SOFT_EXCEPTION("User skipped.");
+                        }
                         
                         best_accuracy_worst_class = py::get_variable<float>("best_accuracy_worst_class", "learn_static");
                         if(worst_accuracy_per_class)

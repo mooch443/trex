@@ -12,7 +12,7 @@ class HorizontalLayout;
 
 namespace track {
 ENUM_CLASS(AccumulationStatus, Added, Cached, Failed, None)
-ENUM_CLASS(AccumulationReason, NoUniqueIDs, ProbabilityTooLow, NotEnoughImages, TrainingFailed, UniquenessTooLow, None)
+ENUM_CLASS(AccumulationReason, NoUniqueIDs, ProbabilityTooLow, NotEnoughImages, TrainingFailed, UniquenessTooLow, Skipped, None)
 
 class Accumulation {
     struct Result {

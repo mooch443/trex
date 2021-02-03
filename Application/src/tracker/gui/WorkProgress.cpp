@@ -22,7 +22,7 @@ WorkInstance::~WorkInstance() {
 }
 
 WorkProgress::WorkProgress()
-    : _terminate_threads(false), _item_abortable(false), _item_aborted(false)
+    : _terminate_threads(false), _item_abortable(false), _item_aborted(false), _item_custom_triggered(false)
 {
     _thread = new std::thread([&]() {
         std::unique_lock<std::mutex> lock(_queue_lock);
@@ -41,6 +41,8 @@ WorkProgress::WorkProgress()
                 while(!_additional_updates.empty())
                     _additional_updates.pop();
                 _item_abortable = item.abortable;
+                _custom_button_text = item.custom_button;
+                _item_custom_triggered = false;
                 _item_aborted = false;
                 _queue.pop();
                 
@@ -87,6 +89,26 @@ void WorkProgress::add_queue(const std::string& message, const std::function<voi
 
 void WorkProgress::abort_item() {
     _item_aborted = true;
+}
+
+bool WorkProgress::item_custom_triggered() {
+    return _item_custom_triggered.load();
+}
+
+void WorkProgress::custom_item() {
+    _item_custom_triggered = true;
+}
+
+void WorkProgress::reset_custom_item() {
+    _item_custom_triggered = false;
+}
+
+bool WorkProgress::has_custom_button() const {
+    return !_custom_button_text.empty();
+}
+
+void WorkProgress::set_custom_button(const std::string& text) {
+    _custom_button_text = text;
 }
 
 bool WorkProgress::item_aborted() {
@@ -169,7 +191,8 @@ void WorkProgress::update(gui::DrawStructure &base, gui::Section *section) {
     static StaticText static_desc("description", Vec2(), Size2(-1), Font(0.7, Align::Center));
     //static StaticText static_additional("", Vec2(), Size2(-1), Font(0.7, Align::Center));
     static Button static_button("abort", Bounds(0, 0, 100, 35));
-    static long_t abort_handler = -1;
+    static Button custom_static_button("custom", Bounds(0, 0, 100, 35));
+    static long_t abort_handler = -1, custom_handler = -1;
     section->set_scale(base.scale().reciprocal());
     
     Size2 screen_dimensions = (window ? window->window_dimensions().div(gui.scale()) * gui::interface_scale() : GUI::background_image().dimensions());
@@ -183,6 +206,7 @@ void WorkProgress::update(gui::DrawStructure &base, gui::Section *section) {
         GUI::static_pointers().push_back(&static_background);
         GUI::static_pointers().push_back(&static_desc);
         GUI::static_pointers().push_back(&static_button);
+        GUI::static_pointers().push_back(&custom_static_button);
         GUI::static_pointers().push_back(&work_progress);
         //GUI::static_pointers().push_back(&static_additional);
         
@@ -258,7 +282,7 @@ void WorkProgress::update(gui::DrawStructure &base, gui::Section *section) {
         offset.y += 10;
         
         if(_item_abortable && !_item_aborted) {
-            static_button.set_pos(Vec2(width * 0.5, offset.y));
+            static_button.set_pos(Vec2(width * 0.5 - (has_custom_button() ? static_button.width() * 0.5 + 5 : 0), offset.y));
             static_button.set_origin(Vec2(0.5, 0));
             if(abort_handler == -1) {
                 abort_handler = 1;
@@ -268,13 +292,35 @@ void WorkProgress::update(gui::DrawStructure &base, gui::Section *section) {
             }
             
             base.advance_wrap(static_button);
-            offset.y += static_button.height() + 10;
+            if(!has_custom_button()) // only go downwards once
+                offset.y += static_button.height() + 10;
+        }
+        
+        if(has_custom_button()) {
+            custom_static_button.set_txt(_custom_button_text);
+            custom_static_button.set_pos(Vec2(width * 0.5 + (_item_abortable && !_item_aborted ? custom_static_button.width() * 0.5 + 5 : 0), offset.y));
+            custom_static_button.set_origin(Vec2(0.5, 0));
+            if(custom_handler == -1) {
+                custom_handler = 1;
+                custom_static_button.on_click([this](auto){
+                    Debug("Custom item triggered");
+                    this->custom_item();
+                });
+            }
+            
+            base.advance_wrap(custom_static_button);
+            offset.y += custom_static_button.height() + 10;
         }
     });
     
     if(work_progress.content_changed()) {
-        for(auto c : work_progress.children())
-            c->set_pos(Vec2(width * 0.5, c->pos().y));
+        for(auto c : work_progress.children()) {
+            if(c == &custom_static_button || c == &static_button) {
+                static_button.set_pos(Vec2(width * 0.5 - (has_custom_button() ? static_button.width() * 0.5 + 5 : 0), c->pos().y));
+                custom_static_button.set_pos(Vec2(width * 0.5 + (_item_abortable && !_item_aborted ? custom_static_button.width() * 0.5 + 5 : 0), c->pos().y));
+            } else
+                c->set_pos(Vec2(width * 0.5, c->pos().y));
+        }
     }
     
     work_progress.set_origin(Vec2(0.5));

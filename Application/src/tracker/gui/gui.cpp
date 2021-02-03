@@ -4511,8 +4511,11 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
         
         try {
             results.load([](const std::string& title, float value, const std::string& desc) {
-                if(GUI::instance())
+                if(GUI::instance()) {
                     work().set_progress(title, value, desc);
+                    work().set_item_abortable(true);
+                    work().set_custom_button("skip this");
+                }
             }, from);
         } catch(const UtilsException& e) {
             work().add_queue("", [e, from](){

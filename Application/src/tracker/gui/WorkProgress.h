@@ -10,9 +10,10 @@ struct WorkItem {
     std::function<void()> fn;
     std::string name, desc;
     bool abortable;
+    std::string custom_button;
     
-    WorkItem(std::function<void()> fn, const std::string& name, const std::string& desc, bool abortable = false)
-        : fn(fn), name(name), desc(desc), abortable(abortable)
+    WorkItem(std::function<void()> fn, const std::string& name, const std::string& desc, bool abortable = false, std::string custom_button = "")
+        : fn(fn), name(name), desc(desc), abortable(abortable), custom_button(custom_button)
     {}
 };
 
@@ -32,8 +33,9 @@ class WorkProgress {
     std::thread *_thread;
     
     GETTER_SETTER(std::string, item)
-    std::atomic_bool _item_abortable, _item_aborted;
+    std::atomic_bool _item_abortable, _item_aborted, _item_custom_triggered;
     std::string _description;
+    std::string _custom_button_text;
     gui::Entangled _additional;
     std::queue<std::function<void(Entangled&)>> _additional_updates;
     std::atomic<float> _percent;
@@ -45,11 +47,16 @@ public:
     ~WorkProgress();
     
     bool item_aborted();
+    bool item_custom_triggered();
+    void reset_custom_item();
+    bool has_custom_button() const;
+    
     void add_queue(const std::string& message, const std::function<void()>& fn, const std::string& descr = "", bool abortable = false);
     void abort_item();
-    
+    void custom_item();
     
     void set_item_abortable(bool abortable);
+    void set_custom_button(const std::string& text);
     void update(gui::DrawStructure &base, gui::Section *section);
     
     void set_progress(const std::string& title, float value, const std::string& description = "");

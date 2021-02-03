@@ -837,6 +837,10 @@ bool Accumulation::start() {
         end_a_step(Result(FrameRange(_initial_range), acc, AccumulationStatus::Added, AccumulationReason::None, str));
     }
     
+    // we can skip each step after the first
+    if(GUI::instance())
+        GUI::work().set_custom_button("skip this");
+    
     _trained.push_back(_initial_range);
     auto it = std::find(ranges.begin(), ranges.end(), _initial_range);
     if(it != ranges.end())
@@ -1143,7 +1147,12 @@ bool Accumulation::start() {
                     auto && [p, map, up] = calculate_uniqueness(false, _disc_images, _disc_frame_map);
                     auto str = DEBUG::format("Adding range %d-%d failed (uniqueness would have been %f vs. %f).", range.start, range.end, p, best_uniqueness);
                     Warning("%S", &str);
-                    end_a_step(Result(FrameRange(range), acc, AccumulationStatus::Failed, AccumulationReason::TrainingFailed, str));
+                    
+                    if(GUI::work().item_custom_triggered()) {
+                        end_a_step(Result(FrameRange(range), acc, AccumulationStatus::Failed, AccumulationReason::Skipped, str));
+                        GUI::work().reset_custom_item();
+                    } else
+                        end_a_step(Result(FrameRange(range), acc, AccumulationStatus::Failed, AccumulationReason::TrainingFailed, str));
                     
                     Tracker::recognition()->load_weights("");
                     return {false, nullptr};
@@ -1172,9 +1181,10 @@ bool Accumulation::start() {
             
             update_coverage(*_collected_data);
             
-            if(GUI::instance() && GUI::work().item_aborted()) {
+            if(!GUI::instance() || (GUI::work().item_aborted() || GUI::work().item_custom_triggered()))
+            {
                 Debug("Work item has been aborted - skipping accumulation.");
-                return false;
+                return GUI::instance() && GUI::work().item_custom_triggered(); // otherwise, stop iterating
             }
             
             std::map<Idx_t, int64_t> sizes;
@@ -1371,7 +1381,8 @@ bool Accumulation::start() {
         
     }
     
-    if(!GUI::work().item_aborted() && SETTING(gpu_accumulation_enable_final_step)) {
+    if((GUI::instance() && !GUI::work().item_aborted() && !GUI::work().item_custom_triggered()) && SETTING(gpu_accumulation_enable_final_step))
+    {
         std::map<Idx_t, size_t> images_per_class;
         size_t overall_images = 0;
         for(auto &d : _collected_data->data()) {
@@ -1639,6 +1650,7 @@ bool Accumulation::start() {
         
     }
     
+    // GUI::work().item_custom_triggered() could be set, but we accept the training nonetheless if it worked so far. its just skipping one specific step
     if(!GUI::work().item_aborted() && !uniqueness_history().empty()) {
         Tracker::recognition()->set_has_loaded_weights(true);
         Tracker::recognition()->set_trained(true);
@@ -1691,6 +1703,9 @@ void Accumulation::end_a_step(Result reason) {
             case AccumulationReason::data::values::None:
                 if(i == 0)
                     reason = "Initial range.";
+                break;
+            case AccumulationReason::data::values::Skipped:
+                reason = "The user skipped this step.";
                 break;
             case AccumulationReason::data::values::NoUniqueIDs:
                 reason = "Could not uniquely identify individuals.";

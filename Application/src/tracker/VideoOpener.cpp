@@ -100,6 +100,7 @@ VideoOpener::VideoOpener() {
     //::default_config::get(GlobalSettings::map(), temp_docs, nullptr);
     
     _stale_thread = std::make_unique<std::thread>([this](){
+        set_thread_name("VideoOpener::stale_thread");
         std::unique_lock guard(_stale_mutex);
         bool quit = false;
         
@@ -469,6 +470,8 @@ void VideoOpener::BufferedVideo::restart_background() {
     }
     
     _background_thread = std::make_unique<std::thread>([this](){
+        set_thread_name("BufferedVideo::background_thread");
+        
         { // close old background task, if present
             std::lock_guard guard(_background_mutex);
             if(_previous_background_thread) {
@@ -537,6 +540,8 @@ void flush_ocl_queue() {
 void VideoOpener::BufferedVideo::open(std::function<void(const bool)>&& callback) {
     std::lock_guard guard(_video_mutex);
     _update_thread = std::make_unique<std::thread>([this, cb = std::move(callback)]() mutable {
+        set_thread_name("BufferedVideo::update_thread");
+        
         int64_t playback_index = 0;
         Timer video_timer;
         double seconds_between_frames = 0;

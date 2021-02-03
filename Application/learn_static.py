@@ -161,6 +161,9 @@ def reinitialize_network():
 class UserCancelException(Exception):
     """Raised when user clicks cancel"""
     pass
+class UserSkipException(Exception):
+    """Raised when user clicks cancel"""
+    pass
 
 class ValidationCallback(keras.callbacks.Callback):
     def __init__(self, model, classes, X_test, Y_test, epochs, filename, prefix, output_path, compare_acc, estimate_uniqueness, settings):
@@ -400,18 +403,28 @@ class ValidationCallback(keras.callbacks.Callback):
     def on_epoch_end(self, epoch, logs={}):
         worst_value = self.evaluate(epoch, True, logs)
 
-        global gui_terminated
+        global gui_terminated, gui_custom_button
         if gui_terminated():
             global UserCancelException
             self.model.stop_training = True
             #TRex.log("aborting because we have been asked to by main")
             raise UserCancelException()
+        if gui_custom_button():
+            global UserSkipException
+            self.model.stop_training = True
+            raise UserSkipException()
+
     def on_batch_end(self, batch, logs={}):
-        global gui_terminated
+        global gui_terminated, gui_custom_button
         if gui_terminated():
             global UserCancelException
             self.model.stop_training = True
             raise UserCancelException()
+        if gui_custom_button():
+            global UserSkipException
+            self.model.stop_training = True
+            raise UserSkipException()
+
         self.batches += 1
         if batch % 50 == 0:
             self.update_status(logs=logs)
@@ -614,6 +627,9 @@ def start_learning():
         #TRex.warn("exception during training: "+str(e))
         abort_with_error = True
         TRex.log("Ending training because user cancelled the action.")
+    except UserSkipException as e:
+        abort_with_error = False
+        TRex.log("Ending training because user skipped the action.")
 
     del X_train
     del Y_train
