@@ -6,10 +6,21 @@
 #include <gui/gui.h>
 
 namespace gui {
+    static std::unique_ptr<std::thread> percentile_ptr = nullptr;
+    static std::mutex percentile_mutex;
+
     SimpleBlob::SimpleBlob(std::unique_ptr<ExternalImage>&& available, pv::BlobPtr b, int t)
         : blob(b), threshold(t), ptr(std::move(available))
     {
         
+    }
+
+    GUICache::~GUICache() {
+        std::lock_guard guard(percentile_mutex);
+        if(percentile_ptr) {
+            percentile_ptr->join();
+            percentile_ptr = nullptr;
+        }
     }
     
     std::unique_ptr<ExternalImage> SimpleBlob::convert() {
@@ -148,21 +159,26 @@ namespace gui {
         frame_idx = frameIndex;
         
         static std::atomic_bool done_calculating = false;
-        static auto percentile_ptr = std::make_unique<std::thread>([this](){
-            Debug("Percentiles...");
-            auto percentiles = GUI::instance()->video_source()->calculate_percentiles({0.05f, 0.95f});
-            
-            if(GUI::instance()) {
-                std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
-                pixel_value_percentiles = percentiles;
+        {
+            std::lock_guard guard(percentile_mutex);
+            if(!done_calculating && !percentile_ptr) {
+                percentile_ptr = std::make_unique<std::thread>([this](){
+                    Debug("Percentiles...");
+                    auto percentiles = GUI::instance()->video_source()->calculate_percentiles({0.05f, 0.95f});
+                    
+                    if(GUI::instance()) {
+                        std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
+                        pixel_value_percentiles = percentiles;
+                    }
+                    
+                    done_calculating = true;
+                });
             }
             
-            done_calculating = true;
-        });
-        
-        if(percentile_ptr && done_calculating) {
-            percentile_ptr->join();
-            percentile_ptr = nullptr;
+            if(percentile_ptr && done_calculating) {
+                percentile_ptr->join();
+                percentile_ptr = nullptr;
+            }
         }
         
         if(_statistics.size() < _tracker._statistics.size()) {

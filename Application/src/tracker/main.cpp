@@ -1081,7 +1081,7 @@ int main(int argc, char** argv)
             static Timer fps_timer;
             static Image empty(0, 0, 0);
 
-            if(SETTING(terminate))
+            if(GUI_SETTINGS(terminate))
                 return false;
 
             Timer timer;

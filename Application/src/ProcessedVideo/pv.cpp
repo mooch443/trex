@@ -21,7 +21,45 @@ namespace pv {
     
     static std::mutex location_mutex;
     static std::map<std::string, std::function<file::Path(file::Path)>> location_funcs;
-    
+
+    /**
+     * If there is a task that is async (and can be run read-only for example) and e.g. continously calls "read_frame", then a task sentinel can be registered. This prevents the file from being destroyed until the task is done.
+     */
+    struct TaskSentinel {
+        pv::File *ptr = nullptr;
+        bool _please_terminate = false;
+        
+        bool terminate() const {
+            return _please_terminate;
+        }
+        
+        TaskSentinel(pv::File* file) : ptr(file) {
+            std::lock_guard guard(file->_task_list_mutex);
+            file->_task_list[std::this_thread::get_id()] = this;
+        }
+        
+        ~TaskSentinel() {
+            {
+                std::lock_guard guard(ptr->_task_list_mutex);
+                assert(ptr->_task_list.find(std::this_thread::get_id()) != ptr->_task_list.end());
+                ptr->_task_list.erase(std::this_thread::get_id());
+            }
+            
+            ptr->_task_variable.notify_all();
+        }
+    };
+
+    File::~File() {
+        std::unique_lock guard(_task_list_mutex); // try to lock once to sync
+        for(auto & [i, ptr] : _task_list)
+            ptr->_please_terminate = true;
+        
+        while(!_task_list.empty())
+            _task_variable.wait_for(guard, std::chrono::milliseconds(1));
+        Debug("Deleting file.");
+    }
+
+
     //! Initialize copy
     Frame::Frame(const Frame& other) {
         _timestamp = other._timestamp;
@@ -939,19 +977,25 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
         if(_open_for_writing)
             U_EXCEPTION("Cannot calculate percentiles when file is opened for writing.");
         Timer timer;
+        TaskSentinel sentinel(this);
         
         std::multiset<float> pixel_values;
 #ifdef NDEBUG
-        if(Size2(_average).max() <= 4000) {
+        std::unique_lock guard(_lock);
+        Image average(_average);
+        guard.unlock();
+        
+        if(average.bounds().size().max() <= 4000) {
             // also take into account background image?
-            pixel_values.insert(_average.data, _average.data + _average.cols * _average.rows);
+            pixel_values.insert(average.data(), average.data() + average.cols * average.rows);
         }
 #endif
         
         uint64_t num_frames = 0;
         uint64_t start_frame = 0;
         std::set<long_t> samples;
-        while(timer.elapsed() < 1 && pixel_values.size() < 10000000 && start_frame < length()) {
+        
+        while(!sentinel.terminate() && timer.elapsed() < 1 && pixel_values.size() < 10000000 && start_frame < length()) {
             auto range = arange<long_t>((long_t)start_frame, (long_t)length(), max(1, long_t(length() * 0.1)));
             pv::Frame frame;
             uint64_t big_loop_size = samples.size();

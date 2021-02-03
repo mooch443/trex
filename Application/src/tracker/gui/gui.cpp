@@ -300,7 +300,8 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                 "gui_zoom_limit",
                 "whitelist",
                 "blacklist",
-                "gui_background_color"
+                "gui_background_color",
+                "gui_show_detailed_probabilities"
             };
             
             if(name == "gui_equalize_blob_histograms") {

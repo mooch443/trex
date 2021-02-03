@@ -28,7 +28,7 @@ class WorkProgress {
     std::condition_variable _condition;
     std::mutex _queue_lock;
     std::queue<WorkItem> _queue;
-    GETTER_SETTER(bool, terminate_threads)
+    std::atomic_bool _terminate_threads;
     
     std::thread *_thread;
     

@@ -124,5 +124,6 @@ namespace gui {
         bool must_redraw() const;
     
         GUICache();
+        ~GUICache();
     };
 }

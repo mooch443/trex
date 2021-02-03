@@ -207,6 +207,8 @@ namespace pv {
         double _running_average_tdelta;
         GETTER(uint64_t, meta_offset)
     };
+
+    struct TaskSentinel;
     
     class File : public Printable, public DataFormat, public GenericVideo {
     protected:
@@ -222,6 +224,11 @@ namespace pv {
         uint32_t _compression_samples;
         
         pv::Frame _last_frame;
+        std::mutex _task_list_mutex;
+        std::unordered_map<std::thread::id, TaskSentinel*> _task_list;
+        std::condition_variable _task_variable;
+        
+        friend struct pv::TaskSentinel;
         
     public:
         File(const file::Path& filename = "")
@@ -232,6 +239,8 @@ namespace pv {
                 _compression_value(0),
                 _compression_samples(0)
         { }
+        
+        ~File();
         
         const pv::Frame& last_frame();
         

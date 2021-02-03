@@ -18,21 +18,25 @@ void InfoCard::update() {
     if(!content_changed())
         return;
     
-    if(_fish) {
-        Tracker::LockGuard guard("InfoCard::update", 10);
-        if(!guard.locked())
-            return;
-    }
-    
     Color bg(50,50,50,125);
-    
-    begin();
     
     auto &cache = GUI::instance()->cache();
     if(!cache.has_selection() || !_fish) {
+        begin();
         end();
         return;
     }
+    
+    std::shared_ptr<Tracker::LockGuard> guard;
+    if(_fish) {
+        guard = std::make_shared<Tracker::LockGuard>("InfoCard::update", 10);
+        if(!guard->locked()) {
+            guard = nullptr;
+            return;
+        }
+    }
+    
+    begin();
     
     auto clr = _fish->identity().color();
     if(clr.r < 80) clr = clr + clr * ((80 - clr.r) / 80.f);
@@ -135,7 +139,7 @@ void InfoCard::update() {
             if(next_frame == -1)
                 return;
             
-            if(SETTING(gui_frame).value<long_t>() != next_frame)
+            if(GUI::frame() != next_frame)
                 SETTING(gui_frame) = next_frame;
         });
         
@@ -161,7 +165,7 @@ void InfoCard::update() {
             if(next_frame == -1)
                 return;
             
-            if(SETTING(gui_frame).value<long_t>() != next_frame)
+            if(GUI::frame() != next_frame)
                 SETTING(gui_frame) = next_frame;
         });
         
