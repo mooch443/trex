@@ -389,7 +389,7 @@ void clear_cache() {
         
         if(width / float(mw) >= height / float(mh)) {
             if(width > mw) {
-                float ratio = float(width) / float(height);
+                float ratio = float(height) / float(width);
                 width = mw;
                 height = int(width * ratio);
             }

@@ -119,10 +119,8 @@ FileChooser::FileChooser(const file::Path& start, const std::string& extension,
         } else
             path = file::Path((std::string)item);
         
-        Debug("Selected: %S", &path.str());
         if(!_validity || _validity(path))
         {
-            Debug("Selected.");
             file_selected(0, path.str());
             if(!path.is_regular())
                 _textfield->select_textfield();
