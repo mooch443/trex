@@ -56,7 +56,6 @@ namespace pv {
         
         while(!_task_list.empty())
             _task_variable.wait_for(guard, std::chrono::milliseconds(1));
-        Debug("Deleting file.");
     }
 
 
