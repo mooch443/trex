@@ -32,7 +32,34 @@ Each of these metrics is saved per frame, meaning that each metric mentioned her
 .. NOTE::
 	There are a couple hashtags in there -- these simply mean that the data-source for that metric is different. For example, ``wcentroid`` means that this metric is centered on the centroid (weighted by pixel values) of each individual. If no hashtag is provided, the metric centers on the head of each individual. These are usually closely related, but are different from each other e.g. when the individual moves its head independently from other parts of the body. There the head-based metric would show much more wiggling around than the centroid-based metric.
 
-If one metric (such as anything posture-related) is not available in a frame -- either because the individual was not found, or because no valid posture was found -- then all affected metrics (sometimes all) will be set to infinity.
+If one metric (such as anything posture-related) is not available in a frame -- either because the individual was not found, or because no valid posture was found -- then all affected metrics (sometimes all) will be set to ``infinity``. A typical way of opening such a file and plotting a trajectory would be::
+
+    import numpy as np
+    import matplotlib.pyplot as plt
+    
+    with np.load("video_fish0.npz") as npz:
+        # sample output: ['threshold_reached', 'num_pixels', 'time',     \
+        #     'midline_length', 'frame', 'Y#wcentroid', 'Y', 'missing',  \
+        #     'X', 'SPEED', 'SPEED#pcentroid', 'MIDLINE_OFFSET',         \
+        #     'X#wcentroid', 'SPEED#wcentroid']
+        print(npz.files)
+        
+        X = npz["X#wcentroid"]
+        Y = npz["Y#wcentroid"]
+        
+        # sample output: (30269,)
+        # just a stream of X positions for fish0
+        print(X.shape)
+        
+        # using the mask gets rid of np.inf values (otherwise the plot
+        # might get weird). "missing" is 1 whenever the individual is 
+        # not tracked in that frame:
+        mask = ~npz["missing"].astype(np.bool)
+        
+        # plot a connected trajectory for fish0:
+        plt.figure(figsize=(5,5))
+        plt.plot(X[mask], Y[mask])
+        plt.show()
 
 Posture
 -------

@@ -115,8 +115,6 @@ VideoSource::File::File(size_t index, const std::string& basename, const std::st
                     }
                     
                     _format = load_string(npz, "format");
-                    Debug("Format: %S", &_format);
-                    
                     _timestamps = cnpy::npz_load(npz.str(), "frame_time").as_vec<double>();
                     auto res = cnpy::npz_load(npz.str(), "imgshape").as_vec<int64_t>();
                     _size = cv::Size( (int)res[1], (int)res[0] );

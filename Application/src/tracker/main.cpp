@@ -1081,15 +1081,15 @@ int main(int argc, char** argv)
             static Timer fps_timer;
             static Image empty(0, 0, 0);
 
-            if(GUI_SETTINGS(terminate))
-                return false;
-
             Timer timer;
 
             static Timing all_processing("Analysis::process()", 50);
             TakeTiming all(all_processing);
 
             Tracker::LockGuard guard("Analaysis::process()");
+            if(GUI_SETTINGS(terminate))
+                return false;
+            
             auto range = Tracker::analysis_range();
 
             long_t idx = ptr->index();
@@ -1159,7 +1159,8 @@ int main(int argc, char** argv)
                         //Debug("frame %lu/%lu (%.2fMB/s @ %.2ffps)", ptr->index(), video.length(), data_sec / 1024.0, frames_sec);
                     }
 
-                    gui.frameinfo().current_fps = narrow_cast<int>(frames_sec);
+                    if(tmp)
+                        gui.frameinfo().current_fps = narrow_cast<int>(frames_sec);
                 }
 
                 frames_count++;
@@ -1581,7 +1582,12 @@ int main(int argc, char** argv)
     
     Debug("Preparing for shutdown...");
     Recognition::notify();
-    delete tmp;
+    
+    {
+        std::lock_guard<std::mutex> lock(data_mutex);
+        delete tmp;
+        tmp = nullptr;
+    }
     if(imgui_base)
         delete imgui_base;
     analysis->terminate();

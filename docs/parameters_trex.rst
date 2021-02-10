@@ -923,6 +923,15 @@ TRex parameters
 
 
 
+.. function:: gui_timeline_alpha(uchar)
+
+	**default value:** 200
+
+
+	Determines the Alpha value for the timeline / consecutive segments display.
+
+
+
 .. function:: gui_transparent_background(bool)
 
 	**default value:** false
@@ -1909,7 +1918,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.0.9-4-g47269c7"
+	**default value:** "v1.0.10-4-g8f0a826"
 
 
 	Current application version.

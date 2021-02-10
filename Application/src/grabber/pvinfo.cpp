@@ -246,6 +246,54 @@ int main(int argc, char**argv) {
                 case Arguments::input: {
                     file::Path path = pv::DataLocation::parse("input", file::Path(option.value));
                     
+                    if(utils::contains(option.value, '*')) {
+                        std::set<file::Path> found;
+                        
+                        auto parts = utils::split(option.value, '*');
+                        file::Path folder = pv::DataLocation::parse("input", file::Path(option.value).remove_filename());
+                        Debug("Scanning pattern '%S' in folder '%S'...", &option.value, &folder.str());
+                        
+                        for(auto &file: folder.find_files("pv")) {
+                            if(!file.is_regular())
+                                continue;
+                            
+                            auto filename = (std::string)file.filename();
+                            
+                            bool all_contained = true;
+                            size_t offset = 0;
+                            
+                            for(size_t i=0; i<parts.size(); ++i) {
+                                auto & part = parts.at(i);
+                                if(part.empty()) {
+                                    continue;
+                                }
+                                
+                                auto index = filename.find(part, offset);
+                                if(index == std::string::npos
+                                   || (i == 0 && index > 0))
+                                {
+                                    all_contained = false;
+                                    break;
+                                }
+                                
+                                offset = index + part.length();
+                            }
+                            
+                            if(all_contained) {
+                                found.insert(file);
+                            }
+                        }
+                        
+                        if(found.size() == 1) {
+                            path = pv::DataLocation::parse("input", *found.begin());
+                            
+                        } else if(found.size() > 1) {
+                            auto str = Meta::toStr(found);
+                            Debug("Found too many files matching the pattern '%S': %S.", &option.value, &str);
+                        } else
+                            Debug("No files found that match the pattern '%S'.", &option.value);
+                    }
+                    
                     if(path.has_extension()) {
                         if(path.extension() == "results") {
                             SETTING(is_video) = false;

@@ -3600,8 +3600,9 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         if(fid != -1)
             FOI::remove_frames(after_frame != -1 ? 0 : after_frame, fid);
         
+#ifndef NDEBUG
         auto f = fopen("identities.log", "wb");
-        
+#endif
         for(auto && [fdx, fish] : _individuals) {
             if(manual_identities.empty() || manual_identities.find(fdx) != manual_identities.end()) {
                 if(recognition_pool.queue_length() >= recognition_pool.num_threads() * 2)
@@ -3673,7 +3674,9 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                         continue;
                     
                     if(n >= n_lower_bound || (segment.start() == fish->start_frame() && n > 0)) {
+#ifndef NDEBUG
                         log(f, "fish %d: segment %d-%d has %d samples", fdx, segment.start(), segment.end(), n);
+#endif
                         
                         std::set<std::pair<Idx_t, Match::prob_t>, decltype(compare_greatest)> sorted(compare_greatest);
                         sorted.insert(average.begin(), average.end());
@@ -3688,7 +3691,9 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                             if(ratio >= 0.6) {
                                 //Debug("Fish %d (%d-%d)", fdx, segment.start(), segment.end());
                                 //Debug("\ttwo largest probs %f and %f are too close (ratio %f)", sorted.begin()->second, (++sorted.begin())->second, ratio);
+#ifndef NDEBUG
                                 log(f, "\ttwo largest probs %f and %f are too close (ratio %f)", sorted.begin()->second, (++sorted.begin())->second, ratio);
+#endif
                                 continue;
                             }
                         }
@@ -3721,7 +3726,9 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                                 // is a much longer segment (because it overlaps multiple smaller segments
                                 // because it starts earlier, cause thats the execution order)
                                 auto rit = matches.begin();
+#ifndef NDEBUG
                                 log(f, "\t%d (as %d) Found range(s) %d-%d for search range %d-%d p:%f n:%d (self:%f,n:%d)", fdx, it->first, rit->start(), rit->end(), segment.start(), segment.end(), fit->second.probs.at(*rit), fit->second.samples.at(*rit), it->second, n);
+#endif
                                 
                                 Match::prob_t n_me = n;//segment.end() - segment.start();
                                 Match::prob_t n_he = fit->second.samples.at(*rit);//rit->end() - rit->start();
@@ -3733,10 +3740,14 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                                 Match::prob_t sum_me = sigmoid(it->second) * sigmoid(n_me);
                                 Match::prob_t sum_he = sigmoid(fit->second.probs.at(*rit)) * sigmoid(n_he);
                                 
+#ifndef NDEBUG
                                 log(f, "\tself:%d %f other:%d %f => %f / %f", segment.length(), it->second, rit->length(), fit->second.probs.at(*rit), sum_me, sum_he);
+#endif
                                 
                                 if(sum_me > sum_he) {
+#ifndef NDEBUG
                                     log(f, "\t* Replacing");
+#endif
                                     
                                     for(auto rit = matches.begin(); rit != matches.end(); ++rit) {
                                         fit->second.probs.erase(*rit);
@@ -3750,8 +3761,9 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                             }
                         }
                         
+#ifndef NDEBUG
                         log(f, "\tassigning %d to %d with p %f for %d-%d", it->first, fdx, it->second, segment.start(), segment.end());
-                        
+#endif
                         virtual_fish[it->first].segments.insert(segment);
                         virtual_fish[it->first].probs[segment] = it->second;
                         virtual_fish[it->first].samples[segment] = n;
@@ -3765,10 +3777,13 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         
         Settings::manual_splits_t manual_splits;
         
+#ifndef NDEBUG
         log(f, "Found segments:");
+#endif
         for(auto && [fdx, fish] : virtual_fish) {
+#ifndef NDEBUG
             log(f, "\t%d:", fdx);
-            
+#endif
             // manual_match for first segment
             if(!fish.segments.empty()) {
                 auto segment = *fish.segments.begin();
@@ -3804,8 +3819,9 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                     U_EXCEPTION("Cannot find %d-%d in fish.probs", segment.start(), segment.end());
                 if(!fish.track_ids.count(segment.range))
                     U_EXCEPTION("Cannot find %d-%d in track_ids", segment.start(), segment.end());
+#ifndef NDEBUG
                 log(f, "\t\t%d-%d: %f (from %d)", segment.start(), segment.end(), fish.probs.at(segment), fish.track_ids.at(segment.range));
-                
+#endif
                 auto track = _individuals.at(fish.track_ids.at(segment.range));
                 assert(track->compressed_blob(segment.start()));
                 
@@ -3859,8 +3875,9 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                 tmp_assigned_ranges[fdx][segment.range] = blob_ids;
             }
         }
+#ifndef NDEBUG
         log(f, "----");
-        
+#endif
         decltype(unassigned_ranges) still_unassigned;
         //auto manual_identities = FAST_SETTINGS(manual_identities);
         for(auto && [fdx, fish] : _individuals) {
@@ -3972,9 +3989,11 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                                 chosen_id = prev_id;
                             
                             if(chosen_id.valid()) {
+#ifndef NDEBUG
                                 if(segment.start() == 0) {
                                     log(f, "Fish %d: chosen_id %d, assigning %d-%d (%f / %f)...", fdx, chosen_id, segment.start(), segment.end(), dprev, dnext);
                                 }
+#endif
                                 
                                 if(prev_blob != -1 && prev_id.valid()) {
                                     // we found the previous blob/segment quickly:
@@ -4090,9 +4109,11 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
             }, "");
         }
         
+#ifndef NDEBUG
         log(f, "Done.");
         if(f)
             fclose(f);
+#endif
     }
 
 pv::BlobPtr Tracker::find_blob_noisy(std::map<uint32_t, pv::BlobPtr>& blob_to_id, int64_t bid, int64_t pid, const Bounds& bounds, long_t frame)
