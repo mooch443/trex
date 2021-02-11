@@ -184,6 +184,7 @@ VideoOpener::VideoOpener() {
     _text_fields["threshold"] = std::make_unique<LabeledTextField>("threshold");
     _text_fields["average_samples"] = std::make_unique<LabeledTextField>("average_samples");
     _text_fields["averaging_method"] = std::make_unique<LabeledDropDown>("averaging_method");
+    _text_fields["meta_real_width"] = std::make_unique<LabeledTextField>("meta_real_width");
     _text_fields["cmd_parameters"] = std::make_unique<LabeledTextField>("cmd_parameters");
     
     std::vector<Layout::Ptr> objects{
@@ -284,8 +285,12 @@ VideoOpener::VideoOpener() {
                 // PV file, no need to add cmd
             } else if(!_result.selected_file.empty()) {
                 auto add = TEMP_SETTING(cmd_parameters).value<std::string>();
-                _result.cmd = "-i \"" + path.str() + "\" " + "-o \""+TEMP_SETTING(output_name).value<file::Path>().str()+"\" -threshold "+TEMP_SETTING(threshold).get().valueString()+" -average_samples "+TEMP_SETTING(average_samples).get().valueString()
+                _result.cmd = "-i \"" + path.str() + "\""
+                    + " -o \""+TEMP_SETTING(output_name).value<file::Path>().str()+"\""
+                    +" -threshold "+TEMP_SETTING(threshold).get().valueString()
+                    +" -average_samples "+TEMP_SETTING(average_samples).get().valueString()
                     +" -averaging_method "+TEMP_SETTING(averaging_method).get().valueString()
+                    +" -meta_real_width "+TEMP_SETTING(meta_real_width).get().valueString()
                     +(add.empty() ? "" : " ")+add;
             }
             

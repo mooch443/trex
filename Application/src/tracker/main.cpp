@@ -575,6 +575,7 @@ int main(int argc, char** argv)
             opening_result = opener._result;
         }
 
+        Debug("Opening result: '%S'", &opening_result.selected_file.str());
         if (!opening_result.selected_file.empty()) {
             if (opening_result.tab.extension == "pv") {
                 if (opening_result.load_results)
