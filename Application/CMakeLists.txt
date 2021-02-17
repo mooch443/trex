@@ -95,7 +95,7 @@ include_directories(${CMAKE_SOURCE_DIR}/src/cnpy/)
 add_library(TRex::X11 INTERFACE IMPORTED)
 if(UNIX AND NOT APPLE)
     find_package(X11 REQUIRED)
-    target_link_libraries(TRex::X11 INTERFACE X11::X11 ${X11_LIBRARIES})
+    target_link_libraries(TRex::X11 INTERFACE X11::X11 ${X11_LIBRARIES} dl)
     
     message(STATUS "X11_LIBRARIES: ${X11_LIBRARIES} ${X11_xcb_FOUND} DIRS:${X11_LIBRARY_DIRS} CFLAGS:${X11_CFLAGS}")
     link_directories(${X11_LIBRARY_DIRS})

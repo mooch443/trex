@@ -11,7 +11,7 @@ if [ "$(uname)" == "Linux" ]; then
     # Fix up CMake for using conda's sysroot
     # See https://docs.conda.io/projects/conda-build/en/latest/resources/compiler-tools.html?highlight=cmake#an-aside-on-cmake-and-sysroots
     CMAKE_PLATFORM_FLAGS+=("-DCMAKE_TOOLCHAIN_FILE=${RECIPE_DIR}/conda_sysroot.cmake")
-    BUILD_GLFW="ON"
+    BUILD_GLFW="OFF"
 else
     echo "CONDA_BUILD_SYSROOT=$CONDA_BUILD_SYSROOT. forcing it."
     export CONDA_BUILD_SYSROOT="/opt/MacOSX10.9.sdk"
@@ -20,7 +20,7 @@ else
 fi
 
 echo "Using system flags: ${CMAKE_PLATFORM_FLAGS[@]}"
-
+export _PYTHON_SYSCONFIGDATA_NAME="_sysconfigdata_x86_64_conda_cos6_linux_gnu"
 PKG_CONFIG_PATH="${PREFIX}/lib/pkgconfig;${BUILD_PREFIX}/${HOST}/sysroot/usr/lib64/pkgconfig" cmake .. -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
     -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
     -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
