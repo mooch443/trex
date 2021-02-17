@@ -512,7 +512,7 @@ if(${CMAKE_VERSION} VERSION_LESS "3.11.0")
             ${trex_subproject_CMAKE_ARGS}
 
         GIT_REPOSITORY https://github.com/pybind/pybind11
-        GIT_TAG        99ef2b846742e2298b97904e5be43f5ea5d71d8c
+        GIT_TAG        v2.6.2 #99ef2b846742e2298b97904e5be43f5ea5d71d8c
         UPDATE_COMMAND ""
     )
     ExternalProject_Get_Property(pybind11 INSTALL_DIR)
@@ -529,7 +529,7 @@ else()
     FetchContent_Declare(
         pybind11
         GIT_REPOSITORY https://github.com/pybind/pybind11
-        GIT_TAG        v2.5.0
+        GIT_TAG        v2.6.2
     )
 
     FetchContent_GetProperties(pybind11)
@@ -657,9 +657,9 @@ if(TREX_BUILD_ZIP)
         PREFIX ${libzip_install_dir}
         DEPENDS TRex::LibZ
         GIT_REPOSITORY https://github.com/nih-at/libzip.git
-        GIT_TAG rel-1-5-2
+        GIT_TAG v1.7.3
         UPDATE_COMMAND ""
-        PATCH_COMMAND ${libzip_patchcommand}
+        #PATCH_COMMAND ${libzip_patchcommand}
         CMAKE_ARGS
             ${libzip_configure}
             -DZLIB_INCLUDE_DIR=${ZLIB_INCLUDE_DIR}
@@ -675,13 +675,13 @@ if(TREX_BUILD_ZIP)
     )
 
     # patching a simple (void*) -> (char*) for windows
-    ExternalProject_Add_Step(libzip
-        WINDOWS_CONFIGURE DEPENDEES download DEPENDERS configure
-        WORKING_DIRECTORY "${libzip_install_dir}"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_SOURCE_DIR}/libzip_windows/zip_source_winzip_aes_encode.c"
-            "${libzip_install_dir}/src/libzip/lib/zip_source_winzip_aes_encode.c"
-    )
+    #ExternalProject_Add_Step(libzip
+    #    WINDOWS_CONFIGURE DEPENDEES download DEPENDERS configure
+    #    WORKING_DIRECTORY "${libzip_install_dir}"
+    #    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    #        "${CMAKE_SOURCE_DIR}/libzip_windows/zip_source_winzip_aes_encode.c"
+    #        "${libzip_install_dir}/src/libzip/lib/zip_source_winzip_aes_encode.c"
+    #)
 
     set(LIBZIP_INCLUDE_DIR "${libzip_install_dir}/include")
     
@@ -712,35 +712,25 @@ if(${TREX_BUILD_PNG})
     message(STATUS "PNG_LIBRARY = ${PNG_LIBRARY}")
     message(STATUS "trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}")
 
-    #if(UNIX AND NOT APPLE)
-    #    set(PNG_LIBRARY "")
-    #    find_package(PNG REQUIRED)
-    #    include_directories(${PNG_INCLUDE_DIR})
-        
-    #    message(STATUS "PNG library: ${PNG_LIBRARY_RELEASE} | debug: ${PNG_LIBRARY_DEBUG}")
-    #    set(PNG_LIBRARY ${PNG_LIBRARY_RELEASE})
-    #else()
-        #URL ftp://ftp.simplesystems.org/pub/libpng/png/src/history/libpng15/libpng-1.5.10.tar.gz
-        #URL_MD5 9e5d864bce8f06751bbd99962ecf4aad
-        EXTERNALPROJECT_ADD(libpng_custom
-            DEPENDS TRex::LibZ TRex::LibZIP
-            PREFIX ${png_install_dir}
-            UPDATE_COMMAND ""
+    #URL ftp://ftp.simplesystems.org/pub/libpng/png/src/history/libpng15/libpng-1.5.10.tar.gz
+    #URL_MD5 9e5d864bce8f06751bbd99962ecf4aad
+    EXTERNALPROJECT_ADD(libpng_custom
+        DEPENDS TRex::LibZ TRex::LibZIP
+        PREFIX ${png_install_dir}
+        UPDATE_COMMAND ""
 
-            GIT_REPOSITORY  https://github.com/glennrp/libpng.git
-            GIT_TAG v1.6.21
+        GIT_REPOSITORY  https://github.com/glennrp/libpng.git
+        GIT_TAG v1.6.21
 
-            INSTALL_DIR ${png_install_dir}
-            CMAKE_ARGS ${trex_subproject_CMAKE_ARGS} -DCMAKE_PREFIX_PATH=${zlib_install_dir} # to find zlib
-            -DPNG_TESTS=OFF
-			-DPNG_SHARED=OFF
-        )
+        INSTALL_DIR ${png_install_dir}
+        CMAKE_ARGS ${trex_subproject_CMAKE_ARGS} -DCMAKE_PREFIX_PATH=${zlib_install_dir} # to find zlib
+        -DPNG_TESTS=OFF
+        -DPNG_SHARED=OFF
+    )
 
-        include_directories(${png_install_dir}/include)
-        link_directories(${png_install_dir}/lib)
-        message(STATUS "libpng dir ${png_install_dir}/lib")
-    #endif()
-
+    include_directories(${png_install_dir}/include)
+    link_directories(${png_install_dir}/lib)
+    message(STATUS "libpng dir ${png_install_dir}/lib")
     message(STATUS "png library ${PNG_LIBRARY}")
     
     add_library (TRex::LibPNG INTERFACE IMPORTED)

@@ -15,6 +15,10 @@ target_link_libraries(tracker_tracking PRIVATE cnpy
 )
 add_dependencies(tracker_tracking TRex::OpenCV)
 
+if(WITH_HTTPD)
+    add_dependencies(tracker_tracking LibMicroHttpd)
+endif()
+
 if(WIN32)
     target_link_libraries(tracker_tracking PRIVATE tracker_python)
 	set_target_properties(tracker_tracking PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
