@@ -670,6 +670,7 @@ if(TREX_BUILD_ZIP)
             -DBUILD_TOOLS=OFF
             -DENABLE_GNUTLS=OFF
             -DENABLE_OPENSSL=OFF
+	    -DENABLE_LZMA=OFF
             ${trex_subproject_CMAKE_ARGS}
             -DCMAKE_DEBUG_POSTFIX=d
     )
