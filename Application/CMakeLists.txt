@@ -1012,3 +1012,7 @@ add_custom_target(
 )
 endif()
 endif()
+
+if(POLICY CMP0114)
+  cmake_policy(POP)
+endif()
