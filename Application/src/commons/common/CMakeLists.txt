@@ -52,7 +52,7 @@ else()
     )
 endif()
 
-add_dependencies(commons TRex::LibZIP TRex::LibZ cnpy gladex TRex::GLFW imgui)
+add_dependencies(commons TRex::LibZIP TRex::LibZ TRex::GLFW cnpy gladex imgui)
 if(APPLE OR NOT UNIX)
     add_dependencies(commons TRex::LibPNG)
 endif()
@@ -85,7 +85,7 @@ endforeach()
 
 target_link_libraries(commons
     PUBLIC cpputils
-    PRIVATE cnpy
+    PUBLIC cnpy
 )
 
 if(${PYLON_FOUND} AND ${WITH_PYLON})

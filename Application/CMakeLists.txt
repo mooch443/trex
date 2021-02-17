@@ -12,6 +12,7 @@ set_property(GLOBAL PROPERTY DEBUG_CONFIGURATIONS "Debug;DEBUG;")
 message("-- USER environment variable is set to: " $ENV{USER})
 
 project(TRex)
+cmake_policy(SET CMP0114 NEW)
 set(CMAKE_MACOSX_RPATH ON)
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 include(ExternalProject)
@@ -85,16 +86,52 @@ else()
     set(BUILD_SHARED_LIBS OFF)
 endif()
 
+
+include_directories(${CMAKE_SOURCE_DIR}/src/cnpy/)
+
+add_library(TRex::X11 INTERFACE IMPORTED)
+if(UNIX AND NOT APPLE)
+    find_package(X11 REQUIRED)
+    target_link_libraries(TRex::X11 INTERFACE X11::X11 ${X11_LIBRARIES})
+    
+    message(STATUS "X11_LIBRARIES: ${X11_LIBRARIES} ${X11_xcb_FOUND} DIRS:${X11_LIBRARY_DIRS} CFLAGS:${X11_CFLAGS}")
+    link_directories(${X11_LIBRARY_DIRS})
+    include_directories(${X11_INCLUDE_DIRS})
+
+    #FIND_PATH(UUID_INCLUDE_DIR uuid/uuid.h
+    #     /usr/local/include
+    #/usr/include
+    #)
+
+    #FIND_LIBRARY(UUID_LIBRARY
+    #  NAMES uuid
+    #  PATHS /lib /usr/lib /usr/local/lib
+    #  )
+
+    #message(STATUS "UUID: ${UUID_LIBRARY} ${UUID_INCLUDE_DIR} ${X11_xcb_LIB}")
+endif()
+
+add_library(TRex::OpenGL INTERFACE IMPORTED)
 if(TREX_BUILD_GLFW OR UNIX)
     if(WIN32)
         find_package(OpenGL REQUIRED)
+        target_link_libraries(TRex::OpenGL INTERFACE OpenGL::GL)
         message(STATUS "OpenGL library ${OPENGL_LIBRARY}")
+        include_directories(${OPENGL_INCLUDE_DIR})
     elseif(UNIX AND NOT APPLE)
         find_package(OpenGL REQUIRED)
+        target_link_libraries(TRex::OpenGL INTERFACE OpenGL::GL)
         SET(OPENGL_LIBRARY OpenGL::GL)
         message(STATUS "OpenGL library ${OPENGL_LIBRARY}")
+        include_directories(${OPENGL_INCLUDE_DIR})
     else()
-        find_library(OPENGL_LIBRARY OpenGL)
+        find_package(OpenGL REQUIRED)
+        target_link_libraries(TRex::OpenGL INTERFACE OpenGL::GL)
+        SET(OPENGL_LIBRARY OpenGL::GL)
+        message(STATUS "OpenGL library ${OPENGL_LIBRARY}")
+        include_directories(${OPENGL_INCLUDE_DIR})
+        #find_library(OPENGL_LIBRARY OpenGL)
+        #target_link_libraries(TRex::OpenGL INTERFACE ${OPENGL_LIBRARY})
     endif()
 endif()
 
@@ -118,7 +155,7 @@ if(APPLE)
     find_library(QUARTZ_LIBRARY QuartzCore)
     set(EXTRA_LIBS
         ${COCOA_LIBRARY}
-        ${OPENGL_LIBRARY}
+        TRex::OpenGL
         ${IOKIT_LIBRARY}
         ${COREVIDEO_LIBRARY}
         ${QUARTZ_LIBRARY}
@@ -138,7 +175,7 @@ if(APPLE)
     
     message(STATUS "Mac extra libs: ${EXTRA_LIBS}")
 else()
-    set(EXTRA_LIBS ${OPENGL_LIBRARY})
+    set(EXTRA_LIBS TRex::OpenGL)
 endif(APPLE)
 
 set(TREX_CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
@@ -231,6 +268,7 @@ endif()
 set(trex_subproject_CMAKE_ARGS "")
 
 SET(trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}
+    "-DCMAKE_TOOLCHAIN_FILE:PATH=${CMAKE_TOOLCHAIN_FILE}"
     "-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
     "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}"
     "-DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}"
@@ -246,6 +284,7 @@ SET(trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}
     "-DCMAKE_BUILD_TYPE=Release"
     "-DBUILD_SHARED_LIBS=OFF"
     "-DSKIP_INSTALL_FILES=1"
+    "-DCMAKE_EXE_LINKER_FLAGS=${CMAKE_EXE_LINKER_FLAGS}"
 )
 
 if(APPLE)
@@ -303,11 +342,21 @@ if(WIN32)
     set(GLFW_add_flags ${GLFW_add_flags} -DCMAKE_CXX_FLAGS_RELEASE="/MT" -DCMAKE_CXX_FLAGS_DEBUG="/MTd" -DUSE_MSVC_RUNTIME_LIBRARY_DLL=OFF)
 endif()
 
+add_library (TRex::GLFW INTERFACE IMPORTED)
 if(NOT TREX_BUILD_GLFW)
     find_package(GLFW)
     if(NOT GLFW_FOUND)
         message(STATUS "Cannot find GLFW. Trying to build it instead.")
         set(TREX_BUILD_GLFW ON CACHE BOOL "" FORCE)
+    else()
+        target_link_libraries (TRex::GLFW INTERFACE ${GLFW_LIBRARY})
+        include_directories(${GLFW_INCLUDE_DIR})
+        
+        get_filename_component(GLFW_DIR ${GLFW_LIBRARY} DIRECTORY)
+        get_filename_component(GLFW_LIBRARY ${GLFW_LIBRARY} NAME)
+        message(STATUS "Linking GLFW: ${GLFW_LIBRARY} includes: ${GLFW_INCLUDE_DIR} dir: ${GLFW_DIR}")
+        
+        target_link_directories(TRex::GLFW INTERFACE ${GLFW_DIR})
     endif()
 endif()
 
@@ -332,37 +381,14 @@ if(TREX_BUILD_GLFW)
     message(STATUS "glfw include: ${GLFW_INCLUDE_DIR}")
 
     include_directories(${GLFW_INCLUDE_DIR})
-    add_library (TRex::GLFW INTERFACE IMPORTED)
     target_link_libraries (TRex::GLFW INTERFACE glfw3)
     add_dependencies(TRex::GLFW glfw)
-    
-else()
-    find_package(GLFW REQUIRED)
-    get_filename_component(GLFW_DIR ${GLFW_LIBRARY} DIRECTORY)
-    get_filename_component(GLFW_LIBRARY ${GLFW_LIBRARY} NAME)
-    message(STATUS "Linking GLFW: ${GLFW_LIBRARY} includes: ${GLFW_INCLUDE_DIR} dir: ${GLFW_DIR}")
-    
-    add_library (TRex::GLFW INTERFACE IMPORTED)
-    target_link_directories(TRex::GLFW INTERFACE ${GLFW_DIR})
-    
-    if(WIN32)
-        target_link_libraries (TRex::GLFW INTERFACE ${GLFW_LIBRARY})
-    else()
-        target_link_libraries (TRex::GLFW INTERFACE ${GLFW_LIBRARY})
-    endif()
-    
-    include_directories(${GLFW_INCLUDE_DIR})
-    
-    #if(NOT ${GLFW_LIBRARY} EQUAL "glfw")
-        add_library (glfw INTERFACE IMPORTED)
-        target_link_libraries (glfw INTERFACE TRex::GLFW)
-    #endif()
 endif()
 
 # this is circumventing some weird CMake shuffeling of dependencies. these libraries always have to go last
 # at least once, but multiple times if necessary.
 if(UNIX AND NOT APPLE)
-    target_link_libraries(TRex::GLFW INTERFACE X11 dl m rt uuid pthread)
+    target_link_libraries(TRex::GLFW INTERFACE TRex::X11 pthread)
 endif()
 
 # glad
@@ -724,8 +750,8 @@ endif()
 # this is circumventing some weird CMake shuffeling of dependencies. these libraries always have to go last
 # at least once, but multiple times if necessary.
 if(UNIX AND NOT APPLE)
-    target_link_libraries(TRex::LibZIP INTERFACE X11 dl m rt uuid pthread)
-    target_link_libraries(TRex::LibPNG INTERFACE X11 dl m rt uuid pthread)
+    target_link_libraries(TRex::LibZIP INTERFACE TRex::X11 pthread)
+    target_link_libraries(TRex::LibPNG INTERFACE TRex::X11 pthread)
 endif()
 
 if(WIN32)
@@ -955,9 +981,6 @@ if(${TREX_BUILD_OPENCV})
     message(STATUS "OpenCV: ${OpenCV_LIBS}")
     set(OpenCV_LIBS TRex::OpenCV)
 endif()
-
-
-include_directories(${CMAKE_SOURCE_DIR}/src/cnpy/)
 
 get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
 foreach(dir ${dirs})
