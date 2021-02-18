@@ -128,13 +128,13 @@ if(TREX_BUILD_GLFW OR UNIX)
         message(STATUS "OpenGL library ${OPENGL_LIBRARY}")
         include_directories(${OPENGL_INCLUDE_DIR})
     else()
-        find_package(OpenGL REQUIRED)
-        target_link_libraries(TRex::OpenGL INTERFACE OpenGL::GL)
-        SET(OPENGL_LIBRARY OpenGL::GL)
-        message(STATUS "OpenGL library ${OPENGL_LIBRARY}")
-        include_directories(${OPENGL_INCLUDE_DIR})
-        #find_library(OPENGL_LIBRARY OpenGL)
-        #target_link_libraries(TRex::OpenGL INTERFACE ${OPENGL_LIBRARY})
+        #find_package(OpenGL REQUIRED)
+        #target_link_libraries(TRex::OpenGL INTERFACE OpenGL::GL)
+        #SET(OPENGL_LIBRARY OpenGL::GL)
+        #message(STATUS "OpenGL library ${OPENGL_LIBRARY}")
+        #include_directories(${OPENGL_INCLUDE_DIR})
+        find_library(OPENGL_LIBRARY OpenGL)
+        target_link_libraries(TRex::OpenGL INTERFACE ${OPENGL_LIBRARY})
     endif()
 endif()
 
@@ -719,6 +719,7 @@ if(${TREX_BUILD_PNG})
         DEPENDS TRex::LibZ TRex::LibZIP
         PREFIX ${png_install_dir}
         UPDATE_COMMAND ""
+        PATCH_COMMAND patch -N -s -d ${png_install_dir}/src/libpng_custom -p1 -i ${CMAKE_SOURCE_DIR}/lib_png_m1patch.diff || echo 1
 
         GIT_REPOSITORY  https://github.com/glennrp/libpng.git
         GIT_TAG v1.6.21
@@ -836,6 +837,11 @@ if(${TREX_BUILD_OPENCV})
             )
        endif()
    endif()
+
+   if(APPLE)
+        set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
+            -DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}) 
+   endif()
    
    if(TREX_CONDA_PACKAGE_INSTALL)
 		set(TREX_CMAKE_BUILD_TYPE Release)
@@ -896,7 +902,7 @@ if(${TREX_BUILD_OPENCV})
         ExternalProject_add(CustomOpenCV
             PREFIX ${CMAKE_CURRENT_BINARY_DIR}/opencv
             GIT_REPOSITORY  https://github.com/opencv/opencv.git
-            GIT_TAG 4.3.0
+            GIT_TAG 4.5.1
             UPDATE_COMMAND ""
             CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env PKG_CONFIG_PATH=${PKG_CONFIG_PATH}/pkgconfig ${CMAKE_COMMAND} -DCMAKE_BUILD_TYPE=${TREX_CMAKE_BUILD_TYPE} -G ${CMAKE_GENERATOR} ${OPENCV_CMAKE_ARGS} ${CMAKE_CURRENT_BINARY_DIR}/opencv/src/CustomOpenCV
             BUILD_COMMAND ${CMAKE_COMMAND} -E env PKG_CONFIG_PATH=${PKG_CONFIG_PATH}/pkgconfig ${CMAKE_COMMAND} --build . --config ${TREX_CMAKE_BUILD_TYPE}
@@ -907,7 +913,7 @@ if(${TREX_BUILD_OPENCV})
         ExternalProject_add(CustomOpenCV
             PREFIX ${CMAKE_CURRENT_BINARY_DIR}/opencv
             GIT_REPOSITORY  https://github.com/opencv/opencv.git
-            GIT_TAG 4.3.0
+            GIT_TAG 4.5.1
             UPDATE_COMMAND ""
             CMAKE_ARGS
             ${OPENCV_CMAKE_ARGS})

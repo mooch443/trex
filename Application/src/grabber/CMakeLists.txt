@@ -65,14 +65,14 @@ add_dependencies(${TGRABS_EXEC_NAME} trex_check_python TRex::OpenCV)
 add_executable(pvconvert pvconvert.cpp gif.h ${TREX_ADDITIONAL_SOURCES})
 target_link_libraries(pvconvert PUBLIC
     tracker_gui
-    pv
+        pv
     commons
-    cnpy
-    ${OpenCV_LIBS}
     TRex::GLFW
     TRex::LibPNG
-    imgui
+    TRex::LibZ
+        imgui
     glad
+    TRex::OpenCV
     ${EXTRA_LIBS}
 )
 
