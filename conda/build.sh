@@ -17,10 +17,14 @@ if [ "$(uname)" == "Linux" ]; then
     export _PYTHON_SYSCONFIGDATA_NAME="_sysconfigdata_x86_64_conda_cos6_linux_gnu"
 else
     echo "CONDA_BUILD_SYSROOT=$CONDA_BUILD_SYSROOT. forcing it."
-    export CONDA_BUILD_SYSROOT="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
-    #export CONDA_BUILD_SYSROOT="/opt/MacOSX10.9.sdk"
+    if [ "${ARCH}" == "arm64" ]; then
+        echo "Using up-to-date sysroot for arm64 arch."
+        export CONDA_BUILD_SYSROOT="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
+    else
+        export CONDA_BUILD_SYSROOT="/opt/MacOSX10.9.sdk"
+    fi
     CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_SYSROOT=${CONDA_BUILD_SYSROOT}")
-    CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_ARCHITECTURES=arm64")
+    CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_ARCHITECTURES=${ARCH}")
     BUILD_GLFW="ON"
 fi
 
