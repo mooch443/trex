@@ -22,6 +22,12 @@
 #include <misc/GlobalSettings.h>
 
 namespace py = pybind11;
+
+template<typename T>
+bool CHECK_NONE(T obj) {
+    return !obj.ptr() || obj.is_none();
+}
+
 namespace pybind11 {
     namespace detail {
         template<> struct type_caster<cmn::Image::Ptr>
@@ -403,23 +409,23 @@ namespace track {
                              "\ttry:\n" \
                                  "\t\timportlib.import_module('tensorflow')\n" \
                                  "\t\timport tensorflow\n"
-                                 "\t\tconfig = tensorflow.ConfigProto()\n"
+                                 "\t\tfrom tensorflow.compat.v1 import ConfigProto, InteractiveSession\n"
+                                 "\t\tconfig = ConfigProto()\n"
                                  "\t\tconfig.gpu_options.allow_growth=True\n"
-                                 "\t\tsess = tensorflow.Session(config=config)\n"
-                                 "\t\tfrom keras import backend\n" \
-                                 "\t\tfound = len(backend.tensorflow_backend._get_available_gpus()) > 0\n"
+                                 "\t\tsess = InteractiveSession(config=config)\n"
+                                 "\t\tfrom tensorflow.python.client import device_lib\n" \
+                                 "\t\tgpus = [x.physical_device_desc for x in device_lib.list_local_devices() if x.device_type == 'GPU']\n"
+                                 "\t\tfound = len(gpus) > 0\n"
                                  "\t\tif found:\n" \
-                                    "\t\t\tfrom tensorflow.python.client import device_lib\n" \
-                                    "\t\t\tfor device in device_lib.list_local_devices():\n" \
-                                        "\t\t\t\tif device.device_type == 'GPU':\n" \
-                                            "\t\t\t\t\tphysical = device.physical_device_desc.split(',')[1].split(': ')[1]\n" \
+                                    "\t\t\tfor device in gpus:\n" \
+                                            "\t\t\t\tphysical = device.physical_device_desc.split(',')[1].split(': ')[1]\n" \
                              "\texcept ImportError:\n"
                              "\t\tfound = False\n" \
                              "else:\n" \
                              "\ttry:\n" \
                              "\t\timp.find_module('tensorflow')\n" \
-                             "\t\tfrom keras import backend\n" \
-                             "\t\tfound = len(backend.tensorflow_backend._get_available_gpus()) > 0\n"
+                             "\t\tfrom tensorflow.python.client import device_lib\n" \
+                             "\t\tfound = len([x.physical_device_desc for x in device_lib.list_local_devices() if x.device_type == 'GPU']) > 0\n"
                              "\texcept ImportError:\n" \
                              "\t\tfound = False\nprint('setting version',sys.version,found,physical)\n" \
                              "set_version(sys.version, found, physical)\n");
@@ -430,7 +436,7 @@ namespace track {
                 _locals = new py::dict("model"_a="None");
                 
                 if(_settings->map().get<bool>("recognition_enable").value())
-                    _main.import("keras");
+                    _main.import("tensorflow");
                 
                 python_initialized() = true;
                 python_initializing() = false;
@@ -577,6 +583,8 @@ namespace track {
                 Except("Python runtime error: '%s'", e.what());
                 e.restore();
                 SOFT_EXCEPTION(e.what());
+            } catch(...) {
+                Except("Random exception");
             }
         } else {
             instance()->tasks.push(std::move(task));
@@ -614,11 +622,11 @@ bool PythonIntegration::check_module(const std::string& name) {
     bool result = false;
     
     auto c = utils::read_file(name+".py");
-    if (c != contents[name] || _modules[name].is_none()) {
+    if (c != contents[name] || CHECK_NONE(_modules[name])) {
         auto& mod = _modules[name];
 
         try {
-            if (pybind11::none::check_(mod) || !mod.ptr()) {
+            if (CHECK_NONE(mod)) {
                 mod = _main.import(name.c_str());
             }
             mod.reload();
@@ -628,7 +636,7 @@ bool PythonIntegration::check_module(const std::string& name) {
         catch (pybind11::error_already_set & e) {
             Except("Python runtime exception while reloading %S: '%s'", &name, e.what());
             e.restore();
-            mod = pybind11::none();
+            mod.release();
         }
 
         contents[name] = c;
@@ -645,24 +653,29 @@ void PythonIntegration::run(const std::string& module_name, const std::string& f
     try {
         py::handle module;
         
-        if(!pybind11::none::check_(_modules.at(module_name))) {
+        if(!CHECK_NONE(_modules.at(module_name))) {
             if(function.empty())
                 module = _modules.at(module_name);
             else
                 module = _modules.at(module_name).attr(function.c_str());
         }
         
-        if(!py::none::check_(module)) {
+        if(!CHECK_NONE(module)) {
             guard.unlock();
-            if(!module.ptr())
-                U_EXCEPTION("Pointer of %S::%S is null.", &module_name, &function);
             module();
-        }
+        } else
+            U_EXCEPTION("Pointer of %S::%S is null.", &module_name, &function);
     }
     catch (pybind11::error_already_set & e) {
         e.restore();
 
-        _modules.at(module_name) = pybind11::none();
+        if (PyErr_Occurred()) {
+            PyErr_PrintEx(0);
+            PyErr_Clear(); // this will reset the error indicator so you can run Python code again
+        }
+        
+        _modules.at(module_name).release();
+        //_modules.at(module_name) = pybind11::none();
         SOFT_EXCEPTION("Python runtime exception while running %S.%S: '%s'", &module_name, &function, e.what());
     }
 }
@@ -673,7 +686,7 @@ std::string PythonIntegration::run_retrieve_str(const std::string& module_name, 
     
     std::unique_lock<std::mutex> guard(module_mutex);
     try {
-        if(!pybind11::none::check_(_modules.at(module_name))) {
+        if(!CHECK_NONE(_modules.at(module_name))) {
             auto result = _modules.at(module_name).attr(function.c_str());
             guard.unlock();
             return result().cast<std::string>();
@@ -682,7 +695,7 @@ std::string PythonIntegration::run_retrieve_str(const std::string& module_name, 
     catch (pybind11::error_already_set & e) {
         e.restore();
 
-        _modules.at(module_name) = pybind11::none();
+        _modules.at(module_name).release();
         SOFT_EXCEPTION("Python runtime exception while running %S.%S: '%s'", &module_name, &function, e.what());
     }
     
@@ -696,14 +709,14 @@ T get_variable_internal(const std::string& name, const std::string& m) {
     try {
         if(m.empty()) {
             if(_locals->contains(name.c_str())) {
-                if(!_locals->attr(name.c_str()).is_none())
+                if(!CHECK_NONE(_locals->attr(name.c_str())))
                     return _locals->attr(name.c_str()).cast<T>();
             }
         } else {
             if(_modules.count(m)) {
                 auto &mod = _modules[m];
-                if(!py::none::check_(mod))
-                    if(!mod.attr(name.c_str()).is_none())
+                if(!CHECK_NONE(mod))
+                    if(!CHECK_NONE(mod.attr(name.c_str())))
                         return mod.attr(name.c_str()).cast<T>();
             }
         }
@@ -731,7 +744,7 @@ void set_function_internal(const char* name_, T f, const std::string& m) {
     } else {
         if(_modules.count(m)) {
             auto &mod = _modules[m];
-            if(!py::none::check_(mod)) {
+            if(!CHECK_NONE(mod)) {
                 mod.def(name_, f);
                 return;
             }
@@ -763,15 +776,19 @@ void PythonIntegration::unset_function(const char *name_, const std::string &m) 
     check_correct_thread_id();
     
     if(m.empty()) {
-        if(!_main.attr(name_).get_type().is(py::none())) {
-            _main.attr(name_) = py::none();
+        if(!CHECK_NONE(_main.attr(name_))) {
+            _main.attr(name_) = nullptr;
         } else
             Warning("Cannot find '%s' in _main.", name_);
     } else {
         if(_modules.count(m)) {
             auto &mod = _modules[m];
-            if(!py::none::check_(mod))
-                mod.attr(name_) = py::none();
+            if(!CHECK_NONE(mod)) {
+                mod.attr(name_) = nullptr;
+                assert(!mod.attr(name_).ptr());
+                assert(mod.attr(name_).is_none());
+                //mod.attr(name_).release();
+            }
         }
     }
 }
@@ -781,15 +798,15 @@ bool PythonIntegration::is_none(const std::string& name, const std::string &m) {
     
     try {
         if(m.empty()) {
-            if(!_main.attr(name.c_str()).is_none()) {
+            if(CHECK_NONE(_main.attr(name.c_str()))) {
                 return false;
             }
             
         } else {
             if(_modules.count(m)) {
                 auto &mod = _modules[m];
-                if(!py::none::check_(mod))
-                    if(!mod.attr(name.c_str()).is_none())
+                if(!CHECK_NONE(mod))
+                    if(!CHECK_NONE(mod.attr(name.c_str())))
                         return false;
             }
         }
@@ -807,7 +824,7 @@ bool PythonIntegration::is_none(const std::string& name, const std::string &m) {
         (*_locals)[name.c_str()] = pybind11::array_t<T> ( !shapes.empty() ? shapes : std::vector<size_t>{ input.size() }, !strides.empty() ? strides : std::vector<size_t>{ sizeof(T) }, input.data() ); \
     else if(_modules.count(m)) { \
         auto &mod = _modules[m]; \
-        if(!pybind11::none::check_(mod)) \
+        if(mod.ptr() != nullptr) \
             mod.attr(name.c_str()) = pybind11::array_t<T> ( !shapes.empty() ? shapes : std::vector<size_t>{ input.size() }, !strides.empty() ? strides : std::vector<size_t>{ sizeof(T) }, input.data() ); \
     } \
 }
@@ -817,7 +834,7 @@ bool PythonIntegration::is_none(const std::string& name, const std::string &m) {
         (*_locals)[name.c_str()] = input; \
     else if(_modules.count(m)) { \
         auto &mod = _modules[m]; \
-        if(!pybind11::none::check_(mod)) \
+        if(mod.ptr() != nullptr) \
             mod.attr(name.c_str()) = input; \
     } \
 }
@@ -865,7 +882,7 @@ void PythonIntegration::import_module(const std::string& name) {
     catch (pybind11::error_already_set & e) {
         e.restore();
 
-        _modules[name] = pybind11::none();
+        _modules[name].release();
         SOFT_EXCEPTION(e.what());
     }
 }

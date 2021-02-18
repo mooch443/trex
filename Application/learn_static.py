@@ -1,24 +1,15 @@
-#try:
-#    from jupyterthemes import jtplot
-#    jtplot.style()
-#except:
-#    pass
-
-from keras.layers import Dense, Dropout, Activation, Cropping2D, Flatten, Convolution1D, Convolution2D, MaxPooling1D,MaxPooling2D
-from keras.models import Sequential
-import keras
-import keras.backend as K
-import numpy as np
-from keras.preprocessing.image import ImageDataGenerator
-from keras.utils import np_utils
-import TRex
-
 import shutil
 
-from keras.layers import Dense, Dropout, Activation, Cropping2D, Flatten, Convolution1D, Convolution2D, MaxPooling1D,MaxPooling2D, Lambda
-from keras.layers import SpatialDropout2D
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras.layers import Dense, Dropout, Activation, Cropping2D, Flatten, Convolution1D, Convolution2D, MaxPooling1D, MaxPooling2D
+from tensorflow.keras.layers import SpatialDropout2D, Lambda
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
-#### NETWORK LAYOUT
+import numpy as np
+import TRex
 
 def binary_focal_loss(gamma=2., alpha=.25):
     """
@@ -35,7 +26,7 @@ def binary_focal_loss(gamma=2., alpha=.25):
 
     """
     def binary_focal_loss_fixed(y_true, y_pred):
-        from keras import backend as K
+        from tensorflow.keras import backend as K
         import tensorflow as tf
 
         """
@@ -83,7 +74,7 @@ def categorical_focal_loss(gamma=2., alpha=.25):
      model.compile(loss=[categorical_focal_loss(alpha=.25, gamma=2)], metrics=["accuracy"], optimizer=adam)
     """
     def categorical_focal_loss_fixed(y_true, y_pred):
-        from keras import backend as K
+        from tensorflow.keras import backend as K
         import tensorflow as tf
 
         """
@@ -137,7 +128,6 @@ def reinitialize_network():
     model.add(Dropout(0.5))
     model.add(Dense(len(classes), activation='softmax'))
 
-    #### / NETWORK LAYOUT
     import platform
     import importlib
     found = True
@@ -148,8 +138,8 @@ def reinitialize_network():
         found = False
 
     if found:
-        model.compile(loss=#'categorical_crossentropy',
-            categorical_focal_loss(gamma=2., alpha=.25),
+        model.compile(loss='categorical_crossentropy',
+            #categorical_focal_loss(gamma=2., alpha=.25),
             optimizer=keras.optimizers.Adam(lr=learning_rate),
             metrics=['accuracy'])
     else:
@@ -495,17 +485,24 @@ def start_learning():
     X_test = np.array(X_val, copy=False) #True, dtype = float) / 255.0
     Y_test = np.array(Y_val, dtype=float)
     original_classes_test = np.copy(Y_test)
-    Y_test = np_utils.to_categorical(Y_test, len(classes))
+    Y_test = to_categorical(Y_test, len(classes))
 
     X_train = np.array(X, copy=False)
     Y_train = np.array(Y, dtype=float)
 
     original_classes = np.copy(Y_train)
     #test_original_classes = np.copy(test_Y)
-    Y_train = np_utils.to_categorical(Y_train, len(classes))
+    Y_train = to_categorical(Y_train, len(classes))
     #Y_test = np_utils.to_categorical(test_Y, len(classes))
 
-    TRex.log("Python received "+str(X_train.shape)+" training images ("+str(Y_train.shape)+") and  "+str(X_test.shape)+" validation images ("+str(Y_test.shape)+")")
+    #X_train = tf.constant(X_train)
+    #Y_train = tf.constant(Y_train)
+
+    #X_test = tf.constant(X_test)
+    #Y_test = tf.constant(Y_test)
+
+    print("Python received "+str(X_train.shape)+" training images ("+str(Y_train.shape)+") and  "
+          +str(X_test.shape)+" validation images ("+str(Y_test.shape)+")")
 
     mi = 0
     for i, c in zip(np.arange(len(classes)), classes):
@@ -539,9 +536,9 @@ def start_learning():
             for i in range(len(images)):
                 alpha.append(np.random.uniform(0.85, 1.15))
             alpha = np.array(alpha)
-        
-        images = images.astype(np.float) * alpha
-        
+
+        images = images.astype(float) * alpha
+
         return np.clip(images, 0, 255).astype(dtype)
 
     datagen = ImageDataGenerator(#rescale = 1.0/255.0,
@@ -554,7 +551,6 @@ def start_learning():
                                  #preprocessing_function=preprocess,
                                  #use_multiprocessing=True
                                  )
-
     cvalues = np.array(cvalues)
 
     TRex.log("# [init] weights per class "+str(per_class))
@@ -578,12 +574,10 @@ def start_learning():
             if len(X_test) == 0:
                 validation_data = None
 
-            history = model.fit_generator(datagen.flow(X_train, Y_train, batch_size=batch_size),
-                                          validation_data=validation_data,
-                                          steps_per_epoch=per_epoch, epochs=epochs,
-                                          callbacks = [ callback ],
-                                          #class_weight = per_class
-                                          )
+            history = model.fit(datagen.flow(X_train, Y_train, batch_size=batch_size),
+                                  validation_data=validation_data,
+                                  steps_per_epoch=per_epoch, epochs=max_epochs,
+                                  callbacks=[callback])
             
             model_json = model.to_json()
             with open(output_path+".json", "w") as f:
