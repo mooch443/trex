@@ -9,6 +9,7 @@ package:
 source:
     git_url: https://github.com/mooch443/trex.git
     git_depth: 1
+    git_rev: new_conda_buildsys
 
 build:
     number: 13
@@ -36,11 +37,19 @@ requirements:
     - pkg-config            # [not win]
     - jom                   # [win]
     - make                  # [unix]
-    - python # [win]
-    - python =3.6 # [not win]
+    - python # [not osx]
+    - python==3.8.6 # [osx]
     - {{ compiler('c') }}
     - {{ compiler('cxx') }}
     - cmake >=3.14
+    - git
+    
+  host:
+    - pthread-stubs  # [linux]
+    - ffmpeg
+    - python # [not osx]
+    - python==3.8.6 # [osx]
+    - nomkl # [osx]
     - xorg-libxcursor # [linux]
     - xorg-libx11 # [linux]
     - xorg-libxrandr # [linux]
@@ -70,20 +79,13 @@ requirements:
     - {{ cdt('libXau-devel') }}                # [linux]
     - {{ cdt('libuuid-devel') }} # [linux]
     
-  host:
-    - pthread-stubs  # [linux]
-    - ffmpeg
-    - python # [win]
-    - python =3.6 # [not win]
-    - nomkl # [osx]
-    
   run:
-    - tensorflow-gpu ==1.13.* # [not osx]
-    - tensorflow ==1.13.* # [osx]
-    - keras
+    #- tensorflow-gpu ==1.13.* # [not osx]
+    #- tensorflow ==1.13.* # [osx]
+    #- keras
     - ffmpeg
-    - python # [win]
-    - python =3.6 # [not win]
+    - python # [not osx]
+    - python==3.8.6 # [osx]
     - nomkl # [osx]
     - xorg-libx11 # [linux]
 
