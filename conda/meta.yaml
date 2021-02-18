@@ -37,8 +37,8 @@ requirements:
     - pkg-config            # [not win]
     - jom                   # [win]
     - make                  # [unix]
-    - python
-    - python==3.8.6 # [arm64]
+    - python # [not arm64]
+    - python==3.8.6 # [osx and arm64]
     - {{ compiler('c') }}
     - {{ compiler('cxx') }}
     - cmake >=3.14
@@ -47,8 +47,8 @@ requirements:
   host:
     - pthread-stubs  # [linux]
     - ffmpeg
-    - python
-    - python==3.8.6 # [arm64]
+    - python # [not arm64]
+    - python==3.8.6 # [osx and arm64]
     - nomkl # [osx]
     - xorg-libxcursor # [linux]
     - xorg-libx11 # [linux]
@@ -84,9 +84,9 @@ requirements:
     - tensorflow ==1.13.* # [osx and not arm64]
     - keras # [not arm64]
     - ffmpeg
-    - numpy # [arm64]
-    - python
-    - python==3.8.6 # [arm64]
+    - numpy # [osx and arm64]
+    - python # [not arm64]
+    - python==3.8.6 # [osx and arm64]
     - nomkl # [osx]
     - xorg-libx11 # [linux]
 
