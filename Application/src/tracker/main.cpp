@@ -47,10 +47,6 @@
 #include <tracking/HistorySplit.h>
 
 #include <misc/Image.h>
-#if __linux__
-#include <X11/Xlib.h>
-#endif
-
 #include <gui/gui.h>
 
 #include <tracking/DetectTag.h>
@@ -85,6 +81,10 @@
 #include <unistd.h>
 #define GetCurrentDir getcwd
 #endif
+
+#if __linux__                                                                
+#include <X11/Xlib.h>                                                        
+#endif 
 
 //-Functions-------------------------------------------------------------------
 
