@@ -286,6 +286,15 @@ void FileChooser::set_tab(std::string tab) {
         _current_tab.content->set_name("Extra");
     }
     
+    if(_current_tab.display == Settings::Display::None) {
+        _rows->set_children({});
+        
+    } else {
+        _rows->set_children(std::vector<Layout::Ptr>{
+            _textfield, _list
+        });
+    }
+    
     update_size();
     _graph->set_dirty(&_base);
 }
@@ -449,7 +458,13 @@ void FileChooser::update_size() {
     if(_tabs_bar) _tabs_bar->auto_size(Margin{0,0});
     if(_tabs_bar) _tabs_bar->update_layout();
     
-    if(_current_tab.content && !_selected_file.empty())
+    if(_current_tab.display == Settings::Display::None) {
+        if(_current_tab.content) {
+            _columns->set_children(std::vector<Layout::Ptr>{_current_tab.content});
+        } else
+            _columns->clear_children();
+        
+    } else if(_current_tab.content && !_selected_file.empty())
         _columns->set_children({_rows, _current_tab.content});
     else
         _columns->set_children({_rows});

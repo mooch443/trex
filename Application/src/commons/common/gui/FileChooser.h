@@ -26,9 +26,18 @@ class FileChooser {
     
 public:
     struct Settings {
+        enum Display {
+            None = 0,
+            Browser = 2
+        } display;
+        
         std::string name;
         std::string extension;
         derived_ptr<Entangled> content;
+        
+        Settings(const std::string& name = "", const std::string& extensions = "", const derived_ptr<Entangled>& content = nullptr, Display d = Display::Browser)
+            : name(name), extension(extensions), content(content), display(d)
+        {}
         
         bool is_valid_extension(const file::Path& path) const {
             return file::valid_extension(path, extension);

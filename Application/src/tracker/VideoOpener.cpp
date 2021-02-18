@@ -67,7 +67,7 @@ VideoOpener::LabeledDropDown::LabeledDropDown(const std::string& name)
       _ref(gui::temp_settings[name])
 {
     _docs = gui::temp_docs[name];
-    
+
     _dropdown->textfield()->set_font(Font(0.6f));
     assert(_ref.get().is_enum());
     std::vector<Dropdown::TextItem> items;
@@ -163,6 +163,9 @@ VideoOpener::VideoOpener() {
     
     _horizontal_raw = std::make_shared<gui::HorizontalLayout>();
     _horizontal_raw->set_clickable(true);
+    _recording_panel = std::make_shared<gui::HorizontalLayout>();
+    _recording_panel->set_clickable(true);
+    _camera = std::make_shared<gui::ExternalImage>(std::make_unique<Image>(32, 32, 4));
     _raw_settings = std::make_shared<gui::VerticalLayout>();
     _raw_info = std::make_shared<gui::VerticalLayout>();
     _raw_info->set_policy(gui::VerticalLayout::LEFT);
@@ -179,6 +182,12 @@ VideoOpener::VideoOpener() {
                 _buffer->restart_background();
         }
     });
+    
+    _recording_panel->set_children(std::vector<Layout::Ptr>{
+        Layout::Ptr(std::make_shared<Text>("Camera", Vec2(), White, gui::Font(0.8f, Style::Bold))),
+        _camera
+    });
+    _recording_panel->set_name("RecordingPanel");
 
     _text_fields["output_name"] = std::make_unique<LabeledTextField>("output_name");
     _text_fields["threshold"] = std::make_unique<LabeledTextField>("threshold");
@@ -307,7 +316,8 @@ VideoOpener::VideoOpener() {
     
     _file_chooser->set_tabs({
         FileChooser::Settings{std::string("Pre-processed (PV)"), std::string("pv"), _horizontal},
-        FileChooser::Settings{std::string("Convert (RAW)"), std::string("mp4;avi;mov;flv;m4v;webm;mkv;mpg"), _horizontal_raw}
+        FileChooser::Settings{std::string("Convert (RAW)"), std::string("mp4;avi;mov;flv;m4v;webm;mkv;mpg"), _horizontal_raw},
+        FileChooser::Settings("Camera (record)", "", _recording_panel, FileChooser::Settings::Display::None)
     });
     
     _file_chooser->on_update([this](auto&) mutable {
@@ -374,6 +384,7 @@ VideoOpener::VideoOpener() {
                     _raw_info->auto_size(Margin{0, 0});
                     _raw_settings->auto_size(Margin{0, 0});
                     _horizontal_raw->auto_size(Margin{0, 0});
+                    _recording_panel->auto_size(Margin{0, 0});
                     
                     if(_screenshot_previous_size == 0) {
                         {
