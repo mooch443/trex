@@ -12,7 +12,7 @@ source:
     git_rev: new_conda_buildsys
 
 build:
-    number: 13
+    number: 14
     string: "{{ hash }}_{{ number }}"
     run_exports:
         - {{ pin_compatible('ffmpeg', min_pin='x.x.x', max_pin='x.x.x') }}
@@ -37,8 +37,8 @@ requirements:
     - pkg-config            # [not win]
     - jom                   # [win]
     - make                  # [unix]
-    - python # [not osx]
-    - python==3.8.6 # [osx]
+    - python
+    - python==3.8.6 # [arm64]
     - {{ compiler('c') }}
     - {{ compiler('cxx') }}
     - cmake >=3.14
@@ -47,8 +47,8 @@ requirements:
   host:
     - pthread-stubs  # [linux]
     - ffmpeg
-    - python # [not osx]
-    - python==3.8.6 # [osx]
+    - python
+    - python==3.8.6 # [arm64]
     - nomkl # [osx]
     - xorg-libxcursor # [linux]
     - xorg-libx11 # [linux]
@@ -80,12 +80,13 @@ requirements:
     - {{ cdt('libuuid-devel') }} # [linux]
     
   run:
-    #- tensorflow-gpu ==1.13.* # [not osx]
-    #- tensorflow ==1.13.* # [osx]
-    #- keras
+    - tensorflow-gpu ==1.13.* # [not osx and not arm64]
+    - tensorflow ==1.13.* # [osx and not arm64]
+    - keras # [not arm64]
     - ffmpeg
-    - python # [not osx]
-    - python==3.8.6 # [osx]
+    - numpy # [arm64]
+    - python
+    - python==3.8.6 # [arm64]
     - nomkl # [osx]
     - xorg-libx11 # [linux]
 
