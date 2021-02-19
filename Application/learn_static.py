@@ -138,8 +138,8 @@ def reinitialize_network():
         found = False
 
     if found:
-        model.compile(loss='categorical_crossentropy',
-            #categorical_focal_loss(gamma=2., alpha=.25),
+        model.compile(loss=#'categorical_crossentropy',
+            categorical_focal_loss(gamma=2., alpha=.25),
             optimizer=keras.optimizers.Adam(lr=learning_rate),
             metrics=['accuracy'])
     else:

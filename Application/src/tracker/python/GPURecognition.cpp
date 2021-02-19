@@ -785,9 +785,6 @@ void PythonIntegration::unset_function(const char *name_, const std::string &m) 
             auto &mod = _modules[m];
             if(!CHECK_NONE(mod)) {
                 mod.attr(name_) = nullptr;
-                assert(!mod.attr(name_).ptr());
-                assert(mod.attr(name_).is_none());
-                //mod.attr(name_).release();
             }
         }
     }
