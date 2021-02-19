@@ -70,25 +70,25 @@ set(ORIGINAL_CXX_FLAGS ${CMAKE_CXX_FLAGS})
 
 if(WIN32)
     set(BUILD_SHARED_LIBS OFF)
-	string(REPLACE " " ";" VERSION_LIST ${CMAKE_GENERATOR})
-	list(GET VERSION_LIST 2 VSTD_VERSION_MAJOR)
-	
-	math (EXPR MSVC_TOOLSET_MAJOR "${MSVC_VERSION}/10")
-	message(STATUS "CMAKE_GENERATOR_TOOLSET ${MSVC_TOOLSET_MAJOR} ${CMAKE_GENERATOR} ${VSTD_VERSION_MAJOR}")
-	
-	#if(${MSVC_TOOLSET_MAJOR} LESS 190)
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_ENABLE_ATOMIC_ALIGNMENT_FIX")
-	#endif()
+    string(REPLACE " " ";" VERSION_LIST ${CMAKE_GENERATOR})
+    list(GET VERSION_LIST 2 VSTD_VERSION_MAJOR)
+    
+    math (EXPR MSVC_TOOLSET_MAJOR "${MSVC_VERSION}/10")
+    message(STATUS "CMAKE_GENERATOR_TOOLSET ${MSVC_TOOLSET_MAJOR} ${CMAKE_GENERATOR} ${VSTD_VERSION_MAJOR}")
+    
+    #if(${MSVC_TOOLSET_MAJOR} LESS 190)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_ENABLE_ATOMIC_ALIGNMENT_FIX")
+    #endif()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_USE_MATH_DEFINES -DNOMINMAX -DWIN32_LEAN_AND_MEAN -DCURL_STATICLIB")
     #set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /NODEFAULTLIB:MSVCRT")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT /bigobj /O2 /Oi /Oy /Ot /Ob2")
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd /bigobj /O0")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd /bigobj")
     set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /MT /bigobj /O2 /Oi /Oy /Ot /Ob2")
-	
-	set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MT /bigobj /O2 /Oi /Oy /Ot /Ob2")
-    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MTd /bigobj /O0")
+    
+    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MT /bigobj /O2 /Oi /Oy /Ot /Ob2")
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MTd /bigobj")
     set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} /MT /bigobj /O2 /Oi /Oy /Ot /Ob2")
-	
+    
     set(GLEW_STATIC ON)
 else()
     set(BUILD_SHARED_LIBS OFF)
@@ -207,12 +207,12 @@ endif()
 if(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
-	set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O3")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O3")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++98-compat-pedantic")
-	
+    
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
     set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3")
-	set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} -O3")
+    set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} -O3")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-c++98-compat-pedantic")
     message(STATUS "hidden visibility in main project ${CMAKE_CXX_FLAGS}")
     
@@ -276,31 +276,39 @@ endif()
 set(trex_subproject_CMAKE_ARGS "")
 
 SET(trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}
-    "-DCMAKE_TOOLCHAIN_FILE:PATH=${CMAKE_TOOLCHAIN_FILE}"
-    "-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
-    "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}"
-    "-DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}"
-	"-DCMAKE_C_FLAGS_RELEASE=${CMAKE_C_FLAGS_RELEASE}"
-	"-DCMAKE_C_FLAGS_RELWITHDEBINFO=${CMAKE_C_FLAGS_RELWITHDEBINFO}"
-	"-DCMAKE_C_FLAGS_DEBUG=${CMAKE_C_FLAGS_DEBUG}"
-	"-DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}"
-    "-DCMAKE_CXX_FLAGS_DEBUG=${CMAKE_CXX_FLAGS_DEBUG}"
-    "-DCMAKE_CXX_FLAGS_RELEASE=${CMAKE_CXX_FLAGS_RELEASE}"
-    "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=${CMAKE_CXX_FLAGS_RELWITHDEBINFO}"
+    -DCMAKE_TOOLCHAIN_FILE:PATH=${CMAKE_TOOLCHAIN_FILE}
+    -DCMAKE_CXX_COMPILER:FILEPATH=${CMAKE_CXX_COMPILER}
+    -DCMAKE_C_COMPILER:FILEPATH=${CMAKE_C_COMPILER}
+    -DCMAKE_C_FLAGS:STRING=${CMAKE_C_FLAGS}
+    -DCMAKE_C_FLAGS_RELEASE:STRING=${CMAKE_C_FLAGS_RELEASE}
+    -DCMAKE_C_FLAGS_RELWITHDEBINFO:STRING=${CMAKE_C_FLAGS_RELWITHDEBINFO}
+    -DCMAKE_C_FLAGS_DEBUG:STRING=${CMAKE_C_FLAGS_DEBUG}
+    #-DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}
+    -DCMAKE_CXX_FLAGS=${ORIGINAL_CXX_FLAGS}
+    -DCMAKE_CXX_FLAGS_DEBUG=${CMAKE_CXX_FLAGS_DEBUG}
+    -DCMAKE_CXX_FLAGS_RELEASE=${CMAKE_CXX_FLAGS_RELEASE}
+    -DCMAKE_CXX_FLAGS_RELWITHDEBINFO=${CMAKE_CXX_FLAGS_RELWITHDEBINFO}
     -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
-    "-DCMAKE_PREFIX_PATH:PATH=${CMAKE_PREFIX_PATH}"
-    "-DCMAKE_BUILD_TYPE=Release"
-    "-DBUILD_SHARED_LIBS=OFF"
-    "-DSKIP_INSTALL_FILES=1"
-    "-DCMAKE_EXE_LINKER_FLAGS=${CMAKE_EXE_LINKER_FLAGS}"
+    -DCMAKE_PREFIX_PATH:PATH=${CMAKE_PREFIX_PATH}
+    -DCMAKE_BUILD_TYPE=Release
+    -DBUILD_SHARED_LIBS=OFF 
+    -DSKIP_INSTALL_FILES=1
+    -DCMAKE_EXE_LINKER_FLAGS=${CMAKE_EXE_LINKER_FLAGS}
+    -DPYTHON_INCLUDE_DIR:PATH=${PYTHON_INCLUDE_DIR}
+    -DPYTHON_LIBRARY:PATH=${PYTHON_LIBRARY}
+    -DPYTHON_EXECUTABLE:FILEPATH=${PYTHON_EXECUTABLE}
 )
 
 if(APPLE)
-    SET(trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}
+    set(trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}
         -DCMAKE_OSX_SYSROOT=${CMAKE_OSX_SYSROOT}
         -DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
         -DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET})
 endif()
+
+#if(APPLE AND CMAKE_COMPILER_IS_GNUCXX)
+#  set(trex_subproject_CMAKE_ARGS "-DWITH_AVFOUNDATION=OFF" "-DCMAKE_FIND_ROOT_PATH=${CMAKE_FIND_ROOT_PATH}")
+#endif()
 
 message(STATUS "CMAKE_OSX_DEPLOYMENT_TARGET = ${CMAKE_OSX_DEPLOYMENT_TARGET}")
 message(STATUS "MACOSX_DEPLOYMENT_TARGET = $ENV{MACOSX_DEPLOYMENT_TARGET}")
@@ -574,7 +582,7 @@ if((NOT ${TREX_BUILD_ZLIB}) AND ZLIB_FOUND AND ZLIB_VERSION_STRING VERSION_GREAT
     
 else()
     message(STATUS "Building libZ and libZIP")
-	set(TREX_BUILD_ZLIB ON CACHE BOOL "" FORCE)
+    set(TREX_BUILD_ZLIB ON CACHE BOOL "" FORCE)
     set(TREX_BUILD_ZIP ON CACHE BOOL "" FORCE)
     set(ZLIB_LIBRARY "z")
     set(zlib_install_dir "${CMAKE_BINARY_DIR}/zlib")
@@ -585,8 +593,8 @@ else()
         set(libzip_zlib_lib "${zlib_install_dir}/lib/zlib.lib")
         set(trex_subproject_CMAKE_ARGS1 ${trex_subproject_CMAKE_ARGS}
             -DCMAKE_STATIC_LINKER_FLAGS_INIT="/LIBPATH:\"${zlib_install_dir}/lib\"")
-	else()
-		set(trex_subproject_CMAKE_ARGS1 ${trex_subproject_CMAKE_ARGS})
+    else()
+        set(trex_subproject_CMAKE_ARGS1 ${trex_subproject_CMAKE_ARGS})
     endif()
     
     EXTERNALPROJECT_ADD(Z_LIB
@@ -597,7 +605,7 @@ else()
 
         INSTALL_DIR ${zlib_install_dir}
         CMAKE_ARGS ${trex_subproject_CMAKE_ARGS1} -DCMAKE_DEBUG_POSTFIX=d -DBUILD_STATIC_AND_SHARED=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=${zlib_install_dir}
-		-DBUILD_STATIC_AND_SHARED=OFF -DBUILD_SHARED_LIBS=OFF
+        -DBUILD_STATIC_AND_SHARED=OFF -DBUILD_SHARED_LIBS=OFF
     )
     
     add_library (TRex::LibZ INTERFACE IMPORTED)
@@ -634,18 +642,27 @@ endif()
 if(TREX_BUILD_ZLIB)
     if(WIN32)
         set(trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}
-            -DCMAKE_PREFIX_PATH=${zlib_install_dir}/lib/zlib.lib
-            -DZLIB_LIBRARY:FILEPATH=${zlib_install_dir}/lib/zlib.lib
+            -DZLIB_INCLUDE_DIR:PATH=${zlib_install_dir}/include
+            -DZLIB_LIBRARY_DEBUG:FILEPATH=${zlib_install_dir}/lib/zlibd.lib
             -DZLIB_LIBRARY_RELEASE:FILEPATH=${zlib_install_dir}/lib/zlib.lib
             -DZLIB_LIBRARY_RELWITHDEBINFO:FILEPATH=${zlib_install_dir}/lib/zlib.lib
-            -DZLIB_LIBRARY_DEBUG:FILEPATH=${zlib_install_dir}/lib/zlibd.lib)
+            #-DCMAKE_PREFIX_PATH=${zlib_install_dir}/lib/zlib.lib
+            #-DZLIB_LIBRARY:FILEPATH=${zlib_install_dir}/lib/zlib.lib
+            #-DZLIB_LIBRARY_RELEASE:FILEPATH=${zlib_install_dir}/lib/zlib.lib
+            #-DZLIB_LIBRARY_RELWITHDEBINFO:FILEPATH=${zlib_install_dir}/lib/zlib.lib
+            #-DZLIB_LIBRARY_DEBUG:FILEPATH=${zlib_install_dir}/lib/zlibd.lib
+        )
         
     else()
         set(trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}
             -DZLIB_INCLUDE_DIR:PATH=${zlib_install_dir}/include
             -DZLIB_LIBRARY_RELEASE:FILEPATH=${zlib_install_dir}/lib/libz.a
-            -DZLIB_LIBRARY_RELWITHDEBINFO:FILEPATH=${zlib_install_dir}/lib/libz.a
             -DZLIB_LIBRARY_DEBUG:FILEPATH=${zlib_install_dir}/lib/libzd.a
+            -DZLIB_LIBRARY_RELWITHDEBINFO:FILEPATH=${zlib_install_dir}/lib/libz.a
+            #-DZLIB_INCLUDE_DIR:PATH=${zlib_install_dir}/include
+            #-DZLIB_LIBRARY_RELEASE:FILEPATH=${zlib_install_dir}/lib/libz.a
+            #-DZLIB_LIBRARY_RELWITHDEBINFO:FILEPATH=${zlib_install_dir}/lib/libz.a
+            #-DZLIB_LIBRARY_DEBUG:FILEPATH=${zlib_install_dir}/lib/libzd.a
         )
     endif()
 endif()
@@ -675,7 +692,7 @@ if(TREX_BUILD_ZIP)
             -DBUILD_TOOLS=OFF
             -DENABLE_GNUTLS=OFF
             -DENABLE_OPENSSL=OFF
-	    -DENABLE_LZMA=OFF
+            -DENABLE_LZMA=OFF
             ${trex_subproject_CMAKE_ARGS}
             -DCMAKE_DEBUG_POSTFIX=d
     )
@@ -718,13 +735,19 @@ if(${TREX_BUILD_PNG})
     message(STATUS "PNG_LIBRARY = ${PNG_LIBRARY}")
     message(STATUS "trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}")
 
+    if(APPLE)
+        set(PNG_PATCH "patch -N -s -d ${png_install_dir}/src/libpng_custom -p1 -i ${CMAKE_SOURCE_DIR}/lib_png_m1patch.diff || echo 1")
+    else()
+        set(PNG_PATCH "")
+    endif()
+
     #URL ftp://ftp.simplesystems.org/pub/libpng/png/src/history/libpng15/libpng-1.5.10.tar.gz
     #URL_MD5 9e5d864bce8f06751bbd99962ecf4aad
     EXTERNALPROJECT_ADD(libpng_custom
         DEPENDS TRex::LibZ TRex::LibZIP
         PREFIX ${png_install_dir}
         UPDATE_COMMAND ""
-        PATCH_COMMAND patch -N -s -d ${png_install_dir}/src/libpng_custom -p1 -i ${CMAKE_SOURCE_DIR}/lib_png_m1patch.diff || echo 1
+        PATCH_COMMAND ${PNG_PATCH}
 
         GIT_REPOSITORY  https://github.com/glennrp/libpng.git
         GIT_TAG v1.6.21
@@ -745,6 +768,19 @@ if(${TREX_BUILD_PNG})
     add_dependencies(TRex::LibPNG ${PNG_LIBRARY} libpng_custom TRex::LibZ)
     
     unset(PNG_LIBRARY)
+
+    if(WIN32)
+       set(trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}
+            -DPNG_LIBRARY_RELEASE:FILEPATH=${png_install_dir}/lib/libpng16_static.lib
+            -DPNG_LIBRARY_DEBUG:FILEPATH=${png_install_dir}/lib/libpng16_staticd.lib
+            -DPNG_PNG_INCLUDE_DIR:FILEPATH=${png_install_dir}/include)
+   else()
+        set(trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}
+            -DPNG_LIBRARY_RELEASE:FILEPATH=${png_install_dir}/lib/libpng16.a
+            -DPNG_LIBRARY_DEBUG:FILEPATH=${png_install_dir}/lib/libpng16d.a
+            -DPNG_PNG_INCLUDE_DIR:FILEPATH=${png_install_dir}/include
+        )
+   endif()
 endif()
 
 # this is circumventing some weird CMake shuffeling of dependencies. these libraries always have to go last
@@ -782,7 +818,7 @@ if(NOT ${TREX_BUILD_OPENCV})
 endif()
 
 if(${TREX_BUILD_OPENCV})
-    set(trigger_build_dir ${CMAKE_BINARY_DIR}/force_opencv)
+    set(trigger_build_dir "${CMAKE_BINARY_DIR}/force_opencv")
     set(BUILD_SHARED_LIBS OFF)
     message(STATUS "Building OpenCV...")
     
@@ -793,60 +829,54 @@ if(${TREX_BUILD_OPENCV})
         message(STATUS "PKG_CONFIG_PATH: $ENV{PKG_CONFIG_PATH}")
     endif()
     
-    set(OPENCV_PREFIX_PATH ${png_install_dir} ${zlib_install_dir} ${CMAKE_PREFIX_PATH} )
+    set(OPENCV_PREFIX_PATH "${png_install_dir}" "${zlib_install_dir}" ${CMAKE_PREFIX_PATH} )
+    message(STATUS "CMAKE_CXX_FLAGS_DEBUG: ${CMAKE_CXX_FLAGS_DEBUG}")
     set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS}
-			"-DCMAKE_CXX_FLAGS_DEBUG=${CMAKE_CXX_FLAGS_DEBUG}"
-            "-DCMAKE_CXX_FLAGS_RELEASE=${CMAKE_CXX_FLAGS_RELEASE}"
-            "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=${CMAKE_CXX_FLAGS_RELWITHDEBINFO}"
-            "-DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}"
-			"-DCMAKE_CXX_FLAGS=${ORIGINAL_CXX_FLAGS} -D_USE_MATH_DEFINES -DNOMINMAX -DCURL_STATICLIB -D_ENABLE_ATOMIC_ALIGNMENT_FIX"
-            "-DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}")
-            
-    if(APPLE AND CMAKE_COMPILER_IS_GNUCXX)
-      set(${OPENCV_EXTRA_FLAGS_} "-DWITH_AVFOUNDATION=OFF" "-DCMAKE_FIND_ROOT_PATH=${CMAKE_FIND_ROOT_PATH}")
-    endif()
+        ${trex_subproject_CMAKE_ARGS}
+        -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}
+        #"-DCMAKE_CXX_FLAGS_DEBUG=${CMAKE_CXX_FLAGS_DEBUG}"
+        #"-DCMAKE_CXX_FLAGS_RELEASE=${CMAKE_CXX_FLAGS_RELEASE}"
+        #"-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=${CMAKE_CXX_FLAGS_RELWITHDEBINFO}"
+        #"-DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}"
+		#"-DCMAKE_CXX_FLAGS=${ORIGINAL_CXX_FLAGS} -D_USE_MATH_DEFINES -DNOMINMAX -DCURL_STATICLIB -D_ENABLE_ATOMIC_ALIGNMENT_FIX"
+    )
     
-    if(APPLE)
-        set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
-            "-DCMAKE_OSX_SYSROOT=${CMAKE_OSX_SYSROOT}"
-            "-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}"
-            "-DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}")
-    endif()
+    # if(APPLE)
+    #     set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
+    #         "-DCMAKE_OSX_SYSROOT=${CMAKE_OSX_SYSROOT}"
+    #         "-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}"
+    #         "-DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+    # endif()
    
-   if(TREX_BUILD_PNG)
-       if(WIN32)
-           set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
-                -DPNG_LIBRARY_RELEASE:FILEPATH=${png_install_dir}/lib/libpng16_static.lib
-                -DPNG_LIBRARY_DEBUG:FILEPATH=${png_install_dir}/lib/libpng16_staticd.lib
-                -DPNG_PNG_INCLUDE_DIR:FILEPATH=${png_install_dir}/include)
-       else()
-            set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
-                -DPNG_LIBRARY_RELEASE:FILEPATH=${png_install_dir}/lib/libpng16.a
-                -DPNG_LIBRARY_DEBUG:FILEPATH=${png_install_dir}/lib/libpng16d.a
-                -DPNG_PNG_INCLUDE_DIR:FILEPATH=${png_install_dir}/include
-            )
-       endif()
-   endif()
+   # if(TREX_BUILD_PNG)
+   #     if(WIN32)
+   #         set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
+   #              "-DPNG_LIBRARY_RELEASE:FILEPATH=${png_install_dir}/lib/libpng16_static.lib"
+   #              "-DPNG_LIBRARY_DEBUG:FILEPATH=${png_install_dir}/lib/libpng16_staticd.lib"
+   #              "-DPNG_PNG_INCLUDE_DIR:FILEPATH=${png_install_dir}/include")
+   #     else()
+   #          set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
+   #              "-DPNG_LIBRARY_RELEASE:FILEPATH=${png_install_dir}/lib/libpng16.a"
+   #              "-DPNG_LIBRARY_DEBUG:FILEPATH=${png_install_dir}/lib/libpng16d.a"
+   #              "-DPNG_PNG_INCLUDE_DIR:FILEPATH=${png_install_dir}/include"
+   #          )
+   #     endif()
+   # endif()
    
-   if(TREX_BUILD_ZLIB)
-       if(WIN32)
-           set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
-                            -DZLIB_INCLUDE_DIR:PATH=${zlib_install_dir}/include
-                            -DZLIB_LIBRARY_DEBUG:FILEPATH=${zlib_install_dir}/lib/zlibd.lib
-							-DZLIB_LIBRARY_RELEASE:FILEPATH=${zlib_install_dir}/lib/zlib.lib)
-       else()
-            set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
-                -DZLIB_INCLUDE_DIR:PATH=${zlib_install_dir}/include
-                -DZLIB_LIBRARY_RELEASE:FILEPATH=${zlib_install_dir}/lib/libz.a
-                -DZLIB_LIBRARY_DEBUG:FILEPATH=${zlib_install_dir}/lib/libzd.a
-            )
-       endif()
-   endif()
-
-   if(APPLE)
-        set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
-            -DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}) 
-   endif()
+   # if(TREX_BUILD_ZLIB)
+   #     if(WIN32)
+   #         set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
+   #                          "-DZLIB_INCLUDE_DIR:PATH=${zlib_install_dir}/include"
+   #                          "-DZLIB_LIBRARY_DEBUG:FILEPATH=${zlib_install_dir}/lib/zlibd.lib"
+			# 				"-DZLIB_LIBRARY_RELEASE:FILEPATH=${zlib_install_dir}/lib/zlib.lib")
+   #     else()
+   #          set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
+   #              "-DZLIB_INCLUDE_DIR:PATH=${zlib_install_dir}/include"
+   #              "-DZLIB_LIBRARY_RELEASE:FILEPATH=${zlib_install_dir}/lib/libz.a"
+   #              "-DZLIB_LIBRARY_DEBUG:FILEPATH=${zlib_install_dir}/lib/libzd.a"
+   #          )
+   #     endif()
+   # endif()
    
    if(TREX_CONDA_PACKAGE_INSTALL)
 		set(TREX_CMAKE_BUILD_TYPE Release)
@@ -855,12 +885,11 @@ if(${TREX_BUILD_OPENCV})
    endif()
    
    message(STATUS "TREX_CMAKE_BUILD_TYPE ${TREX_CMAKE_BUILD_TYPE}")
-   
+   message(STATUS "ALL trex_subproject_CMAKE_ARGS: ${trex_subproject_CMAKE_ARGS}")
    set(OPENCV_CMAKE_ARGS
-            ${OPENCV_EXTRA_FLAGS_}
-			-DCMAKE_BUILD_TYPE=${TREX_CMAKE_BUILD_TYPE}
-			-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
-            -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+            #${OPENCV_EXTRA_FLAGS_}
+            ${trex_subproject_CMAKE_ARGS}
+			-DCMAKE_BUILD_TYPE:STRING=${TREX_CMAKE_BUILD_TYPE}
             -DBUILD_DOCS:BOOL=FALSE
             -DBUILD_EXAMPLES:BOOL=FALSE
             -DBUILD_TESTS:BOOL=FALSE
@@ -893,12 +922,12 @@ if(${TREX_BUILD_OPENCV})
             -DBUILD_FAT_JAVA_LIB=OFF
             -DBUILD_TIFF=ON
             -DWITH_OPENCL=ON
-            -DPYTHON_INCLUDE_DIR:PATH=${PYTHON_INCLUDE_DIR}
-            -DPYTHON_LIBRARY:PATH=${PYTHON_LIBRARY}
-            -DPYTHON_EXECUTABLE:FILEPATH=${PYTHON_EXECUTABLE}
+            #"-DPYTHON_INCLUDE_DIR:PATH=${PYTHON_INCLUDE_DIR}"
+            #"-DPYTHON_LIBRARY:PATH=${PYTHON_LIBRARY}"
+            #"-DPYTHON_EXECUTABLE:FILEPATH=${PYTHON_EXECUTABLE}"
             -DWITH_OPENEXR=OFF
-            -DCMAKE_PREFIX_PATH:PATH=${OPENCV_PREFIX_PATH}
-            -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/opencv_install
+            #"-DCMAKE_PREFIX_PATH:PATH=${OPENCV_PREFIX_PATH}"
+            "-DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/opencv_install"
             -DCMAKE_DEBUG_POSTFIX=)
 
     message(STATUS "OPENCV_EXTRA_FLAGS_ = ${OPENCV_EXTRA_FLAGS_}")
@@ -924,13 +953,13 @@ if(${TREX_BUILD_OPENCV})
             ${OPENCV_CMAKE_ARGS})
     endif()
 	# patching a simple (void*) -> (char*) for windows
-    ExternalProject_Add_Step(CustomOpenCV
-        WINDOWS_CONFIGURE DEPENDEES download DEPENDERS configure
-        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_SOURCE_DIR}/opencv_patch.patch"
-            "${CMAKE_CURRENT_BINARY_DIR}/opencv/src/CustomOpenCV/CMakeLists.txt"
-    )
+    #ExternalProject_Add_Step(CustomOpenCV
+    #    WINDOWS_CONFIGURE DEPENDEES download DEPENDERS configure
+    #    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    #    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    #        "${CMAKE_SOURCE_DIR}/opencv_patch.patch"
+     #       "${CMAKE_CURRENT_BINARY_DIR}/opencv/src/CustomOpenCV/CMakeLists.txt"
+    #)
 
     if(APPLE)
         set(CMAKE_PREFIX_PATH ${CMAKE_CURRENT_BINARY_DIR}/opencv_install/lib/cmake/opencv4/ ${CMAKE_PREFIX_PATH})
@@ -955,7 +984,7 @@ if(${TREX_BUILD_OPENCV})
         message("Including OpenCV lib path: ${CMAKE_CURRENT_BINARY_DIR}/opencv_install/x64/vc${VSTD_VERSION_MAJOR}/staticlib")
         set(OpenCV_LIB_PATH ${CMAKE_CURRENT_BINARY_DIR}/opencv_install/x64/vc${VSTD_VERSION_MAJOR}/staticlib)
         link_directories(${OpenCV_LIB_PATH})
-        set(OpenCV_LIBS opencv_core430 opencv_imgproc430 opencv_imgcodecs430 opencv_video430 opencv_videoio430 opencv_highgui430 opencv_features2d430 opencv_flann430 opencv_objdetect430 opencv_ml430 opencv_gapi430 opencv_dnn430 opencv_calib3d430 libjpeg-turbo ittnotify ade libprotobuf libtiff quirc ${FFMPEG_LIBRARIES})
+        set(OpenCV_LIBS opencv_core451 opencv_imgproc451 opencv_imgcodecs451 opencv_video451 opencv_videoio451 opencv_highgui451 opencv_features2d451 opencv_flann451 opencv_objdetect451 opencv_ml451 opencv_gapi451 opencv_dnn451 opencv_calib3d451 libjpeg-turbo ittnotify ade libprotobuf libtiff quirc ${FFMPEG_LIBRARIES})
     else()
 		set(OpenCV_LIBS opencv_core opencv_imgproc opencv_imgcodecs opencv_stitching opencv_photo opencv_video opencv_videoio opencv_highgui opencv_features2d opencv_flann opencv_objdetect opencv_ml opencv_gapi opencv_dnn opencv_calib3d)
 		set(OpenCV_LIBS ${OpenCV_LIBS} opencv_core libjpeg-turbo ittnotify ade libprotobuf quirc ${FFMPEG_LIBRARIES})
@@ -967,7 +996,7 @@ if(${TREX_BUILD_OPENCV})
 		endif()
     endif()
     
-	find_package(OpenCV 4.3.0 PATHS ${OpenCV_DIR} NO_DEFAULT_PATH)
+	find_package(OpenCV 4.5.1 PATHS ${OpenCV_DIR} NO_DEFAULT_PATH)
 	if(OpenCV_FOUND)
 		set(OpenCV_LIBS ${OpenCV_LIBRARIES})
 		message(STATUS "Found opencv at ${OpenCV_INSTALL_PATH}, using its config.cmake")
