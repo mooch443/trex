@@ -1,5 +1,7 @@
 #!/bin/bash
 
+_BUILD_PREFIX=$(cat build_env_setup.sh | grep 'export BUILD=' | cut -d'=' -f2 | cut -d'"' -f2)
+
 cd Application
 mkdir build
 cd build
@@ -15,6 +17,9 @@ if [ "$(uname)" == "Linux" ]; then
 
     # new 9.3 compiler sets this to cos7, which does not exist
     export _PYTHON_SYSCONFIGDATA_NAME="_sysconfigdata_x86_64_conda_cos6_linux_gnu"
+    echo "ARCH = ${ARCH}"
+    echo "_BUILD_PREFIX: ${_BUILD_PREFIX} BUILD_PREFIX: ${BUILD_PREFIX} PREFIX: ${PREFIX}"
+    CMAKE_PLATFORM_FLAGS+=("-DCMAKE_PREFIX_PATH=${PREFIX}/${_BUILD_PREFIX}/sysroot/usr/lib64;${PREFIX}/${_BUILD_PREFIX}/sysroot/usr/include;${PREFIX}")
 else
     echo "CONDA_BUILD_SYSROOT=$CONDA_BUILD_SYSROOT. forcing it."
     if [ "${ARCH}" == "arm64" ]; then
@@ -29,7 +34,7 @@ else
 fi
 
 echo "Using system flags: ${CMAKE_PLATFORM_FLAGS[@]}"
-PKG_CONFIG_PATH="${PREFIX}/lib/pkgconfig;${BUILD_PREFIX}/${HOST}/sysroot/usr/lib64/pkgconfig" cmake .. -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
+PKG_CONFIG_PATH="${PREFIX}/lib/pkgconfig:${BUILD_PREFIX}/${HOST}/sysroot/usr/lib64/pkgconfig" cmake .. -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
     -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
     -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
     -DCMAKE_BUILD_TYPE=Release \

@@ -736,7 +736,7 @@ if(${TREX_BUILD_PNG})
     message(STATUS "trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}")
 
     if(APPLE)
-        set(PNG_PATCH "patch -N -s -d ${png_install_dir}/src/libpng_custom -p1 -i ${CMAKE_SOURCE_DIR}/lib_png_m1patch.diff || echo 1")
+        set(PNG_PATCH patch -N -s -d ${png_install_dir}/src/libpng_custom -p1 -i ${CMAKE_SOURCE_DIR}/lib_png_m1patch.diff || echo 1)
     else()
         set(PNG_PATCH "")
     endif()
@@ -825,6 +825,7 @@ if(${TREX_BUILD_OPENCV})
     if(UNIX)
         get_filename_component(PKG_CONFIG_PATH ${AVDEVICE_LIBRARY} DIRECTORY)
         
+        set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} $ENV{PKG_CONFIG_PATH})
         set(ENV{PKG_CONFIG_PATH} "${PKG_CONFIG_PATH}/pkgconfig" $ENV{PKG_CONFIG_PATH})
         message(STATUS "PKG_CONFIG_PATH: $ENV{PKG_CONFIG_PATH}")
     endif()
@@ -926,7 +927,7 @@ if(${TREX_BUILD_OPENCV})
             #"-DPYTHON_LIBRARY:PATH=${PYTHON_LIBRARY}"
             #"-DPYTHON_EXECUTABLE:FILEPATH=${PYTHON_EXECUTABLE}"
             -DWITH_OPENEXR=OFF
-            #"-DCMAKE_PREFIX_PATH:PATH=${OPENCV_PREFIX_PATH}"
+            "-DCMAKE_PREFIX_PATH:PATH=${CMAKE_PREFIX_PATH}"
             "-DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/opencv_install"
             -DCMAKE_DEBUG_POSTFIX=)
 
