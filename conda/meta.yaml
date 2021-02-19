@@ -80,8 +80,8 @@ requirements:
     - {{ cdt('libuuid-devel') }} # [linux]
     
   run:
-    - tensorflow-gpu ==1.13.* # [not osx and not arm64]
-    - tensorflow ==1.13.* # [osx and not arm64]
+    - tensorflow-gpu =2.* # [not osx and not arm64]
+    - tensorflow =2.* # [osx and not arm64]
     - keras # [not arm64]
     - ffmpeg
     - numpy # [osx and arm64]

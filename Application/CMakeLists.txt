@@ -445,16 +445,16 @@ add_definitions(-DIMGUI_IMPL_OPENGL_LOADER_GLAD=true)
 set (imgui_path ${CMAKE_SOURCE_DIR}/src/imgui)
 message(STATUS "imgui: ${imgui_path}")
 file(GLOB imgui_sources ${imgui_path}/*.cpp ${imgui_path}/*.h
-    ${imgui_path}/examples/imgui_impl_glfw*.cpp ${imgui_path}/examples/imgui_impl_glfw*.h
+    ${imgui_path}/backends/imgui_impl_glfw*.cpp ${imgui_path}/backends/imgui_impl_glfw*.h
 )
 
-set(imgui_sources ${imgui_sources} ${imgui_path}/examples/imgui_impl_opengl2.cpp ${imgui_path}/examples/imgui_impl_opengl2.h)
+set(imgui_sources ${imgui_sources} ${imgui_path}/backends/imgui_impl_opengl2.cpp ${imgui_path}/backends/imgui_impl_opengl2.h)
 if(NOT CMN_USE_OPENGL2)
-    set(imgui_sources ${imgui_sources} ${imgui_path}/examples/imgui_impl_opengl3.cpp ${imgui_path}/examples/imgui_impl_opengl3.h)
+    set(imgui_sources ${imgui_sources} ${imgui_path}/backends/imgui_impl_opengl3.cpp ${imgui_path}/backends/imgui_impl_opengl3.h)
 endif()
 
 if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$" AND METAL_LIBRARY)
-    set(imgui_sources ${imgui_sources} ${imgui_path}/examples/imgui_impl_metal.mm ${imgui_path}/examples/imgui_impl_metal.h)
+    set(imgui_sources ${imgui_sources} ${imgui_path}/backends/imgui_impl_metal.mm ${imgui_path}/backends/imgui_impl_metal.h)
 endif()
 
 add_library(imgui STATIC ${imgui_sources})
