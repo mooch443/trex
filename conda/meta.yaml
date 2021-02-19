@@ -5,7 +5,10 @@
 package:
   name: trex
   version: "{{ version }}"
-  
+
+channels:
+  - conda-forge [arm64]
+  - nodefaults [arm64]
 source:
     git_url: https://github.com/mooch443/trex.git
     git_depth: 1
@@ -38,7 +41,7 @@ requirements:
     - jom                   # [win]
     - make                  # [unix]
     - python # [not arm64]
-    - python==3.8.6 # [osx and arm64]
+    - python=3.8 # [osx and arm64]
     - {{ compiler('c') }}
     - {{ compiler('cxx') }}
     - cmake >=3.14
@@ -48,7 +51,7 @@ requirements:
     - pthread-stubs  # [linux]
     - ffmpeg
     - python # [not arm64]
-    - python==3.8.6 # [osx and arm64]
+    - python=3.8 # [osx and arm64]
     - nomkl # [osx]
     - xorg-libxcursor # [linux]
     - xorg-libx11 # [linux]
@@ -86,9 +89,30 @@ requirements:
     - ffmpeg
     - numpy # [osx and arm64]
     - python # [not arm64]
-    - python==3.8.6 # [osx and arm64]
+    - python=3.8 # [osx and arm64]
     - nomkl # [osx]
     - xorg-libx11 # [linux]
+    - grpcio # [arm64]
+    - h5py # [arm64]
+    - ipython # [arm64]
+    - pip=20.2.4  # [arm64]
+    - scipy  # [arm64]
+    - termcolor # [arm64]
+    - typeguard # [arm64]
+    - wheel # [arm64]
+    - absl-py # [arm64]
+    - astunparse # [arm64]
+    - python-flatbuffers # [arm64]
+    - gast # [arm64]
+    - google-pasta # [arm64]
+    - keras-preprocessing # [arm64]
+    - opt_einsum # [arm64]
+    - protobuf # [arm64]
+    - tensorboard # [arm64]
+    - tensorflow-estimator # [arm64]
+    - termcolor # [arm64]
+    - typing_extensions # [arm64]
+    - wrapt # [arm64]
 
 about:
   home: https://trex.run

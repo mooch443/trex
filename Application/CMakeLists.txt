@@ -826,7 +826,7 @@ if(${TREX_BUILD_OPENCV})
         get_filename_component(PKG_CONFIG_PATH ${AVDEVICE_LIBRARY} DIRECTORY)
         
         set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} $ENV{PKG_CONFIG_PATH})
-        set(ENV{PKG_CONFIG_PATH} "${PKG_CONFIG_PATH}/pkgconfig" $ENV{PKG_CONFIG_PATH})
+        set(ENV{PKG_CONFIG_PATH} "${PKG_CONFIG_PATH}/pkgconfig:$ENV{PKG_CONFIG_PATH}")
         message(STATUS "PKG_CONFIG_PATH: $ENV{PKG_CONFIG_PATH}")
     endif()
     
