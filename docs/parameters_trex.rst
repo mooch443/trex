@@ -175,7 +175,7 @@ TRex parameters
 
 .. function:: build_cxx_options(string)
 
-	**default value:** " -Wno-c++98-compat-pedantic -fvisibility=hidden -O3 -DNDEBUG -O3 -Wno-nullability-extension"
+	**default value:** " -fvisibility-inlines-hidden -fvisibility=hidden -Wno-c++98-compat-pedantic -O3 -DNDEBUG -O3 -Wno-nullability-extension"
 
 
 	The mode the application was built in.
@@ -1543,7 +1543,7 @@ TRex parameters
 
 .. function:: python_path(path)
 
-	**default value:** "/Users/tristan/opt/anaconda3/envs/only_ffmpeg/bin/python3"
+	**default value:** "/Users/tristan/miniforge3/envs/trex/bin/python3"
 
 
 	Path to the python home folder. If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.
@@ -1918,7 +1918,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.0.10-16-g84ad856"
+	**default value:** "v1.0.10-31-g39b62b1"
 
 
 	Current application version.

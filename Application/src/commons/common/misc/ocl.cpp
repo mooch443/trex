@@ -63,6 +63,7 @@ namespace ocl {
             }
         }
         
+#ifndef NDEBUG
         cout << context.ndevices() << " GPU devices are detected." << endl;
         for (size_t i = 0; i < context.ndevices(); i++)
         {
@@ -75,11 +76,9 @@ namespace ocl {
         }
         
         Debug("Choosing device 0.");
+#endif
         
         cv::ocl::Device(context.device(0));
-        
-        
-        
         cv::BufferPoolController* c = cv::ocl::getOpenCLAllocator()->getBufferPoolController();
         if (c)
         {

@@ -50,9 +50,14 @@ if(NO_PUT_TIME)
     add_definitions(-DNO_PUT_TIME=true)
 endif()
 
+set(CONDA_PREFIX $ENV{CONDA_PREFIX} CACHE PATH "CONDA_PREFIX if set during cmake")
+if(CONDA_PREFIX)
+    message(STATUS "CONDA_PREFIX=${CONDA_PREFIX}")
+endif()
+
 if(TREX_CONDA_PACKAGE_INSTALL)
     add_definitions(-DTREX_CONDA_PACKAGE_INSTALL=1)
-    set(CMAKE_BUILD_RPATH "$ENV{CONDA_PREFIX}/lib")
+    set(CMAKE_BUILD_RPATH "${CONDA_PREFIX}/lib")
     
     list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/lib" isSystemDir)
     if("${isSystemDir}" STREQUAL "-1")
@@ -923,6 +928,14 @@ if(${TREX_BUILD_OPENCV})
             -DBUILD_FAT_JAVA_LIB=OFF
             -DBUILD_TIFF=ON
             -DWITH_OPENCL=ON
+            # -DAVCODEC_LIBRARY:FILEPATH=${AVCODEC_LIBRARY}
+            # -DAVFORMAT_LIBRARY:FILEPATH=${AVFORMAT_LIBRARY} 
+            # -DAVUTIL_LIBRARY:FILEPATH=${AVUTIL_LIBRARY} -DAVDEVICE_LIBRARY=${AVDEVICE_LIBRARY} 
+            # -DLIBSWSSCALE_LIBRARY:FILEPATH=${LIBSWSSCALE_LIBRARY}
+            # -DAVCODEC_INCLUDE_DIR=${AVCODEC_INCLUDE_DIR}
+            # -DAVFORMAT_INCLUDE_DIR=${AVFORMAT_INCLUDE_DIR} 
+            # -DAVUTIL_INCLUDE_DIR=${AVUTIL_INCLUDE_DIR}
+            #-DAVDEVICE_INCLUDE_DIR=${AVDEVICE_INCLUDE_DIR}
             #"-DPYTHON_INCLUDE_DIR:PATH=${PYTHON_INCLUDE_DIR}"
             #"-DPYTHON_LIBRARY:PATH=${PYTHON_LIBRARY}"
             #"-DPYTHON_EXECUTABLE:FILEPATH=${PYTHON_EXECUTABLE}"
@@ -1025,24 +1038,25 @@ endforeach()
 add_subdirectory(src)
 
 if(NOT WIN32 AND ${TREX_BUILD_DOCS})
-find_package(Sphinx)
-if(NOT Sphinx_FOUND)
-message(ERROR "Cannot find Sphinx executable")
-else()
-message(STATUS "Found sphinx.")
+    message(STATUS "Searching Sphinx at ${CONDA_PREFIX} ${CONDA_PREFIX}/bin")
+    find_package(Sphinx REQUIRED) #PATHS ${CONDA_PREFIX} ${CONDA_PREFIX}/bin )
+    if(NOT Sphinx_FOUND)
+        message(ERROR "Cannot find Sphinx executable")
+    else()
+        message(STATUS "Found sphinx at ${SPHINX_DIR}.")
 
-add_custom_target(
-  doc ALL
-  COMMAND $<TARGET_FILE:TRex> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
-  COMMAND $<TARGET_FILE:TGrabs> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
-  COMMAND make html
-  DEPENDS
-    TRex
-  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/../docs
-  COMMENT "Generating API documentation with Doxygen"
-  VERBATIM
-)
-endif()
+        add_custom_target(
+          doc ALL
+          COMMAND $<TARGET_FILE:TRex> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
+          COMMAND $<TARGET_FILE:TGrabs> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
+          COMMAND PATH=$ENV{PATH};${SPHINX_DIR} make html
+          DEPENDS
+            TRex
+          WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/../docs
+          COMMENT "Generating API documentation with Doxygen"
+          VERBATIM
+        )
+    endif()
 endif()
 
 if(POLICY CMP0114)
