@@ -509,6 +509,7 @@ def start_learning():
         mi = max(mi, len(Y_train[np.argmax(Y_train, axis=1) == c]))
 
     per_epoch = max(settings["min_iterations"], int(len(X_train) // batch_size ) * 0.5 ) #* 2.0) # i am using augmentation
+    per_epoch = int((per_epoch // batch_size) * batch_size)
     settings["per_epoch"] = per_epoch
     TRex.log(str(settings))
 
@@ -541,7 +542,8 @@ def start_learning():
 
         return np.clip(images, 0, 255).astype(dtype)
 
-    datagen = ImageDataGenerator(#rescale = 1.0/255.0,
+    def make_generator():
+        datagen = ImageDataGenerator(#rescale = 1.0/255.0,
                                  #rotation_range = 360,
                                  #brightness_range=(0.5,1.5),
                                  width_shift_range=move_range,
@@ -551,6 +553,9 @@ def start_learning():
                                  #preprocessing_function=preprocess,
                                  #use_multiprocessing=True
                                  )
+        datagen.fit(X_train)
+        return datagen.flow(X_train, Y_train, batch_size=batch_size)
+
     cvalues = np.array(cvalues)
 
     TRex.log("# [init] weights per class "+str(per_class))
@@ -574,7 +579,12 @@ def start_learning():
             if len(X_test) == 0:
                 validation_data = None
 
-            history = model.fit(datagen.flow(X_train, Y_train, batch_size=batch_size),
+            dataset = tf.data.Dataset.from_generator(make_generator, 
+                output_types=(tf.float32, tf.float32),
+                output_shapes =(tf.TensorShape([None, int(settings["image_height"]), int(settings["image_width"]), 1]), tf.TensorShape([None, int(len(classes))]))
+            ).repeat()#.shuffle(len(X_train), reshuffle_each_iteration=True)
+
+            history = model.fit(dataset,
                                   validation_data=validation_data,
                                   steps_per_epoch=per_epoch, epochs=max_epochs,
                                   callbacks=[callback])

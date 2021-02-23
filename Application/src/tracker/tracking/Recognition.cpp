@@ -192,7 +192,7 @@ std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const def
 
             // this is now the home folder of python
             std::string sep = "/";
-            auto set = home + ";" + home + "/DLLs;" + home + "/Lib;" + home + "/Scripts;";
+            auto set = home + ";" + home + "/DLLs;" + home + "/Lib;" + home + "/Scripts;" + home + "/Library/bin;" + home + "/Library;";
 
             sep[0] = file::Path::os_sep();
             set = utils::find_replace(set, "/", sep);
