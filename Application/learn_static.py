@@ -3,9 +3,11 @@ import shutil
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.layers import Dense, Dropout, Activation, Cropping2D, Flatten, Convolution1D, Convolution2D, MaxPooling1D, MaxPooling2D
-from tensorflow.keras.layers import SpatialDropout2D, Lambda
+from tensorflow.keras.layers import SpatialDropout2D, Lambda, Input
 from tensorflow.keras.models import Sequential
+from tensorflow.keras import backend as K
 from tensorflow.keras.utils import to_categorical
+from tensorflow_addons.losses import SigmoidFocalCrossEntropy
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
 import numpy as np
@@ -25,33 +27,42 @@ def binary_focal_loss(gamma=2., alpha=.25):
      model.compile(loss=[binary_focal_loss(alpha=.25, gamma=2)], metrics=["accuracy"], optimizer=adam)
 
     """
-    def binary_focal_loss_fixed(y_true, y_pred):
-        from tensorflow.keras import backend as K
-        import tensorflow as tf
 
+    def binary_focal_loss_fixed(y_true, y_pred):
         """
         :param y_true: A tensor of the same shape as `y_pred`
         :param y_pred:  A tensor resulting from a sigmoid
         :return: Output tensor.
         """
-        pt_1 = tf.where(tf.equal(y_true, 1), y_pred, tf.ones_like(y_pred))
-        pt_0 = tf.where(tf.equal(y_true, 0), y_pred, tf.zeros_like(y_pred))
-
+        y_true = tf.cast(y_true, tf.float32)
+        # Define epsilon so that the back-propagation will not result in NaN for 0 divisor case
         epsilon = K.epsilon()
-        # clip to prevent NaN's and Inf's
-        pt_1 = K.clip(pt_1, epsilon, 1. - epsilon)
-        pt_0 = K.clip(pt_0, epsilon, 1. - epsilon)
-
-        return -K.sum(alpha * K.pow(1. - pt_1, gamma) * K.log(pt_1)) \
-               -K.sum((1 - alpha) * K.pow(pt_0, gamma) * K.log(1. - pt_0))
+        # Add the epsilon to prediction value
+        # y_pred = y_pred + epsilon
+        # Clip the prediciton value
+        y_pred = K.clip(y_pred, epsilon, 1.0 - epsilon)
+        # Calculate p_t
+        p_t = tf.where(K.equal(y_true, 1), y_pred, 1 - y_pred)
+        # Calculate alpha_t
+        alpha_factor = K.ones_like(y_true) * alpha
+        alpha_t = tf.where(K.equal(y_true, 1), alpha_factor, 1 - alpha_factor)
+        # Calculate cross entropy
+        cross_entropy = -K.log(p_t)
+        weight = alpha_t * K.pow((1 - p_t), gamma)
+        # Calculate focal loss
+        loss = weight * cross_entropy
+        # Sum the losses in mini_batch
+        loss = K.mean(K.sum(loss, axis=1))
+        return loss
 
     return binary_focal_loss_fixed
 
 
-def categorical_focal_loss(gamma=2., alpha=.25):
+def categorical_focal_loss(alpha, gamma=2.):
     """
     Softmax version of focal loss.
-
+    When there is a skew between different categories/labels in your data set, you can try to apply this function as a
+    loss.
            m
       FL = ∑  -alpha * (1 - p_o,c)^gamma * y_o,c * log(p_o,c)
           c=1
@@ -59,7 +70,8 @@ def categorical_focal_loss(gamma=2., alpha=.25):
       where m = number of classes, c = class and o = observation
 
     Parameters:
-      alpha -- the same as weighing factor in balanced cross entropy
+      alpha -- the same as weighing factor in balanced cross entropy. Alpha is used to specify the weight of different
+      categories/labels, the size of the array needs to be consistent with the number of classes.
       gamma -- focusing parameter for modulating factor (1-p)
 
     Default value:
@@ -71,20 +83,17 @@ def categorical_focal_loss(gamma=2., alpha=.25):
         https://www.tensorflow.org/api_docs/python/tf/keras/backend/categorical_crossentropy
 
     Usage:
-     model.compile(loss=[categorical_focal_loss(alpha=.25, gamma=2)], metrics=["accuracy"], optimizer=adam)
+     model.compile(loss=[categorical_focal_loss(alpha=[[.25, .25, .25]], gamma=2)], metrics=["accuracy"], optimizer=adam)
     """
-    def categorical_focal_loss_fixed(y_true, y_pred):
-        from tensorflow.keras import backend as K
-        import tensorflow as tf
 
+    alpha = np.array(alpha, dtype=np.float32)
+
+    def categorical_focal_loss_fixed(y_true, y_pred):
         """
         :param y_true: A tensor of the same shape as `y_pred`
         :param y_pred: A tensor resulting from a softmax
         :return: Output tensor.
         """
-
-        # Scale predictions so that the class probas of each sample sum to 1
-        y_pred /= K.sum(y_pred, axis=-1, keepdims=True)
 
         # Clip the prediction value to prevent NaN's and Inf's
         epsilon = K.epsilon()
@@ -96,18 +105,20 @@ def categorical_focal_loss(gamma=2., alpha=.25):
         # Calculate Focal Loss
         loss = alpha * K.pow(1 - y_pred, gamma) * cross_entropy
 
-        # Sum the losses in mini_batch
-        return K.sum(loss, axis=1)
+        # Compute mean loss in mini_batch
+        return K.mean(K.sum(loss, axis=-1))
 
     return categorical_focal_loss_fixed
 
 def reinitialize_network():
-    global model, image_width, image_height, classes, learning_rate
+    global model, image_width, image_height, classes, learning_rate, sess
+
 
     model = Sequential()
     TRex.log("initializing network:"+str(image_width)+","+str(image_height)+" "+str(len(classes))+" classes")
 
-    model.add(Lambda(lambda x: (x / 127.5 - 1.0), input_shape=(int(image_width),int(image_height),1)))
+    model.add(Input(shape=(int(image_width),int(image_height),1)))
+    model.add(Lambda(lambda x: (x / 127.5 - 1.0))) #, input_shape=(int(image_width),int(image_height),1)))
     model.add(Convolution2D(16, 5, activation='relu'))
     model.add(MaxPooling2D(pool_size=(2,2)))
     model.add(SpatialDropout2D(0.25))
@@ -139,6 +150,7 @@ def reinitialize_network():
 
     if found:
         model.compile(loss=#'categorical_crossentropy',
+            #SigmoidFocalCrossEntropy(),
             categorical_focal_loss(gamma=2., alpha=.25),
             optimizer=keras.optimizers.Adam(lr=learning_rate),
             metrics=['accuracy'])
@@ -495,11 +507,11 @@ def start_learning():
     Y_train = to_categorical(Y_train, len(classes))
     #Y_test = np_utils.to_categorical(test_Y, len(classes))
 
-    #X_train = tf.constant(X_train)
-    #Y_train = tf.constant(Y_train)
+    #X_train = tf.constant(X_train, dtype=float)
+    #Y_train = tf.constant(Y_train, dtype=float)
 
-    #X_test = tf.constant(X_test)
-    #Y_test = tf.constant(Y_test)
+    #X_test = tf.constant(X_test, dtype=float)
+    #Y_test = tf.constant(Y_test, dtype=float)
 
     print("Python received "+str(X_train.shape)+" training images ("+str(Y_train.shape)+") and  "
           +str(X_test.shape)+" validation images ("+str(Y_test.shape)+")")
@@ -542,8 +554,7 @@ def start_learning():
 
         return np.clip(images, 0, 255).astype(dtype)
 
-    def make_generator():
-        datagen = ImageDataGenerator(#rescale = 1.0/255.0,
+    datagen = ImageDataGenerator(#rescale = 1.0/255.0,
                                  #rotation_range = 360,
                                  #brightness_range=(0.5,1.5),
                                  width_shift_range=move_range,
@@ -553,14 +564,12 @@ def start_learning():
                                  #preprocessing_function=preprocess,
                                  #use_multiprocessing=True
                                  )
-        datagen.fit(X_train)
-        return datagen.flow(X_train, Y_train, batch_size=batch_size)
-
     cvalues = np.array(cvalues)
 
     TRex.log("# [init] weights per class "+str(per_class))
     TRex.log("# [training] data shapes: train "+str(X_train.shape)+" "+str(Y_train.shape)+" test "+str(Y_test.shape)+" "+str(classes))
-
+    TRex.log("# [values] X:"+str(tf.reduce_max(X_train).numpy())+" - "+str(tf.reduce_min(X_train).numpy()))
+    TRex.log("# [values] Y:"+str(tf.reduce_max(Y_train).numpy())+" - "+str(tf.reduce_min(Y_train).numpy()))
     if do_save_training_images():
         try:
             np.savez(output_path+"_training_images.npz", X_train=X_train, Y_train=Y_train, classes=classes)
@@ -575,18 +584,22 @@ def start_learning():
 
             callback = ValidationCallback(model, classes, X_test, Y_test, epochs, filename, output_prefix+"_"+str(accumulation_step), output_path, best_accuracy_worst_class, estimate_uniqueness, settings)
             
-            validation_data = (X_test, Y_test)
+            validation_data = (tf.cast(X_test, float), Y_test)
+            #validation_data = tf.data.Dataset.from_tensor_slices((tf.cast(X_test, float), Y_test))#.batch(batch_size)
             if len(X_test) == 0:
                 validation_data = None
 
-            dataset = tf.data.Dataset.from_generator(make_generator, 
-                output_types=(tf.float32, tf.float32),
-                output_shapes =(tf.TensorShape([None, int(settings["image_height"]), int(settings["image_width"]), 1]), tf.TensorShape([None, int(len(classes))]))
-            ).repeat()#.shuffle(len(X_train), reshuffle_each_iteration=True)
-
+            # dataset = tf.data.Dataset.from_generator(make_generator, 
+            #     output_types=(tf.float32, tf.float32),
+            #     output_shapes =(tf.TensorShape([None, int(settings["image_height"]), int(settings["image_width"]), 1]), tf.TensorShape([None, int(len(classes))]))
+            # ).repeat()#.shuffle(len(X_train), reshuffle_each_iteration=True)
+            #dataset = tf.data.Dataset.from_tensor_slices((tf.cast(X_train, float), Y_train)).batch(batch_size)
+            dataset = datagen.flow(tf.cast(X_train, float), Y_train, batch_size=batch_size)
+            TRex.log("tf.data.Dataset: "+str(dataset))
             history = model.fit(dataset,
                                   validation_data=validation_data,
-                                  steps_per_epoch=per_epoch, epochs=max_epochs,
+                                  #steps_per_epoch=per_epoch, 
+                                  epochs=max_epochs,
                                   callbacks=[callback])
             
             model_json = model.to_json()

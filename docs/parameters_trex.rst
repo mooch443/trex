@@ -1918,7 +1918,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.0.10-32-g56ae421"
+	**default value:** "v1.0.10-33-g86c5ed6"
 
 
 	Current application version.

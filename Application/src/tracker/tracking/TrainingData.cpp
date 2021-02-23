@@ -914,7 +914,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             most_samples = L;
     }
     
-    if(fewest_samples == std::numeric_limits<size_t>::max())
+    if(fewest_samples == std::numeric_limits<double>::max())
         fewest_samples = most_samples = 0;
     
     const double number_classes = FAST_SETTINGS(manual_identities).size();
@@ -922,7 +922,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
     double percentile = ceil((most_samples - fewest_samples) * 0.65 + fewest_samples); // 0.65 percentile of #images/class
     const double current_filesize_per_class = percentile * (double)output_size.width * (double)output_size.height * 4;
     
-    Debug("Fewest samples for an individual is %d samples, most are %d. 65%% percentile is %f", fewest_samples, most_samples, percentile);
+    Debug("Fewest samples for an individual is %.0f samples, most are %.0f. 65%% percentile is %f", fewest_samples, most_samples, percentile);
     if(current_filesize_per_class * number_classes / 1000.0 / 1000.0 / 1000.0 >= gpu_max_sample_gb)
     {
         percentile = ceil(gpu_max_sample_gb * 1000 * 1000 * 1000 / (double)output_size.width / (double)output_size.height / 4.0 / double(number_classes));
@@ -938,7 +938,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             //if(step_size == 1)
             //    continue;
             
-            Debug("\tsub-sampling class %d from %d to %f with step_size = %f (resulting in %f)", id, L, percentile, step_size, double(L) * step_size);
+            Debug("\tsub-sampling class %d from %f to %f with step_size = %f (resulting in %f)", id, L, percentile, step_size, double(L) * step_size);
             
             // collect all frames where this individual is present
             
