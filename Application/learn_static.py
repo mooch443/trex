@@ -3,7 +3,7 @@ import shutil
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.layers import Dense, Dropout, Activation, Cropping2D, Flatten, Convolution1D, Convolution2D, MaxPooling1D, MaxPooling2D
-from tensorflow.keras.layers import SpatialDropout2D, Lambda, Input
+from tensorflow.keras.layers import SpatialDropout2D, Lambda, Input, BatchNormalization
 from tensorflow.keras.models import Sequential
 from tensorflow.keras import backend as K
 from tensorflow.keras.utils import to_categorical
@@ -116,26 +116,35 @@ def reinitialize_network():
     model = Sequential()
     TRex.log("initializing network:"+str(image_width)+","+str(image_height)+" "+str(len(classes))+" classes")
 
-    model.add(Input(shape=(int(image_width),int(image_height),1)))
-    model.add(Lambda(lambda x: (x / 127.5 - 1.0))) #, input_shape=(int(image_width),int(image_height),1)))
-    model.add(Convolution2D(16, 5, activation='relu'))
+    model.add(Input(shape=(int(image_height),int(image_width),1), dtype=float))
+    model.add(Lambda(lambda x: (x / 127.5 - 1.0)))
+    
+    model.add(Convolution2D(16, kernel_size=(5,5), activation='relu'))
     model.add(MaxPooling2D(pool_size=(2,2)))
+    model.add(BatchNormalization())
+    model.add(Activation('relu'))
+    model.add(SpatialDropout2D(0.25))
+    
+    model.add(Convolution2D(64, kernel_size=(5,5), activation='relu'))
+    model.add(MaxPooling2D(pool_size=(2,2)))
+    model.add(BatchNormalization())
+    model.add(Activation('relu'))
     model.add(SpatialDropout2D(0.25))
     #model.add(Dropout(0.5))
 
-    model.add(Convolution2D(64, 5, activation='relu'))
+    model.add(Convolution2D(100, kernel_size=(5,5), activation='relu'))
     model.add(MaxPooling2D(pool_size=(2,2)))
+    model.add(BatchNormalization())
+    model.add(Activation('relu'))
     model.add(SpatialDropout2D(0.25))
     #model.add(Dropout(0.5))
-
-    model.add(Convolution2D(100, 5, activation='relu'))
-    model.add(MaxPooling2D(pool_size=(2,2)))
+    
+    model.add(Dense(100))
+    model.add(BatchNormalization())
+    model.add(Activation('relu'))
     model.add(SpatialDropout2D(0.25))
-    #model.add(Dropout(0.5))
-
+    
     model.add(Flatten())
-    model.add(Dense(100, activation='relu'))
-    model.add(Dropout(0.5))
     model.add(Dense(len(classes), activation='softmax'))
 
     import platform
@@ -148,9 +157,9 @@ def reinitialize_network():
         found = False
 
     if found:
-        model.compile(loss=#'categorical_crossentropy',
+        model.compile(loss='categorical_crossentropy',
             #SigmoidFocalCrossEntropy(),
-            categorical_focal_loss(gamma=2., alpha=.25),
+            #categorical_focal_loss(gamma=2., alpha=.25),
             optimizer=keras.optimizers.Adam(lr=learning_rate),
             metrics=['accuracy'])
     else:
