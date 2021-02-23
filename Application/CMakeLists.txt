@@ -1043,13 +1043,14 @@ if(NOT WIN32 AND ${TREX_BUILD_DOCS})
     if(NOT Sphinx_FOUND)
         message(ERROR "Cannot find Sphinx executable")
     else()
-        message(STATUS "Found sphinx at ${SPHINX_DIR}.")
+        get_filename_component(SPHINX_DIR ${SPHINX_EXECUTABLE} DIRECTORY)
+        message(STATUS "Found sphinx at ${SPHINX_EXECUTABLE} (dir: ${SPHINX_DIR}).")
 
         add_custom_target(
           doc ALL
           COMMAND $<TARGET_FILE:TRex> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
           COMMAND $<TARGET_FILE:TGrabs> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
-          COMMAND PATH=$ENV{PATH};${SPHINX_DIR} make html
+          COMMAND PATH=$ENV{PATH}:${SPHINX_DIR} make html
           DEPENDS
             TRex
           WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/../docs
