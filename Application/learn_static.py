@@ -7,7 +7,6 @@ from tensorflow.keras.layers import SpatialDropout2D, Lambda, Input
 from tensorflow.keras.models import Sequential
 from tensorflow.keras import backend as K
 from tensorflow.keras.utils import to_categorical
-from tensorflow_addons.losses import SigmoidFocalCrossEntropy
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
 import numpy as np
