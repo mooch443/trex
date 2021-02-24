@@ -7,6 +7,7 @@ env:
   BUILD_TYPE: Release
   MACOSX_DEPLOYMENT_TARGET: 10.15
   CONDA_BUILD_SYSROOT: /Applications/Xcode_11.4.1.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk
+  GITHUB_WORKFLOW: CondaBuildMacOS
 
 jobs:
   build:
