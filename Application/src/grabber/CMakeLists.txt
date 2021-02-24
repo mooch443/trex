@@ -70,8 +70,6 @@ target_link_libraries(pvconvert PUBLIC
     TRex::GLFW
     TRex::LibPNG
     TRex::LibZ
-        imgui
-    glad
     TRex::OpenCV
     ${EXTRA_LIBS}
 )
@@ -94,8 +92,6 @@ target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE
 	TRex::GLFW
     TRex::LibPNG
     TRex::LibZ
-    	imgui
-	glad
 	TRex::OpenCV
 	${EXTRA_LIBS})
 

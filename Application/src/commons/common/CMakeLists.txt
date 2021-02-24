@@ -52,7 +52,7 @@ else()
     )
 endif()
 
-add_dependencies(commons TRex::LibZIP TRex::LibZ TRex::GLFW cnpy gladex imgui)
+add_dependencies(commons TRex::LibZIP TRex::LibZ TRex::GLFW cnpy)
 if(APPLE OR NOT UNIX)
     add_dependencies(commons TRex::LibPNG)
 endif()

@@ -1,3 +1,4 @@
+#if TREX_HAS_OPENGL
 #include <types.h>
 #include <cstdio>
 
@@ -506,3 +507,5 @@ void GLImpl::set_title(std::string title) {
 }
 
 }
+#endif
+
