@@ -571,15 +571,19 @@ int main(int argc, char** argv)
         cmd.load_settings();
 
         if((GlobalSettings::map().has("nowindow") ? SETTING(nowindow).value<bool>() : false) == false) {
+            SETTING(settings_file) = file::Path();
+            
             gui::VideoOpener opener;
             opening_result = opener._result;
         }
 
-        Debug("Opening result: '%S'", &opening_result.selected_file.str());
         if (!opening_result.selected_file.empty()) {
             if (opening_result.tab.extension == "pv") {
                 if (opening_result.load_results)
                     load_results = true;
+                else
+                    load_results = false;
+                
                 if (!opening_result.load_results_from.empty())
                     load_results_from = opening_result.load_results_from;
             }
@@ -612,14 +616,14 @@ int main(int argc, char** argv)
             }
 #endif
                 return 0;
+            }
         }
-    }
         else
             SETTING(filename) = file::Path();
         
         if(SETTING(filename).value<Path>().empty()) {
-            Except("Please specify a file to be opened using ./tracker -i <filename>");
-            return 1;
+            Debug("You can specify a file to be opened using ./tracker -i <filename>");
+            return 0;
         }
     }
 
@@ -1011,6 +1015,11 @@ int main(int argc, char** argv)
     
     if(SETTING(auto_train) || SETTING(auto_apply)) {
         SETTING(auto_train_on_startup) = true;
+    }
+    
+    if(!SETTING(auto_train_on_startup) && SETTING(auto_train_dont_apply)) {
+        Warning("auto_train_dont_apply was set without auto_train enabled. This may lead to confusing behavior. Overwriting auto_train_dont_apply = false.");
+        SETTING(auto_train_dont_apply) = false;
     }
     
     Library::Init();

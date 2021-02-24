@@ -1029,24 +1029,6 @@ void Individual::iterate_frames(const Rangel& segment, const std::function<bool(
     }
 }
 
-inline void extra_log(const char* cmd, ...) {
-    auto file = SETTING(app_name).value<std::string>();
-    file = "extra_"+file+".log";
-    
-    static FILE*f = fopen(file.c_str(), "wb");
-    
-    std::string output;
-    
-    va_list args;
-    va_start(args, cmd);
-    
-    DEBUG::ParseFormatString(output, cmd, args);
-    va_end(args);
-    
-    output += "\n";
-    fwrite(output.c_str(), sizeof(char), output.length(), f);
-    fflush(f);
-}
 enum class Reasons {
     None = 0,
     LostForOneFrame = 1,
@@ -1135,9 +1117,6 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(l
         || (FAST_SETTINGS(track_end_segment_for_speed) && current && current->speed() >= weird_distance())
         || !blob)
     {*/
-        /*if(identity().ID() == 90) {
-            extra_log("%d, %d: tdelta:%f speed:%f weird:%f current_prob:%f", identity().ID(), frameIndex, tdelta, current ? current->speed() : -1, weird_distance(), current_prob);
-        }*/
         //if(FAST_SETTINGS(huge_timestamp_ends_segment) && current_prob != -1 && current_prob < 0.5)
         //    Warning("Fish %d in frame %d has %f", identity().ID(), frameIndex, current_prob);
         segment = std::make_shared<SegmentInformation>(Rangel(frameIndex, frameIndex), !blob || blob->split() ? -1 : frameIndex);

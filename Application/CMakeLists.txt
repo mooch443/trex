@@ -128,7 +128,6 @@ else()
     set(BUILD_SHARED_LIBS OFF)
 endif()
 
-
 include_directories(${CMAKE_SOURCE_DIR}/src/cnpy/)
 
 add_library(TRex::X11 INTERFACE IMPORTED)
