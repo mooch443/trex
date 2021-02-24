@@ -173,6 +173,15 @@ TRex parameters
 
 
 
+.. function:: build_architecture(string)
+
+	**default value:** "arm64"
+
+
+	The architecture this executable was built for.
+
+
+
 .. function:: build_cxx_options(string)
 
 	**default value:** " -fvisibility-inlines-hidden -fvisibility=hidden -Wno-c++98-compat-pedantic -O3 -DNDEBUG -O3 -Wno-nullability-extension"
@@ -1918,7 +1927,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.0.10-33-g86c5ed6"
+	**default value:** "v1.0.10-73-g744027e"
 
 
 	Current application version.

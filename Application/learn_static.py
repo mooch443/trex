@@ -606,7 +606,7 @@ def start_learning():
             TRex.log("tf.data.Dataset: "+str(dataset))
             history = model.fit(dataset,
                                   validation_data=validation_data,
-                                  #steps_per_epoch=per_epoch, 
+                                  steps_per_epoch=per_epoch, 
                                   epochs=max_epochs,
                                   callbacks=[callback])
             
