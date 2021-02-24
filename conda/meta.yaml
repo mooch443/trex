@@ -83,7 +83,10 @@ requirements:
     - {{ cdt('libuuid-devel') }} # [linux]
     
   run:
-    - tensorflow-gpu =2.* # [not osx and not arm64]
+    - tensorflow-gpu =2.* # [linux]
+    - tensorflow-gpu =2.3.* # [windows]
+    - cudatoolkit =10.1 # [windows]
+    - cudnn ==7.6.5 # [windows]
     - tensorflow =2.* # [osx and not arm64]
     - keras # [not arm64]
     - ffmpeg

@@ -418,7 +418,7 @@ namespace track {
                                  "\t\tfound = len(gpus) > 0\n"
                                  "\t\tif found:\n" \
                                     "\t\t\tfor device in gpus:\n" \
-                                            "\t\t\t\tphysical = device.physical_device_desc.split(',')[1].split(': ')[1]\n" \
+                                            "\t\t\t\tphysical = device.split(',')[1].split(': ')[1]\n" \
                              "\texcept ImportError:\n"
                              "\t\tfound = False\n" \
                              "else:\n" \
