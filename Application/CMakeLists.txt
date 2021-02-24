@@ -463,7 +463,10 @@ if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$" AND METAL_LIBRARY)
 endif()
 
 add_library(imgui STATIC ${imgui_sources})
-add_dependencies(imgui gladex glfw)
+if(TREX_BUILD_GLFW)
+    add_dependencies(imgui glfw)
+endif()
+add_dependencies(imgui gladex)
 include_directories(${imgui_path})
 
 if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
