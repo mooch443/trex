@@ -66,13 +66,13 @@ endif()
 
 if(APPLE AND "${TREX_MACOS_VERSION}" VERSION_LESS "10.12")
     message(STATUS "This system does not support MetalKit (detected version: ${TREX_MACOS_VERSION}), enabling OpenGL.")
-    option(TREX_WITH_OPENGL ON)
+    set(TREX_WITH_OPENGL ON)
 elseif(APPLE)
     message(STATUS "MetalKit support detected (version: ${TREX_MACOS_VERSION}).")
-    option(TREX_WITH_OPENGL OFF)
+    set(TREX_WITH_OPENGL OFF)
 else()
     message(STATUS "Non-Apple systems use OpenGL.")
-    option(TREX_WITH_OPENGL ON)
+    set(TREX_WITH_OPENGL ON)
 endif()
 
 if(NO_PUT_TIME)
@@ -204,6 +204,7 @@ if(APPLE)
     
     find_library(QUARTZ_LIBRARY QuartzCore)
     set(EXTRA_LIBS
+        imgui
         ${COCOA_LIBRARY}
         TRex::OpenGL
         ${IOKIT_LIBRARY}
@@ -225,7 +226,7 @@ if(APPLE)
     
     message(STATUS "Mac extra libs: ${EXTRA_LIBS}")
 else()
-    set(EXTRA_LIBS TRex::OpenGL)
+    set(EXTRA_LIBS imgui TRex::OpenGL)
 endif(APPLE)
 
 set(TREX_CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
@@ -506,7 +507,7 @@ endif()
 # this is circumventing some weird CMake shuffeling of dependencies. these libraries always have to go last
 # at least once, but multiple times if necessary.
 if(UNIX AND NOT APPLE)
-    target_link_libraries(TRex::GLFW INTERFACE gladex TRex::X11 pthread)
+    target_link_libraries(TRex::GLFW INTERFACE glad TRex::X11 pthread)
 endif()
 
 include_directories(${imgui_path})
