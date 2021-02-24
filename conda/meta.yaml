@@ -46,13 +46,6 @@ requirements:
     - {{ compiler('cxx') }}
     - cmake >=3.14
     - git
-    
-  host:
-    - pthread-stubs  # [linux]
-    - ffmpeg
-    - python # [not arm64]
-    - python=3.8 # [osx and arm64]
-    - nomkl # [osx]
     - xorg-libxcursor # [linux]
     - xorg-libx11 # [linux]
     - xorg-libxrandr # [linux]
@@ -81,6 +74,13 @@ requirements:
     - {{ cdt('libXdamage-devel') }}            # [linux]
     - {{ cdt('libXau-devel') }}                # [linux]
     - {{ cdt('libuuid-devel') }} # [linux]
+
+  host:
+    - pthread-stubs  # [linux]
+    - ffmpeg
+    - python # [not arm64]
+    - python=3.8 # [osx and arm64]
+    - nomkl # [osx]
     
   run:
     - tensorflow-gpu =2.* # [linux]

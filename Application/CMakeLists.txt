@@ -949,12 +949,23 @@ if(${TREX_BUILD_OPENCV})
             -DCMAKE_DEBUG_POSTFIX=)
 
     message(STATUS "OPENCV_EXTRA_FLAGS_ = ${OPENCV_EXTRA_FLAGS_}")
+    set(TREX_OPENCV_VERSION "4.5.1")
+    if(APPLE)
+        message(STATUS "CMAKE_SYSTEM_PROCESSOR = ${CMAKE_SYSTEM_PROCESSOR}")
+        if(NOT ${CMAKE_SYSTEM_PROCESSOR} EQUAL "x86_64")
+            message(STATUS "ARM?")
+        else()
+            message(STATUS "x86_64 macos")
+            set(TREX_OPENCV_VERSION "4.3.0")
+        endif()
+    endif()
+
     if(UNIX)
         message(STATUS "Using custom configure command")
         ExternalProject_add(CustomOpenCV
             PREFIX ${CMAKE_CURRENT_BINARY_DIR}/opencv
             GIT_REPOSITORY  https://github.com/opencv/opencv.git
-            GIT_TAG 4.5.1
+            GIT_TAG ${TREX_OPENCV_VERSION}
             UPDATE_COMMAND ""
             CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env PKG_CONFIG_PATH=${PKG_CONFIG_PATH}/pkgconfig ${CMAKE_COMMAND} -DCMAKE_BUILD_TYPE=${TREX_CMAKE_BUILD_TYPE} -G ${CMAKE_GENERATOR} ${OPENCV_CMAKE_ARGS} ${CMAKE_CURRENT_BINARY_DIR}/opencv/src/CustomOpenCV
             BUILD_COMMAND ${CMAKE_COMMAND} -E env PKG_CONFIG_PATH=${PKG_CONFIG_PATH}/pkgconfig ${CMAKE_COMMAND} --build . --config ${TREX_CMAKE_BUILD_TYPE}
@@ -965,7 +976,7 @@ if(${TREX_BUILD_OPENCV})
         ExternalProject_add(CustomOpenCV
             PREFIX ${CMAKE_CURRENT_BINARY_DIR}/opencv
             GIT_REPOSITORY  https://github.com/opencv/opencv.git
-            GIT_TAG 4.5.1
+            GIT_TAG ${TREX_OPENCV_VERSION}
             UPDATE_COMMAND ""
             CMAKE_ARGS
             ${OPENCV_CMAKE_ARGS})
@@ -1014,7 +1025,7 @@ if(${TREX_BUILD_OPENCV})
 		endif()
     endif()
     
-	find_package(OpenCV 4.5.1 PATHS ${OpenCV_DIR} NO_DEFAULT_PATH)
+	find_package(OpenCV ${TREX_OPENCV_VERSION} PATHS ${OpenCV_DIR} NO_DEFAULT_PATH)
 	if(OpenCV_FOUND)
 		set(OpenCV_LIBS ${OpenCV_LIBRARIES})
 		message(STATUS "Found opencv at ${OpenCV_INSTALL_PATH}, using its config.cmake")
