@@ -29,7 +29,7 @@ else
         export CONDA_BUILD_SYSROOT="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
     else
         ARCH="x86_64"
-        if [ ! -z "${GITHUB_WORKFLOW}" ]; then
+        if [ ! -z ${GITHUB_WORKFLOW+x} ]; then
             echo "Detected GITHUB_WORKFLOW environment: ${GITHUB_WORKFLOW}"
             ls -la /Applications/Xcode*.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs
             export CONDA_BUILD_SYSROOT="/Applications/Xcode_11.4.1.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk"
