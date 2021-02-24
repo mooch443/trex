@@ -88,7 +88,6 @@ requirements:
     - cudatoolkit =10.1 # [win]
     - cudnn ==7.6.5 # [win]
     - tensorflow =2.* # [osx and not arm64]
-    - keras # [not arm64]
     - ffmpeg
     - numpy # [osx and arm64]
     - python # [not arm64]
