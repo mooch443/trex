@@ -203,10 +203,14 @@ if(APPLE)
     endif()
     
     find_library(QUARTZ_LIBRARY QuartzCore)
+    if(TREX_WITH_OPENGL)
+        set(EXTRA_LIBS glad imgui TRex::OpenGL)
+    else()
+        set(EXTRA_LIBS imgui)
+    endif()
     set(EXTRA_LIBS
-        imgui
+        ${EXTRA_LIBS}
         ${COCOA_LIBRARY}
-        TRex::OpenGL
         ${IOKIT_LIBRARY}
         ${COREVIDEO_LIBRARY}
         ${QUARTZ_LIBRARY}
@@ -226,7 +230,11 @@ if(APPLE)
     
     message(STATUS "Mac extra libs: ${EXTRA_LIBS}")
 else()
-    set(EXTRA_LIBS imgui TRex::OpenGL)
+    if(TREX_WITH_OPENGL)
+        set(EXTRA_LIBS glad imgui TRex::OpenGL)
+    else()
+        set(EXTRA_LIBS imgui)
+    endif()
 endif(APPLE)
 
 set(TREX_CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
