@@ -1,0 +1,5 @@
+name: tracking
+channels:
+    - main
+dependencies:
+    - conda-build
