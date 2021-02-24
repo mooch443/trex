@@ -13,6 +13,7 @@ if [ "$(uname)" == "Linux" ]; then
     # Fix up CMake for using conda's sysroot
     # See https://docs.conda.io/projects/conda-build/en/latest/resources/compiler-tools.html?highlight=cmake#an-aside-on-cmake-and-sysroots
     CMAKE_PLATFORM_FLAGS+=("-DCMAKE_TOOLCHAIN_FILE=${RECIPE_DIR}/conda_sysroot.cmake")
+    CMAKE_PLATFORM_FLAGS+=("-DCMAKE_SYSTEM_PROCESSOR=x86_64")
     BUILD_GLFW="ON"
 
     # new 9.3 compiler sets this to cos7, which does not exist
