@@ -47,7 +47,7 @@ option(OPENCV_EXTRA_FLAGS "OpenCV extra CMake flags" "")
 option(TREX_ENABLE_CPP20 "Enables CPP20 language standard (if available). Only for GCC and Clang at the moment. Experimental feature." OFF)
 
 if(APPLE)
-    if(CMAKE_OSX_DEPLOYMENT_TARGET AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "")
+    if(CMAKE_OSX_DEPLOYMENT_TARGET AND NOT ${CMAKE_OSX_DEPLOYMENT_TARGET} MATCHES "")
         message(STATUS "Found OSX deployment target: '${CMAKE_OSX_DEPLOYMENT_TARGET}'")
         set(TREX_MACOS_VERSION ${CMAKE_OSX_DEPLOYMENT_TARGET})
     else()
