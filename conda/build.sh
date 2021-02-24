@@ -23,7 +23,7 @@ if [ "$(uname)" == "Linux" ]; then
     #CMAKE_PLATFORM_FLAGS+=("-DCMAKE_PREFIX_PATH=${PREFIX}/${_BUILD_PREFIX}/sysroot/usr/lib64;${PREFIX}/${_BUILD_PREFIX}/sysroot/usr/include;${PREFIX}")
 else
     echo "ARCH = ${ARCH}"
-    echo "CONDA_BUILD_SYSROOT=$CONDA_BUILD_SYSROOT. forcing it."
+    echo "CONDA_BUILD_SYSROOT=${CONDA_BUILD_SYSROOT} SDKROOT=${SDKROOT} MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}. forcing it."
     if [ "${ARCH}" == "arm64" ]; then
         echo "Using up-to-date sysroot for arm64 arch."
         export CONDA_BUILD_SYSROOT="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
@@ -33,7 +33,8 @@ else
             echo "Detected GITHUB_WORKFLOW environment: ${GITHUB_WORKFLOW}"
             ls -la /Applications/Xcode*.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs
             export CONDA_BUILD_SYSROOT="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
-            CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=11.1")
+            export SDKROOT="${CONDA_BUILD_SYSROOT}"
+            #CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=11.1")
         else
             export CONDA_BUILD_SYSROOT="/opt/MacOSX10.12.sdk"
             CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=10.12")
@@ -45,7 +46,8 @@ else
 fi
 
 echo "Using system flags: ${CMAKE_PLATFORM_FLAGS[@]}"
-PKG_CONFIG_PATH="${PREFIX}/lib/pkgconfig:${BUILD_PREFIX}/${HOST}/sysroot/usr/lib64/pkgconfig" cmake .. -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
+PKG_CONFIG_PATH="${PREFIX}/lib/pkgconfig:${BUILD_PREFIX}/${HOST}/sysroot/usr/lib64/pkgconfig" cmake .. \
+    -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
     -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
     -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
     -DCMAKE_BUILD_TYPE=Release \
