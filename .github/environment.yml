@@ -1,3 +1,6 @@
 name: tracking
+channels:
+    - main
+    - conda-forge
 dependencies:
     - conda-build
