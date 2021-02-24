@@ -84,9 +84,9 @@ requirements:
     
   run:
     - tensorflow-gpu =2.* # [linux]
-    - tensorflow-gpu =2.3.* # [windows]
-    - cudatoolkit =10.1 # [windows]
-    - cudnn ==7.6.5 # [windows]
+    - tensorflow-gpu =2.3.* # [win]
+    - cudatoolkit =10.1 # [win]
+    - cudnn ==7.6.5 # [win]
     - tensorflow =2.* # [osx and not arm64]
     - keras # [not arm64]
     - ffmpeg
