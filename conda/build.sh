@@ -8,6 +8,11 @@ cd build
 
 declare -a CMAKE_PLATFORM_FLAGS
 BUILD_GLFW="OFF"
+echo "GITHUB_WORKFLOW = ${GITHUB_WORKFLOW}"
+echo "ARCH = ${ARCH}"
+echo "CONDA_BUILD_SYSROOT=${CONDA_BUILD_SYSROOT}"
+echo "SDKROOT=${SDKROOT}"
+echo "MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}"
 
 if [ "$(uname)" == "Linux" ]; then
     # Fix up CMake for using conda's sysroot
@@ -22,8 +27,6 @@ if [ "$(uname)" == "Linux" ]; then
     #echo "_BUILD_PREFIX: ${_BUILD_PREFIX} BUILD_PREFIX: ${BUILD_PREFIX} PREFIX: ${PREFIX}"
     #CMAKE_PLATFORM_FLAGS+=("-DCMAKE_PREFIX_PATH=${PREFIX}/${_BUILD_PREFIX}/sysroot/usr/lib64;${PREFIX}/${_BUILD_PREFIX}/sysroot/usr/include;${PREFIX}")
 else
-    echo "ARCH = ${ARCH}"
-    echo "CONDA_BUILD_SYSROOT=${CONDA_BUILD_SYSROOT} SDKROOT=${SDKROOT} MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}. forcing it."
     if [ "${ARCH}" == "arm64" ]; then
         echo "Using up-to-date sysroot for arm64 arch."
         export CONDA_BUILD_SYSROOT="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
@@ -37,6 +40,7 @@ else
             export MACOSX_DEPLOYMENT_TARGET="10.15"
             CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}")
         else
+            echo "No GITHUB_WORKFLOW detected."
             export CONDA_BUILD_SYSROOT="/opt/MacOSX10.13.sdk"
             export MACOSX_DEPLOYMENT_TARGET="10.13"
             CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=10.13")
