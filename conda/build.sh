@@ -32,10 +32,10 @@ else
         if [ -z "${GITHUB_WORKFLOW}" ]; then
             echo "Detected GITHUB_WORKFLOW environment: ${GITHUB_WORKFLOW}"
             ls -la /Applications/Xcode*.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs
-            export CONDA_BUILD_SYSROOT="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
+            #export CONDA_BUILD_SYSROOT="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
             export SDKROOT="${CONDA_BUILD_SYSROOT}"
-            export MACOSX_DEPLOYMENT_TARGET="11.1"
-            CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=11.1")
+            #export MACOSX_DEPLOYMENT_TARGET="10.12"
+            CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}")
         else
             export CONDA_BUILD_SYSROOT="/opt/MacOSX10.12.sdk"
             CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=10.12")
