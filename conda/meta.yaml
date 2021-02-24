@@ -83,7 +83,10 @@ requirements:
     - nomkl # [osx]
     
   run:
-    - tensorflow-gpu =2.* # [not osx and not arm64]
+    - tensorflow-gpu =2.* # [linux]
+    - tensorflow-gpu =2.3.* # [win]
+    - cudatoolkit =10.1 # [win]
+    - cudnn ==7.6.5 # [win]
     - tensorflow =2.* # [osx and not arm64]
     - keras # [not arm64]
     - ffmpeg

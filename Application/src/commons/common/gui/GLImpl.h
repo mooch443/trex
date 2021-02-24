@@ -1,5 +1,5 @@
 #pragma once
-
+#if TREX_HAS_OPENGL
 #include <gui/CrossPlatform.h>
 #include <misc/Timer.h>
 #include <gui/colors.h>
@@ -49,3 +49,5 @@ namespace gui {
         void check_thread_id(int, const char*) const;
     };
 }
+#endif
+

@@ -56,13 +56,11 @@ if(NOT WIN32 AND TREX_WITH_TESTS)
         tracker_tracking
         commons
         cnpy
-        imgui
         TRex::GLFW
-        glad
         ${OpenCV_LIBS}
         ${EXTRA_LIBS}
     )
-    add_dependencies(test_imgui gladex commons TRex::LibZIP TRex::GLFW TRex::OpenCV)
+    add_dependencies(test_imgui commons TRex::LibZIP TRex::GLFW TRex::OpenCV)
 endif()
 
 # add actual executable
@@ -78,8 +76,6 @@ target_link_libraries(${TREX_EXEC_NAME} PUBLIC
 	pv
 	commons
 	TRex::GLFW
-	imgui
-	glad
 	TRex::OpenCV
 	TRex::LibPNG
 	TRex::LibZ
@@ -205,11 +201,9 @@ endif()
 if(APPLE)
 add_executable(trex_starter trex.cpp)
 target_link_libraries(trex_starter PRIVATE
-        commons
-        cnpy
-        imgui
-        TRex::GLFW
-        glad
+    commons
+    cnpy
+    TRex::GLFW
     TRex::LibPNG
     TRex::LibZ
     TRex::OpenCV

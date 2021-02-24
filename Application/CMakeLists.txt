@@ -46,6 +46,35 @@ option(NO_PUT_TIME "Disables std::put_time usage" OFF)
 option(OPENCV_EXTRA_FLAGS "OpenCV extra CMake flags" "")
 option(TREX_ENABLE_CPP20 "Enables CPP20 language standard (if available). Only for GCC and Clang at the moment. Experimental feature." OFF)
 
+if(APPLE)
+    if(CMAKE_OSX_DEPLOYMENT_TARGET AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "")
+        message(STATUS "Found OSX deployment target: '${CMAKE_OSX_DEPLOYMENT_TARGET}'")
+        set(TREX_MACOS_VERSION ${CMAKE_OSX_DEPLOYMENT_TARGET})
+    else()
+        message(STATUS "Need to detect OSX version.")
+        if(NOT CMAKE_OSX_SYSROOT)
+            message(FATAL_ERROR "No OSX sysroot was set.")
+        else()
+            get_filename_component(osx_dir ${CMAKE_OSX_SYSROOT} NAME)
+            string(REPLACE ".sdk" "" osx_dir ${osx_dir})
+            string(REPLACE "MacOSX" "" osx_dir ${osx_dir})
+            message(STATUS "OSX Target: ${osx_dir}")
+            set(TREX_MACOS_VERSION ${osx_dir})
+        endif()
+    endif()
+endif()
+
+if(APPLE AND "${TREX_MACOS_VERSION}" VERSION_LESS "10.12")
+    message(STATUS "This system does not support MetalKit (detected version: ${TREX_MACOS_VERSION}), enabling OpenGL.")
+    option(TREX_WITH_OPENGL ON)
+elseif(APPLE)
+    message(STATUS "MetalKit support detected (version: ${TREX_MACOS_VERSION}).")
+    option(TREX_WITH_OPENGL OFF)
+else()
+    message(STATUS "Non-Apple systems use OpenGL.")
+    option(TREX_WITH_OPENGL ON)
+endif()
+
 if(NO_PUT_TIME)
     add_definitions(-DNO_PUT_TIME=true)
 endif()
@@ -131,21 +160,29 @@ if(TREX_BUILD_GLFW OR UNIX)
         target_link_libraries(TRex::OpenGL INTERFACE OpenGL::GL)
         message(STATUS "OpenGL library ${OPENGL_LIBRARY}")
         include_directories(${OPENGL_INCLUDE_DIR})
+        add_definitions(-DTREX_HAS_OPENGL=true)
     elseif(UNIX AND NOT APPLE)
         find_package(OpenGL REQUIRED)
         target_link_libraries(TRex::OpenGL INTERFACE OpenGL::GL)
         SET(OPENGL_LIBRARY OpenGL::GL)
         message(STATUS "OpenGL library ${OPENGL_LIBRARY}")
         include_directories(${OPENGL_INCLUDE_DIR})
+        add_definitions(-DTREX_HAS_OPENGL=true)
     else()
-        #find_package(OpenGL REQUIRED)
-        #target_link_libraries(TRex::OpenGL INTERFACE OpenGL::GL)
-        #SET(OPENGL_LIBRARY OpenGL::GL)
-        #message(STATUS "OpenGL library ${OPENGL_LIBRARY}")
-        #include_directories(${OPENGL_INCLUDE_DIR})
-        find_library(OPENGL_LIBRARY OpenGL)
-        target_link_libraries(TRex::OpenGL INTERFACE ${OPENGL_LIBRARY})
+        if(TREX_WITH_OPENGL)
+            find_library(OPENGL_LIBRARY OpenGL)
+            target_link_libraries(TRex::OpenGL INTERFACE ${OPENGL_LIBRARY})
+            add_definitions(-DTREX_HAS_OPENGL=true)
+        else()
+            add_definitions(-DTREX_HAS_OPENGL=false)
+        endif()
     endif()
+else()
+    find_package(OpenGL REQUIRED)
+    target_link_libraries(TRex::OpenGL INTERFACE OpenGL::GL)
+    message(STATUS "OpenGL library ${OPENGL_LIBRARY}")
+    include_directories(${OPENGL_INCLUDE_DIR})
+    add_definitions(-DTREX_HAS_OPENGL=true)
 endif()
 
 if(APPLE)
@@ -158,7 +195,7 @@ if(APPLE)
     if(CMAKE_OSX_SYSROOT AND NOT ${CMAKE_OSX_SYSROOT} STREQUAL "")
         find_library(METALKIT_LIBRARY MetalKit ${CMAKE_OSX_SYSROOT}/System/Library/Frameworks NO_DEFAULT_PATH NO_CMAKE_SYSTEM_PATH)
         find_library(METAL_LIBRARY Metal ${CMAKE_OSX_SYSROOT}/System/Library/Frameworks NO_DEFAULT_PATH NO_CMAKE_SYSTEM_PATH)
-        message(STATUS "${CMAKE_OSX_SYSROOT}/System/Library/Frameworks NO_DEFAULT_PATH")
+        message(STATUS "CMAKE_OSX_SYSROOT: ${CMAKE_OSX_SYSROOT}/System/Library/Frameworks NO_DEFAULT_PATH")
     else()
         find_library(METALKIT_LIBRARY MetalKit)
         find_library(METAL_LIBRARY Metal)
@@ -407,56 +444,51 @@ if(TREX_BUILD_GLFW)
     add_dependencies(TRex::GLFW glfw)
 endif()
 
-# this is circumventing some weird CMake shuffeling of dependencies. these libraries always have to go last
-# at least once, but multiple times if necessary.
-if(UNIX AND NOT APPLE)
-    target_link_libraries(TRex::GLFW INTERFACE TRex::X11 pthread)
+if(TREX_WITH_OPENGL)
+    # glad
+    if(CMN_USE_OPENGL2)
+        set(GLAD_PROFILE "compatibility")
+        set(GLAD_API "gl=2.0")
+        add_definitions(-DCMN_USE_OPENGL2=true)
+    else()
+        set(GLAD_PROFILE "core")
+        set(GLAD_API "gl=4.1")
+        add_definitions(-DCMN_USE_OPENGL2=false)
+    endif()
+
+    ExternalProject_Add(gladex PREFIX gladex
+        GIT_REPOSITORY https://github.com/Dav1dde/glad.git
+        GIT_TAG v0.1.33
+        CMAKE_ARGS
+            ${trex_subproject_CMAKE_ARGS}
+            -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+            -DGLAD_PROFILE=${GLAD_PROFILE}
+            -DGLAD_API=${GLAD_API}
+            -DGLAD_INSTALL=ON
+            -DGLAD_REPRODUCIBLE=ON
+        UPDATE_COMMAND ""
+    )
+
+    ExternalProject_Get_Property(gladex INSTALL_DIR)
+    include_directories(${INSTALL_DIR}/include)
+    link_directories(${INSTALL_DIR}/lib)
+    set(GLAD_INSTALL_DIR ${INSTALL_DIR})
+    message(STATUS "glad: ${INSTALL_DIR}")
+
+    add_definitions(-DIMGUI_IMPL_OPENGL_LOADER_GLAD=true)
 endif()
 
-# glad
-#set(GLAD_DIR "${CMAKE_SOURCE_DIR}/src/glad")
-#add_library("glad" "${GLAD_DIR}/src/glad.c")
-#target_include_directories("glad" PRIVATE "${GLAD_DIR}/include")
-
-if(CMN_USE_OPENGL2)
-    set(GLAD_PROFILE "compatibility")
-    set(GLAD_API "gl=2.0")
-    add_definitions(-DCMN_USE_OPENGL2=true)
-else()
-    set(GLAD_PROFILE "core")
-    set(GLAD_API "gl=4.1")
-    add_definitions(-DCMN_USE_OPENGL2=false)
-endif()
-
-ExternalProject_Add(gladex PREFIX gladex
-    GIT_REPOSITORY https://github.com/Dav1dde/glad.git
-    GIT_TAG v0.1.33
-    CMAKE_ARGS
-        ${trex_subproject_CMAKE_ARGS}
-        -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
-        -DGLAD_PROFILE=${GLAD_PROFILE}
-        -DGLAD_API=${GLAD_API}
-        -DGLAD_INSTALL=ON
-        -DGLAD_REPRODUCIBLE=ON
-    UPDATE_COMMAND ""
-)
-
-ExternalProject_Get_Property(gladex INSTALL_DIR)
-include_directories(${INSTALL_DIR}/include)
-link_directories(${INSTALL_DIR}/lib)
-set(GLAD_INSTALL_DIR ${INSTALL_DIR})
-message(STATUS "glad: ${INSTALL_DIR}")
-
-add_definitions(-DIMGUI_IMPL_OPENGL_LOADER_GLAD=true)
 set (imgui_path ${CMAKE_SOURCE_DIR}/src/imgui)
 message(STATUS "imgui: ${imgui_path}")
 file(GLOB imgui_sources ${imgui_path}/*.cpp ${imgui_path}/*.h
     ${imgui_path}/backends/imgui_impl_glfw*.cpp ${imgui_path}/backends/imgui_impl_glfw*.h
 )
 
-set(imgui_sources ${imgui_sources} ${imgui_path}/backends/imgui_impl_opengl2.cpp ${imgui_path}/backends/imgui_impl_opengl2.h)
-if(NOT CMN_USE_OPENGL2)
-    set(imgui_sources ${imgui_sources} ${imgui_path}/backends/imgui_impl_opengl3.cpp ${imgui_path}/backends/imgui_impl_opengl3.h)
+if(TREX_WITH_OPENGL)
+    set(imgui_sources ${imgui_sources} ${imgui_path}/backends/imgui_impl_opengl2.cpp ${imgui_path}/backends/imgui_impl_opengl2.h)
+    if(NOT CMN_USE_OPENGL2)
+        set(imgui_sources ${imgui_sources} ${imgui_path}/backends/imgui_impl_opengl3.cpp ${imgui_path}/backends/imgui_impl_opengl3.h)
+    endif()
 endif()
 
 if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$" AND METAL_LIBRARY)
@@ -467,8 +499,18 @@ add_library(imgui STATIC ${imgui_sources})
 if(TREX_BUILD_GLFW)
     add_dependencies(imgui glfw)
 endif()
-add_dependencies(imgui gladex)
+if(TREX_WITH_OPENGL)
+    add_dependencies(imgui gladex)
+endif()
+
+# this is circumventing some weird CMake shuffeling of dependencies. these libraries always have to go last
+# at least once, but multiple times if necessary.
+if(UNIX AND NOT APPLE)
+    target_link_libraries(TRex::GLFW INTERFACE gladex TRex::X11 pthread)
+endif()
+
 include_directories(${imgui_path})
+target_link_libraries(imgui TRex::GLFW)
 
 if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
     set_property (TARGET imgui APPEND_STRING PROPERTY COMPILE_FLAGS "-fobjc-arc")
@@ -705,6 +747,10 @@ if(TREX_BUILD_ZIP)
             ${trex_subproject_CMAKE_ARGS}
             -DCMAKE_DEBUG_POSTFIX=d
     )
+    
+    if(TREX_BUILD_ZLIB)
+        add_dependencies(libzip Z_LIB)
+    endif()
 
     # patching a simple (void*) -> (char*) for windows
     #ExternalProject_Add_Step(libzip
