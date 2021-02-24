@@ -1,7 +1,7 @@
 SDKROOT:
   - /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk # [arm64]
-  - /opt/MacOSX10.9.sdk        # [osx and not arm64]
+  - /opt/MacOSX10.12.sdk        # [osx and not arm64]
 
 CONDA_BUILD_SYSROOT:
   - /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk # [arm64]
-  - /opt/MacOSX10.9.sdk        # [osx and not arm64]
+  - /opt/MacOSX10.12.sdk        # [osx and not arm64]
