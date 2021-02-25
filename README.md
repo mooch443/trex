@@ -2,6 +2,10 @@
 
 [![CondaBuildLinux](https://github.com/mooch443/trex/actions/workflows/cmake-ubuntu.yml/badge.svg)](https://github.com/mooch443/trex/actions/workflows/cmake-ubuntu.yml) [![CondaBuildMacOS](https://github.com/mooch443/trex/actions/workflows/cmake-macos.yml/badge.svg)](https://github.com/mooch443/trex/actions/workflows/cmake-macos.yml) [![CondaBuildWindows](https://github.com/mooch443/trex/actions/workflows/cmake-windows.yml/badge.svg)](https://github.com/mooch443/trex/actions/workflows/cmake-windows.yml)
 
+*Now with native [Apple Silicone (M1)](https://www.apple.com/mac/m1/) and ML Compute support. [How to install TRex (arm64)](https://trex.run/docs/install.html#install-m1).*
+
+*Documentation: https://trex.run/docs*
+
 # Hey there
 
 Welcome to the git repository of **TRex** (https://trex.run) -- a software designed to track and identify individuals and other moving entities using computer vision and machine learning. The work-load is split into two (not entirely separate) tools:
@@ -33,6 +37,26 @@ Pre-built binaries are compiled with fewer optimzations and features than a manu
 
 If you want compatibility with the Basler API (or other things with licensing/portability issues), please 
 use one of the manual compilation options (see https://trex.run/docs/install.html).
+
+# Usage
+
+Within the conda environment, simply run:
+
+	trex
+
+Opening a video directly and adjusting [parameters](https://trex.run/docs/parameters_trex.html):
+
+	trex -i /path/to/video.pv -track_threshold 25 -track_max_individuals 10
+
+If you don't want a graphical user interface and save/quit when tracking finishes:
+
+	trex -i /path/to/video.pv -nowindow -auto_quit
+
+To convert a video to our custom pv format (for usage in TRex) from the command-line:
+
+	tgrabs -i /full/path/to/video.mp4 -o funny_name
+
+Read [more](https://trex.run/docs/run.html) about parameters for TRex [here](https://trex.run/docs/parameters_trex.html) and for TGrabs [here](https://trex.run/docs/parameters_tgrabs.html).
 
 # Contributors, Issues, etc.
 
