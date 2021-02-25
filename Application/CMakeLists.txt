@@ -12,6 +12,10 @@ set_property(GLOBAL PROPERTY DEBUG_CONFIGURATIONS "Debug;DEBUG;")
 message("-- USER environment variable is set to: " $ENV{USER})
 
 project(TRex)
+if(POLICY CMP0114)
+  cmake_policy(PUSH)
+  cmake_policy(SET CMP0114 NEW)
+endif()
 set(CMAKE_MACOSX_RPATH ON)
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 include(ExternalProject)
@@ -42,13 +46,47 @@ option(NO_PUT_TIME "Disables std::put_time usage" OFF)
 option(OPENCV_EXTRA_FLAGS "OpenCV extra CMake flags" "")
 option(TREX_ENABLE_CPP20 "Enables CPP20 language standard (if available). Only for GCC and Clang at the moment. Experimental feature." OFF)
 
+if(APPLE)
+    if(CMAKE_OSX_DEPLOYMENT_TARGET AND NOT ${CMAKE_OSX_DEPLOYMENT_TARGET} MATCHES "")
+        message(STATUS "Found OSX deployment target: '${CMAKE_OSX_DEPLOYMENT_TARGET}'")
+        set(TREX_MACOS_VERSION ${CMAKE_OSX_DEPLOYMENT_TARGET})
+    else()
+        message(STATUS "Need to detect OSX version.")
+        if(NOT CMAKE_OSX_SYSROOT)
+            message(FATAL_ERROR "No OSX sysroot was set.")
+        else()
+            get_filename_component(osx_dir ${CMAKE_OSX_SYSROOT} NAME)
+            string(REPLACE ".sdk" "" osx_dir ${osx_dir})
+            string(REPLACE "MacOSX" "" osx_dir ${osx_dir})
+            message(STATUS "OSX Target: ${osx_dir}")
+            set(TREX_MACOS_VERSION ${osx_dir})
+        endif()
+    endif()
+endif()
+
+if(APPLE AND "${TREX_MACOS_VERSION}" VERSION_LESS "10.12")
+    message(STATUS "This system does not support MetalKit (detected version: ${TREX_MACOS_VERSION}), enabling OpenGL.")
+    set(TREX_WITH_OPENGL ON)
+elseif(APPLE)
+    message(STATUS "MetalKit support detected (version: ${TREX_MACOS_VERSION}).")
+    set(TREX_WITH_OPENGL OFF)
+else()
+    message(STATUS "Non-Apple systems use OpenGL.")
+    set(TREX_WITH_OPENGL ON)
+endif()
+
 if(NO_PUT_TIME)
     add_definitions(-DNO_PUT_TIME=true)
 endif()
 
+set(CONDA_PREFIX $ENV{CONDA_PREFIX} CACHE PATH "CONDA_PREFIX if set during cmake")
+if(CONDA_PREFIX)
+    message(STATUS "CONDA_PREFIX=${CONDA_PREFIX}")
+endif()
+
 if(TREX_CONDA_PACKAGE_INSTALL)
     add_definitions(-DTREX_CONDA_PACKAGE_INSTALL=1)
-    set(CMAKE_BUILD_RPATH "$ENV{CONDA_PREFIX}/lib")
+    set(CMAKE_BUILD_RPATH "${CONDA_PREFIX}/lib")
     
     list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/lib" isSystemDir)
     if("${isSystemDir}" STREQUAL "-1")
@@ -57,45 +95,93 @@ if(TREX_CONDA_PACKAGE_INSTALL)
 endif()
 
 set(CMAKE_DEBUG_POSTFIX -d)
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden")
+endif()
 set(ORIGINAL_CXX_FLAGS ${CMAKE_CXX_FLAGS})
 
 if(WIN32)
     set(BUILD_SHARED_LIBS OFF)
-	string(REPLACE " " ";" VERSION_LIST ${CMAKE_GENERATOR})
-	list(GET VERSION_LIST 2 VSTD_VERSION_MAJOR)
-	
-	math (EXPR MSVC_TOOLSET_MAJOR "${MSVC_VERSION}/10")
-	message(STATUS "CMAKE_GENERATOR_TOOLSET ${MSVC_TOOLSET_MAJOR} ${CMAKE_GENERATOR} ${VSTD_VERSION_MAJOR}")
-	
-	#if(${MSVC_TOOLSET_MAJOR} LESS 190)
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_ENABLE_ATOMIC_ALIGNMENT_FIX")
-	#endif()
+    string(REPLACE " " ";" VERSION_LIST ${CMAKE_GENERATOR})
+    list(GET VERSION_LIST 2 VSTD_VERSION_MAJOR)
+    
+    math (EXPR MSVC_TOOLSET_MAJOR "${MSVC_VERSION}/10")
+    message(STATUS "CMAKE_GENERATOR_TOOLSET ${MSVC_TOOLSET_MAJOR} ${CMAKE_GENERATOR} ${VSTD_VERSION_MAJOR}")
+    
+    #if(${MSVC_TOOLSET_MAJOR} LESS 190)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_ENABLE_ATOMIC_ALIGNMENT_FIX")
+    #endif()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_USE_MATH_DEFINES -DNOMINMAX -DWIN32_LEAN_AND_MEAN -DCURL_STATICLIB")
     #set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /NODEFAULTLIB:MSVCRT")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT /bigobj /O2 /Oi /Oy /Ot /Ob2")
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd /bigobj /O0")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd /bigobj")
     set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /MT /bigobj /O2 /Oi /Oy /Ot /Ob2")
-	
-	set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MT /bigobj /O2 /Oi /Oy /Ot /Ob2")
-    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MTd /bigobj /O0")
+    
+    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MT /bigobj /O2 /Oi /Oy /Ot /Ob2")
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MTd /bigobj")
     set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} /MT /bigobj /O2 /Oi /Oy /Ot /Ob2")
-	
+    
     set(GLEW_STATIC ON)
 else()
     set(BUILD_SHARED_LIBS OFF)
 endif()
 
+include_directories(${CMAKE_SOURCE_DIR}/src/cnpy/)
+
+add_library(TRex::X11 INTERFACE IMPORTED)
+if(UNIX AND NOT APPLE)
+    find_package(X11 REQUIRED)
+    target_link_libraries(TRex::X11 INTERFACE X11::X11 ${X11_LIBRARIES} dl)
+    
+    message(STATUS "X11_LIBRARIES: ${X11_LIBRARIES} ${X11_xcb_FOUND} DIRS:${X11_LIBRARY_DIRS} CFLAGS:${X11_CFLAGS}")
+    link_directories(${X11_LIBRARY_DIRS})
+    include_directories(${X11_INCLUDE_DIRS})
+
+    #FIND_PATH(UUID_INCLUDE_DIR uuid/uuid.h
+    #     /usr/local/include
+    #/usr/include
+    #)
+
+    #FIND_LIBRARY(UUID_LIBRARY
+    #  NAMES uuid
+    #  PATHS /lib /usr/lib /usr/local/lib
+    #  )
+
+    #message(STATUS "UUID: ${UUID_LIBRARY} ${UUID_INCLUDE_DIR} ${X11_xcb_LIB}")
+endif()
+
+add_library(TRex::OpenGL INTERFACE IMPORTED)
 if(TREX_BUILD_GLFW OR UNIX)
     if(WIN32)
         find_package(OpenGL REQUIRED)
+        target_link_libraries(TRex::OpenGL INTERFACE OpenGL::GL)
         message(STATUS "OpenGL library ${OPENGL_LIBRARY}")
+        include_directories(${OPENGL_INCLUDE_DIR})
+        add_definitions(-DTREX_HAS_OPENGL=true)
     elseif(UNIX AND NOT APPLE)
         find_package(OpenGL REQUIRED)
+        target_link_libraries(TRex::OpenGL INTERFACE OpenGL::GL)
         SET(OPENGL_LIBRARY OpenGL::GL)
         message(STATUS "OpenGL library ${OPENGL_LIBRARY}")
+        include_directories(${OPENGL_INCLUDE_DIR})
+        add_definitions(-DTREX_HAS_OPENGL=true)
     else()
-        find_library(OPENGL_LIBRARY OpenGL)
+        if(TREX_WITH_OPENGL)
+            find_library(OPENGL_LIBRARY OpenGL)
+            target_link_libraries(TRex::OpenGL INTERFACE ${OPENGL_LIBRARY})
+            add_definitions(-DTREX_HAS_OPENGL=true)
+        else()
+            add_definitions(-DTREX_HAS_OPENGL=false)
+        endif()
     endif()
+else()
+    find_package(OpenGL REQUIRED)
+    target_link_libraries(TRex::OpenGL INTERFACE OpenGL::GL)
+    message(STATUS "OpenGL library ${OPENGL_LIBRARY}")
+    include_directories(${OPENGL_INCLUDE_DIR})
+    add_definitions(-DTREX_HAS_OPENGL=true)
 endif()
 
 if(APPLE)
@@ -108,7 +194,7 @@ if(APPLE)
     if(CMAKE_OSX_SYSROOT AND NOT ${CMAKE_OSX_SYSROOT} STREQUAL "")
         find_library(METALKIT_LIBRARY MetalKit ${CMAKE_OSX_SYSROOT}/System/Library/Frameworks NO_DEFAULT_PATH NO_CMAKE_SYSTEM_PATH)
         find_library(METAL_LIBRARY Metal ${CMAKE_OSX_SYSROOT}/System/Library/Frameworks NO_DEFAULT_PATH NO_CMAKE_SYSTEM_PATH)
-        message(STATUS "${CMAKE_OSX_SYSROOT}/System/Library/Frameworks NO_DEFAULT_PATH")
+        message(STATUS "CMAKE_OSX_SYSROOT: ${CMAKE_OSX_SYSROOT}/System/Library/Frameworks NO_DEFAULT_PATH")
     else()
         find_library(METALKIT_LIBRARY MetalKit)
         find_library(METAL_LIBRARY Metal)
@@ -116,9 +202,14 @@ if(APPLE)
     endif()
     
     find_library(QUARTZ_LIBRARY QuartzCore)
+    if(TREX_WITH_OPENGL)
+        set(EXTRA_LIBS glad imgui TRex::OpenGL)
+    else()
+        set(EXTRA_LIBS imgui)
+    endif()
     set(EXTRA_LIBS
+        ${EXTRA_LIBS}
         ${COCOA_LIBRARY}
-        ${OPENGL_LIBRARY}
         ${IOKIT_LIBRARY}
         ${COREVIDEO_LIBRARY}
         ${QUARTZ_LIBRARY}
@@ -138,7 +229,11 @@ if(APPLE)
     
     message(STATUS "Mac extra libs: ${EXTRA_LIBS}")
 else()
-    set(EXTRA_LIBS ${OPENGL_LIBRARY})
+    if(TREX_WITH_OPENGL)
+        set(EXTRA_LIBS glad imgui TRex::OpenGL)
+    else()
+        set(EXTRA_LIBS imgui)
+    endif()
 endif(APPLE)
 
 set(TREX_CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
@@ -162,13 +257,13 @@ endif()
 if(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
-	set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O3")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++98-compat-pedantic -fvisibility=hidden")
-	
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O3")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++98-compat-pedantic")
+    
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
     set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3")
-	set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} -O3")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-c++98-compat-pedantic -fvisibility=hidden")
+    set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} -O3")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-c++98-compat-pedantic")
     message(STATUS "hidden visibility in main project ${CMAKE_CXX_FLAGS}")
     
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wno-nullability-extension")
@@ -231,29 +326,40 @@ endif()
 set(trex_subproject_CMAKE_ARGS "")
 
 SET(trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}
-    "-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
-    "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}"
-    "-DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}"
-	"-DCMAKE_C_FLAGS_RELEASE=${CMAKE_C_FLAGS_RELEASE}"
-	"-DCMAKE_C_FLAGS_RELWITHDEBINFO=${CMAKE_C_FLAGS_RELWITHDEBINFO}"
-	"-DCMAKE_C_FLAGS_DEBUG=${CMAKE_C_FLAGS_DEBUG}"
-	"-DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}"
-    "-DCMAKE_CXX_FLAGS_DEBUG=${CMAKE_CXX_FLAGS_DEBUG}"
-    "-DCMAKE_CXX_FLAGS_RELEASE=${CMAKE_CXX_FLAGS_RELEASE}"
-    "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=${CMAKE_CXX_FLAGS_RELWITHDEBINFO}"
+    -DCMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR}
+    -DCMAKE_TOOLCHAIN_FILE:PATH=${CMAKE_TOOLCHAIN_FILE}
+    -DCMAKE_CXX_COMPILER:FILEPATH=${CMAKE_CXX_COMPILER}
+    -DCMAKE_C_COMPILER:FILEPATH=${CMAKE_C_COMPILER}
+    -DCMAKE_C_FLAGS:STRING=${CMAKE_C_FLAGS}
+    -DCMAKE_C_FLAGS_RELEASE:STRING=${CMAKE_C_FLAGS_RELEASE}
+    -DCMAKE_C_FLAGS_RELWITHDEBINFO:STRING=${CMAKE_C_FLAGS_RELWITHDEBINFO}
+    -DCMAKE_C_FLAGS_DEBUG:STRING=${CMAKE_C_FLAGS_DEBUG}
+    #-DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}
+    -DCMAKE_CXX_FLAGS=${ORIGINAL_CXX_FLAGS}
+    -DCMAKE_CXX_FLAGS_DEBUG=${CMAKE_CXX_FLAGS_DEBUG}
+    -DCMAKE_CXX_FLAGS_RELEASE=${CMAKE_CXX_FLAGS_RELEASE}
+    -DCMAKE_CXX_FLAGS_RELWITHDEBINFO=${CMAKE_CXX_FLAGS_RELWITHDEBINFO}
     -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
-    "-DCMAKE_PREFIX_PATH:PATH=${CMAKE_PREFIX_PATH}"
-    "-DCMAKE_BUILD_TYPE=Release"
-    "-DBUILD_SHARED_LIBS=OFF"
-    "-DSKIP_INSTALL_FILES=1"
+    -DCMAKE_PREFIX_PATH:PATH=${CMAKE_PREFIX_PATH}
+    -DCMAKE_BUILD_TYPE=Release
+    -DBUILD_SHARED_LIBS=OFF 
+    -DSKIP_INSTALL_FILES=1
+    -DCMAKE_EXE_LINKER_FLAGS=${CMAKE_EXE_LINKER_FLAGS}
+    -DPYTHON_INCLUDE_DIR:PATH=${PYTHON_INCLUDE_DIR}
+    -DPYTHON_LIBRARY:PATH=${PYTHON_LIBRARY}
+    -DPYTHON_EXECUTABLE:FILEPATH=${PYTHON_EXECUTABLE}
 )
 
 if(APPLE)
-    SET(trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}
+    set(trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}
         -DCMAKE_OSX_SYSROOT=${CMAKE_OSX_SYSROOT}
         -DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
         -DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET})
 endif()
+
+#if(APPLE AND CMAKE_COMPILER_IS_GNUCXX)
+#  set(trex_subproject_CMAKE_ARGS "-DWITH_AVFOUNDATION=OFF" "-DCMAKE_FIND_ROOT_PATH=${CMAKE_FIND_ROOT_PATH}")
+#endif()
 
 message(STATUS "CMAKE_OSX_DEPLOYMENT_TARGET = ${CMAKE_OSX_DEPLOYMENT_TARGET}")
 message(STATUS "MACOSX_DEPLOYMENT_TARGET = $ENV{MACOSX_DEPLOYMENT_TARGET}")
@@ -303,11 +409,21 @@ if(WIN32)
     set(GLFW_add_flags ${GLFW_add_flags} -DCMAKE_CXX_FLAGS_RELEASE="/MT" -DCMAKE_CXX_FLAGS_DEBUG="/MTd" -DUSE_MSVC_RUNTIME_LIBRARY_DLL=OFF)
 endif()
 
+add_library (TRex::GLFW INTERFACE IMPORTED)
 if(NOT TREX_BUILD_GLFW)
     find_package(GLFW)
     if(NOT GLFW_FOUND)
         message(STATUS "Cannot find GLFW. Trying to build it instead.")
         set(TREX_BUILD_GLFW ON CACHE BOOL "" FORCE)
+    else()
+        target_link_libraries (TRex::GLFW INTERFACE ${GLFW_LIBRARY})
+        include_directories(${GLFW_INCLUDE_DIR})
+        
+        get_filename_component(GLFW_DIR ${GLFW_LIBRARY} DIRECTORY)
+        get_filename_component(GLFW_LIBRARY ${GLFW_LIBRARY} NAME)
+        message(STATUS "Linking GLFW: ${GLFW_LIBRARY} includes: ${GLFW_INCLUDE_DIR} dir: ${GLFW_DIR}")
+        
+        target_link_directories(TRex::GLFW INTERFACE ${GLFW_DIR})
     endif()
 endif()
 
@@ -332,92 +448,77 @@ if(TREX_BUILD_GLFW)
     message(STATUS "glfw include: ${GLFW_INCLUDE_DIR}")
 
     include_directories(${GLFW_INCLUDE_DIR})
-    add_library (TRex::GLFW INTERFACE IMPORTED)
     target_link_libraries (TRex::GLFW INTERFACE glfw3)
     add_dependencies(TRex::GLFW glfw)
-    
-else()
-    find_package(GLFW REQUIRED)
-    get_filename_component(GLFW_DIR ${GLFW_LIBRARY} DIRECTORY)
-    get_filename_component(GLFW_LIBRARY ${GLFW_LIBRARY} NAME)
-    message(STATUS "Linking GLFW: ${GLFW_LIBRARY} includes: ${GLFW_INCLUDE_DIR} dir: ${GLFW_DIR}")
-    
-    add_library (TRex::GLFW INTERFACE IMPORTED)
-    target_link_directories(TRex::GLFW INTERFACE ${GLFW_DIR})
-    
-    if(WIN32)
-        target_link_libraries (TRex::GLFW INTERFACE ${GLFW_LIBRARY})
+endif()
+
+if(TREX_WITH_OPENGL)
+    # glad
+    if(CMN_USE_OPENGL2)
+        set(GLAD_PROFILE "compatibility")
+        set(GLAD_API "gl=2.0")
+        add_definitions(-DCMN_USE_OPENGL2=true)
     else()
-        target_link_libraries (TRex::GLFW INTERFACE ${GLFW_LIBRARY})
+        set(GLAD_PROFILE "core")
+        set(GLAD_API "gl=4.1")
+        add_definitions(-DCMN_USE_OPENGL2=false)
     endif()
-    
-    include_directories(${GLFW_INCLUDE_DIR})
-    
-    #if(NOT ${GLFW_LIBRARY} EQUAL "glfw")
-        add_library (glfw INTERFACE IMPORTED)
-        target_link_libraries (glfw INTERFACE TRex::GLFW)
-    #endif()
+
+    ExternalProject_Add(gladex PREFIX gladex
+        GIT_REPOSITORY https://github.com/Dav1dde/glad.git
+        GIT_TAG v0.1.33
+        CMAKE_ARGS
+            ${trex_subproject_CMAKE_ARGS}
+            -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+            -DGLAD_PROFILE=${GLAD_PROFILE}
+            -DGLAD_API=${GLAD_API}
+            -DGLAD_INSTALL=ON
+            -DGLAD_REPRODUCIBLE=ON
+        UPDATE_COMMAND ""
+    )
+
+    ExternalProject_Get_Property(gladex INSTALL_DIR)
+    include_directories(${INSTALL_DIR}/include)
+    link_directories(${INSTALL_DIR}/lib)
+    set(GLAD_INSTALL_DIR ${INSTALL_DIR})
+    message(STATUS "glad: ${INSTALL_DIR}")
+
+    add_definitions(-DIMGUI_IMPL_OPENGL_LOADER_GLAD=true)
+endif()
+
+set (imgui_path ${CMAKE_SOURCE_DIR}/src/imgui)
+message(STATUS "imgui: ${imgui_path}")
+file(GLOB imgui_sources ${imgui_path}/*.cpp ${imgui_path}/*.h
+    ${imgui_path}/backends/imgui_impl_glfw*.cpp ${imgui_path}/backends/imgui_impl_glfw*.h
+)
+
+if(TREX_WITH_OPENGL)
+    set(imgui_sources ${imgui_sources} ${imgui_path}/backends/imgui_impl_opengl2.cpp ${imgui_path}/backends/imgui_impl_opengl2.h)
+    if(NOT CMN_USE_OPENGL2)
+        set(imgui_sources ${imgui_sources} ${imgui_path}/backends/imgui_impl_opengl3.cpp ${imgui_path}/backends/imgui_impl_opengl3.h)
+    endif()
+endif()
+
+if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$" AND METAL_LIBRARY)
+    set(imgui_sources ${imgui_sources} ${imgui_path}/backends/imgui_impl_metal.mm ${imgui_path}/backends/imgui_impl_metal.h)
+endif()
+
+add_library(imgui STATIC ${imgui_sources})
+if(TREX_BUILD_GLFW)
+    add_dependencies(imgui glfw)
+endif()
+if(TREX_WITH_OPENGL)
+    add_dependencies(imgui gladex)
 endif()
 
 # this is circumventing some weird CMake shuffeling of dependencies. these libraries always have to go last
 # at least once, but multiple times if necessary.
 if(UNIX AND NOT APPLE)
-    target_link_libraries(TRex::GLFW INTERFACE X11 dl m rt uuid pthread)
+    target_link_libraries(TRex::GLFW INTERFACE glad TRex::X11 pthread)
 endif()
 
-# glad
-#set(GLAD_DIR "${CMAKE_SOURCE_DIR}/src/glad")
-#add_library("glad" "${GLAD_DIR}/src/glad.c")
-#target_include_directories("glad" PRIVATE "${GLAD_DIR}/include")
-
-if(CMN_USE_OPENGL2)
-    set(GLAD_PROFILE "compatibility")
-    set(GLAD_API "gl=2.0")
-    add_definitions(-DCMN_USE_OPENGL2=true)
-else()
-    set(GLAD_PROFILE "core")
-    set(GLAD_API "gl=4.1")
-    add_definitions(-DCMN_USE_OPENGL2=false)
-endif()
-
-ExternalProject_Add(gladex PREFIX gladex
-    GIT_REPOSITORY https://github.com/Dav1dde/glad.git
-    GIT_TAG v0.1.33
-    CMAKE_ARGS
-        ${trex_subproject_CMAKE_ARGS}
-        -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
-        -DGLAD_PROFILE=${GLAD_PROFILE}
-        -DGLAD_API=${GLAD_API}
-        -DGLAD_INSTALL=ON
-        -DGLAD_REPRODUCIBLE=ON
-    UPDATE_COMMAND ""
-)
-
-ExternalProject_Get_Property(gladex INSTALL_DIR)
-include_directories(${INSTALL_DIR}/include)
-link_directories(${INSTALL_DIR}/lib)
-set(GLAD_INSTALL_DIR ${INSTALL_DIR})
-message(STATUS "glad: ${INSTALL_DIR}")
-
-add_definitions(-DIMGUI_IMPL_OPENGL_LOADER_GLAD=true)
-set (imgui_path ${CMAKE_SOURCE_DIR}/src/imgui)
-message(STATUS "imgui: ${imgui_path}")
-file(GLOB imgui_sources ${imgui_path}/*.cpp ${imgui_path}/*.h
-    ${imgui_path}/examples/imgui_impl_glfw*.cpp ${imgui_path}/examples/imgui_impl_glfw*.h
-)
-
-set(imgui_sources ${imgui_sources} ${imgui_path}/examples/imgui_impl_opengl2.cpp ${imgui_path}/examples/imgui_impl_opengl2.h)
-if(NOT CMN_USE_OPENGL2)
-    set(imgui_sources ${imgui_sources} ${imgui_path}/examples/imgui_impl_opengl3.cpp ${imgui_path}/examples/imgui_impl_opengl3.h)
-endif()
-
-if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$" AND METAL_LIBRARY)
-    set(imgui_sources ${imgui_sources} ${imgui_path}/examples/imgui_impl_metal.mm ${imgui_path}/examples/imgui_impl_metal.h)
-endif()
-
-add_library(imgui STATIC ${imgui_sources})
-add_dependencies(imgui gladex glfw)
 include_directories(${imgui_path})
+target_link_libraries(imgui TRex::GLFW)
 
 if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
     set_property (TARGET imgui APPEND_STRING PROPERTY COMPILE_FLAGS "-fobjc-arc")
@@ -483,7 +584,7 @@ if(${CMAKE_VERSION} VERSION_LESS "3.11.0")
             ${trex_subproject_CMAKE_ARGS}
 
         GIT_REPOSITORY https://github.com/pybind/pybind11
-        GIT_TAG        99ef2b846742e2298b97904e5be43f5ea5d71d8c
+        GIT_TAG        v2.6.2 #99ef2b846742e2298b97904e5be43f5ea5d71d8c
         UPDATE_COMMAND ""
     )
     ExternalProject_Get_Property(pybind11 INSTALL_DIR)
@@ -500,7 +601,7 @@ else()
     FetchContent_Declare(
         pybind11
         GIT_REPOSITORY https://github.com/pybind/pybind11
-        GIT_TAG        v2.5.0
+        GIT_TAG        v2.6.2
     )
 
     FetchContent_GetProperties(pybind11)
@@ -540,7 +641,7 @@ if((NOT ${TREX_BUILD_ZLIB}) AND ZLIB_FOUND AND ZLIB_VERSION_STRING VERSION_GREAT
     
 else()
     message(STATUS "Building libZ and libZIP")
-	set(TREX_BUILD_ZLIB ON CACHE BOOL "" FORCE)
+    set(TREX_BUILD_ZLIB ON CACHE BOOL "" FORCE)
     set(TREX_BUILD_ZIP ON CACHE BOOL "" FORCE)
     set(ZLIB_LIBRARY "z")
     set(zlib_install_dir "${CMAKE_BINARY_DIR}/zlib")
@@ -551,8 +652,8 @@ else()
         set(libzip_zlib_lib "${zlib_install_dir}/lib/zlib.lib")
         set(trex_subproject_CMAKE_ARGS1 ${trex_subproject_CMAKE_ARGS}
             -DCMAKE_STATIC_LINKER_FLAGS_INIT="/LIBPATH:\"${zlib_install_dir}/lib\"")
-	else()
-		set(trex_subproject_CMAKE_ARGS1 ${trex_subproject_CMAKE_ARGS})
+    else()
+        set(trex_subproject_CMAKE_ARGS1 ${trex_subproject_CMAKE_ARGS})
     endif()
     
     EXTERNALPROJECT_ADD(Z_LIB
@@ -563,7 +664,7 @@ else()
 
         INSTALL_DIR ${zlib_install_dir}
         CMAKE_ARGS ${trex_subproject_CMAKE_ARGS1} -DCMAKE_DEBUG_POSTFIX=d -DBUILD_STATIC_AND_SHARED=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=${zlib_install_dir}
-		-DBUILD_STATIC_AND_SHARED=OFF -DBUILD_SHARED_LIBS=OFF
+        -DBUILD_STATIC_AND_SHARED=OFF -DBUILD_SHARED_LIBS=OFF
     )
     
     add_library (TRex::LibZ INTERFACE IMPORTED)
@@ -600,18 +701,27 @@ endif()
 if(TREX_BUILD_ZLIB)
     if(WIN32)
         set(trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}
-            -DCMAKE_PREFIX_PATH=${zlib_install_dir}/lib/zlib.lib
-            -DZLIB_LIBRARY:FILEPATH=${zlib_install_dir}/lib/zlib.lib
+            -DZLIB_INCLUDE_DIR:PATH=${zlib_install_dir}/include
+            -DZLIB_LIBRARY_DEBUG:FILEPATH=${zlib_install_dir}/lib/zlibd.lib
             -DZLIB_LIBRARY_RELEASE:FILEPATH=${zlib_install_dir}/lib/zlib.lib
             -DZLIB_LIBRARY_RELWITHDEBINFO:FILEPATH=${zlib_install_dir}/lib/zlib.lib
-            -DZLIB_LIBRARY_DEBUG:FILEPATH=${zlib_install_dir}/lib/zlibd.lib)
+            #-DCMAKE_PREFIX_PATH=${zlib_install_dir}/lib/zlib.lib
+            #-DZLIB_LIBRARY:FILEPATH=${zlib_install_dir}/lib/zlib.lib
+            #-DZLIB_LIBRARY_RELEASE:FILEPATH=${zlib_install_dir}/lib/zlib.lib
+            #-DZLIB_LIBRARY_RELWITHDEBINFO:FILEPATH=${zlib_install_dir}/lib/zlib.lib
+            #-DZLIB_LIBRARY_DEBUG:FILEPATH=${zlib_install_dir}/lib/zlibd.lib
+        )
         
     else()
         set(trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}
             -DZLIB_INCLUDE_DIR:PATH=${zlib_install_dir}/include
             -DZLIB_LIBRARY_RELEASE:FILEPATH=${zlib_install_dir}/lib/libz.a
-            -DZLIB_LIBRARY_RELWITHDEBINFO:FILEPATH=${zlib_install_dir}/lib/libz.a
             -DZLIB_LIBRARY_DEBUG:FILEPATH=${zlib_install_dir}/lib/libzd.a
+            -DZLIB_LIBRARY_RELWITHDEBINFO:FILEPATH=${zlib_install_dir}/lib/libz.a
+            #-DZLIB_INCLUDE_DIR:PATH=${zlib_install_dir}/include
+            #-DZLIB_LIBRARY_RELEASE:FILEPATH=${zlib_install_dir}/lib/libz.a
+            #-DZLIB_LIBRARY_RELWITHDEBINFO:FILEPATH=${zlib_install_dir}/lib/libz.a
+            #-DZLIB_LIBRARY_DEBUG:FILEPATH=${zlib_install_dir}/lib/libzd.a
         )
     endif()
 endif()
@@ -628,9 +738,9 @@ if(TREX_BUILD_ZIP)
         PREFIX ${libzip_install_dir}
         DEPENDS TRex::LibZ
         GIT_REPOSITORY https://github.com/nih-at/libzip.git
-        GIT_TAG rel-1-5-2
+        GIT_TAG v1.7.3
         UPDATE_COMMAND ""
-        PATCH_COMMAND ${libzip_patchcommand}
+        #PATCH_COMMAND ${libzip_patchcommand}
         CMAKE_ARGS
             ${libzip_configure}
             -DZLIB_INCLUDE_DIR=${ZLIB_INCLUDE_DIR}
@@ -641,18 +751,23 @@ if(TREX_BUILD_ZIP)
             -DBUILD_TOOLS=OFF
             -DENABLE_GNUTLS=OFF
             -DENABLE_OPENSSL=OFF
+            -DENABLE_LZMA=OFF
             ${trex_subproject_CMAKE_ARGS}
             -DCMAKE_DEBUG_POSTFIX=d
     )
+    
+    if(TREX_BUILD_ZLIB)
+        add_dependencies(libzip Z_LIB)
+    endif()
 
     # patching a simple (void*) -> (char*) for windows
-    ExternalProject_Add_Step(libzip
-        WINDOWS_CONFIGURE DEPENDEES download DEPENDERS configure
-        WORKING_DIRECTORY "${libzip_install_dir}"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_SOURCE_DIR}/libzip_windows/zip_source_winzip_aes_encode.c"
-            "${libzip_install_dir}/src/libzip/lib/zip_source_winzip_aes_encode.c"
-    )
+    #ExternalProject_Add_Step(libzip
+    #    WINDOWS_CONFIGURE DEPENDEES download DEPENDERS configure
+    #    WORKING_DIRECTORY "${libzip_install_dir}"
+    #    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    #        "${CMAKE_SOURCE_DIR}/libzip_windows/zip_source_winzip_aes_encode.c"
+    #        "${libzip_install_dir}/src/libzip/lib/zip_source_winzip_aes_encode.c"
+    #)
 
     set(LIBZIP_INCLUDE_DIR "${libzip_install_dir}/include")
     
@@ -683,35 +798,32 @@ if(${TREX_BUILD_PNG})
     message(STATUS "PNG_LIBRARY = ${PNG_LIBRARY}")
     message(STATUS "trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}")
 
-    #if(UNIX AND NOT APPLE)
-    #    set(PNG_LIBRARY "")
-    #    find_package(PNG REQUIRED)
-    #    include_directories(${PNG_INCLUDE_DIR})
-        
-    #    message(STATUS "PNG library: ${PNG_LIBRARY_RELEASE} | debug: ${PNG_LIBRARY_DEBUG}")
-    #    set(PNG_LIBRARY ${PNG_LIBRARY_RELEASE})
-    #else()
-        #URL ftp://ftp.simplesystems.org/pub/libpng/png/src/history/libpng15/libpng-1.5.10.tar.gz
-        #URL_MD5 9e5d864bce8f06751bbd99962ecf4aad
-        EXTERNALPROJECT_ADD(libpng_custom
-            DEPENDS TRex::LibZ TRex::LibZIP
-            PREFIX ${png_install_dir}
-            UPDATE_COMMAND ""
+    if(APPLE)
+        set(PNG_PATCH patch -N -s -d ${png_install_dir}/src/libpng_custom -p1 -i ${CMAKE_SOURCE_DIR}/lib_png_m1patch.diff || echo 1)
+    else()
+        set(PNG_PATCH "")
+    endif()
 
-            GIT_REPOSITORY  https://github.com/glennrp/libpng.git
-            GIT_TAG v1.6.21
+    #URL ftp://ftp.simplesystems.org/pub/libpng/png/src/history/libpng15/libpng-1.5.10.tar.gz
+    #URL_MD5 9e5d864bce8f06751bbd99962ecf4aad
+    EXTERNALPROJECT_ADD(libpng_custom
+        DEPENDS TRex::LibZ TRex::LibZIP
+        PREFIX ${png_install_dir}
+        UPDATE_COMMAND ""
+        PATCH_COMMAND ${PNG_PATCH}
 
-            INSTALL_DIR ${png_install_dir}
-            CMAKE_ARGS ${trex_subproject_CMAKE_ARGS} -DCMAKE_PREFIX_PATH=${zlib_install_dir} # to find zlib
-            -DPNG_TESTS=OFF
-			-DPNG_SHARED=OFF
-        )
+        GIT_REPOSITORY  https://github.com/glennrp/libpng.git
+        GIT_TAG v1.6.21
 
-        include_directories(${png_install_dir}/include)
-        link_directories(${png_install_dir}/lib)
-        message(STATUS "libpng dir ${png_install_dir}/lib")
-    #endif()
+        INSTALL_DIR ${png_install_dir}
+        CMAKE_ARGS ${trex_subproject_CMAKE_ARGS} -DCMAKE_PREFIX_PATH=${zlib_install_dir} # to find zlib
+        -DPNG_TESTS=OFF
+        -DPNG_SHARED=OFF
+    )
 
+    include_directories(${png_install_dir}/include)
+    link_directories(${png_install_dir}/lib)
+    message(STATUS "libpng dir ${png_install_dir}/lib")
     message(STATUS "png library ${PNG_LIBRARY}")
     
     add_library (TRex::LibPNG INTERFACE IMPORTED)
@@ -719,13 +831,26 @@ if(${TREX_BUILD_PNG})
     add_dependencies(TRex::LibPNG ${PNG_LIBRARY} libpng_custom TRex::LibZ)
     
     unset(PNG_LIBRARY)
+
+    if(WIN32)
+       set(trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}
+            -DPNG_LIBRARY_RELEASE:FILEPATH=${png_install_dir}/lib/libpng16_static.lib
+            -DPNG_LIBRARY_DEBUG:FILEPATH=${png_install_dir}/lib/libpng16_staticd.lib
+            -DPNG_PNG_INCLUDE_DIR:FILEPATH=${png_install_dir}/include)
+   else()
+        set(trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}
+            -DPNG_LIBRARY_RELEASE:FILEPATH=${png_install_dir}/lib/libpng16.a
+            -DPNG_LIBRARY_DEBUG:FILEPATH=${png_install_dir}/lib/libpng16d.a
+            -DPNG_PNG_INCLUDE_DIR:FILEPATH=${png_install_dir}/include
+        )
+   endif()
 endif()
 
 # this is circumventing some weird CMake shuffeling of dependencies. these libraries always have to go last
 # at least once, but multiple times if necessary.
 if(UNIX AND NOT APPLE)
-    target_link_libraries(TRex::LibZIP INTERFACE X11 dl m rt uuid pthread)
-    target_link_libraries(TRex::LibPNG INTERFACE X11 dl m rt uuid pthread)
+    target_link_libraries(TRex::LibZIP INTERFACE TRex::X11 pthread)
+    target_link_libraries(TRex::LibPNG INTERFACE TRex::X11 pthread)
 endif()
 
 if(WIN32)
@@ -756,66 +881,66 @@ if(NOT ${TREX_BUILD_OPENCV})
 endif()
 
 if(${TREX_BUILD_OPENCV})
-    set(trigger_build_dir ${CMAKE_BINARY_DIR}/force_opencv)
+    set(trigger_build_dir "${CMAKE_BINARY_DIR}/force_opencv")
     set(BUILD_SHARED_LIBS OFF)
     message(STATUS "Building OpenCV...")
     
     if(UNIX)
         get_filename_component(PKG_CONFIG_PATH ${AVDEVICE_LIBRARY} DIRECTORY)
         
-        set(ENV{PKG_CONFIG_PATH} "${PKG_CONFIG_PATH}/pkgconfig" $ENV{PKG_CONFIG_PATH})
+        set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} $ENV{PKG_CONFIG_PATH})
+        set(ENV{PKG_CONFIG_PATH} "${PKG_CONFIG_PATH}/pkgconfig:$ENV{PKG_CONFIG_PATH}")
         message(STATUS "PKG_CONFIG_PATH: $ENV{PKG_CONFIG_PATH}")
     endif()
     
-    set(OPENCV_PREFIX_PATH ${png_install_dir} ${zlib_install_dir} ${CMAKE_PREFIX_PATH} )
+    set(OPENCV_PREFIX_PATH "${png_install_dir}" "${zlib_install_dir}" ${CMAKE_PREFIX_PATH} )
+    message(STATUS "CMAKE_CXX_FLAGS_DEBUG: ${CMAKE_CXX_FLAGS_DEBUG}")
     set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS}
-			"-DCMAKE_CXX_FLAGS_DEBUG=${CMAKE_CXX_FLAGS_DEBUG}"
-            "-DCMAKE_CXX_FLAGS_RELEASE=${CMAKE_CXX_FLAGS_RELEASE}"
-            "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=${CMAKE_CXX_FLAGS_RELWITHDEBINFO}"
-            "-DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}"
-			"-DCMAKE_CXX_FLAGS=${ORIGINAL_CXX_FLAGS} -D_USE_MATH_DEFINES -DNOMINMAX -DCURL_STATICLIB -D_ENABLE_ATOMIC_ALIGNMENT_FIX"
-            "-DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}")
-            
-    if(APPLE AND CMAKE_COMPILER_IS_GNUCXX)
-      set(${OPENCV_EXTRA_FLAGS_} "-DWITH_AVFOUNDATION=OFF" "-DCMAKE_FIND_ROOT_PATH=${CMAKE_FIND_ROOT_PATH}")
-    endif()
+        ${trex_subproject_CMAKE_ARGS}
+        -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}
+        #"-DCMAKE_CXX_FLAGS_DEBUG=${CMAKE_CXX_FLAGS_DEBUG}"
+        #"-DCMAKE_CXX_FLAGS_RELEASE=${CMAKE_CXX_FLAGS_RELEASE}"
+        #"-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=${CMAKE_CXX_FLAGS_RELWITHDEBINFO}"
+        #"-DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}"
+		#"-DCMAKE_CXX_FLAGS=${ORIGINAL_CXX_FLAGS} -D_USE_MATH_DEFINES -DNOMINMAX -DCURL_STATICLIB -D_ENABLE_ATOMIC_ALIGNMENT_FIX"
+    )
     
-    if(APPLE)
-        set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
-            "-DCMAKE_OSX_SYSROOT=${CMAKE_OSX_SYSROOT}"
-            "-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}"
-            "-DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}")
-    endif()
+    # if(APPLE)
+    #     set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
+    #         "-DCMAKE_OSX_SYSROOT=${CMAKE_OSX_SYSROOT}"
+    #         "-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}"
+    #         "-DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+    # endif()
    
-   if(TREX_BUILD_PNG)
-       if(WIN32)
-           set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
-                -DPNG_LIBRARY_RELEASE:FILEPATH=${png_install_dir}/lib/libpng16_static.lib
-                -DPNG_LIBRARY_DEBUG:FILEPATH=${png_install_dir}/lib/libpng16_staticd.lib
-                -DPNG_PNG_INCLUDE_DIR:FILEPATH=${png_install_dir}/include)
-       else()
-            set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
-                -DPNG_LIBRARY_RELEASE:FILEPATH=${png_install_dir}/lib/libpng16.a
-                -DPNG_LIBRARY_DEBUG:FILEPATH=${png_install_dir}/lib/libpng16d.a
-                -DPNG_PNG_INCLUDE_DIR:FILEPATH=${png_install_dir}/include
-            )
-       endif()
-   endif()
+   # if(TREX_BUILD_PNG)
+   #     if(WIN32)
+   #         set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
+   #              "-DPNG_LIBRARY_RELEASE:FILEPATH=${png_install_dir}/lib/libpng16_static.lib"
+   #              "-DPNG_LIBRARY_DEBUG:FILEPATH=${png_install_dir}/lib/libpng16_staticd.lib"
+   #              "-DPNG_PNG_INCLUDE_DIR:FILEPATH=${png_install_dir}/include")
+   #     else()
+   #          set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
+   #              "-DPNG_LIBRARY_RELEASE:FILEPATH=${png_install_dir}/lib/libpng16.a"
+   #              "-DPNG_LIBRARY_DEBUG:FILEPATH=${png_install_dir}/lib/libpng16d.a"
+   #              "-DPNG_PNG_INCLUDE_DIR:FILEPATH=${png_install_dir}/include"
+   #          )
+   #     endif()
+   # endif()
    
-   if(TREX_BUILD_ZLIB)
-       if(WIN32)
-           set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
-                            -DZLIB_INCLUDE_DIR:PATH=${zlib_install_dir}/include
-                            -DZLIB_LIBRARY_DEBUG:FILEPATH=${zlib_install_dir}/lib/zlibd.lib
-							-DZLIB_LIBRARY_RELEASE:FILEPATH=${zlib_install_dir}/lib/zlib.lib)
-       else()
-            set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
-                -DZLIB_INCLUDE_DIR:PATH=${zlib_install_dir}/include
-                -DZLIB_LIBRARY_RELEASE:FILEPATH=${zlib_install_dir}/lib/libz.a
-                -DZLIB_LIBRARY_DEBUG:FILEPATH=${zlib_install_dir}/lib/libzd.a
-            )
-       endif()
-   endif()
+   # if(TREX_BUILD_ZLIB)
+   #     if(WIN32)
+   #         set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
+   #                          "-DZLIB_INCLUDE_DIR:PATH=${zlib_install_dir}/include"
+   #                          "-DZLIB_LIBRARY_DEBUG:FILEPATH=${zlib_install_dir}/lib/zlibd.lib"
+			# 				"-DZLIB_LIBRARY_RELEASE:FILEPATH=${zlib_install_dir}/lib/zlib.lib")
+   #     else()
+   #          set(OPENCV_EXTRA_FLAGS_ ${OPENCV_EXTRA_FLAGS_}
+   #              "-DZLIB_INCLUDE_DIR:PATH=${zlib_install_dir}/include"
+   #              "-DZLIB_LIBRARY_RELEASE:FILEPATH=${zlib_install_dir}/lib/libz.a"
+   #              "-DZLIB_LIBRARY_DEBUG:FILEPATH=${zlib_install_dir}/lib/libzd.a"
+   #          )
+   #     endif()
+   # endif()
    
    if(TREX_CONDA_PACKAGE_INSTALL)
 		set(TREX_CMAKE_BUILD_TYPE Release)
@@ -824,12 +949,11 @@ if(${TREX_BUILD_OPENCV})
    endif()
    
    message(STATUS "TREX_CMAKE_BUILD_TYPE ${TREX_CMAKE_BUILD_TYPE}")
-   
+   message(STATUS "ALL trex_subproject_CMAKE_ARGS: ${trex_subproject_CMAKE_ARGS}")
    set(OPENCV_CMAKE_ARGS
-            ${OPENCV_EXTRA_FLAGS_}
-			-DCMAKE_BUILD_TYPE=${TREX_CMAKE_BUILD_TYPE}
-			-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
-            -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+            #${OPENCV_EXTRA_FLAGS_}
+            ${trex_subproject_CMAKE_ARGS}
+			-DCMAKE_BUILD_TYPE:STRING=${TREX_CMAKE_BUILD_TYPE}
             -DBUILD_DOCS:BOOL=FALSE
             -DBUILD_EXAMPLES:BOOL=FALSE
             -DBUILD_TESTS:BOOL=FALSE
@@ -862,21 +986,40 @@ if(${TREX_BUILD_OPENCV})
             -DBUILD_FAT_JAVA_LIB=OFF
             -DBUILD_TIFF=ON
             -DWITH_OPENCL=ON
-            -DPYTHON_INCLUDE_DIR:PATH=${PYTHON_INCLUDE_DIR}
-            -DPYTHON_LIBRARY:PATH=${PYTHON_LIBRARY}
-            -DPYTHON_EXECUTABLE:FILEPATH=${PYTHON_EXECUTABLE}
+            # -DAVCODEC_LIBRARY:FILEPATH=${AVCODEC_LIBRARY}
+            # -DAVFORMAT_LIBRARY:FILEPATH=${AVFORMAT_LIBRARY} 
+            # -DAVUTIL_LIBRARY:FILEPATH=${AVUTIL_LIBRARY} -DAVDEVICE_LIBRARY=${AVDEVICE_LIBRARY} 
+            # -DLIBSWSSCALE_LIBRARY:FILEPATH=${LIBSWSSCALE_LIBRARY}
+            # -DAVCODEC_INCLUDE_DIR=${AVCODEC_INCLUDE_DIR}
+            # -DAVFORMAT_INCLUDE_DIR=${AVFORMAT_INCLUDE_DIR} 
+            # -DAVUTIL_INCLUDE_DIR=${AVUTIL_INCLUDE_DIR}
+            #-DAVDEVICE_INCLUDE_DIR=${AVDEVICE_INCLUDE_DIR}
+            #"-DPYTHON_INCLUDE_DIR:PATH=${PYTHON_INCLUDE_DIR}"
+            #"-DPYTHON_LIBRARY:PATH=${PYTHON_LIBRARY}"
+            #"-DPYTHON_EXECUTABLE:FILEPATH=${PYTHON_EXECUTABLE}"
             -DWITH_OPENEXR=OFF
-            -DCMAKE_PREFIX_PATH:PATH=${OPENCV_PREFIX_PATH}
-            -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/opencv_install
+            "-DCMAKE_PREFIX_PATH:PATH=${CMAKE_PREFIX_PATH}"
+            "-DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/opencv_install"
             -DCMAKE_DEBUG_POSTFIX=)
 
     message(STATUS "OPENCV_EXTRA_FLAGS_ = ${OPENCV_EXTRA_FLAGS_}")
+    set(TREX_OPENCV_VERSION "4.5.1")
+    if(APPLE)
+        message(STATUS "CMAKE_SYSTEM_PROCESSOR = ${CMAKE_SYSTEM_PROCESSOR}")
+        if(NOT ${CMAKE_SYSTEM_PROCESSOR} MATCHES "x86_64")
+            message(STATUS "ARM?")
+        else()
+            message(STATUS "x86_64 macos")
+            set(TREX_OPENCV_VERSION "4.3.0")
+        endif()
+    endif()
+
     if(UNIX)
         message(STATUS "Using custom configure command")
         ExternalProject_add(CustomOpenCV
             PREFIX ${CMAKE_CURRENT_BINARY_DIR}/opencv
             GIT_REPOSITORY  https://github.com/opencv/opencv.git
-            GIT_TAG 4.3.0
+            GIT_TAG ${TREX_OPENCV_VERSION}
             UPDATE_COMMAND ""
             CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env PKG_CONFIG_PATH=${PKG_CONFIG_PATH}/pkgconfig ${CMAKE_COMMAND} -DCMAKE_BUILD_TYPE=${TREX_CMAKE_BUILD_TYPE} -G ${CMAKE_GENERATOR} ${OPENCV_CMAKE_ARGS} ${CMAKE_CURRENT_BINARY_DIR}/opencv/src/CustomOpenCV
             BUILD_COMMAND ${CMAKE_COMMAND} -E env PKG_CONFIG_PATH=${PKG_CONFIG_PATH}/pkgconfig ${CMAKE_COMMAND} --build . --config ${TREX_CMAKE_BUILD_TYPE}
@@ -887,19 +1030,19 @@ if(${TREX_BUILD_OPENCV})
         ExternalProject_add(CustomOpenCV
             PREFIX ${CMAKE_CURRENT_BINARY_DIR}/opencv
             GIT_REPOSITORY  https://github.com/opencv/opencv.git
-            GIT_TAG 4.3.0
+            GIT_TAG ${TREX_OPENCV_VERSION}
             UPDATE_COMMAND ""
             CMAKE_ARGS
             ${OPENCV_CMAKE_ARGS})
     endif()
 	# patching a simple (void*) -> (char*) for windows
-    ExternalProject_Add_Step(CustomOpenCV
-        WINDOWS_CONFIGURE DEPENDEES download DEPENDERS configure
-        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_SOURCE_DIR}/opencv_patch.patch"
-            "${CMAKE_CURRENT_BINARY_DIR}/opencv/src/CustomOpenCV/CMakeLists.txt"
-    )
+    #ExternalProject_Add_Step(CustomOpenCV
+    #    WINDOWS_CONFIGURE DEPENDEES download DEPENDERS configure
+    #    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    #    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    #        "${CMAKE_SOURCE_DIR}/opencv_patch.patch"
+     #       "${CMAKE_CURRENT_BINARY_DIR}/opencv/src/CustomOpenCV/CMakeLists.txt"
+    #)
 
     if(APPLE)
         set(CMAKE_PREFIX_PATH ${CMAKE_CURRENT_BINARY_DIR}/opencv_install/lib/cmake/opencv4/ ${CMAKE_PREFIX_PATH})
@@ -924,7 +1067,7 @@ if(${TREX_BUILD_OPENCV})
         message("Including OpenCV lib path: ${CMAKE_CURRENT_BINARY_DIR}/opencv_install/x64/vc${VSTD_VERSION_MAJOR}/staticlib")
         set(OpenCV_LIB_PATH ${CMAKE_CURRENT_BINARY_DIR}/opencv_install/x64/vc${VSTD_VERSION_MAJOR}/staticlib)
         link_directories(${OpenCV_LIB_PATH})
-        set(OpenCV_LIBS opencv_core430 opencv_imgproc430 opencv_imgcodecs430 opencv_video430 opencv_videoio430 opencv_highgui430 opencv_features2d430 opencv_flann430 opencv_objdetect430 opencv_ml430 opencv_gapi430 opencv_dnn430 opencv_calib3d430 libjpeg-turbo ittnotify ade libprotobuf libtiff quirc ${FFMPEG_LIBRARIES})
+        set(OpenCV_LIBS opencv_core451 opencv_imgproc451 opencv_imgcodecs451 opencv_video451 opencv_videoio451 opencv_highgui451 opencv_features2d451 opencv_flann451 opencv_objdetect451 opencv_ml451 opencv_gapi451 opencv_dnn451 opencv_calib3d451 libjpeg-turbo ittnotify ade libprotobuf libtiff quirc ${FFMPEG_LIBRARIES})
     else()
 		set(OpenCV_LIBS opencv_core opencv_imgproc opencv_imgcodecs opencv_stitching opencv_photo opencv_video opencv_videoio opencv_highgui opencv_features2d opencv_flann opencv_objdetect opencv_ml opencv_gapi opencv_dnn opencv_calib3d)
 		set(OpenCV_LIBS ${OpenCV_LIBS} opencv_core libjpeg-turbo ittnotify ade libprotobuf quirc ${FFMPEG_LIBRARIES})
@@ -936,7 +1079,7 @@ if(${TREX_BUILD_OPENCV})
 		endif()
     endif()
     
-	find_package(OpenCV 4.3.0 PATHS ${OpenCV_DIR} NO_DEFAULT_PATH)
+	find_package(OpenCV ${TREX_OPENCV_VERSION} PATHS ${OpenCV_DIR} NO_DEFAULT_PATH)
 	if(OpenCV_FOUND)
 		set(OpenCV_LIBS ${OpenCV_LIBRARIES})
 		message(STATUS "Found opencv at ${OpenCV_INSTALL_PATH}, using its config.cmake")
@@ -956,9 +1099,6 @@ if(${TREX_BUILD_OPENCV})
     set(OpenCV_LIBS TRex::OpenCV)
 endif()
 
-
-include_directories(${CMAKE_SOURCE_DIR}/src/cnpy/)
-
 get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
 foreach(dir ${dirs})
   message(STATUS "dir='${dir}'")
@@ -967,22 +1107,28 @@ endforeach()
 add_subdirectory(src)
 
 if(NOT WIN32 AND ${TREX_BUILD_DOCS})
-find_package(Sphinx)
-if(NOT Sphinx_FOUND)
-message(ERROR "Cannot find Sphinx executable")
-else()
-message(STATUS "Found sphinx.")
+    message(STATUS "Searching Sphinx at ${CONDA_PREFIX} ${CONDA_PREFIX}/bin")
+    find_package(Sphinx REQUIRED) #PATHS ${CONDA_PREFIX} ${CONDA_PREFIX}/bin )
+    if(NOT Sphinx_FOUND)
+        message(ERROR "Cannot find Sphinx executable")
+    else()
+        get_filename_component(SPHINX_DIR ${SPHINX_EXECUTABLE} DIRECTORY)
+        message(STATUS "Found sphinx at ${SPHINX_EXECUTABLE} (dir: ${SPHINX_DIR}).")
 
-add_custom_target(
-  doc ALL
-  COMMAND $<TARGET_FILE:TRex> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
-  COMMAND $<TARGET_FILE:TGrabs> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
-  COMMAND make html
-  DEPENDS
-    TRex
-  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/../docs
-  COMMENT "Generating API documentation with Doxygen"
-  VERBATIM
-)
+        add_custom_target(
+          doc ALL
+          COMMAND $<TARGET_FILE:TRex> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
+          COMMAND $<TARGET_FILE:TGrabs> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
+          COMMAND PATH=$ENV{PATH}:${SPHINX_DIR} make html
+          DEPENDS
+            TRex
+          WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/../docs
+          COMMENT "Generating API documentation with Doxygen"
+          VERBATIM
+        )
+    endif()
 endif()
+
+if(POLICY CMP0114)
+  cmake_policy(POP)
 endif()

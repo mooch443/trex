@@ -1,13 +1,14 @@
+#if TREX_HAS_OPENGL
 #include <types.h>
 #include <cstdio>
 
 #include <imgui/imgui.h>
-#include <imgui/examples/imgui_impl_glfw.h>
+#include <imgui/backends/imgui_impl_glfw.h>
 
-#include <imgui/examples/imgui_impl_opengl2.h>
+#include <imgui/backends/imgui_impl_opengl2.h>
 using ImTextureID_t = ImGui_OpenGL2_TextureID;
 
-#include <imgui/examples/imgui_impl_opengl3.h>
+#include <imgui/backends/imgui_impl_opengl3.h>
 //using ImTextureID_t = ImGui_OpenGL3_TextureID;
 
 #if defined(IMGUI_IMPL_OPENGL_LOADER_GL3W)
@@ -506,3 +507,5 @@ void GLImpl::set_title(std::string title) {
 }
 
 }
+#endif
+

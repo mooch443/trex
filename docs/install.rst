@@ -3,21 +3,39 @@
 .. toctree::
    :maxdepth: 2
 
+.. NOTE::
+	|trex| now supports the new Apple Silicone Macs with Apple's own M1 CPU, including hardware accelerated machine learning! Please follow the instructions below to obtain a native version with hardware acceleration: :ref:`install-m1`.
+
 .. WARNING::
-	There are currently no GPU-enabled builds of tensorflow available for MacOS, so network training can only be accelerated by a GPU on Windows and Linux, given a NVIDIA graphics-card. Training still works on other systems, it's just slower.
+	On Windows and Linux a NVIDIA graphics-card is required for hardware accelerated machine learning.
 
 Installation
 ############
 
-The easy way
-************
+The easy way (Windows, Linux and Intel macOS)
+*********************************************
 
 |trex| supports all major platforms. There is an easy way to install |trex| using Anaconda, by creating a new virtual environment (here named ``tracking``, which you can replace)::
 
-	conda create -n tracking -c trexing trex                          # macOS, Windows
-	conda create -n tracking -c main -c conda-forge -c trexing trex   # Linux
+	conda create -n tracking -c trexing trex                          # macOS (Intel), Windows
+	conda create -n tracking -c main -c conda-forge -c trexing trex   # Linux (Intel)
 
 The down-side is that pre-built binaries are compiled with fewer optimzations and features than a manually compiled one (due to compatibility and licensing issues) and thus are slightly slower =(. For example, the conda version does not offer support for Basler cameras. If you need to use |grabs| with machine vision cameras, or need as much speed as possible/the newest version, please consider compiling the software yourself.
+
+.. _install-m1:
+
+Apple Silicone (macOS arm64)
+****************************
+
+If you own a new Mac with an Apple Silicone CPU, the Intel version (above) works fine in Rosetta. However, I would strongly encourage installing |trex| via ``miniforge``, which is like Anaconda but supports native arm64 packages. This way, hardware accelerated machine learning on your M1 Macbook is possible! Simply follow the instructions here for installing miniforge: `github.com/apple/tensorflow_macos <https://github.com/apple/tensorflow_macos/issues/153#issue-799924913>`_. Once you're done, you can run the same command as above (only that now everything will be all fast and native ``arm64`` code)::
+
+	conda create -n tracking -c trexing trex  # macOS (arm64)
+
+There is no official tensorflow package yet, which is why |trex| will not allow you to use machine learning right away. But -- yay -- Apple provides their own version for macOS including a native ML Compute (`blog.tensorflow.com <https://blog.tensorflow.org/2020/11/accelerating-tensorflow-performance-on-mac.html>`_) backend, which has shown quite a bit of potential. My new M1 MacBook (2020), for example, only needs ~58ms/step where (with the same data and code) my NVIDIA Geforce 1070 accelerated Windows PC needs roughly ~128ms/step. To install tensorflow inside your activated environment, just run::
+
+	pip install --upgrade --force --no-dependencies https://github.com/apple/tensorflow_macos/releases/download/v0.1alpha2/tensorflow_macos-0.1a2-cp38-cp38-macosx_11_0_arm64.whl https://github.com/apple/tensorflow_macos/releases/download/v0.1alpha2/tensorflow_addons_macos-0.1a2-cp38-cp38-macosx_11_0_arm64.whl
+
+Now |trex|, if installed within the same environment, has the full power of your Mac at its disposal. Have fun!
 
 Compile it yourself
 *******************
@@ -50,8 +68,8 @@ This runs ``conda build .``, which builds the program according to all the setti
 
 After compilation was successful, |trex| can be installed using::
 
-	conda create -n tracking -c local trex                          # macOS, Windows
-	conda create -n tracking -c main -c conda-forge -c local trex   # Linux
+	conda create -n tracking -c trexing trex                          # macOS, Windows
+	conda create -n tracking -c main -c conda-forge -c trexing trex   # Linux (Intel)
 
 Notice there is a ``-c local``, instead of the ``-c trexing`` from the first section.
 
@@ -76,9 +94,9 @@ As well as the general requirements:
 
 The easiest way to ensure that all requirements are met, is by using conda to create a new environment::
 
-	conda create -n tracking cmake ffmpeg tensorflow=1.13 keras=2.3 opencv
+	conda create -n tracking cmake ffmpeg tensorflow=2 opencv
 
-If your GPU is supported by TensorFlow, you can modify the above line by appending ``-gpu`` to ``tensorflow`` to get ``tensorflow-gpu=1.13``.
+If your GPU is supported by TensorFlow, you can modify the above line by appending ``-gpu`` to ``tensorflow`` to get ``tensorflow-gpu=2``.
 	
 Next, switch to the conda environment using::
 

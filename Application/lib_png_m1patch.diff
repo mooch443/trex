@@ -1,0 +1,17 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 2f180b559..d06c55fd3 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -98,6 +98,12 @@ set(pngvalid_sources
+ set(pngstest_sources
+   contrib/libtests/pngstest.c
+ )
++
++if(CMAKE_OSX_ARCHITECTURES MATCHES "arm64")
++  list(APPEND libpng_sources arm/filter_neon.S)
++  list(APPEND libpng_sources arm/arm_init.c arm/filter_neon_intrinsics.c)
++  add_definitions(-DPNG_ARM_NEON_OPT=2)
++endif()
+ # SOME NEEDED DEFINITIONS
+ 
+ if(MSVC)

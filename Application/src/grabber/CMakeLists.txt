@@ -65,14 +65,12 @@ add_dependencies(${TGRABS_EXEC_NAME} trex_check_python TRex::OpenCV)
 add_executable(pvconvert pvconvert.cpp gif.h ${TREX_ADDITIONAL_SOURCES})
 target_link_libraries(pvconvert PUBLIC
     tracker_gui
-    pv
+        pv
     commons
-    cnpy
-    ${OpenCV_LIBS}
     TRex::GLFW
     TRex::LibPNG
-    imgui
-    glad
+    TRex::LibZ
+    TRex::OpenCV
     ${EXTRA_LIBS}
 )
 
@@ -94,8 +92,6 @@ target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE
 	TRex::GLFW
     TRex::LibPNG
     TRex::LibZ
-    	imgui
-	glad
 	TRex::OpenCV
 	${EXTRA_LIBS})
 
@@ -235,7 +231,7 @@ if(WIN32)
 	if(TREX_BUILD_OPENCV)
 		install(
 			FILES
-			"${OpenCV_LIB_PATH}/../bin/opencv_videoio_ffmpeg430_64.dll" DESTINATION bin)
+			"${OpenCV_LIB_PATH}/../bin/opencv_videoio_ffmpeg451_64.dll" DESTINATION bin)
 	endif()
 endif()
 

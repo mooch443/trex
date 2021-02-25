@@ -6,8 +6,8 @@
 #include "MetalImpl.h"
 
 #include <imgui/imgui.h>
-#include <imgui/examples/imgui_impl_glfw.h>
-#include <imgui/examples/imgui_impl_metal.h>
+#include <imgui/backends/imgui_impl_glfw.h>
+#include <imgui/backends/imgui_impl_metal.h>
 
 #import <Metal/Metal.h>
 #import <QuartzCore/QuartzCore.h>

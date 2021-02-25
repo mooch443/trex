@@ -610,8 +610,6 @@ Accumulation::Accumulation(TrainingMode::Class mode) : _mode(mode), _accumulatio
 }
 
 float Accumulation::step_calculate_uniqueness() {
-    Debug("First discrimination image is at %X.", _disc_images.front().get());
-    
     auto && [_, map, up] = calculate_uniqueness(true, _disc_images, _disc_frame_map);
     if(up >= current_best) {
         current_best = up;

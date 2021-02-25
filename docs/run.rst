@@ -7,13 +7,13 @@
 Basic usage
 ===========
 
-|trex| can be launched simply by double-clicking it, or launching it from the command-line without parameters, which will show a file opening dialog. Its younger sibling, |grabs|, also offers a graphical user interface, but can only be started from the terminal at the moment (we will be working on changing that, and also potentially integrating it completely with |trex|). The following sections address the issue of directly providing parameters using the command-line for both softwares (e.g. in a batch processing, or generally a more command-line affine use-case). Any additional number of parameters can be passed to both |grabs| and |trex| as::
+|trex| is usually launched from the command-line (with or without parameters), which will show a file opening dialog. There is the possibility of starting it directly using a desktop short-cut (or double-clicking the executable itself), but this requires either a manual compile or changes to your environment variables (see :ref:`run-by-clicking`). Its younger sibling, |grabs|, also offers a graphical user interface, but can only be started from the terminal at the moment (we will be working on changing that, and also potentially integrating it completely with |trex|). The following sections address the issue of directly providing parameters using the command-line for both softwares (e.g. in a batch processing, or generally a more command-line affine use-case). Any additional number of parameters can be passed to both |grabs| and |trex| as::
 
-	./trex [...] -PARAMETER VALUE
+	trex [...] -PARAMETER VALUE
 
 For example, in order to set the number of individuals to 5 and prefix all individuals names/files with "termite" instead of "fish", just change the values of ``track_max_individuals`` and ``individual_prefix`` when launching the application like so (we are also opening a file called "example" and use a different settings file)::
 
-	./trex -i example -s tmp.settings -track_max_individuals 5 -individual_prefix "termite"
+	trex -i example -s tmp.settings -track_max_individuals 5 -individual_prefix "termite"
 
 A full reference of available parameters for |grabs| can be found at :doc:`parameters_tgrabs`, and for |trex| at :doc:`parameters_trex`.
 
@@ -43,7 +43,7 @@ Running TGrabs
 
 Running |grabs| usually involves the following parameters::
 
-	./tgrabs -i [SOURCE] -o [DESTINATION] [ADDITIONAL]
+	tgrabs -i [SOURCE] -o [DESTINATION] [ADDITIONAL]
 
 **Source** can be any of the following:
 
@@ -74,7 +74,7 @@ Running TRex
 
 The tracker only expects an input file::
 
-	./trex -i [VIDEONAME]
+	trex -i [VIDEONAME]
 
 ``VIDEONAME`` is either a full path to the video file, or the name of a video file in the default output folder (``~/Videos`` by default). This will open |trex| with all settings set to default, except if there is a ``[VIDEONAME].settings`` file present next to the video file or in the default output folder.
 
@@ -169,3 +169,16 @@ Or to display information about objects inside the saved frames::
 	[15:24:07] Images average at 512.654519 px / blob and the range is [2-2154] with a median of 616.
 	[15:24:07] There are 10 blobs in each frame (median).
 
+.. _run-by-clicking:
+
+Run software directly using shortcuts
+-------------------------------------
+
+Interaction with software on Unix-systems often takes place within a terminal. Under Windows, a lot of the typical interactions take place within a graphical user interface -- however, especially when installed within a conda environment, some additional environment variables need to be set. I am unsure whether this may influence other software or applications, so starting directly from the Anaconda3 PowerShell terminal should be the preferred approach.
+
+Under Windows 10, this can be done by right-clicking on "This Computer" -> "Properties" -> "Advanced System Settings" -> "Environment variables". Inside the "System variables" box, if it does not contain the variable "CONDA_PREFIX" yet, click on "New" to add it. Example::
+
+	Name of the variable: CONDA_PREFIX
+	Value of the variable: C:\Users\tristan\Anaconda3\envs\tracking
+
+If it already exists, change the value accordingly. Now you should be able to create a Desktop shortcut for TRex and start it with a double-click.

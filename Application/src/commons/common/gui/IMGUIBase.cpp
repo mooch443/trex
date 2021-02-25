@@ -464,9 +464,6 @@ void clear_cache() {
         _fonts[Style::Bold] = load_font(0, "b");
         _fonts[Style::Bold | Style::Italic] = load_font(0, "bi");
         
-        //io.DisplayFramebufferScale = ImVec2(0.5, 0.5);
-        Debug("im_font_scale = %f", im_font_scale);
-        
         _platform->post_init();
         _platform->set_title(title);
         

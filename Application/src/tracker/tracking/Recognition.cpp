@@ -192,7 +192,7 @@ std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const def
 
             // this is now the home folder of python
             std::string sep = "/";
-            auto set = home + ";" + home + "/DLLs;" + home + "/Lib;" + home + "/Scripts;";
+            auto set = home + ";" + home + "/DLLs;" + home + "/Lib;" + home + "/Scripts;" + home + "/Library/bin;" + home + "/Library;";
 
             sep[0] = file::Path::os_sep();
             set = utils::find_replace(set, "/", sep);
@@ -948,7 +948,8 @@ std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const def
                     _detail.set_unavailable_blobs(_detail.unavailable_blobs() + 1);
                     _detail.failed_frame(e.frame, e.fdx);
                     static size_t counter = 0;
-                    Debug("Blob cannot be found (%lu).", ++counter);
+                    if(++counter % 1000 == 0)
+                        Debug("%lu blobs could not be found.", counter);
                     continue;
                 }
                 
@@ -978,7 +979,6 @@ std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const def
                 } else {
                     _detail.set_unavailable_blobs(_detail.unavailable_blobs() + 1);
                     _detail.failed_frame(e.frame, e.fdx);
-                    Debug("Image is nullptr");
                 }
                 
                 if(waiting.size() >= SETTING(gpu_min_elements).value<size_t>() && !_running) {

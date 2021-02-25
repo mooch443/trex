@@ -63,7 +63,6 @@ namespace gui {
               _last_selected_item(-1),
               _stays_toggled(false)
         {
-            Debug("default_line spacing in list is %f (%d)", _line_spacing, Base::default_line_spacing(_font));
             for(auto &item : objs) {
                 _items.push_back(Item<T>(item));
             }

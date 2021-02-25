@@ -1,27 +1,59 @@
 #!/bin/bash
 
+_BUILD_PREFIX=$(cat build_env_setup.sh | grep 'export BUILD=' | cut -d'=' -f2 | cut -d'"' -f2)
+
 cd Application
 mkdir build
 cd build
 
 declare -a CMAKE_PLATFORM_FLAGS
 BUILD_GLFW="OFF"
+echo "GITHUB_WORKFLOW = ${GITHUB_WORKFLOW}"
+echo "ARCH = ${ARCH}"
+echo "CONDA_BUILD_SYSROOT=${CONDA_BUILD_SYSROOT}"
+echo "SDKROOT=${SDKROOT}"
+echo "MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}"
 
 if [ "$(uname)" == "Linux" ]; then
     # Fix up CMake for using conda's sysroot
     # See https://docs.conda.io/projects/conda-build/en/latest/resources/compiler-tools.html?highlight=cmake#an-aside-on-cmake-and-sysroots
     CMAKE_PLATFORM_FLAGS+=("-DCMAKE_TOOLCHAIN_FILE=${RECIPE_DIR}/conda_sysroot.cmake")
+    CMAKE_PLATFORM_FLAGS+=("-DCMAKE_SYSTEM_PROCESSOR=x86_64")
     BUILD_GLFW="ON"
+
+    # new 9.3 compiler sets this to cos7, which does not exist
+    #export _PYTHON_SYSCONFIGDATA_NAME="_sysconfigdata_x86_64_conda_cos6_linux_gnu"
+    #echo "ARCH = ${ARCH}"
+    #echo "_BUILD_PREFIX: ${_BUILD_PREFIX} BUILD_PREFIX: ${BUILD_PREFIX} PREFIX: ${PREFIX}"
+    #CMAKE_PLATFORM_FLAGS+=("-DCMAKE_PREFIX_PATH=${PREFIX}/${_BUILD_PREFIX}/sysroot/usr/lib64;${PREFIX}/${_BUILD_PREFIX}/sysroot/usr/include;${PREFIX}")
 else
-    echo "CONDA_BUILD_SYSROOT=$CONDA_BUILD_SYSROOT. forcing it."
-    export CONDA_BUILD_SYSROOT="/opt/MacOSX10.9.sdk"
+    if [ "${ARCH}" == "arm64" ]; then
+        echo "Using up-to-date sysroot for arm64 arch."
+        export CONDA_BUILD_SYSROOT="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
+    else
+        ARCH="x86_64"
+        if [ ! -z ${GITHUB_WORKFLOW+x} ]; then
+            echo "Detected GITHUB_WORKFLOW environment: ${GITHUB_WORKFLOW}"
+            ls -la /Applications/Xcode*.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs
+            export CONDA_BUILD_SYSROOT="/Applications/Xcode_11.4.1.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk"
+            export SDKROOT="${CONDA_BUILD_SYSROOT}"
+            export MACOSX_DEPLOYMENT_TARGET="10.15"
+            CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}")
+        else
+            echo "No GITHUB_WORKFLOW detected."
+            export CONDA_BUILD_SYSROOT="/opt/MacOSX10.13.sdk"
+            export MACOSX_DEPLOYMENT_TARGET="10.13"
+            CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=10.13")
+        fi
+    fi
     CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_SYSROOT=${CONDA_BUILD_SYSROOT}")
+    CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_ARCHITECTURES=${ARCH}")
     BUILD_GLFW="ON"
 fi
 
 echo "Using system flags: ${CMAKE_PLATFORM_FLAGS[@]}"
-
-PKG_CONFIG_PATH="${PREFIX}/lib/pkgconfig;${BUILD_PREFIX}/${HOST}/sysroot/usr/lib64/pkgconfig" cmake .. -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
+PKG_CONFIG_PATH="${PREFIX}/lib/pkgconfig:${BUILD_PREFIX}/${HOST}/sysroot/usr/lib64/pkgconfig" cmake .. \
+    -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
     -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
     -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
     -DCMAKE_BUILD_TYPE=Release \

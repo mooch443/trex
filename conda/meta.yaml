@@ -5,13 +5,19 @@
 package:
   name: trex
   version: "{{ version }}"
-  
+
+channels:
+  - conda-forge [arm64]
+  - nodefaults [arm64]
 source:
     git_url: https://github.com/mooch443/trex.git
     git_depth: 1
+    git_rev: new_conda_buildsys
 
 build:
-    number: 13
+    script_env:
+      - GITHUB_WORKFLOW
+    number: 14
     string: "{{ hash }}_{{ number }}"
     run_exports:
         - {{ pin_compatible('ffmpeg', min_pin='x.x.x', max_pin='x.x.x') }}
@@ -36,11 +42,12 @@ requirements:
     - pkg-config            # [not win]
     - jom                   # [win]
     - make                  # [unix]
-    - python # [win]
-    - python =3.6 # [not win]
+    - python # [not arm64]
+    - python=3.8 # [osx and arm64]
     - {{ compiler('c') }}
     - {{ compiler('cxx') }}
     - cmake >=3.14
+    - git
     - xorg-libxcursor # [linux]
     - xorg-libx11 # [linux]
     - xorg-libxrandr # [linux]
@@ -69,23 +76,47 @@ requirements:
     - {{ cdt('libXdamage-devel') }}            # [linux]
     - {{ cdt('libXau-devel') }}                # [linux]
     - {{ cdt('libuuid-devel') }} # [linux]
-    
+
   host:
     - pthread-stubs  # [linux]
     - ffmpeg
-    - python # [win]
-    - python =3.6 # [not win]
+    - python # [not arm64]
+    - python=3.8 # [osx and arm64]
     - nomkl # [osx]
     
   run:
-    - tensorflow-gpu ==1.13.* # [not osx]
-    - tensorflow ==1.13.* # [osx]
-    - keras
+    - tensorflow-gpu =2.* # [linux]
+    - tensorflow-gpu =2.3.* # [win]
+    - cudatoolkit =10.1 # [win]
+    - cudnn ==7.6.5 # [win]
+    - tensorflow =2.* # [osx and not arm64]
     - ffmpeg
-    - python # [win]
-    - python =3.6 # [not win]
+    - numpy # [osx and arm64]
+    - python # [not arm64]
+    - python=3.8 # [osx and arm64]
     - nomkl # [osx]
     - xorg-libx11 # [linux]
+    - grpcio # [arm64]
+    - h5py # [arm64]
+    - ipython # [arm64]
+    - pip=20.2.4  # [arm64]
+    - scipy  # [arm64]
+    - termcolor # [arm64]
+    - typeguard # [arm64]
+    - wheel # [arm64]
+    - absl-py # [arm64]
+    - astunparse # [arm64]
+    - python-flatbuffers # [arm64]
+    - gast # [arm64]
+    - google-pasta # [arm64]
+    - keras-preprocessing # [arm64]
+    - opt_einsum # [arm64]
+    - protobuf # [arm64]
+    - tensorboard # [arm64]
+    - tensorflow-estimator # [arm64]
+    - termcolor # [arm64]
+    - typing_extensions # [arm64]
+    - wrapt # [arm64]
 
 about:
   home: https://trex.run
