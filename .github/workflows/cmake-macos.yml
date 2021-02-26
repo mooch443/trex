@@ -1,6 +1,12 @@
 name: CondaBuildMacOS
 
-on: [push]
+on:
+  push:
+    branches:
+      - 'master'
+      - 'dev'
+  pull_request:
+      - 'master'
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
@@ -47,6 +53,13 @@ jobs:
         conda info
         conda list
         cd $GITHUB_WORKSPACE/conda
+        cat meta.yaml
+        echo "running command:"
+        echo p=${GITHUB_REF##*/} sed -i '' -e "s/master/"$p"/g" meta.yaml
+        p=${GITHUB_REF##*/}; sed -i '' -e "s/master/"$p"/g" meta.yaml
+        echo "running conda build"
+        cat meta.yaml
         conda build .
+      run: |
         echo $CONDA_PREFIX
         conda create -y -n test -c $CONDA_PREFIX/conda-bld/ trex && conda activate test && pvinfo -opencv_ffmpeg_support
