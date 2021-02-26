@@ -34,7 +34,7 @@ jobs:
         environment-file: .github/environment.yml
         activate-environment: tracking
         python-version: ${{ matrix.python-version }}
-        channels: main,conda-forge
+        channels: main
         auto-activate-base: true
         auto-update-conda: true
         use-only-tar-bz2: true
@@ -46,8 +46,5 @@ jobs:
         conda list
         cd $GITHUB_WORKSPACE/conda
         conda build . -c main -c conda-forge
-        conda create -y -n test -c main -c conda-forge -c local trex && conda activate test && pvinfo -opencv_ffmpeg_support
-    - shell: pwsh
-      run: |
-        conda info
-        conda list
+        echo $CONDA_PREFIX
+        conda create -y -n test -c $CONDA_PREFIX/conda-bld/ trex && conda activate test && pvinfo -opencv_ffmpeg_support
