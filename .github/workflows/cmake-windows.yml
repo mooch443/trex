@@ -5,9 +5,6 @@ on:
     branches:
       - master
       - dev
-  pull_request:
-    branches:
-      - master
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
@@ -55,8 +52,8 @@ jobs:
         echo "::endgroup::"
         echo "::group::Fix Meta"
         cd $GITHUB_WORKSPACE/conda
-        echo "checkout out $GITHUB_SHA"
-        sed -i -e 's+master+'$GITHUB_SHA'+g' meta.yaml
+        p=${GITHUB_REF##*/}
+        sed -i -e 's+master+'$p'+g' meta.yaml
         cat meta.yaml
         echo "::endgroup::"
         echo "::group::Build"
