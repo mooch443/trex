@@ -29,7 +29,11 @@ if [ "$(uname)" == "Linux" ]; then
 else
     if [ "${ARCH}" == "arm64" ]; then
         echo "Using up-to-date sysroot for arm64 arch."
-        export CONDA_BUILD_SYSROOT="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
+        export MACOSX_DEPLOYMENT_TARGET="11.0"
+
+        export CONDA_BUILD_SYSROOT=$(ls -d /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.*.sdk | tail -n1)
+        export SDKROOT="${CONDA_BUILD_SYSROOT}"
+        CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}")
     else
         ARCH="x86_64"
         if [ ! -z ${GITHUB_WORKFLOW+x} ]; then
@@ -51,8 +55,12 @@ else
     BUILD_GLFW="ON"
 fi
 
+export PKG_CONFIG_PATH="${PREFIX}/lib/pkgconfig:${BUILD_PREFIX}/${HOST}/sysroot/usr/lib64/pkgconfig:${PKG_CONFIG_PATH}"
+export PKG_CONFIG_LIBDIR="${PKG_CONFIG_PATH}"
+echo "PKG_CONFIG_PATH=${PKG_CONFIG_PATH}"
+
 echo "Using system flags: ${CMAKE_PLATFORM_FLAGS[@]}"
-PKG_CONFIG_PATH="${PREFIX}/lib/pkgconfig:${BUILD_PREFIX}/${HOST}/sysroot/usr/lib64/pkgconfig" cmake .. \
+cmake .. \
     -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
     -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
     -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \

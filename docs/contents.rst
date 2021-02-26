@@ -11,6 +11,8 @@ Welcome to TRex's documentation!
 * **TGrabs**: Record or convert existing videos, perform live-tracking and closed-loop experiments
 * **TRex**: Track converted videos (in PV format), use the automatic visual recognition, explore the data with visual helpers, export task-specific data, and adapt tracking parameters to specific use-cases
 
+See :doc:`install` and :doc:`run` for instructions on how to install and use our software.
+
 .. raw:: html
 
 	<video autoplay muted loop playsinline id="myVideo" style="position: relative; padding-bottom: 15px; height: 0; overflow: hidden; max-width: 100%; height: auto;">

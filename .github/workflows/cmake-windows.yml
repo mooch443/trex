@@ -1,6 +1,10 @@
 name: CondaBuildWindows
 
-on: [push]
+on:
+  push:
+    branches:
+      - master
+      - dev
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
@@ -42,7 +46,22 @@ jobs:
       shell: bash -l {0}
       working-directory: ${{runner.workspace}}
       run: |
+        echo "::group::Info"
         conda info
         conda list
+        echo "::endgroup::"
+        echo "::group::Fix Meta"
         cd $GITHUB_WORKSPACE/conda
+        p=${GITHUB_REF##*/}
+        sed -i -e 's+master+'$p'+g' meta.yaml
+        cat meta.yaml
+        echo "::endgroup::"
+        echo "::group::Build"
         conda build .
+        echo "::endgroup::"
+        echo "::group::Test FFMPEG"
+        echo $CONDA_PREFIX
+        conda create -y -n test -c $CONDA_PREFIX/conda-bld/ trex
+        conda activate test
+        pvinfo -opencv_ffmpeg_support
+        echo "::endgroup::"

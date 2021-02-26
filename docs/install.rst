@@ -31,7 +31,7 @@ If you own a new Mac with an Apple Silicone CPU, the Intel version (above) works
 
 	conda create -n tracking -c trexing trex  # macOS (arm64)
 
-There is no official tensorflow package yet, which is why |trex| will not allow you to use machine learning right away. But -- yay -- Apple provides their own version for macOS including a native ML Compute (`blog.tensorflow.com <https://blog.tensorflow.org/2020/11/accelerating-tensorflow-performance-on-mac.html>`_) backend, which has shown quite a bit of potential. My new M1 MacBook (2020), for example, only needs ~58ms/step where (with the same data and code) my NVIDIA Geforce 1070 accelerated Windows PC needs roughly ~128ms/step. To install tensorflow inside your activated environment, just run::
+There is no official tensorflow package yet, which is why |trex| will not allow you to use machine learning right away. But -- yay -- Apple provides their own version for macOS including a native ML Compute (`blog.tensorflow.com <https://blog.tensorflow.org/2020/11/accelerating-tensorflow-performance-on-mac.html>`_) backend, which has shown quite a bit of potential. An Apple Silicone MacBook (2020) only needs ~50ms/step and (with the same data and code) is not much slower than my fast i7 PC with an NVIDIA Geforce 1070 -- running at roughly ~21ms/step. To install tensorflow inside your activated environment, just run::
 
 	pip install --upgrade --force --no-dependencies https://github.com/apple/tensorflow_macos/releases/download/v0.1alpha2/tensorflow_macos-0.1a2-cp38-cp38-macosx_11_0_arm64.whl https://github.com/apple/tensorflow_macos/releases/download/v0.1alpha2/tensorflow_addons_macos-0.1a2-cp38-cp38-macosx_11_0_arm64.whl
 
@@ -64,7 +64,7 @@ Now, from within that folder, run::
 	./build_conda_package.bat # Windows
 	./build_conda_package.sh  # Linux, macOS
 
-This runs ``conda build .``, which builds the program according to all the settings inside ``meta.yaml`` (for dependencies), using ``build.sh`` (or ``bld.bat`` on Windows) to configure CMake. If you want to enable/disable certain features (e.g. use the OpenCV from within the conda environment, etc.) the build script, for your OS, is the place where you can do that.
+This runs ``conda build .``, which builds the program according to all the settings inside ``meta.yaml`` (for dependencies), using ``build.sh`` (or ``bld.bat`` on Windows) to configure CMake. If you want to enable/disable certain features (e.g. use a locally installed OpenCV library, enable the Pylon SDK, etc.) this build script is the place where you can do that. Although beware that you may need to add absolute paths to the cmake call (e.g. adding folders to ``CMAKE_PREFIX_PATH``) so that it can find all your locally installed libraries -- in which case your conda package will probably not be portable.
 
 After compilation was successful, |trex| can be installed using::
 
@@ -94,7 +94,7 @@ As well as the general requirements:
 
 The easiest way to ensure that all requirements are met, is by using conda to create a new environment::
 
-	conda create -n tracking cmake ffmpeg tensorflow=2 opencv
+	conda create -n tracking -c conda-forge cmake ffmpeg tensorflow=2 cxx-compiler c-compiler glfw mesa-libgl-devel-cos6-x86_64 libxdamage-devel-cos6-x86_64 libxi-devel-cos6-x86_64 libxxf86vm-cos6-x86_64 libselinux-devel-cos6-x86_64 libuuid-devel-cos6-x86_64 mesa-libgl-devel-cos6-x86_64
 
 If your GPU is supported by TensorFlow, you can modify the above line by appending ``-gpu`` to ``tensorflow`` to get ``tensorflow-gpu=2``.
 	
