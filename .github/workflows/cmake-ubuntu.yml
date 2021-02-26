@@ -56,7 +56,7 @@ jobs:
         echo "running command:"
         p=${GITHUB_REF##*/}
         echo "running without second quotes: sed -i \'\' -e \"s/master/\"$p\"/g\" meta.yaml"
-        sed -i \'\' -e "s/master/"$p"/g" meta.yaml
+        sed -i -e 's+master+'$p'+g' meta.yaml
         echo "running conda build"
         cat meta.yaml
         conda build . -c main -c conda-forge
