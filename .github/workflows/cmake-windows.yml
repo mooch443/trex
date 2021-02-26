@@ -59,6 +59,5 @@ jobs:
         echo "running conda build"
         cat meta.yaml
         conda build .
-      run: |
         echo $CONDA_PREFIX
         conda create -y -n test -c $CONDA_PREFIX/conda-bld/ trex && conda activate test && pvinfo -opencv_ffmpeg_support
