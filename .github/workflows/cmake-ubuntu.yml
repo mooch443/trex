@@ -60,4 +60,4 @@ jobs:
         conda build . -c main -c conda-forge
       run: |
         echo $CONDA_PREFIX
-        conda create -y -n test -c $CONDA_PREFIX/conda-bld/ trex && conda activate test && pvinfo -opencv_ffmpeg_support
+        conda create -y -n test -c main -c conda-forge -c $CONDA_PREFIX/conda-bld/ trex && conda activate test && pvinfo -opencv_ffmpeg_support
