@@ -46,3 +46,4 @@ jobs:
         conda list
         cd $GITHUB_WORKSPACE/conda
         conda build .
+        conda create -y -n test -c local trex && conda activate test && pvinfo -opencv_ffmpeg_support

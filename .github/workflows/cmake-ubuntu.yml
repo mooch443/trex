@@ -46,6 +46,7 @@ jobs:
         conda list
         cd $GITHUB_WORKSPACE/conda
         conda build . -c main -c conda-forge
+        conda create -y -n test -c main -c conda-forge -c local trex && conda activate test && pvinfo -opencv_ffmpeg_support
     - shell: pwsh
       run: |
         conda info

@@ -12,6 +12,7 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import numpy as np
 import TRex
 
+# from https://github.com/umbertogriffo/focal-loss-keras
 def binary_focal_loss(gamma=2., alpha=.25):
     """
     Binary form of focal loss.
