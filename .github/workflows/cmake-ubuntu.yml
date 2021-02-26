@@ -3,10 +3,11 @@ name: CondaBuildLinux
 on:
   push:
     branches:
-      - 'master'
-      - 'dev'
+      - master
+      - dev
   pull_request:
-      - 'master'
+    branches:
+      - master
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
