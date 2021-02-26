@@ -54,8 +54,9 @@ jobs:
         cd $GITHUB_WORKSPACE/conda
         cat meta.yaml
         echo "running command:"
-        echo p=${GITHUB_REF##*/} sed -i '' -e "s/master/"$p"/g" meta.yaml
-        p=${GITHUB_REF##*/}; sed -i '' -e "s/master/"$p"/g" meta.yaml
+        p=${GITHUB_REF##*/}
+        echo sed -i \'\' -e "s/master/"$p"/g" meta.yaml
+        sed -i \'\' -e "s/master/"$p"/g" meta.yaml
         echo "running conda build"
         cat meta.yaml
         conda build .
