@@ -94,7 +94,7 @@ As well as the general requirements:
 
 The easiest way to ensure that all requirements are met, is by using conda to create a new environment::
 
-	conda create -n tracking -c conda-forge cmake ffmpeg tensorflow=2 cxx-compiler c-compiler glfw mesa-libgl-devel-cos6-x86_64 libxdamage-devel-cos6-x86_64 libxi-devel-cos6-x86_64 libxxf86vm-cos6-x86_64 libselinux-devel-cos6-x86_64
+	conda create -n tracking -c conda-forge cmake ffmpeg tensorflow=2 cxx-compiler c-compiler glfw mesa-libgl-devel-cos6-x86_64 libxdamage-devel-cos6-x86_64 libxi-devel-cos6-x86_64 libxxf86vm-cos6-x86_64 libselinux-devel-cos6-x86_64 libuuid-devel-cos6-x86_64 mesa-libgl-devel-cos6-x86_64
 
 If your GPU is supported by TensorFlow, you can modify the above line by appending ``-gpu`` to ``tensorflow`` to get ``tensorflow-gpu=2``.
 	
