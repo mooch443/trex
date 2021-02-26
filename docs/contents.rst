@@ -1,7 +1,7 @@
 .. include:: names.rst
 
 Welcome to TRex's documentation!
-================================
+################################
 
 .. NOTE::
 	This page (and the github repository at https://github.com/mooch443/trex) will be updated frequently at the moment, since |trex| is still in active development. If you find any issues, please report them using the github issue tracker!
@@ -13,6 +13,23 @@ Welcome to TRex's documentation!
 
 See :doc:`install` and :doc:`run` for instructions on how to install and use our software.
 
+
+Reference
+=========
+
+If you use this software in your work, please cite our `open-access paper <https://elifesciences.org/articles/64000>`_:
+
+.. code:: raw
+
+   @article{walter2020trex,
+      author = {Walter, Tristan and Couzin, Iain D},
+      title = {TRex, a fast multi-animal tracking system with markerless identification, 2D body posture estimation and visual field reconstruction},
+      year = {2021},
+      doi = {10.7554/eLife.64000},
+      publisher = {eLife Sciences Publications Limited},
+      URL = {https://elifesciences.org/articles/64000}
+   }
+
 .. raw:: html
 
 	<video autoplay muted loop playsinline id="myVideo" style="position: relative; padding-bottom: 15px; height: 0; overflow: hidden; max-width: 100%; height: auto;">
@@ -22,7 +39,7 @@ See :doc:`install` and :doc:`run` for instructions on how to install and use our
 	</video>
 
 Workflow
---------
+=========
 
 |grabs| always has to be used first. |trex| is optional in some cases. Use-cases where |trex| is not required include:
 
