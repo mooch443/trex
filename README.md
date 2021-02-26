@@ -73,15 +73,14 @@ Released under the GPLv3 License (see [LICENSE](https://github.com/mooch443/trex
 
 # Reference
 
-If you use this software in your work, please cite our [pre-print](http://preprint.trex.run):
+If you use this software in your work, please cite our [open-access paper](https://elifesciences.org/articles/64000):
 ```
   @article{walter2020trex,
     author = {Walter, Tristan and Couzin, Iain D},
     title = {TRex, a fast multi-animal tracking system with markerless identification, 2D body posture estimation and visual field reconstruction},
-    year = {2020},
-    doi = {10.1101/2020.10.14.338996},
-    publisher = {Cold Spring Harbor Laboratory},
-    URL = {https://www.biorxiv.org/content/early/2020/10/15/2020.10.14.338996},
-    journal = {bioRxiv}
+    year = {2021},
+    doi = {10.7554/eLife.64000},
+    publisher = {eLife Sciences Publications Limited},
+    URL = {https://elifesciences.org/articles/64000}
   }
 ```
