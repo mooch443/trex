@@ -18,16 +18,14 @@ namespace ocl {
     static std::map<decltype(std::this_thread::get_id()), cv::ocl::Context> ocl_context;
 #endif
     
-    void init_ocl() {
+    bool init_ocl() {
 #if CV_MAJOR_VERSION >= 3
         auto id = std::this_thread::get_id();
         std::lock_guard<std::mutex> m(mutex);
         
         if(ocl_context.find(id) != ocl_context.end()) {
-            return;
+            return true;
         }
-        
-        auto &context = ocl_context[id];
         
         if(cv::cuda::getCudaEnabledDeviceCount() > 0) {
             static bool printed = false;
@@ -42,7 +40,7 @@ namespace ocl {
         
         if(!cv::ocl::haveOpenCL()) {
 			Except("No OCL devices available. Please check your graphics drivers and point the PATH variable to the appropriate folders.");
-            return;
+            return false;
         }
         assert(cv::ocl::haveOpenCL());
         cv::ocl::setUseOpenCL(true);
@@ -63,7 +61,7 @@ namespace ocl {
 			}
 		}
 #endif
-		context = cv::ocl::Context::getDefault();
+		auto context = cv::ocl::Context::getDefault();
 
 		cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_SILENT);
 		if (!context.create(cv::ocl::Device::TYPE_DGPU) && !context.create(cv::ocl::Device::TYPE_GPU)) {
@@ -86,9 +84,12 @@ namespace ocl {
 
 			if (!context.create(cv::ocl::Device::TYPE_ALL)) {
 				cout << "Failed creating any OCL context." << std::endl;
-				return;
-			}
+				return false;
+            } else {
+                cout << "Created a generic OCL context." << std::endl;
+            }
 		}
+        
 		cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_ERROR);
         
         cv::ocl::Device(context.device(0));
@@ -97,6 +98,10 @@ namespace ocl {
         {
             c->setMaxReservedSize(0);
         }
+        
+        ocl_context[id] = std::move(context);
+        
+        return true;
 #endif
     }
 }

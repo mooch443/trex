@@ -1,5 +1,5 @@
 #pragma once
 
 namespace ocl {
-    void init_ocl();
+    bool init_ocl();
 }

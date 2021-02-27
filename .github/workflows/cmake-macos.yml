@@ -66,4 +66,5 @@ jobs:
         conda create -y -n test -c $CONDA_PREFIX/conda-bld/ trex
         conda activate test
         pvinfo -opencv_ffmpeg_support
+        pvinfo -opencv_opencl_support
         echo "::endgroup::"
