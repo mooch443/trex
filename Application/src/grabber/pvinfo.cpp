@@ -277,7 +277,7 @@ int main(int argc, char**argv) {
                             if(utils::contains(line, "OpenCL:")) {
                                 if(utils::contains(line, "YES")) {
                                     Debug("Has OpenCL support.");
-                                    return 0 || !ocl::init_ocl();
+                                    return 0;
                                 } else {
                                     Debug("Does not have OpenCL support.");
                                 }

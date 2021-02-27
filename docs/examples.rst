@@ -184,3 +184,20 @@ We can now map from segments (meta) to tracklet images from the big file
     9 19306 - 19316 (11, 80, 80)
     
 
+Create a short clip of objects with or w/o background after converting to PV
+****************************************************************************
+
+The tool ``pvconvert``, included in the standard install of |trex|, can be used to achieve this. It reads the PV file format and exports sequences of images. For example::
+
+	pvconvert -i /Volumes/Public/videos/group_1  \
+		-disable_background                  \
+		-start_frame 0 -end_frame 20         \
+		-o /Volumes/Public/frames            \
+		-as_gif                              \
+		-crop [0.6,0.28,0.15,0.55]           \
+		-scale 0.75
+
+produces this gif, which is cropped, scaled, short, and has lost its background:
+
+.. image:: animated_frames.gif
+
