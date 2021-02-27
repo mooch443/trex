@@ -469,7 +469,7 @@ int main(int argc, char** argv)
                                 ss << key << ";";
                             }
                             
-                            auto rst = cmn::settings::help_restructured_text("TGrabs parameters", GlobalSettings::defaults(), GlobalSettings::docs(), GlobalSettings::access_levels(), ":noindex:", ss.str(), ".. include:: names.rst\n\n.. NOTE::\n\t|grabs| has a live-tracking feature, allowing users to extract positions and postures of individuals while recording/converting. For this process, all parameters relevant for tracking are available in |grabs| as well -- for a reference of those, please refer to :doc:`parameters_trex`.\n");
+                            auto rst = cmn::settings::help_restructured_text("TGrabs parameters", GlobalSettings::defaults(), GlobalSettings::docs(), GlobalSettings::access_levels(), "", ss.str(), ".. include:: names.rst\n\n.. NOTE::\n\t|grabs| has a live-tracking feature, allowing users to extract positions and postures of individuals while recording/converting. For this process, all parameters relevant for tracking are available in |grabs| as well -- for a reference of those, please refer to :doc:`parameters_trex`.\n");
                             
                             file::Path path = pv::DataLocation::parse("output", "parameters_tgrabs.rst");
                             auto f = path.fopen("wb");

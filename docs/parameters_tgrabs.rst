@@ -8,7 +8,6 @@ TGrabs parameters
 .. NOTE::
 	|grabs| has a live-tracking feature, allowing users to extract positions and postures of individuals while recording/converting. For this process, all parameters relevant for tracking are available in |grabs| as well -- for a reference of those, please refer to :doc:`parameters_trex`.
 .. function:: adaptive_threshold_scale(float)
-	:noindex:
 
 	**default value:** 2
 
@@ -18,7 +17,6 @@ TGrabs parameters
 
 
 .. function:: approximate_length_minutes(uint)
-	:noindex:
 
 	**default value:** 0
 
@@ -29,7 +27,6 @@ TGrabs parameters
 
 
 .. function:: average_samples(uint)
-	:noindex:
 
 	**default value:** 100
 
@@ -40,7 +37,6 @@ TGrabs parameters
 
 
 .. function:: averaging_method(averaging_method_t)
-	:noindex:
 
 	**default value:** mean
 
@@ -56,7 +52,6 @@ TGrabs parameters
 
 
 .. function:: blob_size_range(rangef)
-	:noindex:
 
 	**default value:** [0.01,500000]
 
@@ -66,7 +61,6 @@ TGrabs parameters
 
 
 .. function:: cam_framerate(int)
-	:noindex:
 
 	**default value:** 30
 
@@ -76,7 +70,6 @@ TGrabs parameters
 
 
 .. function:: cam_limit_exposure(int)
-	:noindex:
 
 	**default value:** 5500
 
@@ -86,7 +79,6 @@ TGrabs parameters
 
 
 .. function:: cam_resolution(size<int>)
-	:noindex:
 
 	**default value:** [2048,2048]
 
@@ -96,7 +88,6 @@ TGrabs parameters
 
 
 .. function:: closing_size(int)
-	:noindex:
 
 	**default value:** 3
 
@@ -107,7 +98,6 @@ TGrabs parameters
 
 
 .. function:: color_channel(ulong)
-	:noindex:
 
 	**default value:** 1
 
@@ -117,7 +107,6 @@ TGrabs parameters
 
 
 .. function:: correct_luminance(bool)
-	:noindex:
 
 	**default value:** false
 
@@ -127,7 +116,6 @@ TGrabs parameters
 
 
 .. function:: crop_offsets(offsets)
-	:noindex:
 
 	**default value:** [0,0,0,0]
 
@@ -137,7 +125,6 @@ TGrabs parameters
 
 
 .. function:: crop_window(bool)
-	:noindex:
 
 	**default value:** false
 
@@ -147,7 +134,6 @@ TGrabs parameters
 
 
 .. function:: dilation_size(int)
-	:noindex:
 
 	**default value:** 0
 
@@ -157,7 +143,6 @@ TGrabs parameters
 
 
 .. function:: enable_closed_loop(bool)
-	:noindex:
 
 	**default value:** false
 
@@ -168,7 +153,6 @@ TGrabs parameters
 
 
 .. function:: enable_difference(bool)
-	:noindex:
 
 	**default value:** true
 
@@ -179,7 +163,6 @@ TGrabs parameters
 
 
 .. function:: enable_live_tracking(bool)
-	:noindex:
 
 	**default value:** false
 
@@ -190,7 +173,6 @@ TGrabs parameters
 
 
 .. function:: equalize_histogram(bool)
-	:noindex:
 
 	**default value:** false
 
@@ -200,7 +182,6 @@ TGrabs parameters
 
 
 .. function:: ffmpeg_crf(uint)
-	:noindex:
 
 	**default value:** 20
 
@@ -210,7 +191,6 @@ TGrabs parameters
 
 
 .. function:: grabber_force_settings(bool)
-	:noindex:
 
 	**default value:** false
 
@@ -221,7 +201,6 @@ TGrabs parameters
 
 
 .. function:: grabber_use_threads(bool)
-	:noindex:
 
 	**default value:** true
 
@@ -231,7 +210,6 @@ TGrabs parameters
 
 
 .. function:: image_adjust(bool)
-	:noindex:
 
 	**default value:** false
 
@@ -242,7 +220,6 @@ TGrabs parameters
 
 
 .. function:: image_brightness_increase(float)
-	:noindex:
 
 	**default value:** 0
 
@@ -253,7 +230,6 @@ TGrabs parameters
 
 
 .. function:: image_contrast_increase(float)
-	:noindex:
 
 	**default value:** 3
 
@@ -264,7 +240,6 @@ TGrabs parameters
 
 
 .. function:: image_square_brightness(bool)
-	:noindex:
 
 	**default value:** false
 
@@ -274,7 +249,6 @@ TGrabs parameters
 
 
 .. function:: mask_path(path)
-	:noindex:
 
 	**default value:** ""
 
@@ -284,7 +258,6 @@ TGrabs parameters
 
 
 .. function:: meta_age_days(int)
-	:noindex:
 
 	**default value:** -1
 
@@ -294,7 +267,6 @@ TGrabs parameters
 
 
 .. function:: meta_build(string)
-	:noindex:
 
 	**default value:** ""
 
@@ -304,7 +276,6 @@ TGrabs parameters
 
 
 .. function:: meta_cmd(string)
-	:noindex:
 
 	**default value:** ""
 
@@ -314,7 +285,6 @@ TGrabs parameters
 
 
 .. function:: meta_conditions(string)
-	:noindex:
 
 	**default value:** ""
 
@@ -324,7 +294,6 @@ TGrabs parameters
 
 
 .. function:: meta_conversion_time(string)
-	:noindex:
 
 	**default value:** ""
 
@@ -334,7 +303,6 @@ TGrabs parameters
 
 
 .. function:: meta_misc(string)
-	:noindex:
 
 	**default value:** ""
 
@@ -344,7 +312,6 @@ TGrabs parameters
 
 
 .. function:: meta_species(string)
-	:noindex:
 
 	**default value:** ""
 
@@ -354,7 +321,6 @@ TGrabs parameters
 
 
 .. function:: meta_write_these(array<string>)
-	:noindex:
 
 	**default value:** ["meta_species","meta_age_days","meta_conditions","meta_misc","cam_limit_exposure","meta_real_width","meta_source_path","meta_cmd","meta_build","meta_conversion_time","frame_rate","cam_undistort_vector","cam_matrix"]
 
@@ -364,7 +330,6 @@ TGrabs parameters
 
 
 .. function:: quit_after_average(bool)
-	:noindex:
 
 	**default value:** false
 
@@ -374,7 +339,6 @@ TGrabs parameters
 
 
 .. function:: recording(bool)
-	:noindex:
 
 	**default value:** true
 
@@ -384,7 +348,6 @@ TGrabs parameters
 
 
 .. function:: reset_average(bool)
-	:noindex:
 
 	**default value:** false
 
@@ -394,7 +357,6 @@ TGrabs parameters
 
 
 .. function:: save_raw_movie(bool)
-	:noindex:
 
 	**default value:** false
 
@@ -404,7 +366,6 @@ TGrabs parameters
 
 
 .. function:: stop_after_minutes(uint)
-	:noindex:
 
 	**default value:** 0
 
@@ -414,7 +375,6 @@ TGrabs parameters
 
 
 .. function:: system_memory_limit(uint64)
-	:noindex:
 
 	**default value:** 0
 
@@ -425,7 +385,6 @@ TGrabs parameters
 
 
 .. function:: terminate_error(bool)
-	:noindex:
 
 	**default value:** false
 
@@ -435,7 +394,6 @@ TGrabs parameters
 
 
 .. function:: test_image(string)
-	:noindex:
 
 	**default value:** "checkerboard"
 
@@ -446,7 +404,6 @@ TGrabs parameters
 
 
 .. function:: threshold(int)
-	:noindex:
 
 	**default value:** 9
 
@@ -456,7 +413,6 @@ TGrabs parameters
 
 
 .. function:: threshold_maximum(int)
-	:noindex:
 
 	**default value:** 255
 
@@ -466,7 +422,6 @@ TGrabs parameters
 
 
 .. function:: use_adaptive_threshold(bool)
-	:noindex:
 
 	**default value:** false
 
@@ -476,7 +431,6 @@ TGrabs parameters
 
 
 .. function:: use_closing(bool)
-	:noindex:
 
 	**default value:** false
 
@@ -487,7 +441,6 @@ TGrabs parameters
 
 
 .. function:: video_conversion_range(pair<int,int>)
-	:noindex:
 
 	**default value:** [-1,-1]
 
@@ -497,7 +450,6 @@ TGrabs parameters
 
 
 .. function:: video_source(string)
-	:noindex:
 
 	**default value:** "basler"
 

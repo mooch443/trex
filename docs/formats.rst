@@ -4,13 +4,10 @@
    :maxdepth: 2
 
 File formats
-============
+************
 
-Export
-******
-
-Data
-----
+Positional Data
+===============
 
 Upon hitting the ``S`` key/clicking the export tracking data button in the menu, or when using the ``auto_quit`` option, |trex| will save one file per individual. They are, by default, saved to ``data/[VIDEONAME]_fish[NUMBER].npz`` and contain all of the data fields selected from the export options. These include by default::
 
@@ -61,8 +58,8 @@ If one metric (such as anything posture-related) is not available in a frame -- 
         plt.plot(X[mask], Y[mask])
         plt.show()
 
-Posture
--------
+Posture-data
+============
 
 For each individual, |trex| writes a file ``[FILENAME]_posture_*.npz`` containing the following fields:
 
@@ -95,17 +92,108 @@ For each individual, |trex| writes a file ``[FILENAME]_posture_*.npz`` containin
 	outline_points, "Each outline point consists of X and Y, but each outline can be of a different length. To iterate through these points, one must keep a current index that increases by ``outline_lengths[frame]`` per frame."
 
 Tracklet images
----------------
+===============
 
-(todo)
+Tracklet images can be quite useful when a different software has to perform operations on individual images (or summary-images per segment), like, for example, using DeepLabCut or DeepPoseKit to estimate poses in more detail -- after tracking and visual identification in |trex| have ensured that we know who is whom. Interoperability between the tools can have other advantages, too. Images can be normalized, for example, and become easier to annotate manually -- these altered video sequences can be saved for each individual.
+
+.. image:: collection.gif
+
+The container ``<VIDEO>_tracklet_images.npz`` contains summaries of all consecutive segments for each individual in the form of ``['images', 'meta']``, where ``meta`` is matrix of ``Nx3`` (where ``N`` is the number of segments). The three columns are ID, segment start and segment end (frame numbers). Images is a matrix of ``NxWxH`` depending on the image dimensions set in :func:`recognition_image_size`.
+
+.. code:: ipython3
+
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+Open all images of a certain individual ID
+------------------------------------------
+
+.. code:: ipython3
+
+    with np.load("Videos/data/video_tracklet_images_single_part0.npz") as npz:
+        print(npz.files)
+        
+        images = npz["images"]  # load images
+        ids    = npz["ids"]     # ids have the same length as images
+        frames = npz["frames"]  # the frame for each row
+        
+        # so we can use them as a mask for the images array:
+        print(images[ids == 0].shape)
+        
+        # now draw a median image of this fish. since it is normalized (orientation),
+        # it will be a nice, clean picture of what it looks like most of the time.
+        # if it does not, then your posture settings are probably off.
+        # this only works after successful visual identification + correction of course.
+        plt.figure(figsize=(5,5))
+        plt.imshow(np.median(images[ids == 0], axis=0), cmap="Greys")
+        plt.show()
+
+
+.. parsed-literal::
+
+    ['images', 'frames', 'ids']
+    (19247, 80, 80)
+    
+
+
+.. image:: output_2_1.png
+
+
+Now we want to see that for all individuals
+-------------------------------------------
+
+But we are using the meta tracklet pack for this. It contains only one
+image per consecutive segment.
+
+.. code:: ipython3
+
+    with np.load("Videos/data/video_tracklet_images.npz") as npz:
+        meta = npz["meta"]
+        N = len(np.unique(meta[:, 0])) # how many fish do we have here?
+        
+        # plot all individuals in a row. this will probably be real tiny for many more individuals.
+        f, axes = plt.subplots(1, N, figsize=(5*N, 5))
+        for ax, i in zip(axes, ids):
+            ax.axis('off')
+            ax.imshow(np.median(npz["images"][npz["meta"][:, 0] == i], axis=0), cmap="Greys")
+            ax.set_title(str(i))
+        plt.show()
+
+
+
+.. image:: output_4_0.png
+
+
+We can now map from segments (meta) to tracklet images from the big file
+------------------------------------------------------------------------
+
+.. code:: ipython3
+
+    for ID, start, end in meta:
+        mask = np.logical_and(ids == ID, np.logical_and(frames >= start, frames <= end))
+        print(ID, start,"-",end, images[mask].shape)
+
+
+.. parsed-literal::
+
+    0 0 - 40 (41, 80, 80)
+    0 42 - 50 (9, 80, 80)
+
+    [...]
+    
+    9 19235 - 19242 (8, 80, 80)
+    9 19245 - 19251 (7, 80, 80)
+    9 19252 - 19305 (54, 80, 80)
+    9 19306 - 19316 (11, 80, 80)
+    
 
 Visual fields
--------------
+=============
 
 (todo)
 
 PreprocessedVideo (pv)
-**********************
+======================
 
 Videos in the PV format are structured as follows::
 
