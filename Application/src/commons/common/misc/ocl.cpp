@@ -49,6 +49,22 @@ namespace ocl {
         
 		using namespace std;
 
+#ifndef NDEBUG
+		std::vector<cv::ocl::PlatformInfo> platforms;
+		cv::ocl::getPlatfomsInfo(platforms);
+		for (auto &platform : platforms) {
+			for (int i = 0; i < platform.deviceNumber(); ++i) {
+				cv::ocl::Device device;
+				platform.getDevice(device, i);
+
+				cout << "Device: " << i << endl;
+				cout << "Vendor ID: " << device.vendorName() << endl;
+				cout << "available: " << device.available() << endl << endl;
+			}
+		}
+#endif
+		context = cv::ocl::Context::getDefault();
+
 		cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_SILENT);
 		if (!context.create(cv::ocl::Device::TYPE_DGPU) && !context.create(cv::ocl::Device::TYPE_GPU)) {
 			cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_ERROR);
