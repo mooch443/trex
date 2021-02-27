@@ -301,29 +301,6 @@ int main(int argc, char** argv)
     Debug("Initialized CuVid.");
     
 #endif
-    
-    {
-        using namespace std;
-        
-        cv::ocl::Context context;
-        if (!context.create(cv::ocl::Device::TYPE_DGPU))
-        {
-            if(!context.create(cv::ocl::Device::TYPE_GPU)) {
-                Error("Failed creating integrated/dedicated GPU context. This might be because the GPU memory is full, or there is no GPU present.");
-                //return 1;
-            }
-        }
-       /* cout << context.ndevices() << " GPU devices are detected." << endl;
-        for (size_t i = 0; i < context.ndevices(); i++)
-        {
-            cv::ocl::Device device = context.device(i);
-            cout << "name                 : " << device.name() << endl;
-            cout << "available            : " << device.available() << endl;
-            cout << "imageSupport         : " << device.imageSupport() << endl;
-            cout << "OpenCL_C_Version     : " << device.OpenCL_C_Version() << endl;
-            cout << endl;
-        }*/
-    }
 #endif
 #endif
     

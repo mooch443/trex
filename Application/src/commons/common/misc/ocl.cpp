@@ -5,6 +5,7 @@
 #if CV_MAJOR_VERSION >= 3
 #include <opencv2/core/ocl.hpp>
 #include <opencv2/opencv_modules.hpp>
+#include <opencv2/core/utils/logger.hpp>
 #endif
 
 #if CV_MAJOR_VERSION >= 3
@@ -37,46 +38,42 @@ namespace ocl {
                 printed = true;
             }
             cv::cuda::setDevice(0);
-        }
+		}
         
         if(!cv::ocl::haveOpenCL()) {
-            Except("OpenCL cannot be used.");
+			Except("No OCL devices available. Please check your graphics drivers and point the PATH variable to the appropriate folders.");
             return;
         }
         assert(cv::ocl::haveOpenCL());
         cv::ocl::setUseOpenCL(true);
         
-        using namespace std;
-        
-        if (context.create(cv::ocl::Device::TYPE_DGPU))
-        {
-            //cout << "Failed creating the context..." << endl;
-           // return;
-            // create a dedicated GPU device
-        } else if(!context.create(cv::ocl::Device::TYPE_IGPU)) {
-            // integrated didnt work either
-            cout << "Failed creating integrated GPU context." << std::endl;
-            
-            if(!context.create(cv::ocl::Device::TYPE_ALL)) {
-                cout << "Failed creating any OCL context." << std::endl;
-                return;
-            }
-        }
-        
-#ifndef NDEBUG
-        cout << context.ndevices() << " GPU devices are detected." << endl;
-        for (size_t i = 0; i < context.ndevices(); i++)
-        {
-            cv::ocl::Device device = context.device(i);
-            cout << "name                 : " << device.name() << endl;
-            cout << "available            : " << device.available() << endl;
-            cout << "imageSupport         : " << device.imageSupport() << endl;
-            cout << "OpenCL_C_Version     : " << device.OpenCL_C_Version() << endl;
-            cout << endl;
-        }
-        
-        Debug("Choosing device 0.");
-#endif
+		using namespace std;
+
+		cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_SILENT);
+		if (!context.create(cv::ocl::Device::TYPE_DGPU) && !context.create(cv::ocl::Device::TYPE_GPU)) {
+			cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_ERROR);
+			cout << "Failed creating a GPU context. DGPU:" << (context.create(cv::ocl::Device::TYPE_DGPU)) << " GPU:" << (context.create(cv::ocl::Device::TYPE_GPU)) << std::endl;
+
+			cout << context.ndevices() << " GPU devices are detected." << endl;
+			for (size_t i = 0; i < context.ndevices(); i++)
+			{
+				cv::ocl::Device device = context.device(i);
+				cout << "name                 : " << device.name() << endl;
+				cout << "available            : " << device.available() << endl;
+				cout << "imageSupport         : " << device.imageSupport() << endl;
+				cout << "OpenCL_C_Version     : " << device.OpenCL_C_Version() << endl;
+				cout << "OpenCLVersion        : " << device.OpenCLVersion() << endl;
+				cout << "NVIDIA               : " << device.isNVidia() << endl;
+				cout << "DGPU                 : " << (device.type() == cv::ocl::Device::TYPE_GPU) << endl;
+				cout << endl;
+			}
+
+			if (!context.create(cv::ocl::Device::TYPE_ALL)) {
+				cout << "Failed creating any OCL context." << std::endl;
+				return;
+			}
+		}
+		cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_ERROR);
         
         cv::ocl::Device(context.device(0));
         cv::BufferPoolController* c = cv::ocl::getOpenCLAllocator()->getBufferPoolController();
