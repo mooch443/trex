@@ -3,11 +3,13 @@
 #include <iomanip>
 #include <file/Path.h>
 #include <misc/GlobalSettings.h>
+#include <misc/CommandLine.h>
 
 using namespace file;
 
 ENUM_CLASS(Arguments,
-           i,input,o,output,d,dir, settings, start, end, as_gif, step, scale, disable_background)
+           h,
+           i,input,o,output,d,dir, s,settings, start, end, as_gif, step, scale, disable_background)
 
 int main(int argc, char**argv) {
     pv::DataLocation::register_path("settings", [](file::Path path) -> file::Path {
@@ -38,64 +40,57 @@ int main(int argc, char**argv) {
     SETTING(step) = int(1);
     SETTING(scale) = float(1.0);
     SETTING(use_differences) = false;
-    SETTING(crop) = cv::Rect2f(0, 0, 1, 1);
+    SETTING(crop) = CropOffsets();
     
     GlobalSettings::map().set_do_print(true);
     
-    const char *argptr = argv[0];
+    CommandLine cmd(argc, argv, true);
     
-    for (int i=1; i<argc; i++) {
-        
-        if (argv[i][0] == '-') {
-            argptr = argv[i]+1;
-            
-        } else if(Arguments::has(argptr)) {
-            switch (Arguments::get(argptr)) {
+    /**
+     * Try to load Settings from the command-line that have been
+     * ignored previously.
+     */
+    cmd.load_settings();
+    
+    for(auto &option : cmd) {
+        if(Arguments::has(option.name)) {
+            switch (Arguments::get(option.name)) {
+                case Arguments::h:
+                    printf("pvconvert\n");
+                    printf("   -i /path/to/pv/file\t\t\tfull path to a .pv file\n");
+                    printf("   -o /path/to/output/folder\tthis is where images will be saved\n");
+                    printf("   -s /path/to/settings\t\t\tadditional settings in .settings format\n");
+                    printf("   -disable_background\t\t\texport objects on black background\n");
+                    printf("   -start_frame index\t\t\tstart conversion from here\n");
+                    printf("   -end_frame index\t\t\t\tend conversion here\n");
+                    printf("   -step N\t\t\t\t\t\tonly save every Nth frame\n");
+                    printf("   -as_gif\t\t\t\t\t\tdon't save as images, save as a single gif\n");
+                    printf("   -scale S\t\t\t\t\t\tscale results by a factor of S (0-1)\n");
+                    printf("   -crop [l,t,r,b]\t\t\t\tcrop percentages from left/top/right/bottom\n");
+                    return 0;
+                    
                 case Arguments::i:
                 case Arguments::input:
-                    SETTING(filename) = Path(argv[i]);
+                    SETTING(filename) = Path(option.value);
                     break;
                     
+                case Arguments::s:
                 case Arguments::settings:
-                    SETTING(settings_file) = Path(argv[i]);
-                    break;
-                    
-                case Arguments::disable_background:
-                    SETTING(disable_background) = std::string(argv[i]) == "true" ? true : false;
+                    SETTING(settings_file) = Path(option.value);
                     break;
                     
                 case Arguments::o:
                 case Arguments::output:
-                    SETTING(output_dir) = Path(argv[i]);
-                    break;
-                    
-                case Arguments::start:
-                    SETTING(start_frame) = (long_t)std::stol(std::string(argv[i]));
-                    break;
-                    
-                case Arguments::end:
-                    SETTING(end_frame) = (long_t)std::stol(std::string(argv[i]));
-                    break;
-                    
-                case Arguments::as_gif:
-                    SETTING(as_gif) = std::string(argv[i]) == "true" ? true : false;
-                    break;
-                    
-                case Arguments::step:
-                    SETTING(step) = std::stoi(std::string(argv[i]));
-                    break;
-                    
-                case Arguments::scale:
-                    SETTING(scale) = std::stof(std::string(argv[i]));
+                    SETTING(output_dir) = Path(option.value);
                     break;
                     
                 case Arguments::d:
                 case Arguments::dir:
-                    SETTING(output_dir) = Path(argv[i]);
+                    SETTING(output_dir) = Path(option.value);
                     break;
                     
                 default:
-                    Warning("Unknown option '%s' with value '%s'", argptr, argv[i]);
+                    Warning("Unknown option '%S' with value '%S'", &option.name, &option.value);
                     break;
             }
         }
@@ -122,24 +117,6 @@ int main(int argc, char**argv) {
     pv::File video(input);
     video.start_reading();
     
-    /**
-     * Try to load Settings from the command-line that have been
-     * ignored previously.
-     */
-    argptr = argv[0];
-    for (int i=1; i<argc; i++) {
-        if(argv[i][0] == '-') {
-            argptr = argv[i]+1;
-        } else if(!Arguments::has(argptr)) {
-            auto keys = GlobalSettings::map().keys();
-            if(contains(keys, std::string(argptr))) {
-                Debug("Setting option '%s' to value '%s'", argptr, argv[i]);
-                
-                sprite::parse_values(GlobalSettings::map(), "{'"+std::string(argptr)+"':"+std::string(argv[i])+"}");
-            }
-        }
-    }
-    
     if(SETTING(end_frame).value<long_t>() == -1) {
         SETTING(end_frame).value<long_t>() = video.length() - 1;
     }
@@ -151,9 +128,6 @@ int main(int argc, char**argv) {
     video.average().copyTo(average);
     if(average.cols == video.size().width && average.rows == video.size().height)
         video.processImage(average, average);
-    
-    //cv::imshow("average", average);
-    //cv::waitKey(1);
     
     long_t frame_index = start_frame;
     const long_t step = SETTING(step).value<int>();
@@ -177,9 +151,8 @@ int main(int argc, char**argv) {
     Debug("Press ENTER to continue...");
     getc(stdin);
     
-    cv::Rect2f tmp = SETTING(crop);
-    cv::Rect2i crop_rect(tmp.x * video.size().width, tmp.y * video.size().height,
-                         tmp.width * video.size().width, tmp.height * video.size().height);
+    CropOffsets tmp = SETTING(crop);
+    auto crop_rect = tmp.toPixels(video.size());
     
     if(SETTING(as_gif)) {
         std::stringstream ss;
@@ -188,7 +161,7 @@ int main(int argc, char**argv) {
         writer = new GifWriter();
         video.read_frame(current_frame,
                          frame_index+step);
-        GifBegin(writer, ss.str().c_str(), crop_rect.width * SETTING(scale).value<float>(), crop_rect.height * SETTING(scale).value<float>(), 0);//(current_frame.timestamp()-prev_time)/1000.0);
+        GifBegin(writer, ss.str().c_str(), crop_rect.width * SETTING(scale).value<float>(), crop_rect.height * SETTING(scale).value<float>(), 1);//(current_frame.timestamp()-prev_time)/1000.0);
     }
     
     bool with_background

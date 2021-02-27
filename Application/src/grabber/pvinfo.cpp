@@ -13,11 +13,12 @@
 #include <misc/Output.h>
 #include <gui/IdentityHeatmap.h>
 #include <opencv2/core/utils/logger.hpp>
+#include <misc/ocl.h>
 
 using namespace cmn;
 
 ENUM_CLASS(Arguments,
-           display_average, i, input, remove, repair_index, fix, quiet,save_background, plain_text, heatmap, auto_parameters, s, p, d, dir, md, opencv_ffmpeg_support)
+           display_average, i, input, remove, repair_index, fix, quiet,save_background, plain_text, heatmap, auto_parameters, s, p, d, dir, md, opencv_ffmpeg_support, opencv_opencl_support)
 
 ENUM_CLASS(parameter_format_t, settings, minimal)
 
@@ -254,6 +255,31 @@ int main(int argc, char**argv) {
                                     return 0;
                                 } else {
                                     Debug("Does not have FFMPEG support.");
+                                }
+                            }
+                            
+                            line = "";
+                        }
+                        
+                        line += str[i];
+                    }
+                    
+                    return 1;
+                }
+                    
+                case Arguments::opencv_opencl_support: {
+                    std::string str = cv::getBuildInformation();
+                    std::string line = "";
+                    Debug("%S", &str);
+                    
+                    for(size_t i=0; i<str.length(); ++i) {
+                        if(str[i] == '\n') {
+                            if(utils::contains(line, "OpenCL:")) {
+                                if(utils::contains(line, "YES")) {
+                                    Debug("Has OpenCL support.");
+                                    return 0;
+                                } else {
+                                    Debug("Does not have OpenCL support.");
                                 }
                             }
                             

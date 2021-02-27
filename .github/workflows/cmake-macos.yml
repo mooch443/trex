@@ -61,9 +61,10 @@ jobs:
         echo "::group::Build"
         conda build .
         echo "::endgroup::"
-        echo "::group::Test FFMPEG"
+        echo "::group::Test"
         echo $CONDA_PREFIX
         conda create -y -n test -c $CONDA_PREFIX/conda-bld/ trex
         conda activate test
         pvinfo -opencv_ffmpeg_support
+        pvinfo -opencv_opencl_support
         echo "::endgroup::"
