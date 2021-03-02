@@ -7,7 +7,7 @@ using namespace file;
 using namespace Output;
 using namespace track;
 
-bool Results::save_events(const Path &filename, std::atomic<float>& percent) const {
+bool Results::save_events(const Path &filename, std::function<void(float)> set_percent) const {
     Tracker::LockGuard guard("save_events");
     auto events = EventAnalysis::events();
     
@@ -40,8 +40,8 @@ bool Results::save_events(const Path &filename, std::atomic<float>& percent) con
             
             written_frames++;
             
-            if(written_frames%100 == 0)
-                percent = double(written_frames) / double(overall_frames);
+            if(written_frames%100 == 0 && set_percent)
+                set_percent(double(written_frames) / double(overall_frames));
         }
         
         

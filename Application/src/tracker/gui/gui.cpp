@@ -4276,7 +4276,7 @@ void GUI::key_event(const gui::Event &event) {
                         U_EXCEPTION("Cannot create folder '%S' for saving fishdata.", &fishdata.str());
                 
                 try {
-                    results.save_events((fishdata / SETTING(filename).value<file::Path>().filename()).str() + "_events", work().percent());
+                    results.save_events((fishdata / SETTING(filename).value<file::Path>().filename()).str() + "_events", [](float percent) { work().set_percent(percent); });
                 } catch(const UtilsException& e) {
                     
                 }

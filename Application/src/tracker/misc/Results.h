@@ -15,7 +15,7 @@ namespace track {
             {}
         
         bool save(const file::Path& filename) const;
-        bool save_events(const file::Path& filename, std::atomic<float>& percent) const;
+        bool save_events(const file::Path& filename, std::function<void(float)> percent = nullptr) const;
     };
 }
 

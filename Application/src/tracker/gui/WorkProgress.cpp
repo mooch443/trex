@@ -4,6 +4,14 @@
 #include <gui/types/StaticText.h>
 #include <gui/types/Entangled.h>
 #include <gui/gui.h>
+#ifdef WIN32
+#include <ShObjIdl_core.h>
+#endif
+#include <gui/IMGUIBase.h>
+#define GLFW_EXPOSE_NATIVE_WGL
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3.h>
+#include <GLFW/glfw3native.h>
 
 namespace gui {
 
@@ -34,7 +42,7 @@ WorkProgress::WorkProgress()
             while(!_queue.empty()) {
                 auto item =  _queue.front();
                 //Debug("Starting item '%S'", &item.name);
-                _percent = 0;
+                set_percent(0);
                 _item = item.name;
                 _description = item.desc;
                 _additional.update([](auto&){});
@@ -121,10 +129,49 @@ void WorkProgress::set_item_abortable(bool abortable) {
 
 void WorkProgress::set_percent(float value) {
     _percent = value;
-}
+#if WIN32
+    if (GUI::instance()->base() && !ptbl) {
+        CoInitialize(NULL);
+        HRESULT hr = CoCreateInstance(CLSID_TaskbarList, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&ptbl));
 
-std::atomic<float>& WorkProgress::percent() {
-    return _percent;
+        if (SUCCEEDED(hr))
+        {
+            HRESULT hr2 = ptbl->HrInit();
+            if (SUCCEEDED(hr2))
+            {
+                Debug("Created TaskBar");
+            }
+            else
+            {
+                ptbl->Release();
+                ptbl = nullptr;
+            }
+        }
+        else
+        {
+            Warning("ITaskbarList3 could not be created.");
+        }
+
+        auto platform = ((gui::IMGUIBase*)GUI::instance()->base())->platform();
+        HWND hwnd = glfwGetWin32Window(platform->window_handle());
+        ptbl->SetProgressState(hwnd, TBPF_NORMAL);
+    }
+
+    if (GUI::instance()->base() && ptbl) {
+        HWND hwnd = glfwGetWin32Window(((gui::IMGUIBase*)GUI::instance()->base())->platform()->window_handle());
+
+        if (value == 0) {
+            ptbl->SetProgressState(hwnd, TBPF_NOPROGRESS);
+        }
+        else {
+            ptbl->SetProgressState(hwnd, TBPF_NORMAL);
+        }
+        ULONGLONG Completed = double(value) * 100, Total = 100;
+        ptbl->SetProgressValue(hwnd, Completed, Total);
+
+        Debug("Completed %lu", Completed);
+    }
+#endif
 }
 
 float WorkProgress::percent() const {
@@ -167,7 +214,7 @@ void WorkProgress::set_progress(const std::string& title, float value, const std
     if(!desc.empty())
         _description = desc;
     if(value >= 0)
-        _percent = value;
+        set_percent(value);
 }
 
 void WorkProgress::update(gui::DrawStructure &base, gui::Section *section) {
