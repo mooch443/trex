@@ -74,6 +74,11 @@ public:
     std::unique_ptr<std::thread> _stale_thread;
     std::condition_variable _stale_variable;
     
+    gui::derived_ptr<Entangled> _mini_bowl;
+    std::vector<std::vector<std::unique_ptr<ExternalImage>>> _blob_images;
+    size_t _blob_image_index;
+    Timer _blob_timer;
+    
     double _screenshot_previous_size;
     
     struct LabeledField {

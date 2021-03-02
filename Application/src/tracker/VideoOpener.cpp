@@ -321,6 +321,23 @@ VideoOpener::VideoOpener() {
     });
     
     _file_chooser->on_update([this](auto&) mutable {
+        if(_blob_timer.elapsed() >= 0.15) {
+            ++_blob_image_index;
+            if(_blob_image_index >= _blob_images.size()) {
+                _blob_image_index = 0;
+            }
+            
+            if(!_blob_images.empty()) {
+                _mini_bowl->update([this](Entangled& e) {
+                    e.advance_wrap(*_background);
+                    for(auto& i : _blob_images.at(_blob_image_index))
+                        e.advance_wrap(*i);
+                });
+            }
+            
+            _blob_timer.reset();
+        }
+        
         Drawable* found = nullptr;
         std::string name;
         std::unique_ptr<sprite::Reference> ref;
@@ -874,8 +891,39 @@ void VideoOpener::select_file(const file::Path &p) {
         video.start_reading();
         auto text = video.get_info(false);
         
-        _background = std::make_shared<ExternalImage>(std::move(std::make_unique<Image>(video.average())));
-        _background->set_scale(Vec2(300 / float(video.average().cols)));
+        track::StaticBackground bg(std::make_shared<Image>(video.average()), nullptr);
+        
+        _mini_bowl = std::make_shared<Entangled>();
+        _mini_bowl->set_scale(Vec2(300 / float(video.average().cols)));
+        
+        _mini_bowl->update([&](Entangled& b){
+            _background = std::make_shared<ExternalImage>(std::move(std::make_unique<Image>(video.average())));
+            b.advance_wrap(*_background);
+            _blob_images.clear();
+            
+            Debug("Mini bowl update (%f scale):", _mini_bowl->scale().x);
+            
+            size_t step = max(1ul, min(video.length() / 100ul, (ushort)video.framerate()));
+            pv::Frame frame;
+            std::vector<Drawable*> children;
+            for(size_t i = 0; i<video.length() && i < step * 100; i += step) {
+                video.read_frame(frame, i);
+                _blob_images.push_back({});
+                
+                for(auto &blob : frame.get_blobs()) {
+                    auto&& [pos, image] = blob->alpha_image(bg, 1);
+                    _blob_images.back().push_back(std::make_unique<ExternalImage>(std::move(image), pos));
+                    
+                    if(i == 0)
+                        b.advance_wrap(*_blob_images.back().back());
+                }
+            }
+            
+            _blob_image_index = 0;
+            _blob_timer.reset();
+            Debug("Done.");
+        });
+        
 
         gui::derived_ptr<gui::Text> info_text = std::make_shared<gui::Text>("Selected", Vec2(), gui::White, gui::Font(0.8f, gui::Style::Bold));
         gui::derived_ptr<gui::StaticText> info_description = std::make_shared<gui::StaticText>(settings::htmlify(text), Vec2(), Size2(300, 600), gui::Font(0.5));
@@ -885,7 +933,7 @@ void VideoOpener::select_file(const file::Path &p) {
             info_text,
             info_description,
             info_2,
-            _background
+            _mini_bowl
         });
         
         _infos->auto_size(Margin{0, 0});

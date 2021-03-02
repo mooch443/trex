@@ -14,6 +14,7 @@ namespace track {
         
     public:
         StaticBackground(const Image::Ptr& image, LuminanceGrid* grid);
+        ~StaticBackground();
         
         int diff(ushort x, ushort y, int value) const override {
             return (*_diff)(_image->data()[x + y * _image->cols], value);

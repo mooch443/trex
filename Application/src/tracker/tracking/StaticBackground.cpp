@@ -19,6 +19,10 @@ namespace track {
         update_callback();
     }
     
+    StaticBackground::~StaticBackground() {
+        GlobalSettings::map().unregister_callback(this);
+    }
+
     void StaticBackground::update_callback() {
         if(!SETTING(quiet))
             Debug("Updating static background difference method.");
