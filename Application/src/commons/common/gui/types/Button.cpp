@@ -32,6 +32,10 @@ namespace gui {
     void Button::set_font(Font font) {
         _text.set_font(font);
     }
+
+    const Font& Button::font() const {
+        return _text.font();
+    }
     
     void Button::update() {
         Color clr(fill_clr());
