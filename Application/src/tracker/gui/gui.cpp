@@ -40,6 +40,7 @@
 #include <gui/IdentityHeatmap.h>
 #include <tracking/ConfirmedCrossings.h>
 #include <gui/DrawMenu.h>
+#include <gui/Label.h>
 
 #if WIN32
 #include <Shellapi.h>
@@ -1389,9 +1390,9 @@ void GUI::draw_grid(gui::DrawStructure &base) {
         void convert(std::shared_ptr<Circle> circle) const {
             circle->set_pos(*_point);
             if(circle->hovered())
-                circle->set_fillclr(Red.alpha(250));
+                circle->set_fill_clr(Red.alpha(250));
             else
-                circle->set_fillclr(Red.alpha(150));
+                circle->set_fill_clr(Red.alpha(150));
             circle->set_radius(5);
             //circle->set_color(Red);
             
@@ -3578,12 +3579,12 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
                     base.add_object(t);
                 }
                 
-                //const Font font(0.8 / (1 - ((1 - _cache.zoom_level) * 0.5)));
-                const Font font(1 / (1 - ((1 - GUI::instance()->cache().zoom_level()) * 0.5)));
-                Vec2 scale = base.scale().reciprocal();//.mul(s->scale().reciprocal());
+                Vec2 scale = 2 * ptr_scale.reciprocal();
                 auto mpos = (_gui.mouse_position() - ptr_pos).mul(ptr_scale.reciprocal());
                 const float max_distance = sqrtf(SQR((_average_image.cols * 0.25) / ptr_scale.x) + SQR((_average_image.rows * 0.25) / ptr_scale.y));
                 size_t displayed = 0;
+                
+                static std::map<uint32_t, std::tuple<bool, std::unique_ptr<Circle>, std::unique_ptr<Label>>> _blob_labels;
                 
                 auto draw_blob = [&](pv::BlobPtr blob, float real_size, bool active){
                     if(displayed >= maximum_number_texts && !active)
@@ -3603,65 +3604,47 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
                         d = 0;
                     else d = 1;
                     
-                    Circle *ptr;
+                    std::stringstream ss;
+                    ss << " <a>size: " << real_size << (blob->split() ? " split" : "");
+                    if(blob->tried_to_split())
+                        ss << " tried";
+                    ss << "</a>";
                     
-                    //if(d >= max_distance || d <= max_distance * 0.1)
-                    if(d > 0 && real_size > 0) {
-                        std::stringstream ss;
-                        ss << " size: " << real_size << (blob->split() ? " split" : "");
-                        if(blob->tried_to_split())
-                            ss << " tried";
+                    if(!_blob_labels.count(blob->blob_id())) {
+                        _blob_labels[blob->blob_id()] = { true, std::make_unique<Circle>(), std::make_unique<Label>(blob->name() + " " + ss.str(), blob->bounds(), blob->center()) };
+                        auto & [visited, circ, label] = _blob_labels[blob->blob_id()];
                         
-                        auto text = base.text(blob->name()+" ",
-                                              Vec2(blob->hor_lines().front().x0, blob->hor_lines().front().y) - Vec2(0, Base::default_line_spacing(font)), (active ? Cyan : Gray).alpha(255 * d), font, scale);
-                        
-                        base.text(ss.str(), text->pos() + Vec2(text->local_bounds().width + 2, 0), White.alpha(255 * d), font, scale);
-                        
-                        Vec2 text_center = text->pos() + text->size() * 0.5;
-                        Vec2 direction = blob->center() - text_center;
-                        direction /= length(direction);
-                        
-                        base.line(text_center + direction * text->height(), blob->center(), 1, (active ? Cyan : Gray).alpha(150 * d));
-                        ptr = base.circle(blob->center(), 3 * scale.x, White.alpha(255 * d));
-                        
-                        ++displayed;
-                    } else
-                        ptr = base.circle(blob->center(), 3 * scale.x, White.alpha(255 * 0.5));
-                    
-                    base.rect(blob->bounds(), Transparent, White.alpha(100));
-                    
-                    auto id = blob->blob_id();
-                    auto custom = ptr->custom_data("blob_id");
-                    if(!custom) {
-                        ptr->add_custom_data("blob_id", (void*)uint64_t(id));
-                        ptr->set_name("blob_"+Meta::toStr(id));
-                    }
-                    
-                    if(custom != (void*)uint64_t(id)) {
-                        ptr->set_clickable(true);
-                        ptr->clear_event_handlers();
-                        ptr->on_click([id, ptr](auto) {
-                            auto pos = ptr->pos();
+                        circ->set_clickable(true);
+                        circ->set_radius(3);
+                        //circ->clear_event_handlers();
+                        circ->on_click([id = blob->blob_id(), circ = circ.get()](auto) mutable {
+                            auto pos = circ->pos();
                             Debug("Clicked %d %f,%f", id, pos.x, pos.y);
                             GUI::instance()->set_clicked_blob_id(id);
                             GUI::instance()->set_clicked_blob_frame(GUI::frame());
                             GUI::cache().set_blobs_dirty();
                         });
+                        Debug("Create");
                     }
                     
-                    for(auto&& [key, image] : cache().display_blobs) {
-                        if((uint64_t)key == id) {
-                            if(!image->clickable())
-                                image->set_clickable(true);
-                            if(image->hovered()) {
-                                auto small_font = font;
-                                small_font.size *= 0.5;
-                                auto t = base.text(Meta::toStr(blob->bounds().size()), blob->bounds().pos() + Vec2(5), White.alpha(200), small_font, scale);
-                                base.text(Meta::toStr(blob->bounds().width * blob->bounds().height * FAST_SETTINGS(cm_per_pixel))+"cm^2", blob->bounds().pos() + Vec2(5, 5 + t->height()), White.alpha(200), small_font, scale);
-                            }
-                            
-                            break;
-                        }
+                    auto & [visited, circ, label] = _blob_labels[blob->blob_id()];
+                    visited = true;
+                    
+                    circ->set_scale(scale / GUI_SETTINGS(gui_interface_scale));
+                    
+                    if(circ->hovered())
+                        circ->set_fill_clr(White.alpha(205 * d));
+                    else
+                        circ->set_fill_clr(White.alpha(150 * d));
+                    circ->set_line_clr(White.alpha(50));
+                    circ->set_pos(blob->center());
+                    
+                    base.rect(blob->bounds(), Transparent, White.alpha(100));
+                    base.wrap_object(*circ);
+                    
+                    if(d > 0 && real_size > 0) {
+                        label->update(base, static_cast<Section*>(ptr), d, !active);
+                        ++displayed;
                     }
                 };
                 
@@ -3689,6 +3672,12 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
                 //    auto blob = _cache.processed_frame.blobs.at(i);
                 for(auto && [d, blob, active] : draw_order) {
                     draw_blob(blob, blob->recount(-1), active);
+                }
+                
+                for(auto it = _blob_labels.begin(); it != _blob_labels.end(); ) {
+                    if(!std::get<0>(*it)) {
+                        it = _blob_labels.erase(it);
+                    } else ++it;
                 }
             }
         });

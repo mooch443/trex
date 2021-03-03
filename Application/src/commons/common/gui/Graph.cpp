@@ -474,11 +474,11 @@ void Graph::highlight_point(const std::string &name, float x) {
 void Graph::highlight_point(std::shared_ptr<Circle> ptr) {
     if(_last_hovered_circle != ptr) {
         if(_last_hovered_circle) {
-            _last_hovered_circle->set_fillclr(Transparent);
+            _last_hovered_circle->set_fill_clr(Transparent);
             _last_hovered_circle->set_radius(3);
             _last_hovered_circle->set_clickable(true);
         }
-        ptr->set_fillclr(White);
+        ptr->set_fill_clr(White);
         ptr->set_radius(6);
         ptr->set_clickable(false);
         _last_hovered_circle = ptr;

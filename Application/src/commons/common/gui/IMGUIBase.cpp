@@ -938,12 +938,12 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
             const float a_max = (float)M_PI*2.0f * ((float)num_segments - 1.0f) / (float)num_segments;
             list->PathArcTo(centre, r, 0.0f, a_max, (int)num_segments - 1);
             
-            if(ptr->fillclr() != Transparent) {
-                list->AddConvexPolyFilled(list->_Path.Data, list->_Path.Size, (ImColor)ptr->fillclr());
+            if(ptr->fill_clr() != Transparent) {
+                list->AddConvexPolyFilled(list->_Path.Data, list->_Path.Size, (ImColor)ptr->fill_clr());
                 //list->AddCircleFilled(centre, ptr->radius(), cvtClr(ptr->fillclr()), num_segments);
             }
-            if(ptr->color() != Transparent) {
-                list->AddPolyline(list->_Path.Data, list->_Path.Size, (ImColor)ptr->color(), true, 1);
+            if(ptr->line_clr() != Transparent) {
+                list->AddPolyline(list->_Path.Data, list->_Path.Size, (ImColor)ptr->line_clr(), true, 1);
                 //list->AddCircle(ImVec2(ptr->pos().x, ptr->pos().y), ptr->radius(), cvtClr(ptr->color()), num_segments);
             }
             
