@@ -8,7 +8,7 @@ namespace gui {
         : SectionInterface(Type::ENTANGLED, NULL),
             _begun(false),
             scrolling([this](Event e) {
-                set_scroll_offset(_scroll_offset - Vec2(0, e.scroll.delta));
+                set_scroll_offset(_scroll_offset - Vec2(e.scroll.dx, e.scroll.dy));
             }),
             callback_ptr(nullptr),
             _scroll_enabled(false),
@@ -22,7 +22,7 @@ namespace gui {
             _children(objects),
             _begun(false),
             scrolling([this](Event e) {
-                set_scroll_offset(_scroll_offset - Vec2(0, e.scroll.delta));
+                set_scroll_offset(_scroll_offset - Vec2(e.scroll.dx, e.scroll.dy));
             }),
             callback_ptr(nullptr),
             _scroll_enabled(false),

@@ -513,7 +513,8 @@ void clear_cache() {
         });
         glfwSetScrollCallback(_platform->window_handle(), [](GLFWwindow* window, double xoff, double yoff) {
             Event e(EventType::SCROLL);
-            e.scroll.delta = float(yoff);
+            e.scroll.dy = float(yoff);
+            e.scroll.dx = float(xoff);
             
             auto base = base_pointers.at(window);
             base->event(e);

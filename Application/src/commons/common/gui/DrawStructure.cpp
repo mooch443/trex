@@ -608,9 +608,10 @@ namespace gui {
             case SCROLL:
                 d = _hovered_object;
 #if __linux__ || WIN32
-                e.scroll.delta *= 10;
+                e.scroll.dx *= 15;
+                e.scroll.dy *= 15;
 #endif
-                scroll(e.scroll.delta);
+                scroll(Vec2(e.scroll.dx, e.scroll.dy));
                 break;
             default:
                 break;
@@ -682,10 +683,11 @@ namespace gui {
         return false;
     }
     
-    void DrawStructure::scroll(float delta) {
+    void DrawStructure::scroll(const Vec2& delta) {
         if(_hovered_object) {
             Event e(SCROLL);
-            e.scroll.delta = delta;
+            e.scroll.dx = delta.x;
+            e.scroll.dy = delta.y;
             _hovered_object->scroll(e);
         }
     }

@@ -180,7 +180,7 @@ namespace gui {
         bool key_down(Codes code, bool shift);
         bool key_up(Codes code, bool shift);
         bool text_entered(char c);
-        void scroll(float delta);
+        void scroll(const Vec2& delta);
         
         void update_dialogs();
         

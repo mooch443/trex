@@ -46,13 +46,23 @@ namespace gui {
         _org_position(pos),
         _margins(Vec2(10, 5), Vec2(10, 5)),
         _default_font(font),
-        _base_text_color(White)
+        _base_text_color(White),
+        _alpha(1)
     {
         set_clickable(true);
         set_pos(pos);
         set_background(Black.alpha(200), Black);
         update_text();
     }
+
+void StaticText::set_alpha(float alpha) {
+    if(alpha == _alpha)
+        return;
+    
+    _alpha = alpha;
+    //update_text();
+    set_content_changed(true);
+}
     
     const Size2& StaticText::size() {
         update();
@@ -114,6 +124,7 @@ void StaticText::set_default_font(const Font& font) {
                     continue;
                 
                 // add texts so that dimensions are retrieved
+                t->set_color(t->color().alpha(255 * _alpha));
                 advance_wrap(*t);
                 
                 auto local_pos = t->pos() - t->size().mul(t->origin());

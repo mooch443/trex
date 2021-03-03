@@ -529,7 +529,7 @@ def start_learning():
     for i, c in zip(np.arange(len(classes)), classes):
         mi = max(mi, len(Y_train[np.argmax(Y_train, axis=1) == c]))
 
-    per_epoch = max(settings["min_iterations"], int(len(X_train) // batch_size) * 2.0) # i am using augmentation
+    per_epoch = max(settings["min_iterations"], int(len(X_train) // batch_size))# * 2.0) # i am using augmentation
     per_epoch = int((per_epoch // batch_size) * batch_size)
     settings["per_epoch"] = per_epoch
     TRex.log(str(settings))

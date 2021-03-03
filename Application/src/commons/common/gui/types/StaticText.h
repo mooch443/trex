@@ -19,6 +19,7 @@ namespace gui {
         
         Font _default_font;
         Color _base_text_color;
+        float _alpha;
         
     public:
         struct RichString {
@@ -59,6 +60,7 @@ namespace gui {
             _base_text_color = c;
             update_text();
         }
+        void set_alpha(float alpha);
         
         void set_margins(const Bounds& margin);
         
