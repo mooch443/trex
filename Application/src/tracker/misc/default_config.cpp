@@ -291,6 +291,7 @@ file::Path conda_environment_path() {
         CONFIG("exec", file::Path(), "This can be set to the path of an additional settings file that is executed after the normal settings file.");
         CONFIG("log_file", file::Path(), "Set this to a path you want to save the log file to.", STARTUP);
         CONFIG("httpd_port", 8080, "This is where the webserver tries to establish a socket. If it fails, this will be set to the port that was chosen.", STARTUP);
+        CONFIG("httpd_accepted_ip", std::string(), "Set this to an IP address that you want to accept exclusively.");
         CONFIG("error_terminate", false, "", SYSTEM);
         CONFIG("terminate", false, "If set to true, the application terminates.");
         
