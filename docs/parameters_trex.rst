@@ -1040,6 +1040,15 @@ TRex parameters
 
 
 
+.. function:: httpd_accepted_ip(string)
+
+	**default value:** ""
+
+
+	Set this to an IP address that you want to accept exclusively.
+
+
+
 .. function:: httpd_port(int)
 
 	**default value:** 8080

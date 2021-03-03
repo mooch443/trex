@@ -3584,7 +3584,7 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
                 const float max_distance = sqrtf(SQR((_average_image.cols * 0.25) / ptr_scale.x) + SQR((_average_image.rows * 0.25) / ptr_scale.y));
                 size_t displayed = 0;
                 
-                static std::map<uint32_t, std::tuple<bool, std::unique_ptr<Circle>, std::unique_ptr<Label>>> _blob_labels;
+                static std::unordered_map<uint32_t, std::tuple<bool, std::unique_ptr<Circle>, std::unique_ptr<Label>>> _blob_labels;
                 
                 auto draw_blob = [&](pv::BlobPtr blob, float real_size, bool active){
                     if(displayed >= maximum_number_texts && !active)
