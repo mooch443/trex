@@ -158,9 +158,9 @@ def reinitialize_network():
         found = False
 
     if found:
-        model.compile(loss='categorical_crossentropy',
+        model.compile(loss=#'categorical_crossentropy',
             #SigmoidFocalCrossEntropy(),
-            #categorical_focal_loss(gamma=2., alpha=.25),
+            categorical_focal_loss(gamma=2., alpha=.25),
             optimizer=keras.optimizers.Adam(lr=learning_rate),
             metrics=['accuracy'])
     else:
@@ -529,7 +529,7 @@ def start_learning():
     for i, c in zip(np.arange(len(classes)), classes):
         mi = max(mi, len(Y_train[np.argmax(Y_train, axis=1) == c]))
 
-    per_epoch = max(settings["min_iterations"], int(len(X_train) // batch_size ) * 0.5 ) #* 2.0) # i am using augmentation
+    per_epoch = max(settings["min_iterations"], int(len(X_train) // batch_size) * 2.0) # i am using augmentation
     per_epoch = int((per_epoch // batch_size) * batch_size)
     settings["per_epoch"] = per_epoch
     TRex.log(str(settings))
@@ -598,12 +598,12 @@ def start_learning():
             if len(X_test) == 0:
                 validation_data = None
 
-            # dataset = tf.data.Dataset.from_generator(make_generator, 
-            #     output_types=(tf.float32, tf.float32),
-            #     output_shapes =(tf.TensorShape([None, int(settings["image_height"]), int(settings["image_width"]), 1]), tf.TensorShape([None, int(len(classes))]))
-            # ).repeat()#.shuffle(len(X_train), reshuffle_each_iteration=True)
+            dataset = tf.data.Dataset.from_generator(lambda: datagen.flow(tf.cast(X_train, float), Y_train, batch_size=batch_size), 
+                output_types=(tf.float32, tf.float32),
+                output_shapes =(tf.TensorShape([None, int(settings["image_height"]), int(settings["image_width"]), 1]), tf.TensorShape([None, int(len(classes))]))
+            ).repeat()#.shuffle(len(X_train), reshuffle_each_iteration=True)
             #dataset = tf.data.Dataset.from_tensor_slices((tf.cast(X_train, float), Y_train)).batch(batch_size)
-            dataset = datagen.flow(tf.cast(X_train, float), Y_train, batch_size=batch_size)
+            #dataset = datagen.flow(tf.cast(X_train, float), Y_train, batch_size=batch_size)
             TRex.log("tf.data.Dataset: "+str(dataset))
             history = model.fit(dataset,
                                   validation_data=validation_data,

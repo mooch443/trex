@@ -303,19 +303,19 @@ namespace gui {
         if(foldable()) {
             if(pressed()) {
                 if(hovered())
-                    tbg = tbg.brighten(0.5);
+                    tbg = tbg.exposure(0.5);
                 else
-                    tbg = tbg.brighten(0.3);
+                    tbg = tbg.exposure(0.3);
                 
             } else {
                 if(_foldable && !folded()) {
                     if(hovered()) {
-                        tbg = tbg.brighten(0.7);
+                        tbg = tbg.exposure(0.7);
                     } else
-                        tbg = tbg.brighten(0.5);
+                        tbg = tbg.exposure(0.5);
                     
                 } else if(hovered()) {
-                    tbg = tbg.brighten(1.5);
+                    tbg = tbg.exposure(1.5);
                     tbg.a = saturate(tbg.a * 1.5);
                 }
             }
@@ -324,7 +324,7 @@ namespace gui {
         _title_background.set_fillclr(tbg);
         
         const Color bg = _accent_color.saturation(0.25);
-        const Color highlight = bg.brighten(1.5);
+        const Color highlight = bg.exposure(1.5);
         
         for(size_t i=0; i<_items.size(); i++) {
             _items.at(i)->update();
@@ -332,10 +332,10 @@ namespace gui {
             
             auto clr = bg;
             if(i%2 == 0)
-                clr = clr.brighten(1.25);
+                clr = clr.exposure(1.25);
             
             clr = r->pressed() ?
-                  (r->hovered() ? clr.brighten(0.5) : clr.brighten(0.3))
+                  (r->hovered() ? clr.exposure(0.5) : clr.exposure(0.3))
                 : (r->hovered() ? highlight : clr);
             
             

@@ -67,7 +67,7 @@ namespace gui {
                 _items.push_back(Item<T>(item));
             }
             
-            set_background(_item_color.brighten(0.5));
+            set_background(_item_color.exposure(0.5));
             set_clickable(true);
             set_scroll_enabled(true);
             
@@ -131,7 +131,7 @@ namespace gui {
             if(_item_color == item_color)
                 return;
             
-            set_background(item_color.brighten(0.5));
+            set_background(item_color.exposure(0.5));
             _item_color = item_color;
             set_dirty();
         }
@@ -345,9 +345,9 @@ namespace gui {
                     _items[idx].set_hovered(rect->hovered());
 
                     if(rect->pressed() || (_stays_toggled && (long)rect_to_idx[rect] == _last_selected_item))
-                        rect->set_fillclr(item->base_color().brightenHSL(0.15f));
+                        rect->set_fillclr(item->base_color().exposureHSL(0.15f));
                     else if(rect->hovered())
-                        rect->set_fillclr(item->base_color().brightenHSL(1.25f));
+                        rect->set_fillclr(item->base_color().exposureHSL(1.25f));
                     else
                         rect->set_fillclr(item->base_color());
                 }
@@ -358,9 +358,9 @@ namespace gui {
                     _items[idx].set_hovered(rect->hovered());
 
                     if(rect->pressed() || (_stays_toggled && (long)rect_to_idx[rect] == _last_selected_item))
-                        rect->set_fillclr(_item_color.brighten(0.15f));
+                        rect->set_fillclr(_item_color.exposure(0.15f));
                     else if(rect->hovered())
-                        rect->set_fillclr(_item_color.brighten(1.25f));
+                        rect->set_fillclr(_item_color.exposure(1.25f));
                     else
                         rect->set_fillclr(Transparent);
                 }

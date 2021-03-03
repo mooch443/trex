@@ -10,9 +10,14 @@ file(GLOB HDRS video/*.h processing/*.h misc/*.h file/*.h gui/*.h gui/types/*.h 
 file(GLOB SRCS video/*.cpp processing/*.cpp misc/*.cpp file/*.cpp gui/*.cpp gui/types/*.cpp *.cpp)
 
 if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$" AND METAL_LIBRARY)
-    set(SRCS ${SRCS} gui/MetalImpl.mm )
+    set(SRCS ${SRCS} gui/MetalImpl.mm)
 else()
     message(STATUS "Skipping metal implementation")
+endif()
+
+if(APPLE)
+   set(SRCS ${SRCS} gui/MacProgressBar.mm)
+   message(STATUS "Adding MacProgressBar")
 endif()
 
 if(WITH_HTTPD)

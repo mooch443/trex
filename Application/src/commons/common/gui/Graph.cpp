@@ -334,7 +334,7 @@ void Graph::update() {
             
             clr = f._color;
             if(idx == highlighted)
-                clr = clr.brighten(1.5);
+                clr = clr.exposure(1.5);
             auto org_clr = clr;
             
             float percentx = (x0-rx.start) / lengthx + x_offset_percent;

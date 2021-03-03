@@ -115,10 +115,10 @@ namespace gui {
             size = d.dialog_window_size();
         
         _okay->set_size(Size2(gui::Base::default_text_bounds(_okay->txt(), nullptr, _okay->font()).width + 20, 40));
-        _okay->set_fill_clr(Color::blend(DarkCyan.brighten(0.5).alpha(110), Green.brighten(0.15)));
+        _okay->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Green.exposure(0.15)));
         if (_abort) {
             _abort->set_size(Size2(gui::Base::default_text_bounds(_abort->txt(), nullptr, _abort->font()).width + 20, 40));
-            _abort->set_fill_clr(Color::blend(DarkCyan.brighten(0.5).alpha(110), Red.brighten(0.2)));
+            _abort->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Red.exposure(0.2)));
         }
         if(_second)
             _second->set_size(Size2(gui::Base::default_text_bounds(_second->txt(), nullptr, _second->font()).width + 20, 40));
@@ -149,7 +149,7 @@ namespace gui {
             buttons.push_back(_abort);
         _buttons->set_children(buttons);
         
-        set_background(DarkCyan.brighten(0.2f).alpha(220), Black);
+        set_background(DarkCyan.exposure(0.2f).alpha(220), Black);
         
         _text->set_background(Transparent, Transparent);
         _title.set_origin(Vec2(0.5));

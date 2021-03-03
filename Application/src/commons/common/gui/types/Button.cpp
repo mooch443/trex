@@ -41,17 +41,17 @@ namespace gui {
         Color clr(fill_clr());
 
         if(pressed()) {
-            clr = clr.brighten(0.3);
+            clr = clr.exposure(0.3);
             
         } else {
             if(toggleable() && toggled()) {
                 if(hovered()) {
-                    clr = clr.brighten(0.7);
+                    clr = clr.exposure(0.7);
                 } else
-                    clr = clr.brighten(0.3);
+                    clr = clr.exposure(0.3);
                 
             } else if(hovered()) {
-                clr = clr.brighten(1.5);
+                clr = clr.exposure(1.5);
                 clr.a = saturate(clr.a * 1.5);
             }
         }

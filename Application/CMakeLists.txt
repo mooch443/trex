@@ -19,6 +19,9 @@ endif()
 set(CMAKE_MACOSX_RPATH ON)
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 include(ExternalProject)
+if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.11.0")
+    include(FetchContent)
+endif()
 
 enable_testing ()
 
@@ -597,7 +600,6 @@ if(${CMAKE_VERSION} VERSION_LESS "3.11.0")
     message(STATUS "pybind11 external_project ${PYTHON_INCLUDE_DIRS} ${INSTALL_DIR} ${pybind11_LIBRARY}")
 
 else()
-    include(FetchContent)
     FetchContent_Declare(
         pybind11
         GIT_REPOSITORY https://github.com/pybind/pybind11

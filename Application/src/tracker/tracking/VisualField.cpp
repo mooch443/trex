@@ -446,8 +446,8 @@ namespace track {
             ptr->set_fill_clr(eye.clr.alpha(80));
             base.add_object(ptr);*/
             
-            base.line(eye.pos, eye.pos + left * 100, 1, eye.clr.brighten(0.65f));
-            base.line(eye.pos, eye.pos + right * 100, 1, eye.clr.brighten(0.65f));
+            base.line(eye.pos, eye.pos + left * 100, 1, eye.clr.exposure(0.65f));
+            base.line(eye.pos, eye.pos + right * 100, 1, eye.clr.exposure(0.65f));
         }
         
     }

@@ -1034,7 +1034,7 @@ void GUI::redraw() {
         
         gui_background->add_event_handler(EventType::MBUTTON, [this](Event e){
             if(e.mbutton.pressed)
-                this->_clicked_background(Vec2(e.mbutton.x, e.mbutton.y).map<round>(), e.mbutton.button == 1);
+                this->_clicked_background(Vec2(e.mbutton.x, e.mbutton.y).map<round>(), e.mbutton.button == 1, "");
         });
         gui_background->set_clickable(true);
         
@@ -1342,7 +1342,7 @@ void GUI::draw_export_options(gui::DrawStructure &base) {
         export_options.set_pos(Vec2(_average_image.cols - 10, 100));
         export_options.set_origin(Vec2(1, 0));
         
-        close.set_fill_clr(Red.brighten(0.5));
+        close.set_fill_clr(Red.exposure(0.5));
         close.on_click([](auto) {
             SETTING(gui_show_export_options) = false;
         });
@@ -1842,10 +1842,10 @@ void GUI::label_fish(gui::DrawStructure &base, track::Individual *fish, long_t f
             });
             
             if(it == map.end() || it->first != fish->identity().ID()) {
-                color = Red.brighten(1.5);
+                color = Red.exposure(1.5);
                 secondary_text += " avg" + Meta::toStr(it->first);
             } else
-                color = Green.brighten(1.5);
+                color = Green.exposure(1.5);
         }
         
         if(blob) {
@@ -1889,7 +1889,7 @@ void GUI::label_fish(gui::DrawStructure &base, track::Individual *fish, long_t f
     }
     base.wrap_object(*layout->layout);
     
-    ((Text*)layout->text.raw_ptr)->set_color((blob ? color : color.brighten(0.5)).alpha(alpha));
+    ((Text*)layout->text.raw_ptr)->set_color((blob ? color : color.exposure(0.5)).alpha(alpha));
     ((Text*)layout->text.raw_ptr)->set_txt(text.str());
     ((Text*)layout->sub_text.raw_ptr)->set_txt(secondary_text);
     ((Text*)layout->text.raw_ptr)->set_font(font);
@@ -2755,8 +2755,12 @@ void GUI::draw_footer(DrawStructure& base) {
             &tooltip
         });
         
-        _clicked_background = [&](const Vec2& pos, bool v) {
-            std::string key = settings_dropdown.selected_id() > -1 ? settings_dropdown.items().at(settings_dropdown.selected_id()).name() : "";
+        _clicked_background = [&](const Vec2& pos, bool v, std::string key = "") {
+            const std::string chosen = settings_dropdown.selected_id() > -1 ? settings_dropdown.items().at(settings_dropdown.selected_id()).name() : "";
+            if (key.empty())
+                key = chosen;
+            _clicked_blob_id = -1;
+            
             bool is_bounds = GlobalSettings::get(key).is_type<std::vector<Bounds>>();
             bool is_vec_of_vec = GlobalSettings::get(key).is_type<std::vector< std::vector<Vec2> >>();
             bool is_vectors = GlobalSettings::get(key).is_type<std::vector<Vec2>>();
@@ -2781,10 +2785,11 @@ void GUI::draw_footer(DrawStructure& base) {
                             
                             // if textfield text has been modified, use that one rather than the actual setting value
                             auto tmp = Meta::toStr(array);
-                            if(tmp != textfield.text())
+                            if(key == chosen && tmp != textfield.text())
                                 array = Meta::fromStr<std::vector<Bounds>>(textfield.text());
                             array.push_back(bds);
-                            textfield.set_text(Meta::toStr(array));
+                            if(key == chosen)
+                                textfield.set_text(Meta::toStr(array));
                             GlobalSettings::get(key) = array;
                             
                         } catch(...) {}
@@ -2797,11 +2802,12 @@ void GUI::draw_footer(DrawStructure& base) {
                             
                             // if textfield text has been modified, use that one rather than the actual setting value
                             auto tmp = Meta::toStr(array);
-                            if(tmp != textfield.text())
+                            if(key == chosen && tmp != textfield.text())
                                 array = Meta::fromStr< std::vector<std::vector<Vec2>>>(textfield.text());
                             
                             array.push_back(_current_boundary.back());
-                            textfield.set_text(Meta::toStr(array));
+                            if(key == chosen)
+                                textfield.set_text(Meta::toStr(array));
                             GlobalSettings::get(key) = array;
                             
                         } catch(...) {}
@@ -2815,14 +2821,15 @@ void GUI::draw_footer(DrawStructure& base) {
                         
                         // if textfield text has been modified, use that one rather than the actual setting value
                         auto tmp = Meta::toStr(array);
-                        if(tmp != textfield.text())
+                        if(key == chosen && tmp != textfield.text())
                             array = Meta::fromStr<std::vector<Vec2>>(textfield.text());
                         
                         for(auto &boundary : _current_boundary) {
                             for(auto &pt : boundary)
                                 array.push_back(pt);
                         }
-                        textfield.set_text(Meta::toStr(array));
+                        if(key == chosen)
+                            textfield.set_text(Meta::toStr(array));
                         GlobalSettings::get(key) = array;
                         
                     } catch(...) {}
@@ -3347,7 +3354,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
             }
             
             if(top_left.x != FLT_MAX) {
-                Bounds bds(Vec2((top_left + bottom_right) * 0.5 - Vec2(0,36 + 5) * font.size), Size2(0, 36 * font.size));
+                Bounds bds(Vec2((top_left + bottom_right) * 0.5 - Vec2(0,36 + 5) * font.size), Size2(0, 36));
                 std::string name = "";
                 
                 if(_selected_setting_type == SelectedSettingType::NONE) {
@@ -3368,30 +3375,52 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
                         name = "append points to "+_selected_setting_name;
                 }
                 
-                float width = 250 * font.size;
-                auto text_bounds = _base ? _base->text_bounds(name, NULL, font) : Base::default_text_bounds(name, NULL, font);
-                if(text_bounds.width + 10 > width) {
-                    width = text_bounds.width + 10;
-                }
+                auto text_bounds = _base ? _base->text_bounds(name, NULL, Font(0.85)) : Base::default_text_bounds(name, NULL, Font(0.85));
+                bds.width = text_bounds.width + 10;
                 
-                bds.width = width;
-                
+                static std::unique_ptr<Entangled> combine = std::make_unique<Entangled>();
                 static std::shared_ptr<Button> button = nullptr;
+                static std::shared_ptr<Dropdown> dropdown = nullptr;
                 
                 if(!button) {
-                    button = std::make_shared<Button>(name, bds);
-                    button->set_origin(Vec2(0.5));
+                    button = std::make_shared<Button>(name, Bounds(Vec2(), bds.size()));
                     button->on_click([this](auto){
-                        _clicked_background(Vec2(), true);
+                        _clicked_background(Vec2(), true, "");
                     });
+                    //button->set_font(Font(0.85));
+                    button->set_origin(Vec2(0.5, 0));
                     
                 } else {
-                    button->set_bounds(bds);
+                    button->set_bounds(Bounds(Vec2(), bds.size()));
                     button->set_txt(name);
                 }
                 
-                button->set_font(font);
-                base.wrap_object(*button);
+                if(!dropdown) {
+                    dropdown = std::make_shared<Dropdown>(Bounds(Vec2(0, button->local_bounds().height), Size2(bds.width, 40)), std::vector<std::string>{
+                        "track_ignore",
+                        "track_include",
+                        "recognition_shapes"
+                    });
+                    dropdown->set_origin(Vec2(0.5, 0));
+                    dropdown->on_select([this](long_t, const Dropdown::TextItem & item){
+                        _clicked_background(Vec2(), true, item.name());
+                    });
+                    dropdown->textfield()->set_placeholder("append to...");
+                    
+                } else
+                    dropdown->set_bounds(Bounds(Vec2(0, button->local_bounds().height), Size2(bds.width, 40)));
+                
+                combine->update([&](auto&e) {
+                    e.advance_wrap(*dropdown);
+                    e.advance_wrap(*button);
+                });
+                
+                combine->set_pos(bds.pos());
+                combine->set_scale(fishbowl->scale().reciprocal() / GUI_SETTINGS(gui_interface_scale) * 1.5);
+                combine->auto_size(Margin{0, 0});
+                combine->set_z_index(100);
+                
+                base.wrap_object(*combine);
             }
         }
     });
@@ -3619,11 +3648,11 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
                         direction /= length(direction);
                         
                         base.line(text_center + direction * text->height(), blob->center(), 1, (active ? Cyan : Gray).alpha(150 * d));
-                        ptr = base.circle(blob->center(), 3, White.alpha(255 * d));
+                        ptr = base.circle(blob->center(), 3 * scale.x, White.alpha(255 * d));
                         
                         ++displayed;
                     } else
-                        ptr = base.circle(blob->center(), 3, White.alpha(255 * 0.5));
+                        ptr = base.circle(blob->center(), 3 * scale.x, White.alpha(255 * 0.5));
                     
                     base.rect(blob->bounds(), Transparent, White.alpha(100));
                     
@@ -3752,7 +3781,7 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
             for(auto blob : _cache.raw_blobs) {
                 if(blob->blob->blob_id() == (uint32_t)_clicked_blob_id) {
                     blob_pos = blob->blob->bounds().pos() + blob->blob->bounds().size() * 0.5;
-                    list->set_pos(blob_pos.mul(ptr_scale) + ptr_pos);
+                    popup->set_pos(blob_pos.mul(ptr_scale) + ptr_pos);
                     found = true;
                     break;
                 }
@@ -3777,20 +3806,20 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
                 
                 list->set_items(sorted_items);
                 list->set_clickable(true);
-                list->set_scale(base.scale().reciprocal());
-                /*popup->update([&](Entangled &base){
-                 base.advance_wrap(*list);
-                 });*/
-                
-                
-                //base.wrap_object(*popup);
-                base.wrap_object(*list);
                 
                 if(_clicked_blob_id != last_blob_id) {
                     list->set_opened(true);
                     list->select_textfield();
                     list->clear_textfield();
                 }
+                
+                popup->set_scale(base.scale().reciprocal());
+                popup->auto_size(Margin{0, 0});
+                popup->update([&](Entangled &base){
+                    base.advance_wrap(*list);
+                });
+                
+                base.wrap_object(*popup);
                 
             } else {
                 Warning("Cannot find clicked blob id %d.", _clicked_blob_id.load());

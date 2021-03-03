@@ -8,8 +8,17 @@
 #include <ShObjIdl_core.h>
 #endif
 #include <gui/IMGUIBase.h>
+#ifdef WIN32
 #define GLFW_EXPOSE_NATIVE_WGL
 #define GLFW_EXPOSE_NATIVE_WIN32
+#elif defined(__APPLE__)
+#define GLFW_EXPOSE_NATIVE_COCOA
+#define GLFW_EXPOSE_NATIVE_NSGL
+#include <gui/MacProgressBar.h>
+#else
+#define GLFW_EXPOSE_NATIVE_X11
+#define GLFW_EXPOSE_NATIVE_OSMESA
+#endif
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
 
@@ -32,6 +41,10 @@ WorkInstance::~WorkInstance() {
 WorkProgress::WorkProgress()
     : _terminate_threads(false), _item_abortable(false), _item_aborted(false), _item_custom_triggered(false)
 {
+#ifdef __APPLE__
+    MacProgressBar::set_visible(false);
+#endif
+    
     _thread = new std::thread([&]() {
         std::unique_lock<std::mutex> lock(_queue_lock);
         set_thread_name("GUI::_work_thread");
@@ -41,6 +54,9 @@ WorkProgress::WorkProgress()
             
             while(!_queue.empty()) {
                 auto item =  _queue.front();
+#if defined(__APPLE__)
+                MacProgressBar::set_visible(true);
+#endif
                 set_percent(0);
 
                 _item = item.name;
@@ -69,6 +85,8 @@ WorkProgress::WorkProgress()
                     HWND hwnd = glfwGetWin32Window(((gui::IMGUIBase*)GUI::instance()->base())->platform()->window_handle());
                     ptbl->SetProgressState(hwnd, TBPF_NOPROGRESS);
                 }
+#elif defined(__APPLE__)
+                MacProgressBar::set_visible(false);
 #endif
             }
         }
@@ -170,6 +188,8 @@ void WorkProgress::set_percent(float value) {
             }
         }
     }
+#elif defined(__APPLE__)
+    MacProgressBar::set_percent(value);
 #endif
 }
 

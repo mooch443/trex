@@ -120,13 +120,13 @@ namespace gui {
             return Color(r - R, g - G, b - B, a - A);
         }
         
-        constexpr inline Color brighten(float factor) const {
+        constexpr inline Color exposure(float factor) const {
             Color hsv(toHSV());
             Color rgb(Color(hsv.r, hsv.g, (uint8_t)saturate(factor * hsv.b), hsv.a).HSV2RGB());
             return Color(rgb.r, rgb.g, rgb.b, this->a);
         }
         
-        constexpr inline Color brightenHSL(float factor) const {
+        constexpr inline Color exposureHSL(float factor) const {
             Color hsl(toHSL());
             Color rgb(hsl.blue((uint8_t)saturate(hsl.b * factor)).HSL2RGB());
             return Color(rgb.r, rgb.g, rgb.b, this->a);

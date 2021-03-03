@@ -61,7 +61,7 @@ If one metric (such as anything posture-related) is not available in a frame -- 
 Posture-data
 ============
 
-For each individual, |trex| writes a file ``[FILENAME]_posture_*.npz`` containing the following fields:
+For each individual (as long as :func:`output_posture_data` is set to ``true``), |trex| writes a file ``[output_path]/[FILENAME]_posture_*.npz`` containing the following fields:
 
 .. raw:: html
 
@@ -90,6 +90,10 @@ For each individual, |trex| writes a file ``[FILENAME]_posture_*.npz`` containin
 	midline_points_raw, "2D Points (px) of the midline in normalized coordinates."
 	outline_lengths, "Number of points in the outline."
 	outline_points, "Each outline point consists of X and Y, but each outline can be of a different length. To iterate through these points, one must keep a current index that increases by ``outline_lengths[frame]`` per frame."
+
+For an example of how to use this data, have a look at `this <https://github.com/mooch443/trex/blob/master/docs/scripts/plot_posture_output.py>`_ example from the repository. It demonstrates loading all posture files from one video, drawing the posture output in matplotlib and saving it to a new movie file. This is what the output could look like:
+
+.. image:: matplotlib_posture.gif
 
 Tracklet images
 ===============
@@ -153,9 +157,9 @@ image per consecutive segment.
         
         # plot all individuals in a row. this will probably be real tiny for many more individuals.
         f, axes = plt.subplots(1, N, figsize=(5*N, 5))
-        for ax, i in zip(axes, ids):
+        for ax, i in zip(axes, np.unique(meta[:, 0])):
             ax.axis('off')
-            ax.imshow(np.median(npz["images"][npz["meta"][:, 0] == i], axis=0), cmap="Greys")
+            ax.imshow(np.median(npz["images"][meta[:, 0] == i], axis=0), cmap="Greys")
             ax.set_title(str(i))
         plt.show()
 

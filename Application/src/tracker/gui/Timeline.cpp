@@ -219,7 +219,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
             consec_color = Green;
         
         if(_status_text2.hovered())
-            consec_color = consec_color.brightenHSL(0.9f);
+            consec_color = consec_color.exposureHSL(0.9f);
         _status_text2.set_color(consec_color);
         
         _status_text2.set_txt(number.str());
