@@ -17,7 +17,6 @@
 #include <gui/MacProgressBar.h>
 #else
 #define GLFW_EXPOSE_NATIVE_X11
-#define GLFW_EXPOSE_NATIVE_OSMESA
 #endif
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
