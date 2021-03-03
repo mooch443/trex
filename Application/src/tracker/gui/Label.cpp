@@ -8,6 +8,7 @@ Label::Label(const std::string& text, const Bounds& source, const Vec2& center)
 {
     _text->set_background(Transparent, Transparent);
     _text->set_origin(Vec2(0.5, 1));
+    _text->set_clickable(false);
 }
 
 void Label::set_data(const std::string &text, const Bounds &source, const Vec2 &center) {

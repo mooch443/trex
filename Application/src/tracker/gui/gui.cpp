@@ -3336,7 +3336,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
             }
             
             if(top_left.x != FLT_MAX) {
-                Bounds bds(Vec2((top_left + bottom_right) * 0.5) + 10, Size2(0, 36));
+                Bounds bds(Vec2((top_left + bottom_right) * 0.5) + 10, Size2(0, 35));
                 std::string name = "";
                 
                 if(_selected_setting_type == SelectedSettingType::NONE) {
@@ -3391,7 +3391,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
                 });
                 
                 combine->set_pos(bds.pos());
-                combine->set_scale(fishbowl->scale().reciprocal() / GUI_SETTINGS(gui_interface_scale));
+                combine->set_scale(base.scale().reciprocal() );
                 combine->auto_size(Margin{0, 0});
                 combine->set_z_index(100);
                 
