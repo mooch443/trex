@@ -3657,7 +3657,7 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
                             auto S = _unused_labels.size();
                             auto [k, success] = _blob_labels.try_emplace(blob->blob_id(), std::move(_unused_labels.back()));
                             _unused_labels.resize(_unused_labels.size()-1);
-                            Debug("PRev: %lu After: %lu", S, _unused_labels.size());
+                            
                             it = k;
                             std::get<2>(it->second)->set_data(blob->name() + " " + ss.str(), blob->bounds(), blob->center());
                             
