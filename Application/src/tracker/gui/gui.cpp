@@ -3170,29 +3170,6 @@ void GUI::update_display_blobs(bool draw_blobs, Section* fishbowl) {
 }
 
 void GUI::draw_raw(gui::DrawStructure &base, long_t) {
-    /*if(!_setting_animation.name.empty()) {
-        Section *section = (Section*)_gui.find("fishbowl");
-        
-        if(!_setting_animation.display && section) {
-            _setting_animation.display = std::make_shared<Entangled>();
-            
-            
-            Vec2 center = section->pos() + section->size() * 0.5;
-            float min_d = std::numeric_limits<float>::max();
-            for(auto fish : _cache.active) {
-                auto basic = fish->basic_stuff(_cache.frame_idx);
-                if(basic) {
-                    auto pos = basic->centroid->pos(Units::PX_AND_SECONDS);
-                    auto d = sqdistance(pos, center);
-                    if(d < min_d) {
-                        min_d = d;
-                        _setting_animation.position = pos;
-                    }
-                }
-            }
-        }
-    }*/
-    
     Section* fishbowl;
     
     static auto collection = std::make_unique<ExternalImage>(std::make_unique<Image>(Tracker::average().rows, Tracker::average().cols, 4), Vec2());
@@ -3315,6 +3292,10 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
         base.rect(Bounds(0, 0, 100, 100), Red);
     }
 #endif
+
+    static std::unique_ptr<Entangled> combine = std::make_unique<Entangled>();
+    static std::shared_ptr<Button> button = nullptr;
+    static std::shared_ptr<Dropdown> dropdown = nullptr;
     
     base.section("boundary", [&](auto &base, Section*s) {
         if(!_current_boundary.empty()) {
@@ -3354,7 +3335,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
             }
             
             if(top_left.x != FLT_MAX) {
-                Bounds bds(Vec2((top_left + bottom_right) * 0.5 - Vec2(0,36 + 5) * font.size), Size2(0, 36));
+                Bounds bds(Vec2((top_left + bottom_right) * 0.5) + 10, Size2(0, 36));
                 std::string name = "";
                 
                 if(_selected_setting_type == SelectedSettingType::NONE) {
@@ -3378,17 +3359,11 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
                 auto text_bounds = _base ? _base->text_bounds(name, NULL, Font(0.85)) : Base::default_text_bounds(name, NULL, Font(0.85));
                 bds.width = text_bounds.width + 10;
                 
-                static std::unique_ptr<Entangled> combine = std::make_unique<Entangled>();
-                static std::shared_ptr<Button> button = nullptr;
-                static std::shared_ptr<Dropdown> dropdown = nullptr;
-                
                 if(!button) {
                     button = std::make_shared<Button>(name, Bounds(Vec2(), bds.size()));
                     button->on_click([this](auto){
                         _clicked_background(Vec2(), true, "");
                     });
-                    //button->set_font(Font(0.85));
-                    button->set_origin(Vec2(0.5, 0));
                     
                 } else {
                     button->set_bounds(Bounds(Vec2(), bds.size()));
@@ -3396,19 +3371,18 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
                 }
                 
                 if(!dropdown) {
-                    dropdown = std::make_shared<Dropdown>(Bounds(Vec2(0, button->local_bounds().height), Size2(bds.width, 40)), std::vector<std::string>{
+                    dropdown = std::make_shared<Dropdown>(Bounds(Vec2(0, button->local_bounds().height), bds.size()), std::vector<std::string>{
                         "track_ignore",
                         "track_include",
                         "recognition_shapes"
                     });
-                    dropdown->set_origin(Vec2(0.5, 0));
                     dropdown->on_select([this](long_t, const Dropdown::TextItem & item){
                         _clicked_background(Vec2(), true, item.name());
                     });
                     dropdown->textfield()->set_placeholder("append to...");
                     
                 } else
-                    dropdown->set_bounds(Bounds(Vec2(0, button->local_bounds().height), Size2(bds.width, 40)));
+                    dropdown->set_bounds(Bounds(Vec2(0, button->local_bounds().height), bds.size()));
                 
                 combine->update([&](auto&e) {
                     e.advance_wrap(*dropdown);
@@ -3416,7 +3390,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
                 });
                 
                 combine->set_pos(bds.pos());
-                combine->set_scale(fishbowl->scale().reciprocal() / GUI_SETTINGS(gui_interface_scale) * 1.5);
+                combine->set_scale(fishbowl->scale().reciprocal() / GUI_SETTINGS(gui_interface_scale));
                 combine->auto_size(Margin{0, 0});
                 combine->set_z_index(100);
                 
