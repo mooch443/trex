@@ -10,7 +10,16 @@ Label::Label(const std::string& text, const Bounds& source, const Vec2& center)
     _text->set_origin(Vec2(0.5, 1));
 }
 
+void Label::set_data(const std::string &text, const Bounds &source, const Vec2 &center) {
+    if(text != _text->txt()) {
+        _text->set_txt(text);
+    }
+    _source = source;
+    _center = center;
+}
+
 void Label::update(DrawStructure& base, Section* s, float alpha, bool disabled) {
+    
     Vec2 offset(_center);
     offset = offset.normalize();
     alpha = max(0.5, alpha);

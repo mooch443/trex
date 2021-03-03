@@ -3579,12 +3579,53 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
                     base.add_object(t);
                 }
                 
+                static std::unordered_map<uint32_t, std::tuple<bool, std::unique_ptr<Circle>, std::unique_ptr<Label>>> _blob_labels;
+                static std::vector<decltype(_blob_labels)::mapped_type> _unused_labels;
+                
+                for(auto & [id, tup] : _blob_labels)
+                    std::get<0>(tup) = false;
+                
+                std::map<pv::Blob*, float> distances;
+                std::set<std::tuple<float, pv::BlobPtr, bool>, std::greater<>> draw_order;
+                Transform section_transform = s->global_transform();
+                auto mp = section_transform.transformPoint(_gui.mouse_position());
+                
+                for (size_t i=0; i<_cache.processed_frame.filtered_out.size(); i++) {
+                    if(_cache.processed_frame.filtered_out.at(i)->recount(FAST_SETTINGS(track_threshold), *Tracker::instance()->background()) < FAST_SETTINGS(blob_size_ranges).max_range().start * 0.01)
+                        continue;
+                    
+                    auto id = _cache.processed_frame.filtered_out.at(i)->blob_id();
+                    auto d = sqdistance(mp, _cache.processed_frame.filtered_out.at(i)->bounds().pos());
+                    draw_order.insert({d, _cache.processed_frame.filtered_out.at(i), false});
+                    
+                    if(_blob_labels.count(id))
+                        std::get<0>(_blob_labels.at(id)) = true;
+                }
+                
+                if(!SETTING(gui_draw_only_filtered_out)) {
+                    for (size_t i=0; i<_cache.processed_frame.blobs.size(); i++) {
+                        auto id = _cache.processed_frame.blobs.at(i)->blob_id();
+                        auto d = sqdistance(mp, _cache.processed_frame.blobs.at(i)->bounds().pos());
+                        draw_order.insert({d, _cache.processed_frame.blobs.at(i), true});
+                        
+                        if(_blob_labels.count(id))
+                            std::get<0>(_blob_labels.at(id)) = true;
+                    }
+                }
+                
                 Vec2 scale = 2 * ptr_scale.reciprocal();
                 auto mpos = (_gui.mouse_position() - ptr_pos).mul(ptr_scale.reciprocal());
                 const float max_distance = sqrtf(SQR((_average_image.cols * 0.25) / ptr_scale.x) + SQR((_average_image.rows * 0.25) / ptr_scale.y));
                 size_t displayed = 0;
                 
-                static std::unordered_map<uint32_t, std::tuple<bool, std::unique_ptr<Circle>, std::unique_ptr<Label>>> _blob_labels;
+                // move unused elements to unused list
+                for(auto it = _blob_labels.begin(); it != _blob_labels.end(); ) {
+                    if(!std::get<0>(it->second)) {
+                        _unused_labels.emplace_back(std::move(it->second));
+                        it = _blob_labels.erase(it);
+                    } else
+                        ++it;
+                }
                 
                 auto draw_blob = [&](pv::BlobPtr blob, float real_size, bool active){
                     if(displayed >= maximum_number_texts && !active)
@@ -3610,25 +3651,35 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
                         ss << " tried";
                     ss << "</a>";
                     
-                    if(!_blob_labels.count(blob->blob_id())) {
-                        _blob_labels[blob->blob_id()] = { true, std::make_unique<Circle>(), std::make_unique<Label>(blob->name() + " " + ss.str(), blob->bounds(), blob->center()) };
-                        auto & [visited, circ, label] = _blob_labels[blob->blob_id()];
+                    decltype(_blob_labels)::iterator it = _blob_labels.find(blob->blob_id());
+                    if(it == _blob_labels.end()) {
+                        if(!_unused_labels.empty()) {
+                            auto S = _unused_labels.size();
+                            auto [k, success] = _blob_labels.try_emplace(blob->blob_id(), std::move(_unused_labels.back()));
+                            _unused_labels.resize(_unused_labels.size()-1);
+                            Debug("PRev: %lu After: %lu", S, _unused_labels.size());
+                            it = k;
+                            std::get<2>(it->second)->set_data(blob->name() + " " + ss.str(), blob->bounds(), blob->center());
+                            
+                        } else {
+                            auto [k, success] = _blob_labels.insert_or_assign(blob->blob_id(), decltype(_blob_labels)::mapped_type{ true, std::make_unique<Circle>(), std::make_unique<Label>(blob->name() + " " + ss.str(), blob->bounds(), blob->center()) });
+                            it = k;
+                        }
                         
+                        //auto & [visited, circ, label] = _blob_labels[blob->blob_id()];
+                        auto circ = std::get<1>(it->second).get();
                         circ->set_clickable(true);
                         circ->set_radius(3);
                         //circ->clear_event_handlers();
-                        circ->on_click([id = blob->blob_id(), circ = circ.get()](auto) mutable {
+                        circ->on_click([id = blob->blob_id(), circ = circ](auto) mutable {
                             auto pos = circ->pos();
-                            Debug("Clicked %d %f,%f", id, pos.x, pos.y);
                             GUI::instance()->set_clicked_blob_id(id);
                             GUI::instance()->set_clicked_blob_frame(GUI::frame());
                             GUI::cache().set_blobs_dirty();
                         });
-                        Debug("Create");
                     }
                     
-                    auto & [visited, circ, label] = _blob_labels[blob->blob_id()];
-                    visited = true;
+                    auto & [visited, circ, label] = it->second;
                     
                     circ->set_scale(scale / GUI_SETTINGS(gui_interface_scale));
                     
@@ -3648,37 +3699,12 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
                     }
                 };
                 
-                std::map<pv::Blob*, float> distances;
-                std::set<std::tuple<float, pv::BlobPtr, bool>, std::greater<>> draw_order;
-                Transform section_transform = s->global_transform();
-                auto mp = section_transform.transformPoint(_gui.mouse_position());
-                
-                for (size_t i=0; i<_cache.processed_frame.filtered_out.size(); i++) {
-                    if(_cache.processed_frame.filtered_out.at(i)->recount(FAST_SETTINGS(track_threshold), *Tracker::instance()->background()) < FAST_SETTINGS(blob_size_ranges).max_range().start * 0.01)
-                        continue;
-                    auto d = sqdistance(mp, _cache.processed_frame.filtered_out.at(i)->bounds().pos());
-                    draw_order.insert({d, _cache.processed_frame.filtered_out.at(i), false});
-                }
-                
-                if(!SETTING(gui_draw_only_filtered_out)) {
-                    for (size_t i=0; i<_cache.processed_frame.blobs.size(); i++) {
-                        auto d = sqdistance(mp, _cache.processed_frame.blobs.at(i)->bounds().pos());
-                        draw_order.insert({d, _cache.processed_frame.blobs.at(i), true});
-                    }
-                }
-                
                 displayed = 0;
-                //for (size_t i=0; i<_cache.processed_frame.blobs.size(); i++) {
-                //    auto blob = _cache.processed_frame.blobs.at(i);
                 for(auto && [d, blob, active] : draw_order) {
                     draw_blob(blob, blob->recount(-1), active);
                 }
                 
-                for(auto it = _blob_labels.begin(); it != _blob_labels.end(); ) {
-                    if(!std::get<0>(*it)) {
-                        it = _blob_labels.erase(it);
-                    } else ++it;
-                }
+                _unused_labels.clear();
             }
         });
         
