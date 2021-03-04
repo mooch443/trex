@@ -3303,8 +3303,9 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
             s->set_scale(fishbowl->scale());
             s->set_pos(fishbowl->pos());
             
-            const Font font(0.85 / (1 - ((1 - cache().zoom_level()) * 0.5)), Align::VerticalCenter);
-            
+            const Font font(0.85);
+            Vec2 sca = base.scale().reciprocal().mul(s->scale().reciprocal());
+
             Vec2 top_left(FLT_MAX, FLT_MAX);
             Vec2 bottom_right(0, 0);
             
@@ -3325,8 +3326,8 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
                 }
                 
                 for(auto &pt : boundary) {
-                    base.circle(pt, 5 * font.size, Cyan.alpha(125));
-                    base.text(Meta::toStr(pt), pt + Vec2(7 * font.size, 0), White.alpha(200), font);
+                    base.circle(pt, 5, Cyan.alpha(125))->set_scale(sca);
+                    base.text(Meta::toStr(pt), pt + Vec2(7 * font.size, 0), White.alpha(200), font, sca);
                     
                     if(pt.x < top_left.x) top_left.x = pt.x;
                     if(pt.y < top_left.y) top_left.y = pt.y;
@@ -3336,7 +3337,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
             }
             
             if(top_left.x != FLT_MAX) {
-                Bounds bds(Vec2((top_left + bottom_right) * 0.5) + 10, Size2(0, 35));
+                Bounds bds(Vec2((top_left + bottom_right) * 0.5) + Vec2(0, Base::default_line_spacing(Font(0.85)) + 10).mul(sca), Size2(0, 35));
                 std::string name = "";
                 
                 if(_selected_setting_type == SelectedSettingType::NONE) {
@@ -3391,7 +3392,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
                 });
                 
                 combine->set_pos(bds.pos());
-                combine->set_scale(base.scale().reciprocal() );
+                combine->set_scale(sca);
                 combine->auto_size(Margin{0, 0});
                 combine->set_z_index(100);
                 
@@ -3671,8 +3672,9 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
                         circ->set_clickable(true);
                         circ->set_radius(3);
                         //circ->clear_event_handlers();
-                        circ->on_click([id = blob->blob_id(), circ = circ](auto) mutable {
+                        circ->on_click([this, id = blob->blob_id(), circ = circ](auto) mutable {
                             auto pos = circ->pos();
+                            _current_boundary.clear();
                             GUI::instance()->set_clicked_blob_id(id);
                             GUI::instance()->set_clicked_blob_frame(GUI::frame());
                             GUI::cache().set_blobs_dirty();

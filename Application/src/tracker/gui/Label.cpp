@@ -34,8 +34,8 @@ void Label::update(DrawStructure& base, Section* s, float alpha, bool disabled) 
     //const Font font(0.9 * 0.75 + 0.25 * 0.9 / interface_scale);
     //const float add_scale = 0.85f / (1 - ((1 - GUI::instance()->cache().zoom_level()) * 0.5f)) + 0.1;
     
-    if(s)
-        _text->set_scale(s->scale().reciprocal() / GUI_SETTINGS(gui_interface_scale));
+    if(ptr)
+        _text->set_scale(base.scale().reciprocal().mul(ptr->scale().reciprocal()));
     _text->set_alpha(alpha);
     base.wrap_object(*_text);
     
