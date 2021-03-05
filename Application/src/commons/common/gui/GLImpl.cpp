@@ -357,24 +357,24 @@ void GLImpl::toggle_full_screen() {
     const GLFWvidmode * mode = glfwGetVideoMode(_monitor);
     
     // backup window position and window size
-    glfwGetWindowPos( _platform->window_handle(), &_wndPos[0], &_wndPos[1] );
-    glfwGetWindowSize( _platform->window_handle(), &_wndSize[0], &_wndSize[1] );
+    glfwGetWindowPos( window_handle(), &_wndPos[0], &_wndPos[1] );
+    glfwGetWindowSize( window_handle(), &_wndSize[0], &_wndSize[1] );
     
     if ( fullscreen )
     {
 
         // switch to full screen
-        glfwSetWindowSize(_platform->window_handle(), mode->width, mode->height);
-        glfwSetWindowPos(_platform->window_handle(), 0, 0);
-        //glfwSetWindowMonitor(_platform->window_handle(), _monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
-        glfwSetWindowAttrib(_platform->window_handle(), GLFW_FLOATING, GLFW_FALSE);
-        //glfwSetWindowMonitor( _platform->window_handle(), _monitor, 0, 0, mode->width, mode->height, 0 );
+        glfwSetWindowSize(window_handle(), mode->width, mode->height);
+        glfwSetWindowPos(window_handle(), 0, 0);
+        //glfwSetWindowMonitor(window_handle(), _monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+        glfwSetWindowAttrib(window_handle(), GLFW_FLOATING, GLFW_FALSE);
+        //glfwSetWindowMonitor( window_handle(), _monitor, 0, 0, mode->width, mode->height, 0 );
         fullscreen = false;
     }
     else
     {
         // restore last window size and position
-        glfwSetWindowMonitor( _platform->window_handle(), nullptr,  _wndPos[0], _wndPos[1], _wndSize[0], _wndSize[1], mode->refreshRate );
+        glfwSetWindowMonitor( window_handle(), nullptr,  _wndPos[0], _wndPos[1], _wndSize[0], _wndSize[1], mode->refreshRate );
         fullscreen = true;
         
     }
