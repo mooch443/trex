@@ -961,7 +961,9 @@ void VideoOpener::select_file(const file::Path &p) {
         if(_accumulate_video_frames_thread) {
             _end_frames_thread = true;
             if(!_accumulate_frames_done) {
+#ifndef NDEBUG
                 Warning("Have to wait for accumulate video frames thread...");
+#endif
                 while(!_accumulate_frames_done) {
                     std::this_thread::sleep_for(std::chrono::milliseconds(1));
                 }
@@ -982,7 +984,6 @@ void VideoOpener::select_file(const file::Path &p) {
             std::vector<Drawable*> children;
             
             for(size_t i = 0; !_end_frames_thread && i<video->length() && i < step * 10ul; i += step) {
-                Debug("Retrieving frame %lu", i);
                 video->read_frame(frame, i);
                 
                 std::vector<std::unique_ptr<ExternalImage>> images;
@@ -996,7 +997,9 @@ void VideoOpener::select_file(const file::Path &p) {
             }
             
             _accumulate_frames_done = true;
+#ifndef NDEBUG
             Debug("accumulate done");
+#endif
         });
         
     } catch(...) {

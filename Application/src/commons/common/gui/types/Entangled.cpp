@@ -164,10 +164,6 @@ namespace gui {
         
         ma += Vec2(max(0.f, margin.right), max(0.f, margin.bottom));
         
-#ifndef NDEBUG
-        if(!Drawable::name().empty() && ma != _bounds.size())
-            Debug("'%S' auto size: %.0fx%.0f", &Drawable::name(), ma.x, ma.y);
-#endif
         set_size(ma);
     }
     
