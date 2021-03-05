@@ -263,11 +263,10 @@ file::Path conda_environment_path() {
 
         CONFIG("frame_rate", int(0), "Specifies the frame rate of the video. It is used e.g. for playback speed and certain parts of the matching algorithm. Will be set by the .settings of a video (or by the video itself).", STARTUP);
         CONFIG("calculate_posture", true, "Enables or disables posture calculation. Can only be set before the video is analysed (e.g. in a settings file or as a startup parameter).", STARTUP);
-        //config["crop_offsets"] = cv::Rect2f(0.0, 0.0, 0.0, 0.0);
         
         CONFIG("meta_source_path", Path(""), "Path of the original video file for conversions (saved as debug info).", STARTUP);
-        CONFIG("meta_real_width", float(0), "The actual width of what is seen on a video image in centimeters. So for example if the image is cropped exactly to the tank, it would be the width of the tank. Used to convert from pixels to centimeters.");
-        CONFIG("cm_per_pixel", float(0), "The ratio of `meta_real_width` / `video_size`.width that is used to convert pixels to centimeters. Will be automatically calculated based on the video and the meta-parameters contained within.", STARTUP);
+        CONFIG("meta_real_width", float(0), "Used to calculate the `cm_per_pixel` conversion factor, relevant for e.g. converting the speed of individuals from px/s to cm/s (to compare to `track_max_speed` which is given in cm/s). By default set to 30 if no other values are available (e.g. via command-line). This variable should reflect actual width (in cm) of what is seen in the video image. For example, if the video shows a tank that is 50cm in X-direction and 30cm in Y-direction, and the image is cropped exactly to the size of the tank, then this variable should be set to 50.", STARTUP);
+        CONFIG("cm_per_pixel", float(0), "The ratio of `meta_real_width / video_width` that is used to convert pixels to centimeters. Will be automatically calculated based on a meta-parameter saved inside the video file (`meta_real_width`) and does not need to be set manually.", STARTUP);
         CONFIG("video_length", size_t(0), "The length of the video in frames", STARTUP);
         CONFIG("video_size", Size2(-1), "The dimensions of the currently loaded video.", SYSTEM);
         CONFIG("video_info", std::string(), "Information on the current video as provided by PV.", SYSTEM);
@@ -279,7 +278,7 @@ file::Path conda_environment_path() {
          * Siccardi AJ, Garris HW, Jones WT, Moseley DB, D’Abramo LR, Watts SA. Growth and Survival of Zebrafish (Danio rerio) Fed Different Commercial and Laboratory Diets. Zebrafish. 2009;6(3):275-280. doi:10.1089/zeb.2008.0553.
          */
         CONFIG("meta_mass_mg", float(200), "Used for exporting event-energy levels.");
-        CONFIG("midline_samples", uint64_t(0), "The maximum number of samples taken for generating a ``median midline length``. Setting this to 0 removes the limit all together. A limit may be set for very long videos, or videos with lots of individual, for memory reasons.");
+        CONFIG("midline_samples", uint64_t(0), "The maximum number of samples taken for generating a `median midline length`. Setting this to 0 removes the limit all together. A limit may be set for very long videos, or videos with lots of individuals, for memory reasons.");
         
         CONFIG("nowindow", false, "If set to true, no GUI will be created on startup (e.g. when starting from SSH).", STARTUP);
         CONFIG("debug", false, "Enables some verbose debug print-outs.");
@@ -361,7 +360,7 @@ file::Path conda_environment_path() {
         CONFIG("gui_single_identity_color", gui::Transparent, "If set to something else than transparent, all individuals will be displayed with this color.");
         CONFIG("gui_zoom_limit", Size2(300, 300), "");
         CONFIG("gui_recording_format", gui_recording_format_t::avi, "Sets the format for recording mode (when R is pressed in the GUI). Supported formats are 'avi', 'jpg' and 'png'. JPEGs have 75%% compression, AVI is using MJPEG compression.");
-        CONFIG("individual_names", std::map<uint32_t, std::string>{}, "A map of {individual-id: \"individual-name\", ...} that names individuals in the GUI and exported data.");
+        CONFIG("individual_names", std::map<uint32_t, std::string>{}, "A map of `{individual-id: \"individual-name\", ...}` that names individuals in the GUI and exported data.");
         CONFIG("individual_prefix", std::string("fish"), "The prefix that is added to all the files containing certain IDs. So individual 0 will turn into '[prefix]0' for all the npz files and within the program.");
         CONFIG("outline_approximate", uint8_t(3), "If this is a number > 0, the outline detected from the image will be passed through an elliptical fourier transform with `outline_approximate` number of coefficients. When the given number is sufficiently low, the outline will be smoothed significantly (and more so for lower numbers of coefficients).");
         CONFIG("outline_smooth_step", uint8_t(1), "Jump over N outline points when smoothing (reducing accuracy).");
@@ -378,14 +377,14 @@ file::Path conda_environment_path() {
         CONFIG("midline_start_with_head", false, "If enabled, the midline is going to be estimated starting at the head instead of the tail.");
         CONFIG("midline_invert", false, "If enabled, all midlines will be inverted (tail/head swapped).");
         CONFIG("peak_mode", peak_mode_t::pointy, "This determines whether the tail of an individual should be expected to be pointy or broad.");
-        CONFIG("manual_matches", std::map<long_t, std::map<track::Idx_t, int64_t>>{ }, "A map of manually defined matches (also updated by GUI menu for assigning manual identities). {{frame: {fish0: blob2, fish1: blob0}}, ...}");
-        CONFIG("manual_splits", std::map<long_t, std::set<int64_t>>{}, "This map contains {frame: [blobid1,blobid2,...]} where frame and blobid are integers. When this is read during tracking for a frame, the tracker will attempt to force-split the given blob ids.");
+        CONFIG("manual_matches", std::map<long_t, std::map<track::Idx_t, int64_t>>{ }, "A map of manually defined matches (also updated by GUI menu for assigning manual identities). `{{frame: {fish0: blob2, fish1: blob0}}, ...}`");
+        CONFIG("manual_splits", std::map<long_t, std::set<int64_t>>{}, "This map contains `{frame: [blobid1,blobid2,...]}` where frame and blobid are integers. When this is read during tracking for a frame, the tracker will attempt to force-split the given blob ids.");
         CONFIG("match_mode", matching_mode_t::accurate, "Changes the default algorithm to be used for matching blobs in one frame to blobs in the next frame. The accurate algorithm performs best, but also scales less well for more individuals than the approximate one. However, if it is too slow (temporarily) in a few frames, the program falls back to using the approximate one that doesnt slow down.");
         CONFIG("matching_probability_threshold", float(0.1), "The probability below which a possible connection between blob and identity is considered too low. The probability depends largely upon settings like `track_max_speed`.");
         CONFIG("track_do_history_split", true, "If disabled, blobs will not be split automatically in order to separate overlapping individuals. This usually happens based on their history.");
         CONFIG("track_end_segment_for_speed", true, "Sometimes individuals might be assigned to blobs that are far away from the previous position. This could indicate wrong assignments, but not necessarily. If this variable is set to true, consecutive frame segments will end whenever high speeds are reached, just to be on the safe side. For scenarios with lots of individuals (and no recognition) this might spam yellow bars in the timeline and may be disabled.");
         CONFIG("track_max_individuals", uint32_t(0), "The maximal number of individual that are assigned at the same time (infinite if set to zero). If the given number is below the actual number of individual, then only a (random) subset of individual are assigned and a warning is shown.", STARTUP);
-        CONFIG("blob_size_ranges", BlobSizeRange({Rangef(0.1f, 3)}), "Blobs below the lower bound are recognized as noise instead of individuals. Blobs bigger than the upper bound are considered to potentially contain more than one individual. The unit is #pixels * (`meta_real_width` / video_width).");
+        CONFIG("blob_size_ranges", BlobSizeRange({Rangef(0.1f, 3)}), "Blobs below the lower bound are recognized as noise instead of individuals. Blobs bigger than the upper bound are considered to potentially contain more than one individual. You can look these values up by pressing `D` in TRex to get to the raw view (see `https://trex.run/docs/gui.html` for details). The unit is #pixels * (cm/px)^2. `cm_per_pixel` is used for this conversion.");
         CONFIG("blob_split_max_shrink", float(0.2), "The minimum percentage of the starting blob size (after thresholding), that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.");
         CONFIG("blob_split_global_shrink_limit", float(0.2), "The minimum percentage of the minimum in `blob_size_ranges`, that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.");
         
@@ -395,8 +394,8 @@ file::Path conda_environment_path() {
         CONFIG("auto_minmax_size", false, "Program will try to find minimum / maximum size of the individuals automatically for the current `cm_per_pixel` setting. Can only be passed as an argument upon startup. The calculation is based on the median blob size in the video and assumes a relatively low level of noise.", STARTUP);
         CONFIG("auto_number_individuals", false, "Program will automatically try to find the number of individuals (with sizes given in `blob_size_ranges`) and set `track_max_individuals` to that value.");
         
-        CONFIG("track_speed_decay", float(0.7), "The amount the expected speed is reduced over time when an individual is lost. When individuals collide, depending on the expected behavior for the given species, one should choose different values for this variable. If the individuals usually stop when they collide, this should be set to a value > 0.8. If the individuals are expected to move over one another, the value should be set to a small value > 0.");
-        CONFIG("track_max_speed", float(10), "The maximum speed an individual can have (=> the maximum distance an individual can travel within one second) in cm/s. Uses `meta_real_width`.");
+        CONFIG("track_speed_decay", float(0.7), "The amount the expected speed is reduced over time when an individual is lost. When individuals collide, depending on the expected behavior for the given species, one should choose different values for this variable. If the individuals usually stop when they collide, this should be set to 1. If the individuals are expected to move over one another, the value should be set to `0.7 > value > 0`.");
+        CONFIG("track_max_speed", float(10), "The maximum speed an individual can have (=> the maximum distance an individual can travel within one second) in cm/s. Uses and is influenced by `meta_real_width` and `cm_per_pixel` as follows: `speed(px/s) * cm_per_pixel(cm/px) -> cm/s`.");
         CONFIG("posture_direction_smoothing", size_t(0), "Enables or disables smoothing of the posture orientation based on previous frames (not good for fast turns).");
         CONFIG("speed_extrapolation", float(3), "Used for matching when estimating the next position of an individual. Smaller values are appropriate for lower frame rates. The higher this value is, the more previous frames will have significant weight in estimating the next position (with an exponential decay).");
         CONFIG("track_intensity_range", Rangel(-1, -1), "When set to valid values, objects will be filtered to have an average pixel intensity within the given range.");
@@ -497,15 +496,15 @@ file::Path conda_environment_path() {
         CONFIG("output_min_frames", size_t(1), "Filters all individual with less than N frames when exporting. Individuals with fewer than N frames will also be hidden in the GUI unless `gui_show_inactive_individuals` is enabled (default).");
         CONFIG("output_interpolate_positions", bool(false), "If turned on this function will linearly interpolate X/Y, and SPEED values, for all frames in which an individual is missing.");
         CONFIG("output_prefix", std::string(), "A prefix that is prepended to all output files (csv/npz).");
-        CONFIG("output_graphs", output_graphs, "The functions that will be exported when saving to CSV, or shown in the graph. [['X',[option], ...]]");
+        CONFIG("output_graphs", output_graphs, "The functions that will be exported when saving to CSV, or shown in the graph. `[['X',[option], ...]]`");
         CONFIG("tracklet_max_images", size_t(0), "Maximum number of images that are being output per tracklet given that `output_image_per_tracklet` is true. If the number is 0, then every image will be exported that has been recognized as an individual.");
         CONFIG("tracklet_normalize_orientation", true, "If enabled, all exported tracklet images are normalized according to the calculated posture orientation, so that all heads are looking to the left and only the body moves.");
         CONFIG("tracklet_restore_split_blobs", true, "If enabled, all exported tracklet images are checked for missing pixels. When a blob is too close to another blob, parts of the other blob might be erased so the individuals can be told apart. If enabled, another mask will be saved, that contains only the blob in focus, without the rest-pixels.");
         CONFIG("output_image_per_tracklet", false, "If set to true, the program will output one median image per tracklet (time-series segment) and save it alongside the npz/csv files.");
-        CONFIG("output_format", output_format_t::npz, "When pressing the S(ave) button or using auto_quit, this setting allows to switch between CSV and NPZ output. NPZ files are recommended and will be used by default - some functionality (such as visual fields, posture data, etc.) will remain in NPZ format due to technical constraints.");
-        CONFIG("output_statistics", true, "Save an NPZ file containing an array with shape Nx5 and contents [[adding_frame_seconds, combined_posture_seconds, track_max_individuals, loading_seconds, posture_seconds],...] and an 1D-array containing all frame numbers. If set to true, a file called '`output_dir`/`fish_data_dir`/`filename`_statistics.npz' will be created. This will not output anything interesting, if the data was loaded instead of analysed.");
-        CONFIG("output_posture_data", false, "Save posture data npz file along with the usual NPZ/CSV files containing positions and such. If set to true, a file called '`output_dir`/`fish_data_dir`/`filename`_posture_fishXXX.npz' will be created for each individual XXX.");
-        CONFIG("output_recognition_data", false, "Save recognition / probability data npz file along with the usual NPZ/CSV files containing positions and such. If set to true, a file called '`output_dir`/`fish_data_dir`/`filename`_recognition_fishXXX.npz' will be created for each individual XXX.");
+        CONFIG("output_format", output_format_t::npz, "When pressing the S(ave) button or using `auto_quit`, this setting allows to switch between CSV and NPZ output. NPZ files are recommended and will be used by default - some functionality (such as visual fields, posture data, etc.) will remain in NPZ format due to technical constraints.");
+        CONFIG("output_statistics", true, "Save an NPZ file containing an array with shape Nx5 and contents `[[adding_frame_seconds, combined_posture_seconds, track_max_individuals, loading_seconds, posture_seconds],...]` and an 1D-array containing all frame numbers. If set to true, a file called '`output_dir`/`fish_data_dir`/`<filename>_statistics.npz`' will be created. This will not output anything interesting, if the data was loaded instead of analysed.");
+        CONFIG("output_posture_data", false, "Save posture data npz file along with the usual NPZ/CSV files containing positions and such. If set to true, a file called '`output_dir`/`fish_data_dir`/`<filename>_posture_fishXXX.npz`' will be created for each individual XXX.");
+        CONFIG("output_recognition_data", false, "Save recognition / probability data npz file along with the usual NPZ/CSV files containing positions and such. If set to true, a file called '`output_dir`/`fish_data_dir`/`<filename>_recognition_fishXXX.npz`' will be created for each individual XXX.");
         CONFIG("output_normalize_midline_data", false, "If enabled: save a normalized version of the midline data saved whenever `output_posture_data` is set to true. Normalized means that the position of the midline points is normalized across frames (or the distance between head and point n in the midline array).");
         CONFIG("output_centered", false, "If set to true, the origin of all X and Y coordinates is going to be set to the center of the video.");
         CONFIG("output_default_options", output_default_options, "Default scaling and smoothing options for output functions, which are applied to functions in `output_graphs` during export.");
@@ -517,7 +516,7 @@ file::Path conda_environment_path() {
         
         //CONFIG("correct_luminance", true, "", STARTUP);
         
-        CONFIG("grid_points", std::vector<Vec2>{}, "Whenever there is an identification network loaded and this array contains more than one point [[x0,y0],[x1,y1],...], then the network will only be applied to blobs within circles around these points. The size of these circles is half of the average distance between the points.");
+        CONFIG("grid_points", std::vector<Vec2>{}, "Whenever there is an identification network loaded and this array contains more than one point `[[x0,y0],[x1,y1],...]`, then the network will only be applied to blobs within circles around these points. The size of these circles is half of the average distance between the points.");
         CONFIG("grid_points_scaling", float(0.8), "Scaling applied to the average distance between the points in order to shrink or increase the size of the circles for recognition (see `grid_points`).");
         CONFIG("recognition_segment_add_factor", float(1.5), "This factor will be multiplied with the probability that would be pure chance, during the decision whether a segment is to be added or not. The default value of 1.5 suggests that the minimum probability for each identity has to be 1.5 times chance (e.g. 0.5 in the case of two individuals).");
         CONFIG("recognition_save_progress_images", false, "If set to true, an image will be saved for all training epochs, documenting the uniqueness in each step.");
@@ -526,7 +525,7 @@ file::Path conda_environment_path() {
         );
         CONFIG("debug_recognition_output_all_methods", false, "If set to true, a complete training will attempt to output all images for each identity with all available normalization methods.");
         CONFIG("recognition_border_shrink_percent", float(0.3), "The amount by which the recognition border is shrunk after generating it (roughly and depends on the method).");
-        CONFIG("recognition_border_size_rescale", float(0.5), "The amount that blob sizes for calculating the heatmap are allowed to go below or above blob_size_ranges (e.g. 0.5 means that the sizes can range between blob_size_ranges.min * (1 - 0.5) and blob_size_ranges.max * (1 + 0.5)).");
+        CONFIG("recognition_border_size_rescale", float(0.5), "The amount that blob sizes for calculating the heatmap are allowed to go below or above values specified in `blob_size_ranges` (e.g. 0.5 means that the sizes can range between `blob_size_ranges.min * (1 - 0.5)` and `blob_size_ranges.max * (1 + 0.5)`).");
         CONFIG("recognition_smooth_amount", size_t(200), "");
         CONFIG("recognition_coeff", size_t(50), "");
         CONFIG("recognition_enable", true, "This enables internal training. Requires Python3 and Keras to be available.", STARTUP);
@@ -547,11 +546,11 @@ file::Path conda_environment_path() {
         CONFIG("gpu_accumulation_max_segments", uint32_t(15), "If there are more than `gpu_accumulation_max_segments` global segments to be trained on, they will be filtered according to their quality until said limit is reached.");
         CONFIG("terminate_training", bool(false), "Setting this to true aborts the training in progress.");
         
-        CONFIG("manually_approved", std::map<long_t,long_t>(), "A list of ranges of manually approved frames that may be used for generating training datasets {232:232,5555:5560}.");
+        CONFIG("manually_approved", std::map<long_t,long_t>(), "A list of ranges of manually approved frames that may be used for generating training datasets, e.g. `{232:233,5555:5560}` where each of the numbers is a frame number. Meaning that frames 232-233 and 5555-5560 are manually set to be manually checked for any identity switches, and individual identities can be assumed to be consistent throughout these frames.");
         CONFIG("gui_focus_group", std::vector<Idx_t>(), "Focus on this group of individuals.");
         
-        CONFIG("track_ignore", std::vector<std::vector<Vec2>>(), "If this is not empty, objects within the given rectangles or polygons (>= 3 points) [[x0,y0],[x1,y1](, ...)], ...] will be ignored during tracking.");
-        CONFIG("track_include", std::vector<std::vector<Vec2>>(), "If this is not empty, objects within the given rectangles or polygons (>= 3 points) [[x0,y0],[x1,y1](, ...)], ...] will be the only objects being tracked. (overwrites `track_ignore`)");
+        CONFIG("track_ignore", std::vector<std::vector<Vec2>>(), "If this is not empty, objects within the given rectangles or polygons (>= 3 points) `[[x0,y0],[x1,y1](, ...)], ...]` will be ignored during tracking.");
+        CONFIG("track_include", std::vector<std::vector<Vec2>>(), "If this is not empty, objects within the given rectangles or polygons (>= 3 points) `[[x0,y0],[x1,y1](, ...)], ...]` will be the only objects being tracked. (overwrites `track_ignore`)");
         
         CONFIG("huge_timestamp_ends_segment", true, "");
         CONFIG("track_trusted_probability", float(0.5), "If the probability, that is used to assign an individual to an object, is smaller than this value, the current segment will be ended (thus this will also not be a consecutive segment anymore for this individual).");

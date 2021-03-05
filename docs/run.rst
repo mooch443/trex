@@ -38,6 +38,8 @@ If you know the number of individuals, specify before you do the tracking (using
 
 If you have more than 200 individuals and they are always in very close proximity to each other (or you get a lot of warnings), the tree-based matching method might be in trouble (combinatorically speaking). Consider changing your matching algorithm (``match_mode``) to ``approximate`` or ``hungarian``. These algorithms have down-sides to them, but they do scale better for many individuals. If you need something trustworthy: ``hungarian`` is the well-known Hungarian algorithm (https://en.wikipedia.org/wiki/Hungarian_algorithm)!
 
+When converting videos, :func:`meta_real_width` should always be specified unless you do not know the real-world dimensions of what you see. If not set, then all values will be in fictional units (``meta_real_width`` defaults to 30).
+
 Running TGrabs
 --------------
 
@@ -68,6 +70,8 @@ Other useful options are::
 
 	- 'meta_real_width': The width of what is seen in the video in cms. This is used to convert px -> cm internally, and is saved as meta information inside the .pv file.
 	- 'meta_species': Species (meta-information, entirely optional)
+
+See also: :func:`meta_real_width`.
 
 Running TRex
 ------------

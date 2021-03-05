@@ -158,21 +158,38 @@ namespace cmn {
             bool in_parm = false;
             std::string param_name;
             std::string options = "";
+            std::stringstream text;
+            auto keys = config.keys();
             
             for (size_t i=0; i<description.size(); ++i) {
                 if (description.at(i) == '`') {
                     in_parm = !in_parm;
                     if(!in_parm) {
                         if(param_name != name) {
-                            if(i < description.size()-1 && description.at(i+1) == '_') {
+                            /*if(i < description.size()-1 && description.at(i+1) == '_') {
                                 description = description.substr(0, i+1) + "\\" + description.substr(i+1);
+                            }*/
+                            
+                            if(contains(keys, param_name)) {
+                                see_also.push_back(param_name);
+                                text << "``" << param_name << "``";
+                                
+                            } else if(utils::beginsWith(param_name, "http://") || utils::beginsWith(param_name, "https://"))
+                            {
+                                text << "`<" << param_name << ">`_";
+                                
+                            } else {
+                                Warning("Cannot find '%S' in map.", &param_name);
+                                text << "``" << param_name << "``";
                             }
-                            see_also.push_back(param_name);
                         }
+                        
                     } else
                         param_name = "";
+                    
                 } else if(in_parm) {
                     param_name += description.at(i);
+                    
                 } else {
                     if(description.at(i) == '$') {
                         if(utils::beginsWith(description.substr(i), "$options$")) {
@@ -181,6 +198,8 @@ namespace cmn {
                             break;
                         }
                     }
+                    
+                    text << description.at(i);
                 }
             }
             
@@ -200,7 +219,7 @@ namespace cmn {
             
             ss << std::endl;
             
-            ss << "\t" << description << std::endl << std::endl;
+            ss << "\t" << text.str() << std::endl << std::endl;
             
             if(!see_also.empty()) {
                 ss << "\t" << ".. seealso:: ";

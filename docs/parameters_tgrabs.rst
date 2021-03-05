@@ -21,7 +21,7 @@ TGrabs parameters
 	**default value:** 0
 
 
-	If available, please provide the approximate length of the video in minutes here, so that the encoding strategy can be chosen intelligently. If set to 0, infinity is assumed. This setting is overwritten by `stop_after_minutes`.
+	If available, please provide the approximate length of the video in minutes here, so that the encoding strategy can be chosen intelligently. If set to 0, infinity is assumed. This setting is overwritten by ``stop_after_minutes``.
 
 	.. seealso:: :func:`stop_after_minutes`, 
 
@@ -31,9 +31,9 @@ TGrabs parameters
 	**default value:** 100
 
 
-	Number of samples taken to generate an average image. Usually fewer are necessary for `average_method`s max, and min.
+	Number of samples taken to generate an average image. Usually fewer are necessary for ``averaging_method``s max, and min.
 
-	.. seealso:: :func:`average_method`, 
+	.. seealso:: :func:`averaging_method`, 
 
 
 .. function:: averaging_method(averaging_method_t)
@@ -92,7 +92,7 @@ TGrabs parameters
 	**default value:** 3
 
 
-	Size of the dilation/erosion filters for if `use_closing` is enabled.
+	Size of the dilation/erosion filters for if ``use_closing`` is enabled.
 
 	.. seealso:: :func:`use_closing`, 
 
@@ -147,7 +147,7 @@ TGrabs parameters
 	**default value:** false
 
 
-	When enabled, live tracking will be executed for every frame received. Frames will be sent to the 'closed_loop.py' script - see this script for more information. Sets `enable_live_tracking` to true. Allows the tracker to skip frames by default, in order to catch up to the video.
+	When enabled, live tracking will be executed for every frame received. Frames will be sent to the 'closed_loop.py' script - see this script for more information. Sets ``enable_live_tracking`` to true. Allows the tracker to skip frames by default, in order to catch up to the video.
 
 	.. seealso:: :func:`enable_live_tracking`, 
 
@@ -157,7 +157,7 @@ TGrabs parameters
 	**default value:** true
 
 
-	Enables background subtraction. If disabled, `threshold` will be applied to the raw greyscale values instead of difference values.
+	Enables background subtraction. If disabled, ``threshold`` will be applied to the raw greyscale values instead of difference values.
 
 	.. seealso:: :func:`threshold`, 
 
@@ -167,9 +167,8 @@ TGrabs parameters
 	**default value:** false
 
 
-	When enabled, the program will save a .results file for the recorded video plus export the data (see `output_graphs` in the tracker documentation).
+	When enabled, the program will save a .results file for the recorded video plus export the data (see ``output_graphs`` in the tracker documentation).
 
-	.. seealso:: :func:`output_graphs`, 
 
 
 .. function:: equalize_histogram(bool)
@@ -195,7 +194,7 @@ TGrabs parameters
 	**default value:** false
 
 
-	If set to true, live tracking will always overwrite a settings file with `filename`.settings in the output folder.
+	If set to true, live tracking will always overwrite a settings file with ``filename``.settings in the output folder.
 
 	.. seealso:: :func:`filename`, 
 
@@ -214,7 +213,7 @@ TGrabs parameters
 	**default value:** false
 
 
-	Converts the image to floating-point (temporarily) and performs f(x,y) * `image_contrast_increase` + `image_brightness_increase` plus, if enabled, squares the image (`image_square_brightness`).
+	Converts the image to floating-point (temporarily) and performs f(x,y) * ``image_contrast_increase`` + ``image_brightness_increase`` plus, if enabled, squares the image (``image_square_brightness``).
 
 	.. seealso:: :func:`image_contrast_increase`, :func:`image_brightness_increase`, :func:`image_square_brightness`, 
 
@@ -224,7 +223,7 @@ TGrabs parameters
 	**default value:** 0
 
 
-	Value that is added to the preprocessed image before applying the threshold (see `image_adjust`). The neutral value is 0 here.
+	Value that is added to the preprocessed image before applying the threshold (see ``image_adjust``). The neutral value is 0 here.
 
 	.. seealso:: :func:`image_adjust`, 
 
@@ -234,7 +233,7 @@ TGrabs parameters
 	**default value:** 3
 
 
-	Value that is multiplied to the preprocessed image before applying the threshold (see `image_adjust`). The neutral value is 1 here.
+	Value that is multiplied to the preprocessed image before applying the threshold (see ``image_adjust``). The neutral value is 1 here.
 
 	.. seealso:: :func:`image_adjust`, 
 
@@ -379,7 +378,7 @@ TGrabs parameters
 	**default value:** 0
 
 
-	Custom override of how many bytes of system RAM the program is allowed to fill. If `approximate_length_minutes` or `stop_after_minutes` are set, this might help to increase the resulting RAW video footage frame_rate.
+	Custom override of how many bytes of system RAM the program is allowed to fill. If ``approximate_length_minutes`` or ``stop_after_minutes`` are set, this might help to increase the resulting RAW video footage frame_rate.
 
 	.. seealso:: :func:`approximate_length_minutes`, :func:`stop_after_minutes`, 
 
@@ -398,7 +397,7 @@ TGrabs parameters
 	**default value:** "checkerboard"
 
 
-	Defines, which test image will be used if `video_source` is set to 'test_image'.
+	Defines, which test image will be used if ``video_source`` is set to 'test_image'.
 
 	.. seealso:: :func:`video_source`, 
 
@@ -435,7 +434,7 @@ TGrabs parameters
 	**default value:** false
 
 
-	Toggles the attempt to close weird blobs using dilation/erosion with `closing_size` sized filters.
+	Toggles the attempt to close weird blobs using dilation/erosion with ``closing_size`` sized filters.
 
 	.. seealso:: :func:`closing_size`, 
 

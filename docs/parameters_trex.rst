@@ -44,7 +44,7 @@ TRex parameters
 	**default value:** false
 
 
-	Program will try to find minimum / maximum size of the individuals automatically for the current `cm_per_pixel` setting. Can only be passed as an argument upon startup. The calculation is based on the median blob size in the video and assumes a relatively low level of noise.
+	Program will try to find minimum / maximum size of the individuals automatically for the current ``cm_per_pixel`` setting. Can only be passed as an argument upon startup. The calculation is based on the median blob size in the video and assumes a relatively low level of noise.
 
 	.. seealso:: :func:`cm_per_pixel`, 
 
@@ -72,7 +72,7 @@ TRex parameters
 	**default value:** false
 
 
-	If set to true, the auto_quit option will NOT save any `output_graphs` tracking data - just the posture data (if enabled) and the results file (if not disabled). This saves time and space if that is a need.
+	If set to true, the auto_quit option will NOT save any ``output_graphs`` tracking data - just the posture data (if enabled) and the results file (if not disabled). This saves time and space if that is a need.
 
 	.. seealso:: :func:`output_graphs`, 
 
@@ -82,7 +82,7 @@ TRex parameters
 	**default value:** false
 
 
-	Program will automatically try to find the number of individuals (with sizes given in `blob_size_ranges`) and set `track_max_individuals` to that value.
+	Program will automatically try to find the number of individuals (with sizes given in ``blob_size_ranges``) and set ``track_max_individuals`` to that value.
 
 	.. seealso:: :func:`blob_size_ranges`, :func:`track_max_individuals`, 
 
@@ -101,7 +101,7 @@ TRex parameters
 	**default value:** false
 
 
-	If set to true (and `recognition_enable` is also set to true), the application will automatically train the recognition network with the best track segment and apply it to the video.
+	If set to true (and ``recognition_enable`` is also set to true), the application will automatically train the recognition network with the best track segment and apply it to the video.
 
 	.. seealso:: :func:`recognition_enable`, 
 
@@ -111,7 +111,7 @@ TRex parameters
 	**default value:** false
 
 
-	If set to true, setting `auto_train` will only train and not apply the trained network.
+	If set to true, setting ``auto_train`` will only train and not apply the trained network.
 
 	.. seealso:: :func:`auto_train`, 
 
@@ -121,7 +121,7 @@ TRex parameters
 	**default value:** false
 
 
-	This is a parameter that is used by the system to determine whether `auto_train` was set on startup, and thus also whether a failure of `auto_train` should result in a crash (return code != 0).
+	This is a parameter that is used by the system to determine whether ``auto_train`` was set on startup, and thus also whether a failure of ``auto_train`` should result in a crash (return code != 0).
 
 	.. seealso:: :func:`auto_train`, :func:`auto_train`, 
 
@@ -131,9 +131,9 @@ TRex parameters
 	**default value:** [[0.1,3]]
 
 
-	Blobs below the lower bound are recognized as noise instead of individuals. Blobs bigger than the upper bound are considered to potentially contain more than one individual. The unit is #pixels * (`meta_real_width` / video_width).
+	Blobs below the lower bound are recognized as noise instead of individuals. Blobs bigger than the upper bound are considered to potentially contain more than one individual. You can look these values up by pressing ``D`` in TRex to get to the raw view (see `<https://trex.run/docs/gui.html>`_ for details). The unit is #pixels * (cm/px)^2. ``cm_per_pixel`` is used for this conversion.
 
-	.. seealso:: :func:`meta_real_width`, 
+	.. seealso:: :func:`cm_per_pixel`, 
 
 
 .. function:: blob_split_global_shrink_limit(float)
@@ -141,7 +141,7 @@ TRex parameters
 	**default value:** 0.2
 
 
-	The minimum percentage of the minimum in `blob_size_ranges`, that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.
+	The minimum percentage of the minimum in ``blob_size_ranges``, that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.
 
 	.. seealso:: :func:`blob_size_ranges`, 
 
@@ -202,7 +202,7 @@ TRex parameters
 
 .. function:: build_type(string)
 
-	**default value:** "$<$<CONFIG:Debug>:Release>$<$<CONFIG:Release>:Debug>"
+	**default value:** "$<IF:$<CONFIG:Debug>,Debug,Release>"
 
 
 	The mode the application was built in.
@@ -250,7 +250,7 @@ TRex parameters
 	**default value:** false
 
 
-	If set to true, the recorded video image will be undistorted using `cam_undistort_vector` (1x5) and `cam_matrix` (3x3).
+	If set to true, the recorded video image will be undistorted using ``cam_undistort_vector`` (1x5) and ``cam_matrix`` (3x3).
 
 	.. seealso:: :func:`cam_undistort_vector`, :func:`cam_matrix`, 
 
@@ -269,9 +269,9 @@ TRex parameters
 	**default value:** 0
 
 
-	The ratio of `meta_real_width` / `video_size`.width that is used to convert pixels to centimeters. Will be automatically calculated based on the video and the meta-parameters contained within.
+	The ratio of ``meta_real_width / video_width`` that is used to convert pixels to centimeters. Will be automatically calculated based on a meta-parameter saved inside the video file (``meta_real_width``) and does not need to be set manually.
 
-	.. seealso:: :func:`meta_real_width`, :func:`video_size`, 
+	.. seealso:: :func:`meta_real_width`, 
 
 
 .. function:: cmd_line(string)
@@ -369,7 +369,7 @@ TRex parameters
 	**default value:** "data"
 
 
-	Subfolder (below `output_dir`) where the exported NPZ or CSV files will be saved (see `output_graphs`).
+	Subfolder (below ``output_dir``) where the exported NPZ or CSV files will be saved (see ``output_graphs``).
 
 	.. seealso:: :func:`output_dir`, :func:`output_graphs`, 
 
@@ -406,7 +406,7 @@ TRex parameters
 	**default value:** 15
 
 
-	If there are more than `gpu_accumulation_max_segments` global segments to be trained on, they will be filtered according to their quality until said limit is reached.
+	If there are more than  global segments to be trained on, they will be filtered according to their quality until said limit is reached.
 
 
 
@@ -478,7 +478,7 @@ TRex parameters
 	**default value:** []
 
 
-	Whenever there is an identification network loaded and this array contains more than one point [[x0,y0],[x1,y1],...], then the network will only be applied to blobs within circles around these points. The size of these circles is half of the average distance between the points.
+	Whenever there is an identification network loaded and this array contains more than one point ``[[x0,y0],[x1,y1],...]``, then the network will only be applied to blobs within circles around these points. The size of these circles is half of the average distance between the points.
 
 
 
@@ -487,7 +487,7 @@ TRex parameters
 	**default value:** 0.8
 
 
-	Scaling applied to the average distance between the points in order to shrink or increase the size of the circles for recognition (see `grid_points`).
+	Scaling applied to the average distance between the points in order to shrink or increase the size of the circles for recognition (see ``grid_points``).
 
 	.. seealso:: :func:`grid_points`, 
 
@@ -506,7 +506,7 @@ TRex parameters
 	**default value:** true
 
 
-	If set to true (and `gui_auto_scale` set to true, too), the tracker will zoom in on the selected individual, if one is selected.
+	If set to true (and ``gui_auto_scale`` set to true, too), the tracker will zoom in on the selected individual, if one is selected.
 
 	.. seealso:: :func:`gui_auto_scale`, 
 
@@ -764,7 +764,7 @@ TRex parameters
 	**default value:** true
 
 
-	Show/hide individuals that have not been seen for longer than `track_max_reassign_time`.
+	Show/hide individuals that have not been seen for longer than ``track_max_reassign_time``.
 
 	.. seealso:: :func:`track_max_reassign_time`, 
 
@@ -855,7 +855,7 @@ TRex parameters
 	**default value:** true
 
 
-	Shows what is contained within tht recognition boundary as a cyan background. (See `recognition_border` for details.)
+	Shows what is contained within tht recognition boundary as a cyan background. (See ``recognition_border`` for details.)
 
 	.. seealso:: :func:`recognition_border`, 
 
@@ -973,7 +973,7 @@ TRex parameters
 	**default value:** 0
 
 
-	If `heatmap_dynamic` is enabled, this variable determines the range of frames that are considered. If set to 0, all frames up to the current frame are considered. Otherwise, this number determines the number of frames previous to the current frame that are considered.
+	If ``heatmap_dynamic`` is enabled, this variable determines the range of frames that are considered. If set to 0, all frames up to the current frame are considered. Otherwise, this number determines the number of frames previous to the current frame that are considered.
 
 	.. seealso:: :func:`heatmap_dynamic`, 
 
@@ -988,10 +988,9 @@ TRex parameters
 		- `cell`: The cell sum will be divided by the maximum cell value encountered.
 		- `variance`: Displays the variation within each cell.
 
-	Normalization used for the heatmaps. If `value` is selected, then the maximum of all values encountered will be used to normalize the average of each cell. If `cell` is selected, the sum of each cell will be divided by the maximum cell value encountered.
+	Normalization used for the heatmaps. If ``value`` is selected, then the maximum of all values encountered will be used to normalize the average of each cell. If ``cell`` is selected, the sum of each cell will be divided by the maximum cell value encountered.
 
 
-	.. seealso:: :func:`value`, :func:`cell`, 
 
 
 .. function:: heatmap_resolution(uint)
@@ -999,7 +998,7 @@ TRex parameters
 	**default value:** 64
 
 
-	Square resolution of individual heatmaps displayed with `gui_show_heatmap`. Will generate a square grid, each cell with dimensions (video_width / N, video_height / N), and sort all positions of each identity into it.
+	Square resolution of individual heatmaps displayed with ``gui_show_heatmap``. Will generate a square grid, each cell with dimensions (video_width / N, video_height / N), and sort all positions of each identity into it.
 
 	.. seealso:: :func:`gui_show_heatmap`, 
 
@@ -1009,7 +1008,7 @@ TRex parameters
 	**default value:** 0.05
 
 
-	Value between 0 and 1, think of as `heatmap_smooth` times video-width, indicating the maximum upscaled size of the heatmaps shown in the tracker. Makes them prettier, but maybe much slower.
+	Value between 0 and 1, think of as  times video-width, indicating the maximum upscaled size of the heatmaps shown in the tracker. Makes them prettier, but maybe much slower.
 
 
 
@@ -1090,7 +1089,7 @@ TRex parameters
 	**default value:** {}
 
 
-	A map of {individual-id: "individual-name", ...} that names individuals in the GUI and exported data.
+	A map of ``{individual-id: "individual-name", ...}`` that names individuals in the GUI and exported data.
 
 
 
@@ -1144,7 +1143,7 @@ TRex parameters
 	**default value:** {}
 
 
-	A map of manually defined matches (also updated by GUI menu for assigning manual identities). {{frame: {fish0: blob2, fish1: blob0}}, ...}
+	A map of manually defined matches (also updated by GUI menu for assigning manual identities). ``{{frame: {fish0: blob2, fish1: blob0}}, ...}``
 
 
 
@@ -1153,7 +1152,7 @@ TRex parameters
 	**default value:** {}
 
 
-	This map contains {frame: [blobid1,blobid2,...]} where frame and blobid are integers. When this is read during tracking for a frame, the tracker will attempt to force-split the given blob ids.
+	This map contains ``{frame: [blobid1,blobid2,...]}`` where frame and blobid are integers. When this is read during tracking for a frame, the tracker will attempt to force-split the given blob ids.
 
 
 
@@ -1162,7 +1161,7 @@ TRex parameters
 	**default value:** {}
 
 
-	A list of ranges of manually approved frames that may be used for generating training datasets {232:232,5555:5560}.
+	A list of ranges of manually approved frames that may be used for generating training datasets, e.g. ``{232:233,5555:5560}`` where each of the numbers is a frame number. Meaning that frames 232-233 and 5555-5560 are manually set to be manually checked for any identity switches, and individual identities can be assumed to be consistent throughout these frames.
 
 
 
@@ -1186,7 +1185,7 @@ TRex parameters
 	**default value:** 0.1
 
 
-	The probability below which a possible connection between blob and identity is considered too low. The probability depends largely upon settings like `track_max_speed`.
+	The probability below which a possible connection between blob and identity is considered too low. The probability depends largely upon settings like ``track_max_speed``.
 
 	.. seealso:: :func:`track_max_speed`, 
 
@@ -1205,8 +1204,9 @@ TRex parameters
 	**default value:** 0
 
 
-	The actual width of what is seen on a video image in centimeters. So for example if the image is cropped exactly to the tank, it would be the width of the tank. Used to convert from pixels to centimeters.
+	Used to calculate the ``cm_per_pixel`` conversion factor, relevant for e.g. converting the speed of individuals from px/s to cm/s (to compare to ``track_max_speed`` which is given in cm/s). By default set to 30 if no other values are available (e.g. via command-line). This variable should reflect actual width (in cm) of what is seen in the video image. For example, if the video shows a tank that is 50cm in X-direction and 30cm in Y-direction, and the image is cropped exactly to the size of the tank, then this variable should be set to 50.
 
+	.. seealso:: :func:`cm_per_pixel`, :func:`track_max_speed`, 
 
 
 .. function:: meta_source_path(path)
@@ -1241,9 +1241,8 @@ TRex parameters
 	**default value:** 0
 
 
-	The maximum number of samples taken for generating a ``median midline length``. Setting this to 0 removes the limit all together. A limit may be set for very long videos, or videos with lots of individual, for memory reasons.
+	The maximum number of samples taken for generating a ``median midline length``. Setting this to 0 removes the limit all together. A limit may be set for very long videos, or videos with lots of individuals, for memory reasons.
 
-	.. seealso:: :func:``, :func:``, 
 
 
 .. function:: midline_start_with_head(bool)
@@ -1287,7 +1286,7 @@ TRex parameters
 	**default value:** 3
 
 
-	If this is a number > 0, the outline detected from the image will be passed through an elliptical fourier transform with `outline_approximate` number of coefficients. When the given number is sufficiently low, the outline will be smoothed significantly (and more so for lower numbers of coefficients).
+	If this is a number > 0, the outline detected from the image will be passed through an elliptical fourier transform with  number of coefficients. When the given number is sufficiently low, the outline will be smoothed significantly (and more so for lower numbers of coefficients).
 
 
 
@@ -1296,9 +1295,8 @@ TRex parameters
 	**default value:** 0.03
 
 
-	Determines the ratio between number of outline points and distance used to calculate its curvature. Program will look at index +- `ratio * size()` and calculate the distance between these points (see posture window red/green color).
+	Determines the ratio between number of outline points and distance used to calculate its curvature. Program will look at index +- ``ratio * size()`` and calculate the distance between these points (see posture window red/green color).
 
-	.. seealso:: :func:`ratio * size()`, 
 
 
 .. function:: outline_resample(float)
@@ -1360,7 +1358,7 @@ TRex parameters
 	**default value:** {"event_acceleration":["/10"],"ACCELERATION":["/15","SMOOTH","CENTROID"],"L_V":["/10"],"v_direction":["/10"],"DOT_V":["/10"],"ANGULAR_V":["/10","SMOOTH","CENTROID"],"ANGULAR_A":["/1000","SMOOTH","CENTROID"],"NEIGHBOR_VECTOR_T":["/1"],"SPEED":["/10","SMOOTH"],"NEIGHBOR_DISTANCE":["/10"],"X":["/100"],"Y":["/100"],"tailbeat_threshold":["pm"],"tailbeat_peak":["pm"],"threshold_reached":["POINTS"],"midline_length":["/15"],"amplitude":["/100"],"outline_size":["/100"],"global":["/10"]}
 
 
-	Default scaling and smoothing options for output functions, which are applied to functions in `output_graphs` during export.
+	Default scaling and smoothing options for output functions, which are applied to functions in ``output_graphs`` during export.
 
 	.. seealso:: :func:`output_graphs`, 
 
@@ -1382,9 +1380,10 @@ TRex parameters
 		- `csv`: A standard data format, comma-separated columns for each data stream.
 		- `npz`: NPZ is basically a collection of binary arrays, readable by NumPy and other plugins (there are plugins available for Matlab and R).
 
-	When pressing the S(ave) button or using auto_quit, this setting allows to switch between CSV and NPZ output. NPZ files are recommended and will be used by default - some functionality (such as visual fields, posture data, etc.) will remain in NPZ format due to technical constraints.
+	When pressing the S(ave) button or using ``auto_quit``, this setting allows to switch between CSV and NPZ output. NPZ files are recommended and will be used by default - some functionality (such as visual fields, posture data, etc.) will remain in NPZ format due to technical constraints.
 
 
+	.. seealso:: :func:`auto_quit`, 
 
 
 .. function:: output_frame_window(int)
@@ -1401,7 +1400,7 @@ TRex parameters
 	**default value:** [["X",["RAW","WCENTROID"]],["Y",["RAW","WCENTROID"]],["X",["RAW","HEAD"]],["Y",["RAW","HEAD"]],["VX",["RAW","HEAD"]],["VY",["RAW","HEAD"]],["AX",["RAW","HEAD"]],["AY",["RAW","HEAD"]],["ANGLE",["RAW"]],["ANGULAR_V",["RAW"]],["ANGULAR_A",["RAW"]],["MIDLINE_OFFSET",["RAW"]],["normalized_midline",["RAW"]],["midline_length",["RAW"]],["midline_x",["RAW"]],["midline_y",["RAW"]],["segment_length",["RAW"]],["SPEED",["RAW","WCENTROID"]],["SPEED",["SMOOTH","WCENTROID"]],["SPEED",["RAW","PCENTROID"]],["SPEED",["RAW","HEAD"]],["BORDER_DISTANCE",["PCENTROID"]],["time",[]],["timestamp",[]],["frame",[]],["missing",[]],["num_pixels",[]],["ACCELERATION",["RAW","PCENTROID"]],["ACCELERATION",["RAW","WCENTROID"]]]
 
 
-	The functions that will be exported when saving to CSV, or shown in the graph. [['X',[option], ...]]
+	The functions that will be exported when saving to CSV, or shown in the graph. ``[['X',[option], ...]]``
 
 
 
@@ -1428,7 +1427,7 @@ TRex parameters
 	**default value:** 1
 
 
-	Filters all individual with less than N frames when exporting. Individuals with fewer than N frames will also be hidden in the GUI unless `gui_show_inactive_individuals` is enabled (default).
+	Filters all individual with less than N frames when exporting. Individuals with fewer than N frames will also be hidden in the GUI unless ``gui_show_inactive_individuals`` is enabled (default).
 
 	.. seealso:: :func:`gui_show_inactive_individuals`, 
 
@@ -1438,7 +1437,7 @@ TRex parameters
 	**default value:** false
 
 
-	If enabled: save a normalized version of the midline data saved whenever `output_posture_data` is set to true. Normalized means that the position of the midline points is normalized across frames (or the distance between head and point n in the midline array).
+	If enabled: save a normalized version of the midline data saved whenever ``output_posture_data`` is set to true. Normalized means that the position of the midline points is normalized across frames (or the distance between head and point n in the midline array).
 
 	.. seealso:: :func:`output_posture_data`, 
 
@@ -1448,9 +1447,9 @@ TRex parameters
 	**default value:** false
 
 
-	Save posture data npz file along with the usual NPZ/CSV files containing positions and such. If set to true, a file called '`output_dir`/`fish_data_dir`/`filename`\_posture_fishXXX.npz' will be created for each individual XXX.
+	Save posture data npz file along with the usual NPZ/CSV files containing positions and such. If set to true, a file called '``output_dir``/``fish_data_dir``/``<filename>_posture_fishXXX.npz``' will be created for each individual XXX.
 
-	.. seealso:: :func:`output_dir`, :func:`fish_data_dir`, :func:`filename`, 
+	.. seealso:: :func:`output_dir`, 
 
 
 .. function:: output_prefix(string)
@@ -1467,9 +1466,9 @@ TRex parameters
 	**default value:** false
 
 
-	Save recognition / probability data npz file along with the usual NPZ/CSV files containing positions and such. If set to true, a file called '`output_dir`/`fish_data_dir`/`filename`\_recognition_fishXXX.npz' will be created for each individual XXX.
+	Save recognition / probability data npz file along with the usual NPZ/CSV files containing positions and such. If set to true, a file called '``output_dir``/``fish_data_dir``/``<filename>_recognition_fishXXX.npz``' will be created for each individual XXX.
 
-	.. seealso:: :func:`output_dir`, :func:`fish_data_dir`, :func:`filename`, 
+	.. seealso:: :func:`output_dir`, 
 
 
 .. function:: output_statistics(bool)
@@ -1477,9 +1476,9 @@ TRex parameters
 	**default value:** true
 
 
-	Save an NPZ file containing an array with shape Nx5 and contents [[adding_frame_seconds, combined_posture_seconds, track_max_individuals, loading_seconds, posture_seconds],...] and an 1D-array containing all frame numbers. If set to true, a file called '`output_dir`/`fish_data_dir`/`filename`\_statistics.npz' will be created. This will not output anything interesting, if the data was loaded instead of analysed.
+	Save an NPZ file containing an array with shape Nx5 and contents ``[[adding_frame_seconds, combined_posture_seconds, track_max_individuals, loading_seconds, posture_seconds],...]`` and an 1D-array containing all frame numbers. If set to true, a file called '``output_dir``/``fish_data_dir``/``<filename>_statistics.npz``' will be created. This will not output anything interesting, if the data was loaded instead of analysed.
 
-	.. seealso:: :func:`output_dir`, :func:`fish_data_dir`, :func:`filename`, 
+	.. seealso:: :func:`output_dir`, 
 
 
 .. function:: panic_button(int)
@@ -1518,7 +1517,7 @@ TRex parameters
 	**default value:** 2
 
 
-	The kernel size for erosion / dilation of the posture algorithm. Only has an effect with  `posture_closing_steps` > 0.
+	The kernel size for erosion / dilation of the posture algorithm. Only has an effect with  ``posture_closing_steps`` > 0.
 
 	.. seealso:: :func:`posture_closing_steps`, 
 
@@ -1580,7 +1579,7 @@ TRex parameters
 		- `grid`: The points defined in `grid_points` are turned into N different circles inside the arena (with points in `grid_points` being the circle centers), which define in/out if inside/outside any of the circles.
 		- `circle`: The video-file provides a binary mask (e.g. when `cam_circle_mask` was set to true during recording), which is then used to determine in/out.
 
-	This defines the type of border that is used in all automatic recognition routines. Depending on the type set here, you might need to set other parameters as well (e.g. `recognition_shapes`). In general, this defines whether an image of an individual is usable for automatic recognition. If it is inside the defined border, then it will be passed on to the recognition network - if not, then it wont.
+	This defines the type of border that is used in all automatic recognition routines. Depending on the type set here, you might need to set other parameters as well (e.g. ``recognition_shapes``). In general, this defines whether an image of an individual is usable for automatic recognition. If it is inside the defined border, then it will be passed on to the recognition network - if not, then it wont.
 
 
 	.. seealso:: :func:`recognition_shapes`, 
@@ -1600,8 +1599,9 @@ TRex parameters
 	**default value:** 0.5
 
 
-	The amount that blob sizes for calculating the heatmap are allowed to go below or above blob_size_ranges (e.g. 0.5 means that the sizes can range between blob_size_ranges.min * (1 - 0.5) and blob_size_ranges.max * (1 + 0.5)).
+	The amount that blob sizes for calculating the heatmap are allowed to go below or above values specified in ``blob_size_ranges`` (e.g. 0.5 means that the sizes can range between ``blob_size_ranges.min * (1 - 0.5)`` and ``blob_size_ranges.max * (1 + 0.5)``).
 
+	.. seealso:: :func:`blob_size_ranges`, 
 
 
 .. function:: recognition_coeff(ulong)
@@ -1650,10 +1650,9 @@ TRex parameters
 		- `posture`: Images will be cropped out and rotated so that the head will be fixed in one position and only the tail moves.
 		- `legacy`: Images will be aligned parallel to the x axis.
 
-	This enables or disable normalizing the images before training. If set to `none`, the images will be sent to the GPU raw - they will only be cropped out. Otherwise they will be normalized based on head orientation (posture) or the main axis calculated using `image moments`.
+	This enables or disable normalizing the images before training. If set to ``none``, the images will be sent to the GPU raw - they will only be cropped out. Otherwise they will be normalized based on head orientation (posture) or the main axis calculated using ``image moments``.
 
 
-	.. seealso:: :func:`none`, :func:`image moments`, 
 
 
 .. function:: recognition_save_progress_images(bool)
@@ -1688,7 +1687,7 @@ TRex parameters
 	**default value:** []
 
 
-	If `recognition_border` is set to 'shapes', then the identification network will only be applied to blobs within the convex shapes specified here.
+	If ``recognition_border`` is set to 'shapes', then the identification network will only be applied to blobs within the convex shapes specified here.
 
 	.. seealso:: :func:`recognition_border`, 
 
@@ -1707,7 +1706,7 @@ TRex parameters
 	**default value:** ""
 
 
-	Name of the settings file. By default, this will be set to `filename`.settings in the same folder as `filename`.
+	Name of the settings file. By default, this will be set to ``filename``.settings in the same folder as ``filename``.
 
 	.. seealso:: :func:`filename`, :func:`filename`, 
 
@@ -1762,7 +1761,7 @@ TRex parameters
 	**default value:** [0.5,1]
 
 
-	If `track_threshold_2` is not equal to zero, this ratio will be multiplied by the number of pixels present before the second threshold. If the resulting size falls within the given range, the blob is deemed okay.
+	If ``track_threshold_2`` is not equal to zero, this ratio will be multiplied by the number of pixels present before the second threshold. If the resulting size falls within the given range, the blob is deemed okay.
 
 	.. seealso:: :func:`track_threshold_2`, 
 
@@ -1790,7 +1789,7 @@ TRex parameters
 	**default value:** []
 
 
-	If this is not empty, objects within the given rectangles or polygons (>= 3 points) [[x0,y0],[x1,y1](, ...)], ...] will be ignored during tracking.
+	If this is not empty, objects within the given rectangles or polygons (>= 3 points) ``[[x0,y0],[x1,y1](, ...)], ...]`` will be ignored during tracking.
 
 
 
@@ -1799,7 +1798,7 @@ TRex parameters
 	**default value:** []
 
 
-	If this is not empty, objects within the given rectangles or polygons (>= 3 points) [[x0,y0],[x1,y1](, ...)], ...] will be the only objects being tracked. (overwrites `track_ignore`)
+	If this is not empty, objects within the given rectangles or polygons (>= 3 points) ``[[x0,y0],[x1,y1](, ...)], ...]`` will be the only objects being tracked. (overwrites ``track_ignore``)
 
 	.. seealso:: :func:`track_ignore`, 
 
@@ -1836,9 +1835,9 @@ TRex parameters
 	**default value:** 10
 
 
-	The maximum speed an individual can have (=> the maximum distance an individual can travel within one second) in cm/s. Uses `meta_real_width`.
+	The maximum speed an individual can have (=> the maximum distance an individual can travel within one second) in cm/s. Uses and is influenced by ``meta_real_width`` and ``cm_per_pixel`` as follows: ``speed(px/s) * cm_per_pixel(cm/px) -> cm/s``.
 
-	.. seealso:: :func:`meta_real_width`, 
+	.. seealso:: :func:`meta_real_width`, :func:`cm_per_pixel`, 
 
 
 .. function:: track_posture_threshold(int)
@@ -1846,7 +1845,7 @@ TRex parameters
 	**default value:** 15
 
 
-	Same as `track_threshold`, but for posture estimation.
+	Same as ``track_threshold``, but for posture estimation.
 
 	.. seealso:: :func:`track_threshold`, 
 
@@ -1856,7 +1855,7 @@ TRex parameters
 	**default value:** 0.7
 
 
-	The amount the expected speed is reduced over time when an individual is lost. When individuals collide, depending on the expected behavior for the given species, one should choose different values for this variable. If the individuals usually stop when they collide, this should be set to a value > 0.8. If the individuals are expected to move over one another, the value should be set to a small value > 0.
+	The amount the expected speed is reduced over time when an individual is lost. When individuals collide, depending on the expected behavior for the given species, one should choose different values for this variable. If the individuals usually stop when they collide, this should be set to 1. If the individuals are expected to move over one another, the value should be set to ``0.7 > value > 0``.
 
 
 
@@ -1874,7 +1873,7 @@ TRex parameters
 	**default value:** 0
 
 
-	If not zero, a second threshold will be applied to all objects after they have been deemed do be theoretically large enough. Then they are compared to #before_pixels * `threshold_ratio_range` to see how much they have been shrunk).
+	If not zero, a second threshold will be applied to all objects after they have been deemed do be theoretically large enough. Then they are compared to #before_pixels * ``threshold_ratio_range`` to see how much they have been shrunk).
 
 	.. seealso:: :func:`threshold_ratio_range`, 
 
@@ -1902,7 +1901,7 @@ TRex parameters
 	**default value:** 0
 
 
-	Maximum number of images that are being output per tracklet given that `output_image_per_tracklet` is true. If the number is 0, then every image will be exported that has been recognized as an individual.
+	Maximum number of images that are being output per tracklet given that ``output_image_per_tracklet`` is true. If the number is 0, then every image will be exported that has been recognized as an individual.
 
 	.. seealso:: :func:`output_image_per_tracklet`, 
 
@@ -1936,7 +1935,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1-33-g6694da7"
+	**default value:** "v1.1-54-g39c7cc5"
 
 
 	Current application version.
@@ -1984,7 +1983,7 @@ TRex parameters
 	**default value:** 60
 
 
-	Degrees of separation between the eye and looking straight ahead. Results in the eye looking towards head.angle +- `visual_field_eye_separation`.
+	Degrees of separation between the eye and looking straight ahead. Results in the eye looking towards head.angle +- .
 
 
 

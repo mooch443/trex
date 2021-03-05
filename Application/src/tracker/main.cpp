@@ -687,8 +687,10 @@ int main(int argc, char** argv)
     else
         Warning("Settings file '%S' does not exist.", &settings_file.str());
     
-    if(SETTING(meta_real_width).value<float>() == 0)
+    if(SETTING(meta_real_width).value<float>() == 0) {
+        Warning("This video does not set `meta_real_width`. Please set this value during conversion (see https://trex.run/docs/parameters_trex.html#meta_real_width for details).");
         SETTING(meta_real_width) = float(30.0);
+    }
     
     // setting cm_per_pixel after average has been generated (and offsets have been set)
     if(!GlobalSettings::map().has("cm_per_pixel") || SETTING(cm_per_pixel).value<float>() == 0)
