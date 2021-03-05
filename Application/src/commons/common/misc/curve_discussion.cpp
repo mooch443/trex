@@ -218,8 +218,6 @@ namespace cmn {
                 auto &search_first = minima ? e.minima : e.maxima;
                 auto &search_second = minima ? e.maxima : e.minima;
                 
-                long prev_minimum = search_first.back();
-                
                 for (float exact : search_first) {
                     long minimum = exact;
                     long fidx = LONG_MAX, lidx = LONG_MAX;
@@ -288,8 +286,6 @@ namespace cmn {
                     }
                     
                     area[exact] = distances * abs(value_max - value_min);
-                    
-                    prev_minimum = minimum;
                 }
             }
             

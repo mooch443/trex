@@ -13,7 +13,7 @@ ENUM_CLASS_DOCS(averaging_method_t,
     "Calculate a per-pixel median of the samples to avoid noise. More computationally involved than mean, but often better results.",
     "Use a per-pixel minimum across samples. Usually a good choice for short videos with black backgrounds and individuals that do not move much.",
     "Use a per-pixel maximum across samples. Usually a good choice for short videos with white backgrounds and individuals that do not move much."
-);
+)
 }
 
 CropOffsets GenericVideo::crop_offsets() const {
@@ -52,7 +52,7 @@ std::unique_ptr<cmn::Image> AveragingAccumulator::finalize() {
     } else
         _accumulator.copyTo(image->get());
     
-    return std::move(image);
+    return image;
 }
 
 void GenericVideo::undistort(const gpuMat& disp, gpuMat &image) const {
@@ -154,7 +154,6 @@ void GenericVideo::generate_average(cv::Mat &av, uint64_t frameIndex) {
     
     Debug("Generating average for frame %d (method='%s')...", frameIndex, accumulator.mode().name());
     
-    double count = 0;
     float samples = GlobalSettings::has("average_samples") ? (float)SETTING(average_samples).value<uint32_t>() : (length() * 0.1f);
     const auto step = narrow_cast<uint>(max(1, length() / samples));
     

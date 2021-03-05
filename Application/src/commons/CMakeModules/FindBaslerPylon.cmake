@@ -42,14 +42,20 @@ FIND_LIBRARY(	PYLON_UTILITY_LIBRARY
 
 FIND_LIBRARY( PYLON_GEN_LIBRARY
 	NAMES
-	GenApi_gcc_v3_0_Basler_pylon_v5_0 GenApi_gcc_v3_1_Basler_pylon GenApi_MD_VC141_v3_1_Basler_pylon
+	GenApi_gcc_v3_0_Basler_pylon_v5_0
+	GenApi_gcc_v3_1_Basler_pylon_v5_1
+	GenApi_gcc_v3_1_Basler_pylon 
+	GenApi_MD_VC141_v3_1_Basler_pylon 
 	PATHS
 	${PYLON_LIBRARY}
 )
 
 FIND_LIBRARY( PYLON_GEN2_LIBRARY
 	NAMES
-	GCBase_gcc_v3_0_Basler_pylon_v5_0 GCBase_gcc_v3_1_Basler_pylon GCBase_MD_VC141_v3_1_Basler_pylon
+	GCBase_gcc_v3_0_Basler_pylon_v5_0
+	GCBase_gcc_v3_0_Basler_pylon_v5_1
+	GCBase_gcc_v3_1_Basler_pylon 
+	GCBase_MD_VC141_v3_1_Basler_pylon
 	PATHS
 	${PYLON_LIBRARY}
 )

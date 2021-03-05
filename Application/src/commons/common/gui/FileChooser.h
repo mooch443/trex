@@ -36,7 +36,7 @@ public:
         derived_ptr<Entangled> content;
         
         Settings(const std::string& name = "", const std::string& extensions = "", const derived_ptr<Entangled>& content = nullptr, Display d = Display::Browser)
-            : name(name), extension(extensions), content(content), display(d)
+            : display(d), name(name), extension(extensions), content(content)
         {}
         
         bool is_valid_extension(const file::Path& path) const {
