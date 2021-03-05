@@ -356,12 +356,12 @@ void GLImpl::toggle_full_screen() {
     // get resolution of monitor
     const GLFWvidmode * mode = glfwGetVideoMode(_monitor);
     
-    // backup window position and window size
-    glfwGetWindowPos( window_handle(), &_wndPos[0], &_wndPos[1] );
-    glfwGetWindowSize( window_handle(), &_wndSize[0], &_wndSize[1] );
     
     if ( fullscreen )
     {
+        // backup window position and window size
+        glfwGetWindowPos( window_handle(), &_wndPos[0], &_wndPos[1] );
+        glfwGetWindowSize( window_handle(), &_wndSize[0], &_wndSize[1] );
 
         // switch to full screen
         glfwSetWindowSize(window_handle(), mode->width, mode->height);
@@ -460,7 +460,7 @@ TexturePtr GLImpl::texture(const Image * ptr) {
     });
 }
 
-void GLImpl::clear_texture(TexturePtr&& id_) {
+void GLImpl::clear_texture(TexturePtr&&) {
     /*GLIMPL_CHECK_THREAD_ID();
     
     auto object = (ImTextureID_t*)id_->ptr;

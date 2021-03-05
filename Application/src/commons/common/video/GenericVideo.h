@@ -8,7 +8,7 @@
 namespace cmn { class GenericVideo; }
 namespace cmn {
 ENUM_CLASS(averaging_method_t, mean, mode, max, min)
-ENUM_CLASS_HAS_DOCS(averaging_method_t);
+ENUM_CLASS_HAS_DOCS(averaging_method_t)
 
 class AveragingAccumulator {
 public:
