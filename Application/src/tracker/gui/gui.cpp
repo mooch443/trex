@@ -3892,10 +3892,10 @@ void GUI::local_event(const gui::Event &event) {
 }
 
 void GUI::toggle_fullscreen() {
-#if WITH_SFML
-    auto e = _base->toggle_fullscreen(_gui);
-    this->event(e);
-#endif
+    if(base()) {
+        auto e = _base->toggle_fullscreen(_gui);
+        this->event(e);
+    }
 }
 
 void GUI::confirm_terminate() {
@@ -3987,9 +3987,15 @@ void GUI::key_event(const gui::Event &event) {
         case Codes::F1:
             open_docs();
             break;
+#if !defined(__APPLE__)
         case Codes::F11:
-            if(_base)
+            if(_base) {
+#else
+        case Codes::F:
+            if(_gui.is_key_pressed(Codes::LSystem) && _base) {
+#endif
                 toggle_fullscreen();
+            }
             break;
         case Codes::LSystem:
         case Codes::RSystem:

@@ -20,6 +20,10 @@ namespace gui {
         Image::Ptr pboOutput;
         std::thread::id _update_thread;
         
+        bool fullscreen = true;
+        int _wndSize[2];
+        int _wndPos[2];
+        
         std::mutex texture_mutex;
         std::vector<std::function<void()>> _texture_updates;
         
@@ -42,6 +46,7 @@ namespace gui {
         void update_pbo();
         void init_pbo(uint dwidth, uint dheight);
         void set_icons(const std::vector<file::Path>& icons) override;
+        void toggle_full_screen() override;
         
         GLFWwindow* window_handle() override;
         virtual ~GLImpl();

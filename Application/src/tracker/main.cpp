@@ -1228,9 +1228,6 @@ int main(int argc, char** argv)
     gui.set_analysis(analysis.get());
     gui_lock.unlock();
     
-    if(go_fullscreen)
-        gui.toggle_fullscreen();
-    
     GlobalSettings::map().register_callback(NULL, [&analysis, &gui](const sprite::Map&, const std::string& key, const sprite::PropertyType& value)
     {
         if (key == "analysis_paused") {
@@ -1368,6 +1365,9 @@ int main(int argc, char** argv)
             "gfx/"+SETTING(app_name).value<std::string>()+"Icon64.png"
         });
     }
+    
+    if(go_fullscreen)
+        gui.toggle_fullscreen();
     
     gui::SFLoop loop(gui.gui(), imgui_base, [&](gui::SFLoop&){
         {

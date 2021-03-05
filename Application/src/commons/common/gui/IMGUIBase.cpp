@@ -1272,4 +1272,23 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
         
         return _last_framebuffer_size;
     }
+
+    Event IMGUIBase::toggle_fullscreen(DrawStructure &graph) {
+        static int _wndSize[2];
+        static int _wndPos[2];
+        
+        _platform->toggle_full_screen();
+        
+        Event event(WINDOW_RESIZED);
+        
+        // backup window position and window size
+        glfwGetWindowPos( _platform->window_handle(), &_wndPos[0], &_wndPos[1] );
+        glfwGetWindowSize( _platform->window_handle(), &_wndSize[0], &_wndSize[1] );
+        
+        event.size.width = _wndSize[0];
+        event.size.height = _wndSize[1];
+        graph.event(event);
+        
+        return event;
+    }
 }

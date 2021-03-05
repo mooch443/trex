@@ -47,6 +47,7 @@ namespace gui {
         virtual GLFWwindow* window_handle() = 0;
         virtual void set_icons(const std::vector<file::Path>& icons) {}
         virtual void set_open_files_fn(std::function<bool(const std::vector<file::Path>&)> fn) { _fn_open_files = fn; }
+        virtual void toggle_full_screen() {}
         
         virtual Image::Ptr current_frame_buffer() {
             return nullptr;

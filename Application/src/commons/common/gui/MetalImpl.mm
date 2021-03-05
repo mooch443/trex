@@ -224,7 +224,12 @@ bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
         _data->renderPassDescriptor = [MTLRenderPassDescriptor new];
         
         ImGui_ImplGlfw_InitForOpenGL(window, true);
-        
+        [nswin setCollectionBehavior:NSWindowCollectionBehaviorFullScreenPrimary];
+    }
+
+    void MetalImpl::toggle_full_screen() {
+        NSWindow *nswin = glfwGetCocoaWindow(window);
+        [nswin toggleFullScreen:[NSApplication sharedApplication]];
     }
 
     LoopStatus MetalImpl::update_loop() {
