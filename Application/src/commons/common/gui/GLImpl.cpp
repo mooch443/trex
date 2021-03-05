@@ -366,8 +366,7 @@ void GLImpl::toggle_full_screen() {
         // switch to full screen
         glfwSetWindowSize(window_handle(), mode->width, mode->height);
         glfwSetWindowPos(window_handle(), 0, 0);
-        //glfwSetWindowMonitor(window_handle(), _monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
-        glfwSetWindowAttrib(window_handle(), GLFW_FLOATING, GLFW_FALSE);
+        glfwSetWindowMonitor(window_handle(), _monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
         //glfwSetWindowMonitor( window_handle(), _monitor, 0, 0, mode->width, mode->height, 0 );
         fullscreen = false;
     }
