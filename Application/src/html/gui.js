@@ -113,7 +113,7 @@ function update(data) {
 		        var ctx = canvas.getContext('2d');
 		        var scale = adjust_size(data.w, data.h, ctx);
 				
-				ctx.fillStyle = "gray";
+				ctx.fillStyle = "black";
 				ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 				
 				//ctx.setTransform(1, 0, 0, 1, 0, 0);

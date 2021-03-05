@@ -6,10 +6,15 @@
 namespace gui {
     
     HTMLBase::HTMLBase() : _initial_draw(true), _size(1) { }
+
+    void HTMLBase::set_window_size(const Size2 &size) {
+        _size = size;
+    }
     
     void HTMLBase::paint(gui::DrawStructure &s) {
         std::unique_lock<std::recursive_mutex> lock(s.lock());
-        _size = Size2(s.width(), s.height()); // 2;
+        if(_size.empty())
+            _size = Size2(s.width(), s.height());
         
         s.before_paint(this);
         
