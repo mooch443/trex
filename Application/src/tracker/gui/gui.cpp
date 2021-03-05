@@ -4323,8 +4323,10 @@ void GUI::key_event(const gui::Event &event) {
             break;
             
         default:
+#ifndef NDEBUG
             if(key.code != -1)
                 Warning("Unknown key code %d.", key.code);
+#endif
             break;
     }
     

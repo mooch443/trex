@@ -3,8 +3,6 @@
 #undef PYBIND11_CPP14
 #endif
 
-#define TREX_EXPORTS
-
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wrange-loop-analysis"
 #include <pybind11/pybind11.h>
@@ -252,6 +250,20 @@ namespace track {
     std::map<std::string, std::string> contents;
     std::map<std::string, pybind11::module> _modules;
 
+    std::atomic<bool> _terminate = false;
+    std::map<Idx_t, std::deque<std::tuple<long_t, Image::Ptr>>> _classes;
+    std::map<Idx_t, std::set<long_t>> _received;
+    std::map<Idx_t, std::set<long_t>> _sent_to_training;
+    std::map<Idx_t, std::vector<Image::Ptr>> _test_data;
+
+    std::queue<std::packaged_task<bool()>> tasks;
+
+    std::thread* _network_update_thread = nullptr;
+    std::condition_variable _update_condition;
+    std::mutex _data_mutex, _initialize_mutex;
+    std::condition_variable _initialize_condition;
+    std::thread::id _saved_id;
+
     void PythonIntegration::set_settings(std::shared_ptr<GlobalSettings> obj) {
         GlobalSettings::set_instance(obj);
         _settings = obj;
@@ -302,9 +314,6 @@ namespace track {
     }
     
     PythonIntegration::PythonIntegration()
-        : _terminate(false),
-        _network_update_thread(NULL)
-        //_network_update_thread([this](){this->update();})
     {
         initialize();
     }
@@ -576,7 +585,7 @@ namespace track {
     {
         std::packaged_task<bool()> task(fn);
         auto future = task.get_future();
-        if(std::this_thread::get_id() == instance()->_saved_id) {
+        if(std::this_thread::get_id() == _saved_id) {
             try {
                 task();
             } catch (py::error_already_set &e) {
@@ -587,8 +596,8 @@ namespace track {
                 Except("Random exception");
             }
         } else {
-            instance()->tasks.push(std::move(task));
-            instance()->_update_condition.notify_one();
+            tasks.push(std::move(task));
+            _update_condition.notify_one();
         }
         return future;
     }
@@ -845,13 +854,13 @@ IMPL_VARIABLE(bool)
 IMPL_VARIABLE(uint64_t)
 
 void PythonIntegration::check_correct_thread_id() {
-    if(std::this_thread::get_id() != instance()->_saved_id) {
+    if(std::this_thread::get_id() != _saved_id) {
         auto name = get_thread_name();
         U_EXCEPTION("Executing python code in wrong thread ('%S').", &name);
     }
 }
 
-void PythonIntegration::execute(const std::string& cmd) {
+void PythonIntegration::execute(const std::string& cmd)  {
     check_correct_thread_id();
     
     try {

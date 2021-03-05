@@ -116,7 +116,7 @@ namespace DEBUG {
         int line;
         const char *file;
         bool force_callback;
-        CONSOLE_COLORS color;
+        CONSOLE_COLORS color = BLACK;
         std::string prefix;
 
 #if __cpp_lib_string_view

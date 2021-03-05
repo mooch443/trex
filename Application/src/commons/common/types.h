@@ -2,9 +2,21 @@
 #define VIDEO_TYPES_H
 
 #ifndef WIN32
-#if __cplusplus <= 199711L
-  #error This library needs at least a C++11 compliant compiler
-#endif
+    #if __cplusplus <= 199711L
+      #error This library needs at least a C++11 compliant compiler
+    #endif
+
+    #define TREX_EXPORT
+    #define EXPIMP_TEMPLATE
+
+#else
+    #ifdef TREX_EXPORTS
+        #define TREX_EXPORT __declspec(dllexport)
+        #define EXPIMP_TEMPLATE
+    #else
+        #define TREX_EXPORT __declspec(dllimport)
+        #define EXPIMP_TEMPLATE extern
+    #endif
 #endif
 
 #include <misc/detail.h>
