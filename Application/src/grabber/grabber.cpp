@@ -1467,11 +1467,18 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
      * ==============
      */
     struct Task {
-        size_t index;
+        size_t index = 0;
         std::unique_ptr<Image> current, raw;
         std::unique_ptr<pv::Frame> frame;
         Timer timer;
         std::vector<pv::BlobPtr> filtered, filtered_out;
+        
+        Task() {}
+        Task(size_t index, std::unique_ptr<Image>&& current, std::unique_ptr<Image>&& raw, std::unique_ptr<pv::Frame>&& frame)
+            : index(index), current(std::move(current)), raw(std::move(raw)), frame(std::move(frame))
+        {
+            
+        }
     };
     
     static std::mutex to_pool_mutex, to_main_mutex;
@@ -1701,28 +1708,28 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
             }
             
             if(!_terminate_tracker) {
-                for_the_pool.push(Task{global_index++,
+                for_the_pool.push(Task(global_index++,
                     std::make_unique<Image>(local, current.index(), current.timestamp()),
 #if WITH_FFMPEG
                     /*mp4_queue ?*/ std::make_unique<Image>(current_copy) /*: nullptr*/,
 #else
                     nullptr,
 #endif
-                    nullptr});
+                    nullptr));
             }
         }
         
         _multi_variable.notify_one();
         
     } else {
-        Task task{global_index++,
+        Task task(global_index++,
             std::make_unique<Image>(local, current.index(), current.timestamp()),
 #if WITH_FFMPEG
             /*mp4_queue ?*/ std::make_unique<Image>(current_copy) /*: nullptr*/,
 #else
             nullptr,
 #endif
-            nullptr};
+            nullptr);
         threadable_task(task);
     }
     
