@@ -62,7 +62,7 @@ ENUM_CLASS(CLFeature,
            POSITION,
            VISUAL_FIELD,
            MIDLINE
-);
+)
 
 IMPLEMENT(FrameGrabber::instance) = NULL;
 IMPLEMENT(FrameGrabber::gpu_average);

@@ -85,7 +85,7 @@ public:
     }
     
 private:
-    void operator=(const gui::List::Item& other) override {
+    void operator=(const gui::List::Item&) override {
         assert(false);
     }
     

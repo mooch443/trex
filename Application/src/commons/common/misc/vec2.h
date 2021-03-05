@@ -415,7 +415,6 @@ constexpr inline T operator SIGN(Float2_t s, const T& v) { return T(s SIGN v.A()
         
     inline bool pnpoly(const std::vector<Vec2>& pts, const Vec2& pt)
     {
-        assert(pts.size() < std::numeric_limits<int>::max());
         size_t npol = pts.size();
         size_t i, j;
         bool c = false;

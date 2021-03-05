@@ -95,6 +95,7 @@ namespace pv {
     public:
         //! Initialize copy
         Frame(const Frame& other);
+        void operator=(const Frame& other);
         
         //! initialize empty object
         Frame() : Frame(0, 0) {}

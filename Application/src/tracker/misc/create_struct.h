@@ -678,7 +678,7 @@ public: \
     } \
     static void set_callback(Variables v, decltype(_callbacks)::mapped_type f) { _callbacks[v] = f; } \
     static std::vector<std::string> names() { return std::vector<std::string>{ STRUCT_FOR_EACH(NAM, STRINGIZE_MEMBERS, __VA_ARGS__) }; } \
-    static void variable_changed (const sprite::Map &map, const std::string &key, const sprite::PropertyType& value) { \
+    static void variable_changed (const sprite::Map &, const std::string &key, const sprite::PropertyType& value) { \
         if(false); STRUCT_FOR_EACH(NAM, UPDATE_MEMBERS, __VA_ARGS__) \
     } \
     static inline void init() { \

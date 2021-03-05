@@ -61,6 +61,10 @@ namespace pv {
 
     //! Initialize copy
     Frame::Frame(const Frame& other) {
+        operator=(other);
+    }
+
+    void Frame::operator=(const Frame &other) {
         _timestamp = other._timestamp;
         _n = other._n;
         _loading_time = other._loading_time;

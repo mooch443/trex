@@ -29,19 +29,19 @@ namespace default_config {
         static const bool Has = sizeof(Test<T>(0)) == sizeof(char);
     };*/
     
-    ENUM_CLASS(recognition_border_t, none, heatmap, outline, shapes, grid, circle);
+    ENUM_CLASS(recognition_border_t, none, heatmap, outline, shapes, grid, circle)
     ENUM_CLASS_HAS_DOCS(recognition_border_t)
 
-    ENUM_CLASS(heatmap_normalization_t, none, value, cell, variance);
+    ENUM_CLASS(heatmap_normalization_t, none, value, cell, variance)
     ENUM_CLASS_HAS_DOCS(heatmap_normalization_t)
 
-    ENUM_CLASS(recognition_normalization_t, none, moments, posture, legacy);
+    ENUM_CLASS(recognition_normalization_t, none, moments, posture, legacy)
     ENUM_CLASS_HAS_DOCS(recognition_normalization_t)
     
-    ENUM_CLASS(gui_recording_format_t, avi, jpg, png);
+    ENUM_CLASS(gui_recording_format_t, avi, jpg, png)
     ENUM_CLASS_HAS_DOCS(gui_recording_format_t)
     
-    ENUM_CLASS(peak_mode_t, pointy, broad);
+    ENUM_CLASS(peak_mode_t, pointy, broad)
     ENUM_CLASS_HAS_DOCS(peak_mode_t)
 
     ENUM_CLASS(matching_mode_t, accurate, approximate, hungarian, benchmark)
