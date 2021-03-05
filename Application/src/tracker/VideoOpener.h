@@ -71,11 +71,16 @@ public:
     gui::derived_ptr<gui::Text> _loading_text;
     gui::derived_ptr<gui::StaticText> _raw_description;
     gui::derived_ptr<gui::Tooltip> _tooltip;
+    
+    std::unique_ptr<std::thread> _accumulate_video_frames_thread;
+    std::atomic_bool _accumulate_frames_done, _end_frames_thread;
+    
     std::unique_ptr<std::thread> _stale_thread;
     std::condition_variable _stale_variable;
     
     gui::derived_ptr<Entangled> _mini_bowl;
     std::vector<std::vector<std::unique_ptr<ExternalImage>>> _blob_images;
+    std::mutex _blob_mutex;
     size_t _blob_image_index;
     Timer _blob_timer;
     

@@ -4,8 +4,8 @@
    :maxdepth: 2
 
 
-Basic usage
-===========
+Usage basics
+============
 
 |trex| is usually launched from the command-line (with or without parameters), which will show a file opening dialog. There is the possibility of starting it directly using a desktop short-cut (or double-clicking the executable itself), but this requires either a manual compile or changes to your environment variables (see :ref:`run-by-clicking`). Its younger sibling, |grabs|, also offers a graphical user interface, but can only be started from the terminal at the moment (we will be working on changing that, and also potentially integrating it completely with |trex|). The following sections address the issue of directly providing parameters using the command-line for both softwares (e.g. in a batch processing, or generally a more command-line affine use-case). Any additional number of parameters can be passed to both |grabs| and |trex| as::
 

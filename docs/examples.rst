@@ -3,7 +3,7 @@
 .. toctree::
    :maxdepth: 2
 
-Usage Examples
+Usage examples
 ##############
 
 This section contains an assortment of common usage examples, taken from the real world. We will explain each example shortly and move on quickly. If certain details are unclear, :doc:`parameters_trex` or :doc:`parameters_tgrabs` might help!

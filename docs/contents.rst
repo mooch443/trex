@@ -68,9 +68,9 @@ Whereas other use-cases are:
    
    install
    run
+   examples
    gui
    batch
-   examples
    formats
    parameters_trex
    parameters_tgrabs
