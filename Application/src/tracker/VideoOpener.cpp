@@ -339,6 +339,7 @@ VideoOpener::VideoOpener()
                     for(auto& i : _blob_images.at(_blob_image_index))
                         e.advance_wrap(*i);
                 });
+                _mini_bowl->auto_size(Margin{0, 0});
             }
             
             _blob_timer.reset();
@@ -936,6 +937,8 @@ void VideoOpener::select_file(const file::Path &p) {
             Debug("Done.");
 #endif
         });
+        
+        _mini_bowl->auto_size(Margin{0, 0});
         
         gui::derived_ptr<gui::Text> info_text = std::make_shared<gui::Text>("Selected", Vec2(), gui::White, gui::Font(0.8f, gui::Style::Bold));
         gui::derived_ptr<gui::StaticText> info_description = std::make_shared<gui::StaticText>(settings::htmlify(text), Vec2(), Size2(300, 600), gui::Font(0.5));
