@@ -1776,157 +1776,63 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
 }
 
 void GUI::label_fish(gui::DrawStructure &base, track::Individual *fish, long_t frameNr, const Vec2& scale, bool highlighted) {
-    const Font font((highlighted ? 0.85f : 0.85f) / (1 - ((1 - GUI::instance()->cache().zoom_level()) * 0.5f)), Align::Left);
-    Font secondary_font = font;
-    secondary_font.size *= 0.9f;
-    
-    //const Font font(0.9 * 0.75 + 0.25 * 0.9 / interface_scale);
-    Vec2 factor = Vec2(Base::default_line_spacing(font)).mul(scale.mul(base.scale()) / font.size );//.mul(Vec2(0.5,1 + GUI::instance()->cache().zoom_level() * 0.5));
+    auto blob = fish->compressed_blob(frameNr);
+
+    std::string color = "";
     std::stringstream text;
+    std::string secondary_text;
+
     text << fish->identity().raw_name() << " ";
     
-    Color color = White;
-    std::string secondary_text;
-    auto blob = fish->compressed_blob(frameNr);
-    
-    auto transform = base.active_section()->global_transform();
-    auto screen = transform.getInverse().transformRect(Bounds(Vec2(), Size2(base.width(), base.height())));
-    
-    Vec2 text_pos = _cache._fish_map[fish]->pos() + Vec2(_cache._fish_map[fish]->size().width * 0.5f, 0);
-    
-    if(blob) {
-        auto blob_center = _cache._fish_map[fish]->fish_pos();
-        
-        auto gpos = transform.transformPoint(blob_center) - Vec2(gui().width(), gui().height() * 2.25f) * 0.5f;
-        gpos = gpos.div(Size2(gui().width() * 0.5f, gui().height() * 0.5f));
-        //gpos = gpos.mul(gpos);
-        factor = factor.mul(Vec2(- gpos.x, - gpos.y) * 10);
-        //secondary_text = Meta::toStr(gpos);//+" |"+Meta::toStr(factor);
-        
-        auto L = factor.length();
-        factor = factor / L;
-        L = L * min(gui().width(), gui().height()) / 1000.f * 0.06f / gui::interface_scale();
-        //L = SQR(L) * 0.5;
-        
-        auto text_offset = Vec2(0, Base::default_line_spacing(font));
-        auto offset_from_blob = blob->calculate_bounds().height * 0.25f;
-        auto line_start = offset_from_blob;
-        auto line_end = L + line_start;
-        text_pos = blob_center - factor * (line_end + Base::default_line_spacing(Font(0.5f)));
-        
-        Vec2 end = blob_center - factor * line_end;
-            
-        if(screen.contains(blob_center)) {
-            Bounds bds(text_pos - text_offset, Size2(10));
-            bds.restrict_to(screen);
-            
-            text_pos = bds.pos() + text_offset;
-            
-        }
-        //base.line(blob_center - factor * L * 0.1, blob_center - factor * L * 0.9, 1, Yellow.alpha(125));
-        
-        end = text_pos + factor * 10;
-        base.line(blob_center - factor * line_start, end, 1, Cyan.alpha(100));
-    }
-    
-    //text_pos -= factor;
-    
-    if(DrawMenu::matching_list_open() && blob) {
+    if (DrawMenu::matching_list_open() && blob) {
         secondary_text = "blob" + Meta::toStr(blob->blob_id());
-        
-    } else if(GUI_SETTINGS(gui_show_recognition_bounds)) {
-        auto && [valid, segment] = fish->has_processed_segment(frameNr);
-        if(valid) {
-            auto && [samples, map] = fish->processed_recognition(segment.start());
-            auto it = std::max_element(map.begin(), map.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b){
+    }
+    else if (GUI_SETTINGS(gui_show_recognition_bounds)) {
+        auto&& [valid, segment] = fish->has_processed_segment(frameNr);
+        if (valid) {
+            auto&& [samples, map] = fish->processed_recognition(segment.start());
+            auto it = std::max_element(map.begin(), map.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b) {
                 return a.second < b.second;
             });
-            
-            if(it == map.end() || it->first != fish->identity().ID()) {
-                color = Red.exposure(1.5);
+
+            if (it == map.end() || it->first != fish->identity().ID()) {
+                color = "str";
                 secondary_text += " avg" + Meta::toStr(it->first);
-            } else
-                color = Green.exposure(1.5);
+            }
+            else
+                color = "nr";
         }
-        
-        if(blob) {
+
+        if (blob) {
             auto raw = _tracker.recognition()->ps_raw(frameNr, blob->blob_id());
-            if(!raw.empty()) {
-                auto it = std::max_element(raw.begin(), raw.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b){
+            if (!raw.empty()) {
+                auto it = std::max_element(raw.begin(), raw.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b) {
                     return a.second < b.second;
                 });
-                
-                if(it != raw.end()) {
-                    secondary_text += " loc" + Meta::toStr(it->first) + " ("+Meta::toStr(it->second)+")";
+
+                if (it != raw.end()) {
+                    secondary_text += " loc" + Meta::toStr(it->first) + " (" + Meta::toStr(it->second) + ")";
                 }
             }
         }
     }
-    
-    /*if(blob && blob->split())
-        secondary_text += " (split from "+Meta::toStr(blob->parent_id())+")";
-    else if(blob && blob->parent_id() != -1)
-        secondary_text += " (soft-split "+Meta::toStr(blob->parent_id())+")";*/
-    
+
     float alpha = (_timeline->visible() ? 255 : SETTING(gui_faded_brightness).value<uchar>()) / 255.f * 200.f;
     
-    struct LabelLayout {
-        std::shared_ptr<HorizontalLayout> layout;
-        Layout::Ptr text, sub_text;
-    };
-    
-    auto layout = (LabelLayout*)_cache._fish_map[fish]->custom_data("label_layout");
-    if(!layout) {
-        layout = new LabelLayout;
-        layout->text = Layout::Ptr(new Text(text.str(), Vec2(), color, font));
-        layout->sub_text = Layout::Ptr(new Text(secondary_text, Vec2(), Cyan.alpha(alpha), secondary_font));
-        layout->layout = std::make_shared<HorizontalLayout>(std::vector<Layout::Ptr>{ layout->text, layout->sub_text });
-        layout->layout->set_origin(Vec2(0.5));
-        layout->layout->set_policy(HorizontalLayout::Policy::CENTER);
-        
-        _cache._fish_map[fish]->add_custom_data("label_layout", (void*)layout, [](void* ptr){
-            delete (LabelLayout*)ptr;
-        });
+    if (blob) {
+        auto label = (Label*)_cache._fish_map[fish]->custom_data("label");
+        auto label_text = (color.empty() ? text.str() : ("<"+color+">"+text.str()+"</"+color+">")) + "<a>" + secondary_text + "</a>";
+        if (!label) {
+            label = new Label(label_text, blob->calculate_bounds(), _cache._fish_map[fish]->fish_pos());
+            _cache._fish_map[fish]->add_custom_data("label", (void*)label, [](void* ptr) {
+                delete (Label*)ptr;
+            });
+        }
+        else
+            label->set_data(label_text, blob->calculate_bounds(), _cache._fish_map[fish]->fish_pos());
+
+        label->update(base, base.active_section(), 1, blob == nullptr);
     }
-    base.wrap_object(*layout->layout);
-    
-    ((Text*)layout->text.raw_ptr)->set_color((blob ? color : color.exposure(0.5)).alpha(alpha));
-    ((Text*)layout->text.raw_ptr)->set_txt(text.str());
-    ((Text*)layout->sub_text.raw_ptr)->set_txt(secondary_text);
-    ((Text*)layout->text.raw_ptr)->set_font(font);
-    if(!secondary_text.empty())
-        ((Text*)layout->sub_text.raw_ptr)->set_font(secondary_font);
-    layout->layout->set_scale(base.scale().reciprocal());
-    
-    if(secondary_text.empty())
-        layout->layout->set_margins(Bounds());
-    else
-        layout->layout->set_margins(Bounds(Vec2(5).div(cache().zoom_level()), Size2(5).div(cache().zoom_level())));
-    //layout->sub_text->set_scale(base.scale().reciprocal());
-    layout->layout->set_pos(text_pos);
-    //layout->layout->set_content_changed(true);
-    /*auto obj = base.text(text.str()+" ",
-                         text_pos,
-                         (blob ? color
-                          : color.brighten(0.5)).alpha(alpha),
-                         font, base.scale().reciprocal());
-    
-    if(!secondary_text.empty()) {
-        base.text(secondary_text, obj->pos() + Vec2(obj->width(), 0), Cyan.alpha(alpha), secondary_font, base.scale().reciprocal());
-    }*/
-    
-    /*if(blob) {
-        text_pos = text_pos + obj->local_bounds().size() * 0.5;
-        auto fish_pos = blob->bounds().pos() + blob->bounds().size() * 0.5;
-        auto vector = text_pos - fish_pos;
-        auto length = vector.length();
-        vector = vector.normalize();
-        
-        text_pos = fish_pos + vector * (length - 5);
-        fish_pos = fish_pos + vector * blob->bounds().size().max() * 0.25;
-        
-        base.line(text_pos, fish_pos, 1, Cyan.alpha(100));
-    }*/
 }
 
 void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
