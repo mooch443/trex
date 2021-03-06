@@ -3614,7 +3614,7 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
                     }
                 }
                 
-                Vec2 scale = 2 * ptr_scale.reciprocal();
+                Vec2 sca = base.scale().reciprocal().mul(s->scale().reciprocal());
                 auto mpos = (_gui.mouse_position() - ptr_pos).mul(ptr_scale.reciprocal());
                 const float max_distance = sqrtf(SQR((_average_image.cols * 0.25) / ptr_scale.x) + SQR((_average_image.rows * 0.25) / ptr_scale.y));
                 size_t displayed = 0;
@@ -3670,7 +3670,7 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
                         //auto & [visited, circ, label] = _blob_labels[blob->blob_id()];
                         auto circ = std::get<1>(it->second).get();
                         circ->set_clickable(true);
-                        circ->set_radius(3);
+                        circ->set_radius(8);
                         //circ->clear_event_handlers();
                         circ->on_click([this, id = blob->blob_id(), circ = circ](auto) mutable {
                             auto pos = circ->pos();
@@ -3682,8 +3682,7 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
                     }
                     
                     auto & [visited, circ, label] = it->second;
-                    
-                    circ->set_scale(scale / GUI_SETTINGS(gui_interface_scale));
+                    circ->set_scale(sca);
                     
                     if(circ->hovered())
                         circ->set_fill_clr(White.alpha(205 * d));
