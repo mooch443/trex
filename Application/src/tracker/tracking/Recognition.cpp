@@ -1924,6 +1924,7 @@ void Recognition::load_weights(std::string postfix) {
                     long_t setting_max_epochs = int(SETTING(gpu_max_epochs).value<size_t>());
                     py::set_variable("max_epochs", gpu_max_epochs != -1 ? min(setting_max_epochs, gpu_max_epochs) : setting_max_epochs, "learn_static");
                     py::set_variable("min_iterations", long_t(SETTING(gpu_min_iterations).value<size_t>()), "learn_static");
+                    py::set_variable("verbosity", int(SETTING(gpu_verbosity).value<default_config::gpu_verbosity_t::Class>().value()), "learn_static");
                     
                     auto filename = network_path();
                     try {

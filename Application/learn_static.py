@@ -499,7 +499,8 @@ def start_learning():
         "accumulation_step": accumulation_step,
         "global_segment": np.array(global_segment, dtype=int),
         "per_epoch" : -1,
-        "min_iterations": min_iterations
+        "min_iterations": min_iterations,
+        "verbosity": verbosity
         #"min_acceptable_value": 0.98
     }
 
