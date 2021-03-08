@@ -3,6 +3,7 @@
 #include <misc/defines.h>
 #include <misc/vec2.h>
 #include <file/Path.h>
+#include <misc/checked_casts.h>
 
 namespace cmn {
     /**
@@ -78,8 +79,8 @@ namespace cmn {
         void get(cv::Mat& matrix) const;
         cv::Mat get() const;
         bool empty() const { return _data == NULL; }
-        Bounds bounds() const { return Bounds(0, 0, cols, rows); }
-        Size2 dimensions() const { return Size2(cols, rows); }
+        Bounds bounds() const { return Bounds(0, 0, static_cast<Float2_t>(cols), static_cast<Float2_t>(rows)); }
+        Size2 dimensions() const { return Size2(static_cast<Float2_t>(cols), static_cast<Float2_t>(rows)); }
         
         uint64_t stamp() const { return _timestamp; }//return std::chrono::time_point_cast<std::chrono::microseconds>(_timestamp).time_since_epoch().count(); }
         

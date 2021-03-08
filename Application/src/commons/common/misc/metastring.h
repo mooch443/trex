@@ -40,7 +40,7 @@ namespace cmn {
             static constexpr std::array<std::string_view, 5> names{{"us", "ms", "s", "min", "h"}};
             static constexpr std::array<double, 5> ratios{{1000, 1000, 60, 60, 24}};
             
-            double scaled = timestamp, previous_scaled = 0;
+            double scaled = static_cast<double>(timestamp), previous_scaled = 0;
             size_t i = 0;
             while(i < ratios.size()-1 && scaled >= ratios[i]) {
                 scaled /= ratios[i];
@@ -65,7 +65,7 @@ namespace cmn {
             static constexpr std::array<std::string_view, 5> names{{"us", "ms", "s", "min", "h"}};
             static constexpr std::array<double, 5> ratios{{1000, 1000, 60, 60, 24}};
             
-            double scaled = timestamp, previous_scaled = 0;
+            double scaled = static_cast<double>(timestamp), previous_scaled = 0;
             size_t i = 0;
             while(i < ratios.size()-1 && scaled >= ratios[i]) {
                 scaled /= ratios[i];
@@ -103,7 +103,7 @@ namespace cmn {
             };
             
             size_t i=0;
-            double scaled = bytes;
+            auto scaled = static_cast<double>(bytes);
             while (scaled >= 1000 && i < descriptions.size()-1) {
                 scaled /= 1000.0;
                 i++;

@@ -409,6 +409,45 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
         std::lock_guard<std::mutex> guard(location_mutex);
         return location_funcs.find(purpose) != location_funcs.end();
     }
+
+    void File::_write_header() { 
+        _header.write(*this); 
+        print_info();
+    }
+    void File::_read_header() {
+        _header.read(*this);
+
+        _average = _header.average->get();
+        if (has_mask())
+            _mask = _header.mask->get();
+
+        //std::chrono::microseconds ns_l, ns_e;
+        uint64_t fps_l = 0;
+
+        if (!_open_for_writing) {
+            uint64_t idx = length() / 2u;
+            //uint64_t edx = length()-1;
+            if (idx < length()) {
+                pv::Frame lastframe;
+                //read_frame(lastframe, edx);
+
+                //ns_e = std::chrono::microseconds(lastframe.timestamp());
+
+                read_frame(lastframe, idx);
+                //ns_l = std::chrono::microseconds(lastframe.timestamp());
+
+                if (idx >= 1) {
+                    uint64_t last = lastframe.timestamp();
+
+                    read_frame(lastframe, idx - 1);
+                    fps_l = last - lastframe.timestamp();
+                }
+            }
+
+        }
+
+        _header.average_tdelta = fps_l;
+    }
     
     void Header::read(DataFormat& ref) {
         std::string version_str;

@@ -44,6 +44,11 @@ public:
 		
 		va_start(args, fmt);
 		BUFFER = (char*)calloc(n, sizeof(char));
+        if (!BUFFER) {
+            msg = "Cannot allocate memory for message '" + std::string(fmt) + "'.";
+            return;
+        }
+
 #ifdef _WIN32
 		vsnprintf_s(BUFFER, n, n, fmt, args);
 #else

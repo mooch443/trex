@@ -179,7 +179,7 @@ void DebugDrawing::paint(const Outline &outline, bool erase) {
                while(x >= outline.size())
                    x -= outline.size();
                
-               return corrected[x];
+               return corrected[narrow_cast<uint>(x)];
            }));
             graph.add_function(Graph::Function("idft", Graph::Type::DISCRETE, [&outline, &io](float x) -> float
            {
@@ -188,7 +188,7 @@ void DebugDrawing::paint(const Outline &outline, bool erase) {
                while(x >= outline.size())
                    x -= outline.size();
                
-               return io[x];//- (corrected2[x] - corrected[x]);
+               return io[narrow_cast<uint>(x)];//- (corrected2[x] - corrected[x]);
            }));
             graph.add_function(Graph::Function("area", Graph::Type::POINTS, [&](float x) -> float
            {
@@ -198,7 +198,7 @@ void DebugDrawing::paint(const Outline &outline, bool erase) {
                    x -= corrected.size();
                
                if(area.find(x) != area.end())
-                   return area[x] / 50;
+                   return area[narrow_cast<uint>(x)] / 50;
                return infinity<float>();
                //return output_area[x] / 100;
            }));

@@ -142,7 +142,7 @@ namespace gui {
                 _hovered_slice = (long)slice;
             }
             
-            clr = clr.alpha(_alpha * 255);
+            clr = clr.alpha(saturate(_alpha * 255));
             
             _slices[slice].scale = scale;
             
