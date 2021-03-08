@@ -479,7 +479,7 @@ def predict():
 
 def start_learning():
     global best_accuracy_worst_class, max_epochs, image_width, image_height
-    global output_path, classes, learning_rate, accumulation_step, global_segment
+    global output_path, classes, learning_rate, accumulation_step, global_segment, verbosity
     global batch_size, X_val, Y_val, X, Y, run_training, save_weights_after, do_save_training_images, min_iterations
 
     epochs = max_epochs
@@ -609,7 +609,8 @@ def start_learning():
                                   validation_data=validation_data,
                                   steps_per_epoch=per_epoch, 
                                   epochs=max_epochs,
-                                  callbacks=[callback])
+                                  callbacks=[callback],
+                                  verbose=verbosity)
             
             model_json = model.to_json()
             with open(output_path+".json", "w") as f:

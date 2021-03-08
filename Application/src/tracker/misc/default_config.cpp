@@ -72,6 +72,12 @@ namespace default_config {
         "A standard data format, comma-separated columns for each data stream.",
         "NPZ is basically a collection of binary arrays, readable by NumPy and other plugins (there are plugins available for Matlab and R)."
     )
+
+    ENUM_CLASS_DOCS(gpu_verbosity_t,
+       "No output during training.",
+       "An animated bar with detailed information about the training progress.",
+       "One line per epoch."
+    )
     
     static const std::map<std::string, std::string> deprecated = {
         {"outline_step", "outline_smooth_step"},
@@ -539,6 +545,7 @@ file::Path conda_environment_path() {
         CONFIG("gpu_accumulation_enable_final_step", true, "If enabled, the network will be trained on all the validation + training data accumulated, as a last step of the accumulation protocol cascade. This is intentional overfitting.");
         CONFIG("gpu_learning_rate", float(0.0005), "Learning rate for training a recognition network.");
         CONFIG("gpu_max_epochs", size_t(150), "Maximum number of epochs for training a recognition network.");
+        CONFIG("gpu_verbosity", gpu_verbosity_t::full, "Determines the nature of the output on the command-line during training. This does not change any behaviour in the graphical interface.");
         CONFIG("gpu_min_iterations", size_t(100), "Minimum number of iterations per epoch for training a recognition network.");
         CONFIG("gpu_max_cache", float(2), "Size of the image cache (transferring to GPU) in GigaBytes when applying the network.");
         CONFIG("gpu_max_sample_gb", float(2), "Maximum size of per-individual sample images in GigaBytes. If the collected images are too many, they will be sub-sampled in regular intervals.");

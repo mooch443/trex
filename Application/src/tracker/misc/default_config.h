@@ -37,6 +37,9 @@ namespace default_config {
 
     ENUM_CLASS(recognition_normalization_t, none, moments, posture, legacy)
     ENUM_CLASS_HAS_DOCS(recognition_normalization_t)
+
+    ENUM_CLASS(gpu_verbosity_t, silent, full, oneline)
+    ENUM_CLASS_HAS_DOCS(gpu_verbosity_t)
     
     ENUM_CLASS(gui_recording_format_t, avi, jpg, png)
     ENUM_CLASS_HAS_DOCS(gui_recording_format_t)
