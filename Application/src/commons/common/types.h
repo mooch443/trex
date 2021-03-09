@@ -49,6 +49,4 @@ namespace track {
     using namespace cmn;
 }
 
-#include <misc/vec2.h>
-
 #endif

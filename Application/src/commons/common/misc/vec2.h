@@ -2,6 +2,7 @@
 
 #include <misc/defines.h>
 #include <misc/checked_casts.h>
+#include <misc/metastring.h>
 
 namespace cmn {
     typedef float Float2_t;
@@ -198,6 +199,27 @@ namespace cmn {
         constexpr Float2& operator-=(Float2_t other) { A() -= other; B() -= other; return *this; }
         constexpr Float2& operator*=(Float2_t other) { A() *= other; B() *= other; return *this; }
         constexpr Float2& operator/=(Float2_t other) { A() /= other; B() /= other; return *this; }
+        
+        std::string toStr() const {
+            return "[" + Meta::toStr(A()) + "," + Meta::toStr(B()) + "]";
+        }
+        
+        static self_type fromStr(const std::string& str)
+        {
+            auto vec = Meta::fromStr<std::vector<Float2_t>>(str);
+            if(vec.empty())
+                return self_type();
+            if(vec.size() != 2)
+                throw CustomException<std::invalid_argument>("Can only initialize Vec2 with two or no elements. ('%S')", &str);
+            return self_type(vec[0], vec[1]);
+        }
+        
+        static std::string class_name() {
+            if constexpr(is_size) {
+                return "size";
+            } else
+                return "vec";
+        }
     };
     
     typedef Float2<true> Size2;
@@ -405,6 +427,22 @@ constexpr inline T operator SIGN(Float2_t s, const T& v) { return T(s SIGN v.A()
         constexpr bool empty() const { return width == 0 && height == 0; }
         
         Float2_t distance(const Vec2& p) const;
+        
+        std::string toStr() const {
+            return "[" + Meta::toStr(x) + "," + Meta::toStr(y) + "," + Meta::toStr(width) + "," + Meta::toStr(height) + "]";
+        }
+        static Bounds fromStr(const std::string& str)
+        {
+            auto vec = Meta::fromStr<std::vector<Float2_t>>(str);
+            if(vec.empty())
+                return Bounds();
+            if(vec.size() != 4)
+                throw CustomException<std::invalid_argument>("Can only initialize Bounds with exactly four or no elements. ('%S')", &str);
+            return Bounds(vec[0], vec[1], vec[2], vec[3]);
+        }
+        static std::string class_name() {
+            return "bounds";
+        }
     };
     
     //! Calculates the angle between two given vectors.

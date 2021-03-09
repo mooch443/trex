@@ -1,6 +1,7 @@
 #pragma once
 
 #include <types.h>
+#include <misc/vec2.h>
 
 namespace cmn {
     class LuminanceGrid {

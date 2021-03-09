@@ -1,4 +1,5 @@
 #include "curve_discussion.h"
+#include <misc/vec2.h>
 
 namespace cmn {
     namespace curves {

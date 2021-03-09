@@ -1,6 +1,7 @@
 #include "CPULabeling.h"
 #include <misc/GlobalSettings.h>
 #include <misc/Timer.h>
+#include <misc/checked_casts.h>
 
 namespace cmn {
     namespace CPULabeling {
