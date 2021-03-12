@@ -985,7 +985,7 @@ if(${TREX_BUILD_OPENCV})
             -DBUILD_opencv_java:BOOL=FALSE
             -DBUILD_opencv_python:BOOL=OFF
             -DBUILD_opencv_objdetect:BOOL=ON
-            -DBUILD_opencv_dnn:BOOL=OFF
+            -DBUILD_opencv_dnn:BOOL=ON
             -DBUILD_opencv_ml:BOOL=OFF
             -DBUILD_opencv_stitching:BOOL=OFF
             -DBUILD_opencv_flann:BOOL=ON
