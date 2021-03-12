@@ -992,6 +992,7 @@ if(${TREX_BUILD_OPENCV})
             -DWITH_WEBP=OFF
             -DBUILD_PNG:BOOL=OFF
             -DBUILD_ZLIB:BOOL=OFF
+            -DBUILD_PROTOBUF:BOOL=ON
             -DBUILD_JPEG:BOOL=ON
             -DWITH_OPENJPEG:BOOL=OFF
             -DBUILD_JASPER:BOOL=OFF
