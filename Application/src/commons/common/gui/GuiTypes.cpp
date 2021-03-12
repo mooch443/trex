@@ -453,9 +453,9 @@ std::ostream & Rect::operator <<(std::ostream &os) {
 std::ostream & Circle::operator <<(std::ostream &os) {
     Drawable::operator<<(os);
     
-    os << color();
-    if(fillclr().a > 0)
-        os << "," << fillclr();
+    os << line_clr();
+    if(fill_clr().a > 0)
+        os << "," << fill_clr();
     return os;
 }
 

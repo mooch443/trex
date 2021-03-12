@@ -114,18 +114,22 @@ namespace gui {
         if(!d.dialog_window_size().empty())
             size = d.dialog_window_size();
         
-        _title_bg.set_bounds(Bounds(5,10,max(650, min(900, size.width * 0.25f)),60));
-        _okay->set_bounds(Bounds(Vec2(_title_bg.width() * 0.5f, 230), Size2(100, 40)));
-        if(_abort)
-            _abort->set_bounds(Bounds(310, 230, 140, 40));
+        _okay->set_size(Size2(gui::Base::default_text_bounds(_okay->txt(), nullptr, _okay->font()).width + 20, 40));
+        _okay->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Green.exposure(0.15)));
+        if (_abort) {
+            _abort->set_size(Size2(gui::Base::default_text_bounds(_abort->txt(), nullptr, _abort->font()).width + 20, 40));
+            _abort->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Red.exposure(0.2)));
+        }
         if(_second)
-            _second->set_bounds(Bounds(310, 230, 140, 40));
+            _second->set_size(Size2(gui::Base::default_text_bounds(_second->txt(), nullptr, _second->font()).width + 20, 40));
         if(_third)
-            _third->set_bounds(Bounds(310, 230, 140, 40));
+            _third->set_size(Size2(gui::Base::default_text_bounds(_third->txt(), nullptr, _third->font()).width + 20, 40));
         if(_fourth)
-            _fourth->set_bounds(Bounds(310, 230, 140, 40));
-        
+            _fourth->set_size(Size2(gui::Base::default_text_bounds(_fourth->txt(), nullptr, _fourth->font()).width + 20, 40));
+
+        _title_bg.set_bounds(Bounds(Vec2(5, 10), Size2(max(600, _layout.width() + 20), 60)));
         _layout.set_pos(_title_bg.pos() + Vec2(0, _title_bg.height()));
+        _layout.update();
         
         _text->set_max_size(Size2(_title_bg.width() - 50, 50));
         
@@ -145,7 +149,7 @@ namespace gui {
             buttons.push_back(_abort);
         _buttons->set_children(buttons);
         
-        set_background(DarkCyan.brighten(0.2f).alpha(220), Black);
+        set_background(DarkCyan.exposure(0.2f).alpha(220), Black);
         
         _text->set_background(Transparent, Transparent);
         _title.set_origin(Vec2(0.5));
@@ -604,9 +608,10 @@ namespace gui {
             case SCROLL:
                 d = _hovered_object;
 #if __linux__ || WIN32
-                e.scroll.delta *= 10;
+                e.scroll.dx *= 15;
+                e.scroll.dy *= 15;
 #endif
-                scroll(e.scroll.delta);
+                scroll(Vec2(e.scroll.dx, e.scroll.dy));
                 break;
             default:
                 break;
@@ -678,10 +683,11 @@ namespace gui {
         return false;
     }
     
-    void DrawStructure::scroll(float delta) {
+    void DrawStructure::scroll(const Vec2& delta) {
         if(_hovered_object) {
             Event e(SCROLL);
-            e.scroll.delta = delta;
+            e.scroll.dx = delta.x;
+            e.scroll.dy = delta.y;
             _hovered_object->scroll(e);
         }
     }

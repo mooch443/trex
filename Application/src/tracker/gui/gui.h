@@ -301,7 +301,7 @@ public:
     
 private:
     std::tuple<Vec2, Vec2> gui_scale_with_boundary(Bounds& bounds, gui::Section* section, bool singular);
-    std::function<void(const Vec2&, bool)> _clicked_background;
+    std::function<void(const Vec2&, bool, std::string)> _clicked_background;
     std::vector<std::vector<Vec2>> _current_boundary;
     enum class SelectedSettingType {
         ARRAY_OF_BOUNDS,

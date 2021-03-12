@@ -1469,6 +1469,7 @@ void Recognition::check_learning_module(bool force) {
             py::set_variable("learning_rate", SETTING(gpu_learning_rate).value<float>(), "learn_static");
             py::set_variable("batch_size", (long_t)batch_size, "learn_static");
             py::set_variable("video_length", (long_t)SETTING(video_length).value<size_t>(), "learn_static");
+            py::set_variable("verbosity", int(SETTING(gpu_verbosity).value<default_config::gpu_verbosity_t::Class>().value()));
             
             auto filename = network_path();
             try {
@@ -1923,6 +1924,7 @@ void Recognition::load_weights(std::string postfix) {
                     long_t setting_max_epochs = int(SETTING(gpu_max_epochs).value<size_t>());
                     py::set_variable("max_epochs", gpu_max_epochs != -1 ? min(setting_max_epochs, gpu_max_epochs) : setting_max_epochs, "learn_static");
                     py::set_variable("min_iterations", long_t(SETTING(gpu_min_iterations).value<size_t>()), "learn_static");
+                    py::set_variable("verbosity", int(SETTING(gpu_verbosity).value<default_config::gpu_verbosity_t::Class>().value()), "learn_static");
                     
                     auto filename = network_path();
                     try {

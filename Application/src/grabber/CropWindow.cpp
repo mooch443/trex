@@ -114,9 +114,9 @@ namespace gui {
                         });
                         circle->on_hover([circle](Event e){
                             if(e.hover.hovered)
-                                circle->set_fillclr(Red.alpha(200));
+                                circle->set_fill_clr(Red.alpha(200));
                             else
-                                circle->set_fillclr(inner_color);
+                                circle->set_fill_clr(inner_color);
                         });
                     }
                     base.wrap_object(*circle);

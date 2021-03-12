@@ -190,7 +190,7 @@ namespace gui {
     };
     
     struct ScrollEvent {
-        float delta;
+        float dx,dy;
     };
     
     struct DragEvent {

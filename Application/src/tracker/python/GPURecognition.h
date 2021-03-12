@@ -1,16 +1,5 @@
 #pragma once
 
-#if (defined(_WIN32) || defined(WIN32))
-# if defined(TREX_EXPORTS)// || defined(__CUDACC__)
-#  define TREX_EXPORT __declspec(dllexport)
-# else
-#  define TREX_EXPORT __declspec(dllimport)
-# endif
-#else
-/* unix needs nothing */
-#define TREX_EXPORT 
-#endif
-
 #include <types.h>
 #include <misc/Image.h>
 #include <misc/SoftException.h>
@@ -21,20 +10,6 @@ namespace track {
     using namespace cmn;
 
     class TREX_EXPORT PythonIntegration {
-        std::atomic_bool _terminate;
-        std::map<Idx_t, std::deque<std::tuple<long_t, Image::Ptr>>> _classes;
-        std::map<Idx_t, std::set<long_t>> _received;
-        std::map<Idx_t, std::set<long_t>> _sent_to_training;
-        std::map<Idx_t, std::vector<Image::Ptr>> _test_data;
-        
-        std::queue<std::packaged_task<bool()>> tasks;
-        
-        std::thread *_network_update_thread;
-        std::condition_variable _update_condition;
-        std::mutex _data_mutex, _initialize_mutex;
-        std::condition_variable _initialize_condition;
-        std::thread::id _saved_id;
-        
     public:
         PythonIntegration();
         ~PythonIntegration();

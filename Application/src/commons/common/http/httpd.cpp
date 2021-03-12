@@ -2,8 +2,48 @@
 #include <misc/GlobalSettings.h>
 
 #if WITH_MHD
+#ifdef WIN32
+#include <winsock.h>
+#else
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#endif
 
 using namespace cmn;
+
+int accept_callback(void *cls,
+                             const struct sockaddr *addr,
+                     socklen_t addrlen) {
+    
+    char *s = NULL;
+    switch(addr->sa_family) {
+        case AF_INET: {
+            struct sockaddr_in *addr_in = (struct sockaddr_in *)addr;
+            s = (char*)malloc(INET_ADDRSTRLEN);
+            inet_ntop(AF_INET, &(addr_in->sin_addr), s, INET_ADDRSTRLEN);
+            break;
+        }
+        case AF_INET6: {
+            struct sockaddr_in6 *addr_in6 = (struct sockaddr_in6 *)addr;
+            s = (char*)malloc(INET6_ADDRSTRLEN);
+            inet_ntop(AF_INET6, &(addr_in6->sin6_addr), s, INET6_ADDRSTRLEN);
+            break;
+        }
+        default:
+            break;
+    }
+    
+    if(s == NULL)
+        return MHD_NO;
+    
+    if(SETTING(httpd_accepted_ip).value<std::string>().empty()
+       || SETTING(httpd_accepted_ip).value<std::string>() == std::string(s))
+    {
+        return MHD_YES;
+    }
+    
+    return MHD_NO;
+}
 
 Httpd::Httpd(const url_callback& get_image, const std::string& default_page, const init_session & init, const no_access& access) : _default_page(default_page), _get_url(get_image), _init_session(init), _no_access(access)
 {
@@ -14,7 +54,7 @@ Httpd::Httpd(const url_callback& get_image, const std::string& default_page, con
     while (daemon == NULL && port < default_port + 8) {
         daemon = MHD_start_daemon(MHD_USE_THREAD_PER_CONNECTION,
                                   port++,
-                                  NULL,
+                                  &accept_callback,
                                   NULL,
                                   &(Httpd::ahc_echo),
                                   (void*)this,

@@ -127,6 +127,7 @@ namespace gui {
             _exec_main_queue.push(std::unique_ptr<baseFunctor>(new functor<F>(std::move(fn))));
             //_exec_main_queue.push(std::bind([](F& fn){ fn(); }, std::move(fn)));
         }
+        Event toggle_fullscreen(DrawStructure& g) override;
         
     private:
         void redraw(Drawable* o, std::vector<DrawOrder>& draw_order, bool is_background = false);

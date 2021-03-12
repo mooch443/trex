@@ -19,9 +19,15 @@ namespace track {
         update_callback();
     }
     
+    StaticBackground::~StaticBackground() {
+        GlobalSettings::map().unregister_callback(this);
+    }
+
     void StaticBackground::update_callback() {
+#ifndef NDEBUG
         if(!SETTING(quiet))
             Debug("Updating static background difference method.");
+#endif
         if(!Tracker::instance() || FAST_SETTINGS(enable_absolute_difference)) {
             _diff = &absolute_diff;
         } else {

@@ -1,6 +1,8 @@
 #pragma once
 
 #include <misc/defines.h>
+#include <misc/checked_casts.h>
+#include <misc/metastring.h>
 
 namespace cmn {
     typedef float Float2_t;
@@ -38,8 +40,8 @@ namespace cmn {
         template<bool K>
         explicit constexpr Float2(const Float2<K>& other) noexcept : Float2(other.A(), other.B()) {}
         constexpr Float2() noexcept : Float2(0, 0) {}
-        explicit constexpr Float2(Float2_t a) noexcept : Float2(a, a) {}
-        constexpr Float2(Float2_t a, Float2_t b) noexcept : member_base{a, b} { }
+        explicit constexpr Float2(double a) noexcept : Float2(static_cast<Float2_t>(a), static_cast<Float2_t>(a)) {}
+        constexpr Float2(double a, double b) noexcept : member_base{static_cast<Float2_t>(a), static_cast<Float2_t>(b)} { }
         
 #if CMN_WITH_IMGUI_INSTALLED
         Float2(const ImVec2& v) noexcept : Float2(v.x, v.y) {}
@@ -55,7 +57,7 @@ namespace cmn {
         {}
         
         template<typename T>
-        operator cv::Point_<T>() const { return cv::Point_<T>((int)A(), (int)B()); }
+        operator cv::Point_<T>() const { return cv::Point_<T>(narrow_cast<T>(A()), narrow_cast<T>(B())); }
         
         operator const Float2<!is_size>&() const { return *((const Float2<!is_size>*)this); }
         operator Float2<!is_size>&() { return *((Float2<!is_size>*)this); }
@@ -197,6 +199,27 @@ namespace cmn {
         constexpr Float2& operator-=(Float2_t other) { A() -= other; B() -= other; return *this; }
         constexpr Float2& operator*=(Float2_t other) { A() *= other; B() *= other; return *this; }
         constexpr Float2& operator/=(Float2_t other) { A() /= other; B() /= other; return *this; }
+        
+        std::string toStr() const {
+            return "[" + Meta::toStr(A()) + "," + Meta::toStr(B()) + "]";
+        }
+        
+        static self_type fromStr(const std::string& str)
+        {
+            auto vec = Meta::fromStr<std::vector<Float2_t>>(str);
+            if(vec.empty())
+                return self_type();
+            if(vec.size() != 2)
+                throw CustomException<std::invalid_argument>("Can only initialize Vec2 with two or no elements. ('%S')", &str);
+            return self_type(vec[0], vec[1]);
+        }
+        
+        static std::string class_name() {
+            if constexpr(is_size) {
+                return "size";
+            } else
+                return "vec";
+        }
     };
     
     typedef Float2<true> Size2;
@@ -297,8 +320,8 @@ constexpr inline T operator SIGN(Float2_t s, const T& v) { return T(s SIGN v.A()
             : Bounds(other.x, other.y, other.width, other.height)
         {}
         
-        constexpr Bounds(Float2_t _x = 0, Float2_t _y = 0, Float2_t w = 0, Float2_t h = 0)
-            : x(_x), y(_y), width(w), height(h)
+        constexpr Bounds(double _x = 0, double _y = 0, double w = 0, double h = 0)
+            : x(static_cast<Float2_t>(_x)), y(static_cast<Float2_t>(_y)), width(static_cast<Float2_t>(w)), height(static_cast<Float2_t>(h))
         {}
         
         constexpr Bounds(const Vec2& pos,
@@ -310,7 +333,7 @@ constexpr inline T operator SIGN(Float2_t s, const T& v) { return T(s SIGN v.A()
             : Bounds(0, 0, dim.width, dim.height)
         {}
         
-        explicit Bounds(const cv::Mat& matrix) : Bounds(0, 0, matrix.cols, matrix.rows) {}
+        explicit Bounds(const cv::Mat& matrix) : Bounds(0, 0, static_cast<Float2_t>(matrix.cols), static_cast<Float2_t>(matrix.rows)) {}
         
         template<typename T>
         Bounds(const cv::Rect_<T>& rect) : Bounds(rect.x, rect.y, rect.width, rect.height) {}
@@ -404,6 +427,22 @@ constexpr inline T operator SIGN(Float2_t s, const T& v) { return T(s SIGN v.A()
         constexpr bool empty() const { return width == 0 && height == 0; }
         
         Float2_t distance(const Vec2& p) const;
+        
+        std::string toStr() const {
+            return "[" + Meta::toStr(x) + "," + Meta::toStr(y) + "," + Meta::toStr(width) + "," + Meta::toStr(height) + "]";
+        }
+        static Bounds fromStr(const std::string& str)
+        {
+            auto vec = Meta::fromStr<std::vector<Float2_t>>(str);
+            if(vec.empty())
+                return Bounds();
+            if(vec.size() != 4)
+                throw CustomException<std::invalid_argument>("Can only initialize Bounds with exactly four or no elements. ('%S')", &str);
+            return Bounds(vec[0], vec[1], vec[2], vec[3]);
+        }
+        static std::string class_name() {
+            return "bounds";
+        }
     };
     
     //! Calculates the angle between two given vectors.
@@ -415,7 +454,6 @@ constexpr inline T operator SIGN(Float2_t s, const T& v) { return T(s SIGN v.A()
         
     inline bool pnpoly(const std::vector<Vec2>& pts, const Vec2& pt)
     {
-        assert(pts.size() < std::numeric_limits<int>::max());
         size_t npol = pts.size();
         size_t i, j;
         bool c = false;

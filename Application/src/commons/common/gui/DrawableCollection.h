@@ -6,10 +6,10 @@ namespace gui {
     class DrawableCollection : public Section {
     public:
         DrawableCollection(const std::string& name)
-            : Section(NULL, NULL, name)
+            : Section(nullptr, nullptr, name)
         {}
         DrawableCollection()
-            : Section(NULL, NULL, std::to_string((long)this))
+            : Section(nullptr, nullptr, std::to_string((uint64_t)this))
         {}
         virtual ~DrawableCollection();
         

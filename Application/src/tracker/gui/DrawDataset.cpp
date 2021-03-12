@@ -186,7 +186,7 @@ namespace gui {
             
             Color color = White.alpha(200);
             if(double_identities.find(max_id) != double_identities.end())
-                color = Red.brightenHSL(1.5).alpha(200);
+                color = Red.exposureHSL(1.5).alpha(200);
             else if(samples == 1)
                 color = Yellow.alpha(200);
             
@@ -194,7 +194,7 @@ namespace gui {
             if(max_id.valid())
                 secondary = advance(new Text(Meta::toStr(max_id)+" ("+Meta::toStr(max_p)+", "+Meta::toStr(samples)+" samples)", text->pos() + Vec2(text->width(), 0), color, font));
             else
-                secondary = advance(new Text("N/A ("+Meta::toStr(samples)+" samples)", text->pos() + Vec2(text->width(), 0), DarkCyan.brightenHSL(1.5).alpha(200), font));
+                secondary = advance(new Text("N/A ("+Meta::toStr(samples)+" samples)", text->pos() + Vec2(text->width(), 0), DarkCyan.exposureHSL(1.5).alpha(200), font));
             
             fish_offset[id] = { y, text->height() };
             

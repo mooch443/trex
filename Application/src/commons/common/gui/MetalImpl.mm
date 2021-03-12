@@ -137,6 +137,9 @@ static void glfw_error_callback(int error, const char* description)
 }
 
 namespace gui {
+static dispatch_semaphore_t _frameBoundarySemaphore;
+static std::mutex mutex, _shutdown_mutex;
+
 void MetalImpl::check_thread_id(int line, const char* file) const {
 #ifndef NDEBUG
     if(std::this_thread::get_id() != _update_thread)
@@ -148,10 +151,18 @@ void MetalImpl::check_thread_id(int line, const char* file) const {
         : draw_function(draw), new_frame_fn(new_frame_fn), _data(new MetalData)
     {
         gui::metal::current_instance = this;
+        _frameBoundarySemaphore = dispatch_semaphore_create(1);
+        //dispatch_semaphore_signal(_frameBoundarySemaphore);
     }
 
     MetalImpl::~MetalImpl() {
         GLIMPL_CHECK_THREAD_ID();
+        
+        std::lock_guard<std::mutex> guard(_shutdown_mutex);
+        if(dispatch_semaphore_wait(_frameBoundarySemaphore, dispatch_time(DISPATCH_TIME_NOW, 500000000lu)) != 0)
+        {
+            Error("Semaphore did not receive a signal and had to time out.");
+        }
         
         if(gui::metal::current_instance == this)
             gui::metal::current_instance = nullptr;
@@ -224,23 +235,28 @@ bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
         _data->renderPassDescriptor = [MTLRenderPassDescriptor new];
         
         ImGui_ImplGlfw_InitForOpenGL(window, true);
-        
+        [nswin setCollectionBehavior:NSWindowCollectionBehaviorFullScreenPrimary];
+    }
+
+    void MetalImpl::toggle_full_screen() {
+        NSWindow *nswin = glfwGetCocoaWindow(window);
+        [nswin toggleFullScreen:[NSApplication sharedApplication]];
     }
 
     LoopStatus MetalImpl::update_loop() {
         GLIMPL_CHECK_THREAD_ID();
         
+        std::lock_guard<std::mutex> guard(_shutdown_mutex);
         LoopStatus status = LoopStatus::IDLE;
-        static dispatch_semaphore_t _frameBoundarySemaphore = dispatch_semaphore_create(1);
-        static std::mutex mutex;
-        //dispatch_semaphore_wait(_frameBoundarySemaphore, DISPATCH_TIME_FOREVER);
+        dispatch_semaphore_wait(_frameBoundarySemaphore, DISPATCH_TIME_FOREVER);
         
         ++frame_index;
         
-        
         glfwPollEvents();
-        if(glfwWindowShouldClose(window))
+        if(glfwWindowShouldClose(window)) {
+            dispatch_semaphore_signal(_frameBoundarySemaphore);
             return LoopStatus::END;
+        }
         
         if(new_frame_fn()) {
             int width, height;
@@ -287,9 +303,8 @@ bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
                 [commandBuffer presentDrawable:drawable];
                 
                 [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> commandBuffer) {
-                    {
-                    }
                     delete lock;
+                    
                     {
                         std::lock_guard<std::mutex> guard(_texture_mutex);
                         for(auto ptr : _delete_textures) {
@@ -298,7 +313,8 @@ bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
                         }
                         _delete_textures.clear();
                     }
-                    //dispatch_semaphore_signal(_frameBoundarySemaphore);
+                    
+                    dispatch_semaphore_signal(_frameBoundarySemaphore);
                 }];
                 
                 [commandBuffer commit];
@@ -321,8 +337,8 @@ bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
             ++_draw_calls;
             status = LoopStatus::UPDATED;
             
-        } //else
-            //delete lock;
+        } else
+            dispatch_semaphore_signal(_frameBoundarySemaphore);
         
         /*if(_draw_timer.elapsed() >= 1) {
             Debug("%f draw_calls / s", _draw_calls);

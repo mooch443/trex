@@ -32,7 +32,7 @@ namespace gui {
     protected:
         size_t index() const { return _index; }
         
-        Section() : Section(NULL, NULL, "") {}
+        Section() : Section(nullptr, nullptr, "") {}
         Section(DrawStructure* s, Section* parent,
                 const std::string& name,
                 const std::vector<Drawable*> o = std::vector<Drawable*>())
@@ -43,7 +43,7 @@ namespace gui {
             _section_clickable(false),
             _debug_rects(false),
             _clr(wheel.next()),
-            prect(NULL), ptext(NULL), stext(NULL)
+            prect(nullptr), ptext(nullptr), stext(nullptr)
         {
             if(s && !parent) {
                 _enabled = true;
@@ -126,7 +126,7 @@ namespace gui {
             if(d->type() != Type::SECTION
                && _children.size() > _index
                && _children.at(_index)->type() == d->type()
-               && dynamic_cast<T*>(_children.at(_index)) != NULL
+               && dynamic_cast<T*>(_children.at(_index)) != nullptr
                && _children.at(_index)->swap_with(d))
             {
                 // reusing successful!
@@ -164,7 +164,7 @@ namespace gui {
                && static_cast<SingletonObject*>(_children[_index])->ptr() == obj)
             {
                 _index++;
-                return NULL;
+                return nullptr;
                 
             } else {
                 auto it = _wrapped_children.find(obj);
@@ -189,7 +189,7 @@ namespace gui {
                && static_cast<SingletonObject*>(_children[_index])->ptr() == obj)
             {
                 _index++;
-                return NULL;
+                return nullptr;
                 
             } else {
                 // no, its not correct. remove existing object (if present)

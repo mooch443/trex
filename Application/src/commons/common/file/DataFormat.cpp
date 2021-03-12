@@ -22,11 +22,6 @@ char* memGetAddr( mappedRegion *hReg)
     return (char *)((*hReg)->addr);
 }
 
-int memGetLength( mappedRegion *hReg)
-{
-    return (*hReg)->length;
-}
-
 int memmap(bool create, const file::Path& path, mappedRegion* hReg, uint64_t length = 0) {
     int res;
     unsigned int i;

@@ -3,6 +3,9 @@
 #include <types.h>
 #include <gui/DrawStructure.h>
 #include <gui/types/Drawable.h>
+#if WIN32
+#include <ShObjIdl_core.h>
+#endif
 
 namespace gui {
 
@@ -41,6 +44,9 @@ class WorkProgress {
     std::atomic<float> _percent;
     std::map<std::string, Image::Ptr> _images;
     std::map<std::string, std::unique_ptr<ExternalImage>> _gui_images;
+#if WIN32
+    ITaskbarList3* ptbl = NULL;
+#endif
     
 public:
     WorkProgress();
@@ -61,7 +67,7 @@ public:
     
     void set_progress(const std::string& title, float value, const std::string& description = "");
     
-    std::atomic<float>& percent();
+    //std::atomic<float>& percent();
     float percent() const;
     void set_percent(float value);
     

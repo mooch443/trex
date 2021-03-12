@@ -8,7 +8,7 @@ namespace gui {
         : SectionInterface(Type::ENTANGLED, NULL),
             _begun(false),
             scrolling([this](Event e) {
-                set_scroll_offset(_scroll_offset - Vec2(0, e.scroll.delta));
+                set_scroll_offset(_scroll_offset - Vec2(e.scroll.dx, e.scroll.dy));
             }),
             callback_ptr(nullptr),
             _scroll_enabled(false),
@@ -22,7 +22,7 @@ namespace gui {
             _children(objects),
             _begun(false),
             scrolling([this](Event e) {
-                set_scroll_offset(_scroll_offset - Vec2(0, e.scroll.delta));
+                set_scroll_offset(_scroll_offset - Vec2(e.scroll.dx, e.scroll.dy));
             }),
             callback_ptr(nullptr),
             _scroll_enabled(false),
@@ -164,10 +164,6 @@ namespace gui {
         
         ma += Vec2(max(0.f, margin.right), max(0.f, margin.bottom));
         
-#ifndef NDEBUG
-        if(!Drawable::name().empty() && ma != _bounds.size())
-            Debug("'%S' auto size: %.0fx%.0f", &Drawable::name(), ma.x, ma.y);
-#endif
         set_size(ma);
     }
     

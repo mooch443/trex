@@ -44,6 +44,11 @@ public:
 		
 		va_start(args, fmt);
 		BUFFER = (char*)calloc(n, sizeof(char));
+        if (!BUFFER) {
+            msg = "Cannot allocate memory for message '" + std::string(fmt) + "'.";
+            return;
+        }
+
 #ifdef _WIN32
 		vsnprintf_s(BUFFER, n, n, fmt, args);
 #else
@@ -116,7 +121,7 @@ namespace DEBUG {
         int line;
         const char *file;
         bool force_callback;
-        CONSOLE_COLORS color;
+        CONSOLE_COLORS color = BLACK;
         std::string prefix;
 
 #if __cpp_lib_string_view

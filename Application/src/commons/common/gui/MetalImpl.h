@@ -39,6 +39,7 @@ namespace gui {
         void update_texture(PlatformTexture&, const Image*) override;
         void set_title(std::string) override;
         Image::Ptr current_frame_buffer() override;
+        void toggle_full_screen() override;
         
         virtual ~MetalImpl();
         GLFWwindow* window_handle() override;

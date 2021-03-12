@@ -1,4 +1,3 @@
-set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 file(GLOB SRCS ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
                ${CMAKE_CURRENT_SOURCE_DIR}/*.h
            ${CMAKE_CURRENT_SOURCE_DIR}/debug/*.cpp

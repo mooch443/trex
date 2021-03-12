@@ -19,6 +19,9 @@ endif()
 set(CMAKE_MACOSX_RPATH ON)
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 include(ExternalProject)
+if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.11.0")
+    include(FetchContent)
+endif()
 
 enable_testing ()
 
@@ -251,6 +254,16 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DTT_DEBUG_ENABLED")
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Release")
+endif()
+
+if(TREX_CONDA_PACKAGE_INSTALL)
+    set(TREX_CMAKE_BUILD_TYPE Release)
+else()
+    if(APPLE)
+        set(TREX_CMAKE_BUILD_TYPE $<$<CONFIG:Debug>:Release>$<$<CONFIG:Release>:Debug>)
+    else()
+        set(TREX_CMAKE_BUILD_TYPE $<IF:$<CONFIG:Debug>,Debug,Release>)
+    endif()
 endif()
 
 #if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
@@ -597,7 +610,6 @@ if(${CMAKE_VERSION} VERSION_LESS "3.11.0")
     message(STATUS "pybind11 external_project ${PYTHON_INCLUDE_DIRS} ${INSTALL_DIR} ${pybind11_LIBRARY}")
 
 else()
-    include(FetchContent)
     FetchContent_Declare(
         pybind11
         GIT_REPOSITORY https://github.com/pybind/pybind11
@@ -972,9 +984,15 @@ if(${TREX_BUILD_OPENCV})
             -DBUILD_opencv_apps:BOOL=FALSE
             -DBUILD_opencv_java:BOOL=FALSE
             -DBUILD_opencv_python:BOOL=OFF
+            -DBUILD_opencv_objdetect:BOOL=ON
+            -DBUILD_opencv_dnn:BOOL=ON
+            -DBUILD_opencv_ml:BOOL=OFF
+            -DBUILD_opencv_stitching:BOOL=OFF
+            -DBUILD_opencv_flann:BOOL=ON
             -DWITH_WEBP=OFF
             -DBUILD_PNG:BOOL=OFF
             -DBUILD_ZLIB:BOOL=OFF
+            -DBUILD_PROTOBUF:BOOL=ON
             -DBUILD_JPEG:BOOL=ON
             -DWITH_OPENJPEG:BOOL=OFF
             -DBUILD_JASPER:BOOL=OFF
@@ -985,6 +1003,7 @@ if(${TREX_BUILD_OPENCV})
             -DBUILD_WITH_STATIC_CRT:BOOL=ON
             -DBUILD_FAT_JAVA_LIB=OFF
             -DBUILD_TIFF=ON
+            -DBUILD_opencv_gapi=OFF
             -DWITH_OPENCL=ON
             # -DAVCODEC_LIBRARY:FILEPATH=${AVCODEC_LIBRARY}
             # -DAVFORMAT_LIBRARY:FILEPATH=${AVFORMAT_LIBRARY} 
@@ -1067,9 +1086,13 @@ if(${TREX_BUILD_OPENCV})
         message("Including OpenCV lib path: ${CMAKE_CURRENT_BINARY_DIR}/opencv_install/x64/vc${VSTD_VERSION_MAJOR}/staticlib")
         set(OpenCV_LIB_PATH ${CMAKE_CURRENT_BINARY_DIR}/opencv_install/x64/vc${VSTD_VERSION_MAJOR}/staticlib)
         link_directories(${OpenCV_LIB_PATH})
-        set(OpenCV_LIBS opencv_core451 opencv_imgproc451 opencv_imgcodecs451 opencv_video451 opencv_videoio451 opencv_highgui451 opencv_features2d451 opencv_flann451 opencv_objdetect451 opencv_ml451 opencv_gapi451 opencv_dnn451 opencv_calib3d451 libjpeg-turbo ittnotify ade libprotobuf libtiff quirc ${FFMPEG_LIBRARIES})
+        #set(OpenCV_LIBS opencv_core451 opencv_imgproc451 opencv_imgcodecs451 opencv_video451 opencv_videoio451 opencv_highgui451 opencv_features2d451 opencv_flann451 opencv_objdetect451 opencv_ml451 opencv_gapi451 opencv_dnn451 opencv_calib3d451 libjpeg-turbo ittnotify ade libprotobuf libtiff quirc ${FFMPEG_LIBRARIES})
+        set(OpenCV_LIBS opencv_core451 opencv_imgproc451 opencv_imgcodecs451 opencv_video451 opencv_videoio451 opencv_highgui451 
+            opencv_features2d451 opencv_flann451 opencv_calib3d451 
+            libjpeg-turbo ittnotify ade libprotobuf libtiff quirc ${FFMPEG_LIBRARIES})
     else()
-		set(OpenCV_LIBS opencv_core opencv_imgproc opencv_imgcodecs opencv_stitching opencv_photo opencv_video opencv_videoio opencv_highgui opencv_features2d opencv_flann opencv_objdetect opencv_ml opencv_gapi opencv_dnn opencv_calib3d)
+		#set(OpenCV_LIBS opencv_core opencv_imgproc opencv_imgcodecs opencv_stitching opencv_photo opencv_video opencv_videoio opencv_highgui opencv_features2d opencv_flann opencv_objdetect opencv_ml opencv_gapi opencv_dnn opencv_calib3d)
+        set(OpenCV_LIBS opencv_core opencv_imgproc opencv_imgcodecs opencv_flann opencv_photo opencv_video opencv_videoio opencv_highgui opencv_features2d opencv_calib3d)
 		set(OpenCV_LIBS ${OpenCV_LIBS} opencv_core libjpeg-turbo ittnotify ade libprotobuf quirc ${FFMPEG_LIBRARIES})
 		if(APPLE)
 			set(OpenCV_LIBS ${OpenCV_LIBS} libtiff)

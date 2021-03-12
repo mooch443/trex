@@ -569,12 +569,14 @@ int main(int argc, char** argv)
     
     if(SETTING(filename).value<Path>().empty()) {
         cmd.load_settings();
+        
+        std::unique_ptr<gui::VideoOpener> opener;
 
         if((GlobalSettings::map().has("nowindow") ? SETTING(nowindow).value<bool>() : false) == false) {
             SETTING(settings_file) = file::Path();
             
-            gui::VideoOpener opener;
-            opening_result = opener._result;
+            opener = std::make_unique<gui::VideoOpener>();
+            opening_result = opener->_result;
         }
 
         if (!opening_result.selected_file.empty()) {
@@ -687,8 +689,10 @@ int main(int argc, char** argv)
     else
         Warning("Settings file '%S' does not exist.", &settings_file.str());
     
-    if(SETTING(meta_real_width).value<float>() == 0)
+    if(SETTING(meta_real_width).value<float>() == 0) {
+        Warning("This video does not set `meta_real_width`. Please set this value during conversion (see https://trex.run/docs/parameters_trex.html#meta_real_width for details).");
         SETTING(meta_real_width) = float(30.0);
+    }
     
     // setting cm_per_pixel after average has been generated (and offsets have been set)
     if(!GlobalSettings::map().has("cm_per_pixel") || SETTING(cm_per_pixel).value<float>() == 0)
@@ -1228,9 +1232,6 @@ int main(int argc, char** argv)
     gui.set_analysis(analysis.get());
     gui_lock.unlock();
     
-    if(go_fullscreen)
-        gui.toggle_fullscreen();
-    
     GlobalSettings::map().register_callback(NULL, [&analysis, &gui](const sprite::Map&, const std::string& key, const sprite::PropertyType& value)
     {
         if (key == "analysis_paused") {
@@ -1368,6 +1369,9 @@ int main(int argc, char** argv)
             "gfx/"+SETTING(app_name).value<std::string>()+"Icon64.png"
         });
     }
+    
+    if(go_fullscreen)
+        gui.toggle_fullscreen();
     
     gui::SFLoop loop(gui.gui(), imgui_base, [&](gui::SFLoop&){
         {

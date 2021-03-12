@@ -378,7 +378,7 @@ namespace gui {
         if(!_valid)
             base_color = BrightRed.alpha(210);
         if(_read_only) {
-            base_color = base_color.brighten(0.9);
+            base_color = base_color.exposure(0.9);
             _text_display.set_color(DarkGray);
         } else
             _text_display.set_color(Black);

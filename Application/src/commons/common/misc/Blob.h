@@ -2,6 +2,7 @@
 #define _BLOB_H
 
 #include "types.h"
+#include <misc/vec2.h>
 #include <gui/colors.h>
 
 namespace cmn {

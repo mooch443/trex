@@ -174,18 +174,18 @@ protected:
     class Circle final : public Drawable {
     private:
         GETTER(float, radius)
-        GETTER(Color, color)
-        GETTER(Color, fillclr)
+        GETTER(Color, line_clr)
+        GETTER(Color, fill_clr)
         
     public:
         Circle(const Vec2& pos = Vec2(),
                float radius = 1,
-               const Color& color = White,
+               const Color& line_color = White,
                const Color& fill_color = Transparent)
             : gui::Drawable(Type::CIRCLE, Bounds(pos, Vec2(radius*2)), Vec2(0.5)),
                 _radius(radius),
-                _color(color),
-                _fillclr(fill_color)
+                _line_clr(line_color),
+                _fill_clr(fill_color)
         { }
         virtual ~Circle() {}
         
@@ -196,12 +196,12 @@ protected:
             }
         }
         
-        CHANGE_SETTER(color)
-        CHANGE_SETTER(fillclr)
+        CHANGE_SETTER(line_clr)
+        CHANGE_SETTER(fill_clr)
         
         bool in_bounds(float x, float y) override {
             auto size = global_bounds();
-            return euclidean_distance(Vec2(x, y), size.pos() + size.size() * 0.5) <= size.width*0.5;
+            return euclidean_distance(Vec2(x, y), size.pos() + size.size().mul(Vec2(1) - origin())) <= size.width * 0.5f;
         }
         
         std::ostream &operator <<(std::ostream &os) override;
@@ -216,8 +216,8 @@ protected:
                 _radius = ptr->_radius;
                 set_size(Size2(_radius * 2));
             }
-            set_color(ptr->_color);
-            set_fillclr(ptr->_fillclr);
+            set_line_clr(ptr->_line_clr);
+            set_fill_clr(ptr->_fill_clr);
             
             return true;
         }
@@ -369,7 +369,7 @@ protected:
             
             if(!(*ptr->_source == *_source)) {
                 std::swap(ptr->_source, _source);
-                set_dirty();
+                clear_cache();set_dirty();
             }
             
             set_scale(ptr->_scale);

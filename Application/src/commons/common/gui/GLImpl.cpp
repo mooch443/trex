@@ -351,6 +351,34 @@ void GLImpl::check_thread_id(int line, const char* file) const {
 
 static std::vector<uchar> empty;
 
+void GLImpl::toggle_full_screen() {
+    static auto _monitor = glfwGetPrimaryMonitor();
+    // get resolution of monitor
+    const GLFWvidmode * mode = glfwGetVideoMode(_monitor);
+    
+    
+    if ( fullscreen )
+    {
+        // backup window position and window size
+        glfwGetWindowPos( window_handle(), &_wndPos[0], &_wndPos[1] );
+        glfwGetWindowSize( window_handle(), &_wndSize[0], &_wndSize[1] );
+
+        // switch to full screen
+        glfwSetWindowSize(window_handle(), mode->width, mode->height);
+        glfwSetWindowPos(window_handle(), 0, 0);
+        glfwSetWindowMonitor(window_handle(), _monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+        //glfwSetWindowMonitor( window_handle(), _monitor, 0, 0, mode->width, mode->height, 0 );
+        fullscreen = false;
+    }
+    else
+    {
+        // restore last window size and position
+        glfwSetWindowMonitor( window_handle(), nullptr,  _wndPos[0], _wndPos[1], _wndSize[0], _wndSize[1], mode->refreshRate );
+        fullscreen = true;
+        
+    }
+}
+
 TexturePtr GLImpl::texture(const Image * ptr) {
     GLIMPL_CHECK_THREAD_ID();
     
@@ -432,7 +460,7 @@ TexturePtr GLImpl::texture(const Image * ptr) {
     });
 }
 
-void GLImpl::clear_texture(TexturePtr&& id_) {
+void GLImpl::clear_texture(TexturePtr&&) {
     /*GLIMPL_CHECK_THREAD_ID();
     
     auto object = (ImTextureID_t*)id_->ptr;

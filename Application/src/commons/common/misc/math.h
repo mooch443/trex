@@ -14,8 +14,13 @@
         return (int)__lzcnt64(x);
     }
 
-    static inline int __builtin_clzl(unsigned long x) {
-        return sizeof(x) == 8 ? __builtin_clzll(x) : __builtin_clz((uint32_t)x);
+    template<typename T>
+    static inline int __builtin_clzl(T x) {
+        if constexpr (sizeof(x) == sizeof(uint64_t)) {
+            return __builtin_clzll(x);
+        } else {
+            return __builtin_clz(x);
+        }
     }
 #endif
 

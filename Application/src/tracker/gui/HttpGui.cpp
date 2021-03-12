@@ -85,7 +85,11 @@ Httpd::Response HttpGui::page(const std::string &url) {
         
         {
             std::lock_guard<std::recursive_mutex> lock(_gui.lock());
-            if(SETTING(nowindow)) {
+            if(GUI::instance() && GUI::instance()->base())
+                _base.set_window_size(GUI::instance()->base()->window_dimensions().mul(_gui.scale().reciprocal() * GUI_SETTINGS(gui_interface_scale)));
+            else
+                _base.set_window_size(Size2(_gui.width(), _gui.height()));
+            if(GUI_SETTINGS(nowindow)) {
                 GUI::trigger_redraw();
                 //_gui.before_paint(&_base);
             }

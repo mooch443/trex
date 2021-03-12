@@ -29,6 +29,7 @@ namespace gui {
         
         void set_txt(const std::string& txt);
         void set_font(Font font);
+        const Font& font() const;
         
         void set_text_clr(const decltype( _text_clr ) & text_clr) {
             if ( _text_clr == text_clr )

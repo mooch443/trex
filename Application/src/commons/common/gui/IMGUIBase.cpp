@@ -31,6 +31,7 @@
 #endif
 
 #include <misc/checked_casts.h>
+#include <gui/colors.h>
 
 namespace gui {
 
@@ -513,7 +514,8 @@ void clear_cache() {
         });
         glfwSetScrollCallback(_platform->window_handle(), [](GLFWwindow* window, double xoff, double yoff) {
             Event e(EventType::SCROLL);
-            e.scroll.delta = float(yoff);
+            e.scroll.dy = float(yoff);
+            e.scroll.dx = float(xoff);
             
             auto base = base_pointers.at(window);
             base->event(e);
@@ -937,12 +939,12 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
             const float a_max = (float)M_PI*2.0f * ((float)num_segments - 1.0f) / (float)num_segments;
             list->PathArcTo(centre, r, 0.0f, a_max, (int)num_segments - 1);
             
-            if(ptr->fillclr() != Transparent) {
-                list->AddConvexPolyFilled(list->_Path.Data, list->_Path.Size, (ImColor)ptr->fillclr());
+            if(ptr->fill_clr() != Transparent) {
+                list->AddConvexPolyFilled(list->_Path.Data, list->_Path.Size, (ImColor)ptr->fill_clr());
                 //list->AddCircleFilled(centre, ptr->radius(), cvtClr(ptr->fillclr()), num_segments);
             }
-            if(ptr->color() != Transparent) {
-                list->AddPolyline(list->_Path.Data, list->_Path.Size, (ImColor)ptr->color(), true, 1);
+            if(ptr->line_clr() != Transparent) {
+                list->AddPolyline(list->_Path.Data, list->_Path.Size, (ImColor)ptr->line_clr(), true, 1);
                 //list->AddCircle(ImVec2(ptr->pos().x, ptr->pos().y), ptr->radius(), cvtClr(ptr->color()), num_segments);
             }
             
@@ -1270,5 +1272,24 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
         //Size2 size(width, height);
         
         return _last_framebuffer_size;
+    }
+
+    Event IMGUIBase::toggle_fullscreen(DrawStructure &graph) {
+        static int _wndSize[2];
+        static int _wndPos[2];
+        
+        _platform->toggle_full_screen();
+        
+        Event event(WINDOW_RESIZED);
+        
+        // backup window position and window size
+        glfwGetWindowPos( _platform->window_handle(), &_wndPos[0], &_wndPos[1] );
+        glfwGetWindowSize( _platform->window_handle(), &_wndSize[0], &_wndSize[1] );
+        
+        event.size.width = _wndSize[0];
+        event.size.height = _wndSize[1];
+        graph.event(event);
+        
+        return event;
     }
 }

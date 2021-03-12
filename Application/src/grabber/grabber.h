@@ -205,19 +205,7 @@ public:
         return noise;
     }
     
-    void write_fps(uint64_t tdelta, uint64_t ts) {
-        std::unique_lock<std::mutex> guard(_log_lock);
-        if(SETTING(terminate))
-            return;
-        
-        if(!file) {
-            file = fopen("fps_program.csv", "wb");
-            std::string str = "tdelta,time\n";
-            fwrite(str.data(), sizeof(char), str.length(), file);
-        }
-        std::string str = std::to_string(tdelta) + "," + std::to_string(ts) + "\r\n";
-        fwrite(str.data(), sizeof(char), str.length(), file);
-    }
+    void write_fps(uint64_t index, uint64_t tdelta, uint64_t ts);
     
     cv::Mat average() {
         std::lock_guard<std::mutex> guard(_frame_lock);

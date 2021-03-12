@@ -18,8 +18,8 @@ namespace gui {
                 : _lower(lower), _upper(upper), _bins(bins)
             {}
         public:
-            constexpr static Filter FixedBins(uint32_t bins) { return Filter(-1, -1, bins); }
-            constexpr static Filter FixedBins(float lower, float upper, uint32_t bins) { return Filter(lower, upper, bins); }
+            constexpr static Filter FixedBins(uint32_t bins) { return Filter(-1, -1, static_cast<float>(bins)); }
+            constexpr static Filter FixedBins(float lower, float upper, uint32_t bins) { return Filter(lower, upper, static_cast<float>(bins)); }
             constexpr static Filter FixedRange(float lower, float upper) { return Filter(lower, upper); }
             constexpr static Filter Empty() { return Filter(); }
         };

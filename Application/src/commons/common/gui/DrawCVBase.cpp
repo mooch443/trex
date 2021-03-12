@@ -164,7 +164,7 @@ namespace gui {
                 
             case Type::CIRCLE: {
                 auto ptr = static_cast<Circle*>(o);
-                auto &color = ptr->color();
+                auto &color = ptr->line_clr();
                 cv::circle(_window, (cv::Point2f)Vec2(ptr->pos()), narrow_cast<int>(ptr->radius()), cv::Scalar(color.b, color.g, color.r, color.a), 1
 #if CV_MAJOR_VERSION >= 3
                            , cv::LINE_AA

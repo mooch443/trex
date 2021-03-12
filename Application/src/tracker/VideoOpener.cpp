@@ -95,7 +95,11 @@ void VideoOpener::LabeledDropDown::update() {
     _dropdown->select_item(narrow_cast<long>(_ref.get().enum_index()()));
 }
 
-VideoOpener::VideoOpener() {
+VideoOpener::VideoOpener()
+    : _accumulate_video_frames_thread(nullptr),
+      _accumulate_frames_done(true),
+      _end_frames_thread(true)
+{
     grab::default_config::get(temp_settings, temp_docs, nullptr);
     //::default_config::get(GlobalSettings::map(), temp_docs, nullptr);
     
@@ -321,6 +325,26 @@ VideoOpener::VideoOpener() {
     });
     
     _file_chooser->on_update([this](auto&) mutable {
+        if(_blob_timer.elapsed() >= 0.15) {
+            ++_blob_image_index;
+            
+            std::lock_guard guard(_blob_mutex);
+            if(_blob_image_index >= _blob_images.size()) {
+                _blob_image_index = 0;
+            }
+            
+            if(!_blob_images.empty()) {
+                _mini_bowl->update([this](Entangled& e) {
+                    e.advance_wrap(*_background);
+                    for(auto& i : _blob_images.at(_blob_image_index))
+                        e.advance_wrap(*i);
+                });
+                _mini_bowl->auto_size(Margin{0, 0});
+            }
+            
+            _blob_timer.reset();
+        }
+        
         Drawable* found = nullptr;
         std::string name;
         std::unique_ptr<sprite::Reference> ref;
@@ -433,7 +457,6 @@ VideoOpener::VideoOpener() {
     });
     
     _file_chooser->open();
-    _file_chooser = nullptr;
 }
 
 VideoOpener::~VideoOpener() {
@@ -446,6 +469,25 @@ VideoOpener::~VideoOpener() {
     
     _stale_variable.notify_all();
     _stale_thread->join();
+    
+    _file_chooser = nullptr;
+    
+    {
+        _end_frames_thread = true;
+        if(_accumulate_video_frames_thread != nullptr) {
+            Timer timer;
+            while(!_accumulate_frames_done) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                if(timer.elapsed() >= 10) {
+                    Warning("Have been waiting for a long time on my accumulate_video_frames_thread. Terminating anyway now.");
+                    return;
+                }
+            }
+            
+            _accumulate_video_frames_thread->join();
+            _accumulate_video_frames_thread = nullptr;
+        }
+    }
 }
 
 void VideoOpener::move_to_stale(std::unique_ptr<BufferedVideo>&& ptr) {
@@ -682,6 +724,7 @@ std::unique_ptr<Image> VideoOpener::BufferedVideo::next() {
 void VideoOpener::select_file(const file::Path &p) {
     const double max_width = _file_chooser->graph()->width() * 0.3;
     std::lock_guard guard(_file_chooser->graph()->lock());
+    _end_frames_thread = true;
     
     if(_file_chooser->current_tab().extension != "pv") {
         auto callback = [this, p, max_width](const bool success){
@@ -870,13 +913,33 @@ void VideoOpener::select_file(const file::Path &p) {
     _extra->update_layout();
     
     try {
-        pv::File video(SETTING(filename).value<file::Path>());
-        video.start_reading();
-        auto text = video.get_info(false);
+        auto video = std::make_unique<pv::File>(SETTING(filename).value<file::Path>());
+        video->start_reading();
+        auto text = video->get_info(false);
         
-        _background = std::make_shared<ExternalImage>(std::move(std::make_unique<Image>(video.average())));
-        _background->set_scale(Vec2(300 / float(video.average().cols)));
-
+        _mini_bowl = std::make_shared<Entangled>();
+        _mini_bowl->set_scale(Vec2(300 / float(video->average().cols)));
+        
+        _mini_bowl->update([&](Entangled& b){
+            _background = std::make_shared<ExternalImage>(std::move(std::make_unique<Image>(video->average())));
+            b.advance_wrap(*_background);
+            
+            std::lock_guard guard(_blob_mutex);
+            _blob_images.clear();
+            
+#ifndef NDEBUG
+            Debug("Mini bowl update (%f scale):", _mini_bowl->scale().x);
+#endif
+            
+            _blob_image_index = 0;
+            _blob_timer.reset();
+#ifndef NDEBUG
+            Debug("Done.");
+#endif
+        });
+        
+        _mini_bowl->auto_size(Margin{0, 0});
+        
         gui::derived_ptr<gui::Text> info_text = std::make_shared<gui::Text>("Selected", Vec2(), gui::White, gui::Font(0.8f, gui::Style::Bold));
         gui::derived_ptr<gui::StaticText> info_description = std::make_shared<gui::StaticText>(settings::htmlify(text), Vec2(), Size2(300, 600), gui::Font(0.5));
         gui::derived_ptr<gui::Text> info_2 = std::make_shared<gui::Text>("Background", Vec2(), gui::White, gui::Font(0.8f, gui::Style::Bold));
@@ -885,20 +948,62 @@ void VideoOpener::select_file(const file::Path &p) {
             info_text,
             info_description,
             info_2,
-            _background
+            _mini_bowl
         });
         
         _infos->auto_size(Margin{0, 0});
         _infos->update_layout();
         
-        _infos->on_hover([this, meta = "<h2>Metadata</h2>"+ settings::htmlify(video.header().metadata)](Event e){
+        _infos->on_hover([this, meta = "<h2>Metadata</h2>"+ settings::htmlify(video->header().metadata)](Event e){
             if(e.hover.hovered) {
                 _file_chooser->set_tooltip(1, _background.get(), meta);
             } else
                 _file_chooser->set_tooltip(1, nullptr, "");
         });
         
+        if(_accumulate_video_frames_thread) {
+            _end_frames_thread = true;
+            if(!_accumulate_frames_done) {
+#ifndef NDEBUG
+                Warning("Have to wait for accumulate video frames thread...");
+#endif
+                while(!_accumulate_frames_done) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                }
+            }
+            
+            _accumulate_video_frames_thread->join();
+            _accumulate_video_frames_thread = nullptr;
+        }
         
+        _accumulate_frames_done = false;
+        _end_frames_thread = false;
+        
+        _accumulate_video_frames_thread = std::make_unique<std::thread>([this, video = std::move(video)](){
+            track::StaticBackground bg(std::make_shared<Image>(video->average()), nullptr);
+            
+            size_t step = max(1ul, min(video->length() / 100ul, (ushort)video->framerate()));
+            pv::Frame frame;
+            std::vector<Drawable*> children;
+            
+            for(size_t i = 0; !_end_frames_thread && i<video->length() && i < step * 10ul; i += step) {
+                video->read_frame(frame, i);
+                
+                std::vector<std::unique_ptr<ExternalImage>> images;
+                for(auto &blob : frame.get_blobs()) {
+                    auto&& [pos, image] = blob->alpha_image(bg, 1);
+                    images.push_back(std::make_unique<ExternalImage>(std::move(image), pos));
+                }
+                
+                std::lock_guard guard(_blob_mutex);
+                _blob_images.emplace_back(std::move(images));
+            }
+            
+            _accumulate_frames_done = true;
+#ifndef NDEBUG
+            Debug("accumulate done");
+#endif
+        });
         
     } catch(...) {
         Except("Caught an exception while reading info from '%S'.", &SETTING(filename).value<file::Path>().str());

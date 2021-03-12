@@ -503,8 +503,8 @@ CREATE_STRUCT(CachedGUIOptions,
             
             _circle.set_pos(c_pos);
             _circle.set_radius(radius);
-            _circle.set_color(circle_clr);
-            _circle.set_fillclr(hovered ? White.alpha(circle_clr.a * 0.1) : Transparent);
+            _circle.set_line_clr(circle_clr);
+            _circle.set_fill_clr(hovered ? White.alpha(circle_clr.a * 0.1) : Transparent);
             window.wrap_object(_circle);
             
             //window.circle(c_pos, radius, circle_clr, hovered ? White.alpha(circle_clr.a * 0.1) : Transparent);
@@ -860,7 +860,7 @@ CREATE_STRUCT(CachedGUIOptions,
                 
                 _recognition_circle->set_pos(_fish_pos - pos());
                 _recognition_circle->set_radius(_recognition_circle->radius() + ts * (1 - percent) * target_radius * 2);
-                _recognition_circle->set_fillclr(Cyan.alpha(50 * (1-percent)));
+                _recognition_circle->set_fill_clr(Cyan.alpha(50 * (1-percent)));
                 GUI::cache().set_animating(this, true);
                 
                 base.wrap_object(*_recognition_circle);

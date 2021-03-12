@@ -20,6 +20,7 @@ if(WIN32)
 		TRex::LibZIP
 		TRex::LibZ
     )
+    target_compile_options(tracker_python PRIVATE /D"TREX_EXPORTS")
 else()
     target_link_libraries(tracker_python PRIVATE cnpy)
 endif()

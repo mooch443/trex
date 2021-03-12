@@ -449,7 +449,7 @@ void VideoSource::open(const std::string& basename, const std::string& extension
 }
 
 #ifdef USE_GPU_MAT
-void VideoSource::frame(uint64_t globalIndex, gpuMat& output) {
+void VideoSource::frame(uint64_t, gpuMat&) {
     U_EXCEPTION("Using empty function.");
 }
 #endif

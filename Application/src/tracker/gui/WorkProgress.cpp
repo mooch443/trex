@@ -4,6 +4,22 @@
 #include <gui/types/StaticText.h>
 #include <gui/types/Entangled.h>
 #include <gui/gui.h>
+#ifdef WIN32
+#include <ShObjIdl_core.h>
+#endif
+#include <gui/IMGUIBase.h>
+#ifdef WIN32
+#define GLFW_EXPOSE_NATIVE_WGL
+#define GLFW_EXPOSE_NATIVE_WIN32
+#elif defined(__APPLE__)
+#define GLFW_EXPOSE_NATIVE_COCOA
+#define GLFW_EXPOSE_NATIVE_NSGL
+#include <gui/MacProgressBar.h>
+#else
+#define GLFW_EXPOSE_NATIVE_X11
+#endif
+#include <GLFW/glfw3.h>
+#include <GLFW/glfw3native.h>
 
 namespace gui {
 
@@ -24,6 +40,10 @@ WorkInstance::~WorkInstance() {
 WorkProgress::WorkProgress()
     : _terminate_threads(false), _item_abortable(false), _item_aborted(false), _item_custom_triggered(false)
 {
+#ifdef __APPLE__
+    MacProgressBar::set_visible(false);
+#endif
+    
     _thread = new std::thread([&]() {
         std::unique_lock<std::mutex> lock(_queue_lock);
         set_thread_name("GUI::_work_thread");
@@ -33,8 +53,11 @@ WorkProgress::WorkProgress()
             
             while(!_queue.empty()) {
                 auto item =  _queue.front();
-                //Debug("Starting item '%S'", &item.name);
-                _percent = 0;
+#if defined(__APPLE__)
+                MacProgressBar::set_visible(true);
+#endif
+                set_percent(0);
+
                 _item = item.name;
                 _description = item.desc;
                 _additional.update([](auto&){});
@@ -47,18 +70,23 @@ WorkProgress::WorkProgress()
                 _queue.pop();
                 
                 lock.unlock();
-                
                 item.fn();
-            
-                //this->set_redraw();
                 lock.lock();
                 
                 _images.clear();
                 _gui_images.clear();
                 
-                //Debug("Finished item '%S'", &item.name);
                 _item = "";
-                //_condition.notify_one();
+                set_percent(0);
+
+#ifdef WIN32
+                if (ptbl) {
+                    HWND hwnd = glfwGetWin32Window(((gui::IMGUIBase*)GUI::instance()->base())->platform()->window_handle());
+                    ptbl->SetProgressState(hwnd, TBPF_NOPROGRESS);
+                }
+#elif defined(__APPLE__)
+                MacProgressBar::set_visible(false);
+#endif
             }
         }
     });
@@ -121,10 +149,47 @@ void WorkProgress::set_item_abortable(bool abortable) {
 
 void WorkProgress::set_percent(float value) {
     _percent = value;
-}
+#if WIN32
+    if (GUI::instance()->base()) {
+        if (!ptbl) {
+            // initialize the COM interface
+            if (SUCCEEDED(CoInitialize(NULL))) {
+                HRESULT hr = CoCreateInstance(CLSID_TaskbarList, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&ptbl));
 
-std::atomic<float>& WorkProgress::percent() {
-    return _percent;
+                if (SUCCEEDED(hr))
+                {
+                    HRESULT hr2 = ptbl->HrInit();
+                    if (!SUCCEEDED(hr2)) {
+                        ptbl->Release();
+                        ptbl = nullptr;
+                    }
+
+                } else {
+                    Warning("ITaskbarList3 could not be created.");
+                }
+            }
+        }
+
+        // only if it works... display Taskbar progress on Windows
+        if (ptbl) {
+            const ULONGLONG percent = (ULONGLONG)max(1.0, double(value) * 100.0);
+            HWND hwnd = glfwGetWin32Window(((gui::IMGUIBase*)GUI::instance()->base())->platform()->window_handle());
+
+            if (value > 0) {
+                // show progress in green
+                ptbl->SetProgressState(hwnd, TBPF_NORMAL);
+                ptbl->SetProgressValue(hwnd, percent, 100ul);
+            }
+            else {
+                // display "pause" color if no progress has been made
+                ptbl->SetProgressState(hwnd, TBPF_PAUSED);
+                ptbl->SetProgressValue(hwnd, 100ul, 100ul);
+            }
+        }
+    }
+#elif defined(__APPLE__)
+    MacProgressBar::set_percent(value);
+#endif
 }
 
 float WorkProgress::percent() const {
@@ -167,7 +232,7 @@ void WorkProgress::set_progress(const std::string& title, float value, const std
     if(!desc.empty())
         _description = desc;
     if(value >= 0)
-        _percent = value;
+        set_percent(value);
 }
 
 void WorkProgress::update(gui::DrawStructure &base, gui::Section *section) {

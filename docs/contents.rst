@@ -21,13 +21,22 @@ If you use this software in your work, please cite our `open-access paper <https
 
 .. code:: raw
 
-   @article{walter2020trex,
+   @article {walter2020trex,
+      article_type = {journal},
+      title = {TRex, a fast multi-animal tracking system with markerless identification, and 2D estimation of posture and visual fields},
       author = {Walter, Tristan and Couzin, Iain D},
-      title = {TRex, a fast multi-animal tracking system with markerless identification, 2D body posture estimation and visual field reconstruction},
-      year = {2021},
+      editor = {Lentink, David},
+      volume = 10,
+      year = 2021,
+      month = {feb},
+      pub_date = {2021-02-26},
+      pages = {e64000},
+      citation = {eLife 2021;10:e64000},
       doi = {10.7554/eLife.64000},
-      publisher = {eLife Sciences Publications Limited},
-      URL = {https://elifesciences.org/articles/64000}
+      url = {https://doi.org/10.7554/eLife.64000},
+      journal = {eLife},
+      issn = {2050-084X},
+      publisher = {eLife Sciences Publications, Ltd},
    }
 
 .. raw:: html
@@ -59,9 +68,9 @@ Whereas other use-cases are:
    
    install
    run
+   examples
    gui
    batch
-   examples
    formats
    parameters_trex
    parameters_tgrabs

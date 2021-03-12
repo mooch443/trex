@@ -503,8 +503,10 @@ void GUI::key_event(const gui::Event &event) {
     else if(key.code == Codes::F5) {
         SETTING(reset_average) = true;
     }
+#ifndef NDEBUG
     else if(key.code == Codes::Unknown)
         Warning("Unknown key %d", key.code);
+#endif
     
     set_redraw();
 }

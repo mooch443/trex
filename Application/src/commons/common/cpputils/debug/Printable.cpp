@@ -23,7 +23,7 @@ void Printable::warnedFor(WarningMessages ident) {
 //! returns a printable info string about the object
 _TOSTRING_RETURNTYPE Printable:: _TOSTRING_HEAD {
     std::stringstream ss;
-    ss << "Printable<" << std::hex << (long)this << ">";
+    ss << "Printable<" << std::hex << (uint64_t)this << ">";
     return ss.str();
 }
     

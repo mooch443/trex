@@ -2,9 +2,8 @@
 
 #include <types.h>
 #include <file/Path.h>
-#include <gui/types/Basic.h>
 #include <misc/MetaObject.h>
-#include <gui/types/Basic.h>
+#include <gui/colors.h>
 
 namespace cmn {
     namespace tuple_tools {
@@ -40,7 +39,7 @@ namespace cmn {
             static constexpr std::array<std::string_view, 5> names{{"us", "ms", "s", "min", "h"}};
             static constexpr std::array<double, 5> ratios{{1000, 1000, 60, 60, 24}};
             
-            double scaled = timestamp, previous_scaled = 0;
+            double scaled = static_cast<double>(timestamp), previous_scaled = 0;
             size_t i = 0;
             while(i < ratios.size()-1 && scaled >= ratios[i]) {
                 scaled /= ratios[i];
@@ -65,7 +64,7 @@ namespace cmn {
             static constexpr std::array<std::string_view, 5> names{{"us", "ms", "s", "min", "h"}};
             static constexpr std::array<double, 5> ratios{{1000, 1000, 60, 60, 24}};
             
-            double scaled = timestamp, previous_scaled = 0;
+            double scaled = static_cast<double>(timestamp), previous_scaled = 0;
             size_t i = 0;
             while(i < ratios.size()-1 && scaled >= ratios[i]) {
                 scaled /= ratios[i];
@@ -103,7 +102,7 @@ namespace cmn {
             };
             
             size_t i=0;
-            double scaled = bytes;
+            auto scaled = static_cast<double>(bytes);
             while (scaled >= 1000 && i < descriptions.size()-1) {
                 scaled /= 1000.0;
                 i++;
@@ -380,20 +379,8 @@ namespace cmn {
             return "rect<"+Meta::name<typename Q::value_type>()+">";
         }
         template<class Q>
-        std::string name(const typename std::enable_if< std::is_same<Vec2, Q>::value, Q >::type* =nullptr) {
-            return "vec";
-        }
-        template<class Q>
         std::string name(const typename std::enable_if< std::is_same<gui::Color, Q>::value, Q >::type* =nullptr) {
             return "color";
-        }
-        template<class Q>
-        std::string name(const typename std::enable_if< std::is_same<Bounds, Q>::value, Q >::type* =nullptr) {
-            return "bounds";
-        }
-        template<class Q>
-        std::string name(const typename std::enable_if< std::is_same<Size2, Q>::value, Q >::type* =nullptr) {
-            return "size";
         }
         
         /**
@@ -507,11 +494,6 @@ namespace cmn {
             
             return ss.str();
         }
-        
-        template<class T, class Q = typename std::remove_cv<T>::type>
-        std::string toStr(const typename std::enable_if< std::is_same<Float2<true>, Q>::value || std::is_same<Float2<false>, Q>::value, Q >::type& obj) {
-            return "[" + Meta::toStr(obj.A()) + "," + Meta::toStr(obj.B()) + "]";
-        }
     
         template<class T, class Q = typename std::remove_cv<T>::type>
         std::string toStr(const typename std::enable_if< std::is_same<gui::Color, Q>::value, Q >::type& obj) {
@@ -541,11 +523,6 @@ namespace cmn {
         template<class Q>
         std::string toStr(const typename std::enable_if< is_instantiation<std::shared_ptr, Q>::value && !Meta::has_tostr_method<typename Q::element_type>::value && !std::is_convertible<typename Q::element_type, MetaObject>::value, Q >::type& obj) {
             return "ptr<?>0x" + Meta::toStr(uint64_t(obj.get()));//MetaType<typename std::remove_pointer<typename Q::element_type>::type>::toStr(*obj);
-        }
-        
-        template<class Q>
-        std::string toStr(const typename std::enable_if< std::is_same<Bounds, typename std::remove_cv<Q>::type>::value, Q >::type& obj) {
-            return "[" + Meta::toStr(obj.x) + "," + Meta::toStr(obj.y) + "," + Meta::toStr(obj.width) + "," + Meta::toStr(obj.height) + "]";
         }
         
         /*template<class Q>
@@ -635,17 +612,6 @@ namespace cmn {
         }
         
         template<class T, class Q = typename std::remove_cv<T>::type>
-        Q fromStr(const std::string& str, const typename std::enable_if< std::is_same<Float2<true>, Q>::value || std::is_same<Float2<false>, Q>::value, Q >::type* =nullptr)
-        {
-            auto vec = Meta::fromStr<std::vector<float>>(str);
-            if(vec.empty())
-                return Q();
-            if(vec.size() != 2)
-                throw CustomException<std::invalid_argument>("Can only initialize Vec2 with two or no elements. ('%S')", &str);
-            return Q(vec[0], vec[1]);
-        }
-        
-        template<class T, class Q = typename std::remove_cv<T>::type>
         Q fromStr(const std::string& str, const typename std::enable_if< std::is_same<gui::Color, Q>::value, Q >::type* =nullptr)
         {
             auto s = utils::lowercase(str);
@@ -663,17 +629,6 @@ namespace cmn {
             if(vec.size() != 4 && vec.size() != 3)
                 throw CustomException<std::invalid_argument>("Can only initialize Color with three or four elements. ('%S')", &str);
             return Q(vec[0], vec[1], vec[2], vec.size() == 4 ? vec[3] : 255);
-        }
-    
-        template<class T, class Q = typename std::remove_cv<T>::type>
-        Q fromStr(const std::string& str, const typename std::enable_if< std::is_same<Bounds, Q>::value, Q >::type* =nullptr)
-        {
-            auto vec = Meta::fromStr<std::vector<float>>(str);
-            if(vec.empty())
-                return Q();
-            if(vec.size() != 4)
-                throw CustomException<std::invalid_argument>("Can only initialize Bounds with exactly four or no elements. ('%S')", &str);
-            return Q(vec[0], vec[1], vec[2], vec[3]);
         }
         
         template<class Q>

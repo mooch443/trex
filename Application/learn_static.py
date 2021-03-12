@@ -158,9 +158,9 @@ def reinitialize_network():
         found = False
 
     if found:
-        model.compile(loss='categorical_crossentropy',
+        model.compile(loss=#'categorical_crossentropy',
             #SigmoidFocalCrossEntropy(),
-            #categorical_focal_loss(gamma=2., alpha=.25),
+            categorical_focal_loss(gamma=2., alpha=.25),
             optimizer=keras.optimizers.Adam(lr=learning_rate),
             metrics=['accuracy'])
     else:
@@ -479,7 +479,7 @@ def predict():
 
 def start_learning():
     global best_accuracy_worst_class, max_epochs, image_width, image_height
-    global output_path, classes, learning_rate, accumulation_step, global_segment
+    global output_path, classes, learning_rate, accumulation_step, global_segment, verbosity
     global batch_size, X_val, Y_val, X, Y, run_training, save_weights_after, do_save_training_images, min_iterations
 
     epochs = max_epochs
@@ -499,7 +499,8 @@ def start_learning():
         "accumulation_step": accumulation_step,
         "global_segment": np.array(global_segment, dtype=int),
         "per_epoch" : -1,
-        "min_iterations": min_iterations
+        "min_iterations": min_iterations,
+        "verbosity": verbosity
         #"min_acceptable_value": 0.98
     }
 
@@ -529,7 +530,7 @@ def start_learning():
     for i, c in zip(np.arange(len(classes)), classes):
         mi = max(mi, len(Y_train[np.argmax(Y_train, axis=1) == c]))
 
-    per_epoch = max(settings["min_iterations"], int(len(X_train) // batch_size ) * 0.5 ) #* 2.0) # i am using augmentation
+    per_epoch = max(settings["min_iterations"], int(len(X_train) // batch_size))# * 2.0) # i am using augmentation
     per_epoch = int((per_epoch // batch_size) * batch_size)
     settings["per_epoch"] = per_epoch
     TRex.log(str(settings))
@@ -598,18 +599,19 @@ def start_learning():
             if len(X_test) == 0:
                 validation_data = None
 
-            # dataset = tf.data.Dataset.from_generator(make_generator, 
-            #     output_types=(tf.float32, tf.float32),
-            #     output_shapes =(tf.TensorShape([None, int(settings["image_height"]), int(settings["image_width"]), 1]), tf.TensorShape([None, int(len(classes))]))
-            # ).repeat()#.shuffle(len(X_train), reshuffle_each_iteration=True)
+            dataset = tf.data.Dataset.from_generator(lambda: datagen.flow(tf.cast(X_train, float), Y_train, batch_size=batch_size), 
+                output_types=(tf.float32, tf.float32),
+                output_shapes =(tf.TensorShape([None, int(settings["image_height"]), int(settings["image_width"]), 1]), tf.TensorShape([None, int(len(classes))]))
+            ).repeat()#.shuffle(len(X_train), reshuffle_each_iteration=True)
             #dataset = tf.data.Dataset.from_tensor_slices((tf.cast(X_train, float), Y_train)).batch(batch_size)
-            dataset = datagen.flow(tf.cast(X_train, float), Y_train, batch_size=batch_size)
+            #dataset = datagen.flow(tf.cast(X_train, float), Y_train, batch_size=batch_size)
             TRex.log("tf.data.Dataset: "+str(dataset))
             history = model.fit(dataset,
                                   validation_data=validation_data,
                                   steps_per_epoch=per_epoch, 
                                   epochs=max_epochs,
-                                  callbacks=[callback])
+                                  callbacks=[callback],
+                                  verbose=verbosity)
             
             model_json = model.to_json()
             with open(output_path+".json", "w") as f:

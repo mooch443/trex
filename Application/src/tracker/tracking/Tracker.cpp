@@ -3940,7 +3940,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                         } while((++next) != fish->recognition_segments().end());
                         
                         // skip some frame segments to find the previous assigned id
-                        while(true) {
+                        while(previous != fish->recognition_segments().end()) {
                             // dont assign anything after one second
                             if(previous->second.end() + max_frames < current->second.start())
                                 break;
