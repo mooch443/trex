@@ -984,6 +984,11 @@ if(${TREX_BUILD_OPENCV})
             -DBUILD_opencv_apps:BOOL=FALSE
             -DBUILD_opencv_java:BOOL=FALSE
             -DBUILD_opencv_python:BOOL=OFF
+            -DBUILD_opencv_objdetect:BOOL=ON
+            -DBUILD_opencv_dnn:BOOL=OFF
+            -DBUILD_opencv_ml:BOOL=OFF
+            -DBUILD_opencv_stitching:BOOL=OFF
+            -DBUILD_opencv_flann:BOOL=ON
             -DWITH_WEBP=OFF
             -DBUILD_PNG:BOOL=OFF
             -DBUILD_ZLIB:BOOL=OFF
@@ -1082,7 +1087,8 @@ if(${TREX_BUILD_OPENCV})
         link_directories(${OpenCV_LIB_PATH})
         set(OpenCV_LIBS opencv_core451 opencv_imgproc451 opencv_imgcodecs451 opencv_video451 opencv_videoio451 opencv_highgui451 opencv_features2d451 opencv_flann451 opencv_objdetect451 opencv_ml451 opencv_gapi451 opencv_dnn451 opencv_calib3d451 libjpeg-turbo ittnotify ade libprotobuf libtiff quirc ${FFMPEG_LIBRARIES})
     else()
-		set(OpenCV_LIBS opencv_core opencv_imgproc opencv_imgcodecs opencv_stitching opencv_photo opencv_video opencv_videoio opencv_highgui opencv_features2d opencv_flann opencv_objdetect opencv_ml opencv_gapi opencv_dnn opencv_calib3d)
+		#set(OpenCV_LIBS opencv_core opencv_imgproc opencv_imgcodecs opencv_stitching opencv_photo opencv_video opencv_videoio opencv_highgui opencv_features2d opencv_flann opencv_objdetect opencv_ml opencv_gapi opencv_dnn opencv_calib3d)
+        set(OpenCV_LIBS opencv_core opencv_imgproc opencv_imgcodecs opencv_flann opencv_photo opencv_video opencv_videoio opencv_highgui opencv_features2d opencv_calib3d)
 		set(OpenCV_LIBS ${OpenCV_LIBS} opencv_core libjpeg-turbo ittnotify ade libprotobuf quirc ${FFMPEG_LIBRARIES})
 		if(APPLE)
 			set(OpenCV_LIBS ${OpenCV_LIBS} libtiff)
