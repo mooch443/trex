@@ -1085,7 +1085,10 @@ if(${TREX_BUILD_OPENCV})
         message("Including OpenCV lib path: ${CMAKE_CURRENT_BINARY_DIR}/opencv_install/x64/vc${VSTD_VERSION_MAJOR}/staticlib")
         set(OpenCV_LIB_PATH ${CMAKE_CURRENT_BINARY_DIR}/opencv_install/x64/vc${VSTD_VERSION_MAJOR}/staticlib)
         link_directories(${OpenCV_LIB_PATH})
-        set(OpenCV_LIBS opencv_core451 opencv_imgproc451 opencv_imgcodecs451 opencv_video451 opencv_videoio451 opencv_highgui451 opencv_features2d451 opencv_flann451 opencv_objdetect451 opencv_ml451 opencv_gapi451 opencv_dnn451 opencv_calib3d451 libjpeg-turbo ittnotify ade libprotobuf libtiff quirc ${FFMPEG_LIBRARIES})
+        #set(OpenCV_LIBS opencv_core451 opencv_imgproc451 opencv_imgcodecs451 opencv_video451 opencv_videoio451 opencv_highgui451 opencv_features2d451 opencv_flann451 opencv_objdetect451 opencv_ml451 opencv_gapi451 opencv_dnn451 opencv_calib3d451 libjpeg-turbo ittnotify ade libprotobuf libtiff quirc ${FFMPEG_LIBRARIES})
+        set(OpenCV_LIBS opencv_core451 opencv_imgproc451 opencv_imgcodecs451 opencv_video451 opencv_videoio451 opencv_highgui451 
+            opencv_features2d451 opencv_flann451 opencv_calib3d451 
+            libjpeg-turbo ittnotify ade libprotobuf libtiff quirc ${FFMPEG_LIBRARIES})
     else()
 		#set(OpenCV_LIBS opencv_core opencv_imgproc opencv_imgcodecs opencv_stitching opencv_photo opencv_video opencv_videoio opencv_highgui opencv_features2d opencv_flann opencv_objdetect opencv_ml opencv_gapi opencv_dnn opencv_calib3d)
         set(OpenCV_LIBS opencv_core opencv_imgproc opencv_imgcodecs opencv_flann opencv_photo opencv_video opencv_videoio opencv_highgui opencv_features2d opencv_calib3d)
