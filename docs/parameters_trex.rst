@@ -202,7 +202,7 @@ TRex parameters
 
 .. function:: build_type(string)
 
-	**default value:** "$<IF:$<CONFIG:Debug>,Debug,Release>"
+	**default value:** "$<$<CONFIG:Debug>:Release>$<$<CONFIG:Release>:Debug>"
 
 
 	The mode the application was built in.
@@ -1935,7 +1935,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1-54-g39c7cc5"
+	**default value:** "v1.1-62-g2b956f5"
 
 
 	Current application version.

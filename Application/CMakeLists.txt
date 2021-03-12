@@ -259,7 +259,11 @@ endif()
 if(TREX_CONDA_PACKAGE_INSTALL)
     set(TREX_CMAKE_BUILD_TYPE Release)
 else()
-    set(TREX_CMAKE_BUILD_TYPE $<IF:$<CONFIG:Debug>,Debug,Release>)
+    if(APPLE)
+        set(TREX_CMAKE_BUILD_TYPE $<$<CONFIG:Debug>:Release>$<$<CONFIG:Release>:Debug>)
+    else()
+        set(TREX_CMAKE_BUILD_TYPE $<IF:$<CONFIG:Debug>,Debug,Release>)
+    endif()
 endif()
 
 #if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
@@ -350,7 +354,7 @@ SET(trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}
     -DCMAKE_CXX_FLAGS_RELWITHDEBINFO=${CMAKE_CXX_FLAGS_RELWITHDEBINFO}
     -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
     -DCMAKE_PREFIX_PATH:PATH=${CMAKE_PREFIX_PATH}
-    -DCMAKE_BUILD_TYPE=${TREX_CMAKE_BUILD_TYPE}
+    -DCMAKE_BUILD_TYPE=Release
     -DBUILD_SHARED_LIBS=OFF 
     -DSKIP_INSTALL_FILES=1
     -DCMAKE_EXE_LINKER_FLAGS=${CMAKE_EXE_LINKER_FLAGS}
@@ -950,11 +954,18 @@ if(${TREX_BUILD_OPENCV})
    #     endif()
    # endif()
    
+   if(TREX_CONDA_PACKAGE_INSTALL)
+		set(TREX_CMAKE_BUILD_TYPE Release)
+   else()
+		set(TREX_CMAKE_BUILD_TYPE $<$<CONFIG:Debug>:Release>$<$<CONFIG:Release>:Debug>)
+   endif()
+   
    message(STATUS "TREX_CMAKE_BUILD_TYPE ${TREX_CMAKE_BUILD_TYPE}")
    message(STATUS "ALL trex_subproject_CMAKE_ARGS: ${trex_subproject_CMAKE_ARGS}")
    set(OPENCV_CMAKE_ARGS
             #${OPENCV_EXTRA_FLAGS_}
             ${trex_subproject_CMAKE_ARGS}
+			-DCMAKE_BUILD_TYPE:STRING=${TREX_CMAKE_BUILD_TYPE}
             -DBUILD_DOCS:BOOL=FALSE
             -DBUILD_EXAMPLES:BOOL=FALSE
             -DBUILD_TESTS:BOOL=FALSE
@@ -986,6 +997,7 @@ if(${TREX_BUILD_OPENCV})
             -DBUILD_WITH_STATIC_CRT:BOOL=ON
             -DBUILD_FAT_JAVA_LIB=OFF
             -DBUILD_TIFF=ON
+            -DBUILD_opencv_gapi=OFF
             -DWITH_OPENCL=ON
             # -DAVCODEC_LIBRARY:FILEPATH=${AVCODEC_LIBRARY}
             # -DAVFORMAT_LIBRARY:FILEPATH=${AVFORMAT_LIBRARY} 

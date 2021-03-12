@@ -43,7 +43,8 @@ CREATE_STRUCT(GrabSettings,
   (bool,        image_square_brightness),
   (float,        image_contrast_increase),
   (float,        image_brightness_increase),
-  (bool,        enable_closed_loop)
+  (bool,        enable_closed_loop),
+  (bool,        output_statistics)
 )
 
 #define GRAB_SETTINGS(NAME) GrabSettings::copy< GrabSettings:: NAME >()
@@ -1344,7 +1345,8 @@ void FrameGrabber::update_fps(long_t index, uint64_t stamp, uint64_t tdelta, uin
                 auto duration = std::chrono::system_clock::now() - _real_timing;
                 auto ms = std::chrono::duration_cast<std::chrono::microseconds>(duration);
                 auto per_frame = ms / index;
-                auto eta = per_frame * (_video->length() - index);
+                auto L = GRAB_SETTINGS(video_conversion_range).second != -1 ? GRAB_SETTINGS(video_conversion_range).second : _video->length();
+                auto eta = per_frame * (uint64_t)max(0, int64_t(L) - int64_t(index));
                 ETA = Meta::toStr(DurationUS{eta.count()});
             }
             
@@ -1365,9 +1367,24 @@ void FrameGrabber::update_fps(long_t index, uint64_t stamp, uint64_t tdelta, uin
                 Debug("%d (t+%S) @ %.1ffps (load:%S proc:%S track:%S save:%S)", index, &str, _fps.load(), &loading_str, &processing_str, &tracking_str, &saving_str);
         }
         
-        if(GlobalSettings::map().has("write_fps"))
-            write_fps(tdelta, now);
+        if(GRAB_SETTINGS(output_statistics))
+            write_fps(index, tdelta, now);
     }
+}
+
+void FrameGrabber::write_fps(uint64_t index, uint64_t tdelta, uint64_t ts) {
+    std::unique_lock<std::mutex> guard(_log_lock);
+    if(GRAB_SETTINGS(terminate))
+        return;
+    
+    if(!file) {
+        file::Path path = pv::DataLocation::parse("output", std::string(SETTING(filename).value<file::Path>().filename())+"_conversion_timings.csv");
+        file = fopen(path.c_str(), "wb");
+        std::string str = "index,tdelta,time\n";
+        fwrite(str.data(), sizeof(char), str.length(), file);
+    }
+    std::string str = std::to_string(index)+","+std::to_string(tdelta) + "," + std::to_string(ts) + "\r\n";
+    fwrite(str.data(), sizeof(char), str.length(), file);
 }
 
 Queue::Code FrameGrabber::process_image(Image_t& current) {
@@ -1587,7 +1604,8 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
     #endif
         _processing_timing = _processing_timing * 0.75 + task.timer.elapsed() * 0.25;
         
-        update_fps(index, stamp, tdelta, now);
+        if(tdelta > 0)
+            update_fps(index, stamp, tdelta, now);
         
         {
             std::lock_guard<std::mutex> guard(to_main_mutex);

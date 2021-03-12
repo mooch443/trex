@@ -369,7 +369,7 @@ protected:
             
             if(!(*ptr->_source == *_source)) {
                 std::swap(ptr->_source, _source);
-                set_dirty();
+                clear_cache();set_dirty();
             }
             
             set_scale(ptr->_scale);
