@@ -755,7 +755,9 @@ void FrameGrabber::initialize_video() {
     
     if(_average.empty()) {
         Debug("Generating new average.");
-        _video->generate_average(_video->average(), 0);
+        _video->generate_average(_video->average(), 0, [this](float percent) {
+            _average_samples = percent * (float)SETTING(average_samples).value<uint32_t>();
+        });
         _video->average().copyTo(_average);
         
         if(!SETTING(terminate))

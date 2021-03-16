@@ -527,7 +527,7 @@ short VideoSource::framerate() const {
     return _framerate;
 }
 
-void VideoSource::generate_average(cv::Mat &av, uint64_t) {
+void VideoSource::generate_average(cv::Mat &av, uint64_t, std::function<void(float)>&& callback) {
     gpuMat average;
     av.copyTo(average);
     // if there are only a few files, we can use the standard method
@@ -608,7 +608,7 @@ void VideoSource::generate_average(cv::Mat &av, uint64_t) {
     }
     
     for(auto && [file, indexes] : file_indexes) {
-        auto fn = [method, samples, gAverage = &average, gAv = &av, gCount = &count,&mutex, &spatial_histogram, &spatial_mutex, &file_indexes](File* file, const std::set<uint64_t>& indexes){
+        auto fn = [&callback, method, samples, gAverage = &average, gAv = &av, gCount = &count,&mutex, &spatial_histogram, &spatial_mutex, &file_indexes](File* file, const std::set<uint64_t>& indexes){
             if(SETTING(terminate))
                 return;
             
@@ -664,6 +664,9 @@ void VideoSource::generate_average(cv::Mat &av, uint64_t) {
                     ++count;
                     
                     if(long_t(count) % max(1,long_t(samples * 0.1)) == 0) {
+                        if(callback) {
+                            callback(count / samples);
+                        }
                         Debug("%.0f / %.0f ('%S')", count, samples, &file->filename());
                     }
                     
