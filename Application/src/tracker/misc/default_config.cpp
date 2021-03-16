@@ -374,11 +374,11 @@ file::Path conda_environment_path() {
         CONFIG("outline_curvature_range_ratio", float(0.03), "Determines the ratio between number of outline points and distance used to calculate its curvature. Program will look at index +- `ratio * size()` and calculate the distance between these points (see posture window red/green color).");
         CONFIG("midline_walk_offset", float(0.025), "This percentage of the number of outline points is the amount of points that the midline-algorithm is allowed to move left and right upon each step. Higher numbers will make midlines more straight, especially when extremities are present (that need to be skipped over), but higher numbers will also potentially decrease accuracy for less detailed objects.");
         CONFIG("midline_stiff_percentage", float(0.15), "Percentage of the midline that can be assumed to be stiff. If the head position seems poorly approximated (straighened out too much), then decrease this value.");
-        CONFIG("midline_resolution", uint32_t(12), "Number of midline points that are saved. Higher number increases detail.", STARTUP);
+        CONFIG("midline_resolution", uint32_t(25), "Number of midline points that are saved. Higher number increases detail.", STARTUP);
         CONFIG("posture_head_percentage", float(0.1), "The percentage of the midline-length that the head is moved away from the front of the body.");
         CONFIG("posture_closing_steps", uint8_t(0), "When enabled (> 0), posture will be processed using a combination of erode / dilate in order to close holes in the shape and get rid of extremities. An increased number of steps will shrink the shape, but will also be more time intensive.");
         CONFIG("posture_closing_size", uint8_t(2), "The kernel size for erosion / dilation of the posture algorithm. Only has an effect with  `posture_closing_steps` > 0.");
-        CONFIG("outline_resample", float(1.f), "Spacing between outline points in pixels, after resampling (normalizing) the outline. A lower value here can drastically increase the number of outline points generated (and decrease speed).");
+        CONFIG("outline_resample", float(0.5), "Spacing between outline points in pixels, after resampling (normalizing) the outline. A lower value here can drastically increase the number of outline points generated (and decrease speed).");
         CONFIG("outline_use_dft", true, "If enabled, the program tries to reduce outline noise by convolution of the curvature array with a low pass filter.");
         CONFIG("midline_start_with_head", false, "If enabled, the midline is going to be estimated starting at the head instead of the tail.");
         CONFIG("midline_invert", false, "If enabled, all midlines will be inverted (tail/head swapped).");

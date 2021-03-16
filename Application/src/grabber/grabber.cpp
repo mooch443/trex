@@ -289,10 +289,6 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
     FrameGrabber::instance = this;
     GrabSettings::init();
     
-    _pool = std::make_unique<GenericThreadPool>(max(1u, cmn::hardware_concurrency()), [](auto e) { std::rethrow_exception(e); }, "ocl_threads", [](){
-        ocl::init_ocl();
-    });
-    
     if(!_processed.filename().remove_filename().empty() && !_processed.filename().remove_filename().exists())
         _processed.filename().remove_filename().create_folder();
     
@@ -475,6 +471,10 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
         cv::circle(mask, cv::Point(mask.cols/2, mask.rows/2), min(mask.cols, mask.rows)/2, cv::Scalar(1), -1);
         _processed.set_mask(mask);
     }
+    
+    _pool = std::make_unique<GenericThreadPool>(max(1u, cmn::hardware_concurrency()), [](auto e) { std::rethrow_exception(e); }, "ocl_threads", [](){
+        ocl::init_ocl();
+    });
     
     _task._complete = false;
     _task._future = async_deferred([this, callback = std::move(callback_before_starting)]() mutable {
@@ -1276,7 +1276,8 @@ void FrameGrabber::ensure_average_is_ready() {
         last_average = _current_average_timestamp;
         
         Warning("Copying average to GPU.");
-        _pool->wait();
+        if(_pool)
+            _pool->wait();
         ocl::init_ocl();
         
         static cv::Mat tmp;

@@ -18,7 +18,7 @@ namespace gui {
         std::make_shared<Circle>(Vec2(0, grabber.original_average().rows), radius, outer_color, inner_color)
     })
     {
-        std::string source = utils::lowercase(SETTING(video_source));
+        std::string source = utils::lowercase(SETTING(video_source).value<std::string>());
         auto size = Size2(grabber.video()->size());
         _video_size = size;
         

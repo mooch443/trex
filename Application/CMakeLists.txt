@@ -444,7 +444,7 @@ if(TREX_BUILD_GLFW)
     set(GLFW_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/glfw)
     ExternalProject_Add(glfw PREFIX glfw
         GIT_REPOSITORY https://github.com/glfw/glfw.git
-        GIT_TAG 3.3
+        GIT_TAG 3.3.3
         CMAKE_ARGS
             ${trex_subproject_CMAKE_ARGS}
             "-DCMAKE_INSTALL_PREFIX=${GLFW_INSTALL_DIR}"

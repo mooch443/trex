@@ -25,6 +25,7 @@ file(GLOB SRCS
     gfx/TRexIcon16.png
     gfx/TRexIcon32.png
     gfx/TRexIcon64.png
+    "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h
 )
  
 if(APPLE)
@@ -33,12 +34,6 @@ endif()
 
 if(WIN32 OR UNIX AND NOT APPLE)
 	set(SRCS ${SRCS} trex.rc)
-endif()
-
-set(TREX_ADDITIONAL_SOURCES "")
-if(WITH_GITSHA1)
-	set(TREX_ADDITIONAL_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h)
-    list(APPEND SRCS ${TREX_ADDITIONAL_SOURCES})
 endif()
 
 if(NOT WIN32 AND TREX_WITH_TESTS)
