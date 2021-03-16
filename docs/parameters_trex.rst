@@ -473,6 +473,20 @@ TRex parameters
 
 
 
+.. function:: gpu_verbosity(gpu_verbosity_t)
+
+	**default value:** full
+
+	**possible values:**
+		- `silent`: No output during training.
+		- `full`: An animated bar with detailed information about the training progress.
+		- `oneline`: One line per epoch.
+
+	Determines the nature of the output on the command-line during training. This does not change any behaviour in the graphical interface.
+
+
+
+
 .. function:: grid_points(array<vec>)
 
 	**default value:** []
@@ -1229,7 +1243,7 @@ TRex parameters
 
 .. function:: midline_resolution(uint)
 
-	**default value:** 12
+	**default value:** 25
 
 
 	Number of midline points that are saved. Higher number increases detail.
@@ -1301,7 +1315,7 @@ TRex parameters
 
 .. function:: outline_resample(float)
 
-	**default value:** 1
+	**default value:** 0.5
 
 
 	Spacing between outline points in pixels, after resampling (normalizing) the outline. A lower value here can drastically increase the number of outline points generated (and decrease speed).
@@ -1473,7 +1487,7 @@ TRex parameters
 
 .. function:: output_statistics(bool)
 
-	**default value:** true
+	**default value:** false
 
 
 	Save an NPZ file containing an array with shape Nx5 and contents ``[[adding_frame_seconds, combined_posture_seconds, track_max_individuals, loading_seconds, posture_seconds],...]`` and an 1D-array containing all frame numbers. If set to true, a file called '``output_dir``/``fish_data_dir``/``<filename>_statistics.npz``' will be created. This will not output anything interesting, if the data was loaded instead of analysed.

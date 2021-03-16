@@ -365,7 +365,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
                     }
                 }
                 
-                auto blobs = CPULabeling::run_fast(mat);
+                auto blobs = CPULabeling::run(mat);
                 for(auto && [lines, pixels] : blobs) {
                     for(auto &line : *lines) {
                         line.x0 += bounds.pos().x;

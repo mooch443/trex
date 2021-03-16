@@ -61,73 +61,13 @@ SplitBlob::SplitBlob(const Background& average, pv::BlobPtr blob)
     Debug("SplitBlob(%d)", blob->blob_id());
 #endif
     
-    /*if(Tracker::instance()->grid())
-        imageFromLines(blob->hor_lines(), NULL, &_original_grey, &_original, *blob->pixels(), posture_threshold, *Tracker::instance()->grid(), average.image().get(), 0);
-    else {*/
     imageFromLines(blob->hor_lines(), NULL, &_original_grey, &_original, blob->pixels().get(), posture_threshold, &average.image());
-    //}
     
     blob->set_tried_to_split(true);
-    
-    //_original.copyTo(_temp);
-    //blob->image()->get().copyTo(_original_grey);
-    //blob->image(&average, posture_threshold)->get().copyTo(_original);
 }
 
 size_t SplitBlob::apply_threshold(int threshold, std::vector<pv::BlobPtr> &output)
 {
-    
-    /*blobs_t blobs;
-    cv::Mat current;
-    _original.copyTo(current);
-    
-    if(threshold != -1) {
-        
-        static const auto element = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(3, 3), cv::Point(1, 1));
-        
-        cv::threshold(_original, current, threshold, 255, cv::THRESH_BINARY);
-        //cv::morphologyEx(current, current, cv::MORPH_OPEN, element);
-        
-        blobs = CPULabeling::run_fast(current, 0);
-    } else
-        blobs = CPULabeling::run_fast(_original);
-    
-    // sort blobs for size
-    size_t max_size = 0;
-    for (auto && [lines, pixels] : blobs) {
-        max_size = max(max_size, pixels->size());
-    }
-    
-    std::sort(blobs.begin(), blobs.end(),
-              [](const blobs_t::value_type& a, const blobs_t::value_type& b) { return std::get<1>(a)->size() > std::get<1>(b)->size(); });
-    
-    output.clear();
-    
-    for (auto && [lines, pixels] : blobs) {
-        output.push_back(std::make_shared<pv::Blob>(lines, pixels));
-        if(output.back()->blob_id() == 45089239) {
-            tf::imshow("blob", _original);
-            tf::imshow("blob_t "+Meta::toStr(threshold), current);
-        }
-    }
-    
-    if(_blob->blob_id() == 45089239) {
-        tf::imshow("blob", _original);
-        tf::imshow("blob_t "+Meta::toStr(threshold), current);
-    }
-    
-    return max_size;*/
-    
-    /*Timer timer;
-    timer.reset();
-    //
-    
-    
-    
-    auto second_method = timer.elapsed();
-    
-    timer.reset();*/
-    
     if(_diff_px.empty()) {
         _diff_px.resize(_blob->pixels()->size());
         auto px = _blob->pixels()->data();

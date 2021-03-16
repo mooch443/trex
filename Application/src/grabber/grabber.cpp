@@ -1622,7 +1622,7 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
         static const float cm_per_pixel = SQR(SETTING(cm_per_pixel).value<float>());
         
         Timer _sub_timer;
-        auto rawblobs = CPULabeling::run_fast(task.current->get(), true);
+        auto rawblobs = CPULabeling::run(task.current->get(), true);
         
         for(auto  && [lines, pixels] : rawblobs) {
             //b->calculate_properties();
