@@ -4,10 +4,10 @@ file(GLOB HTML html/*.html html/*.js html/*.css)
 
 # to include generated moc headers, since they are generated in binary dir
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
+set(GIT_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h)
 
 file(GLOB SRCS
     ${HTML}
-    "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h
 	tomp4.h
 	tomp4.cpp
 	grabber.h
@@ -21,6 +21,7 @@ file(GLOB SRCS
     CropWindow.h
     CropWindow.cpp
 	main.cpp
+    ${GIT_SOURCES}
     gfx/TGrabsIcon16.png
     gfx/TGrabsIcon32.png
     gfx/TGrabsIcon64.png
@@ -56,10 +57,10 @@ COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:trex_check_python> $<TARGET_FILE_
 endif()
 add_dependencies(${TGRABS_EXEC_NAME} trex_check_python TRex::OpenCV)
 
-add_executable(pvconvert pvconvert.cpp gif.h ${TREX_ADDITIONAL_SOURCES})
+add_executable(pvconvert pvconvert.cpp gif.h ${GIT_SOURCES})
 target_link_libraries(pvconvert PUBLIC
     tracker_gui
-        pv
+    pv
     commons
     TRex::GLFW
     TRex::LibPNG
@@ -96,7 +97,7 @@ if(WITH_FFMPEG)
     target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE TRex::FFMPEG)
 endif()
 
-add_executable(pvinfo pvinfo.cpp pvinfo_merge.cpp pvinfo_merge.h ${TREX_ADDITIONAL_SOURCES})
+add_executable(pvinfo pvinfo.cpp pvinfo_merge.cpp pvinfo_merge.h ${GIT_SOURCES})
 
 target_link_libraries(pvinfo PRIVATE
 	cnpy
@@ -210,7 +211,7 @@ endif()
 set(targets ${TGRABS_EXEC_NAME} pvinfo pvconvert)
 
 if(APPLE)
-    add_executable(tgrabs_starter tgrabs.cpp)
+    add_executable(tgrabs_starter tgrabs.cpp ${GIT_SOURCES})
     target_link_libraries(tgrabs_starter PRIVATE commons cnpy)
     set_target_properties(tgrabs_starter PROPERTIES OUTPUT_NAME tgrabs)
     set(targets ${targets} tgrabs_starter)
