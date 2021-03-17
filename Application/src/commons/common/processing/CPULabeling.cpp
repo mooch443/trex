@@ -83,9 +83,9 @@ public:
         bool operator!=(Node* other) const { return other != obj; }
         bool operator!=(const Ref& other) const { return other.obj != obj; }
         
-        Node& operator*() const { assert(obj != nullptr); return *obj; }
-        Node* operator->() const { assert(obj != nullptr); return obj; }
-        Node* get() const { return obj; }
+        constexpr Node& operator*() const { assert(obj != nullptr); return *obj; }
+        constexpr Node* operator->() const { assert(obj != nullptr); return obj; }
+        constexpr Node* get() const { return obj; }
         operator bool() const { return obj != nullptr; }
         
         void release_check();
