@@ -383,10 +383,15 @@ int main(int argc, char** argv)
         cmd.cd_home();
 #if __APPLE__
         std::string _wd = "../Resources/";
+    #if defined(WIN32)
+        if (SetCurrentDirectoryA(_wd.c_str()))
+    #else
         if (!chdir(_wd.c_str()))
+    #endif
             Debug("Changed directory to '%S'.", &_wd);
         else
             Error("Cannot change directory to '%S'.", &_wd);
+        
 #elif defined(TREX_CONDA_PACKAGE_INSTALL)
         auto conda_prefix = ::default_config::conda_environment_path().str();
         if(!conda_prefix.empty()) {
@@ -394,7 +399,11 @@ int main(int argc, char** argv)
             _wd = _wd / "usr" / "share" / "trex";
             //Debug("change directory to conda environment resource folder: '%S'", &_wd.str());
             
-            if(chdir(_wd.c_str()))
+#if defined(WIN32)
+            if (!SetCurrentDirectoryA(_wd.c_str()))
+#else
+            if (chdir(_wd.c_str()))
+#endif
                 Except("Cannot change directory to '%S'", &_wd.str());
         }
 #endif
@@ -738,7 +747,9 @@ int main(int argc, char** argv)
             tf::show();
             
             if(imgui_base) {
-                imgui_base->update_loop();
+                auto status = imgui_base->update_loop();
+                if(status == gui::LoopStatus::END)
+                    SETTING(terminate) = true;
                 gui.update_loop();
             } else {
                 std::chrono::milliseconds ms(75);

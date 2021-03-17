@@ -54,6 +54,8 @@ public:
     ~ImageThreads() {
         terminate();
         
+        std::unique_lock<std::mutex> lock(_image_lock);
+        
         _load_thread->join();
         _process_thread->join();
         
@@ -111,7 +113,7 @@ protected:
     
     std::unique_ptr<GenericThreadPool> _pool;
     
-    AnalysisType* _analysis;
+    AnalysisType* _analysis = nullptr;
     std::shared_ptr<Image> _current_image;
     gpuMat _average;
     GETTER(cv::Mat, original_average)

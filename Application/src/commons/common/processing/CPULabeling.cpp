@@ -24,7 +24,7 @@ public:
         ++_retains;
     }
     
-    bool unique() const {
+    constexpr bool unique() const {
         return _retains == 0;
     }
     
@@ -46,7 +46,7 @@ public:
                 obj->retain();
         }
         
-        Ref(Ref&& other) noexcept {
+        constexpr Ref(Ref&& other) noexcept {
             obj = other.obj;
             other.obj = nullptr;
         }
@@ -78,15 +78,15 @@ public:
             return *this;
         }
         
-        bool operator==(Node* other) const { return other == obj; }
-        bool operator==(const Ref& other) const { return other.obj == obj; }
-        bool operator!=(Node* other) const { return other != obj; }
-        bool operator!=(const Ref& other) const { return other.obj != obj; }
+        constexpr bool operator==(Node* other) const { return other == obj; }
+        constexpr bool operator==(const Ref& other) const { return other.obj == obj; }
+        constexpr bool operator!=(Node* other) const { return other != obj; }
+        constexpr bool operator!=(const Ref& other) const { return other.obj != obj; }
         
         constexpr Node& operator*() const { assert(obj != nullptr); return *obj; }
         constexpr Node* operator->() const { assert(obj != nullptr); return obj; }
         constexpr Node* get() const { return obj; }
-        operator bool() const { return obj != nullptr; }
+        constexpr operator bool() const { return obj != nullptr; }
         
         void release_check();
     };
@@ -1097,8 +1097,7 @@ blobs_t run_fast(List_t* blobs)
                 y = (*l)->y;
 #endif
             }
-                
-            assert(!pixels || count == pixels->size());
+            
             Node_t::move_to_cache(*it);
         }
     }

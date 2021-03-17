@@ -454,6 +454,8 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
     _average.copyTo(_original_average);
     
     callback_before_starting(*this);
+    if(SETTING(terminate))
+        return;
     
     // determine offsets
     CropOffsets roff = SETTING(crop_offsets);
@@ -599,8 +601,9 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
 FrameGrabber::~FrameGrabber() {
     // stop processing
     Debug("Terminating...");
-    _analysis->terminate();
-    delete _analysis;
+    if(_analysis) {
+        delete _analysis;
+    }
 
     {
         std::unique_lock<std::mutex> guard(_log_lock);
