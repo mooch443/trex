@@ -8,6 +8,7 @@ namespace gui {
     class CVBase : public Base {
         cv::Mat& _window;
         cv::Mat _overlay;
+        std::string _title;
         
         static std::vector<std::pair<Image*, Vec2>> _static_pixels;
         
@@ -16,7 +17,8 @@ namespace gui {
         
         virtual void paint(DrawStructure& s) override;
         void display();
-        void set_title(std::string) override {}
+        void set_title(std::string title) override { _title = title; }
+        const std::string& title() const override { return _title; }
     private:
         void draw_image(gui::ExternalImage* ptr);
         void draw(DrawStructure &s, Drawable* o);

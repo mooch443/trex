@@ -10,7 +10,7 @@ namespace gui {
     struct MetalData;
 
     class MetalImpl : public CrossPlatform {
-        GLFWwindow *window;
+        GLFWwindow *window = nullptr;
         std::function<void()> draw_function;
         std::function<bool()> new_frame_fn;
         MetalData* _data;

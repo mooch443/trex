@@ -19,6 +19,7 @@ namespace gui {
         cv::Mat tmp;
         bool _initial_draw;
         Size2 _size;
+        std::string _title;
         
     public:
         HTMLBase();
@@ -26,7 +27,8 @@ namespace gui {
         
         void set_window_size(const Size2& size);
         virtual void paint(DrawStructure& s) override;
-        virtual void set_title(std::string) override {}
+        virtual void set_title(std::string title) override { _title = title; }
+        const std::string& title() const override { return _title; }
         virtual Size2 window_dimensions() override;
         
         const std::vector<uchar>& to_bytes() const {

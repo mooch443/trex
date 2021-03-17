@@ -56,7 +56,8 @@ FileChooser::FileChooser(const file::Path& start, const std::string& extension,
                 std::lock_guard guard(_graph->lock());
                 Size2 size(e.size.width, e.size.height);
                 size /= _base.dpi_scale();
-                auto scale = _base.dpi_scale() * gui::interface_scale() / max(1, 750.f / size.height);
+                
+                auto scale = gui::interface_scale() / max(1, 750.f / size.height) / _base.dpi_scale();
                 _graph->set_size(size);
                 _graph->set_scale(scale);
                 update_size();

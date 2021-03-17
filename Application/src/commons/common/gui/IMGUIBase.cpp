@@ -354,6 +354,71 @@ void clear_cache() {
 
     std::unordered_map<GLFWwindow*, IMGUIBase*> base_pointers;
 
+void IMGUIBase::update_size_scale(GLFWwindow* window) {
+    auto base = base_pointers.at(window);
+    
+    int x, y;
+    glfwGetWindowPos(window, &x, &y);
+    
+    int fw, fh;
+    glfwGetFramebufferSize(window, &fw, &fh);
+    base->_last_framebuffer_size = Size2(fw, fh);
+    
+    GLFWmonitor* monitor = glfwGetWindowMonitor(window);
+    if(!monitor) {
+        int count;
+        auto monitors = glfwGetMonitors(&count);
+        int mx, my, mw, mh;
+        Debug("Window is at %d, %d (%dx%d).", x, y, fw, fh);
+        
+        for (int i=0; i<count; ++i) {
+            auto name = glfwGetMonitorName(monitors[i]);
+            glfwGetMonitorWorkarea(monitors[i], &mx, &my, &mw, &mh);
+            Debug("Monitor '%s': %d,%d %dx%d", name, mx, my, mw, mh);
+            if(Bounds(mx, my, mw, mh).overlaps(Bounds(x, y, fw, fh))) {
+                monitor = monitors[i];
+                break;
+            }
+        }
+        
+        if(!monitor) {
+            // assume fullscreen?
+            Debug("No monitor found.");
+            return;
+        }
+        
+    } else {
+        int mx, my, mw, mh;
+        glfwGetMonitorWorkarea(monitor, &mx, &my, &mw, &mh);
+        Debug("FS Monitor: %d,%d %dx%d", mx, my, mw, mh);
+    }
+    
+    float xscale, yscale;
+#if GLFW_HAVE_MONITOR_SCALE
+    glfwGetMonitorContentScale(monitor, &xscale, &yscale);
+#else
+    xscale = yscale = 1;
+#endif
+    
+    Debug("Content scale: %f, %f", xscale, yscale);
+    
+    int width = base->_graph->width(), height = base->_graph->height();
+    
+    const float base_scale = 32;
+    float dpi_scale = 1 / max(xscale, yscale);//max(float(fw) / float(width), float(fh) / float(height));
+    im_font_scale = max(1, dpi_scale) * 0.75f;
+    base->_dpi_scale = dpi_scale;
+    
+    {
+        Event e(EventType::WINDOW_RESIZED);
+        e.size.width = fw;
+        e.size.height = fh;
+
+        base->event(e);
+    }
+    base->_graph->set_dirty(NULL);
+}
+
     ImU32 cvtClr(const gui::Color& clr) {
         return ImColor(clr.r, clr.g, clr.b, clr.a);
     }
@@ -402,7 +467,11 @@ void clear_cache() {
             }
         }
         
-        _platform->create_window(title.c_str(), width, height);
+        if(!_platform->window_handle())
+            _platform->create_window(title.c_str(), width, height);
+        else
+            glfwSetWindowSize(_platform->window_handle(), width, height);
+        
         glfwSetWindowPos(_platform->window_handle(), mx + (mw - width) / 2, my + (mh - height) / 2);
         
         glfwSetDropCallback(_platform->window_handle(), [](GLFWwindow* window, int N, const char** texts){
@@ -435,7 +504,8 @@ void clear_cache() {
         _last_framebuffer_size = Size2(fw, fh);
         
         const float base_scale = 32;
-        float dpi_scale = max(float(fw) / float(width), float(fh) / float(height));
+        //float dpi_scale = max(float(fw) / float(width), float(fh) / float(height));
+        float dpi_scale = 1 / max(xscale, yscale);
         im_font_scale = max(1, dpi_scale) * 0.75f;
         _dpi_scale = dpi_scale;
         
@@ -529,37 +599,30 @@ void clear_cache() {
             base->event(e);
             base->_graph->set_dirty(NULL);
         });
-        glfwSetWindowSizeCallback(_platform->window_handle(), [](GLFWwindow* window, int width, int height)
+        glfwSetWindowSizeCallback(_platform->window_handle(), [](GLFWwindow* window, int, int)
         {
-            auto base = base_pointers.at(window);
-/*#ifndef WIN32
-            Size2 frame_size = base->window_dimensions();
-            width = frame_size.width;
-            height = frame_size.height;
-
-			if (!frame_size.empty()) 
-#endif*/
-			{
-				Event e(EventType::WINDOW_RESIZED);
-				e.size.width = width * base->dpi_scale();
-				e.size.height = height * base->dpi_scale();
-
-				base->event(e);
-			}
-            base->_graph->set_dirty(NULL);
+            IMGUIBase::update_size_scale(window);
+        });
+        
+        {GLFWwindow *window;
+        
+        }
+        glfwSetWindowPosCallback(_platform->window_handle(), [](GLFWwindow* window, int, int)
+        {
+            IMGUIBase::update_size_scale(window);
         });
     }
 
     IMGUIBase::~IMGUIBase() {
         while(!_exec_main_queue.empty()) {
-            (*_exec_main_queue.front())();
+            (_exec_main_queue.front())();
             _exec_main_queue.pop();
         }
         
         TextureCache::remove_base(this);
         
         while(!_exec_main_queue.empty()) {
-            (*_exec_main_queue.front())();
+            (_exec_main_queue.front())();
             _exec_main_queue.pop();
         }
         
@@ -595,7 +658,7 @@ void clear_cache() {
                 auto fn = std::move(_exec_main_queue.front());
                 
                 guard.unlock();
-                (*fn)();
+                (fn)();
                 guard.lock();
                 _exec_main_queue.pop();
             }
@@ -1256,6 +1319,8 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
     }
 
     void IMGUIBase::set_title(std::string title) {
+        _title = title;
+        
         exec_main_queue([this, title](){
             if(_platform)
                 _platform->set_title(title);
@@ -1278,13 +1343,15 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
         static int _wndSize[2];
         static int _wndPos[2];
         
+        Debug("Enabling full-screen.");
         _platform->toggle_full_screen();
         
         Event event(WINDOW_RESIZED);
         
         // backup window position and window size
         glfwGetWindowPos( _platform->window_handle(), &_wndPos[0], &_wndPos[1] );
-        glfwGetWindowSize( _platform->window_handle(), &_wndSize[0], &_wndSize[1] );
+        glfwGetFramebufferSize(_platform->window_handle(), &_wndSize[0], &_wndSize[1]);
+        //glfwGetWindowSize( _platform->window_handle(), &_wndSize[0], &_wndSize[1] );
         
         event.size.width = _wndSize[0];
         event.size.height = _wndSize[1];

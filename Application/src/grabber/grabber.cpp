@@ -449,6 +449,15 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
         ocl::init_ocl();
     });
     
+    _task._complete = false;
+    _task._future = async_deferred([this, callback = std::move(callback_before_starting)]() mutable {
+        initialize(std::move(callback));
+        _task._complete = true;
+    });
+}
+
+void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_before_starting)
+{
     if(_video)
         initialize_video();
     _average.copyTo(_original_average);
@@ -484,14 +493,6 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
         Output::Library::Init();
     }
     
-    _task._complete = false;
-    _task._future = async_deferred([this, callback = std::move(callback_before_starting)]() mutable {
-        initialize(std::move(callback));
-        _task._complete = true;
-    });
-}
-
-void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_before_starting) {
     if (GRAB_SETTINGS(enable_closed_loop)) {
         track::PythonIntegration::set_settings(GlobalSettings::instance());
         track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });

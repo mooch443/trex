@@ -9,7 +9,7 @@ struct GLFWwindow;
 namespace gui {
     class GLImpl : public CrossPlatform {
     protected:
-        GLFWwindow *window;
+        GLFWwindow *window = nullptr;
         std::function<void()> draw_function;
         std::function<bool()> new_frame_fn;
         double draw_calls;

@@ -5,6 +5,7 @@
 #include <gui/DrawHTMLBase.h>
 #include <tracking/Tracker.h>
 #include <tracker/gui/DrawFish.h>
+#include <gui/IMGUIBase.h>
 
 namespace grab {
 
@@ -64,6 +65,13 @@ void GUI::set_base(gui::Base *base) {
     _sf_base = base;
     
     if(base) {
+        _crop_offsets = (SETTING(crop_offsets).value<CropOffsets>());
+        _size = cv::Size(_grabber.cam_size().width, _grabber.cam_size().height);
+        _cropped_size = (_grabber.cropped_size());
+        _gui.set_size(Size2(max(150, _cropped_size.width), max(150, _cropped_size.height)));
+        if(base && dynamic_cast<gui::IMGUIBase*>(base))
+            ((gui::IMGUIBase*)base)->init(base->title());
+        
         auto desktop_mode = base->window_dimensions();
         gui::Event e(gui::EventType::WINDOW_RESIZED);
         e.size.width = desktop_mode.width;
@@ -249,6 +257,7 @@ void GUI::draw(gui::DrawStructure &base) {
                 } else
                     background = new ExternalImage(std::move(_image), offset, Vec2(1/scale));
             } else {
+                background->set_scale(Vec2(1 / scale));
                 background->set_source(std::move(_image));
             }
         }
@@ -286,7 +295,7 @@ void GUI::draw(gui::DrawStructure &base) {
                 
                 base.rect(pos + offset, image->bounds().size(), Transparent, Red);
                 base.image(pos + offset, std::move(image), Vec2(1.0), wheel.next().alpha(50));
-                base.text(Meta::toStr(i), pos + offset, Yellow, 0.5);
+                base.text(Meta::toStr(i), pos + offset, Yellow, 0.5, base.scale().reciprocal());
             }
         }
         
@@ -470,6 +479,7 @@ void GUI::event(const gui::Event &event) {
         float scale = min(size.width / float(_cropped_size.width),
                           size.height / float(_cropped_size.height));
         _gui.set_scale(scale * gui::interface_scale()); // SETTING(cam_scale).value<float>());
+        _gui.set_dirty(NULL);
         
         Vec2 real_size(_cropped_size.width * scale,
                        _cropped_size.height * scale);

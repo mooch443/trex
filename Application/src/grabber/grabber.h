@@ -54,10 +54,10 @@ public:
     ~ImageThreads() {
         terminate();
         
-        std::unique_lock<std::mutex> lock(_image_lock);
-        
         _load_thread->join();
         _process_thread->join();
+        
+        std::unique_lock<std::mutex> lock(_image_lock);
         
         delete _load_thread;
         delete _process_thread;
@@ -105,7 +105,7 @@ public:
     };
     
 protected:
-    Task _task;
+    GETTER(Task, task)
     
     GETTER(cv::Size, cam_size)
     GETTER(cv::Size, cropped_size)
