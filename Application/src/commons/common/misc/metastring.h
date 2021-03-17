@@ -522,10 +522,15 @@ namespace cmn {
         }
     
         template<class Q>
-        std::string toStr(const typename std::enable_if< !is_instantiation<std::shared_ptr, Q>::value && (Meta::has_internal_tostr_method<Q>::value), Q >::type& obj) {
+        std::string toStr(const typename std::enable_if< (std::is_pointer<Q>::value || is_instantiation<std::shared_ptr, Q>::value) && Meta::has_internal_tostr_method<Q>::value, Q >::type& obj) {
             return "ptr<"+Q::class_name()+">" + obj.toStr();
         }
         
+    template<class Q>
+    std::string toStr(const typename std::enable_if< !std::is_pointer<Q>::value && !is_instantiation<std::shared_ptr, Q>::value && Meta::has_internal_tostr_method<Q>::value, Q >::type& obj) {
+        return obj.toStr();
+    }
+    
         template<class Q>
         std::string toStr(const typename std::enable_if< is_instantiation<std::shared_ptr, Q>::value && !Meta::has_tostr_method<typename Q::element_type>::value && !std::is_convertible<typename Q::element_type, MetaObject>::value, Q >::type& obj) {
             return "ptr<?>0x" + Meta::toStr(uint64_t(obj.get()));//MetaType<typename std::remove_pointer<typename Q::element_type>::type>::toStr(*obj);

@@ -394,11 +394,7 @@ int main(int argc, char** argv)
             _wd = _wd / "usr" / "share" / "trex";
             //Debug("change directory to conda environment resource folder: '%S'", &_wd.str());
             
-#if defined(WIN32)
-            if (!SetCurrentDirectoryA(_wd.c_str()))
-#else
-            if (chdir(_wd.c_str()))
-#endif
+            if(chdir(_wd.c_str()))
                 Except("Cannot change directory to '%S'", &_wd.str());
         }
 #endif
