@@ -285,7 +285,7 @@ elseif(MSVC)
 else()
     message(STATUS "***** compiler ID ${CMAKE_CXX_COMPILER_ID}")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Wno-unknown-pragmas")
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -pg")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
 endif()
 
 if(TREX_ENABLE_CPP20)

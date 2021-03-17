@@ -445,10 +445,15 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
         SETTING(enable_live_tracking) = true;
     }
     
-    if (SETTING(enable_live_tracking)) {
-        tracker = new track::Tracker();
-        Output::Library::Init();
-    }
+    _pool = std::make_unique<GenericThreadPool>(max(1u, cmn::hardware_concurrency()), [](auto e) { std::rethrow_exception(e); }, "ocl_threads", [](){
+        ocl::init_ocl();
+    });
+    
+    if(_video)
+        initialize_video();
+    _average.copyTo(_original_average);
+    
+    callback_before_starting(*this);
     
     // determine offsets
     CropOffsets roff = SETTING(crop_offsets);
@@ -472,9 +477,10 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
         _processed.set_mask(mask);
     }
     
-    _pool = std::make_unique<GenericThreadPool>(max(1u, cmn::hardware_concurrency()), [](auto e) { std::rethrow_exception(e); }, "ocl_threads", [](){
-        ocl::init_ocl();
-    });
+    if (SETTING(enable_live_tracking)) {
+        tracker = new track::Tracker();
+        Output::Library::Init();
+    }
     
     _task._complete = false;
     _task._future = async_deferred([this, callback = std::move(callback_before_starting)]() mutable {
@@ -484,9 +490,6 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
 }
 
 void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_before_starting) {
-    if(_video)
-        initialize_video();
-    
     if (GRAB_SETTINGS(enable_closed_loop)) {
         track::PythonIntegration::set_settings(GlobalSettings::instance());
         track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
@@ -534,7 +537,7 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
         SETTING(cm_per_pixel) = SETTING(meta_real_width).value<float>() / SETTING(video_size).value<Size2>().width;
     
     _average.copyTo(_original_average);
-    callback_before_starting(*this);
+    //callback_before_starting(*this);
     
     if(_video) {
         _average.copyTo(_original_average);

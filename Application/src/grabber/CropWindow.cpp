@@ -8,7 +8,7 @@
 #include <misc/CropOffsets.h>
 
 namespace gui {
-    constexpr float radius = 40;
+    constexpr float radius = 100;
     constexpr Color inner_color = White.alpha(200), outer_color = White.alpha(200);
     
     CropWindow::CropWindow(FrameGrabber& grabber) : circles({
