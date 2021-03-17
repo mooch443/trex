@@ -93,7 +93,7 @@ public:
     
     Node::Ref prev = nullptr;
     Node::Ref next = nullptr;
-    std::shared_ptr<Brototype> obj;
+    std::unique_ptr<Brototype> obj;
     
     static auto& mutex() {
         static std::mutex _mutex;
@@ -114,8 +114,8 @@ public:
     static void move_to_cache(Node::Ref& node);
     static void move_to_cache(Node* node);
     
-    Node(const std::shared_ptr<Brototype>& obj, DLList* parent)
-        : parent(parent), obj(obj)
+    Node(std::unique_ptr<Brototype>&& obj, DLList* parent)
+        : parent(parent), obj(std::move(obj))
     {
 #if defined(DEBUG_MEM)
         std::lock_guard guard(mutex());
@@ -524,9 +524,9 @@ public:
     struct Cache {
         //std::mutex _mutex;
         std::vector<typename Node::Ref> _nodes;
-        std::vector<std::shared_ptr<Brototype>> _brotos;
+        std::vector<std::unique_ptr<Brototype>> _brotos;
         
-        std::shared_ptr<Brototype> broto() {
+        std::unique_ptr<Brototype> broto() {
             //std::lock_guard guard(_mutex);
             if(_brotos.empty())
                 return nullptr;
@@ -550,7 +550,7 @@ public:
             if(ref.obj) ref->parent = nullptr;
             _nodes.emplace_back(std::move(ref));
         }
-        void receive(std::shared_ptr<Brototype>&& ptr) {
+        void receive(std::unique_ptr<Brototype>&& ptr) {
             //std::lock_guard guard(_mutex);
             _brotos.emplace_back(std::move(ptr));
         }
@@ -612,20 +612,20 @@ public:
         return ptr;
     }
     
-    void insert(Node::Ref& ptr, const std::shared_ptr<Brototype>& obj) {
+    void insert(Node::Ref& ptr, std::unique_ptr<Brototype>&& obj) {
         ptr.release_check();
         cache().node(ptr);
         
         bool created = false;
         if(!ptr) {
-            ptr = Node::Ref(new Node(obj, this));
+            ptr = Node::Ref(new Node(std::move(obj), this));
             created = true;
         } else {
             assert(!ptr->next);
             assert(!ptr->prev);
             
             ptr->init(this);
-            ptr->obj = obj;
+            ptr->obj = std::move(obj);
         }
         
         insert(ptr);
@@ -660,7 +660,6 @@ class Brototype {
 private:
     GETTER_NCONST(std::vector<const uchar*>, pixel_starts)
     GETTER_NCONST(std::vector<const HorizontalLine*>, lines)
-    GETTER_NCONST(std::vector<Node_t::Ref>, nodes);
     
 public:
     static std::unordered_set<Brototype*> brototypes() {
@@ -676,7 +675,7 @@ public:
     }
     
     Brototype(const HorizontalLine* line, const uchar* px)
-        : _pixel_starts({px}), _lines({line}), _nodes({nullptr})
+        : _pixel_starts({px}), _lines({line})
     {
 #if defined(DEBUG_MEM)
         std::lock_guard guard(mutex());
@@ -692,7 +691,7 @@ public:
     }
     
     static std::mutex& mutex() { static std::mutex m; return m; }
-    static void move_to_cache(List_t *list, typename std::shared_ptr<Brototype>& node);
+    static void move_to_cache(List_t *list, typename std::unique_ptr<Brototype>& node);
     
     inline bool empty() const {
         return _lines.empty();
@@ -704,86 +703,73 @@ public:
     
     inline void push_back(const HorizontalLine* line, const uchar* px) {
         _lines.emplace_back(line);
-        _nodes.emplace_back(nullptr);
         _pixel_starts.emplace_back(px);
     }
     
-    void merge_with(const std::shared_ptr<Brototype>& b) {
+    void merge_with(const std::unique_ptr<Brototype>& b) {
         auto&        A = pixel_starts();
-        auto&       AN = nodes();
         auto&       AL = lines();
         
         const auto&  B = b->pixel_starts();
-        const auto& BN = b->nodes();
         const auto& BL = b->lines();
         
         if(A.empty()) {
             A .insert(A .end(), B .begin(), B .end());
-            AN.insert(AN.end(), BN.begin(), BN.end());
             AL.insert(AL.end(), BL.begin(), BL.end());
             return;
         }
         
         A .reserve(A .size()+B .size());
-        AN.reserve(AN.size()+BN.size());
         AL.reserve(AL.size()+BL.size());
         
         // special cases
         if(AL.back() < BL.front()) {
             A .insert(A .end(), B .begin(), B .end());
-            AN.insert(AN.end(), BN.begin(), BN.end());
             AL.insert(AL.end(), BL.begin(), BL.end());
             return;
         }
         
         auto it0=A .begin();
-        auto Nt0=AN.begin();
         auto Lt0=AL.begin();
         auto it1=B .begin();
-        auto Nt1=BN.begin();
         auto Lt1=BL.begin();
         
         for (; it1!=B.end() && it0!=A.end();) {
             if((*Lt1) < (*Lt0)) {
                 const auto start = it1;
                 const auto Lstart = Lt1;
-                const auto Nstart = Nt1;
                 do {
-                    ++Nt1;
                     ++Lt1;
                     ++it1;
                 }
-                while (Nt1 != BN.end() && Lt1 != BL.end() && it1 != B.end()
+                while (Lt1 != BL.end() && it1 != B.end()
                        && (*Lt1) < (*Lt0));
                 it0 = A .insert(it0, start , it1) + (it1 - start);
-                Nt0 = AN.insert(Nt0, Nstart, Nt1) + (Nt1 - Nstart);
                 Lt0 = AL.insert(Lt0, Lstart, Lt1) + (Lt1 - Lstart);
                 
             } else {
                 ++it0;
-                ++Nt0;
+                //++Nt0;
                 ++Lt0;
             }
         }
         
         if(it1!=B.end()) {
             A.insert(A.end(), it1, B.end());
-            AN.insert(AN.end(), Nt1, BN.end());
             AL.insert(AL.end(), Lt1, BL.end());
         }
     }
     
     struct Combined {
         decltype(Brototype::_lines)::iterator Lit;
-        decltype(Brototype::_nodes)::iterator Nit;
         decltype(Brototype::_pixel_starts)::iterator Pit;
         
         Combined(Brototype& obj)
-            : Lit(obj.lines().begin()), Nit(obj._nodes.begin()), Pit(obj._pixel_starts.begin())
+            : Lit(obj.lines().begin()),
+              Pit(obj._pixel_starts.begin())
         {}
         Combined(Brototype& obj, size_t index)
             : Lit(obj.lines().end()),
-              Nit(obj._nodes.end()),
               Pit(obj._pixel_starts.end())
         {
             
@@ -811,7 +797,6 @@ public:
         
         constexpr self_type operator++() {
             ++ptr_.Lit;
-            ++ptr_.Nit;
             ++ptr_.Pit;
             return ptr_;
         }
@@ -820,8 +805,6 @@ public:
         constexpr pointer operator->() { return &ptr_; }
         constexpr bool operator==(const self_type& rhs) const { return ptr_ == rhs.ptr_; }
         constexpr bool operator!=(const self_type& rhs) const { return ptr_ != rhs.ptr_; }
-        //constexpr bool operator<(const self_type& rhs) { return ptr_ < rhs.ptr_; }
-        //constexpr bool operator>(const self_type& rhs) { return ptr_ > rhs.ptr_; }
     public:
         value_type ptr_;
     };
@@ -834,10 +817,7 @@ public:
 };
 
 void Node::invalidate() {
-    if (obj && obj.use_count() == 1) {
-        Brototype::move_to_cache(parent, obj);
-    } else
-        obj = nullptr;
+    Brototype::move_to_cache(parent, obj);
     
     auto p = std::move(parent);
     auto pre = std::move(prev);
@@ -874,14 +854,12 @@ void Node::move_to_cache(Node* node) {
         node->invalidate();
 }
 
-void Brototype::move_to_cache(List_t* list, typename std::shared_ptr<Brototype>& node) {
+void Brototype::move_to_cache(List_t* list, typename std::unique_ptr<Brototype>& node) {
     if(!node) {
-        Warning("Node is nullptr");
         return;
     }
     
     node->lines().clear();
-    node->nodes().clear();
     node->pixel_starts().clear();
     
     if(list)
@@ -951,13 +929,11 @@ void merge_lines(Source::RowRef &previous_vector,
                 if(p)
                     p->push_back(*current->Lit, *current->Pit);
                 else
-                    p = std::make_shared<Brototype>(*current->Lit, *current->Pit);
+                    p = std::make_unique<Brototype>(*current->Lit, *current->Pit);
                 
-                blobs.insert(*current->Nit, p);//->inc(_CREATED);
+                blobs.insert(*current->Nit, std::move(p));
                 
-            } /*else if(!(*current->Nit)->parent) {
-                blobs.insert(*current->Nit);
-            }*/
+            }
             
             ++current;
             
@@ -978,11 +954,7 @@ void merge_lines(Source::RowRef &previous_vector,
             if(!*current->Nit) {
                 // current line isnt part of a blob yet
                 // nit is null!
-                //Node_t::move_to_cache(__LINE__, *current->Nit);
-                
                 pblob->obj->push_back((*current->Lit), *current->Pit);
-                //assert(!pblob->obj->pixel_starts().back());
-                //pblob->obj->pixel_starts().back() = *current->Pit;
                 *current->Nit = (*previous->Nit);
                 
             } else if(*current->Nit != *previous->Nit) {
@@ -1010,14 +982,12 @@ void merge_lines(Source::RowRef &previous_vector,
                 // replace blob pointers in current_ and previous_vector
                 for(auto cit = current_vector.begin(); cit != current_vector.end(); ++cit) {
                     if((*cit->Nit) == cblob) {
-                        //Node_t::move_to_cache(*cit->Nit);
                         *cit->Nit = *p->Nit;
                     }
                 }
                 
                 for(auto cit = previous; cit != previous_vector.end(); ++cit) {
                     if((*cit->Nit) == cblob) {
-                        //Node_t::move_to_cache(*cit->Nit);
                         *cit->Nit = *p->Nit;
                     }
                 }
@@ -1075,11 +1045,11 @@ blobs_t run_fast(List_t* blobs)
             auto &[o,l,n,p] = *it;
             auto bob = blobs->cache().broto();
             if(!bob)
-                bob = std::make_shared<Brototype>(*l, *p);
+                bob = std::make_unique<Brototype>(*l, *p);
             else
                 bob->push_back(*l, *p);
             
-            blobs->insert(*n, bob);
+            blobs->insert(*n, std::move(bob));
         }
     }
     
@@ -1106,7 +1076,7 @@ blobs_t run_fast(List_t* blobs)
             ushort y = 0;
 #endif
             
-            for(auto & [l, n, px] : *it->obj) {
+            for(auto & [l, px] : *it->obj) {
                 assert((*l)->y >= y);
                 lines->push_back(**l);
                 
