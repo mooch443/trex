@@ -879,10 +879,6 @@ void Node::Ref::release_check() {
             obj->parent->cache().receive(std::move(Ref(obj)));
         } else
             delete obj;
-        //obj = (Node*)1337;
-        //std::lock_guard guard(mutex());
-        //pool().emplace_back(std::move(Ref(obj)));
-        //delete obj;
     }
     obj = nullptr;
 }
@@ -1069,35 +1065,40 @@ blobs_t run_fast(List_t* blobs)
      */
     for(auto it=blobs->begin(); it != blobs->end(); ++it) {
         if(it->obj && !it->obj->empty()) {
-            auto pixels = std::make_shared<std::vector<uchar>>();
-            auto lines = std::make_unique<std::vector<HorizontalLine>>();
+            result.emplace_back(std::make_shared<std::vector<HorizontalLine>>(), std::make_shared<std::vector<uchar>>());
+            auto &lines = std::get<0>(result.back());
+            auto &pixels = std::get<1>(result.back());
+            
+            size_t L = 0;
+            for(auto & [l, px] : *it->obj)
+                L += (*l)->x1 - (*l)->x0 + 1;
+            
+            pixels->resize(L);
+            lines->resize(it->obj->lines().size());
+            
 #ifndef NDEBUG
-            size_t count = 0;
             ushort y = 0;
 #endif
-            
+            auto current = lines->data();
+            auto pixel = pixels->data();
             for(auto & [l, px] : *it->obj) {
                 assert((*l)->y >= y);
-                lines->push_back(**l);
+                *current++ = **l; // assign **l to *current; inc current
                 
                 if(pixels) {
+                    assert(*px);
                     auto start = *px;
                     auto end = start + (size_t((*l)->x1) - size_t((*l)->x0) + 1u);
-                    if(!*px)
-                        pixels->insert(pixels->end(), size_t(end-start), 255);
-                    else
-                        pixels->insert(pixels->end(), start, end);
+                    
+                    pixel = std::copy(start, end, pixel);
                 }
+                
 #ifndef NDEBUG
-                count += size_t((*l)->x1) - size_t((*l)->x0) + 1u;
+                y = (*l)->y;
 #endif
             }
                 
             assert(!pixels || count == pixels->size());
-            
-            //auto lines = std::move(it->obj->lines_ptr());
-            result.emplace_back(std::move(lines), pixels);
-            
             Node_t::move_to_cache(*it);
         }
     }

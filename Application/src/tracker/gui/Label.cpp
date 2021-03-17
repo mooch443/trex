@@ -34,7 +34,7 @@ void Label::update(DrawStructure& base, Section* s, float alpha, bool disabled) 
         if(!base.scale().empty())
             scale = base.scale().reciprocal().mul(ptr->scale().reciprocal());
         
-        screen._size = GUI::instance()->base()->window_dimensions().mul(scale * GUI_SETTINGS(gui_interface_scale));
+        screen._size = GUI::instance() && GUI::instance()->base() ? GUI::instance()->base()->window_dimensions().mul(scale * GUI_SETTINGS(gui_interface_scale)) : Size2(Tracker::average().bounds().size());
         offset = -(_center - (screen.pos() + Size2(screen.width * 0.5, screen.height * 0.95))) / screen.width;
     }
 
