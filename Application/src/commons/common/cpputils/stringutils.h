@@ -7,6 +7,7 @@
 #include <locale>
 #include <codecvt>
 #include <algorithm>
+#include <functional>
 
 namespace utils {
     /**
