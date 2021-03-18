@@ -1187,6 +1187,10 @@ void GUI::draw(DrawStructure &base) {
             info_timer.reset();
         }
         
+        auto screen = screen_dimensions();
+        _info.set_clickable(false);
+        _info.set_origin(Vec2(0.5));
+        _info.set_pos(screen * 0.5);
         _info.set_scale(base.scale().reciprocal());
         base.wrap_object(_info);
     }
@@ -2262,8 +2266,11 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
         }
         
         if(SETTING(gui_show_dataset) /*&& Recognition::recognition_enabled()*/ && _timeline->visible()) {
-            if(!_dataset)
+            if(!_dataset) {
                 _dataset = std::make_shared<DrawDataset>();
+                auto screen = screen_dimensions();
+                _dataset->set_pos(screen * 0.5 - _dataset->size());
+            }
             base.wrap_object(*_dataset);
         }
         
