@@ -123,7 +123,7 @@ namespace gui {
         Bounds text_bounds(const std::string& text, Drawable*, const Font& font) override;
         uint32_t line_spacing(const Font& font) override;
         Size2 window_dimensions() override;
-        float dpi_scale() override;
+        float dpi_scale() const override;
         template<class F, class... Args>
         auto exec_main_queue(F&& f, Args&&... args) -> std::future<typename std::invoke_result_t<F, Args...>>
         {

@@ -369,12 +369,16 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
         int count;
         auto monitors = glfwGetMonitors(&count);
         int mx, my, mw, mh;
+#ifndef NDEBUG
         Debug("Window is at %d, %d (%dx%d).", x, y, fw, fh);
+#endif
         
         for (int i=0; i<count; ++i) {
             auto name = glfwGetMonitorName(monitors[i]);
             glfwGetMonitorWorkarea(monitors[i], &mx, &my, &mw, &mh);
+#ifndef NDEBUG
             Debug("Monitor '%s': %d,%d %dx%d", name, mx, my, mw, mh);
+#endif
             if(Bounds(mx, my, mw, mh).overlaps(Bounds(x, y, fw, fh))) {
                 monitor = monitors[i];
                 break;
@@ -390,7 +394,9 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
     } else {
         int mx, my, mw, mh;
         glfwGetMonitorWorkarea(monitor, &mx, &my, &mw, &mh);
+#ifndef NDEBUG
         Debug("FS Monitor: %d,%d %dx%d", mx, my, mw, mh);
+#endif
     }
     
     float xscale, yscale;
@@ -400,7 +406,9 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
     xscale = yscale = 1;
 #endif
     
+#ifndef NDEBUG
     Debug("Content scale: %f, %f", xscale, yscale);
+#endif
     
     int width = base->_graph->width(), height = base->_graph->height();
     
@@ -604,11 +612,12 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
             IMGUIBase::update_size_scale(window);
         });
         
-        {GLFWwindow *window;
-        
-        }
         glfwSetWindowPosCallback(_platform->window_handle(), [](GLFWwindow* window, int, int)
         {
+            IMGUIBase::update_size_scale(window);
+        });
+        
+        exec_main_queue([window = _platform->window_handle()](){
             IMGUIBase::update_size_scale(window);
         });
     }
@@ -629,7 +638,7 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
         base_pointers.erase(_platform->window_handle());
     }
 
-    float IMGUIBase::dpi_scale() {
+    float IMGUIBase::dpi_scale() const {
         return _dpi_scale;
     }
 
@@ -648,7 +657,15 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
     }
 
     void IMGUIBase::loop() {
-        _platform->loop(_custom_loop);
+        LoopStatus status = LoopStatus::IDLE;
+        
+        // Main loop
+        while (status != LoopStatus::END)
+        {
+            status = update_loop();
+            if(status != gui::LoopStatus::UPDATED)
+                std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
     }
 
     LoopStatus IMGUIBase::update_loop() {
@@ -664,7 +681,7 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
             }
         }
         
-        return _platform->update_loop();
+        return _platform->update_loop(_custom_loop);
     }
 
     void IMGUIBase::set_frame_recording(bool v) {

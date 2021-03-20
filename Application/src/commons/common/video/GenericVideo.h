@@ -35,62 +35,13 @@ public:
         : _mode(mode)
     { }
     
-    template<bool threaded = false>
-    void add(const Mat &f) {
-        assert(f.channels() == 1);
-        assert(f.type() == CV_8UC1);
-        
-        // initialization code
-        if(_accumulator.empty()) {
-            _size = Size2(f.cols, f.rows);
-            _accumulator = cv::Mat::zeros((int)_size.height, (int)_size.width, _mode == averaging_method_t::mean ? CV_32FC1 : CV_8UC1);
-            if(_mode == averaging_method_t::min)
-                _accumulator.setTo(255);
-            
-            if(_mode == averaging_method_t::mode) {
-                spatial_histogram.resize(size_t(f.cols) * size_t(f.rows));
-                for(uint64_t i=0; i<spatial_histogram.size(); ++i) {
-                    std::fill(spatial_histogram.at(i).begin(), spatial_histogram.at(i).end(), 0);
-                    spatial_mutex.push_back(std::make_unique<std::mutex>());
-                }
-            }
-        }
-        
-        if(_mode == averaging_method_t::mean) {
-            f.convertTo(_float_mat, CV_32FC1);
-            cv::add(_accumulator, _float_mat, _accumulator);
-            ++count;
-            
-        } else if(_mode == averaging_method_t::mode) {
-            assert(f.isContinuous());
-            
-            auto ptr = f.data;
-            const auto end = f.data + f.cols * f.rows;
-            auto array_ptr = spatial_histogram.data();
-            auto mutex_ptr = spatial_mutex.begin();
-            
-            assert(spatial_histogram.size() == (uint64_t)(f.cols * f.rows));
-            if constexpr(threaded) {
-                for (; ptr != end; ++ptr, ++array_ptr, ++mutex_ptr) {
-                    (*mutex_ptr)->lock();
-                    ++(*array_ptr)[*ptr];
-                    (*mutex_ptr)->unlock();
-                }
-                
-            } else {
-                for (; ptr != end; ++ptr, ++array_ptr)
-                    ++(*array_ptr)[*ptr];
-            }
-            
-        } else if(_mode == averaging_method_t::max) {
-            cv::max(_accumulator, f, _accumulator);
-        } else if(_mode == averaging_method_t::min) {
-            cv::min(_accumulator, f, _accumulator);
-        } else
-            U_EXCEPTION("Unknown averaging_method '%s'.", _mode.name())
-    }
+    void add(const Mat &f);
+    void add_threaded(const Mat &f);
     
     std::unique_ptr<cmn::Image> finalize();
+    
+private:
+    template<bool threaded> void _add(const Mat& f);
 };
 
 }

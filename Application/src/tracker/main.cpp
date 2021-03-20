@@ -209,31 +209,6 @@ int main(int argc, char** argv)
 #endif
     
     default_config::register_default_locations();
-    
-    if(argc == 2) {
-        if(std::string(argv[1]) == "-options") {
-            for(auto arg : Arguments::names) {
-                printf("-%s ", arg);
-            }
-            exit(0);
-            
-        } else if(std::string(argv[1]) == "-path") {
-            default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
-            default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
-            
-            CommandLine cmd(argc, argv, true);
-            cmd.cd_home();
-            
-            if(Path("default.settings").exists()) {
-                default_config::warn_deprecated("default.settings", GlobalSettings::load_from_file(default_config::deprecations(), "default.settings", AccessLevelType::STARTUP));
-            }
-            
-            printf("%s", SETTING(output_dir).value<file::Path>().str().c_str());
-            
-            exit(0);
-        }
-    }
-    
     GlobalSettings::map().set_do_print(true);
     
     gui::init_errorlog();
@@ -270,6 +245,38 @@ int main(int argc, char** argv)
     default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     GlobalSettings::map().dont_print("gui_frame");
     GlobalSettings::map().dont_print("gui_focus_group");
+    
+    if(argc == 2) {
+        if(std::string(argv[1]) == "-options") {
+            for(auto arg : Arguments::names) {
+                printf("-%s ", arg);
+            }
+            exit(0);
+            
+        } else if(std::string(argv[1]) == "-path") {
+            default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+            default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+            
+            CommandLine cmd(argc, argv, true);
+            cmd.cd_home();
+            
+            if(Path("default.settings").exists()) {
+                default_config::warn_deprecated("default.settings", GlobalSettings::load_from_file(default_config::deprecations(), "default.settings", AccessLevelType::STARTUP));
+            }
+            
+            printf("%s", SETTING(output_dir).value<file::Path>().str().c_str());
+            
+            exit(0);
+            
+        } else if(argv[1][0] != '-') {
+            // this is likely a file if the path exists?
+            file::Path path(argv[1]);
+            if(path.exists()) {
+                Debug("File exists ('%S').", &path.str());
+                SETTING(filename) = path;
+            }
+        }
+    }
     
     file::Path load_results_from;
 #ifdef WIN32

@@ -56,7 +56,7 @@ namespace gui {
         [this, &grabber, &scale, &okay](SFLoop& loop){
             std::unique_lock<std::recursive_mutex> guard(_graph->lock());
             auto desktop = _base->window_dimensions();
-            auto size = _video_size * _base->dpi_scale();
+            auto size = _video_size; //* _base->dpi_scale();
             
             if (desktop.width >= desktop.height) {
                 if (size.width > desktop.width) {

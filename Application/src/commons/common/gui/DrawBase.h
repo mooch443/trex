@@ -29,7 +29,7 @@ namespace gui {
         
         virtual LoopStatus update_loop() { return LoopStatus::IDLE; }
         
-        virtual float dpi_scale() { return 1; }
+        virtual float dpi_scale() const { return 1; }
         virtual void set_background_color(const Color&) {}
         
         virtual void set_frame_recording(bool v) {

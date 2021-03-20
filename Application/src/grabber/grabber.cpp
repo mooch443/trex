@@ -31,6 +31,7 @@ CREATE_STRUCT(GrabSettings,
   (bool,        terminate),
   (bool,        reset_average),
   (bool,        image_invert),
+  (uint32_t, average_samples),
   (bool,        correct_luminance),
   (bool,        recording),
   (size_t,        color_channel),
@@ -542,10 +543,9 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
     _average.copyTo(_original_average);
     //callback_before_starting(*this);
     
-    if(_video) {
+    if(_video && _average_finished) {
         _average.copyTo(_original_average);
         prepare_average();
-        _average_finished = true;
         _current_average_timestamp = 42;
     }
     
@@ -558,20 +558,37 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
               return new Image_t(_cam_size.height, _cam_size.width);
           },
           [&](const Image_t* prev, Image_t& current) -> bool { // prepare object
+              if(_reset_first_index) {
+                  _reset_first_index = false;
+                  prev = NULL;
+              }
+        
               if(_video) {
-                  current.set_index(prev != NULL ? prev->index() + 1 : (GRAB_SETTINGS(video_conversion_range).first != -1 ? GRAB_SETTINGS(video_conversion_range).first : 0));
+                  static const auto conversion_range_start = GRAB_SETTINGS(video_conversion_range).first != -1 ? GRAB_SETTINGS(video_conversion_range).first : 0;
                   
-                  if(GRAB_SETTINGS(video_conversion_range).second != -1) {
-                      if(current.index() >= GRAB_SETTINGS(video_conversion_range).second) {
-                          if(!GRAB_SETTINGS(terminate))
-                              SETTING(terminate) = true;
+                  if(!_average_finished) {
+                      double step = _video->length() / floor((double)min(_video->length()-1, max(1u, GRAB_SETTINGS(average_samples))));
+                      current.set_index(prev ? (prev->index() +  step) : 0);
+                      Debug("Index: %d", current.index());
+                      if(current.index() >= long_t(_video->length())) {
                           return false;
                       }
+                      
                   } else {
-                      if(current.index() >= long_t(_video->length())) {
-                          if(!GRAB_SETTINGS(terminate))
-                              SETTING(terminate) = true;
-                          return false;
+                      current.set_index(prev != NULL ? prev->index() + 1 : conversion_range_start);
+                      
+                      if(GRAB_SETTINGS(video_conversion_range).second != -1) {
+                          if(current.index() >= GRAB_SETTINGS(video_conversion_range).second) {
+                              if(!GRAB_SETTINGS(terminate))
+                                  SETTING(terminate) = true;
+                              return false;
+                          }
+                      } else {
+                          if(current.index() >= long_t(_video->length())) {
+                              if(!GRAB_SETTINGS(terminate))
+                                  SETTING(terminate) = true;
+                              return false;
+                          }
                       }
                   }
                   
@@ -594,7 +611,7 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
               return true;
           },
           [&](Image_t& current) -> bool { return load_image(current); },
-          [&](Image_t& current) -> Queue::Code { return process_image(current); });
+          [&](const Image_t& current) -> Queue::Code { return process_image(current); });
     
     Debug("ThreadedAnalysis started (%dx%d | %dx%d).", _cam_size.width, _cam_size.height, _cropped_size.width, _cropped_size.height);
 }
@@ -742,9 +759,10 @@ file::Path FrameGrabber::average_name() const {
 void FrameGrabber::initialize_video() {
     auto path = average_name();
     Debug("Saving average at or loading from '%S'.", &path.str());
+    const bool reset_average = SETTING(reset_average);
     
     if(path.exists()) {
-        if(SETTING(reset_average)) {
+        if(reset_average) {
             Warning("Average exists, but will not be used because 'reset_average' is set to true.");
             SETTING(reset_average) = false;
         } else {
@@ -756,12 +774,15 @@ void FrameGrabber::initialize_video() {
         }
     } else {
         Debug("Average image at '%S' doesnt exist.", &path.str());
-        if(SETTING(reset_average))
+        if(reset_average)
             SETTING(reset_average) = false;
     }
     
-    if(_average.empty()) {
+    if(_average.empty() || reset_average) {
         Debug("Generating new average.");
+        //_average_finished = false;
+        //_average_samples = 0;
+        //return;
         _video->generate_average(_video->average(), 0, [this](float percent) {
             _average_samples = percent * (float)SETTING(average_samples).value<uint32_t>();
         });
@@ -774,12 +795,11 @@ void FrameGrabber::initialize_video() {
         Debug("Reusing previously generated average.");
     }
     
-    //_video->undistort(_average, _average);
-    
     if(SETTING(quit_after_average))
         SETTING(terminate) = true;
     
     _current_average_timestamp = 1336;
+    _average_finished = true;
 }
 
 bool FrameGrabber::add_image_to_average(const Image_t& current) {
@@ -807,70 +827,23 @@ bool FrameGrabber::add_image_to_average(const Image_t& current) {
             std::atomic_store(&_current_image, std::shared_ptr<Image>());
         }
         
-        static auto averaging_method = GlobalSettings::has("averaging_method") ? SETTING(averaging_method).value<averaging_method_t::Class>() : averaging_method_t::mean;
-        static bool use_mean = averaging_method != averaging_method_t::max
-            && averaging_method != averaging_method_t::max;
-        static gpuMat empty_image;
-        if(empty_image.empty())
-            empty_image = gpuMat::zeros(_cropped_size.height, _cropped_size.width, CV_8UC1);
-        current.get().copyTo(empty_image);
-        //current.get(empty_image);
-        
-        if(use_mean) {
-            cv::Mat tmp;
-            empty_image.convertTo(tmp, CV_32FC1, 1.0/255.0);
-            
-            if(_current_average.empty() || _current_average.type() != CV_32FC1)
-                tmp.copyTo(_current_average);
-            else
-                _current_average += tmp;
-        } else {
-            if(_current_average.empty())
-                empty_image.copyTo(_current_average);
-            else {
-                cv::Mat local, local_av;
-                _current_average.copyTo(local_av);
-                empty_image.copyTo(local);
-                
-                if(averaging_method == averaging_method_t::max)
-                    _current_average = cv::max(local, local_av);
-                else if(averaging_method == averaging_method_t::min)
-                    _current_average = cv::min(local, local_av);
-            }
-        }
+        if(!_accumulator)
+            _accumulator = std::make_unique<AveragingAccumulator>();
+        _accumulator->add(current.get());
         
         _average_samples++;
         
-        if(_average_samples >= SETTING(average_samples).value<uint32_t>()) { //|| fname.is_regular()) {
-            if(use_mean) {
-                _current_average /= float(_average_samples);
+        if(_average_samples >= SETTING(average_samples).value<uint32_t>()) {
+            {
                 std::lock_guard<std::mutex> guard(_frame_lock);
-                _current_average.convertTo(_average, CV_8UC1, 255.0);
-                
-            } else {
-                std::lock_guard<std::mutex> guard(_frame_lock);
-                _current_average.copyTo(_average);
+                auto image = _accumulator->finalize();
+                image->get().copyTo(_average);
             }
             
-            _current_average_timestamp = std::chrono::steady_clock::now().time_since_epoch().count();
-            
-            if(_average.channels() > 1) {
-                static const size_t color_channel = SETTING(color_channel).value<size_t>();
-                if(color_channel >= 3) {
-                    // turn into HUE
-                    if(_average.channels() == 3) {
-                        cv::cvtColor(_average, _average, cv::COLOR_BGR2HSV);
-                        cv::extractChannel(_average, _average, 0);
-                    } else Error("Cannot copy to read frame with %d channels.", _average.channels());
-                } else {
-                    cv::Mat copy;
-                    cv::extractChannel(_average, copy, color_channel);
-                    copy.copyTo(_average);
-                }
-            }
-            
+            assert(_average.channels() == 1);
             assert(_average.type() == CV_8UC1);
             _average.copyTo(_original_average);
+            _accumulator = nullptr;
             
             cv::Mat tmp;
             _average.copyTo(tmp);
@@ -879,36 +852,12 @@ bool FrameGrabber::add_image_to_average(const Image_t& current) {
                 Error("Cannot write '%S'.", &fname.str());
             else
                 Debug("Saved new average image at '%S'.", &fname.str());
-            /*} else {
-                cv::Mat f = cv::imread(fname.str());
-                if(f.cols != _current_average.cols || f.rows != _current_average.rows) {
-                    // invalid size
-                    if(!fname.delete_file())
-                        U_EXCEPTION("Cannot delete file '%S'.", &fname.str());
-                    _average = gpuMat();
-                    
-                    return Queue::ITEM_NEXT;
-                } else {
-                    f.copyTo(_average);
-                }
-            }*/
-            
-            /*cv::Mat copied = _average;
-            _processed.undistort(_average, copied);
-            
-            auto scale = SETTING(cam_scale).value<float>();
-            if(scale != 1) {
-                cv::Mat temp;
-                resize_image(copied, temp, scale);
-                _processed.set_average(temp);
-            } else {
-                _processed.set_average(copied);
-            }
-            //_processed.processImage(_average, _average, false);*/
             
             prepare_average();
             
+            _current_average_timestamp = std::chrono::steady_clock::now().time_since_epoch().count();
             _average_finished = true;
+            _reset_first_index = true;
             
             if(SETTING(quit_after_average))
                 SETTING(terminate) = true;
@@ -918,6 +867,7 @@ bool FrameGrabber::add_image_to_average(const Image_t& current) {
             std::atomic_store(&_current_image, std::make_shared<Image>(current));
         else
             _current_image->set(current.index(), current.data());
+        
         return true;
     }
     
@@ -931,7 +881,7 @@ bool FrameGrabber::load_image(Image_t& current) {
         return false;
     
     if(_video) {
-        if(current.index() >= long_t(_video->length())) {
+        if(_average_finished && current.index() >= long_t(_video->length())) {
             if(!GRAB_SETTINGS(terminate)) {
                 SETTING(terminate) = true;
             }
@@ -1284,6 +1234,7 @@ void FrameGrabber::ensure_average_is_ready() {
         
         last_average = _current_average_timestamp;
         
+        assert(!_average.empty());
         Warning("Copying average to GPU.");
         if(_pool)
             _pool->wait();
@@ -1397,7 +1348,7 @@ void FrameGrabber::write_fps(uint64_t index, uint64_t tdelta, uint64_t ts) {
     fwrite(str.data(), sizeof(char), str.length(), file);
 }
 
-Queue::Code FrameGrabber::process_image(Image_t& current) {
+Queue::Code FrameGrabber::process_image(const Image_t& current) {
     static Timing timing("process_image", 10);
     TakeTiming take(timing);
     
@@ -1409,11 +1360,13 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
     ensure_average_is_ready();
     
     // make timestamp relative to _start_timing
+    auto TS = current.timestamp();
     if(_start_timing == UINT64_MAX)
-        _start_timing = current.timestamp();
-    current.set_timestamp(current.timestamp() - _start_timing);
+        _start_timing = TS;
+    TS = TS - _start_timing;
+    //current.set_timestamp(current.timestamp() - _start_timing);
     
-    double minutes = double(current.timestamp()) / 1000.0 / 1000.0 / 60.0;
+    double minutes = double(TS) / 1000.0 / 1000.0 / 60.0;
     if(GRAB_SETTINGS(stop_after_minutes) > 0 && minutes >= GRAB_SETTINGS(stop_after_minutes) && !GRAB_SETTINGS(terminate)) {
         SETTING(terminate) = true;
         Debug("Terminating program because stop_after_minutes (%d) has been reached.", GRAB_SETTINGS(stop_after_minutes));
@@ -1737,7 +1690,7 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
             
             if(!_terminate_tracker) {
                 for_the_pool.push(Task(global_index++,
-                    std::make_unique<Image>(local, current.index(), current.timestamp()),
+                    std::make_unique<Image>(local, current.index(), TS),
 #if WITH_FFMPEG
                     /*mp4_queue ?*/ std::make_unique<Image>(current_copy) /*: nullptr*/,
 #else
@@ -1751,7 +1704,7 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
         
     } else {
         Task task(global_index++,
-            std::make_unique<Image>(local, current.index(), current.timestamp()),
+            std::make_unique<Image>(local, current.index(), TS),
 #if WITH_FFMPEG
             /*mp4_queue ?*/ std::make_unique<Image>(current_copy) /*: nullptr*/,
 #else

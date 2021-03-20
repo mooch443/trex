@@ -394,23 +394,34 @@ VideoOpener::VideoOpener()
             if(image) {
                 _screenshot->set_source(std::move(image));
                 
-                const auto mw = _file_chooser->graph()->width() * 0.3f;
-                if(_raw_description->max_size().x != mw) {
-                    _raw_description->set_max_size(Size2(mw, -1.f));
-                    _screenshot_previous_size = 0;
+                auto max_scale = _file_chooser->graph()->scale().reciprocal() * _file_chooser->base().dpi_scale() * 0.3f;
+                auto max_size = Size2(_file_chooser->graph()->width(), _file_chooser->graph()->height()).mul(max_scale);
+                auto scree_size = _screenshot->source()->bounds().size();
+                auto size = max_size;
+                
+                if(_raw_description->max_size() != max_size) {
+                    _raw_description->set_max_size(max_size);
+                    _screenshot_previous_size = Size2(0);
                 }
                 
-                auto size = _screenshot->size().max();
-                if(size != _screenshot_previous_size) {
-                    auto ratio = mw / size;
-                    _screenshot->set_scale(Vec2(ratio));
+                Vec2 scale;
+                
+                // width is more too big than height:
+                if(max_size.width / scree_size.width < max_size.height / scree_size.height) {
+                    scale = Vec2(max_size.width / scree_size.width );
+                } else {
+                    scale = Vec2(max_size.height / scree_size.height);
+                }
+                
+                if(scale != _screenshot_previous_size) {
+                    _screenshot->set_scale(scale);
                     
                     _raw_info->auto_size(Margin{0, 0});
                     _raw_settings->auto_size(Margin{0, 0});
                     _horizontal_raw->auto_size(Margin{0, 0});
                     _recording_panel->auto_size(Margin{0, 0});
                     
-                    if(_screenshot_previous_size == 0) {
+                    if(_screenshot_previous_size.empty()) {
                         {
                             std::string info_text = "<h3>Info</h3>\n";
                             info_text += "<key>resolution</key>: <ref><nr>"+Meta::toStr(_buffer->_video->size().width)+"</nr>x<nr>"+Meta::toStr(_buffer->_video->size().height)+"</nr></ref>\n";
@@ -425,7 +436,7 @@ VideoOpener::VideoOpener()
                         _file_chooser->update_size();
                     }
                     
-                    _screenshot_previous_size = size;
+                    _screenshot_previous_size = scale;
                 }
             }
             
@@ -577,6 +588,8 @@ void VideoOpener::BufferedVideo::restart_background() {
             
             auto image = accumulator->finalize();
             
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            
             std::lock_guard guard(_frame_mutex);
             _background_copy = std::move(image);
         }
@@ -587,7 +600,7 @@ void VideoOpener::BufferedVideo::restart_background() {
 
 void flush_ocl_queue() {
     cv::ocl::finish();
-    volatile auto const cleanupQueueFlusher = gpuMat::zeros(1, 1, CV_8UC1);
+    //volatile auto const cleanupQueueFlusher = gpuMat::zeros(1, 1, CV_8UC1);
     /*cv::BufferPoolController* c = cv::ocl::getOpenCLAllocator()->getBufferPoolController();
     if (c)
     {
@@ -689,6 +702,8 @@ void VideoOpener::BufferedVideo::open(std::function<void(const bool)>&& callback
                 } catch(const std::exception& e) {
                     Except("Caught exception while updating '%s'", e.what());
                 }
+                
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
             }
             
         } catch(const UtilsException& ex) {
@@ -768,7 +783,7 @@ void VideoOpener::select_file(const file::Path &p) {
             
             move_to_stale(std::move(_buffer));
             
-            _screenshot_previous_size = 0;
+            _screenshot_previous_size = Size2(0);
             _buffer = std::make_unique<BufferedVideo>(p);
             try {
                 _buffer->_threshold = TEMP_SETTING(threshold).value<int>();

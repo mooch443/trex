@@ -373,7 +373,6 @@ struct Source {
         lw = image.cols, lh = image.rows;
         
         if(max_threads > 1) {
-            
             /**
              * FIND HORIZONTAL LINES IN ORIGINAL IMAGE
              */
@@ -395,8 +394,12 @@ struct Source {
             
             // start threads:
             // TODO: maybe could use a thread pool here) to extract lines in parallel)
-            for(uchar i=0; i<max_threads; i++)
+            for(uchar i=0; i<max_threads; i++) {
+                thread_sources[i].lw = lw;
+                thread_sources[i].lh = lh;
+                
                 threads.push_back(new std::thread(Source::extract_lines, image, &thread_sources[i], thread_ranges[i]));
+            }
             
             // now merge lines (partly) in parallel:
             for(uchar i=0; i<max_threads; ++i) {
@@ -460,7 +463,9 @@ struct Source {
                     // previous is set, but current is not?
                     // (the last hline just ended)
                     if(!*ptr) {
-                        current.x1 = ushort(ptr - start) - 1;
+                        assert(ptr >= start);
+                        assert(ushort(ptr - start) >= 1);
+                        current.x1 = ushort(ptr - start) - 1; // -1 because we went past x1 already
                         source->push_back(current, start + current.x0);
                         
                         prev = false;
@@ -478,6 +483,7 @@ struct Source {
             // if prev is set, the last hline ended when the
             // x-dimension ended, so set x1 accordingly
             if(prev) {
+                assert(current.x0 <= source->lw - 1);
                 current.x1 = source->lw - 1;
                 source->push_back(current, start + current.x0);
             }

@@ -5,6 +5,7 @@
 #include <misc/GlobalSettings.h>
 #include <misc/ThreadPool.h>
 #include <misc/checked_casts.h>
+#include <misc/Image.h>
 
 using namespace cmn;
 
@@ -550,28 +551,12 @@ void VideoSource::generate_average(cv::Mat &av, uint64_t, std::function<void(flo
         method = SETTING(averaging_method).value<averaging_method_t::Class>();
     //bool use_mean = GlobalSettings::has("averaging_method") && utils::lowercase(SETTING(averaging_method).value<std::string>()) != "max";
     Debug("Use averaging method: '%s'", method.name());
-    
-    if(average.empty() || average.cols != size().width || average.rows != size().height) {
-        average = gpuMat::zeros(size().height, size().width, method == averaging_method_t::mean ? CV_32FC1 : CV_8UC1);
-    } else
-        average = cv::Scalar(0);
-    
     if (length() < 10) {
         processImage(average, average);
         return;
     }
     
-    if(method == averaging_method_t::mean)
-        float_mat = gpuMat::zeros(average.rows, average.cols, CV_32FC1);
-    else {
-        if(method == averaging_method_t::min) {
-            cv::Mat tmp = cv::Mat::ones(average.rows, average.cols, CV_8UC1);
-            tmp = tmp.mul(255);
-            tmp.copyTo(float_mat);
-            
-        } else
-            float_mat = gpuMat::zeros(average.rows, average.cols, CV_8UC1);
-    }
+    AveragingAccumulator acc;
     
     float samples = GlobalSettings::has("average_samples") ? (float)SETTING(average_samples).value<uint32_t>() : (length() * 0.01f);
     uint64_t step = max(1u, _files_in_seq.size() < samples ? 1u : (uint64_t)ceil(_files_in_seq.size() / samples));
@@ -580,17 +565,6 @@ void VideoSource::generate_average(cv::Mat &av, uint64_t, std::function<void(flo
     if(samples > 255 && method == averaging_method_t::mode)
         U_EXCEPTION("Cannot take more than 255 samples with 'averaging_method' = 'mode'. Choose fewer samples or a different averaging method.");
     std::map<File*, std::set<uint64_t>> file_indexes;
-    
-    //std::vector<std::map<uchar, uint8_t>> spatial_histogram;
-    std::vector<std::array<uint8_t, 256>> spatial_histogram;
-    std::vector<std::unique_ptr<std::mutex>> spatial_mutex;
-    if(method == averaging_method_t::mode) {
-        spatial_histogram.resize(size_t(average.cols) * size_t(average.rows));
-        for(uint64_t i=0; i<spatial_histogram.size(); ++i) {
-            std::fill(spatial_histogram.at(i).begin(), spatial_histogram.at(i).end(), 0);
-            spatial_mutex.push_back(std::make_unique<std::mutex>());
-        }
-    }
     
     Debug("generating average in threads step %lu for %lu files (%lu per file)", step, _files_in_seq.size(), frames_per_file);
     
@@ -608,59 +582,16 @@ void VideoSource::generate_average(cv::Mat &av, uint64_t, std::function<void(flo
     }
     
     for(auto && [file, indexes] : file_indexes) {
-        auto fn = [&callback, method, samples, gAverage = &average, gAv = &av, gCount = &count,&mutex, &spatial_histogram, &spatial_mutex, &file_indexes](File* file, const std::set<uint64_t>& indexes){
-            if(SETTING(terminate))
-                return;
-            
+        auto fn = [&acc, &callback, method, samples, gAverage = &average, gAv = &av, gCount = &count, &mutex, &file_indexes](File* file, const std::set<uint64_t>& indexes)
+        {
             cv::Mat f;
-            cv::Mat float_mat;
-            cv::Mat average;
-            
-            if(method == averaging_method_t::min) {
-                average = cv::Mat::ones(gAverage->rows, gAverage->cols, gAverage->type());
-                cv::multiply(average, cv::Scalar(255), average);
-            } else
-                average = cv::Mat::zeros(gAverage->rows, gAverage->cols, gAverage->type());
-            
             double count = 0;
             
             for(auto index : indexes) {
                 try {
                     file->frame(index, f, true);
                     assert(f.channels() == 1);
-                    
-                    if(method == averaging_method_t::mean) {
-                        //Debug("%d,%d - %d,%d", float_mat.cols, float_mat.rows, average.cols, average.rows);
-                        f.convertTo(float_mat, CV_32FC1, 1.0/255.0);
-                        cv::add(average, float_mat, average);
-                        
-                    } else if(method == averaging_method_t::mode) {
-                        assert(f.isContinuous());
-                        
-                        auto ptr = f.data;
-                        const auto end = f.data + f.cols * f.rows;
-                        auto array_ptr = spatial_histogram.data();
-                        auto mutex_ptr = spatial_mutex.begin();
-                        
-                        assert(spatial_histogram.size() == (uint64_t)(f.cols * f.rows));
-                        if(file_indexes.size() > 1) {
-                            for (; ptr != end; ++ptr, ++array_ptr, ++mutex_ptr) {
-                                (*mutex_ptr)->lock();
-                                ++(*array_ptr)[*ptr];
-                                (*mutex_ptr)->unlock();
-                            }
-                        } else {
-                            for (; ptr != end; ++ptr, ++array_ptr)
-                                ++(*array_ptr)[*ptr];
-                        }
-                        
-                    } else if(method == averaging_method_t::max) {
-                        average = cv::max(average, f);
-                    } else if(method == averaging_method_t::min) {
-                        average = cv::min(average, f);
-                    } else
-                        U_EXCEPTION("Unknown averaging_method '%s'.", method.name())
-                
+                    acc.add_threaded(f);
                     ++count;
                     
                     if(long_t(count) % max(1,long_t(samples * 0.1)) == 0) {
@@ -679,21 +610,6 @@ void VideoSource::generate_average(cv::Mat &av, uint64_t, std::function<void(flo
             }
             
             file->close();
-            
-            std::lock_guard<std::mutex> guard(mutex);
-            if(method == averaging_method_t::mean) {
-                *gCount += count;
-                cv::add(average, *gAverage, *gAverage);
-            } else if(method == averaging_method_t::mode) {
-                
-            } else {
-                if(gAv->empty())
-                    *gAv = average;
-                else if(method == averaging_method_t::max)
-                    *gAv = cv::max(average, *gAv);
-                else
-                    *gAv = cv::min(average, *gAv);
-            }
         };
         
         if(file_indexes.size() > 1) {
@@ -705,34 +621,8 @@ void VideoSource::generate_average(cv::Mat &av, uint64_t, std::function<void(flo
     pool.wait();
     _last_file = NULL;
     
-    if(SETTING(terminate))
-        return;
-    
-    if(method == averaging_method_t::mean) {
-        cv::divide(average, cv::Scalar(count), average);
-        average.convertTo(av, CV_8UC1, 255.0);
-        
-    } else if(method == averaging_method_t::mode) {
-        Debug("Combining mode image...");
-        average.copyTo(av);
-        
-        auto ptr = av.data;
-        const auto end = av.data + av.cols * av.rows;
-        auto array_ptr = spatial_histogram.data();
-        
-        for (; ptr != end; ++ptr, ++array_ptr) {
-            uchar max_code = 0;
-            uint8_t max_number = 0;
-            //for(auto && [code, number] : *array_ptr) {
-            for(uint64_t code=0; code<array_ptr->size(); ++code) {
-                const auto& number = (*array_ptr)[code];
-                if(number > max_number) {
-                    max_number = number;
-                    max_code = code;
-                }
-            }
-            
-            *ptr = max_code;
-        }
-    }
+    auto image = acc.finalize();
+    auto mat = image->get();
+    assert(mat.type() == CV_8UC1);
+    mat.copyTo(av);
 }

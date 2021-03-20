@@ -84,7 +84,7 @@ public:
     size_t _blob_image_index;
     Timer _blob_timer;
     
-    double _screenshot_previous_size;
+    Size2 _screenshot_previous_size;
     
     struct LabeledField {
         gui::derived_ptr<gui::Text> _text;

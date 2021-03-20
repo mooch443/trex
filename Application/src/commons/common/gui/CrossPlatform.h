@@ -30,14 +30,12 @@ namespace gui {
     public:
         typedef std::function<bool()> custom_function_t;
         
-        
         CrossPlatform() : _clear_color(0, 0, 0, 0), _frame_capture_enabled(false) {}
         virtual ~CrossPlatform() {}
         virtual void init() = 0;
         virtual void post_init() = 0;
         virtual void create_window(const char* title, int width, int height) = 0;
-        virtual void loop(custom_function_t) = 0;
-        virtual LoopStatus update_loop() = 0;
+        virtual LoopStatus update_loop(custom_function_t = nullptr) = 0;
         //virtual void* texture(uint width, uint height) = 0;
         virtual TexturePtr texture(const Image*) = 0;
         virtual void clear_texture(TexturePtr&&) = 0;
