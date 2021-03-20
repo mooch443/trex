@@ -39,6 +39,7 @@ namespace gui {
         void set_title(std::string) override;
         Image::Ptr current_frame_buffer() override;
         void toggle_full_screen() override;
+        void message(const std::string&) const;
         
         virtual ~MetalImpl();
         GLFWwindow* window_handle() override;

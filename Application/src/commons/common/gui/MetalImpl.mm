@@ -59,11 +59,20 @@ std::string startup_file_to_load = "";
 extern "C"{
     bool forward_load_message(const std::vector<file::Path>& paths){
         auto str = cmn::Meta::toStr(paths);
+        NSString* string = [NSString stringWithCString:str.c_str() encoding:NSASCIIStringEncoding];
         Debug("Open file: %S", &str);
         
-        if(gui::metal::current_instance) {
-            return gui::metal::current_instance->open_files(paths);
-        }
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 250 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+            auto cstr = [string cStringUsingEncoding:NSASCIIStringEncoding];
+            auto paths = cmn::Meta::fromStr<std::vector<file::Path>>(cstr);
+            if(gui::metal::current_instance) {
+                if(!gui::metal::current_instance->open_files(paths)) {
+                    gui::metal::current_instance->message("Cannot open "+std::string(cstr)+".");
+                }
+            }
+                
+        });
+        
         return false;
     }
 }
@@ -242,6 +251,13 @@ bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
         NSWindow *nswin = glfwGetCocoaWindow(window);
         [nswin toggleFullScreen:[NSApplication sharedApplication]];
     }
+
+void MetalImpl::message(const std::string &msg) const {
+    NSWindow *win = glfwGetCocoaWindow(gui::metal::current_instance->window_handle());
+    NSAlert * alert = [[[NSAlert alloc] init] autorelease];
+    [alert setMessageText:[NSString stringWithCString:msg.c_str() encoding:NSASCIIStringEncoding]];
+    [alert beginSheetModalForWindow:win completionHandler:^(NSModalResponse){}];
+}
 
     LoopStatus MetalImpl::update_loop(CrossPlatform::custom_function_t custom_loop) {
         GLIMPL_CHECK_THREAD_ID();
