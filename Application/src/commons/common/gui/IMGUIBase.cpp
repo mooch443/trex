@@ -5,8 +5,6 @@
 #include <limits>
 
 #include "MetalImpl.h"
-#if TREX_METAL_AVAILABLE
-#endif
 #include "GLImpl.h"
 
 #include <imgui/imgui.h>

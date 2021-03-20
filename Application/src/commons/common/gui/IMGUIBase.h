@@ -5,11 +5,14 @@
 #include <misc/Timer.h>
 #include <thread>
 
+#if TREX_HAS_OPENGL
+#include "GLImpl.h"
+#endif
+
 #include "MetalImpl.h"
 #if TREX_METAL_AVAILABLE
 using default_impl_t = gui::MetalImpl;
 #else
-#include "GLImpl.h"
 using default_impl_t = gui::GLImpl;
 #endif
 
