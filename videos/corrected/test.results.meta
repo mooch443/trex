@@ -1,0 +1,1 @@
+ /Users/tristan/miniforge3/envs/test/bin/TRex.app/Contents/MacOS/TRex -d /Users/tristan/trex/Application/Tests/../../videos -i test -s /Users/tristan/trex/Application/Tests/../../videos/test.settings -p corrected -auto_apply -auto_quit -auto_no_results -nowindow

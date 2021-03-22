@@ -680,6 +680,8 @@ FrameGrabber::~FrameGrabber() {
         _tracker_thread->join();
         delete _tracker_thread;
         
+        SETTING(terminate) = false; // TODO: otherwise, stuff might not get exported
+        
         {
             track::Tracker::LockGuard guard("GUI::save_state");
             tracker->wait();
@@ -689,6 +691,9 @@ FrameGrabber::~FrameGrabber() {
             
             std::vector<std::string> additional_exclusions;
             sprite::Map config_grabber, config_tracker;
+            config_grabber.set_do_print(false);
+            config_tracker.set_do_print(false);
+            
             GlobalSettings::docs_map_t docs;
             grab::default_config::get(config_grabber, docs, nullptr);
             ::default_config::get(config_tracker, docs, nullptr);
@@ -738,6 +743,7 @@ FrameGrabber::~FrameGrabber() {
             }
         }
         
+        SETTING(terminate) = true; // TODO: Otherwise stuff would not have been exported
         delete tracker;
     }
     
@@ -945,7 +951,7 @@ void FrameGrabber::add_tracker_queue(const pv::Frame& frame, long_t index) {
     static size_t created_items = 0;
     static Timer print_timer;
     
-    /*{
+    {
         std::unique_lock<std::mutex> guard(ppframe_mutex);
         while (!GRAB_SETTINGS(enable_closed_loop) && video() && created_items > 100 && unused_pp.empty()) {
             if(print_timer.elapsed() > 5) {
@@ -963,12 +969,13 @@ void FrameGrabber::add_tracker_queue(const pv::Frame& frame, long_t index) {
             ptr->clear();
         } else
             ++created_items;
-    }*/
+    }
     
     if(!ptr) {
         ptr = std::make_unique<track::PPFrame>();
     }
     
+    ptr->clear();
     ptr->frame() = frame;
     ptr->frame().set_index(index);
     ptr->frame().set_timestamp(frame.timestamp());
@@ -1060,13 +1067,9 @@ void FrameGrabber::update_tracker_queue() {
             
             if(copy && tracker) {
                 track::Tracker::LockGuard guard("update_tracker_queue");
-                //copy->set_index(track::Tracker::end_frame()+1);
-                //copy->frame().set_index(copy->index());
                 track::Tracker::preprocess_frame(*copy, {}, NULL, NULL, false);
                 tracker->add(*copy);
-
                 
-                //std::this_thread::sleep_for(std::chrono::seconds(1));
                 static Timer test_timer;
                 if (test_timer.elapsed() > 10) {
                     test_timer.reset();

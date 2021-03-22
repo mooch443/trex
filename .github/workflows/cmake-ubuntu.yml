@@ -66,3 +66,8 @@ jobs:
         pvinfo -opencv_ffmpeg_support
         pvinfo -opencv_opencl_support
         echo "::endgroup::"
+        echo "::group::TestFunctions"
+        conda install -y unzip
+        cd $GITHUB_WORKSPACE/Application/Tests
+        ./run.bash
+        echo "::endgroup::"

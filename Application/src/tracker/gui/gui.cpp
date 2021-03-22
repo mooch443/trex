@@ -1128,7 +1128,7 @@ void GUI::draw(DrawStructure &base) {
         DrawStructure::SectionGuard section(base, "head");
         auto scale = base.scale().reciprocal();
         auto dim = _base ? _base->window_dimensions().mul(scale * gui::interface_scale()) : Tracker::average().bounds().size();
-        base.draw_log_messages(Bounds(Vec2(0, 85).mul(scale * gui::interface_scale()), dim - Size2(0, 85).mul(scale * gui::interface_scale())));
+        base.draw_log_messages(Bounds(Vec2(0, 85).mul(scale * gui::interface_scale()), dim - Size2(10, 85).mul(scale * gui::interface_scale())));
         
         if(_cache.has_selection()) {
             /*****************************

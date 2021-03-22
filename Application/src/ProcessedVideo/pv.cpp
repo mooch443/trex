@@ -64,18 +64,36 @@ namespace pv {
         operator=(other);
     }
 
+    Frame::Frame(Frame&& other) {
+        operator=(std::move(other));
+    }
+
+    void Frame::operator=(Frame && other) {
+        _timestamp = other._timestamp;
+        _n = other._n;
+        _loading_time = other._loading_time;
+        
+        std::swap(_mask, other._mask);
+        std::swap(_pixels, other._pixels);
+        std::swap(_blobs, other._blobs);
+    }
+
     void Frame::operator=(const Frame &other) {
         _timestamp = other._timestamp;
         _n = other._n;
         _loading_time = other._loading_time;
         
-        _mask.resize(other._mask.size());
+        _blobs.clear();
+        
+        _mask = other._mask;
+        _pixels = other._pixels;
+        /*_mask.resize(other._mask.size());
         _pixels.resize(other._pixels.size());
         
         for(uint64_t i=0; i<other._mask.size(); ++i)
             _mask[i] = std::make_shared<decltype(_mask)::value_type::element_type>(*other._mask[i]);
         for(uint64_t i=0; i<other._pixels.size(); ++i)
-            _pixels[i] = std::make_shared<decltype(_pixels)::value_type::element_type>(*other._pixels[i]);
+            _pixels[i] = std::make_shared<decltype(_pixels)::value_type::element_type>(*other._pixels[i]);*/
     }
 
     Frame::Frame(const uint64_t& timestamp, decltype(_n) n)

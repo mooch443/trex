@@ -83,10 +83,12 @@ namespace gui {
             Vec2 pos = screen.pos() + Vec2(screen.width - 10, 0);
             for (size_t i=min(size_t(20), error_messages.size()); i>0; i--) {
                 auto &e = error_messages.at(i-1);
-                if(e.msg.length() > 80) {
+                
+                const size_t max_chars = 150;
+                if(e.msg.length() > max_chars) {
                     for(size_t i=0; i<e.msg.length();) {
                         size_t next = i;
-                        for (size_t j=min(e.msg.length()-1, i+80); j>i; --j) {
+                        for (size_t j=min(e.msg.length()-1, i+max_chars); j>i; --j) {
                             if(e.msg.at(j) == '-' || e.msg.at(j) == ' ') {
                                 next = j;
                                 break;
@@ -94,7 +96,7 @@ namespace gui {
                         }
                         
                         if(next <= i) {
-                            next += 80;
+                            next += max_chars;
                         }
                         
                         auto sub = e.msg.substr(i, min(e.msg.length() - i, next - i));
