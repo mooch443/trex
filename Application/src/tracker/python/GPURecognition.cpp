@@ -385,16 +385,25 @@ std::shared_future<bool> PythonIntegration::reinit() {
                          "\ttry:\n" \
                              "\t\timportlib.import_module('tensorflow')\n" \
                              "\t\timport tensorflow\n"
-                             "\t\tfrom tensorflow.compat.v1 import ConfigProto, InteractiveSession\n"
-                             "\t\tconfig = ConfigProto()\n"
-                             "\t\tconfig.gpu_options.allow_growth=True\n"
-                             "\t\tsess = InteractiveSession(config=config)\n"
-                             "\t\tfrom tensorflow.python.client import device_lib\n" \
-                             "\t\tgpus = [x.physical_device_desc for x in device_lib.list_local_devices() if x.device_type == 'GPU']\n"
-                             "\t\tfound = len(gpus) > 0\n"
-                             "\t\tif found:\n" \
-                                "\t\t\tfor device in gpus:\n" \
-                                        "\t\t\t\tphysical = device.split(',')[1].split(': ')[1]\n" \
+#if defined(__APPLE__) && defined(__aarch64__)
+                             "\t\tfrom tensorflow.python.compiler.mlcompute import mlcompute\n"
+                             "\t\tif mlcompute.is_apple_mlc_enabled():\n"
+                                "\t\t\tfound = True\n"
+                                "\t\t\tphysical = 'MLC'\n"
+                             "\t\telse:\n"
+#else
+                             "\t\tif True:\n"
+#endif
+                             "\t\t\tfrom tensorflow.compat.v1 import ConfigProto, InteractiveSession\n"
+                             "\t\t\tconfig = ConfigProto()\n"
+                             "\t\t\tconfig.gpu_options.allow_growth=True\n"
+                             "\t\t\tsess = InteractiveSession(config=config)\n"
+                             "\t\t\tfrom tensorflow.python.client import device_lib\n" \
+                             "\t\t\tgpus = [x.physical_device_desc for x in device_lib.list_local_devices() if x.device_type == 'GPU']\n"
+                             "\t\t\tfound = len(gpus) > 0\n"
+                             "\t\t\tif found:\n" \
+                                "\t\t\t\tfor device in gpus:\n" \
+                                        "\t\t\t\t\tphysical = device.split(',')[1].split(': ')[1]\n" \
                          "\texcept ImportError:\n"
                          "\t\tfound = False\n" \
                          "else:\n" \

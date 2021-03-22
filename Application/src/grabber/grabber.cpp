@@ -50,8 +50,8 @@ CREATE_STRUCT(GrabSettings,
 
 #define GRAB_SETTINGS(NAME) GrabSettings::copy< GrabSettings:: NAME >()
 
-static std::deque<std::shared_ptr<track::PPFrame>> unused_pp;
-static std::deque<std::shared_ptr<track::PPFrame>> ppframe_queue;
+static std::deque<std::unique_ptr<track::PPFrame>> unused_pp;
+static std::deque<std::unique_ptr<track::PPFrame>> ppframe_queue;
 static std::mutex ppframe_mutex, ppqueue_mutex;
 static std::condition_variable ppvar;
 
@@ -941,11 +941,11 @@ bool FrameGrabber::load_image(Image_t& current) {
 }
 
 void FrameGrabber::add_tracker_queue(const pv::Frame& frame, long_t index) {
-    std::shared_ptr<track::PPFrame> ptr;
+    std::unique_ptr<track::PPFrame> ptr;
     static size_t created_items = 0;
     static Timer print_timer;
     
-    {
+    /*{
         std::unique_lock<std::mutex> guard(ppframe_mutex);
         while (!GRAB_SETTINGS(enable_closed_loop) && video() && created_items > 100 && unused_pp.empty()) {
             if(print_timer.elapsed() > 5) {
@@ -958,14 +958,15 @@ void FrameGrabber::add_tracker_queue(const pv::Frame& frame, long_t index) {
         }
         
         if(!unused_pp.empty()) {
-            ptr = unused_pp.front();
+            ptr = std::move(unused_pp.front());
             unused_pp.pop_front();
+            ptr->clear();
         } else
             ++created_items;
-    }
+    }*/
     
     if(!ptr) {
-        ptr = std::make_shared<track::PPFrame>();
+        ptr = std::make_unique<track::PPFrame>();
     }
     
     ptr->frame() = frame;
@@ -975,7 +976,7 @@ void FrameGrabber::add_tracker_queue(const pv::Frame& frame, long_t index) {
     
     {
         std::lock_guard<std::mutex> guard(ppqueue_mutex);
-        ppframe_queue.push_back(ptr);
+        ppframe_queue.emplace_back(std::move(ptr));
     }
     
     ppvar.notify_one();
@@ -1049,7 +1050,7 @@ void FrameGrabber::update_tracker_queue() {
             
             loop_timer.reset();
 
-            auto copy = ppframe_queue.front();
+            auto copy = std::move(ppframe_queue.front());
             ppframe_queue.pop_front();
             guard.unlock();
             
@@ -1211,7 +1212,7 @@ void FrameGrabber::update_tracker_queue() {
             if(copy) {
                 std::lock_guard<std::mutex> guard(ppframe_mutex);
                 copy->clear();
-                unused_pp.push_back(copy);
+                unused_pp.emplace_back(std::move(copy));
             }
             
             guard.lock();

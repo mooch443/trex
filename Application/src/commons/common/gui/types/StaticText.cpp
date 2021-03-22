@@ -24,6 +24,10 @@ namespace gui {
         void close(size_t i, const std::string& text, size_t after) {
             range.end = i;
             this->text = text.substr(range.start, range.end - range.start);
+            this->text = utils::find_replace(this->text, "&quot;", "\"");
+            this->text = utils::find_replace(this->text, "&apos;", "'");
+            this->text = utils::find_replace(this->text, "&lt;", "<");
+            this->text = utils::find_replace(this->text, "&gt;", ">");
             this->after = after;
         }
         

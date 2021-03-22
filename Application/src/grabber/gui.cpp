@@ -377,7 +377,11 @@ void GUI::draw(gui::DrawStructure &base) {
         }
     }
     base.text(info_text(), Vec2(20, 10), text_color, Font(0.7f), base.scale().reciprocal());
-    base.draw_log_messages();
+    
+    auto scale = base.scale().reciprocal();
+    auto dim = _sf_base ? _sf_base->window_dimensions().mul(scale * gui::interface_scale()) : Size2(_grabber.average());
+    base.draw_log_messages(Bounds(Vec2(0, 85).mul(scale * gui::interface_scale()), dim - Size2(0, 85).mul(scale * gui::interface_scale())));
+    //base.draw_log_messages();
     
     if(_grabber.tracker_instance()) {
         base.section("tracking", [this](gui::DrawStructure& base, Section*section) {

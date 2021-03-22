@@ -73,21 +73,42 @@ namespace gui {
         });
     }
 
-    void DrawStructure::draw_log_messages() {
+    void DrawStructure::draw_log_messages(const Bounds& screen) {
         SectionGuard guard(*this, "log_messages()");
         //guard._section->set_scale(scale().reciprocal());
         
         {
             std::lock_guard<std::recursive_mutex> lock(error_message_lock);
             
-            Vec2 pos = Vec2(width()-10, 0) + Vec2(0, 100).mul(scale().reciprocal());
+            Vec2 pos = screen.pos() + Vec2(screen.width - 10, 0);
             for (size_t i=min(size_t(20), error_messages.size()); i>0; i--) {
                 auto &e = error_messages.at(i-1);
-                auto t = text(e.msg, pos, e.clr, Font(0.6f, Align::Right), scale().reciprocal());
+                if(e.msg.length() > 80) {
+                    for(size_t i=0; i<e.msg.length();) {
+                        size_t next = i;
+                        for (size_t j=min(e.msg.length()-1, i+80); j>i; --j) {
+                            if(e.msg.at(j) == '-' || e.msg.at(j) == ' ') {
+                                next = j;
+                                break;
+                            }
+                        }
+                        
+                        if(next <= i) {
+                            next += 80;
+                        }
+                        
+                        auto sub = e.msg.substr(i, min(e.msg.length() - i, next - i));
+                        auto t = text(sub, pos, e.clr, Font(0.6f, Align::Right), scale().reciprocal());
+                        pos.y += t->global_bounds().height;
+                        
+                        i = next;
+                    }
+                    
+                } else {
+                    auto t = text(e.msg, pos, e.clr, Font(0.6f, Align::Right), scale().reciprocal());
+                    pos.y += t->global_bounds().height;
+                }
                 
-                //t->set_scale(Vec2(1/interface_scale));
-                
-                pos.y += t->global_bounds().height;
                 e.update();
                 
                 if(e.alpha <= 0)

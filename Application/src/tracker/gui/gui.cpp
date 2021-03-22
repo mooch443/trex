@@ -1126,7 +1126,9 @@ void GUI::draw(DrawStructure &base) {
     
     if(_timeline->visible()) {
         DrawStructure::SectionGuard section(base, "head");
-        base.draw_log_messages();
+        auto scale = base.scale().reciprocal();
+        auto dim = _base ? _base->window_dimensions().mul(scale * gui::interface_scale()) : Tracker::average().bounds().size();
+        base.draw_log_messages(Bounds(Vec2(0, 85).mul(scale * gui::interface_scale()), dim - Size2(0, 85).mul(scale * gui::interface_scale())));
         
         if(_cache.has_selection()) {
             /*****************************
@@ -4810,7 +4812,7 @@ void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void
 #if defined(__APPLE__) && defined(__aarch64__)
                     std::string command = "pip install --upgrade --force --no-dependencies https://github.com/apple/tensorflow_macos/releases/download/v0.1alpha3/tensorflow_macos-0.1a3-cp38-cp38-macosx_11_0_arm64.whl https://github.com/apple/tensorflow_macos/releases/download/v0.1alpha3/tensorflow_addons_macos-0.1a3-cp38-cp38-macosx_11_0_arm64.whl";
                     
-                    text += "\n<i>"+PythonIntegration::python_init_error()+"</i>";
+                    text += "\n<i>"+escape_html(PythonIntegration::python_init_error())+"</i>";
                     text += "\n\nYou can run <i>"+command+"</i> automatically in the current environment by clicking the button below.";
                     
                     _gui.dialog([command](Dialog::Result r) {
@@ -4878,11 +4880,11 @@ void GUI::generate_training_data(GUI::GUIType type, bool force_load) {
             
         } catch(const SoftException& error) {
             if(SETTING(auto_train_on_startup))
-                U_EXCEPTION("The training process failed. Please check whether youre in the right python environment and check previous error messages.");
+                U_EXCEPTION("The training process failed. Please check whether you are in the right python environment and check previous error messages.");
             
             if(!SETTING(nowindow))
-                GUI::instance()->gui().dialog("The training process failed. Please check whether youre in the right python environment and check out this error message:\n<i>"+std::string(error.what())+"</i>", "Error");
-            Error("The training process failed. Please check whether youre in the right python environment and check previous error messages.");
+                GUI::instance()->gui().dialog("The training process failed. Please check whether you are in the right python environment and check out this error message:\n\n<i>"+escape_html(error.what())+"</i>", "Error");
+            Error("The training process failed. Please check whether you are in the right python environment and check previous error messages.");
             return false;
         }
     };
@@ -4926,10 +4928,10 @@ void GUI::generate_training_data(GUI::GUIType type, bool force_load) {
                         
                     } catch(const SoftException& error) {
                         if(SETTING(auto_train_on_startup))
-                            U_EXCEPTION("Initialization of the training process failed. Please check whether youre in the right python environment and check previous error messages.");
+                            U_EXCEPTION("Initialization of the training process failed. Please check whether you are in the right python environment and check previous error messages.");
                         if(!SETTING(nowindow))
-                            GUI::instance()->gui().dialog("Initialization of the training process failed. Please check whether youre in the right python environment and check out this error message:\n<i>"+std::string(error.what())+"<i/>", "Error");
-                        Error("Initialization of the training process failed. Please check whether youre in the right python environment and check previous error messages.");
+                            GUI::instance()->gui().dialog("Initialization of the training process failed. Please check whether you are in the right python environment and check out this error message:\n\n<i>"+escape_html(error.what())+"<i/>", "Error");
+                        Error("Initialization of the training process failed. Please check whether you are in the right python environment and check previous error messages.");
                     }
                 });
                 

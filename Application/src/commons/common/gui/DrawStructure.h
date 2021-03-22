@@ -149,7 +149,7 @@ namespace gui {
             pop_section();
         }
         
-        void draw_log_messages();
+        void draw_log_messages(const Bounds& screen);
         void set_size(const Size2& size);
         
         std::vector<Drawable*> collect();

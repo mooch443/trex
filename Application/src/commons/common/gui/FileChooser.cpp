@@ -32,7 +32,10 @@ FileChooser::FileChooser(const file::Path& start, const std::string& extension,
         _graph->wrap_object(*_overall);
         if(_on_update)
             _on_update(*_graph);
-        _graph->draw_log_messages();
+        
+        auto scale = _graph->scale().reciprocal();
+        auto dim = _base.window_dimensions().mul(scale * gui::interface_scale());
+        _graph->draw_log_messages(Bounds(Vec2(), dim));
         if(!_tooltips.empty()) {
             for(auto && [ID, obj] : _tooltips)
                 _graph->wrap_object(*obj);
