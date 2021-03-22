@@ -3,4 +3,3 @@ channels:
     - main
 dependencies:
     - conda-build
-    - unzip

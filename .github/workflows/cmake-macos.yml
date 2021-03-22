@@ -71,5 +71,5 @@ jobs:
         echo "::group::TestFunctions"
         conda install -y unzip
         cd $GITHUB_WORKSPACE/Application/Tests
-        ./run.bash
+        ./run_macos.bash
         echo "::endgroup::"
