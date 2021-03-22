@@ -268,14 +268,7 @@ int main(int argc, char** argv)
             
             exit(0);
             
-        } /*else if(argv[1][0] != '-') {
-            // this is likely a file if the path exists?
-            file::Path path(argv[1]);
-            if(path.exists()) {
-                Debug("File exists ('%S').", &path.str());
-                SETTING(filename) = path;
-            }
-        }*/
+        }
     }
     
     file::Path load_results_from;
@@ -1612,11 +1605,6 @@ int main(int argc, char** argv)
     if(imgui_base)
         delete imgui_base;
     analysis->terminate();
-        
-    /*} catch(const std::exception& e) {
-        Except("Exception: %s", e.what());
-        return 1;
-    }*/
     
     tracker.prepare_shutdown();
     

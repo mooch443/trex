@@ -495,7 +495,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
            auto head = fish->head(frame);
                                                   
            if(head) {
-               const auto a = fish->centroid_posture(frame)->pos();
+               const auto a = fish->centroid_posture(frame)->pos(Units::CM_AND_SECONDS);
                const auto individuals = Tracker::active_individuals(frame);
                
                auto angle = -head->angle();
@@ -514,7 +514,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                        
                        oangle += float(M_PI * 0.5);
                        
-                       auto v = oh->pos();
+                       auto v = oh->pos(Units::CM_AND_SECONDS);
                        if(length(v - a) > 100) {
                            continue;
                        }
@@ -538,7 +538,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
         _cache_func["RELATIVE_ANGLE"] = LIBFNC({
            const auto a0 = get(Functions::ANGLE.name(), info, frame);
            const auto individuals = Tracker::active_individuals(frame);
-           const auto h0 = props->pos();
+           const auto h0 = props->pos(Units::CM_AND_SECONDS);
            
            const PhysicalProperties *oc;
            for (auto other: individuals) {
@@ -546,7 +546,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                    info.fish = other;
                    
                    auto a1 = get(Functions::ANGLE.name(), info, frame);
-                   auto h1 = oc->pos();
+                   auto h1 = oc->pos(Units::CM_AND_SECONDS);
                    
                    Vec2 line;
                    if(other->identity().ID() > fish->identity().ID())
@@ -750,7 +750,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                         for(long_t f=e.second.begin - 50; f<=e.second.begin; f+=2) {
                             auto p = fish->centroid_posture(f);
                             if(p) {
-                                before += p->v();
+                                before += p->v(Units::CM_AND_SECONDS);
                                 samples++;
                             }
                         }
@@ -761,7 +761,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                         for(long_t f=e.second.end; f<=e.second.end+50; f+=2) {
                             auto p = fish->centroid_posture(f);
                             if(p) {
-                                after += p->v();
+                                after += p->v(Units::CM_AND_SECONDS);
                                 samples++;
                             }
                         }
@@ -1330,14 +1330,13 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             
             auto prop = fish->centroid_posture(frame);
             if(prop) {
-                float x = prop->pos().x;
-                float y = prop->pos().y;
+                auto pos = prop->pos(Units::CM_AND_SECONDS);
                 float angle = prop->angle();
-                float lv = prop->v().length();
-                float la = prop->a().length();
+                float lv = prop->v(Units::CM_AND_SECONDS).length();
+                float la = prop->a(Units::CM_AND_SECONDS).length();
                 
                 row.add(frame);
-                row.add(x).add(y).add(angle).add(lv).add(la);
+                row.add(pos.x).add(pos.y).add(angle).add(lv).add(la);
                 
                 for(size_t i=0; i<neighbors.size(); i++) {
                     auto n = neighbors[i];
@@ -1345,11 +1344,12 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                     
                     if(nprop) {
                         float b = nprop->angle();
-                        row .add(nprop->pos().x - x)
-                            .add(nprop->pos().y - y)
+                        auto npos = nprop->pos(Units::CM_AND_SECONDS);
+                        row .add(npos.x - pos.x)
+                            .add(npos.y - pos.y)
                             .add(atan2(sin(b-angle), cos(b-angle)))
-                            .add(nprop->v().length() - lv)
-                            .add(nprop->a().length() - la);
+                            .add(nprop->v(Units::CM_AND_SECONDS).length() - lv)
+                            .add(nprop->a(Units::CM_AND_SECONDS).length() - la);
                         
                     } else {
                         row.repeat("", nheader.size());

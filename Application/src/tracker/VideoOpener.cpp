@@ -994,7 +994,10 @@ void VideoOpener::select_file(const file::Path &p) {
         _accumulate_frames_done = false;
         _end_frames_thread = false;
         
-        _accumulate_video_frames_thread = std::make_unique<std::thread>([this, video = std::move(video)](){
+        _accumulate_video_frames_thread = std::make_unique<std::thread>([this, video = std::move(video)]()
+        {
+            cmn::set_thread_name("_accumulate_video_frames_thread");
+            
             track::StaticBackground bg(std::make_shared<Image>(video->average()), nullptr);
             
             size_t step = max(1ul, min(video->length() / 100ul, (ushort)video->framerate()));

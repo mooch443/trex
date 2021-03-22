@@ -31,7 +31,10 @@ namespace gui {
         std::function<void()> _on_enter, _on_text_changed;
         
         GETTER(std::string, text)
+        GETTER(std::string, postfix)
         GETTER(Font, font)
+        GETTER(Color, text_color)
+        GETTER(Color, fill_color)
         GETTER(bool, read_only)
         
     private:
@@ -39,6 +42,9 @@ namespace gui {
         
     public:
         Textfield(const std::string& text, const Bounds& bounds);
+        void set_text_color(const Color& c);
+        void set_fill_color(const Color& c);
+        void set_postfix(const std::string&);
         
         virtual std::string name() const override { return "Textfield"; }
         

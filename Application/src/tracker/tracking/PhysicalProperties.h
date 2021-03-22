@@ -77,7 +77,7 @@ namespace track {
         PX_AND_SECONDS,
         CM_AND_SECONDS,
         
-        DEFAULT = CM_AND_SECONDS
+        DEFAULT = PX_AND_SECONDS
     };
     
     enum class PropertyType { POSITION, ANGLE };
@@ -107,7 +107,7 @@ namespace track {
             virtual ~PropertyBase() {}
             
             template<typename T>
-            T value(const Units& units = Units::DEFAULT, size_t derivative = 0, bool smooth = false) const;
+            T value(const Units& units, size_t derivative = 0, bool smooth = false) const;
             
             template<typename T>
             void value(const T& val, const Units& input_units = Units::DEFAULT, size_t derivative = 0, const track::CacheHints* hints = nullptr);
@@ -199,15 +199,15 @@ namespace track {
         
         //void set_next(PhysicalProperties* ptr);
         
-        float speed(const Units& units = Units::DEFAULT, bool smooth = false) const { return length(v(units, smooth)); }
-        float acceleration(const Units& units = Units::DEFAULT, bool smooth = false) const { return length(a(units, smooth)); }
+        float speed(const Units& units, bool smooth = false) const { return length(v(units, smooth)); }
+        float acceleration(const Units& units, bool smooth = false) const { return length(a(units, smooth)); }
         float angle(bool smooth = false) const { return get(PropertyType::ANGLE).value<float>(Units::DEFAULT, 0, smooth); };
-        float angular_velocity(const Units& units = Units::DEFAULT, bool smooth = false) const { return get(PropertyType::ANGLE).value<float>(units, 1, smooth); };
-        float angular_acceleration(const Units& units = Units::DEFAULT, bool smooth = false) const { return get(PropertyType::ANGLE).value<float>(units, 2, smooth); };
+        float angular_velocity(const Units& units, bool smooth = false) const { return get(PropertyType::ANGLE).value<float>(units, 1, smooth); };
+        float angular_acceleration(const Units& units, bool smooth = false) const { return get(PropertyType::ANGLE).value<float>(units, 2, smooth); };
         
-        Vec2 pos(const Units& units = Units::DEFAULT, bool smooth = false) const { return get(PropertyType::POSITION).value<Vec2>(units, 0, smooth); }
-        Vec2 v(const Units& units = Units::DEFAULT, bool smooth = false) const { return get(PropertyType::POSITION).value<Vec2>(units, 1, smooth); }
-        Vec2 a(const Units& units = Units::DEFAULT, bool smooth = false) const { return get(PropertyType::POSITION).value<Vec2>(units, 2, smooth); }
+        Vec2 pos(const Units& units, bool smooth = false) const { return get(PropertyType::POSITION).value<Vec2>(units, 0, smooth); }
+        Vec2 v(const Units& units, bool smooth = false) const { return get(PropertyType::POSITION).value<Vec2>(units, 1, smooth); }
+        Vec2 a(const Units& units, bool smooth = false) const { return get(PropertyType::POSITION).value<Vec2>(units, 2, smooth); }
         
         void flip();
         size_t memory_size() const;

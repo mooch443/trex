@@ -432,6 +432,7 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
         mp4_queue = new FFMPEGQueue(true, Size2(_cam_size), path);
         Debug("Encoding mp4 into '%S'...", &path.str());
         mp4_thread = new std::thread([this](){
+            cmn::set_thread_name("mp4_thread");
             mp4_queue->loop();
         });
     }
@@ -505,6 +506,7 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
 
     if (tracker) {
         _tracker_thread = new std::thread([this]() {
+            cmn::set_thread_name("update_tracker_queue");
             update_tracker_queue();
         });
     }

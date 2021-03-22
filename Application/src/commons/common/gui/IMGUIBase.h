@@ -50,18 +50,25 @@ namespace gui {
         std::function<bool(const std::vector<file::Path>&)> _open_files_fn;
         
         struct DrawOrder {
-            bool is_pop;
+            enum Type {
+                DEFAULT = 0,
+                POP,
+                END_ROTATION,
+                START_ROTATION
+            };
+            Type type = DEFAULT;
             size_t index;
             Drawable* ptr;
             gui::Transform transform;
             Bounds bounds;
             
             DrawOrder() {}
-            DrawOrder(bool is_pop, size_t index, Drawable*ptr, const gui::Transform& transform, const Bounds& bounds)
-            : is_pop(is_pop), index(index), ptr(ptr), transform(transform), bounds(bounds)
+            DrawOrder(Type type, size_t index, Drawable*ptr, const gui::Transform& transform, const Bounds& bounds)
+            : type(type), index(index), ptr(ptr), transform(transform), bounds(bounds)
             {}
         };
         
+        std::unordered_map<Drawable*, std::tuple<int, Vec2>> _rotation_starts;
         std::vector<DrawOrder> _draw_order;
         
         std::mutex _mutex;

@@ -308,6 +308,8 @@ CREATE_STRUCT(CachedGUIOptions,
         
         // DISPLAY LABEL AND POSITION
         auto c_pos = centroid->pos(Units::PX_AND_SECONDS) + offset;
+        if(c_pos.x > Tracker::average().cols || c_pos.y > Tracker::average().rows)
+            return;
         
         auto v = 255 - int(Tracker::average().at(c_pos.y, c_pos.x));
         if(v >= 100)

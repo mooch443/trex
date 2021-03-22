@@ -264,6 +264,9 @@ namespace track {
     std::condition_variable _initialize_condition;
     std::thread::id _saved_id;
 
+    std::promise<bool> _initialize_promise;
+    std::shared_future<bool> _initialize_future;
+
     void PythonIntegration::set_settings(std::shared_ptr<GlobalSettings> obj) {
         GlobalSettings::set_instance(obj);
         _settings = obj;
@@ -323,7 +326,7 @@ namespace track {
     }
     
     void PythonIntegration::quit() {
-        if(python_initialized()) {
+        if(_network_update_thread) {
             delete instance(false);
         }
         if(instance(true))
@@ -341,15 +344,104 @@ namespace track {
             delete _network_update_thread;
             _network_update_thread = nullptr;
         }
+        
+        Debug("PythonIntegration::shutdown()");
     }
+
+std::shared_future<bool> PythonIntegration::reinit() {
+    if(!_initialize_future.valid()) {
+        _initialize_future = _initialize_promise.get_future().share();
+    }
+    
+    python_initializing() = true;
+    
+    async_python_function([]() -> bool {
+        using namespace py::literals;
+        
+        try {
+            _main = py::module::import("__main__");
+            _main.def("set_version", [](std::string x, bool has_gpu, std::string physical_name) {
+                auto array = utils::split(x, ' ');
+                if(array.size() > 0) {
+                    array = utils::split(array.front(), '.');
+                    if(array.size() >= 1)
+                        python_major_version() = Meta::fromStr<int>(array[0]);
+                    if(array.size() > 1)
+                        python_minor_version() = Meta::fromStr<int>(array[1]);
+                }
+                
+                python_uses_gpu() = has_gpu;
+                python_gpu_name() = physical_name;
+                
+                Debug("retrieved version %S", &x);
+            });
+            
+            if(_settings->map().get<bool>("recognition_enable").value())
+                py::exec("import sys\n" \
+                         "found = True\n" \
+                         "physical = ''\n" \
+                         "if int(sys.version[0]) >= 3:\n"\
+                         "\timport importlib\n" \
+                         "\ttry:\n" \
+                             "\t\timportlib.import_module('tensorflow')\n" \
+                             "\t\timport tensorflow\n"
+                             "\t\tfrom tensorflow.compat.v1 import ConfigProto, InteractiveSession\n"
+                             "\t\tconfig = ConfigProto()\n"
+                             "\t\tconfig.gpu_options.allow_growth=True\n"
+                             "\t\tsess = InteractiveSession(config=config)\n"
+                             "\t\tfrom tensorflow.python.client import device_lib\n" \
+                             "\t\tgpus = [x.physical_device_desc for x in device_lib.list_local_devices() if x.device_type == 'GPU']\n"
+                             "\t\tfound = len(gpus) > 0\n"
+                             "\t\tif found:\n" \
+                                "\t\t\tfor device in gpus:\n" \
+                                        "\t\t\t\tphysical = device.split(',')[1].split(': ')[1]\n" \
+                         "\texcept ImportError:\n"
+                         "\t\tfound = False\n" \
+                         "else:\n" \
+                         "\ttry:\n" \
+                         "\t\timp.find_module('tensorflow')\n" \
+                         "\t\tfrom tensorflow.python.client import device_lib\n" \
+                         "\t\tfound = len([x.physical_device_desc for x in device_lib.list_local_devices() if x.device_type == 'GPU']) > 0\n"
+                         "\texcept ImportError:\n" \
+                         "\t\tfound = False\nprint('setting version',sys.version,found,physical)\n" \
+                         "set_version(sys.version, found, physical)\n");
+            
+            numpy = _main.import("numpy");
+            TRex = _main.import("TRex");
+            
+            _locals = new py::dict("model"_a="None");
+            
+            if(_settings->map().get<bool>("recognition_enable").value())
+                _main.import("tensorflow");
+            
+            python_initialized() = true;
+            python_initializing() = false;
+            _initialize_promise.set_value(true);
+            return true;
+            
+        } catch(py::error_already_set &e) {
+            python_init_error() = e.what();
+            python_initializing() = false;
+            Debug("Python runtime error (%s:%d): '%s'", __FILE_NO_PATH__, __LINE__, e.what());
+            e.restore();
+            
+            python_initialized() = false;
+            python_initializing() = false;
+            
+            //guard = nullptr;
+            _initialize_promise.set_value(false);
+            return false;
+        }
+    });
+    
+    return _initialize_future;
+}
     
     void PythonIntegration::initialize() {
         _network_update_thread = new std::thread([this](){
             cmn::set_thread_name("PythonIntegration::update");
             std::unique_lock<std::mutex> lock(_data_mutex);
             _saved_id = std::this_thread::get_id();
-            
-            using namespace py::literals;
 
             python_initialized() = false;
             python_initializing() = true;
@@ -390,74 +482,8 @@ namespace track {
                 Except("Cannot initialize the python interpreter.");
                 return;
             }
-            try {
-
-                _main = py::module::import("__main__");
-                _main.def("set_version", [](std::string x, bool has_gpu, std::string physical_name) {
-                    auto array = utils::split(x, ' ');
-                    if(array.size() > 0) {
-                        array = utils::split(array.front(), '.');
-                        if(array.size() >= 1)
-                            python_major_version() = Meta::fromStr<int>(array[0]);
-                        if(array.size() > 1)
-                            python_minor_version() = Meta::fromStr<int>(array[1]);
-                    }
-                    
-                    python_uses_gpu() = has_gpu;
-                    python_gpu_name() = physical_name;
-                    
-                    Debug("retrieved version %S", &x);
-                });
-                
-                if(_settings->map().get<bool>("recognition_enable").value())
-                    py::exec("import sys\n" \
-                             "found = True\n" \
-                             "physical = ''\n" \
-                             "if int(sys.version[0]) >= 3:\n"\
-                             "\timport importlib\n" \
-                             "\ttry:\n" \
-                                 "\t\timportlib.import_module('tensorflow')\n" \
-                                 "\t\timport tensorflow\n"
-                                 "\t\tfrom tensorflow.compat.v1 import ConfigProto, InteractiveSession\n"
-                                 "\t\tconfig = ConfigProto()\n"
-                                 "\t\tconfig.gpu_options.allow_growth=True\n"
-                                 "\t\tsess = InteractiveSession(config=config)\n"
-                                 "\t\tfrom tensorflow.python.client import device_lib\n" \
-                                 "\t\tgpus = [x.physical_device_desc for x in device_lib.list_local_devices() if x.device_type == 'GPU']\n"
-                                 "\t\tfound = len(gpus) > 0\n"
-                                 "\t\tif found:\n" \
-                                    "\t\t\tfor device in gpus:\n" \
-                                            "\t\t\t\tphysical = device.split(',')[1].split(': ')[1]\n" \
-                             "\texcept ImportError:\n"
-                             "\t\tfound = False\n" \
-                             "else:\n" \
-                             "\ttry:\n" \
-                             "\t\timp.find_module('tensorflow')\n" \
-                             "\t\tfrom tensorflow.python.client import device_lib\n" \
-                             "\t\tfound = len([x.physical_device_desc for x in device_lib.list_local_devices() if x.device_type == 'GPU']) > 0\n"
-                             "\texcept ImportError:\n" \
-                             "\t\tfound = False\nprint('setting version',sys.version,found,physical)\n" \
-                             "set_version(sys.version, found, physical)\n");
-                
-                numpy = _main.import("numpy");
-                TRex = _main.import("TRex");
-                
-                _locals = new py::dict("model"_a="None");
-                
-                if(_settings->map().get<bool>("recognition_enable").value())
-                    _main.import("tensorflow");
-                
-                python_initialized() = true;
-                python_initializing() = false;
-                
-            } catch(py::error_already_set &e) {
-                python_init_error() = e.what();
-                python_initializing() = false;
-                Debug("Python runtime error: '%s'", e.what());
-                e.restore();
-                
-                guard = nullptr;
-            }
+            
+            reinit().get();
             
             while (!_terminate) {
                 while(!tasks.empty() && !_terminate) {
@@ -465,8 +491,10 @@ namespace track {
                     tasks.pop();
                     
                     if(!python_initialized()) {
-                        Warning("Cannot run python tasks while python is not initialized.");
-                        continue;
+                        if(!reinit().get()) {
+                            Warning("Cannot run python tasks while python is not initialized.");
+                            continue;
+                        }
                     }
                     
                     //Debug("Starting python task from queue (elements left: %d)...", tasks.size());
@@ -483,11 +511,13 @@ namespace track {
                 if(_terminate)
                     break;
                 
-                _update_condition.wait(lock);
+                _update_condition.wait_for(lock, std::chrono::milliseconds(250));
             }
             
             try {
-                track::numpy = track::TRex = _main = pybind11::module();
+                track::numpy.release();
+                track::TRex.release();
+                track::_main.release();
 
                 {
                     std::lock_guard<std::mutex> guard(module_mutex);
@@ -505,7 +535,9 @@ namespace track {
             }
             
             try {
-                py::finalize_interpreter();
+                //py::finalize_interpreter();
+                Py_Finalize();
+                
             } catch(py::error_already_set &e) {
                 Debug("Python runtime error during clean-up: '%s'", e.what());
                 e.restore();
@@ -602,26 +634,21 @@ namespace track {
         return future;
     }
 
-void PythonIntegration::ensure_started() {
-    if(!python_initialized()) {
-        Warning("Python not yet initialized. Waiting...");
-        
-        PythonIntegration::instance();
-        Timer timer;
-        long last_second = 0;
-        
-        while(!python_initialized() && python_init_error().empty()) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            if(timer.elapsed() > 60) {
-                SOFT_EXCEPTION("Failed to start up python core.");
-            }
-            
-            if(long(timer.elapsed()) > last_second + 5) {
-                last_second = long(timer.elapsed());
-                Warning("Python not yet initialized. Waiting %.2fs...", timer.elapsed());
-            }
-        }
+std::shared_future<bool> PythonIntegration::ensure_started() {
+    if(!_initialize_future.valid()) {
+        _initialize_future = _initialize_promise.get_future().share();
     }
+    
+    if(!python_initialized() && !python_initializing() && !python_init_error().empty())
+    {
+        async_python_function([]()->bool{return true;});
+        
+    } else if(!python_initialized()) {
+        Warning("Python not yet initialized. Waiting...");
+        PythonIntegration::instance();
+    }
+    
+    return _initialize_future;
 }
 
 bool PythonIntegration::check_module(const std::string& name) {

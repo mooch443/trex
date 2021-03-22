@@ -382,14 +382,11 @@ void Tracker::analysis_state(AnalysisState pause) {
         if(!SETTING(quiet))
             Debug("Done waiting.");
         
-        
         _instance = NULL;
         
         auto individuals = _individuals;
         for (auto& fish_ptr : individuals)
             delete fish_ptr.second;
-        //if(_grid)
-        //    delete _grid;
         
         emergency_finish();
     }
@@ -1329,7 +1326,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
 
                         for(; sit != fish->frame_segments().end() && min((*sit)->end(), obj.previous_frame) >= time_limit && counter < frame_limit; ++counter)
                         {
-                            auto pos = fish->basic_stuff().at((*sit)->basic_stuff((*sit)->end()))->centroid->pos();
+                            auto pos = fish->basic_stuff().at((*sit)->basic_stuff((*sit)->end()))->centroid->pos(Units::DEFAULT);
                             
                             if((*sit)->length() > FAST_SETTINGS(frame_rate) * FAST_SETTINGS(track_max_reassign_time) * 0.25)
                             {
@@ -1341,7 +1338,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
                                 break;
                             }
                             
-                            last_pos = fish->basic_stuff().at((*sit)->basic_stuff((*sit)->start()))->centroid->pos();
+                            last_pos = fish->basic_stuff().at((*sit)->basic_stuff((*sit)->start()))->centroid->pos(Units::DEFAULT);
                             
                             if(sit != fish->frame_segments().begin())
                                 --sit;
@@ -3123,7 +3120,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                 auto properties = _warn_individual_status.size() > (size_t)fish->identity().ID() ? &_warn_individual_status[fish->identity().ID()] : nullptr;
                 
                 if(properties && properties->current) {
-                    if(properties->current->speed() >= Individual::weird_distance()) {
+                    if(properties->current->speed(Units::CM_AND_SECONDS) >= Individual::weird_distance()) {
                         weird_distance.insert(FOI::fdx_t{fish->identity().ID()});
                     }
                 }
@@ -3973,13 +3970,13 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                         auto blob_start = fish->centroid_weighted(segment.start());
                         auto blob_end = fish->centroid_weighted(segment.end());
                         if(blob_start)
-                            pos_start = blob_start->pos();
+                            pos_start = blob_start->pos(Units::CM_AND_SECONDS);
                         if(blob_end)
-                            pos_end = blob_end->pos();
+                            pos_end = blob_end->pos(Units::CM_AND_SECONDS);
                         
                         if(blob_start && blob_end) {
-                            auto dprev = euclidean_distance(prev_pos->pos(), pos_start) / Tracker::time_delta(blob_start->frame(), prev_pos->frame());
-                            auto dnext = euclidean_distance(next_pos->pos(), pos_end) / Tracker::time_delta(next_pos->frame(), blob_end->frame());
+                            auto dprev = euclidean_distance(prev_pos->pos(Units::CM_AND_SECONDS), pos_start) / Tracker::time_delta(blob_start->frame(), prev_pos->frame());
+                            auto dnext = euclidean_distance(next_pos->pos(Units::CM_AND_SECONDS), pos_end) / Tracker::time_delta(next_pos->frame(), blob_end->frame());
                             Idx_t chosen_id;
                             
                             if(dnext < dprev) {

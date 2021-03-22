@@ -899,12 +899,12 @@ Vec2 Individual::LocalCache::add(long_t frameIndex, const track::PhysicalPropert
     // and we wouldnt know it. compare to velocity angle and see
     // if the difference is big. if so, flip it.
     auto v = _v_samples.empty()
-        ? current->v()
+        ? current->v(Units::CM_AND_SECONDS)
         : (_current_velocity / float(_v_samples.size()));
     
-    if(current->speed() > 0.1f) {
-        _v_samples.push_back(current->v());
-        _current_velocity += current->v();
+    if(current->speed(Units::CM_AND_SECONDS) > 0.1f) {
+        _v_samples.push_back(current->v(Units::CM_AND_SECONDS));
+        _current_velocity += current->v(Units::CM_AND_SECONDS);
     }
     
     if(_v_samples.size() >= maximum_samples) {
@@ -913,7 +913,7 @@ Vec2 Individual::LocalCache::add(long_t frameIndex, const track::PhysicalPropert
     }
     
     _current_velocities[frameIndex] = _v_samples.empty()
-        ? current->v()
+        ? current->v(Units::CM_AND_SECONDS)
         : (_current_velocity / float(_v_samples.size()));
     
     return v;
@@ -1103,7 +1103,7 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(l
     error_code |= (FAST_SETTINGS(huge_timestamp_ends_segment) && tdelta >= FAST_SETTINGS(huge_timestamp_seconds)) * Reasons::TimestampTooDifferent;
     error_code |= is_manual_match(frameIndex) * Reasons::ManualMatch;
     error_code |= (!blob) * Reasons::NoBlob;
-    error_code |= (FAST_SETTINGS(track_end_segment_for_speed) && current && current->speed() >= weird_distance()) * Reasons::WeirdDistance;
+    error_code |= (FAST_SETTINGS(track_end_segment_for_speed) && current && current->speed(Units::CM_AND_SECONDS) >= weird_distance()) * Reasons::WeirdDistance;
     
     if(frameIndex == _startFrame || error_code != 0) {
     
@@ -1760,7 +1760,7 @@ IndividualCache Individual::cache_for_frame(long_t frameIndex, double time, cons
             h = pp_posture->centroid_posture;
     }
     
-    cache.speed = h ? h->speed() : 0;
+    cache.speed = h ? h->speed(Units::CM_AND_SECONDS) : 0;
     cache.h = h;
     cache.estimated_px = est;
     cache.estimated_cm = cache.estimated_px * FAST_SETTINGS(cm_per_pixel);

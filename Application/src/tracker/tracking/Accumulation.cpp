@@ -101,8 +101,14 @@ void Accumulation::setup() {
     PythonIntegration::ensure_started();
     try {
         Recognition::check_learning_module();
+        
     } catch(const std::future_error& error) {
-        SOFT_EXCEPTION("Checking the learning module failed ('%s'). Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow).", error.what());
+        Except("Checking learning module failed '%s'.", error.what());
+#if defined(__APPLE__) && defined(__aarch64__)
+        SOFT_EXCEPTION("Checking the learning module failed. Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow). Since you are using an ARM Mac, you may need to install additional libraries. Python says: '%S'.", &PythonIntegration::python_init_error());
+#else
+        SOFT_EXCEPTION("Checking the learning module failed. Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow). Python says: '%S'.", &PythonIntegration::python_init_error());
+#endif
     }
 }
 

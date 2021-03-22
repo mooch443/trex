@@ -163,7 +163,7 @@ namespace gui {
             std::lock_guard guard(percentile_mutex);
             if(!done_calculating && !percentile_ptr) {
                 percentile_ptr = std::make_unique<std::thread>([this](){
-                    Debug("Percentiles...");
+                    cmn::set_thread_name("percentile_thread");
                     auto percentiles = GUI::instance()->video_source()->calculate_percentiles({0.05f, 0.95f});
                     
                     if(GUI::instance()) {

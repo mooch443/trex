@@ -165,6 +165,7 @@ namespace cmn {
                 s.condition.notify_all();
             
             auto task = std::async(std::launch::async, [this](){
+                cmn::set_thread_name("ConnectedTasks::set_paused");
                 while(is_paused() != _paused)
                     std::this_thread::sleep_for(std::chrono::milliseconds(5));
                 

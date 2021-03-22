@@ -34,14 +34,16 @@ namespace gui {
         derived_ptr<Button> _okay;
         derived_ptr<Button> _abort, _second, _third, _fourth;
         derived_ptr<HorizontalLayout> _buttons;
+        GETTER(derived_ptr<Entangled>, custom)
         VerticalLayout _layout;
-        std::function<void(Result)> _callback;
+        std::function<bool(Result)> _callback;
         
     public:
         ~Dialog();
         
         std::future<void> wait() const {
             auto task = std::async(std::launch::async, [this](){
+                cmn::set_thread_name("Dialog::wait()");
                 while(!is_closed())
                     std::this_thread::sleep_for(std::chrono::milliseconds(5));
             });
@@ -57,8 +59,11 @@ namespace gui {
         
     protected:
         friend class DrawStructure;
-        Dialog(DrawStructure& d, const std::function<void(Result)>& callback, const std::string &text, const std::string& title, const std::string& okay, const std::string& abort, const std::string& second, const std::string& third, const std::string& fourth);
+        Dialog(DrawStructure& d, const std::function<bool(Result)>& callback, const std::string &text, const std::string& title, const std::string& okay, const std::string& abort, const std::string& second, const std::string& third, const std::string& fourth);
         void update(DrawStructure& d) override;
+        
+    public:
+        void set_custom_element(derived_ptr<Entangled>&& e);
     };
     
     class DrawStructure {
@@ -115,7 +120,29 @@ namespace gui {
         {}
         ~DrawStructure();
         
-        const Dialog* dialog(const std::function<void(Dialog::Result)>& callback, const std::string& text, const std::string& title = "Dialog", const std::string& okay = "Okay", const std::string& abort = "", const std::string& second = "", const std::string& third = "", const std::string& fourth = "");
+    private:
+        Dialog* _dialog(const std::function<bool(Dialog::Result)>& callback, const std::string& text, const std::string& title = "Dialog", const std::string& okay = "Okay", const std::string& abort = "", const std::string& second = "", const std::string& third = "", const std::string& fourth = "");
+        
+    public:
+        template<typename F, typename R = typename std::invoke_result_t<F, Dialog::Result>>
+        Dialog* dialog(F&& callback, const std::string &text, const std::string& title = "Dialog", const std::string& okay = "Okay", const std::string& abort = "", const std::string& second = "", const std::string& third = "", const std::string& fourth = "", std::enable_if_t<std::is_same<R, void>::value, void> * ptr = nullptr)
+        {
+            std::function<bool(Dialog::Result)> fn = [callback](Dialog::Result r) {
+                callback(r);
+                return true;
+            };
+            return _dialog(fn, text, title, okay, abort, second, third, fourth);
+        }
+        
+        template<typename F, typename R = typename std::invoke_result_t<F, Dialog::Result>>
+        Dialog* dialog(F&& callback, const std::string &text, const std::string& title = "Dialog", const std::string& okay = "Okay", const std::string& abort = "", const std::string& second = "", const std::string& third = "", const std::string& fourth = "", std::enable_if_t<std::is_same<R, bool>::value, void> * ptr = nullptr)
+        {
+            return _dialog(callback, text, title, okay, abort, second, third, fourth);
+        }
+        
+        Dialog* dialog(const std::string& text, const std::string& title = "Dialog", const std::string& okay = "Okay", const std::string& abort = "", const std::string& second = "", const std::string& third = "", const std::string& fourth = "");
+        
+        void close_dialogs();
         
         inline void section(const std::string& name, const std::function<void(DrawStructure&, Section*)>& fn) {
             fn(*this, begin_section(name));

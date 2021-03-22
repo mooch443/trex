@@ -127,6 +127,7 @@ namespace cmn {
                 U_EXCEPTION("Cannot be called from LoadingThread or AnalysisThread (deadlock territory).");
             
             auto task = std::async(std::launch::async, [this](){
+                cmn::set_thread_name("set_paused");
                 while(is_paused() != _paused)
                     std::this_thread::sleep_for(std::chrono::milliseconds(5));
             });

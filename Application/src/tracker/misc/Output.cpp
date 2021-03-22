@@ -391,6 +391,8 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     
     std::thread worker([&mutex, &variable, &stuffs, &stop, fish, check_analysis_range, analysis_range, cache_ptr = cache]()
     {
+        cmn::set_thread_name("Output::ResultsFormat::worker");
+        
         std::unique_lock<std::mutex> guard(mutex);
         auto _no_cache = (const CacheHints*)0x1;
         

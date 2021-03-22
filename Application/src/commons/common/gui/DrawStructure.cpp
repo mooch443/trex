@@ -95,8 +95,12 @@ namespace gui {
             }
         }
     }
+
+    void Dialog::set_custom_element(derived_ptr<Entangled> &&e) {
+        _custom = std::move(e);
+    }
     
-    Dialog::Dialog(DrawStructure& d, const std::function<void(Result)>& callback, const std::string &text, const std::string& title, const std::string& okay, const std::string& abort, const std::string& second, const std::string& third, const std::string& fourth)
+    Dialog::Dialog(DrawStructure& d, const std::function<bool(Result)>& callback, const std::string &text, const std::string& title, const std::string& okay, const std::string& abort, const std::string& second, const std::string& third, const std::string& fourth)
       : _closed(false),
         _title_bg(Bounds(), White.alpha(100)),
         _text(std::make_shared<StaticText>(text, Vec2(250, 135), Size2(500, 50), Font(0.8f))),
@@ -157,8 +161,9 @@ namespace gui {
         if(_abort) {
             _abort->on_click([this](auto) {
                 _result = ABORT;
-                _closed = true;
-                _callback(_result);
+                if(_callback(_result)) {
+                    _closed = true;
+                }
             });
         }
         
@@ -168,43 +173,49 @@ namespace gui {
             if(e.key.pressed) {
                 if(e.key.code == Codes::Return) {
                     _result = OKAY;
-                    _closed = true;
-                    _callback(_result);
+                    if(_callback(_result)) {
+                        _closed = true;
+                    }
                 } else if(e.key.code == Codes::Escape && _abort) {
                     _result = ABORT;
-                    _closed = true;
-                    _callback(_result);
+                    if(_callback(_result)) {
+                        _closed = true;
+                    }
                 }
             }
         });
         
         _okay->on_click([this](auto) {
             _result = OKAY;
-            _closed = true;
-            _callback(_result);
+            if(_callback(_result)) {
+                _closed = true;
+            }
         });
         
         if(_second) {
             _second->on_click([this](auto) {
                 _result = SECOND;
-                _closed = true;
-                _callback(_result);
+                if(_callback(_result)) {
+                    _closed = true;
+                }
             });
         }
         
         if(_third) {
             _third->on_click([this](auto) {
                 _result = THIRD;
-                _closed = true;
-                _callback(_result);
+                if(_callback(_result)) {
+                    _closed = true;
+                }
             });
         }
         
         if(_fourth) {
             _fourth->on_click([this](auto) {
                 _result = FOURTH;
-                _closed = true;
-                _callback(_result);
+                if(_callback(_result)) {
+                    _closed = true;
+                }
             });
         }
     }
@@ -226,6 +237,12 @@ namespace gui {
     }
     
     void Dialog::update(gui::DrawStructure &d) {
+        if(_custom && _layout.children().size() == 2) {
+            std::vector<Layout::Ptr> children{_text, _custom, _buttons};
+            _layout.set_children(children);
+            _layout.auto_size(Margin{0,0});
+        }
+        
         d.wrap_object(_title_bg);
         //d.wrap_object(*_text);
         d.wrap_object(_title);
@@ -278,14 +295,28 @@ namespace gui {
             wrap_object(*_dialogs.front());
         }
     }
+
+void DrawStructure::close_dialogs() {
+    std::lock_guard guard(lock());
+    if(!_dialogs.empty() && _dialogs.front())
+        _dialogs.front()->_closed = true;
+    _dialogs.clear();
+    update_dialogs();
+}
     
-    const Dialog* DrawStructure::dialog(const std::function<void(Dialog::Result)>& callback, const std::string &text, const std::string& title, const std::string& okay, const std::string& abort, const std::string& second, const std::string& third, const std::string& fourth)
+    Dialog* DrawStructure::_dialog(const std::function<bool(Dialog::Result)>& callback, const std::string &text, const std::string& title, const std::string& okay, const std::string& abort, const std::string& second, const std::string& third, const std::string& fourth)
     {
         std::lock_guard<std::recursive_mutex> guard(_lock);
         auto d = new Dialog(*this, callback, text, title, okay, abort, second, third, fourth);
         d->set_scale(scale().reciprocal());
         _dialogs.push_back(d);
         return d;
+    }
+
+    Dialog* DrawStructure::dialog(const std::string &text, const std::string& title, const std::string& okay, const std::string& abort, const std::string& second, const std::string& third, const std::string& fourth)
+    {
+        std::function<bool(Dialog::Result)> fn = [](Dialog::Result)->bool{return true;};
+        return _dialog(fn, text, title, okay, abort, second, third, fourth);
     }
     
     Text* DrawStructure::text(const std::string &txt, const Vec2 &pos, const gui::Color &color)

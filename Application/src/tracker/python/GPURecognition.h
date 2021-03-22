@@ -62,7 +62,8 @@ namespace track {
         static void unset_function(const char* name_, const std::string &m = "");
         
         static void quit();
-        static void ensure_started();
+        static std::shared_future<bool> ensure_started();
+        static std::shared_future<bool> reinit();
         
     private:
         void shutdown();

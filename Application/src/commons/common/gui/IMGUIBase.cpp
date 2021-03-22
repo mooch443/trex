@@ -712,6 +712,7 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
         _skipped = 0;
         _type_counts.clear();
         _draw_order.clear();
+        _rotation_starts.clear();
         
         for (size_t i=0; i<objects.size(); i++) {
             auto o =  objects[i];
@@ -982,10 +983,38 @@ void PolyFillScanFlood(ImDrawList *draw, std::vector<ImVec2> *poly, ImColor colo
     scanHits.clear();
 }
 
+void ImRotateStart(int& rotation_start_index, ImDrawList* list)
+{
+    rotation_start_index = list->VtxBuffer.Size;
+}
+
+ImVec2 ImRotationCenter(int rotation_start_index, ImDrawList* list)
+{
+    ImVec2 l(FLT_MAX, FLT_MAX), u(-FLT_MAX, -FLT_MAX); // bounds
+
+    const auto& buf = list->VtxBuffer;
+    for (int i = rotation_start_index; i < buf.Size; i++)
+        l = ImMin(l, buf[i].pos), u = ImMax(u, buf[i].pos);
+
+    return ImVec2((l.x+u.x)/2, (l.y+u.y)/2); // or use _ClipRectStack?
+}
+
+ImVec2 operator-(const ImVec2& l, const ImVec2& r) { return{ l.x - r.x, l.y - r.y }; }
+
+void ImRotateEnd(int rotation_start_index, ImDrawList* list, float rad, ImVec2 center)
+{
+    //auto center = ImRotationCenter(list);
+    float s=cos(rad), c=sin(rad);
+    center = ImRotate(center, s, c) - center;
+
+    auto& buf = list->VtxBuffer;
+    for (int i = rotation_start_index; i < buf.Size; i++)
+        buf[i].pos = ImRotate(buf[i].pos, s, c) - center;
+}
+
 void IMGUIBase::draw_element(const DrawOrder& order) {
-    
     auto list = ImGui::GetForegroundDrawList();
-    if(order.is_pop) {
+    if(order.type == DrawOrder::POP) {
         if(list->_ClipRectStack.size() > 1) {
             //Debug("Popped cliprect %.0f,%.0f", list->_ClipRectStack.back().x, list->_ClipRectStack.back().y);
             list->PopClipRect();
@@ -994,12 +1023,71 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
         return;
     }
     
+    if(order.type == DrawOrder::END_ROTATION) {
+        auto o = order.ptr;
+        assert(o->has_global_rotation());
+        if(!_rotation_starts.count(o)) {
+            Warning("Cannot find object.");
+            return;
+        }
+        auto && [rotation_start, center] = _rotation_starts.at(o);
+        ImRotateEnd(rotation_start, list, o->rotation(), center);
+        return;
+    }
+    
     auto o = order.ptr;
+    Vec2 center;
+    auto bds = order.bounds;
+    auto &io = ImGui::GetIO();
+    Transform transform(order.transform);
+    
+    int rotation_start;
+    
+    if(order.type == DrawOrder::START_ROTATION) {
+        ImRotateStart(rotation_start, list);
+        
+        // generate position without rotation
+        Vec2 scale = (_graph->scale() / gui::interface_scale()) .div(Vec2(io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y));
+        
+        transform = Transform();
+        transform.scale(scale);
+        transform.combine(o->parent()->global_transform());
+        transform.translate(o->pos());
+        transform.scale(o->scale());
+        transform.translate(-o->size().mul(o->origin()));
+        
+        bds = transform.transformRect(Bounds(Vec2(), o->size()));
+        center = bds.pos() + bds.size().mul(o->origin());
+        
+        if(o->type() == Type::ENTANGLED) {
+            _rotation_starts[o] = { rotation_start, center };
+        }
+        
+        return;
+    }
+    
     if(!o->visible())
         return;
     
     ++_objects_drawn;
     auto cache = o->cached(this);
+    
+    if(o->rotation() && o->type() != Type::ENTANGLED) {
+        ImRotateStart(rotation_start, list);
+        
+        // generate position without rotation
+        Vec2 scale = (_graph->scale() / gui::interface_scale()) .div(Vec2(io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y));
+        
+        transform = Transform();
+        transform.scale(scale);
+        transform.combine(o->parent()->global_transform());
+        transform.translate(o->pos());
+        transform.scale(o->scale());
+        transform.translate(-o->size().mul(o->origin()));
+        
+        bds = transform.transformRect(Bounds(Vec2(), o->size()));
+        center = bds.pos() + bds.size().mul(o->origin());
+    }
     
     switch (o->type()) {
         case Type::CIRCLE: {
@@ -1059,14 +1147,10 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
             if(ptr->txt().empty())
                 break;
             
-            //list->PushClipRect(ImVec2(bounds.x, bounds.y), ImVec2(bounds.width + bounds.x, bounds.height + bounds.y), false);
-            //list->AddRectFilled(ImVec2(bounds.x, bounds.y), ImVec2(bounds.width + bounds.x, bounds.height + bounds.y), cvtClr(Red.alpha(125)));
-
-            auto &io = ImGui::GetIO();
             auto font = _fonts.at(ptr->font().style);
-            list->AddText(font, ptr->global_text_scale().x * font->FontSize * (ptr->font().size / im_font_scale / io.DisplayFramebufferScale.x), ImVec2(order.bounds.x, order.bounds.y), (ImColor)ptr->color(), ptr->txt().c_str());
             
-            //list->PopClipRect();
+            list->AddText(font, ptr->global_text_scale().x * font->FontSize * (ptr->font().size / im_font_scale / io.DisplayFramebufferScale.x), bds.pos(), (ImColor)ptr->color(), ptr->txt().c_str());
+            
             break;
         }
             
@@ -1194,6 +1278,10 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
             ///Debug("Empty cmd buffer.");
         }
     }
+    
+    if(o->type() != Type::ENTANGLED && o->has_global_rotation()) {
+        ImRotateEnd(rotation_start, list, o->rotation(), center);
+    }
 }
 
     void IMGUIBase::redraw(Drawable *o, std::vector<DrawOrder>& draw_order, bool is_background) {
@@ -1227,13 +1315,6 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
         
         auto bounds = transform.transformRect(Bounds(0, 0, o->width(), o->height()));
         
-        if(o->type() == Type::ENTANGLED) {
-            auto bg = static_cast<Entangled*>(o)->background();
-            if(bg) {
-                redraw(bg, draw_order, true);
-            }
-        }
-        
         //bool skip = false;
         auto cache = o->cached(this);
         auto dim = window_dimensions() / dpi_scale();
@@ -1249,8 +1330,16 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
         switch (o->type()) {
             case Type::ENTANGLED: {
                 auto ptr = static_cast<Entangled*>(o);
+                if(ptr->rotation() != 0)
+                    draw_order.emplace_back(DrawOrder::START_ROTATION, draw_order.size(), o, transform, bounds);
+                
+                auto bg = static_cast<Entangled*>(o)->background();
+                if(bg) {
+                    redraw(bg, draw_order, true);
+                }
+                
                 if(entangled_will_texture(ptr)) {
-                    draw_order.emplace_back(false, draw_order.size(), o, transform, bounds);
+                    draw_order.emplace_back(DrawOrder::DEFAULT, draw_order.size(), o, transform, bounds);
                     
                     for(auto c : ptr->children()) {
                         if(ptr->scroll_enabled()) {
@@ -1271,18 +1360,22 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
                         redraw(c, draw_order);
                     }
                     
-                    draw_order.emplace_back(true, draw_order.size(), ptr, transform, bounds);
+                    draw_order.emplace_back(DrawOrder::POP, draw_order.size(), ptr, transform, bounds);
                     
                 } else {
                     for(auto c : ptr->children())
                         redraw(c, draw_order);
                 }
                 
+                if(ptr->rotation() != 0) {
+                    draw_order.emplace_back(DrawOrder::END_ROTATION, draw_order.size(), ptr, transform, bounds);
+                }
+                
                 break;
             }
                 
             default:
-                draw_order.emplace_back(false, draw_order.size(), o, transform, bounds);
+                draw_order.emplace_back(DrawOrder::DEFAULT, draw_order.size(), o, transform, bounds);
                 break;
         }
     }

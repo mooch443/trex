@@ -197,7 +197,7 @@ uint64_t MemoryStats::get_memory_size(std::map<long_t, std::pair<void*, std::fun
     return sizeof(decltype(obj)::value_type) * obj.size();
 }
 
-MemoryStats::MemoryStats() : id(-1), bytes(0) {
+MemoryStats::MemoryStats() : id(uint32_t(-1)), bytes(0) {
     
 }
 

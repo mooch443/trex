@@ -209,7 +209,7 @@ void Video::frame(int64_t index, cv::Mat& frame, bool lazy) {
             // turn into HUE
             if(read.channels() == 3) {
                 cv::cvtColor(read, read, cv::COLOR_BGR2HSV);
-                cv::extractChannel(read, frame, color_channel % 3);
+                extractu8(read, frame, color_channel % 3);
                 
             } else Error("Cannot copy to read frame with %d channels.", read.channels());
         } else {
