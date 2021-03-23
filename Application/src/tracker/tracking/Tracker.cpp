@@ -596,19 +596,19 @@ bool operator<(long_t frame, const FrameProperties& props) {
         {}
         
         bool operator<(const PairProbability& other) const {
-            return _p < other.p();
+            return std::make_tuple(_p, _idx->identity().ID(), _bdx->blob_id()) < std::make_tuple(other._p, other._idx->identity().ID(), other._bdx->blob_id());
         }
         bool operator>(const PairProbability& other) const {
-            return _p > other.p();
+            return std::make_tuple(_p, _idx->identity().ID(), _bdx->blob_id()) > std::make_tuple(other._p, other._idx->identity().ID(), other._bdx->blob_id());
         }
         bool operator<=(const PairProbability& other) const {
-            return _p <= other.p();
+            return std::make_tuple(_p, _idx->identity().ID(), _bdx->blob_id()) <= std::make_tuple(other._p, other._idx->identity().ID(), other._bdx->blob_id());
         }
         bool operator>=(const PairProbability& other) const {
-            return _p >= other.p();
+            return std::make_tuple(_p, _idx->identity().ID(), _bdx->blob_id()) >= std::make_tuple(other._p, other._idx->identity().ID(), other._bdx->blob_id());
         }
         bool operator==(const PairProbability& other) const {
-            return _p == other.p();
+            return std::make_tuple(_p, _idx->identity().ID(), _bdx->blob_id()) == std::make_tuple(other._p, other._idx->identity().ID(), other._bdx->blob_id());
         }
     };
 
@@ -1939,38 +1939,6 @@ void Tracker::clear_properties() {
                 current_fixed_matches = it->second;
         }
         
-        if(frameIndex == _startFrame) {
-            /*
-             
-                assert(_individuals.empty());
-                long_t max_id = -1;
-                for (auto && [fid, bid] : current_fixed_matches) {
-                    Individual *fish = new Individual();
-                    fish->identity().set_ID(fid);
-                    _individuals[fish->identity().ID()] = fish;
-                    max_id = max(max_id, fid);
-                    Debug("(first frame) Adding fish %d -> %d", fish->identity().ID(), bid);
-             
-                    auto blob_it = id_to_blob.find(bid);
-                    if(blob_it != id_to_blob.end() && !blob_assigned[blob_it->second.get()]) { //&& (uint)bid < blobs.size()) {
-                        //auto blob = blobs.at(bid);
-                        auto blob = blob_it->second;
-                        fish->add_manual_match(frameIndex);
-                        assign_blob_individual(frameIndex, frame, fish, blob);
-             
-                        active_individuals.push_back(fish);
-                    } else if(blob_it != id_to_blob.end()) {
-                        // already assigned
-                        Error("Trying to manual_match blob %d twice in frame %d.", blob_it->second->blob_id(), frameIndex);
-                    }
-                }
-             
-                if(max_id > -1) {
-                    Identity::set_running_id(max_id + 1);
-                }
-            }*/
-        }
-        
         // prepare active_individuals array and assign fixed matches for which
         // the individuals already exist
         std::map<uint32_t, std::set<Idx_t>> cannot_find;
@@ -2847,7 +2815,7 @@ void Tracker::clear_properties() {
                             
                             Individual *fish = r.idx();
                             
-                            //Debug("Best match for blob %d is %d in %d", r.bdx(), fish->identity().ID(), frameIndex);
+                            Debug("Best match for blob %d is %d in %d (%f)", r.bdx()->blob_id(), fish->identity().ID(), frameIndex, r.p());
                             
                             assign_blob_individual(frameIndex, frame, fish, r.bdx());
                             active_individuals.insert(fish);

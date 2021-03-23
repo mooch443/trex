@@ -1,5 +1,4 @@
 blob_size_ranges = [[0.02,0.07]]
 gui_focus_group = [0]
-manual_matches = {0:{0:44304269,1:42796935,2:41682910,3:45090744,4:42928208,5:134481405,6:137037237,7:44107685}}
 track_max_individuals = 8
 track_max_speed = 25
