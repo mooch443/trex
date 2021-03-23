@@ -1,8 +1,8 @@
 PWD=$(pwd)/../../videos
 
-if ! tgrabs -d "${PWD}" -i 8guppies_20s.mp4 \
+if ! tgrabs -d "${PWD}" -i ${PWD}/test_frames/frame_%3d.jpg \
      -o test -threshold 9 -average_samples 100 -averaging_method mode -meta_real_width 30 -exec "${PWD}/test.settings" \
-     -enable_live_tracking -auto_no_results -auto_no_tracking_data false -nowindow -output_format csv; then
+     -enable_live_tracking -auto_no_tracking_data false -nowindow -output_format csv -track_do_history_split false -track_threshold 0; then
     echo "TGrabs could not be executed."
     exit 1
 fi
@@ -11,7 +11,7 @@ for f in `ls ${PWD}/data/test_fish*.csv`; do
     f=$(basename $f .csv)
 
     echo "Checking $f ..."
-    if ! git --no-pager diff --no-index -- ${PWD}/data/${f}.csv ${PWD}/compare_data/raw/${f}.csv; then
+    if ! git --no-pager diff --word-diff --no-index -- ${PWD}/data/${f}.csv ${PWD}/compare_data/raw/${f}.csv; then
         echo "files $f differ from baseline"
         exit 1
     fi

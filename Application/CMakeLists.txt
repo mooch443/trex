@@ -984,6 +984,7 @@ if(${TREX_BUILD_OPENCV})
             -DWITH_GTK:BOOL=FALSE
             -DWITH_CAIRO:BOOL=FALSE
             -DWITH_PNG:BOOL=TRUE
+            -DWITH_GSTREAMER:BOOL=OFF
             -DBUILD_PERF_TESTS:BOOL=FALSE
             -DBUILD_opencv_apps:BOOL=FALSE
             -DBUILD_opencv_java:BOOL=FALSE
