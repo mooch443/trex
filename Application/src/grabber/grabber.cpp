@@ -571,7 +571,6 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
                   if(!_average_finished) {
                       double step = _video->length() / floor((double)min(_video->length()-1, max(1u, GRAB_SETTINGS(average_samples))));
                       current.set_index(prev ? (prev->index() +  step) : 0);
-                      Debug("Index: %d", current.index());
                       if(current.index() >= long_t(_video->length())) {
                           return false;
                       }
@@ -581,14 +580,14 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
                       
                       if(GRAB_SETTINGS(video_conversion_range).second != -1) {
                           if(current.index() >= GRAB_SETTINGS(video_conversion_range).second) {
-                              if(!GRAB_SETTINGS(terminate))
-                                  SETTING(terminate) = true;
+                              //if(!GRAB_SETTINGS(terminate))
+                              //    SETTING(terminate) = true;
                               return false;
                           }
                       } else {
                           if(current.index() >= long_t(_video->length())) {
-                              if(!GRAB_SETTINGS(terminate))
-                                  SETTING(terminate) = true;
+                              //if(!GRAB_SETTINGS(terminate))
+                              //    SETTING(terminate) = true;
                               return false;
                           }
                       }
@@ -890,9 +889,6 @@ bool FrameGrabber::load_image(Image_t& current) {
     
     if(_video) {
         if(_average_finished && current.index() >= long_t(_video->length())) {
-            if(!GRAB_SETTINGS(terminate)) {
-                SETTING(terminate) = true;
-            }
             return false;
         }
         
@@ -1579,6 +1575,12 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
         {
             std::lock_guard<std::mutex> guard(to_main_mutex);
             last_task_processed = index; //! allow next task
+            
+            if(_video) {
+                static const auto conversion_range_end = GRAB_SETTINGS(video_conversion_range).second != -1 ? GRAB_SETTINGS(video_conversion_range).second : _video->length();
+                if((uint64_t)last_task_processed >= conversion_range_end-1)
+                    SETTING(terminate) = true;
+            }
         }
         single_variable.notify_all();
     };
