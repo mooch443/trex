@@ -17,7 +17,7 @@ for f in `ls ${PWD}/data/test_fish*.csv`; do
     fi
 done
 
-#rm -rf ${PWD}/data
+rm -rf ${PWD}/data
 
 #trex -d "${PWD}" -i test -s "${PWD}/test.settings" -p corrected -auto_apply -auto_quit -auto_no_results -nowindow
 #rm -rf ${PWD}/corrected/data
