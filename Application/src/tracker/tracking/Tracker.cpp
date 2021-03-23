@@ -2815,7 +2815,7 @@ void Tracker::clear_properties() {
                             
                             Individual *fish = r.idx();
                             
-                            Debug("Best match for blob %d is %d in %d (%f)", r.bdx()->blob_id(), fish->identity().ID(), frameIndex, r.p());
+                            //Debug("Best match for blob %d is %d in %d (%f)", r.bdx()->blob_id(), fish->identity().ID(), frameIndex, r.p());
                             
                             assign_blob_individual(frameIndex, frame, fish, r.bdx());
                             active_individuals.insert(fish);
