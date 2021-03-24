@@ -3,6 +3,7 @@
 
 #include <types.h>
 #include <file/Path.h>
+#include <misc/GlobalSettings.h>
 
 namespace file {
 
@@ -21,9 +22,13 @@ public:
     auto operator[](size_t i) const -> decltype(*_values.begin()) { return _values[i]; }
     
     template<typename T>
-    const std::string to_string(const T& data, typename std::enable_if<std::is_floating_point<T>::value, bool>::type* = 0, decltype((operator<<(std::ofstream(), data).bad()))* =0) {
+    const std::string to_string(const T& data, typename std::enable_if<std::is_floating_point<T>::value, bool>::type* = 0, decltype((operator<<(std::ofstream(), data).bad()))* =0)
+    {
+        auto output_csv_decimals = SETTING(output_csv_decimals).value<uint8_t>();
         std::stringstream ss;
-        ss << std::setprecision(10) << data;
+        if(output_csv_decimals > 0)
+            ss << std::fixed << std::setprecision(output_csv_decimals);
+        ss << data;
         return ss.str();
     }
     
