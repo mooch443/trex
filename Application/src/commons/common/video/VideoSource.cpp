@@ -6,6 +6,7 @@
 #include <misc/ThreadPool.h>
 #include <misc/checked_casts.h>
 #include <misc/Image.h>
+#include <video/AveragingAccumulator.h>
 
 using namespace cmn;
 

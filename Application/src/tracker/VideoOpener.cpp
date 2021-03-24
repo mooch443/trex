@@ -9,6 +9,7 @@
 #include <processing/RawProcessing.h>
 #include <grabber/default_config.h>
 #include <opencv2/core/ocl.hpp>
+#include <video/AveragingAccumulator.h>
 
 #define TEMP_SETTING(NAME) (gui::temp_settings[#NAME])
 

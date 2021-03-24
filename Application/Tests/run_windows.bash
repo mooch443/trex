@@ -1,6 +1,6 @@
 PWD=$(pwd)/../../videos
 
-if ! tgrabs -d "${PWD}" -i ${PWD}/test_frames/frame_%3d.jpg \
+if ! tgrabs -d "${PWD}" -i "${PWD}/test_frames/frame_%3d.jpg" \
      -o test -threshold 9 -average_samples 100 -averaging_method mode -meta_real_width 30 -exec "${PWD}/test.settings" \
      -enable_live_tracking -auto_no_tracking_data false -nowindow -output_format csv -track_do_history_split false -track_threshold 0; then
     echo "TGrabs could not be executed."

@@ -25,6 +25,7 @@
 #include "tomp4.h"
 #endif
 
+#include <video/AveragingAccumulator.h>
 #include "gpuImage.h"
 
 using namespace cmn;
