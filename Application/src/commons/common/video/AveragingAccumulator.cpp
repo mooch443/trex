@@ -76,7 +76,7 @@ void AveragingAccumulator::_add(const Mat &f) {
         auto array_ptr = spatial_histogram.data();
         auto mutex_ptr = spatial_mutex.begin();
         
-        assert(spatial_histogram.size() == (uint64_t)(f.cols * f.rows));
+        assert(spatial_histogram.size() == uint64_t(f.cols) * uint64_t(f.rows));
         if constexpr(threaded) {
             for (; ptr != end; ++ptr, ++array_ptr, ++mutex_ptr) {
                 (*mutex_ptr)->lock();

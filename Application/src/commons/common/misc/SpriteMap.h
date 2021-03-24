@@ -279,6 +279,11 @@ namespace sprite {
             return get<T>(name).valid();
         }
         
+        template<typename T>
+        bool is_type(const std::string& name) const {
+            return get<T>(name).valid();
+        }
+        
         bool has(const PropertyType& prop) const {
             return has(prop.name());
         }
@@ -321,7 +326,6 @@ namespace sprite {
             }
             
             changed(*property_);
-            
             return *property_;
         }
         
