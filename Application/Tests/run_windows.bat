@@ -1,7 +1,7 @@
 @echo off
 set PWD=%cd%\..\..\videos
 
-trex -d "%PWD%" -i "%PWD%/test_frames/frame_%3d.jpg" -o test -threshold 9 -average_samples 100 -averaging_method mode -meta_real_width 30 -exec "%PWD%/test.settings" -enable_live_tracking -auto_no_results -auto_no_tracking_data false -nowindow -output_format csv -track_do_history_split false -track_threshold 0
+trex -d "%PWD%" -i "%PWD%/test_frames/frame_%%3d.jpg" -o test -threshold 9 -average_samples 100 -averaging_method mode -meta_real_width 30 -exec "%PWD%/test.settings" -enable_live_tracking -auto_no_results -auto_no_tracking_data false -nowindow -output_format csv -track_do_history_split false -track_threshold 0
 if errorlevel 1 (
     echo TGrabs execution failed.
     exit /b 1
