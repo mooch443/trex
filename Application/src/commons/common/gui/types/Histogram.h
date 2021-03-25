@@ -71,7 +71,7 @@ namespace gui {
                 output.resize(input.size());
                 
                 auto it = std::copy_if(input.begin(), input.end(), output.begin(), [this](T e) {
-                    return !cmn::isinf(e) && e >= _filter.lower() && e <= _filter.upper();
+                    return !cmn::isinf(e) && !cmn::isnan(e) && e >= _filter.lower() && e <= _filter.upper();
                 });
                 
                 output.resize(std::distance(output.begin(), it));
@@ -268,9 +268,9 @@ namespace gui {
                 
                 for(auto &vec : _data) {
                     if(!vec.empty()) {
-                        if(!cmn::isinf(vec.front()))
+                        if(!cmn::isnan(vec.front()) && !cmn::isinf(vec.front()))
                             min_data = min(min_data, vec.front());
-                        if(!cmn::isinf(vec.back()))
+                        if(!cmn::isnan(vec.back()) && !cmn::isinf(vec.back()))
                             max_data = max(max_data, vec.back());
                     }
                 }

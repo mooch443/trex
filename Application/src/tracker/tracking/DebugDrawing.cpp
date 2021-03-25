@@ -199,7 +199,7 @@ void DebugDrawing::paint(const Outline &outline, bool erase) {
                
                if(area.find(x) != area.end())
                    return area[narrow_cast<uint>(x)] / 50;
-               return infinity<float>();
+               return gui::Graph::invalid();
                //return output_area[x] / 100;
            }));
             

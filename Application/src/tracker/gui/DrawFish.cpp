@@ -389,7 +389,7 @@ CREATE_STRUCT(CachedGUIOptions,
                 Output::Library::LibInfo info(&_obj, OptionsList<Output::Modifiers>{});
                 double y = Output::Library::get_with_modifiers(color_source, info, _idx);
             
-                if(!cmn::isinf(y)) {
+                if(!Graph::is_invalid(y)) {
                     if(color_source == "X") y /= float(Tracker::average().cols) * FAST_SETTINGS(cm_per_pixel);
                     else if(color_source == "Y") y/= float(Tracker::average().rows) * FAST_SETTINGS(cm_per_pixel);
                     
@@ -580,12 +580,6 @@ CREATE_STRUCT(CachedGUIOptions,
                 auto first_frame = interp.empty() ? 0 : interp.begin()->first;
                 auto last_frame = interp.empty() ? 0 : interp.rbegin()->first;
                 _graph.set_ranges(Rangef(first_frame, last_frame), Rangef(-1, 1));
-                
-                /*_graph.add_function(Graph::Function("angle'", Graph::DISCRETE, [dangle](float x){
-                    if(dangle.count(x))
-                        return dangle.at(x);
-                    return INFINITY;
-                }));*/
                 
                 std::vector<Vec2> points;
                 for(auto && [frame, a] : dangle) {

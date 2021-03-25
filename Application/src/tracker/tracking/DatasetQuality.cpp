@@ -70,7 +70,7 @@ bool DatasetQuality::calculate_segment(const Rangel &consec, const long_t video_
     //auto str = Meta::toStr(consec);
     //Debug("Adding new range%S of consecutive frames.", &str);
     
-    float max_cells = 0, min_cells = std::numeric_limits<float>::infinity();
+    float max_cells = 0, min_cells = infinity<float>();
     float average_samples = 0;
     float num_average = 0;
     decltype(_cache)::mapped_type map;

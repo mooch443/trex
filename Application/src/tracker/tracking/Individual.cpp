@@ -14,6 +14,7 @@
 #include <misc/CircularGraph.h>
 #include <misc/metastring.h>
 #include <misc/SoftException.h>
+#include <gui/Graph.h>
 
 #define NAN_SAFE_NORMALIZE(X, Y) { \
     const auto L = X.length(); \
@@ -887,9 +888,9 @@ void Individual::LocalCache::regenerate(Individual* fish) {
     //Debug("Regenerated local cache in %.2fms", timer.elapsed() * 1000);
 }
 
-float Individual::midline_length() const { return _local_cache._midline_samples == 0 ? infinity<float>() : (_local_cache._midline_length / _local_cache._midline_samples * 1.1f); }
+float Individual::midline_length() const { return _local_cache._midline_samples == 0 ? gui::Graph::invalid() : (_local_cache._midline_length / _local_cache._midline_samples * 1.1f); }
 size_t Individual::midline_samples() const { return _local_cache._midline_samples; }
-float Individual::outline_size() const { return _local_cache._outline_samples == 0 ? infinity<float>() : (_local_cache._outline_size / _local_cache._outline_samples); }
+float Individual::outline_size() const { return _local_cache._outline_samples == 0 ? gui::Graph::invalid() : (_local_cache._outline_size / _local_cache._outline_samples); }
 
 Vec2 Individual::LocalCache::add(long_t frameIndex, const track::PhysicalProperties *current) {
     const size_t maximum_samples = max(3.f, FAST_SETTINGS(frame_rate)*0.1f);
@@ -2026,7 +2027,7 @@ std::tuple<std::vector<std::tuple<float, float>>, std::vector<float>, size_t, Mo
     //for(size_t i=0; i<all_head_positions.size(); ++i) {
     //}
     
-    Vec2 last_head(infinity<Float2_t>());
+    Vec2 last_head(gui::Graph::invalid());
     if(!all_head_positions.empty()) {
         last_head = all_head_positions.front();
     }
@@ -2831,17 +2832,6 @@ void Individual::save_visual_field(const file::Path& path, Rangel range, const s
     
     eye_angle.reserve(len * 2);
     eye_pos.reserve(len * 2);
-    
-    /*std::fill(fish_angle.begin(), fish_angle.end(), INFINITY);
-    std::fill(eye_angle.begin(), eye_angle.end(), INFINITY);
-    
-    std::fill(depth.begin(), depth.end(), INFINITY);
-    std::fill(body_part.begin(), body_part.end(), INFINITY);
-    
-    std::fill(fish_pos.begin(), fish_pos.end(), Vec2(INFINITY));
-    std::fill(eye_pos.begin(), eye_pos.end(), Vec2(INFINITY));
-    
-    std::fill(ids.begin(), ids.end(), -2);*/
     
     std::shared_ptr<Tracker::LockGuard> guard;
     

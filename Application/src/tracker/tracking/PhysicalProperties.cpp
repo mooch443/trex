@@ -114,9 +114,6 @@ namespace track {
                     prev_property = _mother->fish()->basic_stuff()[ (*it)->basic_index.back() ]->centroid->get(type()).is_type<T>();
                 }
             }
-            //auto previous_frame = _mother->_fish->find_frame(_mother->_frame - 1);
-            //if(previous_frame && previous_frame->centroid)
-            //    prev_property = previous_frame->centroid->get(type()).is_type<T>();
         }
         
         if(!prev_property) {
@@ -124,7 +121,7 @@ namespace track {
             return;
         }
         
-        float tdelta = Tracker::time_delta(_mother->frame(), _mother->frame() - 1, hints);
+        float tdelta = Tracker::time_delta(_mother->frame(), prev_property->_mother->frame(), hints);
         const T& current_value = value<T>(Units::DEFAULT, index-1);
         const T& prev_value = prev_property->value(index-1);
         

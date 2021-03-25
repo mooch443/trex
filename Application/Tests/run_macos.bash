@@ -7,17 +7,21 @@ if ! tgrabs -d "${PWD}" -i "${PWD}/test_frames/frame_%3d.jpg" \
     exit 1
 fi
 
+exit_code=0
+
 for f in `ls ${PWD}/data/test_fish*.csv`; do
     f=$(basename $f .csv)
 
     echo "Checking $f ..."
     if ! git --no-pager diff --word-diff --no-index -- ${PWD}/data/${f}.csv ${PWD}/compare_data/raw/${f}.csv; then
         echo "files $f differ from baseline"
-        exit 1
+        exit_code=1
     fi
 done
 
 rm -rf ${PWD}/data
+
+exit ${exit_code}
 
 #trex -d "${PWD}" -i test -s "${PWD}/test.settings" -p corrected -auto_apply -auto_quit -auto_no_results -nowindow
 #rm -rf ${PWD}/corrected/data

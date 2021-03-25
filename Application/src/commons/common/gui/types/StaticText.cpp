@@ -2,6 +2,7 @@
 #include <gui/DrawSFBase.h>
 #include <misc/GlobalSettings.h>
 #include <misc/pretty.h>
+#include <gui/Graph.h>
 
 namespace gui {
     static bool nowindow_updated = false;
@@ -120,7 +121,7 @@ void StaticText::set_default_font(const Font& font) {
             begin();
             
             // find enclosing rectangle dimensions
-            Vec2 p(infinity<Float2_t>());
+            Vec2 p(Graph::invalid());
             Vec2 m(0);
             
             for(auto t : texts) {

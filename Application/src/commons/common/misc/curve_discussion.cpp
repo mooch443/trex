@@ -130,8 +130,6 @@ namespace cmn {
                     //Debug("Extremum(%d)@%d = %f -> %f", type, idx, height, diff);
                     
                     if(diff < magic_value) {
-                        //Debug("Too small! %f / %f", values[all[i ? i-1 : all.size()-1].first], i < long(all.size())-2 ? values[all[i+1].first] : INFINITY);
-                        
                         // erase maximum (or erase previous maximum? hmm)
                         long to_check;
                         long prev_maximum = i >= 2 ? i - 2 : all.size() - i - 1;

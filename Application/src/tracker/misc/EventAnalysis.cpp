@@ -3,6 +3,7 @@
 #include <numeric>
 #include <misc/Timer.h>
 #include <misc/checked_casts.h>
+#include <gui/Graph.h>
 
 namespace track {
 namespace EventAnalysis {
@@ -50,7 +51,7 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
         Vec2 v_current;
         float v_samples;
         
-        AnalysisState() : in_tailbeat(false), frame(0), last_threshold_reached(-1), last_event_start(-1), last_event_end(-1), prev(0), prev_raw(infinity<float>()) {}
+        AnalysisState() : in_tailbeat(false), frame(0), last_threshold_reached(-1), last_event_start(-1), last_event_end(-1), prev(0), prev_raw(gui::Graph::invalid()) {}
         size_t memory_size() const {
             return sizeof(AnalysisState)
                  + sizeof(decltype(threshold_reached)::value_type) * threshold_reached.capacity()
@@ -115,29 +116,25 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
         float current = state.offsets.at(state.offsets.size()-2);
         float next = state.offsets.at(state.offsets.size()-1);
         
-        if(cmn::isinf(next))
+        if(gui::Graph::is_invalid(next))
             next = current;
-        if(cmn::isinf(previous))
+        if(gui::Graph::is_invalid(previous))
             previous = current;
         
-        current = cmn::isinf(current) ? infinity<float>() : ((previous + current + next) / 3);
+        current = gui::Graph::is_invalid(current) ? gui::Graph::invalid() : ((previous + current + next) / 3);
         
-        float offset = (cmn::isinf(current) || cmn::isinf(state.prev_raw))
+        float offset = (gui::Graph::is_invalid(current) || gui::Graph::is_invalid(state.prev_raw))
                          ? current
-                         : (current - (cmn::isinf(state.prev_raw) ? 0 : state.prev_raw));
+                         : (current - (gui::Graph::is_invalid(state.prev_raw) ? 0 : state.prev_raw));
         
         float prev = state.prev;
         state.prev = offset;
         state.prev_raw = current;
         
-        Vec2 pt0(frame-1, cmn::isinf(prev) ? 0 : prev), pt1(frame, offset);
+        Vec2 pt0(frame-1, gui::Graph::is_invalid(prev) ? 0 : prev), pt1(frame, offset);
+        state.current_energy.push_back(0.5f * FAST_SETTINGS(meta_mass_mg) * SQR(offset));
         
-        //if(std::isinf(offset))
-        //    state.current_energy.push_back(0);
-        //else
-            state.current_energy.push_back(0.5f * FAST_SETTINGS(meta_mass_mg) * SQR(offset));
-        
-        if(cmn::isinf(offset)) {
+        if(gui::Graph::is_invalid(offset)) {
             if(state.last_event_start != -1) {
                 state.last_threshold_reached = state.last_event_start = -1;
             }
@@ -194,7 +191,7 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
                 
                 
                 float energy = std::accumulate(state.current_energy.begin(), state.current_energy.begin() + len, 0.f); // len;
-                if(std::isinf(energy))
+                if(std::isinf(energy) || std::isnan(energy))
                     U_EXCEPTION("Energy is infinite.");
                 
                 map.events[state.last_event_start] = Event(state.last_event_start, state.last_event_end, energy, angle_change, acceleration, length(state.v_before), length(velocity));
@@ -210,26 +207,20 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
     }
 
     float midline_offset(Individual *fish, long_t frame) {
-        /*auto c = fish->head(frame);
-        auto c0 = fish->head(frame-1);
-        if(!c || !c0)
-            return INFINITY;
-        return (c->v(Units::PX_AND_SECONDS, true).length() - c0->v(Units::PX_AND_SECONDS, true).length()) * 0.15; //sqrt(c->acceleration(DEFAULT, true)) * 0.5;*/
-        
         ///** ZEBRAFISH **
         auto midline = fish->fixed_midline(frame);
         if (!midline)
-            return infinity<float>();
+            return gui::Graph::invalid();
         
         auto posture = fish->posture_stuff(frame);
         if(!posture || !posture->cached())
-            return infinity<float>();
+            return gui::Graph::invalid();
         
         float ratio = posture->midline_length / midline->len();
         if(ratio > 1)
             ratio = 1/ratio;
         if(ratio < 0.6)
-            return infinity<float>();
+            return gui::Graph::invalid();
         
         auto &pts = midline->segments();
         auto complete = (pts.back().pos - pts.front().pos);

@@ -568,7 +568,7 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
             graph.add_function(Graph::Function("curv", Graph::Type::DISCRETE, [&](float x) -> float {
                 if(x>=0 && x<curv->size())
                     return curv->at(x);
-                return infinity<float>();
+                return gui::Graph::invalid();
             }));
             graph.add_points("max", maximums);
             graph.add_points("high", highmax);

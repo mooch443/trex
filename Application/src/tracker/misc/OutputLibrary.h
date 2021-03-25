@@ -27,7 +27,7 @@ namespace Output {
     // , const std::function<float(float)>& options
 #define LIBPARAM (Output::Library::LibInfo info, long_t frame, const track::PhysicalProperties* props, bool smooth)
 #define _LIBFNC(CONTENT) LIBPARAM -> float \
-{ Individual* fish = info.fish; assert(true || frame || smooth); if(!props) return infinity<float>(); CONTENT }
+{ Individual* fish = info.fish; assert(true || frame || smooth); if(!props) return gui::Graph::invalid(); CONTENT }
 #define LIBFNC(CONTENT) [] _LIBFNC(CONTENT)
     
 #define _LIBGLFNC(CONTENT) LIBPARAM -> double \

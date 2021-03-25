@@ -922,7 +922,7 @@ int main(int argc, char** argv)
             if(size_t(threshold) < values.size()) {
                 return values.at(size_t(threshold)).y / max_val;
             }
-            return infinity<float>();
+            return gui::Graph::invalid();
         }));
         
         max_value = 0;
@@ -939,7 +939,7 @@ int main(int argc, char** argv)
             if(size_t(threshold) < numbers.size()) {
                 return numbers.at(size_t(threshold)) / max_val;
             }
-            return infinity<float>();
+            return gui::Graph::invalid();
         }));
         
         max_value = 0;
@@ -953,7 +953,7 @@ int main(int argc, char** argv)
             if(size_t(threshold) < numbers.size()) {
                 return medians.at(size_t(threshold)).getValue() / max_val;
             }
-            return infinity<float>();
+            return gui::Graph::invalid();
         }));
         
         size_t j=0;
