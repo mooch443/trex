@@ -26,8 +26,7 @@ public:
     {
         auto output_csv_decimals = SETTING(output_csv_decimals).value<uint8_t>();
         std::stringstream ss;
-        if(output_csv_decimals > 0)
-            ss << std::setprecision(output_csv_decimals);
+        ss << std::fixed << std::setprecision(output_csv_decimals);
         ss << data;
         return ss.str();
     }

@@ -3,5 +3,5 @@ gui_focus_group = [0]
 track_max_individuals = 8
 track_max_speed = 25
 output_graphs = [["X",["wcentroid"]],["SPEED",["wcentroid"]],["X",["RAW"]],["Y",["RAW"]]]
-output_csv_decimals = 3
+output_csv_decimals = 0
 output_format = csv
