@@ -177,6 +177,9 @@ using namespace file;
 std::queue<std::function<void()>> _exec_main_queue;
 std::mutex _mutex;
 
+FILE *log_file = NULL;
+std::mutex log_mutex;
+
 template<class F, class... Args>
 auto exec_main_queue(F&& f, Args&&... args) -> std::future<typename std::invoke_result_t<F, Args...>>
 {
@@ -278,23 +281,20 @@ int main(int argc, char** argv)
     
     GlobalSettings::map().set_do_print(true);
     
-    FILE *log_file = NULL;
-    std::mutex log_mutex;
-    DEBUG::SetDebugCallback({
+    auto debug_callback = DEBUG::SetDebugCallback({
         DEBUG::DEBUG_TYPE::TYPE_ERROR,
         DEBUG::DEBUG_TYPE::TYPE_EXCEPTION,
         DEBUG::DEBUG_TYPE::TYPE_WARNING,
         DEBUG::DEBUG_TYPE::TYPE_INFO
-    }, [&log_mutex, &log_file](auto, const std::string& msg)
-        {
-            std::lock_guard<std::mutex> guard(log_mutex);
-            if(log_file) {
-                char nl = '\n';
-                fwrite(msg.c_str(), 1, msg.length(), log_file);
-                fwrite(&nl, 1, 1, log_file);
-                fflush(log_file);
-            }
-        });
+    }, [](auto, const std::string& msg) {
+        std::lock_guard<std::mutex> guard(log_mutex);
+        if(log_file) {
+            char nl = '\n';
+            fwrite(msg.c_str(), 1, msg.length(), log_file);
+            fwrite(&nl, 1, 1, log_file);
+            fflush(log_file);
+        }
+    });
     
     gui::init_errorlog();
     ocl::init_ocl();
@@ -806,9 +806,13 @@ int main(int argc, char** argv)
     }
 #endif
     
+    DEBUG::UnsetDebugCallback(debug_callback);
+    gui::deinit_errorlog();
+    
     if(log_file)
         fclose(log_file);
     log_file = NULL;
 
-    return SETTING(terminate_error) ? 1 : 0;
+    int returncode = SETTING(terminate_error) ? 1 : 0;
+    return returncode;
 }

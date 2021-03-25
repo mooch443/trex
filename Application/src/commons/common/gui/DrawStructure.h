@@ -11,6 +11,7 @@
 namespace gui {
     //! Initializes the GUI error log
     void init_errorlog();
+    void deinit_errorlog();
     
     class StaticText;
     class Button;

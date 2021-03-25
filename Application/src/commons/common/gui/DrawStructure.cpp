@@ -41,8 +41,17 @@ namespace gui {
     //! Saves recent error messages for display
     static std::vector<ErrorMessage> error_messages;
 
+    //! the errorlog debug callback to be released
+    static void* debug_callback = nullptr;
+
+    void deinit_errorlog() {
+        if(debug_callback)
+            DEBUG::UnsetDebugCallback(debug_callback);
+        debug_callback = nullptr;
+    }
+
     void init_errorlog() {
-        DEBUG::SetDebugCallback({DEBUG::DEBUG_TYPE::TYPE_ERROR,DEBUG::DEBUG_TYPE::TYPE_EXCEPTION,DEBUG::DEBUG_TYPE::TYPE_WARNING/*,DEBUG::DEBUG_TYPE::TYPE_INFO*/}, [](const DEBUG::StatusMsg* type, const std::string& msg)
+        debug_callback = DEBUG::SetDebugCallback({DEBUG::DEBUG_TYPE::TYPE_ERROR,DEBUG::DEBUG_TYPE::TYPE_EXCEPTION,DEBUG::DEBUG_TYPE::TYPE_WARNING/*,DEBUG::DEBUG_TYPE::TYPE_INFO*/}, [](const DEBUG::StatusMsg* type, const std::string& msg)
         {
             std::lock_guard<std::recursive_mutex> lock(error_message_lock);
             ErrorMessage obj;
