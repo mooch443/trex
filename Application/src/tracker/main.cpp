@@ -1232,8 +1232,14 @@ int main(int argc, char** argv)
     gui.set_analysis(analysis.get());
     gui_lock.unlock();
     
-    GlobalSettings::map().register_callback(NULL, [&analysis, &gui](const sprite::Map&, const std::string& key, const sprite::PropertyType& value)
+    auto callback = "TRex::main";
+    GlobalSettings::map().register_callback(callback, [&analysis, &gui, callback](sprite::Map::Signal signal, sprite::Map& map, const std::string& key, const sprite::PropertyType& value)
     {
+        if(signal == sprite::Map::Signal::EXIT) {
+            map.unregister_callback(callback);
+            return;
+        }
+        
         if (key == "analysis_paused") {
             analysis->bump();
             

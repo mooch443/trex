@@ -57,6 +57,9 @@ public:
         void restart_background();
     };
     
+    std::string _name;
+    const char* _callback;
+    
     std::mutex _video_mutex;
     std::unique_ptr<BufferedVideo> _buffer;
     std::queue<std::unique_ptr<BufferedVideo>> _stale_buffers;

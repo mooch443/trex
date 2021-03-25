@@ -23,7 +23,14 @@ SplitBlob::SplitBlob(const Background& average, pv::BlobPtr blob)
     //
     bool result = false;
     if(registered_callbacks.compare_exchange_strong(result, true)) {
-        auto fn = [](auto&, const std::string& name, const sprite::PropertyType& value){
+        auto callback = "SplitBlob";
+        auto fn = [callback](sprite::Map::Signal signal, sprite::Map& map, const std::string& name, const sprite::PropertyType& value)
+        {
+            if(signal == sprite::Map::Signal::EXIT) {
+                map.unregister_callback(callback);
+                return;
+            }
+            
             if(name == "blob_split_max_shrink") {
                 blob_split_max_shrink = value.value<float>();
                 Debug("blob_split_max_shrink = %f", blob_split_max_shrink);
@@ -49,12 +56,13 @@ SplitBlob::SplitBlob(const Background& average, pv::BlobPtr blob)
                 Debug("blob_size_ranges = %S", &str);
             }
         };
-        GlobalSettings::map().register_callback((void*)&registered_callbacks, fn);
-        fn(GlobalSettings::map(), "blob_split_max_shrink", SETTING(blob_split_max_shrink).get());
-        fn(GlobalSettings::map(), "blob_split_global_shrink_limit", SETTING(blob_split_global_shrink_limit).get());
-        fn(GlobalSettings::map(), "cm_per_pixel", SETTING(cm_per_pixel).get());
-        fn(GlobalSettings::map(), "track_posture_threshold", SETTING(track_posture_threshold).get());
-        fn(GlobalSettings::map(), "blob_size_ranges", SETTING(blob_size_ranges).get());
+        GlobalSettings::map().register_callback(callback, fn);
+        
+        fn(sprite::Map::Signal::NONE, GlobalSettings::map(), "blob_split_max_shrink", SETTING(blob_split_max_shrink).get());
+        fn(sprite::Map::Signal::NONE, GlobalSettings::map(), "blob_split_global_shrink_limit", SETTING(blob_split_global_shrink_limit).get());
+        fn(sprite::Map::Signal::NONE, GlobalSettings::map(), "cm_per_pixel", SETTING(cm_per_pixel).get());
+        fn(sprite::Map::Signal::NONE, GlobalSettings::map(), "track_posture_threshold", SETTING(track_posture_threshold).get());
+        fn(sprite::Map::Signal::NONE, GlobalSettings::map(), "blob_size_ranges", SETTING(blob_size_ranges).get());
     }
     
 #if DEBUG_ME

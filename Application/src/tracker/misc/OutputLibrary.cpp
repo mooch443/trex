@@ -120,8 +120,14 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
         static const float CENTER_X = SETTING(output_centered) ? SETTING(video_size).value<Size2>().width * 0.5f * cm_per_px : 0;
         static const float CENTER_Y = SETTING(output_centered) ?SETTING(video_size).value<Size2>().height * 0.5f * cm_per_px : 0;
         
-        GlobalSettings::map().register_callback((void*)&_options_map, [](const sprite::Map&, const std::string& name, const sprite::PropertyType&)
+        auto callback = "Output::Library::Init";
+        GlobalSettings::map().register_callback(callback, [callback](sprite::Map::Signal signal, sprite::Map& map, const std::string& name, const sprite::PropertyType&)
         {
+            if(signal == sprite::Map::Signal::EXIT) {
+                map.unregister_callback(callback);
+                return;
+            }
+            
             if (name == "output_graphs" || name == "output_default_options" || name == "midline_resolution")
             {
                 auto graphs = SETTING(output_graphs).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
@@ -201,31 +207,6 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 }
             }
         });
-        
-        //SETTING(output_graphs) = std::vector<std::string>{
-            /*Functions::X,
-            Functions::Y,
-            Functions::VX,
-            Functions::VY,
-            "SPEED_OLD",
-            Functions::SPEED_SMOOTH,
-            Functions::SPEED,
-            Functions::ACCELERATION_SMOOTH,
-            Functions::ACCELERATION,
-            Functions::MIDLINE_OFFSET,
-            Functions::ORIENTATION,
-            Functions::NEIGHBOR_DISTANCE,
-            Functions::BORDER_DISTANCE,*/
-            //"NEIGHBOR_VECTOR_T"
-            //"RELATIVE_ANGLE",
-            //"DOT_V"
-            /*Functions::BORDER_DISTANCE,
-            Functions::NEIGHBOR_DISTANCE,
-            "DOT_V",
-            "L_V"*/
-            /*"X", "Y", "VX", "VY",*/ /*"BORDER_DISTANCE",*/ /*"ORIENTATION",*/ ///*"ACCELERATION_SMOOTH", "NEIGHBOR_DISTANCE",*/ /*"SPEED_OLD",*/ "SPEED"//, "MIDLINE_OFFSET"
-         //   ,"X", "ACCELERATION", "ANGULAR_V", "ANGULAR_A"
-        //};
         
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-variable"

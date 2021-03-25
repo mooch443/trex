@@ -46,7 +46,14 @@ void RawProcessing::generate_binary(const gpuMat& input, cv::Mat& output) {
     
     bool expected = false;
     if(registered_callback.compare_exchange_strong(expected, true)) {
-        auto callback = [](auto&, auto& key, auto&value){
+        const char* ptr = "RawProcessing";
+        sprite::Map::callback_func callback = [ptr](sprite::Map::Signal signal, sprite::Map& map, auto& key, auto&value)
+        {
+            if(signal == sprite::Map::Signal::EXIT) {
+                map.unregister_callback(ptr);
+                return;
+            }
+            
             if(key == std::string("enable_difference"))
                 enable_diff = value.template value<bool>();
             else if(key == std::string("enable_absolute_difference"))
@@ -74,23 +81,23 @@ void RawProcessing::generate_binary(const gpuMat& input, cv::Mat& output) {
             else if(key == std::string("image_brightness_increase"))
                 image_brightness_increase = value.template value<float>();
         };
-        GlobalSettings::map().register_callback(this, callback);
+        GlobalSettings::map().register_callback(ptr, callback);
         
-        callback(GlobalSettings::map(), "enable_difference", GlobalSettings::get("enable_difference").get());
-        callback(GlobalSettings::map(), "enable_absolute_difference", GlobalSettings::get("enable_absolute_difference").get());
-        callback(GlobalSettings::map(), "square_brightness", GlobalSettings::get("square_brightness").get());
-        callback(GlobalSettings::map(), "adaptive_threshold_scale", GlobalSettings::get("adaptive_threshold_scale").get());
-        callback(GlobalSettings::map(), "threshold", GlobalSettings::get("threshold").get());
-        callback(GlobalSettings::map(), "threshold_maximum", GlobalSettings::get("threshold_maximum").get());
-        callback(GlobalSettings::map(), "use_closing", GlobalSettings::get("use_closing").get());
-        callback(GlobalSettings::map(), "closing_size", GlobalSettings::get("closing_size").get());
-        callback(GlobalSettings::map(), "use_adaptive_threshold", GlobalSettings::get("use_adaptive_threshold").get());
-        callback(GlobalSettings::map(), "dilation_size", GlobalSettings::get("dilation_size").get());
+        callback(sprite::Map::Signal::NONE, GlobalSettings::map(), "enable_difference", GlobalSettings::get("enable_difference").get());
+        callback(sprite::Map::Signal::NONE, GlobalSettings::map(), "enable_absolute_difference", GlobalSettings::get("enable_absolute_difference").get());
+        callback(sprite::Map::Signal::NONE, GlobalSettings::map(), "square_brightness", GlobalSettings::get("square_brightness").get());
+        callback(sprite::Map::Signal::NONE, GlobalSettings::map(), "adaptive_threshold_scale", GlobalSettings::get("adaptive_threshold_scale").get());
+        callback(sprite::Map::Signal::NONE, GlobalSettings::map(), "threshold", GlobalSettings::get("threshold").get());
+        callback(sprite::Map::Signal::NONE, GlobalSettings::map(), "threshold_maximum", GlobalSettings::get("threshold_maximum").get());
+        callback(sprite::Map::Signal::NONE, GlobalSettings::map(), "use_closing", GlobalSettings::get("use_closing").get());
+        callback(sprite::Map::Signal::NONE, GlobalSettings::map(), "closing_size", GlobalSettings::get("closing_size").get());
+        callback(sprite::Map::Signal::NONE, GlobalSettings::map(), "use_adaptive_threshold", GlobalSettings::get("use_adaptive_threshold").get());
+        callback(sprite::Map::Signal::NONE, GlobalSettings::map(), "dilation_size", GlobalSettings::get("dilation_size").get());
         
-        callback(GlobalSettings::map(), "image_adjust", GlobalSettings::get("image_adjust").get());
-        callback(GlobalSettings::map(), "image_square_brightness", GlobalSettings::get("image_square_brightness").get());
-        callback(GlobalSettings::map(), "image_contrast_increase", GlobalSettings::get("image_contrast_increase").get());
-        callback(GlobalSettings::map(), "image_brightness_increase", GlobalSettings::get("image_brightness_increase").get());
+        callback(sprite::Map::Signal::NONE, GlobalSettings::map(), "image_adjust", GlobalSettings::get("image_adjust").get());
+        callback(sprite::Map::Signal::NONE, GlobalSettings::map(), "image_square_brightness", GlobalSettings::get("image_square_brightness").get());
+        callback(sprite::Map::Signal::NONE, GlobalSettings::map(), "image_contrast_increase", GlobalSettings::get("image_contrast_increase").get());
+        callback(sprite::Map::Signal::NONE, GlobalSettings::map(), "image_brightness_increase", GlobalSettings::get("image_brightness_increase").get());
     }
     
     //static Timing timing("thresholding", 30);

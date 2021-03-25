@@ -1367,6 +1367,15 @@ TRex parameters
 
 
 
+.. function:: output_csv_decimals(uchar)
+
+	**default value:** 0
+
+
+	Maximum number of decimal places that is written into CSV files (a text-based format for storing data). A value of 0 results in integer values.
+
+
+
 .. function:: output_default_options(map<string,array<string>>)
 
 	**default value:** {"event_acceleration":["/10"],"ACCELERATION":["/15","SMOOTH","CENTROID"],"L_V":["/10"],"v_direction":["/10"],"DOT_V":["/10"],"ANGULAR_V":["/10","SMOOTH","CENTROID"],"ANGULAR_A":["/1000","SMOOTH","CENTROID"],"NEIGHBOR_VECTOR_T":["/1"],"SPEED":["/10","SMOOTH"],"NEIGHBOR_DISTANCE":["/10"],"X":["/100"],"Y":["/100"],"tailbeat_threshold":["pm"],"tailbeat_peak":["pm"],"threshold_reached":["POINTS"],"midline_length":["/15"],"amplitude":["/100"],"outline_size":["/100"],"global":["/10"]}
@@ -1391,7 +1400,7 @@ TRex parameters
 	**default value:** npz
 
 	**possible values:**
-		- `csv`: A standard data format, comma-separated columns for each data stream.
+		- `csv`: A standard data format, comma-separated columns for each data stream. Use `output_csv_decimals` to adjust the maximum precision for exported data.
 		- `npz`: NPZ is basically a collection of binary arrays, readable by NumPy and other plugins (there are plugins available for Matlab and R).
 
 	When pressing the S(ave) button or using ``auto_quit``, this setting allows to switch between CSV and NPZ output. NPZ files are recommended and will be used by default - some functionality (such as visual fields, posture data, etc.) will remain in NPZ format due to technical constraints.

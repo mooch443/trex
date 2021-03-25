@@ -347,26 +347,23 @@ void Tracker::analysis_state(AnalysisState pause) {
             }
         });
         
-        
         if (!callback_registered) {
-            auto variable_changed = [](auto&map, auto&key, auto&value){ if(contains(Settings::names(), key)) {
+            auto ptr = "Tracker::Settings";
+            auto variable_changed = [ptr](sprite::Map::Signal signal, auto&map, auto&key, auto&value)
+            {
+                if(signal == sprite::Map::Signal::EXIT) {
+                    map.unregister_callback(ptr);
+                    return;
+                }
+                
+                if(contains(Settings::names(), key)) {
                     Tracker::LockGuard guard("changed_settings");
-                    Settings :: variable_changed(map, key, value);
+                    Settings :: variable_changed(signal, map, key, value);
                 }
             };
-            cmn::GlobalSettings::map().register_callback((void*)"Settings", variable_changed);
+            cmn::GlobalSettings::map().register_callback(ptr, variable_changed);
             for(auto &n : Settings :: names())
-                variable_changed(cmn::GlobalSettings::map(), n, cmn::GlobalSettings::get(n).get());
-            
-            /*GlobalSettings::map().register_callback(this, Tracker::changed_setting);
-            
-            callback_registered = true;
-            if(!SETTING(quiet))
-                Debug("Registered Tracker callback.");
-            
-            for(auto &s : read_these)
-                if(GlobalSettings::map().has(s))
-                    changed_setting(GlobalSettings::map(), s, GlobalSettings::get(s).get());*/
+                variable_changed(sprite::Map::Signal::NONE, cmn::GlobalSettings::map(), n, cmn::GlobalSettings::get(n).get());
             
         }
         

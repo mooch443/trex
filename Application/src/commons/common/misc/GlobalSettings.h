@@ -66,7 +66,17 @@ namespace cmn {
         ~GlobalSettings();
         
         //! return the instance
-        static const std::shared_ptr<GlobalSettings>& instance();
+        static std::shared_ptr<GlobalSettings>& instance() {
+            static std::shared_ptr<GlobalSettings> _instance;
+            
+            if (!_instance) {
+                _instance = std::make_shared<GlobalSettings>();
+                _instance->map().set_do_print(false);
+            }
+            
+            return _instance;
+        }
+        
         static void set_instance(const std::shared_ptr<GlobalSettings>&);
         
         /**

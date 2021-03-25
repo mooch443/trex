@@ -10,7 +10,11 @@ namespace EventAnalysis {
 float _limit = 0;
 bool _callback_registered;
 
-void update_settings(const sprite::Map &, const std::string &key, const sprite::PropertyType &type) {
+void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::string &key, const sprite::PropertyType &type) {
+    if(signal == sprite::Map::Signal::EXIT) {
+        return;
+    }
+    
     if(key == "limit")
         _limit = type.value<decltype(_limit)>();
 }
@@ -239,8 +243,8 @@ void update_settings(const sprite::Map &, const std::string &key, const sprite::
         if(!_callback_registered) {
             _callback_registered = true;
             
-            GlobalSettings::map().register_callback((void*)&_limit, update_settings);
-            update_settings(GlobalSettings::map(), "limit", SETTING(limit).get());
+            GlobalSettings::map().register_callback("EventAnalysis", update_settings);
+            update_settings(sprite::Map::Signal::NONE, GlobalSettings::map(), "limit", SETTING(limit).get());
         }
         
         Timer timer;

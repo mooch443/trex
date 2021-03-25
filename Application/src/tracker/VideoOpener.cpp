@@ -177,7 +177,15 @@ VideoOpener::VideoOpener()
     _screenshot = std::make_shared<gui::ExternalImage>();
     _text_fields.clear();
     
-    gui::temp_settings.register_callback((void*)this, [this](auto&map, auto&key, auto&value){
+    _name = "VideoOpener"+Meta::toStr(uint64_t(this));
+    _callback = _name.c_str();
+    gui::temp_settings.register_callback(_callback, [this](sprite::Map::Signal signal, auto&map, auto&key, auto&value){
+        if(signal == sprite::Map::Signal::EXIT) {
+            map.unregister_callback(_callback);
+            _callback = nullptr;
+            return;
+        }
+        
         if(key == "threshold") {
             if(_buffer)
                 _buffer->_threshold = value.template value<int>();
@@ -472,6 +480,11 @@ VideoOpener::VideoOpener()
 }
 
 VideoOpener::~VideoOpener() {
+    if(_callback != nullptr) {
+        GlobalSettings::map().unregister_callback(_callback);
+        _callback = nullptr;
+    }
+    
     {
         std::lock_guard guard(_stale_mutex);
         if(_buffer)

@@ -19,8 +19,6 @@ namespace Match {
     IMPLEMENT(PairingGraph::unused);
     IMPLEMENT(PairingGraph::unused_mutex);
     
-    IMPLEMENT(PairingGraph::matching_probability_threshold) = 0.1;
-
 PairedProbabilities::PairedProbabilities() : _num_rows(0), _num_cols(0)
 {
     
@@ -1278,19 +1276,6 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
     PairingGraph::PairingGraph(long_t frame, const decltype(_paired)& paired)
     : _frame(frame), _time(Tracker::properties(frame)->time), _paired(paired), _optimal_pairing(NULL)
     {
-        static bool registered = false;
-        if(!registered) {
-            registered = true;
-            
-            GlobalSettings::map().register_callback(&matching_probability_threshold, [&](auto&, const std::string& key, const sprite::PropertyType& prop)
-            {
-                if(key == "matching_probability_threshold") {
-                    matching_probability_threshold = prop.value<float>();
-                }
-            });
-            
-            matching_probability_threshold = SETTING(matching_probability_threshold).value<float>();
-        }
     }
     
     /*cv::Point2f PairingGraph::pos(const Individual* o) const {
@@ -1321,7 +1306,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
     }
     
     bool PairingGraph::connected_to(Individual *o, Blob_t b) const {
-        return prob(o, b) > matching_probability_threshold;
+        return prob(o, b) > FAST_SETTINGS(matching_probability_threshold);
     }
     
     /*void PairingGraph::add(Individual *o) {

@@ -152,14 +152,19 @@ namespace sprite {
 
     class Map : public Printable {
     public:
+        enum class Signal {
+            NONE,
+            EXIT
+        };
+        
         typedef std::shared_ptr<PropertyType> Store;
-        typedef std::function<void(const Map&, const std::string&, const PropertyType&)> callback_func;
+        typedef std::function<void(Signal, Map&, const std::string&, const PropertyType&)> callback_func;
         
     private:
         
     protected:
         std::unordered_map<PNameRef, Store> _props;
-        std::unordered_map<void*, callback_func> _callbacks;
+        std::unordered_map<const char*, callback_func> _callbacks;
         std::unordered_map<std::string, bool> _print_key;
         
         GETTER_NCONST(std::mutex, mutex)
@@ -168,9 +173,17 @@ namespace sprite {
     public:
         //! value of the property name has changed
         void changed(const PropertyType& var) {
-            for(auto c: _callbacks)
-                c.second(*this, var.name(), var);
+            decltype(_callbacks) copy;
+            {
+                LockGuard guard(this);
+                copy = _callbacks;
+            }
+            
+            for(auto c: copy)
+                c.second(Signal::NONE, *this, var.name(), var);
+            
             if(_do_print) {
+                LockGuard guard(this);
                 auto it = _print_key.find(var.name());
                 if(it == _print_key.end() || it->second)
                     var.print_object();
@@ -190,12 +203,10 @@ namespace sprite {
         friend PropertyType;
         
     public:
-        Map() : _do_print(true) {
-        }
+        Map();
+        Map(const Map& other);
         
-        Map(const Map& other) {
-            _props = other._props;
-        }
+        ~Map();
         
         bool empty() const { return _props.empty(); }
         size_t size() const { return _props.size(); }
@@ -217,15 +228,19 @@ namespace sprite {
             return true;
         }
         
-        void register_callback(void *obj, const callback_func &func) {
+        void register_callback(const char *obj, const callback_func &func) {
+            LockGuard guard(this);
             if(_callbacks.count(obj) > 0)
                 U_EXCEPTION("Object %x already in map callbacks.", obj);
             _callbacks[obj] = func;
         }
         
-        void unregister_callback(void *obj) {
-            if(_callbacks.count(obj) == 0)
-                U_EXCEPTION("Cannot find obj %x in map callbacks.", obj);
+        void unregister_callback(const char *obj) {
+            LockGuard guard(this);
+            if(_callbacks.count(obj) == 0) {
+                Except("Cannot find obj %x in map callbacks.", obj);
+                return;
+            }
             _callbacks.erase(obj);
         }
         
@@ -312,17 +327,21 @@ namespace sprite {
         
         template<typename T>
         Property<T>& insert(const Property<T>& property) {
-            LockGuard guard(this);
-            if(has(property)) {
-                std::string e = "Property already "+((const PropertyType&)property).toStdString()+" already exists.";
-                Error(e.c_str());
-                throw new PropertyException(e);
-            }
+            Property<T> *property_;
             
-            Property<T> *property_ = new Property<T>(this, property.name(), property.value());
             {
-                auto ptr = Store(property_);
-                _props[ptr] = ptr;
+                LockGuard guard(this);
+                if(has(property)) {
+                    std::string e = "Property already "+((const PropertyType&)property).toStdString()+" already exists.";
+                    Error(e.c_str());
+                    throw new PropertyException(e);
+                }
+                
+                property_ = new Property<T>(this, property.name(), property.value());
+                {
+                    auto ptr = Store(property_);
+                    _props[ptr] = ptr;
+                }
             }
             
             changed(*property_);

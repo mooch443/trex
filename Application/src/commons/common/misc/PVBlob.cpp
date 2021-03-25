@@ -150,24 +150,45 @@ bool Blob::operator==(const pv::Blob& other) const {
     {
         init();
     }*/
+
+struct Callback {
+    const char *ptr;
+    
+    Callback() {
+        ptr = "PVBlob::Callback";
+        
+        bool expected = false;
+        if(callback_registered.compare_exchange_strong(expected, true))
+        {
+            sprite::Map::callback_func fn = [this](sprite::Map::Signal signal, sprite::Map&map, auto&name, auto&)
+            {
+                if(signal == sprite::Map::Signal::EXIT) {
+                    map.unregister_callback(ptr);
+                    ptr = nullptr;
+                    return;
+                }
+                
+                if(name != "cm_per_pixel" && name != "correct_illegal_lines")
+                    return;
+                cm_per_pixel = SETTING(cm_per_pixel).value<float>();
+                correct_illegal_lines = SETTING(correct_illegal_lines).value<bool>();
+            };
+            GlobalSettings::map().register_callback(ptr, fn);
+            cm_per_pixel = SETTING(cm_per_pixel).value<float>();
+            correct_illegal_lines = SETTING(correct_illegal_lines).value<bool>();
+        }
+    }
+    
+    ~Callback() {
+        if(ptr)
+            GlobalSettings::map().unregister_callback(ptr);
+    }
+};
+
+static Callback callback;
     
     void Blob::init() {
         _tried_to_split = false;
-        
-        {
-            bool expected = false;
-            if(callback_registered.compare_exchange_strong(expected, true))
-            {
-                GlobalSettings::map().register_callback((void*)this, [](auto&,auto&name,auto&){
-                    if(name != "cm_per_pixel" && name != "correct_illegal_lines")
-                        return;
-                    cm_per_pixel = SETTING(cm_per_pixel).value<float>();
-                    correct_illegal_lines = SETTING(correct_illegal_lines).value<bool>();
-                });
-                cm_per_pixel = SETTING(cm_per_pixel).value<float>();
-                correct_illegal_lines = SETTING(correct_illegal_lines).value<bool>();
-            }
-        }
         
         _split = false;
         _recount = _recount_threshold = -1;

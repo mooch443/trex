@@ -32,10 +32,6 @@
 #include <string>
 
 namespace DEBUG {
-#ifndef WIN32
-    std::mutex DEBUG_MUTEX;
-#endif
-    
     bool& runtime_quiet() {
         static bool runtime_quiet = false;
         return runtime_quiet;
@@ -46,9 +42,7 @@ namespace DEBUG {
     }
     
     std::mutex& debug_mutex() {
-#ifdef WIN32
         static std::mutex DEBUG_MUTEX;
-#endif
         return DEBUG_MUTEX;
     }
     

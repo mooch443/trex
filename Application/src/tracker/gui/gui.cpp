@@ -204,8 +204,14 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
     for(size_t i=0; i<2; ++i)
         _fish_graphs.push_back(new PropertiesGraph(_tracker, _gui.mouse_position()));
     
-    auto changed = [this](const sprite::Map&, const std::string& name, const sprite::PropertyType& value)
+    auto callback = "TRex::GUI";
+    auto changed = [callback, this](sprite::Map::Signal signal, sprite::Map& map, const std::string& name, const sprite::PropertyType& value)
     {
+        if(signal == sprite::Map::Signal::EXIT) {
+            map.unregister_callback(callback);
+            return;
+        }
+        
         // ignore gui frame
         if(name == "gui_frame") {
             return;
@@ -406,14 +412,14 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
     
     _work_progress = new WorkProgress;
     
-    GlobalSettings::map().register_callback(this, changed);
-    changed(GlobalSettings::map(), "manual_matches", SETTING(manual_matches).get());
-    changed(GlobalSettings::map(), "manual_splits", SETTING(manual_splits).get());
-    changed(GlobalSettings::map(), "grid_points", SETTING(grid_points).get());
-    changed(GlobalSettings::map(), "recognition_shapes", SETTING(recognition_shapes).get());
-    changed(GlobalSettings::map(), "gui_run", SETTING(gui_run).get());
-    changed(GlobalSettings::map(), "gui_mode", SETTING(gui_mode).get());
-    changed(GlobalSettings::map(), "nowindow", SETTING(nowindow).get());
+    GlobalSettings::map().register_callback(callback, changed);
+    changed(sprite::Map::Signal::NONE, GlobalSettings::map(), "manual_matches", SETTING(manual_matches).get());
+    changed(sprite::Map::Signal::NONE, GlobalSettings::map(), "manual_splits", SETTING(manual_splits).get());
+    changed(sprite::Map::Signal::NONE, GlobalSettings::map(), "grid_points", SETTING(grid_points).get());
+    changed(sprite::Map::Signal::NONE, GlobalSettings::map(), "recognition_shapes", SETTING(recognition_shapes).get());
+    changed(sprite::Map::Signal::NONE, GlobalSettings::map(), "gui_run", SETTING(gui_run).get());
+    changed(sprite::Map::Signal::NONE, GlobalSettings::map(), "gui_mode", SETTING(gui_mode).get());
+    changed(sprite::Map::Signal::NONE, GlobalSettings::map(), "nowindow", SETTING(nowindow).get());
     
 #if WITH_MHD
     _http_gui = new HttpGui(_gui);

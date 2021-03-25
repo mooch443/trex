@@ -165,8 +165,15 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
         if(!settings_registered){
             std::lock_guard<std::mutex> lock(settings_mutex);
             if(!settings_registered) {
+                auto callback = "pv::Frame::read_from";
                 use_differences = GlobalSettings::map().has("use_differences") ? SETTING(use_differences).value<bool>() : false;
-                GlobalSettings::map().register_callback(ptr, [](const sprite::Map&, const std::string&key, const sprite::PropertyType& value){
+                GlobalSettings::map().register_callback(callback, [callback](sprite::Map::Signal signal, sprite::Map&map, const std::string&key, const sprite::PropertyType& value)
+                {
+                    if(signal == sprite::Map::Signal::EXIT) {
+                        map.unregister_callback(callback);
+                        return;
+                    }
+                    
                     if(key == "use_differences")
                         use_differences = value.value<bool>();
                 });

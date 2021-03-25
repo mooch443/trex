@@ -19,6 +19,7 @@ IMPLEMENT(GUI::setting_keys) = {
 };
 
 GUI *_instance = nullptr;
+const char* callback = "Framegrabber::GUI";
 
 GUI* GUI::instance() {
     return _instance;
@@ -41,14 +42,19 @@ GUI::GUI(FrameGrabber& grabber)
 {
     _instance = this;
     
-    GlobalSettings::map().register_callback(NULL, [this](const sprite::Map&, const std::string& name, const sprite::PropertyType& value)
+    GlobalSettings::map().register_callback(callback, [this](sprite::Map::Signal signal, sprite::Map&map, const std::string& name, const sprite::PropertyType& value)
         {
+            if(signal == sprite::Map::Signal::EXIT) {
+                map.unregister_callback(callback);
+                callback = nullptr;
+                return;
+            }
+        
             if(name == KEY(mode)) {
                 set_redraw();
             } else if(name == KEY(terminate)) {
                 if(value.value<bool>())
-                {
-                }
+                { }
             }
             else if(name == std::string("gui_interface_scale")) {
                 gui::Event e(gui::WINDOW_RESIZED);
@@ -81,6 +87,9 @@ void GUI::set_base(gui::Base *base) {
 }
 
 GUI::~GUI() {
+    if(callback)
+        GlobalSettings::map().unregister_callback(callback);
+    callback = nullptr;
 }
 
 #if WITH_MHD

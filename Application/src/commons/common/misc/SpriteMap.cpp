@@ -9,6 +9,35 @@ size_t hash<cmn::sprite::PNameRef>::operator()(const cmn::sprite::PNameRef& k) c
 
 namespace cmn {
 namespace sprite {
+
+Map::Map() : _do_print(true) {
+}
+
+Map::Map(const Map& other) {
+    _props = other._props;
+}
+
+
+Map::~Map() {
+    {
+        std::unique_lock guard(_mutex);
+        auto c = _callbacks;
+        
+        guard.unlock();
+        
+        for(auto && [ptr, cb] : c) {
+            //printf("Calling '%s'\n", ptr);
+            cb(sprite::Map::Signal::EXIT, *this, "", Property<bool>::InvalidProp);
+        }
+    }
+    
+    {
+        std::lock_guard guard(_mutex);
+        _callbacks.clear();
+        _props.clear();
+        _print_key.clear();
+    }
+}
     
     // --------- PNameRef
     
