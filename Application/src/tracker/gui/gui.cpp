@@ -173,7 +173,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
             try {
                 std::rethrow_exception(e);
             } catch(const std::exception& ex) {
-                GUI::instance()->gui().dialog([](Dialog::Result){}, "An error occurred in the blob thread pool:\n<i>"+std::string(ex.what())+"</i>", "Error");
+                GUI::instance()->gui().dialog("An error occurred in the blob thread pool:\n<i>"+std::string(ex.what())+"</i>", "Error");
             }
         });
     }),
@@ -204,8 +204,14 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
     for(size_t i=0; i<2; ++i)
         _fish_graphs.push_back(new PropertiesGraph(_tracker, _gui.mouse_position()));
     
-    auto changed = [this](const sprite::Map&, const std::string& name, const sprite::PropertyType& value)
+    auto callback = "TRex::GUI";
+    auto changed = [callback, this](sprite::Map::Signal signal, sprite::Map& map, const std::string& name, const sprite::PropertyType& value)
     {
+        if(signal == sprite::Map::Signal::EXIT) {
+            map.unregister_callback(callback);
+            return;
+        }
+        
         // ignore gui frame
         if(name == "gui_frame") {
             return;
@@ -406,14 +412,14 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
     
     _work_progress = new WorkProgress;
     
-    GlobalSettings::map().register_callback(this, changed);
-    changed(GlobalSettings::map(), "manual_matches", SETTING(manual_matches).get());
-    changed(GlobalSettings::map(), "manual_splits", SETTING(manual_splits).get());
-    changed(GlobalSettings::map(), "grid_points", SETTING(grid_points).get());
-    changed(GlobalSettings::map(), "recognition_shapes", SETTING(recognition_shapes).get());
-    changed(GlobalSettings::map(), "gui_run", SETTING(gui_run).get());
-    changed(GlobalSettings::map(), "gui_mode", SETTING(gui_mode).get());
-    changed(GlobalSettings::map(), "nowindow", SETTING(nowindow).get());
+    GlobalSettings::map().register_callback(callback, changed);
+    changed(sprite::Map::Signal::NONE, GlobalSettings::map(), "manual_matches", SETTING(manual_matches).get());
+    changed(sprite::Map::Signal::NONE, GlobalSettings::map(), "manual_splits", SETTING(manual_splits).get());
+    changed(sprite::Map::Signal::NONE, GlobalSettings::map(), "grid_points", SETTING(grid_points).get());
+    changed(sprite::Map::Signal::NONE, GlobalSettings::map(), "recognition_shapes", SETTING(recognition_shapes).get());
+    changed(sprite::Map::Signal::NONE, GlobalSettings::map(), "gui_run", SETTING(gui_run).get());
+    changed(sprite::Map::Signal::NONE, GlobalSettings::map(), "gui_mode", SETTING(gui_mode).get());
+    changed(sprite::Map::Signal::NONE, GlobalSettings::map(), "nowindow", SETTING(nowindow).get());
     
 #if WITH_MHD
     _http_gui = new HttpGui(_gui);
@@ -1034,8 +1040,11 @@ void GUI::redraw() {
         //corrected_bg = new ExternalImage(corrected, Vec2(0, 0));
         
         gui_background->add_event_handler(EventType::MBUTTON, [this](Event e){
-            if(e.mbutton.pressed)
+            if(e.mbutton.pressed) {
+                if(e.mbutton.button == 1)
+                    _current_boundary.clear();
                 this->_clicked_background(Vec2(e.mbutton.x, e.mbutton.y).map<round>(), e.mbutton.button == 1, "");
+            }
         });
         gui_background->set_clickable(true);
         
@@ -1123,7 +1132,9 @@ void GUI::draw(DrawStructure &base) {
     
     if(_timeline->visible()) {
         DrawStructure::SectionGuard section(base, "head");
-        base.draw_log_messages();
+        auto scale = base.scale().reciprocal();
+        auto dim = _base ? _base->window_dimensions().mul(scale * gui::interface_scale()) : Tracker::average().bounds().size();
+        base.draw_log_messages(Bounds(Vec2(0, 85).mul(scale * gui::interface_scale()), dim - Size2(10, 85).mul(scale * gui::interface_scale())));
         
         if(_cache.has_selection()) {
             /*****************************
@@ -1187,6 +1198,10 @@ void GUI::draw(DrawStructure &base) {
             info_timer.reset();
         }
         
+        auto screen = screen_dimensions();
+        _info.set_clickable(false);
+        _info.set_origin(Vec2(0.5));
+        _info.set_pos(screen * 0.5);
         _info.set_scale(base.scale().reciprocal());
         base.wrap_object(_info);
     }
@@ -2262,8 +2277,11 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
         }
         
         if(SETTING(gui_show_dataset) /*&& Recognition::recognition_enabled()*/ && _timeline->visible()) {
-            if(!_dataset)
+            if(!_dataset) {
                 _dataset = std::make_shared<DrawDataset>();
+                auto screen = screen_dimensions();
+                _dataset->set_pos(screen * 0.5 - _dataset->size());
+            }
             base.wrap_object(*_dataset);
         }
         
@@ -2675,6 +2693,49 @@ void GUI::draw_footer(DrawStructure& base) {
             _selected_setting_type = is_vectors ? SelectedSettingType::POINTS : (is_vec_of_vec ? SelectedSettingType::ARRAY_OF_VECTORS : (is_bounds ? SelectedSettingType::ARRAY_OF_BOUNDS : SelectedSettingType::NONE));
             _selected_setting_name = key;
             
+            if(_selected_setting_type == SelectedSettingType::NONE && v) {
+                if(_current_boundary.size() == 1 && _current_boundary.front().size() == 2) {
+                    static NumericTextfield<double> text(1.0, Bounds(0, 0, 200,30), arange<double>{0, infinity<double>()});
+                    text.set_postfix("cm");
+                    text.set_fill_color(DarkGray.alpha(50));
+                    text.set_text_color(White);
+                    
+                    derived_ptr<Entangled> e = std::make_shared<Entangled>();
+                    e->update([&](Entangled& e) {
+                        e.advance_wrap(text);
+                    });
+                    e->auto_size(Margin{0, 0});
+                    
+                    auto bound = _current_boundary.front();
+                    auto S = bound.front();
+                    auto E = bound.back();
+                    auto D = euclidean_distance(S, E);
+                    
+                    _gui.dialog([this, D](Dialog::Result r) {
+                        if(r == Dialog::OKAY) {
+                            try {
+                                auto value = Meta::fromStr<float>(text.text());
+                                Debug("Value is: %f", value);
+                                
+                                if(value > 0) {
+                                    SETTING(cm_per_pixel) = float(value / D);
+                                    
+                                    _gui.dialog("Successfully set <ref>cm_per_pixel</ref> to <nr>"+Meta::toStr(SETTING(cm_per_pixel).value<float>())+"</nr>.");
+                                    
+                                    return true;
+                                }
+                                
+                            } catch(const std::exception& e) { }
+                            
+                            return false;
+                        }
+                        
+                        return true;
+                        
+                    }, "Please enter the equivalent length in centimeters for the selected distance (<nr>"+Meta::toStr(D)+"</nr>px) below. <ref>cm_per_pixel</ref> will then be recalculated based on the given value, affecting parameters such as <ref>track_max_speed</ref>, and <ref>blob_size_ranges</ref>, and tracking results.", "Calibrate with known length", "Okay", "Abort")->set_custom_element(std::move(e));
+                }
+            }
+            
             if(v) {
                 if(is_bounds) {
                     if(_current_boundary.back().size() >= 3) {
@@ -2754,13 +2815,15 @@ void GUI::draw_footer(DrawStructure& base) {
                 _current_boundary.clear();
                 
             } else {
-                if(!_gui.is_key_pressed(Codes::LShift)) {
-                    //if(_current_boundary.empty())
+#ifdef __APPLE__
+                if(!_gui.is_key_pressed(Codes::LSystem)) {
+#else
+                if(!_gui.is_key_pressed(Codes::LControl)) {
+#endif
+                    if(_current_boundary.empty())
                         _current_boundary = {{pos}};
-                    //else {
-                        //_current_boundary.back().push_back(pos);
-                        //finalize();
-                    //}
+                    else
+                        _current_boundary.clear();
                     
                 } else {
                     if(_current_boundary.empty())
@@ -2773,6 +2836,8 @@ void GUI::draw_footer(DrawStructure& base) {
                 }
             }
             
+            _cache.set_tracking_dirty();
+            _cache.set_raw_blobs_dirty();
             _cache.set_redraw();
         };
         
@@ -2898,7 +2963,7 @@ void GUI::draw_footer(DrawStructure& base) {
             python_status.set_txt("[Python " + Meta::toStr(PythonIntegration::python_major_version().load()) + "." + Meta::toStr(PythonIntegration::python_minor_version().load()) + "]");
             python_status.set_color(Green);
         }
-        else if (python_status.txt().empty()) {
+        else if (python_status.txt().empty() || (!PythonIntegration::python_init_error().empty() && !PythonIntegration::python_initialized() && !PythonIntegration::python_initializing())) {
             python_status.set_txt("[Python] " + PythonIntegration::python_init_error());
             python_status.set_color(Red);
         } else {
@@ -3209,11 +3274,12 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
             s->set_scale(fishbowl->scale());
             s->set_pos(fishbowl->pos());
             
-            const Font font(0.85);
+            const Font font(0.75);
             Vec2 sca = base.scale().reciprocal().mul(s->scale().reciprocal());
 
             Vec2 top_left(FLT_MAX, FLT_MAX);
             Vec2 bottom_right(0, 0);
+            float a = 0;
             
             for(auto &boundary : _current_boundary) {
                 if(boundary.size() > 2) {
@@ -3229,11 +3295,32 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
                 } else if(boundary.size() == 2) {
                     base.line(boundary[0], boundary[1], 1, Cyan.alpha(125));
                     
+                    Vec2 v;
+                    if(boundary[1].x > boundary[0].x)
+                        v = boundary[1] - boundary[0];
+                    else
+                        v = boundary[0] - boundary[1];
+                    
+                    auto D = v.length();
+                    v = v.normalize();
+                    
+                    a = atan2(v);
+                    Text *text = new Text(Meta::toStr(D)+" px", Vec2(boundary[1] - boundary[0]) * 0.5 + boundary[0] + v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525), Cyan.alpha(200), font, sca);
+                    text->set_rotation(a);
+                    text->set_origin(Vec2(0.5));
+                    base.add_object(text);
+                    
+                    text = new Text(Meta::toStr(D * SETTING(cm_per_pixel).value<float>())+" cm", Vec2(boundary[1] - boundary[0]) * 0.5 + boundary[0] - v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525), Cyan.alpha(200), font, sca);
+                    text->set_rotation(a);
+                    text->set_origin(Vec2(0.5));
+                    base.add_object(text);
                 }
                 
+                Font f = font;
+                f.align = Align::Left;
                 for(auto &pt : boundary) {
                     base.circle(pt, 5, Cyan.alpha(125))->set_scale(sca);
-                    base.text(Meta::toStr(pt), pt + Vec2(7 * font.size, 0), White.alpha(200), font, sca);
+                    //base.text(Meta::toStr(pt), pt + Vec2(7 * f.size, 0), White.alpha(200), f, sca);
                     
                     if(pt.x < top_left.x) top_left.x = pt.x;
                     if(pt.y < top_left.y) top_left.y = pt.y;
@@ -3247,7 +3334,11 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
                 std::string name = "";
                 
                 if(_selected_setting_type == SelectedSettingType::NONE) {
-                    name = "print vectors";
+                    if(_current_boundary.size() == 1 && _current_boundary.front().size() == 2)
+                        name = "use known length to calibrate";
+                    else
+                        name = "print vectors";
+                    
                 } else {
                     if(_selected_setting_type == SelectedSettingType::ARRAY_OF_VECTORS) {
                         if(_current_boundary.size() >= 1 && _current_boundary.back().size() >= 3)
@@ -3293,13 +3384,15 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
                     dropdown->set_bounds(Bounds(Vec2(0, button->local_bounds().height), bds.size()));
                 
                 combine->update([&](auto&e) {
-                    e.advance_wrap(*dropdown);
+                    if(_current_boundary.size() != 1 || _current_boundary.front().size() > 2)
+                        e.advance_wrap(*dropdown);
                     e.advance_wrap(*button);
                 });
                 
-                combine->set_pos(bds.pos());
                 combine->set_scale(sca);
                 combine->auto_size(Margin{0, 0});
+                combine->set_pos(Vec2(top_left.x, top_left.y + (bottom_right.y - top_left.y) * 0.5) - Vec2(20, 0).mul(sca));
+                combine->set_origin(Vec2(1, 0));
                 combine->set_z_index(100);
                 
                 base.wrap_object(*combine);
@@ -3553,6 +3646,11 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
                     else d = 1;
                     
                     std::stringstream ss;
+                    if(!active)
+                        ss << "<ref>";
+                    ss << blob->name();
+                    if(!active)
+                        ss << "</ref>";
                     ss << " <a>size: " << real_size << (blob->split() ? " split" : "");
                     if(blob->tried_to_split())
                         ss << " tried";
@@ -3566,10 +3664,10 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
                             _unused_labels.resize(_unused_labels.size()-1);
                             
                             it = k;
-                            std::get<2>(it->second)->set_data(blob->name() + " " + ss.str(), blob->bounds(), blob->center());
+                            std::get<2>(it->second)->set_data(ss.str(), blob->bounds(), blob->center());
                             
                         } else {
-                            auto [k, success] = _blob_labels.insert_or_assign(blob->blob_id(), decltype(_blob_labels)::mapped_type{ true, std::make_unique<Circle>(), std::make_unique<Label>(blob->name() + " " + ss.str(), blob->bounds(), blob->center()) });
+                            auto [k, success] = _blob_labels.insert_or_assign(blob->blob_id(), decltype(_blob_labels)::mapped_type{ true, std::make_unique<Circle>(), std::make_unique<Label>(ss.str(), blob->bounds(), blob->center()) });
                             it = k;
                         }
                         
@@ -4697,8 +4795,47 @@ void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void
         //return;
     }
     
-    this->work().add_queue("initializing python...", [this, type, force_load, callback](){
-        PythonIntegration::instance();
+    this->work().add_queue("initializing python...", [this, type, force_load, callback]()
+    {
+        auto task = std::async(std::launch::async, [this](){
+            cmn::set_thread_name("async::ensure_started");
+            auto f = PythonIntegration::ensure_started();
+            if(!f.get()) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(25));
+                _gui.close_dialogs();
+                
+                std::string text;
+#if defined(__APPLE__) && defined(__aarch64__)
+                text = "Initializing Python failed. Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow). Since you are using an ARM64 Mac, you may need to install additional libraries.";
+#else
+                text = "Initializing Python failed. Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow).";
+#endif
+                
+                auto message = text + "Python says: '"+PythonIntegration::python_init_error()+"'.";
+                Except(message.c_str());
+                
+                if(!SETTING(nowindow)) {
+#if defined(__APPLE__) && defined(__aarch64__)
+                    std::string command = "pip install --upgrade --force --no-dependencies https://github.com/apple/tensorflow_macos/releases/download/v0.1alpha3/tensorflow_macos-0.1a3-cp38-cp38-macosx_11_0_arm64.whl https://github.com/apple/tensorflow_macos/releases/download/v0.1alpha3/tensorflow_addons_macos-0.1a3-cp38-cp38-macosx_11_0_arm64.whl";
+                    
+                    text += "\n<i>"+escape_html(PythonIntegration::python_init_error())+"</i>";
+                    text += "\n\nYou can run <i>"+command+"</i> automatically in the current environment by clicking the button below.";
+                    
+                    _gui.dialog([command](Dialog::Result r) {
+                        if(r == Dialog::ABORT) {
+                            // install
+                            system(command.c_str());
+                        }
+                        
+                    }, text, "Python initialization failure", "Do nothing", "Install macos-tensorflow");
+#else
+                    _gui.dialog(text, "Error");
+#endif
+                }
+            } else
+                Debug("Initialization success.");
+        });
+        //PythonIntegration::instance();
         
         bool before = _analysis->is_paused();
         _analysis->set_paused(true).get();
@@ -4749,11 +4886,11 @@ void GUI::generate_training_data(GUI::GUIType type, bool force_load) {
             
         } catch(const SoftException& error) {
             if(SETTING(auto_train_on_startup))
-                U_EXCEPTION("The training process failed. Please check whether youre in the right python environment and check previous error messages.");
+                U_EXCEPTION("The training process failed. Please check whether you are in the right python environment and check previous error messages.");
             
             if(!SETTING(nowindow))
-                GUI::instance()->gui().dialog([](Dialog::Result){}, "The training process failed. Please check whether youre in the right python environment and check out this error message:\n<i>"+std::string(error.what())+"</i>", "Error");
-            Error("The training process failed. Please check whether youre in the right python environment and check previous error messages.");
+                GUI::instance()->gui().dialog("The training process failed. Please check whether you are in the right python environment and check out this error message:\n\n<i>"+escape_html(error.what())+"</i>", "Error");
+            Error("The training process failed. Please check whether you are in the right python environment and check previous error messages.");
             return false;
         }
     };
@@ -4797,10 +4934,10 @@ void GUI::generate_training_data(GUI::GUIType type, bool force_load) {
                         
                     } catch(const SoftException& error) {
                         if(SETTING(auto_train_on_startup))
-                            U_EXCEPTION("Initialization of the training process failed. Please check whether youre in the right python environment and check previous error messages.");
+                            U_EXCEPTION("Initialization of the training process failed. Please check whether you are in the right python environment and check previous error messages.");
                         if(!SETTING(nowindow))
-                            GUI::instance()->gui().dialog([](Dialog::Result){}, "Initialization of the training process failed. Please check whether youre in the right python environment and check out this error message:\n<i>"+std::string(error.what())+"<i/>", "Error");
-                        Error("Initialization of the training process failed. Please check whether youre in the right python environment and check previous error messages.");
+                            GUI::instance()->gui().dialog("Initialization of the training process failed. Please check whether you are in the right python environment and check out this error message:\n\n<i>"+escape_html(error.what())+"<i/>", "Error");
+                        Error("Initialization of the training process failed. Please check whether you are in the right python environment and check previous error messages.");
                     }
                 });
                 

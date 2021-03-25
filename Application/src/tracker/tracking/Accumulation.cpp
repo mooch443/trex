@@ -101,8 +101,14 @@ void Accumulation::setup() {
     PythonIntegration::ensure_started();
     try {
         Recognition::check_learning_module();
+        
     } catch(const std::future_error& error) {
-        SOFT_EXCEPTION("Checking the learning module failed ('%s'). Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow).", error.what());
+        Except("Checking learning module failed '%s'.", error.what());
+#if defined(__APPLE__) && defined(__aarch64__)
+        SOFT_EXCEPTION("Checking the learning module failed. Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow). Since you are using an ARM Mac, you may need to install additional libraries. Python says: '%S'.", &PythonIntegration::python_init_error());
+#else
+        SOFT_EXCEPTION("Checking the learning module failed. Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow). Python says: '%S'.", &PythonIntegration::python_init_error());
+#endif
     }
 }
 
@@ -1323,7 +1329,7 @@ bool Accumulation::start() {
         }
         
         if(sorted.empty() && available_ranges > 0 && successful_ranges == 0) {
-            const char* text = "Did not find enough consecutive segments to train on. None predicted unique IDs. Have to start training from a different segment.";
+            const char* text = "Did not find enough consecutive segments to train on. This likely means that your tracking parameters are not properly adjusted - try changing parameters such as `blob_size_ranges` in coordination with `track_threshold` to get cleaner trajectories. Additionally, changing the waiting time until animals are reassigned to arbitrary blobs (`track_max_reassign_time`) can help. None predicted unique IDs. Have to start training from a different segment.";
             if(SETTING(auto_train_on_startup)) {
                 U_EXCEPTION(text);
             } else

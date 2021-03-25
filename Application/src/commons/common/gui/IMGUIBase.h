@@ -5,11 +5,14 @@
 #include <misc/Timer.h>
 #include <thread>
 
+#if TREX_HAS_OPENGL
+#include "GLImpl.h"
+#endif
+
 #include "MetalImpl.h"
 #if TREX_METAL_AVAILABLE
 using default_impl_t = gui::MetalImpl;
 #else
-#include "GLImpl.h"
 using default_impl_t = gui::GLImpl;
 #endif
 
@@ -47,22 +50,30 @@ namespace gui {
         std::function<bool(const std::vector<file::Path>&)> _open_files_fn;
         
         struct DrawOrder {
-            bool is_pop;
+            enum Type {
+                DEFAULT = 0,
+                POP,
+                END_ROTATION,
+                START_ROTATION
+            };
+            Type type = DEFAULT;
             size_t index;
             Drawable* ptr;
             gui::Transform transform;
             Bounds bounds;
             
             DrawOrder() {}
-            DrawOrder(bool is_pop, size_t index, Drawable*ptr, const gui::Transform& transform, const Bounds& bounds)
-            : is_pop(is_pop), index(index), ptr(ptr), transform(transform), bounds(bounds)
+            DrawOrder(Type type, size_t index, Drawable*ptr, const gui::Transform& transform, const Bounds& bounds)
+            : type(type), index(index), ptr(ptr), transform(transform), bounds(bounds)
             {}
         };
         
+        std::unordered_map<Drawable*, std::tuple<int, Vec2>> _rotation_starts;
         std::vector<DrawOrder> _draw_order;
         
         std::mutex _mutex;
-        std::queue<std::unique_ptr<baseFunctor>> _exec_main_queue;
+        std::queue<std::function<void()>> _exec_main_queue;
+        std::string _title;
         
     public:
         template<typename impl_t = default_impl_t>
@@ -117,15 +128,23 @@ namespace gui {
         LoopStatus update_loop() override;
         virtual void paint(DrawStructure& s) override;
         void set_title(std::string) override;
+        const std::string& title() const override { return _title; }
+        
         Bounds text_bounds(const std::string& text, Drawable*, const Font& font) override;
         uint32_t line_spacing(const Font& font) override;
         Size2 window_dimensions() override;
-        float dpi_scale() override;
-        template<typename F>
-        void exec_main_queue(F&& fn) {
+        float dpi_scale() const override;
+        template<class F, class... Args>
+        auto exec_main_queue(F&& f, Args&&... args) -> std::future<typename std::invoke_result_t<F, Args...>>
+        {
             std::lock_guard<std::mutex> guard(_mutex);
-            _exec_main_queue.push(std::unique_ptr<baseFunctor>(new functor<F>(std::move(fn))));
+            using return_type = typename std::invoke_result_t<F, Args...>;
+            auto task = std::make_shared< std::packaged_task<return_type()> >(std::bind(std::forward<F>(f), std::forward<Args>(args)...));
+            
+            auto future = task->get_future();
+            _exec_main_queue.push([task](){ (*task)(); });
             //_exec_main_queue.push(std::bind([](F& fn){ fn(); }, std::move(fn)));
+            return future;
         }
         Event toggle_fullscreen(DrawStructure& g) override;
         
@@ -133,5 +152,6 @@ namespace gui {
         void redraw(Drawable* o, std::vector<DrawOrder>& draw_order, bool is_background = false);
         void draw_element(const DrawOrder& order);
         void event(const gui::Event& e);
+        static void update_size_scale(GLFWwindow*);
     };
 }

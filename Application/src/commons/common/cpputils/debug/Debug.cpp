@@ -32,10 +32,6 @@
 #include <string>
 
 namespace DEBUG {
-#ifndef WIN32
-    std::mutex DEBUG_MUTEX;
-#endif
-    
     bool& runtime_quiet() {
         static bool runtime_quiet = false;
         return runtime_quiet;
@@ -46,9 +42,7 @@ namespace DEBUG {
     }
     
     std::mutex& debug_mutex() {
-#ifdef WIN32
         static std::mutex DEBUG_MUTEX;
-#endif
         return DEBUG_MUTEX;
     }
     
@@ -81,7 +75,7 @@ namespace DEBUG {
         "true", "false"
     };
     
-    void SetDebugCallback(const std::vector<DEBUG_TYPE>& types, const std::function<void(const StatusMsg*, const std::string&)>& callback) {
+    void* SetDebugCallback(const std::vector<DEBUG_TYPE>& types, const std::function<void(const StatusMsg*, const std::string&)>& callback) {
         debug_mutex().lock();
         
         auto *ptr = new DebugCallback;
@@ -91,7 +85,26 @@ namespace DEBUG {
         debug_callbacks.push_back(ptr);
         
         debug_mutex().unlock();
+        
+        return (void*)ptr;
     }
+
+void UnsetDebugCallback(void * callback) {
+    auto ptr = (DebugCallback*)callback;
+    if(!ptr)
+        return;
+    
+    debug_mutex().lock();
+    
+    auto it = std::find(debug_callbacks.begin(), debug_callbacks.end(), ptr);
+    if(it != debug_callbacks.end()) {
+        debug_callbacks.erase(it);
+        delete ptr;
+    } else
+        printf("[EXCEPTION] Cannot find debug callback to delete it.\n");
+    
+    debug_mutex().unlock();
+}
     
     
 #if __APPLE__

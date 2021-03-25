@@ -11,6 +11,7 @@ namespace gui {
         std::function<void(SFLoop&)> _after_display;
         GETTER_SETTER(bool, please_end)
         
+        std::string _name;
         std::mutex queue_mutex;
         std::queue<std::function<void()>> main_exec_queue;
         

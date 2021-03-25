@@ -2,23 +2,11 @@
  * Project Untitled
  */
 
-
 #include "GlobalSettings.h"
 using namespace cmn;
-static std::shared_ptr<GlobalSettings> _instance;
-static std::once_flag _instance_create;
-
-const std::shared_ptr<GlobalSettings>& GlobalSettings::instance() {
-    if (!_instance) {
-        _instance = std::make_shared<GlobalSettings>();
-        _instance->map().set_do_print(false);
-    }
-    //std::call_once(_instance_create, []{ if(!_instance) { _instance = std::make_shared<GlobalSettings>(); _instance->map().set_do_print(false); } });
-	return _instance;
-}
 
 void GlobalSettings::set_instance(const std::shared_ptr<GlobalSettings>& ptr) {
-    _instance = ptr;
+    instance() = ptr;
 }
 
 std::mutex& GlobalSettings::mutex() {

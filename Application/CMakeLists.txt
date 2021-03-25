@@ -34,6 +34,11 @@ set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "")
 
 option(TREX_BUILD_DOCS OFF)
 option(TREX_WITH_TESTS OFF)
+if(APPLE)
+    option(TREX_WITH_OPENGL OFF)
+else()
+    option(TREX_WITH_OPENGL ON)
+endif()
 option(TREX_BUILD_GLFW OFF)
 option(TREX_BUILD_PNG OFF)
 option(TREX_BUILD_ZIP OFF)
@@ -69,13 +74,12 @@ endif()
 
 if(APPLE AND "${TREX_MACOS_VERSION}" VERSION_LESS "10.12")
     message(STATUS "This system does not support MetalKit (detected version: ${TREX_MACOS_VERSION}), enabling OpenGL.")
-    set(TREX_WITH_OPENGL ON)
+    SET(TREX_WITH_OPENGL ON CACHE BOOL "" FORCE)
 elseif(APPLE)
     message(STATUS "MetalKit support detected (version: ${TREX_MACOS_VERSION}).")
-    set(TREX_WITH_OPENGL OFF)
 else()
     message(STATUS "Non-Apple systems use OpenGL.")
-    set(TREX_WITH_OPENGL ON)
+    SET(TREX_WITH_OPENGL ON CACHE BOOL "" FORCE)
 endif()
 
 if(NO_PUT_TIME)
@@ -285,7 +289,7 @@ elseif(MSVC)
 else()
     message(STATUS "***** compiler ID ${CMAKE_CXX_COMPILER_ID}")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Wno-unknown-pragmas")
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -pg")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
 endif()
 
 if(TREX_ENABLE_CPP20)
@@ -444,7 +448,7 @@ if(TREX_BUILD_GLFW)
     set(GLFW_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/glfw)
     ExternalProject_Add(glfw PREFIX glfw
         GIT_REPOSITORY https://github.com/glfw/glfw.git
-        GIT_TAG 3.3
+        GIT_TAG 3.3.3
         CMAKE_ARGS
             ${trex_subproject_CMAKE_ARGS}
             "-DCMAKE_INSTALL_PREFIX=${GLFW_INSTALL_DIR}"
@@ -980,6 +984,7 @@ if(${TREX_BUILD_OPENCV})
             -DWITH_GTK:BOOL=FALSE
             -DWITH_CAIRO:BOOL=FALSE
             -DWITH_PNG:BOOL=TRUE
+            -DWITH_GSTREAMER:BOOL=OFF
             -DBUILD_PERF_TESTS:BOOL=FALSE
             -DBUILD_opencv_apps:BOOL=FALSE
             -DBUILD_opencv_java:BOOL=FALSE

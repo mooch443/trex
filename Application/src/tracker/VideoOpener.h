@@ -57,6 +57,9 @@ public:
         void restart_background();
     };
     
+    std::string _name;
+    const char* _callback;
+    
     std::mutex _video_mutex;
     std::unique_ptr<BufferedVideo> _buffer;
     std::queue<std::unique_ptr<BufferedVideo>> _stale_buffers;
@@ -84,7 +87,7 @@ public:
     size_t _blob_image_index;
     Timer _blob_timer;
     
-    double _screenshot_previous_size;
+    Size2 _screenshot_previous_size;
     
     struct LabeledField {
         gui::derived_ptr<gui::Text> _text;

@@ -209,31 +209,6 @@ int main(int argc, char** argv)
 #endif
     
     default_config::register_default_locations();
-    
-    if(argc == 2) {
-        if(std::string(argv[1]) == "-options") {
-            for(auto arg : Arguments::names) {
-                printf("-%s ", arg);
-            }
-            exit(0);
-            
-        } else if(std::string(argv[1]) == "-path") {
-            default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
-            default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
-            
-            CommandLine cmd(argc, argv, true);
-            cmd.cd_home();
-            
-            if(Path("default.settings").exists()) {
-                default_config::warn_deprecated("default.settings", GlobalSettings::load_from_file(default_config::deprecations(), "default.settings", AccessLevelType::STARTUP));
-            }
-            
-            printf("%s", SETTING(output_dir).value<file::Path>().str().c_str());
-            
-            exit(0);
-        }
-    }
-    
     GlobalSettings::map().set_do_print(true);
     
     gui::init_errorlog();
@@ -270,6 +245,31 @@ int main(int argc, char** argv)
     default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     GlobalSettings::map().dont_print("gui_frame");
     GlobalSettings::map().dont_print("gui_focus_group");
+    
+    if(argc == 2) {
+        if(std::string(argv[1]) == "-options") {
+            for(auto arg : Arguments::names) {
+                printf("-%s ", arg);
+            }
+            exit(0);
+            
+        } else if(std::string(argv[1]) == "-path") {
+            default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+            default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+            
+            CommandLine cmd(argc, argv, true);
+            cmd.cd_home();
+            
+            if(Path("default.settings").exists()) {
+                default_config::warn_deprecated("default.settings", GlobalSettings::load_from_file(default_config::deprecations(), "default.settings", AccessLevelType::STARTUP));
+            }
+            
+            printf("%s", SETTING(output_dir).value<file::Path>().str().c_str());
+            
+            exit(0);
+            
+        }
+    }
     
     file::Path load_results_from;
 #ifdef WIN32
@@ -1232,8 +1232,14 @@ int main(int argc, char** argv)
     gui.set_analysis(analysis.get());
     gui_lock.unlock();
     
-    GlobalSettings::map().register_callback(NULL, [&analysis, &gui](const sprite::Map&, const std::string& key, const sprite::PropertyType& value)
+    auto callback = "TRex::main";
+    GlobalSettings::map().register_callback(callback, [&analysis, &gui, callback](sprite::Map::Signal signal, sprite::Map& map, const std::string& key, const sprite::PropertyType& value)
     {
+        if(signal == sprite::Map::Signal::EXIT) {
+            map.unregister_callback(callback);
+            return;
+        }
+        
         if (key == "analysis_paused") {
             analysis->bump();
             
@@ -1605,11 +1611,6 @@ int main(int argc, char** argv)
     if(imgui_base)
         delete imgui_base;
     analysis->terminate();
-        
-    /*} catch(const std::exception& e) {
-        Except("Exception: %s", e.what());
-        return 1;
-    }*/
     
     tracker.prepare_shutdown();
     

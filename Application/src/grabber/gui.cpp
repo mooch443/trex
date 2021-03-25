@@ -5,6 +5,7 @@
 #include <gui/DrawHTMLBase.h>
 #include <tracking/Tracker.h>
 #include <tracker/gui/DrawFish.h>
+#include <gui/IMGUIBase.h>
 
 namespace grab {
 
@@ -18,6 +19,7 @@ IMPLEMENT(GUI::setting_keys) = {
 };
 
 GUI *_instance = nullptr;
+const char* callback = "Framegrabber::GUI";
 
 GUI* GUI::instance() {
     return _instance;
@@ -40,14 +42,19 @@ GUI::GUI(FrameGrabber& grabber)
 {
     _instance = this;
     
-    GlobalSettings::map().register_callback(NULL, [this](const sprite::Map&, const std::string& name, const sprite::PropertyType& value)
+    GlobalSettings::map().register_callback(callback, [this](sprite::Map::Signal signal, sprite::Map&map, const std::string& name, const sprite::PropertyType& value)
         {
+            if(signal == sprite::Map::Signal::EXIT) {
+                map.unregister_callback(callback);
+                callback = nullptr;
+                return;
+            }
+        
             if(name == KEY(mode)) {
                 set_redraw();
             } else if(name == KEY(terminate)) {
                 if(value.value<bool>())
-                {
-                }
+                { }
             }
             else if(name == std::string("gui_interface_scale")) {
                 gui::Event e(gui::WINDOW_RESIZED);
@@ -64,6 +71,13 @@ void GUI::set_base(gui::Base *base) {
     _sf_base = base;
     
     if(base) {
+        _crop_offsets = (SETTING(crop_offsets).value<CropOffsets>());
+        _size = cv::Size(_grabber.cam_size().width, _grabber.cam_size().height);
+        _cropped_size = (_grabber.cropped_size());
+        _gui.set_size(Size2(max(150, _cropped_size.width), max(150, _cropped_size.height)));
+        if(base && dynamic_cast<gui::IMGUIBase*>(base))
+            ((gui::IMGUIBase*)base)->init(base->title());
+        
         auto desktop_mode = base->window_dimensions();
         gui::Event e(gui::EventType::WINDOW_RESIZED);
         e.size.width = desktop_mode.width;
@@ -73,6 +87,9 @@ void GUI::set_base(gui::Base *base) {
 }
 
 GUI::~GUI() {
+    if(callback)
+        GlobalSettings::map().unregister_callback(callback);
+    callback = nullptr;
 }
 
 #if WITH_MHD
@@ -249,6 +266,7 @@ void GUI::draw(gui::DrawStructure &base) {
                 } else
                     background = new ExternalImage(std::move(_image), offset, Vec2(1/scale));
             } else {
+                background->set_scale(Vec2(1 / scale));
                 background->set_source(std::move(_image));
             }
         }
@@ -286,7 +304,7 @@ void GUI::draw(gui::DrawStructure &base) {
                 
                 base.rect(pos + offset, image->bounds().size(), Transparent, Red);
                 base.image(pos + offset, std::move(image), Vec2(1.0), wheel.next().alpha(50));
-                base.text(Meta::toStr(i), pos + offset, Yellow, 0.5);
+                base.text(Meta::toStr(i), pos + offset, Yellow, 0.5, base.scale().reciprocal());
             }
         }
         
@@ -368,7 +386,11 @@ void GUI::draw(gui::DrawStructure &base) {
         }
     }
     base.text(info_text(), Vec2(20, 10), text_color, Font(0.7f), base.scale().reciprocal());
-    base.draw_log_messages();
+    
+    auto scale = base.scale().reciprocal();
+    auto dim = _sf_base ? _sf_base->window_dimensions().mul(scale * gui::interface_scale()) : Size2(_grabber.average());
+    base.draw_log_messages(Bounds(Vec2(0, 85).mul(scale * gui::interface_scale()), dim - Size2(0, 85).mul(scale * gui::interface_scale())));
+    //base.draw_log_messages();
     
     if(_grabber.tracker_instance()) {
         base.section("tracking", [this](gui::DrawStructure& base, Section*section) {
@@ -470,6 +492,7 @@ void GUI::event(const gui::Event &event) {
         float scale = min(size.width / float(_cropped_size.width),
                           size.height / float(_cropped_size.height));
         _gui.set_scale(scale * gui::interface_scale()); // SETTING(cam_scale).value<float>());
+        _gui.set_dirty(NULL);
         
         Vec2 real_size(_cropped_size.width * scale,
                        _cropped_size.height * scale);

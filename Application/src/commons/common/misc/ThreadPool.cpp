@@ -26,9 +26,10 @@ namespace cmn {
             
             while(thread_pool.size() < num_threads) {
                 size_t i = thread_pool.size();
-                thread_pool.push_back(new std::thread([this](std::function<void()> init, int idx){
-                    std::unique_lock<std::mutex> lock(m);
+                thread_pool.push_back(new std::thread([this](std::function<void()> init, int idx)
+                {
                     set_thread_name(this->thread_prefix()+"::thread_"+Meta::toStr(idx));
+                    std::unique_lock<std::mutex> lock(m);
                     
                     init();
                     

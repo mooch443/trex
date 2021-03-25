@@ -677,16 +677,20 @@ public: \
         return VariableNames[M]; \
     } \
     static void set_callback(Variables v, decltype(_callbacks)::mapped_type f) { _callbacks[v] = f; } \
+    static void clear_callbacks() { _callbacks.clear(); } \
     static std::vector<std::string> names() { return std::vector<std::string>{ STRUCT_FOR_EACH(NAM, STRINGIZE_MEMBERS, __VA_ARGS__) }; } \
-    static void variable_changed (const sprite::Map &, const std::string &key, const sprite::PropertyType& value) { \
+    static void variable_changed (sprite::Map::Signal signal, sprite::Map & map, const std::string &key, const sprite::PropertyType& value) { \
+        if(signal == sprite::Map::Signal::EXIT) { \
+            return; \
+        } \
         if(false); STRUCT_FOR_EACH(NAM, UPDATE_MEMBERS, __VA_ARGS__) \
     } \
     static inline void init() { \
         static std::once_flag flag; \
         std::call_once(flag, [](){ \
-        cmn::GlobalSettings::map().register_callback((void*) STRUCT_STRINGIZE_SINGLE(EXPAND(STRUCT_CONCATENATE(NAM, __COUNTER__))), NAM :: variable_changed ); \
+            cmn::GlobalSettings::map().register_callback(#NAM, NAM :: variable_changed ); \
             for(auto &n : NAM :: names()) \
-                variable_changed(cmn::GlobalSettings::map(), n, cmn::GlobalSettings::get(n).get()); \
+                variable_changed(sprite::Map::Signal::NONE, cmn::GlobalSettings::map(), n, cmn::GlobalSettings::get(n).get()); \
         }); \
     } \
 }; \

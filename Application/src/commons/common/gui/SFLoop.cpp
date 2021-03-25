@@ -11,8 +11,18 @@ namespace gui {
         SETTING(terminate) = false;
         bool _do_terminate = false;
         
-        GlobalSettings::map().register_callback(this, [&_do_terminate](auto&, const std::string& key, auto& value)
+        _name = "SFLoop"+Meta::toStr(uint64_t(this));
+        auto ptr = _name.c_str();
+        
+        GlobalSettings::map().register_callback(ptr, [&_do_terminate, &ptr](sprite::Map::Signal signal, sprite::Map& map, const std::string& key, auto& value)
         {
+            if(signal == sprite::Map::Signal::EXIT) {
+                if(ptr)
+                    map.unregister_callback(ptr);
+                ptr = nullptr;
+                return;
+            }
+            
             if(key == "terminate") {
                 _do_terminate = value.template value<bool>();
             }
@@ -48,7 +58,8 @@ namespace gui {
             }
         }
         
-        GlobalSettings::map().unregister_callback(this);
+        if(ptr)
+            GlobalSettings::map().unregister_callback(ptr);
     }
     
     void SFLoop::add_to_queue(std::function<void ()> fn) {

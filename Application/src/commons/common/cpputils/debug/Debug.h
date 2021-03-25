@@ -142,7 +142,8 @@ namespace DEBUG {
 	};
     
     
-    void SetDebugCallback(const std::vector<DEBUG_TYPE>& types, const std::function<void(const StatusMsg*, const std::string&)>& callback);
+    void* SetDebugCallback(const std::vector<DEBUG_TYPE>& types, const std::function<void(const StatusMsg*, const std::string&)>& callback);
+    void UnsetDebugCallback(void*);
 
 	void ParseStatusMessage(StatusMsg*msg);
     void Init();

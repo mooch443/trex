@@ -92,6 +92,8 @@ namespace gui {
             _on_text_changed([](){}),
             _text(text),
             _font(0.75),
+            _text_color(Black),
+            _fill_color(White.alpha(210)),
             _read_only(false),
             _text_display(text, Vec2(), Black, _font)
     {
@@ -367,13 +369,40 @@ namespace gui {
             }
         }
     }
+
+void Textfield::set_text_color(const Color &c) {
+    if(c == _text_color)
+        return;
+    
+    _text_color = c;
+    _cursor.set_fillclr(c);
+    
+    set_content_changed(true);
+}
+
+void Textfield::set_fill_color(const Color &c) {
+    if(c == _fill_color)
+        return;
+    
+    _fill_color = c;
+    
+    set_content_changed(true);
+}
+
+void Textfield::set_postfix(const std::string &p) {
+    if(p == _postfix)
+        return;
+    
+    _postfix = p;
+    set_content_changed(true);
+}
     
     void Textfield::update() {
         begin();
         
         static constexpr const Color BrightRed(255,150,150,255);
-        Color base_color = White.alpha(210),
-              border_color = Black;
+        Color base_color   = _fill_color,
+              border_color = _text_color.alpha(255);
         
         if(!_valid)
             base_color = BrightRed.alpha(210);
@@ -381,7 +410,7 @@ namespace gui {
             base_color = base_color.exposure(0.9);
             _text_display.set_color(DarkGray);
         } else
-            _text_display.set_color(Black);
+            _text_display.set_color(_text_color);
         
         if(hovered())
             base_color = base_color.alpha(255);
@@ -517,7 +546,13 @@ namespace gui {
             _placeholder->set_pos(_text_display.pos());
             advance_wrap(*_placeholder);
            
-        } else if(read_only()) {
+        } else if(!_postfix.empty()) {
+            auto tmp = new Text(_postfix, Vec2(width() - 5, height() * 0.5), _text_color.exposure(0.5), Font(max(0.1, _text_display.font().size * 0.9)));
+            tmp->set_origin(Vec2(1, 0.5));
+            advance(tmp);
+        }
+            
+        if(read_only()) {
             auto tmp = new Text("(read-only)", Vec2(width() - 5, height() * 0.5), Gray, Font(max(0.1, _text_display.font().size * 0.9)));
             tmp->set_origin(Vec2(1, 0.5));
             advance(tmp);

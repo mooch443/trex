@@ -5,8 +5,6 @@
 #include <limits>
 
 #include "MetalImpl.h"
-#if TREX_METAL_AVAILABLE
-#endif
 #include "GLImpl.h"
 
 #include <imgui/imgui.h>
@@ -354,6 +352,79 @@ void clear_cache() {
 
     std::unordered_map<GLFWwindow*, IMGUIBase*> base_pointers;
 
+void IMGUIBase::update_size_scale(GLFWwindow* window) {
+    auto base = base_pointers.at(window);
+    
+    int x, y;
+    glfwGetWindowPos(window, &x, &y);
+    
+    int fw, fh;
+    glfwGetFramebufferSize(window, &fw, &fh);
+    base->_last_framebuffer_size = Size2(fw, fh);
+    
+    GLFWmonitor* monitor = glfwGetWindowMonitor(window);
+    if(!monitor) {
+        int count;
+        auto monitors = glfwGetMonitors(&count);
+        int mx, my, mw, mh;
+#ifndef NDEBUG
+        Debug("Window is at %d, %d (%dx%d).", x, y, fw, fh);
+#endif
+        
+        for (int i=0; i<count; ++i) {
+            auto name = glfwGetMonitorName(monitors[i]);
+            glfwGetMonitorWorkarea(monitors[i], &mx, &my, &mw, &mh);
+#ifndef NDEBUG
+            Debug("Monitor '%s': %d,%d %dx%d", name, mx, my, mw, mh);
+#endif
+            if(Bounds(mx, my, mw, mh).overlaps(Bounds(x, y, fw, fh))) {
+                monitor = monitors[i];
+                break;
+            }
+        }
+        
+        if(!monitor) {
+            // assume fullscreen?
+            Debug("No monitor found.");
+            return;
+        }
+        
+    } else {
+        int mx, my, mw, mh;
+        glfwGetMonitorWorkarea(monitor, &mx, &my, &mw, &mh);
+#ifndef NDEBUG
+        Debug("FS Monitor: %d,%d %dx%d", mx, my, mw, mh);
+#endif
+    }
+    
+    float xscale, yscale;
+#if GLFW_HAVE_MONITOR_SCALE
+    glfwGetMonitorContentScale(monitor, &xscale, &yscale);
+#else
+    xscale = yscale = 1;
+#endif
+    
+#ifndef NDEBUG
+    Debug("Content scale: %f, %f", xscale, yscale);
+#endif
+    
+    int width = base->_graph->width(), height = base->_graph->height();
+    
+    const float base_scale = 32;
+    float dpi_scale = 1 / max(xscale, yscale);//max(float(fw) / float(width), float(fh) / float(height));
+    im_font_scale = max(1, dpi_scale) * 0.75f;
+    base->_dpi_scale = dpi_scale;
+    
+    {
+        Event e(EventType::WINDOW_RESIZED);
+        e.size.width = fw;
+        e.size.height = fh;
+
+        base->event(e);
+    }
+    base->_graph->set_dirty(NULL);
+}
+
     ImU32 cvtClr(const gui::Color& clr) {
         return ImColor(clr.r, clr.g, clr.b, clr.a);
     }
@@ -402,7 +473,11 @@ void clear_cache() {
             }
         }
         
-        _platform->create_window(title.c_str(), width, height);
+        if(!_platform->window_handle())
+            _platform->create_window(title.c_str(), width, height);
+        else
+            glfwSetWindowSize(_platform->window_handle(), width, height);
+        
         glfwSetWindowPos(_platform->window_handle(), mx + (mw - width) / 2, my + (mh - height) / 2);
         
         glfwSetDropCallback(_platform->window_handle(), [](GLFWwindow* window, int N, const char** texts){
@@ -435,7 +510,8 @@ void clear_cache() {
         _last_framebuffer_size = Size2(fw, fh);
         
         const float base_scale = 32;
-        float dpi_scale = max(float(fw) / float(width), float(fh) / float(height));
+        //float dpi_scale = max(float(fw) / float(width), float(fh) / float(height));
+        float dpi_scale = 1 / max(xscale, yscale);
         im_font_scale = max(1, dpi_scale) * 0.75f;
         _dpi_scale = dpi_scale;
         
@@ -529,44 +605,38 @@ void clear_cache() {
             base->event(e);
             base->_graph->set_dirty(NULL);
         });
-        glfwSetWindowSizeCallback(_platform->window_handle(), [](GLFWwindow* window, int width, int height)
+        glfwSetWindowSizeCallback(_platform->window_handle(), [](GLFWwindow* window, int, int)
         {
-            auto base = base_pointers.at(window);
-/*#ifndef WIN32
-            Size2 frame_size = base->window_dimensions();
-            width = frame_size.width;
-            height = frame_size.height;
-
-			if (!frame_size.empty()) 
-#endif*/
-			{
-				Event e(EventType::WINDOW_RESIZED);
-				e.size.width = width * base->dpi_scale();
-				e.size.height = height * base->dpi_scale();
-
-				base->event(e);
-			}
-            base->_graph->set_dirty(NULL);
+            IMGUIBase::update_size_scale(window);
+        });
+        
+        glfwSetWindowPosCallback(_platform->window_handle(), [](GLFWwindow* window, int, int)
+        {
+            IMGUIBase::update_size_scale(window);
+        });
+        
+        exec_main_queue([window = _platform->window_handle()](){
+            IMGUIBase::update_size_scale(window);
         });
     }
 
     IMGUIBase::~IMGUIBase() {
         while(!_exec_main_queue.empty()) {
-            (*_exec_main_queue.front())();
+            (_exec_main_queue.front())();
             _exec_main_queue.pop();
         }
         
         TextureCache::remove_base(this);
         
         while(!_exec_main_queue.empty()) {
-            (*_exec_main_queue.front())();
+            (_exec_main_queue.front())();
             _exec_main_queue.pop();
         }
         
         base_pointers.erase(_platform->window_handle());
     }
 
-    float IMGUIBase::dpi_scale() {
+    float IMGUIBase::dpi_scale() const {
         return _dpi_scale;
     }
 
@@ -585,7 +655,15 @@ void clear_cache() {
     }
 
     void IMGUIBase::loop() {
-        _platform->loop(_custom_loop);
+        LoopStatus status = LoopStatus::IDLE;
+        
+        // Main loop
+        while (status != LoopStatus::END)
+        {
+            status = update_loop();
+            if(status != gui::LoopStatus::UPDATED)
+                std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
     }
 
     LoopStatus IMGUIBase::update_loop() {
@@ -595,13 +673,13 @@ void clear_cache() {
                 auto fn = std::move(_exec_main_queue.front());
                 
                 guard.unlock();
-                (*fn)();
+                (fn)();
                 guard.lock();
                 _exec_main_queue.pop();
             }
         }
         
-        return _platform->update_loop();
+        return _platform->update_loop(_custom_loop);
     }
 
     void IMGUIBase::set_frame_recording(bool v) {
@@ -634,6 +712,7 @@ void clear_cache() {
         _skipped = 0;
         _type_counts.clear();
         _draw_order.clear();
+        _rotation_starts.clear();
         
         for (size_t i=0; i<objects.size(); i++) {
             auto o =  objects[i];
@@ -904,10 +983,38 @@ void PolyFillScanFlood(ImDrawList *draw, std::vector<ImVec2> *poly, ImColor colo
     scanHits.clear();
 }
 
+void ImRotateStart(int& rotation_start_index, ImDrawList* list)
+{
+    rotation_start_index = list->VtxBuffer.Size;
+}
+
+ImVec2 ImRotationCenter(int rotation_start_index, ImDrawList* list)
+{
+    ImVec2 l(FLT_MAX, FLT_MAX), u(-FLT_MAX, -FLT_MAX); // bounds
+
+    const auto& buf = list->VtxBuffer;
+    for (int i = rotation_start_index; i < buf.Size; i++)
+        l = ImMin(l, buf[i].pos), u = ImMax(u, buf[i].pos);
+
+    return ImVec2((l.x+u.x)/2, (l.y+u.y)/2); // or use _ClipRectStack?
+}
+
+ImVec2 operator-(const ImVec2& l, const ImVec2& r) { return{ l.x - r.x, l.y - r.y }; }
+
+void ImRotateEnd(int rotation_start_index, ImDrawList* list, float rad, ImVec2 center)
+{
+    //auto center = ImRotationCenter(list);
+    float s=cos(rad), c=sin(rad);
+    center = ImRotate(center, s, c) - center;
+
+    auto& buf = list->VtxBuffer;
+    for (int i = rotation_start_index; i < buf.Size; i++)
+        buf[i].pos = ImRotate(buf[i].pos, s, c) - center;
+}
+
 void IMGUIBase::draw_element(const DrawOrder& order) {
-    
     auto list = ImGui::GetForegroundDrawList();
-    if(order.is_pop) {
+    if(order.type == DrawOrder::POP) {
         if(list->_ClipRectStack.size() > 1) {
             //Debug("Popped cliprect %.0f,%.0f", list->_ClipRectStack.back().x, list->_ClipRectStack.back().y);
             list->PopClipRect();
@@ -916,12 +1023,71 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
         return;
     }
     
+    if(order.type == DrawOrder::END_ROTATION) {
+        auto o = order.ptr;
+        assert(o->has_global_rotation());
+        if(!_rotation_starts.count(o)) {
+            Warning("Cannot find object.");
+            return;
+        }
+        auto && [rotation_start, center] = _rotation_starts.at(o);
+        ImRotateEnd(rotation_start, list, o->rotation(), center);
+        return;
+    }
+    
     auto o = order.ptr;
+    Vec2 center;
+    auto bds = order.bounds;
+    auto &io = ImGui::GetIO();
+    Transform transform(order.transform);
+    
+    int rotation_start;
+    
+    if(order.type == DrawOrder::START_ROTATION) {
+        ImRotateStart(rotation_start, list);
+        
+        // generate position without rotation
+        Vec2 scale = (_graph->scale() / gui::interface_scale()) .div(Vec2(io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y));
+        
+        transform = Transform();
+        transform.scale(scale);
+        transform.combine(o->parent()->global_transform());
+        transform.translate(o->pos());
+        transform.scale(o->scale());
+        transform.translate(-o->size().mul(o->origin()));
+        
+        bds = transform.transformRect(Bounds(Vec2(), o->size()));
+        center = bds.pos() + bds.size().mul(o->origin());
+        
+        if(o->type() == Type::ENTANGLED) {
+            _rotation_starts[o] = { rotation_start, center };
+        }
+        
+        return;
+    }
+    
     if(!o->visible())
         return;
     
     ++_objects_drawn;
     auto cache = o->cached(this);
+    
+    if(o->rotation() && o->type() != Type::ENTANGLED) {
+        ImRotateStart(rotation_start, list);
+        
+        // generate position without rotation
+        Vec2 scale = (_graph->scale() / gui::interface_scale()) .div(Vec2(io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y));
+        
+        transform = Transform();
+        transform.scale(scale);
+        transform.combine(o->parent()->global_transform());
+        transform.translate(o->pos());
+        transform.scale(o->scale());
+        transform.translate(-o->size().mul(o->origin()));
+        
+        bds = transform.transformRect(Bounds(Vec2(), o->size()));
+        center = bds.pos() + bds.size().mul(o->origin());
+    }
     
     switch (o->type()) {
         case Type::CIRCLE: {
@@ -981,14 +1147,10 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
             if(ptr->txt().empty())
                 break;
             
-            //list->PushClipRect(ImVec2(bounds.x, bounds.y), ImVec2(bounds.width + bounds.x, bounds.height + bounds.y), false);
-            //list->AddRectFilled(ImVec2(bounds.x, bounds.y), ImVec2(bounds.width + bounds.x, bounds.height + bounds.y), cvtClr(Red.alpha(125)));
-
-            auto &io = ImGui::GetIO();
             auto font = _fonts.at(ptr->font().style);
-            list->AddText(font, ptr->global_text_scale().x * font->FontSize * (ptr->font().size / im_font_scale / io.DisplayFramebufferScale.x), ImVec2(order.bounds.x, order.bounds.y), (ImColor)ptr->color(), ptr->txt().c_str());
             
-            //list->PopClipRect();
+            list->AddText(font, ptr->global_text_scale().x * font->FontSize * (ptr->font().size / im_font_scale / io.DisplayFramebufferScale.x), bds.pos(), (ImColor)ptr->color(), ptr->txt().c_str());
+            
             break;
         }
             
@@ -1116,6 +1278,10 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
             ///Debug("Empty cmd buffer.");
         }
     }
+    
+    if(o->type() != Type::ENTANGLED && o->has_global_rotation()) {
+        ImRotateEnd(rotation_start, list, o->rotation(), center);
+    }
 }
 
     void IMGUIBase::redraw(Drawable *o, std::vector<DrawOrder>& draw_order, bool is_background) {
@@ -1149,13 +1315,6 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
         
         auto bounds = transform.transformRect(Bounds(0, 0, o->width(), o->height()));
         
-        if(o->type() == Type::ENTANGLED) {
-            auto bg = static_cast<Entangled*>(o)->background();
-            if(bg) {
-                redraw(bg, draw_order, true);
-            }
-        }
-        
         //bool skip = false;
         auto cache = o->cached(this);
         auto dim = window_dimensions() / dpi_scale();
@@ -1171,8 +1330,16 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
         switch (o->type()) {
             case Type::ENTANGLED: {
                 auto ptr = static_cast<Entangled*>(o);
+                if(ptr->rotation() != 0)
+                    draw_order.emplace_back(DrawOrder::START_ROTATION, draw_order.size(), o, transform, bounds);
+                
+                auto bg = static_cast<Entangled*>(o)->background();
+                if(bg) {
+                    redraw(bg, draw_order, true);
+                }
+                
                 if(entangled_will_texture(ptr)) {
-                    draw_order.emplace_back(false, draw_order.size(), o, transform, bounds);
+                    draw_order.emplace_back(DrawOrder::DEFAULT, draw_order.size(), o, transform, bounds);
                     
                     for(auto c : ptr->children()) {
                         if(ptr->scroll_enabled()) {
@@ -1193,18 +1360,22 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
                         redraw(c, draw_order);
                     }
                     
-                    draw_order.emplace_back(true, draw_order.size(), ptr, transform, bounds);
+                    draw_order.emplace_back(DrawOrder::POP, draw_order.size(), ptr, transform, bounds);
                     
                 } else {
                     for(auto c : ptr->children())
                         redraw(c, draw_order);
                 }
                 
+                if(ptr->rotation() != 0) {
+                    draw_order.emplace_back(DrawOrder::END_ROTATION, draw_order.size(), ptr, transform, bounds);
+                }
+                
                 break;
             }
                 
             default:
-                draw_order.emplace_back(false, draw_order.size(), o, transform, bounds);
+                draw_order.emplace_back(DrawOrder::DEFAULT, draw_order.size(), o, transform, bounds);
                 break;
         }
     }
@@ -1256,6 +1427,8 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
     }
 
     void IMGUIBase::set_title(std::string title) {
+        _title = title;
+        
         exec_main_queue([this, title](){
             if(_platform)
                 _platform->set_title(title);
@@ -1278,13 +1451,15 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
         static int _wndSize[2];
         static int _wndPos[2];
         
+        Debug("Enabling full-screen.");
         _platform->toggle_full_screen();
         
         Event event(WINDOW_RESIZED);
         
         // backup window position and window size
         glfwGetWindowPos( _platform->window_handle(), &_wndPos[0], &_wndPos[1] );
-        glfwGetWindowSize( _platform->window_handle(), &_wndSize[0], &_wndSize[1] );
+        glfwGetFramebufferSize(_platform->window_handle(), &_wndSize[0], &_wndSize[1]);
+        //glfwGetWindowSize( _platform->window_handle(), &_wndSize[0], &_wndSize[1] );
         
         event.size.width = _wndSize[0];
         event.size.height = _wndSize[1];

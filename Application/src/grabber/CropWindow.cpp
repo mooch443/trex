@@ -8,7 +8,7 @@
 #include <misc/CropOffsets.h>
 
 namespace gui {
-    constexpr float radius = 40;
+    constexpr float radius = 100;
     constexpr Color inner_color = White.alpha(200), outer_color = White.alpha(200);
     
     CropWindow::CropWindow(FrameGrabber& grabber) : circles({
@@ -18,7 +18,7 @@ namespace gui {
         std::make_shared<Circle>(Vec2(0, grabber.original_average().rows), radius, outer_color, inner_color)
     })
     {
-        std::string source = utils::lowercase(SETTING(video_source));
+        std::string source = utils::lowercase(SETTING(video_source).value<std::string>());
         auto size = Size2(grabber.video()->size());
         _video_size = size;
         
@@ -56,7 +56,7 @@ namespace gui {
         [this, &grabber, &scale, &okay](SFLoop& loop){
             std::unique_lock<std::recursive_mutex> guard(_graph->lock());
             auto desktop = _base->window_dimensions();
-            auto size = _video_size * _base->dpi_scale();
+            auto size = _video_size; //* _base->dpi_scale();
             
             if (desktop.width >= desktop.height) {
                 if (size.width > desktop.width) {

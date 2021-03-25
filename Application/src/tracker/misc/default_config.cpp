@@ -69,7 +69,7 @@ namespace default_config {
     )
 
     ENUM_CLASS_DOCS(output_format_t,
-        "A standard data format, comma-separated columns for each data stream.",
+        "A standard data format, comma-separated columns for each data stream. Use `output_csv_decimals` to adjust the maximum precision for exported data.",
         "NPZ is basically a collection of binary arrays, readable by NumPy and other plugins (there are plugins available for Matlab and R)."
     )
 
@@ -374,11 +374,11 @@ file::Path conda_environment_path() {
         CONFIG("outline_curvature_range_ratio", float(0.03), "Determines the ratio between number of outline points and distance used to calculate its curvature. Program will look at index +- `ratio * size()` and calculate the distance between these points (see posture window red/green color).");
         CONFIG("midline_walk_offset", float(0.025), "This percentage of the number of outline points is the amount of points that the midline-algorithm is allowed to move left and right upon each step. Higher numbers will make midlines more straight, especially when extremities are present (that need to be skipped over), but higher numbers will also potentially decrease accuracy for less detailed objects.");
         CONFIG("midline_stiff_percentage", float(0.15), "Percentage of the midline that can be assumed to be stiff. If the head position seems poorly approximated (straighened out too much), then decrease this value.");
-        CONFIG("midline_resolution", uint32_t(12), "Number of midline points that are saved. Higher number increases detail.", STARTUP);
+        CONFIG("midline_resolution", uint32_t(25), "Number of midline points that are saved. Higher number increases detail.", STARTUP);
         CONFIG("posture_head_percentage", float(0.1), "The percentage of the midline-length that the head is moved away from the front of the body.");
         CONFIG("posture_closing_steps", uint8_t(0), "When enabled (> 0), posture will be processed using a combination of erode / dilate in order to close holes in the shape and get rid of extremities. An increased number of steps will shrink the shape, but will also be more time intensive.");
         CONFIG("posture_closing_size", uint8_t(2), "The kernel size for erosion / dilation of the posture algorithm. Only has an effect with  `posture_closing_steps` > 0.");
-        CONFIG("outline_resample", float(1.f), "Spacing between outline points in pixels, after resampling (normalizing) the outline. A lower value here can drastically increase the number of outline points generated (and decrease speed).");
+        CONFIG("outline_resample", float(0.5), "Spacing between outline points in pixels, after resampling (normalizing) the outline. A lower value here can drastically increase the number of outline points generated (and decrease speed).");
         CONFIG("outline_use_dft", true, "If enabled, the program tries to reduce outline noise by convolution of the curvature array with a low pass filter.");
         CONFIG("midline_start_with_head", false, "If enabled, the midline is going to be estimated starting at the head instead of the tail.");
         CONFIG("midline_invert", false, "If enabled, all midlines will be inverted (tail/head swapped).");
@@ -507,6 +507,7 @@ file::Path conda_environment_path() {
         CONFIG("tracklet_normalize_orientation", true, "If enabled, all exported tracklet images are normalized according to the calculated posture orientation, so that all heads are looking to the left and only the body moves.");
         CONFIG("tracklet_restore_split_blobs", true, "If enabled, all exported tracklet images are checked for missing pixels. When a blob is too close to another blob, parts of the other blob might be erased so the individuals can be told apart. If enabled, another mask will be saved, that contains only the blob in focus, without the rest-pixels.");
         CONFIG("output_image_per_tracklet", false, "If set to true, the program will output one median image per tracklet (time-series segment) and save it alongside the npz/csv files.");
+        CONFIG("output_csv_decimals", uint8_t(0), "Maximum number of decimal places that is written into CSV files (a text-based format for storing data). A value of 0 results in integer values.");
         CONFIG("output_format", output_format_t::npz, "When pressing the S(ave) button or using `auto_quit`, this setting allows to switch between CSV and NPZ output. NPZ files are recommended and will be used by default - some functionality (such as visual fields, posture data, etc.) will remain in NPZ format due to technical constraints.");
         CONFIG("output_statistics", false, "Save an NPZ file containing an array with shape Nx5 and contents `[[adding_frame_seconds, combined_posture_seconds, track_max_individuals, loading_seconds, posture_seconds],...]` and an 1D-array containing all frame numbers. If set to true, a file called '`output_dir`/`fish_data_dir`/`<filename>_statistics.npz`' will be created. This will not output anything interesting, if the data was loaded instead of analysed.");
         CONFIG("output_posture_data", false, "Save posture data npz file along with the usual NPZ/CSV files containing positions and such. If set to true, a file called '`output_dir`/`fish_data_dir`/`<filename>_posture_fishXXX.npz`' will be created for each individual XXX.");

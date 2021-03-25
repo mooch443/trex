@@ -104,6 +104,7 @@ FFMPEGQueue::FFMPEGQueue(bool direct, const Size2& size, const file::Path& outpu
 {
     if(!direct)
         write_thread = new std::thread([this](){
+            cmn::set_thread_name("FFMPEGQueue::write_loop");
             this->write_loop();
         });
 }

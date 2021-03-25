@@ -290,6 +290,7 @@ namespace cmn {
     
         template<class Q> std::string name(const typename std::enable_if< std::is_floating_point<typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return sizeof(double) == sizeof(Q) ? "double" : "float"; }
         template<class Q> std::string name(const typename std::enable_if< std::is_same<std::string, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "string"; }
+        template<class Q> std::string name(const typename std::enable_if< std::is_same<std::wstring, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "wstring"; }
         template<class Q> std::string name(const typename std::enable_if< std::is_same<bool, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "bool"; }
         template<class Q> std::string name(const typename std::enable_if< std::is_same<cv::Mat, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "mat"; }
         template<class Q> std::string name(const typename std::enable_if< std::is_same<cv::Range, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "range"; }
@@ -474,6 +475,11 @@ namespace cmn {
         }
         
         template<class Q>
+        std::string toStr(const typename std::enable_if< std::is_same<typename std::remove_cv<Q>::type, std::wstring>::value, Q>::type& obj) {
+            return ws2s(obj);
+        }
+    
+        template<class Q>
         std::string toStr(const typename std::enable_if< is_pair<Q>::value, Q >::type& obj) {
             return "[" + Meta::toStr(obj.first) + "," + Meta::toStr(obj.second) + "]";
         }
@@ -516,10 +522,15 @@ namespace cmn {
         }
     
         template<class Q>
-        std::string toStr(const typename std::enable_if< !is_instantiation<std::shared_ptr, Q>::value && (Meta::has_internal_tostr_method<Q>::value), Q >::type& obj) {
+        std::string toStr(const typename std::enable_if< (std::is_pointer<Q>::value || is_instantiation<std::shared_ptr, Q>::value) && Meta::has_internal_tostr_method<Q>::value, Q >::type& obj) {
             return "ptr<"+Q::class_name()+">" + obj.toStr();
         }
         
+    template<class Q>
+    std::string toStr(const typename std::enable_if< !std::is_pointer<Q>::value && !is_instantiation<std::shared_ptr, Q>::value && Meta::has_internal_tostr_method<Q>::value, Q >::type& obj) {
+        return obj.toStr();
+    }
+    
         template<class Q>
         std::string toStr(const typename std::enable_if< is_instantiation<std::shared_ptr, Q>::value && !Meta::has_tostr_method<typename Q::element_type>::value && !std::is_convertible<typename Q::element_type, MetaObject>::value, Q >::type& obj) {
             return "ptr<?>0x" + Meta::toStr(uint64_t(obj.get()));//MetaType<typename std::remove_pointer<typename Q::element_type>::type>::toStr(*obj);
@@ -654,6 +665,12 @@ namespace cmn {
                || (utils::beginsWith(str, '\'') && utils::endsWith(str, '\'')))
                 return unescape(utils::trim(str.substr(1, str.length()-2)));
             return unescape(utils::trim(str));
+        }
+    
+        template<class Q>
+        Q fromStr(const std::string& str, const typename std::enable_if< std::is_same<std::wstring, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr)
+        {
+            return s2ws(str);
         }
         
         template<class Q>

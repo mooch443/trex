@@ -31,6 +31,7 @@ CREATE_STRUCT(GrabSettings,
   (bool,        terminate),
   (bool,        reset_average),
   (bool,        image_invert),
+  (uint32_t, average_samples),
   (bool,        correct_luminance),
   (bool,        recording),
   (size_t,        color_channel),
@@ -49,8 +50,8 @@ CREATE_STRUCT(GrabSettings,
 
 #define GRAB_SETTINGS(NAME) GrabSettings::copy< GrabSettings:: NAME >()
 
-static std::deque<std::shared_ptr<track::PPFrame>> unused_pp;
-static std::deque<std::shared_ptr<track::PPFrame>> ppframe_queue;
+static std::deque<std::unique_ptr<track::PPFrame>> unused_pp;
+static std::deque<std::unique_ptr<track::PPFrame>> ppframe_queue;
 static std::mutex ppframe_mutex, ppqueue_mutex;
 static std::condition_variable ppvar;
 
@@ -289,10 +290,6 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
     FrameGrabber::instance = this;
     GrabSettings::init();
     
-    _pool = std::make_unique<GenericThreadPool>(max(1u, cmn::hardware_concurrency()), [](auto e) { std::rethrow_exception(e); }, "ocl_threads", [](){
-        ocl::init_ocl();
-    });
-    
     if(!_processed.filename().remove_filename().empty() && !_processed.filename().remove_filename().exists())
         _processed.filename().remove_filename().create_folder();
     
@@ -435,6 +432,7 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
         mp4_queue = new FFMPEGQueue(true, Size2(_cam_size), path);
         Debug("Encoding mp4 into '%S'...", &path.str());
         mp4_thread = new std::thread([this](){
+            cmn::set_thread_name("mp4_thread");
             mp4_queue->loop();
         });
     }
@@ -449,10 +447,26 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
         SETTING(enable_live_tracking) = true;
     }
     
-    if (SETTING(enable_live_tracking)) {
-        tracker = new track::Tracker();
-        Output::Library::Init();
-    }
+    _pool = std::make_unique<GenericThreadPool>(max(1u, cmn::hardware_concurrency()), [](auto e) { std::rethrow_exception(e); }, "ocl_threads", [](){
+        ocl::init_ocl();
+    });
+    
+    _task._complete = false;
+    _task._future = async_deferred([this, callback = std::move(callback_before_starting)]() mutable {
+        initialize(std::move(callback));
+        _task._complete = true;
+    });
+}
+
+void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_before_starting)
+{
+    if(_video)
+        initialize_video();
+    _average.copyTo(_original_average);
+    
+    callback_before_starting(*this);
+    if(SETTING(terminate))
+        return;
     
     // determine offsets
     CropOffsets roff = SETTING(crop_offsets);
@@ -476,16 +490,10 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
         _processed.set_mask(mask);
     }
     
-    _task._complete = false;
-    _task._future = async_deferred([this, callback = std::move(callback_before_starting)]() mutable {
-        initialize(std::move(callback));
-        _task._complete = true;
-    });
-}
-
-void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_before_starting) {
-    if(_video)
-        initialize_video();
+    if (SETTING(enable_live_tracking)) {
+        tracker = new track::Tracker();
+        Output::Library::Init();
+    }
     
     if (GRAB_SETTINGS(enable_closed_loop)) {
         track::PythonIntegration::set_settings(GlobalSettings::instance());
@@ -498,6 +506,7 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
 
     if (tracker) {
         _tracker_thread = new std::thread([this]() {
+            cmn::set_thread_name("update_tracker_queue");
             update_tracker_queue();
         });
     }
@@ -534,12 +543,11 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
         SETTING(cm_per_pixel) = SETTING(meta_real_width).value<float>() / SETTING(video_size).value<Size2>().width;
     
     _average.copyTo(_original_average);
-    callback_before_starting(*this);
+    //callback_before_starting(*this);
     
-    if(_video) {
+    if(_video && _average_finished) {
         _average.copyTo(_original_average);
         prepare_average();
-        _average_finished = true;
         _current_average_timestamp = 42;
     }
     
@@ -552,20 +560,36 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
               return new Image_t(_cam_size.height, _cam_size.width);
           },
           [&](const Image_t* prev, Image_t& current) -> bool { // prepare object
+              if(_reset_first_index) {
+                  _reset_first_index = false;
+                  prev = NULL;
+              }
+        
               if(_video) {
-                  current.set_index(prev != NULL ? prev->index() + 1 : (GRAB_SETTINGS(video_conversion_range).first != -1 ? GRAB_SETTINGS(video_conversion_range).first : 0));
+                  static const auto conversion_range_start = GRAB_SETTINGS(video_conversion_range).first != -1 ? GRAB_SETTINGS(video_conversion_range).first : 0;
                   
-                  if(GRAB_SETTINGS(video_conversion_range).second != -1) {
-                      if(current.index() >= GRAB_SETTINGS(video_conversion_range).second) {
-                          if(!GRAB_SETTINGS(terminate))
-                              SETTING(terminate) = true;
+                  if(!_average_finished) {
+                      double step = _video->length() / floor((double)min(_video->length()-1, max(1u, GRAB_SETTINGS(average_samples))));
+                      current.set_index(prev ? (prev->index() +  step) : 0);
+                      if(current.index() >= long_t(_video->length())) {
                           return false;
                       }
+                      
                   } else {
-                      if(current.index() >= long_t(_video->length())) {
-                          if(!GRAB_SETTINGS(terminate))
-                              SETTING(terminate) = true;
-                          return false;
+                      current.set_index(prev != NULL ? prev->index() + 1 : conversion_range_start);
+                      
+                      if(GRAB_SETTINGS(video_conversion_range).second != -1) {
+                          if(current.index() >= GRAB_SETTINGS(video_conversion_range).second) {
+                              //if(!GRAB_SETTINGS(terminate))
+                              //    SETTING(terminate) = true;
+                              return false;
+                          }
+                      } else {
+                          if(current.index() >= long_t(_video->length())) {
+                              //if(!GRAB_SETTINGS(terminate))
+                              //    SETTING(terminate) = true;
+                              return false;
+                          }
                       }
                   }
                   
@@ -588,7 +612,7 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
               return true;
           },
           [&](Image_t& current) -> bool { return load_image(current); },
-          [&](Image_t& current) -> Queue::Code { return process_image(current); });
+          [&](const Image_t& current) -> Queue::Code { return process_image(current); });
     
     Debug("ThreadedAnalysis started (%dx%d | %dx%d).", _cam_size.width, _cam_size.height, _cropped_size.width, _cropped_size.height);
 }
@@ -596,8 +620,9 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
 FrameGrabber::~FrameGrabber() {
     // stop processing
     Debug("Terminating...");
-    _analysis->terminate();
-    delete _analysis;
+    if(_analysis) {
+        delete _analysis;
+    }
 
     {
         std::unique_lock<std::mutex> guard(_log_lock);
@@ -654,6 +679,8 @@ FrameGrabber::~FrameGrabber() {
         _tracker_thread->join();
         delete _tracker_thread;
         
+        SETTING(terminate) = false; // TODO: otherwise, stuff might not get exported
+        
         {
             track::Tracker::LockGuard guard("GUI::save_state");
             tracker->wait();
@@ -663,6 +690,9 @@ FrameGrabber::~FrameGrabber() {
             
             std::vector<std::string> additional_exclusions;
             sprite::Map config_grabber, config_tracker;
+            config_grabber.set_do_print(false);
+            config_tracker.set_do_print(false);
+            
             GlobalSettings::docs_map_t docs;
             grab::default_config::get(config_grabber, docs, nullptr);
             ::default_config::get(config_tracker, docs, nullptr);
@@ -712,6 +742,7 @@ FrameGrabber::~FrameGrabber() {
             }
         }
         
+        SETTING(terminate) = true; // TODO: Otherwise stuff would not have been exported
         delete tracker;
     }
     
@@ -735,9 +766,10 @@ file::Path FrameGrabber::average_name() const {
 void FrameGrabber::initialize_video() {
     auto path = average_name();
     Debug("Saving average at or loading from '%S'.", &path.str());
+    const bool reset_average = SETTING(reset_average);
     
     if(path.exists()) {
-        if(SETTING(reset_average)) {
+        if(reset_average) {
             Warning("Average exists, but will not be used because 'reset_average' is set to true.");
             SETTING(reset_average) = false;
         } else {
@@ -749,13 +781,18 @@ void FrameGrabber::initialize_video() {
         }
     } else {
         Debug("Average image at '%S' doesnt exist.", &path.str());
-        if(SETTING(reset_average))
+        if(reset_average)
             SETTING(reset_average) = false;
     }
     
-    if(_average.empty()) {
+    if(_average.empty() || reset_average) {
         Debug("Generating new average.");
-        _video->generate_average(_video->average(), 0);
+        //_average_finished = false;
+        //_average_samples = 0;
+        //return;
+        _video->generate_average(_video->average(), 0, [this](float percent) {
+            _average_samples = percent * (float)SETTING(average_samples).value<uint32_t>();
+        });
         _video->average().copyTo(_average);
         
         if(!SETTING(terminate))
@@ -765,12 +802,11 @@ void FrameGrabber::initialize_video() {
         Debug("Reusing previously generated average.");
     }
     
-    //_video->undistort(_average, _average);
-    
     if(SETTING(quit_after_average))
         SETTING(terminate) = true;
     
     _current_average_timestamp = 1336;
+    _average_finished = true;
 }
 
 bool FrameGrabber::add_image_to_average(const Image_t& current) {
@@ -798,70 +834,23 @@ bool FrameGrabber::add_image_to_average(const Image_t& current) {
             std::atomic_store(&_current_image, std::shared_ptr<Image>());
         }
         
-        static auto averaging_method = GlobalSettings::has("averaging_method") ? SETTING(averaging_method).value<averaging_method_t::Class>() : averaging_method_t::mean;
-        static bool use_mean = averaging_method != averaging_method_t::max
-            && averaging_method != averaging_method_t::max;
-        static gpuMat empty_image;
-        if(empty_image.empty())
-            empty_image = gpuMat::zeros(_cropped_size.height, _cropped_size.width, CV_8UC1);
-        current.get().copyTo(empty_image);
-        //current.get(empty_image);
-        
-        if(use_mean) {
-            cv::Mat tmp;
-            empty_image.convertTo(tmp, CV_32FC1, 1.0/255.0);
-            
-            if(_current_average.empty() || _current_average.type() != CV_32FC1)
-                tmp.copyTo(_current_average);
-            else
-                _current_average += tmp;
-        } else {
-            if(_current_average.empty())
-                empty_image.copyTo(_current_average);
-            else {
-                cv::Mat local, local_av;
-                _current_average.copyTo(local_av);
-                empty_image.copyTo(local);
-                
-                if(averaging_method == averaging_method_t::max)
-                    _current_average = cv::max(local, local_av);
-                else if(averaging_method == averaging_method_t::min)
-                    _current_average = cv::min(local, local_av);
-            }
-        }
+        if(!_accumulator)
+            _accumulator = std::make_unique<AveragingAccumulator>();
+        _accumulator->add(current.get());
         
         _average_samples++;
         
-        if(_average_samples >= SETTING(average_samples).value<uint32_t>()) { //|| fname.is_regular()) {
-            if(use_mean) {
-                _current_average /= float(_average_samples);
+        if(_average_samples >= SETTING(average_samples).value<uint32_t>()) {
+            {
                 std::lock_guard<std::mutex> guard(_frame_lock);
-                _current_average.convertTo(_average, CV_8UC1, 255.0);
-                
-            } else {
-                std::lock_guard<std::mutex> guard(_frame_lock);
-                _current_average.copyTo(_average);
+                auto image = _accumulator->finalize();
+                image->get().copyTo(_average);
             }
             
-            _current_average_timestamp = std::chrono::steady_clock::now().time_since_epoch().count();
-            
-            if(_average.channels() > 1) {
-                static const size_t color_channel = SETTING(color_channel).value<size_t>();
-                if(color_channel >= 3) {
-                    // turn into HUE
-                    if(_average.channels() == 3) {
-                        cv::cvtColor(_average, _average, cv::COLOR_BGR2HSV);
-                        cv::extractChannel(_average, _average, 0);
-                    } else Error("Cannot copy to read frame with %d channels.", _average.channels());
-                } else {
-                    cv::Mat copy;
-                    cv::extractChannel(_average, copy, color_channel);
-                    copy.copyTo(_average);
-                }
-            }
-            
+            assert(_average.channels() == 1);
             assert(_average.type() == CV_8UC1);
             _average.copyTo(_original_average);
+            _accumulator = nullptr;
             
             cv::Mat tmp;
             _average.copyTo(tmp);
@@ -870,36 +859,12 @@ bool FrameGrabber::add_image_to_average(const Image_t& current) {
                 Error("Cannot write '%S'.", &fname.str());
             else
                 Debug("Saved new average image at '%S'.", &fname.str());
-            /*} else {
-                cv::Mat f = cv::imread(fname.str());
-                if(f.cols != _current_average.cols || f.rows != _current_average.rows) {
-                    // invalid size
-                    if(!fname.delete_file())
-                        U_EXCEPTION("Cannot delete file '%S'.", &fname.str());
-                    _average = gpuMat();
-                    
-                    return Queue::ITEM_NEXT;
-                } else {
-                    f.copyTo(_average);
-                }
-            }*/
-            
-            /*cv::Mat copied = _average;
-            _processed.undistort(_average, copied);
-            
-            auto scale = SETTING(cam_scale).value<float>();
-            if(scale != 1) {
-                cv::Mat temp;
-                resize_image(copied, temp, scale);
-                _processed.set_average(temp);
-            } else {
-                _processed.set_average(copied);
-            }
-            //_processed.processImage(_average, _average, false);*/
             
             prepare_average();
             
+            _current_average_timestamp = std::chrono::steady_clock::now().time_since_epoch().count();
             _average_finished = true;
+            _reset_first_index = true;
             
             if(SETTING(quit_after_average))
                 SETTING(terminate) = true;
@@ -909,6 +874,7 @@ bool FrameGrabber::add_image_to_average(const Image_t& current) {
             std::atomic_store(&_current_image, std::make_shared<Image>(current));
         else
             _current_image->set(current.index(), current.data());
+        
         return true;
     }
     
@@ -922,10 +888,7 @@ bool FrameGrabber::load_image(Image_t& current) {
         return false;
     
     if(_video) {
-        if(current.index() >= long_t(_video->length())) {
-            if(!GRAB_SETTINGS(terminate)) {
-                SETTING(terminate) = true;
-            }
+        if(_average_finished && current.index() >= long_t(_video->length())) {
             return false;
         }
         
@@ -980,7 +943,7 @@ bool FrameGrabber::load_image(Image_t& current) {
 }
 
 void FrameGrabber::add_tracker_queue(const pv::Frame& frame, long_t index) {
-    std::shared_ptr<track::PPFrame> ptr;
+    std::unique_ptr<track::PPFrame> ptr;
     static size_t created_items = 0;
     static Timer print_timer;
     
@@ -997,16 +960,18 @@ void FrameGrabber::add_tracker_queue(const pv::Frame& frame, long_t index) {
         }
         
         if(!unused_pp.empty()) {
-            ptr = unused_pp.front();
+            ptr = std::move(unused_pp.front());
             unused_pp.pop_front();
+            ptr->clear();
         } else
             ++created_items;
     }
     
     if(!ptr) {
-        ptr = std::make_shared<track::PPFrame>();
+        ptr = std::make_unique<track::PPFrame>();
     }
     
+    ptr->clear();
     ptr->frame() = frame;
     ptr->frame().set_index(index);
     ptr->frame().set_timestamp(frame.timestamp());
@@ -1014,7 +979,7 @@ void FrameGrabber::add_tracker_queue(const pv::Frame& frame, long_t index) {
     
     {
         std::lock_guard<std::mutex> guard(ppqueue_mutex);
-        ppframe_queue.push_back(ptr);
+        ppframe_queue.emplace_back(std::move(ptr));
     }
     
     ppvar.notify_one();
@@ -1088,7 +1053,7 @@ void FrameGrabber::update_tracker_queue() {
             
             loop_timer.reset();
 
-            auto copy = ppframe_queue.front();
+            auto copy = std::move(ppframe_queue.front());
             ppframe_queue.pop_front();
             guard.unlock();
             
@@ -1098,13 +1063,9 @@ void FrameGrabber::update_tracker_queue() {
             
             if(copy && tracker) {
                 track::Tracker::LockGuard guard("update_tracker_queue");
-                //copy->set_index(track::Tracker::end_frame()+1);
-                //copy->frame().set_index(copy->index());
                 track::Tracker::preprocess_frame(*copy, {}, NULL, NULL, false);
                 tracker->add(*copy);
-
                 
-                //std::this_thread::sleep_for(std::chrono::seconds(1));
                 static Timer test_timer;
                 if (test_timer.elapsed() > 10) {
                     test_timer.reset();
@@ -1250,7 +1211,7 @@ void FrameGrabber::update_tracker_queue() {
             if(copy) {
                 std::lock_guard<std::mutex> guard(ppframe_mutex);
                 copy->clear();
-                unused_pp.push_back(copy);
+                unused_pp.emplace_back(std::move(copy));
             }
             
             guard.lock();
@@ -1275,8 +1236,10 @@ void FrameGrabber::ensure_average_is_ready() {
         
         last_average = _current_average_timestamp;
         
+        assert(!_average.empty());
         Warning("Copying average to GPU.");
-        _pool->wait();
+        if(_pool)
+            _pool->wait();
         ocl::init_ocl();
         
         static cv::Mat tmp;
@@ -1387,7 +1350,7 @@ void FrameGrabber::write_fps(uint64_t index, uint64_t tdelta, uint64_t ts) {
     fwrite(str.data(), sizeof(char), str.length(), file);
 }
 
-Queue::Code FrameGrabber::process_image(Image_t& current) {
+Queue::Code FrameGrabber::process_image(const Image_t& current) {
     static Timing timing("process_image", 10);
     TakeTiming take(timing);
     
@@ -1399,11 +1362,13 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
     ensure_average_is_ready();
     
     // make timestamp relative to _start_timing
+    auto TS = current.timestamp();
     if(_start_timing == UINT64_MAX)
-        _start_timing = current.timestamp();
-    current.set_timestamp(current.timestamp() - _start_timing);
+        _start_timing = TS;
+    TS = TS - _start_timing;
+    //current.set_timestamp(current.timestamp() - _start_timing);
     
-    double minutes = double(current.timestamp()) / 1000.0 / 1000.0 / 60.0;
+    double minutes = double(TS) / 1000.0 / 1000.0 / 60.0;
     if(GRAB_SETTINGS(stop_after_minutes) > 0 && minutes >= GRAB_SETTINGS(stop_after_minutes) && !GRAB_SETTINGS(terminate)) {
         SETTING(terminate) = true;
         Debug("Terminating program because stop_after_minutes (%d) has been reached.", GRAB_SETTINGS(stop_after_minutes));
@@ -1610,6 +1575,12 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
         {
             std::lock_guard<std::mutex> guard(to_main_mutex);
             last_task_processed = index; //! allow next task
+            
+            if(_video) {
+                static const auto conversion_range_end = GRAB_SETTINGS(video_conversion_range).second != -1 ? GRAB_SETTINGS(video_conversion_range).second : _video->length();
+                if((uint64_t)last_task_processed >= conversion_range_end-1)
+                    SETTING(terminate) = true;
+            }
         }
         single_variable.notify_all();
     };
@@ -1619,7 +1590,7 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
         static const float cm_per_pixel = SQR(SETTING(cm_per_pixel).value<float>());
         
         Timer _sub_timer;
-        auto rawblobs = CPULabeling::run_fast(task.current->get(), true);
+        auto rawblobs = CPULabeling::run(task.current->get(), true);
         
         for(auto  && [lines, pixels] : rawblobs) {
             //b->calculate_properties();
@@ -1727,7 +1698,7 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
             
             if(!_terminate_tracker) {
                 for_the_pool.push(Task(global_index++,
-                    std::make_unique<Image>(local, current.index(), current.timestamp()),
+                    std::make_unique<Image>(local, current.index(), TS),
 #if WITH_FFMPEG
                     /*mp4_queue ?*/ std::make_unique<Image>(current_copy) /*: nullptr*/,
 #else
@@ -1741,7 +1712,7 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
         
     } else {
         Task task(global_index++,
-            std::make_unique<Image>(local, current.index(), current.timestamp()),
+            std::make_unique<Image>(local, current.index(), TS),
 #if WITH_FFMPEG
             /*mp4_queue ?*/ std::make_unique<Image>(current_copy) /*: nullptr*/,
 #else

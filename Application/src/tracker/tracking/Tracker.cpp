@@ -347,26 +347,23 @@ void Tracker::analysis_state(AnalysisState pause) {
             }
         });
         
-        
         if (!callback_registered) {
-            auto variable_changed = [](auto&map, auto&key, auto&value){ if(contains(Settings::names(), key)) {
+            auto ptr = "Tracker::Settings";
+            auto variable_changed = [ptr](sprite::Map::Signal signal, auto&map, auto&key, auto&value)
+            {
+                if(signal == sprite::Map::Signal::EXIT) {
+                    map.unregister_callback(ptr);
+                    return;
+                }
+                
+                if(contains(Settings::names(), key)) {
                     Tracker::LockGuard guard("changed_settings");
-                    Settings :: variable_changed(map, key, value);
+                    Settings :: variable_changed(signal, map, key, value);
                 }
             };
-            cmn::GlobalSettings::map().register_callback((void*)"Settings", variable_changed);
+            cmn::GlobalSettings::map().register_callback(ptr, variable_changed);
             for(auto &n : Settings :: names())
-                variable_changed(cmn::GlobalSettings::map(), n, cmn::GlobalSettings::get(n).get());
-            
-            /*GlobalSettings::map().register_callback(this, Tracker::changed_setting);
-            
-            callback_registered = true;
-            if(!SETTING(quiet))
-                Debug("Registered Tracker callback.");
-            
-            for(auto &s : read_these)
-                if(GlobalSettings::map().has(s))
-                    changed_setting(GlobalSettings::map(), s, GlobalSettings::get(s).get());*/
+                variable_changed(sprite::Map::Signal::NONE, cmn::GlobalSettings::map(), n, cmn::GlobalSettings::get(n).get());
             
         }
         
@@ -374,6 +371,7 @@ void Tracker::analysis_state(AnalysisState pause) {
     }
     Tracker::~Tracker() {
         assert(_instance);
+        Settings::clear_callbacks();
         
         _thread_pool.force_stop();
         if(!SETTING(quiet))
@@ -382,14 +380,11 @@ void Tracker::analysis_state(AnalysisState pause) {
         if(!SETTING(quiet))
             Debug("Done waiting.");
         
-        
         _instance = NULL;
         
         auto individuals = _individuals;
         for (auto& fish_ptr : individuals)
             delete fish_ptr.second;
-        //if(_grid)
-        //    delete _grid;
         
         emergency_finish();
     }
@@ -599,19 +594,19 @@ bool operator<(long_t frame, const FrameProperties& props) {
         {}
         
         bool operator<(const PairProbability& other) const {
-            return _p < other.p();
+            return std::make_tuple(_p, _idx->identity().ID(), _bdx->blob_id()) < std::make_tuple(other._p, other._idx->identity().ID(), other._bdx->blob_id());
         }
         bool operator>(const PairProbability& other) const {
-            return _p > other.p();
+            return std::make_tuple(_p, _idx->identity().ID(), _bdx->blob_id()) > std::make_tuple(other._p, other._idx->identity().ID(), other._bdx->blob_id());
         }
         bool operator<=(const PairProbability& other) const {
-            return _p <= other.p();
+            return std::make_tuple(_p, _idx->identity().ID(), _bdx->blob_id()) <= std::make_tuple(other._p, other._idx->identity().ID(), other._bdx->blob_id());
         }
         bool operator>=(const PairProbability& other) const {
-            return _p >= other.p();
+            return std::make_tuple(_p, _idx->identity().ID(), _bdx->blob_id()) >= std::make_tuple(other._p, other._idx->identity().ID(), other._bdx->blob_id());
         }
         bool operator==(const PairProbability& other) const {
-            return _p == other.p();
+            return std::make_tuple(_p, _idx->identity().ID(), _bdx->blob_id()) == std::make_tuple(other._p, other._idx->identity().ID(), other._bdx->blob_id());
         }
     };
 
@@ -1329,7 +1324,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
 
                         for(; sit != fish->frame_segments().end() && min((*sit)->end(), obj.previous_frame) >= time_limit && counter < frame_limit; ++counter)
                         {
-                            auto pos = fish->basic_stuff().at((*sit)->basic_stuff((*sit)->end()))->centroid->pos();
+                            auto pos = fish->basic_stuff().at((*sit)->basic_stuff((*sit)->end()))->centroid->pos(Units::DEFAULT);
                             
                             if((*sit)->length() > FAST_SETTINGS(frame_rate) * FAST_SETTINGS(track_max_reassign_time) * 0.25)
                             {
@@ -1341,7 +1336,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
                                 break;
                             }
                             
-                            last_pos = fish->basic_stuff().at((*sit)->basic_stuff((*sit)->start()))->centroid->pos();
+                            last_pos = fish->basic_stuff().at((*sit)->basic_stuff((*sit)->start()))->centroid->pos(Units::DEFAULT);
                             
                             if(sit != fish->frame_segments().begin())
                                 --sit;
@@ -1940,38 +1935,6 @@ void Tracker::clear_properties() {
             auto it = manual_matches->find(frameIndex);
             if (it != manual_matches->end())
                 current_fixed_matches = it->second;
-        }
-        
-        if(frameIndex == _startFrame) {
-            /*
-             
-                assert(_individuals.empty());
-                long_t max_id = -1;
-                for (auto && [fid, bid] : current_fixed_matches) {
-                    Individual *fish = new Individual();
-                    fish->identity().set_ID(fid);
-                    _individuals[fish->identity().ID()] = fish;
-                    max_id = max(max_id, fid);
-                    Debug("(first frame) Adding fish %d -> %d", fish->identity().ID(), bid);
-             
-                    auto blob_it = id_to_blob.find(bid);
-                    if(blob_it != id_to_blob.end() && !blob_assigned[blob_it->second.get()]) { //&& (uint)bid < blobs.size()) {
-                        //auto blob = blobs.at(bid);
-                        auto blob = blob_it->second;
-                        fish->add_manual_match(frameIndex);
-                        assign_blob_individual(frameIndex, frame, fish, blob);
-             
-                        active_individuals.push_back(fish);
-                    } else if(blob_it != id_to_blob.end()) {
-                        // already assigned
-                        Error("Trying to manual_match blob %d twice in frame %d.", blob_it->second->blob_id(), frameIndex);
-                    }
-                }
-             
-                if(max_id > -1) {
-                    Identity::set_running_id(max_id + 1);
-                }
-            }*/
         }
         
         // prepare active_individuals array and assign fixed matches for which
@@ -2850,7 +2813,7 @@ void Tracker::clear_properties() {
                             
                             Individual *fish = r.idx();
                             
-                            //Debug("Best match for blob %d is %d in %d", r.bdx(), fish->identity().ID(), frameIndex);
+                            //Debug("Best match for blob %d is %d in %d (%f)", r.bdx()->blob_id(), fish->identity().ID(), frameIndex, r.p());
                             
                             assign_blob_individual(frameIndex, frame, fish, r.bdx());
                             active_individuals.insert(fish);
@@ -3123,7 +3086,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                 auto properties = _warn_individual_status.size() > (size_t)fish->identity().ID() ? &_warn_individual_status[fish->identity().ID()] : nullptr;
                 
                 if(properties && properties->current) {
-                    if(properties->current->speed() >= Individual::weird_distance()) {
+                    if(properties->current->speed(Units::CM_AND_SECONDS) >= Individual::weird_distance()) {
                         weird_distance.insert(FOI::fdx_t{fish->identity().ID()});
                     }
                 }
@@ -3973,13 +3936,13 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                         auto blob_start = fish->centroid_weighted(segment.start());
                         auto blob_end = fish->centroid_weighted(segment.end());
                         if(blob_start)
-                            pos_start = blob_start->pos();
+                            pos_start = blob_start->pos(Units::CM_AND_SECONDS);
                         if(blob_end)
-                            pos_end = blob_end->pos();
+                            pos_end = blob_end->pos(Units::CM_AND_SECONDS);
                         
                         if(blob_start && blob_end) {
-                            auto dprev = euclidean_distance(prev_pos->pos(), pos_start) / Tracker::time_delta(blob_start->frame(), prev_pos->frame());
-                            auto dnext = euclidean_distance(next_pos->pos(), pos_end) / Tracker::time_delta(next_pos->frame(), blob_end->frame());
+                            auto dprev = euclidean_distance(prev_pos->pos(Units::CM_AND_SECONDS), pos_start) / Tracker::time_delta(blob_start->frame(), prev_pos->frame());
+                            auto dnext = euclidean_distance(next_pos->pos(Units::CM_AND_SECONDS), pos_end) / Tracker::time_delta(next_pos->frame(), blob_end->frame());
                             Idx_t chosen_id;
                             
                             if(dnext < dprev) {

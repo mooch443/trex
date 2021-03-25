@@ -32,7 +32,10 @@ FileChooser::FileChooser(const file::Path& start, const std::string& extension,
         _graph->wrap_object(*_overall);
         if(_on_update)
             _on_update(*_graph);
-        _graph->draw_log_messages();
+        
+        auto scale = _graph->scale().reciprocal();
+        auto dim = _base.window_dimensions().mul(scale * gui::interface_scale());
+        _graph->draw_log_messages(Bounds(Vec2(), dim));
         if(!_tooltips.empty()) {
             for(auto && [ID, obj] : _tooltips)
                 _graph->wrap_object(*obj);
@@ -56,16 +59,19 @@ FileChooser::FileChooser(const file::Path& start, const std::string& extension,
                 std::lock_guard guard(_graph->lock());
                 Size2 size(e.size.width, e.size.height);
                 size /= _base.dpi_scale();
-                auto scale = _base.dpi_scale() * gui::interface_scale() / max(1, 750.f / size.height);
+                
+                auto scale = gui::interface_scale() / max(1, 750.f / size.height) / _base.dpi_scale();
                 _graph->set_size(size);
                 _graph->set_scale(scale);
+                
                 update_size();
                 
-                //if(_overall->height() + 10 > _base.window_dimensions().height)
-                /*{
-                    _graph->set_scale(1 / (820 / e.size.height));
-                    Debug("Height: %f / %f", _overall->height() + 10, _base.window_dimensions().height);
-                }*/
+                if(_base.window_dimensions().height * _base.dpi_scale() < 750)
+                {
+                    _graph->set_scale(1 / (750 / _base.dpi_scale() / e.size.height));
+                    update_size();
+                }
+                
             }
         }
     }),
@@ -175,7 +181,7 @@ FileChooser::FileChooser(const file::Path& start, const std::string& extension,
     _textfield->textfield()->set_text(_path.str());
     //_textfield->set_text(_path.str());
     
-    _graph->set_scale(_base.dpi_scale() * gui::interface_scale());
+    //_graph->set_scale(_base.dpi_scale() * gui::interface_scale());
     _list->on_select([this](auto i, auto&path){ file_selected(i, path.path()); });
     
     _button->set_font(gui::Font(0.6f, Align::Center));
@@ -193,6 +199,7 @@ FileChooser::FileChooser(const file::Path& start, const std::string& extension,
         "gfx/"+SETTING(app_name).value<std::string>()+"Icon32.png",
         "gfx/"+SETTING(app_name).value<std::string>()+"Icon64.png"
     });
+    update_size();
 }
 
 void FileChooser::set_tabs(const std::vector<Settings>& tabs) {

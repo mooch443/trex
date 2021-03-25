@@ -108,8 +108,11 @@ namespace track {
             filtered_out.clear();
             cached_individuals.clear();
             blob_grid.clear();
-            //_frame.clear();
-            //new_split.clear();
+            original_blobs.clear();
+            blob_cliques.clear();
+            fish_cliques.clear();
+            split_blobs.clear();
+            bdx_to_ptr.clear();
         }
     };
     

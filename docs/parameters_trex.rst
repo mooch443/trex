@@ -473,6 +473,20 @@ TRex parameters
 
 
 
+.. function:: gpu_verbosity(gpu_verbosity_t)
+
+	**default value:** full
+
+	**possible values:**
+		- `silent`: No output during training.
+		- `full`: An animated bar with detailed information about the training progress.
+		- `oneline`: One line per epoch.
+
+	Determines the nature of the output on the command-line during training. This does not change any behaviour in the graphical interface.
+
+
+
+
 .. function:: grid_points(array<vec>)
 
 	**default value:** []
@@ -1229,7 +1243,7 @@ TRex parameters
 
 .. function:: midline_resolution(uint)
 
-	**default value:** 12
+	**default value:** 25
 
 
 	Number of midline points that are saved. Higher number increases detail.
@@ -1301,7 +1315,7 @@ TRex parameters
 
 .. function:: outline_resample(float)
 
-	**default value:** 1
+	**default value:** 0.5
 
 
 	Spacing between outline points in pixels, after resampling (normalizing) the outline. A lower value here can drastically increase the number of outline points generated (and decrease speed).
@@ -1353,6 +1367,15 @@ TRex parameters
 
 
 
+.. function:: output_csv_decimals(uchar)
+
+	**default value:** 0
+
+
+	Maximum number of decimal places that is written into CSV files (a text-based format for storing data). A value of 0 results in integer values.
+
+
+
 .. function:: output_default_options(map<string,array<string>>)
 
 	**default value:** {"event_acceleration":["/10"],"ACCELERATION":["/15","SMOOTH","CENTROID"],"L_V":["/10"],"v_direction":["/10"],"DOT_V":["/10"],"ANGULAR_V":["/10","SMOOTH","CENTROID"],"ANGULAR_A":["/1000","SMOOTH","CENTROID"],"NEIGHBOR_VECTOR_T":["/1"],"SPEED":["/10","SMOOTH"],"NEIGHBOR_DISTANCE":["/10"],"X":["/100"],"Y":["/100"],"tailbeat_threshold":["pm"],"tailbeat_peak":["pm"],"threshold_reached":["POINTS"],"midline_length":["/15"],"amplitude":["/100"],"outline_size":["/100"],"global":["/10"]}
@@ -1377,7 +1400,7 @@ TRex parameters
 	**default value:** npz
 
 	**possible values:**
-		- `csv`: A standard data format, comma-separated columns for each data stream.
+		- `csv`: A standard data format, comma-separated columns for each data stream. Use `output_csv_decimals` to adjust the maximum precision for exported data.
 		- `npz`: NPZ is basically a collection of binary arrays, readable by NumPy and other plugins (there are plugins available for Matlab and R).
 
 	When pressing the S(ave) button or using ``auto_quit``, this setting allows to switch between CSV and NPZ output. NPZ files are recommended and will be used by default - some functionality (such as visual fields, posture data, etc.) will remain in NPZ format due to technical constraints.
@@ -1473,7 +1496,7 @@ TRex parameters
 
 .. function:: output_statistics(bool)
 
-	**default value:** true
+	**default value:** false
 
 
 	Save an NPZ file containing an array with shape Nx5 and contents ``[[adding_frame_seconds, combined_posture_seconds, track_max_individuals, loading_seconds, posture_seconds],...]`` and an 1D-array containing all frame numbers. If set to true, a file called '``output_dir``/``fish_data_dir``/``<filename>_statistics.npz``' will be created. This will not output anything interesting, if the data was loaded instead of analysed.

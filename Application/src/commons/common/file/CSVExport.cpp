@@ -25,7 +25,7 @@ bool CSVExport::save(const file::Path &filename) const {
                 out << ",";
             }
         }
-        out << "\r\n";
+        out << "\n";
     };
     
     Row head_row;

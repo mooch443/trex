@@ -285,20 +285,14 @@ namespace gui {
         set_size(Size2(max_w + 10, y + 10));
         
         if(parent() && parent()->stage()) {
+            Size2 screen_dimensions = GUI::screen_dimensions();
+            
             if(!_initial_pos_set) {
                 //auto && [offset, max_w] = Timeline::timeline_offsets();
                 //set_pos(offset + Vec2(max_w, parent()->stage()->height()) - Vec2(10, 110));
-                set_pos(local_bounds().size() * 0.5 + Vec2(10, 10));
+                set_pos(screen_dimensions * 0.5 - local_bounds().size() + Vec2(10, 10));
                 _initial_pos_set = true;
             }
-            
-            auto& gui = GUI::instance()->gui();
-            auto window = GUI::instance()->base();
-            Size2 screen_dimensions = (window ? window->window_dimensions().div(gui.scale()) * gui::interface_scale() : GUI::background_image().dimensions());
-            
-            //auto section = gui.find("fishbowl");
-            //if(section)
-            //    screen_dimensions = screen_dimensions.mul(section->scale().reciprocal());
             
             Vec2 pp = pos();
             auto bds = global_bounds();

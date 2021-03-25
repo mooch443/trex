@@ -65,7 +65,7 @@ protected:
     derived_ptr<HorizontalLayout> _tabs_bar;
     std::unordered_map<int, derived_ptr<Tooltip>> _tooltips;
     std::vector<Layout::Ptr> tabs_elements;
-    IMGUIBase _base;
+    GETTER(IMGUIBase, base)
     std::vector<FileItem> _names;
     std::vector<Dropdown::TextItem> _search_items;
     

@@ -601,7 +601,10 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
             
             std::mutex lock;
             for (size_t i=0; i<threads.size(); ++i) {
-                threads.at(i) = new std::thread([&packages, &work_item, &library_cache](size_t index){
+                threads.at(i) = new std::thread([&packages, &work_item, &library_cache](size_t index)
+                {
+                    cmn::set_thread_name("Export::export_data("+Meta::toStr(index)+")");
+                    
                     while(!packages.at(index).empty()) {
                         auto [id, fish] = packages.at(index).front();
                         packages.at(index).pop();

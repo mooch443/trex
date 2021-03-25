@@ -29,7 +29,7 @@ namespace gui {
         
         virtual LoopStatus update_loop() { return LoopStatus::IDLE; }
         
-        virtual float dpi_scale() { return 1; }
+        virtual float dpi_scale() const { return 1; }
         virtual void set_background_color(const Color&) {}
         
         virtual void set_frame_recording(bool v) {
@@ -42,6 +42,7 @@ namespace gui {
         
         virtual void paint(DrawStructure& s) = 0;
         virtual void set_title(std::string) = 0;
+        virtual const std::string& title() const = 0;
         virtual Size2 window_dimensions() { return Size2(-1); }
         virtual Event toggle_fullscreen(DrawStructure&g) { Event e(WINDOW_RESIZED); e.size.width = g.width(); e.size.height = g.height(); return e; }
         

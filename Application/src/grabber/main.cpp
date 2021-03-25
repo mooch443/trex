@@ -174,6 +174,25 @@ std::string date_time() {
 
 using namespace file;
 
+std::queue<std::function<void()>> _exec_main_queue;
+std::mutex _mutex;
+
+FILE *log_file = NULL;
+std::mutex log_mutex;
+
+template<class F, class... Args>
+auto exec_main_queue(F&& f, Args&&... args) -> std::future<typename std::invoke_result_t<F, Args...>>
+{
+    std::lock_guard<std::mutex> guard(_mutex);
+    using return_type = typename std::invoke_result_t<F, Args...>;
+    auto task = std::make_shared< std::packaged_task<return_type()> >(std::bind(std::forward<F>(f), std::forward<Args>(args)...));
+    
+    auto future = task->get_future();
+    _exec_main_queue.push([task](){ (*task)(); });
+    //_exec_main_queue.push(std::bind([](F& fn){ fn(); }, std::move(fn)));
+    return future;
+}
+
 int main(int argc, char** argv)
 {
 #ifdef NDEBUG
@@ -262,23 +281,20 @@ int main(int argc, char** argv)
     
     GlobalSettings::map().set_do_print(true);
     
-    FILE *log_file = NULL;
-    std::mutex log_mutex;
-    DEBUG::SetDebugCallback({
+    auto debug_callback = DEBUG::SetDebugCallback({
         DEBUG::DEBUG_TYPE::TYPE_ERROR,
         DEBUG::DEBUG_TYPE::TYPE_EXCEPTION,
         DEBUG::DEBUG_TYPE::TYPE_WARNING,
         DEBUG::DEBUG_TYPE::TYPE_INFO
-    }, [&log_mutex, &log_file](auto, const std::string& msg)
-        {
-            std::lock_guard<std::mutex> guard(log_mutex);
-            if(log_file) {
-                char nl = '\n';
-                fwrite(msg.c_str(), 1, msg.length(), log_file);
-                fwrite(&nl, 1, 1, log_file);
-                fflush(log_file);
-            }
-        });
+    }, [](auto, const std::string& msg) {
+        std::lock_guard<std::mutex> guard(log_mutex);
+        if(log_file) {
+            char nl = '\n';
+            fwrite(msg.c_str(), 1, msg.length(), log_file);
+            fwrite(&nl, 1, 1, log_file);
+            fflush(log_file);
+        }
+    });
     
     gui::init_errorlog();
     ocl::init_ocl();
@@ -383,10 +399,15 @@ int main(int argc, char** argv)
         cmd.cd_home();
 #if __APPLE__
         std::string _wd = "../Resources/";
+    #if defined(WIN32)
+        if (SetCurrentDirectoryA(_wd.c_str()))
+    #else
         if (!chdir(_wd.c_str()))
+    #endif
             Debug("Changed directory to '%S'.", &_wd);
         else
             Error("Cannot change directory to '%S'.", &_wd);
+        
 #elif defined(TREX_CONDA_PACKAGE_INSTALL)
         auto conda_prefix = ::default_config::conda_environment_path().str();
         if(!conda_prefix.empty()) {
@@ -678,14 +699,16 @@ int main(int argc, char** argv)
         try {
 #endif
         
-        FrameGrabber grabber([](FrameGrabber& grabber){
-            if (SETTING(crop_window) && grabber.video() && (!GlobalSettings::map().has("nowindow") || SETTING(nowindow).value<bool>() == false)) {
-#if CMN_WITH_IMGUI_INSTALLED
-                gui::CropWindow cropwindow(grabber);
-#endif
-            }
+        FrameGrabber grabber([&imgui_base](FrameGrabber& grabber){
+            exec_main_queue([&](){}).get();
         });
-        
+            
+        if (SETTING(crop_window) && grabber.video() && (!GlobalSettings::map().has("nowindow") || SETTING(nowindow).value<bool>() == false)) {
+#if CMN_WITH_IMGUI_INSTALLED
+            gui::CropWindow cropwindow(grabber);
+#endif
+        }
+            
         GUI gui(grabber);
 #if WITH_MHD
         Httpd httpd([&](Httpd::Session*, const std::string& url){
@@ -719,30 +742,43 @@ int main(int argc, char** argv)
             return Httpd::Response(buffer);
         }, "grabber.html");
 #endif
-        
-        if(!SETTING(nowindow)) {
-            imgui_base = std::make_shared<gui::IMGUIBase>(SETTING(app_name).value<std::string>()+" ("+utils::split(SETTING(filename).value<file::Path>().str(),'/').back()+")", gui.gui(), [&](){
-                //std::lock_guard<std::recursive_mutex> lock(gui.gui().lock());
-                if(SETTING(terminate))
-                    return false;
-                
-                return true;
-            }, GUI::static_event);
-                
-            gui.set_base(imgui_base.get());
-            imgui_base->platform()->set_icons({
-                "gfx/"+SETTING(app_name).value<std::string>()+"Icon16.png",
-                "gfx/"+SETTING(app_name).value<std::string>()+"Icon32.png",
-                "gfx/"+SETTING(app_name).value<std::string>()+"Icon64.png"
-            });
-        }
-        
         while (!gui.terminated())
         {
             tf::show();
             
-            if(imgui_base) {
-                imgui_base->update_loop();
+            {
+                std::unique_lock guard(_mutex);
+                while(!_exec_main_queue.empty()) {
+                    auto f = std::move(_exec_main_queue.front());
+                    _exec_main_queue.pop();
+                    
+                    guard.unlock();
+                    f();
+                    guard.lock();
+                }
+            }
+            
+            
+            if(!SETTING(nowindow) && !imgui_base && grabber.task()._complete) {
+                imgui_base = std::make_shared<gui::IMGUIBase>(SETTING(app_name).value<std::string>()+" ("+utils::split(SETTING(filename).value<file::Path>().str(),'/').back()+")", gui.gui(), [&](){
+                    //std::lock_guard<std::recursive_mutex> lock(gui.gui().lock());
+                    if(SETTING(terminate))
+                        return false;
+                    
+                    return true;
+                }, GUI::static_event);
+                    
+                gui.set_base(imgui_base.get());
+                imgui_base->platform()->set_icons({
+                    "gfx/"+SETTING(app_name).value<std::string>()+"Icon16.png",
+                    "gfx/"+SETTING(app_name).value<std::string>()+"Icon32.png",
+                    "gfx/"+SETTING(app_name).value<std::string>()+"Icon64.png"
+                });
+                
+            } else if(imgui_base) {
+                auto status = imgui_base->update_loop();
+                if(status == gui::LoopStatus::END)
+                    SETTING(terminate) = true;
                 gui.update_loop();
             } else {
                 std::chrono::milliseconds ms(75);
@@ -770,9 +806,13 @@ int main(int argc, char** argv)
     }
 #endif
     
+    DEBUG::UnsetDebugCallback(debug_callback);
+    gui::deinit_errorlog();
+    
     if(log_file)
         fclose(log_file);
     log_file = NULL;
 
-    return SETTING(terminate_error) ? 1 : 0;
+    int returncode = SETTING(terminate_error) ? 1 : 0;
+    return returncode;
 }

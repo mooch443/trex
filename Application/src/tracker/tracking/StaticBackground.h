@@ -11,6 +11,8 @@ namespace track {
         LuminanceGrid* _grid;
         Bounds _bounds;
         int (*_diff)(int, int);
+        std::string _name;
+        const char* _callback;
         
     public:
         StaticBackground(const Image::Ptr& image, LuminanceGrid* grid);

@@ -10,7 +10,7 @@ namespace gui {
     struct MetalData;
 
     class MetalImpl : public CrossPlatform {
-        GLFWwindow *window;
+        GLFWwindow *window = nullptr;
         std::function<void()> draw_function;
         std::function<bool()> new_frame_fn;
         MetalData* _data;
@@ -31,8 +31,7 @@ namespace gui {
         void init() override;
         void post_init() override;
         void create_window(const char* title, int width, int height) override;
-        void loop(custom_function_t) override;
-        LoopStatus update_loop() override;
+        LoopStatus update_loop(custom_function_t = nullptr) override;
         TexturePtr texture(const Image*) override;
         void clear_texture(TexturePtr&&) override;
         void bind_texture(const PlatformTexture&) override;
@@ -40,6 +39,7 @@ namespace gui {
         void set_title(std::string) override;
         Image::Ptr current_frame_buffer() override;
         void toggle_full_screen() override;
+        void message(const std::string&) const;
         
         virtual ~MetalImpl();
         GLFWwindow* window_handle() override;

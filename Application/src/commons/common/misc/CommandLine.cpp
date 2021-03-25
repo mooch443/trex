@@ -114,15 +114,23 @@ namespace cmn {
     
     void CommandLine::load_settings() {
         for(auto &s : _settings) {
-            //Debug("CMD::Setting '%S' = '%S'", &s.name, &s.value);
-            
             std::string value = s.value;
             if(value.empty()) {
-                if(GlobalSettings::map().is_type(s.name, bool()))
+                if(GlobalSettings::map().is_type<bool>(s.name))
                     value = "true"; // by default set option to true if its bool and no value was given
             }
-                
-            sprite::parse_values(GlobalSettings::map(), "{'"+s.name+"':"+value+"}");
+            
+            if((GlobalSettings::map().is_type<file::Path>(s.name)
+               || GlobalSettings::map().is_type<std::string>(s.name))
+               && (value.empty() || !(
+                        (value[0] == value[value.length()-1] && value[0] == '\'')
+                     || (value[0] == value[value.length()-1] && value[0] == '"')
+                  ))
+               )
+            {
+                sprite::parse_values(GlobalSettings::map(), "{'"+s.name+"':'"+value+"'}");
+            } else
+                sprite::parse_values(GlobalSettings::map(), "{'"+s.name+"':"+value+"}");
             _settings_keys[s.name] = value;
         }
     }

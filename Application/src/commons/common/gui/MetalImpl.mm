@@ -59,11 +59,20 @@ std::string startup_file_to_load = "";
 extern "C"{
     bool forward_load_message(const std::vector<file::Path>& paths){
         auto str = cmn::Meta::toStr(paths);
+        NSString* string = [NSString stringWithCString:str.c_str() encoding:NSASCIIStringEncoding];
         Debug("Open file: %S", &str);
         
-        if(gui::metal::current_instance) {
-            return gui::metal::current_instance->open_files(paths);
-        }
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 250 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+            auto cstr = [string cStringUsingEncoding:NSASCIIStringEncoding];
+            auto paths = cmn::Meta::fromStr<std::vector<file::Path>>(cstr);
+            if(gui::metal::current_instance) {
+                if(!gui::metal::current_instance->open_files(paths)) {
+                    gui::metal::current_instance->message("Cannot open "+std::string(cstr)+".");
+                }
+            }
+                
+        });
+        
         return false;
     }
 }
@@ -243,11 +252,24 @@ bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
         [nswin toggleFullScreen:[NSApplication sharedApplication]];
     }
 
-    LoopStatus MetalImpl::update_loop() {
+void MetalImpl::message(const std::string &msg) const {
+    NSWindow *win = glfwGetCocoaWindow(gui::metal::current_instance->window_handle());
+    NSAlert * alert = [[[NSAlert alloc] init] autorelease];
+    [alert setMessageText:[NSString stringWithCString:msg.c_str() encoding:NSASCIIStringEncoding]];
+    [alert beginSheetModalForWindow:win completionHandler:^(NSModalResponse){}];
+}
+
+    LoopStatus MetalImpl::update_loop(CrossPlatform::custom_function_t custom_loop) {
         GLIMPL_CHECK_THREAD_ID();
         
         std::lock_guard<std::mutex> guard(_shutdown_mutex);
         LoopStatus status = LoopStatus::IDLE;
+        
+        if(custom_loop) {
+            if(!custom_loop())
+                return LoopStatus::END;
+        }
+        
         dispatch_semaphore_wait(_frameBoundarySemaphore, DISPATCH_TIME_FOREVER);
         
         ++frame_index;
@@ -353,7 +375,7 @@ bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
         return _frame_capture_enabled ? _current_framebuffer : nullptr;
     }
     
-    void MetalImpl::loop(CrossPlatform::custom_function_t custom_loop) {
+    /*void MetalImpl::loop(CrossPlatform::custom_function_t custom_loop) {
         LoopStatus status = LoopStatus::IDLE;
         
         // Main loop
@@ -366,7 +388,7 @@ bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
             if(status != gui::LoopStatus::UPDATED)
                 std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
-    }
+    }*/
 
     TexturePtr MetalImpl::texture(const Image * ptr) {
         GLIMPL_CHECK_THREAD_ID();

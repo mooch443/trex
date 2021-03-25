@@ -64,18 +64,36 @@ namespace pv {
         operator=(other);
     }
 
+    Frame::Frame(Frame&& other) {
+        operator=(std::move(other));
+    }
+
+    void Frame::operator=(Frame && other) {
+        _timestamp = other._timestamp;
+        _n = other._n;
+        _loading_time = other._loading_time;
+        
+        std::swap(_mask, other._mask);
+        std::swap(_pixels, other._pixels);
+        std::swap(_blobs, other._blobs);
+    }
+
     void Frame::operator=(const Frame &other) {
         _timestamp = other._timestamp;
         _n = other._n;
         _loading_time = other._loading_time;
         
-        _mask.resize(other._mask.size());
+        _blobs.clear();
+        
+        _mask = other._mask;
+        _pixels = other._pixels;
+        /*_mask.resize(other._mask.size());
         _pixels.resize(other._pixels.size());
         
         for(uint64_t i=0; i<other._mask.size(); ++i)
             _mask[i] = std::make_shared<decltype(_mask)::value_type::element_type>(*other._mask[i]);
         for(uint64_t i=0; i<other._pixels.size(); ++i)
-            _pixels[i] = std::make_shared<decltype(_pixels)::value_type::element_type>(*other._pixels[i]);
+            _pixels[i] = std::make_shared<decltype(_pixels)::value_type::element_type>(*other._pixels[i]);*/
     }
 
     Frame::Frame(const uint64_t& timestamp, decltype(_n) n)
@@ -147,8 +165,15 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
         if(!settings_registered){
             std::lock_guard<std::mutex> lock(settings_mutex);
             if(!settings_registered) {
+                auto callback = "pv::Frame::read_from";
                 use_differences = GlobalSettings::map().has("use_differences") ? SETTING(use_differences).value<bool>() : false;
-                GlobalSettings::map().register_callback(ptr, [](const sprite::Map&, const std::string&key, const sprite::PropertyType& value){
+                GlobalSettings::map().register_callback(callback, [callback](sprite::Map::Signal signal, sprite::Map&map, const std::string&key, const sprite::PropertyType& value)
+                {
+                    if(signal == sprite::Map::Signal::EXIT) {
+                        map.unregister_callback(callback);
+                        return;
+                    }
+                    
                     if(key == "use_differences")
                         use_differences = value.value<bool>();
                 });

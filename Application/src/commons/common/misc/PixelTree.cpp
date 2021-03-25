@@ -98,7 +98,7 @@ inline void update_tmp_line (ushort x, const unsigned char px, HorizontalLine& t
                 mat.copyTo(local, buffer1);
             }
             
-            auto blobs = CPULabeling::run_fast(local);
+            auto blobs = CPULabeling::run(local);
             
             for(auto && [lines, pixels] : blobs) {
                 for(auto &line : *lines) {
@@ -142,7 +142,7 @@ inline void update_tmp_line (ushort x, const unsigned char px, HorizontalLine& t
         
         //static Timing timing("after_threshold", 0.1);
         //TakeTiming take(timing);
-        return CPULabeling::run_fast(*lines, pixels);
+        return CPULabeling::run(*lines, *pixels);
     }
     
     pv::BlobPtr threshold_get_biggest_blob(pv::BlobPtr blob, int threshold, const Background* bg, uint8_t use_closing, uint8_t closing_size) {
@@ -224,7 +224,7 @@ inline blobs_t _threshold_blob(pv::BlobPtr blob,const std::vector<uchar>& differ
     
     //static Timing timing("after_threshold", 0.1);
     //TakeTiming take(timing);
-    return CPULabeling::run_fast(*lines, pixels);
+    return CPULabeling::run(*lines, *pixels);
 }
 
     std::vector<pv::BlobPtr> threshold_blob(pv::BlobPtr blob, const std::vector<uchar>& difference_cache, int threshold, const Rangel& size_range) {

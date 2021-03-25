@@ -122,8 +122,6 @@ namespace Match
             Blob_t blob;
         };
         
-        static prob_t matching_probability_threshold;
-        
         //typedef std::unordered_map<Individual*, std::vector<_value_t>> EdgeMap;
         typedef std::multiset<Node> multiset;
         

@@ -131,6 +131,26 @@ const cv::Size& Video::size() const {
 }
 
 /**
+ * Extracts exactly one given channel from a cv::Mat.
+ * Assumes the output is set, and mat is a 8UC3.
+ */
+void extractu8(const cv::Mat& mat, cv::Mat& output, uint channel) {
+   if(mat.channels() == 1 || (uint)mat.channels() < channel) {
+       mat.copyTo(output);
+       return;
+   }
+   
+   assert(output.type() == CV_8UC1);
+   assert(mat.type() == CV_8UC3);
+   const auto channels = mat.channels();
+   const auto start = output.data;
+   const auto end = start + output.cols * output.rows;
+   for (auto ptr = start; ptr != end; ++ptr) {
+       *ptr = mat.data[size_t(ptr - start) * channels + channel];
+   }
+}
+
+/**
  * Returns frame 'index' if a video is loaded and it exists.
  *
  * Result is cached.
@@ -189,11 +209,15 @@ void Video::frame(int64_t index, cv::Mat& frame, bool lazy) {
             // turn into HUE
             if(read.channels() == 3) {
                 cv::cvtColor(read, read, cv::COLOR_BGR2HSV);
-                cv::extractChannel(read, frame, color_channel % 3);
+                extractu8(read, frame, color_channel % 3);
                 
             } else Error("Cannot copy to read frame with %d channels.", read.channels());
         } else {
-            cv::extractChannel(read, frame, color_channel);
+            if(frame.cols != read.cols || frame.rows != read.rows || frame.type() != CV_8UC1) {
+                frame = cv::Mat(read.rows, read.cols, CV_8UC1);
+            }
+            
+            extractu8(read, frame, color_channel);
         }
     } else
         read.copyTo(frame);

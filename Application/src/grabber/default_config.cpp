@@ -3,6 +3,7 @@
 #include <file/Path.h>
 #include <misc/CropOffsets.h>
 #include <video/GenericVideo.h>
+#include <video/AveragingAccumulator.h>
 
 #ifndef WIN32
 #include <unistd.h>

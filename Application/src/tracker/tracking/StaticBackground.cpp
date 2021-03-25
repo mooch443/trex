@@ -12,15 +12,26 @@ namespace track {
     StaticBackground::StaticBackground(const Image::Ptr& image, LuminanceGrid *grid)
         : _image(image), _grid(grid), _bounds(image->bounds())
     {
-        GlobalSettings::map().register_callback((void*)this, [this](auto&, auto& name, auto&){
+        _name = "StaticBackground"+Meta::toStr((uint64_t)this);
+        _callback = _name.c_str();
+        
+        GlobalSettings::map().register_callback(_callback, [this](sprite::Map::Signal signal, sprite::Map&map, auto& name, auto&){
+            if(signal == sprite::Map::Signal::EXIT) {
+                map.unregister_callback(_callback);
+                _callback = nullptr;
+                return;
+            }
+            
             if(name == "enable_absolute_difference")
                 this->update_callback();
         });
+        
         update_callback();
     }
     
     StaticBackground::~StaticBackground() {
-        GlobalSettings::map().unregister_callback(this);
+        if(_callback)
+            GlobalSettings::map().unregister_callback(_callback);
     }
 
     void StaticBackground::update_callback() {
@@ -34,13 +45,6 @@ namespace track {
             _diff = &signed_diff;
         }
     }
-    
-    /*int StaticBackground::diff(ushort x, ushort y, int value) const {
-        if(FAST_SETTINGS(enable_absolute_difference))
-            return abs(int(_image.data()[x + y * _image.cols]) - value);
-        else
-            return max(0, int(_image.data()[x + y * _image.cols]) - value);
-    }*/
     
     int StaticBackground::color(ushort x, ushort y) const {
         return _image->data()[x + y * _image->cols];
@@ -61,9 +65,6 @@ namespace track {
         auto ptr_image = _image->data() + x0 + y * _image->cols;
         auto end = values + (x1 - x0 + 1);
         ushort count = 0;
-        
-        //if(Tracker::instance() && !FAST_SETTINGS(enable_absolute_difference))
-        //    U_EXCEPTION("!enable_absolute_difference not implemented for count_above_threshold.");
         
         if(Tracker::instance() && !FAST_SETTINGS(enable_absolute_difference))
         {

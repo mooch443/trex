@@ -25,6 +25,7 @@
 #include "tomp4.h"
 #endif
 
+#include <video/AveragingAccumulator.h>
 #include "gpuImage.h"
 
 using namespace cmn;
@@ -33,7 +34,7 @@ class ImageThreads {
     std::function<Image_t*()> _fn_create;
     std::function<bool(const Image_t*, Image_t&)> _fn_prepare;
     std::function<bool(Image_t&)> _fn_load;
-    std::function<Queue::Code(Image_t&)> _fn_process;
+    std::function<Queue::Code(const Image_t&)> _fn_process;
     
     std::atomic_bool _terminate;
     std::mutex _image_lock;
@@ -56,6 +57,8 @@ public:
         
         _load_thread->join();
         _process_thread->join();
+        
+        std::unique_lock<std::mutex> lock(_image_lock);
         
         delete _load_thread;
         delete _process_thread;
@@ -103,7 +106,8 @@ public:
     };
     
 protected:
-    Task _task;
+    GETTER(Task, task)
+    std::unique_ptr<AveragingAccumulator> _accumulator;
     
     GETTER(cv::Size, cam_size)
     GETTER(cv::Size, cropped_size)
@@ -111,7 +115,7 @@ protected:
     
     std::unique_ptr<GenericThreadPool> _pool;
     
-    AnalysisType* _analysis;
+    AnalysisType* _analysis = nullptr;
     std::shared_ptr<Image> _current_image;
     gpuMat _average;
     GETTER(cv::Mat, original_average)
@@ -152,6 +156,7 @@ protected:
     std::unique_ptr<pv::Frame> _noise;
     
     uint64_t previous_time;
+    std::atomic<bool> _reset_first_index = false;
     
     std::atomic<double> _processing_timing;
     std::atomic<double> _loading_timing;
@@ -190,7 +195,7 @@ public:
         return !_processed.open() || _paused;
     }
     bool load_image(Image_t& current);
-    Queue::Code process_image(Image_t& current);
+    Queue::Code process_image(const Image_t& current);
     std::shared_ptr<Image> latest_image();
     
     std::unique_ptr<pv::Frame> last_frame() {

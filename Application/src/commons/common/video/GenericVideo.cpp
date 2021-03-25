@@ -4,55 +4,12 @@
 #include <grabber/default_config.h>
 #include <misc/Image.h>
 #include <misc/checked_casts.h>
+#include <video/AveragingAccumulator.h>
 
 using namespace cmn;
 
-namespace cmn {
-ENUM_CLASS_DOCS(averaging_method_t,
-    "Sum all samples and divide by N.",
-    "Calculate a per-pixel median of the samples to avoid noise. More computationally involved than mean, but often better results.",
-    "Use a per-pixel minimum across samples. Usually a good choice for short videos with black backgrounds and individuals that do not move much.",
-    "Use a per-pixel maximum across samples. Usually a good choice for short videos with white backgrounds and individuals that do not move much."
-)
-}
-
 CropOffsets GenericVideo::crop_offsets() const {
     return SETTING(crop_offsets);
-}
-
-std::unique_ptr<cmn::Image> AveragingAccumulator::finalize() {
-    auto image = std::make_unique<cmn::Image>(_accumulator.rows, _accumulator.cols, 1);
-    
-    if(_mode == averaging_method_t::mean) {
-        cv::divide(_accumulator, cv::Scalar(count), _local);
-        _local.convertTo(image->get(), CV_8UC1);
-        
-    } else if(_mode == averaging_method_t::mode) {
-        _accumulator.copyTo(image->get());
-        
-        auto ptr = image->data();
-        const auto end = image->data() + image->cols * image->rows;
-        auto array_ptr = spatial_histogram.data();
-        
-        for (; ptr != end; ++ptr, ++array_ptr) {
-            uint8_t max_code = 0;
-            uint8_t max_number = 0;
-            uint8_t N = narrow_cast<uint8_t>(array_ptr->size());
-            //for(auto && [code, number] : *array_ptr) {
-            for(uint8_t code=0; code<N; ++code) {
-                const auto& number = (*array_ptr)[code];
-                if(number > max_number) {
-                    max_number = number;
-                    max_code = code;
-                }
-            }
-            
-            *ptr = max_code;
-        }
-    } else
-        _accumulator.copyTo(image->get());
-    
-    return image;
 }
 
 void GenericVideo::undistort(const gpuMat& disp, gpuMat &image) const {
@@ -143,7 +100,7 @@ void GenericVideo::processImage(const gpuMat& display, gpuMat&out, bool do_mask)
     //return processed;
 }
 
-void GenericVideo::generate_average(cv::Mat &av, uint64_t frameIndex) {
+void GenericVideo::generate_average(cv::Mat &av, uint64_t frameIndex, std::function<void(float)>&& callback) {
     if(length() < 10) {
         gpuMat average;
         av.copyTo(average);
@@ -167,6 +124,8 @@ void GenericVideo::generate_average(cv::Mat &av, uint64_t frameIndex) {
         counted += step;
         
         if(counted > float(length()) * 0.1) {
+            if(callback)
+                callback(float(samples - i) / float(step));
             Debug("generating average: %d/%d step:%d (frame %d)", (samples - i) / step, int(samples), step, i);
             counted = 0;
         }

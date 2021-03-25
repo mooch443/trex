@@ -182,11 +182,14 @@ GLFWwindow* GLImpl::window_handle() {
     return window;
 }
 
-LoopStatus GLImpl::update_loop() {
+LoopStatus GLImpl::update_loop(CrossPlatform::custom_function_t custom_loop) {
     LoopStatus status = LoopStatus::IDLE;
     glfwPollEvents();
     
     if(glfwWindowShouldClose(window))
+        return LoopStatus::END;
+    
+    if(!custom_loop())
         return LoopStatus::END;
     
     if(new_frame_fn())
@@ -297,19 +300,6 @@ void GLImpl::update_pbo() {
 
         // back to conventional pixel operation
         glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
-    }
-}
-
-void GLImpl::loop(CrossPlatform::custom_function_t custom_loop) {
-    LoopStatus status = LoopStatus::IDLE;
-    
-    // Main loop
-    while (status != LoopStatus::END)
-    {
-        if(!custom_loop())
-            break;
-        
-        status = update_loop();
     }
 }
 
