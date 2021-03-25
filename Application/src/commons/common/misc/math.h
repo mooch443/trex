@@ -57,6 +57,21 @@ namespace cmn {
         return ::sqrtf(s);
     }
     
+    template<typename T0>
+    inline bool isnan(const T0& x, typename std::enable_if<std::is_floating_point<T0>::value || std::is_integral<T0>::value, bool>::type * =NULL) {
+        return std::isnan(x);
+    }
+
+    template<>
+    inline bool isnan(const size_t& x, bool *) {
+        return std::isnan<double>(x);
+    }
+
+    template<typename T0>
+    inline bool isnan(const T0& x, typename std::enable_if<std::is_same<decltype(x.x), decltype(x.y)>::value, bool>::type * =NULL) {
+        return std::isnan(x.x) || std::isnan(x.y);
+    }
+
 #ifdef WIN32
     template<typename T>
     inline bool isinf(T s, typename std::enable_if<std::is_floating_point<T>::value, bool>::type * = NULL) {
