@@ -1,7 +1,7 @@
-blob_size_ranges = [[0.02,0.07]]
+blob_size_ranges = [[80,400]]
 gui_focus_group = [0]
 track_max_individuals = 8
-track_max_speed = 25
+track_max_speed = 800
 output_graphs = [["X",["wcentroid"]],["SPEED",["wcentroid"]],["X",["RAW"]],["Y",["RAW"]]]
 output_csv_decimals = 0
 output_format = csv
