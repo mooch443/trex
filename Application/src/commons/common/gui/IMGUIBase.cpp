@@ -475,6 +475,10 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
             }
         }
         
+#ifdef WIN32
+        width *= xscale;
+        height *= yscale;
+#endif
         if(!_platform->window_handle())
             _platform->create_window(title.c_str(), width, height);
         else
