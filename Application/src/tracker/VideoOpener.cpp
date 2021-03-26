@@ -409,17 +409,17 @@ VideoOpener::VideoOpener()
                 auto size = max_size;
                 
                 if(_raw_description->max_size() != max_size) {
-                    _raw_description->set_max_size(max_size);
+                    _raw_description->set_max_size(max_size.mul(0.25));
                     _screenshot_previous_size = Size2(0);
                 }
                 
                 Vec2 scale;
                 
                 // width is more too big than height:
-                if(max_size.width / scree_size.width < max_size.height / scree_size.height) {
-                    scale = Vec2(max_size.width / scree_size.width );
+                if(scree_size.width > scree_size.height) {
+                    scale = Vec2(max_size.min() / scree_size.width );
                 } else {
-                    scale = Vec2(max_size.height / scree_size.height);
+                    scale = Vec2(max_size.min() / scree_size.height);
                 }
                 
                 if(scale != _screenshot_previous_size) {
@@ -481,7 +481,7 @@ VideoOpener::VideoOpener()
 
 VideoOpener::~VideoOpener() {
     if(_callback != nullptr) {
-        GlobalSettings::map().unregister_callback(_callback);
+        temp_settings.unregister_callback(_callback);
         _callback = nullptr;
     }
     
@@ -947,7 +947,8 @@ void VideoOpener::select_file(const file::Path &p) {
         auto text = video->get_info(false);
         
         _mini_bowl = std::make_shared<Entangled>();
-        _mini_bowl->set_scale(Vec2(300 / float(video->average().cols)));
+        auto scale = Vec2(300).div(Size2(video->average()));
+        _mini_bowl->set_scale(Vec2(scale.min()));
         
         _mini_bowl->update([&](Entangled& b){
             _background = std::make_shared<ExternalImage>(std::move(std::make_unique<Image>(video->average())));

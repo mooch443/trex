@@ -415,6 +415,8 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
     im_font_scale = max(1, dpi_scale) * 0.75f;
     base->_dpi_scale = dpi_scale;
     
+    //Debug("dpi_scale:%f gui::interface_scale:%f xscale:%f yscale:%f", dpi_scale, gui::interface_scale(), xscale, yscale);
+    
     {
         Event e(EventType::WINDOW_RESIZED);
         e.size.width = fw;
@@ -457,6 +459,10 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
         mh *= 0.95; //! title bar
 #endif
         
+#ifdef WIN32
+        width *= xscale;
+        height *= yscale;
+#endif
         _work_area = Bounds(mx, my, mw, mh);
         
         if(width / float(mw) >= height / float(mh)) {

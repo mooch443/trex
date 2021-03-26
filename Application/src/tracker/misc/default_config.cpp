@@ -307,15 +307,7 @@ file::Path conda_environment_path() {
         
         CONFIG("gui_transparent_background", false, "If enabled, fonts might look weird but you can record movies (and images) with transparent background (if gui_background_color.alpha is < 255).");
         
-        CONFIG("gui_interface_scale",
-#if defined(__linux__)
-               float(1.25),
-#elif defined(WIN32) || defined(__WIN32__)
-               float(1.25),
-#else
-               float(0.75),
-#endif
-               "Scales the whole interface. A value greater than 1 will make it smaller.");
+        CONFIG("gui_interface_scale", float(1), "Scales the whole interface. A value greater than 1 will make it smaller.");
         CONFIG("gui_max_path_time", float(3), "Length (in time) of the trails shown in GUI.");
         
         CONFIG("gui_draw_only_filtered_out", false, "Only show filtered out blob texts.");
