@@ -62,10 +62,12 @@ namespace cmn {
         return std::isnan(x);
     }
 
+#ifdef _WIN32
     template<>
     inline bool isnan(const size_t& x, bool *) {
         return std::isnan<double>(x);
     }
+#endif
 
     template<typename T0>
     inline bool isnan(const T0& x, typename std::enable_if<std::is_same<decltype(x.x), decltype(x.y)>::value, bool>::type * =NULL) {
