@@ -612,23 +612,50 @@ void update() {
     printf("%s\n", VariableName[v]);
 }*/
 
+inline void member_destruct(const char*name) {
+    printf("Destruction members '%s'\n", name);
+}
+inline void member_construct(const char*name) {
+    printf("Construction members '%s'\n", name);
+}
+
+template<typename Variables, typename callback_fn_t>
+struct CallbackHolder {
+    const char *name;
+    std::unordered_map<Variables, callback_fn_t> _callbacks;
+    CallbackHolder(const char*name) : name(name) {
+        printf("CallbackHolder for '%s' created.\n", name);
+    }
+    ~CallbackHolder() {
+        printf("CallbackHolder for '%s' destructed.\n", name);
+    }
+};
+
 
 #define CREATE_STRUCT(NAM, ...) \
 class NAM { \
 public: \
     enum Variables { STRUCT_FOR_EACH(NAM, PLAIN_MEMBERS, __VA_ARGS__) }; \
     struct Members { \
-        Members() = default; \
+        Members() { member_construct(#NAM); } \
+        ~Members() { member_destruct(#NAM); } \
         STRUCT_FOR_EACH(NAM, STRUCT_STRING_MEMBERS, __VA_ARGS__) \
     }; \
     STRUCT_FOR_EACH(NAM, EXPRESS_MEMBER_TYPES, __VA_ARGS__) \
 private: \
     static constexpr const char * VariableNames[] { STRUCT_FOR_EACH(NAM, STRINGIZE_MEMBERS, __VA_ARGS__) }; \
-    inline static Members _members; \
-    inline static std::unordered_map<Variables, std::function<void(const std::string&, const sprite::PropertyType&)>> _callbacks; \
     template<Variables M> struct AccessEnum { }; \
 \
 public: \
+    static auto& members() { \
+        static Members _members; \
+        return _members; \
+    } \
+    typedef std::function<void(const std::string&, const sprite::PropertyType&)> callback_fn_t; \
+    static auto& callbacks() { \
+        static CallbackHolder<Variables, callback_fn_t> _callbacks(#NAM); \
+        return _callbacks._callbacks; \
+    } \
     static inline const std::array<std::function<const cmn::sprite::PropertyType&()>, STRUCT_FOR_EACH_NARG(__VA_ARGS__)> _getters { \
         STRUCT_FOR_EACH(NAM, EXPRESS_MEMBER_GETTERS, __VA_ARGS__) \
     }; \
@@ -670,17 +697,18 @@ private: \
         } \
     } \
 public: \
-    inline static NAM :: Members & impl() { return NAM :: _members; } \
-    template<Variables M> static void update(const std::string &key, const sprite::PropertyType& value) { auto it = _callbacks.find(M); if(it != _callbacks.end()) it->second(key, value); } \
+    inline static NAM :: Members & impl() { return NAM :: members(); } \
+    template<Variables M> static void update(const std::string &key, const sprite::PropertyType& value) { auto it = callbacks().find(M); if(it != callbacks().end()) it->second(key, value); } \
     template<Variables M> \
     static const char* name() { \
         return VariableNames[M]; \
     } \
-    static void set_callback(Variables v, decltype(_callbacks)::mapped_type f) { _callbacks[v] = f; } \
-    static void clear_callbacks() { _callbacks.clear(); } \
+    static void set_callback(Variables v, callback_fn_t f) { callbacks()[v] = f; } \
+    static void clear_callbacks() { callbacks().clear(); } \
     static std::vector<std::string> names() { return std::vector<std::string>{ STRUCT_FOR_EACH(NAM, STRINGIZE_MEMBERS, __VA_ARGS__) }; } \
     static void variable_changed (sprite::Map::Signal signal, sprite::Map & map, const std::string &key, const sprite::PropertyType& value) { \
         if(signal == sprite::Map::Signal::EXIT) { \
+            cmn::GlobalSettings::map().unregister_callback(#NAM); \
             return; \
         } \
         if(false); STRUCT_FOR_EACH(NAM, UPDATE_MEMBERS, __VA_ARGS__) \

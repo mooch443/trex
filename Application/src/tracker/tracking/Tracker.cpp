@@ -28,6 +28,8 @@
 #endif
 
 namespace track {
+    auto *tracker_lock = new std::recursive_timed_mutex;
+
     std::shared_ptr<std::ofstream> history_log;
     std::mutex log_mutex;
     inline void Log(std::ostream* out, const char* cmd, ...) {
@@ -125,7 +127,7 @@ Tracker::LockGuard::LockGuard(std::string purpose, uint32_t timeout_ms) : _purpo
     
     if(timeout_ms) {
         auto duration = std::chrono::milliseconds(timeout_ms);
-        if(!Tracker::instance()->_lock.try_lock_for(duration)) {
+        if(!tracker_lock->try_lock_for(duration)) {
             // did not get the lock... :(
             return;
         }
@@ -134,7 +136,7 @@ Tracker::LockGuard::LockGuard(std::string purpose, uint32_t timeout_ms) : _purpo
         auto duration = std::chrono::milliseconds(10);
         Timer timer, print_timer;
         while(true) {
-            if(Tracker::instance()->_lock.try_lock_for(duration)) {
+            if(tracker_lock->try_lock_for(duration)) {
                 // acquired the lock :)
                 break;
                 
@@ -147,7 +149,7 @@ Tracker::LockGuard::LockGuard(std::string purpose, uint32_t timeout_ms) : _purpo
         }
     }
     
-    lock = new std::lock_guard<std::recursive_timed_mutex>(Tracker::instance()->_lock, std::adopt_lock);
+    lock = new std::lock_guard(*tracker_lock, std::adopt_lock);
     
     auto my_id = std::this_thread::get_id();
     if(my_id != _last_thread_id) {
