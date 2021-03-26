@@ -17,6 +17,39 @@ Map::Map(const Map& other) {
     _props = other._props;
 }
 
+void Map::register_callback(const char *obj, const callback_func &func) {
+    if(!obj) {
+        Except("nullptr in register_callback");
+        return;
+    }
+    
+    LockGuard guard(this);
+    if(_callbacks.count(obj) > 0)
+        U_EXCEPTION("Object %s (%x) already in map callbacks.", obj, obj);
+    
+    _callbacks[obj] = func;
+#ifndef NDEBUG
+    Debug("Registered map callback %s (%x)", obj, obj);
+#endif
+}
+
+void Map::unregister_callback(const char *obj) {
+    if(!obj) {
+        Except("nullptr in unregister_callback");
+        return;
+    }
+    
+    LockGuard guard(this);
+    if(_callbacks.count(obj) == 0) {
+        printf("[EXCEPTION] Cannot find obj %s (%x) in map callbacks.\n", obj, (uint32_t)(uint64_t)obj);
+        return;
+    }
+    
+#ifndef NDEBUG
+    printf("Unregistering obj %s (%x) from map callbacks.\n", obj, (uint32_t)(uint64_t)obj);
+#endif
+    _callbacks.erase(obj);
+}
 
 Map::~Map() {
     {

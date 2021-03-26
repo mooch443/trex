@@ -481,7 +481,7 @@ VideoOpener::VideoOpener()
 
 VideoOpener::~VideoOpener() {
     if(_callback != nullptr) {
-        GlobalSettings::map().unregister_callback(_callback);
+        temp_settings.unregister_callback(_callback);
         _callback = nullptr;
     }
     

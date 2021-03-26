@@ -228,21 +228,8 @@ namespace sprite {
             return true;
         }
         
-        void register_callback(const char *obj, const callback_func &func) {
-            LockGuard guard(this);
-            if(_callbacks.count(obj) > 0)
-                U_EXCEPTION("Object %x already in map callbacks.", obj);
-            _callbacks[obj] = func;
-        }
-        
-        void unregister_callback(const char *obj) {
-            LockGuard guard(this);
-            if(_callbacks.count(obj) == 0) {
-                Except("Cannot find obj %x in map callbacks.", obj);
-                return;
-            }
-            _callbacks.erase(obj);
-        }
+        void register_callback(const char *obj, const callback_func &func);
+        void unregister_callback(const char *obj);
         
         Reference operator[](const std::string& name) {
             LockGuard guard(this);

@@ -42,8 +42,8 @@ namespace DEBUG {
     }
     
     std::mutex& debug_mutex() {
-        static std::mutex DEBUG_MUTEX;
-        return DEBUG_MUTEX;
+        static std::mutex* DEBUG_MUTEX = new std::mutex; // this is never freed, but that's okay :) avoids some release-hierarchy crashes, I think.
+        return *DEBUG_MUTEX;
     }
     
 #if __APPLE__
@@ -53,7 +53,7 @@ namespace DEBUG {
         ~RuntimeCheck() {
             if(out && out != stdout) {
                 if(!runtime_quiet())
-                    DebugHeader("PROGRAM TERMINATED");
+                    printf("\nPROGRAM TERMINATED\n");
                 
                 fflush(out); fclose(out);
                 fflush(err); fclose(err);
