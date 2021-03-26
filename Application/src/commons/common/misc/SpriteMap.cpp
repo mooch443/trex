@@ -28,9 +28,9 @@ void Map::register_callback(const char *obj, const callback_func &func) {
         U_EXCEPTION("Object %s (%x) already in map callbacks.", obj, obj);
     
     _callbacks[obj] = func;
-#ifndef NDEBUG
+//#ifndef NDEBUG
     Debug("Registered map callback %s (%x)", obj, obj);
-#endif
+//#endif
 }
 
 void Map::unregister_callback(const char *obj) {
@@ -45,9 +45,9 @@ void Map::unregister_callback(const char *obj) {
         return;
     }
     
-#ifndef NDEBUG
+//#ifndef NDEBUG
     printf("Unregistering obj %s (%x) from map callbacks.\n", obj, (uint32_t)(uint64_t)obj);
-#endif
+//#endif
     _callbacks.erase(obj);
 }
 
