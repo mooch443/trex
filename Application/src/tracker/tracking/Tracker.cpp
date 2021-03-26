@@ -149,7 +149,7 @@ Tracker::LockGuard::LockGuard(std::string purpose, uint32_t timeout_ms) : _purpo
         }
     }
     
-    lock = new std::lock_guard(*tracker_lock, std::adopt_lock);
+    lock = new std::lock_guard<std::recursive_timed_mutex>(*tracker_lock, std::adopt_lock);
     
     auto my_id = std::this_thread::get_id();
     if(my_id != _last_thread_id) {
@@ -447,64 +447,12 @@ void Tracker::analysis_state(AnalysisState pause) {
                     first_change = itn->first;
             }
             
-            /*for(auto &p : compare) {
-                auto it = copy.find(p.first);
-                if(it != copy.end()) {
-                    auto str = Meta::toStr(it->second);
-                    if(it->second != p.second) {
-                        first_change = first_change == -1 || first_change > p.first ? p.first : first_change;
-                    }
-                    //Debug("Found frame %d with %S", p.first, &str);
-                    copy.erase(it);
-                    
-                } else {
-                    //Debug("Cannot find frame %d anymore.", p.first);
-                    first_change = first_change == -1 || first_change > p.first ? p.first : first_change;
-                }
-            }
-            
-            first_change = -1;
-            for (auto && [frame, map] : copy) {
-                //Debug("Frame %d is new.", p.first);
-                for(auto && [fdx, bdx] : map) {
-                    auto fit = _individuals.find(fdx);
-                    if(fit == _individuals.end()) {
-                        first_change = frame;
-                        break;
-                    }
-                    
-                    auto blob = fit->second->blob(frame);
-                    if(!blob || blob->blob_id() != bdx) {
-                        first_change = frame;
-                        break;
-                    }
-                }
-                
-                if(first_change != -1)
-                    break;
-                //first_change = first_change == -1 || first_change > frame ? frame : first_change;
-            }*/
-            
             //Debug("First changed frame is %d", first_change);
             if(first_change != -1 && first_change <= Tracker::end_frame()) {
                 //bool analysis_paused = SETTING(analysis_paused);
                 GUI::reanalyse_from(first_change, true);
                 //if(!analysis_paused)
                 Tracker::analysis_state(Tracker::AnalysisState::UNPAUSED);
-                
-                /*add_work_queue("removing frames", [this, first_change](){
-                    bool before = analysis()->is_paused();
-                    this->analysis()->set_paused(true).get();
-                    {*/
-                        /*remove_frames(first_change);
-                        Output::Library::clear_cache();
-                */
-                    /*}
-                    
-                    if(!before)
-                        this->analysis()->set_paused(false).get();
-                });*/
-                
             }
             
             //SETTING(manual_matches) = next;
@@ -2352,26 +2300,6 @@ void Tracker::clear_properties() {
                     //local_max_probs[fish] = max_p;
                 }
 
-                /*std::lock_guard<std::mutex> lock(guard);
-                for(auto && [fish, edges] : local_paired) {
-                    for(auto && [blob, p] : edges)
-                        paired[fish][blob] = p;
-                }
-                
-                for(auto && [fish, p] : local_max_probs) {
-                    auto it = max_probs.find(fish);
-                    if(it != max_probs.end()) {
-                        it->second = max(it->second, p);
-                    } else
-                        max_probs[fish] = p;
-                }
-                
-                for(auto && [blob, edges] : local_paired_blobs) {
-                    for(auto && [fish, p] : edges) {
-                        paired_blobs[blob][fish] = p;
-                    }
-                }*/
-                
                 std::lock_guard<std::mutex> lock(guard);
                 relevant_individuals.insert(individuals_used.begin(), individuals_used.end());
                 relevant_blobs.insert(blobs_used.begin(), blobs_used.end());
