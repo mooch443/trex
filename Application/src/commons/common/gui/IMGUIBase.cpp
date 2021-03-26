@@ -459,6 +459,10 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
         mh *= 0.95; //! title bar
 #endif
         
+#ifdef WIN32
+        width *= xscale;
+        height *= yscale;
+#endif
         _work_area = Bounds(mx, my, mw, mh);
         
         if(width / float(mw) >= height / float(mh)) {
@@ -475,10 +479,6 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
             }
         }
         
-#ifdef WIN32
-        width *= xscale;
-        height *= yscale;
-#endif
         if(!_platform->window_handle())
             _platform->create_window(title.c_str(), width, height);
         else
