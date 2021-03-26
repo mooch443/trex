@@ -613,10 +613,14 @@ void update() {
 }*/
 
 inline void member_destruct(const char*name) {
+#ifndef NDEBUG
     printf("Destruction members '%s'\n", name);
+#endif
 }
 inline void member_construct(const char*name) {
+#ifndef NDEBUG
     printf("Construction members '%s'\n", name);
+#endif
 }
 
 template<typename Variables, typename callback_fn_t>
@@ -624,10 +628,14 @@ struct CallbackHolder {
     const char *name;
     std::unordered_map<Variables, callback_fn_t> _callbacks;
     CallbackHolder(const char*name) : name(name) {
+#ifndef NDEBUG
         printf("CallbackHolder for '%s' created.\n", name);
+#endif
     }
     ~CallbackHolder() {
+#ifndef NDEBUG
         printf("CallbackHolder for '%s' destructed.\n", name);
+#endif
     }
 };
 
