@@ -293,7 +293,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
     Debug("%S", &str);
     
     std::set<Idx_t> unique_ids;
-    float min_prob = std::numeric_limits<float>::infinity();
+    float min_prob = infinity<float>();
     for(auto && [my_id, p] : max_probs)
         min_prob = min(min_prob, p);
     for(auto && [my_id, pred_id] : max_indexes) {
@@ -1757,18 +1757,18 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
         {
             std::lock_guard<std::mutex> g(_current_assignment_lock);
             if(!_current_accumulation)
-                return infinity<float>();
+                return gui::Graph::invalid();
             std::lock_guard<std::mutex> guard(_per_class_lock);
-            return x>=0 && size_t(x) < _current_accumulation->_uniqueness_per_class.size() ? _current_accumulation->_uniqueness_per_class.at(size_t(x)) : infinity<float>();
+            return x>=0 && size_t(x) < _current_accumulation->_uniqueness_per_class.size() ? _current_accumulation->_uniqueness_per_class.at(size_t(x)) : gui::Graph::invalid();
         }, Green));
         
         _graph->add_function(Graph::Function("per-class accuracy", (int)Graph::DISCRETE | (int)Graph::AREA | (int)Graph::POINTS, [](float x) -> float
         {
             std::lock_guard<std::mutex> g(_current_assignment_lock);
             if(!_current_accumulation)
-                return infinity<float>();
+                return gui::Graph::invalid();
             std::lock_guard<std::mutex> guard(_per_class_lock);
-            return x>=0 && size_t(x) < _current_accumulation->_current_per_class.size() ? _current_accumulation->_current_per_class.at(size_t(x)) : infinity<float>();
+            return x>=0 && size_t(x) < _current_accumulation->_current_per_class.size() ? _current_accumulation->_current_per_class.at(size_t(x)) : gui::Graph::invalid();
         }, Cyan));
         _graph->set_ranges(Rangef(0, float(FAST_SETTINGS(track_max_individuals))-1), Rangef(0, 1));
         _graph->set_background(Transparent, Transparent);

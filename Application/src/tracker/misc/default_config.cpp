@@ -73,6 +73,11 @@ namespace default_config {
         "NPZ is basically a collection of binary arrays, readable by NumPy and other plugins (there are plugins available for Matlab and R)."
     )
 
+    ENUM_CLASS_DOCS(output_invalid_t,
+        "Infinity (e.g. np.inf)",
+        "NaN (e.g. np.nan)"
+    )
+
     ENUM_CLASS_DOCS(gpu_verbosity_t,
        "No output during training.",
        "An animated bar with detailed information about the training progress.",
@@ -508,8 +513,9 @@ file::Path conda_environment_path() {
         CONFIG("tracklet_restore_split_blobs", true, "If enabled, all exported tracklet images are checked for missing pixels. When a blob is too close to another blob, parts of the other blob might be erased so the individuals can be told apart. If enabled, another mask will be saved, that contains only the blob in focus, without the rest-pixels.");
         CONFIG("output_image_per_tracklet", false, "If set to true, the program will output one median image per tracklet (time-series segment) and save it alongside the npz/csv files.");
         CONFIG("output_csv_decimals", uint8_t(0), "Maximum number of decimal places that is written into CSV files (a text-based format for storing data). A value of 0 results in integer values.");
+        CONFIG("output_invalid_value", output_invalid_t::inf, "Determines, what is exported in cases where the individual was not found (or a certain value could not be calculated). For example, if an individual is found but posture could not successfully be generated, then all posture-based values (e.g. `midline_length`) default to the value specified here. By default (and for historic reasons), any invalid value is marked by 'inf'.");
         CONFIG("output_format", output_format_t::npz, "When pressing the S(ave) button or using `auto_quit`, this setting allows to switch between CSV and NPZ output. NPZ files are recommended and will be used by default - some functionality (such as visual fields, posture data, etc.) will remain in NPZ format due to technical constraints.");
-        CONFIG("output_statistics", false, "Save an NPZ file containing an array with shape Nx5 and contents `[[adding_frame_seconds, combined_posture_seconds, track_max_individuals, loading_seconds, posture_seconds],...]` and an 1D-array containing all frame numbers. If set to true, a file called '`output_dir`/`fish_data_dir`/`<filename>_statistics.npz`' will be created. This will not output anything interesting, if the data was loaded instead of analysed.");
+        CONFIG("output_statistics", false, "Save an NPZ file containing an array with shape Nx16 and contents [`adding_seconds`, `combined_posture_seconds`, `number_fish`, `loading_seconds`, `posture_seconds`, `match_number_fish`, `match_number_blob`, `match_number_edges`, `match_stack_objects`, `match_max_edges_per_blob`, `match_max_edges_per_fish`, `match_mean_edges_per_blob`, `match_mean_edges_per_fish`, `match_improvements_made`, `match_leafs_visited`, `method_used`] and an 1D-array containing all frame numbers. If set to true, a file called '`output_dir`/`fish_data_dir`/`<filename>_statistics.npz`' will be created. This will not output anything interesting, if the data was loaded instead of analysed.");
         CONFIG("output_posture_data", false, "Save posture data npz file along with the usual NPZ/CSV files containing positions and such. If set to true, a file called '`output_dir`/`fish_data_dir`/`<filename>_posture_fishXXX.npz`' will be created for each individual XXX.");
         CONFIG("output_recognition_data", false, "Save recognition / probability data npz file along with the usual NPZ/CSV files containing positions and such. If set to true, a file called '`output_dir`/`fish_data_dir`/`<filename>_recognition_fishXXX.npz`' will be created for each individual XXX.");
         CONFIG("output_normalize_midline_data", false, "If enabled: save a normalized version of the midline data saved whenever `output_posture_data` is set to true. Normalized means that the position of the midline points is normalized across frames (or the distance between head and point n in the midline array).");

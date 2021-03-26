@@ -65,7 +65,7 @@ def update_tracking():
             midline = (midlines[i] * scale_factor + pos ).astype(np.int)
         pos = tuple((pos + centers[i] * scale_factor).astype(np.int))
 
-        if len(midlines) > i and not np.isinf(midline[0]).any():
+        if len(midlines) > i and not np.isinf(midline[0]).any() and not np.isnan(midline[0]).any():
             print(midlines, i, midline[0].min(), midline[0].max())
             #cv.circle(image, tuple(midline[0]), 5, (255, 0, 0), -1)
             #for j in range(1, len(midline)):

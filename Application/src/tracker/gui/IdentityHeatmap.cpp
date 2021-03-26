@@ -548,7 +548,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(long_t current_fr
                         double v = 1;
                         if(!_source.empty())
                             v = Output::Library::get_with_modifiers(_source, info, frame);
-                        if(!cmn::isinf(v)) {
+                        if(!Graph::is_invalid(v)) {
                             data.push_back(heatmap::DataPoint{
                                 long_t(frame),
                                 uint32_t(pos.x),

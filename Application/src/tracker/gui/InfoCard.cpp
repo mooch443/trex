@@ -185,7 +185,7 @@ void InfoCard::update() {
     
     auto fdx = _fish->identity().ID();
     auto fprobs = cache.probs(fdx);
-    if(fprobs) {
+    
         bool detail = SETTING(gui_show_detailed_probabilities);
         Bounds tmp(0, y - 10, 200, 0);
         
@@ -195,7 +195,7 @@ void InfoCard::update() {
         
         float max_w = 200;
         auto rect = advance(new Rect(tmp, bg.alpha(detail ? 50 : bg.a)));
-        auto text = advance(new Text("matching", Vec2(10, y), White, Font(0.8f, Style::Bold)));
+        text = advance(new Text("matching", Vec2(10, y), White, Font(0.8f, Style::Bold)));
         
         if(!detail_button->parent()) {
             detail_button->set_toggleable(true);
@@ -243,9 +243,19 @@ void InfoCard::update() {
         } else
             y += text->height();
         
-        std::string speed_str = Meta::toStr(cache.processed_frame.cached_individuals.at(fdx).speed) + "cm/s";
-        y += advance(new Text(speed_str, Vec2(10, y), White.alpha(125), Font(0.8f)))->height();
+    std::string speed_str;
+    
+    if(cache.processed_frame.cached_individuals.count(fdx))
+        speed_str = Meta::toStr(cache.processed_frame.cached_individuals.at(fdx).speed) + "cm/s";
+    else if(cache.individuals.count(fdx) && cache.individuals.at(fdx)->basic_stuff(_frameNr)) {
+        auto s = cache.individuals.at(fdx)->basic_stuff(_frameNr)->centroid->speed(Units::CM_AND_SECONDS);
+        speed_str = Meta::toStr(s)+"cm/s";
         
+    }
+    
+    y += advance(new Text(speed_str, Vec2(10, y), White.alpha(125), Font(0.8f)))->height();
+        
+    if(fprobs) {
         track::Match::prob_t max_prob = 0;
         int64_t bdx = -1;
         for(auto blob : cache.processed_frame.blobs) {
@@ -281,12 +291,12 @@ void InfoCard::update() {
                     max_w = w;
             }
         }
-        
-        tmp.width = max_w;
-        tmp.height = y - tmp.y + 10;
-        
-        rect->set_size(tmp.size());
     }
+        
+    tmp.width = max_w;
+    tmp.height = y - tmp.y + 10;
+    
+    rect->set_size(tmp.size());
     
     y += 30;
     

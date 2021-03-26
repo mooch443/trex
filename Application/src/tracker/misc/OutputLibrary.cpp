@@ -5,6 +5,8 @@
 #include <file/CSVExport.h>
 #include <misc/cnpy_wrapper.h>
 #include <misc/checked_casts.h>
+#include <gui/Graph.h>
+#include <tracker/misc/default_config.h>
 
 namespace Output {
     using namespace gui;
@@ -83,7 +85,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
     }
     
     if(!ptr0 || !ptr1) {
-        percent = infinity<float>(); // there are no segments after this frame, cannot interpolate
+        percent = gui::Graph::invalid(); // there are no segments after this frame, cannot interpolate
         return {ptr0, ptr1};
     }
     
@@ -121,14 +123,22 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
         static const float CENTER_Y = SETTING(output_centered) ?SETTING(video_size).value<Size2>().height * 0.5f * cm_per_px : 0;
         
         auto callback = "Output::Library::Init";
-        GlobalSettings::map().register_callback(callback, [callback](sprite::Map::Signal signal, sprite::Map& map, const std::string& name, const sprite::PropertyType&)
+        GlobalSettings::map().register_callback(callback, [callback](sprite::Map::Signal signal, sprite::Map& map, const std::string& name, const sprite::PropertyType&val)
         {
             if(signal == sprite::Map::Signal::EXIT) {
                 map.unregister_callback(callback);
                 return;
             }
             
-            if (name == "output_graphs" || name == "output_default_options" || name == "midline_resolution")
+            if(name == "output_invalid_value") {
+                if(val.value<default_config::output_invalid_t::Class>() == default_config::output_invalid_t::nan)
+                    gui::Graph::set_invalid(std::numeric_limits<float>::quiet_NaN());
+                else
+                    gui::Graph::set_invalid(std::numeric_limits<float>::infinity());
+                
+                clear_cache();
+                
+            } else if (name == "output_graphs" || name == "output_default_options" || name == "midline_resolution")
             {
                 auto graphs = SETTING(output_graphs).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
                 std::lock_guard<std::mutex> lock(_output_variables_lock);
@@ -170,7 +180,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                          } else
                              Warning("No midline.");
                          
-                         return infinity<float>();
+                         return gui::Graph::invalid();
                     }));
                     
                     //SETTING(output_default_options).value<std::map<std::string, std::vector<std::string>>>()["bone"+std::to_string(i)] = { "*2" };
@@ -216,12 +226,12 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
         _cache_func[Functions::X.name()] = LIBGLFNC( {
             if(!props) {
                 if(!FAST_SETTINGS(output_interpolate_positions))
-                    return infinity<float>();
+                    return gui::Graph::invalid();
                 
                 float percent;
                 auto tup = interpolate_1d(info, frame, percent);
                 if(!std::get<0>(tup) || !std::get<1>(tup))
-                    return infinity<float>();
+                    return gui::Graph::invalid();
                 
                 return (1 - percent) * std::get<0>(tup)->pos(Units::CM_AND_SECONDS, smooth).x
                      + percent       * std::get<1>(tup)->pos(Units::CM_AND_SECONDS, smooth).x
@@ -234,12 +244,12 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
         _cache_func[Functions::Y.name()] = LIBGLFNC( {
             if(!props) {
                 if(!FAST_SETTINGS(output_interpolate_positions))
-                    return infinity<float>();
+                    return gui::Graph::invalid();
                 
                 float percent;
                 auto tup = interpolate_1d(info, frame, percent);
                 if(!std::get<0>(tup) || !std::get<1>(tup))
-                    return infinity<float>();
+                    return gui::Graph::invalid();
                 
                 return (1 - percent) * std::get<0>(tup)->pos(Units::CM_AND_SECONDS, smooth).y
                      + percent       * std::get<1>(tup)->pos(Units::CM_AND_SECONDS, smooth).y
@@ -261,12 +271,12 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
         _cache_func[Functions::SPEED.name()] = LIBGLFNC( {
             if(!props) {
                 if(!FAST_SETTINGS(output_interpolate_positions))
-                    return infinity<float>();
+                    return gui::Graph::invalid();
                 
                 float percent;
                 auto tup = interpolate_1d(info, frame, percent);
                 if(!std::get<0>(tup) || !std::get<1>(tup))
-                    return infinity<float>();
+                    return gui::Graph::invalid();
                 
                 return (1 - percent) * std::get<0>(tup)->speed(Units::CM_AND_SECONDS, smooth)
                      + percent       * std::get<1>(tup)->speed(Units::CM_AND_SECONDS, smooth);
@@ -287,7 +297,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             {
                 auto midline = normalize ? fish->fixed_midline(frame) : fish->midline(frame);
                 if (!midline)
-                    return infinity<float>();
+                    return gui::Graph::invalid();
                 
                 auto &pts = midline->segments();
                 
@@ -324,7 +334,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             }
             
             if(samples == 0 || !fish->midline(frame))
-                return infinity<float>();
+                return gui::Graph::invalid();
             
             mean = mean / samples;
             float mean_angle = cmn::atan2(mean.y, mean.x);
@@ -348,8 +358,8 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
         
         _cache_func["normalized_midline"] = LIBFNC({
             float value = EventAnalysis::midline_offset(info.fish, frame);
-            if(cmn::isinf(value))
-                return infinity<float>();
+            if(gui::Graph::is_invalid(value))
+                return gui::Graph::invalid();
             
             long_t samples = 1;
             
@@ -357,7 +367,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             {
                 if(f != frame) {
                     float sample = EventAnalysis::midline_offset(info.fish, f);
-                    if(!cmn::isinf(sample)) {
+                    if(!gui::Graph::is_invalid(sample)) {
                         value += sample;
                         samples++;
                     }
@@ -371,10 +381,10 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             auto current = get("normalized_midline", info, frame);
             auto previous = get("normalized_midline", info, frame-1);
             
-            if(cmn::isinf(previous))
+            if(gui::Graph::is_invalid(previous))
                 previous = 0;
-            if(cmn::isinf(current))
-                return infinity<float>();
+            if(gui::Graph::is_invalid(current))
+                return gui::Graph::invalid();
             
             return narrow_cast<float>(current - previous);
         });
@@ -387,10 +397,10 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 Vec2 p2(frame+1, (Float2_t)get(Functions::MIDLINE_OFFSET.name(), info, frame+1));
                 
                 int c = crosses_abs_height(p1, p2, SETTING(limit).value<float>());
-                return c == 0 ? infinity<float>() : c;
+                return c == 0 ? gui::Graph::invalid() : c;
             }
             
-            return infinity<float>();
+            return gui::Graph::invalid();
         });
         
         _cache_func[Functions::BORDER_DISTANCE.name()] = LIBFNC({
@@ -416,7 +426,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 return min(d0, d1);
             }
             
-            return infinity<float>();
+            return gui::Graph::invalid();
         });
         
         _cache_func[Functions::NEIGHBOR_DISTANCE.name()] = LIBFNC({
@@ -435,14 +445,14 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 }
             }
             
-            return samples > 0 ? d / samples : infinity<float>();
+            return samples > 0 ? d / samples : gui::Graph::invalid();
         });
         
         _cache_func["time"] = LIBGLFNC({
             (void)info;
             auto props = Tracker::properties(frame);
             if(!props)
-                return infinity<float>();
+                return gui::Graph::invalid();
             return props->time;
         });
         
@@ -451,7 +461,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             
             auto props = Tracker::properties(frame);
             if(!props)
-                return infinity<float>();
+                return gui::Graph::invalid();
             return props->org_timestamp;
         });
         
@@ -460,7 +470,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             
             auto props = Tracker::properties(frame);
             if(!props)
-                return infinity<float>();
+                return gui::Graph::invalid();
             return frame;
         });
         
@@ -513,7 +523,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                }
            }
            
-           return infinity<float>();
+           return gui::Graph::invalid();
         });
         
         _cache_func["RELATIVE_ANGLE"] = LIBFNC({
@@ -551,7 +561,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                }
            }
            
-           return infinity<float>();
+           return gui::Graph::invalid();
         });
         
         _cache_func["L_V"] = LIBFNC({
@@ -590,21 +600,21 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                   float n = length(v) * length(ov);
                   
                   if(length(v) > 0 || length(ov) > 0)
-                      return infinity<float>();
+                      return gui::Graph::invalid();
                   
                   return cmn::abs(atan2(v.y, v.x) - atan2(ov.y,  ov.x));
               }
             }
 
             Warning("NO OTHER FISH");
-            return infinity<float>();
+            return gui::Graph::invalid();
         });
         
         _cache_func["tailbeat_threshold"] = LIBFNC( return SETTING(limit).value<float>(); );
         _cache_func["tailbeat_peak"] = LIBFNC( return SETTING(event_min_peak_offset).value<float>(); );
         
         _cache_func["threshold_reached"] = LIBFNC({
-            return EventAnalysis::threshold_reached(info.fish, frame) ? float(M_PI * 0.3) : infinity<float>();
+            return EventAnalysis::threshold_reached(info.fish, frame) ? float(M_PI * 0.3) : gui::Graph::invalid();
         });
         
         _cache_func["sqrt_a"] = LIBFNC({
@@ -616,7 +626,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             if(o)
                 return o->size();
             else
-                return infinity<float>();
+                return gui::Graph::invalid();
         });
         
         _cache_func["outline_std"] = LIBFNC({
@@ -632,7 +642,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             }
             
             if(all.empty())
-                return infinity<float>();
+                return gui::Graph::invalid();
             if(all.size() == 1)
                 return 1;
             
@@ -769,7 +779,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 return length(midline->segments().at(1).pos - midline->segments().at(0).pos) * FAST_SETTINGS(cm_per_pixel);
             }
             
-            return infinity<float>();
+            return gui::Graph::invalid();
         });
         
         _cache_func["consecutive"] = LIBFNC({
@@ -779,7 +789,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 return segment->length();
             }
             
-            return infinity<float>();
+            return gui::Graph::invalid();
         });
         
         _cache_func["blobid"] = LIBFNC({
@@ -789,7 +799,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 return blob->blob_id();
             }
             
-            return infinity<float>();
+            return gui::Graph::invalid();
         });
         
         _cache_func["num_pixels"] = LIBFNC({
@@ -799,7 +809,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 return blob->num_pixels();
             }
             
-            return infinity<float>();
+            return gui::Graph::invalid();
         });
         
         _cache_func["pixels_squared"] = LIBFNC({
@@ -809,7 +819,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 return blob->bounds().width * blob->bounds().height;
             }
             
-            return infinity<float>();
+            return gui::Graph::invalid();
         });
         
         _cache_func["midline_x"] = LIBFNC({
@@ -820,7 +830,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 return (blob->bounds().pos().x + midline->offset().x) * FAST_SETTINGS(cm_per_pixel);
             }
             
-            return infinity<float>();
+            return gui::Graph::invalid();
         });
         
         _cache_func["midline_y"] = LIBFNC({
@@ -831,7 +841,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 return (blob->bounds().pos().y + midline->offset().y) * FAST_SETTINGS(cm_per_pixel);
             }
             
-            return infinity<float>();
+            return gui::Graph::invalid();
         });
         
         _cache_func["global"] = LIBGLFNC({
@@ -912,7 +922,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 return (pts.back().pos - pts.front().pos).y;
             }
             
-            return infinity<float>();
+            return gui::Graph::invalid();
         });
         
         _cache_func["midline_length"] = LIBFNC({
@@ -922,7 +932,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 return posture->midline_length; //* FAST_SETTINGS(cm_per_pixel);
             }
             
-            return infinity<float>();
+            return gui::Graph::invalid();
         });
         
         SETTING(output_graphs) = SETTING(output_graphs).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
@@ -954,7 +964,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
         
         std::lock_guard<std::recursive_mutex> lock(_cache->_cache_mutex);
         if(_cache_func.count(name) == 0)
-            return infinity<float>();
+            return gui::Graph::invalid();
         
         size_t cache_size = _cache->_cache.size();
         if (!info.rec_depth && cache_size > 100)
@@ -1001,7 +1011,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 warning = name;
                 Warning("Cannot find output function '%S'.", &name);
             }
-            return infinity<float>();
+            return gui::Graph::invalid();
         }
         
         OptionsList<Modifiers> modifiers = info.modifiers;
@@ -1228,15 +1238,15 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             
             if(left == 0) {
                 auto v_l = Library::get(Functions::BINARY.name(), info, f_l);
-                if(!cmn::isinf(v_l)) {
+                if(!gui::Graph::is_invalid(v_l)) {
                     left = v_l;
                     //l_idx = f_l;
                 } else {
                     auto y = Library::get("fixed_midline", info, f_l);
-                    if(cmn::isinf(y))
+                    if(gui::Graph::is_invalid(y))
                         return 0;
                     
-                    if (!cmn::isinf(y) && cmn::abs(y) > cmn::abs(mx))
+                    if (!gui::Graph::is_invalid(y) && cmn::abs(y) > cmn::abs(mx))
                         mx = y;
                     if (y < mi)
                         mi = y;
@@ -1245,15 +1255,15 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             
             if(right == 0 && offset) {
                 auto v_r = Library::get(Functions::BINARY.name(), info, f_r);
-                if(!cmn::isinf(v_r)) {
+                if(!gui::Graph::is_invalid(v_r)) {
                     right = v_r;
                     //r_idx = f_r;
                 } else {
                     auto y = Library::get("fixed_midline", info, f_r);
-                    if(cmn::isinf(y))
+                    if(gui::Graph::is_invalid(y))
                         return 0;
                     
-                    if (!cmn::isinf(y) && cmn::abs(y) > cmn::abs(mx))
+                    if (!gui::Graph::is_invalid(y) && cmn::abs(y) > cmn::abs(mx))
                         mx = y;
                     if (y < mi)
                         mi = y;

@@ -2087,7 +2087,7 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                         }
                         
                         auto fish0 = _cache.individuals.at(Idx_t(i));
-                        Vec2 p0(infinity<Float2_t>());
+                        Vec2 p0(gui::Graph::invalid());
                         
                         if(!fish0->has(frameIndex)) {
                             if(_cache.processed_frame.cached_individuals.count(fish0->identity().ID()))
@@ -2098,7 +2098,7 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                         } else
                             p0 = fish0->centroid_weighted(frameIndex)->pos(Units::PX_AND_SECONDS);
                         
-                        if(cmn::isinf(p0.x))
+                        if(Graph::is_invalid(p0.x))
                             continue;
                         
                         for(uint32_t j=i+1; j<number_fish; ++j) {
@@ -2119,7 +2119,7 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                             } else
                                 p1 = fish1->centroid_weighted(frameIndex)->pos(Units::PX_AND_SECONDS);
                             
-                            if(cmn::isinf(p1.x))
+                            if(Graph::is_invalid(p1.x))
                                 continue;
                             
                             auto value = _cache.connectivity_matrix.at(FAST_SETTINGS(track_max_individuals) * i + j);
@@ -2169,7 +2169,7 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                         if(it != _cache._statistics.end()) {
                             return it->second.number_fish;
                         }
-                        return infinity<float>();
+                        return gui::Graph::invalid();
                     }));
                 }
                 individuals_graph.set_draggable();
@@ -2244,7 +2244,7 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                             if(it != uq->end() && it->second <= x) {
                                 return it->second;
                             }
-                            return infinity<float>();
+                            return gui::Graph::invalid();
                         }, Cyan));
                         /*graph.add_function(Graph::Function("smooth", Graph::Type::DISCRETE, [uq = &smooth_points](float x) -> float {
                             std::lock_guard<std::mutex> guard(mutex);
@@ -2254,7 +2254,7 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                             if(it != uq->end() && it->second <= x) {
                                 return it->second;
                             }
-                            return infinity<float>();
+                            return gui::Graph::invalid();
                         }));*/
                         graph.add_points("", uniquenesses);
                     }
@@ -2589,7 +2589,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             graph.add_function(Graph::Function("dt", Graph::Type::DISCRETE, [&](float x) ->float {
                 if(x > 0 && x < values.size())
                     return values.at(x);
-                return infinity<float>();
+                return gui::Graph::invalid();
             }, Red, "ms"));
             
             Debug("%f-%f %d", min_val, max_val, values.size());

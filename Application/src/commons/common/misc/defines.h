@@ -205,16 +205,6 @@ using remove_cvref_t = typename remove_cvref<T>::type;
 #define GETTER_SETTER(TYPE, VAR) protected: TYPE _##VAR; public: inline const TYPE& VAR() const { return _##VAR; } inline void set_##VAR(const TYPE& value) { _##VAR = value; } protected:
 #define GETTER_SETTER_PTR(TYPE, VAR) protected: TYPE _##VAR; public: inline TYPE VAR() const { return _##VAR; } inline void set_##VAR(TYPE value) { _##VAR = value; } protected:
 #define IMPLEMENT(VAR) decltype( VAR ) VAR
-    
-    template<typename T0>
-    inline bool isnan(const T0& x, typename std::enable_if<std::is_floating_point<T0>::value || std::is_integral<T0>::value, bool>::type * =NULL) {
-        return std::isnan(x);
-    }
-    
-    template<typename T0>
-    inline bool isnan(const T0& x, typename std::enable_if<std::is_same<decltype(x.x), decltype(x.y)>::value, bool>::type * =NULL) {
-        return std::isnan(x.x) || std::isnan(x.y);
-    }
 
     template<typename T0, typename T1,
         typename T0_ = typename remove_cvref<T0>::type,

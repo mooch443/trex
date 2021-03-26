@@ -1445,6 +1445,19 @@ TRex parameters
 
 
 
+.. function:: output_invalid_value(output_invalid_t)
+
+	**default value:** inf
+
+	**possible values:**
+		- `inf`: Infinity (e.g. np.inf)
+		- `nan`: NaN (e.g. np.nan)
+
+	Determines, what is exported in cases where the individual was not found (or a certain value could not be calculated). For example, if an individual is found but posture could not successfully be generated, then all posture-based values (e.g. ``midline_length``) default to the value specified here. By default (and for historic reasons), any invalid value is marked by 'inf'.
+
+
+
+
 .. function:: output_min_frames(ulong)
 
 	**default value:** 1
@@ -1499,7 +1512,7 @@ TRex parameters
 	**default value:** false
 
 
-	Save an NPZ file containing an array with shape Nx5 and contents ``[[adding_frame_seconds, combined_posture_seconds, track_max_individuals, loading_seconds, posture_seconds],...]`` and an 1D-array containing all frame numbers. If set to true, a file called '``output_dir``/``fish_data_dir``/``<filename>_statistics.npz``' will be created. This will not output anything interesting, if the data was loaded instead of analysed.
+	Save an NPZ file containing an array with shape Nx16 and contents [``adding_seconds``, ``combined_posture_seconds``, ``number_fish``, ``loading_seconds``, ``posture_seconds``, ``match_number_fish``, ``match_number_blob``, ``match_number_edges``, ``match_stack_objects``, ``match_max_edges_per_blob``, ``match_max_edges_per_fish``, ``match_mean_edges_per_blob``, ``match_mean_edges_per_fish``, ``match_improvements_made``, ``match_leafs_visited``, ``method_used``] and an 1D-array containing all frame numbers. If set to true, a file called '``output_dir``/``fish_data_dir``/``<filename>_statistics.npz``' will be created. This will not output anything interesting, if the data was loaded instead of analysed.
 
 	.. seealso:: :func:`output_dir`, 
 

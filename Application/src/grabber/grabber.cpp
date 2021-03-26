@@ -1144,7 +1144,7 @@ void FrameGrabber::update_tracker_queue() {
                                 {
                                     points.resize(0);
                                     for(uint32_t i=0; i<FAST_SETTINGS(midline_resolution); ++i)
-                                        points.push_back(infinity<float>());
+                                        points.push_back(gui::Graph::invalid());
                                     midline_points.insert(midline_points.end(), points.begin(), points.end());
                                     
                                 } else {

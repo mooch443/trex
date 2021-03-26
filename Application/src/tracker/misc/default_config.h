@@ -52,6 +52,9 @@ namespace default_config {
 
     ENUM_CLASS(output_format_t, csv, npz)
     ENUM_CLASS_HAS_DOCS(output_format_t)
+
+    ENUM_CLASS(output_invalid_t, inf, nan)
+    ENUM_CLASS_HAS_DOCS(output_invalid_t)
 }
 
 namespace gui {
