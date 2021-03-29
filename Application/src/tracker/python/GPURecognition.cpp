@@ -361,7 +361,7 @@ std::shared_future<bool> PythonIntegration::reinit() {
         try {
             _main = py::module::import("__main__");
             _main.def("set_version", [](std::string x, bool has_gpu, std::string physical_name) {
-                Debug("Set version '%s'", &x);
+                Debug("set_version called with '%S' and '%S'", &x, &physical_name);
                 auto array = utils::split(x, ' ');
                 if(array.size() > 0) {
                     array = utils::split(array.front(), '.');
@@ -373,84 +373,20 @@ std::shared_future<bool> PythonIntegration::reinit() {
                 
                 python_uses_gpu() = has_gpu;
                 python_gpu_name() = physical_name;
-                
-                Debug("retrieved version %S", &x);
             });
             
-            if(_settings->map().get<bool>("recognition_enable").value()) {
-                auto cmd = utils::read_file("trex_init.py");
-                py::exec(cmd);
-                
-                /*cmd =
-                       "print('[py] import sys')\n"
-                       "import sys\n" \
-                       "found = True\n" \
-                       "physical = ''\n" \
-                       "print('[py] sys.version = ',sys.version)\n"
-                       "if int(sys.version[0]) >= 3:\n"\
-                       "\tprint('[py] import importlib')\n"
-                       "\timport importlib\n" \
-                       "\ttry:\n" \
-                           "\t\tprint('[py] importlib.import_module(tensorflow)')\n" \
-                           "\t\timportlib.import_module('tensorflow')\n" \
-                           "\t\timport tensorflow\n"
-#if defined(__APPLE__) && defined(__aarch64__)
-                           "\t\tfrom tensorflow.python.compiler.mlcompute import mlcompute\n"
-                           "\t\tif mlcompute.is_apple_mlc_enabled():\n"
-                              "\t\t\tfound = True\n"
-                              "\t\t\tphysical = 'MLC'\n"
-                           "\t\telse:\n"
-#else
-                           "\t\tif True:\n"
-#endif
-                           "\t\t\tprint('[py] tensorflow.compat.v1')\n"
-                           "\t\t\tfrom tensorflow.compat.v1 import ConfigProto, InteractiveSession\n"
-                           "\t\t\tconfig = ConfigProto()\n"
-                           "\t\t\tprint('config.gpu_options')\n"
-                           "\t\t\tconfig.gpu_options.allow_growth=True\n"
-                           "\t\t\tsess = InteractiveSession(config=config)\n"
-                           "\t\t\tfrom tensorflow.python.client import device_lib\n" \
-                           "\t\t\tprint('[py] before gpus = ...')\n"
-                           "\t\t\tgpus = [x.physical_device_desc for x in device_lib.list_local_devices() if x.device_type == 'GPU']\n"
-                           "\t\t\tprint('[py] result:', gpus)\n"
-                           "\t\t\tfound = len(gpus) > 0\n"
-                           "\t\t\tif found:\n" \
-                              "\t\t\t\tfor device in gpus:\n" \
-                                      "\t\t\t\t\tphysical = device.split(',')[1].split(': ')[1]\n" \
-                           "\t\t\tprint('after')\n"
-                       "\texcept ImportError:\n"
-                       "\t\tfound = False\n" \
-                       "else:\n" \
-                       "\ttry:\n" \
-                       "\t\timp.find_module('tensorflow')\n" \
-                       "\t\tfrom tensorflow.python.client import device_lib\n" \
-                       "\t\tfound = len([x.physical_device_desc for x in device_lib.list_local_devices() if x.device_type == 'GPU']) > 0\n"
-                       "\texcept ImportError:\n" \
-                       "\t\tfound = False\nprint('setting version',sys.version,found,physical)\n" \
-                       "set_version(sys.version, found, physical)\n";
-                /*auto lines = utils::split(cmd, '\n');
-                for(size_t i=0; i<lines.size(); ++i) {
-                    Debug("%d: %s", i, lines.at(i).c_str());
-                    py::exec(lines.at(i));
-                }*/
-                //printf("COMMAND\n%s\n", cmd.c_str());
-                //Debug("[py] Executing command...");
-                //py::exec(cmd);
-                Debug("[py] Imported and retrieved");
-            }
-            
-            numpy = _main.import("numpy");
-            Debug("[py] Imported numpy");
             TRex = _main.import("TRex");
-            Debug("[py] Imported TRex");
+            
+            if(_settings->map().get<bool>("recognition_enable").value()) {
+                try {
+                    auto cmd = utils::read_file("trex_init.py");
+                    py::exec(cmd);
+                } catch(const UtilsException& ex) {
+                    Warning("Error while executing 'trex_init.py'. Content: %s", ex.what());
+                }
+            }
             
             _locals = new py::dict("model"_a="None");
-            Debug("[py] Imported Locals");
-            
-            if(_settings->map().get<bool>("recognition_enable").value()) {
-                _main.import("tensorflow");
-                Debug("Imported tensorflow");
-            }
             
             python_initialized() = true;
             python_initializing() = false;

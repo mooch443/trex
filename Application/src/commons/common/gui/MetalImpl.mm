@@ -65,7 +65,14 @@ extern "C"{
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 250 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
             auto cstr = [string cStringUsingEncoding:NSASCIIStringEncoding];
             auto paths = cmn::Meta::fromStr<std::vector<file::Path>>(cstr);
-            if(gui::metal::current_instance) {
+            for(auto it = paths.begin(); it != paths.end(); ) {
+                if(!it->exists()) {
+                    it = paths.erase(it);
+                } else
+                    ++it;
+            }
+            
+            if(!paths.empty() && gui::metal::current_instance) {
                 if(!gui::metal::current_instance->open_files(paths)) {
                     gui::metal::current_instance->message("Cannot open "+std::string(cstr)+".");
                 }

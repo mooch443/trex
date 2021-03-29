@@ -9,7 +9,7 @@ namespace gui {
     void RecognitionSummary::update(gui::DrawStructure& base) {
         auto & cache = GUI::instance()->cache();
         
-        const float interface_scale = GUI_SETTINGS(gui_interface_scale);
+        const float interface_scale = gui::interface_scale();
         
         Font title_font(0.9f / interface_scale, Style::Bold, Align::Center);
         Font font(0.8f / interface_scale);

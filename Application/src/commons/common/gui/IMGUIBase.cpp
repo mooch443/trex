@@ -360,7 +360,6 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
     
     int fw, fh;
     glfwGetFramebufferSize(window, &fw, &fh);
-    base->_last_framebuffer_size = Size2(fw, fh);
     
     GLFWmonitor* monitor = glfwGetWindowMonitor(window);
     if(!monitor) {
@@ -414,16 +413,20 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
     float dpi_scale = 1 / max(xscale, yscale);//max(float(fw) / float(width), float(fh) / float(height));
     im_font_scale = max(1, dpi_scale) * 0.75f;
     base->_dpi_scale = dpi_scale;
+    base->_graph->set_scale(1 / dpi_scale);
+    
+    base->_last_framebuffer_size = Size2(fw, fh).mul(base->_dpi_scale);
     
     //Debug("dpi_scale:%f gui::interface_scale:%f xscale:%f yscale:%f", dpi_scale, gui::interface_scale(), xscale, yscale);
     
     {
         Event e(EventType::WINDOW_RESIZED);
-        e.size.width = fw;
-        e.size.height = fh;
+        e.size.width = fw * dpi_scale;
+        e.size.height = fh * dpi_scale;
 
         base->event(e);
     }
+    
     base->_graph->set_dirty(NULL);
 }
 
@@ -513,7 +516,7 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
         
         int fw, fh;
         glfwGetFramebufferSize(_platform->window_handle(), &fw, &fh);
-        _last_framebuffer_size = Size2(fw, fh);
+        _last_framebuffer_size = Size2(fw, fh).mul(_dpi_scale);
         
         const float base_scale = 32;
         //float dpi_scale = max(float(fw) / float(width), float(fh) / float(height));
@@ -565,12 +568,13 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
             base->_graph->set_dirty(NULL);
         });
         glfwSetCursorPosCallback(_platform->window_handle(), [](GLFWwindow* window, double xpos, double ypos) {
+            auto base = base_pointers.at(window);
+            
             Event e(EventType::MMOVE);
             auto &io = ImGui::GetIO();
-            e.move.x = float(xpos * io.DisplayFramebufferScale.x);
-            e.move.y = float(ypos * io.DisplayFramebufferScale.y);
+            e.move.x = float(xpos * io.DisplayFramebufferScale.x) * base->_dpi_scale;
+            e.move.y = float(ypos * io.DisplayFramebufferScale.y) * base->_dpi_scale;
             
-            auto base = base_pointers.at(window);
             base->event(e);
             
             base->_graph->set_dirty(NULL);
@@ -585,12 +589,13 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
             
             double xpos, ypos;
             glfwGetCursorPos(window, &xpos, &ypos);
-            auto &io = ImGui::GetIO();
-            e.mbutton.x = float(xpos * io.DisplayFramebufferScale.x);
-            e.mbutton.y = float(ypos * io.DisplayFramebufferScale.y);
-            e.mbutton.button = GLFW_MOUSE_BUTTON_RIGHT == button ? 1 : 0;
             
             auto base = base_pointers.at(window);
+            auto &io = ImGui::GetIO();
+            e.mbutton.x = float(xpos * io.DisplayFramebufferScale.x) * base->_dpi_scale;
+            e.mbutton.y = float(ypos * io.DisplayFramebufferScale.y) * base->_dpi_scale;
+            e.mbutton.button = GLFW_MOUSE_BUTTON_RIGHT == button ? 1 : 0;
+            
             base->event(e);
             base->_graph->set_dirty(NULL);
         });
@@ -640,10 +645,6 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
         }
         
         base_pointers.erase(_platform->window_handle());
-    }
-
-    float IMGUIBase::dpi_scale() const {
-        return _dpi_scale;
     }
 
     void IMGUIBase::set_background_color(const Color& color) {
@@ -709,7 +710,7 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
 #ifndef NDEBUG
             Debug("Changed framebuffer size to %dx%d", fw, fh);
 #endif
-            _last_framebuffer_size = Size2(fw, fh);
+            _last_framebuffer_size = Size2(fw, fh).mul(_dpi_scale);
         }
         
         std::unique_lock<std::recursive_mutex> lock(s.lock());
@@ -1155,7 +1156,7 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
             
             auto font = _fonts.at(ptr->font().style);
             
-            list->AddText(font, ptr->global_text_scale().x * font->FontSize * (ptr->font().size / im_font_scale / io.DisplayFramebufferScale.x), bds.pos(), (ImColor)ptr->color(), ptr->txt().c_str());
+            list->AddText(font, ptr->global_text_scale().x * font->FontSize * (ptr->font().size / im_font_scale / _dpi_scale / io.DisplayFramebufferScale.x), bds.pos(), (ImColor)ptr->color(), ptr->txt().c_str());
             
             break;
         }
@@ -1305,7 +1306,7 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
         o->set_visible(false);
         
         auto &io = ImGui::GetIO();
-        Vec2 scale = (_graph->scale() / gui::interface_scale()) .div(Vec2(io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y));
+        Vec2 scale = (_graph->scale() / gui::interface_scale() / _dpi_scale) .div(Vec2(io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y));
         Transform transform;
         transform.scale(scale);
         
@@ -1323,7 +1324,7 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
         
         //bool skip = false;
         auto cache = o->cached(this);
-        auto dim = window_dimensions() / dpi_scale();
+        auto dim = window_dimensions() / _dpi_scale;
         
         if(!Bounds(0, 0, dim.width-0, dim.height-0).overlaps(bounds)) {
             ++_skipped;
