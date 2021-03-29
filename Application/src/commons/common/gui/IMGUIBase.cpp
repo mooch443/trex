@@ -705,12 +705,15 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
         int fw, fh;
         auto window = _platform->window_handle();
         glfwGetFramebufferSize(window, &fw, &fh);
+        fw *= _dpi_scale;
+        fh *= _dpi_scale;
+        
         if(fw > 0 && fh > 0 && (fw != _last_framebuffer_size.width || fh != _last_framebuffer_size.height))
         {
 #ifndef NDEBUG
             Debug("Changed framebuffer size to %dx%d", fw, fh);
 #endif
-            _last_framebuffer_size = Size2(fw, fh).mul(_dpi_scale);
+            _last_framebuffer_size = Size2(fw, fh);
         }
         
         std::unique_lock<std::recursive_mutex> lock(s.lock());
