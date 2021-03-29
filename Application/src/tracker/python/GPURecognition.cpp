@@ -380,12 +380,13 @@ std::shared_future<bool> PythonIntegration::reinit() {
             Debug("Added set_version");
             
             if(_settings->map().get<bool>("recognition_enable").value()) {
-                printf("import sys\n" \
+                const char * cmd = "import sys\n" \
                        "found = True\n" \
                        "physical = ''\n" \
                        "if int(sys.version[0]) >= 3:\n"\
                        "\timport importlib\n" \
                        "\ttry:\n" \
+                           "\t\tprint('importlib.import_module(tensorflow)')\n" \
                            "\t\timportlib.import_module('tensorflow')\n" \
                            "\t\timport tensorflow\n"
 #if defined(__APPLE__) && defined(__aarch64__)
@@ -397,16 +398,21 @@ std::shared_future<bool> PythonIntegration::reinit() {
 #else
                            "\t\tif True:\n"
 #endif
+                           "\t\t\tprint('tensorflow.compat.v1')\n"
                            "\t\t\tfrom tensorflow.compat.v1 import ConfigProto, InteractiveSession\n"
                            "\t\t\tconfig = ConfigProto()\n"
+                           "\t\t\tprint('config.gpu_options')\n"
                            "\t\t\tconfig.gpu_options.allow_growth=True\n"
                            "\t\t\tsess = InteractiveSession(config=config)\n"
                            "\t\t\tfrom tensorflow.python.client import device_lib\n" \
+                           "\t\t\tprint('before gpus = ...')\n"
                            "\t\t\tgpus = [x.physical_device_desc for x in device_lib.list_local_devices() if x.device_type == 'GPU']\n"
+                           "\t\t\tprint('result:', tgpus)\n"
                            "\t\t\tfound = len(gpus) > 0\n"
                            "\t\t\tif found:\n" \
                               "\t\t\t\tfor device in gpus:\n" \
                                       "\t\t\t\t\tphysical = device.split(',')[1].split(': ')[1]\n" \
+                           "\t\t\tprint('after')\n"
                        "\texcept ImportError:\n"
                        "\t\tfound = False\n" \
                        "else:\n" \
@@ -416,44 +422,14 @@ std::shared_future<bool> PythonIntegration::reinit() {
                        "\t\tfound = len([x.physical_device_desc for x in device_lib.list_local_devices() if x.device_type == 'GPU']) > 0\n"
                        "\texcept ImportError:\n" \
                        "\t\tfound = False\nprint('setting version',sys.version,found,physical)\n" \
-                       "set_version(sys.version, found, physical)\n");
-                py::exec("import sys\n" \
-                         "found = True\n" \
-                         "physical = ''\n" \
-                         "if int(sys.version[0]) >= 3:\n"\
-                         "\timport importlib\n" \
-                         "\ttry:\n" \
-                             "\t\timportlib.import_module('tensorflow')\n" \
-                             "\t\timport tensorflow\n"
-#if defined(__APPLE__) && defined(__aarch64__)
-                             "\t\tfrom tensorflow.python.compiler.mlcompute import mlcompute\n"
-                             "\t\tif mlcompute.is_apple_mlc_enabled():\n"
-                                "\t\t\tfound = True\n"
-                                "\t\t\tphysical = 'MLC'\n"
-                             "\t\telse:\n"
-#else
-                             "\t\tif True:\n"
-#endif
-                             "\t\t\tfrom tensorflow.compat.v1 import ConfigProto, InteractiveSession\n"
-                             "\t\t\tconfig = ConfigProto()\n"
-                             "\t\t\tconfig.gpu_options.allow_growth=True\n"
-                             "\t\t\tsess = InteractiveSession(config=config)\n"
-                             "\t\t\tfrom tensorflow.python.client import device_lib\n" \
-                             "\t\t\tgpus = [x.physical_device_desc for x in device_lib.list_local_devices() if x.device_type == 'GPU']\n"
-                             "\t\t\tfound = len(gpus) > 0\n"
-                             "\t\t\tif found:\n" \
-                                "\t\t\t\tfor device in gpus:\n" \
-                                        "\t\t\t\t\tphysical = device.split(',')[1].split(': ')[1]\n" \
-                         "\texcept ImportError:\n"
-                         "\t\tfound = False\n" \
-                         "else:\n" \
-                         "\ttry:\n" \
-                         "\t\timp.find_module('tensorflow')\n" \
-                         "\t\tfrom tensorflow.python.client import device_lib\n" \
-                         "\t\tfound = len([x.physical_device_desc for x in device_lib.list_local_devices() if x.device_type == 'GPU']) > 0\n"
-                         "\texcept ImportError:\n" \
-                         "\t\tfound = False\nprint('setting version',sys.version,found,physical)\n" \
-                         "set_version(sys.version, found, physical)\n");
+                       "set_version(sys.version, found, physical)\n";
+                /*auto lines = utils::split(cmd, '\n');
+                for(size_t i=0; i<lines.size(); ++i) {
+                    Debug("%d: %s", i, lines.at(i).c_str());
+                    py::exec(lines.at(i));
+                }*/
+                printf("Executing:\n%s\n", cmd);
+                py::exec(cmd);
                 Debug("Imported and retrieved");
             }
             
