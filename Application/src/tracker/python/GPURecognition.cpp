@@ -360,7 +360,7 @@ std::shared_future<bool> PythonIntegration::reinit() {
         
         try {
             _main = py::module::import("__main__");
-            Debug("Imported __main__");
+            Debug("[py] Imported __main__");
             _main.def("set_version", [](std::string x, bool has_gpu, std::string physical_name) {
                 Debug("Set version '%s'", &x);
                 auto array = utils::split(x, ' ');
@@ -377,20 +377,35 @@ std::shared_future<bool> PythonIntegration::reinit() {
                 
                 Debug("retrieved version %S", &x);
             });
-            Debug("Added set_version");
+            Debug("[py] Added set_version");
             
             if(_settings->map().get<bool>("recognition_enable").value()) {
-                const char * cmd =
-                       "print('import sys')\n"
+                py::exec("import importlib");
+                Debug("[py] Imported importlib");
+                _main.import("importlib");
+                Debug("[py] Imported importlib again");
+                
+                
+                auto cmd = utils::read_file("trex_init.py");
+                Debug("Read trex_init.py: %S", &cmd);
+                py::exec(cmd);
+                
+                py::exec("import sys");
+                Debug("[py] Imported sys");
+                py::exec("print('sys.version = ',sys.version)");
+                py::exec("print('sys version 3 = ',int(sys.version[0]))");
+                
+                cmd =
+                       "print('[py] import sys')\n"
                        "import sys\n" \
                        "found = True\n" \
                        "physical = ''\n" \
-                       "print('sys.version = ',sys.version)\n"
+                       "print('[py] sys.version = ',sys.version)\n"
                        "if int(sys.version[0]) >= 3:\n"\
-                       "\tprint('import importlib')\n"
+                       "\tprint('[py] import importlib')\n"
                        "\timport importlib\n" \
                        "\ttry:\n" \
-                           "\t\tprint('importlib.import_module(tensorflow)')\n" \
+                           "\t\tprint('[py] importlib.import_module(tensorflow)')\n" \
                            "\t\timportlib.import_module('tensorflow')\n" \
                            "\t\timport tensorflow\n"
 #if defined(__APPLE__) && defined(__aarch64__)
@@ -402,16 +417,16 @@ std::shared_future<bool> PythonIntegration::reinit() {
 #else
                            "\t\tif True:\n"
 #endif
-                           "\t\t\tprint('tensorflow.compat.v1')\n"
+                           "\t\t\tprint('[py] tensorflow.compat.v1')\n"
                            "\t\t\tfrom tensorflow.compat.v1 import ConfigProto, InteractiveSession\n"
                            "\t\t\tconfig = ConfigProto()\n"
                            "\t\t\tprint('config.gpu_options')\n"
                            "\t\t\tconfig.gpu_options.allow_growth=True\n"
                            "\t\t\tsess = InteractiveSession(config=config)\n"
                            "\t\t\tfrom tensorflow.python.client import device_lib\n" \
-                           "\t\t\tprint('before gpus = ...')\n"
+                           "\t\t\tprint('[py] before gpus = ...')\n"
                            "\t\t\tgpus = [x.physical_device_desc for x in device_lib.list_local_devices() if x.device_type == 'GPU']\n"
-                           "\t\t\tprint('result:', tgpus)\n"
+                           "\t\t\tprint('[py] result:', gpus)\n"
                            "\t\t\tfound = len(gpus) > 0\n"
                            "\t\t\tif found:\n" \
                               "\t\t\t\tfor device in gpus:\n" \
@@ -432,18 +447,19 @@ std::shared_future<bool> PythonIntegration::reinit() {
                     Debug("%d: %s", i, lines.at(i).c_str());
                     py::exec(lines.at(i));
                 }*/
-                printf("Executing:\n%s\n", cmd);
+                printf("COMMAND\n%s\n", cmd.c_str());
+                Debug("[py] Executing command...");
                 py::exec(cmd);
-                Debug("Imported and retrieved");
+                Debug("[py] Imported and retrieved");
             }
             
             numpy = _main.import("numpy");
-            Debug("Imported numpy");
+            Debug("[py] Imported numpy");
             TRex = _main.import("TRex");
-            Debug("Imported TRex");
+            Debug("[py] Imported TRex");
             
             _locals = new py::dict("model"_a="None");
-            Debug("Imported Locals");
+            Debug("[py] Imported Locals");
             
             if(_settings->map().get<bool>("recognition_enable").value()) {
                 _main.import("tensorflow");

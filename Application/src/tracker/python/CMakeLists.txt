@@ -5,7 +5,7 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 # add actual library
 if(UNIX)
-    add_library(tracker_python STATIC ${SRCS} ${HDRS})
+    add_library(tracker_python STATIC ${SRCS} ${HDRS} ${CMAKE_CURRENT_SOURCE_DIR}/trex_init.py)
 elseif(WIN32)
     add_library(tracker_python SHARED ${SRCS} ${HDRS})
 endif()
