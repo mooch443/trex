@@ -380,7 +380,9 @@ std::shared_future<bool> PythonIntegration::reinit() {
             Debug("Added set_version");
             
             if(_settings->map().get<bool>("recognition_enable").value()) {
-                const char * cmd = "import sys\n" \
+                const char * cmd =
+                       "print('import sys')\n"
+                       "import sys\n" \
                        "found = True\n" \
                        "physical = ''\n" \
                        "print('sys.version = ',sys.version)\n"
