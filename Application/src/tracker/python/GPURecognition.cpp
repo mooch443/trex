@@ -395,7 +395,7 @@ std::shared_future<bool> PythonIntegration::reinit() {
                 py::exec("print('sys.version = ',sys.version)");
                 py::exec("print('sys version 3 = ',int(sys.version[0]))");
                 
-                cmd =
+                /*cmd =
                        "print('[py] import sys')\n"
                        "import sys\n" \
                        "found = True\n" \
@@ -448,8 +448,8 @@ std::shared_future<bool> PythonIntegration::reinit() {
                     py::exec(lines.at(i));
                 }*/
                 printf("COMMAND\n%s\n", cmd.c_str());
-                Debug("[py] Executing command...");
-                py::exec(cmd);
+                //Debug("[py] Executing command...");
+                //py::exec(cmd);
                 Debug("[py] Imported and retrieved");
             }
             
