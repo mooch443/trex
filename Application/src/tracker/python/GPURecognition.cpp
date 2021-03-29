@@ -360,7 +360,6 @@ std::shared_future<bool> PythonIntegration::reinit() {
         
         try {
             _main = py::module::import("__main__");
-            Debug("[py] Imported __main__");
             _main.def("set_version", [](std::string x, bool has_gpu, std::string physical_name) {
                 Debug("Set version '%s'", &x);
                 auto array = utils::split(x, ' ');
@@ -377,23 +376,10 @@ std::shared_future<bool> PythonIntegration::reinit() {
                 
                 Debug("retrieved version %S", &x);
             });
-            Debug("[py] Added set_version");
             
             if(_settings->map().get<bool>("recognition_enable").value()) {
-                py::exec("import importlib");
-                Debug("[py] Imported importlib");
-                _main.import("importlib");
-                Debug("[py] Imported importlib again");
-                
-                
                 auto cmd = utils::read_file("trex_init.py");
-                Debug("Read trex_init.py: %S", &cmd);
                 py::exec(cmd);
-                
-                py::exec("import sys");
-                Debug("[py] Imported sys");
-                py::exec("print('sys.version = ',sys.version)");
-                py::exec("print('sys version 3 = ',int(sys.version[0]))");
                 
                 /*cmd =
                        "print('[py] import sys')\n"
@@ -447,7 +433,7 @@ std::shared_future<bool> PythonIntegration::reinit() {
                     Debug("%d: %s", i, lines.at(i).c_str());
                     py::exec(lines.at(i));
                 }*/
-                printf("COMMAND\n%s\n", cmd.c_str());
+                //printf("COMMAND\n%s\n", cmd.c_str());
                 //Debug("[py] Executing command...");
                 //py::exec(cmd);
                 Debug("[py] Imported and retrieved");
