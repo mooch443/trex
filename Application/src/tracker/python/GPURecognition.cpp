@@ -360,7 +360,9 @@ std::shared_future<bool> PythonIntegration::reinit() {
         
         try {
             _main = py::module::import("__main__");
+            Debug("Imported __main__");
             _main.def("set_version", [](std::string x, bool has_gpu, std::string physical_name) {
+                Debug("Set version '%s'", &x);
                 auto array = utils::split(x, ' ');
                 if(array.size() > 0) {
                     array = utils::split(array.front(), '.');
@@ -375,8 +377,46 @@ std::shared_future<bool> PythonIntegration::reinit() {
                 
                 Debug("retrieved version %S", &x);
             });
+            Debug("Added set_version");
             
-            if(_settings->map().get<bool>("recognition_enable").value())
+            if(_settings->map().get<bool>("recognition_enable").value()) {
+                printf("import sys\n" \
+                       "found = True\n" \
+                       "physical = ''\n" \
+                       "if int(sys.version[0]) >= 3:\n"\
+                       "\timport importlib\n" \
+                       "\ttry:\n" \
+                           "\t\timportlib.import_module('tensorflow')\n" \
+                           "\t\timport tensorflow\n"
+#if defined(__APPLE__) && defined(__aarch64__)
+                           "\t\tfrom tensorflow.python.compiler.mlcompute import mlcompute\n"
+                           "\t\tif mlcompute.is_apple_mlc_enabled():\n"
+                              "\t\t\tfound = True\n"
+                              "\t\t\tphysical = 'MLC'\n"
+                           "\t\telse:\n"
+#else
+                           "\t\tif True:\n"
+#endif
+                           "\t\t\tfrom tensorflow.compat.v1 import ConfigProto, InteractiveSession\n"
+                           "\t\t\tconfig = ConfigProto()\n"
+                           "\t\t\tconfig.gpu_options.allow_growth=True\n"
+                           "\t\t\tsess = InteractiveSession(config=config)\n"
+                           "\t\t\tfrom tensorflow.python.client import device_lib\n" \
+                           "\t\t\tgpus = [x.physical_device_desc for x in device_lib.list_local_devices() if x.device_type == 'GPU']\n"
+                           "\t\t\tfound = len(gpus) > 0\n"
+                           "\t\t\tif found:\n" \
+                              "\t\t\t\tfor device in gpus:\n" \
+                                      "\t\t\t\t\tphysical = device.split(',')[1].split(': ')[1]\n" \
+                       "\texcept ImportError:\n"
+                       "\t\tfound = False\n" \
+                       "else:\n" \
+                       "\ttry:\n" \
+                       "\t\timp.find_module('tensorflow')\n" \
+                       "\t\tfrom tensorflow.python.client import device_lib\n" \
+                       "\t\tfound = len([x.physical_device_desc for x in device_lib.list_local_devices() if x.device_type == 'GPU']) > 0\n"
+                       "\texcept ImportError:\n" \
+                       "\t\tfound = False\nprint('setting version',sys.version,found,physical)\n" \
+                       "set_version(sys.version, found, physical)\n");
                 py::exec("import sys\n" \
                          "found = True\n" \
                          "physical = ''\n" \
@@ -414,14 +454,21 @@ std::shared_future<bool> PythonIntegration::reinit() {
                          "\texcept ImportError:\n" \
                          "\t\tfound = False\nprint('setting version',sys.version,found,physical)\n" \
                          "set_version(sys.version, found, physical)\n");
+                Debug("Imported and retrieved");
+            }
             
             numpy = _main.import("numpy");
+            Debug("Imported numpy");
             TRex = _main.import("TRex");
+            Debug("Imported TRex");
             
             _locals = new py::dict("model"_a="None");
+            Debug("Imported Locals");
             
-            if(_settings->map().get<bool>("recognition_enable").value())
+            if(_settings->map().get<bool>("recognition_enable").value()) {
                 _main.import("tensorflow");
+                Debug("Imported tensorflow");
+            }
             
             python_initialized() = true;
             python_initializing() = false;
