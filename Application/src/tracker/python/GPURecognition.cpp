@@ -383,7 +383,9 @@ std::shared_future<bool> PythonIntegration::reinit() {
                 const char * cmd = "import sys\n" \
                        "found = True\n" \
                        "physical = ''\n" \
+                       "print('sys.version = ',sys.version)\n"
                        "if int(sys.version[0]) >= 3:\n"\
+                       "\tprint('import importlib')\n"
                        "\timport importlib\n" \
                        "\ttry:\n" \
                            "\t\tprint('importlib.import_module(tensorflow)')\n" \
