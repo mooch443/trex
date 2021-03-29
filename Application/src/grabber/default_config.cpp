@@ -134,7 +134,7 @@ namespace default_config {
         CONFIG("cam_undistort", false, "If set to true, the recorded video image will be undistorted using `cam_undistort_vector` (1x5) and `cam_matrix` (3x3).");
         CONFIG("image_invert", false, "Inverts the image greyscale values before thresholding.");
         
-        CONFIG("gui_interface_scale", float(1), "A lower number will make the texts and GUI elements bigger.");
+        CONFIG("gui_interface_scale", float(1.25), "A lower number will make the texts and GUI elements bigger.");
         
         CONFIG("meta_species", std::string(""), "Name of the species used.");
         CONFIG("meta_age_days", long_t(-1), "Age of the individuals used in days.");
