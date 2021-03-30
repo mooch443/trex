@@ -1,0 +1,7 @@
+auto_no_results = true
+blob_size_ranges = [[80,400]]
+gui_focus_group = [0]
+output_format = csv
+output_graphs = [["X",["wcentroid"]],["SPEED",["wcentroid"]],["midline_length",["RAW"]]]
+track_max_individuals = 8
+track_max_speed = 800

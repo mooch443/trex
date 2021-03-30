@@ -57,11 +57,11 @@ jobs:
         cat meta.yaml
         echo "::endgroup::"
         echo "::group::Build"
-        conda build . -c main -c conda-forge
+        conda build .
         echo "::endgroup::"
         echo "::group::Test"
         echo $CONDA_PREFIX
-        conda create -y -n test -c main -c conda-forge -c $CONDA_PREFIX/conda-bld/ trex
+        conda create -y -n test -c $CONDA_PREFIX/conda-bld/ trex
         conda activate test
         pvinfo -opencv_ffmpeg_support
         pvinfo -opencv_opencl_support
@@ -69,5 +69,5 @@ jobs:
         echo "::group::TestFunctions"
         conda install -y unzip
         cd $GITHUB_WORKSPACE/Application/Tests
-        ./run_ubuntu.bash
+        ./run_unix.bash
         echo "::endgroup::"

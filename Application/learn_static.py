@@ -228,7 +228,7 @@ class ValidationCallback(keras.callbacks.Callback):
             if len(images) == 0:
                 continue
 
-            Y = self.model.predict(images)
+            Y = self.model.predict(tf.cast(images, float))
             predictions.append(Y)
             
             distance = np.abs(Y - zeros).sum(axis=1)
@@ -467,7 +467,7 @@ def predict():
         print("error with the shape")
         
     indexes = np.array(np.arange(len(train_X)), dtype=np.float32)
-    output = np.array(model.predict(train_X), dtype=np.float32)
+    output = np.array(model.predict(tf.cast(train_X, float)), dtype=np.float32)
     
     receive(output, indexes)
 
@@ -594,18 +594,21 @@ def start_learning():
 
             callback = ValidationCallback(model, classes, X_test, Y_test, epochs, filename, output_prefix+"_"+str(accumulation_step), output_path, best_accuracy_worst_class, estimate_uniqueness, settings)
             
-            validation_data = (tf.cast(X_test, float), Y_test)
+            validation_data = None
             #validation_data = tf.data.Dataset.from_tensor_slices((tf.cast(X_test, float), Y_test))#.batch(batch_size)
             if len(X_test) == 0:
                 validation_data = None
+            else:
+                validation_data = tf.data.Dataset.from_tensor_slices((tf.cast(X_test, float), Y_test)).batch(batch_size)
 
-            dataset = tf.data.Dataset.from_generator(lambda: datagen.flow(tf.cast(X_train, float), Y_train, batch_size=batch_size), 
+            dataset = tf.data.Dataset.from_generator(lambda: datagen.flow(tf.cast(X_train, float), tf.cast(Y_train, float), batch_size=batch_size), 
                 output_types=(tf.float32, tf.float32),
                 output_shapes =(tf.TensorShape([None, int(settings["image_height"]), int(settings["image_width"]), 1]), tf.TensorShape([None, int(len(classes))]))
             ).repeat()#.shuffle(len(X_train), reshuffle_each_iteration=True)
-            #dataset = tf.data.Dataset.from_tensor_slices((tf.cast(X_train, float), Y_train)).batch(batch_size)
+            
             #dataset = datagen.flow(tf.cast(X_train, float), Y_train, batch_size=batch_size)
             TRex.log("tf.data.Dataset: "+str(dataset))
+            TRex.log("tf.data.Dataset (validation): "+str(validation_data))
             history = model.fit(dataset,
                                   validation_data=validation_data,
                                   steps_per_epoch=per_epoch, 

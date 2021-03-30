@@ -626,7 +626,7 @@ TRex parameters
 
 .. function:: gui_interface_scale(float)
 
-	**default value:** 0.75
+	**default value:** 1.25
 
 
 	Scales the whole interface. A value greater than 1 will make it smaller.
