@@ -840,7 +840,7 @@ void GUI::do_recording() {
 #if WITH_SFML
     
     
-    float interface_scale = 1 / GUI_SETTINGS(gui_interface_scale);
+    float interface_scale = 1 / gui::interface_scale();
     sf::Text text("Saving to "+_recording_path.str(), SFBase::font(), 18 / interface_scale);
     sf::Text subtext("frame "+Meta::toStr(_recording_frame)+" length:"+Meta::toStr(duration), SFBase::font(), 17 / interface_scale);
     
@@ -3871,7 +3871,7 @@ void GUI::local_event(const gui::Event &event) {
                 _gui.mouse_up(event.mbutton.button == 0);
         }
         else if(event.type == gui::WINDOW_RESIZED) {
-            const float interface_scale = GUI_SETTINGS(gui_interface_scale);
+            const float interface_scale = gui::interface_scale();
             Size2 size(event.size.width * interface_scale, event.size.height * interface_scale);
             
             float scale = min(size.width / float(_average_image.cols),

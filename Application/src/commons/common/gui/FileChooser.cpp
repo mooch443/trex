@@ -58,18 +58,17 @@ FileChooser::FileChooser(const file::Path& start, const std::string& extension,
             {
                 std::lock_guard guard(_graph->lock());
                 Size2 size(e.size.width, e.size.height);
-                size /= _base.dpi_scale();
                 
                 float min_height = 820;
-                auto scale = gui::interface_scale() / max(1, min_height / size.height) / _base.dpi_scale();
+                auto scale = gui::interface_scale() / max(1, min_height / size.height);
                 _graph->set_size(size);
                 _graph->set_scale(scale);
                 
                 update_size();
                 
-                //if(_base.window_dimensions().height * _base.dpi_scale() < min_height)
+                //if(_base.window_dimensions().height < min_height)
                 {
-                    _graph->set_scale(1 / (min_height / _base.dpi_scale() / e.size.height));
+                    _graph->set_scale(1 / (min_height / e.size.height));
                     update_size();
                 }
                 
@@ -457,7 +456,7 @@ void FileChooser::file_selected(size_t, file::Path p) {
 }
 
 void FileChooser::update_size() {
-    float s = _graph->scale().x / gui::interface_scale() / _base.dpi_scale();
+    float s = _graph->scale().x / gui::interface_scale();
     
     if(_selected_text && !_selected_file.empty()) {
         _selected_text->set_max_size(Size2(_graph->width() - 20));

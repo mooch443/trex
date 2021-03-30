@@ -403,7 +403,7 @@ VideoOpener::VideoOpener()
             if(image) {
                 _screenshot->set_source(std::move(image));
                 
-                auto max_scale = _file_chooser->graph()->scale().reciprocal() * _file_chooser->base().dpi_scale() * 0.3f;
+                auto max_scale = _file_chooser->graph()->scale().reciprocal() * 0.3f;
                 auto max_size = Size2(_file_chooser->graph()->width(), _file_chooser->graph()->height()).mul(max_scale);
                 auto scree_size = _screenshot->source()->bounds().size();
                 auto size = max_size;
