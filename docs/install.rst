@@ -17,8 +17,7 @@ The easy way (Windows, Linux and Intel macOS)
 
 |trex| supports all major platforms. There is an easy way to install |trex| using Anaconda, by creating a new virtual environment (here named ``tracking``, which you can replace)::
 
-	conda create -n tracking -c trexing trex                          # macOS (Intel), Windows
-	conda create -n tracking -c main -c conda-forge -c trexing trex   # Linux (Intel)
+	conda create -n tracking -c trexing trex                          # macOS (Intel), Windows, Linux
 
 The down-side is that pre-built binaries are compiled with fewer optimzations and features than a manually compiled one (due to compatibility and licensing issues) and thus are slightly slower =(. For example, the conda version does not offer support for Basler cameras. If you need to use |grabs| with machine vision cameras, or need as much speed as possible/the newest version, please consider compiling the software yourself.
 
@@ -68,8 +67,7 @@ This runs ``conda build .``, which builds the program according to all the setti
 
 After compilation was successful, |trex| can be installed using::
 
-	conda create -n tracking -c trexing trex                          # macOS, Windows
-	conda create -n tracking -c main -c conda-forge -c trexing trex   # Linux (Intel)
+	conda create -n tracking -c trexing trex  # macOS, Windows, Linux (Intel)
 
 Notice there is a ``-c local``, instead of the ``-c trexing`` from the first section.
 
@@ -94,7 +92,7 @@ As well as the general requirements:
 
 The easiest way to ensure that all requirements are met, is by using conda to create a new environment::
 
-	conda create -n tracking -c conda-forge cmake ffmpeg tensorflow=2 cxx-compiler c-compiler glfw mesa-libgl-devel-cos6-x86_64 libxdamage-devel-cos6-x86_64 libxi-devel-cos6-x86_64 libxxf86vm-cos6-x86_64 libselinux-devel-cos6-x86_64 libuuid-devel-cos6-x86_64 mesa-libgl-devel-cos6-x86_64
+	conda create -n tracking cmake ffmpeg tensorflow=2 cxx-compiler c-compiler mesa-libgl-devel-cos6-x86_64 libxdamage-devel-cos6-x86_64 libxi-devel-cos6-x86_64 libxxf86vm-cos6-x86_64 libselinux-devel-cos6-x86_64 libuuid-devel-cos6-x86_64 mesa-libgl-devel-cos6-x86_64
 
 If your GPU is supported by TensorFlow, you can modify the above line by appending ``-gpu`` to ``tensorflow`` to get ``tensorflow-gpu=2``.
 	
