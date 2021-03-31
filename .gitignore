@@ -32,3 +32,5 @@
 *.app
 Application/build/
 Application/tmp/
+videos/tgrabs.log
+videos/trex.log

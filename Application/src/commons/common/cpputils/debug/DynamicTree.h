@@ -80,6 +80,16 @@ public:
         while ((e = first_child))
             delete e;
     }
+    
+    bool is_child_of(TreeNode<T>* e) {
+        auto n = parent;
+        while(n) {
+            if(n == e)
+                return true;
+            n = n->parent;
+        }
+        return false;
+    }
 
     /**
      * Calculate biggest offset.

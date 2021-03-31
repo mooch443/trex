@@ -459,7 +459,7 @@ insert_start(tree, &current_node, e); }
                             TreeNode<DEBUG::PARSE_OBJECTS> * node = tree.nodeForOffset(k+NODE_OFFSET);
                          
                             if(node && node != tree.root()) {
-                                if(current_node == node)
+                                if(current_node && (current_node == node || current_node->is_child_of(node)))
                                     current_node = node->parent;
                                 if(!current_node)
                                     current_node = tree.root();
@@ -532,11 +532,10 @@ insert_start(tree, &current_node, e); }
                                         }
                                         
                                     } else {
-                                        if(current_node == node)
+                                        if(current_node && (current_node == node || current_node->is_child_of(node)))
                                             current_node = node->parent;
                                         if(!current_node)
                                             current_node = tree.root();
-                                        
                                         delete node;
                                     }
                                     
