@@ -22,8 +22,7 @@ TRex can track 256 individuals in real-time, or up to 128 with all fancy feature
 
 TRex supports all major platforms. You can create a new virtual environment (named ``tracking`` here) using Anaconda or miniconda/miniforge by running:
 
-	conda create -n tracking -c trexing trex                  # macOS (Intel), Windows
-	conda create -n tracking -c conda-forge -c trexing trex   # Linux (Intel)
+	conda create -n tracking -c trexing trex                  # macOS (Intel), Windows, Linux (Intel)
 
 If you own a new Mac with an **Apple Silicone CPU**, the Intel version (above) works fine in Rosetta. However, I would strongly encourage installing TRex via ``miniforge``, which is like Anaconda but supports native arm64 packages. This way, hardware accelerated machine learning on your M1 Macbook is possible! Simply follow the instructions here for installing miniforge: https://github.com/apple/tensorflow_macos/issues/153#issue-799924913. Once you're done, you can run the same command as above (only that now everything will be all fast and native ``arm64`` code)::
 
