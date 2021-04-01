@@ -344,8 +344,6 @@ namespace track {
             delete _network_update_thread;
             _network_update_thread = nullptr;
         }
-        
-        Debug("PythonIntegration::shutdown()");
     }
 
 std::shared_future<bool> PythonIntegration::reinit() {
@@ -420,8 +418,6 @@ std::shared_future<bool> PythonIntegration::reinit() {
             python_initialized() = false;
             python_initializing() = true;
             _terminate = false;
-            
-            Debug("Started update thread.");
 
             try {
 #if defined(WIN32)
@@ -516,7 +512,6 @@ std::shared_future<bool> PythonIntegration::reinit() {
                 Debug("Python runtime error during clean-up: '%s'", e.what());
                 e.restore();
             }
-            Debug("Update thread ended.");
         });
     }
     
