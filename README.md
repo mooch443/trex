@@ -22,8 +22,7 @@ TRex can track 256 individuals in real-time, or up to 128 with all fancy feature
 
 TRex supports all major platforms. You can create a new virtual environment (named ``tracking`` here) using Anaconda or miniconda/miniforge by running:
 
-	conda create -n tracking -c trexing trex                  # macOS (Intel), Windows
-	conda create -n tracking -c conda-forge -c trexing trex   # Linux (Intel)
+	conda create -n tracking -c trexing trex                  # macOS (Intel), Windows, Linux (Intel)
 
 If you own a new Mac with an **Apple Silicone CPU**, the Intel version (above) works fine in Rosetta. However, I would strongly encourage installing TRex via ``miniforge``, which is like Anaconda but supports native arm64 packages. This way, hardware accelerated machine learning on your M1 Macbook is possible! Simply follow the instructions here for installing miniforge: https://github.com/apple/tensorflow_macos/issues/153#issue-799924913. Once you're done, you can run the same command as above (only that now everything will be all fast and native ``arm64`` code)::
 
@@ -31,7 +30,7 @@ If you own a new Mac with an **Apple Silicone CPU**, the Intel version (above) w
 
 There is no official tensorflow package yet, which is why TRex will not allow you to use machine learning right away. But -- yay -- Apple provides their own version for macOS including a native ML Compute (https://blog.tensorflow.org/2020/11/accelerating-tensorflow-performance-on-mac.html) backend, which has shown quite a bit of potential. To install tensorflow inside your activated environment, just run:
 
-	pip install --upgrade --force --no-dependencies https://github.com/apple/tensorflow_macos/releases/download/v0.1alpha2/tensorflow_macos-0.1a2-cp38-cp38-macosx_11_0_arm64.whl https://github.com/apple/tensorflow_macos/releases/download/v0.1alpha2/tensorflow_addons_macos-0.1a2-cp38-cp38-macosx_11_0_arm64.whl
+	pip install --upgrade --force --no-dependencies https://github.com/apple/tensorflow_macos/releases/download/v0.1alpha3/tensorflow_macos-0.1a3-cp38-cp38-macosx_11_0_arm64.whl https://github.com/apple/tensorflow_macos/releases/download/v0.1alpha3/tensorflow_addons_macos-0.1a3-cp38-cp38-macosx_11_0_arm64.whl
 
 Pre-built binaries are compiled with fewer optimzations and features than a manually compiled one (due to compatibility and licensing issues) and thus are slightly slower =(. For example, the conda versions do not offer support for Basler cameras. If you need to use TGrabs with machine vision cameras, or need as much speed as possible (or the newest version), please consider compiling the software yourself.
 
