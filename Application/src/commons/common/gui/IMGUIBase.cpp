@@ -1057,7 +1057,8 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
         ImRotateStart(rotation_start, list);
         
         // generate position without rotation
-        Vec2 scale = (_graph->scale() / gui::interface_scale()) .div(Vec2(io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y));
+        Vec2 scale = (_graph->scale() / gui::interface_scale() / _dpi_scale) .div(Vec2(io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y));
+       // Vec2 scale = (_graph->scale() / gui::interface_scale()) .div(Vec2(io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y));
         
         transform = Transform();
         transform.scale(scale);
@@ -1086,7 +1087,8 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
         ImRotateStart(rotation_start, list);
         
         // generate position without rotation
-        Vec2 scale = (_graph->scale() / gui::interface_scale()) .div(Vec2(io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y));
+        Vec2 scale = (_graph->scale() / gui::interface_scale() / _dpi_scale) .div(Vec2(io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y));
+        //Vec2 scale = (_graph->scale() / gui::interface_scale()) .div(Vec2(io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y));
         
         transform = Transform();
         transform.scale(scale);

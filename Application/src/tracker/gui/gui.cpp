@@ -3393,7 +3393,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
                 combine->auto_size(Margin{0, 0});
                 combine->set_pos(Vec2(top_left.x, top_left.y + (bottom_right.y - top_left.y) * 0.5) - Vec2(20, 0).mul(sca));
                 combine->set_origin(Vec2(1, 0));
-                combine->set_z_index(100);
+                //combine->set_z_index(1);
                 
                 base.wrap_object(*combine);
             }

@@ -22,9 +22,11 @@ Keyboard shortcuts
 +===========+================================================================================================+
 | Esc       | Terminate                                                                                      |
 +-----------+------------------------------------------------------------------------------------------------+
-| Return    | Next frame                                                                                     |
+| Right,    | Next frame                                                                                     |
+| Return    |                                                                                                |
 +-----------+------------------------------------------------------------------------------------------------+
-| Backspace | Previous frame                                                                                 |
+| Left,     | Previous frame                                                                                 |
+| Backspace |                                                                                                |
 +-----------+------------------------------------------------------------------------------------------------+
 | Space     | Start/stop playback                                                                            |
 +-----------+------------------------------------------------------------------------------------------------+
@@ -66,6 +68,21 @@ The timeline works like the position indicator in your typical video player appl
 	:align: center
 
 It has some extra functionality, however. Sometimes you will see colorful things up there. If you set the number of individuals (:func:`track_max_individuals`), then you might get a green, a red, a yellow and a grey rectangle up there -- overlayed on the timeline. These indicate "good" segments for training (ranked as listed previously). If they are yellow/pink/etc. lines on your timeline, then they indicate problematic frames in your video. You can jump between them using the ``M``/``N`` keys on your keyboard (see `Keyboard shortcuts`_). The type of problem depends on your selection of "foi types" in the top menu.
+
+Changing the cm/px conversion factor
+------------------------------------
+
+Usually the easiest way to set a conversion factor is in TGrabs, before the video is even segmented. TGrabs expects a parameter :func:`meta_real_width`, which contains the "real-world" size in X-direction of the present video and sticks with the video as integrated meta-data. However, in case you want to change this factor later on, you can do this from within TRex. Careful, though. Doing this changes what the values in :func:`track_max_speed` and even :func:`blob_size_ranges` mean (and thus also tracking results)!
+
+Depending on your operating system, hold ``CMD`` or ``CTRL`` (depending on your operating system) and click on two points on the background - the distance between them is supposed to be a "known length" - for example, if you have a cm strip integrated into your video background for reference.
+
+.. image:: trex_calibrate_length.png
+
+|trex| will then offer to use this known length to calculate the conversion factor.
+
+.. image:: trex_calibrate_length2.png
+
+In order to keep the applied changes, don't forget to save your config (Menu -> Save Config) and/or copy your :func:`cm_per_pixel` parameter. You may need to reanalyse the video to apply all changes.
 
 Display menu
 ------------
