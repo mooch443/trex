@@ -591,11 +591,14 @@ int main(int argc, char** argv)
             }
             else {
                 auto wd = SETTING(wd).value<file::Path>();
-                Debug("Opening a video file: '%S', '%S'", &opening_result.tab.name, &wd.str());
+                Debug("Opening a video file: '%S' (wd: '%S')", &opening_result.tab.name, &wd.str());
 #if defined(__APPLE__)
                 wd = wd / ".." / ".." / ".." / "TGrabs.app" / "Contents" / "MacOS" / "TGrabs";
 #else
-                wd = wd / "tgrabs";
+                if (wd.empty())
+                    wd = "tgrabs";
+                else
+                    wd = wd / "tgrabs";
 #endif
                 auto exec = wd.str() + " " + opening_result.cmd;
                 Debug("Executing '%S'", &exec);
