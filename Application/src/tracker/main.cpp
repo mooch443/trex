@@ -570,13 +570,11 @@ int main(int argc, char** argv)
     if(SETTING(filename).value<Path>().empty()) {
         cmd.load_settings();
         
-        std::unique_ptr<gui::VideoOpener> opener;
-
         if((GlobalSettings::map().has("nowindow") ? SETTING(nowindow).value<bool>() : false) == false) {
             SETTING(settings_file) = file::Path();
             
-            opener = std::make_unique<gui::VideoOpener>();
-            opening_result = opener->_result;
+            gui::VideoOpener opener;
+            opening_result = opener._result;
         }
 
         if (!opening_result.selected_file.empty()) {
