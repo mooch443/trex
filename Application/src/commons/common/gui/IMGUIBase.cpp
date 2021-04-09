@@ -514,15 +514,15 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
         //io.WantCaptureMouse = false;
         //io.WantCaptureKeyboard = false;
         
-        int fw, fh;
-        glfwGetFramebufferSize(_platform->window_handle(), &fw, &fh);
-        _last_framebuffer_size = Size2(fw, fh).mul(_dpi_scale);
-        
         const float base_scale = 32;
         //float dpi_scale = max(float(fw) / float(width), float(fh) / float(height));
         float dpi_scale = 1 / max(xscale, yscale);
         im_font_scale = max(1, dpi_scale) * 0.75f;
         _dpi_scale = dpi_scale;
+        
+        int fw, fh;
+        glfwGetFramebufferSize(_platform->window_handle(), &fw, &fh);
+        _last_framebuffer_size = Size2(fw, fh).mul(_dpi_scale);
         
         ImFontConfig config;
         config.OversampleH = 3;

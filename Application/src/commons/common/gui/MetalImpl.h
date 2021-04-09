@@ -31,7 +31,7 @@ namespace gui {
         void init() override;
         void post_init() override;
         void create_window(const char* title, int width, int height) override;
-        LoopStatus update_loop(custom_function_t = nullptr) override;
+        LoopStatus update_loop(const custom_function_t& = nullptr) override;
         TexturePtr texture(const Image*) override;
         void clear_texture(TexturePtr&&) override;
         void bind_texture(const PlatformTexture&) override;

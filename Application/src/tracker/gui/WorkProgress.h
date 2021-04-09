@@ -34,6 +34,7 @@ class WorkProgress {
     std::atomic_bool _terminate_threads;
     
     std::thread *_thread;
+    std::thread::id _work_thread_id;
     
     GETTER_SETTER(std::string, item)
     std::atomic_bool _item_abortable, _item_aborted, _item_custom_triggered;
@@ -77,6 +78,7 @@ public:
     void set_description(const std::string& value);
     
     bool has_additional();
+    bool is_this_in_queue() const;
     void update_additional(std::function<void(Entangled&)> fn);
 };
 

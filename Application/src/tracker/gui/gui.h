@@ -231,7 +231,7 @@ public:
     
     void write_config(bool overwrite, GUIType type = GUIType::GRAPHICAL, const std::string& suffix = "");
     
-    void run_loop(gui::DrawStructure&);
+    void run_loop(gui::LoopStatus);
     void export_tracks(const file::Path& prefix = "", long_t fdx = -1, Rangel range = Rangel());
     void save_visual_fields();
     void load_connectivity_matrix();

@@ -131,6 +131,15 @@ namespace gui {
     void Dialog::set_custom_element(derived_ptr<Entangled> &&e) {
         _custom = std::move(e);
     }
+
+void Dialog::set_closed() {
+    _closed = true;
+    if(parent()) {
+        parent()->set_dirty();
+        if(parent()->stage())
+            parent()->stage()->set_dirty(nullptr);
+    }
+}
     
     Dialog::Dialog(DrawStructure& d, const std::function<bool(Result)>& callback, const std::string &text, const std::string& title, const std::string& okay, const std::string& abort, const std::string& second, const std::string& third, const std::string& fourth)
       : _closed(false),
@@ -194,7 +203,7 @@ namespace gui {
             _abort->on_click([this](auto) {
                 _result = ABORT;
                 if(_callback(_result)) {
-                    _closed = true;
+                    set_closed();
                 }
             });
         }
@@ -206,12 +215,12 @@ namespace gui {
                 if(e.key.code == Codes::Return) {
                     _result = OKAY;
                     if(_callback(_result)) {
-                        _closed = true;
+                        set_closed();
                     }
                 } else if(e.key.code == Codes::Escape && _abort) {
                     _result = ABORT;
                     if(_callback(_result)) {
-                        _closed = true;
+                        set_closed();
                     }
                 }
             }
@@ -220,7 +229,7 @@ namespace gui {
         _okay->on_click([this](auto) {
             _result = OKAY;
             if(_callback(_result)) {
-                _closed = true;
+                set_closed();
             }
         });
         
@@ -228,7 +237,7 @@ namespace gui {
             _second->on_click([this](auto) {
                 _result = SECOND;
                 if(_callback(_result)) {
-                    _closed = true;
+                    set_closed();
                 }
             });
         }
@@ -237,7 +246,7 @@ namespace gui {
             _third->on_click([this](auto) {
                 _result = THIRD;
                 if(_callback(_result)) {
-                    _closed = true;
+                    set_closed();
                 }
             });
         }
@@ -246,7 +255,7 @@ namespace gui {
             _fourth->on_click([this](auto) {
                 _result = FOURTH;
                 if(_callback(_result)) {
-                    _closed = true;
+                    set_closed();
                 }
             });
         }
@@ -312,14 +321,15 @@ namespace gui {
         if(!_dialogs.empty() && _dialogs.front()->is_closed()) {
             delete _dialogs.front();
             _dialogs.pop_front();
+            
+            set_dirty(nullptr);
         }
         
         if(!_dialogs.empty()) {
             Size2 size = Size2(width(), height());
             if(!dialog_window_size().empty())
                 size = dialog_window_size();
-                
-            //.mul(scale());
+            
             auto rect = new Rect(Bounds(Vec2(size) * 0.5, size), Black.alpha(200), Red);
             rect->set_origin(Vec2(0.5));
             rect->set_clickable(true);
@@ -331,9 +341,10 @@ namespace gui {
 void DrawStructure::close_dialogs() {
     std::lock_guard guard(lock());
     if(!_dialogs.empty() && _dialogs.front())
-        _dialogs.front()->_closed = true;
+        _dialogs.front()->set_closed();
     _dialogs.clear();
     update_dialogs();
+    set_dirty(nullptr);
 }
     
     Dialog* DrawStructure::_dialog(const std::function<bool(Dialog::Result)>& callback, const std::string &text, const std::string& title, const std::string& okay, const std::string& abort, const std::string& second, const std::string& third, const std::string& fourth)
@@ -342,6 +353,7 @@ void DrawStructure::close_dialogs() {
         auto d = new Dialog(*this, callback, text, title, okay, abort, second, third, fourth);
         d->set_scale(scale().reciprocal());
         _dialogs.push_back(d);
+        set_dirty(nullptr);
         return d;
     }
 

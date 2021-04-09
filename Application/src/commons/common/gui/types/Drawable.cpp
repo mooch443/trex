@@ -241,6 +241,22 @@ namespace gui {
                 parent()->stage()->set_dirty(nullptr);
         }
     }
+
+    void Drawable::set_scale(const Vec2& scale) {
+        if(_scale == scale)
+            return;
+        
+        if(_scale.Equals(scale))
+            set_bounds_changed();
+        
+#ifndef NDEBUG
+        if(scale.empty())
+            Debug("Scale is zero.");
+        if(std::isnan(scale.x) || std::isinf(scale.x))
+            Debug("NaN or Inf in set_scale.");
+#endif
+        _scale = scale;
+    }
     
     void Drawable::set_pos(const Vec2& npos) {
         if(_bounds.pos() == npos)
@@ -248,6 +264,10 @@ namespace gui {
         
         if(!_bounds.pos().Equals(npos))
             set_bounds_changed();
+#ifndef NDEBUG
+        if(std::isnan(npos.x) || std::isnan(npos.y))
+            Warning("NaN in set_pos.");
+#endif
         _bounds.pos() = npos;
     }
     
@@ -257,6 +277,10 @@ namespace gui {
         
         if(!_bounds.size().Equals(size))
             set_bounds_changed();
+#ifndef NDEBUG
+        if(std::isnan(size.width) || std::isnan(size.height))
+            Warning("NaN in set_size.");
+#endif
         _bounds.size() = size;
     }
     
@@ -266,6 +290,10 @@ namespace gui {
         
         if(!_bounds.Equals(rect))
             set_bounds_changed();
+#ifndef NDEBUG
+        if(std::isnan(rect.width) || std::isnan(rect.height) || std::isnan(rect.x) || std::isnan(rect.y))
+            Warning("NaN in set_bounds.");
+#endif
         _bounds = rect;
     }
     

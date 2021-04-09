@@ -266,7 +266,7 @@ void MetalImpl::message(const std::string &msg) const {
     [alert beginSheetModalForWindow:win completionHandler:^(NSModalResponse){}];
 }
 
-    LoopStatus MetalImpl::update_loop(CrossPlatform::custom_function_t custom_loop) {
+    LoopStatus MetalImpl::update_loop(const CrossPlatform::custom_function_t& custom_loop) {
         GLIMPL_CHECK_THREAD_ID();
         
         std::lock_guard<std::mutex> guard(_shutdown_mutex);

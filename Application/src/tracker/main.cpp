@@ -1379,10 +1379,10 @@ int main(int argc, char** argv)
     if(go_fullscreen)
         gui.toggle_fullscreen();
     
-    gui::SFLoop loop(gui.gui(), imgui_base, [&](gui::SFLoop&){
+    gui::SFLoop loop(gui.gui(), imgui_base, [&](gui::SFLoop&, gui::LoopStatus status){
         {
             std::unique_lock<std::recursive_mutex> guard(gui.gui().lock());
-            gui.run_loop(gui.gui());
+            gui.run_loop(status);
         }
         
         if(pause_stuff) {

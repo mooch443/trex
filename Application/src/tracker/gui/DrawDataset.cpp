@@ -34,7 +34,8 @@ namespace gui {
     
     void DrawDataset::update() {
         if(parent() && parent()->stage()) {
-            set_scale(parent()->stage()->scale().reciprocal());
+            if(!parent()->stage()->scale().empty())
+                set_scale(parent()->stage()->scale().reciprocal());
         }
         
         long_t frame = GUI::instance()->frameinfo().frameIndex;
@@ -286,16 +287,14 @@ namespace gui {
         
         if(parent() && parent()->stage()) {
             Size2 screen_dimensions = GUI::screen_dimensions();
-            
             if(!_initial_pos_set) {
-                //auto && [offset, max_w] = Timeline::timeline_offsets();
-                //set_pos(offset + Vec2(max_w, parent()->stage()->height()) - Vec2(10, 110));
                 set_pos(screen_dimensions * 0.5 - local_bounds().size() + Vec2(10, 10));
                 _initial_pos_set = true;
             }
             
-            Vec2 pp = pos();
             auto bds = global_bounds();
+            auto pp = pos();
+            
             if(pp.x > screen_dimensions.width + bds.width * 0.5f)
                 pp.x = screen_dimensions.width - 10 + bds.width * 0.5f;
             if(pp.y > screen_dimensions.height + bds.height * 0.5)

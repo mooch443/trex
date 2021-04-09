@@ -582,7 +582,7 @@ void GUI::load_connectivity_matrix() {
     _cache.connectivity_reload = true;
 }
 
-void GUI::run_loop(gui::DrawStructure&) {
+void GUI::run_loop(gui::LoopStatus status) {
     static long_t image_index = -1;
     static float t = 0.0;
     static Timer timer, redraw_timer;
@@ -610,7 +610,7 @@ void GUI::run_loop(gui::DrawStructure&) {
         } else if((!GUI_SETTINGS(nowindow) && redraw_timer.elapsed() >= 0.1) || _recording) {
             redraw_timer.reset();
             //set_redraw();
-            _gui.set_dirty(base);
+            //_gui.set_dirty(base);
             is_automatic = true;
         }
         
@@ -657,25 +657,13 @@ void GUI::run_loop(gui::DrawStructure&) {
         }
     }
     
-    /*if(globals::_settings.nowindow) {
-        static Timer refresh;
-        if(refresh.elapsed() >= 0.15) {
-            _gui.set_dirty(base);
-            refresh.reset();
-        }
-    }*/
-    
-    const bool changed = (base && (!_gui.root().cached(base) || _gui.root().cached(base)->changed())) || cache().must_redraw();
+    const bool changed = (base && (!_gui.root().cached(base) || _gui.root().cached(base)->changed())) || cache().must_redraw() || status == LoopStatus::UPDATED;
     _real_update = changed && (!is_automatic || run() || _recording);
     
-    //static Timer rutimer;
-    
     if(changed || last_frame_change.elapsed() < 0.5) {
-        //Timer timer;
         if(changed) {
             CacheObject::Ptr ptr = _gui.root().cached(base);
             if(base && !ptr) {
-                Debug("Not cached");
                 ptr = std::make_shared<CacheObject>();
                 _gui.root().insert_cache(base, ptr);
             }
@@ -683,15 +671,8 @@ void GUI::run_loop(gui::DrawStructure&) {
                 ptr->set_changed(false);
         }
         
-        if(_real_update) {
-            
-            //Debug("real update (%fs)", rutimer.elapsed());
-            //rutimer.reset();
-        }
         if(frame() != image_index) {
             SETTING(gui_frame) = image_index;
-            //Tracker::LockGuard guard;
-            //Tracker::find_next_problem(*_video_source, image_index);
         }
         
         //std::vector<std::string> changed_objects_str;
@@ -710,7 +691,6 @@ void GUI::run_loop(gui::DrawStructure&) {
         }
         
         _frameinfo.frameIndex = GUI::frame();
-        //_gui.root().cached(base)->set_changed(true);
         
         static Timer last_redraw;
         if(!_recording)
@@ -1617,7 +1597,10 @@ Size2 GUI::screen_dimensions() {
     auto gui_scale = instance()->_gui.scale();
     if(gui_scale.x == 0)
         gui_scale = Vec2(1);
-    return (base ? base->window_dimensions().div(gui_scale) * gui::interface_scale() : instance()->_average_image.dimensions());
+    auto window_dimensions = base
+        ? base->window_dimensions().div(gui_scale) * gui::interface_scale()
+        : instance()->_average_image.dimensions();
+    return window_dimensions;
 }
     
 std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* section, bool singular_boundary)
@@ -3860,7 +3843,7 @@ void GUI::local_event(const gui::Event &event) {
     if (event.type == gui::KEY) {
         std::unique_lock<std::recursive_mutex> guard(gui().lock());
         key_event(event);
-        set_redraw();
+        _cache.set_redraw();
         
     } else {
         std::unique_lock<std::recursive_mutex> guard(gui().lock());

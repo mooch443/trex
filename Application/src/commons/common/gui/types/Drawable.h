@@ -12,7 +12,18 @@ namespace gui {
     class SectionInterface;
     
     class DrawStructure;
-    class CacheObject { GETTER(std::atomic_bool, changed) public: typedef std::shared_ptr<CacheObject> Ptr; CacheObject(); virtual ~CacheObject(); static size_t memory(); virtual void set_changed(bool v) { _changed = v; } };
+    class CacheObject {
+        GETTER(std::atomic_bool, changed)
+        
+    public:
+        typedef std::shared_ptr<CacheObject> Ptr;
+        CacheObject();
+        virtual ~CacheObject();
+        static size_t memory();
+        virtual void set_changed(bool v) {
+            _changed = v;
+        }
+    };
     
     ENUM_CLASS (Type,
         NONE,    VERTICES,  CIRCLE,
@@ -203,15 +214,7 @@ namespace gui {
         virtual void set_bounds(const Bounds& bounds);
         virtual void set_origin(const Vec2& origin);
         virtual void set_rotation(float radians);
-        
-        virtual void set_scale(const Vec2& scale) {
-            if(_scale == scale)
-                return;
-            
-            if(_scale.Equals(scale))
-                set_bounds_changed();
-            _scale = scale;
-        }
+        virtual void set_scale(const Vec2& scale);
         
         void set_scale(float x, float y) { set_scale({x, y}); }
         virtual void set_z_index(int index);
