@@ -21,12 +21,17 @@ TRex parameters
 
 
 
-.. function:: app_check_for_updates(bool)
+.. function:: app_check_for_updates(app_update_check_t)
 
-	**default value:** false
+	**default value:** none
 
+	**possible values:**
+		- `none`: No status has been set yet and the program will ask the user.
+		- `manually`: Manually check for updates, do not automatically check for them online.
+		- `automatically`: Automatically check for updates periodically (once per week).
 
 	If enabled, the application will regularly check for updates online (`<https://api.github.com/repos/mooch443/trex/releases>`_).
+
 
 
 
