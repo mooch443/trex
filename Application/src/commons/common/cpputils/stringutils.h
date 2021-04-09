@@ -8,6 +8,7 @@
 #include <codecvt>
 #include <algorithm>
 #include <functional>
+#include <unordered_map>
 
 namespace utils {
     /**
@@ -87,6 +88,8 @@ namespace utils {
      */
     std::string find_replace(const std::string& str, const std::string& oldStr, const std::string& newStr);
     std::wstring find_replace(const std::wstring& str, const std::wstring& oldStr, const std::wstring& newStr);
+
+    std::string find_replace(const std::string& str, std::vector<std::tuple<std::string, std::string>>);
     
     // trim from start
     template<typename Str>

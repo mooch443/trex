@@ -25,10 +25,6 @@ namespace gui {
         void close(size_t i, const std::string& text, size_t after) {
             range.end = i;
             this->text = text.substr(range.start, range.end - range.start);
-            this->text = utils::find_replace(this->text, "&quot;", "\"");
-            this->text = utils::find_replace(this->text, "&apos;", "'");
-            this->text = utils::find_replace(this->text, "&lt;", "<");
-            this->text = utils::find_replace(this->text, "&gt;", ">");
             this->after = after;
         }
         
@@ -45,8 +41,7 @@ namespace gui {
         }
     };
     
-    StaticText::StaticText(const std::string& txt, const Vec2& pos, const Vec2& max_size, const Font& font)
-    :   _txt(utils::find_replace(txt, "<br/>", "\n")),
+    StaticText::StaticText(const std::string& txt, const Vec2& pos, const Vec2& max_size, const Font& font) :
         _max_size(max_size),
         _org_position(pos),
         _margins(Vec2(10, 5), Vec2(10, 5)),
@@ -57,8 +52,16 @@ namespace gui {
         set_clickable(true);
         set_pos(pos);
         set_background(Black.alpha(200), Black);
-        update_text();
+        set_txt(txt);
     }
+
+void StaticText::set_txt(const std::string& txt) {
+    if(_txt == txt)
+        return;
+    
+    _txt = txt;
+    update_text();
+}
 
 void StaticText::set_alpha(float alpha) {
     if(alpha == _alpha)
@@ -149,6 +152,29 @@ void StaticText::set_default_font(const Font& font) {
             end();
         }
     }
+
+StaticText::RichString::RichString(const std::string& str, const Font& font, const Vec2& pos, const Color& clr)
+    : str(str), font(font), pos(pos), clr(clr)
+{
+    parsed = parse(str);
+}
+
+std::string StaticText::RichString::parse(const std::string &txt) {
+    return utils::find_replace(txt, {
+        {"<br/>", "\n"},
+        {"&quot;", "\""},
+        {"&apos;", "'"},
+        {"&lt;", "<"},
+        {"&gt;", ">"},
+        { "&#x3C;", "<"}
+    });
+}
+
+void StaticText::RichString::convert(std::shared_ptr<Text> text) const {
+    text->set_color(clr);
+    text->set_font(font);
+    text->set_txt(parsed);
+}
     
     void StaticText::add_string(std::shared_ptr<RichString> ptr, std::vector<std::shared_ptr<RichString>> &strings, Vec2& offset)
     {
@@ -157,7 +183,7 @@ void StaticText::set_default_font(const Font& font) {
         auto real_scale = this;
         
         if(_max_size.x > 0 && !ptr->str.empty()) {
-            Bounds bounds = Base::default_text_bounds(ptr->str, real_scale, ptr->font);
+            Bounds bounds = Base::default_text_bounds(ptr->parsed, real_scale, ptr->font);
             auto w = bounds.width + bounds.x;
             
             const float max_w = _max_size.x - _margins.x - _margins.width - offset.x;
@@ -196,7 +222,7 @@ void StaticText::set_default_font(const Font& font) {
                         break;
                     
                     // test splitting at idx
-                    bounds = Base::default_text_bounds(ptr->str.substr(0, idx), real_scale, ptr->font);
+                    bounds = Base::default_text_bounds(RichString::parse(ptr->str.substr(0, idx)), real_scale, ptr->font);
                     
                     cw = bounds.width + bounds.x;
                 }
@@ -217,7 +243,7 @@ void StaticText::set_default_font(const Font& font) {
                             if(len <= 1)
                                 break;
                             
-                            bounds = Base::default_text_bounds(ptr->str.substr(0, middle), real_scale, ptr->font);
+                            bounds = Base::default_text_bounds(RichString::parse(ptr->str.substr(0, middle)), real_scale, ptr->font);
                             
                             cw = bounds.width + bounds.x;
                             
@@ -246,6 +272,7 @@ void StaticText::set_default_font(const Font& font) {
                 if(idx) {
                     auto copy = ptr->str;
                     ptr->str = copy.substr(0, idx);
+                    ptr->parsed = RichString::parse(ptr->str);
                     strings.push_back(ptr);
                     
                     copy = utils::ltrim(copy.substr(idx));
@@ -255,6 +282,7 @@ void StaticText::set_default_font(const Font& font) {
                     if(!copy.empty()) {
                         auto tmp = std::make_shared<RichString>(*ptr);
                         tmp->str = copy;
+                        tmp->parsed = RichString::parse(copy);
                         tmp->pos.y++;
                         
                         add_string(tmp, strings, offset);
@@ -301,7 +329,6 @@ void StaticText::set_default_font(const Font& font) {
         size_t before_pos = 0;
         
         std::stringstream tag; // holds current tag when inside one
-        std::stringstream content; // holds content when a tag has been opened
         
         std::set<std::string> commands {
             "h","h1","h2","h3","h4","h5","h6","h7","h8","h9", "i","b","string","number","str","nr","keyword","key","ref","a"
@@ -350,7 +377,6 @@ void StaticText::set_default_font(const Font& font) {
                                 global_tags.push_back(TRange("_", global_tags.empty() ? 0 : global_tags.back().after, global_tags.empty() ? 0 : global_tags.back().range.end));
                                 global_tags.back().close(i+1, _txt, i+1);
                             }
-                            content.str("");
                             
                         } else {
                             if(tags.empty()) {
@@ -361,7 +387,6 @@ void StaticText::set_default_font(const Font& font) {
                             }
                             
                             tags.push_front(TRange(s, i + 1, before_pos));
-                            content.str("");
                         }
                     }
                 }
@@ -371,8 +396,6 @@ void StaticText::set_default_font(const Font& font) {
                 
             } else if(!brackets.empty()) {
                 tag << c;
-            } else if(!tags.empty()) {
-                content << c;
             }
         }
         
@@ -484,9 +507,6 @@ void StaticText::set_default_font(const Font& font) {
                 }
             }
         }
-        
-        for(auto s : strings)
-            s->str = utils::find_replace(s->str, "&#x3C;", "<");
         
         update_vector_elements(texts, strings);
         

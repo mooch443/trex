@@ -96,7 +96,7 @@ double data_sec = 0.0, data_kbytes = 0.0;
 double frames_sec = 0, frames_count = 0;
 
 ENUM_CLASS(Arguments,
-           d,dir,i,input,s,settings,nowindow,load,h,fs,p,r)
+           d,dir,i,input,s,settings,nowindow,load,h,fs,p,r,update,quiet)
 
 #ifndef WIN32
 struct sigaction sigact;
@@ -224,7 +224,6 @@ int main(int argc, char** argv)
 #if TRACKER_GLOBAL_THREADS
     Warning("Using only %d threads (-DTRACKER_GLOBAL_THREADS).", TRACKER_GLOBAL_THREADS);
 #endif
-    Debug("Starting Application...");
 #if __linux__
     XInitThreads();
 #endif
