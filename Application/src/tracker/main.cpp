@@ -1620,7 +1620,6 @@ int main(int argc, char** argv)
         static int last_seconds = -1;
         int seconds = (int)loop.time_since_last_update().elapsed();
         if(seconds != last_seconds) {
-            Debug("time_since_last_update: %ds", seconds);
             if(seconds > 1 && !CheckUpdates::user_has_been_asked()) {
                 static bool currently_asking = false;
                 if(!currently_asking) {
@@ -1628,10 +1627,48 @@ int main(int argc, char** argv)
                     GUI::instance()->gui().dialog([](gui::Dialog::Result r) {
                         if(r == gui::Dialog::OKAY) {
                             SETTING(app_check_for_updates) = default_config::app_update_check_t::automatically;
-                        } else
+                        } else if(r == gui::Dialog::ABORT) {
                             SETTING(app_check_for_updates) = default_config::app_update_check_t::manually;
+                            
+                            auto website = "https://github.com/mooch443/trex/releases";
+                #if __linux__
+                            auto pid = fork();
+                            if (pid == 0) {
+                                execl("/usr/bin/xdg-open", "xdg-open", website, (char *)0);
+                                exit(0);
+                            }
+                #elif __APPLE__
+                            auto pid = fork();
+                            if (pid == 0) {
+                                execl("/usr/bin/open", "open", website, (char *)0);
+                                exit(0);
+                            }
+                #elif defined(WIN32)
+                            ShellExecute(
+                                NULL,
+                                "open",
+                                website,
+                                NULL,
+                                NULL,
+                                SW_SHOWNORMAL
+                            );
+                #endif
+                        } else {
+                            SETTING(app_check_for_updates) = default_config::app_update_check_t::manually;
+                        }
                         
-                    }, "Do you want to check for updates automatically? You can still check manually by going to the top-right menu and clicking 'check updates'.", "Check for updates", "Once per week", "No");
+                        try {
+                            // write changed date to file 'update_check' in the resource folder
+                            std::string str = SETTING(app_last_update_check).get().valueString()+"\n"+SETTING(app_check_for_updates).get().valueString();
+                            auto f = fopen("update_check", "wb");
+                            if(f) {
+                                fwrite(str.c_str(), sizeof(char), str.length(), f);
+                                fclose(f);
+                            }
+                            
+                        } catch(...) { }
+                        
+                    }, "Do you want to check for updates automatically? Automatic checks are performed in the background weekly if you've been idle for a while. Otherwise you can still check manually by opening the top-right menu and choosing <b><str>check updates</str></b>, or you can super-manually go to <ref>https://github.com/mooch443/trex</ref> and check for the latest releases yourself.", "Check for updates", "Weekly", "Super Manually", "Manually");
                 }
                 
             } else if(seconds > 1) {

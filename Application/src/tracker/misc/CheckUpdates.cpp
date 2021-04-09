@@ -59,6 +59,11 @@ void cleanup() {
 void init() {
     std::string contents;
     try {
+        if(!file::Path("update_check").exists()) {
+            if(!SETTING(quiet))
+                Debug("Initial start, no update_check file exists.");
+            return;
+        }
         contents = utils::read_file("update_check");
         auto array = utils::split(contents, '\n');
         if(array.size() != 2)
