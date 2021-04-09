@@ -37,6 +37,7 @@
 #include <misc/Output.h>
 #include <tracking/Recognition.h>
 #include <gui/WorkProgress.h>
+#include <misc/CheckUpdates.h>
 
 #include <tracking/SplitBlob.h>
 
@@ -549,6 +550,20 @@ int main(int argc, char** argv)
                     
                     exit(0);
                     break;
+                    
+                case Arguments::update: {
+                    auto status = CheckUpdates::perform(false).get();
+                    if(status == CheckUpdates::Status::OLD) {
+                        CheckUpdates::display_update_dialog();
+                    } else if(status == CheckUpdates::Status::NEWEST)
+                        Debug("You have the newest version (%S).", &CheckUpdates::newest_version());
+                     else
+                         Error("Error checking for the newest version: '%S'. Please check your internet connection and try again.", &CheckUpdates::last_error());
+                    
+                    PythonIntegration::quit();
+                    exit(0);
+                    break;
+                }
                     
                 default:
                     Warning("Unknown option '%S' with value '%S'", &option.name, &option.value);
@@ -1232,6 +1247,8 @@ int main(int argc, char** argv)
     gui.set_analysis(analysis.get());
     gui_lock.unlock();
     
+    CheckUpdates::init();
+    
     auto callback = "TRex::main";
     GlobalSettings::map().register_callback(callback, [&analysis, &gui, callback](sprite::Map::Signal signal, sprite::Map& map, const std::string& key, const sprite::PropertyType& value)
     {
@@ -1598,9 +1615,34 @@ int main(int argc, char** argv)
         } catch(const std::exception& ex) {
             Except("Exception while recording ('%s').", ex.what());
         }
+    },
+    [&](gui::SFLoop& loop){
+        static int last_seconds = -1;
+        int seconds = (int)loop.time_since_last_update().elapsed();
+        if(seconds != last_seconds) {
+            Debug("time_since_last_update: %ds", seconds);
+            if(seconds > 1 && !CheckUpdates::user_has_been_asked()) {
+                static bool currently_asking = false;
+                if(!currently_asking) {
+                    currently_asking = true;
+                    GUI::instance()->gui().dialog([](gui::Dialog::Result r) {
+                        if(r == gui::Dialog::OKAY) {
+                            SETTING(app_check_for_updates) = default_config::app_update_check_t::automatically;
+                        } else
+                            SETTING(app_check_for_updates) = default_config::app_update_check_t::manually;
+                        
+                    }, "Do you want to check for updates automatically? You can still check manually by going to the top-right menu and clicking 'check updates'.", "Check for updates", "Once per week", "No");
+                }
+                
+            } else if(seconds > 1) {
+                CheckUpdates::this_is_a_good_time();
+            }
+        }
+        last_seconds = seconds;
     });
     
     Debug("Preparing for shutdown...");
+    CheckUpdates::cleanup();
     Recognition::notify();
     
     {
