@@ -6,6 +6,10 @@
 #include <gui/WorkProgress.h>
 #include <tracker/misc/default_config.h>
 
+#if WIN32
+#include <shellapi.h>
+#endif
+
 namespace track {
 namespace CheckUpdates {
 
