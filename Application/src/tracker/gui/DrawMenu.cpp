@@ -182,9 +182,9 @@ public:
                 case CHECK_UPDATE: {
                     gPtr->work().add_queue("", []() {
                         auto status = CheckUpdates::perform(false).get();
-                        if(status == CheckUpdates::Status::OLD)
+                        if(status == CheckUpdates::VersionStatus::OLD)
                             CheckUpdates::display_update_dialog();
-                        else if(status == CheckUpdates::Status::NEWEST)
+                        else if(status == CheckUpdates::VersionStatus::NEWEST)
                             GUI::instance()->gui().dialog("You own the newest available version (<nr>"+CheckUpdates::newest_version()+"</nr>).");
                         else
                             GUI::instance()->gui().dialog("There was an error checking for the newest version:\n\n<str>"+CheckUpdates::last_error()+"</str>\n\nPlease check your internet connection and try again. This also happens if you're checking for versions too often, or if GitHub changed their API (in which case you should probably update).", "Error");

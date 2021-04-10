@@ -186,7 +186,7 @@ void update_loop() {
             
             try {
                 auto status = perform(false).get();
-                if(status != Status::NONE) {
+                if(status != VersionStatus::NONE) {
                     {
                         // write changed date to file 'update_check' in the resource folder
                         std::string str = SETTING(app_last_update_check).get().valueString()+"\n"+SETTING(app_check_for_updates).get().valueString();
@@ -197,7 +197,7 @@ void update_loop() {
                     
                     _last_check_success = true;
                     
-                    if(status == Status::NEWEST) {
+                    if(status == VersionStatus::NEWEST) {
                         Debug("[CHECK_UPDATES] Already have the newest version (%S).", &newest_version());
                     } else {
                         display_update_dialog();
@@ -214,8 +214,8 @@ void update_loop() {
     }
 }
 
-std::future<Status> perform(bool manually_triggered) {
-    auto promise = std::make_shared<std::promise<Status>>();
+std::future<VersionStatus> perform(bool manually_triggered) {
+    auto promise = std::make_shared<std::promise<VersionStatus>>();
     auto future = promise->get_future();
     
     using py = PythonIntegration;
@@ -236,7 +236,7 @@ std::future<Status> perform(bool manually_triggered) {
     
     auto fn = [ptr = std::move(promise)](std::string v) {
         if(v.empty()) {
-            ptr->set_value(Status::NONE);
+            ptr->set_value(VersionStatus::NONE);
             return;
         }
         
@@ -244,10 +244,10 @@ std::future<Status> perform(bool manually_triggered) {
         _newest_version = v;
         
         if(v == my_sub_versions) {
-            ptr->set_value(Status::NEWEST);
+            ptr->set_value(VersionStatus::NEWEST);
             
         } else {
-            ptr->set_value(Status::OLD);
+            ptr->set_value(VersionStatus::OLD);
         }
     };
     

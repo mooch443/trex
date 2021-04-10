@@ -4,13 +4,13 @@
 namespace track {
 namespace CheckUpdates {
 
-enum class Status {
+enum class VersionStatus {
     NEWEST,
     OLD,
     NONE
 };
 
-std::future<Status> perform(bool manually_triggered);
+std::future<VersionStatus> perform(bool manually_triggered);
 void this_is_a_good_time();
 const std::string& newest_version();
 std::string current_version();

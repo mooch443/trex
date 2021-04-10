@@ -553,9 +553,9 @@ int main(int argc, char** argv)
                     
                 case Arguments::update: {
                     auto status = CheckUpdates::perform(false).get();
-                    if(status == CheckUpdates::Status::OLD) {
+                    if(status == CheckUpdates::VersionStatus::OLD) {
                         CheckUpdates::display_update_dialog();
-                    } else if(status == CheckUpdates::Status::NEWEST)
+                    } else if(status == CheckUpdates::VersionStatus::NEWEST)
                         Debug("You have the newest version (%S).", &CheckUpdates::newest_version());
                      else
                          Error("Error checking for the newest version: '%S'. Please check your internet connection and try again.", &CheckUpdates::last_error());
