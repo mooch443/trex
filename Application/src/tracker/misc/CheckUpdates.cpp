@@ -286,7 +286,7 @@ std::future<VersionStatus> perform(bool manually_triggered) {
         
         py::unset_function("retrieve_version");
         return true;
-    });
+    }, py::Flag::DEFAULT, true);
     
     return future;
 }

@@ -26,6 +26,7 @@ namespace track {
         
         static std::atomic_bool& python_initialized();
         static std::atomic_bool& python_initializing();
+        static std::atomic_bool& python_gpu_initialized();
         static std::atomic_int& python_major_version();
         static std::atomic_int& python_minor_version();
         static std::atomic_int& python_uses_gpu();
@@ -68,7 +69,7 @@ namespace track {
         
         static void quit();
         static std::shared_future<bool> ensure_started();
-        static std::shared_future<bool> reinit();
+        static void reinit();
         
     private:
         void shutdown();

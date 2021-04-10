@@ -2910,9 +2910,9 @@ void GUI::draw_footer(DrawStructure& base) {
             last_status = current_status;
             status_timer.reset();
 
-            std::string txt = "["
-                + std::string(!FAST_SETTINGS(recognition_enable) ? "recognition disabled" : (PythonIntegration::python_uses_gpu() ? PythonIntegration::python_gpu_name() : "CPU"))
-                + "]";
+            std::string txt;
+            if(PythonIntegration::python_gpu_initialized())
+                txt += "["+std::string(PythonIntegration::python_uses_gpu() ? PythonIntegration::python_gpu_name() : "CPU")+"]";
 
             if (SETTING(recognition_enable)) {
                 if (current_status.percent == 1)
