@@ -59,18 +59,21 @@ void cleanup() {
 void init() {
     std::string contents;
     try {
-        if(!file::Path("update_check").exists()) {
-            if(!SETTING(quiet))
+        if (!file::Path("update_check").exists()) {
+            if (!SETTING(quiet))
                 Debug("Initial start, no update_check file exists.");
             return;
         }
         contents = utils::read_file("update_check");
         auto array = utils::split(contents, '\n');
-        if(array.size() != 2)
-            U_EXCEPTION("Array does not have the right amount of elements ('%S').", &contents);
+        if (array.size() != 2)
+            U_EXCEPTION("Array does not have the right amount of elements ('%S', %lu).", &contents, array.size());
         SETTING(app_last_update_check) = Meta::fromStr<uint64_t>(array.front());
         SETTING(app_check_for_updates) = Meta::fromStr<default_config::app_update_check_t::Class>(array.back());
-        
+    } catch(const UtilsException& ex) {
+        Except("Utils Exception: '%s'", ex.what());
+    } catch(const std::exception& ex) {
+        Except("Exception: '%s'", ex.what());
     } catch(...) {
         Warning("Illegal content, or parsing failed for app_last_update_check: '%S'", &contents);
     }
@@ -208,7 +211,7 @@ void update_loop() {
                 }
                 
             } catch(...) {
-                Error("There was an error checking for the newest version:\n\n<str>%s</str>\n\nPlease check your internet connection and try again. This also happens if you are checking for versions too often, or if GitHub changed their API (in which case you should probably update).", last_error().c_str());
+                Error("There was an error checking for the newest version:\n\n%s\n\nPlease check your internet connection and try again. This also happens if you are checking for versions too often, or if GitHub changed their API (in which case you should probably update).", last_error().c_str());
             }
         }
     }

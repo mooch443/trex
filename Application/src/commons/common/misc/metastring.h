@@ -602,11 +602,22 @@ namespace cmn {
          * Invalid values will throw exceptions.
          */
         template<class Q>
-        Q fromStr(const std::string& str, const typename std::enable_if< std::is_integral<typename std::remove_cv<Q>::type>::value && !std::is_same<bool, Q>::value, Q >::type* =nullptr)
+        Q fromStr(const std::string& str, const typename std::enable_if< 
+            std::is_signed<typename std::remove_cv<Q>::type>::value && std::is_integral<typename std::remove_cv<Q>::type>::value 
+            && !std::is_same<bool, Q>::value, Q >::type* =nullptr)
         {
             if(!str.empty() && str[0] == '\'' && str.back() == '\'')
-                return Q(std::stol(str.substr(1,str.length()-2)));
-            return Q(std::stol(str));
+                return Q(std::stoll(str.substr(1,str.length()-2)));
+            return Q(std::stoll(str));
+        }
+        template<class Q>
+        Q fromStr(const std::string& str, const typename std::enable_if<
+            std::is_unsigned<typename std::remove_cv<Q>::type>::value&& std::is_integral<typename std::remove_cv<Q>::type>::value
+            && !std::is_same<bool, Q>::value, Q >::type* = nullptr)
+        {
+            if (!str.empty() && str[0] == '\'' && str.back() == '\'')
+                return Q(std::stoull(str.substr(1, str.length() - 2)));
+            return Q(std::stoull(str));
         }
     
         template<class Q>
