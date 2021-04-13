@@ -425,8 +425,12 @@ namespace gui {
     void Drawable::remove_event_handler(gui::EventType type, callback_handle_t handler_id) {
         auto it = _event_handlers.find(type);
         if(it != _event_handlers.end()) {
-            auto eit = std::find(it->second.begin(), it->second.end(), handler_id);
-            it->second.erase(eit);
+            if(!handler_id)
+                _event_handlers.erase(it);
+            else {
+                auto eit = std::find(it->second.begin(), it->second.end(), handler_id);
+                it->second.erase(eit);
+            }
         }
     }
     

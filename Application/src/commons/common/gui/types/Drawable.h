@@ -71,6 +71,11 @@ namespace gui {
         void add_custom_data(const std::string& key, void* data, std::function<void(void*)> deleter = [](void*){}) {
             _custom_data[key] = {data, deleter};
         }
+        void remove_custom_data(const std::string& key) {
+            auto it = _custom_data.find(key);
+            if(it != _custom_data.end())
+                _custom_data.erase(key);
+        }
         void* custom_data(const std::string& key) const {
             auto it = _custom_data.find(key);
             if(it != _custom_data.end()) {

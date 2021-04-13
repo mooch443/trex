@@ -16,6 +16,28 @@
 namespace gui {
 GlobalSettings::docs_map_t temp_docs;
 sprite::Map temp_settings;
+constexpr double video_chooser_column_width = 400;
+
+VideoOpener::CustomFileChooser::CustomFileChooser(
+        const file::Path& start,
+        const std::string& extension,
+        std::function<void (const file::Path &, std::string)> callback,
+        std::function<void(const file::Path&, std::string)> on_select_callback)
+    : FileChooser(start, extension, callback, on_select_callback)
+{ }
+
+void VideoOpener::CustomFileChooser::update_size() {
+    float s = _graph->scale().x / gui::interface_scale();
+    float left_column_width = (_graph->width() / s * 0.5 - 20);
+    
+    _update(left_column_width);
+    
+    FileChooser::update_size();
+}
+
+void VideoOpener::CustomFileChooser::set_update(std::function<void(float)> fn) {
+    _update = fn;
+}
 
 VideoOpener::LabeledCheckbox::LabeledCheckbox(const std::string& name)
     : LabeledField(name),
@@ -41,7 +63,7 @@ void VideoOpener::LabeledCheckbox::update() {
 
 VideoOpener::LabeledTextField::LabeledTextField(const std::string& name)
     : LabeledField(name),
-      _text_field(std::make_shared<gui::Textfield>("", Bounds(0, 0, 300, 28))),
+      _text_field(std::make_shared<gui::Textfield>("", Bounds(0, 0, video_chooser_column_width, 28))),
       _ref(gui::temp_settings[name])
 {
     _text_field->set_placeholder(name);
@@ -64,7 +86,7 @@ void VideoOpener::LabeledTextField::update() {
 
 VideoOpener::LabeledDropDown::LabeledDropDown(const std::string& name)
     : LabeledField(name),
-      _dropdown(std::make_shared<gui::Dropdown>(Bounds(0, 0, 300, 28))),
+      _dropdown(std::make_shared<gui::Dropdown>(Bounds(0, 0, video_chooser_column_width, 28))),
       _ref(gui::temp_settings[name])
 {
     _docs = gui::temp_docs[name];
@@ -212,14 +234,15 @@ VideoOpener::VideoOpener()
     std::vector<Layout::Ptr> objects{
         Layout::Ptr(std::make_shared<Text>("Settings", Vec2(), White, gui::Font(0.8f, Style::Bold)))
     };
-    for(auto &[key, ptr] : _text_fields)
+    for(auto &[key, ptr] : _text_fields) {
         ptr->add_to(objects);
+    }
     
     _raw_settings->set_children(objects);
     
     _loading_text = std::make_shared<gui::Text>("generating average", Vec2(100,0), Cyan, gui::Font(0.5f));
     
-    _raw_description = std::make_shared<gui::StaticText>("Info", Vec2(), Size2(500, -1), Font(0.6f));
+    _raw_description = std::make_shared<gui::StaticText>("Info", Vec2(), Size2(video_chooser_column_width, -1), Font(0.6f));
     _raw_info->set_children({
         Layout::Ptr(std::make_shared<Text>("Preview", Vec2(), White, gui::Font(0.8f, Style::Bold))),
         _screenshot,
@@ -243,7 +266,7 @@ VideoOpener::VideoOpener()
     
     _output_prefix = SETTING(output_prefix).value<std::string>();
     
-    _file_chooser = std::make_shared<gui::FileChooser>(
+    _file_chooser = std::make_shared<CustomFileChooser>(
         SETTING(output_dir).value<file::Path>(),
         "pv",
         [this](const file::Path& path, std::string tab) mutable
@@ -327,6 +350,16 @@ VideoOpener::VideoOpener()
         select_file(path);
     });
     
+    _file_chooser->set_update([this](float w) {
+        if(_raw_description) {
+            _raw_description->set_max_size(Size2(w, -1));
+        }
+        
+        for(auto &[key, ptr] : _text_fields) {
+            ptr.get()->representative()->set_size(Size2(w * 0.5, ptr->representative()->height()));
+        }
+    });
+    
     _file_chooser->set_tabs({
         FileChooser::Settings{std::string("Pre-processed (PV)"), std::string("pv"), _horizontal},
         FileChooser::Settings{std::string("Convert (RAW)"), std::string("mp4;avi;mov;flv;m4v;webm;mkv;mpg"), _horizontal_raw},
@@ -403,13 +436,13 @@ VideoOpener::VideoOpener()
             if(image) {
                 _screenshot->set_source(std::move(image));
                 
-                auto max_scale = _file_chooser->graph()->scale().reciprocal() * 0.3f;
+                auto max_scale = 0.4f;
                 auto max_size = Size2(_file_chooser->graph()->width(), _file_chooser->graph()->height()).mul(max_scale);
                 auto scree_size = _screenshot->source()->bounds().size();
                 auto size = max_size;
                 
                 if(_raw_description->max_size() != max_size) {
-                    _raw_description->set_max_size(max_size.mul(0.25));
+                    _raw_description->set_max_size(max_size);
                     _screenshot_previous_size = Size2(0);
                 }
                 
@@ -480,6 +513,10 @@ VideoOpener::VideoOpener()
 }
 
 VideoOpener::~VideoOpener() {
+    if(_infos) {
+        _infos->remove_event_handler(EventType::HOVER, nullptr);
+    }
+    
     if(_callback != nullptr) {
         temp_settings.unregister_callback(_callback);
         _callback = nullptr;
@@ -575,8 +612,8 @@ void VideoOpener::BufferedVideo::restart_background() {
             std::lock_guard guard(_frame_mutex);
             cv::Mat img;
             background_video->frame(0, img);
-            if(max(img.cols, img.rows) > 500)
-                resize_image(img, 500 / double(max(img.cols, img.rows)));
+            if(max(img.cols, img.rows) > video_chooser_column_width)
+                resize_image(img, video_chooser_column_width / double(max(img.cols, img.rows)));
             
             background_video_index = 0;
             accumulator = std::make_unique<AveragingAccumulator>(TEMP_SETTING(averaging_method).value<averaging_method_t::Class>());
@@ -595,8 +632,8 @@ void VideoOpener::BufferedVideo::restart_background() {
             _number_samples += 1;
             
             background_video->frame(background_video_index, img);
-            if(max(img.cols, img.rows) > 500)
-                resize_image(img, 500 / double(max(img.cols, img.rows)));
+            if(max(img.cols, img.rows) > video_chooser_column_width)
+                resize_image(img, video_chooser_column_width / double(max(img.cols, img.rows)));
             
             accumulator->add(img);
             
@@ -685,8 +722,8 @@ void VideoOpener::BufferedVideo::open(std::function<void(const bool)>&& callback
                         flush_ocl_queue();
                         
                         local.copyTo(img);
-                        if(max(img.cols, img.rows) > 500)
-                            resize_image(img, 500 / double(max(img.cols, img.rows)));
+                        if(max(img.cols, img.rows) > video_chooser_column_width)
+                            resize_image(img, video_chooser_column_width / double(max(img.cols, img.rows)));
                         img.convertTo(flt, CV_32FC1);
 
                         if(alpha.empty()) {
@@ -947,7 +984,7 @@ void VideoOpener::select_file(const file::Path &p) {
         auto text = video->get_info(false);
         
         _mini_bowl = std::make_shared<Entangled>();
-        auto scale = Vec2(300).div(Size2(video->average()));
+        auto scale = Vec2(video_chooser_column_width).div(Size2(video->average()));
         _mini_bowl->set_scale(Vec2(scale.min()));
         
         _mini_bowl->update([&](Entangled& b){
@@ -971,7 +1008,7 @@ void VideoOpener::select_file(const file::Path &p) {
         _mini_bowl->auto_size(Margin{0, 0});
         
         gui::derived_ptr<gui::Text> info_text = std::make_shared<gui::Text>("Selected", Vec2(), gui::White, gui::Font(0.8f, gui::Style::Bold));
-        gui::derived_ptr<gui::StaticText> info_description = std::make_shared<gui::StaticText>(settings::htmlify(text), Vec2(), Size2(300, 600), gui::Font(0.5));
+        gui::derived_ptr<gui::StaticText> info_description = std::make_shared<gui::StaticText>(settings::htmlify(text), Vec2(), Size2(video_chooser_column_width, 600), gui::Font(0.5));
         gui::derived_ptr<gui::Text> info_2 = std::make_shared<gui::Text>("Background", Vec2(), gui::White, gui::Font(0.8f, gui::Style::Bold));
         
         _infos->set_children({
@@ -984,6 +1021,7 @@ void VideoOpener::select_file(const file::Path &p) {
         _infos->auto_size(Margin{0, 0});
         _infos->update_layout();
         
+        _infos->remove_event_handler(EventType::HOVER, NULL);
         _infos->on_hover([this, meta = "<h2>Metadata</h2>"+ settings::htmlify(video->header().metadata)](Event e){
             if(e.hover.hovered) {
                 _file_chooser->set_tooltip(1, _background.get(), meta);

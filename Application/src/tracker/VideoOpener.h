@@ -64,7 +64,17 @@ public:
     std::unique_ptr<BufferedVideo> _buffer;
     std::queue<std::unique_ptr<BufferedVideo>> _stale_buffers;
     
-    std::shared_ptr<FileChooser> _file_chooser;
+    class CustomFileChooser : public FileChooser {
+        std::function<void(float)> _update;
+        
+    public:
+        CustomFileChooser(const file::Path& start, const std::string& extension, std::function<void(const file::Path&, std::string)> callback,
+                          std::function<void(const file::Path&, std::string)> on_select_callback = nullptr);
+        void update_size() override;
+        void set_update(std::function<void(float)>);
+    };
+    
+    std::shared_ptr<CustomFileChooser> _file_chooser;
     std::map<std::string, gui::Drawable*> pointers;
     std::map<std::string, std::string> start_values;
     
