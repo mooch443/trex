@@ -65,13 +65,13 @@ public:
     std::queue<std::unique_ptr<BufferedVideo>> _stale_buffers;
     
     class CustomFileChooser : public FileChooser {
-        std::function<void(float)> _update;
+        std::function<void(float,float)> _update;
         
     public:
         CustomFileChooser(const file::Path& start, const std::string& extension, std::function<void(const file::Path&, std::string)> callback,
                           std::function<void(const file::Path&, std::string)> on_select_callback = nullptr);
         void update_size() override;
-        void set_update(std::function<void(float)>);
+        void set_update(std::function<void(float,float)>);
     };
     
     std::shared_ptr<CustomFileChooser> _file_chooser;
@@ -82,7 +82,7 @@ public:
     gui::derived_ptr<gui::HorizontalLayout> _horizontal, _horizontal_raw, _recording_panel;
     gui::derived_ptr<gui::ExternalImage> _screenshot, _background, _camera;
     gui::derived_ptr<gui::Text> _loading_text;
-    gui::derived_ptr<gui::StaticText> _raw_description;
+    gui::derived_ptr<gui::StaticText> _raw_description, _info_description;
     gui::derived_ptr<gui::Tooltip> _tooltip;
     
     std::unique_ptr<std::thread> _accumulate_video_frames_thread;
@@ -98,6 +98,7 @@ public:
     Timer _blob_timer;
     
     Size2 _screenshot_previous_size;
+    Size2 _screenshot_max_size;
     
     struct LabeledField {
         gui::derived_ptr<gui::Text> _text;

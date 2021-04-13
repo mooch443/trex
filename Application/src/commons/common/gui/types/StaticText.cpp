@@ -56,10 +56,12 @@ namespace gui {
     }
 
 void StaticText::set_txt(const std::string& txt) {
-    if(_txt == txt)
+    auto p = utils::find_replace(txt, "<br/>", "\n");
+    
+    if(_txt == p)
         return;
     
-    _txt = txt;
+    _txt = p;
     update_text();
 }
 
@@ -161,7 +163,6 @@ StaticText::RichString::RichString(const std::string& str, const Font& font, con
 
 std::string StaticText::RichString::parse(const std::string &txt) {
     return utils::find_replace(txt, {
-        {"<br/>", "\n"},
         {"&quot;", "\""},
         {"&apos;", "'"},
         {"&lt;", "<"},

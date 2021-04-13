@@ -275,6 +275,10 @@ namespace gui {
                 }
             }
             
+            for(auto &rect : _rects) {
+                rect->set_size(Size2(width(), item_height));
+            }
+            
             set_content_changed(true);
         }
         
@@ -286,6 +290,20 @@ namespace gui {
          
         }*/
         
+    public:
+        void set_bounds(const Bounds& bounds) override {
+            if(bounds.size() != size())
+                set_content_changed(true);
+            Entangled::set_bounds(bounds);
+        }
+        
+        void set_size(const Size2& bounds) override {
+            if(size() != bounds)
+                set_content_changed(true);
+            Entangled::set_size(bounds);
+        }
+        
+    private:
         void update() override {
             if(content_changed()) {
                 const float spacing = Base::default_line_spacing(_font) + item_padding.y * 2;
