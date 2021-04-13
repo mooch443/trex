@@ -372,6 +372,23 @@ VideoOpener::VideoOpener()
                 _mini_bowl->set_scale(Vec2(scale.min()));
         }
         _screenshot_previous_size = Size2(0);
+        
+        if(_infos) {
+        _infos->auto_size(Margin{0, 0});
+        _infos->update_layout();
+        }
+        
+        if(_extra) {
+            _extra->auto_size(Margin{0,0});
+            _extra->update_layout();
+        }
+        
+        if(_horizontal) {
+            _horizontal->auto_size(Margin{0, 0});
+            _horizontal->update_layout();
+        }
+        
+        //select_file(_selected);
     });
     
     _file_chooser->set_tabs({
