@@ -182,7 +182,7 @@ GLFWwindow* GLImpl::window_handle() {
     return window;
 }
 
-LoopStatus GLImpl::update_loop(CrossPlatform::custom_function_t custom_loop) {
+LoopStatus GLImpl::update_loop(const CrossPlatform::custom_function_t& custom_loop) {
     LoopStatus status = LoopStatus::IDLE;
     glfwPollEvents();
     
@@ -194,7 +194,6 @@ LoopStatus GLImpl::update_loop(CrossPlatform::custom_function_t custom_loop) {
     
     if(new_frame_fn())
     {
-        
         {
             std::lock_guard guard(texture_mutex);
             for(auto & fn : _texture_updates)

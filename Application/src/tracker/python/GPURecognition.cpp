@@ -242,6 +242,12 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
 
 namespace track {
     namespace py = pybind11;
+
+    struct PackagedTask {
+        std::packaged_task<bool(void)> _task;
+        bool _can_run_before_init = false;
+    };
+
     std::shared_ptr<py::scoped_interpreter> guard = nullptr;
     pybind11::module numpy, TRex, _main;
     pybind11::dict* _locals = nullptr;
@@ -256,7 +262,7 @@ namespace track {
     std::map<Idx_t, std::set<long_t>> _sent_to_training;
     std::map<Idx_t, std::vector<Image::Ptr>> _test_data;
 
-    std::queue<std::packaged_task<bool()>> tasks;
+    std::vector<PackagedTask> tasks;
 
     std::thread* _network_update_thread = nullptr;
     std::condition_variable _update_condition;
@@ -286,6 +292,10 @@ namespace track {
     std::atomic_bool& PythonIntegration::python_initializing() {
         static std::atomic_bool _python_initializing = false;
         return _python_initializing;
+    }
+    std::atomic_bool& PythonIntegration::python_gpu_initialized() {
+        static std::atomic_bool _python_gpu_initialized = false;
+        return _python_gpu_initialized;
     }
     std::atomic_int& PythonIntegration::python_major_version() {
         static std::atomic_int _python_major_version = 0;
@@ -346,71 +356,60 @@ namespace track {
         }
     }
 
-std::shared_future<bool> PythonIntegration::reinit() {
-    if(!_initialize_future.valid()) {
-        _initialize_future = _initialize_promise.get_future().share();
-    }
-    
-    python_initializing() = true;
-    
+void PythonIntegration::reinit() {
     async_python_function([]() -> bool {
         using namespace py::literals;
+        python_gpu_initialized() = false;
+        
+        auto fail = [](const auto& e, int line){
+            Debug("Python runtime error (%s:%d): '%s'", __FILE_NO_PATH__, line, e.what());
+            python_gpu_initialized() = false;
+        };
         
         try {
-            _main = py::module::import("__main__");
-            _main.def("set_version", [](std::string x, bool has_gpu, std::string physical_name) {
-                Debug("set_version called with '%S' and '%S'", &x, &physical_name);
-                auto array = utils::split(x, ' ');
-                if(array.size() > 0) {
-                    array = utils::split(array.front(), '.');
-                    if(array.size() >= 1)
-                        python_major_version() = Meta::fromStr<int>(array[0]);
-                    if(array.size() > 1)
-                        python_minor_version() = Meta::fromStr<int>(array[1]);
-                }
-                
-                python_uses_gpu() = has_gpu;
-                python_gpu_name() = physical_name;
-            });
-            
-            TRex = _main.import("TRex");
-            
             if(_settings->map().get<bool>("recognition_enable").value()) {
-                try {
-                    auto cmd = utils::read_file("trex_init.py");
-                    py::exec(cmd);
-                } catch(const UtilsException& ex) {
-                    Warning("Error while executing 'trex_init.py'. Content: %s", ex.what());
-                }
+                async_python_function([fail](){
+                    try {
+                        auto cmd = utils::read_file("trex_init.py");
+                        py::exec(cmd);
+                        python_gpu_initialized() = true;
+                        
+                    } catch(const UtilsException& ex) {
+                        Warning("Error while executing 'trex_init.py'. Content: %s", ex.what());
+                        fail(ex, __LINE__);
+                        return false;
+                        
+                    } catch(py::error_already_set& e) {
+                        fail(e, __LINE__);
+                        e.restore();
+                        return false;
+                    }
+                    
+                    return true;
+                    
+                }, Flag::FORCE_ASYNC, true);
+                
             }
             
-            _locals = new py::dict("model"_a="None");
-            
-            python_initialized() = true;
-            python_initializing() = false;
-            _initialize_promise.set_value(true);
             return true;
             
         } catch(py::error_already_set &e) {
-            python_init_error() = e.what();
-            python_initializing() = false;
-            Debug("Python runtime error (%s:%d): '%s'", __FILE_NO_PATH__, __LINE__, e.what());
+            fail(e, __LINE__);
             e.restore();
-            
-            python_initialized() = false;
-            python_initializing() = false;
-            
-            //guard = nullptr;
-            _initialize_promise.set_value(false);
             return false;
         }
-    });
-    
-    return _initialize_future;
+        
+    }, Flag::DEFAULT, true);
 }
     
     void PythonIntegration::initialize() {
-        _network_update_thread = new std::thread([this](){
+        using namespace py::literals;
+        
+        if(!_initialize_future.valid()) {
+            _initialize_future = _initialize_promise.get_future().share();
+        }
+        
+        _network_update_thread = new std::thread([this]() -> void {
             cmn::set_thread_name("PythonIntegration::update");
             std::unique_lock<std::mutex> lock(_data_mutex);
             _saved_id = std::this_thread::get_id();
@@ -418,6 +417,18 @@ std::shared_future<bool> PythonIntegration::reinit() {
             python_initialized() = false;
             python_initializing() = true;
             _terminate = false;
+            
+            auto fail = [](const auto& e, int line){
+                python_init_error() = e.what();
+                python_initializing() = false;
+                Debug("Python runtime error (%s:%d): '%s'", __FILE_NO_PATH__, line, e.what());
+                
+                python_initialized() = false;
+                python_initializing() = false;
+                
+                //guard = nullptr;
+                _initialize_promise.set_value(false);
+            };
 
             try {
 #if defined(WIN32)
@@ -445,31 +456,91 @@ std::shared_future<bool> PythonIntegration::reinit() {
 #endif
 
                 py::initialize_interpreter();
+                
+                _main = py::module::import("__main__");
+                _main.def("set_version", [](std::string x, bool has_gpu, std::string physical_name) {
+#ifndef NDEBUG
+                    Debug("set_version called with '%S' and '%S'", &x, &physical_name);
+#endif
+                    auto array = utils::split(x, ' ');
+                    if(array.size() > 0) {
+                        array = utils::split(array.front(), '.');
+                        if(array.size() >= 1)
+                            python_major_version() = Meta::fromStr<int>(array[0]);
+                        if(array.size() > 1)
+                            python_minor_version() = Meta::fromStr<int>(array[1]);
+                    }
+                    
+                    python_uses_gpu() = has_gpu;
+                    python_gpu_name() = physical_name;
+                });
+                
+                TRex = _main.import("TRex");
+                _locals = new pybind11::dict("model"_a="None");
+                
+                PythonIntegration::execute("import sys\nset_version(sys.version, False, '')");
+                
+                python_initialized() = true;
+                python_initializing() = false;
+                _initialize_promise.set_value(true);
+                
+            } catch(const UtilsException& ex) {
+                Warning("Error while executing 'trex_init.py'. Content: %s", ex.what());
+                fail(ex, __LINE__);
+                return;
+                
+            } catch(py::error_already_set& e) {
+                fail(e, __LINE__);
+                e.restore();
+                return;
             }
             catch (...) {
                 python_init_error() = "Cannot initialize interpreter.";
                 python_initializing() = false;
+                python_initialized() = false;
                 Except("Cannot initialize the python interpreter.");
+                _initialize_promise.set_value(false);
                 return;
             }
             
-            reinit().get();
+            bool printed = false;
             
             while (!_terminate) {
                 while(!tasks.empty() && !_terminate) {
-                    auto task = std::move(tasks.front());
-                    tasks.pop();
+                    auto it = tasks.begin();
                     
-                    if(!python_initialized()) {
-                        if(!reinit().get()) {
-                            Warning("Cannot run python tasks while python is not initialized.");
+                    if(!python_gpu_initialized() && !tasks.front()._can_run_before_init)
+                    {
+                        for (; it != tasks.end(); ++it) {
+                            if(it->_can_run_before_init) {
+                                break;
+                            }
+                        }
+                        
+                        if(it == tasks.end()) {
+                            if(!printed) {
+                                Warning("Cannot run python tasks while python is not initialized.");
+                                printed = true;
+                            }
+                            
+                            lock.unlock();
+                            reinit();
+                            lock.lock();
                             continue;
                         }
                     }
                     
+                    if(it == tasks.end())
+                        continue;
+                    
+                    printed = false;
+                    
+                    auto task = std::move(*it);
+                    tasks.erase(it);
+                    
                     //Debug("Starting python task from queue (elements left: %d)...", tasks.size());
                     try {
-                        task();
+                        task._task();
                     } catch(py::error_already_set& e) {
                         Except("Python runtime exception: %s", e.what());
                         e.restore();
@@ -582,13 +653,15 @@ std::shared_future<bool> PythonIntegration::reinit() {
         return {indexes, values};
     }
     
-    std::future<bool> PythonIntegration::async_python_function(const std::function<bool ()> &fn)
+    std::future<bool> PythonIntegration::async_python_function(const std::function<bool ()> &fn, Flag flag, bool can_run_without_init)
     {
-        std::packaged_task<bool()> task(fn);
-        auto future = task.get_future();
-        if(std::this_thread::get_id() == _saved_id) {
+        PackagedTask task{std::packaged_task<bool()>(fn), can_run_without_init};
+        auto future = task._task.get_future();
+        if(flag != Flag::FORCE_ASYNC
+           && std::this_thread::get_id() == _saved_id)
+        {
             try {
-                task();
+                task._task();
             } catch (py::error_already_set &e) {
                 Except("Python runtime error: '%s'", e.what());
                 e.restore();
@@ -597,7 +670,7 @@ std::shared_future<bool> PythonIntegration::reinit() {
                 Except("Random exception");
             }
         } else {
-            tasks.push(std::move(task));
+            tasks.push_back(std::move(task));
             _update_condition.notify_one();
         }
         return future;
@@ -610,7 +683,7 @@ std::shared_future<bool> PythonIntegration::ensure_started() {
     
     if(!python_initialized() && !python_initializing() && !python_init_error().empty())
     {
-        async_python_function([]()->bool{return true;});
+        //async_python_function([]()->bool{return true;});
         
     } else if(!python_initialized()) {
         Warning("Python not yet initialized. Waiting...");

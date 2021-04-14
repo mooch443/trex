@@ -4,9 +4,10 @@
 
 namespace gui {
     SFLoop::SFLoop(DrawStructure& graph, Base* base,
-           const std::function<void(SFLoop&)>& custom_loop,
-           const std::function<void(SFLoop&)>& after_display)
-        : _base(base), _graph(graph), _after_display(after_display), _please_end(false)
+           const std::function<void(SFLoop&, gui::LoopStatus)>& custom_loop,
+           const std::function<void(SFLoop&)>& after_display,
+           const std::function<void(SFLoop&)>& idle_callback)
+        : _base(base), _graph(graph), _after_display(after_display), _idle_callback(idle_callback), _please_end(false)
     {
         SETTING(terminate) = false;
         bool _do_terminate = false;
@@ -28,23 +29,34 @@ namespace gui {
             }
         });
         
+        gui::LoopStatus status = gui::LoopStatus::UPDATED;
+        
         while (!_do_terminate && !_please_end) {
             tf::show();
             
-            custom_loop(*this);
+            if(custom_loop)
+                custom_loop(*this, status);
             
             if(_base) {
-                auto status = _base->update_loop();
-                if(status == gui::LoopStatus::END)
+                status = _base->update_loop();
+                if(status == gui::LoopStatus::END) {
                     SETTING(terminate) = true;
-                else if(status != gui::LoopStatus::UPDATED)
+                    
+                } else if(status != gui::LoopStatus::UPDATED) {
+                    if(_idle_callback)
+                        _idle_callback(*this);
                     std::this_thread::sleep_for(std::chrono::milliseconds(15));
+                    
+                } else {
+                    _time_since_last_update.reset();
+                }
+                
             } else {
                 std::lock_guard<std::recursive_mutex> guard(_graph.lock());
                 _graph.before_paint((Base*)nullptr);
             }
                 
-            {
+            if(_after_display) {
                 //std::unique_lock<std::recursive_mutex> guard(_graph.lock());
                 _after_display(*this);
             }

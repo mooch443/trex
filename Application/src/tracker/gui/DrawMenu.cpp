@@ -10,6 +10,7 @@
 #include <gui/types/Tooltip.h>
 #include <tracking/Individual.h>
 #include <misc/MemoryStats.h>
+#include <misc/CheckUpdates.h>
 
 namespace gui {
 
@@ -84,6 +85,7 @@ class DrawMenuPrivate {
         CONFIG,
         TRAINING,
         FACES,
+        CHECK_UPDATE,
         DEBUG,
         CLEAR,
         CHECK,
@@ -156,6 +158,8 @@ public:
             std::make_shared<TextItem>("save tracking data [S]", EXPORT),
             
             std::make_shared<TextItem>("load settings", LOAD_SETTINGS),
+            std::make_shared<TextItem>("check updates", CHECK_UPDATE),
+            
             //std::make_shared<TextItem>("training faces", FACES),
             std::make_shared<TextItem>("visual identification", TRAINING),
             std::make_shared<TextItem>("auto correct", CHECK),
@@ -174,6 +178,20 @@ public:
                 case LOAD:
                     gPtr->load_state(GUI::GUIType::GRAPHICAL);
                     break;
+                    
+                case CHECK_UPDATE: {
+                    gPtr->work().add_queue("", []() {
+                        auto status = CheckUpdates::perform(false).get();
+                        if(status == CheckUpdates::VersionStatus::OLD)
+                            CheckUpdates::display_update_dialog();
+                        else if(status == CheckUpdates::VersionStatus::NEWEST)
+                            GUI::instance()->gui().dialog("You own the newest available version (<nr>"+CheckUpdates::newest_version()+"</nr>).");
+                        else
+                            GUI::instance()->gui().dialog("There was an error checking for the newest version:\n\n<str>"+CheckUpdates::last_error()+"</str>\n\nPlease check your internet connection and try again. This also happens if you're checking for versions too often, or if GitHub changed their API (in which case you should probably update).", "Error");
+                    });
+                    
+                    break;
+                }
                     
                 case LOAD_SETTINGS:
                     gPtr->work().add_queue("", [gPtr](){

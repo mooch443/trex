@@ -53,7 +53,7 @@ namespace gui {
         update_rectangle();
         
         SFLoop loop(*_graph, _base.get(),
-        [this, &grabber, &scale, &okay](SFLoop& loop){
+        [this, &grabber, &scale, &okay](SFLoop& loop, LoopStatus status){
             std::unique_lock<std::recursive_mutex> guard(_graph->lock());
             auto desktop = _base->window_dimensions();
             auto size = _video_size;

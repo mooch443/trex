@@ -82,6 +82,7 @@ namespace gui {
             set_graph(base);
             
             auto ptr = new impl_t([this](){
+                //! draw loop
                 if(_graph == NULL)
                     return;
                 
@@ -92,8 +93,8 @@ namespace gui {
                 if(cache)
                     cache->set_changed(false);
                 
-                //_after_display();
             }, [this]() -> bool {
+                //! new frame function, tells the drawing system whether an update is required
                 std::lock_guard<std::recursive_mutex> lock(_graph->lock());
                 _graph->before_paint(this);
                 

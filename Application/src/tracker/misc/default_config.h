@@ -55,6 +55,9 @@ namespace default_config {
 
     ENUM_CLASS(output_invalid_t, inf, nan)
     ENUM_CLASS_HAS_DOCS(output_invalid_t)
+
+    ENUM_CLASS(app_update_check_t, none, manually, automatically)
+    ENUM_CLASS_HAS_DOCS(app_update_check_t)
 }
 
 namespace gui {

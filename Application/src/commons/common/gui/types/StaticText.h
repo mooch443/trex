@@ -23,20 +23,16 @@ namespace gui {
         
     public:
         struct RichString {
-            std::string str;
+            std::string str, parsed;
             Font font;
             Vec2 pos;
             Color clr;
             
-            RichString(const std::string& str = "", const Font& font = Font(), const Vec2& pos = Vec2(), const Color& clr = Color())
-                : str(str), font(font), pos(pos), clr(clr)
-            {}
+            RichString(const std::string& str = "", const Font& font = Font(), const Vec2& pos = Vec2(), const Color& clr = Color());
             
-            void convert(std::shared_ptr<Text> text) const {
-                text->set_color(clr);
-                text->set_font(font);
-                text->set_txt(str);
-            }
+            static std::string parse(const std::string& txt);
+            
+            void convert(std::shared_ptr<Text> text) const;
         };
         
     public:
@@ -45,14 +41,8 @@ namespace gui {
             texts.clear();
         }
         
-        void set_txt(const std::string& txt) {
-            auto t = utils::find_replace(txt, "<br/>", "\n");
-            if(_txt == t)
-                return;
-            
-            _txt = t;
-            update_text();
-        }
+        void set_txt(const std::string& txt);
+        
         void set_base_text_color(const Color& c) {
             if(c == _base_text_color)
                 return;

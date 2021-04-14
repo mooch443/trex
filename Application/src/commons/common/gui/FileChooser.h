@@ -90,12 +90,13 @@ public:
     FileChooser(const file::Path& start, const std::string& extension,
                 std::function<void(const file::Path&, std::string)> callback,
                 std::function<void(const file::Path&, std::string)> on_select_callback = nullptr);
+    virtual ~FileChooser() {}
     
     void set_tabs(const std::vector<Settings>&);
     void set_tab(std::string);
     void open();
     void execute(std::function<void()>&&);
-    void update_size();
+    virtual void update_size();
     void on_update(std::function<void(DrawStructure&)>&& fn) { _on_update = std::move(fn); }
     void on_open(std::function<void(file::Path)>&& fn) { _on_open = std::move(fn); }
     void on_tab_change(std::function<void(std::string)>&& fn) { _on_tab_change = std::move(fn); }

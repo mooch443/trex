@@ -21,6 +21,29 @@ TRex parameters
 
 
 
+.. function:: app_check_for_updates(app_update_check_t)
+
+	**default value:** none
+
+	**possible values:**
+		- `none`: No status has been set yet and the program will ask the user.
+		- `manually`: Manually check for updates, do not automatically check for them online.
+		- `automatically`: Automatically check for updates periodically (once per week).
+
+	If enabled, the application will regularly check for updates online (`<https://api.github.com/repos/mooch443/trex/releases>`_).
+
+
+
+
+.. function:: app_last_update_check(uint64)
+
+	**default value:** 0
+
+
+	Time-point of when the application has last checked for an update.
+
+
+
 .. function:: app_name(string)
 
 	**default value:** "TRex"
@@ -1971,7 +1994,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1-62-g2b956f5"
+	**default value:** "v1.1.2-20-g45ac929"
 
 
 	Current application version.

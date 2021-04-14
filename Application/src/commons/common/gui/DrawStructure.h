@@ -57,6 +57,7 @@ namespace gui {
         }
         
         void set_parent(SectionInterface* parent) override;
+        void set_closed();
         
     protected:
         friend class DrawStructure;

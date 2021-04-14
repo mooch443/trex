@@ -11,6 +11,11 @@ namespace track {
 
     class TREX_EXPORT PythonIntegration {
     public:
+        enum Flag {
+            FORCE_ASYNC,
+            DEFAULT
+        };
+        
         PythonIntegration();
         ~PythonIntegration();
         
@@ -21,6 +26,7 @@ namespace track {
         
         static std::atomic_bool& python_initialized();
         static std::atomic_bool& python_initializing();
+        static std::atomic_bool& python_gpu_initialized();
         static std::atomic_int& python_major_version();
         static std::atomic_int& python_minor_version();
         static std::atomic_int& python_uses_gpu();
@@ -31,7 +37,7 @@ namespace track {
         void initialize();
 
         static std::tuple<std::vector<float>, std::vector<float>> probabilities(const std::vector<Image::Ptr>& images);
-        static std::future<bool> async_python_function(const std::function<bool()>& fn);
+        static std::future<bool> async_python_function(const std::function<bool()>& fn, Flag = Flag::DEFAULT, bool can_run_without_init = false);
 
         static void set_variable(const std::string&, const std::vector<Image::Ptr>&, const std::string & m = "");
         static void set_variable(const std::string&, const std::vector<long_t>&, const std::string& m = "", const std::vector<size_t>& shape = {}, const std::vector<size_t>& strides = {});
@@ -63,7 +69,7 @@ namespace track {
         
         static void quit();
         static std::shared_future<bool> ensure_started();
-        static std::shared_future<bool> reinit();
+        static void reinit();
         
     private:
         void shutdown();

@@ -367,6 +367,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
         //if(_proximity_bar.image.rows && _proximity_bar.image.cols) {
         if(_bar == NULL) {
             _bar = std::make_unique<ExternalImage>(std::make_unique<Image>(), pos);
+            _bar->set_color(White.alpha(GUI_SETTINGS(gui_timeline_alpha)));
             _bar->set_clickable(true);
             _bar->on_hover([this](Event e) {
                 if(!GUI::instance())
@@ -431,7 +432,6 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
             //_proximity_bar.changed = false;
         }*/
         
-        _bar->set_color(White.alpha(150));
         _bar->set_pos(pos);
         
         bool changed = false;

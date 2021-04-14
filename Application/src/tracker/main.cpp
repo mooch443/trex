@@ -37,6 +37,7 @@
 #include <misc/Output.h>
 #include <tracking/Recognition.h>
 #include <gui/WorkProgress.h>
+#include <misc/CheckUpdates.h>
 
 #include <tracking/SplitBlob.h>
 
@@ -96,7 +97,7 @@ double data_sec = 0.0, data_kbytes = 0.0;
 double frames_sec = 0, frames_count = 0;
 
 ENUM_CLASS(Arguments,
-           d,dir,i,input,s,settings,nowindow,load,h,fs,p,r)
+           d,dir,i,input,s,settings,nowindow,load,h,fs,p,r,update,quiet)
 
 #ifndef WIN32
 struct sigaction sigact;
@@ -224,7 +225,6 @@ int main(int argc, char** argv)
 #if TRACKER_GLOBAL_THREADS
     Warning("Using only %d threads (-DTRACKER_GLOBAL_THREADS).", TRACKER_GLOBAL_THREADS);
 #endif
-    Debug("Starting Application...");
 #if __linux__
     XInitThreads();
 #endif
@@ -551,6 +551,20 @@ int main(int argc, char** argv)
                     exit(0);
                     break;
                     
+                case Arguments::update: {
+                    auto status = CheckUpdates::perform(false).get();
+                    if(status == CheckUpdates::VersionStatus::OLD) {
+                        CheckUpdates::display_update_dialog();
+                    } else if(status == CheckUpdates::VersionStatus::NEWEST)
+                        Debug("You have the newest version (%S).", &CheckUpdates::newest_version());
+                     else
+                         Error("Error checking for the newest version: '%S'. Please check your internet connection and try again.", &CheckUpdates::last_error());
+                    
+                    PythonIntegration::quit();
+                    exit(0);
+                    break;
+                }
+                    
                 default:
                     Warning("Unknown option '%S' with value '%S'", &option.name, &option.value);
                     break;
@@ -570,13 +584,11 @@ int main(int argc, char** argv)
     if(SETTING(filename).value<Path>().empty()) {
         cmd.load_settings();
         
-        std::unique_ptr<gui::VideoOpener> opener;
-
         if((GlobalSettings::map().has("nowindow") ? SETTING(nowindow).value<bool>() : false) == false) {
             SETTING(settings_file) = file::Path();
             
-            opener = std::make_unique<gui::VideoOpener>();
-            opening_result = opener->_result;
+            gui::VideoOpener opener;
+            opening_result = opener._result;
         }
 
         if (!opening_result.selected_file.empty()) {
@@ -591,11 +603,14 @@ int main(int argc, char** argv)
             }
             else {
                 auto wd = SETTING(wd).value<file::Path>();
-                Debug("Opening a video file: '%S', '%S'", &opening_result.tab.name, &wd.str());
+                Debug("Opening a video file: '%S' (wd: '%S')", &opening_result.tab.name, &wd.str());
 #if defined(__APPLE__)
                 wd = wd / ".." / ".." / ".." / "TGrabs.app" / "Contents" / "MacOS" / "TGrabs";
 #else
-                wd = wd / "tgrabs";
+                if (wd.empty())
+                    wd = "tgrabs";
+                else
+                    wd = wd / "tgrabs";
 #endif
                 auto exec = wd.str() + " " + opening_result.cmd;
                 Debug("Executing '%S'", &exec);
@@ -1232,6 +1247,8 @@ int main(int argc, char** argv)
     gui.set_analysis(analysis.get());
     gui_lock.unlock();
     
+    CheckUpdates::init();
+    
     auto callback = "TRex::main";
     GlobalSettings::map().register_callback(callback, [&analysis, &gui, callback](sprite::Map::Signal signal, sprite::Map& map, const std::string& key, const sprite::PropertyType& value)
     {
@@ -1379,10 +1396,10 @@ int main(int argc, char** argv)
     if(go_fullscreen)
         gui.toggle_fullscreen();
     
-    gui::SFLoop loop(gui.gui(), imgui_base, [&](gui::SFLoop&){
+    gui::SFLoop loop(gui.gui(), imgui_base, [&](gui::SFLoop&, gui::LoopStatus status){
         {
             std::unique_lock<std::recursive_mutex> guard(gui.gui().lock());
-            gui.run_loop(gui.gui());
+            gui.run_loop(status);
         }
         
         if(pause_stuff) {
@@ -1598,9 +1615,71 @@ int main(int argc, char** argv)
         } catch(const std::exception& ex) {
             Except("Exception while recording ('%s').", ex.what());
         }
+    },
+    [&](gui::SFLoop& loop){
+        static int last_seconds = -1;
+        int seconds = (int)loop.time_since_last_update().elapsed();
+        if(seconds != last_seconds) {
+            if(seconds > 1 && !CheckUpdates::user_has_been_asked()) {
+                static bool currently_asking = false;
+                if(!currently_asking) {
+                    currently_asking = true;
+                    GUI::instance()->gui().dialog([](gui::Dialog::Result r) {
+                        if(r == gui::Dialog::OKAY) {
+                            SETTING(app_check_for_updates) = default_config::app_update_check_t::automatically;
+                        } else if(r == gui::Dialog::ABORT) {
+                            SETTING(app_check_for_updates) = default_config::app_update_check_t::manually;
+                            
+                            auto website = "https://github.com/mooch443/trex/releases";
+                #if __linux__
+                            auto pid = fork();
+                            if (pid == 0) {
+                                execl("/usr/bin/xdg-open", "xdg-open", website, (char *)0);
+                                exit(0);
+                            }
+                #elif __APPLE__
+                            auto pid = fork();
+                            if (pid == 0) {
+                                execl("/usr/bin/open", "open", website, (char *)0);
+                                exit(0);
+                            }
+                #elif defined(WIN32)
+                            ShellExecute(
+                                NULL,
+                                "open",
+                                website,
+                                NULL,
+                                NULL,
+                                SW_SHOWNORMAL
+                            );
+                #endif
+                        } else {
+                            SETTING(app_check_for_updates) = default_config::app_update_check_t::manually;
+                        }
+                        
+                        try {
+                            // write changed date to file 'update_check' in the resource folder
+                            std::string str = SETTING(app_last_update_check).get().valueString()+"\n"+SETTING(app_check_for_updates).get().valueString();
+                            auto f = fopen("update_check", "wb");
+                            if(f) {
+                                fwrite(str.c_str(), sizeof(char), str.length(), f);
+                                fclose(f);
+                            }
+                            
+                        } catch(...) { }
+                        
+                    }, "Do you want to check for updates automatically? Automatic checks are performed in the background weekly if you've been idle for a while. Otherwise you can still check manually by opening the top-right menu and choosing <b><str>check updates</str></b>, or you can super-manually go to <ref>https://github.com/mooch443/trex</ref> and check for the latest releases yourself.", "Check for updates", "Weekly", "Super Manually", "Manually");
+                }
+                
+            } else if(seconds > 1) {
+                CheckUpdates::this_is_a_good_time();
+            }
+        }
+        last_seconds = seconds;
     });
     
     Debug("Preparing for shutdown...");
+    CheckUpdates::cleanup();
     Recognition::notify();
     
     {

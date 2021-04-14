@@ -47,6 +47,7 @@ WorkProgress::WorkProgress()
     _thread = new std::thread([&]() {
         std::unique_lock<std::mutex> lock(_queue_lock);
         set_thread_name("GUI::_work_thread");
+        _work_thread_id = std::this_thread::get_id();
         
         while (!_terminate_threads) {
             _condition.wait_for(lock, std::chrono::seconds(1));
@@ -98,6 +99,10 @@ WorkProgress::~WorkProgress() {
     
     _thread->join();
     delete _thread;
+}
+
+bool WorkProgress::is_this_in_queue() const {
+    return std::this_thread::get_id() == _work_thread_id;
 }
 
 void WorkProgress::add_queue(const std::string& message, const std::function<void()>& fn, const std::string& descr, bool abortable)

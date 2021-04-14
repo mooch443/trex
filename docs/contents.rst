@@ -68,6 +68,7 @@ Whereas other use-cases are:
    
    install
    run
+   update
    examples
    gui
    batch
