@@ -68,7 +68,7 @@ namespace gui {
         
         Tracker::set_of_individuals_t _registered_callback;
         
-        std::map<Idx_t, long_t> fish_selected_blobs;
+        std::map<Idx_t, int64_t> fish_selected_blobs;
         Tracker::set_of_individuals_t active;
         //std::vector<std::shared_ptr<gui::ExternalImage>> blob_images;
         std::vector<std::shared_ptr<SimpleBlob>> raw_blobs;

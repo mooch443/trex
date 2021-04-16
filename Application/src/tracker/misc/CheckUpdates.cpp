@@ -41,6 +41,11 @@ std::string current_version() {
     return utils::split(utils::split(v, 'v').back(), '-').front();
 }
 
+std::string last_asked_version() {
+    auto v = SETTING(app_last_update_version).value<std::string>();
+    return v;
+}
+
 void cleanup() {
     std::unique_lock guard(_mutex);
     if(_thread) {
@@ -66,10 +71,14 @@ void init() {
         }
         contents = utils::read_file("update_check");
         auto array = utils::split(contents, '\n');
-        if (array.size() != 2)
-            U_EXCEPTION("Array does not have the right amount of elements ('%S', %lu).", &contents, array.size());
+        if (array.size() != 3) {
+            file::Path("update_check").delete_file();
+            U_EXCEPTION("Array does not have the right amount of elements ('%S', %lu). Deleting file.", &contents, array.size());
+        }
         SETTING(app_last_update_check) = Meta::fromStr<uint64_t>(array.front());
-        SETTING(app_check_for_updates) = Meta::fromStr<default_config::app_update_check_t::Class>(array.back());
+        SETTING(app_check_for_updates) = Meta::fromStr<default_config::app_update_check_t::Class>(array.at(1));
+        SETTING(app_last_update_version) = array.back();
+        
     } catch(const UtilsException& ex) {
         Except("Utils Exception: '%s'", ex.what());
     } catch(const std::exception& ex) {
@@ -158,6 +167,14 @@ void display_update_dialog() {
     }, "The newest available version is <nr>"+CheckUpdates::newest_version()+"</nr>. You have version <str>"+CheckUpdates::current_version()+"</str>. Do you wish to see update instructions?", "Update available", "Yes", "No");
 }
 
+void write_version_file() {
+    // write changed date to file 'update_check' in the resource folder
+    std::string str = SETTING(app_last_update_check).get().valueString()+"\n"+SETTING(app_check_for_updates).get().valueString()+"\n"+SETTING(app_last_update_version).get().valueString();
+    auto f = fopen("update_check", "wb");
+    fwrite(str.c_str(), sizeof(char), str.length(), f);
+    fclose(f);
+}
+
 void update_loop() {
     using namespace default_config;
     
@@ -190,18 +207,14 @@ void update_loop() {
             try {
                 auto status = perform(false).get();
                 if(status != VersionStatus::NONE) {
-                    {
-                        // write changed date to file 'update_check' in the resource folder
-                        std::string str = SETTING(app_last_update_check).get().valueString()+"\n"+SETTING(app_check_for_updates).get().valueString();
-                        auto f = fopen("update_check", "wb");
-                        fwrite(str.c_str(), sizeof(char), str.length(), f);
-                        fclose(f);
-                    }
-                    
+                    SETTING(app_last_update_version) = std::string(newest_version());
+                    write_version_file();
                     _last_check_success = true;
                     
                     if(status == VersionStatus::NEWEST) {
                         Debug("[CHECK_UPDATES] Already have the newest version (%S).", &newest_version());
+                    } else if(status == VersionStatus::ALREADY_ASKED) {
+                        Debug("[CHECK_UPDATES] There is a new version available (%S), but you have already acknowledged this. If you want to see instructions again, please go to the top-right menu -> check updates.");
                     } else {
                         display_update_dialog();
                     }
@@ -250,7 +263,10 @@ std::future<VersionStatus> perform(bool manually_triggered) {
             ptr->set_value(VersionStatus::NEWEST);
             
         } else {
-            ptr->set_value(VersionStatus::OLD);
+            if(v == last_asked_version())
+                ptr->set_value(VersionStatus::ALREADY_ASKED); // user has already been asked for this version
+            else
+                ptr->set_value(VersionStatus::OLD);
         }
     };
     

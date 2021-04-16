@@ -124,7 +124,8 @@ public:
     constexpr const char * name() const { return _names::str()[(size_t)_value]; }
     explicit constexpr operator const char*() const { return name(); }
     //operator std::string() const { return std::string(name()); }
-    constexpr uint32_t toInt() const { return (uint32_t)_value; }
+    //constexpr uint32_t toInt() const { return (uint32_t)_value; }
+    constexpr explicit operator uint32_t() const { return (uint32_t)_value; }
     constexpr operator ValueType() const { return _value; }
     constexpr const ValueType& value() const { return _value; }
     
@@ -243,7 +244,7 @@ namespace std
     {
         size_t operator()(const Enum<ValueType, N, names>& k) const
         {
-            return std::hash<uint32_t>{}(k.toInt());
+            return std::hash<uint32_t>{}((uint32_t)k);
         }
     };
 }

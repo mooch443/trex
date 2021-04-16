@@ -44,6 +44,15 @@ TRex parameters
 
 
 
+.. function:: app_last_update_version(string)
+
+	**default value:** ""
+
+
+	
+
+
+
 .. function:: app_name(string)
 
 	**default value:** "TRex"

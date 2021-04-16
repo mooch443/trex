@@ -553,11 +553,12 @@ int main(int argc, char** argv)
                     
                 case Arguments::update: {
                     auto status = CheckUpdates::perform(false).get();
-                    if(status == CheckUpdates::VersionStatus::OLD) {
+                    if(status == CheckUpdates::VersionStatus::OLD || status == CheckUpdates::VersionStatus::ALREADY_ASKED)
+                    {
                         CheckUpdates::display_update_dialog();
-                    } else if(status == CheckUpdates::VersionStatus::NEWEST)
+                    } else if(status == CheckUpdates::VersionStatus::NEWEST) {
                         Debug("You have the newest version (%S).", &CheckUpdates::newest_version());
-                     else
+                    } else
                          Error("Error checking for the newest version: '%S'. Please check your internet connection and try again.", &CheckUpdates::last_error());
                     
                     PythonIntegration::quit();
@@ -1658,13 +1659,7 @@ int main(int argc, char** argv)
                         }
                         
                         try {
-                            // write changed date to file 'update_check' in the resource folder
-                            std::string str = SETTING(app_last_update_check).get().valueString()+"\n"+SETTING(app_check_for_updates).get().valueString();
-                            auto f = fopen("update_check", "wb");
-                            if(f) {
-                                fwrite(str.c_str(), sizeof(char), str.length(), f);
-                                fclose(f);
-                            }
+                            CheckUpdates::write_version_file();
                             
                         } catch(...) { }
                         

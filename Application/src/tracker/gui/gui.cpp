@@ -735,121 +735,94 @@ void GUI::run_loop(gui::LoopStatus status) {
 }
 
 void GUI::do_recording() {
-    if(_recording && _recording_frame != _last_recording_frame && _base) {
-        assert(_base->frame_recording());
-        static Timing timing("recording_timing");
-        TakeTiming take(timing);
-        
+    if(!_recording || _recording_frame == _last_recording_frame || !_base)
+        return;
+    
+    assert(_base->frame_recording());
+    static Timing timing("recording_timing");
+    TakeTiming take(timing);
+    
+    if(_last_recording_frame == -1) {
         _last_recording_frame = _recording_frame;
-        auto image = _base->current_frame_buffer();
-        if(!image || image->empty() || !image->cols || !image->rows) {
-            Warning("Expected image, but there is none.");
-            return;
+        return; // skip first frame
+    }
+    _last_recording_frame = _recording_frame;
+    
+    auto image = _base->current_frame_buffer();
+    if(!image || image->empty() || !image->cols || !image->rows) {
+        Warning("Expected image, but there is none.");
+        return;
+    }
+    
+    auto mat = image->get();
+    
+    if(_recording_capture) {
+        static cv::Mat output;
+        auto bounds = Bounds(0, 0, _recording_size.width, _recording_size.height);
+        if(output.size() != _recording_size) {
+            output = cv::Mat::zeros(_recording_size.height, _recording_size.width, CV_8UC3);
         }
         
-        auto mat = image->get();
+        auto input_bounds = bounds;
+        input_bounds.restrict_to(Bounds(mat));
+        auto output_bounds = input_bounds;
+        output_bounds.restrict_to(Bounds(output));
+        input_bounds.size() = output_bounds.size();
         
-        if(_recording_capture) {
-            static cv::Mat output;
-            auto bounds = Bounds(0, 0, _recording_size.width, _recording_size.height);
-            if(output.size() != _recording_size) {
-                output = cv::Mat::zeros(_recording_size.height, _recording_size.width, CV_8UC3);
-            }
-            
-            auto input_bounds = bounds;
-            input_bounds.restrict_to(Bounds(mat));
-            auto output_bounds = input_bounds;
-            output_bounds.restrict_to(Bounds(output));
-            input_bounds.size() = output_bounds.size();
-            
-            if(output_bounds.size() != Size2(output))
-                output.mul(cv::Scalar(0));
-            
-            cv::cvtColor(mat(input_bounds), output(output_bounds), cv::COLOR_RGBA2RGB);
-            _recording_capture->write(output);
-            
-        } else {
-            std::stringstream ss;
-            ss << std::setw(6) << std::setfill('0') << _recording_frame << "." << _recording_format.name();
-            //image.saveToFile((_recording_path / ss.str()).str());
-            auto filename = _recording_path / ss.str();
-            
-            if(_recording_format == "jpg") {
-                cv::Mat output;
-                cv::cvtColor(mat, output, cv::COLOR_RGBA2RGB);
-                if(!cv::imwrite(filename.str(), output, { cv::IMWRITE_JPEG_QUALITY, 100 })) {
-                    Except("Cannot save to '%S'. Stopping recording.", &filename.str());
-                    _recording = false;
-                }
-                
-            } else if(_recording_format == "png") {
-                static std::vector<uchar> binary;
-                static Image image;
-                if(image.cols != (uint)mat.cols || image.rows != (uint)mat.rows)
-                    image.create(mat.rows, mat.cols, 4);
-                
-                cv::Mat output = image.get();
-                cv::cvtColor(mat, output, cv::COLOR_BGRA2RGBA);
-                
-                to_png(image, binary);
-                
-                FILE *f = fopen(filename.str().c_str(), "wb");
-                if(f) {
-                    fwrite(binary.data(), sizeof(char), binary.size(), f);
-                    fclose(f);
-                } else {
-                    Except("Cannot write to '%S'. Stopping recording.", &filename.str());
-                    _recording = false;
-                }
-            }
-        }
+        if(output_bounds.size() != Size2(output))
+            output.mul(cv::Scalar(0));
         
-        static Timer last_print;
-        if(last_print.elapsed() > 2) {
-            DurationUS duration{static_cast<uint64_t>((_recording_frame - _recording_start) / float(FAST_SETTINGS(frame_rate)) * 1000) * 1000};
-            auto str = ("frame "+Meta::toStr(_recording_frame)+"/"+Meta::toStr(_cache.tracked_frames.end)+" length: "+Meta::toStr(duration));
-            auto playback_speed = GUI_SETTINGS(gui_playback_speed);
-            if(playback_speed > 1) {
-                duration.timestamp = uint64_t(double(duration.timestamp) / double(playback_speed));
-                str += " (real: "+Meta::toStr(duration)+")";
+        cv::cvtColor(mat(input_bounds), output(output_bounds), cv::COLOR_RGBA2RGB);
+        _recording_capture->write(output);
+        
+    } else {
+        std::stringstream ss;
+        ss << std::setw(6) << std::setfill('0') << _recording_frame << "." << _recording_format.name();
+        //image.saveToFile((_recording_path / ss.str()).str());
+        auto filename = _recording_path / ss.str();
+        
+        if(_recording_format == "jpg") {
+            cv::Mat output;
+            cv::cvtColor(mat, output, cv::COLOR_RGBA2RGB);
+            if(!cv::imwrite(filename.str(), output, { cv::IMWRITE_JPEG_QUALITY, 100 })) {
+                Except("Cannot save to '%S'. Stopping recording.", &filename.str());
+                _recording = false;
             }
-            Debug("[rec] %S", &str);
-            last_print.reset();
+            
+        } else if(_recording_format == "png") {
+            static std::vector<uchar> binary;
+            static Image image;
+            if(image.cols != (uint)mat.cols || image.rows != (uint)mat.rows)
+                image.create(mat.rows, mat.cols, 4);
+            
+            cv::Mat output = image.get();
+            cv::cvtColor(mat, output, cv::COLOR_BGRA2RGBA);
+            
+            to_png(image, binary);
+            
+            FILE *f = fopen(filename.str().c_str(), "wb");
+            if(f) {
+                fwrite(binary.data(), sizeof(char), binary.size(), f);
+                fclose(f);
+            } else {
+                Except("Cannot write to '%S'. Stopping recording.", &filename.str());
+                _recording = false;
+            }
         }
     }
-#if WITH_SFML
     
-    
-    float interface_scale = 1 / gui::interface_scale();
-    sf::Text text("Saving to "+_recording_path.str(), SFBase::font(), 18 / interface_scale);
-    sf::Text subtext("frame "+Meta::toStr(_recording_frame)+" length:"+Meta::toStr(duration), SFBase::font(), 17 / interface_scale);
-    
-    text.setFillColor(White);
-    subtext.setFillColor(Color(200,200,200,255));
-    text.setScale(_gui.scale().reciprocal());
-    subtext.setScale(_gui.scale().reciprocal());
-    
-    text.setPosition((window().getView().getSize().x - text.getGlobalBounds().width) * 0.5, (window().getView().getSize().y - text.getGlobalBounds().height) * 0.5);
-    subtext.setPosition(text.getGlobalBounds().left + (text.getGlobalBounds().width - subtext.getGlobalBounds().width) * 0.5, text.getGlobalBounds().top + text.getGlobalBounds().height + 5 * interface_scale);
-    
-    Size2 combined(text.getGlobalBounds().width, text.getGlobalBounds().height);
-    combined = Size2(max(combined.width, subtext.getGlobalBounds().width), combined.height + subtext.getGlobalBounds().height);
-    combined += Vec2(0, subtext.getGlobalBounds().top - (text.getGlobalBounds().top + text.getGlobalBounds().height));
-    Vec2 center(text.getGlobalBounds().left, text.getGlobalBounds().top);
-    center += combined * 0.5;
-    
-    sf::RectangleShape rect(combined + Size2(20, 20).mul(interface_scale));
-    rect.setFillColor(Black.alpha(150));
-    rect.setOutlineColor(Gray.alpha(50));
-    rect.setOutlineThickness(1);
-    rect.setPosition(center.x - rect.getGlobalBounds().width * 0.5 ,
-                     center.y - rect.getGlobalBounds().height * 0.5);
-    
-    _base->window().draw(rect);
-    _base->window().draw(subtext);
-    _base->window().draw(text);
-    _base->window().display();
-#endif
+    static Timer last_print;
+    if(last_print.elapsed() > 2) {
+        DurationUS duration{static_cast<uint64_t>((_recording_frame - _recording_start) / float(FAST_SETTINGS(frame_rate)) * 1000) * 1000};
+        auto str = ("frame "+Meta::toStr(_recording_frame)+"/"+Meta::toStr(_cache.tracked_frames.end)+" length: "+Meta::toStr(duration));
+        auto playback_speed = GUI_SETTINGS(gui_playback_speed);
+        if(playback_speed > 1) {
+            duration.timestamp = uint64_t(double(duration.timestamp) / double(playback_speed));
+            str += " (real: "+Meta::toStr(duration)+")";
+        }
+        Debug("[rec] %S", &str);
+        last_print.reset();
+    }
 }
 
 bool GUI::is_recording() const {
@@ -858,7 +831,8 @@ bool GUI::is_recording() const {
 
 void GUI::start_recording() {
     if(_base) {
-        _recording_start = frame();
+        _recording_start = frame()+1;
+        _last_recording_frame = -1;
         _recording = true;
         _base->set_frame_recording(true);
         
@@ -898,17 +872,18 @@ void GUI::start_recording() {
         Debug("Clip index is %d. Starting at frame %d.", max_number, frame());
         
         frames = frames / ("clip" + Meta::toStr(max_number));
-        cv::Size size(_base->window_dimensions());
+        cv::Size size(_base && dynamic_cast<IMGUIBase*>(_base) ? static_cast<IMGUIBase*>(_base)->real_dimensions() : _base->window_dimensions());
         
         using namespace default_config;
         auto format = SETTING(gui_recording_format).value<gui_recording_format_t::Class>();
         
         if(format == gui_recording_format_t::avi) {
+            auto original_dims = size;
             if(size.width % 2 > 0)
                 size.width -= size.width % 2;
             if(size.height % 2 > 0)
                 size.height -= size.height % 2;
-            Debug("Trying to record with size %dx%d instead of %fx%f @ %d", size.width, size.height, _base->window_dimensions().width, _base->window_dimensions().height, FAST_SETTINGS(frame_rate));
+            Debug("Trying to record with size %dx%d instead of %fx%f @ %d", size.width, size.height, original_dims.width, original_dims.height, FAST_SETTINGS(frame_rate));
             
             frames = frames.add_extension("avi").str();
             _recording_capture = new cv::VideoWriter(frames.str(),
@@ -3089,7 +3064,7 @@ gui::mode_t::Class GUI::mode() const {
 }
 
 void GUI::update_display_blobs(bool draw_blobs, Section* fishbowl) {
-    if(_cache.display_blobs.size() != _cache.raw_blobs.size() && draw_blobs)
+    if((_cache.raw_blobs_dirty() || _cache.display_blobs.size() != _cache.raw_blobs.size()) && draw_blobs)
     {
         static std::mutex vector_mutex;
         auto bowl = fishbowl->global_transform();

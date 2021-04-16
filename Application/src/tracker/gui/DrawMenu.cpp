@@ -182,7 +182,7 @@ public:
                 case CHECK_UPDATE: {
                     gPtr->work().add_queue("", []() {
                         auto status = CheckUpdates::perform(false).get();
-                        if(status == CheckUpdates::VersionStatus::OLD)
+                        if(status == CheckUpdates::VersionStatus::OLD || status == CheckUpdates::VersionStatus::ALREADY_ASKED)
                             CheckUpdates::display_update_dialog();
                         else if(status == CheckUpdates::VersionStatus::NEWEST)
                             GUI::instance()->gui().dialog("You own the newest available version (<nr>"+CheckUpdates::newest_version()+"</nr>).");

@@ -1459,6 +1459,12 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
         return _last_framebuffer_size;
     }
 
+Size2 IMGUIBase::real_dimensions() {
+    if(_dpi_scale > 0)
+        return _last_framebuffer_size.div(_dpi_scale);
+    return _last_framebuffer_size;
+}
+
     Event IMGUIBase::toggle_fullscreen(DrawStructure &graph) {
         static int _wndSize[2];
         static int _wndPos[2];

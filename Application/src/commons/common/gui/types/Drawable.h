@@ -65,6 +65,8 @@ namespace gui {
         std::unordered_map<const Base*, CacheObject::Ptr> _cache;
         
         std::unordered_map<std::string, std::tuple<void*, std::function<void(void*)>>> _custom_data;
+        std::unordered_set<uchar> _custom_tags;
+        
         GETTER_SETTER(std::string, name)
         
     public:
@@ -82,6 +84,15 @@ namespace gui {
                 return std::get<0>(it->second);
             }
             return NULL;
+        }
+        
+        template<typename T> bool tagged(T tag) const { return _custom_tags.count((uint32_t)tag); }
+        template<typename T> void tag(T t) { if(!tagged(t)) _custom_tags.insert((uint32_t)t); }
+        template<typename T>
+        void untag(T t) {
+            auto it = _custom_tags.find((uint32_t)t);
+            if(it != _custom_tags.end())
+                _custom_tags.erase(it);
         }
         
     /**

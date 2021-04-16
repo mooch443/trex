@@ -130,6 +130,8 @@ namespace gui {
     }
     
     void GUICache::set_redraw() {
+        if(GUI::instance())
+            GUI::instance()->gui().set_dirty(nullptr);
         _dirty = true;
     }
     
@@ -141,6 +143,7 @@ namespace gui {
                 set_blobs_dirty();
             else if(mode == mode_t::tracking)
                 set_tracking_dirty();
+            set_raw_blobs_dirty();
         }
     }
     
