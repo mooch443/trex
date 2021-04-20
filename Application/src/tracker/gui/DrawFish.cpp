@@ -179,6 +179,44 @@ CREATE_STRUCT(CachedGUIOptions,
             midline = midline->normalize();
         }*/
         
+        std::vector<Vec2> points;
+        if(active && _cached_outline) {
+            if(GUIOPTION(gui_show_shadows) || GUIOPTION(gui_show_outline)) {
+                points = _cached_outline->uncompress();
+            }
+            
+            if(GUIOPTION(gui_show_shadows)) {
+                if(!_polygon) {
+                    _polygon = std::make_shared<Polygon>(std::make_shared<std::vector<Vec2>>());
+                    _polygon->set_fill_clr(Black.alpha(125));
+                    _polygon->set_origin(Vec2(0.5));
+                }
+                _polygon->set_vertices(points);
+                float size = Tracker::average().bounds().size().length() * 0.0025f;
+                Vec2 scaling(SQR(offset.x / float(Tracker::average().cols)),
+                             SQR(offset.y / float(Tracker::average().rows)));
+                _polygon->set_pos(scaling * size + this->size() * 0.5);
+                _polygon->set_scale(scaling * 0.25 + 1);
+                
+                if(is_selected)_polygon->tag(Effects::blur);
+                else _polygon->untag(Effects::blur);
+                
+                window.wrap_object(*_polygon);
+            }
+        }
+        
+        auto it = cache.fish_selected_blobs.find(_obj.identity().ID());
+        if(it != cache.fish_selected_blobs.end()) {
+            for(auto & [b, ptr] : cache.display_blobs) {
+                if(b->blob_id() == it->second) {
+                    ptr->set_pos(Vec2());
+                    ptr->untag(Effects::blur);
+                    window.wrap_object(*ptr);
+                    break;
+                }
+            }
+        }
+        
         // DRAW OUTLINE / MIDLINE ON THE MAIN GRAYSCALE IMAGE
         const double damping_linear = .5;
         Vec2 _force = _v * (-damping_linear);
@@ -234,23 +272,6 @@ CREATE_STRUCT(CachedGUIOptions,
             
             if(active && _cached_outline && GUIOPTION(gui_show_outline) ){
                 std::vector<Vertex> oline;
-                auto points = _cached_outline->uncompress();
-                
-                if(GUIOPTION(gui_show_shadows)) {
-                    if(!_polygon) {
-                        _polygon = std::make_shared<Polygon>(std::make_shared<std::vector<Vec2>>());
-                        _polygon->set_fill_clr(Black.alpha(25));
-                        _polygon->set_origin(Vec2(0.5));
-                    }
-                    _polygon->set_vertices(points);
-                    float size = Tracker::average().bounds().size().length() * 0.0025f;
-                    Vec2 scaling(SQR(offset.x / float(Tracker::average().cols)),
-                                 SQR(offset.y / float(Tracker::average().rows)));
-                    _polygon->set_pos(scaling * size + fish->size() * 0.5);
-                    _polygon->set_scale(scaling * 0.25 + 1);
-                    
-                    window.advance_wrap(*_polygon);
-                }
                 
                 // check if we actually have a tail index
                 if(GUIOPTION(gui_show_midline) && _cached_midline && _cached_midline->tail_index() != -1)
