@@ -158,7 +158,6 @@ public:
             std::make_shared<TextItem>("save tracking data [S]", EXPORT),
             
             std::make_shared<TextItem>("load settings", LOAD_SETTINGS),
-            std::make_shared<TextItem>("check updates", CHECK_UPDATE),
             
             //std::make_shared<TextItem>("training faces", FACES),
             std::make_shared<TextItem>("visual identification", TRAINING),
@@ -169,6 +168,7 @@ public:
             std::make_shared<TextItem>("validation", START_VALIDATION),
             
             std::make_shared<TextItem>("online docs [F1]", DOCS),
+            std::make_shared<TextItem>("check updates", CHECK_UPDATE),
             std::make_shared<TextItem>("quit [Esc]", QUIT)
             
         }, [this](auto, const List::Item& item) {

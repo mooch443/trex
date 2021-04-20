@@ -1107,6 +1107,7 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
         case Type::CIRCLE: {
             auto ptr = static_cast<Circle*>(o);
             
+            // calculate a reasonable number of segments based on global bounds
             auto e = 0.25f;
             auto r = max(1, order.bounds.width * 0.5f);
             auto th = acos(2 * SQR(1 - e / r) - 1);
@@ -1115,19 +1116,24 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
             if(num_segments <= 1)
                 break;
             
-            auto centre = ImVec2(order.bounds.x + o->origin().x * order.bounds.width, order.bounds.y + o->origin().y * order.bounds.height);
+            // generate circle path
+            auto centre = ImVec2(ptr->radius(), ptr->radius());
             const float a_max = (float)M_PI*2.0f * ((float)num_segments - 1.0f) / (float)num_segments;
-            list->PathArcTo(centre, r, 0.0f, a_max, (int)num_segments - 1);
             
-            if(ptr->fill_clr() != Transparent) {
+            list->PathArcTo(centre, ptr->radius(), 0.0f, a_max, (int)num_segments - 1);
+            
+            // transform according to local transform etc.
+            for (auto i=0; i<list->_Path.Size; ++i) {
+                list->_Path.Data[i] = order.transform.transformPoint(list->_Path.Data[i]);
+            }
+            
+            // generate vertices (1. filling + 2. outline)
+            if(ptr->fill_clr() != Transparent)
                 list->AddConvexPolyFilled(list->_Path.Data, list->_Path.Size, (ImColor)ptr->fill_clr());
-                //list->AddCircleFilled(centre, ptr->radius(), cvtClr(ptr->fillclr()), num_segments);
-            }
-            if(ptr->line_clr() != Transparent) {
+            if(ptr->line_clr() != Transparent)
                 list->AddPolyline(list->_Path.Data, list->_Path.Size, (ImColor)ptr->line_clr(), true, 1);
-                //list->AddCircle(ImVec2(ptr->pos().x, ptr->pos().y), ptr->radius(), cvtClr(ptr->color()), num_segments);
-            }
             
+            // reset path
             list->_Path.Size = 0;
             
             break;

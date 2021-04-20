@@ -3233,15 +3233,6 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
         collection->set_scale(fishbowl->scale());
         collection->set_pos(fishbowl->pos());
         base.wrap_object(*collection);
-        /*static auto blobs = std::make_shared<Entangled>();
-        blobs->update([this](auto& base){
-            for(auto e : _cache.blob_images)
-                base.advance_wrap(*e);
-        });
-        blobs->set_scroll_enabled(true);
-        blobs->set_scroll_limits(Rangef(0,0), Rangef(0,0));
-        base.wrap_object(*blobs);
-        blobs->set_bounds(Bounds(0, 0, Tracker::average().cols, Tracker::average().rows));*/
     }
     
 #ifndef NDEBUG

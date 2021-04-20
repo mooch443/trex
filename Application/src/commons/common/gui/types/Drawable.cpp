@@ -750,11 +750,10 @@ namespace gui {
         
         // assert(!_bounds_changed);
         transform.translate(pos().x, pos().y);
+        transform.scale(_scale);
         
         if(_rotation != 0)
             transform.rotate(DEGREE(_rotation));
-        
-        transform.scale(_scale);
         
         if(origin().x || origin().y)
             transform.translate(-width() * origin().x, -height() * origin().y);
