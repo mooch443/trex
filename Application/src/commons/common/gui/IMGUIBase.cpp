@@ -1101,6 +1101,8 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
         center = bds.pos() + bds.size().mul(o->origin());
     }
     
+    auto i_ = list->VtxBuffer.Size;
+    
     switch (o->type()) {
         case Type::CIRCLE: {
             auto ptr = static_cast<Circle*>(o);
@@ -1282,6 +1284,22 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
             
         default:
             break;
+    }
+    
+    bool blur = false;
+    auto p = o;
+    while(p) {
+        if(p->tagged(Effects::blur)) {
+            blur = true;
+            break;
+        }
+        
+        p = p->parent();
+    }
+    
+    auto e = list->VtxBuffer.Size;
+    for(auto i=i_; i<e; ++i) {
+        list->VtxBuffer[i].mask = blur;
     }
     
     if(!list->CmdBuffer.empty()) {

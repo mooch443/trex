@@ -7,6 +7,8 @@
 #include <gui.h>
 #include <misc/CircularGraph.h>
 #include <misc/create_struct.h>
+#include <gui/IMGUIBase.h>
+#include <gui/DrawBase.h>
 
 using namespace track;
 
@@ -158,6 +160,14 @@ CREATE_STRUCT(CachedGUIOptions,
         
         auto active = GUI::cache().active_ids.find(_obj.identity().ID()) != GUI::cache().active_ids.end();
         bool is_selected = cache.is_selected(_obj.identity().ID());
+        
+        if(!is_selected) tag(Effects::blur);
+        else untag(Effects::blur);
+        
+        if(is_selected) {
+            ((MetalImpl*)((IMGUIBase*)GUI::instance()->base())->platform().get())->center[0] = global_bounds().x / float(GUI::instance()->base()->window_dimensions().width) / gui::interface_scale() * window.scale().x;
+            ((MetalImpl*)((IMGUIBase*)GUI::instance()->base())->platform().get())->center[1] = global_bounds().y / float(GUI::instance()->base()->window_dimensions().height) / gui::interface_scale() * window.scale().y;
+        }
         
         if(GUIOPTION(gui_show_paths))
             paintPath(window, offset, _safe_idx, cmn::max(_obj.start_frame(), _safe_idx - 1000l), base_color);
