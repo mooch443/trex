@@ -11,6 +11,7 @@
 #include <tracking/Individual.h>
 #include <misc/MemoryStats.h>
 #include <misc/CheckUpdates.h>
+#include <tracking/Categorize.h>
 
 namespace gui {
 
@@ -93,6 +94,7 @@ class DrawMenuPrivate {
         EXPORT,
         EXPORT_VF,
         START_VALIDATION,
+        CATEGORIZE,
         DOCS,
         QUIT
     };
@@ -168,7 +170,10 @@ public:
             std::make_shared<TextItem>("export visual fields", EXPORT_VF),
             std::make_shared<TextItem>("validation", START_VALIDATION),
             
+            std::make_shared<TextItem>("categorize", CATEGORIZE),
+            
             std::make_shared<TextItem>("online docs [F1]", DOCS),
+            std::make_shared<TextItem>("check updates", CHECK_UPDATE),
             std::make_shared<TextItem>("quit [Esc]", QUIT)
             
         }, [this](auto, const List::Item& item) {
@@ -237,6 +242,12 @@ public:
                 case EXPORT_VF:
                     gPtr->work().add_queue("saving visual fields...", [](){
                         GUI::instance()->save_visual_fields();
+                    });
+                    break;
+                    
+                case CATEGORIZE:
+                    gPtr->work().add_queue("", [](){
+                        Categorize::initial_menu();
                     });
                     break;
 
@@ -582,7 +593,12 @@ public:
     }
     
     void draw() {
+        auto &base = GUI::instance()->gui();
+        auto && [offset, max_w] = Timeline::timeline_offsets();
+        Vec2 pos = Vec2(max_w / base.scale().x - 10, 5) - offset / base.scale().x;
+        
         matching_gui();
+        Categorize::draw(base);
         
         if(_foi_items.empty() || _foi_ids != FOI::ids()) {
             _foi_items.clear();
@@ -594,10 +610,6 @@ public:
             
             foi_list->set_items(_foi_items);
         }
-        
-        auto &base = GUI::instance()->gui();
-        auto && [offset, max_w] = Timeline::timeline_offsets();
-        Vec2 pos = Vec2(max_w / base.scale().x - 10, 5) - offset / base.scale().x;
         
         layout->set_scale(base.scale().reciprocal());
         layout->set_pos(pos);
