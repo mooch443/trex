@@ -52,7 +52,7 @@ WorkProgress::WorkProgress()
         while (!_terminate_threads) {
             _condition.wait_for(lock, std::chrono::seconds(1));
             
-            while(!_queue.empty()) {
+            while(!_queue.empty() && !_terminate_threads) {
                 auto item =  _queue.front();
 #if defined(__APPLE__)
                 MacProgressBar::set_visible(true);
