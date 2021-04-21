@@ -159,13 +159,14 @@ namespace gui {
             //    Debug("'%S' width = %f", &static_cast<Text*>(c)->txt(), c->width());
             
             auto local = c->local_bounds();
+            auto offset = local.size().mul(c->origin());
             
             if(_policy == CENTER)
-                c->set_pos(Vec2(x, (max_height - local.height) * 0.5));
+                c->set_pos(offset + Vec2(x, (max_height - local.height) * 0.5));
             else if(_policy == TOP)
-                c->set_pos(Vec2(x, _margins.y));
+                c->set_pos(offset + Vec2(x, _margins.y));
             else if(_policy == BOTTOM)
-                c->set_pos(Vec2(x, max_height - _margins.height - local.height));
+                c->set_pos(offset + Vec2(x, max_height - _margins.height - local.height));
             
             x += local.width + _margins.width;
         }
@@ -214,18 +215,31 @@ namespace gui {
             y += _margins.y;
             
             auto local = c->local_bounds();
+            auto offset = local.size().mul(c->origin());
             
             if(_policy == CENTER)
-                c->set_pos(Vec2((max_width - local.width) * 0.5, y));
+                c->set_pos(offset + Vec2((max_width - local.width) * 0.5, y));
             else if(_policy == LEFT)
-                c->set_pos(Vec2(_margins.x, y));
+                c->set_pos(offset + Vec2(_margins.x, y));
             else if(_policy == RIGHT)
-                c->set_pos(Vec2(max_width - _margins.width - local.width, y));
+                c->set_pos(offset + Vec2(max_width - _margins.width - local.width, y));
             
             y += local.height + _margins.height;
         }
         
         set_size(Size2(max_width, max(0.f, y)));
+    }
+
+    void Layout::auto_size(Margin margin) {
+        Vec2 mi(std::numeric_limits<Float2_t>::max()), ma(0);
+        for(auto c : _children) {
+            auto bds = c->local_bounds();
+            mi = min(bds.pos(), mi);
+            ma = max(bds.pos() + bds.size(), ma);
+        }
+        
+        ma += Vec2(max(0.f, margin.right), max(0.f, margin.bottom));
+        set_size(ma - mi);
     }
     
     void VerticalLayout::set_policy(Policy policy) {

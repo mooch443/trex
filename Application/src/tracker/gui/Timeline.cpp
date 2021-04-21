@@ -236,7 +236,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
             number << " " << status;
         //number << " midline-err/frame:" << Tracker::instance()->midline_errors_frame();
         
-        _title_layout.set_pos(Vec2(20, 28) - offset);
+        _title_layout.set_pos(Vec2(20, 25) - offset);
         _title_layout.set_origin(Vec2(0, 0.5));
         _status_text3.set_txt(number.str());
         
