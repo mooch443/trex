@@ -40,6 +40,12 @@ namespace gui {
         std::vector<Ptr> _objects;
         
     public:
+        template<typename T, typename... Args>
+        static Layout::Ptr Make(Args&&... args) {
+            return Layout::Ptr(std::make_shared<T>(std::forward<Args>(args)...));
+        }
+        
+    public:
         Layout(const std::vector<Layout::Ptr>&);
         virtual ~Layout() { clear_children(); }
         

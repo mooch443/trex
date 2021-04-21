@@ -223,6 +223,9 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
             return;
         
         this->work().add_queue("", [this, name, &value](){
+            if(!GUI::instance())
+                return;
+            
             std::lock_guard<std::recursive_mutex> lock_guard(this->gui().lock());
             
             /*if(name == "track_max_speed") {
@@ -453,12 +456,17 @@ GUI::~GUI() {
 #endif
     
     _timeline = nullptr;
+    set_base(nullptr);
     
     {
-        std::lock_guard<std::recursive_mutex> lock(GUI::instance()->gui().lock());
+        std::lock_guard<std::recursive_mutex> lock(_gui.lock());
         GUI::_instance = NULL;
-        delete _work_progress;
+    }
+    
+    delete _work_progress;
         
+    {
+        std::lock_guard<std::recursive_mutex> lock(_gui.lock());
         for(auto d : _static_pointers) {
             d->clear_parent_dont_check();
         }
@@ -4498,14 +4506,17 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                 }
             }, from);
         } catch(const UtilsException& e) {
-            work().add_queue("", [e, from](){
-                GUI::instance()->gui().dialog([](Dialog::Result){}, "Cannot load results from '"+from.str()+"'. Loading crashed with this message:\n<i>"+std::string(e.what())+"</i>", "Error");
-            });
-            
             Except("Cannot load results. Crashed with exception: %s", e.what());
-            auto start = Tracker::start_frame();
-            Tracker::instance()->_remove_frames(start);
-            removed_frames(start);
+            
+            if(GUI::instance()) {
+                work().add_queue("", [e, from](){
+                    GUI::instance()->gui().dialog([](Dialog::Result){}, "Cannot load results from '"+from.str()+"'. Loading crashed with this message:\n<i>"+std::string(e.what())+"</i>", "Error");
+                });
+            
+                auto start = Tracker::start_frame();
+                Tracker::instance()->_remove_frames(start);
+                removed_frames(start);
+            }
         }
         
         //_analysis->reset_cache();
