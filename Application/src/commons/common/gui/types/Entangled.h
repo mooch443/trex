@@ -136,7 +136,7 @@ namespace gui {
             return ret;
         }
         
-        void auto_size(Margin margins);
+        virtual void auto_size(Margin margins);
         
         //! Advance in delta-update without taking ownership of objects. (Instead, copy them/match them to current object).
         template<typename T>

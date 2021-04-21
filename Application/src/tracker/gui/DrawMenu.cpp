@@ -305,8 +305,8 @@ public:
             SETTING(analysis_paused) = false;
         });
         
-        layout->set_origin(Vec2(1, 0));
-        layout->set_policy(HorizontalLayout::Policy::TOP);
+        layout->set_origin(Vec2(1, 0.5));
+        layout->set_policy(HorizontalLayout::Policy::CENTER);
         
         std::vector<Layout::Ptr> tmp {foi_list, reanalyse, menu};
         layout->set_children(tmp);
@@ -594,7 +594,8 @@ public:
     void draw() {
         auto &base = GUI::instance()->gui();
         auto && [offset, max_w] = Timeline::timeline_offsets();
-        Vec2 pos = Vec2(max_w / base.scale().x - 10, 5) - offset / base.scale().x;
+        auto use_scale = base.scale().reciprocal();
+        Vec2 pos = Vec2(max_w - 10, 25).mul(use_scale);
         
         matching_gui();
         Categorize::draw(base);
@@ -610,9 +611,9 @@ public:
             foi_list->set_items(_foi_items);
         }
         
-        layout->set_scale(base.scale().reciprocal());
+        layout->set_scale(use_scale);
         layout->set_pos(pos);
-        second_list->set_scale(layout->scale());
+        second_list->set_scale(use_scale);
         second_list->set_pos(_list->global_bounds().pos() - Vec2(second_list->global_bounds().width, 0));
         
         base.wrap_object(*layout);

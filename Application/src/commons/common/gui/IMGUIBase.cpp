@@ -1058,7 +1058,6 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
         
         // generate position without rotation
         Vec2 scale = (_graph->scale() / gui::interface_scale() / _dpi_scale) .div(Vec2(io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y));
-       // Vec2 scale = (_graph->scale() / gui::interface_scale()) .div(Vec2(io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y));
         
         transform = Transform();
         transform.scale(scale);
@@ -1088,7 +1087,6 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
         
         // generate position without rotation
         Vec2 scale = (_graph->scale() / gui::interface_scale() / _dpi_scale) .div(Vec2(io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y));
-        //Vec2 scale = (_graph->scale() / gui::interface_scale()) .div(Vec2(io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y));
         
         transform = Transform();
         transform.scale(scale);
@@ -1207,7 +1205,17 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
             if(a > 0 && static_cast<ExternalImage*>(o)->color() != White)
                 col = (ImColor)static_cast<ExternalImage*>(o)->color();
             
-            list->AddImage(tex_cache->texture()->ptr, ImVec2(order.bounds.x, order.bounds.y), ImVec2(order.bounds.x + order.bounds.width, order.bounds.y + order.bounds.height), ImVec2(0, 0), ImVec2(tex_cache->texture()->image_width / float(tex_cache->texture()->width), tex_cache->texture()->image_height / float(tex_cache->texture()->height)), col);
+            auto I = list->VtxBuffer.size();
+            list->AddImage(tex_cache->texture()->ptr,
+                           ImVec2(0, 0),
+                           ImVec2(o->width(), o->height()),
+                           ImVec2(0, 0),
+                           ImVec2(tex_cache->texture()->image_width / float(tex_cache->texture()->width),
+                                  tex_cache->texture()->image_height / float(tex_cache->texture()->height)),
+                                  col);
+            for (auto i = I; i<list->VtxBuffer.size(); ++i) {
+                list->VtxBuffer[i].pos = transform.transformPoint(list->VtxBuffer[i].pos);
+            }
             break;
         }
             
