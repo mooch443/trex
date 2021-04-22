@@ -39,7 +39,7 @@ Recognition::FishInfo::operator MetaObject() const {
     return MetaObject("FishInfo<frame:"+Meta::toStr(last_frame)+" N:"+Meta::toStr(number_frames)+">", "FishInfo");
 }
 
-std::unique_ptr<Image> Recognition::calculate_diff_image_with_settings(const default_config::recognition_normalization_t::Class &normalize, const pv::BlobPtr& blob, const Recognition::ImageData& data, const Size2& output_shape) {
+Image::UPtr Recognition::calculate_diff_image_with_settings(const default_config::recognition_normalization_t::Class &normalize, const pv::BlobPtr& blob, const Recognition::ImageData& data, const Size2& output_shape) {
     if(normalize == default_config::recognition_normalization_t::posture)
         return Individual::calculate_normalized_diff_image(data.midline_transform, blob, data.filters ? data.filters->median_midline_length_px : 0, output_shape, false);
     else if(normalize == default_config::recognition_normalization_t::legacy)

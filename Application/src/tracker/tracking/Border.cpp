@@ -156,7 +156,7 @@ namespace track {
         std::advance(it, counts.size() * 0.05);
         auto middle = counts.size() == 0 ? 0 : *it;
         
-        _mask = std::make_shared<Image>(video.size().height, video.size().width);
+        _mask = Image::Make(video.size().height, video.size().width);
         for(ushort x = 0; x < _mask->cols; ++x) {
             for (ushort y = 0; y < _mask->rows; ++y) {
                 auto p = pos2grid(Vec2(x, y));
@@ -185,7 +185,7 @@ namespace track {
         tf::imshow("in", _mask->get());
 #endif
         
-        _mask = std::make_shared<Image>(out);
+        _mask = Image::Make(out);
     }
     
     void Border::update_outline(pv::File &video) {
@@ -421,7 +421,7 @@ namespace track {
                 
                 Debug("Generating mask...");
                 Timer timer;
-                _mask = std::make_shared<Image>(video.size().height, video.size().width);
+                _mask = Image::Make(video.size().height, video.size().width);
                 if(!_vertices.empty()) {
                     for(ushort x = 0; x < _mask->cols; ++x) {
                         for (ushort y = 0; y < _mask->rows; ++y) {

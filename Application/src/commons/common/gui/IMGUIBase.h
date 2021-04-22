@@ -124,7 +124,7 @@ namespace gui {
         
         void set_background_color(const Color&) override;
         void set_frame_recording(bool v) override;
-        Image::Ptr current_frame_buffer() override;
+        const Image::UPtr& current_frame_buffer() override;
         void loop();
         LoopStatus update_loop() override;
         virtual void paint(DrawStructure& s) override;

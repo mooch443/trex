@@ -27,7 +27,7 @@ namespace gui {
         //static Timing timing("simpleblob", 10);
         //TakeTiming take(timing);
         Vec2 image_pos;
-        std::unique_ptr<Image> image;
+        Image::UPtr image;
         
         auto &percentiles = GUI::cache().pixel_value_percentiles;
         if(GUI::cache()._equalize_histograms && !percentiles.empty()) {

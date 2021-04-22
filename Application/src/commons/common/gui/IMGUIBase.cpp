@@ -697,7 +697,7 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
             _platform->set_frame_capture_enabled(false);
     }
 
-    Image::Ptr IMGUIBase::current_frame_buffer() {
+    const Image::UPtr& IMGUIBase::current_frame_buffer() {
         return _platform->current_frame_buffer();
     }
 
@@ -1304,6 +1304,22 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
             ///Debug("Empty cmd buffer.");
         }
     }
+    
+#ifdef DEBUG_BOUNDARY
+    list->AddRect(bds.pos(), bds.pos() + bds.size(), (ImColor)Red.alpha(125));
+    std::string text;
+    if(o->parent() && o->parent()->background() == o) {
+        if(dynamic_cast<Entangled*>(o->parent()))
+            text = dynamic_cast<Entangled*>(o->parent())->name() + " " + Meta::toStr(o->parent()->bounds());
+        else
+            text = Meta::toStr(*o->parent());
+    } else
+        text = Meta::toStr(*o);
+    auto font = _fonts.at(Style::Regular);
+    auto _font = Font(0.3, Style::Regular);
+    
+    list->AddText(font, font->FontSize * (_font.size / im_font_scale / _dpi_scale / io.DisplayFramebufferScale.x), bds.pos(), (ImColor)White.alpha(125), text.c_str());
+#endif
     
     if(o->type() != Type::ENTANGLED && o->has_global_rotation()) {
         ImRotateEnd(rotation_start, list, o->rotation(), center);

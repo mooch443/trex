@@ -70,7 +70,7 @@ IMPLEMENT(FrameGrabber::instance) = NULL;
 IMPLEMENT(FrameGrabber::gpu_average);
 IMPLEMENT(FrameGrabber::gpu_average_original);
 
-std::shared_ptr<Image> FrameGrabber::latest_image() {
+Image::Ptr FrameGrabber::latest_image() {
     return _current_image;
 }
 
@@ -252,7 +252,7 @@ void FrameGrabber::prepare_average() {
     _average.copyTo(temp);
     _processed.set_average(temp);
     if(tracker)
-        tracker->set_average(std::make_shared<Image>(temp));
+        tracker->set_average(Image::Make(temp));
     //}
     
     if(_video) {
@@ -831,7 +831,7 @@ bool FrameGrabber::add_image_to_average(const Image_t& current) {
             }
             
             _last_frame = nullptr;
-            std::atomic_store(&_current_image, std::shared_ptr<Image>());
+            std::atomic_store(&_current_image, Image::Ptr());
         }
         
         if(!_accumulator)
@@ -1450,13 +1450,13 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
      */
     struct Task {
         size_t index = 0;
-        std::unique_ptr<Image> current, raw;
+        Image::UPtr current, raw;
         std::unique_ptr<pv::Frame> frame;
         Timer timer;
         std::vector<pv::BlobPtr> filtered, filtered_out;
         
         Task() {}
-        Task(size_t index, std::unique_ptr<Image>&& current, std::unique_ptr<Image>&& raw, std::unique_ptr<pv::Frame>&& frame)
+        Task(size_t index, Image::UPtr&& current, Image::UPtr&& raw, std::unique_ptr<pv::Frame>&& frame)
             : index(index), current(std::move(current)), raw(std::move(raw)), frame(std::move(frame))
         {
             
@@ -1698,9 +1698,9 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
             
             if(!_terminate_tracker) {
                 for_the_pool.push(Task(global_index++,
-                    std::make_unique<Image>(local, current.index(), TS),
+                    Image::Make(local, current.index(), TS),
 #if WITH_FFMPEG
-                    /*mp4_queue ?*/ std::make_unique<Image>(current_copy) /*: nullptr*/,
+                    /*mp4_queue ?*/ Image::Make(current_copy) /*: nullptr*/,
 #else
                     nullptr,
 #endif
@@ -1712,9 +1712,9 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
         
     } else {
         Task task(global_index++,
-            std::make_unique<Image>(local, current.index(), TS),
+            Image::Make(local, current.index(), TS),
 #if WITH_FFMPEG
-            /*mp4_queue ?*/ std::make_unique<Image>(current_copy) /*: nullptr*/,
+            /*mp4_queue ?*/ Image::Make(current_copy) /*: nullptr*/,
 #else
             nullptr,
 #endif

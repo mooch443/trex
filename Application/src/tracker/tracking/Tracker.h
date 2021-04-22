@@ -120,7 +120,7 @@ CREATE_STRUCT(Settings,
     public:
         const std::vector<FrameProperties>& frames() const { return _added_frames; }
     protected:
-        std::shared_ptr<Image> _average;
+        Image::Ptr _average;
         GETTER_SETTER(cv::Mat, mask)
         
         GETTER(std::atomic<float>, midline_errors_frame)

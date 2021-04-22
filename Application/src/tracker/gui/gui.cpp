@@ -102,12 +102,12 @@ public:
 };
 
 class OuterBlobs {
-    std::unique_ptr<Image> image;
+    Image::UPtr image;
     Vec2 pos;
     std::unique_ptr<gui::ExternalImage> ptr;
     
 public:
-    OuterBlobs(std::unique_ptr<Image>&& image = nullptr, std::unique_ptr<gui::ExternalImage>&& available = nullptr, const Vec2& pos = Vec2(), long_t id = -1) : image(std::move(image)), pos(pos), ptr(std::move(available)) {
+    OuterBlobs(Image::UPtr&& image = nullptr, std::unique_ptr<gui::ExternalImage>&& available = nullptr, const Vec2& pos = Vec2(), long_t id = -1) : image(std::move(image)), pos(pos), ptr(std::move(available)) {
         
     }
     
@@ -282,7 +282,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                     }
                     
                     std::lock_guard<std::recursive_mutex> lock_guard(this->gui().lock());
-                    _recognition_image.set_source(std::make_unique<Image>());
+                    _recognition_image.set_source(Image::Make());
                     cache().set_tracking_dirty();
                     cache().set_blobs_dirty();
                     cache().recognition_updated = true;
@@ -442,7 +442,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
         track::PythonIntegration::set_settings(GlobalSettings::instance());
         track::PythonIntegration::set_display_function([](const std::string& name, const cv::Mat& image)
         {
-            GUI::work().set_image(name, std::make_shared<Image>(image));
+            GUI::work().set_image(name, Image::Make(image));
         });
     }
 }
@@ -756,7 +756,7 @@ void GUI::do_recording() {
     }
     _last_recording_frame = _recording_frame;
     
-    auto image = _base->current_frame_buffer();
+    auto& image = _base->current_frame_buffer();
     if(!image || image->empty() || !image->cols || !image->rows) {
         Warning("Expected image, but there is none.");
         return;
@@ -999,7 +999,7 @@ void GUI::redraw() {
         if(Tracker::instance()->grid())
             Tracker::instance()->grid()->correct_image(corrected);*/
         
-        gui_background = new ExternalImage(std::make_unique<Image>(original), Vec2(0, 0), Vec2(1), Color(255, 255, 255, 125));
+        gui_background = new ExternalImage(Image::Make(original), Vec2(0, 0), Vec2(1), Color(255, 255, 255, 125));
         //corrected_bg = new ExternalImage(corrected, Vec2(0, 0));
         
         gui_background->add_event_handler(EventType::MBUTTON, [this](Event e){
@@ -1024,7 +1024,7 @@ void GUI::redraw() {
             cv::Mat mask = _video_source->mask().mul(cv::Scalar(255));
             mask.convertTo(mask, CV_8UC1);
             
-            gui_mask = new ExternalImage(std::make_unique<Image>(mask), Vec2(0, 0), Vec2(1), Color(255, 255, 255, 125));
+            gui_mask = new ExternalImage(Image::Make(mask), Vec2(0, 0), Vec2(1), Color(255, 255, 255, 125));
         }
     }
     
@@ -1510,7 +1510,7 @@ void GUI::debug_optical_flow(DrawStructure &base, long_t frameIndex) {
         _next_frame = frameIndex+1;
     }
     
-    base.image(Vec2(0, 0), std::make_unique<Image>(_cflow));
+    base.image(Vec2(0, 0), Image::Make(_cflow));
 }
 
 void GUI::set_redraw() {
@@ -2963,7 +2963,7 @@ void GUI::update_recognition_rect() {
     const float max_h = Tracker::average().rows;
     
     if((_recognition_image.source()->cols != max_w || _recognition_image.source()->rows != max_h) && Tracker::instance()->border().type() != Border::Type::none) {
-        auto border_distance = std::make_unique<Image>(max_h, max_w, 4);
+        auto border_distance = Image::Make(max_h, max_w, 4);
         border_distance->set_to(0);
         
         auto worker = [&border_distance, max_h](ushort x) {
@@ -3110,7 +3110,7 @@ void GUI::update_display_blobs(bool draw_blobs, Section* fishbowl) {
 void GUI::draw_raw(gui::DrawStructure &base, long_t) {
     Section* fishbowl;
     
-    static auto collection = std::make_unique<ExternalImage>(std::make_unique<Image>(Tracker::average().rows, Tracker::average().cols, 4), Vec2());
+    static auto collection = std::make_unique<ExternalImage>(Image::Make(Tracker::average().rows, Tracker::average().cols, 4), Vec2());
     const auto mode = GUI_SETTINGS(gui_mode);
     const auto draw_blobs = GUI_SETTINGS(gui_show_blobs) || mode != gui::mode_t::tracking;
     const double coverage = double(_cache._num_pixels) / double(collection->source()->rows * collection->source()->cols);
@@ -3360,7 +3360,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
 
 std::unique_ptr<ExternalImage> generate_outer(const pv::BlobPtr& blob) {
     Vec2 offset;
-    std::unique_ptr<Image> image, greyscale;
+    Image::UPtr image, greyscale;
     Vec2 image_pos;
     
     auto &percentiles = GUI::cache().pixel_value_percentiles;
@@ -3394,7 +3394,7 @@ std::unique_ptr<ExternalImage> generate_outer(const pv::BlobPtr& blob) {
     
     cv::Mat tmp = outer - inner;
     
-    auto gimage = OuterBlobs(std::make_unique<Image>(tmp), nullptr, offset, blob->blob_id()).convert();
+    auto gimage = OuterBlobs(Image::Make(tmp), nullptr, offset, blob->blob_id()).convert();
     gimage->add_custom_data("blob_id", (void*)(uint64_t)blob->blob_id());
     return gimage;
 }
@@ -3403,11 +3403,11 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
     pv::File *file = dynamic_cast<pv::File*>(_video_source);
     if(file && file->length() > size_t(frameIndex)) {
         struct Outer {
-            std::unique_ptr<Image> image;
+            Image::UPtr image;
             Vec2 off;
             pv::BlobPtr blob;
             
-            Outer(std::unique_ptr<Image>&& image = nullptr, const Vec2& off = Vec2(), pv::BlobPtr blob = nullptr)
+            Outer(Image::UPtr&& image = nullptr, const Vec2& off = Vec2(), pv::BlobPtr blob = nullptr)
             : image(std::move(image)), off(off), blob(blob)
             {}
         };

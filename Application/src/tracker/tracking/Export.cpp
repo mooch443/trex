@@ -751,7 +751,7 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
             std::vector<uchar> all_images, single_images, split_masks;
             std::vector<long_t> all_ranges, single_frames, single_ids, split_frames, split_ids;
             
-            std::map<long_t, std::map<Rangel, std::queue<std::tuple<long_t, long_t, Image::Ptr>>>> queues;
+            std::map<long_t, std::map<Rangel, std::queue<std::tuple<long_t, long_t, Image::UPtr>>>> queues;
             PPFrame obj;
             
             size_t index = 0;
@@ -777,7 +777,7 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                 
                 for(auto && [id, data] : vec) {
                     struct ImagePosition {
-                        std::unique_ptr<Image> image;
+                        Image::UPtr image;
                         Vec2 pos;
                         pv::BlobPtr blob;
                     } reduced, full;
@@ -843,7 +843,7 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                         GUI::pad_image(image, output_size);
                         assert(image.cols == output_size.width && image.rows == output_size.height);
                         
-                        queues[data.fish->identity().ID()][data.segment.range].push({ frame, data.fish->identity().ID(), std::make_shared<Image>(image) });
+                        queues[data.fish->identity().ID()][data.segment.range].push({ frame, data.fish->identity().ID(), Image::Make(image) });
                         
                         /*cv::cvtColor(image, image, cv::COLOR_GRAY2BGR);
                         
@@ -942,7 +942,7 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                                 
                                 cv::Mat grey;
                                 cv::cvtColor(image, grey, cv::COLOR_BGR2GRAY);
-                                full.image = std::make_unique<Image>(grey);
+                                full.image = Image::Make(grey);
                             }
                             
                             assert(full.image->cols == output_size.width && full.image->rows == output_size.height);
@@ -1051,7 +1051,7 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                     hist_utils::init(M, med, (int)output_size.height, (int)output_size.width);
                     
                     while(!images.empty()) {
-                        auto [frame, fid, image] = images.front();
+                        auto [frame, fid, image] = std::move(images.front());
                         images.pop();
                         
                         auto mat = image->get();

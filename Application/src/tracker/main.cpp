@@ -811,7 +811,7 @@ int main(int argc, char** argv)
     
     cv::Mat local;
     average.copyTo(local);
-    tracker.set_average(std::make_unique<Image>(local));
+    tracker.set_average(Image::Make(local));
     
     if(!SETTING(log_file).value<file::Path>().empty()) {
         auto path = pv::DataLocation::parse("output", SETTING(log_file).value<file::Path>());

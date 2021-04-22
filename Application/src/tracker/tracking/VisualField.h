@@ -54,6 +54,8 @@ namespace track {
         void show(gui::DrawStructure &graph);
         static void show_ts(gui::DrawStructure &graph, long_t frameNr, Individual* selected);
         void plot_projected_line(eye& e, std::tuple<float, float>& tuple, double d, const Vec2& point, Idx_t id, float hd);
+        
+        static std::tuple<std::array<eye, 2>, Vec2> generate_eyes(const Individual* fish, const std::shared_ptr<Individual::BasicStuff>& basic, const std::vector<Vec2>& outline, const Midline::Ptr& midline, float angle);
     };
 }
 

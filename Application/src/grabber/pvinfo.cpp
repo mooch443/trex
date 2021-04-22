@@ -517,7 +517,7 @@ int main(int argc, char**argv) {
         track::Tracker _tracker;
         cv::Mat local;
         average.copyTo(local);
-        _tracker.set_average(std::make_shared<Image>(local));
+        _tracker.set_average(Image::Make(local));
         
         if(auto_param || SETTING(auto_minmax_size) || SETTING(auto_number_individuals)) {
             track::Tracker::auto_calculate_parameters(video, be_quiet);
@@ -896,7 +896,7 @@ int main(int argc, char**argv) {
         if(!average.empty()) {
             cv::Mat local;
             average.copyTo(local);
-            tracker.set_average(std::make_unique<Image>(local));
+            tracker.set_average(Image::Make(local));
         }
         
         if(header.version < Output::ResultsFormat::Versions::V_28) {

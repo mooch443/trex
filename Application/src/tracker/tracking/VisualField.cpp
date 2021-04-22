@@ -183,6 +183,93 @@ namespace track {
         }
     }
     
+std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(const Individual* fish, const std::shared_ptr<Individual::BasicStuff>& basic, const std::vector<Vec2>& opts, const Midline::Ptr& midline, float angle)
+{
+    using namespace gui;
+    std::array<eye, 2> _eyes;
+    Vec2 _fish_pos;
+    
+    auto &blob = basic->blob;
+    auto bounds = blob.calculate_bounds();
+    assert(midline && !midline->empty());
+    
+    size_t segment_index = midline->segments().size() * max(0.f, FAST_SETTINGS(visual_field_eye_offset));
+    double eye_separation = RADIANS(FAST_SETTINGS(visual_field_eye_separation));
+    auto &segment = midline->segments().at(segment_index);
+    auto h0 = segment.l_length + 3;
+    auto h1 = segment.height - segment.l_length + 3;
+    
+    { //! detect the contact points and decide where the eyes are going to be, depending on where an outgoing line intersects with the own outline
+        Vec2 pt = segment.pos;
+        
+        float angle = midline->angle() + M_PI;
+        float x = (pt.x * cmn::cos(angle) - pt.y * cmn::sin(angle));
+        float y = (pt.x * cmn::sin(angle) + pt.y * cmn::cos(angle));
+        
+        pt = Vec2(x, y) + midline->offset();
+        
+        Vec2 left_direction = Vec2(cos(angle - right_angle), sin(angle - right_angle)).normalize();
+        Vec2 right_direction = Vec2(cos(angle + right_angle), sin(angle + right_angle)).normalize();
+        
+        Vec2 left_end = pt + left_direction * h0 * 2;
+        Vec2 right_end = pt + right_direction * h1 * 2;
+        
+        Vec2 right_intersect(FLT_MAX), left_intersect(FLT_MAX);
+        Vec2 intersect;
+        
+        for(size_t i=0; i<opts.size(); ++i) {
+            auto j = i ? (i - 1) : (opts.size()-1);
+            auto &pt0 = opts[i];
+            auto &pt1 = opts[j];
+            
+            if(left_intersect.x == FLT_MAX) {
+                if(LineSegementsIntersect(pt0, pt1, pt, left_end, intersect)) {
+                    
+                    left_intersect = intersect;
+                    
+                    // check if both are found already
+                    if(right_intersect.x != FLT_MAX)
+                        break;
+                }
+            }
+            
+            if(right_intersect.x == FLT_MAX) {
+                if(LineSegementsIntersect(pt0, pt1, pt, right_end, intersect))
+                {
+                    right_intersect = intersect;
+                    
+                    // check if both are found
+                    if(left_intersect.x != FLT_MAX)
+                        break;
+                }
+            }
+        }
+        
+        if(left_intersect.x != FLT_MAX) {
+            _eyes[0].pos = bounds.pos() + left_intersect + left_direction * 2;
+        } else
+            _eyes[0].pos = bounds.pos() + pt + left_direction * h0;
+        
+        if(right_intersect.x != FLT_MAX) {
+            _eyes[1].pos = bounds.pos() + right_intersect + right_direction * 2;
+        } else
+            _eyes[1].pos = bounds.pos() + pt + right_direction * h1;
+        
+        _fish_pos = bounds.pos() + pt;
+    }
+    
+    _eyes[0].angle = angle + eye_separation;
+    _eyes[1].angle = angle - eye_separation;
+    
+    _eyes[0].clr = Color(0, 50, 255, 255);
+    _eyes[1].clr = Color(255, 50, 0, 255);
+    
+    for(auto &e : _eyes)
+        correct_angle(e.angle);
+    
+    return {_eyes, _fish_pos};
+}
+
     void VisualField::calculate(const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture, bool blocking) {
         static Timing timing("visual field");
         TakeTiming take(timing);
@@ -202,90 +289,17 @@ namespace track {
         auto &active = tracker->_active_individuals_frame.at(_frame);
         
         assert(posture);
-        auto angle = posture->head->angle();
-        auto &blob = basic->blob;
         
+        auto angle = posture->head->angle();
         auto midline = fish->calculate_midline_for(basic, posture);
         auto &outline = posture->outline;
-        auto bounds = blob.calculate_bounds();
-        assert(midline && !midline->empty());
-        
-        size_t segment_index = midline->segments().size() * max(0.f, FAST_SETTINGS(visual_field_eye_offset));
-        double eye_separation = RADIANS(FAST_SETTINGS(visual_field_eye_separation));
-        auto &segment = midline->segments().at(segment_index);
-        auto h0 = segment.l_length + 3;
-        auto h1 = segment.height - segment.l_length + 3;
-        
-        { //! detect the contact points and decide where the eyes are going to be, depending on where an outgoing line intersects with the own outline
-            Vec2 pt = segment.pos;
-            auto opts = outline->uncompress();
-            
-            float angle = midline->angle() + M_PI;
-            float x = (pt.x * cmn::cos(angle) - pt.y * cmn::sin(angle));
-            float y = (pt.x * cmn::sin(angle) + pt.y * cmn::cos(angle));
-            
-            pt = Vec2(x, y) + midline->offset();
-            
-            Vec2 left_direction = Vec2(cos(angle - right_angle), sin(angle - right_angle)).normalize();
-            Vec2 right_direction = Vec2(cos(angle + right_angle), sin(angle + right_angle)).normalize();
-            
-            Vec2 left_end = pt + left_direction * h0 * 2;
-            Vec2 right_end = pt + right_direction * h1 * 2;
-            
-            Vec2 right_intersect(FLT_MAX), left_intersect(FLT_MAX);
-            Vec2 intersect;
-            
-            for(size_t i=0; i<opts.size(); ++i) {
-                auto j = i ? (i - 1) : (opts.size()-1);
-                auto &pt0 = opts[i];
-                auto &pt1 = opts[j];
-                
-                if(left_intersect.x == FLT_MAX) {
-                    if(LineSegementsIntersect(pt0, pt1, pt, left_end, intersect)) {
-                        
-                        left_intersect = intersect;
-                        
-                        // check if both are found already
-                        if(right_intersect.x != FLT_MAX)
-                            break;
-                    }
-                }
-                
-                if(right_intersect.x == FLT_MAX) {
-                    if(LineSegementsIntersect(pt0, pt1, pt, right_end, intersect))
-                    {
-                        right_intersect = intersect;
-                        
-                        // check if both are found
-                        if(left_intersect.x != FLT_MAX)
-                            break;
-                    }
-                }
-            }
-            
-            if(left_intersect.x != FLT_MAX) {
-                _eyes[0].pos = bounds.pos() + left_intersect + left_direction * 2;
-            } else
-                _eyes[0].pos = bounds.pos() + pt + left_direction * h0;
-            
-            if(right_intersect.x != FLT_MAX) {
-                _eyes[1].pos = bounds.pos() + right_intersect + right_direction * 2;
-            } else
-                _eyes[1].pos = bounds.pos() + pt + right_direction * h1;
-            
-            _fish_pos = bounds.pos() + pt;
-        }
-        
+        auto opts = outline->uncompress();
         _fish_angle = angle;
         
-        _eyes[0].angle = angle + eye_separation;
-        _eyes[1].angle = angle - eye_separation;
-        
-        _eyes[0].clr = Color(0, 50, 255, 255);
-        _eyes[1].clr = Color(255, 50, 0, 255);
-        
-        for(auto &e : _eyes)
-            correct_angle(e.angle);
+        auto bounds = basic->blob.calculate_bounds();
+        auto&& [eyes, pos] = generate_eyes(fish, basic, opts, midline, angle);
+        _fish_pos = pos;
+        _eyes = std::move(eyes);
         
         // loop local variables
         Vec2 line0, line1, rp;
@@ -460,8 +474,8 @@ namespace track {
         ExternalImage::Ptr distances[2];
         
         for(int i=0; i<2; i++) {
-            ids[i] = std::make_unique<Image>(range + 1, VisualField::field_resolution, 4);
-            distances[i] = std::make_unique<Image>(range + 1, VisualField::field_resolution, 4);
+            ids[i] = Image::Make(range + 1, VisualField::field_resolution, 4);
+            distances[i] = Image::Make(range + 1, VisualField::field_resolution, 4);
             
             std::fill(ids[i]->data(), ids[i]->data() + ids[i]->size(), 0);
             std::fill(distances[i]->data(), distances[i]->data() + distances[i]->size(), 0);

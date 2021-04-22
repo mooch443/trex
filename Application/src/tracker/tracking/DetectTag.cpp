@@ -19,7 +19,7 @@ namespace track {
                 cv::Mat greyscale, bin;
                 imageFromLines(blob->hor_lines(), &bin, &greyscale, NULL, blob->pixels().get(), 0, &average);
                 
-                noise_images.push_back({ blob, std::make_shared<Image>(greyscale), std::make_shared<Image>(bin) });
+                noise_images.push_back({ blob, Image::Make(greyscale), Image::Make(bin) });
             }
             
             //! for all fish, try to correct their images by adding smaller noise images
@@ -51,7 +51,7 @@ namespace track {
                 //tmp2 = tmp2.mul(0.5 + tmp2);
                 //tmp2.convertTo(tmp2, CV_8UC1, 255);
                 
-                result.push_back({blob, std::make_shared<Image>(tmp2), std::make_shared<Image>(mmask) });
+                result.push_back({blob, Image::Make(tmp2), Image::Make(mmask) });
             }
             
             return result;
@@ -184,7 +184,7 @@ namespace track {
                         //tf::imshow("tmp3", inverted);
                         
                         float var = stdv.at<double>(0, 0);
-                        return {var, blob->blob_id(), std::make_shared<Image>(padded)};
+                        return {var, blob->blob_id(), Image::Make(padded)};
                     }
                 }
             }

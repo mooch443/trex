@@ -84,7 +84,7 @@ void HeatmapController::paint_heatmap() {
     }
     
     if(!_image || !_image->source() || (int)_image->source()->cols != _viridis.cols) {
-        _image = std::make_shared<ExternalImage>(std::make_unique<Image>(_viridis.rows, _viridis.cols, 4), Vec2());
+        _image = std::make_shared<ExternalImage>(Image::Make(_viridis.rows, _viridis.cols, 4), Vec2());
     }
     
     _image->update_with(_viridis);
@@ -365,7 +365,7 @@ void HeatmapController::sort_data_into_custom_grid() {
     }
     
     if(!grid_image || grid_image->bounds().size() != Size2(N, N))
-        grid_image = std::make_shared<Image>(N, N, 4);
+        grid_image = Image::Make(N, N, 4);
     
     auto mat = grid_image->get();
     

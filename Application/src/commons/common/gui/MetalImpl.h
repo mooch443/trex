@@ -18,7 +18,7 @@ namespace gui {
         double _draw_calls = 0;
         Timer _draw_timer;
         
-        Image::Ptr _current_framebuffer;
+        Image::UPtr _current_framebuffer;
         std::mutex _texture_mutex;
         std::vector<void*> _delete_textures;
         
@@ -37,7 +37,7 @@ namespace gui {
         void bind_texture(const PlatformTexture&) override;
         void update_texture(PlatformTexture&, const Image*) override;
         void set_title(std::string) override;
-        Image::Ptr current_frame_buffer() override;
+        const Image::UPtr& current_frame_buffer() override;
         void toggle_full_screen() override;
         void message(const std::string&) const;
         
