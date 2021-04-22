@@ -26,7 +26,8 @@ CREATE_STRUCT(CachedGUIOptions,
     (size_t, gui_outline_thickness),
     (bool, gui_show_texts),
     (float, gui_max_path_time),
-    (int, panic_button)
+    (int, panic_button),
+    (bool, gui_happy_mode)
 )
 
 #define GUIOPTION(NAME) CachedGUIOptions::copy < CachedGUIOptions :: NAME > ()
@@ -158,6 +159,7 @@ CREATE_STRUCT(CachedGUIOptions,
         
         auto active = GUI::cache().active_ids.find(_obj.identity().ID()) != GUI::cache().active_ids.end();
         bool is_selected = cache.is_selected(_obj.identity().ID());
+        std::vector<Vec2> points;
         
         if(GUIOPTION(gui_show_paths))
             paintPath(window, offset, _safe_idx, cmn::max(_obj.start_frame(), _safe_idx - 1000l), base_color);
@@ -224,7 +226,7 @@ CREATE_STRUCT(CachedGUIOptions,
             
             if(active && _cached_outline && GUIOPTION(gui_show_outline) ){
                 std::vector<Vertex> oline;
-                auto points = _cached_outline->uncompress();
+                points = _cached_outline->uncompress();
                 
                 if(GUIOPTION(gui_show_shadows)) {
                     if(!_polygon) {
@@ -343,6 +345,82 @@ CREATE_STRUCT(CachedGUIOptions,
             //}
             
             //window.circle(estimated, FAST_SETTINGS(track_max_speed) * tdelta, clr);
+        }
+        
+        if(GUIOPTION(gui_happy_mode) && _cached_midline && _cached_outline) {
+            struct Physics {
+                Vec2 direction = Vec2();
+                Vec2 v = Vec2();
+                long_t frame = -1;
+                double blink = 0;
+                bool blinking = false;
+                double blink_limit = 10;
+            };
+            
+            constexpr double damping_linear = .5;
+            constexpr float stiffness = 100, spring_L = 0, spring_damping = 1;
+            static std::unordered_map<const Individual*, Physics> _current_angle;
+            auto &ph = _current_angle[&_obj];
+            double dt = GUI::cache().dt();
+            if(dt > 0.1)
+                dt = 0.1;
+            
+            Vec2 force = ph.v * (-damping_linear);
+            
+            if(ph.frame != _idx) {
+                ph.direction += 0; // rad/s
+                ph.frame = _idx;
+            }
+            
+            auto alpha = posture->head->angle();
+            Vec2 movement = Vec2(cos(alpha), sin(alpha));
+            Vec2 distance = ph.direction - movement;
+            double CL = distance.length();
+            if(std::isnan(CL))
+                CL = 0.0001;
+            
+            if(CL != 0) {
+                Vec2 f = distance / CL;
+                f *= - (stiffness * (CL - spring_L) + spring_damping * ph.v.dot(distance) / CL);
+                force += f;
+            }
+            
+            double mass = 1;
+            ph.v += force / mass * dt;
+            ph.direction += ph.v * dt;
+            
+            auto &&[eyes, off] = VisualField::generate_eyes(&_obj, basic, points, _cached_midline, posture->head->angle());
+            
+            auto d = ph.direction;
+            auto L = d.length();
+            if(L > 0) d /= L;
+            if(L > 1) L = 1;
+            d *= L;
+            
+            double h = ph.blink / 0.1;
+            
+            if(h > ph.blink_limit && !ph.blinking) {
+                ph.blinking = true;
+                ph.blink = 0;
+                h = 0;
+                ph.blink_limit = rand() / double(RAND_MAX) * 30;
+            }
+            
+            if(h > 1 && ph.blinking) {
+                ph.blinking = false;
+            }
+            
+            ph.blink += dt;
+            
+            auto sun_direction = (offset - Vec2(0)).normalize();
+            for(auto &eye : eyes) {
+                eye.pos += ph.direction;
+                window.circle(eye.pos + offset, 5, Black.alpha(200), White.alpha(125));
+                auto c = window.circle(eye.pos + Vec2(2.5).mul(d) + offset, 3, Transparent, Black.alpha(200));
+                c->set_scale(Vec2(1, ph.blinking ? h : 1));
+                c->set_rotation(atan2(ph.direction) + RADIANS(90));//posture->head->angle() + RADIANS(90));
+                window.circle(eye.pos + Vec2(2.5).mul(d) + Vec2(2).mul(sun_direction) + offset, 1, Transparent, White.alpha(200 * c->scale().min()));
+            }
         }
         
         auto color_source = GUIOPTION(gui_fish_color);
