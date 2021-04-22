@@ -415,7 +415,7 @@ void WorkProgress::update(gui::DrawStructure &base, gui::Section *section) {
             } else
                 ptr = it->second.get();
             
-            ptr->set_source(std::make_unique<Image>(*image));
+            ptr->set_source(Image::Make(*image));
             
             float scale = float(screen_dimensions.width - 200) / float(image->cols);
             if(scale > 1)

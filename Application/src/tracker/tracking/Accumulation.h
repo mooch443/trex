@@ -77,7 +77,7 @@ class Accumulation {
     gui::derived_ptr<gui::Entangled> _dots;
     
     std::mutex _coverage_mutex;
-    std::unique_ptr<Image> _raw_coverage;
+    Image::UPtr _raw_coverage;
     
 public:
     Accumulation(TrainingMode::Class);

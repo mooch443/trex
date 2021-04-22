@@ -241,10 +241,10 @@ void TrainingData::set_classes(const std::set<Idx_t>& classes) {
     _all_classes = classes;
 }
 
-std::unique_ptr<Image> TrainingData::draw_coverage(const std::map<Frame_t, float>& unique_percentages, const std::vector<Rangel>& next_ranges, const std::vector<Rangel>& added_ranges, const std::map<Frame_t, float>& uniquenesses_temp, std::shared_ptr<TrainingData::DataRange> current_salt, const std::map<Rangel, std::tuple<double, FrameRange>>& assigned_unique_averages) const
+Image::UPtr TrainingData::draw_coverage(const std::map<Frame_t, float>& unique_percentages, const std::vector<Rangel>& next_ranges, const std::vector<Rangel>& added_ranges, const std::map<Frame_t, float>& uniquenesses_temp, std::shared_ptr<TrainingData::DataRange> current_salt, const std::map<Rangel, std::tuple<double, FrameRange>>& assigned_unique_averages) const
 {
     auto analysis_range = Tracker::analysis_range();
-    auto image = std::make_unique<Image>(500, 1800, 4);
+    auto image = Image::Make(500, 1800, 4);
     auto mat = image->get();
     mat = cv::Scalar(0, 0, 0, 0);
     

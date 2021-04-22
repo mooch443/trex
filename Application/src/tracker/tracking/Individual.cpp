@@ -2236,7 +2236,7 @@ Vec2 Individual::weighted_centroid(const Blob& blob, const std::vector<uchar>& p
     return centroid_point / weights;
 }
 
-std::unique_ptr<Image> Individual::calculate_normalized_diff_image(const gui::Transform &midline_transform, const pv::BlobPtr& blob, float midline_length, const Size2 &output_size, bool use_legacy) {
+Image::UPtr Individual::calculate_normalized_diff_image(const gui::Transform &midline_transform, const pv::BlobPtr& blob, float midline_length, const Size2 &output_size, bool use_legacy) {
     cv::Mat mask, image;
     cv::Mat padded;
     
@@ -2321,10 +2321,10 @@ std::unique_ptr<Image> Individual::calculate_normalized_diff_image(const gui::Tr
     if(!output_size.empty() && (padded.cols != output_size.width || padded.rows != output_size.height))
         U_EXCEPTION("Padded size differs from expected size (%dx%d != %dx%d)", padded.cols, padded.rows, output_size.width, output_size.height);
     
-    return std::make_unique<Image>(padded);
+    return Image::Make(padded);
 }
 
-std::tuple<std::unique_ptr<Image>, Vec2> Individual::calculate_diff_image(pv::BlobPtr blob, const Size2& output_size) {
+std::tuple<Image::UPtr, Vec2> Individual::calculate_diff_image(pv::BlobPtr blob, const Size2& output_size) {
     cv::Mat mask, image;
     cv::Mat padded;
     
@@ -2390,7 +2390,7 @@ std::tuple<std::unique_ptr<Image>, Vec2> Individual::calculate_diff_image(pv::Bl
     
     //Debug("Came in with %fx%f -> %fx%f", blob->bounds().pos().x, blob->bounds().pos().y, bounds.x, bounds.y);
     
-    return { std::make_unique<Image>(padded), bounds.pos() };
+    return { Image::Make(padded), bounds.pos() };
 }
 
 bool Individual::evaluate_fitness() const {

@@ -475,9 +475,9 @@ namespace track {
          * @return an image pointer to a one-channel 8-bit greyscale image containing the difference image
          */
         
-        static std::tuple<std::unique_ptr<Image>, Vec2> calculate_diff_image(pv::BlobPtr blob, const Size2& output_size);
+        static std::tuple<Image::UPtr, Vec2> calculate_diff_image(pv::BlobPtr blob, const Size2& output_size);
         
-        static std::unique_ptr<Image> calculate_normalized_diff_image(const gui::Transform& midline_transform, const pv::BlobPtr& blob, float midline_length, const Size2& output_size, bool use_legacy);
+        static Image::UPtr calculate_normalized_diff_image(const gui::Transform& midline_transform, const pv::BlobPtr& blob, float midline_length, const Size2& output_size, bool use_legacy);
         
         operator MetaObject() const;
         static std::string class_name() {

@@ -75,7 +75,7 @@ namespace track {
         
     public:
         struct ImageData {
-            std::shared_ptr<Image> image;
+            Image::Ptr image;
             std::shared_ptr<TrainingFilterConstraints> filters;
             //pv::BlobPtr blob;
             struct Blob {
@@ -216,7 +216,7 @@ namespace track {
         static bool python_available();
         static void check_learning_module(bool force_reload_variables = false);
         
-        static std::unique_ptr<Image> calculate_diff_image_with_settings(const default_config::recognition_normalization_t::Class &normalize, const pv::BlobPtr& blob, const Recognition::ImageData& data, const Size2& output_shape);
+        static Image::UPtr calculate_diff_image_with_settings(const default_config::recognition_normalization_t::Class &normalize, const pv::BlobPtr& blob, const Recognition::ImageData& data, const Size2& output_shape);
 
         //float available_weights_accuracy(std::shared_ptr<TrainingData> data);
         void load_weights(std::string postfix = "");

@@ -328,7 +328,7 @@ protected:
     long_t _frame_context;
     double smooth_heatmap_factor;
     
-    Image::Ptr grid_image;
+    Image::UPtr grid_image;
     std::string _original_source, _source;
     OptionsList<Output::Modifiers> _mods;
     std::shared_ptr<ExternalImage> _image;

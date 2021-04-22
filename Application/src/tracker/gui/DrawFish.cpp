@@ -353,7 +353,7 @@ CREATE_STRUCT(CachedGUIOptions,
                 for(auto b : GUI::instance()->cache().processed_frame.blobs) {
                     if(b->blob_id() == blob->blob_id() || (long_t)b->blob_id() == blob->parent_id) {
                         auto && [dpos, difference] = b->difference_image(*Tracker::instance()->background(), 0);
-                        auto rgba = std::make_unique<Image>(difference->rows, difference->cols, 4);
+                        auto rgba = Image::Make(difference->rows, difference->cols, 4);
                         
                         uchar maximum_grey = 0, minimum_grey = std::numeric_limits<uchar>::max();
                         for(size_t i=0; i<difference->size(); ++i) {
@@ -401,7 +401,7 @@ CREATE_STRUCT(CachedGUIOptions,
                             auto && [image_pos, image] = b->binary_image(*Tracker::instance()->background(), FAST_SETTINGS(track_threshold));
                             auto && [dpos, difference] = b->difference_image(*Tracker::instance()->background(), 0);
                             
-                            auto rgba = std::make_unique<Image>(image->rows, image->cols, 4);
+                            auto rgba = Image::Make(image->rows, image->cols, 4);
                             
                             uchar maximum = 0;
                             for(size_t i=0; i<difference->size(); ++i) {
@@ -424,7 +424,7 @@ CREATE_STRUCT(CachedGUIOptions,
             
         if(is_selected && GUIOPTION(gui_show_probabilities)) {
             if(!_image) {
-                auto probability = std::make_unique<Image>(Tracker::average().rows, Tracker::average().cols, 4);
+                auto probability = Image::Make(Tracker::average().rows, Tracker::average().cols, 4);
                 
                 auto mat = probability->get();
                 mat.setTo(0);

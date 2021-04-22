@@ -87,7 +87,7 @@ namespace gui {
             _graph->set_scale(gui::interface_scale());
             okay.set_pos(_video_size.mul(scale)*0.5);
             
-            static ExternalImage image(std::make_unique<Image>(grabber.original_average()), Vec2(0));
+            static ExternalImage image(Image::Make(grabber.original_average()), Vec2(0));
             static bool handled = false;
             if(!handled) {
                 handled = true;

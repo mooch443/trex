@@ -116,7 +116,7 @@ protected:
     std::unique_ptr<GenericThreadPool> _pool;
     
     AnalysisType* _analysis = nullptr;
-    std::shared_ptr<Image> _current_image;
+    Image::Ptr _current_image;
     gpuMat _average;
     GETTER(cv::Mat, original_average)
     cv::Mat _current_average;
@@ -196,7 +196,7 @@ public:
     }
     bool load_image(Image_t& current);
     Queue::Code process_image(const Image_t& current);
-    std::shared_ptr<Image> latest_image();
+    Image::Ptr latest_image();
     
     std::unique_ptr<pv::Frame> last_frame() {
         std::lock_guard<std::mutex> guard(_frame_lock);

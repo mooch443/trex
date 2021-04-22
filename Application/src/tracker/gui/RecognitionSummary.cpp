@@ -78,7 +78,7 @@ namespace gui {
                     ++j;
                 }
                 
-                auto image = std::make_unique<Image>(bar_width * sorted.size(), bar_width * output_size, 4);
+                auto image = Image::Make(bar_width * sorted.size(), bar_width * output_size, 4);
                 image->set_to(0);
                 auto mat = image->get();
                 

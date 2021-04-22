@@ -14,7 +14,13 @@ namespace cmn {
     public:
         typedef std::chrono::steady_clock clock_;
         typedef std::chrono::duration<double, std::ratio<1> > second_;
-        typedef std::shared_ptr<Image> Ptr;
+        using Ptr  = std::shared_ptr<Image>;
+        using UPtr = std::unique_ptr<Image>;
+        
+        template<typename... Args>
+        static UPtr Make(Args&&...args) {
+            return std::make_unique<Image>(std::forward<Args>(args)...);
+        }
         
         class CustomData {
         public:
@@ -100,7 +106,7 @@ namespace cmn {
     };
 
     void to_png(const Image& input, std::vector<uchar>& output);
-    std::shared_ptr<Image> from_png(const file::Path& path);
+    Image::UPtr from_png(const file::Path& path);
     
     cv::Mat restrict_image_keep_ratio(const Size2& max_size, const cv::Mat& input);
 }

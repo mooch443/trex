@@ -216,7 +216,7 @@ void GUI::draw(gui::DrawStructure &base) {
         if(frame)
             _frame = std::move(frame);
         if(image)
-            _image = std::make_unique<Image>(*image);
+            _image = Image::Make(*image);
         if(noise)
             _noise = std::move(noise);
     }
@@ -279,7 +279,7 @@ void GUI::draw(gui::DrawStructure &base) {
             gui::DrawStructure::SectionGuard guard(base, "blobs");
             ColorWheel wheel;
             static cv::Mat output;
-            static StaticBackground bg(std::make_unique<Image>(_grabber.average()), nullptr);
+            static StaticBackground bg(Image::Make(_grabber.average()), nullptr);
             for (size_t i=0; i<_frame->mask().size(); i++) {
                 auto &m = _frame->mask().at(i);
                 if(m->empty())
@@ -348,12 +348,12 @@ void GUI::draw(gui::DrawStructure &base) {
                 cv::cvtColor(mat, convert, cv::COLOR_GRAY2RGBA);
                 
                 if(!background) {
-                    background = new ExternalImage(std::make_unique<Image>(convert), offset, Vec2(1/scale));
+                    background = new ExternalImage(Image::Make(convert), offset, Vec2(1/scale));
                 } else {
                     if(background->source()->rows != (uint)convert.rows || background->source()->cols != (uint)convert.cols) {
-                        background->set_source(std::make_unique<Image>(convert));
+                        background->set_source(Image::Make(convert));
                     } else
-                        background->set_source(std::make_unique<Image>(convert));
+                        background->set_source(Image::Make(convert));
                     background->set_dirty();
                 }
                 

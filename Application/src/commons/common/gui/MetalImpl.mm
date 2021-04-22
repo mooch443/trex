@@ -292,7 +292,7 @@ void MetalImpl::message(const std::string &msg) const {
             glfwGetFramebufferSize(window, &width, &height);
             if(_frame_capture_enabled) {
                 if(!_current_framebuffer)
-                    _current_framebuffer = std::make_shared<Image>(height, width, 4);
+                    _current_framebuffer = Image::Make(height, width, 4);
             } else if(_current_framebuffer)
                 _current_framebuffer = nullptr;
             
@@ -378,8 +378,8 @@ void MetalImpl::message(const std::string &msg) const {
         return status;
     }
 
-    Image::Ptr MetalImpl::current_frame_buffer() {
-        return _frame_capture_enabled ? _current_framebuffer : nullptr;
+    const Image::UPtr& MetalImpl::current_frame_buffer() {
+        return _current_framebuffer;
     }
     
     /*void MetalImpl::loop(CrossPlatform::custom_function_t custom_loop) {

@@ -460,8 +460,8 @@ namespace track {
         ExternalImage::Ptr distances[2];
         
         for(int i=0; i<2; i++) {
-            ids[i] = std::make_unique<Image>(range + 1, VisualField::field_resolution, 4);
-            distances[i] = std::make_unique<Image>(range + 1, VisualField::field_resolution, 4);
+            ids[i] = Image::Make(range + 1, VisualField::field_resolution, 4);
+            distances[i] = Image::Make(range + 1, VisualField::field_resolution, 4);
             
             std::fill(ids[i]->data(), ids[i]->data() + ids[i]->size(), 0);
             std::fill(distances[i]->data(), distances[i]->data() + distances[i]->size(), 0);

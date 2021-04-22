@@ -356,7 +356,7 @@ static Callback callback;
         return std::make_shared<Blob>(lines, tmp_pixels);
     }
     
-    std::tuple<Vec2, std::unique_ptr<Image>> Blob::image(const cmn::Background* background, const Bounds& restricted) const {
+    std::tuple<Vec2, Image::UPtr> Blob::image(const cmn::Background* background, const Bounds& restricted) const {
         Bounds b(bounds().pos()-Vec2(1), bounds().size()+Vec2(2));
         if(background)
             b.restrict_to(background->bounds());
@@ -365,7 +365,7 @@ static Callback callback;
         else
             b.restrict_to(Bounds(0, 0, infinity<Float2_t>(), infinity<Float2_t>()));
         
-        auto image = std::make_unique<Image>(b.height, b.width);
+        auto image = Image::Make(b.height, b.width);
         
         if(!background)
             std::fill(image->data(), image->data() + image->size(), uchar(0));
@@ -387,11 +387,11 @@ static Callback callback;
         return {b.pos(), std::move(image)};
     }
     
-    std::tuple<Vec2, std::unique_ptr<Image>> Blob::alpha_image(const cmn::Background& background, int32_t threshold) const {
+    std::tuple<Vec2, Image::UPtr> Blob::alpha_image(const cmn::Background& background, int32_t threshold) const {
         Bounds b(bounds().pos()-Vec2(1), bounds().size()+Vec2(2));
         b.restrict_to(background.bounds());
         
-        auto image = std::make_unique<Image>(b.height, b.width, 4);
+        auto image = Image::Make(b.height, b.width, 4);
         std::fill(image->data(), image->data() + image->size(), uchar(0));
         
         ushort _x = (ushort)b.x;
@@ -427,11 +427,11 @@ static Callback callback;
         return {b.pos(), std::move(image)};
     }
 
-    std::tuple<Vec2, std::unique_ptr<Image>> Blob::equalized_luminance_alpha_image(const cmn::Background& background, int32_t threshold, float minimum, float maximum) const {
+    std::tuple<Vec2, Image::UPtr> Blob::equalized_luminance_alpha_image(const cmn::Background& background, int32_t threshold, float minimum, float maximum) const {
         Bounds b(bounds().pos()-Vec2(1), bounds().size()+Vec2(2));
         b.restrict_to(background.bounds());
         
-        auto image = std::make_unique<Image>(b.height, b.width, 2);
+        auto image = Image::Make(b.height, b.width, 2);
         std::fill(image->data(), image->data() + image->size(), uchar(0));
         
         ushort _x = (ushort)b.x;
@@ -473,11 +473,11 @@ static Callback callback;
         return {b.pos(), std::move(image)};
     }
 
-    std::tuple<Vec2, std::unique_ptr<Image>> Blob::luminance_alpha_image(const cmn::Background& background, int32_t threshold) const {
+    std::tuple<Vec2, Image::UPtr> Blob::luminance_alpha_image(const cmn::Background& background, int32_t threshold) const {
         Bounds b(bounds().pos()-Vec2(1), bounds().size()+Vec2(2));
         b.restrict_to(background.bounds());
         
-        auto image = std::make_unique<Image>(b.height, b.width, 2);
+        auto image = Image::Make(b.height, b.width, 2);
         std::fill(image->data(), image->data() + image->size(), uchar(0));
         
         ushort _x = (ushort)b.x;
@@ -499,11 +499,11 @@ static Callback callback;
         return {b.pos(), std::move(image)};
     }
     
-    std::tuple<Vec2, std::unique_ptr<Image>> Blob::difference_image(const cmn::Background& background, int32_t threshold) const {
+    std::tuple<Vec2, Image::UPtr> Blob::difference_image(const cmn::Background& background, int32_t threshold) const {
         Bounds b(bounds().pos()-Vec2(1), bounds().size()+Vec2(2));
         b.restrict_to(background.bounds());
         
-        auto image = std::make_unique<Image>(b.height, b.width);
+        auto image = Image::Make(b.height, b.width);
         std::fill(image->data(), image->data() + image->size(), uchar(0));
         
         ushort _x = (ushort)b.x;
@@ -546,11 +546,11 @@ static Callback callback;
         return pixels;
     }
     
-    std::tuple<Vec2, std::unique_ptr<Image>> Blob::thresholded_image(const cmn::Background& background, int32_t threshold) const {
+    std::tuple<Vec2, Image::UPtr> Blob::thresholded_image(const cmn::Background& background, int32_t threshold) const {
         Bounds b(bounds().pos()-Vec2(1), bounds().size()+Vec2(2));
         b.restrict_to(background.bounds());
         
-        auto image = std::make_unique<Image>(b.height, b.width);
+        auto image = Image::Make(b.height, b.width);
         std::fill(image->data(), image->data() + image->size(), uchar(0));
         
         ushort _x = (ushort)b.x;
@@ -568,11 +568,11 @@ static Callback callback;
         return {b.pos(), std::move(image)};
     }
     
-    std::tuple<Vec2, std::unique_ptr<Image>> Blob::binary_image(const cmn::Background& background, int32_t threshold) const {
+    std::tuple<Vec2, Image::UPtr> Blob::binary_image(const cmn::Background& background, int32_t threshold) const {
         Bounds b(bounds().pos()-Vec2(1), bounds().size()+Vec2(2));
         b.restrict_to(background.bounds());
         
-        auto image = std::make_unique<Image>(b.height, b.width);
+        auto image = Image::Make(b.height, b.width);
         std::fill(image->data(), image->data() + image->size(), uchar(0));
         
         ushort _x = (ushort)b.x;
@@ -595,12 +595,12 @@ static Callback callback;
         return {b.pos(), std::move(image)};
     }
     
-    std::tuple<Vec2, std::unique_ptr<Image>> Blob::binary_image() const {
+    std::tuple<Vec2, Image::UPtr> Blob::binary_image() const {
         Bounds b(bounds().pos()-Vec2(1), bounds().size()+Vec2(2));
         if(b.x < 0) {b.x = 0;--b.width;}
         if(b.y < 0) {b.y = 0;--b.height;}
         
-        auto image = std::make_unique<Image>(b.height, b.width);
+        auto image = Image::Make(b.height, b.width);
         std::fill(image->data(), image->data() + image->size(), uchar(0));
         
         ushort _x = (ushort)b.x;
