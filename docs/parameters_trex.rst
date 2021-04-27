@@ -656,6 +656,16 @@ TRex parameters
 
 
 
+.. function:: gui_happy_mode(bool)
+
+	**default value:** false
+
+
+	If ``calculate_posture`` is enabled, enabling this option likely improves your experience with TRex.
+
+	.. seealso:: :func:`calculate_posture`, 
+
+
 .. function:: gui_interface_scale(float)
 
 	**default value:** 1.25

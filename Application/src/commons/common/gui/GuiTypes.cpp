@@ -523,7 +523,7 @@ void Text::refresh_dims() {
 }
 
 ExternalImage::ExternalImage(Ptr&& source, const Vec2& pos, const Vec2& scale, const Color& color)
-    : gui::Drawable(Type::IMAGE, Bounds(pos, Vec2(source->cols, source->rows))), _url(""), _source(nullptr), _color(color)
+    : gui::Drawable(Type::IMAGE, Bounds(pos, Vec2(source ? source->cols : 0, source ? source->rows : 0))), _url(""), _source(nullptr), _color(color)
 {
     if(scale.x != 1 || scale.y != 1)
         set_scale(scale);

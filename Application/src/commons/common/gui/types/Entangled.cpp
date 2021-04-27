@@ -5,29 +5,19 @@
 
 namespace gui {
     Entangled::Entangled()
-        : SectionInterface(Type::ENTANGLED, NULL),
-            _begun(false),
-            scrolling([this](Event e) {
-                set_scroll_offset(_scroll_offset - Vec2(e.scroll.dx, e.scroll.dy));
-            }),
-            callback_ptr(nullptr),
-            _scroll_enabled(false),
-            _scroll_limit_y(Rangef(0, FLT_MAX)),
-            _content_changed(true),
-            _content_changed_while_updating(false)
+        : SectionInterface(Type::ENTANGLED, NULL)
     {}
-    
+
+    Entangled::Entangled(std::function<void(Entangled&)>&& fn)
+        : SectionInterface(Type::ENTANGLED, NULL)
+    {
+        update(std::move(fn));
+        auto_size(Margin{0,0});
+    }
+        
     Entangled::Entangled(const std::vector<Drawable*>& objects)
         : SectionInterface(Type::ENTANGLED, NULL),
-            _children(objects),
-            _begun(false),
-            scrolling([this](Event e) {
-                set_scroll_offset(_scroll_offset - Vec2(e.scroll.dx, e.scroll.dy));
-            }),
-            callback_ptr(nullptr),
-            _scroll_enabled(false),
-            _content_changed(true),
-            _content_changed_while_updating(false)
+            _children(objects)
     {
         for(size_t i=0; i<_children.size(); i++)
             init_child(i, true);
@@ -164,7 +154,7 @@ namespace gui {
         
         ma += Vec2(max(0.f, margin.right), max(0.f, margin.bottom));
         
-        set_size(ma);
+        set_size(ma - mi);
     }
     
     void Entangled::update_bounds() {

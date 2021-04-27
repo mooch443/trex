@@ -194,7 +194,10 @@ namespace gui {
         GETTER(Vec2, relative_drag_start)
         
         //! Gives a Z-Index for an item. If this is set > 0, then it will be drawn later than items with smaller z indexes
-        GETTER(int, z_index)
+        int _z_index = 0;
+        
+    public:
+        int z_index() const;
         
     public:
         Drawable(Drawable&) = delete;

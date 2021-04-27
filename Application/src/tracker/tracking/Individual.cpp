@@ -419,7 +419,7 @@ const Midline::Ptr Individual::pp_midline(long_t frameIndex) const {
 
 Midline::Ptr Individual::fixed_midline(long_t frameIndex) const {
     auto mid = pp_midline(frameIndex);
-    if(mid == nullptr || midline_length() <= 0)
+    if(mid == nullptr || midline_length() <= 0 || _local_cache._midline_samples == 0)
         return nullptr;
     
     MovementInformation movement;

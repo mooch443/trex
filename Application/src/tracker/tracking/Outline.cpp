@@ -1269,6 +1269,8 @@ gui::Transform Midline::transform(const default_config::recognition_normalizatio
 }
 
 Midline::Ptr Midline::normalize(float fix_length, bool debug) const {
+    assert(!std::isinf(fix_length));
+    
     if(is_normalized())
         Warning("Normalizing a normalized midline.");
     
