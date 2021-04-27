@@ -360,19 +360,23 @@ void PythonIntegration::reinit() {
     async_python_function([]() -> bool {
         using namespace py::literals;
         python_gpu_initialized() = false;
+        python_initializing() = true;
         
         auto fail = [](const auto& e, int line){
             Debug("Python runtime error (%s:%d): '%s'", __FILE_NO_PATH__, line, e.what());
             python_gpu_initialized() = false;
+            python_initializing() = false;
         };
         
         try {
-            if(_settings->map().get<bool>("recognition_enable").value()) {
+            //if(_settings->map().get<bool>("recognition_enable").value())
+            {
                 async_python_function([fail](){
                     try {
                         auto cmd = utils::read_file("trex_init.py");
                         py::exec(cmd);
                         python_gpu_initialized() = true;
+                        python_initializing() = false;
                         
                     } catch(const UtilsException& ex) {
                         Warning("Error while executing 'trex_init.py'. Content: %s", ex.what());

@@ -198,6 +198,7 @@ using remove_cvref_t = typename remove_cvref<T>::type;
     
 #define GETTER_CONST(TYPE, VAR) protected: TYPE _##VAR; public: inline TYPE& VAR() const { return _##VAR; } protected:
 #define GETTER(TYPE, VAR) protected: TYPE _##VAR; public: const TYPE& VAR() const { return _##VAR; } protected:
+#define GETTER_I(TYPE, VAR, INIT) protected: TYPE _##VAR = INIT; public: const TYPE& VAR() const { return _##VAR; } protected:
 #define GETTER_NCONST(TYPE, VAR) protected: TYPE _##VAR; public: inline const TYPE& VAR() const { return _##VAR; } inline TYPE& VAR() { return _##VAR; } protected:
 #define GETTER_PTR(TYPE, VAR) protected: TYPE _##VAR; public: inline TYPE VAR() const { return _##VAR; } inline TYPE & VAR() { return _##VAR; } protected:
 #define GETTER_CONST_PTR(TYPE, VAR) protected: TYPE _##VAR; public: inline const TYPE VAR() const { return _##VAR; } protected:

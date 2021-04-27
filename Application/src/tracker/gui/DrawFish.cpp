@@ -347,7 +347,7 @@ CREATE_STRUCT(CachedGUIOptions,
             //window.circle(estimated, FAST_SETTINGS(track_max_speed) * tdelta, clr);
         }
         
-        if(GUIOPTION(gui_happy_mode) && _cached_midline && _cached_outline) {
+        if(GUIOPTION(gui_happy_mode) && _cached_midline && _cached_outline && posture && posture->head) {
             struct Physics {
                 Vec2 direction = Vec2();
                 Vec2 v = Vec2();
@@ -389,7 +389,7 @@ CREATE_STRUCT(CachedGUIOptions,
             ph.v += force / mass * dt;
             ph.direction += ph.v * dt;
             
-            auto &&[eyes, off] = VisualField::generate_eyes(&_obj, basic, points, _cached_midline, posture->head->angle());
+            auto &&[eyes, off] = VisualField::generate_eyes(&_obj, basic, points, _cached_midline, alpha);
             
             auto d = ph.direction;
             auto L = d.length();
@@ -413,13 +413,14 @@ CREATE_STRUCT(CachedGUIOptions,
             ph.blink += dt;
             
             auto sun_direction = (offset - Vec2(0)).normalize();
+            auto eye_scale = _obj.midline_length() / 90;
             for(auto &eye : eyes) {
                 eye.pos += ph.direction;
-                window.circle(eye.pos + offset, 5, Black.alpha(200), White.alpha(125));
-                auto c = window.circle(eye.pos + Vec2(2.5).mul(d) + offset, 3, Transparent, Black.alpha(200));
+                window.circle(eye.pos + offset, 5 * eye_scale, Black.alpha(200), White.alpha(125));
+                auto c = window.circle(eye.pos + Vec2(2.5).mul(d) + offset, 3 * eye_scale, Transparent, Black.alpha(200));
                 c->set_scale(Vec2(1, ph.blinking ? h : 1));
                 c->set_rotation(atan2(ph.direction) + RADIANS(90));//posture->head->angle() + RADIANS(90));
-                window.circle(eye.pos + Vec2(2.5).mul(d) + Vec2(2).mul(sun_direction) + offset, 1, Transparent, White.alpha(200 * c->scale().min()));
+                window.circle(eye.pos + Vec2(2.5).mul(d) + Vec2(2).mul(sun_direction) + offset, sqrt(eye_scale), Transparent, White.alpha(200 * c->scale().min()));
             }
         }
         

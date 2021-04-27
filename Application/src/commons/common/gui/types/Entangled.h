@@ -24,29 +24,32 @@ namespace gui {
         std::vector<Drawable*> _children;
         std::unordered_set<Drawable*> _currently_removed;
         std::unordered_map<Drawable*, bool> _owned;
-        GETTER(std::atomic_bool, begun)
+        GETTER_I(std::atomic_bool, begun, false)
         
-        event_handler_yes_t scrolling;
-        callback_handle_t callback_ptr;
+        event_handler_yes_t scrolling = [this](Event e){
+            set_scroll_offset(_scroll_offset - Vec2(e.scroll.dx, e.scroll.dy));
+        };
+        callback_handle_t callback_ptr = nullptr;
         
         //! Scroll values in x and y direction.
         GETTER(Vec2, scroll_offset)
         //! Enables or disables scrolling
-        GETTER(bool, scroll_enabled)
+        GETTER_I(bool, scroll_enabled, false)
         
-        GETTER(Rangef, scroll_limit_x)
-        GETTER(Rangef, scroll_limit_y)
+        GETTER_I(Rangef, scroll_limit_x, Rangef(0, FLT_MAX))
+        GETTER_I(Rangef, scroll_limit_y, Rangef(0, FLT_MAX))
         
         //! For delta updates.
-        GETTER(size_t, index)
+        GETTER_I(size_t, index, 0)
         
-        GETTER(bool, content_changed)
-        bool _content_changed_while_updating;
+        GETTER_I(bool, content_changed, true)
+        bool _content_changed_while_updating = false;
         
     public:
         Entangled();
         Entangled(const std::vector<Drawable*>& objects);
-        void update(const std::function<void(Entangled& base)> create);
+        Entangled(std::function<void(Entangled&)>&&);
+        void update(const std::function<void(Entangled&)> create);
         
         virtual std::string name() const { return "Entangled"; }
         

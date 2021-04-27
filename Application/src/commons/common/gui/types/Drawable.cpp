@@ -242,6 +242,10 @@ namespace gui {
         }
     }
 
+    int Drawable::z_index() const {
+        return _z_index + (parent() ? parent()->z_index() : 0);
+    }
+
     void Drawable::set_scale(const Vec2& scale) {
         if(_scale == scale)
             return;
@@ -848,11 +852,6 @@ void SectionInterface::set_z_index(int index) {
         return;
     
     Drawable::set_z_index(index);
-    if(_background)
-        _background->set_z_index(_z_index);
-    for(auto c : children()) {
-        c->set_z_index(index);
-    }
 }
 
     SectionInterface::~SectionInterface() {
