@@ -67,6 +67,7 @@
 #include <gui/FileChooser.h>
 #include <gui/types/Checkbox.h>
 #include <misc/MemoryStats.h>
+#include <tracking/Categorize.h>
 #include "VideoOpener.h"
 
 #if WIN32
@@ -1675,6 +1676,7 @@ int main(int argc, char** argv)
     
     Debug("Preparing for shutdown...");
     CheckUpdates::cleanup();
+    Categorize::terminate();
     Recognition::notify();
     
     {

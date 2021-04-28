@@ -9,8 +9,10 @@ class DrawStructure;
 namespace track {
 namespace Categorize {
 
-void initial_menu();
+void show();
+void hide();
 void draw(gui::DrawStructure&);
+void terminate();
 
 }
 }

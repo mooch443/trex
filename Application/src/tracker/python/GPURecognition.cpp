@@ -84,7 +84,49 @@ namespace pybind11 {
                 py::array a(std::move(shape), std::move(strides), src->data());
                 return a.release();
             }
+            
+            static py::handle cast(const cmn::Image::UPtr& src, py::return_value_policy policy, py::handle parent)
+            {
+
+                std::vector<size_t> shape{ src->rows, src->cols, src->dims };
+                std::vector<size_t> strides{
+                    sizeof(uint8_t) * src->dims * src->cols,
+                    sizeof(uint8_t) * src->dims,
+                    sizeof(uint8_t)
+                };
+
+                py::array a(std::move(shape), std::move(strides), src->data());
+                return a.release();
+            }
         };
+    
+    template<> struct type_caster<cmn::Image::UPtr>
+    {
+    public:
+
+        PYBIND11_TYPE_CASTER(cmn::Image::UPtr, _("Image::UPtr"));
+
+        // Conversion part 1 (Python -> C++)
+        bool load(py::handle src, bool convert)
+        {
+            return false;
+        }
+
+        //Conversion part 2 (C++ -> Python)
+        static py::handle cast(const cmn::Image::UPtr& src, py::return_value_policy policy, py::handle parent)
+        {
+
+            std::vector<size_t> shape{ src->rows, src->cols, src->dims };
+            std::vector<size_t> strides{
+                sizeof(uint8_t) * src->dims * src->cols,
+                sizeof(uint8_t) * src->dims,
+                sizeof(uint8_t)
+            };
+
+            py::array a(std::move(shape), std::move(strides), src->data());
+            return a.release();
+        }
+    };
     }
 } // namespace pybind11::detail
 
@@ -230,6 +272,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
 
     py::bind_vector<std::vector<cmn::Image::Ptr>>(m, "ImageVector", "Vector of images");
     py::bind_vector<std::vector<float>>(m, "FloatVector", "Float vector");
+    py::bind_vector<std::vector<std::string>>(m, "StringVector", "String vector");
     py::bind_vector<std::vector<long_t>>(m, "LongVector", "Long vector");
 }
 
@@ -925,6 +968,18 @@ IMPL_VARIABLE(long_t)
 IMPL_VARIABLE(const std::string&)
 IMPL_VARIABLE(bool)
 IMPL_VARIABLE(uint64_t)
+
+void PythonIntegration::set_variable(const std::string & name, const std::vector<std::string> & v, const std::string& m) {
+    check_correct_thread_id();
+    
+    if(m.empty())
+        (*_locals)[name.c_str()] = v;
+    else if(_modules.count(m)) {
+        auto &mod = _modules[m];
+        if(mod.ptr() != nullptr)
+            mod.attr(name.c_str()) = v;
+    }
+}
 
 void PythonIntegration::check_correct_thread_id() {
     if(std::this_thread::get_id() != _saved_id) {
