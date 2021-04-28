@@ -384,7 +384,7 @@ public:
             _text->set_txt(text);
         }
         
-        _image->set_color(White.alpha(100 + 155 * s));
+        _image->set_color(White.alpha(200 + 55 * s));
         _text->set_alpha(0.1 + s * 0.9);
         
         auto rscale = _button_layout->parent() ? _button_layout->parent()->stage()->scale().reciprocal().mul(_block->scale().reciprocal()) : Vec2(1);
