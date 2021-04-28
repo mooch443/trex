@@ -12,275 +12,193 @@
 namespace track {
 namespace Categorize {
 
-void set_category_name(int category, const std::string&) {}
-void add_sample(int category, const Image::Ptr&) {}
+// indexes in _samples array
+std::unordered_map<const Individual::SegmentInformation*, size_t> _used_indexes;
 
-struct Label {
-    using Ptr = std::shared_ptr<Label>;
-    std::string name;
-    int id;
-    
-    template<typename... Args>
-    static Ptr Make(Args&&...args) {
-        return std::make_shared<Label>(std::forward<Args>(args)...);
-    }
-    
-    Label(const std::string& name) : name(name) {
-        static int _ID = 0;
-        id = _ID++;
-    }
-};
+// holds original samples
+std::vector<Sample::Ptr> _samples;
 
-struct Sample {
-    using Ptr = std::shared_ptr<Sample>;
-    template<typename... Args>
-    static Ptr Make(Args&&...args) {
-        return std::make_shared<Sample>(std::forward<Args>(args)...);
-    }
-    
-    Idx_t _fish;
-    std::shared_ptr<Individual::SegmentInformation> _segment;
-    
-    std::vector<long_t> _frames;
-    std::vector<Image::Ptr> _images;
-    
-    Label::Ptr _assigned_label;
-    std::vector<std::tuple<Label::Ptr, float>> _probabilities;
-    bool _requested = false;
-    
-    Sample(Idx_t fish, const decltype(_segment)& segment, std::vector<long_t>&& frames, const std::vector<Image::Ptr>& images)
-        :   _fish(fish),
-            _segment(segment),
-            _frames(std::move(frames)),
-            _images(images)
-    {
-        assert(!_images.empty());
-    }
-    
-    static const Sample::Ptr& Invalid() {
-        static Sample::Ptr invalid(nullptr);
-        return invalid;
-    }
-    
-    void set_label(const Label::Ptr& label) {
-        if(!label) {
-            // unassigning label
-            _assigned_label = nullptr;
-            return;
-        }
-        
-        if(_assigned_label != nullptr)
-            U_EXCEPTION("Replacing label for sample (was already assigned '%s', but now also '%s').", _assigned_label->name.c_str(), label->name.c_str());
-        _assigned_label = label;
-    }
-};
+// holds all original Labels
+std::unordered_map<Label::Ptr, std::vector<Sample::Ptr>> _labels;
 
-struct DataStore {
-    // indexes in _samples array
-    static std::unordered_map<const Individual::SegmentInformation*, size_t> _used_indexes;
-    
-    // holds original samples
-    static std::vector<Sample::Ptr> _samples;
-    
-    // holds all original Labels
-    static std::unordered_map<Label::Ptr, std::vector<Sample::Ptr>> _labels;
-    
-    static std::random_device rd;
-    
-    static std::set<std::string> label_names() {
-        std::set<std::string> _names;
-        for(auto &[l, s] : _labels)
-            _names.insert(l->name);
-        return _names;
-    }
-    
-    static Label::Ptr label(const char* name) {
-        for(auto &[l, s] : _labels) {
-            if(l->name == name)
-                return l;
-        }
-        
-        auto l = Label::Make(std::string(name));
-        _labels.insert({l, {}});
-        return l;
-    }
-    
-    static Label::Ptr label(int ID) {
-        for(auto &[l, s] : _labels) {
-            if(l->id == ID) {
-                return l;
-            }
-        }
-        Warning("ID %d not found", ID);
-        return nullptr;
-    }
-    
-    static const Sample::Ptr& sample(
-            const std::shared_ptr<Individual::SegmentInformation>& segment,
-                                     Individual* fish);
-    
-    static const Sample::Ptr& random_sample(Idx_t fid) {
-        static std::mt19937 mt(rd());
-        std::shared_ptr<Individual::SegmentInformation> segment;
-        Individual *fish;
-        
-        {
-            Tracker::LockGuard guard("Categorize::random_sample");
-            fish = Tracker::instance()->individuals().at(fid);
-            auto &basic_stuff = fish->basic_stuff();
-            if(basic_stuff.empty())
-                return Sample::Invalid();
-            
-            std::uniform_int_distribution<remove_cvref<decltype(fish->frame_segments())>::type::difference_type> sample_dist(0, fish->frame_segments().size()-1);
-            auto it = fish->frame_segments().begin();
-            std::advance(it, sample_dist(mt));
-            segment = *it;
-        }
-        
-        if(!segment)
-            return Sample::Invalid();
-        
-        return sample(segment, fish);
-    }
-    
-    static Sample::Ptr get_random() {
-        static std::mt19937 mt(rd());
-        
-        std::set<Idx_t> individuals(extract_keys(Tracker::instance()->individuals()));
-        if(individuals.empty())
-            return {};
-        
-        std::uniform_int_distribution<size_t> individual_dist(0, individuals.size()-1);
-        
-        auto fid = individual_dist(mt);
-        return DataStore::random_sample(Idx_t(fid));
-    }
-    
-    struct Composition {
-        std::unordered_map<std::string, size_t> _numbers;
-        std::string toStr() const;
-    };
-    
-    static Composition composition() {
-        Composition c;
-        for (auto &[key, samples] : _labels) {
-            for(auto &s : samples)
-                c._numbers[key->name] += s->_images.size();
-        }
-        return c;
-    }
-};
+std::random_device rd;
 
-IMPLEMENT(DataStore::_used_indexes);
-IMPLEMENT(DataStore::rd);
-IMPLEMENT(DataStore::_samples);
-IMPLEMENT(DataStore::_labels);
-
-struct LearningTask {
-    enum class Type {
-        Prediction,
-        Training
-    } type;
-    
-    Sample::Ptr sample;
-    std::function<void(const LearningTask&)> callback;
-    std::vector<float> result;
-};
-
-struct Work {
+namespace Work {
     std::atomic_bool terminate = false, _learning = false;
-    mutable std::mutex _mutex;
-    mutable std::mutex _recv_mutex;
+    std::mutex _mutex;
+    std::mutex _recv_mutex;
     std::condition_variable _variable, _recv_variable;
     std::queue<Sample::Ptr> _generated_samples;
     
     std::condition_variable _learning_variable;
-    mutable std::mutex _learning_mutex;
-    
-    static size_t& requested_samples() {
+    std::mutex _learning_mutex;
+
+    static void add_training_sample(const Sample::Ptr& sample);
+    static void start_learning();
+    void loop();
+
+    Sample::Ptr retrieve();
+
+    size_t& requested_samples() {
         static size_t _request = 0;
         return _request;
     }
     
-    static bool& visible() {
+    bool& visible() {
         static bool _visible = false;
         return _visible;
     }
     
-    static Work& instance() {
-        static Work _work;
-        return _work;
-    }
-    
-    static auto& queue() {
+    auto& queue() {
         static std::queue<LearningTask> _tasks;
         return _tasks;
     }
     
-    static auto& status() {
+    auto& status() {
         static std::string _status;
         return _status;
     }
     
-    static std::unique_ptr<std::thread> thread;
-    static constexpr float good_enough() {
+    std::unique_ptr<std::thread> thread;
+    constexpr float good_enough() {
         return 0.75;
     }
     
-    static void work() {
+    void work() {
         set_thread_name("Categorize::work_thread");
-        instance().loop();
+        Work::loop();
     }
     
-    size_t num_ready() const {
+    size_t num_ready() {
         std::lock_guard guard(_mutex);
         return _generated_samples.size();
     }
     
-    static float& best_accuracy() {
+    float& best_accuracy() {
         static float _a = 0;
         return _a;
     }
     
-    Sample::Ptr retrieve();
-    
-    static void set_best_accuracy(float a) {
+    void set_best_accuracy(float a) {
         best_accuracy() = a;
     }
-    
-    static void add_training_sample(const Sample::Ptr& sample) {
-        try {
-            Work::start_learning();
-            
-            LearningTask task;
-            task.sample = sample;
-            task.type = LearningTask::Type::Training;
-            
-            {
-                std::lock_guard guard(instance()._learning_mutex);
-                queue().push(std::move(task));
-            }
-            
-            instance()._learning_variable.notify_one();
-            
-        } catch(...) {
-            
+
+    void add_task(LearningTask&& task) {
+        {
+            std::lock_guard guard(_learning_mutex);
+            queue().push(std::move(task));
         }
+        
+        Work::_learning_variable.notify_one();
     }
-    
-    static void start_learning();
-    void loop();
 };
 
-IMPLEMENT(Work::thread);
+Sample::Sample(Idx_t fish, const decltype(_segment)& segment, std::vector<long_t>&& frames, const std::vector<Image::Ptr>& images)
+    :   _fish(fish),
+        _segment(segment),
+        _frames(std::move(frames)),
+        _images(images)
+{
+    assert(!_images.empty());
+}
+
+std::set<std::string> DataStore::label_names() {
+    std::set<std::string> _names;
+    for(auto &[l, s] : _labels)
+        _names.insert(l->name);
+    return _names;
+}
+
+Label::Ptr DataStore::label(const char* name) {
+    for(auto &[l, s] : _labels) {
+        if(l->name == name)
+            return l;
+    }
+    
+    auto l = Label::Make(std::string(name));
+    _labels.insert({l, {}});
+    return l;
+}
+
+Label::Ptr DataStore::label(int ID) {
+    for(auto &[l, s] : _labels) {
+        if(l->id == ID) {
+            return l;
+        }
+    }
+    Warning("ID %d not found", ID);
+    return nullptr;
+}
+
+const Sample::Ptr& DataStore::random_sample(Idx_t fid) {
+    static std::mt19937 mt(rd());
+    std::shared_ptr<Individual::SegmentInformation> segment;
+    Individual *fish;
+    
+    {
+        Tracker::LockGuard guard("Categorize::random_sample");
+        fish = Tracker::instance()->individuals().at(fid);
+        auto &basic_stuff = fish->basic_stuff();
+        if(basic_stuff.empty())
+            return Sample::Invalid();
+        
+        std::uniform_int_distribution<remove_cvref<decltype(fish->frame_segments())>::type::difference_type> sample_dist(0, fish->frame_segments().size()-1);
+        auto it = fish->frame_segments().begin();
+        std::advance(it, sample_dist(mt));
+        segment = *it;
+    }
+    
+    if(!segment)
+        return Sample::Invalid();
+    
+    return sample(segment, fish);
+}
+
+Sample::Ptr DataStore::get_random() {
+    static std::mt19937 mt(rd());
+    
+    std::set<Idx_t> individuals(extract_keys(Tracker::instance()->individuals()));
+    if(individuals.empty())
+        return {};
+    
+    std::uniform_int_distribution<size_t> individual_dist(0, individuals.size()-1);
+    
+    auto fid = individual_dist(mt);
+    return DataStore::random_sample(Idx_t(fid));
+}
+
+DataStore::Composition DataStore::composition() {
+    Composition c;
+    for (auto &[key, samples] : _labels) {
+        for(auto &s : samples)
+            c._numbers[key->name] += s->_images.size();
+    }
+    return c;
+}
+
 constexpr size_t per_row = 4;
+
+void Work::add_training_sample(const Sample::Ptr& sample) {
+    try {
+        Work::start_learning();
+        
+        LearningTask task;
+        task.sample = sample;
+        task.type = LearningTask::Type::Training;
+        
+        Work::add_task(std::move(task));
+        
+    } catch(...) {
+        
+    }
+}
 
 void terminate() {
     if(Work::thread) {
-        Work::instance().terminate = true;
-        Work::instance()._learning = false;
-        Work::instance()._learning_variable.notify_all();
-        Work::instance()._variable.notify_all();
+        Work::terminate = true;
+        Work::_learning = false;
+        Work::_learning_variable.notify_all();
+        Work::_variable.notify_all();
         Work::thread->join();
         Work::thread = nullptr;
     }
@@ -289,7 +207,7 @@ void terminate() {
 void show() {
     if(!Work::visible()) {
         Work::requested_samples() = per_row * per_row;
-        Work::instance()._variable.notify_one();
+        Work::_variable.notify_one();
         Work::visible() = true;
         
         PythonIntegration::ensure_started();
@@ -340,19 +258,15 @@ public:
         }
         
         if(_sample) {
-            auto text = FAST_SETTINGS(individual_prefix)+Meta::toStr(_sample->_fish)+": <nr>"+Meta::toStr(_animation_index)+"</nr>/<nr>"+Meta::toStr(_sample->_images.size())+"</nr>";
+            auto text = "<nr>"+Meta::toStr(_animation_index)+"</nr>/<nr>"+Meta::toStr(_sample->_images.size())+"</nr>";
             
-            std::lock_guard guard(Work::instance()._recv_mutex);
+            std::lock_guard guard(Work::_recv_mutex);
             if(!_sample->_probabilities.empty()) {
                 std::map<std::string, float> summary;
                 
                 for (auto &[l, v] : _sample->_probabilities) {
                     if(l)
-                        summary[l->name] += 1;
-                }
-                
-                for (auto &[k, v] : summary) {
-                    v /= (float)_sample->_probabilities.size();
+                        summary[l->name] = v;
                 }
                 
                 text = settings::htmlify(Meta::toStr(summary)) + "\n" + text;
@@ -365,21 +279,24 @@ public:
                     task.sample = _sample;
                     task.type = LearningTask::Type::Prediction;
                     task.callback = [](const LearningTask& task) {
-                        std::lock_guard guard(Work::instance()._recv_mutex);
+                        std::lock_guard guard(Work::_recv_mutex);
                         for(size_t i=0; i<task.result.size(); ++i) {
-                            task.sample->_probabilities.push_back({
-                                DataStore::label(task.result.at(i)),
-                                task.result.at(i)
-                            });
+                            task.sample->_probabilities[DataStore::label(task.result.at(i))] += float(1);
                         }
+                        
+                        auto str0 = Meta::toStr(task.sample->_probabilities);
+                        for(auto &[k, v] : task.sample->_probabilities)
+                            v /= float(task.result.size());
+                        
+                        auto str1 = Meta::toStr(task.sample->_probabilities);
+                        Debug("%lu: %S -> %S", task.result.size(), &str0, &str1);
                     };
                     
-                    std::lock_guard guard(Work::instance()._mutex);
-                    Work::queue().push(std::move(task));
+                    Work::add_task(std::move(task));
                 }
                 
             } else
-                text += " <key>(prediction requested)</key>";
+                text += " <key>(pred.)</key>";
             
             _text->set_txt(text);
         }
@@ -400,13 +317,6 @@ public:
         return _block->global_bounds();
     }
 };
-
-static std::unordered_map<Entangled*, Cell> _tangle_cells;
-
-static Tooltip tooltip(nullptr, 200);
-static Layout::Ptr stext = nullptr;
-static Entangled* selected = nullptr;
-static Layout::Ptr button(std::make_shared<Button>("Close", Bounds(0, 0, 100, 33)));
 
 struct Row {
     int index;
@@ -451,7 +361,13 @@ struct Row {
             auto &cell = this->cell(i);
             
             if(cell._sample) {
-                cell._animation_time += dt * cell._sample->_images.size() * 0.5;
+                auto d = euclidean_distance(base.mouse_position(), cell.bounds().pos() + cell.bounds().size() * 0.5) / (layout->parent()->global_bounds().size().length() * 0.45);
+                cell._block->set_scale(Vec2(1.25 + 0.35 / (1 + d * d)) * (cell.selected() ? 1.5 : 1));
+                
+                const double seconds_for_all_samples = (cell._image->hovered() ? 15.0 : 2.0);
+                const double samples_per_second = cell._sample->_images.size() / seconds_for_all_samples;
+                
+                cell._animation_time += dt * samples_per_second;
                 
                 if(size_t(cell._animation_time) != cell._animation_index) {
                     cell._animation_index = size_t(cell._animation_time);
@@ -464,10 +380,6 @@ struct Row {
                     cell._image->update_with(*cell._sample->_images.at(cell._animation_index));
                     cell._block->auto_size(Margin{0, 0});
                 }
-                
-                auto d = euclidean_distance(base.mouse_position(), cell.bounds().pos() + cell.bounds().size() * 0.5) / (layout->parent()->global_bounds().size().length() * 0.45);
-                cell._block->set_scale(Vec2(1.25 + 0.35 / (1 + d * d)) * (cell.selected() ? 1.5 : 1));
-                
                 
             } else {
                 //std::fill(cell._image->source()->data(), cell._image->source()->data() + cell._image->source()->size(), 0);
@@ -521,22 +433,20 @@ static auto desc_text = Layout::Make<StaticText>();
 static std::array<Row, 3> rows { Row(0), Row(1), Row(2) };
 
 Sample::Ptr Work::retrieve() {
-    instance()._variable.notify_one();
+    _variable.notify_one();
     
     Sample::Ptr sample;
-    do {
+    //do
+    {
         {
             std::unique_lock guard(_mutex);
-            while(_generated_samples.empty()) {
-                Warning("Empty samples...");
-                _recv_variable.wait_for(guard, std::chrono::seconds(1));
+            if(!_generated_samples.empty()) {
+                sample = std::move(_generated_samples.front());
+                _generated_samples.pop();
             }
-            
-            sample = std::move(_generated_samples.front());
-            _generated_samples.pop();
         }
         
-        Work::instance()._variable.notify_one();
+        Work::_variable.notify_one();
         
         if(sample != Sample::Invalid() && GUI::instance()) {
             /**
@@ -554,17 +464,17 @@ Sample::Ptr Work::retrieve() {
             }
         }
         
-    } while (sample == Sample::Invalid());
+    } //while (sample == Sample::Invalid());
     
     return sample;
 }
 
 void Work::start_learning() {
-    if(instance()._learning) {
+    if(Work::_learning) {
         return;
     }
     
-    instance()._learning = true;
+    Work::_learning = true;
     
     PythonIntegration::async_python_function([]() -> bool{
         using py = PythonIntegration;
@@ -572,18 +482,16 @@ void Work::start_learning() {
         py::import_module(module);
         const auto dims = SETTING(recognition_image_size).value<Size2>();
         std::map<std::string, int> keys;
-        for(auto & [key, v] : DataStore::_labels)
+        for(auto & [key, v] : _labels)
             keys[key->name] = key->id;
         py::set_variable("categories", Meta::toStr(keys), module);
         py::set_variable("width", (int)dims.width, module);
         py::set_variable("height", (int)dims.height, module);
         py::run(module, "start");
         
-        auto &work = Work::instance();
-        
-        std::unique_lock guard(work._learning_mutex);
-        while(Work::instance()._learning) {
-            work._learning_variable.wait_for(guard, std::chrono::seconds(1));
+        std::unique_lock guard(Work::_learning_mutex);
+        while(Work::_learning) {
+            Work::_learning_variable.wait_for(guard, std::chrono::seconds(1));
             
             //Debug("Waiting for learning tasks...");
             size_t executed = 0;
@@ -644,7 +552,7 @@ void Work::start_learning() {
                 Work::status() = "";
                 
                 Debug("# Clearing calculated probabilities...");
-                std::lock_guard g(Work::instance()._recv_mutex);
+                std::lock_guard g(Work::_recv_mutex);
                 for(auto &row : rows) {
                     for(auto &cell : row._cells) {
                         if(cell._sample) {
@@ -684,9 +592,18 @@ void Work::loop() {
     }
 }
 
-const Sample::Ptr& DataStore::sample(
-        const std::shared_ptr<Individual::SegmentInformation>& segment,
-        Individual* fish)
+void DataStore::predict(
+    const std::shared_ptr<Individual::SegmentInformation>& segment,
+    Individual* fish,
+    std::function<void(Sample::Ptr)>&& callback)
+{
+    static std::unordered_map<const Sample*, Sample::Ptr> map; // holds references until not required
+    auto s = temporary(segment, fish);
+    
+}
+
+Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInformation>& segment,
+                                 Individual* fish)
 {
     auto fit = _used_indexes.find(segment.get());
     if(fit != _used_indexes.end()) {
@@ -770,12 +687,28 @@ const Sample::Ptr& DataStore::sample(
     Debug("Added %lu frames", frames.size());
     
     if(images.size() > 5) {
-        _used_indexes[segment.get()] = _samples.size();
-        _samples.emplace_back(Sample::Make(fish->identity().ID(), segment, std::move(indexes), std::move(images)));
-        return _samples.back();
+        return Sample::Make(fish->identity().ID(), segment, std::move(indexes), std::move(images));
     }
     
     return Sample::Invalid();
+}
+
+const Sample::Ptr& DataStore::sample(
+        const std::shared_ptr<Individual::SegmentInformation>& segment,
+        Individual* fish)
+{
+    auto fit = _used_indexes.find(segment.get());
+    if(fit != _used_indexes.end()) {
+        return _samples.at(fit->second); // already sampled
+    }
+    
+    auto s = temporary(segment, fish);
+    if(s == Sample::Invalid())
+        return Sample::Invalid();
+    
+    _used_indexes[segment.get()] = _samples.size();
+    _samples.emplace_back(s);
+    return _samples.back();
 }
 
 std::string DataStore::Composition::toStr() const {
@@ -784,6 +717,13 @@ std::string DataStore::Composition::toStr() const {
         + (Work::status().empty() ? "" : " "+Work::status());
 }
 
+static Tooltip tooltip(nullptr, 200);
+static Layout::Ptr stext = nullptr;
+static Entangled* selected = nullptr;
+static Layout::Ptr apply(Layout::Make<Button>("Apply", Bounds(0, 0, 100, 33)));
+static Layout::Ptr close(Layout::Make<Button>("Hide", Bounds(0, 0, 100, 33)));
+static Layout::Ptr buttons(Layout::Make<HorizontalLayout>(std::vector<Layout::Ptr>{apply, close}));
+
 void initialize(DrawStructure& base) {
     static double R = 0, elap = 0;
     static Timer timer;
@@ -791,10 +731,10 @@ void initialize(DrawStructure& base) {
     elap += timer.elapsed();
     
     static bool initialized = false;
-    if(!initialized && Work::instance().num_ready() >= per_row * rows.size()) {
+    if(!initialized && Work::num_ready() >= per_row * rows.size()) {
         //PythonIntegration::ensure_started();
         //PythonIntegration::async_python_function([]()->bool{return true;});
-        Work::start_learning();
+        //Work::start_learning();
         
         elap = 0;
         initialized = true;
@@ -813,11 +753,14 @@ void initialize(DrawStructure& base) {
         layout.add_child(stext);
         //layout.add_child(Layout::Make<Text>("Categorizing types of individuals", Vec2(), Cyan, Font(0.75, Style::Bold)));
         
-        button->on_click([](auto) {
-            hide();
-        });
+        apply->on_click([](auto) { hide(); });
+        close->on_click([](auto) { hide(); });
+        
+        apply.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Green.exposure(0.15)));
+        close.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Red.exposure(0.2)));
         
         tooltip.set_scale(base.scale().reciprocal());
+        tooltip.text().set_default_font(Font(0.5));
         
         for (auto& row : rows) {
             /**
@@ -833,25 +776,22 @@ void initialize(DrawStructure& base) {
              * After ensuring we do have rows, fill them with new samples:
              */
             for(size_t i=0; i<row.length(); ++i) {
-                auto sample = Work::instance().retrieve();
+                auto sample = Work::retrieve();
                 row.update(i, sample);
             }
         }
         
-        if(!layout.empty() && layout.children().back() != button.get()) {
-            button->set_scale(base.scale().reciprocal());
-            stext->set_scale(base.scale().reciprocal());
-            desc_text->set_scale(base.scale().reciprocal());
+        if(!layout.empty() && layout.children().back() != buttons.get()) {
             desc_text.to<StaticText>()->set_default_font(Font(0.6));
             desc_text.to<StaticText>()->set_max_size(stext.to<StaticText>()->max_size());
             
-            layout.add_child(Layout::Ptr(desc_text));
-            layout.add_child(button);
+            layout.add_child(desc_text);
+            layout.add_child(buttons);
         }
         
         layout.auto_size(Margin{0,0});
         layout.set_z_index(1);
-        Work::instance()._variable.notify_one();
+        Work::_variable.notify_one();
     }
     
     timer.reset();
@@ -873,7 +813,7 @@ Cell::Cell() :
         e.advance_wrap(*_button_layout);
         e.advance_wrap(*_text);
         
-        for(auto &[c, s] : DataStore::_labels) {
+        for(auto &[c, s] : _labels) {
             auto b = Layout::Make<Button>(c->name, Bounds(Size2(Base::default_text_bounds(c->name, nullptr, Font(0.75)).width + 10, 33)));
             
             b->on_click([this, c = c->name.c_str(), ptr = &e](auto){
@@ -882,7 +822,7 @@ Cell::Cell() :
                     
                     try {
                         _sample->set_label(DataStore::label(c));
-                        DataStore::_labels[_sample->_assigned_label].push_back(_sample);
+                        _labels[_sample->_assigned_label].push_back(_sample);
                         
                         Work::add_training_sample(_sample);
                         
@@ -890,7 +830,7 @@ Cell::Cell() :
                         
                     }
                     
-                    _row->update(_index, Work::instance().retrieve());
+                    _row->update(_index, Work::retrieve());
                 }
             });
             
@@ -904,7 +844,7 @@ Cell::Cell() :
                     _sample->set_label(NULL);
                 }
                 
-                _row->update(_index, Work::instance().retrieve());
+                _row->update(_index, Work::retrieve());
             }
         });
         add(b);
@@ -924,7 +864,7 @@ Cell::Cell() :
             _block->set_background(Transparent, White.alpha(225));
             
             if(_sample) {
-                tooltip.set_text("<h2>"+Meta::toStr(_sample->_segment->range)+"</h2>");
+                tooltip.set_text("<h2>"+FAST_SETTINGS(individual_prefix)+Meta::toStr(_sample->_fish)+"</h2>"+Meta::toStr(_sample->_segment->range));
                 tooltip.set_other(_block.get());
             }
             
@@ -975,13 +915,13 @@ void draw(gui::DrawStructure& base) {
     if(!Work::visible())
         return;
     
-    if(DataStore::_labels.empty()) {
-        DataStore::_labels.insert({Label::Make("W"), {}});
-        DataStore::_labels.insert({Label::Make("S"), {}});
+    if(_labels.empty()) {
+        _labels.insert({Label::Make("W"), {}});
+        _labels.insert({Label::Make("S"), {}});
         //DataStore::_labels.insert({Label::Make("X"), {}});
     }
     
-    if(DataStore::_labels.empty()) {
+    if(_labels.empty()) {
         static bool asked = false;
         if(!asked) {
             asked = true;
@@ -1034,6 +974,9 @@ void draw(gui::DrawStructure& base) {
     float max_w = 0;
     for(auto &row : rows) {
         for(auto &cell: row._cells) {
+            if(!cell._sample)
+                row.update(cell._index, Work::retrieve());
+            
             cell._block->auto_size(Margin{0,0});
             max_w = max(max_w, cell._block->width());
         }
@@ -1042,7 +985,7 @@ void draw(gui::DrawStructure& base) {
     
     max_w = per_row * (max_w + 10);
     
-    if(button) button->set_scale(base.scale().reciprocal());
+    if(buttons) buttons->set_scale(base.scale().reciprocal());
     if(desc_text) desc_text->set_scale(base.scale().reciprocal());
     
     if(stext) {
