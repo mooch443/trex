@@ -635,13 +635,14 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         
         auto &video_file = *GUI::instance()->video_source();
         video_file.read_frame(video_frame.frame(), sign_cast<uint64_t>(frame));
+
+        Tracker::LockGuard guard("Categorize::sample");
         Tracker::instance()->preprocess_frame(video_frame, active, NULL);
-        
+
         std::map<uint32_t, pv::BlobPtr> blob_to_id;
         for (auto b : video_frame.blobs)
             blob_to_id[b->blob_id()] = b;
         
-        Tracker::LockGuard guard("Categorize::sample");
         const auto scale = FAST_SETTINGS(recognition_image_scale);
         const auto dims = SETTING(recognition_image_size).value<Size2>();
         
