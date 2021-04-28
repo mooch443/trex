@@ -93,7 +93,7 @@ class Categorize:
             TRex.log("# missing "+str(missing)+" validation samples, adding...")
             next_indexes = np.arange(prev_L, len(labels) + prev_L, dtype=int)
             np.random.shuffle(next_indexes)
-            self.validation_indexes = np.concatenate((self.validation_indexes, next_indexes[:missing]), axis=0, dtype=int)
+            self.validation_indexes = np.concatenate((self.validation_indexes, next_indexes[:missing]), axis=0).astype(int)
             TRex.log("# now have "+str(len(self.validation_indexes))+" validation samples and "+str(len(self.samples) - len(self.validation_indexes))+" training samples")
 
         TRex.log("# labels dist: "+str(per_class))
