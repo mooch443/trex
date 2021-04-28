@@ -106,9 +106,9 @@ void GLImpl::set_icons(const std::vector<file::Path>& icons) {
         auto ptr = Image::Make(image);
         data.emplace_back(std::move(ptr));
         images.push_back(GLFWimage());
-        images.back().pixels = ptr->data();
-        images.back().width = sign_cast<int>(ptr->cols);
-        images.back().height = sign_cast<int>(ptr->rows);
+        images.back().pixels = data.back()->data();
+        images.back().width = sign_cast<int>(data.back()->cols);
+        images.back().height = sign_cast<int>(data.back()->rows);
     }
 
     glfwSetWindowIcon(window, images.size(), images.data());
