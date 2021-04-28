@@ -232,6 +232,7 @@ namespace gui {
 
     void Layout::auto_size(Margin margin) {
         Vec2 mi(std::numeric_limits<Float2_t>::max()), ma(0);
+        
         for(auto c : _children) {
             auto bds = c->local_bounds();
             mi = min(bds.pos(), mi);

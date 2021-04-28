@@ -7,6 +7,7 @@ from tensorflow.keras import backend as K
 from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.callbacks import EarlyStopping
+from sklearn.metrics import classification_report
 import TRex
 import numpy as np
 
@@ -146,11 +147,7 @@ class Categorize:
             restore_best_weights=True
         )
         self.model.fit(training_data, validation_data=validation_data, epochs=10, verbose=2, callbacks=[early_stopping_monitor])
-
         self.model.save('model')
-
-        from sklearn.metrics import classification_report
-        import numpy as np
 
         y_test = np.argmax(Y_test, axis=1) # Convert one-hot to index
         y_pred = np.argmax(self.model.predict(X_test), axis=-1)

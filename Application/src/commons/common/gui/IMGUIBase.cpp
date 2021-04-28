@@ -1456,7 +1456,7 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
         //Debug("font.size = %f, FontSize = %f, im_font_scale = %f, size = (%f, %f) '%S'", font.size, im_font->FontSize, im_font_scale, size.x, size.y, &text);
         //return text_size;
         //auto size = ImGui::CalcTextSize(text.c_str());
-        return Bounds(0, 0, size.x, size.y);
+        return Bounds(Vec2(), size);
     }
 
     uint32_t IMGUIBase::line_spacing(const Font& font) {

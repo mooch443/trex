@@ -7,6 +7,7 @@
 #include <gui/types/Tooltip.h>
 #include <python/GPURecognition.h>
 #include <random>
+#include <misc/default_settings.h>
 
 namespace track {
 namespace Categorize {
@@ -85,6 +86,13 @@ struct DataStore {
     static std::unordered_map<Label::Ptr, std::vector<Sample::Ptr>> _labels;
     
     static std::random_device rd;
+    
+    static std::set<std::string> label_names() {
+        std::set<std::string> _names;
+        for(auto &[l, s] : _labels)
+            _names.insert(l->name);
+        return _names;
+    }
     
     static Label::Ptr label(const char* name) {
         for(auto &[l, s] : _labels) {
@@ -215,6 +223,9 @@ struct Work {
     }
     
     static std::unique_ptr<std::thread> thread;
+    static constexpr float good_enough() {
+        return 0.75;
+    }
     
     static void work() {
         set_thread_name("Categorize::work_thread");
@@ -329,7 +340,7 @@ public:
         }
         
         if(_sample) {
-            auto text = Meta::toStr(_sample->_fish)+" (sample "+Meta::toStr(_animation_index)+"/"+Meta::toStr(_sample->_images.size())+")";
+            auto text = FAST_SETTINGS(individual_prefix)+Meta::toStr(_sample->_fish)+": <nr>"+Meta::toStr(_animation_index)+"</nr>/<nr>"+Meta::toStr(_sample->_images.size())+"</nr>";
             
             std::lock_guard guard(Work::instance()._recv_mutex);
             if(!_sample->_probabilities.empty()) {
@@ -344,10 +355,10 @@ public:
                     v /= (float)_sample->_probabilities.size();
                 }
                 
-                text = Meta::toStr(summary) + "\n" + text;
+                text = settings::htmlify(Meta::toStr(summary)) + "\n" + text;
                 
             } else if(!_sample->_requested) {
-                if(Work::best_accuracy() > 0.75) {
+                if(Work::best_accuracy() >= Work::good_enough()) {
                     _sample->_requested = true;
                     
                     LearningTask task;
@@ -368,19 +379,21 @@ public:
                 }
                 
             } else
-                text += " (req)";
+                text += " <key>(prediction requested)</key>";
             
             _text->set_txt(text);
         }
         
         _image->set_color(White.alpha(100 + 155 * s));
         _text->set_alpha(0.1 + s * 0.9);
+        
+        auto rscale = _button_layout->parent() ? _button_layout->parent()->stage()->scale().reciprocal().mul(_block->scale().reciprocal()) : Vec2(1);
+        _text->set_scale(rscale);
+        _button_layout->set_scale(rscale);
+        
         //_text->set_base_text_color(White.alpha(100 + 155 * s));
         _button_layout->auto_size(Margin{0, 0});
         _text->set_pos(Vec2(5, _block->height() - 5));
-        
-        if(_button_layout->parent() && _button_layout->parent()->stage())
-            _button_layout->set_scale(_button_layout->parent()->stage()->scale().reciprocal().mul(_block->scale().reciprocal()));
     }
     
     const Bounds& bounds() {
@@ -391,6 +404,7 @@ public:
 static std::unordered_map<Entangled*, Cell> _tangle_cells;
 
 static Tooltip tooltip(nullptr, 200);
+static Layout::Ptr stext = nullptr;
 static Entangled* selected = nullptr;
 static Layout::Ptr button(std::make_shared<Button>("Close", Bounds(0, 0, 100, 33)));
 
@@ -451,7 +465,7 @@ struct Row {
                     cell._block->auto_size(Margin{0, 0});
                 }
                 
-                auto d = euclidean_distance(base.mouse_position(), cell.bounds().pos() + cell.bounds().size() * 0.5) / (layout->parent()->global_bounds().size().length() * 0.5);
+                auto d = euclidean_distance(base.mouse_position(), cell.bounds().pos() + cell.bounds().size() * 0.5) / (layout->parent()->global_bounds().size().length() * 0.45);
                 cell._block->set_scale(Vec2(1.25 + 0.35 / (1 + d * d)) * (cell.selected() ? 1.5 : 1));
                 
                 
@@ -504,7 +518,7 @@ void Cell::set_sample(const Sample::Ptr &sample) {
 
 static VerticalLayout layout;
 static auto desc_text = Layout::Make<StaticText>();
-static std::array<Row, 4> rows { Row(0), Row(1), Row(2), Row(3) };
+static std::array<Row, 3> rows { Row(0), Row(1), Row(2) };
 
 Sample::Ptr Work::retrieve() {
     instance()._variable.notify_one();
@@ -765,7 +779,9 @@ const Sample::Ptr& DataStore::sample(
 }
 
 std::string DataStore::Composition::toStr() const {
-    return "acc:"+ Meta::toStr(Work::best_accuracy()) + " samples:" +Meta::toStr(_numbers)+" "+Work::status();
+    return (Work::best_accuracy() > 0 ? "Accuracy: "+ Meta::toStr(int(Work::best_accuracy() * 100)) + "% " : "")
+        + (!_numbers.empty() ? "Collected: " +Meta::toStr(_numbers) : "No samples collected yet.")
+        + (Work::status().empty() ? "" : " "+Work::status());
 }
 
 void initialize(DrawStructure& base) {
@@ -783,8 +799,19 @@ void initialize(DrawStructure& base) {
         elap = 0;
         initialized = true;
         
+        layout.set_policy(gui::VerticalLayout::CENTER);
         layout.set_origin(Vec2(0.5));
         layout.set_pos(Size2(base.width(), base.height()) * 0.5);
+        
+        stext = Layout::Make<StaticText>(
+          "<h2>Categorizing types of individuals</h2>"
+          "Below, an assortment of randomly chosen clips is shown. They are compiled automatically to (hopefully) only contain samples belonging to the same category. Choose clips that best represent the categories you have defined before (<str>"+Meta::toStr(DataStore::label_names())+"</str>) and assign them by clicking the respective button. But be careful - with them being automatically collected, some of the clips may contain images from multiple categories. It is recommended to <b>Skip</b> these clips, lest risking to confuse the poor network. Regularly, when enough new samples have been collected (and for all categories), they are sent to said network for a training step. Each training step, depending on clip quality, should improve the prediction accuracy (see below).",
+          Vec2(),
+          Vec2(base.width() * 0.5 * base.scale().x, -1), Font(0.7)
+        );
+        
+        layout.add_child(stext);
+        //layout.add_child(Layout::Make<Text>("Categorizing types of individuals", Vec2(), Cyan, Font(0.75, Style::Bold)));
         
         button->on_click([](auto) {
             hide();
@@ -813,6 +840,11 @@ void initialize(DrawStructure& base) {
         
         if(!layout.empty() && layout.children().back() != button.get()) {
             button->set_scale(base.scale().reciprocal());
+            stext->set_scale(base.scale().reciprocal());
+            desc_text->set_scale(base.scale().reciprocal());
+            desc_text.to<StaticText>()->set_default_font(Font(0.6));
+            desc_text.to<StaticText>()->set_max_size(stext.to<StaticText>()->max_size());
+            
             layout.add_child(Layout::Ptr(desc_text));
             layout.add_child(button);
         }
@@ -977,8 +1009,13 @@ void draw(gui::DrawStructure& base) {
     
     using namespace gui;
     static Rect rect(Bounds(0, 0, 0, 0), Black.alpha(125));
+    
+    auto window = (GUI::instance() && GUI::instance()->base() ? (GUI::instance()->base()->window_dimensions().div(base.scale())) : Size2(base.width(), base.height())) * gui::interface_scale();
+    auto center = window * 0.5;
+    layout.set_pos(center);
+    
     rect.set_z_index(1);
-    rect.set_size(Size2(base.width(), base.height()));
+    rect.set_size(window);
     
     base.wrap_object(rect);
     
@@ -993,16 +1030,34 @@ void draw(gui::DrawStructure& base) {
     base.wrap_object(tooltip);
     
     static Timer timer;
+    
+    float max_w = 0;
     for(auto &row : rows) {
         for(auto &cell: row._cells) {
             cell._block->auto_size(Margin{0,0});
+            max_w = max(max_w, cell._block->width());
         }
         row.update(base, timer.elapsed());
     }
     
+    max_w = per_row * (max_w + 10);
+    
+    if(button) button->set_scale(base.scale().reciprocal());
+    if(desc_text) desc_text->set_scale(base.scale().reciprocal());
+    
+    if(stext) {
+        stext->set_scale(base.scale().reciprocal());
+        stext.to<StaticText>()->set_max_size(Size2(max_w * 1.5 * base.scale().x, -1));
+        if(desc_text)
+            desc_text.to<StaticText>()->set_max_size(stext.to<StaticText>()->max_size());
+    }
+    
     timer.reset();
     
-    auto txt = Meta::toStr(DataStore::composition());
+    auto txt = settings::htmlify(Meta::toStr(DataStore::composition()));
+    if(Work::best_accuracy() < Work::good_enough()) {
+        txt = "<i>Predictions for all visible tiles will be displayed as soon as the network becomes confident enough.</i>\n"+txt;
+    }
     desc_text.to<StaticText>()->set_txt(txt);
 }
 
