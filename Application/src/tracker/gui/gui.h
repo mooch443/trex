@@ -247,7 +247,6 @@ private:
     void draw(gui::DrawStructure& main_base);
     void draw_footer(gui::DrawStructure& base);
     void draw_posture(gui::DrawStructure &base, Individual* fish, long_t frameNr);
-    void label_fish(gui::DrawStructure &base, Individual* fish, long_t frameNr, const Vec2& scale = Vec2(1), bool highlighted = false);
     void draw_menu(gui::DrawStructure& base);
     void draw_export_options(gui::DrawStructure& base);
     void draw_grid(gui::DrawStructure& base);

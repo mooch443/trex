@@ -7,6 +7,10 @@
 #include <gui.h>
 #include <misc/CircularGraph.h>
 #include <misc/create_struct.h>
+#include <gui/DrawMenu.h>
+#include <gui/Label.h>
+#include <tracking/Recognition.h>
+#include <tracking/Categorize.h>
 
 using namespace track;
 
@@ -948,4 +952,69 @@ CREATE_STRUCT(CachedGUIOptions,
             _recognition_circle = nullptr;
         }
     }
+
+void Fish::label(DrawStructure &base) {
+    auto blob = _obj.compressed_blob(_idx);
+    
+    std::string color = "";
+    std::stringstream text;
+    std::string secondary_text;
+
+    text << _obj.identity().raw_name() << " ";
+    
+    if (DrawMenu::matching_list_open() && blob) {
+        secondary_text = "blob" + Meta::toStr(blob->blob_id());
+    }
+    else if (GUI_SETTINGS(gui_show_recognition_bounds)) {
+        auto&& [valid, segment] = _obj.has_processed_segment(_idx);
+        if (valid) {
+            auto&& [samples, map] = _obj.processed_recognition(segment.start());
+            auto it = std::max_element(map.begin(), map.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b) {
+                return a.second < b.second;
+            });
+
+            if (it == map.end() || it->first != _obj.identity().ID()) {
+                color = "str";
+                secondary_text += " avg" + Meta::toStr(it->first);
+            }
+            else
+                color = "nr";
+        }
+
+        if (blob) {
+            auto raw = Tracker::instance()->recognition()->ps_raw(_idx, blob->blob_id());
+            if (!raw.empty()) {
+                auto it = std::max_element(raw.begin(), raw.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b) {
+                    return a.second < b.second;
+                });
+
+                if (it != raw.end()) {
+                    secondary_text += " loc" + Meta::toStr(it->first) + " (" + Meta::toStr(it->second) + ")";
+                }
+            }
+            
+            auto cat = Categorize::DataStore::label(Frame_t(_idx), blob);
+            if(cat) {
+                secondary_text += " <str>"+cat->name+"</str>";
+            }
+        }
+    }
+
+    float alpha = (GUI::instance()->timeline().visible() ? 255 : SETTING(gui_faded_brightness).value<uchar>()) / 255.f * 200.f;
+    
+    if (blob) {
+        auto label = (Label*)custom_data("label");
+        auto label_text = (color.empty() ? text.str() : ("<"+color+">"+text.str()+"</"+color+">")) + "<a>" + secondary_text + "</a>";
+        if (!label) {
+            label = new Label(label_text, blob->calculate_bounds(), fish_pos());
+            add_custom_data("label", (void*)label, [](void* ptr) {
+                delete (Label*)ptr;
+            });
+        }
+        else
+            label->set_data(label_text, blob->calculate_bounds(), fish_pos());
+
+        label->update(base, base.active_section(), 1, blob == nullptr);
+    }
+}
 }

@@ -204,4 +204,10 @@ def predict():
 
     receive(categorize.predict(images))
 
+def clear_images():
+    global categorize
+    assert type(categorize) != type(None)
+
+    TRex.log("# clearing images")
+    categorize = Categorize(categorize.width, categorize.height, str(categorize.categories))
 

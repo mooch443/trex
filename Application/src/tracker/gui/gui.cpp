@@ -1756,66 +1756,6 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
     return {Vec2(), Vec2()};
 }
 
-void GUI::label_fish(gui::DrawStructure &base, track::Individual *fish, long_t frameNr, const Vec2& scale, bool highlighted) {
-    auto blob = fish->compressed_blob(frameNr);
-
-    std::string color = "";
-    std::stringstream text;
-    std::string secondary_text;
-
-    text << fish->identity().raw_name() << " ";
-    
-    if (DrawMenu::matching_list_open() && blob) {
-        secondary_text = "blob" + Meta::toStr(blob->blob_id());
-    }
-    else if (GUI_SETTINGS(gui_show_recognition_bounds)) {
-        auto&& [valid, segment] = fish->has_processed_segment(frameNr);
-        if (valid) {
-            auto&& [samples, map] = fish->processed_recognition(segment.start());
-            auto it = std::max_element(map.begin(), map.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b) {
-                return a.second < b.second;
-            });
-
-            if (it == map.end() || it->first != fish->identity().ID()) {
-                color = "str";
-                secondary_text += " avg" + Meta::toStr(it->first);
-            }
-            else
-                color = "nr";
-        }
-
-        if (blob) {
-            auto raw = _tracker.recognition()->ps_raw(frameNr, blob->blob_id());
-            if (!raw.empty()) {
-                auto it = std::max_element(raw.begin(), raw.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b) {
-                    return a.second < b.second;
-                });
-
-                if (it != raw.end()) {
-                    secondary_text += " loc" + Meta::toStr(it->first) + " (" + Meta::toStr(it->second) + ")";
-                }
-            }
-        }
-    }
-
-    float alpha = (_timeline->visible() ? 255 : SETTING(gui_faded_brightness).value<uchar>()) / 255.f * 200.f;
-    
-    if (blob) {
-        auto label = (Label*)_cache._fish_map[fish]->custom_data("label");
-        auto label_text = (color.empty() ? text.str() : ("<"+color+">"+text.str()+"</"+color+">")) + "<a>" + secondary_text + "</a>";
-        if (!label) {
-            label = new Label(label_text, blob->calculate_bounds(), _cache._fish_map[fish]->fish_pos());
-            _cache._fish_map[fish]->add_custom_data("label", (void*)label, [](void* ptr) {
-                delete (Label*)ptr;
-            });
-        }
-        else
-            label->set_data(label_text, blob->calculate_bounds(), _cache._fish_map[fish]->fish_pos());
-
-        label->update(base, base.active_section(), 1, blob == nullptr);
-    }
-}
-
 void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
     static Timing timing("draw_tracking", 10);
     
@@ -1955,9 +1895,8 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                     _cache._fish_map[fish]->set_data((uint32_t)frameNr, props->time, _cache.processed_frame, empty_map);
                     
                     base.wrap_object(*_cache._fish_map[fish]);
-                    
                     if(GUI_SETTINGS(gui_show_texts))
-                        label_fish(base, fish, frameNr, scale, _cache._fish_map[fish]->hovered() || _cache.is_selected(fish->identity().ID()));
+                        _cache._fish_map[fish]->label(base);
                 }
                 
                 if(GUI_SETTINGS(gui_show_midline_histogram)) {

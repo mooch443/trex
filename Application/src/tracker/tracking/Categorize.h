@@ -63,8 +63,20 @@ struct Sample {
     }
 };
 
+struct Probabilities {
+    std::unordered_map<int, float> summary;
+    size_t samples = 0;
+    bool valid() const {
+        return samples != 0;
+    }
+};
+
 struct DataStore {
     static std::set<std::string> label_names();
+    static std::mutex& mutex() {
+        static std::mutex _mutex;
+        return _mutex;
+    }
     
     static Label::Ptr label(const char* name);
     static Label::Ptr label(int ID);
@@ -73,9 +85,6 @@ struct DataStore {
         const std::shared_ptr<Individual::SegmentInformation>& segment,
         Individual* fish
     );
-    static void predict(const std::shared_ptr<Individual::SegmentInformation>& segment,
-                        Individual* fish,
-                        std::function<void(Sample::Ptr)>&& callback);
     static Sample::Ptr temporary(const std::shared_ptr<Individual::SegmentInformation>& segment,
                                  Individual* fish);
     
@@ -88,20 +97,44 @@ struct DataStore {
     };
     
     static Composition composition();
+    static void clear();
+    static Label::Ptr label(Frame_t, uint32_t);
+    static Label::Ptr label(Frame_t, const pv::CompressedBlob*);
+    static void set_label(Frame_t, const pv::CompressedBlob*, const Label::Ptr&);
 };
 
 struct LearningTask {
     enum class Type {
         Prediction,
-        Training
-    } type;
+        Training,
+        Restart,
+        Invalid
+    } type = Type::Invalid;
     
     Sample::Ptr sample;
     std::function<void(const LearningTask&)> callback;
     std::vector<float> result;
+    
+    bool valid() const {
+        return type != Type::Invalid;
+    }
 };
 
 namespace Work {
+
+//! This process is basically a state-machine.
+/// It starts by being hidden and shut down (NONE)
+/// and goes on to the selection stage, after which
+/// the results are used to predict labels in the
+/// APPLY phase. It then goes back to NONE.
+enum class State {
+    NONE,
+    SELECTION,
+    APPLY
+};
+
+State& state();
+void set_state(State);
 void add_task(LearningTask&&);
 }
 

@@ -11,6 +11,10 @@
 #include <misc/EventAnalysis.h>
 #include <gui/Graph.h>
 
+namespace pv {
+struct CompressedBlob;
+}
+
 namespace gui {
     class Fish : public DrawableCollection {
         track::Individual& _obj;
@@ -62,6 +66,8 @@ namespace gui {
         void paintPath(DrawStructure& window, const Vec2& offset, long_t to = -1, long_t from = -1, const Color& = Transparent);
         //void paintPixels() const;
         void update_recognition_circle(DrawStructure&);
+    public:
+        void label(DrawStructure&);
     };
 }
 

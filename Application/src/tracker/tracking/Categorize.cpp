@@ -48,6 +48,11 @@ namespace Work {
         static bool _visible = false;
         return _visible;
     }
+
+    bool& initialized_apply() {
+        static bool _init = false;
+        return _init;
+    }
     
     auto& queue() {
         static std::queue<LearningTask> _tasks;
@@ -103,6 +108,7 @@ Sample::Sample(Idx_t fish, const decltype(_segment)& segment, std::vector<long_t
 }
 
 std::set<std::string> DataStore::label_names() {
+    std::lock_guard guard(mutex());
     std::set<std::string> _names;
     for(auto &[l, s] : _labels)
         _names.insert(l->name);
@@ -110,6 +116,7 @@ std::set<std::string> DataStore::label_names() {
 }
 
 Label::Ptr DataStore::label(const char* name) {
+    std::lock_guard guard(mutex());
     for(auto &[l, s] : _labels) {
         if(l->name == name)
             return l;
@@ -121,6 +128,7 @@ Label::Ptr DataStore::label(const char* name) {
 }
 
 Label::Ptr DataStore::label(int ID) {
+    std::lock_guard guard(mutex());
     for(auto &[l, s] : _labels) {
         if(l->id == ID) {
             return l;
@@ -168,12 +176,46 @@ Sample::Ptr DataStore::get_random() {
 }
 
 DataStore::Composition DataStore::composition() {
+    std::lock_guard guard(mutex());
     Composition c;
     for (auto &[key, samples] : _labels) {
         for(auto &s : samples)
             c._numbers[key->name] += s->_images.size();
     }
     return c;
+}
+
+std::unordered_map<Frame_t, std::unordered_map<uint32_t, Label::Ptr>> _probability_cache;
+
+void DataStore::set_label(Frame_t idx, const pv::CompressedBlob* blob, const Label::Ptr& label) {
+    uint32_t bdx;
+    /*if(blob->parent_id != -1)
+        bdx = uint32_t(blob->parent_id);
+    else*/
+        bdx = blob->blob_id();
+    
+    std::lock_guard guard(mutex());
+    if(_probability_cache[idx].count(bdx)) {
+        auto str = Meta::toStr(_probability_cache[idx]);
+        Warning("Cache already contains blob in frame %d (parent=%d).\n%S", bdx, (int)idx, blob->parent_id, &str);
+    }
+    _probability_cache[idx][bdx] = label;
+}
+
+Label::Ptr DataStore::label(Frame_t idx, uint32_t bdx) {
+    std::lock_guard guard(mutex());
+    auto fit = _probability_cache.find(idx);
+    if(fit != _probability_cache.end()) {
+        auto sit = fit->second.find(bdx);
+        if(sit != fit->second.end()) {
+            return sit->second;
+        }
+    }
+    return nullptr;
+}
+
+Label::Ptr DataStore::label(Frame_t idx, const pv::CompressedBlob* blob) {
+    return label(idx, /*blob->parent_id != -1 ? uint32_t(blob->parent_id) :*/ blob->blob_id());
 }
 
 constexpr size_t per_row = 4;
@@ -206,11 +248,8 @@ void terminate() {
 
 void show() {
     if(!Work::visible()) {
-        Work::requested_samples() = per_row * per_row;
-        Work::_variable.notify_one();
+        Work::set_state(Work::State::SELECTION);
         Work::visible() = true;
-        
-        PythonIntegration::ensure_started();
     }
 }
 
@@ -408,11 +447,11 @@ struct Row {
 void Cell::set_sample(const Sample::Ptr &sample) {
     _sample = sample;
     
-    if(!sample)
+    if(!sample) {
         std::fill(_image->source()->data(),
                   _image->source()->data() + _image->source()->size(),
                   0);
-    else {
+    } else {
         _image->update_with(*_sample->_images.front());
         _animation_time = 0;
         _animation_index = 0;
@@ -469,6 +508,73 @@ Sample::Ptr Work::retrieve() {
     return sample;
 }
 
+struct NetworkApplicationState {
+    Individual *fish;
+    
+    //! basically the iterator, but not using pointers here,
+    /// in case i want to change the iterator type later.
+    Individual::segment_map::difference_type offset = 0;
+    
+    //! start the next prediction task
+    void next() {
+        if(size_t(offset) == fish->frame_segments().size()) {
+            Debug("Finished %d", fish->identity().ID());
+            return; // no more segments
+        } else if(size_t(offset) > fish->frame_segments().size()) {
+            return; // probably something changed and we are now behind
+        }
+        
+        auto it = fish->frame_segments().begin();
+        std::advance(it, offset);
+        
+        std::shared_ptr<Individual::SegmentInformation> segment;
+        LearningTask task;
+        task.type = LearningTask::Type::Prediction;
+        do {
+            if(it == fish->frame_segments().end())
+                break;
+            
+            segment = *it;
+            task.sample = DataStore::temporary(segment, fish);
+            ++offset;
+            ++it;
+            
+        } while(task.sample == Sample::Invalid());
+        
+        if(task.sample != Sample::Invalid()) {
+            task.callback = [this, ID = fish->identity().ID(), range = segment->range](const LearningTask& task)
+            {
+                Tracker::LockGuard guard("task.callback");
+                for(size_t i=0; i<task.result.size(); ++i) {
+                    auto frame = task.sample->_frames.at(i);
+                    auto blob = fish->compressed_blob(frame);
+                    if(blob) {
+                        DataStore::set_label(Frame_t(frame), blob, DataStore::label(task.result.at(i)));
+                    } else
+                        Except("Blob in frame %d not found in fish %d", frame, ID);
+                }
+                
+                this->next();
+            };
+            
+            Work::add_task(std::move(task));
+        }
+        
+        Debug("Fish%d: %f%%", fish->identity().ID(), float(offset) / float(fish->frame_segments().size()) * 100);
+    }
+    
+    static auto& current() {
+        static std::unordered_map<Individual*, NetworkApplicationState> _map;
+        return _map;
+    }
+};
+
+void start_applying() {
+    Work::initialized_apply() = false;
+    Work::start_learning(); // make sure the work-horse is started
+    Work::_variable.notify_all();
+}
+
 void Work::start_learning() {
     if(Work::_learning) {
         return;
@@ -477,17 +583,24 @@ void Work::start_learning() {
     Work::_learning = true;
     
     PythonIntegration::async_python_function([]() -> bool{
+        Work::status() = "initializing...";
+        
         using py = PythonIntegration;
         static const std::string module = "trex_learn_category";
         py::import_module(module);
         const auto dims = SETTING(recognition_image_size).value<Size2>();
         std::map<std::string, int> keys;
-        for(auto & [key, v] : _labels)
-            keys[key->name] = key->id;
+        {
+            std::lock_guard guard(DataStore::mutex());
+            for(auto & [key, v] : _labels)
+                keys[key->name] = key->id;
+        }
         py::set_variable("categories", Meta::toStr(keys), module);
         py::set_variable("width", (int)dims.width, module);
         py::set_variable("height", (int)dims.height, module);
         py::run(module, "start");
+        
+        Work::status() = "";
         
         std::unique_lock guard(Work::_learning_mutex);
         while(Work::_learning) {
@@ -502,6 +615,10 @@ void Work::start_learning() {
                 
                 guard.unlock();
                 switch (item.type) {
+                    case LearningTask::Type::Restart:
+                        py::run(module, "clear_images");
+                        break;
+                        
                     case LearningTask::Type::Prediction:
                         Work::status() = "prediction...";
                         Debug("Predicting %lu samples", item.sample->_frames.size());
@@ -574,9 +691,36 @@ void Work::start_learning() {
 void Work::loop() {
     std::unique_lock guard(_mutex);
     while (!terminate) {
+        if(Work::state() == Work::State::APPLY) {
+            if(!Work::initialized_apply()) {
+                Work::initialized_apply() = true;
+                
+                Debug("## Initializing APPLY.");
+                {
+                    Tracker::LockGuard guard("Categorize::start_applying");
+                    NetworkApplicationState::current().clear();
+                    
+                    for (auto &[id, ptr] : Tracker::individuals()) {
+                        auto &obj = NetworkApplicationState::current()[ptr];
+                        obj.fish = ptr;
+                    }
+                }
+                
+                for(auto & [k, v] : NetworkApplicationState::current()) {
+                    Tracker::LockGuard guard("Categorize::start_applying");
+                    v.next(); // start first task
+                }
+            }
+            
+        } //else
+            //_started_init = false;
+        
         while(_generated_samples.size() < requested_samples() && !terminate) {
             guard.unlock();
             auto sample = DataStore::get_random();
+            if(sample && sample->_images.size() < 100) {
+                sample = Sample::Invalid();
+            }
             guard.lock();
             
             if(sample != Sample::Invalid() && !sample->_assigned_label) {
@@ -592,22 +736,22 @@ void Work::loop() {
     }
 }
 
-void DataStore::predict(
-    const std::shared_ptr<Individual::SegmentInformation>& segment,
-    Individual* fish,
-    std::function<void(Sample::Ptr)>&& callback)
-{
-    static std::unordered_map<const Sample*, Sample::Ptr> map; // holds references until not required
-    auto s = temporary(segment, fish);
-    
+void DataStore::clear() {
+    std::lock_guard guard(mutex());
+    _samples.clear();
+    _labels.clear();
+    _used_indexes.clear();
 }
 
 Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInformation>& segment,
                                  Individual* fish)
 {
-    auto fit = _used_indexes.find(segment.get());
-    if(fit != _used_indexes.end()) {
-        return _samples.at(fit->second); // already sampled
+    {
+        std::lock_guard guard(mutex());
+        auto fit = _used_indexes.find(segment.get());
+        if(fit != _used_indexes.end()) {
+            return _samples.at(fit->second); // already sampled
+        }
     }
     
     std::set<long_t> frames;
@@ -620,11 +764,8 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         frames.insert(segment->basic_index.at(i));
     }
     
-    if(frames.size() < 150)
+    if(frames.size() < 50)
         return Sample::Invalid();
-    
-    auto str = Meta::toStr(frames);
-    Debug("Adding %lu frames (%S)", frames.size(), &str);
     
     for(auto frame : frames) {
         PPFrame video_frame;
@@ -635,6 +776,12 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         
         auto &video_file = *GUI::instance()->video_source();
         video_file.read_frame(video_frame.frame(), sign_cast<uint64_t>(frame));
+        
+        size_t idx;
+        {
+            std::lock_guard guard(mutex());
+            idx = _samples.size();
+        }
 
         Tracker::LockGuard guard("Categorize::sample");
         Tracker::instance()->preprocess_frame(video_frame, active, NULL);
@@ -646,7 +793,6 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         const auto scale = FAST_SETTINGS(recognition_image_scale);
         const auto dims = SETTING(recognition_image_size).value<Size2>();
         
-        auto idx = _samples.size();
         auto basic = fish->basic_stuff(frame);
         auto posture = fish->posture_stuff(frame);
         
@@ -698,15 +844,19 @@ const Sample::Ptr& DataStore::sample(
         const std::shared_ptr<Individual::SegmentInformation>& segment,
         Individual* fish)
 {
-    auto fit = _used_indexes.find(segment.get());
-    if(fit != _used_indexes.end()) {
-        return _samples.at(fit->second); // already sampled
+    {
+        std::lock_guard guard(mutex());
+        auto fit = _used_indexes.find(segment.get());
+        if(fit != _used_indexes.end()) {
+            return _samples.at(fit->second); // already sampled
+        }
     }
     
     auto s = temporary(segment, fish);
     if(s == Sample::Invalid())
         return Sample::Invalid();
     
+    std::lock_guard guard(mutex());
     _used_indexes[segment.get()] = _samples.size();
     _samples.emplace_back(s);
     return _samples.back();
@@ -723,7 +873,8 @@ static Layout::Ptr stext = nullptr;
 static Entangled* selected = nullptr;
 static Layout::Ptr apply(Layout::Make<Button>("Apply", Bounds(0, 0, 100, 33)));
 static Layout::Ptr close(Layout::Make<Button>("Hide", Bounds(0, 0, 100, 33)));
-static Layout::Ptr buttons(Layout::Make<HorizontalLayout>(std::vector<Layout::Ptr>{apply, close}));
+static Layout::Ptr restart(Layout::Make<Button>("Restart", Bounds(0, 0, 100, 33)));
+static Layout::Ptr buttons(Layout::Make<HorizontalLayout>(std::vector<Layout::Ptr>{apply, restart, close}));
 
 void initialize(DrawStructure& base) {
     static double R = 0, elap = 0;
@@ -754,8 +905,15 @@ void initialize(DrawStructure& base) {
         layout.add_child(stext);
         //layout.add_child(Layout::Make<Text>("Categorizing types of individuals", Vec2(), Cyan, Font(0.75, Style::Bold)));
         
-        apply->on_click([](auto) { hide(); });
-        close->on_click([](auto) { hide(); });
+        apply->on_click([](auto) {
+            Work::set_state(Work::State::APPLY);
+        });
+        close->on_click([](auto) {
+            Work::set_state(Work::State::NONE);
+        });
+        restart->on_click([](auto) {
+            Work::set_state(Work::State::SELECTION);
+        });
         
         apply.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Green.exposure(0.15)));
         close.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Red.exposure(0.2)));
@@ -814,16 +972,18 @@ Cell::Cell() :
         e.advance_wrap(*_button_layout);
         e.advance_wrap(*_text);
         
-        for(auto &[c, s] : _labels) {
-            auto b = Layout::Make<Button>(c->name, Bounds(Size2(Base::default_text_bounds(c->name, nullptr, Font(0.75)).width + 10, 33)));
+        auto labels = DataStore::label_names();
+        for(auto &c : labels) {
+            auto b = Layout::Make<Button>(c, Bounds(Size2(Base::default_text_bounds(c, nullptr, Font(0.75)).width + 10, 33)));
             
-            b->on_click([this, c = c->name.c_str(), ptr = &e](auto){
+            b->on_click([this, c, ptr = &e](auto){
                 if(_sample && _row) {
-                    Debug("%s: %d (cell: %d,%d)", c, _sample->_segment->start(), _row->index, _index);
-                    
                     try {
-                        _sample->set_label(DataStore::label(c));
-                        _labels[_sample->_assigned_label].push_back(_sample);
+                        _sample->set_label(DataStore::label(c.c_str()));
+                        {
+                            std::lock_guard guard(DataStore::mutex());
+                            _labels[_sample->_assigned_label].push_back(_sample);
+                        }
                         
                         Work::add_training_sample(_sample);
                         
@@ -910,42 +1070,88 @@ Cell::~Cell() {
     _image = nullptr;
 }
 
-void draw(gui::DrawStructure& base) {
-    show();
+Work::State& Work::state() {
+    static State _state = Work::State::NONE;
+    return _state;
+}
+
+void Work::set_state(State state) {
+    switch (state) {
+        case State::NONE:
+            break;
+            
+        case State::SELECTION: {
+            if(Work::state() == State::SELECTION) {
+                // restart
+                LearningTask task;
+                task.type = LearningTask::Type::Restart;
+                task.callback = [](const LearningTask& task) {
+                    DataStore::clear();
+                };
+                Work::add_task(std::move(task));
+                
+            } else {
+                Work::status() = "initializing...";
+                Work::requested_samples() = per_row * per_row;
+                Work::_variable.notify_one();
+                Work::visible() = true;
+                PythonIntegration::ensure_started();
+            }
+            
+            break;
+        }
+            
+        case State::APPLY: {
+            //assert(Work::state() == State::SELECTION);
+            hide();
+            start_applying();
+            break;
+        }
+            
+        default:
+            break;
+    }
     
+    Work::state() = state;
+}
+
+void draw(gui::DrawStructure& base) {
     if(!Work::visible())
         return;
     
-    if(_labels.empty()) {
-        _labels.insert({Label::Make("W"), {}});
-        _labels.insert({Label::Make("S"), {}});
-        //DataStore::_labels.insert({Label::Make("X"), {}});
-    }
-    
-    if(_labels.empty()) {
-        static bool asked = false;
-        if(!asked) {
-            asked = true;
-            
-            using namespace gui;
-            static Textfield textfield("W,S", Bounds(Size2(base.width() * base.scale().x * 0.4,33)));
-            
-            auto d = base.dialog([](Dialog::Result r){
-                if(r == Dialog::OKAY) {
-                    for(auto text : utils::split(textfield.text(), ',')) {
-                        text = utils::trim(text);
-                        if(!text.empty())
-                            DataStore::label(text.c_str()); // create labels
-                    }
-                }
-                
-            }, "Please enter the categories (comma-separated), e.g.:\n<i>Worker,Soldier,Trash</i>", "Categorize", "Okay", "Cancel");
-            
-            d->set_custom_element(Layout::Make<Entangled>([](Entangled& e){
-                e.advance_wrap(textfield);
-            }));
+    {
+        std::lock_guard guard(DataStore::mutex());
+        if(_labels.empty()) {
+            _labels.insert({Label::Make("W"), {}});
+            _labels.insert({Label::Make("S"), {}});
+            //DataStore::_labels.insert({Label::Make("X"), {}});
         }
-        return;
+        
+        if(_labels.empty()) {
+            static bool asked = false;
+            if(!asked) {
+                asked = true;
+                
+                using namespace gui;
+                static Textfield textfield("W,S", Bounds(Size2(base.width() * base.scale().x * 0.4,33)));
+                
+                auto d = base.dialog([](Dialog::Result r){
+                    if(r == Dialog::OKAY) {
+                        for(auto text : utils::split(textfield.text(), ',')) {
+                            text = utils::trim(text);
+                            if(!text.empty())
+                                DataStore::label(text.c_str()); // create labels
+                        }
+                    }
+                    
+                }, "Please enter the categories (comma-separated), e.g.:\n<i>Worker,Soldier,Trash</i>", "Categorize", "Okay", "Cancel");
+                
+                d->set_custom_element(Layout::Make<Entangled>([](Entangled& e){
+                    e.advance_wrap(textfield);
+                }));
+            }
+            return;
+        }
     }
     
     using namespace gui;
