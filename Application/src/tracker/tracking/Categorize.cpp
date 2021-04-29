@@ -145,15 +145,18 @@ const Sample::Ptr& DataStore::random_sample(Idx_t fid) {
     
     {
         Tracker::LockGuard guard("Categorize::random_sample");
-        fish = Tracker::instance()->individuals().at(fid);
-        auto &basic_stuff = fish->basic_stuff();
-        if(basic_stuff.empty())
-            return Sample::Invalid();
-        
-        std::uniform_int_distribution<remove_cvref<decltype(fish->frame_segments())>::type::difference_type> sample_dist(0, fish->frame_segments().size()-1);
-        auto it = fish->frame_segments().begin();
-        std::advance(it, sample_dist(mt));
-        segment = *it;
+        auto iit = Tracker::instance()->individuals().find(fid);
+        if (iit != Tracker::instance()->individuals().end()) {
+            fish = iit->second;
+            auto& basic_stuff = fish->basic_stuff();
+            if (basic_stuff.empty())
+                return Sample::Invalid();
+
+            std::uniform_int_distribution<remove_cvref<decltype(fish->frame_segments())>::type::difference_type> sample_dist(0, fish->frame_segments().size() - 1);
+            auto it = fish->frame_segments().begin();
+            std::advance(it, sample_dist(mt));
+            segment = *it;
+        }
     }
     
     if(!segment)
@@ -715,11 +718,15 @@ void Work::loop() {
         } //else
             //_started_init = false;
         
+        Sample::Ptr sample;
         while(_generated_samples.size() < requested_samples() && !terminate) {
             guard.unlock();
-            auto sample = DataStore::get_random();
-            if(sample && sample->_images.size() < 100) {
-                sample = Sample::Invalid();
+            {
+                Tracker::LockGuard g("get_random::loop");
+                sample = DataStore::get_random();
+                if (sample && sample->_images.size() < 50) {
+                    sample = Sample::Invalid();
+                }
             }
             guard.lock();
             
