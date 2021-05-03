@@ -274,6 +274,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
     py::bind_vector<std::vector<float>>(m, "FloatVector", "Float vector");
     py::bind_vector<std::vector<std::string>>(m, "StringVector", "String vector");
     py::bind_vector<std::vector<long_t>>(m, "LongVector", "Long vector");
+    py::bind_vector<std::vector<uchar>>(m, "UcharVector", "Uchar vector");
 }
 
 #include "GPURecognition.h"
@@ -893,6 +894,11 @@ void PythonIntegration::set_function(const char* name_, std::function<void(std::
 }
 
 void PythonIntegration::set_function(const char* name_, std::function<void(std::vector<float>)> f, const std::string &m)
+{
+    set_function_internal(name_, f, m);
+}
+
+void PythonIntegration::set_function(const char* name_, std::function<void(std::vector<uchar>, std::vector<std::string>)> f, const std::string &m)
 {
     set_function_internal(name_, f, m);
 }

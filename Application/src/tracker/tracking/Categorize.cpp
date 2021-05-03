@@ -98,9 +98,8 @@ namespace Work {
     }
 };
 
-Sample::Sample(Idx_t fish, const decltype(_segment)& segment, std::vector<long_t>&& frames, const std::vector<Image::Ptr>& images)
-    :   _fish(fish),
-        _segment(segment),
+Sample::Sample(std::vector<long_t>&& frames, const std::vector<Image::Ptr>& images)
+    :
         _frames(std::move(frames)),
         _images(images)
 {
@@ -188,7 +187,23 @@ DataStore::Composition DataStore::composition() {
     return c;
 }
 
+bool DataStore::Composition::empty() const {
+    size_t N = 0;
+    for (auto &[k, v] : _numbers) {
+        N += v;
+    }
+    return N == 0;
+}
+
 std::unordered_map<Frame_t, std::unordered_map<uint32_t, Label::Ptr>> _probability_cache;
+
+DataStore::const_iterator DataStore::begin() {
+    return _samples.begin();
+}
+
+DataStore::const_iterator DataStore::end() {
+    return _samples.end();
+}
 
 void DataStore::set_label(Frame_t idx, const pv::CompressedBlob* blob, const Label::Ptr& label) {
     uint32_t bdx;
@@ -594,23 +609,58 @@ void Work::start_learning() {
         
         using py = PythonIntegration;
         static const std::string module = "trex_learn_category";
+        
         py::import_module(module);
-        const auto dims = SETTING(recognition_image_size).value<Size2>();
-        std::map<std::string, int> keys;
-        {
-            std::lock_guard guard(DataStore::mutex());
-            for(auto & [key, v] : _labels)
-                keys[key->name] = key->id;
-        }
-        py::set_variable("categories", Meta::toStr(keys), module);
-        py::set_variable("width", (int)dims.width, module);
-        py::set_variable("height", (int)dims.height, module);
-        py::set_variable("output_file", output_location().str(), module);
-        py::set_function("set_best_accuracy", [&](float v) {
-            Debug("Work::set_best_accuracy(%f);", v);
-            Work::set_best_accuracy(v);
-        }, module);
-        py::run(module, "start");
+        
+        auto reset_variables = [](){
+            Debug("Reset python functions and variables...");
+            const auto dims = SETTING(recognition_image_size).value<Size2>();
+            std::map<std::string, int> keys;
+            {
+                std::lock_guard guard(DataStore::mutex());
+                for(auto & [key, v] : _labels)
+                    keys[key->name] = key->id;
+            }
+            py::set_variable("categories", Meta::toStr(keys), module);
+            py::set_variable("width", (int)dims.width, module);
+            py::set_variable("height", (int)dims.height, module);
+            py::set_variable("output_file", output_location().str(), module);
+            py::set_function("set_best_accuracy", [&](float v) {
+                Debug("Work::set_best_accuracy(%f);", v);
+                Work::set_best_accuracy(v);
+            }, module);
+            py::set_function("recv_samples", [dims](std::vector<uchar> images, std::vector<std::string> labels) {
+                Debug("Received %lu images and %lu labels", images.size(), labels.size());
+                
+                /*for (size_t i=0; i<labels.size(); ++i) {
+                    size_t index = i * size_t(dims.width) * size_t(dims.height);
+                    Sample::Make(Image::Make(dims.height, dims.width, 1, images.data() + index), );
+                }*/
+                
+            }, module);
+            
+            py::run(module, "start");
+            
+            /*if(!DataStore::composition().empty()) {
+                std::vector<Image::Ptr> _images;
+                std::vector<std::string> _labels;
+ 
+                {
+                    std::lock_guard guard(DataStore::mutex());
+                    for(auto it = DataStore::begin(); it != DataStore::end(); ++it) {
+                        _images.insert(_images.end(), (*it)->_images.begin(), (*it)->_images.end());
+                        _labels.insert(_labels.end(), (*it)->_images.size(), (*it)->_assigned_label->name);
+                    }
+                }
+                
+                // re-add images
+                py::set_variable("additional", _images, module);
+                py::set_variable("additional_labels", _labels, module);
+                py::run(module, "add_images");
+            }*/
+        };
+        
+        reset_variables();
         
         Work::status() = "";
         
@@ -627,9 +677,15 @@ void Work::start_learning() {
                 queue().pop();
                 
                 guard.unlock();
+                /*if(py::check_module(module)) {
+                    Debug("Module '%S' changed, reset variables...", &module);
+                    reset_variables();
+                }*/
+                
                 switch (item.type) {
                     case LearningTask::Type::Load: {
                         py::run(module, "load");
+                        //py::run(module, "send_samples");
                         clear_probs = true;
                         break;
                     }
@@ -860,7 +916,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     Debug("Added %lu frames", frames.size());
     
     if(images.size() >= min_samples) {
-        return Sample::Make(fish->identity().ID(), segment, std::move(indexes), std::move(images));
+        return Sample::Make(std::move(indexes), std::move(images));
     }
     
     return Sample::Invalid();
@@ -1050,24 +1106,6 @@ Cell::Cell() :
     _block->set_origin(Vec2(0.5));
         
     /**
-     * Update tooltip
-     * and Cell-background
-     */
-    _image->on_hover([this](Event e) {
-        if(e.hover.hovered) {
-            _block->set_background(Transparent, White.alpha(225));
-            
-            if(_sample) {
-                tooltip.set_text("<h2>"+FAST_SETTINGS(individual_prefix)+Meta::toStr(_sample->_fish)+"</h2>"+Meta::toStr(_sample->_segment->range));
-                tooltip.set_other(_block.get());
-            }
-            
-        } else {
-            _block->set_background(Transparent, Transparent);
-        }
-    });
-        
-    /**
      * Handle clicks on cells
      */
     _image->on_click([this](Event e) {
@@ -1216,7 +1254,6 @@ void draw(gui::DrawStructure& base) {
     
     layout.auto_size(Margin{0,0});
     base.wrap_object(layout);
-    base.wrap_object(tooltip);
     
     static Timer timer;
     

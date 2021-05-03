@@ -33,9 +33,6 @@ struct Sample {
         return std::make_shared<Sample>(std::forward<Args>(args)...);
     }
     
-    Idx_t _fish;
-    std::shared_ptr<Individual::SegmentInformation> _segment;
-    
     std::vector<long_t> _frames;
     std::vector<Image::Ptr> _images;
     
@@ -43,7 +40,7 @@ struct Sample {
     std::map<Label::Ptr, float> _probabilities;
     bool _requested = false;
     
-    Sample(Idx_t fish, const decltype(_segment)& segment, std::vector<long_t>&& frames, const std::vector<Image::Ptr>& images);
+    Sample(std::vector<long_t>&& frames, const std::vector<Image::Ptr>& images);
     
     static const Sample::Ptr& Invalid() {
         static Sample::Ptr invalid(nullptr);
@@ -98,7 +95,12 @@ struct DataStore {
     struct Composition {
         std::unordered_map<std::string, size_t> _numbers;
         std::string toStr() const;
+        bool empty() const;
     };
+    
+    using const_iterator = std::vector<Sample::Ptr>::const_iterator;
+    static const_iterator begin();
+    static const_iterator end();
     
     static Composition composition();
     static void clear();

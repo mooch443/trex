@@ -40,6 +40,7 @@ namespace cmn {
     public:
         Image(Image&&) = delete;
         Image(const Image& other);
+        Image(uint rows, uint cols, uint dims, const uchar* datat);
         Image(uint rows, uint cols, uint dims = 1, int index = -1, uint64_t timestamp = 0);
         explicit Image(const cv::Mat& image, int index = -1, uint64_t timestamp = 0);
         Image();
@@ -47,6 +48,7 @@ namespace cmn {
         
         void create(const cv::Mat& matrix);
         void create(uint rows, uint cols, uint dims = 1);
+        void create(uint rows, uint cols, uint dims, const uchar* data);
         void clear();
         
         Image& operator=(const Image& other) = delete;

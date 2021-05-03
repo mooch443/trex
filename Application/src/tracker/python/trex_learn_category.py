@@ -72,9 +72,16 @@ class Categorize:
 
         self.model.summary(print_fn=TRex.log)
 
+    def send_samples(self):
+        global recv_samples
+
+        TRex.log("# sending "+str(len(self.samples))+" samples")
+        recv_samples(np.array(self.samples).astype(np.uint8).flatten(), self.labels)
+
     def add_images(self, images, labels):
         # length before adding images
         prev_L = len(self.labels)
+        TRex.log("# previously had "+len(self.samples)+" images")
 
         for image in images:
             self.samples.append(image)
@@ -297,6 +304,10 @@ def post_queue():
     assert type(categorize) != type(None)
 
     categorize.update()
+
+def send_samples():
+    global categorize
+    categorize.send_samples()
 
 def predict():
     global categorize, images, receive
