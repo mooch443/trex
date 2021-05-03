@@ -2518,12 +2518,26 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
     }
 }
 
+std::string& additional_status_text() {
+    static std::string _text = "";
+    return _text;
+}
+
+void GUI::set_status(const std::string& text) {
+    if(!instance())
+        return;
+    
+    std::lock_guard guard(instance()->gui().lock());
+    additional_status_text() = text;
+}
+
 void GUI::draw_footer(DrawStructure& base) {
     static bool first = true;
     auto && [bg_offset, max_w] = Timeline::timeline_offsets();
     
     static HorizontalLayout status_layout({}, Vec2(), Bounds(10,0,0,0));
     static Text gpu_status("", Vec2(), White, Font(0.7)), python_status("", Vec2(), Red, Font(0.7));
+    static Text additional_status("", Vec2(), White, Font(0.7));
     static Text mouse_status("", Vec2(), White.alpha(200), Font(0.7));
 #define SITEM(NAME) DirectSettingsItem<globals::Cache::Variables:: NAME>
     static List options_dropdown(Size2(150, 33 + 2), "display", {
@@ -2886,6 +2900,8 @@ void GUI::draw_footer(DrawStructure& base) {
         mouse_position = (mouse_position - section->pos()).div(section->scale());
          mouse_status.set_txt(Meta::toStr(std::vector<int>{static_cast<int>(mouse_position.x), static_cast<int>(mouse_position.y)}));
     }
+        
+    additional_status.set_txt(additional_status_text());
     
     status_layout.set_origin(Vec2(1, 0.5));
     status_layout.set_scale(1.1 * base.scale().reciprocal());
@@ -2893,7 +2909,7 @@ void GUI::draw_footer(DrawStructure& base) {
     status_layout.set_pos(Vec2(max_w / base.scale().x - 30, layout.pos().y - layout.local_bounds().height * 0.5) - bg_offset / base.scale().x);
 
     if(status_layout.children().empty())
-        status_layout.set_children({&python_status, &gpu_status, &mouse_status});
+        status_layout.set_children({&python_status, &gpu_status, &additional_status, &mouse_status});
     status_layout.set_policy(HorizontalLayout::Policy::CENTER);
 }
 

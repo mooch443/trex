@@ -297,6 +297,7 @@ public:
     void update_recognition_rect();
     static Size2 screen_dimensions();
     static gui::Base* best_base();
+    static void set_status(const std::string& text);
     
 private:
     std::tuple<Vec2, Vec2> gui_scale_with_boundary(Bounds& bounds, gui::Section* section, bool singular);

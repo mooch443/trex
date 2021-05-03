@@ -993,9 +993,9 @@ void Fish::label(DrawStructure &base) {
                 }
             }
             
-            auto cat = Categorize::DataStore::label(Frame_t(_idx), blob);
+            auto cat = Categorize::DataStore::label_interpolated(_obj.identity().ID(), Frame_t(_idx));
             if(cat) {
-                secondary_text += " <str>"+cat->name+"</str>";
+                secondary_text += " <key>"+cat->name+"</key>";
             }
         }
     }

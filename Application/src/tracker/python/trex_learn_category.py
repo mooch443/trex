@@ -81,7 +81,7 @@ class Categorize:
     def add_images(self, images, labels):
         # length before adding images
         prev_L = len(self.labels)
-        TRex.log("# previously had "+len(self.samples)+" images")
+        TRex.log("# previously had "+str(len(self.samples))+" images")
 
         for image in images:
             self.samples.append(image)

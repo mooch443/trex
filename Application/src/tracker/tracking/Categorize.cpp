@@ -96,6 +96,11 @@ namespace Work {
         
         Work::_learning_variable.notify_one();
     }
+
+    auto& task_queue() {
+        static std::queue<std::function<void()>> _queue;
+        return _queue;
+    }
 };
 
 Sample::Sample(std::vector<long_t>&& frames, const std::vector<Image::Ptr>& images)
@@ -196,6 +201,7 @@ bool DataStore::Composition::empty() const {
 }
 
 std::unordered_map<Frame_t, std::unordered_map<uint32_t, Label::Ptr>> _probability_cache;
+std::unordered_map<Idx_t, std::unordered_map<std::shared_ptr<Individual::SegmentInformation>, Label::Ptr>> _interpolated_probability_cache;
 
 DataStore::const_iterator DataStore::begin() {
     return _samples.begin();
@@ -218,6 +224,72 @@ void DataStore::set_label(Frame_t idx, const pv::CompressedBlob* blob, const Lab
         Warning("Cache already contains blob in frame %d (parent=%d).\n%S", bdx, (int)idx, blob->parent_id, &str);
     }
     _probability_cache[idx][bdx] = label;
+}
+
+Label::Ptr DataStore::label_interpolated(Idx_t fish, Frame_t frame) {
+    Tracker::LockGuard guard("DataStore::label_interpolated");
+    
+    auto it = Tracker::individuals().find(fish);
+    if(it == Tracker::individuals().end()) {
+        Warning("Individual %d not found.", fish._identity);
+        return nullptr;
+    }
+    
+    auto kit = it->second->iterator_for(frame);
+    if(kit == it->second->frame_segments().end()) {
+        Warning("Individual %d, cannot find frame %d.", fish._identity, frame._frame);
+        return nullptr;
+    }
+    
+    if((*kit)->contains(frame)) {
+        auto idx = (*kit)->basic_stuff(frame);
+        if(idx != -1) {
+            auto &basic = it->second->basic_stuff().at(idx);
+            auto l = label(frame, &basic->blob);
+            if(l)
+                return l;
+            
+            // interpolate
+            Label::Ptr before = nullptr;
+            long_t index_before = -1;
+            Label::Ptr after = nullptr;
+            long_t index_after = -1;
+            
+            for(auto index : (*kit)->basic_index) {
+                if(index == idx)
+                    continue;
+                
+                assert(index > -1);
+                auto &basic = it->second->basic_stuff().at(index);
+                auto l = label(frame, &basic->blob);
+                if(l && index < idx) {
+                    before = l;
+                    index_before = index;
+                } else if(l && index > idx) {
+                    after = l;
+                    index_after = index;
+                    break;
+                }
+            }
+            
+            if(before && after) {
+                if(idx - index_before >= (index_after - index_before + 1) * 0.5) {
+                    return after;
+                } else
+                    return before;
+                
+            } else if(before) {
+                return before;
+            } else
+                return after;
+        }
+        
+    } else {
+        Warning("Individual %d does not contain frame %d.", fish._identity, frame._frame);
+    }
+    
+    Warning("Individual %d not found. Other reason?", fish._identity);
+    return nullptr;
 }
 
 Label::Ptr DataStore::label(Frame_t idx, uint32_t bdx) {
@@ -560,36 +632,96 @@ struct NetworkApplicationState {
         } while(task.sample == Sample::Invalid());
         
         if(task.sample != Sample::Invalid()) {
-            task.callback = [this, ID = fish->identity().ID(), range = segment->range](const LearningTask& task)
+            task.callback = [this, ID = fish->identity().ID()](const LearningTask& task)
             {
-                Tracker::LockGuard guard("task.callback");
-                for(size_t i=0; i<task.result.size(); ++i) {
-                    auto frame = task.sample->_frames.at(i);
-                    auto blob = fish->compressed_blob(frame);
-                    if(blob) {
-                        DataStore::set_label(Frame_t(frame), blob, DataStore::label(task.result.at(i)));
-                    } else
-                        Except("Blob in frame %d not found in fish %d", frame, ID);
+                {
+                    std::lock_guard guard(Work::_mutex);
+                    Work::task_queue().push([this, task = std::move(task), ID=ID](){
+                        Tracker::LockGuard guard("task.callback");
+                        for(size_t i=0; i<task.result.size(); ++i) {
+                            auto frame = task.sample->_frames.at(i);
+                            auto blob = fish->compressed_blob(frame);
+                            if(blob) {
+                                DataStore::set_label(Frame_t(frame), blob, DataStore::label(task.result.at(i)));
+                            } else
+                                Except("Blob in frame %d not found in fish %d", frame, ID);
+                        }
+                    
+                        this->next();
+                    });
                 }
                 
-                this->next();
+                Work::_variable.notify_one();
             };
             
             Work::add_task(std::move(task));
         }
         
-        Debug("Fish%d: %f%%", fish->identity().ID(), float(offset) / float(fish->frame_segments().size()) * 100);
+        bool done = size_t(offset) == fish->frame_segments().size();
+        if(done || size_t(offset) % 100 == 0) {
+            auto percent = NetworkApplicationState::percent();
+            auto text = "Applying "+Meta::toStr(int(percent * 100))+"%...";
+            if(!Work::visible()) {
+                if(percent >= 1)
+                    GUI::set_status("");
+                else
+                    GUI::set_status(text);
+            } else
+                Work::status() = text;
+            
+            Debug("Fish%d: %f%%", fish->identity().ID(), float(offset) / float(fish->frame_segments().size()) * 100);
+        } else {
+            Debug("Fish%d: %f%%", fish->identity().ID(), float(offset) / float(fish->frame_segments().size()) * 100);
+        }
     }
     
     static auto& current() {
         static std::unordered_map<Individual*, NetworkApplicationState> _map;
         return _map;
     }
+    
+    static double percent() {
+        Tracker::LockGuard guard("Categorize::percent");
+        double percent = 0, N = current().size();
+        for (auto &[k, v] : current()) {
+            percent += float(v.offset) / float(v.fish->frame_segments().size());
+        }
+        return N>0 ? percent / N : 0;
+    }
 };
 
 void start_applying() {
     Work::initialized_apply() = false;
     Work::start_learning(); // make sure the work-horse is started
+    
+    //if(!Work::initialized_apply()) {
+        Work::initialized_apply() = true;
+    
+    std::lock_guard guard(Work::_mutex);
+    Work::task_queue().push([](){
+        Debug("## Initializing APPLY.");
+        {
+            Tracker::LockGuard guard("Categorize::start_applying");
+            NetworkApplicationState::current().clear();
+            
+            for (auto &[id, ptr] : Tracker::individuals()) {
+                auto &obj = NetworkApplicationState::current()[ptr];
+                obj.fish = ptr;
+            }
+        }
+        
+        Work::status() = "Applying "+Meta::toStr(int(NetworkApplicationState::percent() * 100))+"%...";
+        
+        for(auto & [k, v] : NetworkApplicationState::current()) {
+            Tracker::LockGuard guard("Categorize::start_applying");
+            v.next(); // start first task
+        }
+        
+        Debug("Done adding initial samples");
+    });
+        
+    //}
+    
     Work::_variable.notify_all();
 }
 
@@ -767,29 +899,15 @@ void Work::start_learning() {
 void Work::loop() {
     std::unique_lock guard(_mutex);
     while (!terminate) {
-        if(Work::state() == Work::State::APPLY) {
-            if(!Work::initialized_apply()) {
-                Work::initialized_apply() = true;
-                
-                Debug("## Initializing APPLY.");
-                {
-                    Tracker::LockGuard guard("Categorize::start_applying");
-                    NetworkApplicationState::current().clear();
-                    
-                    for (auto &[id, ptr] : Tracker::individuals()) {
-                        auto &obj = NetworkApplicationState::current()[ptr];
-                        obj.fish = ptr;
-                    }
-                }
-                
-                for(auto & [k, v] : NetworkApplicationState::current()) {
-                    Tracker::LockGuard guard("Categorize::start_applying");
-                    v.next(); // start first task
-                }
-            }
+        // check for tasks
+        while(!Work::task_queue().empty()) {
+            auto task = std::move(Work::task_queue().front());
+            Work::task_queue().pop();
             
-        } //else
-            //_started_init = false;
+            guard.unlock();
+            task();
+            guard.lock();
+        }
         
         Sample::Ptr sample;
         while(_generated_samples.size() < requested_samples() && !terminate) {
@@ -1182,6 +1300,7 @@ void Work::set_state(State state) {
                     DataStore::clear();
                 };
                 Work::add_task(std::move(task));
+                Work::start_learning();
                 
             } else {
                 Work::status() = "initializing...";
@@ -1189,6 +1308,7 @@ void Work::set_state(State state) {
                 Work::_variable.notify_one();
                 Work::visible() = true;
                 PythonIntegration::ensure_started();
+                Work::start_learning();
             }
             
             break;
