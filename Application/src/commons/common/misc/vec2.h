@@ -333,6 +333,11 @@ constexpr inline T operator SIGN(Float2_t s, const T& v) { return T(s SIGN v.A()
             : Bounds(0, 0, dim.width, dim.height)
         {}
         
+#if CMN_WITH_IMGUI_INSTALLED
+        Bounds(const ImVec4& v) noexcept : Bounds(v.x, v.y, v.w - v.x, v.z - v.y) {}
+        operator ImVec4() const { return ImVec4(x, y, y + height, x + width); }
+#endif
+        
         explicit Bounds(const cv::Mat& matrix) : Bounds(0, 0, static_cast<Float2_t>(matrix.cols), static_cast<Float2_t>(matrix.rows)) {}
         
         template<typename T>

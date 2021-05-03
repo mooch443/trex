@@ -52,7 +52,7 @@ namespace gui {
         struct DrawOrder {
             enum Type {
                 DEFAULT = 0,
-                POP,
+                //POP,
                 END_ROTATION,
                 START_ROTATION
             };
@@ -61,10 +61,11 @@ namespace gui {
             Drawable* ptr;
             gui::Transform transform;
             Bounds bounds;
+            ImVec4 _clip_rect;
             
             DrawOrder() {}
-            DrawOrder(Type type, size_t index, Drawable*ptr, const gui::Transform& transform, const Bounds& bounds)
-            : type(type), index(index), ptr(ptr), transform(transform), bounds(bounds)
+            DrawOrder(Type type, size_t index, Drawable*ptr, const gui::Transform& transform, const Bounds& bounds, const ImVec4& clip)
+            : type(type), index(index), ptr(ptr), transform(transform), bounds(bounds), _clip_rect(clip)
             {}
         };
         
@@ -150,7 +151,7 @@ namespace gui {
         Event toggle_fullscreen(DrawStructure& g) override;
         
     private:
-        void redraw(Drawable* o, std::vector<DrawOrder>& draw_order, bool is_background = false);
+        void redraw(Drawable* o, std::vector<DrawOrder>& draw_order, bool is_background = false, ImVec4 clip_rect = ImVec4());
         void draw_element(const DrawOrder& order);
         void event(const gui::Event& e);
         static void update_size_scale(GLFWwindow*);
