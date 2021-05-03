@@ -162,7 +162,7 @@ const Sample::Ptr& DataStore::random_sample(Idx_t fid) {
     if(!segment)
         return Sample::Invalid();
     
-    return sample(segment, fish);
+    return sample(segment, fish, 150u, 50u);
 }
 
 Sample::Ptr DataStore::get_random() {
@@ -538,7 +538,7 @@ struct NetworkApplicationState {
                 break;
             
             segment = *it;
-            task.sample = DataStore::temporary(segment, fish);
+            task.sample = DataStore::temporary(segment, fish, 300u, 15u);
             ++offset;
             ++it;
             
@@ -578,6 +578,10 @@ void start_applying() {
     Work::_variable.notify_all();
 }
 
+file::Path output_location() {
+    return pv::DataLocation::parse("output", file::Path((std::string)SETTING(filename).value<file::Path>().filename() + "_categories.npz"));
+}
+
 void Work::start_learning() {
     if(Work::_learning) {
         return;
@@ -601,6 +605,11 @@ void Work::start_learning() {
         py::set_variable("categories", Meta::toStr(keys), module);
         py::set_variable("width", (int)dims.width, module);
         py::set_variable("height", (int)dims.height, module);
+        py::set_variable("output_file", output_location().str(), module);
+        py::set_function("set_best_accuracy", [&](float v) {
+            Debug("Work::set_best_accuracy(%f);", v);
+            Work::set_best_accuracy(v);
+        }, module);
         py::run(module, "start");
         
         Work::status() = "";
@@ -611,6 +620,7 @@ void Work::start_learning() {
             
             //Debug("Waiting for learning tasks...");
             size_t executed = 0;
+            bool clear_probs = false;
             
             while(!queue().empty()) {
                 auto item = std::move(queue().front());
@@ -618,6 +628,12 @@ void Work::start_learning() {
                 
                 guard.unlock();
                 switch (item.type) {
+                    case LearningTask::Type::Load: {
+                        py::run(module, "load");
+                        clear_probs = true;
+                        break;
+                    }
+                        
                     case LearningTask::Type::Restart:
                         py::run(module, "clear_images");
                         break;
@@ -645,12 +661,8 @@ void Work::start_learning() {
                             labels.push_back(item.sample->_assigned_label->name);
                         py::set_variable("additional", item.sample->_images, module);
                         py::set_variable("additional_labels", labels, module);
-                        py::set_function("set_best_accuracy", [&](float v) {
-                            Debug("%f", v);
-                            Work::set_best_accuracy(v);
-                        }, module);
                         py::run(module, "add_images");
-                        
+                        clear_probs = true;
                         ++executed;
                         break;
                     }
@@ -670,18 +682,23 @@ void Work::start_learning() {
                 Work::status() = "training...";
                 py::run(module, "post_queue");
                 Work::status() = "";
-                
+                guard.lock();
+            }
+            if(clear_probs) {
+                clear_probs = false;
                 Debug("# Clearing calculated probabilities...");
-                std::lock_guard g(Work::_recv_mutex);
-                for(auto &row : rows) {
-                    for(auto &cell : row._cells) {
-                        if(cell._sample) {
-                            cell._sample->_probabilities.clear();
-                            cell._sample->_requested = false;
+                guard.unlock();
+                {
+                    std::lock_guard g(Work::_recv_mutex);
+                    for(auto &row : rows) {
+                        for(auto &cell : row._cells) {
+                            if(cell._sample) {
+                                cell._sample->_probabilities.clear();
+                                cell._sample->_requested = false;
+                            }
                         }
                     }
                 }
-                
                 guard.lock();
             }
         }
@@ -751,7 +768,9 @@ void DataStore::clear() {
 }
 
 Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInformation>& segment,
-                                 Individual* fish)
+                                 Individual* fish,
+                                 const size_t sample_rate,
+                                 const size_t min_samples)
 {
     {
         std::lock_guard guard(mutex());
@@ -766,12 +785,12 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     std::vector<Image::Ptr> images;
     std::vector<long_t> indexes;
     
-    size_t step = max(1u, segment->basic_index.size() / 150u);
+    size_t step = max(1u, segment->basic_index.size() / sample_rate);
     for (size_t i=0; i<segment->basic_index.size(); i += step) {
         frames.insert(segment->basic_index.at(i));
     }
     
-    if(frames.size() < 50)
+    if(frames.size() < min_samples)
         return Sample::Invalid();
     
     for(auto frame : frames) {
@@ -840,7 +859,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     
     Debug("Added %lu frames", frames.size());
     
-    if(images.size() > 5) {
+    if(images.size() >= min_samples) {
         return Sample::Make(fish->identity().ID(), segment, std::move(indexes), std::move(images));
     }
     
@@ -849,7 +868,9 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
 
 const Sample::Ptr& DataStore::sample(
         const std::shared_ptr<Individual::SegmentInformation>& segment,
-        Individual* fish)
+        Individual* fish,
+        const size_t max_samples,
+        const size_t min_samples)
 {
     {
         std::lock_guard guard(mutex());
@@ -859,7 +880,7 @@ const Sample::Ptr& DataStore::sample(
         }
     }
     
-    auto s = temporary(segment, fish);
+    auto s = temporary(segment, fish, max_samples, min_samples);
     if(s == Sample::Invalid())
         return Sample::Invalid();
     
@@ -879,9 +900,10 @@ static Tooltip tooltip(nullptr, 200);
 static Layout::Ptr stext = nullptr;
 static Entangled* selected = nullptr;
 static Layout::Ptr apply(Layout::Make<Button>("Apply", Bounds(0, 0, 100, 33)));
+static Layout::Ptr load(Layout::Make<Button>("Load", Bounds(0, 0, 100, 33)));
 static Layout::Ptr close(Layout::Make<Button>("Hide", Bounds(0, 0, 100, 33)));
 static Layout::Ptr restart(Layout::Make<Button>("Restart", Bounds(0, 0, 100, 33)));
-static Layout::Ptr buttons(Layout::Make<HorizontalLayout>(std::vector<Layout::Ptr>{apply, restart, close}));
+static Layout::Ptr buttons(Layout::Make<HorizontalLayout>(std::vector<Layout::Ptr>{apply, restart, load, close}));
 
 void initialize(DrawStructure& base) {
     static double R = 0, elap = 0;
@@ -918,12 +940,16 @@ void initialize(DrawStructure& base) {
         close->on_click([](auto) {
             Work::set_state(Work::State::NONE);
         });
+        load->on_click([](auto) {
+            Work::set_state(Work::State::LOAD);
+        });
         restart->on_click([](auto) {
             Work::set_state(Work::State::SELECTION);
         });
         
         apply.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Green.exposure(0.15)));
         close.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Red.exposure(0.2)));
+        load.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Yellow.exposure(0.2)));
         
         tooltip.set_scale(base.scale().reciprocal());
         tooltip.text().set_default_font(Font(0.5));
@@ -1084,6 +1110,15 @@ Work::State& Work::state() {
 
 void Work::set_state(State state) {
     switch (state) {
+        case State::LOAD: {
+            Work::start_learning();
+            
+            LearningTask task;
+            task.type = LearningTask::Type::Load;
+            Work::add_task(std::move(task));
+            Work::_variable.notify_one();
+            break;
+        }
         case State::NONE:
             break;
             

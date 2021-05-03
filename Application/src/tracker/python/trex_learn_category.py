@@ -14,7 +14,7 @@ import numpy as np
 categorize = None
 
 class Categorize:
-    def __init__(self, width, height, categories):
+    def __init__(self, width, height, categories, output_file):
         self.categories_map = eval(categories)
         self.categories = [c for c in self.categories_map]
 
@@ -23,6 +23,7 @@ class Categorize:
 
         self.update_required = False
         self.last_size = 0
+        self.output_file = output_file
 
         self.samples = []
         self.labels = []
@@ -31,6 +32,9 @@ class Categorize:
         TRex.log("# image dimensions: "+str(self.width)+"x"+str(self.height))
         TRex.log("# initializing categories "+str(categories))
 
+        self.reload_model()
+
+    def reload_model(self):
         self.model = Sequential()
 
         self.model.add(Input(shape=(int(self.height),int(self.width),1), dtype=float))
@@ -78,6 +82,9 @@ class Categorize:
         for l in labels:
             self.labels.append(str(l));
 
+        self.updated_data(prev_L, labels)
+
+    def updated_data(self, prev_L, labels):
         TRex.log("# samples are "+str(np.shape(self.samples))+" labels:"+str(np.shape(self.labels)))
         TRex.log("# "+str(np.unique(self.labels)))
 
@@ -105,8 +112,74 @@ class Categorize:
             else:
                 TRex.log("# no update required. previous:"+str(self.last_size)+" now:"+str(len(self.samples)))
 
+    def load(self):
+        self.reload_model()
+
+        #try:
+        with np.load(self.output_file, allow_pickle=True) as npz:
+            shape = npz["x"].shape
+            TRex.log("# loading model with data of shape "+str(shape)+" and current shape "+str(self.height)+","+str(self.width))
+            assert shape[1] == self.height and shape[2] == self.width
+
+            categories_map = npz["categories_map"].item()
+            TRex.log("# categories_map:"+str(categories_map))
+            categories = [c for c in categories_map]
+
+            if categories != self.categories:
+                TRex.log("# categories are different: "+str(categories)+" != "+str(self.categories)+". replacing current samples.")
+
+                self.categories = categories
+                self.categories_map = categories_map
+                self.samples = []
+                self.validation_indexes = np.array([], dtype=int)
+                self.labels = []
+
+
+            m = npz['weights'].item()
+            for i, layer in zip(range(len(self.model.layers)), self.model.layers):
+                if i in m:
+                    layer.set_weights(m[i])
+
+            validation_indexes = npz["validation_indexes"].astype(int)
+            TRex.log("# loading indexes: "+str(validation_indexes))
+            TRex.log("# adding data: "+str(npz["x"].shape))
+
+            # add current offset to validation_indexes
+            validation_indexes += len(self.samples)
+            TRex.log("# with offset: "+str(validation_indexes))
+            self.validation_indexes = np.concatenate((self.validation_indexes, validation_indexes), axis=0)
+            
+            # add data
+            prev_L = len(self.labels)
+            TRex.log("# unique new labels: "+str(np.unique(npz["y"])))
+
+            for image in npz["x"]:
+                self.samples.append(image)
+            for y in npz["y"]:
+                self.labels.append(str(y))
+
+            self.updated_data(prev_L, [])
+
+        if len(self.samples) > 0:
+            X = np.array(self.samples)
+
+            Y = np.zeros(len(self.labels), dtype=int)
+            L = self.categories
+            for i in range(len(L)):
+                Y[np.array(self.labels) == L[i]] = self.categories_map[L[i]]
+            Y = to_categorical(Y, len(L))
+
+            X_test = X[self.validation_indexes]
+            Y_test = Y[self.validation_indexes]
+            self.model.evaluate(X_test, Y_test, batch_size=64)
+            self.update_best_accuracy(X_test, Y_test)
+        else:
+            TRex.log("# no data available for evaluation")
+
+        #except Exception as e:
+        #    TRex.warn("loading weights failed: "+str(e))
+
     def perform_training(self):
-        global set_best_accuracy
         import numpy as np
 
         TRex.log("# performing training...")
@@ -149,6 +222,25 @@ class Categorize:
         self.model.fit(training_data, validation_data=validation_data, epochs=10, verbose=2, callbacks=[early_stopping_monitor])
         self.model.save('model')
 
+        try:
+
+            weights = {}
+            for i, layer in zip(range(len(self.model.layers)), self.model.layers):
+                h = layer.get_weights()
+                #TRex.log(i, len(h), layer.get_config()["name"])
+                if len(h) > 0:
+                    weights[i] = h
+
+            np.savez(self.output_file, weights = np.array(weights, dtype="object"), x=self.samples, y=self.labels, validation_indexes=self.validation_indexes, categories_map=np.array(self.categories_map, dtype='object'))
+            TRex.log("# UPDATE: saved samples and weights.")
+
+        except Exception as e:
+            TRex.log("Saving weights and samples failed: "+str(e))
+
+        self.update_best_accuracy(X_test, Y_test)
+
+    def update_best_accuracy(self, X_test, Y_test):
+        global set_best_accuracy
         y_test = np.argmax(Y_test, axis=1) # Convert one-hot to index
         y_pred = np.argmax(self.model.predict(X_test), axis=-1)
         report = classification_report(y_test, y_pred, output_dict=True)
@@ -160,8 +252,6 @@ class Categorize:
     def update(self):
         if self.update_required:
             self.update_required = False
-            TRex.log("# UPDATE: saving samples...")
-            np.savez("training_data.npz", x=self.samples, y=self.labels)
             self.perform_training()
 
     def predict(self, images):
@@ -177,12 +267,22 @@ class Categorize:
 
 
 def start():
-    global categorize, categories, width, height
+    global categorize, categories, width, height, output_file
 
     if type(categorize) == type(None):
-        categorize = Categorize(width, height, categories)
+        categorize = Categorize(width, height, categories, output_file)
 
     TRex.log("# initialized.")
+
+def load():
+    global categorize
+    assert type(categorize) != type(None)
+
+    if type(categorize) == type(None):
+        start()
+    else:
+        TRex.log("# model already exists. reloading model")
+        categorize.load()
 
 def add_images():
     global categorize, additional, additional_labels

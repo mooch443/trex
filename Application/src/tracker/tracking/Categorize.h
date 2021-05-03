@@ -82,11 +82,15 @@ struct DataStore {
     static Label::Ptr label(int ID);
     
     static const Sample::Ptr& sample(
-        const std::shared_ptr<Individual::SegmentInformation>& segment,
-        Individual* fish
+         const std::shared_ptr<Individual::SegmentInformation>& segment,
+         Individual* fish,
+         const size_t max_samples,
+         const size_t min_samples
     );
     static Sample::Ptr temporary(const std::shared_ptr<Individual::SegmentInformation>& segment,
-                                 Individual* fish);
+                                 Individual* fish,
+                                 const size_t max_samples,
+                                 const size_t min_samples = 50u);
     
     static const Sample::Ptr& random_sample(Idx_t fid);
     static Sample::Ptr get_random();
@@ -108,6 +112,7 @@ struct LearningTask {
         Prediction,
         Training,
         Restart,
+        Load,
         Invalid
     } type = Type::Invalid;
     
@@ -130,7 +135,8 @@ namespace Work {
 enum class State {
     NONE,
     SELECTION,
-    APPLY
+    APPLY,
+    LOAD
 };
 
 State& state();
@@ -142,6 +148,7 @@ void show();
 void hide();
 void draw(gui::DrawStructure&);
 void terminate();
+file::Path output_location();
 
 }
 }
