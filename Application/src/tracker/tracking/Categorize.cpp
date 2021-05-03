@@ -1158,6 +1158,19 @@ void Work::set_state(State state) {
             break;
         }
         case State::NONE:
+            hide();
+            {
+                std::lock_guard g(Work::_recv_mutex);
+                for(auto &row : rows) {
+                    for(auto &cell : row._cells) {
+                        if(cell._sample) {
+                            cell._sample->_probabilities.clear();
+                            cell._sample->_requested = false;
+                        }
+                        cell.set_sample(nullptr);
+                    }
+                }
+            }
             break;
             
         case State::SELECTION: {
