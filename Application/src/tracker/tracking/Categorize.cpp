@@ -214,7 +214,7 @@ DataStore::const_iterator DataStore::end() {
 }
 
 void DataStore::set_label(Frame_t idx, uint32_t bdx, const Label::Ptr& label) {
-    std::lock_guard guard(mutex());
+    std::lock_guard guard(cache_mutex());
     if (_probability_cache[idx].count(bdx)) {
         auto str = Meta::toStr(_probability_cache[idx]);
         Warning("Cache already contains blob in frame %d.\n%S", bdx, (int)idx, &str);
@@ -233,8 +233,6 @@ void DataStore::set_label(Frame_t idx, const pv::CompressedBlob* blob, const Lab
 }
 
 Label::Ptr DataStore::label_interpolated(Idx_t fish, Frame_t frame) {
-    Tracker::LockGuard guard("DataStore::label_interpolated");
-    
     auto it = Tracker::individuals().find(fish);
     if(it == Tracker::individuals().end()) {
         Warning("Individual %d not found.", fish._identity);
@@ -299,7 +297,7 @@ Label::Ptr DataStore::label_interpolated(Idx_t fish, Frame_t frame) {
 }
 
 Label::Ptr DataStore::label(Frame_t idx, uint32_t bdx) {
-    std::lock_guard guard(mutex());
+    std::lock_guard guard(cache_mutex());
     auto fit = _probability_cache.find(idx);
     if(fit != _probability_cache.end()) {
         auto sit = fit->second.find(bdx);

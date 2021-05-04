@@ -241,11 +241,11 @@ CREATE_STRUCT(Settings,
         
         friend class VisualField;
         static const std::unordered_map<Idx_t, Individual*>& individuals() {
-            LockGuard guard("individuals()");
+            //LockGuard guard("individuals()");
             return instance()->_individuals;
         }
         static const std::unordered_set<Individual*>& active_individuals() {
-            LockGuard guard("active_individuals()");
+            //LockGuard guard("active_individuals()");
             return instance()->_active_individuals;
         }
         static const std::unordered_set<Individual*>& active_individuals(long_t frame) {

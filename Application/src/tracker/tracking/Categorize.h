@@ -74,6 +74,10 @@ struct DataStore {
         static std::mutex _mutex;
         return _mutex;
     }
+    static std::mutex& cache_mutex() {
+        static std::mutex _mutex;
+        return _mutex;
+    }
     
     static Label::Ptr label(const char* name);
     static Label::Ptr label(int ID);
