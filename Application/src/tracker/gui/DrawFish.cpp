@@ -980,23 +980,23 @@ void Fish::label(DrawStructure &base) {
             else
                 color = "nr";
         }
+    }
 
-        if (blob) {
-            auto raw = Tracker::instance()->recognition()->ps_raw(_idx, blob->blob_id());
-            if (!raw.empty()) {
-                auto it = std::max_element(raw.begin(), raw.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b) {
-                    return a.second < b.second;
+    if (blob) {
+        auto raw = Tracker::instance()->recognition()->ps_raw(_idx, blob->blob_id());
+        if (!raw.empty()) {
+            auto it = std::max_element(raw.begin(), raw.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b) {
+                return a.second < b.second;
                 });
 
-                if (it != raw.end()) {
-                    secondary_text += " loc" + Meta::toStr(it->first) + " (" + Meta::toStr(it->second) + ")";
-                }
+            if (it != raw.end()) {
+                secondary_text += " loc" + Meta::toStr(it->first) + " (" + Meta::toStr(it->second) + ")";
             }
-            
-            auto cat = Categorize::DataStore::label_interpolated(_obj.identity().ID(), Frame_t(_idx));
-            if(cat) {
-                secondary_text += " <key>"+cat->name+"</key>";
-            }
+        }
+
+        auto cat = Categorize::DataStore::label_interpolated(_obj.identity().ID(), Frame_t(_idx));
+        if (cat) {
+            secondary_text += " <nr>" + cat->name + "</nr>";
         }
     }
 
