@@ -951,47 +951,53 @@ void Work::start_learning() {
     }, PythonIntegration::Flag::DEFAULT, false);
 }
 
-void Work::loop() {
-    std::unique_lock guard(_mutex);
-    while (!terminate) {
-        // check for tasks
-        while(!Work::task_queue().empty()) {
-            auto task = std::move(Work::task_queue().front());
-            Work::task_queue().pop();
-            
-            guard.unlock();
-            task();
-            guard.lock();
-            
-            if (terminate)
-                break;
-        }
-        
-        Sample::Ptr sample;
-        while(_generated_samples.size() < requested_samples() && !terminate) {
-            guard.unlock();
-            {
-                Tracker::LockGuard g("get_random::loop");
-                sample = DataStore::get_random();
-                if (sample && sample->_images.size() < 50) {
-                    sample = Sample::Invalid();
-                }
-            }
-            guard.lock();
-            
-            if(sample != Sample::Invalid() && !sample->_assigned_label) {
-                _generated_samples.push(sample);
-                _recv_variable.notify_one();
-            }
-        }
+GenericThreadPool pool(cmn::hardware_concurrency());
 
-        if (_generated_samples.size() < requested_samples() && !terminate)
-            _variable.notify_one();
-        
-        if(terminate)
-            break;
-        
-        _variable.wait_for(guard, std::chrono::seconds(10));
+void Work::loop() {
+    for (size_t i = 0; i < pool.num_threads(); ++i) {
+        pool.enqueue([]() {
+            std::unique_lock guard(_mutex);
+            while (!terminate) {
+                // check for tasks
+                while (!Work::task_queue().empty()) {
+                    auto task = std::move(Work::task_queue().front());
+                    Work::task_queue().pop();
+
+                    guard.unlock();
+                    task();
+                    guard.lock();
+
+                    if (terminate)
+                        break;
+                }
+
+                Sample::Ptr sample;
+                while (_generated_samples.size() < requested_samples() && !terminate) {
+                    guard.unlock();
+                    {
+                        Tracker::LockGuard g("get_random::loop");
+                        sample = DataStore::get_random();
+                        if (sample && sample->_images.size() < 50) {
+                            sample = Sample::Invalid();
+                        }
+                    }
+                    guard.lock();
+
+                    if (sample != Sample::Invalid() && !sample->_assigned_label) {
+                        _generated_samples.push(sample);
+                        _recv_variable.notify_one();
+                    }
+                }
+
+                if (_generated_samples.size() < requested_samples() && !terminate)
+                    _variable.notify_one();
+
+                if (terminate)
+                    break;
+
+                _variable.wait_for(guard, std::chrono::seconds(10));
+            }
+        });
     }
 }
 
