@@ -3560,13 +3560,16 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
                     std::stringstream ss;
                     if(!active)
                         ss << "<ref>";
-                    ss << blob->name();
-                    ss << " <a>size: " << real_size << (blob->split() ? " split" : "");
+                    ss << blob->name() << " ";
+                    if (active)
+                        ss << "<a>";
+                    ss << "size: " << real_size << (blob->split() ? " split" : "");
                     if(blob->tried_to_split())
                         ss << " tried";
-                    ss << "</a>";
                     if (!active)
                         ss << "</ref>";
+                    else
+                        ss << "</a>";
                     
                     decltype(_blob_labels)::iterator it = _blob_labels.find(blob->blob_id());
                     if(it == _blob_labels.end()) {
