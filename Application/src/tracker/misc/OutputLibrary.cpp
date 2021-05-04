@@ -7,6 +7,7 @@
 #include <misc/checked_casts.h>
 #include <gui/Graph.h>
 #include <tracker/misc/default_config.h>
+#include <tracking/Categorize.h>
 
 namespace Output {
     using namespace gui;
@@ -708,6 +709,14 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             
             delete events;
             return 0;
+        });
+
+        _cache_func["category"] = LIBFNC({
+            auto l = Categorize::DataStore::label_interpolated(info.fish->identity().ID(), Frame_t(frame));
+            if (l) {
+                return l->id;
+            }
+            return gui::Graph::invalid();
         });
         
         _cache_func["event_direction_change"] = LIBFNC({
