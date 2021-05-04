@@ -199,8 +199,6 @@ class Categorize:
             Y[np.array(self.labels) == L[i]] = self.categories_map[L[i]]
 
         Y = to_categorical(Y, len(L))
-        TRex.log("Y:"+str(Y))
-
         X = np.array(self.samples)
 
         training_indexes = np.arange(len(X), dtype=int)
@@ -230,7 +228,6 @@ class Categorize:
         self.model.save('model')
 
         try:
-
             weights = {}
             for i, layer in zip(range(len(self.model.layers)), self.model.layers):
                 h = layer.get_weights()
@@ -269,9 +266,7 @@ class Categorize:
         TRex.log(str(np.shape(images)))
 
         y = np.argmax(self.model.predict(images), axis=-1)
-        TRex.log("Y:"+str(y))
         return  y
-
 
 def start():
     global categorize, categories, width, height, output_file

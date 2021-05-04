@@ -1106,8 +1106,8 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
     bool pushed_rect = false;
     //if(order._clip_rect.w > 0 && order._clip_rect.z > 0 && (list->_ClipRectStack.empty() || list->_ClipRectStack.back() != order._clip_rect))
     if(order._clip_rect.w > 0 && order._clip_rect.z > 0) {
-        list->AddRect(ImVec2(order._clip_rect.x, order._clip_rect.y),
-                      ImVec2(order._clip_rect.w, order._clip_rect.z), cvtClr(Red));
+        //list->AddRect(ImVec2(order._clip_rect.x, order._clip_rect.y),
+        //              ImVec2(order._clip_rect.w, order._clip_rect.z), cvtClr(Red));
         list->PushClipRect(ImVec2(order._clip_rect.x, order._clip_rect.y),
                            ImVec2(order._clip_rect.w, order._clip_rect.z), false);
         pushed_rect = true;

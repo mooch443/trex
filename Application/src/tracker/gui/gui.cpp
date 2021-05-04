@@ -2954,7 +2954,7 @@ void GUI::update_recognition_rect() {
             if(it == _include_shapes.end()) {
                 if(rect.size() == 2) {
                     auto ptr = std::make_shared<Rect>(Bounds(rect[0], rect[1] - rect[0]), Green.alpha(25), Green.alpha(100));
-                    ptr->set_clickable(true);
+                    //ptr->set_clickable(true);
                     _include_shapes[rect] = ptr;
                     
                 } else if(rect.size() > 2) {
@@ -2963,7 +2963,7 @@ void GUI::update_recognition_rect() {
                     auto ptr = std::make_shared<gui::Polygon>(r);
                     ptr->set_fill_clr(Green.alpha(25));
                     ptr->set_border_clr(Green.alpha(100));
-                    ptr->set_clickable(true);
+                    //ptr->set_clickable(true);
                     _include_shapes[rect] = ptr;
                 }
             }
@@ -2990,7 +2990,7 @@ void GUI::update_recognition_rect() {
             if(it == _ignore_shapes.end()) {
                 if(rect.size() == 2) {
                     auto ptr = std::make_shared<Rect>(Bounds(rect[0], rect[1] - rect[0]), Red.alpha(25), Red.alpha(100));
-                    ptr->set_clickable(true);
+                    //ptr->set_clickable(true);
                     _ignore_shapes[rect] = ptr;
                     
                 } else if(rect.size() > 2) {
@@ -2999,7 +2999,7 @@ void GUI::update_recognition_rect() {
                     auto ptr = std::make_shared<gui::Polygon>(r);
                     ptr->set_fill_clr(Red.alpha(25));
                     ptr->set_border_clr(Red.alpha(100));
-                    ptr->set_clickable(true);
+                    //ptr->set_clickable(true);
                     _ignore_shapes[rect] = ptr;
                 }
             }

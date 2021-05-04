@@ -89,6 +89,8 @@ namespace Work {
     }
 
     void add_task(LearningTask&& task) {
+        Debug("Adding learning task of type %d", (int)task.type);
+
         {
             std::lock_guard guard(_learning_mutex);
             queue().push(std::move(task));
@@ -211,6 +213,15 @@ DataStore::const_iterator DataStore::end() {
     return _samples.end();
 }
 
+void DataStore::set_label(Frame_t idx, uint32_t bdx, const Label::Ptr& label) {
+    std::lock_guard guard(mutex());
+    if (_probability_cache[idx].count(bdx)) {
+        auto str = Meta::toStr(_probability_cache[idx]);
+        Warning("Cache already contains blob in frame %d.\n%S", bdx, (int)idx, &str);
+    }
+    _probability_cache[idx][bdx] = label;
+}
+
 void DataStore::set_label(Frame_t idx, const pv::CompressedBlob* blob, const Label::Ptr& label) {
     uint32_t bdx;
     /*if(blob->parent_id != -1)
@@ -218,12 +229,7 @@ void DataStore::set_label(Frame_t idx, const pv::CompressedBlob* blob, const Lab
     else*/
         bdx = blob->blob_id();
     
-    std::lock_guard guard(mutex());
-    if(_probability_cache[idx].count(bdx)) {
-        auto str = Meta::toStr(_probability_cache[idx]);
-        Warning("Cache already contains blob in frame %d (parent=%d).\n%S", bdx, (int)idx, blob->parent_id, &str);
-    }
-    _probability_cache[idx][bdx] = label;
+    set_label(idx, bdx, label);
 }
 
 Label::Ptr DataStore::label_interpolated(Idx_t fish, Frame_t frame) {
@@ -607,50 +613,70 @@ struct NetworkApplicationState {
     
     //! start the next prediction task
     void next() {
-        if(size_t(offset) == fish->frame_segments().size()) {
-            Debug("Finished %d", fish->identity().ID());
-            return; // no more segments
-        } else if(size_t(offset) > fish->frame_segments().size()) {
-            return; // probably something changed and we are now behind
-        }
-        
-        auto it = fish->frame_segments().begin();
-        std::advance(it, offset);
-        
         std::shared_ptr<Individual::SegmentInformation> segment;
         LearningTask task;
         task.type = LearningTask::Type::Prediction;
+
+        Individual::segment_map segments;
+
+        {
+            Tracker::LockGuard guard("next()");
+            if (size_t(offset) == fish->frame_segments().size()) {
+                Debug("Finished %d", fish->identity().ID());
+                return; // no more segments
+            }
+            else if (size_t(offset) > fish->frame_segments().size()) {
+                return; // probably something changed and we are now behind
+            }
+
+            segments = fish->frame_segments();
+        }
+
+        auto it = segments.begin();
+        std::advance(it, offset);
+
         do {
-            if(it == fish->frame_segments().end())
+            if (it == segments.end())
                 break;
-            
+
             segment = *it;
             task.sample = DataStore::temporary(segment, fish, 300u, 15u);
             ++offset;
             ++it;
-            
-        } while(task.sample == Sample::Invalid());
+
+        } while (task.sample == Sample::Invalid());
         
         if(task.sample != Sample::Invalid()) {
-            task.callback = [this, ID = fish->identity().ID()](const LearningTask& task)
+            task.callback = [this](const LearningTask& task)
             {
+                for(size_t i=0; i<task.result.size(); ++i) {
+                    auto frame = task.sample->_frames.at(i);
+                    uint32_t bdx;
+                    {
+                        Tracker::LockGuard guard("task.callback");
+                        auto blob = fish->compressed_blob(frame);
+                        if (!blob) {
+                            Except("Blob in frame %d not found", frame);
+                            continue;
+                        }
+
+                        bdx = blob->blob_id();
+                    }
+
+                    DataStore::set_label(Frame_t(frame), bdx, DataStore::label(task.result.at(i)));
+                }
+                    
+                Debug("Callback setting probabilities for %lu blobs. Assigning next...", task.result.size());
+
                 {
                     std::lock_guard guard(Work::_mutex);
-                    Work::task_queue().push([this, task = std::move(task), ID=ID](){
-                        Tracker::LockGuard guard("task.callback");
-                        for(size_t i=0; i<task.result.size(); ++i) {
-                            auto frame = task.sample->_frames.at(i);
-                            auto blob = fish->compressed_blob(frame);
-                            if(blob) {
-                                DataStore::set_label(Frame_t(frame), blob, DataStore::label(task.result.at(i)));
-                            } else
-                                Except("Blob in frame %d not found in fish %d", frame, ID);
-                        }
-                    
-                        this->next();
-                    });
+                    Work::task_queue().push([this]()
+                        {
+                            this->next();
+                        });
                 }
-                
+
+                Debug("Callback assigned next.");
                 Work::_variable.notify_one();
             };
             
@@ -669,8 +695,6 @@ struct NetworkApplicationState {
             } else
                 Work::status() = text;
             
-            Debug("Fish%d: %f%%", fish->identity().ID(), float(offset) / float(fish->frame_segments().size()) * 100);
-        } else {
             Debug("Fish%d: %f%%", fish->identity().ID(), float(offset) / float(fish->frame_segments().size()) * 100);
         }
     }
@@ -694,9 +718,6 @@ void start_applying() {
     Work::initialized_apply() = false;
     Work::start_learning(); // make sure the work-horse is started
     
-    //if(!Work::initialized_apply()) {
-        Work::initialized_apply() = true;
-    
     std::lock_guard guard(Work::_mutex);
     Work::task_queue().push([](){
         Debug("## Initializing APPLY.");
@@ -708,20 +729,21 @@ void start_applying() {
                 auto &obj = NetworkApplicationState::current()[ptr];
                 obj.fish = ptr;
             }
+
+            Debug("## Created %lu objects", NetworkApplicationState::current().size());
         }
         
         Work::status() = "Applying "+Meta::toStr(int(NetworkApplicationState::percent() * 100))+"%...";
         
         for(auto & [k, v] : NetworkApplicationState::current()) {
-            Tracker::LockGuard guard("Categorize::start_applying");
             v.next(); // start first task
+            if (Work::terminate)
+                break;
         }
         
         Debug("Done adding initial samples");
     });
         
-    //}
-    
     Work::_variable.notify_all();
 }
 
@@ -800,14 +822,19 @@ void Work::start_learning() {
         while(Work::_learning) {
             Work::_learning_variable.wait_for(guard, std::chrono::seconds(1));
             
-            //Debug("Waiting for learning tasks...");
+            Debug("Waiting for learning tasks...");
             size_t executed = 0;
             bool clear_probs = false;
+
+            std::vector<std::tuple<LearningTask, size_t>> prediction_tasks;
+            std::vector<std::tuple<LearningTask, size_t, size_t>> training_tasks;
+            std::vector<Image::Ptr> prediction_images, training_images;
+            std::vector<std::string> training_labels;
             
             while(!queue().empty()) {
                 auto item = std::move(queue().front());
                 queue().pop();
-                
+
                 guard.unlock();
                 /*if(py::check_module(module)) {
                     Debug("Module '%S' changed, reset variables...", &module);
@@ -819,39 +846,31 @@ void Work::start_learning() {
                         py::run(module, "load");
                         //py::run(module, "send_samples");
                         clear_probs = true;
+                        if (item.callback)
+                            item.callback(item);
                         break;
                     }
                         
                     case LearningTask::Type::Restart:
                         py::run(module, "clear_images");
+                        if (item.callback)
+                            item.callback(item);
                         break;
                         
-                    case LearningTask::Type::Prediction:
-                        Work::status() = "prediction...";
-                        Debug("Predicting %lu samples", item.sample->_frames.size());
-                        py::set_variable("images", item.sample->_images, module);
-                        py::set_function("receive", [&](std::vector<float> results)
-                        {
-                            Debug("Receive %lu values", results.size());
-                            item.result = std::move(results);
-                        }, module);
-                        py::run(module, "predict");
-                        Work::status() = "";
-                        
+                    case LearningTask::Type::Prediction: {
+                        auto idx = prediction_images.size();
+                        prediction_images.insert(prediction_images.end(), item.sample->_images.begin(), item.sample->_images.end());
+                        prediction_tasks.emplace_back(std::move(item), idx);
                         break;
+                    }
                         
                     case LearningTask::Type::Training: {
-                        Debug("Training on %lu additional samples", item.sample->_frames.size());
-                        // train for a couple epochs
-                        py::set_variable("epochs", int(10));
-                        std::vector<std::string> labels;
-                        for(size_t i=0; i<item.sample->_frames.size(); ++i)
-                            labels.push_back(item.sample->_assigned_label->name);
-                        py::set_variable("additional", item.sample->_images, module);
-                        py::set_variable("additional_labels", labels, module);
-                        py::run(module, "add_images");
-                        clear_probs = true;
-                        ++executed;
+                        auto ldx = training_labels.size();
+                        auto idx = training_images.size();
+
+                        training_labels.insert(training_labels.end(), item.sample->_frames.size(), item.sample->_assigned_label->name);
+                        training_images.insert(training_images.end(), item.sample->_images.begin(), item.sample->_images.end());
+                        training_tasks.emplace_back(std::move(item), idx, ldx);
                         break;
                     }
                         
@@ -859,19 +878,57 @@ void Work::start_learning() {
                         break;
                 }
                 
-                if(item.callback)
-                    item.callback(item);
-                
                 guard.lock();
             }
-            
-            if(executed) {
+
+            if (!prediction_tasks.empty()) {
                 guard.unlock();
+
+                Work::status() = "prediction...";
+                Debug("Predicting %lu samples, %lu collected", prediction_images.size(), prediction_tasks.size());
+                py::set_variable("images", prediction_images, module);
+                py::set_function("receive", [&](std::vector<float> results)
+                {
+                    Debug("Receive %lu values", results.size());
+                    for (auto& [item, offset] : prediction_tasks) {
+                        if (item.type == LearningTask::Type::Prediction) {
+                            item.result.insert(item.result.end(), results.begin() + offset, results.begin() + offset + item.sample->_images.size());
+                            if (item.callback)
+                                item.callback(item);
+                        }
+                    }
+
+                }, module);
+
+                py::run(module, "predict");
+                Work::status() = "";
+
+                guard.lock();
+            }
+
+            if (!training_images.empty()) {
+                Debug("Training on %lu additional samples", training_images.size());
+                // train for a couple epochs
+                py::set_variable("epochs", int(10));
+                py::set_variable("additional", training_images, module);
+                py::set_variable("additional_labels", training_labels, module);
+                py::run(module, "add_images");
+                clear_probs = true;
+
+                guard.unlock();
+                for (auto& [item, _, __] : training_tasks) {
+                    if (item.type == LearningTask::Type::Training) {
+                        if (item.callback)
+                            item.callback(item);
+                    }
+                }
+
                 Work::status() = "training...";
                 py::run(module, "post_queue");
                 Work::status() = "";
                 guard.lock();
             }
+            
             if(clear_probs) {
                 clear_probs = false;
                 Debug("# Clearing calculated probabilities...");
@@ -907,10 +964,13 @@ void Work::loop() {
             guard.unlock();
             task();
             guard.lock();
+            
+            if (terminate)
+                break;
         }
         
         Sample::Ptr sample;
-        while(_generated_samples.size() < requested_samples() && !terminate) {
+        if(_generated_samples.size() < requested_samples() && !terminate) {
             guard.unlock();
             {
                 Tracker::LockGuard g("get_random::loop");
@@ -926,6 +986,9 @@ void Work::loop() {
                 _recv_variable.notify_one();
             }
         }
+
+        if (_generated_samples.size() < requested_samples() && !terminate)
+            _variable.notify_one();
         
         if(terminate)
             break;
@@ -954,28 +1017,43 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         }
     }
     
-    std::set<long_t> frames;
+    std::set<long_t> stuff_indexes;
     
     std::vector<Image::Ptr> images;
     std::vector<long_t> indexes;
     
     size_t step = max(1u, segment->basic_index.size() / sample_rate);
     for (size_t i=0; i<segment->basic_index.size(); i += step) {
-        frames.insert(segment->basic_index.at(i));
+        stuff_indexes.insert(segment->basic_index.at(i));
     }
     
-    if(frames.size() < min_samples)
+    if(stuff_indexes.size() < min_samples)
         return Sample::Invalid();
-    
-    for(auto frame : frames) {
+
+    size_t non = 0, cont = 0;
+    for(auto index : stuff_indexes) {
+        Midline::Ptr midline;
+        std::shared_ptr<Individual::BasicStuff> basic;
+
+        const auto normalize = SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>();
+        const auto scale = FAST_SETTINGS(recognition_image_scale);
+        const auto dims = SETTING(recognition_image_size).value<Size2>();
+
+        {
+            Tracker::LockGuard guard("Categorize::sample");
+            basic = fish->basic_stuff().at(index);
+            auto posture = fish->posture_stuff(basic->frame);
+            midline = posture ? fish->calculate_midline_for(basic, posture) : nullptr;
+        }
+
         PPFrame video_frame;
         auto active =
-            frame == Tracker::start_frame()
+            basic->frame == Tracker::start_frame()
                 ? std::unordered_set<Individual*>()
-                : Tracker::active_individuals(frame-1);
+                : Tracker::active_individuals(basic->frame-1);
         
         auto &video_file = *GUI::instance()->video_source();
-        video_file.read_frame(video_frame.frame(), sign_cast<uint64_t>(frame));
+        video_file.read_frame(video_frame.frame(), sign_cast<uint64_t>(basic->frame));
         
         size_t idx;
         {
@@ -990,25 +1068,11 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         for (auto b : video_frame.blobs)
             blob_to_id[b->blob_id()] = b;
         
-        const auto scale = FAST_SETTINGS(recognition_image_scale);
-        const auto dims = SETTING(recognition_image_size).value<Size2>();
-        
-        auto basic = fish->basic_stuff(frame);
-        auto posture = fish->posture_stuff(frame);
-        
-        if(!basic)
-            continue;
-
-        auto normalize = SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>();
-        auto midline = posture ? fish->calculate_midline_for(basic, posture) : nullptr;
-        //auto blob = basic->blob.unpack();
-        
         auto blob = Tracker::find_blob_noisy(blob_to_id, basic->blob.blob_id(), basic->blob.parent_id, basic->blob.calculate_bounds(), basic->frame);
-        
-        auto it = fish->iterator_for(basic->frame);
-        if(blob && it != fish->frame_segments().end()) {
-            auto custom_len = Tracker::recognition()->local_midline_length(fish, (*it)->range);
-            
+        //auto it = fish->iterator_for(basic->frame);
+        if (blob) { //&& it != fish->frame_segments().end()) {
+            auto custom_len = Tracker::recognition()->local_midline_length(fish, segment->range);
+
             Recognition::ImageData image_data(
                 Recognition::ImageData::Blob{
                     blob->num_pixels(),
@@ -1020,19 +1084,20 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
                 basic->frame, FrameRange(), fish, fish->identity().ID(),
                 midline ? midline->transform(normalize) : gui::Transform()
             );
-            
+
             image_data.filters = std::make_shared<TrainingFilterConstraints>(custom_len);
-            
+
             auto image = Recognition::calculate_diff_image_with_settings(normalize, blob, image_data, dims);
-            if(image) {
+            if (image) {
                 images.emplace_back(std::move(image));
-                indexes.emplace_back(frame);
+                indexes.emplace_back(basic->frame);
             }
         }
+        else
+            ++non;
     }
     
-    Debug("Added %lu frames", frames.size());
-    
+    Debug("Of %lu frames, %lu couldnt find a blob and %lu continued (min_samples %lu).", stuff_indexes.size(), non, cont, min_samples);
     if(images.size() >= min_samples) {
         return Sample::Make(std::move(indexes), std::move(images));
     }
@@ -1086,7 +1151,7 @@ void initialize(DrawStructure& base) {
     elap += timer.elapsed();
     
     static bool initialized = false;
-    if(!initialized && Work::num_ready() >= per_row * rows.size()) {
+    if(!initialized && Work::num_ready() >= 1) {
         //PythonIntegration::ensure_started();
         //PythonIntegration::async_python_function([]()->bool{return true;});
         //Work::start_learning();
@@ -1304,7 +1369,7 @@ void Work::set_state(State state) {
                 
             } else {
                 Work::status() = "initializing...";
-                Work::requested_samples() = per_row * per_row;
+                Work::requested_samples() = per_row * 3;
                 Work::_variable.notify_one();
                 Work::visible() = true;
                 PythonIntegration::ensure_started();

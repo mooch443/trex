@@ -106,6 +106,7 @@ struct DataStore {
     static void clear();
     static Label::Ptr label(Frame_t, uint32_t);
     static Label::Ptr label(Frame_t, const pv::CompressedBlob*);
+    static void set_label(Frame_t idx, uint32_t bdx, const Label::Ptr& label);
     static Label::Ptr label_interpolated(Idx_t, Frame_t);
     static void set_label(Frame_t, const pv::CompressedBlob*, const Label::Ptr&);
 };
