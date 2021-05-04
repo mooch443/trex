@@ -376,7 +376,7 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
 #ifndef NDEBUG
             Debug("Monitor '%s': %d,%d %dx%d", name, mx, my, mw, mh);
 #endif
-            if(Bounds(mx, my, mw, mh).overlaps(Bounds(x, y, fw, fh))) {
+            if(Bounds(mx+5, my+5, mw-10, mh-10).overlaps(Bounds(x+5, y+5, fw-10, fh-10))) {
                 monitor = monitors[i];
                 break;
             }
