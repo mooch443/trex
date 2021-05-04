@@ -970,7 +970,7 @@ void Work::loop() {
         }
         
         Sample::Ptr sample;
-        if(_generated_samples.size() < requested_samples() && !terminate) {
+        while(_generated_samples.size() < requested_samples() && !terminate) {
             guard.unlock();
             {
                 Tracker::LockGuard g("get_random::loop");
