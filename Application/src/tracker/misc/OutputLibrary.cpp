@@ -800,6 +800,15 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             
             return gui::Graph::invalid();
         });
+
+        _cache_func["consecutive_segment_id"] = LIBFNC({
+            auto segment = fish->segment_for(frame);
+            if (segment) {
+                return (uint64_t)segment.get();
+            }
+
+            return gui::Graph::invalid();
+        });
         
         _cache_func["blobid"] = LIBFNC({
             auto blob = fish->compressed_blob(frame);

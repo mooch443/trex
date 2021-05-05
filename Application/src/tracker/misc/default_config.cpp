@@ -615,6 +615,10 @@ file::Path conda_environment_path() {
         std::vector<std::string> exclude_fields = {
             "analysis_paused",
             "filename",
+            "app_name",
+            "app_check_for_updates",
+            "app_last_update_version",
+            "app_last_update_check",
             "video_size",
             "video_info",
             "video_mask",
