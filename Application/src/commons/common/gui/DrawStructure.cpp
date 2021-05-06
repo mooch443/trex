@@ -97,7 +97,7 @@ namespace gui {
                 if(e.msg.length() > max_chars) {
                     for(size_t i=0; i<e.msg.length();) {
                         size_t next = i;
-                        for (size_t j=min(e.msg.length()-1, i+max_chars); j>i; --j) {
+                        for (size_t j=min(e.msg.length()-1, i+max_chars); j>i+max_chars/2; --j) {
                             if(e.msg.at(j) == '-' || e.msg.at(j) == ' ') {
                                 next = j;
                                 break;
@@ -109,14 +109,14 @@ namespace gui {
                         }
                         
                         auto sub = e.msg.substr(i, min(e.msg.length() - i, next - i));
-                        auto t = text(sub, pos, e.clr, Font(0.6f, Align::Right), scale().reciprocal());
+                        auto t = text(sub, pos, e.clr, Font(0.5f, Align::Right), scale().reciprocal());
                         pos.y += t->global_bounds().height;
                         
                         i = next;
                     }
                     
                 } else {
-                    auto t = text(e.msg, pos, e.clr, Font(0.6f, Align::Right), scale().reciprocal());
+                    auto t = text(e.msg, pos, e.clr, Font(0.5f, Align::Right), scale().reciprocal());
                     pos.y += t->global_bounds().height;
                 }
                 

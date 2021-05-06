@@ -993,10 +993,10 @@ void Fish::label(DrawStructure &base) {
                 secondary_text += " loc" + Meta::toStr(it->first) + " (" + Meta::toStr(it->second) + ")";
             }
         }
-
+        auto raw_cat = Categorize::DataStore::label(Frame_t(_idx), blob);
         auto cat = Categorize::DataStore::label_interpolated(_obj.identity().ID(), Frame_t(_idx));
         if (cat) {
-            secondary_text += " <nr>" + cat->name + "</nr>";
+            secondary_text += std::string(" ") + (raw_cat ? "<b>" : "") + "<nr>" + cat->name + "</nr>" + (raw_cat ? "</b>" : "");
         }
     }
 

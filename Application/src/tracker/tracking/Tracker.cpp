@@ -4009,7 +4009,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
 #endif
     }
 
-pv::BlobPtr Tracker::find_blob_noisy(std::map<uint32_t, pv::BlobPtr>& blob_to_id, int64_t bid, int64_t pid, const Bounds& bounds, long_t frame)
+pv::BlobPtr Tracker::find_blob_noisy(const std::map<uint32_t, pv::BlobPtr>& blob_to_id, int64_t bid, int64_t pid, const Bounds& bounds, long_t frame)
 {
     if(blob_to_id.count(bid) == 0) {
         if(pid != -1) {
@@ -4019,9 +4019,10 @@ pv::BlobPtr Tracker::find_blob_noisy(std::map<uint32_t, pv::BlobPtr>& blob_to_id
                 
                 for(auto & sub : blobs) {
                     if(sub->blob_id() == bid) {
-                        //Debug("Found perfect match for %d in blob %d", bid, b->blob_id());
-                        blob_to_id[bid] = sub;
-                        break;
+                        //Debug("Found perfect match for %d in blob %d", bid, b->blob_id());//blob_to_id[bid] = sub;
+                        //sub->calculate_moments();
+                        return sub;
+                        //break;
                     }
                 }
                 

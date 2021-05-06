@@ -2,6 +2,7 @@
 
 #include <misc/Image.h>
 #include <tracking/Individual.h>
+#include <file/DataFormat.h>
 
 namespace gui {
 class DrawStructure;
@@ -91,7 +92,8 @@ struct DataStore {
     static Sample::Ptr temporary(const std::shared_ptr<Individual::SegmentInformation>& segment,
                                  Individual* fish,
                                  const size_t max_samples,
-                                 const size_t min_samples = 50u);
+                                 const size_t min_samples = 50u,
+                                 bool exclude_labelled = false);
     
     static const Sample::Ptr& random_sample(Idx_t fid);
     static Sample::Ptr get_random();
@@ -105,6 +107,8 @@ struct DataStore {
     using const_iterator = std::vector<Sample::Ptr>::const_iterator;
     static const_iterator begin();
     static const_iterator end();
+    static void write(file::DataFormat&, int version); // read from file
+    static void read(file::DataFormat&, int version); // load from file
     
     static Composition composition();
     static void clear();

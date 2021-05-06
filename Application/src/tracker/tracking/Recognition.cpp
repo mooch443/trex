@@ -46,6 +46,8 @@ Image::UPtr Recognition::calculate_diff_image_with_settings(const default_config
         return Individual::calculate_normalized_diff_image(data.midline_transform, blob, data.filters ? data.filters->median_midline_length_px : 0, output_shape, true);
     else if (normalize == default_config::recognition_normalization_t::moments)
     {
+        blob->calculate_moments();
+        
         gui::Transform tr;
         float angle = narrow_cast<float>(-blob->orientation() + M_PI * 0.25);
         
