@@ -711,8 +711,8 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             return 0;
         });
 
-        _cache_func["category"] = LIBFNC({
-            auto l = Categorize::DataStore::label_interpolated(info.fish->identity().ID(), Frame_t(frame));
+        _cache_func["category"] = LIB_NO_CHECK_FNC({
+            auto l = Categorize::DataStore::label_interpolated(fish->identity().ID(), Frame_t(frame));
             if (l) {
                 return l->id;
             }
@@ -791,7 +791,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             return gui::Graph::invalid();
         });
         
-        _cache_func["consecutive"] = LIBFNC({
+        _cache_func["consecutive"] = LIB_NO_CHECK_FNC({
             auto segment = fish->segment_for(frame);
             
             if (segment) {
@@ -801,7 +801,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             return gui::Graph::invalid();
         });
 
-        _cache_func["consecutive_segment_id"] = LIBFNC({
+        _cache_func["consecutive_segment_id"] = LIB_NO_CHECK_FNC({
             auto segment = fish->segment_for(frame);
             if (segment) {
                 return (uint64_t)segment.get();
@@ -810,7 +810,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             return gui::Graph::invalid();
         });
         
-        _cache_func["blobid"] = LIBFNC({
+        _cache_func["blobid"] = LIB_NO_CHECK_FNC({
             auto blob = fish->compressed_blob(frame);
             
             if (blob) {
@@ -820,7 +820,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             return gui::Graph::invalid();
         });
         
-        _cache_func["num_pixels"] = LIBFNC({
+        _cache_func["num_pixels"] = LIB_NO_CHECK_FNC({
             auto blob = fish->blob(frame);
             
             if (blob) {
@@ -830,7 +830,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             return gui::Graph::invalid();
         });
         
-        _cache_func["pixels_squared"] = LIBFNC({
+        _cache_func["pixels_squared"] = LIB_NO_CHECK_FNC({
             auto blob = fish->blob(frame);
             
             if (blob) {

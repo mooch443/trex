@@ -139,6 +139,9 @@ namespace track {
         const std::string& raw_name();
         std::string raw_name() const;
         std::string name() const;
+        std::string toStr() const {
+            return name();
+        }
         
         friend class Output::TrackingResults;
     };

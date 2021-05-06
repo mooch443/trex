@@ -247,7 +247,7 @@ Label::Ptr DataStore::label_interpolated(Idx_t fish, Frame_t frame) {
     
     auto kit = it->second->iterator_for(frame);
     if(kit == it->second->frame_segments().end()) {
-        Warning("Individual %d, cannot find frame %d.", fish._identity, frame._frame);
+        //Warning("Individual %d, cannot find frame %d.", fish._identity, frame._frame);
         return nullptr;
     }
     
@@ -295,7 +295,8 @@ Label::Ptr DataStore::label_interpolated(Idx_t fish, Frame_t frame) {
         }
         
     } else {
-        Warning("Individual %d does not contain frame %d.", fish._identity, frame._frame);
+        //Warning("Individual %d does not contain frame %d.", fish._identity, frame._frame);
+        return nullptr;
     }
     
     Warning("Individual %d not found. Other reason?", fish._identity);
@@ -644,19 +645,16 @@ struct NetworkApplicationState {
 
         {
             Tracker::LockGuard guard("next()");
-            if (size_t(offset) == fish->frame_segments().size()) {
-                //Debug("Finished %d", fish->identity().ID());
-                return; // no more segments
-            }
-            else if (size_t(offset) > fish->frame_segments().size()) {
-                return; // probably something changed and we are now behind
-            }
-
             segments = fish->frame_segments();
         }
-
+        
         auto it = segments.begin();
-        std::advance(it, offset);
+
+        if(size_t(offset) > segments.size()) {
+            Warning("Offset %ld larger than segments size %lu.", offset, segments.size());
+        } else
+            std::advance(it, offset);
+        
         size_t skipped = 0;
 
         do {
@@ -666,9 +664,10 @@ struct NetworkApplicationState {
             static std::mutex tm;
             static Timer update;
             
+            bool done = size_t(offset) >= segments.size();
+            
             {
                 std::lock_guard g(tm);
-                bool done = size_t(offset) == fish->frame_segments().size();
                 if(done || update.elapsed() > 5) {
                     update.reset();
                     
@@ -681,19 +680,18 @@ struct NetworkApplicationState {
                             GUI::set_status(text);
                     } else
                         Work::status() = text;
-                    
-                    //Debug("Fish%d: %f%%", fish->identity().ID(), float(offset) / float(fish->frame_segments().size()) * 100);
                 }
             }
             
-            if (it == segments.end())
+            if (done || it == segments.end())
                 break;
 
             segment = *it;
             if(!DataStore::label_interpolated(fish->identity().ID(), Frame_t(segment->start())))
                 task.sample = DataStore::temporary(segment, fish, 300u, 5u, true);
-            else
+            else {
                 ++skipped;
+            }
             
             ++offset;
             ++it;
@@ -1193,6 +1191,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
                                  const size_t min_samples,
                                  bool exclude_labelled)
 {
+    
     {
         std::lock_guard guard(mutex());
         auto fit = _used_indexes.find(segment.get());
@@ -1315,7 +1314,6 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         if(!ptr) {
             ptr = std::make_shared<PPFrame>();
             ++_create;
-            
             if(_create % 50 == 0) {
                 Debug("Create: %lu Reuse: %lu Delete: %lu", _create, _reuse, _delete);
             }
