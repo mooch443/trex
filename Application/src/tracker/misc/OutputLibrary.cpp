@@ -712,7 +712,15 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
         });
 
         _cache_func["category"] = LIB_NO_CHECK_FNC({
-            auto l = Categorize::DataStore::label_interpolated(fish->identity().ID(), Frame_t(frame));
+            auto l = Categorize::DataStore::label_interpolated(fish, Frame_t(frame));
+            if (l) {
+                return l->id;
+            }
+            return gui::Graph::invalid();
+        });
+        
+        _cache_func["average_category"] = LIB_NO_CHECK_FNC({
+            auto l = Categorize::DataStore::label_averaged(fish, Frame_t(frame));
             if (l) {
                 return l->id;
             }

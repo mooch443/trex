@@ -293,6 +293,9 @@ def add_images():
     TRex.log("# adding "+str(len(additional))+" images")
     categorize.add_images(additional, additional_labels)
 
+    del additional
+    del additional_labels
+
 def post_queue():
     # called whenever the add_images things are over
     global categorize
@@ -310,10 +313,12 @@ def predict():
 
     receive(categorize.predict(images))
 
+    del images
+
 def clear_images():
     global categorize
-    assert type(categorize) != type(None)
 
     TRex.log("# clearing images")
-    categorize = Categorize(categorize.width, categorize.height, str(categorize.categories))
+    categorize = None
+    start()
 

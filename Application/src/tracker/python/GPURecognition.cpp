@@ -314,7 +314,7 @@ namespace track {
     std::condition_variable _initialize_condition;
     std::thread::id _saved_id;
 
-    std::promise<bool> _initialize_promise;
+    std::unique_ptr<std::promise<bool>> _initialize_promise;
     std::shared_future<bool> _initialize_future;
 
     void PythonIntegration::set_settings(std::shared_ptr<GlobalSettings> obj) {
@@ -453,9 +453,8 @@ void PythonIntegration::reinit() {
     void PythonIntegration::initialize() {
         using namespace py::literals;
         
-        if(!_initialize_future.valid()) {
-            _initialize_future = _initialize_promise.get_future().share();
-        }
+        _initialize_promise = std::make_unique<std::promise<bool>>();
+        _initialize_future = _initialize_promise->get_future().share();
         
         _network_update_thread = new std::thread([this]() -> void {
             cmn::set_thread_name("PythonIntegration::update");
@@ -475,7 +474,7 @@ void PythonIntegration::reinit() {
                 python_initializing() = false;
                 
                 //guard = nullptr;
-                _initialize_promise.set_value(false);
+                _initialize_promise->set_value(false);
             };
 
             try {
@@ -530,7 +529,7 @@ void PythonIntegration::reinit() {
                 
                 python_initialized() = true;
                 python_initializing() = false;
-                _initialize_promise.set_value(true);
+                _initialize_promise->set_value(true);
                 
             } catch(const UtilsException& ex) {
                 Warning("Error while executing 'trex_init.py'. Content: %s", ex.what());
@@ -547,7 +546,7 @@ void PythonIntegration::reinit() {
                 python_initializing() = false;
                 python_initialized() = false;
                 Except("Cannot initialize the python interpreter.");
-                _initialize_promise.set_value(false);
+                _initialize_promise->set_value(false);
                 return;
             }
             
@@ -725,8 +724,11 @@ void PythonIntegration::reinit() {
     }
 
 std::shared_future<bool> PythonIntegration::ensure_started() {
+    if(!_initialize_promise)
+        _initialize_promise = std::make_unique<std::promise<bool>>();
+    
     if(!_initialize_future.valid()) {
-        _initialize_future = _initialize_promise.get_future().share();
+        _initialize_future = _initialize_promise->get_future().share();
     }
     
     if(!python_initialized() && !python_initializing() && !python_init_error().empty())

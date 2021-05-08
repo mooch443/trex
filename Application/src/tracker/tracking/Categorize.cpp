@@ -23,6 +23,9 @@ std::unordered_map<Label::Ptr, std::vector<Sample::Ptr>> _labels;
 
 std::random_device rd;
 
+std::shared_mutex _cache_mutex;
+std::unordered_map<Frame_t, std::shared_ptr<PPFrame>> _frame_cache;
+
 namespace Work {
     std::atomic_bool terminate = false, _learning = false;
     std::mutex _mutex;
@@ -99,14 +102,25 @@ namespace Work {
 
 struct Task {
     Frame_t frame;
+    Rangel range;
     std::function<void()> func;
+    bool is_cached = true;
+    
     bool operator<(const Task& other) const {
+        
+        /*bool Ain = false, Bin = false;
+        {
+            Ain = is_cached;
+            Bin = other.is_cached;
+        }*/
+        //return ((Ain == Bin || (Ain && !Bin)) && frame > other.frame) || (!Ain && Bin);
+        //return ;
         return frame > other.frame;
     }
 };
 
     auto& task_queue() {
-        static std::priority_queue<Task> _queue;
+        static std::vector<Task> _queue;
         return _queue;
     }
 };
@@ -209,7 +223,8 @@ bool DataStore::Composition::empty() const {
 }
 
 std::unordered_map<Frame_t, std::unordered_map<uint32_t, Label::Ptr>> _probability_cache;
-std::unordered_map<Idx_t, std::unordered_map<std::shared_ptr<Individual::SegmentInformation>, Label::Ptr>> _interpolated_probability_cache;
+std::unordered_map<Idx_t, std::unordered_map<const Individual::SegmentInformation*, Label::Ptr>> _interpolated_probability_cache;
+std::unordered_map<Idx_t, std::unordered_map<const Individual::SegmentInformation*, Label::Ptr>> _averaged_probability_cache;
 
 DataStore::const_iterator DataStore::begin() {
     return _samples.begin();
@@ -220,7 +235,7 @@ DataStore::const_iterator DataStore::end() {
 }
 
 void DataStore::set_label(Frame_t idx, uint32_t bdx, const Label::Ptr& label) {
-    std::lock_guard guard(cache_mutex());
+    std::unique_lock guard(cache_mutex());
     if (_probability_cache[idx].count(bdx)) {
         auto str = Meta::toStr(_probability_cache[idx]);
         Warning("Cache already contains blob %d in frame %d.\n%S", bdx, (int)idx, &str);
@@ -238,15 +253,22 @@ void DataStore::set_label(Frame_t idx, const pv::CompressedBlob* blob, const Lab
     set_label(idx, bdx, label);
 }
 
-Label::Ptr DataStore::label_interpolated(Idx_t fish, Frame_t frame) {
+Label::Ptr DataStore::label_averaged(Idx_t fish, Frame_t frame) {
     auto it = Tracker::individuals().find(fish);
     if(it == Tracker::individuals().end()) {
-        Warning("Individual %d not found.", fish._identity);
+        //Warning("Individual %d not found.", fish._identity);
         return nullptr;
     }
     
-    auto kit = it->second->iterator_for(frame);
-    if(kit == it->second->frame_segments().end()) {
+    return label_averaged(it->second, frame);
+}
+
+
+Label::Ptr DataStore::label_averaged(const Individual* fish, Frame_t frame) {
+    assert(fish);
+    
+    auto kit = fish->iterator_for(frame);
+    if(kit == fish->frame_segments().end()) {
         //Warning("Individual %d, cannot find frame %d.", fish._identity, frame._frame);
         return nullptr;
     }
@@ -254,7 +276,99 @@ Label::Ptr DataStore::label_interpolated(Idx_t fish, Frame_t frame) {
     if((*kit)->contains(frame)) {
         auto idx = (*kit)->basic_stuff(frame);
         if(idx != -1) {
-            auto &basic = it->second->basic_stuff().at(idx);
+            {
+                std::shared_lock g(cache_mutex());
+                auto ait = _averaged_probability_cache.find(fish->identity().ID());
+                if(_averaged_probability_cache.end() != ait) {
+                    auto it = ait->second.find(kit->get());
+                    if(it != ait->second.end()) {
+                        return it->second;
+                    }
+                }
+            }
+            
+            std::unordered_map<int, size_t> label_id_to_index;
+            std::unordered_map<size_t, Label::Ptr> index_to_label;
+            
+            {
+                std::lock_guard g(mutex());
+                auto nit = _labels.begin();
+                for (size_t i=0; i<_labels.size(); ++i, ++nit) {
+                    label_id_to_index[nit->first->id] = i;
+                    index_to_label[i] = nit->first;
+                }
+            }
+            
+            std::vector<size_t> counts(label_id_to_index.size());
+            
+            for(auto index : (*kit)->basic_index) {
+                assert(index > -1);
+                auto &basic = fish->basic_stuff().at(index);
+                auto l = label(Frame_t(basic->frame), &basic->blob);
+                if(l && label_id_to_index.count(l->id) == 0) {
+                    Warning("Label not found: %s", l->name.c_str());
+                    continue;
+                }
+                
+                if(l) {
+                    ++counts[label_id_to_index.at(l->id)];
+                }
+            }
+            
+            auto mit = std::max_element(counts.begin(), counts.end());
+            if(mit != counts.end()) {
+                auto i = std::distance(counts.begin(), mit);
+                if(*mit == 0)
+                    return nullptr; // no samples
+                assert(i >= 0);
+                std::unique_lock g(cache_mutex());
+                _averaged_probability_cache[fish->identity().ID()][kit->get()] = index_to_label.at(i);
+                return index_to_label.at(i);
+            }
+        }
+        
+    } else {
+        return nullptr;
+    }
+    
+    Warning("Individual %d not found. Other reason?", fish->identity().ID());
+    return nullptr;
+}
+
+Label::Ptr DataStore::label_interpolated(Idx_t fish, Frame_t frame) {
+    auto it = Tracker::individuals().find(fish);
+    if(it == Tracker::individuals().end()) {
+        Warning("Individual %d not found.", fish._identity);
+        return nullptr;
+    }
+    
+    return label_interpolated(it->second, frame);;
+}
+
+Label::Ptr DataStore::label_interpolated(const Individual* fish, Frame_t frame) {
+    assert(fish);
+    
+    auto kit = fish->iterator_for(frame);
+    if(kit == fish->frame_segments().end()) {
+        //Warning("Individual %d, cannot find frame %d.", fish._identity, frame._frame);
+        return nullptr;
+    }
+    
+    if((*kit)->contains(frame)) {
+        auto idx = (*kit)->basic_stuff(frame);
+        if(idx != -1) {
+            {
+                std::shared_lock g(cache_mutex());
+                auto ait = _interpolated_probability_cache.find(fish->identity().ID());
+                if(_interpolated_probability_cache.end() != ait) {
+                    auto it = ait->second.find(kit->get());
+                    if(it != ait->second.end()) {
+                        return it->second;
+                    }
+                }
+            }
+            
+            auto &basic = fish->basic_stuff().at(idx);
             auto l = label(frame, &basic->blob);
             if(l)
                 return l;
@@ -270,7 +384,7 @@ Label::Ptr DataStore::label_interpolated(Idx_t fish, Frame_t frame) {
                     continue;
                 
                 assert(index > -1);
-                auto &basic = it->second->basic_stuff().at(index);
+                auto &basic = fish->basic_stuff().at(index);
                 auto l = label(Frame_t(basic->frame), &basic->blob);
                 if(l && index < idx) {
                     before = l;
@@ -282,16 +396,22 @@ Label::Ptr DataStore::label_interpolated(Idx_t fish, Frame_t frame) {
                 }
             }
             
+            auto r = after;
             if(before && after) {
                 if(idx - index_before >= (index_after - index_before + 1) * 0.5) {
-                    return after;
+                    //return after;
                 } else
-                    return before;
+                    r = before;
                 
             } else if(before) {
-                return before;
-            } else
-                return after;
+                r = before;
+            }// else
+             //   return after;
+            
+            
+            std::unique_lock g(cache_mutex());
+            _interpolated_probability_cache[fish->identity().ID()][kit->get()] = r;
+            return r;
         }
         
     } else {
@@ -299,12 +419,12 @@ Label::Ptr DataStore::label_interpolated(Idx_t fish, Frame_t frame) {
         return nullptr;
     }
     
-    Warning("Individual %d not found. Other reason?", fish._identity);
+    //Warning("Individual %d not found. Other reason?", fish->identity().ID());
     return nullptr;
 }
 
 Label::Ptr DataStore::label(Frame_t idx, uint32_t bdx) {
-    std::lock_guard guard(cache_mutex());
+    std::shared_lock guard(cache_mutex());
     auto fit = _probability_cache.find(idx);
     if(fit != _probability_cache.end()) {
         auto sit = fit->second.find(bdx);
@@ -609,30 +729,65 @@ Sample::Ptr Work::retrieve() {
     return sample;
 }
 
+
+static void log_event(const std::string& name, Frame_t frame, const Identity& identity) {
+#ifndef NDEBUG
+    time_t rawtime;
+    struct tm * timeinfo;
+    char buffer[128];
+    
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+    
+    strftime(buffer, sizeof(buffer), "%H:%M:%S", timeinfo);
+    
+    static std::vector<std::string> log_;
+    static std::mutex log_lock;
+    
+    auto text = std::string(buffer) + " "+name+" "+Meta::toStr(frame)+" for "+Meta::toStr(identity);
+    
+    {
+        std::lock_guard g(log_lock);
+        log_.push_back(text);
+        
+        auto f = pv::DataLocation::parse("output", file::Path((std::string)SETTING(filename).value<file::Path>().filename()+"_categorize.log")).fopen("ab");
+        text += "\n";
+        fwrite(text.c_str(), sizeof(char), text.length(), f);
+        fclose(f);
+    }
+#endif
+}
+
 struct NetworkApplicationState {
     Individual *fish;
     
+    //! last known size of the fish frame_segments
+    std::atomic<size_t> N;
+    
+    //! set to true after first next()
+    bool initialized = false;
+    
     //! basically the iterator, but not using pointers here,
     /// in case i want to change the iterator type later.
-    Individual::segment_map::difference_type offset = 0;
+    std::atomic<Individual::segment_map::difference_type> offset = 0;
     
-    Frame_t peek() {
+    Rangel peek() {
         Tracker::LockGuard guard("next()");
         if (size_t(offset) == fish->frame_segments().size()) {
             Debug("Finished %d", fish->identity().ID());
-            return Frame_t(); // no more segments
+            return Rangel(-1,-1); // no more segments
         }
         else if (size_t(offset) > fish->frame_segments().size()) {
-            return Frame_t(); // probably something changed and we are now behind
+            return Rangel(-1,-1); // probably something changed and we are now behind
         }
 
         auto it = fish->frame_segments().begin();
-        std::advance(it, offset);
+        std::advance(it, offset.load());
         if(it != fish->frame_segments().end()) {
-            return Frame_t((*it)->range.start);
+            return (*it)->range;
         }
         
-        return Frame_t();
+        return Rangel(-1,-1);
     }
     
     //! start the next prediction task
@@ -649,11 +804,14 @@ struct NetworkApplicationState {
         }
         
         auto it = segments.begin();
+        N = segments.size();
+        
+        initialized = true;
 
         if(size_t(offset) > segments.size()) {
-            Warning("Offset %ld larger than segments size %lu.", offset, segments.size());
+            Warning("Offset %ld larger than segments size %lu.", offset.load(), segments.size());
         } else
-            std::advance(it, offset);
+            std::advance(it, offset.load());
         
         size_t skipped = 0;
 
@@ -674,10 +832,14 @@ struct NetworkApplicationState {
                     auto percent = NetworkApplicationState::percent();
                     auto text = "Applying "+Meta::toStr(int(percent * 100))+"%...";
                     if(!Work::visible()) {
-                        if(percent >= 1)
+                        if(percent >= 1) {
                             GUI::set_status("");
-                        else
+                            Debug("Done categorizing. Clearing DataStore.");
+                            DataStore::clear();
+                        } else {
+                            Debug("[Categorize] %S", &text);
                             GUI::set_status(text);
+                        }
                     } else
                         Work::status() = text;
                 }
@@ -699,7 +861,7 @@ struct NetworkApplicationState {
         } while (task.sample == Sample::Invalid());
         
         if(skipped)
-            Debug("Skipped %lu ahead for fish %d", skipped, fish->identity().ID());
+            log_event("Skipped "+Meta::toStr(skipped), Frame_t(-1), fish->identity());
         
         if(task.sample != Sample::Invalid()) {
             task.callback = [this](const LearningTask& task)
@@ -719,13 +881,16 @@ struct NetworkApplicationState {
                     }
 
                     DataStore::set_label(Frame_t(frame), bdx, DataStore::label(task.result.at(i)));
+                    log_event("Labelled", Frame_t(frame), fish->identity());
                 }
                 
                 {
                     auto f = peek();
                     
                     std::lock_guard guard(Work::_mutex);
-                    Work::task_queue().push(Work::Task{f.valid() ? f : Frame_t(0),
+                    Work::task_queue().push_back(Work::Task{
+                        f.start >= 0 ? Frame_t(f.start) : Frame_t(0),
+                        f,
                         [this]()
                         {
                             this->next();
@@ -747,13 +912,21 @@ struct NetworkApplicationState {
         return _map;
     }
     
+    static auto& current_mutex() {
+        static std::mutex _mutex;
+        return _mutex;
+    }
+    
     static double percent() {
-        Tracker::LockGuard guard("Categorize::percent");
-        double percent = 0, N = current().size();
+        std::lock_guard guard(current_mutex());
+        double percent = 0, N = 0;
         for (auto &[k, v] : current()) {
-            percent += float(v.offset) / float(v.fish->frame_segments().size());
+            percent += double(v.offset);
+            N += v.N;
+            if(!v.initialized)
+                ++N; // guarantee that it does not terminate when it is not done with the initial runs
         }
-        return N>0 ? percent / N : 0;
+        return N>0 ? percent / double(N) : 0;
     }
 };
 
@@ -762,11 +935,14 @@ void start_applying() {
     Work::start_learning(); // make sure the work-horse is started
     
     std::lock_guard guard(Work::_mutex);
-    Work::task_queue().push(Work::Task{Frame_t(-1),
+    Work::task_queue().push_back(Work::Task{
+        Frame_t(-1),
+        Rangel(-1,-1),
         [](){
             Debug("## Initializing APPLY.");
             {
                 Tracker::LockGuard guard("Categorize::start_applying");
+                std::lock_guard g(NetworkApplicationState::current_mutex());
                 NetworkApplicationState::current().clear();
                 
                 for (auto &[id, ptr] : Tracker::individuals()) {
@@ -779,29 +955,29 @@ void start_applying() {
             
             Work::status() = "Applying "+Meta::toStr(int(NetworkApplicationState::percent() * 100))+"%...";
             
-            std::priority_queue<Work::Task> test;
-            
-            for(auto & [k, v] : NetworkApplicationState::current()) {
-                auto f = v.peek();
-                
-                std::lock_guard guard(Work::_mutex);
-                Work::task_queue().push(Work::Task{f.valid() ? f : Frame_t(0),
-                    [k=k](){
-                        NetworkApplicationState::current().at(k).next();
-                        // start first task
-                    }
-                });
-                test.push(Work::Task{f.valid() ? f : Frame_t(0), [](){}});
-                
-                if (Work::terminate)
-                    break;
+            {
+                std::lock_guard guard(NetworkApplicationState::current_mutex());
+                for(auto & [k, v] : NetworkApplicationState::current()) {
+                    auto f = v.peek();
+                    
+                    std::lock_guard guard(Work::_mutex);
+                    Work::task_queue().push_back(Work::Task{
+                        f.start >= 0 ? Frame_t(f.start) : Frame_t(0),
+                        f,
+                        [k=k](){
+                            NetworkApplicationState::current().at(k).next();
+                            // start first task
+                        }
+                    });
+                    
+                    if (Work::terminate)
+                        break;
+                }
             }
             
-            std::vector<long_t> indexes;
-            while(!test.empty()) {
-                auto t = std::move(test.top());
-                test.pop();
-                indexes.push_back(t.frame._frame);
+            std::vector<Rangel> indexes;
+            for(auto& t : Work::task_queue()) {
+                indexes.push_back(t.range);
             }
             auto str = Meta::toStr(indexes);
             
@@ -889,23 +1065,16 @@ void Work::start_learning() {
         std::vector<std::tuple<LearningTask, size_t, size_t>> training_tasks;
         std::vector<Image::Ptr> prediction_images, training_images;
         std::vector<std::string> training_labels;
+        Timer last_insert;
         
         std::unique_lock guard(Work::_learning_mutex);
         while(Work::_learning) {
             Work::_learning_variable.wait_for(guard, std::chrono::seconds(1));
             
-            {
-                prediction_tasks.clear();
-                training_tasks.clear();
-                prediction_images.clear();
-                training_images.clear();
-                training_labels.clear();
-            }
-            
             size_t executed = 0;
             bool clear_probs = false;
             
-            while(!queue().empty()) {
+            while(!queue().empty() && Work::_learning) {
                 auto item = std::move(queue().front());
                 queue().pop();
 
@@ -935,6 +1104,7 @@ void Work::start_learning() {
                         auto idx = prediction_images.size();
                         prediction_images.insert(prediction_images.end(), item.sample->_images.begin(), item.sample->_images.end());
                         prediction_tasks.emplace_back(std::move(item), idx);
+                        last_insert.reset();
                         break;
                     }
                         
@@ -945,6 +1115,7 @@ void Work::start_learning() {
                         training_labels.insert(training_labels.end(), item.sample->_frames.size(), item.sample->_assigned_label->name);
                         training_images.insert(training_images.end(), item.sample->_images.begin(), item.sample->_images.end());
                         training_tasks.emplace_back(std::move(item), idx, ldx);
+                        last_insert.reset();
                         break;
                     }
                         
@@ -963,74 +1134,93 @@ void Work::start_learning() {
                 }
             }
 
-            if (!prediction_tasks.empty()) {
-                guard.unlock();
+            if(prediction_images.size() >= 1000 || training_images.size() >= 250 || last_insert.elapsed() >= 1) {
+                if (!prediction_tasks.empty()) {
+                    guard.unlock();
 
-                auto str = FileSize(prediction_images.size() * dims.width * dims.height).to_string();
-                auto of = FileSize(gpu_max_sample_byte).to_string();
-                Debug("Starting predictions / training (%S/%S).", &str, &of);
-                
-                Work::status() = "Prediction...";
-                Debug("Predicting %lu samples, %lu collected", prediction_images.size(), prediction_tasks.size());
-                py::set_variable("images", prediction_images, module);
-                py::set_function("receive", [&](std::vector<float> results)
-                {
-                    Debug("Predicted %lu values", results.size());
-                    for (auto& [item, offset] : prediction_tasks) {
+                    auto str = FileSize(prediction_images.size() * dims.width * dims.height).to_string();
+                    auto of = FileSize(gpu_max_sample_byte).to_string();
+                    Debug("Starting predictions / training (%S/%S).", &str, &of);
+                    /*for (auto& [item, offset] : prediction_tasks) {
                         if (item.type == LearningTask::Type::Prediction) {
-                            item.result.insert(item.result.end(), results.begin() + offset, results.begin() + offset + item.sample->_images.size());
+                            item.result.clear();
+                            if (item.callback)
+                                item.callback(item);
+                        }
+                    }*/
+                    
+                    Work::status() = "Prediction...";
+                    Debug("Predicting %lu samples, %lu collected...", prediction_images.size(), prediction_tasks.size());
+                    py::set_variable("images", prediction_images, module);
+                    py::set_function("receive", [&](std::vector<float> results)
+                    {
+                        Debug("Predicted %lu values...", results.size());
+                        for (auto& [item, offset] : prediction_tasks) {
+                            if (item.type == LearningTask::Type::Prediction) {
+                                item.result.insert(item.result.end(), results.begin() + offset, results.begin() + offset + item.sample->_images.size());
+                                if (item.callback)
+                                    item.callback(item);
+                            }
+                        }
+
+                    }, module);
+
+                    py::run(module, "predict");
+                    Work::status() = "";
+
+                    guard.lock();
+                }
+
+                if (!training_images.empty()) {
+                    Debug("Training on %lu additional samples", training_images.size());
+                    // train for a couple epochs
+                    py::set_variable("epochs", int(10));
+                    py::set_variable("additional", training_images, module);
+                    py::set_variable("additional_labels", training_labels, module);
+                    py::run(module, "add_images");
+                    clear_probs = true;
+
+                    guard.unlock();
+                    for (auto& [item, _, __] : training_tasks) {
+                        if (item.type == LearningTask::Type::Training) {
                             if (item.callback)
                                 item.callback(item);
                         }
                     }
 
-                }, module);
-
-                py::run(module, "predict");
-                Work::status() = "";
-
-                guard.lock();
-            }
-
-            if (!training_images.empty()) {
-                Debug("Training on %lu additional samples", training_images.size());
-                // train for a couple epochs
-                py::set_variable("epochs", int(10));
-                py::set_variable("additional", training_images, module);
-                py::set_variable("additional_labels", training_labels, module);
-                py::run(module, "add_images");
-                clear_probs = true;
-
-                guard.unlock();
-                for (auto& [item, _, __] : training_tasks) {
-                    if (item.type == LearningTask::Type::Training) {
-                        if (item.callback)
-                            item.callback(item);
-                    }
+                    Work::status() = "Training...";
+                    py::run(module, "post_queue");
+                    Work::status() = "";
+                    guard.lock();
                 }
-
-                Work::status() = "Training...";
-                py::run(module, "post_queue");
-                Work::status() = "";
-                guard.lock();
-            }
-            
-            if(clear_probs) {
-                clear_probs = false;
-                Debug("# Clearing calculated probabilities...");
-                guard.unlock();
-                {
-                    std::lock_guard g(Work::_recv_mutex);
-                    for(auto &row : rows) {
-                        for(auto &cell : row._cells) {
-                            if(cell._sample) {
-                                cell._sample->_probabilities.clear();
-                                cell._sample->_requested = false;
+                
+                if(clear_probs) {
+                    clear_probs = false;
+                    Debug("# Clearing calculated probabilities...");
+                    guard.unlock();
+                    {
+                        std::lock_guard g(Work::_recv_mutex);
+                        for(auto &row : rows) {
+                            for(auto &cell : row._cells) {
+                                if(cell._sample) {
+                                    cell._sample->_probabilities.clear();
+                                    cell._sample->_requested = false;
+                                }
                             }
                         }
                     }
+                    guard.lock();
                 }
-                guard.lock();
+                
+                {
+                    prediction_tasks.clear();
+                    training_tasks.clear();
+                    prediction_images.clear();
+                    training_images.clear();
+                    training_labels.clear();
+                }
+            } else {
+                Work::_learning_variable.notify_one();
             }
         }
         
@@ -1039,20 +1229,64 @@ void Work::start_learning() {
     }, PythonIntegration::Flag::DEFAULT, false);
 }
 
-GenericThreadPool pool(cmn::hardware_concurrency());
+GenericThreadPool pool(cmn::hardware_concurrency(), [](auto e) { std::rethrow_exception(e); }, "Work::LoopPool");
 
 void Work::loop() {
+    static std::atomic<size_t> hits = 0, misses = 0;
+    static Timer timer;
+    static std::mutex timer_mutex;
+    
     for (size_t i = 0; i < pool.num_threads(); ++i) {
         pool.enqueue([]() {
             std::unique_lock guard(_mutex);
             while (!terminate) {
-                // check for tasks
                 while (!Work::task_queue().empty()) {
-                    auto task = std::move(Work::task_queue().top());
-                    Work::task_queue().pop();
+                    Task task;
+                    
+                    {
+                        std::lock_guard g(timer_mutex);
+                        if(timer.elapsed() > 5) {
+                            Debug("Hits: %lu Misses: %lu Size: %lu", hits.load(), misses.load(), Work::task_queue().size());
+                            timer.reset();
+                        }
+                    }
+                    
+                    std::sort(Work::task_queue().begin(), Work::task_queue().end(), std::less<Task>());
+                    
+                    // sort tasks according to currently cached frames, as well as frame order
+                    {
+                        std::shared_lock g(_cache_mutex);
+                        for(auto it = --task_queue().end(); ; ) {
+                            it->is_cached = _frame_cache.count(it->frame);
+                            if(it->is_cached) {
+                                task = std::move(*it);
+                                task_queue().erase(it);
+                                ++hits;
+                                
+                                for(auto &t : task_queue())
+                                    t.is_cached = true;
+                                break;
+                                
+                            } else {
+                                if(it == task_queue().begin())
+                                    break;
+                                
+                                --it;
+                            }
+                        }
+                    }
+                    
+                    if(!task.frame.valid()) {
+                        task = std::move(Work::task_queue().back());
+                        Work::task_queue().pop_back();
+                        ++misses;
+                    }
                     
                     guard.unlock();
+                    _variable.notify_one();
+                    Debug("Running %d...", task.frame._frame);
                     task.func();
+                    Debug("Ranning %d", task.frame._frame);
                     guard.lock();
 
                     if (terminate)
@@ -1083,7 +1317,7 @@ void Work::loop() {
                 if (terminate)
                     break;
 
-                _variable.wait_for(guard, std::chrono::seconds(10));
+                _variable.wait_for(guard, std::chrono::seconds(1));
             }
         });
     }
@@ -1091,7 +1325,7 @@ void Work::loop() {
 
 void DataStore::write(file::DataFormat& data, int /*version*/) {
     {
-        std::lock_guard guard(cache_mutex());
+        std::shared_lock guard(cache_mutex());
         if(_probability_cache.empty()) {
             data.write<bool>(false);
             return;
@@ -1110,7 +1344,7 @@ void DataStore::write(file::DataFormat& data, int /*version*/) {
         }
     }
     
-    std::lock_guard guard(cache_mutex());
+    std::shared_lock guard(cache_mutex());
     data.write<uint64_t>(_probability_cache.size()); // write number of frames
     
     for(auto &[k, v] : _probability_cache) {
@@ -1154,7 +1388,7 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
     
     // read contents
     {
-        std::lock_guard guard(cache_mutex());
+        std::unique_lock guard(cache_mutex());
         uint64_t N_frames;
         data.read(N_frames);
         
@@ -1179,10 +1413,19 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
 }
 
 void DataStore::clear() {
+    {
+        std::unique_lock guard(_cache_mutex);
+        Debug("[Categorize] Clearing frame cache (%lu).", _frame_cache.size());
+        _frame_cache.clear();
+    }
+    
     std::lock_guard guard(mutex());
     _samples.clear();
-    _labels.clear();
     _used_indexes.clear();
+    
+    //! maintain labels, but clear samples
+    for(auto &[k, v] : _labels)
+        v.clear();
 }
 
 Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInformation>& segment,
@@ -1191,7 +1434,6 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
                                  const size_t min_samples,
                                  bool exclude_labelled)
 {
-    
     {
         std::lock_guard guard(mutex());
         auto fit = _used_indexes.find(segment.get());
@@ -1210,8 +1452,6 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     std::vector<Image::Ptr> images;
     std::vector<long_t> indexes;
     
-    static std::unordered_map<Frame_t, std::shared_ptr<PPFrame>> _frame_cache;
-    static std::mutex _cache_mutex;
     static size_t _reuse = 0, _create = 0, _delete = 0;
     
     const size_t step = max(1u, segment->basic_index.size() / sample_rate);
@@ -1230,7 +1470,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         auto f = Frame_t(fish->basic_stuff().at(index)->frame);
         
         {
-            std::lock_guard guard(_cache_mutex);
+            std::shared_lock guard(_cache_mutex);
             auto it = _frame_cache.find(Frame_t(f));
             if(it != _frame_cache.end()) {
                 ptr = it->second;
@@ -1250,7 +1490,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
             auto f = Frame_t(fish->basic_stuff().at(index)->frame);
             
             {
-                std::lock_guard guard(_cache_mutex);
+                std::shared_lock guard(_cache_mutex);
                 auto it = _frame_cache.find(f);
                 if(it != _frame_cache.end()) {
                     jit->ptr = it->second;
@@ -1321,13 +1561,15 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
             if(Work::terminate || !GUI::instance())
                 return nullptr;
             
+            std::unordered_set<Individual*> active;
             {
                 Tracker::LockGuard guard("Categorize::sample");
-                auto active =
-                    frame == Tracker::start_frame()
-                        ? std::unordered_set<Individual*>()
-                        : Tracker::active_individuals(frame-1);
-                
+                active = frame == Tracker::start_frame()
+                            ? decltype(active)()
+                            : Tracker::active_individuals(frame-1);
+            }
+             
+            {
                 auto &video_file = *GUI::instance()->video_source();
                 video_file.read_frame(ptr->frame(), sign_cast<uint64_t>(frame));
                 
@@ -1343,15 +1585,29 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
                 }
             }
             
-            std::lock_guard guard(_cache_mutex);
+            log_event("Created", frame, fish->identity());
+            
+            std::lock_guard g(Work::_mutex);
+            std::unique_lock guard(_cache_mutex);
             if(!_frame_cache.count(frame)) {
-                for (auto it = _frame_cache.begin(); it != _frame_cache.end() && _frame_cache.size() > 5000u;) {
+                for (auto it = _frame_cache.begin(); it != _frame_cache.end() && _frame_cache.size() > 1000u;) {
                     //if(it->first._frame < basic->frame - 50 || it->first._frame > basic->frame + 50)
-                    {
+                    bool found = false;
+                    for(auto &t : Work::task_queue()) {
+                        if(t.range.contains(it->first)) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    
+                    if(!found) {
                         it = _frame_cache.erase(it);
                         ++_delete;
-                    } //else
-                        //++it;
+                        log_event("Deleted", it->first, fish->identity());
+                    } else {
+                        log_event("Not deleted", it->first, fish->identity());
+                        ++it;
+                    }
                 }
                 
                 _frame_cache[frame] = ptr;
@@ -1360,12 +1616,15 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
                 ptr = _frame_cache[frame];
             }
             
-        } else
+        } else {
             ++_reuse;
+            log_event("Used", frame, fish->identity());
+        }
         
         if(basic->frame != frame) {
             U_EXCEPTION("frame %d != %d", basic->frame, frame);
         }
+        
         auto blob = Tracker::find_blob_noisy(ptr->bdx_to_ptr, basic->blob.blob_id(), basic->blob.parent_id, basic->blob.calculate_bounds(), basic->frame);
         //auto it = fish->iterator_for(basic->frame);
         if (blob) { //&& it != fish->frame_segments().end()) {
@@ -1450,7 +1709,7 @@ void initialize(DrawStructure& base) {
     elap += timer.elapsed();
     
     static bool initialized = false;
-    if(!initialized && Work::num_ready() >= 1) {
+    if(!initialized) {
         //PythonIntegration::ensure_started();
         //PythonIntegration::async_python_function([]()->bool{return true;});
         //Work::start_learning();
@@ -1482,6 +1741,11 @@ void initialize(DrawStructure& base) {
             Work::set_state(Work::State::LOAD);
         });
         restart->on_click([](auto) {
+            Work::_learning = false;
+            Work::_learning_variable.notify_all();
+            DataStore::clear();
+            //PythonIntegration::quit();
+            
             Work::set_state(Work::State::SELECTION);
         });
         

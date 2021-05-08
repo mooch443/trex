@@ -75,8 +75,8 @@ struct DataStore {
         static std::mutex _mutex;
         return _mutex;
     }
-    static std::mutex& cache_mutex() {
-        static std::mutex _mutex;
+    static std::shared_mutex& cache_mutex() {
+        static std::shared_mutex _mutex;
         return _mutex;
     }
     
@@ -116,6 +116,9 @@ struct DataStore {
     static Label::Ptr label(Frame_t, const pv::CompressedBlob*);
     static void set_label(Frame_t idx, uint32_t bdx, const Label::Ptr& label);
     static Label::Ptr label_interpolated(Idx_t, Frame_t);
+    static Label::Ptr label_interpolated(const Individual*, Frame_t);
+    static Label::Ptr label_averaged(Idx_t, Frame_t);
+    static Label::Ptr label_averaged(const Individual*, Frame_t);
     static void set_label(Frame_t, const pv::CompressedBlob*, const Label::Ptr&);
 };
 

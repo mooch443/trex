@@ -737,6 +737,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
         frame.bdx_to_ptr = fill_proximity_grid(frame.blob_grid, frame.blobs);
         
         if(do_history_split) {
+            Tracker::LockGuard guard("preprocess_frame");
             Tracker::instance()->history_split(frame, active_individuals, out, pool);
         }
     }

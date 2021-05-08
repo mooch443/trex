@@ -78,7 +78,7 @@ public:
     VideoSource();
     VideoSource(const std::string& source);
     VideoSource(const std::vector<file::Path>& files);
-    void open(const std::string& basename, const std::string& extension, int seq_start = VIDEO_SEQUENCE_INVALID_VALUE, int seq_end = VIDEO_SEQUENCE_INVALID_VALUE, int padding = 4);
+    void open(const std::string& prefix, const std::string& suffix, const std::string& extension, int seq_start = VIDEO_SEQUENCE_INVALID_VALUE, int seq_end = VIDEO_SEQUENCE_INVALID_VALUE, int padding = 4);
     
     ~VideoSource();
     
