@@ -660,20 +660,25 @@ void VideoOpener::BufferedVideo::restart_background() {
         while(!_terminate_background && background_video_index+1+step < background_video->length())
         {
             background_video_index += step;
-            _number_samples += 1;
             
-            background_video->frame(background_video_index, img);
-            if(max(img.cols, img.rows) > video_chooser_column_width)
-                resize_image(img, video_chooser_column_width / double(max(img.cols, img.rows)));
-            
-            accumulator->add(img);
-            
-            auto image = accumulator->finalize();
-            
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
-            
-            std::lock_guard guard(_frame_mutex);
-            _background_copy = std::move(image);
+            try {
+                background_video->frame(background_video_index, img);
+                
+                _number_samples += 1;
+                if(max(img.cols, img.rows) > video_chooser_column_width)
+                    resize_image(img, video_chooser_column_width / double(max(img.cols, img.rows)));
+                
+                accumulator->add(img);
+                
+                auto image = accumulator->finalize();
+                
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                
+                std::lock_guard guard(_frame_mutex);
+                _background_copy = std::move(image);
+            } catch(...) {
+                Warning("Exception while trying to read video frame.");
+            }
         }
         
         _terminated_background_task = true;

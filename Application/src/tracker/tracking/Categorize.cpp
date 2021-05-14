@@ -281,7 +281,7 @@ Label::Ptr DataStore::label_averaged(const Individual* fish, Frame_t frame) {
                 auto ait = _averaged_probability_cache.find(fish->identity().ID());
                 if(_averaged_probability_cache.end() != ait) {
                     auto it = ait->second.find(kit->get());
-                    if(it != ait->second.end()) {
+                    if(ait->second.end() != it) {
                         return it->second;
                     }
                 }
@@ -331,7 +331,7 @@ Label::Ptr DataStore::label_averaged(const Individual* fish, Frame_t frame) {
         return nullptr;
     }
     
-    Warning("Individual %d not found. Other reason?", fish->identity().ID());
+    //Warning("Individual %d not found. Other reason?", fish->identity().ID());
     return nullptr;
 }
 
@@ -370,8 +370,11 @@ Label::Ptr DataStore::label_interpolated(const Individual* fish, Frame_t frame) 
             
             auto &basic = fish->basic_stuff().at(idx);
             auto l = label(frame, &basic->blob);
-            if(l)
+            if(l) {
+                std::unique_lock g(cache_mutex());
+                _interpolated_probability_cache[fish->identity().ID()][kit->get()] = l;
                 return l;
+            }
             
             // interpolate
             Label::Ptr before = nullptr;
@@ -1138,10 +1141,10 @@ void Work::start_learning() {
                 if (!prediction_tasks.empty()) {
                     guard.unlock();
 
-                    auto str = FileSize(prediction_images.size() * dims.width * dims.height).to_string();
+                    /*auto str = FileSize(prediction_images.size() * dims.width * dims.height).to_string();
                     auto of = FileSize(gpu_max_sample_byte).to_string();
                     Debug("Starting predictions / training (%S/%S).", &str, &of);
-                    /*for (auto& [item, offset] : prediction_tasks) {
+                    for (auto& [item, offset] : prediction_tasks) {
                         if (item.type == LearningTask::Type::Prediction) {
                             item.result.clear();
                             if (item.callback)
@@ -1284,9 +1287,7 @@ void Work::loop() {
                     
                     guard.unlock();
                     _variable.notify_one();
-                    Debug("Running %d...", task.frame._frame);
                     task.func();
-                    Debug("Ranning %d", task.frame._frame);
                     guard.lock();
 
                     if (terminate)

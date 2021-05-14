@@ -158,7 +158,19 @@ Image::UPtr Recognition::calculate_diff_image_with_settings(const default_config
         if ((SETTING(wd).value<file::Path>() / exec).exists()) {
             exec = (SETTING(wd).value<file::Path>() / exec).str();
             Debug("Exists in working dir: '%S'", &exec);
+        } else {
+            Warning("Does not exist in working dir: '%S'", &exec);
+#if __APPLE__
+            auto p = SETTING(wd).value<file::Path>();
+            p = p / ".." / ".." / ".." / path;
+            
+            if(p.exists()) {
+                Debug("'%S' exists.", &p.str());
+                exec = p.str()+" 2> /dev/null";
+            }
+#endif
         }
+        
         auto ret = system(exec.c_str()) == 0;
 #if WIN32
         SetErrorMode(0);
@@ -194,7 +206,11 @@ Image::UPtr Recognition::calculate_diff_image_with_settings(const default_config
 
             // this is now the home folder of python
             std::string sep = "/";
+#if defined(WIN32)
             auto set = home + ";" + home + "/DLLs;" + home + "/Lib;" + home + "/Scripts;" + home + "/Library/bin;" + home + "/Library;";
+#else
+            auto set = home + ":" + home + "/bin:" + home + "/condabin:" + home + "/lib:" + home + "/sbin:";
+#endif
 
             sep[0] = file::Path::os_sep();
             set = utils::find_replace(set, "/", sep);

@@ -417,14 +417,14 @@ CREATE_STRUCT(CachedGUIOptions,
             ph.blink += dt;
             
             auto sun_direction = (offset - Vec2(0)).normalize();
-            auto eye_scale = _obj.midline_length() / 90;
+            auto eye_scale = max(0.5, _obj.midline_length() / 90);
             for(auto &eye : eyes) {
                 eye.pos += ph.direction;
                 window.circle(eye.pos + offset, 5 * eye_scale, Black.alpha(200), White.alpha(125));
-                auto c = window.circle(eye.pos + Vec2(2.5).mul(d) + offset, 3 * eye_scale, Transparent, Black.alpha(200));
+                auto c = window.circle(eye.pos + Vec2(2.5).mul(d * eye_scale) + offset, 3 * eye_scale, Transparent, Black.alpha(200));
                 c->set_scale(Vec2(1, ph.blinking ? h : 1));
                 c->set_rotation(atan2(ph.direction) + RADIANS(90));//posture->head->angle() + RADIANS(90));
-                window.circle(eye.pos + Vec2(2.5).mul(d) + Vec2(2).mul(sun_direction) + offset, sqrt(eye_scale), Transparent, White.alpha(200 * c->scale().min()));
+                window.circle(eye.pos + Vec2(2.5).mul(d * eye_scale) + Vec2(2 * eye_scale).mul(sun_direction) + offset, sqrt(eye_scale), Transparent, White.alpha(200 * c->scale().min()));
             }
         }
         
@@ -1001,7 +1001,7 @@ void Fish::label(DrawStructure &base) {
         }
         
         if(avg_cat) {
-            secondary_text += std::string(" ") + "<a>" + avg_cat->name + "</a>";
+            secondary_text += (cat ? std::string(" ") : std::string()) + "<a>" + avg_cat->name + "</a>";
         }
     }
 
