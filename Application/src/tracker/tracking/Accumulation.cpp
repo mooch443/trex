@@ -1841,18 +1841,20 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
             const Font font(0.6f, Align::Center);
             
             for(auto &d : history) {
+                bool improvement = previous <= d;
+                if(improvement)
+                    previous = d;
+                
                 if(long_t(i) < long_t(history.size()) - 10) {
                     ++i;
                     continue;
                 }
                 
-                bool improvement = previous <= d;
                 e.advance(new Circle(offset, 5, improvement ? Green : White, improvement ? Green.alpha(50) : Transparent));
                 auto text = e.advance(new Text(Meta::toStr(i), offset + Vec2(0, Base::default_line_spacing(font) + 2), White, font));
                 text = e.advance(new Text(Meta::toStr(int(d * 10000) / 100.0)+"%", offset + Vec2(0, Base::default_line_spacing(font) * 2 + 4), White, font));
                 offset += Vec2(max(12, text->width() + 10), 0);
-                if(improvement)
-                    previous = d;
+                
                 ++i;
             }
         });
