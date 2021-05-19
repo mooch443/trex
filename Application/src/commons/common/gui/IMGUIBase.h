@@ -17,6 +17,8 @@ using default_impl_t = gui::GLImpl;
 #endif
 
 namespace gui {
+    ENUM_CLASS(Effects, blur)
+
     class IMGUIBase : public Base {
     protected:
         struct baseFunctor {

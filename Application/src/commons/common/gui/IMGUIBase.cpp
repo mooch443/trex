@@ -1112,6 +1112,8 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
                            ImVec2(order._clip_rect.w, order._clip_rect.z), false);
         pushed_rect = true;
     }
+
+    auto i_ = list->VtxBuffer.Size;
     
     switch (o->type()) {
         case Type::CIRCLE: {
@@ -1311,6 +1313,22 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
             
         default:
             break;
+    }
+    
+    bool blur = false;
+    auto p = o;
+    while(p) {
+        if(p->tagged(Effects::blur)) {
+            blur = true;
+            break;
+        }
+        
+        p = p->parent();
+    }
+    
+    auto e = list->VtxBuffer.Size;
+    for(auto i=i_; i<e; ++i) {
+        list->VtxBuffer[i].mask = blur;
     }
     
     if(!list->CmdBuffer.empty()) {

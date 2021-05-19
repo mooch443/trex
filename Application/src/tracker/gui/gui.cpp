@@ -3040,16 +3040,21 @@ void GUI::update_display_blobs(bool draw_blobs, Section* fishbowl) {
             
             for(auto it = start; it != end; ++it) {
                 bool found = false;
+                auto kit = copy.find((*it)->blob.get());
                 {
-                    found = copy.count((*it)->blob.get());
+                    found = kit != copy.end();
                 }
+                
+                auto bds = bowl.transformRect((*it)->blob->bounds());
                 if(!found) {
-                    auto bds = bowl.transformRect((*it)->blob->bounds());
                     if(bds.overlaps(screen_bounds))
                     {
                         vector.push_back((*it)->convert());
                         map[(*it)->blob.get()] = vector.back().get();
                     }
+                    
+                } else {
+                    kit->second->set_pos((*it)->blob->bounds().pos());
                 }
             }
             
@@ -3069,7 +3074,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
     const auto mode = GUI_SETTINGS(gui_mode);
     const auto draw_blobs = GUI_SETTINGS(gui_show_blobs) || mode != gui::mode_t::tracking;
     const double coverage = double(_cache._num_pixels) / double(collection->source()->rows * collection->source()->cols);
-    const bool draw_blobs_separately = coverage < 0.002 && draw_blobs;
+    const bool draw_blobs_separately = GUI_SETTINGS(gui_mode) != gui::mode_t::blobs && coverage < 0.002 && draw_blobs;
     bool redraw_blobs = true;
     
     //Debug("Coverage: %f (%d)", coverage, draw_blobs_separately);
@@ -3089,7 +3094,6 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
             return;
         }
         
-        cache().updated_raw_blobs();
         
         if(Recognition::recognition_enabled() && GUI_SETTINGS(gui_show_recognition_bounds)) {
             if(!_recognition_image.source()->empty()) {
@@ -3121,10 +3125,34 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
         }
         
         update_display_blobs(draw_blobs, fishbowl);
+        cache().updated_raw_blobs();
         
         if(draw_blobs_separately) {
-            for(auto &e : _cache.display_blobs_list) {
-                base.wrap_object(*e);
+            if(GUI_SETTINGS(gui_mode) != gui::mode_t::blobs) {
+                std::unordered_map<uint32_t, Idx_t> blob_fish;
+                for(auto &[fid, bid] : _cache.fish_selected_blobs) {
+                    bool found = false;
+                    for(auto & [b, ptr] : _cache.display_blobs) {
+                        if(b->blob_id() == bid) {
+                            found = true;
+                            blob_fish[b->blob_id()] = fid;
+                            break;
+                        }
+                    }
+                }
+                
+                for(auto & [b, ptr] : _cache.display_blobs) {
+                    if(blob_fish.find(b->blob_id()) == blob_fish.end()) {
+                        ptr->tag(Effects::blur);
+                        base.wrap_object(*ptr);
+                    }
+                }
+                
+            } else {
+                for(auto &e : _cache.display_blobs_list) {
+                    e->untag(Effects::blur);
+                    base.wrap_object(*e);
+                }
             }
         }
     });
@@ -3680,6 +3708,7 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
                     
                     _clicked_blob_id = -1;
                     this->set_redraw();
+                    cache().set_raw_blobs_dirty();
                 });
                 //list->set_background(Black.alpha(125), Black.alpha(230));
                 //popup->set_size(Size2(200, 400));
