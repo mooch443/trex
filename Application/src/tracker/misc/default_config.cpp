@@ -325,6 +325,7 @@ file::Path conda_environment_path() {
         CONFIG("gui_faded_brightness", uchar(255), "The alpha value of tracking-related elements when timeline is hidden (0-255).");
         CONFIG("gui_equalize_blob_histograms", true, "Equalize histograms of blobs wihtin videos (makes them more visible).");
         CONFIG("gui_show_heatmap", false, "Showing a heatmap per identity, normalized by maximum samples per grid-cell.");
+        CONFIG("heatmap_ids", std::vector<uint32_t>(), "Add ID numbers to this array to exclusively display heatmap values for those individuals.");
         CONFIG("heatmap_value_range", Range<double>(-1, -1), "Give a custom value range that is used to normalize heatmap cell values.");
         CONFIG("heatmap_smooth", double(0.05), "Value between 0 and 1, think of as `heatmap_smooth` times video-width, indicating the maximum upscaled size of the heatmaps shown in the tracker. Makes them prettier, but maybe much slower.");
         CONFIG("heatmap_normalization", heatmap_normalization_t::cell, "Normalization used for the heatmaps. If `value` is selected, then the maximum of all values encountered will be used to normalize the average of each cell. If `cell` is selected, the sum of each cell will be divided by the maximum cell value encountered.");

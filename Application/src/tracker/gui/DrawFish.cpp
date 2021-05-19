@@ -55,21 +55,23 @@ CREATE_STRUCT(CachedGUIOptions,
         });
         on_click([ID, this](auto) {
             std::vector<Idx_t> selections = SETTING(gui_focus_group);
-
-            if(stage() && !(stage()->is_key_pressed(gui::LShift) || stage()->is_key_pressed(gui::RShift))) {
-                if(!selections.empty() && selections.front() == ID)
-                    selections.resize(1);
-                else
-                    selections.clear();
-            }
-                
             auto it = std::find(selections.begin(), selections.end(), ID);
-            if(it != selections.end())
-                selections.erase(it);
-            else
-                selections.push_back(ID);
             
-            SETTING(gui_focus_group) = selections;
+            if(stage() && !(stage()->is_key_pressed(gui::LShift) || stage()->is_key_pressed(gui::RShift))) {
+                if(it != selections.end())
+                    GUI::cache().deselect_all();
+                else
+                    GUI::cache().deselect_all_select(ID);
+                
+            } else {
+                if(it != selections.end())
+                    GUI::cache().deselect(ID);
+                else
+                    GUI::cache().do_select(ID);
+            }
+            
+            
+            //SETTING(gui_focus_group) = selections;
             this->set_dirty();
         });
         
@@ -993,15 +995,15 @@ void Fish::label(DrawStructure &base) {
                 secondary_text += " loc" + Meta::toStr(it->first) + " (" + Meta::toStr(it->second) + ")";
             }
         }
-        auto raw_cat = Categorize::DataStore::label(Frame_t(_idx), blob);
-        auto cat = Categorize::DataStore::label_interpolated(_obj.identity().ID(), Frame_t(_idx));
+        //auto raw_cat = Categorize::DataStore::label(Frame_t(_idx), blob);
+        //auto cat = Categorize::DataStore::label_interpolated(_obj.identity().ID(), Frame_t(_idx));
         auto avg_cat = Categorize::DataStore::label_averaged(_obj.identity().ID(), Frame_t(_idx));
-        if (cat) {
+        /*if (cat) {
             secondary_text += std::string(" ") + (raw_cat ? "<b>" : "") + "<nr>" + cat->name + "</nr>" + (raw_cat ? "</b>" : "");
-        }
+        }*/
         
         if(avg_cat) {
-            secondary_text += (cat ? std::string(" ") : std::string()) + "<a>" + avg_cat->name + "</a>";
+            secondary_text += (avg_cat ? std::string(" ") : std::string()) + "<nr>" + avg_cat->name + "</nr>";
         }
     }
 

@@ -16,20 +16,6 @@ namespace heatmap {
 
 using grid_t = grid::Grid2D<std::tuple<double, long_t>, std::vector<grid::pixel<std::tuple<double, long_t>>>>;
 
-struct HeatmapCellProperties {
-    const grid_t *grid;
-    long_t min_frame, max_frame;
-    double minimum_value, maximum_value, common_high_value;
-    int64_t value_samples;
-    bool normalize_space;
-    
-    std::mutex mutex;
-    Image::Ptr image, big_image;
-    Color color;
-    
-    HeatmapCellProperties();
-};
-
 enum Direction {
     TL = 0,
     TR = 1,
@@ -326,6 +312,7 @@ protected:
     uint32_t stride, N;
     Range<double> custom_heatmap_value_range;
     long_t _frame_context;
+    std::vector<uint32_t> _ids;
     double smooth_heatmap_factor;
     
     Image::UPtr grid_image;

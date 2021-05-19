@@ -781,7 +781,6 @@ int main(int argc, char** argv)
                     SETTING(terminate) = true;
                 gui.update_loop();
             } else {
-                gui.update_loop();
                 std::chrono::milliseconds ms(75);
                 std::this_thread::sleep_for(ms);
             }
