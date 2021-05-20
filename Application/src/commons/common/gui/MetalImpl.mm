@@ -313,7 +313,7 @@ void MetalImpl::message(const std::string &msg) const {
                 id<CAMetalDrawable> drawable = [_data->layer nextDrawable];
                 if(_frame_capture_enabled) {
                     if(!_current_framebuffer) {
-                        _current_framebuffer = std::make_shared<Image>(height, width, 4);
+                        _current_framebuffer = Image::Make(height, width, 4);
                     }
                 } else if(_current_framebuffer)
                     _current_framebuffer = nullptr;

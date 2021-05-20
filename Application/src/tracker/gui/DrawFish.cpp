@@ -187,7 +187,6 @@ CREATE_STRUCT(CachedGUIOptions,
             midline = midline->normalize();
         }*/
         
-        std::vector<Vec2> points;
         if(active && _cached_outline) {
             if(GUIOPTION(gui_show_shadows) || GUIOPTION(gui_show_outline)) {
                 points = _cached_outline->uncompress();
