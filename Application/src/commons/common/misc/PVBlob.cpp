@@ -437,6 +437,8 @@ static Callback callback;
         ushort _x = (ushort)b.x;
         ushort _y = (ushort)b.y;
         
+        minimum *= 0.5;
+        
         /*if constexpr(false) {
             static Timing timing("equalize_histogram", 0.01);
             TakeTiming take(timing);
@@ -452,7 +454,7 @@ static Callback callback;
         
         float factor = 1;
         if(maximum > 0 && maximum != minimum)
-            factor = 1.f / ((maximum - minimum) * 0.6) * 255;
+            factor = 1.f / ((maximum - minimum) * 0.5) * 255;
         else
             minimum = 0;
         
@@ -466,7 +468,7 @@ static Callback callback;
                 if(!threshold || background.is_value_different(x, line.y, value, threshold)) {
                     *image_ptr = saturate((float(*ptr) - minimum) * factor);
                     //*image_ptr = *ptr;
-                    *(image_ptr+1) = value;//saturate((float(value) - minimum) * factor);
+                    *(image_ptr+1) = saturate(int32_t(255 - SQR(1 - value / 255.0) * 255.0));
                 }
             }
         }
@@ -492,7 +494,7 @@ static Callback callback;
                 value = background.diff(x, line.y, *ptr);
                 if(!threshold || background.is_value_different(x, line.y, value, threshold)) {
                     *image_ptr = *ptr;
-                    *(image_ptr+1) = value;
+                    *(image_ptr+1) = saturate(int32_t(255 - SQR(1 - value / 255.0) * 255.0) * 2);
                 }
             }
         }

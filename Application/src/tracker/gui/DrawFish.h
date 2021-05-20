@@ -50,6 +50,7 @@ namespace gui {
         std::deque<FrameVertex> frame_vertices;
         std::vector<Vertex> vertices;
         std::shared_ptr<Circle> _recognition_circle;
+        std::vector<Vec2> points;
         //ExternalImage _colored;
         
         Graph _graph;
@@ -68,6 +69,7 @@ namespace gui {
         void update_recognition_circle(DrawStructure&);
     public:
         void label(DrawStructure&);
+        void shadow(DrawStructure&);
     };
 }
 

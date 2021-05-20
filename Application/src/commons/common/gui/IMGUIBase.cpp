@@ -1315,21 +1315,25 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
             break;
     }
     
-    bool blur = false;
-    auto p = o;
-    while(p) {
-        if(p->tagged(Effects::blur)) {
-            blur = true;
-            break;
+#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
+    if(SETTING(gui_blur_enabled)) {
+        bool blur = false;
+        auto p = o;
+        while(p) {
+            if(p->tagged(Effects::blur)) {
+                blur = true;
+                break;
+            }
+            
+            p = p->parent();
         }
         
-        p = p->parent();
+        auto e = list->VtxBuffer.Size;
+        for(auto i=i_; i<e; ++i) {
+            list->VtxBuffer[i].mask = blur;
+        }
     }
-    
-    auto e = list->VtxBuffer.Size;
-    for(auto i=i_; i<e; ++i) {
-        list->VtxBuffer[i].mask = blur;
-    }
+#endif
     
     if(!list->CmdBuffer.empty()) {
         if(list->CmdBuffer.back().ElemCount == 0) {

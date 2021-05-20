@@ -96,6 +96,7 @@ CREATE_STRUCT(CachedGUIOptions,
         
         if(_idx != frameIndex) {
             _image = nullptr;
+            points.clear();
             
             auto && [basic, posture] = _obj.all_stuff(_safe_idx);
             
@@ -169,13 +170,20 @@ CREATE_STRUCT(CachedGUIOptions,
         bool is_selected = cache.is_selected(_obj.identity().ID());
         std::vector<Vec2> points;
         
-        if(!is_selected) tag(Effects::blur);
-        else untag(Effects::blur);
-        
-        if(is_selected) {
-            ((MetalImpl*)((IMGUIBase*)GUI::instance()->base())->platform().get())->center[0] = global_bounds().x / float(GUI::instance()->base()->window_dimensions().width) / gui::interface_scale() * window.scale().x;
-            ((MetalImpl*)((IMGUIBase*)GUI::instance()->base())->platform().get())->center[1] = global_bounds().y / float(GUI::instance()->base()->window_dimensions().height) / gui::interface_scale() * window.scale().y;
+#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
+#if defined(__APPLE__) && TREX_METAL_AVAILABLE
+        if(GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)
+        {
+            if(!is_selected) tag(Effects::blur);
+            else untag(Effects::blur);
+            
+            if(is_selected && GUI::instance() && GUI::instance()->base()) {
+                ((MetalImpl*)((IMGUIBase*)GUI::instance()->base())->platform().get())->center[0] = global_bounds().x / float(GUI::instance()->base()->window_dimensions().width) / gui::interface_scale() * window.scale().x;
+                ((MetalImpl*)((IMGUIBase*)GUI::instance()->base())->platform().get())->center[1] = global_bounds().y / float(GUI::instance()->base()->window_dimensions().height) / gui::interface_scale() * window.scale().y;
+            }
         }
+#endif
+#endif
         
         if(GUIOPTION(gui_show_paths))
             paintPath(window, offset, _safe_idx, cmn::max(_obj.start_frame(), _safe_idx - 1000l), base_color);
@@ -192,12 +200,7 @@ CREATE_STRUCT(CachedGUIOptions,
                 points = _cached_outline->uncompress();
             }
             
-            if(GUIOPTION(gui_show_shadows)) {
-                if(!_polygon) {
-                    _polygon = std::make_shared<Polygon>(std::make_shared<std::vector<Vec2>>());
-                    _polygon->set_fill_clr(Black.alpha(125));
-                    _polygon->set_origin(Vec2(0.5));
-                }
+            /*if(GUIOPTION(gui_show_shadows) && _polygon) {
                 _polygon->set_vertices(points);
                 float size = Tracker::average().bounds().size().length() * 0.0025f;
                 Vec2 scaling(SQR(offset.x / float(Tracker::average().cols)),
@@ -205,24 +208,36 @@ CREATE_STRUCT(CachedGUIOptions,
                 _polygon->set_pos(scaling * size + this->size() * 0.5);
                 _polygon->set_scale(scaling * 0.25 + 1);
                 
-                if(is_selected)_polygon->tag(Effects::blur);
-                else _polygon->untag(Effects::blur);
-                
-                window.wrap_object(*_polygon);
-            }
+    #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
+    #if defined(__APPLE__) && TREX_METAL_AVAILABLE
+                if(GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)
+                {
+                    if(is_selected)_polygon->tag(Effects::blur);
+                    else _polygon->untag(Effects::blur);
+                }
+    #endif
+    #endif
+            }*/
         }
         
+#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
+#if defined(__APPLE__) && TREX_METAL_AVAILABLE
         auto it = cache.fish_selected_blobs.find(_obj.identity().ID());
         if(it != cache.fish_selected_blobs.end()) {
             for(auto & [b, ptr] : cache.display_blobs) {
                 if(b->blob_id() == it->second) {
                     ptr->set_pos(Vec2());
-                    ptr->untag(Effects::blur);
+                    if(GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)
+                    {
+                        ptr->untag(Effects::blur);
+                    }
                     window.wrap_object(*ptr);
                     break;
                 }
             }
         }
+#endif
+#endif
         
         // DRAW OUTLINE / MIDLINE ON THE MAIN GRAYSCALE IMAGE
         const double damping_linear = .5;
@@ -237,7 +252,7 @@ CREATE_STRUCT(CachedGUIOptions,
             mp = mouse_position - this->pos();
         }
         
-        _posture.update([&, fish = this](Entangled& window) {
+        _posture.update([this, panic_button, mp, &_force, max_color, &head, &offset, fish = this, active, &points](Entangled& window) {
             if(panic_button) {
                 if(float(rand()) / float(RAND_MAX) > 0.75) {
                     _color = _wheel.next();
@@ -291,15 +306,16 @@ CREATE_STRUCT(CachedGUIOptions,
                     float size = Tracker::average().bounds().size().length() * 0.0025f;
                     Vec2 scaling(SQR(offset.x / float(Tracker::average().cols)),
                                  SQR(offset.y / float(Tracker::average().rows)));
-                    _polygon->set_pos(scaling * size + fish->size() * 0.5);
+                    _polygon->set_pos(-offset + scaling * size + fish->size() * 0.5);
                     _polygon->set_scale(scaling * 0.25 + 1);
+                    _polygon->set_fill_clr(Black.alpha(25));
                     
-                    window.advance_wrap(*_polygon);
+                    //window.advance_wrap(*_polygon);
                 }
                 
                 // check if we actually have a tail index
                 if(GUIOPTION(gui_show_midline) && _cached_midline && _cached_midline->tail_index() != -1)
-                    window.entangle(new Circle(points.at(_cached_midline->tail_index()), 2, Blue.alpha(max_color * 0.3f)));
+                    window.advance(new Circle(points.at(_cached_midline->tail_index()), 2, Blue.alpha(max_color * 0.3f)));
                 
                 //float right_side = outline->tail_index() + 1;
                 //float left_side = points.size() - outline->tail_index();
@@ -359,6 +375,7 @@ CREATE_STRUCT(CachedGUIOptions,
             GUI::cache().set_animating(this, true);
         } else
             GUI::cache().set_animating(this, false);
+        
         window.wrap_object(_posture);
         
         // DISPLAY LABEL AND POSITION
@@ -1069,6 +1086,20 @@ void Fish::label(DrawStructure &base) {
             label->set_data(label_text, blob->calculate_bounds(), fish_pos());
 
         label->update(base, base.active_section(), 1, blob == nullptr);
+    }
+}
+
+void Fish::shadow(DrawStructure &window) {
+    auto active = GUI::cache().active_ids.find(_obj.identity().ID()) != GUI::cache().active_ids.end();
+    
+    if(GUIOPTION(gui_show_shadows) && active) {
+        if(!_polygon) {
+            _polygon = std::make_shared<Polygon>(std::make_shared<std::vector<Vec2>>());
+            _polygon->set_fill_clr(Black.alpha(125));
+            _polygon->set_origin(Vec2(0.5));
+        }
+        
+        window.wrap_object(*_polygon);
     }
 }
 }

@@ -3074,7 +3074,12 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
     const auto mode = GUI_SETTINGS(gui_mode);
     const auto draw_blobs = GUI_SETTINGS(gui_show_blobs) || mode != gui::mode_t::tracking;
     const double coverage = double(_cache._num_pixels) / double(collection->source()->rows * collection->source()->cols);
-    const bool draw_blobs_separately = GUI_SETTINGS(gui_mode) != gui::mode_t::blobs && coverage < 0.002 && draw_blobs;
+#if defined(TREX_ENABLE_EXPERIMENTAL_BLUR) && defined(__APPLE__) && TREX_METAL_AVAILABLE
+    const bool draw_blobs_separately =
+    (!GUI_SETTINGS(gui_blur_enabled) || !std::is_same<MetalImpl, default_impl_t>::value || GUI_SETTINGS(gui_mode) != gui::mode_t::blobs) && coverage < 0.002 && draw_blobs;
+#else
+    const bool draw_blobs_separately = false;//coverage < 0.002 && draw_blobs;
+#endif
     bool redraw_blobs = true;
     
     //Debug("Coverage: %f (%d)", coverage, draw_blobs_separately);
@@ -3128,6 +3133,10 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
         cache().updated_raw_blobs();
         
         if(draw_blobs_separately) {
+            for(auto &&[k,fish] : cache()._fish_map) {
+                fish->shadow(base);
+            }
+            
             if(GUI_SETTINGS(gui_mode) != gui::mode_t::blobs) {
                 std::unordered_map<uint32_t, Idx_t> blob_fish;
                 for(auto &[fid, bid] : _cache.fish_selected_blobs) {
@@ -3143,16 +3152,35 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
                 
                 for(auto & [b, ptr] : _cache.display_blobs) {
                     if(blob_fish.find(b->blob_id()) == blob_fish.end()) {
-                        ptr->tag(Effects::blur);
+#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
+#if defined(__APPLE__) && TREX_METAL_AVAILABLE
+                        if(GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)
+                        {
+                            ptr->tag(Effects::blur);
+                        }
+#endif
+#endif
                         base.wrap_object(*ptr);
                     }
                 }
                 
             } else {
                 for(auto &e : _cache.display_blobs_list) {
-                    e->untag(Effects::blur);
+#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
+#if defined(__APPLE__) && TREX_METAL_AVAILABLE
+                    if(GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)
+                    {
+                        e->untag(Effects::blur);
+                    }
+#endif
+#endif
                     base.wrap_object(*e);
                 }
+            }
+            
+        } else if(draw_blobs) {
+            for(auto &&[k,fish] : cache()._fish_map) {
+                fish->shadow(base);
             }
         }
     });
@@ -3341,7 +3369,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
     });
 }
 
-std::unique_ptr<ExternalImage> generate_outer(const pv::BlobPtr& blob) {
+/*std::unique_ptr<ExternalImage> generate_outer(const pv::BlobPtr& blob) {
     Vec2 offset;
     Image::UPtr image, greyscale;
     Vec2 image_pos;
@@ -3380,7 +3408,7 @@ std::unique_ptr<ExternalImage> generate_outer(const pv::BlobPtr& blob) {
     auto gimage = OuterBlobs(Image::Make(tmp), nullptr, offset, blob->blob_id()).convert();
     gimage->add_custom_data("blob_id", (void*)(uint64_t)blob->blob_id());
     return gimage;
-}
+}*/
 
 void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
     pv::File *file = dynamic_cast<pv::File*>(_video_source);
@@ -3447,8 +3475,8 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
                 for(auto it = start; it != end; ++it) {
                     if(copy.find(*it) == copy.end()) {
                         auto& blob = id_to_ptr.at(*it);
-                        auto image = generate_outer(blob);
-                        outer_images.emplace_back(std::move(image));
+                        //auto image = generate_outer(blob);
+                        //outer_images.emplace_back(std::move(image));
                         added_ids.insert(blob->blob_id());
                     }
                 }
@@ -3500,8 +3528,8 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
                 _cache.updated_blobs(); // if show_pixel_grid is active, it will set the cache to "updated"
             }
             
-            for(auto &image : outer_images)
-                base.wrap_object(*image);
+            //for(auto &image : outer_images)
+            //    base.wrap_object(*image);
             
             //if(_timeline.visible())
             {

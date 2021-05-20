@@ -876,7 +876,7 @@ size_t Region::keep_only(const Range<long_t> &frames) {
         if(!r)
             continue;
         
-        if(r->frame_range().start < frames.start || r->frame_range().end > frames.end) {
+        if(overlaps(frames, r->frame_range())) {
             count += r->keep_only(frames);
             
             if(r->empty()) {
