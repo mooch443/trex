@@ -3138,7 +3138,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
             }
             
             if(GUI_SETTINGS(gui_mode) != gui::mode_t::blobs) {
-                std::unordered_map<uint32_t, Idx_t> blob_fish;
+                /*std::unordered_map<uint32_t, Idx_t> blob_fish;
                 for(auto &[fid, bid] : _cache.fish_selected_blobs) {
                     bool found = false;
                     for(auto & [b, ptr] : _cache.display_blobs) {
@@ -3148,10 +3148,11 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
                             break;
                         }
                     }
-                }
+                }*/
                 
                 for(auto & [b, ptr] : _cache.display_blobs) {
-                    if(blob_fish.find(b->blob_id()) == blob_fish.end()) {
+                    //if(blob_fish.find(b->blob_id()) == blob_fish.end())
+                    {
 #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
 #if defined(__APPLE__) && TREX_METAL_AVAILABLE
                         if(GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)

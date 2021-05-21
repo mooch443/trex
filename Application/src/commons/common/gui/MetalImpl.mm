@@ -43,12 +43,14 @@ struct MetalData {
     id <MTLCommandQueue> commandQueue;
     CAMetalLayer *layer;
     MTLRenderPassDescriptor *renderPassDescriptor;
+#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
     MTLComputePassDescriptor *computePassDescriptor;
     MTLTextureDescriptor *computeTextureDescriptor;
     MTLTextureDescriptor *binaryTextureDescriptor;
     id<MTLTexture> stencilTexture;
     id<MTLTexture> maskTexture;
     id<MTLTexture> binaryTexture, testTexture;
+#endif
 };
 namespace metal {
 gui::MetalImpl * current_instance = nullptr;
@@ -257,9 +259,11 @@ bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
         nswin.contentView.wantsLayer = YES;
         
         _data->renderPassDescriptor = [MTLRenderPassDescriptor new];
+#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
         _data->computePassDescriptor = [MTLComputePassDescriptor new];
         _data->computeTextureDescriptor = nullptr;
         _data->binaryTextureDescriptor = nullptr;
+#endif
         
         ImGui_ImplGlfw_InitForOpenGL(window, true);
         [nswin setCollectionBehavior:NSWindowCollectionBehaviorFullScreenPrimary];

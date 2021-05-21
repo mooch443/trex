@@ -67,10 +67,8 @@ CREATE_STRUCT(Cache,
     (float, gui_interface_scale),
     (default_config::output_format_t::Class, output_format),
     (uchar, gui_timeline_alpha)
-#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
-    ,(bool, gui_blur_enabled)
-#endif
 )
+//(bool, gui_blur_enabled)
 
 }
 }
