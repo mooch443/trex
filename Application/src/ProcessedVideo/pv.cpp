@@ -1046,7 +1046,7 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
         Timer timer;
         TaskSentinel sentinel(this);
         
-        std::multiset<float> pixel_values;
+        std::vector<float> pixel_values;
 #ifdef NDEBUG
         std::unique_lock guard(_lock);
         Image average(_average);
@@ -1054,7 +1054,7 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
         
         if(average.bounds().size().max() <= 4000) {
             // also take into account background image?
-            pixel_values.insert(average.data(), average.data() + average.cols * average.rows);
+            pixel_values.insert(pixel_values.end(), average.data(), average.data() + average.cols * average.rows);
         }
 #endif
         
@@ -1078,7 +1078,7 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
                 
                 read_frame(frame, (uint64_t)frameIndex);
                 for(uint64_t i=0; i<frame.n(); ++i) {
-                    pixel_values.insert(frame.pixels().at(i)->begin(), frame.pixels().at(i)->end());
+                    pixel_values.insert(pixel_values.end(), frame.pixels().at(i)->begin(), frame.pixels().at(i)->end());
                 }
                 ++num_frames;
                 samples.insert(frameIndex);
@@ -1093,6 +1093,7 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
             ++start_frame;
         }
         
+        std::sort(pixel_values.begin(), pixel_values.end());
         auto p = percentile(pixel_values, percent);
         Debug("Took %fs to calculate percentiles in %d frames.", timer.elapsed(), num_frames);
         //auto str = Meta::toStr(samples);

@@ -3039,22 +3039,14 @@ void GUI::update_display_blobs(bool draw_blobs, Section* fishbowl) {
             std::vector<std::unique_ptr<gui::ExternalImage>> vector;
             
             for(auto it = start; it != end; ++it) {
-                bool found = false;
-                auto kit = copy.find((*it)->blob.get());
-                {
-                    found = kit != copy.end();
-                }
-                
-                auto bds = bowl.transformRect((*it)->blob->bounds());
+                bool found = copy.count((*it)->blob.get());
                 if(!found) {
+                    auto bds = bowl.transformRect((*it)->blob->bounds());
                     if(bds.overlaps(screen_bounds))
                     {
                         vector.push_back((*it)->convert());
                         map[(*it)->blob.get()] = vector.back().get();
                     }
-                    
-                } else {
-                    kit->second->set_pos((*it)->blob->bounds().pos());
                 }
             }
             

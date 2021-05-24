@@ -480,9 +480,10 @@ void MetalImpl::message(const std::string &msg) const {
                     computeState = [commandBuffer.device newComputePipelineStateWithFunction:blurFunction error:nil];
                     
                     [computeEncoder setComputePipelineState:computeState];
-                    id<MTLBuffer> mbuffer = [_data->device newBufferWithBytes:center length:sizeof(center)*sizeof(float) options:MTLResourceOptionCPUCacheModeDefault];
+                    id<MTLBuffer> mbuffer = [_data->device newBufferWithBytes:center length:sizeof(center) options:MTLResourceOptionCPUCacheModeDefault];
                     [computeEncoder setBuffer:mbuffer offset:0 atIndex:0];
                     [computeEncoder setTexture:_data->maskTexture atIndex:0];
+                    
                     [computeEncoder setTexture:_data->testTexture atIndex:1];
                     //[computeEncoder dispatchThreads:MTLSizeMake(width, height, 1) threadsPerThreadgroup:MTLSizeMake(1, 1, 1)];
                     [computeEncoder dispatchThreadgroups:MTLSizeMake(width/threadGroupSize.width+1, height/threadGroupSize.height+1, 1) threadsPerThreadgroup:threadGroupSize];

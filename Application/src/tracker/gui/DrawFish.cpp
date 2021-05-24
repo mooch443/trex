@@ -394,7 +394,8 @@ CREATE_STRUCT(CachedGUIOptions,
             angle = -head->angle();
         }
         
-        auto radius = (FAST_SETTINGS(calculate_posture) ? _obj.midline_length() : blob_bounds.size().max()) * 0.6;
+        auto ML = _obj.midline_length();
+        auto radius = (FAST_SETTINGS(calculate_posture) && ML != Graph::invalid() ? ML : blob_bounds.size().max()) * 0.6;
         if(GUIOPTION(gui_show_texts)) {
             // DISPLAY NEXT POSITION (estimated position in _idx + 1)
             //if(cache.processed_frame.cached_individuals.count(_obj.identity().ID())) {

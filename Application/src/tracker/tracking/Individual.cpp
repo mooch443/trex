@@ -888,7 +888,11 @@ void Individual::LocalCache::regenerate(Individual* fish) {
     //Debug("Regenerated local cache in %.2fms", timer.elapsed() * 1000);
 }
 
-float Individual::midline_length() const { return _local_cache._midline_samples == 0 ? gui::Graph::invalid() : (_local_cache._midline_length / _local_cache._midline_samples * 1.1f); }
+float Individual::midline_length() const {
+    return _local_cache._midline_samples == 0
+        ? gui::Graph::invalid()
+        : (_local_cache._midline_length / _local_cache._midline_samples * 1.1f);
+}
 size_t Individual::midline_samples() const { return _local_cache._midline_samples; }
 float Individual::outline_size() const { return _local_cache._outline_samples == 0 ? gui::Graph::invalid() : (_local_cache._outline_size / _local_cache._outline_samples); }
 

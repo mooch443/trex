@@ -27,7 +27,7 @@ namespace gui {
         
     public:
         MetalImpl(std::function<void()> draw, std::function<bool()> new_frame_fn);
-        float center[2] = {0.5f};
+        float center[2] = {0.5f, 0.5f};
         
         void init() override;
         void post_init() override;

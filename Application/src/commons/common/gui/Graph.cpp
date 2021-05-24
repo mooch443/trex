@@ -98,8 +98,8 @@ void Graph::update() {
     const float lengthx = rx.end - rx.start;
     const float lengthy = ry.end - ry.start;
     
-    const float x_offset_percent = rx.start < 0 ? cmn::abs(rx.start / lengthx) : 0;
-    const float y_offset_percent = ry.start < 0 ? cmn::abs(ry.start / lengthy) : 0;
+    const float x_offset_percent = rx.start < 0 && lengthx > 0 ? cmn::abs(rx.start / lengthx) : 0;
+    const float y_offset_percent = ry.start < 0 && lengthy > 0 ? cmn::abs(ry.start / lengthy) : 0;
     
     static const Font x_label_font(0.5, Align::Center);
     static const Font y_label_font(0.5, Align::Right);
@@ -108,7 +108,7 @@ void Graph::update() {
     const float max_height = height() - _margin.y * 2 - Base::default_line_spacing(x_label_font);
     
     const float y_axis_offset = x_offset_percent * max_width;
-    const float custom_y_axis_offset = cmn::abs((_zero - rx.start) / lengthx) * max_width;
+    const float custom_y_axis_offset = lengthx != 0 ? cmn::abs((_zero - rx.start) / lengthx) * max_width : 0;
     
     Vec2 function_label_pt(20, 15 + (_title.txt().empty() ? 0 : (Base::default_line_spacing(title_font) + 5)));
     float max_text_length = 0;
