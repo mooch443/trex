@@ -323,7 +323,6 @@ void Tracker::analysis_state(AnalysisState pause) {
             
             if(v != FAST_SETTINGS(posture_direction_smoothing))
             {
-                Debug("Updating midlines / head positions...");
                 auto worker = [key](){
                     LockGuard guard("Updating midlines in changed_setting("+key+")");
                     

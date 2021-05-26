@@ -1963,11 +1963,11 @@ void draw(gui::DrawStructure& base) {
     
     {
         std::lock_guard guard(DataStore::mutex());
-        if(_labels.empty()) {
+        /*if(_labels.empty()) {
             _labels.insert({Label::Make("W"), {}});
             _labels.insert({Label::Make("S"), {}});
             //DataStore::_labels.insert({Label::Make("X"), {}});
-        }
+        }*/
         
         if(_labels.empty()) {
             static bool asked = false;
@@ -1986,7 +1986,7 @@ void draw(gui::DrawStructure& base) {
                         }
                     }
                     
-                }, "Please enter the categories (comma-separated), e.g.:\n<i>Worker,Soldier,Trash</i>", "Categorize", "Okay", "Cancel");
+                }, "Please enter the categories (comma-separated), e.g.:\n<i>W,S</i> for categories <str>W</str> and <str>S</str>.", "Categorize", "Okay", "Cancel");
                 
                 d->set_custom_element(Layout::Make<Entangled>([](Entangled& e){
                     e.advance_wrap(textfield);

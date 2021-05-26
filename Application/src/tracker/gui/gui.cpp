@@ -4320,7 +4320,7 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
                 _cache.set_tracking_dirty();
             });
             
-        }, "This will generate averaged recognition scores per segment. Attempt automatic correction as well?\n<b>That overwrites manual_matches and reanalyses video!</b>", "Auto-correct", "Yes", "No");
+        }, "Do you wish to overwrite <key>manual_matches</key> and reanalyse the video from the beginning with automatic corrections enabled? You will probably want to click <b>Yes</b> after training the visual identification network.\n<b>No</b> will only generate averages and does not change any tracked trajectories.", "Auto-correct", "Yes", "No");
     } else {
         this->work().add_queue("checking identities...", [this, force_correct](){
             Tracker::instance()->check_segments_identities(force_correct, [](float x) { work().set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
