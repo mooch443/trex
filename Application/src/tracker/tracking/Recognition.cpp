@@ -151,13 +151,16 @@ Image::UPtr Recognition::calculate_diff_image_with_settings(const default_config
 #ifdef WIN32
         exec = path.add_extension("exe").str();
 #elif __APPLE__
-        exec = "../MacOS/"+exec+" 2> /dev/null";
+        exec = "../MacOS/"+exec;
 #else
-        exec = "./"+exec+" 2> /dev/null";
+        exec = "./"+exec;
 #endif
         if ((SETTING(wd).value<file::Path>() / exec).exists()) {
             exec = (SETTING(wd).value<file::Path>() / exec).str();
             Debug("Exists in working dir: '%S'", &exec);
+#ifndef WIN32
+            exec += " 2> /dev/null";
+#endif
         } else {
             Warning("Does not exist in working dir: '%S'", &exec);
 #if __APPLE__
@@ -167,6 +170,23 @@ Image::UPtr Recognition::calculate_diff_image_with_settings(const default_config
             if(p.exists()) {
                 Debug("'%S' exists.", &p.str());
                 exec = p.str()+" 2> /dev/null";
+            } else {
+                p = SETTING(wd).value<file::Path>() / std::string(file::Path(exec).filename());
+                if(p.exists()) {
+                    Debug("Pure '%S' exists.", &p.str());
+                    exec = p.str()+" 2> /dev/null";
+                } else {
+                    // search conda
+                    auto conda_prefix = getenv("CONDA_PREFIX");
+                    if(conda_prefix) {
+                        Debug("Searching conda environment for trex_check_python... ('%s').", conda_prefix);
+                        p = file::Path(conda_prefix) / "usr" / "share" / "trex" / exec;
+                        if(p.exists()) {
+                            Debug("Found in conda environment '%s' at '%S'", conda_prefix, &p.str());
+                            exec = p.str()+" 2> /dev/null";
+                        }
+                    }
+                }
             }
 #endif
         }

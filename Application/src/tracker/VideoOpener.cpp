@@ -30,7 +30,7 @@ void VideoOpener::CustomFileChooser::update_size() {
     FileChooser::update_size();
     
     float s = _graph->scale().x / gui::interface_scale();
-    auto column = Size2(_graph->width() * 0.4 - 50, _graph->height() * 0.5 * gui::interface_scale() - (_selected_text ? _selected_text->height() + _button->height() + 10 : 0)).div(s);
+    auto column = Size2(_graph->width() * 0.5 - 50, _graph->height() * 0.5 * gui::interface_scale() - (_selected_text ? _selected_text->height() + _button->height() + 10 : 0)).div(s);
     
     _update(column.width, column.height);
     
@@ -363,7 +363,7 @@ VideoOpener::VideoOpener()
         }
         
         for(auto &[key, ptr] : _text_fields) {
-            ptr.get()->representative()->set_size(Size2(_screenshot_max_size.width * 0.5, ptr->representative()->height()));
+            ptr.get()->representative()->set_size(Size2(_screenshot_max_size.width * 0.3, ptr->representative()->height()));
         }
         
         if(_background && _background->source()) {
@@ -467,7 +467,7 @@ VideoOpener::VideoOpener()
             if(image) {
                 _screenshot->set_source(std::move(image));
                 
-                auto max_scale = 0.4f;
+                auto max_scale = 1.0f;
                 auto max_size = _screenshot_max_size.mul(max_scale);
                 auto scree_size = _screenshot->source()->bounds().size();
                 auto size = max_size;
