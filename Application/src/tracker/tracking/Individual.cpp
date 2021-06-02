@@ -15,6 +15,7 @@
 #include <misc/metastring.h>
 #include <misc/SoftException.h>
 #include <gui/Graph.h>
+#include <tracking/Categorize.h>
 
 #define NAN_SAFE_NORMALIZE(X, Y) { \
     const auto L = X.length(); \
@@ -1100,15 +1101,13 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(l
     auto prev_prop = Tracker::properties(frameIndex-1);
     
     double tdelta = prop && prev_prop ? prop->time - prev_prop->time : 0;
-    Reasons reason(Reasons::None);
-    
     uint32_t error_code = 0;
-    error_code |= (prev_frame != frameIndex-1) * Reasons::LostForOneFrame;
-    error_code |= (current_prob != -1 && current_prob < FAST_SETTINGS(track_trusted_probability)) * Reasons::ProbabilityTooSmall;
-    error_code |= (FAST_SETTINGS(huge_timestamp_ends_segment) && tdelta >= FAST_SETTINGS(huge_timestamp_seconds)) * Reasons::TimestampTooDifferent;
-    error_code |= is_manual_match(frameIndex) * Reasons::ManualMatch;
-    error_code |= (!blob) * Reasons::NoBlob;
-    error_code |= (FAST_SETTINGS(track_end_segment_for_speed) && current && current->speed(Units::CM_AND_SECONDS) >= weird_distance()) * Reasons::WeirdDistance;
+    error_code |= uint32_t(prev_frame != frameIndex-1) * Reasons::LostForOneFrame;
+    error_code |= uint32_t(current_prob != -1 && current_prob < FAST_SETTINGS(track_trusted_probability)) * Reasons::ProbabilityTooSmall;
+    error_code |= uint32_t(FAST_SETTINGS(huge_timestamp_ends_segment) && tdelta >= FAST_SETTINGS(huge_timestamp_seconds)) * Reasons::TimestampTooDifferent;
+    error_code |= (uint32_t)is_manual_match(frameIndex) * Reasons::ManualMatch;
+    error_code |= uint32_t(!blob) * Reasons::NoBlob;
+    error_code |= uint32_t(FAST_SETTINGS(track_end_segment_for_speed) && current && current->speed(Units::CM_AND_SECONDS) >= weird_distance()) * Reasons::WeirdDistance;
     
     if(frameIndex == _startFrame || error_code != 0) {
     
@@ -1124,6 +1123,9 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(l
     {*/
         //if(FAST_SETTINGS(huge_timestamp_ends_segment) && current_prob != -1 && current_prob < 0.5)
         //    Warning("Fish %d in frame %d has %f", identity().ID(), frameIndex, current_prob);
+        if(!_frame_segments.empty()) {
+            _frame_segments.back()->error_code = error_code;
+        }
         segment = std::make_shared<SegmentInformation>(Rangel(frameIndex, frameIndex), !blob || blob->split() ? -1 : frameIndex);
         _frame_segments.push_back(segment);
         

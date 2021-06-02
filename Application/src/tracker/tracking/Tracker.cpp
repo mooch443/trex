@@ -2271,7 +2271,7 @@ void Tracker::clear_properties() {
                     auto &cache = frame.cached_individuals.at(fish->identity().ID());
 
                     for (auto &blob: unassigned_blobs) {
-                        auto p = fish->probability(cache, frameIndex, blob->center(), blob->num_pixels()).p;
+                        auto p = fish->probability(cache, frameIndex, blob).p;//blob->center(), blob->num_pixels()).p;
 
                         // discard elements with probabilities that are too low
                         if (p <= FAST_SETTINGS(matching_probability_threshold))

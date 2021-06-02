@@ -129,9 +129,10 @@ namespace pv {
         CompressedBlob() : status_byte(0), parent_id(-1) {}
         CompressedBlob(const pv::BlobPtr& val) {
             parent_id = val->parent_id();
-            status_byte = (val->parent_id() != -1 ? 0x2 : 0x0)
-                            | uint8_t(val->split() ? 0x1 : 0)
-                            | uint8_t(val->tried_to_split() ? 0x4 : 0x0);
+            own_id = val->blob_id();
+            status_byte = (uint8_t(val->split())           * 0x1)
+                        | (uint8_t(val->parent_id() != -1) * 0x2)
+                        | (uint8_t(val->tried_to_split())  * 0x4);
             lines = ShortHorizontalLine::compress(val->hor_lines());
             start_y = val->lines()->empty() ? 0 : val->lines()->front().y;
         }

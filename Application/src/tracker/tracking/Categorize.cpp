@@ -289,6 +289,7 @@ Label::Ptr DataStore::label_averaged(const Individual* fish, Frame_t frame) {
             
             std::unordered_map<int, size_t> label_id_to_index;
             std::unordered_map<size_t, Label::Ptr> index_to_label;
+            size_t N = 0;
             
             {
                 std::lock_guard g(mutex());
@@ -297,21 +298,28 @@ Label::Ptr DataStore::label_averaged(const Individual* fish, Frame_t frame) {
                     label_id_to_index[nit->first->id] = i;
                     index_to_label[i] = nit->first;
                 }
+                
+                N = _labels.size();
             }
             
-            std::vector<size_t> counts(label_id_to_index.size());
+            std::vector<size_t> counts(N);
             
             for(auto index : (*kit)->basic_index) {
                 assert(index > -1);
                 auto &basic = fish->basic_stuff().at(index);
                 auto l = label(Frame_t(basic->frame), &basic->blob);
                 if(l && label_id_to_index.count(l->id) == 0) {
-                    Warning("Label not found: %s", l->name.c_str());
+                    auto str = Meta::toStr(label_id_to_index);
+                    Warning("Label not found: %s (%d) in map %S", l->name.c_str(), l->id, &str);
                     continue;
                 }
                 
                 if(l) {
-                    ++counts[label_id_to_index.at(l->id)];
+                    auto index = label_id_to_index.at(l->id);
+                    if(index < counts.size())
+                        ++counts[index];
+                    else
+                        Warning("Label index %lu > counts.size() = %lu", index, counts.size());
                 }
             }
             
@@ -1933,7 +1941,7 @@ void Work::set_state(State state) {
                 
             } else {
                 Work::status() = "Initializing...";
-                Work::requested_samples() = per_row * 3;
+                Work::requested_samples() = per_row * 2;
                 Work::_variable.notify_one();
                 Work::visible() = true;
                 PythonIntegration::ensure_started();
@@ -1991,6 +1999,8 @@ void draw(gui::DrawStructure& base) {
                 d->set_custom_element(Layout::Make<Entangled>([](Entangled& e){
                     e.advance_wrap(textfield);
                 }));
+                textfield.set_size(Size2(d->layout().width() * 0.75, 33));
+                d->layout().Layout::update_layout();
             }
             return;
         }

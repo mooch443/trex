@@ -40,19 +40,19 @@ class Categorize:
         self.model.add(Input(shape=(int(self.height),int(self.width),1), dtype=float))
         self.model.add(Lambda(lambda x: (x / 127.5 - 1.0)))
         
-        self.model.add(Convolution2D(16, kernel_size=(5,5), activation='relu'))
+        self.model.add(Convolution2D(16, kernel_size=(3,3), activation='relu'))
         self.model.add(MaxPooling2D(pool_size=(2,2)))
         self.model.add(BatchNormalization())
         self.model.add(Activation('relu'))
         self.model.add(SpatialDropout2D(0.25))
         
-        self.model.add(Convolution2D(64, kernel_size=(5,5), activation='relu'))
+        self.model.add(Convolution2D(64, kernel_size=(3,3), activation='relu'))
         self.model.add(MaxPooling2D(pool_size=(2,2)))
         self.model.add(BatchNormalization())
         self.model.add(Activation('relu'))
         self.model.add(SpatialDropout2D(0.25))
 
-        self.model.add(Convolution2D(100, kernel_size=(5,5), activation='relu'))
+        self.model.add(Convolution2D(100, kernel_size=(3,3), activation='relu'))
         self.model.add(MaxPooling2D(pool_size=(2,2)))
         self.model.add(BatchNormalization())
         self.model.add(Activation('relu'))

@@ -41,6 +41,7 @@
 #include <tracking/ConfirmedCrossings.h>
 #include <gui/DrawMenu.h>
 #include <gui/Label.h>
+#include <tracking/Categorize.h>
 
 #if WIN32
 #include <Shellapi.h>
@@ -1080,7 +1081,7 @@ void GUI::draw(DrawStructure &base) {
             if(mode == gui::mode_t::tracking)
                 this->draw_tracking(base, this->frame());
             else if(mode == gui::mode_t::blobs)
-                this->debug_binary(base, this->frame());
+                this->draw_raw_mode(base, this->frame());
             
             _cache.updated_blobs();
         }
@@ -3403,7 +3404,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
     return gimage;
 }*/
 
-void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
+void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
     pv::File *file = dynamic_cast<pv::File*>(_video_source);
     if(file && file->length() > size_t(frameIndex)) {
         struct Outer {

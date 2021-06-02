@@ -254,7 +254,7 @@ private:
     
     void removed_frames(long_t including);
     
-    void debug_binary(gui::DrawStructure& main_base, long_t frameIndex);
+    void draw_raw_mode(gui::DrawStructure& main_base, long_t frameIndex);
     void debug_optical_flow(gui::DrawStructure& base, long_t frameIndex);
     void redraw();
     

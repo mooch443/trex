@@ -231,6 +231,7 @@ namespace track {
         struct SegmentInformation : public FrameRange {
             std::vector<long_t> basic_index;
             std::vector<long_t> posture_index;
+            uint32_t error_code = std::numeric_limits<uint32_t>::max();
             
             SegmentInformation(const Range<long_t>& range = Rangel(-1, -1),
                                long_t first_usable = -1)
@@ -275,10 +276,10 @@ namespace track {
         //using segment_map = std::map<long_t, std::shared_ptr<SegmentInformation>>;
         using segment_map = std::vector<std::shared_ptr<SegmentInformation>>;
         segment_map::const_iterator find_segment_with_start(long_t frame) const;
+        using small_segment_map = std::map<long_t, FrameRange>;
         
     protected:
         GETTER(segment_map, frame_segments)
-        using small_segment_map = std::map<long_t, FrameRange>;
         GETTER(small_segment_map, recognition_segments)
         
         //! Contains a map with individual -> probability for the blob that has been
