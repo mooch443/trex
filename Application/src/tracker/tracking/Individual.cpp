@@ -1497,6 +1497,7 @@ IndividualCache Individual::cache_for_frame(long_t frameIndex, double time, cons
     bool manually_matched_segment = false;
     cache.last_frame_manual = false;
     cache.last_seen_px = Vec2(-FLT_MAX);
+    cache.current_category = -1;
     
     //auto segment = get_segment(frameIndex-1);
     if(it != _frame_segments.end()) {
@@ -1652,6 +1653,22 @@ IndividualCache Individual::cache_for_frame(long_t frameIndex, double time, cons
     double previous_t = 0;
     long_t previous_f = -1;
     
+    std::unordered_map<Categorize::Label::Ptr, size_t> labels;
+    size_t samples = 0;
+    
+    if(FAST_SETTINGS(track_consistent_categories)) {
+        std::shared_lock guard(Categorize::DataStore::range_mutex());
+        iterate_frames(Rangel(max(_startFrame, cache.previous_frame - FAST_SETTINGS(frame_rate) * 5), cache.previous_frame), [&labels, &samples, &guard](auto frame, auto&, auto& basic, auto&) -> bool
+        {
+            auto label = Categorize::DataStore::_ranged_label_unsafe(Frame_t(frame), basic->blob.blob_id());
+            if(label) {
+                ++labels[label];
+                ++samples;
+            }
+            return true;
+        });
+    }
+    
     const float max_speed = FAST_SETTINGS(track_max_speed) / FAST_SETTINGS(cm_per_pixel);
     iterate_frames(range, [&](long_t frame, const std::shared_ptr<SegmentInformation> &seg, const std::shared_ptr<Individual::BasicStuff> &basic, const std::shared_ptr<Individual::PostureStuff> &posture) -> bool
     {
@@ -1713,6 +1730,17 @@ IndividualCache Individual::cache_for_frame(long_t frameIndex, double time, cons
         //! \mean{\mathbf{a}}_i(t) = \mathbf{U}\left( \frac{1}{F(t)-F(\tau)+5} \sum_{k \in [F(\tau)-5, F(t)]} \mathbf{a}_i(\Tau(k)) \right)
         raw_acc /= prob_t(used_frames);
     }
+    
+    double max_samples = 0, mid = -1;
+    for(auto & [l, n] : labels) {
+        auto N = n / double(samples);
+        if(N > max_samples) {
+            max_samples = N;
+            mid = l->id;
+        }
+    }
+    
+    cache.current_category = int(mid);
     
     const PhysicalProperties* c = pp ? pp->centroid : nullptr; //centroid_weighted(cache.previous_frame);
     
@@ -1890,6 +1918,19 @@ std::tuple<prob_t, prob_t, prob_t> Individual::position_probability(const Indivi
 }*/
 
 Individual::Probability Individual::probability(const IndividualCache& cache, long_t frameIndex, const pv::CompressedBlob& blob) const {
+    if(FAST_SETTINGS(track_consistent_categories) && cache.current_category != -1) {
+        auto l = Categorize::DataStore::ranged_label(Frame_t(frameIndex), blob);
+        if(identity().ID() == 38)
+            Warning("Frame %ld: blob %lu -> %s (%d) and previous is %d", frameIndex, blob.blob_id(), l ? l->name.c_str() : "N/A", l ? l->id : -1, cache.current_category);
+        if(l && l->id != -1) {
+            if(l->id != cache.current_category) {
+                if(identity().ID() == 38)
+                    Warning("Frame %ld: current category does not match for blob %d", frameIndex, blob.blob_id());
+                return Probability{0, 0, 0, 0};
+            }
+        }
+    }
+    
     auto bounds = blob.calculate_bounds();
     const Vec2& position = bounds.pos() + bounds.size() * 0.5;
     size_t pixels = blob.num_pixels();

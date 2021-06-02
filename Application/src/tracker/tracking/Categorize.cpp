@@ -223,6 +223,7 @@ bool DataStore::Composition::empty() const {
 }
 
 std::unordered_map<Frame_t, std::unordered_map<uint32_t, Label::Ptr>> _probability_cache;
+std::vector<RangedLabel> _ranged_labels;
 std::unordered_map<Idx_t, std::unordered_map<const Individual::SegmentInformation*, Label::Ptr>> _interpolated_probability_cache;
 std::unordered_map<Idx_t, std::unordered_map<const Individual::SegmentInformation*, Label::Ptr>> _averaged_probability_cache;
 
@@ -232,6 +233,55 @@ DataStore::const_iterator DataStore::begin() {
 
 DataStore::const_iterator DataStore::end() {
     return _samples.end();
+}
+
+void DataStore::set_ranged_label(RangedLabel&& ranged)
+{
+    std::unique_lock guard(range_mutex());
+    _set_ranged_label_unsafe(std::move(ranged));
+}
+
+void DataStore::_set_ranged_label_unsafe(RangedLabel&& ranged)
+{
+    assert(ranged._range.length() == ranged._blobs.size());
+    _ranged_labels.emplace_back(std::move(ranged));
+    std::sort(_ranged_labels.begin(), _ranged_labels.end());
+}
+
+Label::Ptr DataStore::ranged_label(Frame_t frame, uint32_t bdx) {
+    std::shared_lock guard(range_mutex());
+    return _ranged_label_unsafe(frame, bdx);
+}
+Label::Ptr DataStore::ranged_label(Frame_t frame, const pv::CompressedBlob& blob) {
+    std::shared_lock guard(range_mutex());
+    return _ranged_label_unsafe(frame, blob.blob_id());
+}
+Label::Ptr DataStore::_ranged_label_unsafe(Frame_t frame, uint32_t bdx) {
+    auto eit = std::upper_bound(_ranged_labels.begin(), _ranged_labels.end(), frame, [](const Frame_t& frame, const RangedLabel& A) {
+        return A > frame;
+    });
+    
+    if(eit != _ranged_labels.begin()) {
+        // returned first item that is greater than frame,
+        // now check how far back we can go:
+        --eit;
+        
+        for(;; --eit) {
+            if(eit->_range.end() < frame)
+                break;
+            
+            // and see if it is in fact contained
+            if(eit->_range.contains(frame)) {
+                if(eit->_blobs.at(frame - eit->_range.start()) == bdx) //contains(it->_blobs, bdx))
+                    return eit->_label;
+            }
+            
+            if(eit == _ranged_labels.begin())
+                break;
+        }
+    }
+    
+    return nullptr;
 }
 
 void DataStore::set_label(Frame_t idx, uint32_t bdx, const Label::Ptr& label) {
@@ -353,6 +403,12 @@ Label::Ptr DataStore::label_interpolated(Idx_t fish, Frame_t frame) {
     return label_interpolated(it->second, frame);;
 }
 
+void DataStore::reanalysed_from(Frame_t frame) {
+    std::unique_lock g(cache_mutex());
+    _interpolated_probability_cache.clear();
+    _averaged_probability_cache.clear();
+}
+
 Label::Ptr DataStore::label_interpolated(const Individual* fish, Frame_t frame) {
     assert(fish);
     
@@ -436,6 +492,14 @@ Label::Ptr DataStore::label_interpolated(const Individual* fish, Frame_t frame) 
 
 Label::Ptr DataStore::label(Frame_t idx, uint32_t bdx) {
     std::shared_lock guard(cache_mutex());
+    return _label_unsafe(idx, bdx);
+}
+
+Label::Ptr DataStore::label(Frame_t idx, const pv::CompressedBlob* blob) {
+    return label(idx, /*blob->parent_id != -1 ? uint32_t(blob->parent_id) :*/ blob->blob_id());
+}
+
+Label::Ptr DataStore::_label_unsafe(Frame_t idx, uint32_t bdx) {
     auto fit = _probability_cache.find(idx);
     if(fit != _probability_cache.end()) {
         auto sit = fit->second.find(bdx);
@@ -446,8 +510,8 @@ Label::Ptr DataStore::label(Frame_t idx, uint32_t bdx) {
     return nullptr;
 }
 
-Label::Ptr DataStore::label(Frame_t idx, const pv::CompressedBlob* blob) {
-    return label(idx, /*blob->parent_id != -1 ? uint32_t(blob->parent_id) :*/ blob->blob_id());
+Label::Ptr DataStore::_label_unsafe(Frame_t idx, const pv::CompressedBlob* blob) {
+    return _label_unsafe(idx, /*blob->parent_id != -1 ? uint32_t(blob->parent_id) :*/ blob->blob_id());
 }
 
 constexpr size_t per_row = 4;
@@ -701,7 +765,7 @@ void Cell::set_sample(const Sample::Ptr &sample) {
 
 static VerticalLayout layout;
 static auto desc_text = Layout::Make<StaticText>();
-static std::array<Row, 3> rows { Row(0), Row(1), Row(2) };
+static std::array<Row, 2> rows { Row(0), Row(1) };
 
 Sample::Ptr Work::retrieve() {
     _variable.notify_one();
@@ -860,9 +924,10 @@ struct NetworkApplicationState {
                 break;
 
             segment = *it;
-            if(!DataStore::label_interpolated(fish->identity().ID(), Frame_t(segment->start())))
+            if(!DataStore::label_interpolated(fish->identity().ID(), Frame_t(segment->start()))) {
                 task.sample = DataStore::temporary(segment, fish, 300u, 5u, true);
-            else {
+                task.segment = segment;
+            } else {
                 ++skipped;
             }
             
@@ -893,6 +958,25 @@ struct NetworkApplicationState {
 
                     DataStore::set_label(Frame_t(frame), bdx, DataStore::label(task.result.at(i)));
                     log_event("Labelled", Frame_t(frame), fish->identity());
+                }
+                
+                if(task.segment) {
+                    RangedLabel ranged;
+                    ranged._label = DataStore::label_averaged(fish->identity().ID(), Frame_t(task.segment->start()));
+                    assert(ranged._label);
+                    ranged._range = *task.segment;
+                    ranged._blobs.reserve(task.segment->length());
+                    
+                    for(auto f = task.segment->start(); f <= task.segment->end(); ++f) {
+                        assert(task.segment->contains(f));
+                        {
+                            auto &basic = fish->basic_stuff().at(task.segment->basic_stuff(f));
+                            ranged._blobs.push_back(basic->blob.blob_id());
+                        } //else
+                           // Warning("Segment does not contain %d", f);
+                    }
+                    
+                    DataStore::set_ranged_label(std::move(ranged));
                 }
                 
                 {
@@ -1336,12 +1420,12 @@ void DataStore::write(file::DataFormat& data, int /*version*/) {
     {
         std::shared_lock guard(cache_mutex());
         if(_probability_cache.empty()) {
-            data.write<bool>(false);
+            data.write<uchar>(0);
             return;
         }
     }
     
-    data.write<bool>(true);
+    data.write<uchar>(1);
     
     {
         std::lock_guard guard(mutex());
@@ -1353,17 +1437,36 @@ void DataStore::write(file::DataFormat& data, int /*version*/) {
         }
     }
     
-    std::shared_lock guard(cache_mutex());
-    data.write<uint64_t>(_probability_cache.size()); // write number of frames
-    
-    for(auto &[k, v] : _probability_cache) {
-        data.write<uint32_t>(k); // frame index
-        data.write<uint32_t>(narrow_cast<uint32_t>(v.size())); // number of blobs assigned
+    {
+        std::shared_lock guard(cache_mutex());
+        data.write<uint64_t>(_probability_cache.size()); // write number of frames
         
-        for(auto &[bdx, label] : v) {
-            assert(label);
-            data.write<uint32_t>(bdx); // blob id
-            data.write<int32_t>(label->id); // label id
+        for(auto &[k, v] : _probability_cache) {
+            data.write<uint32_t>(k); // frame index
+            data.write<uint32_t>(narrow_cast<uint32_t>(v.size())); // number of blobs assigned
+            
+            for(auto &[bdx, label] : v) {
+                assert(label);
+                data.write<uint32_t>(bdx); // blob id
+                data.write<int32_t>(label->id); // label id
+            }
+        }
+    }
+    
+    {
+        std::shared_lock guard(range_mutex());
+        data.write<uint64_t>(_ranged_labels.size());
+        
+        for(auto &ranged : _ranged_labels) {
+            data.write<uint32_t>(ranged._range.start());
+            data.write<uint32_t>(ranged._range.end());
+            
+            assert(ranged._label);
+            data.write<int>(ranged._label->id);
+            
+            assert(ranged._range.length() == ranged._blobs.size());
+            for(auto &bdx : ranged._blobs)
+                data.write<uint32_t>(bdx);
         }
     }
 }
@@ -1371,7 +1474,7 @@ void DataStore::write(file::DataFormat& data, int /*version*/) {
 void DataStore::read(file::DataFormat& data, int /*version*/) {
     clear();
     
-    bool has_categories;
+    uchar has_categories;
     data.read(has_categories);
     
     if(!has_categories)
@@ -1379,6 +1482,8 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
     
     {
         std::lock_guard guard(mutex());
+        _labels.clear();
+        
         uint64_t N_labels;
         data.read(N_labels);
         
@@ -1398,6 +1503,8 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
     // read contents
     {
         std::unique_lock guard(cache_mutex());
+        _probability_cache.clear();
+        
         uint64_t N_frames;
         data.read(N_frames);
         
@@ -1417,6 +1524,46 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
                 
                 _probability_cache[Frame_t(frame)][bdx] = DataStore::label(lid);
             }
+        }
+    }
+    
+    {
+        std::unique_lock guard(range_mutex());
+        _ranged_labels.clear();
+        
+        uint64_t N_ranges;
+        data.read(N_ranges);
+        
+        RangedLabel ranged;
+        
+        for(uint64_t i=0; i<N_ranges; ++i) {
+            uint32_t start, end;
+            data.read(start);
+            data.read(end);
+            
+            ranged._range = FrameRange(Rangel(start, end));
+            
+            int labelid;
+            data.read(labelid);
+            ranged._label = DataStore::label(labelid);
+            
+            if(!ranged._label) {
+                Warning("Cannot find label %d.", labelid);
+            }
+            
+            // should probably check this always and fault gracefully on error since this is user input
+            assert(start <= end);
+            
+            ranged._blobs.clear();
+            ranged._blobs.reserve(end - start + 1);
+            
+            uint32_t bdx;
+            for(uint32_t j=start; j<=end; ++j) {
+                data.read(bdx);
+                ranged._blobs.push_back(bdx);
+            }
+            
+            _ranged_labels.emplace_back(std::move(ranged));
         }
     }
 }

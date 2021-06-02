@@ -69,8 +69,9 @@ namespace track {
         float tdelta;
         float local_tdelta;
         long_t previous_frame;
+        int current_category;
         //float size_average;
-        float head_distance;
+        //float head_distance;
         
         Match::prob_t speed;
         Match::prob_t time_probability;

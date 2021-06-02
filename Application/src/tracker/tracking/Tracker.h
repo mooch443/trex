@@ -99,7 +99,8 @@ CREATE_STRUCT(Settings,
   (bool, analysis_paused),
   (float, track_trusted_probability),
   (float, recognition_segment_add_factor),
-  (bool, output_interpolate_positions)
+  (bool, output_interpolate_positions),
+  (bool, track_consistent_categories)
 )
 
     class Tracker {

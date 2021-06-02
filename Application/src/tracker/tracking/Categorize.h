@@ -69,6 +69,25 @@ struct Probabilities {
     }
 };
 
+struct RangedLabel {
+    FrameRange _range;
+    Label::Ptr _label;
+    std::vector<uint32_t> _blobs;
+    
+    bool operator<(const Frame_t& other) const {
+        return _range.start() < other._frame;
+    }
+    bool operator>(const Frame_t& other) const {
+        return _range.start() > other._frame;
+    }
+    bool operator<(const RangedLabel& other) const {
+        return _range.start() < other._range.start() || (_range.start() == other._range.start() && _range.length() < other._range.length());
+    }
+    bool operator>(const RangedLabel& other) const {
+        return _range.start() > other._range.start() || (_range.start() == other._range.start() && _range.length() > other._range.length());
+    }
+};
+
 struct DataStore {
     static std::set<std::string> label_names();
     static std::mutex& mutex() {
@@ -76,6 +95,10 @@ struct DataStore {
         return _mutex;
     }
     static std::shared_mutex& cache_mutex() {
+        static std::shared_mutex _mutex;
+        return _mutex;
+    }
+    static std::shared_mutex& range_mutex() {
         static std::shared_mutex _mutex;
         return _mutex;
     }
@@ -113,13 +136,24 @@ struct DataStore {
     static Composition composition();
     static void clear();
     static Label::Ptr label(Frame_t, uint32_t);
+    //! does not lock the mutex (assumes it is locked)
+    static Label::Ptr _label_unsafe(Frame_t, uint32_t);
     static Label::Ptr label(Frame_t, const pv::CompressedBlob*);
+    //! does not lock the mutex (assumes it is locked)
+    static Label::Ptr _label_unsafe(Frame_t, const pv::CompressedBlob*);
     static void set_label(Frame_t idx, uint32_t bdx, const Label::Ptr& label);
+    static void _set_ranged_label_unsafe(RangedLabel&&);
+    static void set_ranged_label(RangedLabel&&);
+    static Label::Ptr ranged_label(Frame_t, uint32_t);
+    static Label::Ptr ranged_label(Frame_t, const pv::CompressedBlob&);
+    static Label::Ptr _ranged_label_unsafe(Frame_t, uint32_t);
     static Label::Ptr label_interpolated(Idx_t, Frame_t);
     static Label::Ptr label_interpolated(const Individual*, Frame_t);
     static Label::Ptr label_averaged(Idx_t, Frame_t);
     static Label::Ptr label_averaged(const Individual*, Frame_t);
     static void set_label(Frame_t, const pv::CompressedBlob*, const Label::Ptr&);
+    
+    static void reanalysed_from(Frame_t);
 };
 
 struct LearningTask {
@@ -134,6 +168,7 @@ struct LearningTask {
     Sample::Ptr sample;
     std::function<void(const LearningTask&)> callback;
     std::vector<float> result;
+    std::shared_ptr<Individual::SegmentInformation> segment;
     
     bool valid() const {
         return type != Type::Invalid;

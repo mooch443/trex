@@ -22,6 +22,7 @@
 #include <misc/CircularGraph.h>
 #include <misc/MemoryStats.h>
 #include <gui/WorkProgress.h>
+#include <tracking/Categorize.h>
 
 #ifndef NDEBUG
 //#define PAIRING_PRINT_STATS
@@ -3191,6 +3192,8 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
     }
     
     void Tracker::_remove_frames(long_t frameIndex) {
+        Categorize::DataStore::reanalysed_from(Frame_t(frameIndex));
+        
         LockGuard guard("_remove_frames("+Meta::toStr(frameIndex)+")");
         recognition_pool.wait();
         _thread_pool.wait();
