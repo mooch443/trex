@@ -118,9 +118,12 @@ namespace pv {
     };
 
     struct CompressedBlob {
+        constexpr static uint32_t invalid = std::numeric_limits<uint32_t>::max();
+        
         //! this represents parent_id (2^1), split (2^0) and tried_to_split (2^2)
         uint8_t status_byte;
-        long_t parent_id;
+        int32_t parent_id;
+        mutable uint32_t own_id = invalid;
         
         //! y of first position (everything is relative to this)
         uint16_t start_y;

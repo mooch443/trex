@@ -5,15 +5,19 @@ namespace pv {
     using namespace cmn;
 
     uint32_t CompressedBlob::blob_id() const {
-        auto bounds = calculate_bounds();
-        const auto center = bounds.pos() + bounds.size() * 0.5;
-        /*auto ptr = unpack();
-        auto id = pv::Blob::id_from_position(center);
-        if (ptr->blob_id() != id) {
-            Except("ID %d != %d", id, ptr->blob_id());
-        }*/
+        if(own_id == invalid) {
+            //auto bounds = calculate_bounds();
+            const auto center = lines.empty() ? Vec2() : Vec2(lines.front().x0(), start_y);//bounds.pos() + bounds.size() * 0.5;
+            /*auto ptr = unpack();
+            auto id = pv::Blob::id_from_position(center);
+            if (ptr->blob_id() != id) {
+                Except("ID %d != %d", id, ptr->blob_id());
+            }*/
+            
+            own_id = pv::Blob::id_from_position(center);
+        }
         
-        return pv::Blob::id_from_position(center);
+        return own_id;
     }
 
 bool Blob::operator!=(const pv::Blob& other) const {
@@ -233,7 +237,8 @@ static Callback callback;
         
         calculate_properties();
         
-        auto center = bounds().pos() + bounds().size() * 0.5;
+        const auto center = !_hor_lines || _hor_lines->empty() ? Vec2() : Vec2(_hor_lines->front().x0, _hor_lines->front().y);
+        //auto center = bounds().pos() + bounds().size() * 0.5;
         _blob_id = id_from_position(center);
     }
     
