@@ -1920,12 +1920,12 @@ std::tuple<prob_t, prob_t, prob_t> Individual::position_probability(const Indivi
 Individual::Probability Individual::probability(const IndividualCache& cache, long_t frameIndex, const pv::CompressedBlob& blob) const {
     if(FAST_SETTINGS(track_consistent_categories) && cache.current_category != -1) {
         auto l = Categorize::DataStore::ranged_label(Frame_t(frameIndex), blob);
-        if(identity().ID() == 38)
-            Warning("Frame %ld: blob %lu -> %s (%d) and previous is %d", frameIndex, blob.blob_id(), l ? l->name.c_str() : "N/A", l ? l->id : -1, cache.current_category);
+        //if(identity().ID() == 38)
+        //    Warning("Frame %ld: blob %lu -> %s (%d) and previous is %d", frameIndex, blob.blob_id(), l ? l->name.c_str() : "N/A", l ? l->id : -1, cache.current_category);
         if(l && l->id != -1) {
             if(l->id != cache.current_category) {
-                if(identity().ID() == 38)
-                    Warning("Frame %ld: current category does not match for blob %d", frameIndex, blob.blob_id());
+                //if(identity().ID() == 38)
+                 //   Warning("Frame %ld: current category does not match for blob %d", frameIndex, blob.blob_id());
                 return Probability{0, 0, 0, 0};
             }
         }

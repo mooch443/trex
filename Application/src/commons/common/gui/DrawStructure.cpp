@@ -130,6 +130,7 @@ namespace gui {
 
     void Dialog::set_custom_element(derived_ptr<Entangled> &&e) {
         _custom = std::move(e);
+        this->set_dirty();
     }
 
 void Dialog::set_closed() {

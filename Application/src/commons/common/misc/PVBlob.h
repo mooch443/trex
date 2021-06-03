@@ -18,11 +18,14 @@ namespace pv {
     struct CompressedBlob;
     
     class Blob : public cmn::Blob {
+    public:
+        constexpr static uint32_t invalid = std::numeric_limits<uint32_t>::max();
+        
     protected:
         GETTER_PTR(std::shared_ptr<const std::vector<uchar>>, pixels)
-        GETTER(bool, split)
-        GETTER(long_t, parent_id)
-        GETTER(uint32_t, blob_id)
+        GETTER_I(bool, split, false)
+        GETTER_I(long_t, parent_id, -1)
+        GETTER_I(uint32_t, blob_id, pv::Blob::invalid)
         GETTER_SETTER(bool, tried_to_split)
         
         float _recount;
@@ -72,7 +75,9 @@ namespace pv {
         bool operator!=(const pv::Blob& other) const;
         bool operator==(const pv::Blob& other) const;
         static cmn::Vec2 position_from_id(uint32_t id);
-        static uint32_t id_from_position(const cmn::Vec2&);
+        //static uint32_t id_from_position(const cmn::Vec2&);
+        static uint32_t id_from_blob(const pv::Blob&);
+        static uint32_t id_from_blob(const pv::CompressedBlob&);
         operator cmn::MetaObject() const override;
         
     protected:
@@ -118,12 +123,10 @@ namespace pv {
     };
 
     struct CompressedBlob {
-        constexpr static uint32_t invalid = std::numeric_limits<uint32_t>::max();
-        
         //! this represents parent_id (2^1), split (2^0) and tried_to_split (2^2)
         uint8_t status_byte;
         int32_t parent_id;
-        mutable uint32_t own_id = invalid;
+        mutable uint32_t own_id = pv::Blob::invalid;
         
         //! y of first position (everything is relative to this)
         uint16_t start_y;

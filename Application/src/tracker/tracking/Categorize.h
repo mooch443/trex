@@ -75,16 +75,16 @@ struct RangedLabel {
     std::vector<uint32_t> _blobs;
     
     bool operator<(const Frame_t& other) const {
-        return _range.start() < other._frame;
+        return _range.end() < other._frame;
     }
     bool operator>(const Frame_t& other) const {
-        return _range.start() > other._frame;
+        return _range.end() > other._frame;
     }
     bool operator<(const RangedLabel& other) const {
-        return _range.start() < other._range.start() || (_range.start() == other._range.start() && _range.length() < other._range.length());
+        return _range.end() < other._range.end();
     }
     bool operator>(const RangedLabel& other) const {
-        return _range.start() > other._range.start() || (_range.start() == other._range.start() && _range.length() > other._range.length());
+        return _range.end() > other._range.end();
     }
 };
 

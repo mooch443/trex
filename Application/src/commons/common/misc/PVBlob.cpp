@@ -5,16 +5,8 @@ namespace pv {
     using namespace cmn;
 
     uint32_t CompressedBlob::blob_id() const {
-        if(own_id == invalid) {
-            //auto bounds = calculate_bounds();
-            const auto center = lines.empty() ? Vec2() : Vec2(lines.front().x0(), start_y);//bounds.pos() + bounds.size() * 0.5;
-            /*auto ptr = unpack();
-            auto id = pv::Blob::id_from_position(center);
-            if (ptr->blob_id() != id) {
-                Except("ID %d != %d", id, ptr->blob_id());
-            }*/
-            
-            own_id = pv::Blob::id_from_position(center);
+        if(own_id == pv::Blob::invalid) {
+            own_id = pv::Blob::id_from_blob(*this);
         }
         
         return own_id;
@@ -236,10 +228,7 @@ static Callback callback;
 //#endif
         
         calculate_properties();
-        
-        const auto center = !_hor_lines || _hor_lines->empty() ? Vec2() : Vec2(_hor_lines->front().x0, _hor_lines->front().y);
-        //auto center = bounds().pos() + bounds().size() * 0.5;
-        _blob_id = id_from_position(center);
+        _blob_id = id_from_blob(*this);
     }
     
     void Blob::set_split(bool split, pv::BlobPtr parent) {
@@ -647,7 +636,7 @@ static Callback callback;
         uint32_t id = blob_id();
         //auto x = id >> 16;
         //auto y = id & 0x0000FFFF;
-        return Meta::toStr(id)+" "+Meta::toStr(center);
+        return Meta::toStr(id)+" "+Meta::toStr(center)+" "+Meta::toStr(_parent_id);
     }
     
     void Blob::add_offset(const cmn::Vec2 &off) {
@@ -656,8 +645,8 @@ static Callback callback;
         
         cmn::Blob::add_offset(off);
         
-        auto center = bounds().pos() + bounds().size() * 0.5;
-        _blob_id = id_from_position(center);
+        //auto center = bounds().pos() + bounds().size() * 0.5;
+        _blob_id = id_from_blob(*this);
     }
     
     void Blob::scale_coordinates(const cmn::Vec2 &scale) {
@@ -666,9 +655,33 @@ static Callback callback;
         
         add_offset(offset);
     }
-    
-    uint32_t Blob::id_from_position(const cmn::Vec2 &center) {
+
+    uint32_t id_from_position(const cmn::Vec2 &center) {
         return (uint32_t)( uint32_t((center.x))<<16 | uint32_t((center.y)) );
+    }
+
+    uint32_t Blob::id_from_blob(const pv::Blob &blob) {
+        if(!blob.lines() || blob.lines()->empty())
+            return pv::Blob::invalid;
+        
+        const auto start = Vec2(blob.lines()->front().x0,
+                                blob.lines()->front().y);
+        const auto end = Vec2(blob.lines()->back().x1,
+                              blob.lines()->size());
+        
+        return id_from_position(start + (end - start) * 0.5);
+    }
+
+    uint32_t Blob::id_from_blob(const pv::CompressedBlob &blob) {
+        if(blob.lines.empty())
+            return pv::Blob::invalid;
+        
+        const auto start = Vec2(blob.lines.front().x0(),
+                                blob.start_y);
+        const auto end = Vec2(blob.lines.back().x1(),
+                              blob.lines.size());
+        
+        return id_from_position(start + (end - start) * 0.5);
     }
     
     size_t Blob::memory_size() const {

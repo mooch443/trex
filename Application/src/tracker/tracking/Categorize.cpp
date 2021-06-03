@@ -257,27 +257,18 @@ Label::Ptr DataStore::ranged_label(Frame_t frame, const pv::CompressedBlob& blob
     return _ranged_label_unsafe(frame, blob.blob_id());
 }
 Label::Ptr DataStore::_ranged_label_unsafe(Frame_t frame, uint32_t bdx) {
-    auto eit = std::upper_bound(_ranged_labels.begin(), _ranged_labels.end(), frame, [](const Frame_t& frame, const RangedLabel& A) {
-        return A > frame;
-    });
+    auto eit = std::lower_bound(_ranged_labels.begin(), _ranged_labels.end(), frame);
     
-    if(eit != _ranged_labels.begin()) {
-        // returned first item that is greater than frame,
-        // now check how far back we can go:
-        --eit;
+    // returned first range which end()s after frame,
+    // now check how far back we can go:
+    for(; eit != _ranged_labels.end(); ++eit) {
+        if(eit->_range.start() > frame)
+            continue;
         
-        for(;; --eit) {
-            if(eit->_range.end() < frame)
-                break;
-            
-            // and see if it is in fact contained
-            if(eit->_range.contains(frame)) {
-                if(eit->_blobs.at(frame - eit->_range.start()) == bdx) //contains(it->_blobs, bdx))
-                    return eit->_label;
-            }
-            
-            if(eit == _ranged_labels.begin())
-                break;
+        // and see if it is in fact contained
+        if(eit->_range.contains(frame)) {
+            if(eit->_blobs.at(frame - eit->_range.start()) == bdx) //contains(it->_blobs, bdx))
+                return eit->_label;
         }
     }
     
@@ -2130,11 +2121,11 @@ void draw(gui::DrawStructure& base) {
                 asked = true;
                 
                 using namespace gui;
-                static Textfield textfield("W,S", Bounds(Size2(base.width() * base.scale().x * 0.4,33)));
+                static Layout::Ptr textfield;
                 
                 auto d = base.dialog([](Dialog::Result r){
                     if(r == Dialog::OKAY) {
-                        for(auto text : utils::split(textfield.text(), ',')) {
+                        for(auto text : utils::split(textfield.to<Textfield>()->text(), ',')) {
                             text = utils::trim(text);
                             if(!text.empty())
                                 DataStore::label(text.c_str()); // create labels
@@ -2143,10 +2134,9 @@ void draw(gui::DrawStructure& base) {
                     
                 }, "Please enter the categories (comma-separated), e.g.:\n<i>W,S</i> for categories <str>W</str> and <str>S</str>.", "Categorize", "Okay", "Cancel");
                 
-                d->set_custom_element(Layout::Make<Entangled>([](Entangled& e){
-                    e.advance_wrap(textfield);
-                }));
-                textfield.set_size(Size2(d->layout().width() * 0.75, 33));
+                textfield = Layout::Make<Textfield>("W,S", Bounds(Size2(d->layout().width() * 0.75,33)));
+                textfield->set_size(Size2(d->layout().width() * 0.75, 33));
+                d->set_custom_element(textfield);
                 d->layout().Layout::update_layout();
             }
             return;
