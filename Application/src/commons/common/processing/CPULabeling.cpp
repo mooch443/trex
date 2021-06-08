@@ -156,6 +156,10 @@ struct Source {
         return _row_offsets.size();
     }
     
+    bool empty() const {
+        return _row_offsets.empty();
+    }
+    
     void clear() {
         _pixels.clear();
         _lines.clear();
@@ -1025,6 +1029,9 @@ blobs_t run_fast(List_t* blobs)
 {
     blobs_t result;
     auto& source = blobs->source();
+    
+    if(source.empty())
+        return {};
     
     /**
      * SORT HORIZONTAL LINES INTO BLOBS
