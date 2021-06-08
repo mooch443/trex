@@ -146,14 +146,14 @@ Image::UPtr Recognition::calculate_diff_image_with_settings(const default_config
 #ifdef WIN32
         SetErrorMode(SEM_FAILCRITICALERRORS);
 #endif
-        file::Path path("trex_check_python");
-        std::string exec = path.str();
+#define CHECK_PYTHON_EXECUTABLE_NAME std::string("trex_check_python")
+        std::string exec;
 #ifdef WIN32
-        exec = path.add_extension("exe").str();
+        exec = file::Path(CHECK_PYTHON_EXECUTABLE_NAME).add_extension("exe").str();
 #elif __APPLE__
-        exec = "../MacOS/"+exec;
+        exec = "../MacOS/"+CHECK_PYTHON_EXECUTABLE_NAME;
 #else
-        exec = "./"+exec;
+        exec = "./"+CHECK_PYTHON_EXECUTABLE_NAME;
 #endif
         if ((SETTING(wd).value<file::Path>() / exec).exists()) {
             exec = (SETTING(wd).value<file::Path>() / exec).str();
@@ -165,13 +165,13 @@ Image::UPtr Recognition::calculate_diff_image_with_settings(const default_config
             Warning("Does not exist in working dir: '%S'", &exec);
 #if __APPLE__
             auto p = SETTING(wd).value<file::Path>();
-            p = p / ".." / ".." / ".." / path;
+            p = p / ".." / ".." / ".." / CHECK_PYTHON_EXECUTABLE_NAME;
             
             if(p.exists()) {
                 Debug("'%S' exists.", &p.str());
                 exec = p.str()+" 2> /dev/null";
             } else {
-                p = SETTING(wd).value<file::Path>() / path;
+                p = SETTING(wd).value<file::Path>() / CHECK_PYTHON_EXECUTABLE_NAME;
                 if(p.exists()) {
                     Debug("Pure '%S' exists.", &p.str());
                     exec = p.str()+" 2> /dev/null";
@@ -180,10 +180,12 @@ Image::UPtr Recognition::calculate_diff_image_with_settings(const default_config
                     auto conda_prefix = getenv("CONDA_PREFIX");
                     if(conda_prefix) {
                         Debug("Searching conda environment for trex_check_python... ('%s').", conda_prefix);
-                        p = file::Path(conda_prefix) / "usr" / "share" / "trex" / path;
+                        p = file::Path(conda_prefix) / "usr" / "share" / "trex" / CHECK_PYTHON_EXECUTABLE_NAME;
                         if(p.exists()) {
                             Debug("Found in conda environment '%s' at '%S'", conda_prefix, &p.str());
                             exec = p.str()+" 2> /dev/null";
+                        } else {
+                            Warning("Not found in conda environment '%s' at '%S'.", conda_prefix, &p.str());
                         }
                     }
                 }
