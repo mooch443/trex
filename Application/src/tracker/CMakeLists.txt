@@ -240,4 +240,4 @@ install(TARGETS ${targets}
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/fonts DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/html DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/gfx DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
-install(FILES ${CMAKE_SOURCE_DIR}/default.settings ${CMAKE_SOURCE_DIR}/learn_static.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
+install(FILES ${CMAKE_SOURCE_DIR}/default.settings ${CMAKE_SOURCE_DIR}/learn_static.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_learn_category.py DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
