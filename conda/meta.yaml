@@ -17,7 +17,7 @@ source:
 build:
     script_env:
       - GITHUB_WORKFLOW
-    number: 18
+    number: 19
     string: "{{ hash }}_{{ number }}"
     run_exports:
         - {{ pin_compatible('ffmpeg', min_pin='x.x.x', max_pin='x.x.x') }}
