@@ -181,13 +181,15 @@ Image::UPtr Recognition::calculate_diff_image_with_settings(const default_config
                     if(conda_prefix) {
                         Debug("Searching conda environment for trex_check_python... ('%s').", conda_prefix);
                         p = file::Path(conda_prefix) / "usr" / "share" / "trex" / CHECK_PYTHON_EXECUTABLE_NAME;
+                        Debug("Full path: '%S'", &p.str());
                         if(p.exists()) {
                             Debug("Found in conda environment '%s' at '%S'", conda_prefix, &p.str());
                             exec = p.str()+" 2> /dev/null";
                         } else {
                             Warning("Not found in conda environment '%s' at '%S'.", conda_prefix, &p.str());
                         }
-                    }
+                    } else
+                        Warning("No conda prefix.");
                 }
             }
 #endif
