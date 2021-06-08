@@ -100,6 +100,8 @@ namespace track {
         std::map<uint32_t, pv::BlobPtr> bdx_to_ptr;
         grid::ProximityGrid blob_grid;
         
+        int label(const pv::BlobPtr&) const;
+        
         PPFrame();
         ~PPFrame() {
         }
@@ -375,7 +377,7 @@ namespace track {
         const decltype(_identity)& identity() const { return _identity; }
         decltype(_identity)& identity() { return _identity; }
         
-        std::shared_ptr<BasicStuff> add(long_t frameIndex, const PPFrame& frame, pv::BlobPtr blob, Match::prob_t current_prob);
+        std::shared_ptr<BasicStuff> add(long_t frameIndex, const PPFrame& frame, const pv::BlobPtr& blob, Match::prob_t current_prob);
         void remove_frame(long_t frameIndex);
         void register_delete_callback(void* ptr, const std::function<void(Individual*)>& lambda);
         void unregister_delete_callback(void* ptr);
@@ -447,7 +449,7 @@ namespace track {
         };
         
         //! Calculates the probability for this fish to be at pixel-position in frame at time.
-        Probability probability(const IndividualCache& estimated_px, long_t frameIndex, const pv::CompressedBlob& blob) const;
+        Probability probability(int label, const IndividualCache& estimated_px, long_t frameIndex, const pv::CompressedBlob& blob) const;
         Probability probability(const IndividualCache& estimated_px, long_t frameIndex, const Vec2& position, size_t pixels) const;
         Match::prob_t time_probability(const IndividualCache& cache, long_t frameIndex, double time) const;
         //Match::PairingGraph::prob_t size_probability(const IndividualCache& cache, long_t frameIndex, size_t num_pixels) const;

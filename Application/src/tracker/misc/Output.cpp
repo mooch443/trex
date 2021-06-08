@@ -414,9 +414,9 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                     auto prop = new PhysicalProperties(fish, frameIndex, data.pos, data.angle, cache_ptr);
                     data.stuff->centroid = prop;
                     
-                    
+                    auto label = Categorize::DataStore::ranged_label(Frame_t(frameIndex), data.stuff->blob);
                     auto cache = fish->cache_for_frame(frameIndex, Tracker::properties(frameIndex, cache_ptr)->time, cache_ptr);
-                    auto p = fish->probability(cache, frameIndex, data.stuff->blob).p;
+                    auto p = fish->probability(label ? label->id : -1, cache, frameIndex, data.stuff->blob).p;
                     
                     auto segment = fish->update_add_segment(
                         frameIndex,

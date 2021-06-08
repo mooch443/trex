@@ -73,6 +73,7 @@ struct RangedLabel {
     FrameRange _range;
     Label::Ptr _label;
     std::vector<uint32_t> _blobs;
+    int32_t _maximum_frame_after = -1;
     
     bool operator<(const Frame_t& other) const {
         return _range.end() < other._frame;
@@ -99,6 +100,10 @@ struct DataStore {
         return _mutex;
     }
     static std::shared_mutex& range_mutex() {
+        static std::shared_mutex _mutex;
+        return _mutex;
+    }
+    static std::shared_mutex& frame_mutex() {
         static std::shared_mutex _mutex;
         return _mutex;
     }

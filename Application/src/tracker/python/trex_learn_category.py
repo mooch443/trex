@@ -271,10 +271,10 @@ class Categorize:
 def start():
     global categorize, categories, width, height, output_file
 
-    if type(categorize) == type(None):
+    if type(categorize) == type(None) or categorize.categories != categories:
         categorize = Categorize(width, height, categories, output_file)
 
-    TRex.log("# initialized.")
+    TRex.log("# initialized with categories"+str(categories)+".")
 
 def load():
     global categorize

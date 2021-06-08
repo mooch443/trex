@@ -1063,9 +1063,20 @@ void Fish::label(DrawStructure &base) {
         //auto raw_cat = Categorize::DataStore::label(Frame_t(_idx), blob);
         //auto cat = Categorize::DataStore::label_interpolated(_obj.identity().ID(), Frame_t(_idx));
         auto avg_cat = Categorize::DataStore::label_averaged(_obj.identity().ID(), Frame_t(_idx));
-        /*if (cat) {
-            secondary_text += std::string(" ") + (raw_cat ? "<b>" : "") + "<nr>" + cat->name + "</nr>" + (raw_cat ? "</b>" : "");
-        }*/
+        auto it = GUI::cache().processed_frame.cached_individuals.find(_obj.identity().ID());
+        if(it != GUI::cache().processed_frame.cached_individuals.end()) {
+            auto cat = it->second.current_category;
+            if(cat != -1) {
+                auto l = Categorize::DataStore::label(cat);
+                if(l)
+                    secondary_text += "<key>"+l->name+"</key>";
+            }
+        }
+        
+        auto cat = Categorize::DataStore::label(Frame_t(_idx), blob);
+        if (cat) {
+            secondary_text += std::string(" ") + (cat ? "<b>" : "") + "<i>" + cat->name + "</i>" + (cat ? "</b>" : "");
+        }
         
         if(avg_cat) {
             secondary_text += (avg_cat ? std::string(" ") : std::string()) + "<nr>" + avg_cat->name + "</nr>";

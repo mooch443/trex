@@ -3621,6 +3621,16 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                     else
                         ss << "</a>";
                     
+                    {
+                        auto label = Categorize::DataStore::ranged_label(Frame_t(cache().frame_idx), blob->blob_id());
+                        if(label) {
+                            ss << " <str>" << label->name << "</str>";
+                        }
+                        if(blob->parent_id() != -1 && (label = Categorize::DataStore::ranged_label(Frame_t(cache().frame_idx), blob->parent_id()))) {
+                            ss << " parent:<str>" << label->name << "</str>";
+                        }
+                    }
+                    
                     decltype(_blob_labels)::iterator it = _blob_labels.find(blob->blob_id());
                     if(it == _blob_labels.end()) {
                         if(!_unused_labels.empty()) {

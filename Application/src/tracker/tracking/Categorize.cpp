@@ -246,6 +246,15 @@ void DataStore::_set_ranged_label_unsafe(RangedLabel&& ranged)
     assert(ranged._range.length() == ranged._blobs.size());
     _ranged_labels.emplace_back(std::move(ranged));
     std::sort(_ranged_labels.begin(), _ranged_labels.end());
+    
+    auto m = _ranged_labels.back()._range.start();
+    for(auto it = _ranged_labels.rbegin(); it != _ranged_labels.rend(); ++it) {
+        if(it->_range.start() < m) {
+            m = it->_range.start();
+        }
+        
+        it->_maximum_frame_after = m;
+    }
 }
 
 Label::Ptr DataStore::ranged_label(Frame_t frame, uint32_t bdx) {
@@ -257,18 +266,22 @@ Label::Ptr DataStore::ranged_label(Frame_t frame, const pv::CompressedBlob& blob
     return _ranged_label_unsafe(frame, blob.blob_id());
 }
 Label::Ptr DataStore::_ranged_label_unsafe(Frame_t frame, uint32_t bdx) {
+    static const auto frame_rate = FAST_SETTINGS(frame_rate) * 10;
+    const auto mi = frame - frame_rate, ma = frame + frame_rate;
+    
     auto eit = std::lower_bound(_ranged_labels.begin(), _ranged_labels.end(), frame);
     
     // returned first range which end()s after frame,
     // now check how far back we can go:
     for(; eit != _ranged_labels.end(); ++eit) {
-        if(eit->_range.start() > frame)
-            continue;
+        if(frame < eit->_maximum_frame_after)
+            break;
         
         // and see if it is in fact contained
         if(eit->_range.contains(frame)) {
-            if(eit->_blobs.at(frame - eit->_range.start()) == bdx) //contains(it->_blobs, bdx))
+            if(eit->_blobs.at(frame - eit->_range.start()) == bdx) {
                 return eit->_label;
+            }
         }
     }
     
@@ -1143,6 +1156,14 @@ void Work::start_learning() {
             }*/
         };
         
+        Timer timer;
+        while(_labels.empty() && Work::_learning) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            if(timer.elapsed() >= 1) {
+                Warning("# Waiting for labels...");
+                timer.reset();
+            }
+        }
         reset_variables();
         
         Work::status() = "";

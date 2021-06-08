@@ -502,7 +502,7 @@ namespace gui {
             if(it != processed_frame.cached_individuals.end()) {
                 auto && [fdx, cache] = *it;
                 for(auto blob : processed_frame.blobs) {
-                    auto p = individuals.count(fdx) ? individuals.at(fdx)->probability(cache, frame_idx, blob) : Individual::Probability{0,0,0,0};
+                    auto p = individuals.count(fdx) ? individuals.at(fdx)->probability(processed_frame.label(blob), cache, frame_idx, blob) : Individual::Probability{0,0,0,0};
                     if(p.p >= FAST_SETTINGS(matching_probability_threshold))
                         probabilities[fdx][blob->blob_id()] = p;
                 }

@@ -28,6 +28,13 @@ using prob_t = track::Match::prob_t;
 
 PPFrame::PPFrame() : blob_grid(Tracker::average().bounds().size()) {}
 
+int PPFrame::label(const pv::BlobPtr& blob) const {
+    auto l = Categorize::DataStore::ranged_label(Frame_t(index()), blob->blob_id());
+    if(l)
+        return l->id;
+    return -1;
+}
+
 std::atomic<uint32_t> RUNNING_ID(0);
 
 void Identity::set_running_id(uint32_t value) { RUNNING_ID = value; }
@@ -937,7 +944,7 @@ void Individual::LocalCache::add(const std::shared_ptr<PostureStuff>& stuff) {
     }
 }
 
-std::shared_ptr<Individual::BasicStuff> Individual::add(long_t frameIndex, const PPFrame& frame, pv::BlobPtr blob, prob_t current_prob) {
+std::shared_ptr<Individual::BasicStuff> Individual::add(long_t frameIndex, const PPFrame& frame, const pv::BlobPtr& blob, prob_t current_prob) {
     if (has(frameIndex))
         return nullptr;
     
@@ -997,7 +1004,7 @@ std::shared_ptr<Individual::BasicStuff> Individual::add(long_t frameIndex, const
     //stuff->weighted_centroid = new PhysicalProperties(prev_props, time, centroid_point, current->angle());
     //push_to_segments(frameIndex, prev_frame);
     
-    auto p = current_prob != -1 || frame.cached_individuals.find(identity().ID()) == frame.cached_individuals.end() ? current_prob : probability(frame.cached_individuals.at(identity().ID()), frameIndex, stuff->blob).p;
+    auto p = current_prob != -1 || frame.cached_individuals.find(identity().ID()) == frame.cached_individuals.end() ? current_prob : probability(frame.label(blob), frame.cached_individuals.at(identity().ID()), frameIndex, stuff->blob).p;
     auto segment = update_add_segment(frameIndex, current, prev_frame, &stuff->blob, p);
     
     // add BasicStuff index to segment
@@ -1658,7 +1665,7 @@ IndividualCache Individual::cache_for_frame(long_t frameIndex, double time, cons
     
     if(FAST_SETTINGS(track_consistent_categories)) {
         std::shared_lock guard(Categorize::DataStore::range_mutex());
-        iterate_frames(Rangel(max(_startFrame, cache.previous_frame - FAST_SETTINGS(frame_rate) * 5), cache.previous_frame), [&labels, &samples, &guard](auto frame, auto&, auto& basic, auto&) -> bool
+        iterate_frames(Rangel(max(_startFrame, cache.previous_frame - FAST_SETTINGS(frame_rate) * 2), cache.previous_frame), [&labels, &samples, &guard](auto frame, auto&, auto& basic, auto&) -> bool
         {
             auto label = Categorize::DataStore::_ranged_label_unsafe(Frame_t(frame), basic->blob.blob_id());
             if(label) {
@@ -1917,13 +1924,13 @@ std::tuple<prob_t, prob_t, prob_t> Individual::position_probability(const Indivi
     return max(0.5, 1 - 0.25 * (SQR(cmn::abs(min(2, num_pixels / cache.size_average) - 1))));
 }*/
 
-Individual::Probability Individual::probability(const IndividualCache& cache, long_t frameIndex, const pv::CompressedBlob& blob) const {
+Individual::Probability Individual::probability(int label, const IndividualCache& cache, long_t frameIndex, const pv::CompressedBlob& blob) const {
     if(FAST_SETTINGS(track_consistent_categories) && cache.current_category != -1) {
-        auto l = Categorize::DataStore::ranged_label(Frame_t(frameIndex), blob);
+        //auto l = Categorize::DataStore::ranged_label(Frame_t(frameIndex), blob);
         //if(identity().ID() == 38)
         //    Warning("Frame %ld: blob %lu -> %s (%d) and previous is %d", frameIndex, blob.blob_id(), l ? l->name.c_str() : "N/A", l ? l->id : -1, cache.current_category);
-        if(l && l->id != -1) {
-            if(l->id != cache.current_category) {
+        if(label != -1) {
+            if(label != cache.current_category) {
                 //if(identity().ID() == 38)
                  //   Warning("Frame %ld: current category does not match for blob %d", frameIndex, blob.blob_id());
                 return Probability{0, 0, 0, 0};

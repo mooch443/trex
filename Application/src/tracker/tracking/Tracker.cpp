@@ -2240,12 +2240,15 @@ void Tracker::clear_properties() {
             }
             
             // Create Individuals for unassigned blobs
-            static std::vector<pv::BlobPtr> unassigned_blobs;
+            static std::vector<std::tuple<pv::BlobPtr, int>> unassigned_blobs;
             unassigned_blobs.clear();
+            unassigned_blobs.reserve(frame.blobs.size());
             
             for(auto &p : frame.blobs) {
-                if(!blob_assigned[p.get()])
-                    unassigned_blobs.push_back(p);
+                if(!blob_assigned[p.get()]) {
+                    auto label = Categorize::DataStore::ranged_label(Frame_t(frameIndex), p->blob_id());
+                    unassigned_blobs.push_back(std::make_tuple(p, label ? label->id : -1));
+                }
             }
             
             size_t last = unassigned_individuals.size() % concurrentThreadsSupported;
@@ -2271,8 +2274,8 @@ void Tracker::clear_properties() {
                     
                     auto &cache = frame.cached_individuals.at(fish->identity().ID());
 
-                    for (auto &blob: unassigned_blobs) {
-                        auto p = fish->probability(cache, frameIndex, blob).p;//blob->center(), blob->num_pixels()).p;
+                    for (auto &[blob, label]: unassigned_blobs) {
+                        auto p = fish->probability(label, cache, frameIndex, blob).p;//blob->center(), blob->num_pixels()).p;
 
                         // discard elements with probabilities that are too low
                         if (p <= FAST_SETTINGS(matching_probability_threshold))
