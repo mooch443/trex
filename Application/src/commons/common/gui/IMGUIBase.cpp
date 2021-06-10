@@ -484,8 +484,10 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
         
         if(!_platform->window_handle())
             _platform->create_window(title.c_str(), width, height);
-        else
+        else {
             glfwSetWindowSize(_platform->window_handle(), width, height);
+            set_title(title);
+        }
         
         glfwSetWindowPos(_platform->window_handle(), mx + (mw - width) / 2, my + (mh - height) / 2);
         
@@ -524,31 +526,33 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
         glfwGetFramebufferSize(_platform->window_handle(), &fw, &fh);
         _last_framebuffer_size = Size2(fw, fh).mul(_dpi_scale);
         
-        ImFontConfig config;
-        config.OversampleH = 3;
-        config.OversampleV = 1;
-        
-        auto load_font = [&](int no, std::string suffix) {
-            config.FontNo = no;
-            if(no > 0)
-                config.MergeMode = false;
-            
-            auto full = path.str() + suffix + ".ttf";
-            auto ptr = io.Fonts->AddFontFromFileTTF(full.c_str(), base_scale * im_font_scale, &config);
-            if (!ptr) {
-                Warning("Cannot load font '%S' with index %d.", &path.str(), config.FontNo);
-                ptr = io.Fonts->AddFontDefault();
-                im_font_scale = max(1, dpi_scale) * 0.5f;
-            }
-            ptr->FontSize = base_scale * im_font_scale;
-            
-            return ptr;
-        };
-        
-        _fonts[Style::Regular] = load_font(0, "");
-        _fonts[Style::Italic] = load_font(0, "i");
-        _fonts[Style::Bold] = load_font(0, "b");
-        _fonts[Style::Bold | Style::Italic] = load_font(0, "bi");
+        if (!_fonts[Style::Regular]) {
+            ImFontConfig config;
+            config.OversampleH = 3;
+            config.OversampleV = 1;
+
+            auto load_font = [&](int no, std::string suffix) {
+                config.FontNo = no;
+                if (no > 0)
+                    config.MergeMode = false;
+
+                auto full = path.str() + suffix + ".ttf";
+                auto ptr = io.Fonts->AddFontFromFileTTF(full.c_str(), base_scale * im_font_scale, &config);
+                if (!ptr) {
+                    Warning("Cannot load font '%S' with index %d.", &path.str(), config.FontNo);
+                    ptr = io.Fonts->AddFontDefault();
+                    im_font_scale = max(1, dpi_scale) * 0.5f;
+                }
+                ptr->FontSize = base_scale * im_font_scale;
+
+                return ptr;
+            };
+
+            _fonts[Style::Regular] = load_font(0, "");
+            _fonts[Style::Italic] = load_font(0, "i");
+            _fonts[Style::Bold] = load_font(0, "b");
+            _fonts[Style::Bold | Style::Italic] = load_font(0, "bi");
+        }
         
         _platform->post_init();
         _platform->set_title(title);

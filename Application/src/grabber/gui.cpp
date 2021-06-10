@@ -71,6 +71,7 @@ void GUI::set_base(gui::Base *base) {
     _sf_base = base;
     
     if(base) {
+        SETTING(gui_interface_scale) = float(1);
         _crop_offsets = (SETTING(crop_offsets).value<CropOffsets>());
         _size = cv::Size(_grabber.cam_size().width, _grabber.cam_size().height);
         _cropped_size = (_grabber.cropped_size());
@@ -193,274 +194,311 @@ void GUI::draw(gui::DrawStructure &base) {
     static Timer last_frame_time;
     static ExternalImage *background = NULL;
     
-    gui::DrawStructure::SectionGuard guard(base, "draw()");
-    
-    float tdelta = last_frame_time.elapsed();
-    last_frame_time.reset();
-    
-    //static cv::Rect2f raw_offsets = SETTING(crop_offsets);
-    static Vec2 offset(0, 0);//(_size.width * (raw_offsets.x + raw_offsets.width) / 2,
-                      // _size.height * (raw_offsets.y + raw_offsets.height) / 2);
-    
     {
-        auto frame = _grabber.last_frame();
-        auto image = _grabber.latest_image();
-        auto noise = _grabber.noise();
-        
+        gui::DrawStructure::SectionGuard guard(base, "draw()");
+        if (_sf_base) {
+            Size2 size(_gui.width(), _gui.height());
+            float scale = min(size.width / float(_cropped_size.width),
+                size.height / float(_cropped_size.height));
+            guard._section->set_scale(Vec2(scale).div(base.scale()));//.div();
+        }
+
+        float tdelta = last_frame_time.elapsed();
+        last_frame_time.reset();
+
+        //static cv::Rect2f raw_offsets = SETTING(crop_offsets);
+        static Vec2 offset(0, 0);//(_size.width * (raw_offsets.x + raw_offsets.width) / 2,
+                          // _size.height * (raw_offsets.y + raw_offsets.height) / 2);
+
+        {
+            auto frame = _grabber.last_frame();
+            auto image = _grabber.latest_image();
+            auto noise = _grabber.noise();
+
 #ifndef NDEBUG
-        static long last_index = -1;
-        if(image && image->index() < last_index)
-            Warning("Last index = %d and current = %d", last_index, image->index());
+            static long last_index = -1;
+            if (image && image->index() < last_index)
+                Warning("Last index = %d and current = %d", last_index, image->index());
 #endif
-        
-        if(frame)
-            _frame = std::move(frame);
-        if(image)
-            _image = Image::Make(*image);
-        if(noise)
-            _noise = std::move(noise);
-    }
-    
-    if(_grabber.average_finished()) {
-        if(_frame && _image) {
-            //float scale = SETTING(web_quality).value<int>() / 100.f;
-            float scale = 1;
-            
-            /*static cv::Mat mat;
-            if(mat.empty() || (uint)mat.rows != _image->rows || (uint)mat.cols != _image->cols)
-                mat = cv::Mat::zeros(_image->rows, _image->cols, CV_8UC1);
-            _image->get(mat);
-            
-            static cv::Mat resized;
-            
-            resize_image(mat, resized, scale);*/
-            /*if(dynamic_cast<HTMLBase*>(&base)) {
-                scale = 0.25;
-                resize_image(mat, scale);
-            }*/
-            
-            //static cv::Mat convert;
-            //cv::cvtColor(resized, convert, cv::COLOR_GRAY2RGBA);
-            //setAlpha(convert, 255);
-            
-            //tf::imshow("image", _image->get());
-            
-            /*if (_noise) {
-                for (int i=0; i<_noise->n(); i++) {
-                    auto &m = _noise->mask().at(i);
-                    
-                    for (auto &line : *m) {
-                        for (ushort x=line.x0; x<=line.x1; x++) {
-                            convert.at<cv::Vec4b>(line.y*scale, x*scale) = cv::Vec4b(255, 0, 255, 255);
-                        }
-                    }
-                }
-            }*/
-            
-            if(!background || background->source()->cols != uint(_image->cols) || background->source()->rows != uint(_image->rows))
-            {
-                if(background) {
-                    background->set_source(std::move(_image));
-                    background->set_pos(offset);
-                    background->set_scale(Vec2(1 / scale));
-                } else
-                    background = new ExternalImage(std::move(_image), offset, Vec2(1/scale));
-            } else {
-                background->set_scale(Vec2(1 / scale));
-                background->set_source(std::move(_image));
-            }
+
+            if (frame)
+                _frame = std::move(frame);
+            if (image)
+                _image = Image::Make(*image);
+            if (noise)
+                _noise = std::move(noise);
         }
-        
-        if(background)
-            base.wrap_object(*background);
-        //base.image(offset, convert, 1/scale);
-        
-        if(_frame) {
-            gui::DrawStructure::SectionGuard guard(base, "blobs");
-            ColorWheel wheel;
-            static cv::Mat output;
-            static StaticBackground bg(Image::Make(_grabber.average()), nullptr);
-            for (size_t i=0; i<_frame->mask().size(); i++) {
-                auto &m = _frame->mask().at(i);
-                if(m->empty())
-                    continue;
-                
-                pv::Blob blob(m, _frame->pixels().at(i));
-                auto && [pos, image] = blob.alpha_image(bg, 0);
-                
-                /*auto clr = wheel.next().alpha((_pulse * 0.6 + 0.2) * 255);
-                cv::cvtColor(output, output, cv::COLOR_GRAY2RGBA);
-                
-                for (cv::Mat4b::iterator it = output.begin<cv::Vec4b>(); it != output.end<cv::Vec4b>(); it++)
-                {
-                    if((*it)[0] || (*it)[1] || (*it)[2]) {
-                        (*it)[0] = clr.r;
-                        (*it)[1] = clr.g;
-                        (*it)[2] = clr.b;
-                        (*it)[3] = 255;
-                    } else
-                        (*it)[3] = 0;
-                }*/
-                
-                base.rect(pos + offset, image->bounds().size(), Transparent, Red);
-                //base.image(pos + offset, std::move(image), Vec2(1.0), wheel.next().alpha(50));
-                base.text(Meta::toStr(i), pos + offset, Yellow, 0.5, base.scale().reciprocal());
-            }
-        }
-        
-        if(!_grabber.is_recording()) {
-            base.text("waiting for commands", Vec2(_size.width/2, _size.height/2), Red, Font(0.8, Align::Center), base.scale().reciprocal());
-            base.rect(Vec2(8, 14), Vec2(7,7), White.alpha(125), Black.alpha(125));
-        } else {
-            const float speed = 0.5;
-            if(_record_direction) {
-                _record_alpha += speed * tdelta;
-            } else {
-                _record_alpha -= speed * tdelta;
-            }
-            
-            if (_record_alpha >= 1) {
-                _record_alpha = 1;
-                _record_direction = !_record_direction;
-            } else if(_record_alpha <= 0) {
-                _record_alpha = 0;
-                _record_direction = !_record_direction;
-            }
-            
-            float alpha = min(0.8f, max(0.25f, _record_alpha));
-            if(_grabber.is_paused()) {
-                base.rect(Vec2(8, 14).div(base.scale()), Vec2(2,7).div(base.scale()), White.alpha(alpha * 255), Black.alpha(alpha * 255));
-                base.rect(Vec2(12, 14).div(base.scale()), Vec2(2,7).div(base.scale()), White.alpha(255 * alpha), Black.alpha(255 * alpha));
-                
-            } else {
-                auto circle = new Circle(Vec2(12, 18).div(base.scale()), 3, Black.alpha(255 * alpha), Black.alpha(255 * alpha));
-                circle->set_scale(base.scale().reciprocal());
-                base.add_object(circle);
-            }
-        }
-        
-    } else {
-        if(!_grabber.average_finished()) {
-            if(_image) {
-                cv::Mat mat = _image->get();
-                
+
+        auto scale = guard._section->scale().mul(base.scale()).reciprocal();
+
+        if (_grabber.average_finished()) {
+            if (_frame && _image) {
+                //float scale = SETTING(web_quality).value<int>() / 100.f;
                 float scale = 1;
-                
-                static cv::Mat convert;
-                cv::cvtColor(mat, convert, cv::COLOR_GRAY2RGBA);
-                
-                if(!background) {
-                    background = new ExternalImage(Image::Make(convert), offset, Vec2(1/scale));
-                } else {
-                    if(background->source()->rows != (uint)convert.rows || background->source()->cols != (uint)convert.cols) {
-                        background->set_source(Image::Make(convert));
-                    } else
-                        background->set_source(Image::Make(convert));
-                    background->set_dirty();
-                }
-                
-                base.wrap_object(*background);
-            }
-            
-            base.text("generating average ("+std::to_string(_grabber.average_samples())+"/"+std::to_string(SETTING(average_samples).value<uint32_t>())+")", Vec2(_size.width/2, _size.height/2), Red, Font(0.8f, Align::Center), base.scale().reciprocal());
-        } else {
-            base.text("waiting for frame...", Vec2(_size.width/2, _size.height/2), Red, Font(0.8f, Align::Center), base.scale().reciprocal());
-        }
-    }
-    
-    Color text_color(255, 255, 255, 255);
-    if(_image && _image->cols > 20 && _image->rows > 20) {
-        cv::Mat tmp = _image->get();
-        double val = 0;
-        size_t samples = 0;
-        for (int i=0; i<100; i+=10) {
-            for (int j=0; j<20; j+=4) {
-                val += tmp.at<uchar>(j, i);
-                samples++;
-            }
-        }
-        val /= samples;
-        
-        if(val < 150) {
-            text_color = White;
-        } else {
-            text_color = Black;
-        }
-    }
-    base.text(info_text(), Vec2(20, 10), text_color, Font(0.7f), base.scale().reciprocal());
-    
-    auto scale = base.scale().reciprocal();
-    auto dim = _sf_base ? _sf_base->window_dimensions().mul(scale * gui::interface_scale()) : Size2(_grabber.average());
-    base.draw_log_messages(Bounds(Vec2(0, 85).mul(scale * gui::interface_scale()), dim - Size2(0, 85).mul(scale * gui::interface_scale())));
-    //base.draw_log_messages();
-    
-    if(_grabber.tracker_instance()) {
-        base.section("tracking", [this](gui::DrawStructure& base, Section*section) {
-            track::Tracker::LockGuard guard("drawing", 100);
-            if(!guard.locked()) {
-                section->reuse_objects();
-                return;
-            }
-            
-            using namespace track;
-            auto tracker = _grabber.tracker_instance();
-            auto individuals = tracker->active_individuals();
-            for(auto &fish :individuals) {
-                if(fish->has(tracker->end_frame())) {
-                    auto stuff = fish->basic_stuff(tracker->end_frame());
-                    
-                    std::vector<Vec2> positions;
-                    fish->iterate_frames(Rangel(tracker->end_frame()-100, tracker->end_frame()), [&](long_t frame, const std::shared_ptr<Individual::SegmentInformation> & segment, const std::shared_ptr<Individual::BasicStuff> & basic, const std::shared_ptr<Individual::PostureStuff> & posture) -> bool
-                    {
-                        if(basic) {
-                            auto bounds = basic->blob.calculate_bounds();
-                            positions.push_back(bounds.pos() + bounds.size() * 0.5);
-                            if(frame == tracker->end_frame()) {
-                                base.circle(positions.back(), 10, fish->identity().color());
-                                //auto cache = fish->cache_for_frame(frame, tracker->properties(frame)->time);
-                                //base.text(Meta::toStr(fish->probability(cache, frame, basic->blob).p), positions.back() - Vec2(0, -100));
-                                
-                                if(posture) {
-                                    std::vector<Vertex> oline;
-                                    auto _cached_outline = posture->outline;
-                                    auto _cached_midline = posture->cached_pp_midline;
-                                    auto clr = fish->identity().color();
-                                    auto max_color = 255;
-                                    auto points = _cached_outline->uncompress();
-                                    
-                                    // check if we actually have a tail index
-                                    if (SETTING(gui_show_midline) && _cached_midline && _cached_midline->tail_index() != -1) {
-                                        base.circle(points.at(_cached_midline->tail_index()) + bounds.pos(), 5, Blue.alpha(max_color * 0.3));
-                                        if(_cached_midline->head_index() != -1)
-                                            base.circle(points.at(_cached_midline->head_index()) + bounds.pos(), 5, Red.alpha(max_color * 0.3));
-                                    }
-                                    
-                                    //float right_side = outline->tail_index() + 1;
-                                    //float left_side = points.size() - outline->tail_index();
-                                    
-                                    for(size_t i=0; i<points.size(); i++) {
-                                        auto pt = points[i] + bounds.pos();
-                                        Color c = clr.alpha(max_color);
-                                        /*if(outline->tail_index() != -1) {
-                                            float d = cmn::abs(float(i) - float(outline->tail_index())) / ((long_t)i > outline->tail_index() ? left_side : right_side) * 0.4 + 0.5;
-                                            c = Color(clr.r, clr.g, clr.b, max_color * d);
-                                        }*/
-                                        oline.push_back(Vertex(pt, c));
-                                    }
-                                    oline.push_back(Vertex(points.front() + bounds.pos(), clr.alpha(0.04 * max_color)));
-                                    //auto line =
-                                    base.add_object(new Line(oline, SETTING(gui_outline_thickness).value<size_t>()));
-                                }
+
+                /*static cv::Mat mat;
+                if(mat.empty() || (uint)mat.rows != _image->rows || (uint)mat.cols != _image->cols)
+                    mat = cv::Mat::zeros(_image->rows, _image->cols, CV_8UC1);
+                _image->get(mat);
+
+                static cv::Mat resized;
+
+                resize_image(mat, resized, scale);*/
+                /*if(dynamic_cast<HTMLBase*>(&base)) {
+                    scale = 0.25;
+                    resize_image(mat, scale);
+                }*/
+
+                //static cv::Mat convert;
+                //cv::cvtColor(resized, convert, cv::COLOR_GRAY2RGBA);
+                //setAlpha(convert, 255);
+
+                //tf::imshow("image", _image->get());
+
+                /*if (_noise) {
+                    for (int i=0; i<_noise->n(); i++) {
+                        auto &m = _noise->mask().at(i);
+
+                        for (auto &line : *m) {
+                            for (ushort x=line.x0; x<=line.x1; x++) {
+                                convert.at<cv::Vec4b>(line.y*scale, x*scale) = cv::Vec4b(255, 0, 255, 255);
                             }
                         }
-                        return true;
-                    });
-                    
-                    base.line(positions, 2, fish->identity().color());
+                    }
+                }*/
+
+                if (!background || background->source()->cols != uint(_image->cols) || background->source()->rows != uint(_image->rows))
+                {
+                    if (background) {
+                        background->set_source(std::move(_image));
+                        background->set_pos(offset);
+                        background->set_scale(Vec2(1 / scale));
+                    }
+                    else
+                        background = new ExternalImage(std::move(_image), offset, Vec2(1 / scale));
+                }
+                else {
+                    background->set_scale(Vec2(1 / scale));
+                    background->set_source(std::move(_image));
                 }
             }
-        });
+
+            if (background)
+                base.wrap_object(*background);
+            //base.image(offset, convert, 1/scale);
+
+            if (_frame) {
+                gui::DrawStructure::SectionGuard guard(base, "blobs");
+                ColorWheel wheel;
+                static cv::Mat output;
+                static StaticBackground bg(Image::Make(_grabber.average()), nullptr);
+                for (size_t i = 0; i < _frame->mask().size(); i++) {
+                    auto& m = _frame->mask().at(i);
+                    if (m->empty())
+                        continue;
+
+                    pv::Blob blob(m, _frame->pixels().at(i));
+                    auto&& [pos, image] = blob.alpha_image(bg, 0);
+
+                    /*auto clr = wheel.next().alpha((_pulse * 0.6 + 0.2) * 255);
+                    cv::cvtColor(output, output, cv::COLOR_GRAY2RGBA);
+
+                    for (cv::Mat4b::iterator it = output.begin<cv::Vec4b>(); it != output.end<cv::Vec4b>(); it++)
+                    {
+                        if((*it)[0] || (*it)[1] || (*it)[2]) {
+                            (*it)[0] = clr.r;
+                            (*it)[1] = clr.g;
+                            (*it)[2] = clr.b;
+                            (*it)[3] = 255;
+                        } else
+                            (*it)[3] = 0;
+                    }*/
+
+                    base.rect(pos + offset, image->bounds().size(), Transparent, Red);
+                    //base.image(pos + offset, std::move(image), Vec2(1.0), wheel.next().alpha(50));
+                    base.text(Meta::toStr(i), pos + offset, Yellow, 0.5, scale);
+                }
+            }
+
+            if (!_grabber.is_recording()) {
+                base.text("waiting for commands", Vec2(_size.width / 2, _size.height / 2), Red, Font(0.8, Align::Center), scale);
+                base.rect(Vec2(8, 14), Vec2(7, 7), White.alpha(125), Black.alpha(125));
+            }
+            else {
+                const float speed = 0.5;
+                if (_record_direction) {
+                    _record_alpha += speed * tdelta;
+                }
+                else {
+                    _record_alpha -= speed * tdelta;
+                }
+
+                if (_record_alpha >= 1) {
+                    _record_alpha = 1;
+                    _record_direction = !_record_direction;
+                }
+                else if (_record_alpha <= 0) {
+                    _record_alpha = 0;
+                    _record_direction = !_record_direction;
+                }
+
+                float alpha = min(0.8f, max(0.25f, _record_alpha));
+                if (_grabber.is_paused()) {
+                    base.rect(Vec2(8, 14).mul(scale), Vec2(2, 7).mul(scale), White.alpha(alpha * 255), Black.alpha(alpha * 255));
+                    base.rect(Vec2(12, 14).mul(scale), Vec2(2, 7).mul(scale), White.alpha(255 * alpha), Black.alpha(255 * alpha));
+
+                }
+                else {
+                    auto circle = new Circle(Vec2(12, 18).mul(scale), 5, Black.alpha(255 * alpha), Black.alpha(255 * alpha));
+                    circle->set_scale(scale);
+                    circle->set_origin(Vec2(0.5));
+                    base.add_object(circle);
+                }
+            }
+
+        }
+        else {
+            if (!_grabber.average_finished()) {
+                if (_image) {
+                    cv::Mat mat = _image->get();
+
+                    float scale = 1;
+
+                    static cv::Mat convert;
+                    cv::cvtColor(mat, convert, cv::COLOR_GRAY2RGBA);
+
+                    if (!background) {
+                        background = new ExternalImage(Image::Make(convert), offset, Vec2(1 / scale));
+                    }
+                    else {
+                        if (background->source()->rows != (uint)convert.rows || background->source()->cols != (uint)convert.cols) {
+                            background->set_source(Image::Make(convert));
+                        }
+                        else
+                            background->set_source(Image::Make(convert));
+                        background->set_dirty();
+                    }
+
+                    base.wrap_object(*background);
+                }
+
+                base.text("generating average (" + std::to_string(_grabber.average_samples()) + "/" + std::to_string(SETTING(average_samples).value<uint32_t>()) + ")", Vec2(_size.width / 2, _size.height / 2), Red, Font(0.8f, Align::Center), base.scale().reciprocal());
+            }
+            else {
+                base.text("waiting for frame...", Vec2(_size.width / 2, _size.height / 2), Red, Font(0.8f, Align::Center), base.scale().reciprocal());
+            }
+        }
+
+        Color text_color(255, 255, 255, 255);
+        if (_image && _image->cols > 20 && _image->rows > 20) {
+            cv::Mat tmp = _image->get();
+            double val = 0;
+            size_t samples = 0;
+            for (int i = 0; i < 100; i += 10) {
+                for (int j = 0; j < 20; j += 4) {
+                    val += tmp.at<uchar>(j, i);
+                    samples++;
+                }
+            }
+            val /= samples;
+
+            if (val < 150) {
+                text_color = White;
+            }
+            else {
+                text_color = Black;
+            }
+        }
+
+        static Text text("Test", Vec2(), text_color, Font(0.75, Align::VerticalCenter)), 
+                    text_shadow("", Vec2(), Color(), Font(0.75, Align::VerticalCenter));
+        text.set_pos(Vec2(25, 17).mul(scale));
+        text.set_scale(scale);
+        text.set_txt(info_text());
+        text.set_color(text_color);
+
+        text_shadow.set_pos(Vec2(26, 18).mul(scale));
+        text_shadow.set_scale(scale);
+        text_shadow.set_txt(text.txt());
+        text_shadow.set_color(Black);
+        base.wrap_object(text_shadow);
+        base.wrap_object(text);
+        //base.text(info_text(), Vec2(150, 150), Red, Font(2));//, base.scale().reciprocal());
+
+        //base.draw_log_messages();
+
+        if (_grabber.tracker_instance()) {
+            base.section("tracking", [this](gui::DrawStructure& base, Section* section) {
+                track::Tracker::LockGuard guard("drawing", 100);
+                if (!guard.locked()) {
+                    section->reuse_objects();
+                    return;
+                }
+
+                using namespace track;
+                auto tracker = _grabber.tracker_instance();
+                auto individuals = tracker->active_individuals();
+                for (auto& fish : individuals) {
+                    if (fish->has(tracker->end_frame())) {
+                        auto stuff = fish->basic_stuff(tracker->end_frame());
+
+                        std::vector<Vec2> positions;
+                        fish->iterate_frames(Rangel(tracker->end_frame() - 100, tracker->end_frame()), [&](long_t frame, const std::shared_ptr<Individual::SegmentInformation>& segment, const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture) -> bool
+                            {
+                                if (basic) {
+                                    auto bounds = basic->blob.calculate_bounds();
+                                    positions.push_back(bounds.pos() + bounds.size() * 0.5);
+                                    if (frame == tracker->end_frame()) {
+                                        base.circle(positions.back(), 10, fish->identity().color());
+                                        //auto cache = fish->cache_for_frame(frame, tracker->properties(frame)->time);
+                                        //base.text(Meta::toStr(fish->probability(cache, frame, basic->blob).p), positions.back() - Vec2(0, -100));
+
+                                        if (posture) {
+                                            std::vector<Vertex> oline;
+                                            auto _cached_outline = posture->outline;
+                                            auto _cached_midline = posture->cached_pp_midline;
+                                            auto clr = fish->identity().color();
+                                            auto max_color = 255;
+                                            auto points = _cached_outline->uncompress();
+
+                                            // check if we actually have a tail index
+                                            if (SETTING(gui_show_midline) && _cached_midline && _cached_midline->tail_index() != -1) {
+                                                base.circle(points.at(_cached_midline->tail_index()) + bounds.pos(), 5, Blue.alpha(max_color * 0.3));
+                                                if (_cached_midline->head_index() != -1)
+                                                    base.circle(points.at(_cached_midline->head_index()) + bounds.pos(), 5, Red.alpha(max_color * 0.3));
+                                            }
+
+                                            //float right_side = outline->tail_index() + 1;
+                                            //float left_side = points.size() - outline->tail_index();
+
+                                            for (size_t i = 0; i < points.size(); i++) {
+                                                auto pt = points[i] + bounds.pos();
+                                                Color c = clr.alpha(max_color);
+                                                /*if(outline->tail_index() != -1) {
+                                                    float d = cmn::abs(float(i) - float(outline->tail_index())) / ((long_t)i > outline->tail_index() ? left_side : right_side) * 0.4 + 0.5;
+                                                    c = Color(clr.r, clr.g, clr.b, max_color * d);
+                                                }*/
+                                                oline.push_back(Vertex(pt, c));
+                                            }
+                                            oline.push_back(Vertex(points.front() + bounds.pos(), clr.alpha(0.04 * max_color)));
+                                            //auto line =
+                                            base.add_object(new Line(oline, SETTING(gui_outline_thickness).value<size_t>()));
+                                        }
+                                    }
+                                }
+                                return true;
+                            });
+
+                        base.line(positions, 2, fish->identity().color());
+                    }
+                }
+            });
+        }
     }
+
+    auto scale = base.scale().reciprocal();
+    auto dim = _sf_base ? _sf_base->window_dimensions().mul(scale * gui::interface_scale()) : Size2(_grabber.average());
+    base.draw_log_messages(Bounds(Vec2(0, 85).mul(scale* gui::interface_scale()), dim - Size2(10, 85).mul(scale * gui::interface_scale())));
 }
 
 std::string GUI::info_text() const {
@@ -493,8 +531,10 @@ void GUI::event(const gui::Event &event) {
         
         float scale = min(size.width / float(_cropped_size.width),
                           size.height / float(_cropped_size.height));
-        _gui.set_scale(scale * gui::interface_scale()); // SETTING(cam_scale).value<float>());
+        //_gui.set_scale(scale * gui::interface_scale()); // SETTING(cam_scale).value<float>());
+        _gui.set_size(size);
         _gui.set_dirty(NULL);
+        //_gui.event(event);
         
         Vec2 real_size(_cropped_size.width * scale,
                        _cropped_size.height * scale);
