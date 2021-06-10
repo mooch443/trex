@@ -1561,7 +1561,7 @@ bool Accumulation::start() {
                         Recognition::ImageData image_data(Recognition::ImageData::Blob{blob->num_pixels(), blob->blob_id(), -1, blob->parent_id(), blob->bounds()}, frame, (FrameRange)(*it->get()), fish, Idx_t(fish->identity().ID()), midline ? midline->transform(method) : gui::Transform());
                         image_data.filters = std::make_shared<TrainingFilterConstraints>(filters);
                         
-                        image = Recognition::calculate_diff_image_with_settings(method, blob, image_data, output_size);
+                        image = std::get<0>(Recognition::calculate_diff_image_with_settings(method, blob, image_data, output_size));
                         if(image)
                             images[frames_assignment[frame][id]].push_back(image);
                     }

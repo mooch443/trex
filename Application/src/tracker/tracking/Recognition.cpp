@@ -39,7 +39,7 @@ Recognition::FishInfo::operator MetaObject() const {
     return MetaObject("FishInfo<frame:"+Meta::toStr(last_frame)+" N:"+Meta::toStr(number_frames)+">", "FishInfo");
 }
 
-Image::UPtr Recognition::calculate_diff_image_with_settings(const default_config::recognition_normalization_t::Class &normalize, const pv::BlobPtr& blob, const Recognition::ImageData& data, const Size2& output_shape) {
+std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(const default_config::recognition_normalization_t::Class &normalize, const pv::BlobPtr& blob, const Recognition::ImageData& data, const Size2& output_shape) {
     if(normalize == default_config::recognition_normalization_t::posture)
         return Individual::calculate_normalized_diff_image(data.midline_transform, blob, data.filters ? data.filters->median_midline_length_px : 0, output_shape, false);
     else if(normalize == default_config::recognition_normalization_t::legacy)
@@ -59,7 +59,7 @@ Image::UPtr Recognition::calculate_diff_image_with_settings(const default_config
     }
     else {
         auto && [img, pos] = Individual::calculate_diff_image(blob, output_shape);
-        return std::move(img);
+        return std::make_tuple(std::move(img), pos);
     }
 }
 
@@ -700,7 +700,7 @@ Image::UPtr Recognition::calculate_diff_image_with_settings(const default_config
                         try {
                             using namespace default_config;
                             data.filters = std::make_shared<TrainingFilterConstraints>(filters);
-                            data.image = Recognition::calculate_diff_image_with_settings(normalize, blob, data, output_shape);
+                            data.image = std::get<0>(Recognition::calculate_diff_image_with_settings(normalize, blob, data, output_shape));
                         } catch(const std::invalid_argument& e) {
                             Except("Caught %s", e.what());
                             continue;
@@ -1012,7 +1012,7 @@ Image::UPtr Recognition::calculate_diff_image_with_settings(const default_config
                 
                 assert(blob->pixels());
                 e.filters = std::make_shared<TrainingFilterConstraints>(custom_len);
-                e.image = calculate_diff_image_with_settings(normalize, blob, e, output_shape);
+                e.image = std::get<0>(calculate_diff_image_with_settings(normalize, blob, e, output_shape));
                 
                 if(e.image != nullptr) {
                     _detail.add_frame(e.frame, e.fdx);

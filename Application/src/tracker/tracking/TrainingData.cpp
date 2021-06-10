@@ -1180,7 +1180,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             Recognition::ImageData image_data(Recognition::ImageData::Blob{blob->num_pixels(), blob->blob_id(), -1, blob->parent_id(), blob->bounds()}, frame, (FrameRange)*it->get(), fish, fish->identity().ID(), midline ? midline->transform(normalized()) : gui::Transform());
             image_data.filters = std::make_shared<TrainingFilterConstraints>(filters);
             
-            image = Recognition::calculate_diff_image_with_settings(normalized(), blob, image_data, output_size);
+            image = std::get<0>(Recognition::calculate_diff_image_with_settings(normalized(), blob, image_data, output_size));
             
             if(blob->bounds().width > output_size.width
                || blob->bounds().height > output_size.height)

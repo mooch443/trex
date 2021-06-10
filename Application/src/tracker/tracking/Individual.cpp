@@ -2290,7 +2290,7 @@ Vec2 Individual::weighted_centroid(const Blob& blob, const std::vector<uchar>& p
     return centroid_point / weights;
 }
 
-Image::UPtr Individual::calculate_normalized_diff_image(const gui::Transform &midline_transform, const pv::BlobPtr& blob, float midline_length, const Size2 &output_size, bool use_legacy) {
+std::tuple<Image::UPtr, Vec2> Individual::calculate_normalized_diff_image(const gui::Transform &midline_transform, const pv::BlobPtr& blob, float midline_length, const Size2 &output_size, bool use_legacy) {
     cv::Mat mask, image;
     cv::Mat padded;
     
@@ -2300,13 +2300,13 @@ Image::UPtr Individual::calculate_normalized_diff_image(const gui::Transform &mi
             Warning("[Individual::calculate_normalized_diff_image] invalid midline_length");
             timer.reset();
         }
-        return nullptr;
+        return {nullptr, Vec2()};
     }
         //throw std::invalid_argument("[Individual::calculate_normalized_diff_image] invalid midline_length");
     
     if(!blob->pixels())
         throw std::invalid_argument("[Individual::calculate_normalized_diff_image] The blob has to contain pixels.");
-    imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, &Tracker::average(), 0);
+    auto r = imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, &Tracker::average(), 0);
     
     if(!output_size.empty())
         padded = cv::Mat::zeros(output_size.height, output_size.width, CV_8UC1);
@@ -2340,9 +2340,9 @@ Image::UPtr Individual::calculate_normalized_diff_image(const gui::Transform &mi
     //resize_image(padded, SETTING(recognition_image_scale).value<float>());
     
     //tf::imshow("after", padded);
+    int left = 0, right = 0, top = 0, bottom = 0;
     
     if(!output_size.empty()) {
-        int left = 0, right = 0, top = 0, bottom = 0;
         if(padded.cols < output_size.width) {
             left = roundf(output_size.width - padded.cols);
             right = left / 2;
@@ -2375,7 +2375,9 @@ Image::UPtr Individual::calculate_normalized_diff_image(const gui::Transform &mi
     if(!output_size.empty() && (padded.cols != output_size.width || padded.rows != output_size.height))
         U_EXCEPTION("Padded size differs from expected size (%dx%d != %dx%d)", padded.cols, padded.rows, output_size.width, output_size.height);
     
-    return Image::Make(padded);
+    auto i = tr.getInverse();
+    auto pt = i.transformPoint(left, top);
+    return { Image::Make(padded), pt };
 }
 
 std::tuple<Image::UPtr, Vec2> Individual::calculate_diff_image(pv::BlobPtr blob, const Size2& output_size) {

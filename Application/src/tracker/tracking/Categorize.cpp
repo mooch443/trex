@@ -8,6 +8,7 @@
 #include <python/GPURecognition.h>
 #include <random>
 #include <misc/default_settings.h>
+#include <tracking/StaticBackground.h>
 
 namespace track {
 namespace Categorize {
@@ -125,10 +126,12 @@ struct Task {
     }
 };
 
-Sample::Sample(std::vector<long_t>&& frames, const std::vector<Image::Ptr>& images)
-    :
-        _frames(std::move(frames)),
-        _images(images)
+Sample::Sample(std::vector<long_t>&& frames,
+               const std::vector<Image::Ptr>& images,
+               std::vector<Vec2>&& positions)
+    :   _frames(std::move(frames)),
+        _images(images),
+        _positions(std::move(positions))
 {
     assert(!_images.empty());
 }
@@ -716,7 +719,21 @@ struct Row {
                         cell._animation_time = 0;
                     }
                     
-                    cell._image->update_with(*cell._sample->_images.at(cell._animation_index));
+                    auto &ptr = cell._sample->_images.at(cell._animation_index);
+                    Image inverted(ptr->rows, ptr->cols, 1);
+                    std::transform(ptr->data(), ptr->data() + ptr->size(), inverted.data(),
+                        [&ptr, s = ptr->data(), pos = cell._sample->_positions.at(cell._animation_index)](uchar& v) -> uchar
+                        {
+                            auto d = std::distance(s, &v);
+                            auto x = d % ptr->cols;
+                            auto y = (d - x) / ptr->cols;
+                            auto bg = Tracker::instance()->background();
+                            if(bg->bounds().contains(Vec2(x+pos.x, y+pos.y)))
+                                return saturate((int)Tracker::instance()->background()->color(x + pos.x, y + pos.y) - (int)v);
+                            return 255 - v;
+                        });
+                    
+                    cell._image->update_with(inverted);
                     cell._block->auto_size(Margin{0, 0});
                 }
                 
@@ -892,8 +909,10 @@ struct NetworkApplicationState {
         } else
             std::advance(it, offset.load());
         
+#ifndef NDEBUG
         size_t skipped = 0;
-
+#endif
+        
         do {
             if(Work::terminate)
                 break;
@@ -931,17 +950,22 @@ struct NetworkApplicationState {
             if(!DataStore::label_interpolated(fish->identity().ID(), Frame_t(segment->start()))) {
                 task.sample = DataStore::temporary(segment, fish, 300u, 5u, true);
                 task.segment = segment;
-            } else {
+            }
+#ifndef NDEBUG
+            else {
                 ++skipped;
             }
+#endif
             
             ++offset;
             ++it;
 
         } while (task.sample == Sample::Invalid());
         
+#ifndef NDEBUG
         if(skipped)
             log_event("Skipped "+Meta::toStr(skipped), Frame_t(-1), fish->identity());
+#endif
         
         if(task.sample != Sample::Invalid()) {
             task.callback = [this](const LearningTask& task)
@@ -961,7 +985,9 @@ struct NetworkApplicationState {
                     }
 
                     DataStore::set_label(Frame_t(frame), bdx, DataStore::label(task.result.at(i)));
+#ifndef NDEBUG
                     log_event("Labelled", Frame_t(frame), fish->identity());
+#endif
                 }
                 
                 if(task.segment) {
@@ -1002,8 +1028,11 @@ struct NetworkApplicationState {
             
             Work::add_task(std::move(task));
             
-        } else
+        }
+#ifndef NDEBUG
+        else
             Debug("No more tasks for fish %d", fish->identity().ID());
+#endif
     }
     
     static auto& current() {
@@ -1619,8 +1648,11 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     
     std::vector<Image::Ptr> images;
     std::vector<long_t> indexes;
+    std::vector<Vec2> positions;
     
+#ifndef NDEBUG
     static size_t _reuse = 0, _create = 0, _delete = 0;
+#endif
     
     const size_t step = max(1u, segment->basic_index.size() / sample_rate);
     size_t s = step; // start with 1, try to find something that is already in cache
@@ -1721,10 +1753,12 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
 
         if(!ptr) {
             ptr = std::make_shared<PPFrame>();
+#ifndef NDEBUG
             ++_create;
             if(_create % 50 == 0) {
                 Debug("Create: %lu Reuse: %lu Delete: %lu", _create, _reuse, _delete);
             }
+#endif
             
             if(Work::terminate || !GUI::instance())
                 return nullptr;
@@ -1770,10 +1804,14 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
                     
                     if(!found) {
                         it = _frame_cache.erase(it);
+#ifndef NDEBUG
                         ++_delete;
                         log_event("Deleted", it->first, fish->identity());
+#endif
                     } else {
+#ifndef NDEBUG
                         log_event("Not deleted", it->first, fish->identity());
+#endif
                         ++it;
                     }
                 }
@@ -1785,8 +1823,10 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
             }
             
         } else {
+#ifndef NDEBUG
             ++_reuse;
             log_event("Used", frame, fish->identity());
+#endif
         }
         
         if(basic->frame != frame) {
@@ -1813,19 +1853,22 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
 
             image_data.filters = std::make_shared<TrainingFilterConstraints>(custom_len);
 
-            auto image = Recognition::calculate_diff_image_with_settings(normalize, blob, image_data, dims);
+            auto [image, pos] = Recognition::calculate_diff_image_with_settings(normalize, blob, image_data, dims);
             if (image) {
                 images.emplace_back(std::move(image));
                 indexes.emplace_back(basic->frame);
+                positions.emplace_back(pos);
             }
         }
         else
             ++non;
     }
     
+#ifndef NDEBUG
     Debug("Segment(%lu): Of %lu frames, %lu were found and %lu found immediately (replaced %lu).", segment->basic_index.size(), stuff_indexes.size(), found_frames, found_frame_immediately, replaced, min_samples);
+#endif
     if(images.size() >= min_samples) {
-        return Sample::Make(std::move(indexes), std::move(images));
+        return Sample::Make(std::move(indexes), std::move(images), std::move(positions));
     }
     
     return Sample::Invalid();

@@ -36,12 +36,15 @@ struct Sample {
     
     std::vector<long_t> _frames;
     std::vector<Image::Ptr> _images;
+    std::vector<Vec2> _positions;
     
     Label::Ptr _assigned_label;
     std::map<Label::Ptr, float> _probabilities;
     bool _requested = false;
     
-    Sample(std::vector<long_t>&& frames, const std::vector<Image::Ptr>& images);
+    Sample(std::vector<long_t>&& frames,
+           const std::vector<Image::Ptr>& images,
+           std::vector<Vec2>&& positions);
     
     static const Sample::Ptr& Invalid() {
         static Sample::Ptr invalid(nullptr);

@@ -203,8 +203,8 @@ int main(int argc, char** argv)
 #endif
     
 #ifdef __APPLE__
-    char env[] = "OPENCV_OPENCL_DEVICE=:GPU:1";
-    putenv(env);
+//char env[] = "OPENCV_OPENCL_DEVICE=:GPU:1";
+//    putenv(env);
     
     std::string PATH = (std::string)getenv("PATH");
     if(!utils::contains(PATH, "/usr/local/bin")) {
