@@ -509,7 +509,7 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
         if (!path.add_extension("ttf").exists())
             Except("Cannot find file '%S'", &path.str());
         
-        auto io = ImGui::GetIO();
+        auto& io = ImGui::GetIO();
         //io.FontAllowUserScaling = true;
         //io.WantCaptureMouse = false;
         //io.WantCaptureKeyboard = false;

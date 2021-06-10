@@ -517,6 +517,8 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
     cv::Mat cam_matrix = cv::Mat(3, 3, CV_32FC1, SETTING(cam_matrix).value<std::vector<float>>().data());
     cv::Mat cam_undistort_vector = cv::Mat(1, 5, CV_32FC1, SETTING(cam_undistort_vector).value<std::vector<float>>().data());
     
+    GlobalSettings::map().dont_print("cam_undistort1");
+    GlobalSettings::map().dont_print("cam_undistort2");
     cv::Mat drawtransform = cv::getOptimalNewCameraMatrix(cam_matrix, cam_undistort_vector, size, 1.0, size);
     print_mat("draw_transform", drawtransform);
     print_mat("cam", cam_matrix);

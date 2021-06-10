@@ -303,7 +303,7 @@ void GUI::draw(gui::DrawStructure &base) {
                 }*/
                 
                 base.rect(pos + offset, image->bounds().size(), Transparent, Red);
-                base.image(pos + offset, std::move(image), Vec2(1.0), wheel.next().alpha(50));
+                //base.image(pos + offset, std::move(image), Vec2(1.0), wheel.next().alpha(50));
                 base.text(Meta::toStr(i), pos + offset, Yellow, 0.5, base.scale().reciprocal());
             }
         }
