@@ -664,31 +664,24 @@ static Callback callback;
         if(!blob.lines() || blob.lines()->empty())
             return pv::Blob::invalid;
         
-        return id_from_position(blob.center());
-        
-        /*const auto start = Vec2(blob.lines()->front().x0,
+        const auto start = Vec2(blob.lines()->front().x0,
                                 blob.lines()->front().y);
         const auto end = Vec2(blob.lines()->back().x1,
                               blob.lines()->size());
         
-        return id_from_position(start + (end - start) * 0.5);*/
+        return id_from_position(start + (end - start) * 0.5);
     }
 
     uint32_t Blob::id_from_blob(const pv::CompressedBlob &blob) {
         if(blob.lines.empty())
             return pv::Blob::invalid;
         
-        auto bounds = blob.calculate_bounds();
-        const auto center = bounds.pos() + bounds.size() * 0.5;
-        
-        return id_from_position(center);
-        
-        /*const auto start = Vec2(blob.lines.front().x0(),
+        const auto start = Vec2(blob.lines.front().x0(),
                                 blob.start_y);
         const auto end = Vec2(blob.lines.back().x1(),
                               blob.lines.size());
         
-        return id_from_position(start + (end - start) * 0.5);*/
+        return id_from_position(start + (end - start) * 0.5);
     }
     
     size_t Blob::memory_size() const {
