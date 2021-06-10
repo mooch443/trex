@@ -92,4 +92,10 @@ private:
 
 typedef ImagePair gpuImage;
 typedef gpuImage Image_t;
+using ImagePtr = std::unique_ptr<Image_t>;
+
+template<typename... Args>
+ImagePtr ImageMake(Args&&...args) {
+    return std::make_unique<Image_t>(std::forward<Args>(args)...);
+}
 }
