@@ -219,8 +219,8 @@ void FrameGrabber::prepare_average() {
     if(GRAB_SETTINGS(cam_scale) != 1)
         resize_image(_average, GRAB_SETTINGS(cam_scale));
     
-    if(GRAB_SETTINGS(image_invert))
-        cv::subtract(cv::Scalar(255), _average, _average);
+    //if(GRAB_SETTINGS(image_invert))
+    //    cv::subtract(cv::Scalar(255), _average, _average);
     
     if(GRAB_SETTINGS(correct_luminance)) {
         Debug("Calculating relative luminance...");
@@ -934,9 +934,9 @@ bool FrameGrabber::load_image(Image_t& current) {
     if(add_image_to_average(current))
         return false;
     
-    if(GRAB_SETTINGS(image_invert)) {
+    /*if(GRAB_SETTINGS(image_invert)) {
         cv::subtract(cv::Scalar(255), current.get(), current.get());
-    }
+    }*/
     
     _loading_timing = _loading_timing * 0.75 + timer.elapsed() * 0.25;
     return true;

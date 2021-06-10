@@ -1826,9 +1826,11 @@ void Tracker::clear_properties() {
             if(save_tags) {
                 if(!blob->split()){
                     blob_fish_map[blob->blob_id()] = fish;
+                    if(blob->parent_id() != -1)
+                        blob_fish_map[blob->parent_id()] = fish;
                     
-                    pv::BlobPtr copy = std::make_shared<pv::Blob>((Blob*)blob.get(), std::make_shared<std::vector<uchar>>(*blob->pixels()));
-                    tagged_fish.push_back(copy);
+                    //pv::BlobPtr copy = std::make_shared<pv::Blob>((Blob*)blob.get(), std::make_shared<std::vector<uchar>>(*blob->pixels()));
+                    tagged_fish.push_back(std::make_shared<pv::Blob>(blob->lines(), blob->pixels()));
                 }
             }
             
@@ -2784,8 +2786,8 @@ void Tracker::clear_properties() {
 #endif
         
         if(save_tags) {
-           _thread_pool.enqueue([&](){
-                this->check_save_tags(frameIndex, blob_fish_map, tagged_fish, noise, tags_path);
+           _thread_pool.enqueue([&, bmf = blob_fish_map](){
+                this->check_save_tags(frameIndex, bmf, tagged_fish, noise, tags_path);
             });
         }
         
@@ -4084,8 +4086,10 @@ pv::BlobPtr Tracker::find_blob_noisy(const std::map<uint32_t, pv::BlobPtr>& blob
             auto && [var, bid, ptr, f] = tags::is_good_image(r, *_average);
             if(ptr) {
                 auto it = blob_fish_map.find(r.blob->blob_id());
-                assert(it != blob_fish_map.end());
-                it->second->add_tag_image(tags::Tag{var, r.blob->blob_id(), ptr, frameIndex} /* ptr? */);
+                if(it != blob_fish_map.end())
+                    it->second->add_tag_image(tags::Tag{var, r.blob->blob_id(), ptr, frameIndex} /* ptr? */);
+                else
+                    Warning("Blob %u in frame %d contains a tag, but is not associated with an individual.", r.blob->blob_id(), frameIndex);
             }
         }
         
@@ -4094,51 +4098,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const std::map<uint32_t, pv::BlobPtr>& blob
             for(auto fish : _active_individuals_frame.at(frameIndex-1)) {
                 if(fish->start_frame() < frameIndex && fish->has(frameIndex-1) && !fish->has(frameIndex))
                 {
-                    auto set = fish->has_tag_images_for(frameIndex-1);
-                    if(set && !set->empty()) {
-                        std::vector<uchar> arrays;
-                        std::vector<long_t> frame_indices;
-                        std::vector<long_t> blob_ids;
-                        
-                        std::vector<uchar> image_data;
-                        Size2 shape;
-                        
-                        printf("tags for %u: ", (uint32_t)fish->identity().ID());
-                        for(auto && [var, bid, ptr, frame] : *set) {
-                            shape = Size2(ptr->cols, ptr->rows);
-                            // had previous frame, lost in this frame (finalize segment)
-                            assert(frame <= frameIndex-1);
-                            auto before = arrays.size();
-                            arrays.resize(arrays.size() + ptr->size());
-                            
-                            printf("%d ", frame);
-                            frame_indices.push_back(frame);
-                            blob_ids.push_back(bid);
-                            std::copy(ptr->data(), ptr->data() + ptr->size(), arrays.begin() + before);
-                        }
-                        printf("\n");
-                        
-                        if(arrays.size() > 0) {
-                            auto range = fish->get_segment(frameIndex-1);
-                            
-                            if(!fish->has(range.start()))
-                                U_EXCEPTION("Range starts at %d, but frame is not set for fish %d.", range.start(), fish->identity().ID());
-                            uint32_t start_blob_id = fish->blob(range.start())->blob_id();
-                            
-                            file::Path path(tags_path / SETTING(filename).value<file::Path>().filename() / ("frame"+std::to_string(range.start())+"_blob"+std::to_string(start_blob_id)+".npz"));
-                            if(!path.remove_filename().exists()) {
-                                if(!path.remove_filename().create_folder())
-                                    U_EXCEPTION("Cannot create folder '%S' please check permissions.", &path.remove_filename().str());
-                            }
-                            
-                            Debug("Writing %d images '%S'", set->size(), &path.str());
-                            cmn::npz_save(path.str(), "images", arrays.data(), {set->size(), (uint)shape.width, (uint)shape.height});
-                            
-                            //path = path.remove_filename() / ("fdx_"+path.filename().to_string());
-                            cmn::npz_save(path.str(), "frames", frame_indices, "a");
-                            cmn::npz_save(path.str(), "blob_ids", blob_ids, "a");
-                        }
-                    }
+                    // - none
                 }
             }
         }

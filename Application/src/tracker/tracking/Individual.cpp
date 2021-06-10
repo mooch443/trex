@@ -151,12 +151,12 @@ FrameRange Individual::get_recognition_segment_safe(long_t frameIndex) const {
 }
 
 const std::multiset<tags::Tag>* Individual::has_tag_images_for(long_t frameIndex) const {
-    auto && [range, usable] = get_segment(frameIndex);
+    auto range = get_segment(frameIndex);
     
     long_t min_frame = std::numeric_limits<long_t>::max();
     const std::multiset<tags::Tag>* image = nullptr;
     for(auto && [frame, ptr] : _best_images) {
-        if(frame >= range.start && frame < min_frame && frame <= range.end) {
+        if(range.contains(frame) && frame < min_frame) {
             min_frame = frame;
             image = &ptr;
         }

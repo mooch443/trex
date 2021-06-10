@@ -161,14 +161,16 @@ std::string_view Path::filename() const {
         }
         
         for(auto &folder : folders) {
+            int err = -1;
 #if WIN32
 			if (!folder.empty() && folder.back() == ':')
 				continue;
 			if(!CreateDirectory(folder.c_str(), NULL)) {
 #else
-            if(mkdir(folder.c_str(), ACCESSPERMS) != 0) {
+            err = mkdir(folder.c_str(), ACCESSPERMS);
+            if(err != 0) {
 #endif
-                Except("Cannot create folder '%S'.", &folder);
+                Except("Cannot create folder '%S' (error: %d).", &folder, err);
                 return false;
             }
         }

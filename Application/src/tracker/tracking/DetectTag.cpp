@@ -156,7 +156,7 @@ namespace track {
                         }
                         
                         static constexpr Size2 normal_dimensions(128, 128);
-                        static constexpr Vec2 offset(30, 30);
+                        static constexpr Vec2 offset(128, 128);
                         bounding.pos() -= offset;
                         bounding.size() += offset * 2;
                         
