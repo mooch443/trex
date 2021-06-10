@@ -329,11 +329,13 @@ void GUI::draw(gui::DrawStructure &base) {
             
             float alpha = min(0.8f, max(0.25f, _record_alpha));
             if(_grabber.is_paused()) {
-                base.rect(Vec2(8, 14), Vec2(2,7), White.alpha(alpha * 255), Black.alpha(alpha * 255));
-                base.rect(Vec2(12, 14), Vec2(2,7), White.alpha(255 * alpha), Black.alpha(255 * alpha));
+                base.rect(Vec2(8, 14).div(base.scale()), Vec2(2,7).div(base.scale()), White.alpha(alpha * 255), Black.alpha(alpha * 255));
+                base.rect(Vec2(12, 14).div(base.scale()), Vec2(2,7).div(base.scale()), White.alpha(255 * alpha), Black.alpha(255 * alpha));
                 
             } else {
-                base.circle(Vec2(12, 18), 3, Black.alpha(255 * alpha), Black.alpha(255 * alpha));
+                auto circle = new Circle(Vec2(12, 18).div(base.scale()), 3, Black.alpha(255 * alpha), Black.alpha(255 * alpha));
+                circle->set_scale(base.scale().reciprocal());
+                base.add_object(circle);
             }
         }
         
