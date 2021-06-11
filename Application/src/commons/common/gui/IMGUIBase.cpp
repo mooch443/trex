@@ -526,7 +526,7 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
         glfwGetFramebufferSize(_platform->window_handle(), &fw, &fh);
         _last_framebuffer_size = Size2(fw, fh).mul(_dpi_scale);
         
-        if (!_fonts[Style::Regular]) {
+        if (_fonts.empty()) {
             ImFontConfig config;
             config.OversampleH = 3;
             config.OversampleV = 1;
