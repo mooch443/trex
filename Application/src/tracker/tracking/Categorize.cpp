@@ -724,12 +724,12 @@ struct Row {
                     std::transform(ptr->data(), ptr->data() + ptr->size(), inverted.data(),
                         [&ptr, s = ptr->data(), pos = cell._sample->_positions.at(cell._animation_index)](uchar& v) -> uchar
                         {
-                            auto d = std::distance(s, &v);
+                            /*auto d = std::distance(s, &v);
                             auto x = d % ptr->cols;
                             auto y = (d - x) / ptr->cols;
                             auto bg = Tracker::instance()->background();
                             if(bg->bounds().contains(Vec2(x+pos.x, y+pos.y)))
-                                return saturate((int)Tracker::instance()->background()->color(x + pos.x, y + pos.y) - (int)v);
+                                return saturate((int)Tracker::instance()->background()->color(x + pos.x, y + pos.y) - (int)v);*/
                             return 255 - v;
                         });
                     
