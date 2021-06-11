@@ -434,7 +434,7 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
         return ImColor(clr.r, clr.g, clr.b, clr.a);
     }
 
-    void IMGUIBase::init(const std::string& title) {
+    void IMGUIBase::init(const std::string& title, bool soft) {
         _platform->init();
         
         GLFWmonitor* monitor = glfwGetPrimaryMonitor();
@@ -526,7 +526,12 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
         glfwGetFramebufferSize(_platform->window_handle(), &fw, &fh);
         _last_framebuffer_size = Size2(fw, fh).mul(_dpi_scale);
         
-        if (_fonts.empty()) {
+        if (!soft) {
+            io.Fonts->Clear();
+            _fonts.clear();
+        }
+
+        if(_fonts.empty()) {
             ImFontConfig config;
             config.OversampleH = 3;
             config.OversampleV = 1;
@@ -553,7 +558,7 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
             _fonts[Style::Bold] = load_font(0, "b");
             _fonts[Style::Bold | Style::Italic] = load_font(0, "bi");
         }
-        
+
         _platform->post_init();
         _platform->set_title(title);
         

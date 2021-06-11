@@ -118,7 +118,7 @@ namespace gui {
             _graph = &base;
             
         }
-        void init(const std::string& title);
+        void init(const std::string& title, bool soft = false);
         ~IMGUIBase();
         
         void set_open_files_fn(std::function<bool(const std::vector<file::Path>&)> fn) {

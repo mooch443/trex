@@ -77,7 +77,7 @@ void GUI::set_base(gui::Base *base) {
         _cropped_size = (_grabber.cropped_size());
         _gui.set_size(Size2(max(150, _cropped_size.width), max(150, _cropped_size.height)));
         if(base && dynamic_cast<gui::IMGUIBase*>(base))
-            ((gui::IMGUIBase*)base)->init(base->title());
+            ((gui::IMGUIBase*)base)->init(base->title(), true);
         
         auto desktop_mode = base->window_dimensions();
         gui::Event e(gui::EventType::WINDOW_RESIZED);
