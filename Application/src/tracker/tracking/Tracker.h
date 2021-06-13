@@ -100,7 +100,10 @@ CREATE_STRUCT(Settings,
   (float, track_trusted_probability),
   (float, recognition_segment_add_factor),
   (bool, output_interpolate_positions),
-  (bool, track_consistent_categories)
+  (bool, track_consistent_categories),
+  (std::vector<std::string>, categories_ordered),
+  (std::vector<std::string>, track_only_categories),
+  (float, track_segment_max_length)
 )
 
     class Tracker {

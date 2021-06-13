@@ -93,7 +93,7 @@ struct RangedLabel {
 };
 
 struct DataStore {
-    static std::set<std::string> label_names();
+    static std::vector<std::string> label_names();
     static std::mutex& mutex() {
         static std::mutex _mutex;
         return _mutex;

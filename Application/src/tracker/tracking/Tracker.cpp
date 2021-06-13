@@ -784,6 +784,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
         auto &filtered_out = result->filtered_out;
         
         std::vector<pv::BlobPtr> ptrs;
+        auto only_allowed = FAST_SETTINGS(track_only_categories);
         
         for(; it != end; ++it) {
             ptrs.clear();
@@ -879,13 +880,21 @@ bool operator<(long_t frame, const FrameProperties& props) {
                 if(result->fish_size.in_range_of_one(recount)) {
                     if(FAST_SETTINGS(track_threshold_2) > 0) {
                         auto second_count = ptr->recount(FAST_SETTINGS(track_threshold_2), *result->background);
-                        if((FAST_SETTINGS(threshold_ratio_range) * recount).contains(second_count)) {
-                            filtered.push_back(ptr);
-                        } else
-                            filtered_out.push_back(ptr);
                         
                         ptr->force_set_recount(result->threshold, recount / cm_sqr);
-                        continue;
+                        
+                        if(!(FAST_SETTINGS(threshold_ratio_range) * recount).contains(second_count)) {
+                            filtered_out.push_back(ptr);
+                            continue;
+                        }
+                    }
+                    
+                    if(!only_allowed.empty()) {
+                        auto label = Categorize::DataStore::_ranged_label_unsafe(Frame_t(result->frame_index), ptr->blob_id());
+                        if(!label || !contains(only_allowed, label->name)) {
+                            filtered_out.push_back(ptr);
+                            continue;
+                        }
                     }
                     
                     filtered.push_back(ptr);
@@ -931,6 +940,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
         size_t available_threads = 1 + (pool ? pool->num_threads() : 0);
         size_t maximal_threads = frame.blobs.size();
         size_t needed_threads = min(maximal_threads / (size_t)FAST_SETTINGS(blobs_per_thread), available_threads);
+        std::shared_lock guard(Categorize::DataStore::range_mutex());
         
         if (maximal_threads > 1 && needed_threads > 1 && available_threads > 1 && pool) {
             size_t used_threads = min(needed_threads, available_threads);

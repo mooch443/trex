@@ -1049,7 +1049,8 @@ enum class Reasons {
     ProbabilityTooSmall = 4,
     ManualMatch = 8,
     WeirdDistance = 16,
-    NoBlob = 32
+    NoBlob = 32,
+    MaxSegmentLength = 64
     
 };
 
@@ -1115,6 +1116,7 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(l
     error_code |= (uint32_t)is_manual_match(frameIndex) * Reasons::ManualMatch;
     error_code |= uint32_t(!blob) * Reasons::NoBlob;
     error_code |= uint32_t(FAST_SETTINGS(track_end_segment_for_speed) && current && current->speed(Units::CM_AND_SECONDS) >= weird_distance()) * Reasons::WeirdDistance;
+    error_code |= uint32_t(FAST_SETTINGS(track_segment_max_length) > 0 && segment && segment->length() / float(FAST_SETTINGS(frame_rate)) >= FAST_SETTINGS(track_segment_max_length)) * Reasons::MaxSegmentLength;
     
     if(frameIndex == _startFrame || error_code != 0) {
     

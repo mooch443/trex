@@ -136,12 +136,8 @@ Sample::Sample(std::vector<long_t>&& frames,
     assert(!_images.empty());
 }
 
-std::set<std::string> DataStore::label_names() {
-    std::lock_guard guard(mutex());
-    std::set<std::string> _names;
-    for(auto &[l, s] : _labels)
-        _names.insert(l->name);
-    return _names;
+std::vector<std::string> DataStore::label_names() {
+    return FAST_SETTINGS(categories_ordered);
 }
 
 Label::Ptr DataStore::label(const char* name) {
@@ -293,10 +289,12 @@ Label::Ptr DataStore::_ranged_label_unsafe(Frame_t frame, uint32_t bdx) {
 
 void DataStore::set_label(Frame_t idx, uint32_t bdx, const Label::Ptr& label) {
     std::unique_lock guard(cache_mutex());
+#ifndef NDEBUG
     if (_probability_cache[idx].count(bdx)) {
         auto str = Meta::toStr(_probability_cache[idx]);
         Warning("Cache already contains blob %d in frame %d.\n%S", bdx, (int)idx, &str);
     }
+#endif
     _probability_cache[idx][bdx] = label;
 }
 
@@ -1141,11 +1139,10 @@ void Work::start_learning() {
             Debug("Reset python functions and variables...");
             const auto dims = SETTING(recognition_image_size).value<Size2>();
             std::map<std::string, int> keys;
-            {
-                std::lock_guard guard(DataStore::mutex());
-                for(auto & [key, v] : _labels)
-                    keys[key->name] = key->id;
-            }
+            auto cat = FAST_SETTINGS(categories_ordered);
+            for(size_t i=0; i<cat.size(); ++i)
+                keys[cat[i]] = i;
+            
             py::set_variable("categories", Meta::toStr(keys), module);
             py::set_variable("width", (int)dims.width, module);
             py::set_variable("height", (int)dims.height, module);
@@ -1470,11 +1467,12 @@ void DataStore::write(file::DataFormat& data, int /*version*/) {
     
     {
         std::lock_guard guard(mutex());
-        data.write<uint64_t>(_labels.size()); // number of labels
+        auto cats = FAST_SETTINGS(categories_ordered);
+        data.write<uint64_t>(cats.size()); // number of labels
         
-        for(auto& [label, _] : _labels) {
-            data.write<int32_t>(label->id);  // label id
-            data.write<std::string>(label->name); // label id
+        for(size_t i=0; i<cats.size(); ++i) {
+            data.write<int32_t>(i);  // label id
+            data.write<std::string>(cats[i]); // label id
         }
     }
     
@@ -1527,6 +1525,7 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
         
         uint64_t N_labels;
         data.read(N_labels);
+        std::vector<std::string> labels(N_labels);
         
         for (uint64_t i=0; i<N_labels; ++i) {
             int32_t id;
@@ -1538,7 +1537,10 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
             auto ptr = Label::Make(name);
             ptr->id = id;
             _labels[ptr] = {};
+            labels[i] = name;
         }
+        
+        SETTING(categories_ordered) = labels;
     }
     
     // read contents
@@ -2179,7 +2181,7 @@ void draw(gui::DrawStructure& base) {
             //DataStore::_labels.insert({Label::Make("X"), {}});
         }*/
         
-        if(_labels.empty()) {
+        if(FAST_SETTINGS(categories_ordered).empty()) {
             static bool asked = false;
             if(!asked) {
                 asked = true;
@@ -2189,11 +2191,16 @@ void draw(gui::DrawStructure& base) {
                 
                 auto d = base.dialog([](Dialog::Result r){
                     if(r == Dialog::OKAY) {
+                        std::vector<std::string> categories;
                         for(auto text : utils::split(textfield.to<Textfield>()->text(), ',')) {
                             text = utils::trim(text);
                             if(!text.empty())
-                                DataStore::label(text.c_str()); // create labels
+                                categories.push_back(text);
                         }
+                        SETTING(categories_ordered) = categories;
+                        
+                        for(auto &cat : categories)
+                            DataStore::label(cat.c_str()); // create labels
                     }
                     
                 }, "Please enter the categories (comma-separated), e.g.:\n<i>W,S</i> for categories <str>W</str> and <str>S</str>.", "Categorize", "Okay", "Cancel");
