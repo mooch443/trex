@@ -470,6 +470,12 @@ HeatmapController::UpdatedStats HeatmapController::update_data(long_t current_fr
             
             auto &range = updated.add_range;
             for(auto [id, fish] : Tracker::individuals()) {
+                if(!_ids.empty()) {
+                    if(!contains(_ids, id._identity)) {
+                        continue;
+                    }
+                }
+                
                 auto frame = max((long_t)Tracker::start_frame(), range.start);
                 if(fish->end_frame() < frame)
                     continue;
@@ -647,6 +653,29 @@ bool HeatmapController::update_variables() {
     }
     
     //SETTING(heatmap_resolution) = uniform_grid_cell_size + 1;
+    auto ids = SETTING(heatmap_ids).value<std::vector<uint32_t>>();
+    if(ids != _ids) {
+        has_to_paint = true;
+        
+        bool different = _ids.size() >= ids.size() || (_ids.empty() && !ids.empty());
+        if(!different) {
+            for(auto id : _ids) {
+                if(!contains(ids, id)) {
+                    different = true;
+                    break;
+                }
+            }
+        }
+        
+        _ids = ids;
+        
+        // only completely clear if an id was removed, not if we are only adding one
+        if(different) {
+            _grid.clear();
+        }
+        
+        _frame = -1;
+    }
     
     auto norm = SETTING(heatmap_normalization).value<default_config::heatmap_normalization_t::Class>();
     if(norm != _normalization) {
@@ -847,7 +876,7 @@ size_t Region::keep_only(const Range<long_t> &frames) {
         if(!r)
             continue;
         
-        if(r->frame_range().start < frames.start || r->frame_range().end > frames.end) {
+        if(overlaps(frames, r->frame_range())) {
             count += r->keep_only(frames);
             
             if(r->empty()) {

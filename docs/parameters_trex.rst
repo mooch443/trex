@@ -296,6 +296,25 @@ TRex parameters
 
 
 
+.. function:: categories_min_sample_images(uint)
+
+	**default value:** 50
+
+
+	Minimum number of images for a sample to be considered relevant. This will default to 50, or ten percent of ``track_segment_max_length``, if that parameter is set. If ``track_segment_max_length`` is set, the value of this parameter will be ignored. If set to zero or one, then all samples are valid.
+
+	.. seealso:: :func:`track_segment_max_length`, :func:`track_segment_max_length`, 
+
+
+.. function:: categories_ordered(array<string>)
+
+	**default value:** []
+
+
+	Ordered list of names of categories that are used in categorization (classification of types of individuals).
+
+
+
 .. function:: cm_per_pixel(float)
 
 	**default value:** 0
@@ -1032,6 +1051,15 @@ TRex parameters
 	If ``heatmap_dynamic`` is enabled, this variable determines the range of frames that are considered. If set to 0, all frames up to the current frame are considered. Otherwise, this number determines the number of frames previous to the current frame that are considered.
 
 	.. seealso:: :func:`heatmap_dynamic`, 
+
+
+.. function:: heatmap_ids(array<uint>)
+
+	**default value:** []
+
+
+	Add ID numbers to this array to exclusively display heatmap values for those individuals.
+
 
 
 .. function:: heatmap_normalization(heatmap_normalization_t)
@@ -1844,6 +1872,15 @@ TRex parameters
 	.. seealso:: :func:`track_threshold_2`, 
 
 
+.. function:: track_consistent_categories(bool)
+
+	**default value:** false
+
+
+	Utilise categories (if present) when tracking. This may break trajectories in places with imperfect categorization, but only applies once categories have been applied.
+
+
+
 .. function:: track_do_history_split(bool)
 
 	**default value:** true
@@ -1918,6 +1955,15 @@ TRex parameters
 	.. seealso:: :func:`meta_real_width`, :func:`cm_per_pixel`, 
 
 
+.. function:: track_only_categories(array<string>)
+
+	**default value:** []
+
+
+	If this is a non-empty list, only objects that have previously been assigned one of the correct categories will be tracked. Note that this also excludes noise particles or very short segments with no tracking.
+
+
+
 .. function:: track_posture_threshold(int)
 
 	**default value:** 15
@@ -1926,6 +1972,15 @@ TRex parameters
 	Same as ``track_threshold``, but for posture estimation.
 
 	.. seealso:: :func:`track_threshold`, 
+
+
+.. function:: track_segment_max_length(float)
+
+	**default value:** 0
+
+
+	If set to something bigger than zero, this represents the maximum number of seconds that a consecutive segment can be.
+
 
 
 .. function:: track_speed_decay(float)

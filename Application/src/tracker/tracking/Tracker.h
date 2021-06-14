@@ -99,7 +99,13 @@ CREATE_STRUCT(Settings,
   (bool, analysis_paused),
   (float, track_trusted_probability),
   (float, recognition_segment_add_factor),
-  (bool, output_interpolate_positions)
+  (bool, output_interpolate_positions),
+  (bool, track_consistent_categories),
+  (std::vector<std::string>, categories_ordered),
+  (std::vector<std::string>, track_only_categories),
+  (float, track_segment_max_length),
+  (Size2, recognition_image_size),
+  (uint32_t, categories_min_sample_images)
 )
 
     class Tracker {
@@ -241,11 +247,11 @@ CREATE_STRUCT(Settings,
         
         friend class VisualField;
         static const std::unordered_map<Idx_t, Individual*>& individuals() {
-            LockGuard guard("individuals()");
+            //LockGuard guard("individuals()");
             return instance()->_individuals;
         }
         static const std::unordered_set<Individual*>& active_individuals() {
-            LockGuard guard("active_individuals()");
+            //LockGuard guard("active_individuals()");
             return instance()->_active_individuals;
         }
         static const std::unordered_set<Individual*>& active_individuals(long_t frame) {
@@ -271,7 +277,7 @@ CREATE_STRUCT(Settings,
         void prepare_shutdown();
         void wait();
         
-        static pv::BlobPtr find_blob_noisy(std::map<uint32_t, pv::BlobPtr>& blob_to_id, int64_t bid, int64_t pid, const Bounds& bounds, long_t frame);
+        static pv::BlobPtr find_blob_noisy(const std::map<uint32_t, pv::BlobPtr>& blob_to_id, int64_t bid, int64_t pid, const Bounds& bounds, long_t frame);
         
         //static bool generate_training_images(pv::File&, std::map<long_t, std::set<long_t>> individuals_per_frame, TrainingData&, const std::function<void(float)>& = [](float){}, const TrainingData* source = nullptr);
         //static bool generate_training_images(pv::File&, const std::set<long_t>& frames, TrainingData&, const std::function<void(float)>& = [](float){});

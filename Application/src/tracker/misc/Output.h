@@ -110,8 +110,9 @@ namespace Output {
             V_30, // add analysis_range information to header
             V_31, // add number of individuals per frame
             V_32, // change ShortHorizontalLine format
+            V_33, // adding Categorize::DataStore
             
-            current = V_32
+            current = V_33
         };
         
     private:

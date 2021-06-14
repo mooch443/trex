@@ -26,6 +26,30 @@ namespace track { class Individual; }
 namespace mem { struct IndividualMemoryStats; }
 
 namespace track {
+
+enum class Reasons {
+    None = 0,
+    LostForOneFrame = 1,
+    TimestampTooDifferent = 2,
+    ProbabilityTooSmall = 4,
+    ManualMatch = 8,
+    WeirdDistance = 16,
+    NoBlob = 32,
+    MaxSegmentLength = 64
+    
+};
+
+constexpr std::array<const char*, 8> ReasonsNames {
+    "None",
+    "LostForOneFrame",
+    "TimestampTooDifferent",
+    "ProbabilityTooSmall",
+    "ManualMatch",
+    "WeirdDistance",
+    "NoBlob",
+    "MaxSegmentLength"
+};
+
     template<typename Iterator, typename T>
     Iterator find_frame_in_sorted_segments(Iterator start, Iterator end, T object, typename std::enable_if< !is_pair<typename Iterator::value_type>::value, void* >::type = nullptr) {
         if(start != end) {
@@ -69,8 +93,9 @@ namespace track {
         float tdelta;
         float local_tdelta;
         long_t previous_frame;
+        int current_category;
         //float size_average;
-        float head_distance;
+        //float head_distance;
         
         Match::prob_t speed;
         Match::prob_t time_probability;
@@ -98,6 +123,8 @@ namespace track {
         std::set<uint32_t> split_blobs;
         std::map<uint32_t, pv::BlobPtr> bdx_to_ptr;
         grid::ProximityGrid blob_grid;
+        
+        int label(const pv::BlobPtr&) const;
         
         PPFrame();
         ~PPFrame() {
@@ -139,6 +166,9 @@ namespace track {
         const std::string& raw_name();
         std::string raw_name() const;
         std::string name() const;
+        std::string toStr() const {
+            return name();
+        }
         
         friend class Output::TrackingResults;
     };
@@ -228,6 +258,7 @@ namespace track {
         struct SegmentInformation : public FrameRange {
             std::vector<long_t> basic_index;
             std::vector<long_t> posture_index;
+            uint32_t error_code = std::numeric_limits<uint32_t>::max();
             
             SegmentInformation(const Range<long_t>& range = Rangel(-1, -1),
                                long_t first_usable = -1)
@@ -272,10 +303,10 @@ namespace track {
         //using segment_map = std::map<long_t, std::shared_ptr<SegmentInformation>>;
         using segment_map = std::vector<std::shared_ptr<SegmentInformation>>;
         segment_map::const_iterator find_segment_with_start(long_t frame) const;
+        using small_segment_map = std::map<long_t, FrameRange>;
         
     protected:
         GETTER(segment_map, frame_segments)
-        using small_segment_map = std::map<long_t, FrameRange>;
         GETTER(small_segment_map, recognition_segments)
         
         //! Contains a map with individual -> probability for the blob that has been
@@ -370,7 +401,7 @@ namespace track {
         const decltype(_identity)& identity() const { return _identity; }
         decltype(_identity)& identity() { return _identity; }
         
-        std::shared_ptr<BasicStuff> add(long_t frameIndex, const PPFrame& frame, pv::BlobPtr blob, Match::prob_t current_prob);
+        std::shared_ptr<BasicStuff> add(long_t frameIndex, const PPFrame& frame, const pv::BlobPtr& blob, Match::prob_t current_prob);
         void remove_frame(long_t frameIndex);
         void register_delete_callback(void* ptr, const std::function<void(Individual*)>& lambda);
         void unregister_delete_callback(void* ptr);
@@ -442,7 +473,7 @@ namespace track {
         };
         
         //! Calculates the probability for this fish to be at pixel-position in frame at time.
-        Probability probability(const IndividualCache& estimated_px, long_t frameIndex, const pv::CompressedBlob& blob) const;
+        Probability probability(int label, const IndividualCache& estimated_px, long_t frameIndex, const pv::CompressedBlob& blob) const;
         Probability probability(const IndividualCache& estimated_px, long_t frameIndex, const Vec2& position, size_t pixels) const;
         Match::prob_t time_probability(const IndividualCache& cache, long_t frameIndex, double time) const;
         //Match::PairingGraph::prob_t size_probability(const IndividualCache& cache, long_t frameIndex, size_t num_pixels) const;
@@ -476,8 +507,7 @@ namespace track {
          */
         
         static std::tuple<Image::UPtr, Vec2> calculate_diff_image(pv::BlobPtr blob, const Size2& output_size);
-        
-        static Image::UPtr calculate_normalized_diff_image(const gui::Transform& midline_transform, const pv::BlobPtr& blob, float midline_length, const Size2& output_size, bool use_legacy);
+        static std::tuple<Image::UPtr, Vec2> calculate_normalized_diff_image(const gui::Transform& midline_transform, const pv::BlobPtr& blob, float midline_length, const Size2& output_size, bool use_legacy);
         
         operator MetaObject() const;
         static std::string class_name() {

@@ -41,7 +41,7 @@ void RawProcessing::generate_binary(const gpuMat& input, cv::Mat& output) {
     static int closing_size = 1;
     static bool use_adaptive_threshold = false;
     static int32_t dilation_size = 0;
-    static bool image_adjust = false, image_square_brightness = false;
+    static bool image_adjust = false, image_square_brightness = false, image_invert = false;
     static float image_contrast_increase = 1, image_brightness_increase = 0;
     
     bool expected = false;
@@ -80,6 +80,8 @@ void RawProcessing::generate_binary(const gpuMat& input, cv::Mat& output) {
                 image_contrast_increase = value.template value<float>();
             else if(key == std::string("image_brightness_increase"))
                 image_brightness_increase = value.template value<float>();
+            else if(key == std::string("image_invert"))
+                image_invert = value.template value<bool>();
         };
         GlobalSettings::map().register_callback(ptr, callback);
         
@@ -98,6 +100,7 @@ void RawProcessing::generate_binary(const gpuMat& input, cv::Mat& output) {
         callback(sprite::Map::Signal::NONE, GlobalSettings::map(), "image_square_brightness", GlobalSettings::get("image_square_brightness").get());
         callback(sprite::Map::Signal::NONE, GlobalSettings::map(), "image_contrast_increase", GlobalSettings::get("image_contrast_increase").get());
         callback(sprite::Map::Signal::NONE, GlobalSettings::map(), "image_brightness_increase", GlobalSettings::get("image_brightness_increase").get());
+        callback(sprite::Map::Signal::NONE, GlobalSettings::map(), "image_invert", GlobalSettings::get("image_invert").get());
     }
     
     //static Timing timing("thresholding", 30);
@@ -138,13 +141,33 @@ void RawProcessing::generate_binary(const gpuMat& input, cv::Mat& output) {
     Debug("Average: %dx%d Input: %dx%d", _average->cols, _average->rows, input.cols, input.rows);
 #endif
     
-    if(enable_diff)
-       if(enable_abs_diff)
+    if(enable_diff) {
+        if(enable_abs_diff) {
            cv::absdiff(input, *_average, *INPUT);
-       else
+        } else {
            cv::subtract(*_average, input, *INPUT);
-    else
-        input.copyTo(*INPUT);
+        }
+        
+        if(image_invert) {
+            /*cv::Mat local;
+            INPUT->copyTo(local);
+            tf::imshow("before", local);*/
+            cv::subtract(cv::Scalar(255), *INPUT, *INPUT);
+            /*INPUT->copyTo(local);
+            tf::imshow("after", local);*/
+        }
+        
+    } else {
+        if(image_invert) {
+            /*cv::Mat local;
+            input.copyTo(local);
+            tf::imshow("before", local);*/
+            cv::subtract(cv::Scalar(255), input, *INPUT);
+            /*INPUT->copyTo(local);
+            tf::imshow("after", local);*/
+        } else
+            input.copyTo(*INPUT);
+    }
     
     /*if(image_adjust) {
         

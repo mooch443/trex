@@ -84,7 +84,49 @@ namespace pybind11 {
                 py::array a(std::move(shape), std::move(strides), src->data());
                 return a.release();
             }
+            
+            static py::handle cast(const cmn::Image::UPtr& src, py::return_value_policy policy, py::handle parent)
+            {
+
+                std::vector<size_t> shape{ src->rows, src->cols, src->dims };
+                std::vector<size_t> strides{
+                    sizeof(uint8_t) * src->dims * src->cols,
+                    sizeof(uint8_t) * src->dims,
+                    sizeof(uint8_t)
+                };
+
+                py::array a(std::move(shape), std::move(strides), src->data());
+                return a.release();
+            }
         };
+    
+    template<> struct type_caster<cmn::Image::UPtr>
+    {
+    public:
+
+        PYBIND11_TYPE_CASTER(cmn::Image::UPtr, _("Image::UPtr"));
+
+        // Conversion part 1 (Python -> C++)
+        bool load(py::handle src, bool convert)
+        {
+            return false;
+        }
+
+        //Conversion part 2 (C++ -> Python)
+        static py::handle cast(const cmn::Image::UPtr& src, py::return_value_policy policy, py::handle parent)
+        {
+
+            std::vector<size_t> shape{ src->rows, src->cols, src->dims };
+            std::vector<size_t> strides{
+                sizeof(uint8_t) * src->dims * src->cols,
+                sizeof(uint8_t) * src->dims,
+                sizeof(uint8_t)
+            };
+
+            py::array a(std::move(shape), std::move(strides), src->data());
+            return a.release();
+        }
+    };
     }
 } // namespace pybind11::detail
 
@@ -137,7 +179,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         PythonLog("%S", &text);
         });
     m.def("warn", [](std::string text) {
-        PythonLog("%S", &text);
+        PythonWarn("%S", &text);
         });
 
     /*m.def("show_work_image", [](std::string name, pybind11::buffer b) {
@@ -230,7 +272,9 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
 
     py::bind_vector<std::vector<cmn::Image::Ptr>>(m, "ImageVector", "Vector of images");
     py::bind_vector<std::vector<float>>(m, "FloatVector", "Float vector");
+    py::bind_vector<std::vector<std::string>>(m, "StringVector", "String vector");
     py::bind_vector<std::vector<long_t>>(m, "LongVector", "Long vector");
+    py::bind_vector<std::vector<uchar>>(m, "UcharVector", "Uchar vector");
 }
 
 #include "GPURecognition.h"
@@ -270,7 +314,7 @@ namespace track {
     std::condition_variable _initialize_condition;
     std::thread::id _saved_id;
 
-    std::promise<bool> _initialize_promise;
+    std::unique_ptr<std::promise<bool>> _initialize_promise;
     std::shared_future<bool> _initialize_future;
 
     void PythonIntegration::set_settings(std::shared_ptr<GlobalSettings> obj) {
@@ -409,9 +453,8 @@ void PythonIntegration::reinit() {
     void PythonIntegration::initialize() {
         using namespace py::literals;
         
-        if(!_initialize_future.valid()) {
-            _initialize_future = _initialize_promise.get_future().share();
-        }
+        _initialize_promise = std::make_unique<std::promise<bool>>();
+        _initialize_future = _initialize_promise->get_future().share();
         
         _network_update_thread = new std::thread([this]() -> void {
             cmn::set_thread_name("PythonIntegration::update");
@@ -431,7 +474,7 @@ void PythonIntegration::reinit() {
                 python_initializing() = false;
                 
                 //guard = nullptr;
-                _initialize_promise.set_value(false);
+                _initialize_promise->set_value(false);
             };
 
             try {
@@ -486,7 +529,7 @@ void PythonIntegration::reinit() {
                 
                 python_initialized() = true;
                 python_initializing() = false;
-                _initialize_promise.set_value(true);
+                _initialize_promise->set_value(true);
                 
             } catch(const UtilsException& ex) {
                 Warning("Error while executing 'trex_init.py'. Content: %s", ex.what());
@@ -503,7 +546,7 @@ void PythonIntegration::reinit() {
                 python_initializing() = false;
                 python_initialized() = false;
                 Except("Cannot initialize the python interpreter.");
-                _initialize_promise.set_value(false);
+                _initialize_promise->set_value(false);
                 return;
             }
             
@@ -681,8 +724,11 @@ void PythonIntegration::reinit() {
     }
 
 std::shared_future<bool> PythonIntegration::ensure_started() {
+    if(!_initialize_promise)
+        _initialize_promise = std::make_unique<std::promise<bool>>();
+    
     if(!_initialize_future.valid()) {
-        _initialize_future = _initialize_promise.get_future().share();
+        _initialize_future = _initialize_promise->get_future().share();
     }
     
     if(!python_initialized() && !python_initializing() && !python_init_error().empty())
@@ -854,6 +900,11 @@ void PythonIntegration::set_function(const char* name_, std::function<void(std::
     set_function_internal(name_, f, m);
 }
 
+void PythonIntegration::set_function(const char* name_, std::function<void(std::vector<uchar>, std::vector<std::string>)> f, const std::string &m)
+{
+    set_function_internal(name_, f, m);
+}
+
 void PythonIntegration::unset_function(const char *name_, const std::string &m) {
     check_correct_thread_id();
     
@@ -925,6 +976,18 @@ IMPL_VARIABLE(long_t)
 IMPL_VARIABLE(const std::string&)
 IMPL_VARIABLE(bool)
 IMPL_VARIABLE(uint64_t)
+
+void PythonIntegration::set_variable(const std::string & name, const std::vector<std::string> & v, const std::string& m) {
+    check_correct_thread_id();
+    
+    if(m.empty())
+        (*_locals)[name.c_str()] = v;
+    else if(_modules.count(m)) {
+        auto &mod = _modules[m];
+        if(mod.ptr() != nullptr)
+            mod.attr(name.c_str()) = v;
+    }
+}
 
 void PythonIntegration::check_correct_thread_id() {
     if(std::this_thread::get_id() != _saved_id) {

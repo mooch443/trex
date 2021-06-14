@@ -256,7 +256,7 @@ namespace gui {
 #ifndef NDEBUG
         if(scale.empty())
             Debug("Scale is zero.");
-        if(std::isnan(scale.x) || std::isinf(scale.x))
+        if(std::isnan(scale.x) || std::isinf(scale.x) || std::isnan(scale.y) || std::isinf(scale.y))
             Debug("NaN or Inf in set_scale.");
 #endif
         _scale = scale;
@@ -269,7 +269,7 @@ namespace gui {
         if(!_bounds.pos().Equals(npos))
             set_bounds_changed();
 #ifndef NDEBUG
-        if(std::isnan(npos.x) || std::isnan(npos.y))
+        if(std::isnan(npos.x) || std::isnan(npos.y) || std::isinf(npos.x) || std::isinf(npos.y))
             Warning("NaN in set_pos.");
 #endif
         _bounds.pos() = npos;
@@ -282,7 +282,7 @@ namespace gui {
         if(!_bounds.size().Equals(size))
             set_bounds_changed();
 #ifndef NDEBUG
-        if(std::isnan(size.width) || std::isnan(size.height))
+        if(std::isnan(size.width) || std::isnan(size.height) || std::isinf(size.height) || std::isinf(size.width))
             Warning("NaN in set_size.");
 #endif
         _bounds.size() = size;
@@ -295,7 +295,7 @@ namespace gui {
         if(!_bounds.Equals(rect))
             set_bounds_changed();
 #ifndef NDEBUG
-        if(std::isnan(rect.width) || std::isnan(rect.height) || std::isnan(rect.x) || std::isnan(rect.y))
+        if(std::isnan(rect.width) || std::isnan(rect.height) || std::isnan(rect.x) || std::isnan(rect.y) || std::isinf(rect.x) || std::isinf(rect.y) || std::isinf(rect.width) || std::isinf(rect.height))
             Warning("NaN in set_bounds.");
 #endif
         _bounds = rect;
@@ -831,20 +831,28 @@ namespace gui {
     }
     
     void SectionInterface::set_background(const Color& color, const Color& line) {
-        if(_background && color == _background->fillclr() && line == _background->lineclr())
+        if(color == _bg_fill_color && line == _bg_line_color)
             return;
         
-        if(!_background) {
-            _background = new Rect(Bounds());
-            _background->set_parent(this);
-            _background->set_z_index(_z_index);
+        _bg_fill_color = color;
+        _bg_line_color = line;
+        
+        if(_bg_fill_color != Transparent || _bg_line_color != Transparent) {
+            if(!_background) {
+                _background = new Rect(Bounds());
+                _background->set_parent(this);
+                _background->set_z_index(_z_index);
+            }
+            
+            _background->set_fillclr(_bg_fill_color);
+            _background->set_lineclr(_bg_line_color);
+            
+        } else if(_background) {
+            delete _background;
+            _background = NULL;
         }
         
-        if(_background->fillclr() != color || _background->lineclr() != line) {
-            _background->set_fillclr(color);
-            _background->set_lineclr(line);
-            set_dirty();
-        }
+        set_dirty();
     }
 
 void SectionInterface::set_z_index(int index) {

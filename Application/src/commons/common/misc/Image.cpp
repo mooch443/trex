@@ -47,6 +47,12 @@ namespace cmn {
         set(index, image, timestamp);
     }
     
+    Image::Image(uint rows, uint cols, uint dims, const uchar* data)
+        : Image(rows, cols, dims)
+    {
+        set(0, data);
+    }
+
     void Image::clear() {
         if(_data) {
             free(_data);
@@ -129,6 +135,11 @@ namespace cmn {
             _data = (uchar*)malloc(_size);
             _array_size = _size;
         }
+    }
+
+    void Image::create(uint rows, uint cols, uint dims, const uchar* data) {
+        create(rows, cols, dims);
+        set(0, data);
     }
     
     void Image::create(const cv::Mat &matrix) {

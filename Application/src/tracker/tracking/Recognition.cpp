@@ -39,13 +39,15 @@ Recognition::FishInfo::operator MetaObject() const {
     return MetaObject("FishInfo<frame:"+Meta::toStr(last_frame)+" N:"+Meta::toStr(number_frames)+">", "FishInfo");
 }
 
-Image::UPtr Recognition::calculate_diff_image_with_settings(const default_config::recognition_normalization_t::Class &normalize, const pv::BlobPtr& blob, const Recognition::ImageData& data, const Size2& output_shape) {
+std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(const default_config::recognition_normalization_t::Class &normalize, const pv::BlobPtr& blob, const Recognition::ImageData& data, const Size2& output_shape) {
     if(normalize == default_config::recognition_normalization_t::posture)
         return Individual::calculate_normalized_diff_image(data.midline_transform, blob, data.filters ? data.filters->median_midline_length_px : 0, output_shape, false);
     else if(normalize == default_config::recognition_normalization_t::legacy)
         return Individual::calculate_normalized_diff_image(data.midline_transform, blob, data.filters ? data.filters->median_midline_length_px : 0, output_shape, true);
     else if (normalize == default_config::recognition_normalization_t::moments)
     {
+        blob->calculate_moments();
+        
         gui::Transform tr;
         float angle = narrow_cast<float>(-blob->orientation() + M_PI * 0.25);
         
@@ -57,7 +59,7 @@ Image::UPtr Recognition::calculate_diff_image_with_settings(const default_config
     }
     else {
         auto && [img, pos] = Individual::calculate_diff_image(blob, output_shape);
-        return std::move(img);
+        return std::make_tuple(std::move(img), pos);
     }
 }
 
@@ -144,19 +146,55 @@ Image::UPtr Recognition::calculate_diff_image_with_settings(const default_config
 #ifdef WIN32
         SetErrorMode(SEM_FAILCRITICALERRORS);
 #endif
-        file::Path path("trex_check_python");
-        std::string exec = path.str();
+#define CHECK_PYTHON_EXECUTABLE_NAME std::string("trex_check_python")
+        std::string exec;
 #ifdef WIN32
-        exec = path.add_extension("exe").str();
+        exec = file::Path(CHECK_PYTHON_EXECUTABLE_NAME).add_extension("exe").str();
 #elif __APPLE__
-        exec = "../MacOS/"+exec+" 2> /dev/null";
+        exec = "../MacOS/"+CHECK_PYTHON_EXECUTABLE_NAME;
 #else
-        exec = "./"+exec+" 2> /dev/null";
+        exec = "./"+CHECK_PYTHON_EXECUTABLE_NAME;
 #endif
         if ((SETTING(wd).value<file::Path>() / exec).exists()) {
             exec = (SETTING(wd).value<file::Path>() / exec).str();
             Debug("Exists in working dir: '%S'", &exec);
+#ifndef WIN32
+            exec += " 2> /dev/null";
+#endif
+        } else {
+            Warning("Does not exist in working dir: '%S'", &exec);
+#if __APPLE__
+            auto p = SETTING(wd).value<file::Path>();
+            p = p / ".." / ".." / ".." / CHECK_PYTHON_EXECUTABLE_NAME;
+            
+            if(p.exists()) {
+                Debug("'%S' exists.", &p.str());
+                exec = p.str()+" 2> /dev/null";
+            } else {
+                p = SETTING(wd).value<file::Path>() / CHECK_PYTHON_EXECUTABLE_NAME;
+                if(p.exists()) {
+                    Debug("Pure '%S' exists.", &p.str());
+                    exec = p.str()+" 2> /dev/null";
+                } else {
+                    // search conda
+                    auto conda_prefix = getenv("CONDA_PREFIX");
+                    if(conda_prefix) {
+                        Debug("Searching conda environment for trex_check_python... ('%s').", conda_prefix);
+                        p = file::Path(conda_prefix) / "usr" / "share" / "trex" / CHECK_PYTHON_EXECUTABLE_NAME;
+                        Debug("Full path: '%S'", &p.str());
+                        if(p.exists()) {
+                            Debug("Found in conda environment '%s' at '%S'", conda_prefix, &p.str());
+                            exec = p.str()+" 2> /dev/null";
+                        } else {
+                            Warning("Not found in conda environment '%s' at '%S'.", conda_prefix, &p.str());
+                        }
+                    } else
+                        Warning("No conda prefix.");
+                }
+            }
+#endif
         }
+        
         auto ret = system(exec.c_str()) == 0;
 #if WIN32
         SetErrorMode(0);
@@ -192,7 +230,11 @@ Image::UPtr Recognition::calculate_diff_image_with_settings(const default_config
 
             // this is now the home folder of python
             std::string sep = "/";
+#if defined(WIN32)
             auto set = home + ";" + home + "/DLLs;" + home + "/Lib;" + home + "/Scripts;" + home + "/Library/bin;" + home + "/Library;";
+#else
+            auto set = home + ":" + home + "/bin:" + home + "/condabin:" + home + "/lib:" + home + "/sbin:";
+#endif
 
             sep[0] = file::Path::os_sep();
             set = utils::find_replace(set, "/", sep);
@@ -658,7 +700,7 @@ Image::UPtr Recognition::calculate_diff_image_with_settings(const default_config
                         try {
                             using namespace default_config;
                             data.filters = std::make_shared<TrainingFilterConstraints>(filters);
-                            data.image = Recognition::calculate_diff_image_with_settings(normalize, blob, data, output_shape);
+                            data.image = std::get<0>(Recognition::calculate_diff_image_with_settings(normalize, blob, data, output_shape));
                         } catch(const std::invalid_argument& e) {
                             Except("Caught %s", e.what());
                             continue;
@@ -970,7 +1012,7 @@ Image::UPtr Recognition::calculate_diff_image_with_settings(const default_config
                 
                 assert(blob->pixels());
                 e.filters = std::make_shared<TrainingFilterConstraints>(custom_len);
-                e.image = calculate_diff_image_with_settings(normalize, blob, e, output_shape);
+                e.image = std::get<0>(calculate_diff_image_with_settings(normalize, blob, e, output_shape));
                 
                 if(e.image != nullptr) {
                     _detail.add_frame(e.frame, e.fdx);

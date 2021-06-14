@@ -31,8 +31,8 @@
 using namespace cmn;
 
 class ImageThreads {
-    std::function<Image_t*()> _fn_create;
-    std::function<bool(const Image_t*, Image_t&)> _fn_prepare;
+    std::function<ImagePtr()> _fn_create;
+    std::function<bool(long_t, Image_t&)> _fn_prepare;
     std::function<bool(Image_t&)> _fn_load;
     std::function<Queue::Code(const Image_t&)> _fn_process;
     
@@ -43,8 +43,8 @@ class ImageThreads {
     std::thread *_load_thread;
     std::thread *_process_thread;
     
-    std::deque<Image_t*> _used;
-    std::deque<Image_t*> _unused;
+    std::deque<ImagePtr> _used;
+    std::deque<ImagePtr> _unused;
     
 public:
     ImageThreads(const decltype(_fn_create)& create,
@@ -64,14 +64,10 @@ public:
         delete _process_thread;
         
         // clear cache
-        while(!_unused.empty()) {
-            delete _unused.front();
+        while(!_unused.empty())
             _unused.pop_front();
-        }
-        while(!_used.empty()) {
-            delete _used.front();
+        while(!_used.empty())
             _used.pop_front();
-        }
     }
     
     void terminate() { _terminate = true; _condition.notify_all(); }
@@ -146,10 +142,10 @@ protected:
     GETTER_NCONST(pv::File, processed)
     std::atomic_bool _paused;
     
-    std::queue<const Image_t*> _image_queue;
+    std::queue<ImagePtr> _image_queue;
     
     std::mutex process_image_mutex;
-    std::queue<Image_t*> _unused_process_images;
+    std::queue<ImagePtr> _unused_process_images;
     
     std::mutex _frame_lock;
     std::unique_ptr<pv::Frame> _last_frame;

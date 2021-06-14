@@ -13,6 +13,8 @@ namespace gui {
         long_t _frameNr;
         track::Individual *_fish;
         //Button detail_button;
+        std::vector<std::tuple<Text*, std::string>> segment_texts;
+        Text * previous = nullptr;
     public:
         InfoCard();
         void update(gui::DrawStructure&, long_t);

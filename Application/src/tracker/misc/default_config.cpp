@@ -322,9 +322,13 @@ file::Path conda_environment_path() {
         CONFIG("gui_draw_only_filtered_out", false, "Only show filtered out blob texts.");
         CONFIG<std::pair<int64_t, long_t>>("gui_show_fish", {-1, -1}, "Show debug output for {blob_id, fish_id}.");
         CONFIG("gui_frame", long_t(0), "The currently visible frame.");
+#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
+        CONFIG("gui_blur_enabled", false, "MacOS supports a blur filter that can be applied to make unselected individuals look interesting.");
+#endif
         CONFIG("gui_faded_brightness", uchar(255), "The alpha value of tracking-related elements when timeline is hidden (0-255).");
         CONFIG("gui_equalize_blob_histograms", true, "Equalize histograms of blobs wihtin videos (makes them more visible).");
         CONFIG("gui_show_heatmap", false, "Showing a heatmap per identity, normalized by maximum samples per grid-cell.");
+        CONFIG("heatmap_ids", std::vector<uint32_t>(), "Add ID numbers to this array to exclusively display heatmap values for those individuals.");
         CONFIG("heatmap_value_range", Range<double>(-1, -1), "Give a custom value range that is used to normalize heatmap cell values.");
         CONFIG("heatmap_smooth", double(0.05), "Value between 0 and 1, think of as `heatmap_smooth` times video-width, indicating the maximum upscaled size of the heatmaps shown in the tracker. Makes them prettier, but maybe much slower.");
         CONFIG("heatmap_normalization", heatmap_normalization_t::cell, "Normalization used for the heatmaps. If `value` is selected, then the maximum of all values encountered will be used to normalize the average of each cell. If `cell` is selected, the sum of each cell will be divided by the maximum cell value encountered.");
@@ -396,6 +400,7 @@ file::Path conda_environment_path() {
         CONFIG("matching_probability_threshold", float(0.1), "The probability below which a possible connection between blob and identity is considered too low. The probability depends largely upon settings like `track_max_speed`.");
         CONFIG("track_do_history_split", true, "If disabled, blobs will not be split automatically in order to separate overlapping individuals. This usually happens based on their history.");
         CONFIG("track_end_segment_for_speed", true, "Sometimes individuals might be assigned to blobs that are far away from the previous position. This could indicate wrong assignments, but not necessarily. If this variable is set to true, consecutive frame segments will end whenever high speeds are reached, just to be on the safe side. For scenarios with lots of individuals (and no recognition) this might spam yellow bars in the timeline and may be disabled.");
+        CONFIG("track_consistent_categories", false, "Utilise categories (if present) when tracking. This may break trajectories in places with imperfect categorization, but only applies once categories have been applied.");
         CONFIG("track_max_individuals", uint32_t(0), "The maximal number of individual that are assigned at the same time (infinite if set to zero). If the given number is below the actual number of individual, then only a (random) subset of individual are assigned and a warning is shown.", STARTUP);
         CONFIG("blob_size_ranges", BlobSizeRange({Rangef(0.1f, 3)}), "Blobs below the lower bound are recognized as noise instead of individuals. Blobs bigger than the upper bound are considered to potentially contain more than one individual. You can look these values up by pressing `D` in TRex to get to the raw view (see `https://trex.run/docs/gui.html` for details). The unit is #pixels * (cm/px)^2. `cm_per_pixel` is used for this conversion.");
         CONFIG("blob_split_max_shrink", float(0.2), "The minimum percentage of the starting blob size (after thresholding), that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.");
@@ -421,6 +426,12 @@ file::Path conda_environment_path() {
         CONFIG("track_max_reassign_time", float(0.5), "Distance in time (seconds) where the matcher will stop trying to reassign an individual based on previous position. After this time runs out, depending on the settings, the tracker will try to find it based on other criteria, or generate a new individual.");
         CONFIG("manual_identities", std::set<track::Idx_t>{}, "", SYSTEM);
         CONFIG("pixel_grid_cells", size_t(25), "");
+        
+        CONFIG("categories_ordered", std::vector<std::string>{}, "Ordered list of names of categories that are used in categorization (classification of types of individuals).");
+        CONFIG("categories_min_sample_images", uint32_t(50), "Minimum number of images for a sample to be considered relevant. This will default to 50, or ten percent of `track_segment_max_length`, if that parameter is set. If `track_segment_max_length` is set, the value of this parameter will be ignored. If set to zero or one, then all samples are valid.");
+        CONFIG("track_segment_max_length", float(0), "If set to something bigger than zero, this represents the maximum number of seconds that a consecutive segment can be.");
+        
+        CONFIG("track_only_categories", std::vector<std::string>{}, "If this is a non-empty list, only objects that have previously been assigned one of the correct categories will be tracked. Note that this also excludes noise particles or very short segments with no tracking.");
         
         CONFIG("web_quality", int(75), "JPEG quality of images transferred over the web interface.");
         CONFIG("web_time_threshold", float(0.050), "Maximum refresh rate in seconds for the web interface.");
@@ -615,6 +626,10 @@ file::Path conda_environment_path() {
         std::vector<std::string> exclude_fields = {
             "analysis_paused",
             "filename",
+            "app_name",
+            "app_check_for_updates",
+            "app_last_update_version",
+            "app_last_update_check",
             "video_size",
             "video_info",
             "video_mask",

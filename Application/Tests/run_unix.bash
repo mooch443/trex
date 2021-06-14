@@ -1,8 +1,13 @@
 #!/bin/bash
 
 PWD=$(pwd)/../../videos
+TGRABS=tgrabs
+TREX=trex
 
-CMD="tgrabs -d "${PWD}" -i \"${PWD}/test_frames/frame_%3d.jpg\" -o test -threshold 9 -average_samples 100 
+#TGRABS=~/trex/Application/build/RelWithDebInfo/TGrabs.app/Contents/MacOS/TGrabs
+#TREX=~/trex/Application/build/RelWithDebInfo/TRex.app/Contents/MacOS/TRex
+
+CMD="${TGRABS} -d "${PWD}" -i \"${PWD}/test_frames/frame_%3d.jpg\" -o test -threshold 9 -average_samples 100 
     -averaging_method mode -meta_real_width 2304 -exec \"${PWD}/test.settings\" 
     -enable_live_tracking -auto_no_results -output_format csv -nowindow"
 echo "Running TGrabs... ${CMD}"
@@ -35,7 +40,7 @@ fi
 
 rm -rf ${PWD}/data
 echo ""
-CMD="trex -d \"${PWD}\" -i test -s \"${PWD}/test.settings\" -p corrected -auto_quit -auto_no_results -output_format csv -nowindow"
+CMD="${TREX} -d \"${PWD}\" -i test -s \"${PWD}/test.settings\" -p corrected -auto_quit -auto_no_results -output_format csv -nowindow"
 
 echo "Running TRex... ${CMD}"
 

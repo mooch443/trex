@@ -1,17 +1,49 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 2f180b559..d06c55fd3 100644
+index 42ff0f902..d56764ff5 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -98,6 +98,12 @@ set(pngvalid_sources
- set(pngstest_sources
-   contrib/libtests/pngstest.c
- )
-+
-+if(CMAKE_OSX_ARCHITECTURES MATCHES "arm64")
-+  list(APPEND libpng_sources arm/filter_neon.S)
-+  list(APPEND libpng_sources arm/arm_init.c arm/filter_neon_intrinsics.c)
-+  add_definitions(-DPNG_ARM_NEON_OPT=2)
-+endif()
- # SOME NEEDED DEFINITIONS
+@@ -52,10 +52,10 @@ else()
+ endif()
  
- if(MSVC)
+ # Public CMake configuration variables.
+-option(PNG_SHARED "Build shared lib" ON)
++option(PNG_SHARED "Build shared lib" OFF)
+ option(PNG_STATIC "Build static lib" ON)
+-option(PNG_EXECUTABLES "Build libpng executables" ON)
+-option(PNG_TESTS "Build libpng tests" ON)
++option(PNG_EXECUTABLES "Build libpng executables" OFF)
++option(PNG_TESTS "Build libpng tests" OFF)
+ 
+ # Many more configuration options could be added here.
+ option(PNG_FRAMEWORK "Build OS X framework" OFF)
+@@ -69,9 +69,10 @@ if(PNG_HARDWARE_OPTIMIZATIONS)
+ 
+ # Set definitions and sources for ARM.
+ if(CMAKE_SYSTEM_PROCESSOR MATCHES "^arm" OR
+-  CMAKE_SYSTEM_PROCESSOR MATCHES "^aarch64")
++  CMAKE_SYSTEM_PROCESSOR MATCHES "^aarch64"
++  AND NOT APPLE)
+   set(PNG_ARM_NEON_POSSIBLE_VALUES check on off)
+-  set(PNG_ARM_NEON "check"
++  set(PNG_ARM_NEON "off"
+       CACHE STRING "Enable ARM NEON optimizations: check|on|off; check is default")
+   set_property(CACHE PNG_ARM_NEON
+                PROPERTY STRINGS ${PNG_ARM_NEON_POSSIBLE_VALUES})
+@@ -93,6 +94,7 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "^arm" OR
+     add_definitions(-DPNG_ARM_NEON_OPT=0)
+   endif()
+ endif()
++add_definitions(-DPNG_ARM_NEON_OPT=0)
+ 
+ # Set definitions and sources for PowerPC.
+ if(CMAKE_SYSTEM_PROCESSOR MATCHES "^powerpc*" OR
+@@ -424,6 +426,9 @@ else()
+                     DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/libpng.vers")
+   add_custom_target(gensym
+                     DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/libpng.sym")
++  add_dependencies(gensym genfiles)
++  add_dependencies(genvers genfiles)
++  add_dependencies(symbol-check genfiles)
+ 
+   add_custom_target("genprebuilt"
+                     COMMAND "${CMAKE_COMMAND}"

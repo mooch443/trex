@@ -327,6 +327,58 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                     }
                 }
                 
+                const file::Path tags_path = FAST_SETTINGS(tags_path);
+                
+                for(auto &seg : fish->frame_segments()) {
+                    //for(auto frameIndex = seg->start(); frameIndex <= seg->end(); ++frameIndex) {
+                        auto set = fish->has_tag_images_for(seg->end());
+                        if(set && !set->empty()) {
+                            std::vector<uchar> arrays;
+                            std::vector<long_t> frame_indices;
+                            std::vector<long_t> blob_ids;
+                            
+                            std::vector<uchar> image_data;
+                            Size2 shape;
+                            
+                            printf("tags for %u: ", (uint32_t)fish->identity().ID());
+                            for(auto && [var, bid, ptr, frame] : *set) {
+                                shape = Size2(ptr->cols, ptr->rows);
+                                // had previous frame, lost in this frame (finalize segment)
+                                assert(frame <= seg->end());
+                                auto before = arrays.size();
+                                arrays.resize(arrays.size() + ptr->size());
+                                
+                                printf("%d ", frame);
+                                frame_indices.push_back(frame);
+                                blob_ids.push_back(bid);
+                                std::copy(ptr->data(), ptr->data() + ptr->size(), arrays.begin() + before);
+                            }
+                            printf("\n");
+                            
+                            if(arrays.size() > 0) {
+                                auto range = fish->get_segment(seg->end());
+                                
+                                if(!fish->has(range.start()))
+                                    U_EXCEPTION("Range starts at %d, but frame is not set for fish %d.", range.start(), fish->identity().ID());
+                                uint32_t start_blob_id = fish->blob(range.start())->blob_id();
+                                
+                                file::Path path(tags_path / SETTING(filename).value<file::Path>().filename() / ("frame"+std::to_string(range.start())+"_blob"+std::to_string(start_blob_id)+".npz"));
+                                if(!path.remove_filename().exists()) {
+                                    if(!path.remove_filename().create_folder())
+                                        U_EXCEPTION("Cannot create folder '%S' please check permissions.", &path.remove_filename().str());
+                                }
+                                
+                                Debug("Writing %d images '%S'", set->size(), &path.str());
+                                cmn::npz_save(path.str(), "images", arrays.data(), {set->size(), (uint)shape.width, (uint)shape.height});
+                                
+                                //path = path.remove_filename() / ("fdx_"+path.filename().to_string());
+                                cmn::npz_save(path.str(), "frames", frame_indices, "a");
+                                cmn::npz_save(path.str(), "blob_ids", blob_ids, "a");
+                            }
+                        }
+                    //}
+                }
+                
                 /**
                  * Output representative images for each segment (that is long_t enough).
                  * These are currently median images and will all be saved into one big NPZ file.
@@ -826,7 +878,7 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                         continue; // cannot find blob for given id
                     
                     if(do_normalize_tracklets)
-                        reduced.image = std::move(data.fish->calculate_normalized_diff_image(data.midline_transform, reduced.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy));
+                        reduced.image = std::move(std::get<0>(data.fish->calculate_normalized_diff_image(data.midline_transform, reduced.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy)));
                     else {
                         //auto && [img, pos] = data.fish->calculate_diff_image(blob, output_size);
                         auto && [pos, img] = reduced.blob->difference_image(*Tracker::instance()->background(), 0);
@@ -868,7 +920,7 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                         trans.translate(full.blob->bounds().pos() - reduced.blob->bounds().pos());
                         
                         if(do_normalize_tracklets)
-                            full.image = data.fish->calculate_normalized_diff_image(trans, full.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy);
+                            full.image = std::get<0>(data.fish->calculate_normalized_diff_image(trans, full.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy));
                         else {
                             auto && [pos, img] = full.blob->difference_image(*Tracker::instance()->background(), 0);
                             full.image = std::move(img);

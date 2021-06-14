@@ -376,7 +376,7 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
 #ifndef NDEBUG
             Debug("Monitor '%s': %d,%d %dx%d", name, mx, my, mw, mh);
 #endif
-            if(Bounds(mx, my, mw, mh).overlaps(Bounds(x, y, fw, fh))) {
+            if(Bounds(mx+5, my+5, mw-10, mh-10).overlaps(Bounds(x+5, y+5, fw-10, fh-10))) {
                 monitor = monitors[i];
                 break;
             }
@@ -434,7 +434,7 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
         return ImColor(clr.r, clr.g, clr.b, clr.a);
     }
 
-    void IMGUIBase::init(const std::string& title) {
+    void IMGUIBase::init(const std::string& title, bool soft) {
         _platform->init();
         
         GLFWmonitor* monitor = glfwGetPrimaryMonitor();
@@ -484,8 +484,10 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
         
         if(!_platform->window_handle())
             _platform->create_window(title.c_str(), width, height);
-        else
+        else {
             glfwSetWindowSize(_platform->window_handle(), width, height);
+            set_title(title);
+        }
         
         glfwSetWindowPos(_platform->window_handle(), mx + (mw - width) / 2, my + (mh - height) / 2);
         
@@ -509,7 +511,7 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
         if (!path.add_extension("ttf").exists())
             Except("Cannot find file '%S'", &path.str());
         
-        auto io = ImGui::GetIO();
+        auto& io = ImGui::GetIO();
         //io.FontAllowUserScaling = true;
         //io.WantCaptureMouse = false;
         //io.WantCaptureKeyboard = false;
@@ -524,32 +526,39 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
         glfwGetFramebufferSize(_platform->window_handle(), &fw, &fh);
         _last_framebuffer_size = Size2(fw, fh).mul(_dpi_scale);
         
-        ImFontConfig config;
-        config.OversampleH = 3;
-        config.OversampleV = 1;
-        
-        auto load_font = [&](int no, std::string suffix) {
-            config.FontNo = no;
-            if(no > 0)
-                config.MergeMode = false;
-            
-            auto full = path.str() + suffix + ".ttf";
-            auto ptr = io.Fonts->AddFontFromFileTTF(full.c_str(), base_scale * im_font_scale, &config);
-            if (!ptr) {
-                Warning("Cannot load font '%S' with index %d.", &path.str(), config.FontNo);
-                ptr = io.Fonts->AddFontDefault();
-                im_font_scale = max(1, dpi_scale) * 0.5f;
-            }
-            ptr->FontSize = base_scale * im_font_scale;
-            
-            return ptr;
-        };
-        
-        _fonts[Style::Regular] = load_font(0, "");
-        _fonts[Style::Italic] = load_font(0, "i");
-        _fonts[Style::Bold] = load_font(0, "b");
-        _fonts[Style::Bold | Style::Italic] = load_font(0, "bi");
-        
+        if (!soft) {
+            io.Fonts->Clear();
+            _fonts.clear();
+        }
+
+        if(_fonts.empty()) {
+            ImFontConfig config;
+            config.OversampleH = 3;
+            config.OversampleV = 1;
+
+            auto load_font = [&](int no, std::string suffix) {
+                config.FontNo = no;
+                if (no > 0)
+                    config.MergeMode = false;
+
+                auto full = path.str() + suffix + ".ttf";
+                auto ptr = io.Fonts->AddFontFromFileTTF(full.c_str(), base_scale * im_font_scale, &config);
+                if (!ptr) {
+                    Warning("Cannot load font '%S' with index %d.", &path.str(), config.FontNo);
+                    ptr = io.Fonts->AddFontDefault();
+                    im_font_scale = max(1, dpi_scale) * 0.5f;
+                }
+                ptr->FontSize = base_scale * im_font_scale;
+
+                return ptr;
+            };
+
+            _fonts[Style::Regular] = load_font(0, "");
+            _fonts[Style::Italic] = load_font(0, "i");
+            _fonts[Style::Bold] = load_font(0, "b");
+            _fonts[Style::Bold | Style::Italic] = load_font(0, "bi");
+        }
+
         _platform->post_init();
         _platform->set_title(title);
         
@@ -1022,16 +1031,20 @@ void ImRotateEnd(int rotation_start_index, ImDrawList* list, float rad, ImVec2 c
         buf[i].pos = ImRotate(buf[i].pos, s, c) - center;
 }
 
+bool operator!=(const ImVec4& A, const ImVec4& B) {
+    return A.w != B.w || A.x != B.x || A.y != B.y || A.z != B.z;
+}
+
 void IMGUIBase::draw_element(const DrawOrder& order) {
     auto list = ImGui::GetForegroundDrawList();
-    if(order.type == DrawOrder::POP) {
+    /*if(order.type == DrawOrder::POP) {
         if(list->_ClipRectStack.size() > 1) {
             //Debug("Popped cliprect %.0f,%.0f", list->_ClipRectStack.back().x, list->_ClipRectStack.back().y);
-            list->PopClipRect();
+            //list->PopClipRect();
         } else
             Warning("Cannot pop too many rects.");
         return;
-    }
+    }*/
     
     if(order.type == DrawOrder::END_ROTATION) {
         auto o = order.ptr;
@@ -1098,6 +1111,18 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
         bds = transform.transformRect(Bounds(Vec2(), o->size()));
         center = bds.pos() + bds.size().mul(o->origin());
     }
+    
+    bool pushed_rect = false;
+    //if(order._clip_rect.w > 0 && order._clip_rect.z > 0 && (list->_ClipRectStack.empty() || list->_ClipRectStack.back() != order._clip_rect))
+    if(order._clip_rect.w > 0 && order._clip_rect.z > 0) {
+        //list->AddRect(ImVec2(order._clip_rect.x, order._clip_rect.y),
+        //              ImVec2(order._clip_rect.w, order._clip_rect.z), cvtClr(Red));
+        list->PushClipRect(ImVec2(order._clip_rect.x, order._clip_rect.y),
+                           ImVec2(order._clip_rect.w, order._clip_rect.z), false);
+        pushed_rect = true;
+    }
+
+    auto i_ = list->VtxBuffer.Size;
     
     switch (o->type()) {
         case Type::CIRCLE: {
@@ -1171,7 +1196,8 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
         }
             
         case Type::ENTANGLED: {
-            list->PushClipRect(ImVec2(order.bounds.x, order.bounds.y), ImVec2(order.bounds.width + order.bounds.x, order.bounds.height + order.bounds.y), false);
+            //list->AddRect(ImVec2(bds.x, bds.y), ImVec2(bds.x + bds.width, bds.y + bds.height), cvtClr(Red));
+            //list->PushClipRect(ImVec2(bds.x, bds.y), ImVec2(bds.x + bds.width, bds.y + bds.height), false);
             
             //Debug("Pushing cliprect of %.0f,%.0f", list->_ClipRectStack.back().x, list->_ClipRectStack.back().y);
             break;
@@ -1298,6 +1324,26 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
             break;
     }
     
+#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
+    if(SETTING(gui_blur_enabled)) {
+        bool blur = false;
+        auto p = o;
+        while(p) {
+            if(p->tagged(Effects::blur)) {
+                blur = true;
+                break;
+            }
+            
+            p = p->parent();
+        }
+        
+        auto e = list->VtxBuffer.Size;
+        for(auto i=i_; i<e; ++i) {
+            list->VtxBuffer[i].mask = blur;
+        }
+    }
+#endif
+    
     if(!list->CmdBuffer.empty()) {
         if(list->CmdBuffer.back().ElemCount == 0) {
             (void)list->CmdBuffer;
@@ -1324,9 +1370,14 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
     if(o->type() != Type::ENTANGLED && o->has_global_rotation()) {
         ImRotateEnd(rotation_start, list, o->rotation(), center);
     }
+    
+    if(pushed_rect) {
+        assert(!list->_ClipRectStack.empty());
+        list->PopClipRect();
+    }
 }
 
-    void IMGUIBase::redraw(Drawable *o, std::vector<DrawOrder>& draw_order, bool is_background) {
+    void IMGUIBase::redraw(Drawable *o, std::vector<DrawOrder>& draw_order, bool is_background, ImVec4 clip_rect) {
         static auto entangled_will_texture = [](Entangled* e) {
             assert(e);
             if(e->scroll_enabled() && e->size().max() > 0) {
@@ -1373,15 +1424,17 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
             case Type::ENTANGLED: {
                 auto ptr = static_cast<Entangled*>(o);
                 if(ptr->rotation() != 0)
-                    draw_order.emplace_back(DrawOrder::START_ROTATION, draw_order.size(), o, transform, bounds);
+                    draw_order.emplace_back(DrawOrder::START_ROTATION, draw_order.size(), o, transform, bounds, clip_rect);
                 
                 auto bg = static_cast<Entangled*>(o)->background();
                 if(bg) {
-                    redraw(bg, draw_order, true);
+                    redraw(bg, draw_order, true, clip_rect);
                 }
                 
                 if(entangled_will_texture(ptr)) {
-                    draw_order.emplace_back(DrawOrder::DEFAULT, draw_order.size(), o, transform, bounds);
+                    clip_rect = bounds;
+                    
+                    //draw_order.emplace_back(DrawOrder::DEFAULT, draw_order.size(), ptr, transform, bounds, clip_rect);
                     
                     for(auto c : ptr->children()) {
                         if(ptr->scroll_enabled()) {
@@ -1399,25 +1452,25 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
                             }
                         }
                         
-                        redraw(c, draw_order);
+                        redraw(c, draw_order, false, clip_rect);
                     }
                     
-                    draw_order.emplace_back(DrawOrder::POP, draw_order.size(), ptr, transform, bounds);
+                    //draw_order.emplace_back(DrawOrder::POP, draw_order.size(), ptr, transform, bounds, clip_rect);
                     
                 } else {
                     for(auto c : ptr->children())
-                        redraw(c, draw_order);
+                        redraw(c, draw_order, false, clip_rect);
                 }
                 
                 if(ptr->rotation() != 0) {
-                    draw_order.emplace_back(DrawOrder::END_ROTATION, draw_order.size(), ptr, transform, bounds);
+                    draw_order.emplace_back(DrawOrder::END_ROTATION, draw_order.size(), ptr, transform, bounds, clip_rect);
                 }
                 
                 break;
             }
                 
             default:
-                draw_order.emplace_back(DrawOrder::DEFAULT, draw_order.size(), o, transform, bounds);
+                draw_order.emplace_back(DrawOrder::DEFAULT, draw_order.size(), o, transform, bounds, clip_rect);
                 break;
         }
     }
@@ -1456,7 +1509,7 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
         //Debug("font.size = %f, FontSize = %f, im_font_scale = %f, size = (%f, %f) '%S'", font.size, im_font->FontSize, im_font_scale, size.x, size.y, &text);
         //return text_size;
         //auto size = ImGui::CalcTextSize(text.c_str());
-        return Bounds(0, 0, size.x, size.y);
+        return Bounds(Vec2(), size);
     }
 
     uint32_t IMGUIBase::line_spacing(const Font& font) {

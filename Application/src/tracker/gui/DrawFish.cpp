@@ -7,6 +7,12 @@
 #include <gui.h>
 #include <misc/CircularGraph.h>
 #include <misc/create_struct.h>
+#include <gui/DrawMenu.h>
+#include <gui/Label.h>
+#include <tracking/Recognition.h>
+#include <tracking/Categorize.h>
+#include <gui/IMGUIBase.h>
+#include <gui/DrawBase.h>
 
 using namespace track;
 
@@ -51,21 +57,23 @@ CREATE_STRUCT(CachedGUIOptions,
         });
         on_click([ID, this](auto) {
             std::vector<Idx_t> selections = SETTING(gui_focus_group);
-
-            if(stage() && !(stage()->is_key_pressed(gui::LShift) || stage()->is_key_pressed(gui::RShift))) {
-                if(!selections.empty() && selections.front() == ID)
-                    selections.resize(1);
-                else
-                    selections.clear();
-            }
-                
             auto it = std::find(selections.begin(), selections.end(), ID);
-            if(it != selections.end())
-                selections.erase(it);
-            else
-                selections.push_back(ID);
             
-            SETTING(gui_focus_group) = selections;
+            if(stage() && !(stage()->is_key_pressed(gui::LShift) || stage()->is_key_pressed(gui::RShift))) {
+                if(it != selections.end())
+                    GUI::cache().deselect_all();
+                else
+                    GUI::cache().deselect_all_select(ID);
+                
+            } else {
+                if(it != selections.end())
+                    GUI::cache().deselect(ID);
+                else
+                    GUI::cache().do_select(ID);
+            }
+            
+            
+            //SETTING(gui_focus_group) = selections;
             this->set_dirty();
         });
         
@@ -88,6 +96,7 @@ CREATE_STRUCT(CachedGUIOptions,
         
         if(_idx != frameIndex) {
             _image = nullptr;
+            points.clear();
             
             auto && [basic, posture] = _obj.all_stuff(_safe_idx);
             
@@ -161,6 +170,21 @@ CREATE_STRUCT(CachedGUIOptions,
         bool is_selected = cache.is_selected(_obj.identity().ID());
         std::vector<Vec2> points;
         
+#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
+#if defined(__APPLE__) && TREX_METAL_AVAILABLE
+        if(GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)
+        {
+            if(!is_selected) tag(Effects::blur);
+            else untag(Effects::blur);
+            
+            if(is_selected && GUI::instance() && GUI::instance()->base()) {
+                ((MetalImpl*)((IMGUIBase*)GUI::instance()->base())->platform().get())->center[0] = global_bounds().x / float(GUI::instance()->base()->window_dimensions().width) / gui::interface_scale() * window.scale().x;
+                ((MetalImpl*)((IMGUIBase*)GUI::instance()->base())->platform().get())->center[1] = global_bounds().y / float(GUI::instance()->base()->window_dimensions().height) / gui::interface_scale() * window.scale().y;
+            }
+        }
+#endif
+#endif
+        
         if(GUIOPTION(gui_show_paths))
             paintPath(window, offset, _safe_idx, cmn::max(_obj.start_frame(), _safe_idx - 1000l), base_color);
         
@@ -170,6 +194,50 @@ CREATE_STRUCT(CachedGUIOptions,
         /*if(midline && !midline->is_normalized()) {
             midline = midline->normalize();
         }*/
+        
+        if(active && _cached_outline) {
+            if(GUIOPTION(gui_show_shadows) || GUIOPTION(gui_show_outline)) {
+                points = _cached_outline->uncompress();
+            }
+            
+            /*if(GUIOPTION(gui_show_shadows) && _polygon) {
+                _polygon->set_vertices(points);
+                float size = Tracker::average().bounds().size().length() * 0.0025f;
+                Vec2 scaling(SQR(offset.x / float(Tracker::average().cols)),
+                             SQR(offset.y / float(Tracker::average().rows)));
+                _polygon->set_pos(scaling * size + this->size() * 0.5);
+                _polygon->set_scale(scaling * 0.25 + 1);
+                
+    #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
+    #if defined(__APPLE__) && TREX_METAL_AVAILABLE
+                if(GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)
+                {
+                    if(is_selected)_polygon->tag(Effects::blur);
+                    else _polygon->untag(Effects::blur);
+                }
+    #endif
+    #endif
+            }*/
+        }
+        
+#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
+#if defined(__APPLE__) && TREX_METAL_AVAILABLE
+        auto it = cache.fish_selected_blobs.find(_obj.identity().ID());
+        if(it != cache.fish_selected_blobs.end()) {
+            for(auto & [b, ptr] : cache.display_blobs) {
+                if(b->blob_id() == it->second) {
+                    ptr->set_pos(Vec2());
+                    if(GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)
+                    {
+                        ptr->untag(Effects::blur);
+                    }
+                    window.wrap_object(*ptr);
+                    break;
+                }
+            }
+        }
+#endif
+#endif
         
         // DRAW OUTLINE / MIDLINE ON THE MAIN GRAYSCALE IMAGE
         const double damping_linear = .5;
@@ -184,7 +252,7 @@ CREATE_STRUCT(CachedGUIOptions,
             mp = mouse_position - this->pos();
         }
         
-        _posture.update([&, fish = this](Entangled& window) {
+        _posture.update([this, panic_button, mp, &_force, max_color, &head, &offset, fish = this, active, &points](Entangled& window) {
             if(panic_button) {
                 if(float(rand()) / float(RAND_MAX) > 0.75) {
                     _color = _wheel.next();
@@ -238,15 +306,16 @@ CREATE_STRUCT(CachedGUIOptions,
                     float size = Tracker::average().bounds().size().length() * 0.0025f;
                     Vec2 scaling(SQR(offset.x / float(Tracker::average().cols)),
                                  SQR(offset.y / float(Tracker::average().rows)));
-                    _polygon->set_pos(scaling * size + fish->size() * 0.5);
+                    _polygon->set_pos(-offset + scaling * size + fish->size() * 0.5);
                     _polygon->set_scale(scaling * 0.25 + 1);
+                    _polygon->set_fill_clr(Black.alpha(25));
                     
-                    window.advance_wrap(*_polygon);
+                    //window.advance_wrap(*_polygon);
                 }
                 
                 // check if we actually have a tail index
                 if(GUIOPTION(gui_show_midline) && _cached_midline && _cached_midline->tail_index() != -1)
-                    window.entangle(new Circle(points.at(_cached_midline->tail_index()), 2, Blue.alpha(max_color * 0.3f)));
+                    window.advance(new Circle(points.at(_cached_midline->tail_index()), 2, Blue.alpha(max_color * 0.3f)));
                 
                 //float right_side = outline->tail_index() + 1;
                 //float left_side = points.size() - outline->tail_index();
@@ -306,6 +375,7 @@ CREATE_STRUCT(CachedGUIOptions,
             GUI::cache().set_animating(this, true);
         } else
             GUI::cache().set_animating(this, false);
+        
         window.wrap_object(_posture);
         
         // DISPLAY LABEL AND POSITION
@@ -324,7 +394,8 @@ CREATE_STRUCT(CachedGUIOptions,
             angle = -head->angle();
         }
         
-        auto radius = (FAST_SETTINGS(calculate_posture) ? _obj.midline_length() : blob_bounds.size().max()) * 0.6;
+        auto ML = _obj.midline_length();
+        auto radius = (FAST_SETTINGS(calculate_posture) && ML != Graph::invalid() ? ML : blob_bounds.size().max()) * 0.6;
         if(GUIOPTION(gui_show_texts)) {
             // DISPLAY NEXT POSITION (estimated position in _idx + 1)
             //if(cache.processed_frame.cached_individuals.count(_obj.identity().ID())) {
@@ -413,14 +484,14 @@ CREATE_STRUCT(CachedGUIOptions,
             ph.blink += dt;
             
             auto sun_direction = (offset - Vec2(0)).normalize();
-            auto eye_scale = _obj.midline_length() / 90;
+            auto eye_scale = max(0.5, _obj.midline_length() / 90);
             for(auto &eye : eyes) {
                 eye.pos += ph.direction;
                 window.circle(eye.pos + offset, 5 * eye_scale, Black.alpha(200), White.alpha(125));
-                auto c = window.circle(eye.pos + Vec2(2.5).mul(d) + offset, 3 * eye_scale, Transparent, Black.alpha(200));
+                auto c = window.circle(eye.pos + Vec2(2.5).mul(d * eye_scale) + offset, 3 * eye_scale, Transparent, Black.alpha(200));
                 c->set_scale(Vec2(1, ph.blinking ? h : 1));
                 c->set_rotation(atan2(ph.direction) + RADIANS(90));//posture->head->angle() + RADIANS(90));
-                window.circle(eye.pos + Vec2(2.5).mul(d) + Vec2(2).mul(sun_direction) + offset, sqrt(eye_scale), Transparent, White.alpha(200 * c->scale().min()));
+                window.circle(eye.pos + Vec2(2.5).mul(d * eye_scale) + Vec2(2 * eye_scale).mul(sun_direction) + offset, sqrt(eye_scale), Transparent, White.alpha(200 * c->scale().min()));
             }
         }
         
@@ -948,4 +1019,99 @@ CREATE_STRUCT(CachedGUIOptions,
             _recognition_circle = nullptr;
         }
     }
+
+void Fish::label(DrawStructure &base) {
+    auto blob = _obj.compressed_blob(_idx);
+    
+    std::string color = "";
+    std::stringstream text;
+    std::string secondary_text;
+
+    text << _obj.identity().raw_name() << " ";
+    
+    if (DrawMenu::matching_list_open() && blob) {
+        secondary_text = "blob" + Meta::toStr(blob->blob_id());
+    }
+    else if (GUI_SETTINGS(gui_show_recognition_bounds)) {
+        auto&& [valid, segment] = _obj.has_processed_segment(_idx);
+        if (valid) {
+            auto&& [samples, map] = _obj.processed_recognition(segment.start());
+            auto it = std::max_element(map.begin(), map.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b) {
+                return a.second < b.second;
+            });
+
+            if (it == map.end() || it->first != _obj.identity().ID()) {
+                color = "str";
+                secondary_text += " avg" + Meta::toStr(it->first);
+            }
+            else
+                color = "nr";
+        }
+    }
+
+    if (blob) {
+        auto raw = Tracker::instance()->recognition()->ps_raw(_idx, blob->blob_id());
+        if (!raw.empty()) {
+            auto it = std::max_element(raw.begin(), raw.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b) {
+                return a.second < b.second;
+                });
+
+            if (it != raw.end()) {
+                secondary_text += " loc" + Meta::toStr(it->first) + " (" + Meta::toStr(it->second) + ")";
+            }
+        }
+        //auto raw_cat = Categorize::DataStore::label(Frame_t(_idx), blob);
+        //auto cat = Categorize::DataStore::label_interpolated(_obj.identity().ID(), Frame_t(_idx));
+        auto avg_cat = Categorize::DataStore::label_averaged(_obj.identity().ID(), Frame_t(_idx));
+        auto it = GUI::cache().processed_frame.cached_individuals.find(_obj.identity().ID());
+        if(it != GUI::cache().processed_frame.cached_individuals.end()) {
+            auto cat = it->second.current_category;
+            if(cat != -1) {
+                auto l = Categorize::DataStore::label(cat);
+                if(l)
+                    secondary_text += "<key>"+l->name+"</key>";
+            }
+        }
+        
+        auto cat = Categorize::DataStore::label(Frame_t(_idx), blob);
+        if (cat) {
+            secondary_text += std::string(" ") + (cat ? "<b>" : "") + "<i>" + cat->name + "</i>" + (cat ? "</b>" : "");
+        }
+        
+        if(avg_cat) {
+            secondary_text += (avg_cat ? std::string(" ") : std::string()) + "<nr>" + avg_cat->name + "</nr>";
+        }
+    }
+
+    float alpha = (GUI::instance()->timeline().visible() ? 255 : SETTING(gui_faded_brightness).value<uchar>()) / 255.f * 200.f;
+    
+    if (blob) {
+        auto label = (Label*)custom_data("label");
+        auto label_text = (color.empty() ? text.str() : ("<"+color+">"+text.str()+"</"+color+">")) + "<a>" + secondary_text + "</a>";
+        if (!label) {
+            label = new Label(label_text, blob->calculate_bounds(), fish_pos());
+            add_custom_data("label", (void*)label, [](void* ptr) {
+                delete (Label*)ptr;
+            });
+        }
+        else
+            label->set_data(label_text, blob->calculate_bounds(), fish_pos());
+
+        label->update(base, base.active_section(), 1, blob == nullptr);
+    }
+}
+
+void Fish::shadow(DrawStructure &window) {
+    auto active = GUI::cache().active_ids.find(_obj.identity().ID()) != GUI::cache().active_ids.end();
+    
+    if(GUIOPTION(gui_show_shadows) && active) {
+        if(!_polygon) {
+            _polygon = std::make_shared<Polygon>(std::make_shared<std::vector<Vec2>>());
+            _polygon->set_fill_clr(Black.alpha(125));
+            _polygon->set_origin(Vec2(0.5));
+        }
+        
+        window.wrap_object(*_polygon);
+    }
+}
 }

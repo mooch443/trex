@@ -294,6 +294,7 @@ namespace gui {
     }
     
     void Entangled::init_child(size_t i, bool own) {
+        assert(i < _children.size());
         auto d = _children[i];
         
         auto it = _currently_removed.find(d);
@@ -367,6 +368,7 @@ Drawable* Entangled::insert_at_current_index(Drawable* d) {
         }
         
     } else {
+        assert(_index == _children.size());
         _children.push_back(d); used_or_deleted = true;
         init_child(_index, true);
     }
