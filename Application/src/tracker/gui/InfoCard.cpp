@@ -133,23 +133,25 @@ void InfoCard::update() {
             if constexpr(std::is_same<typename decltype(it)::value_type, std::shared_ptr<Individual::SegmentInformation>>::value)
             {
                 const std::shared_ptr<Individual::SegmentInformation>& ptr = *it;
-                std::vector<std::string> reasons;
                 auto bitset = ptr->error_code;
                 if(ptr->error_code != std::numeric_limits<decltype(ptr->error_code)>::max()) {
+                    size_t i=0;
                     while (bitset != 0) {
                         auto t = bitset & -bitset;
                         int r = __builtin_ctz(bitset);
                         if(size_t(r + 1) >= ReasonsNames.size())
-                            reasons.push_back("<invalid>");
+                            tt += std::string(i > 0 ? "," : "")+" <key>invalid-key</key>";
                         else
-                            reasons.push_back(ReasonsNames.at(r + 1));
+                            tt += std::string(i > 0 ? "," : "")+" <str>"+std::string(ReasonsNames.at(r + 1))+"</str>";
                         //reasons.push_back((Reasons)(1 << r));
                         bitset ^= t;
+                        ++i;
                     }
                 } else {
-                    reasons.push_back("<end of analysis>");
+                    tt += " <nr>Analysis ended</nr>";
                 }
-                tt = Meta::toStr(reasons);
+                
+                tt = "Segment "+Meta::toStr(ptr->range)+" ended because:"+tt;
             }
             segment_texts.push_back({text, tt});
             
