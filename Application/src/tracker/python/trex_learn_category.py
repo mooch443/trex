@@ -125,8 +125,13 @@ class Categorize:
         #try:
         with np.load(self.output_file, allow_pickle=True) as npz:
             shape = npz["x"].shape
-            TRex.log("# loading model with data of shape "+str(shape)+" and current shape "+str(self.height)+","+str(self.width))
+
+            if shape[1] != self.height or shape[2] != self.width:
+                TRex.warn("# loading of weights failed since resolutions differed: "+str(self.width)+"x"+str(self.height)+" != "+str(shape[2])+"x"+str(shape[1])+". Change recognition_image_size accordingly, or restart the process.")
+                return
+
             assert shape[1] == self.height and shape[2] == self.width
+            TRex.log("# loading model with data of shape "+str(shape)+" and current shape "+str(self.height)+","+str(self.width))
 
             categories_map = npz["categories_map"].item()
             TRex.log("# categories_map:"+str(categories_map))
@@ -277,10 +282,10 @@ def start():
     TRex.log("# initialized with categories"+str(categories)+".")
 
 def load():
-    global categorize
+    global categorize, width, height, categories
     assert type(categorize) != type(None)
 
-    if type(categorize) == type(None):
+    if type(categorize) == type(None) and width == categorize.width and height == categorize.height and eval(categories) == categorize.categories_map:
         start()
     else:
         TRex.log("# model already exists. reloading model")

@@ -179,7 +179,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         PythonLog("%S", &text);
         });
     m.def("warn", [](std::string text) {
-        PythonLog("%S", &text);
+        PythonWarn("%S", &text);
         });
 
     /*m.def("show_work_image", [](std::string name, pybind11::buffer b) {

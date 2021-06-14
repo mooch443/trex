@@ -187,7 +187,7 @@ const Sample::Ptr& DataStore::random_sample(Idx_t fid) {
     if(!segment)
         return Sample::Invalid();
     
-    return sample(segment, fish, 150u, 50u);
+    return sample(segment, fish, 150u, 1u);
 }
 
 Sample::Ptr DataStore::get_random() {
@@ -598,7 +598,7 @@ public:
         }
         
         if(_sample) {
-            auto text = "<nr>"+Meta::toStr(_animation_index)+"</nr>/<nr>"+Meta::toStr(_sample->_images.size())+"</nr>";
+            auto text = "<nr>"+Meta::toStr(_animation_index+1)+"</nr>/<nr>"+Meta::toStr(_sample->_images.size())+"</nr>";
             
             std::lock_guard guard(Work::_recv_mutex);
             if(!_sample->_probabilities.empty()) {
@@ -681,6 +681,12 @@ struct Row {
         
         layout->set_origin(Vec2(0.5));
         layout->set_background(Transparent, White.alpha(125));
+    }
+    
+    void clear() {
+        for(auto &cell : _cells) {
+            cell.set_sample(nullptr);
+        }
     }
     
     Cell& cell(size_t i) {
@@ -797,6 +803,16 @@ Sample::Ptr Work::retrieve() {
             if(!_generated_samples.empty()) {
                 sample = std::move(_generated_samples.front());
                 _generated_samples.pop();
+                
+                if(sample != Sample::Invalid()
+                   && (sample->_images.empty()
+                       || sample->_images.front()->rows != FAST_SETTINGS(recognition_image_size).height
+                       || sample->_images.front()->cols != FAST_SETTINGS(recognition_image_size).width)
+                   )
+                {
+                    sample = Sample::Invalid();
+                    Debug("Invalidated sample for wrong dimensions.");
+                }
             }
         }
         
@@ -932,6 +948,7 @@ struct NetworkApplicationState {
                             GUI::set_status("");
                             Debug("Done categorizing. Clearing DataStore.");
                             DataStore::clear();
+                            Work::_learning = false;
                         } else {
                             Debug("[Categorize] %S", &text);
                             GUI::set_status(text);
@@ -946,7 +963,7 @@ struct NetworkApplicationState {
 
             segment = *it;
             if(!DataStore::label_interpolated(fish->identity().ID(), Frame_t(segment->start()))) {
-                task.sample = DataStore::temporary(segment, fish, 300u, 5u, true);
+                task.sample = DataStore::temporary(segment, fish, 300u, 1u, true);
                 task.segment = segment;
             }
 #ifndef NDEBUG
@@ -1130,10 +1147,9 @@ void Work::start_learning() {
         
         using py = PythonIntegration;
         static const std::string module = "trex_learn_category";
-        const auto dims = SETTING(recognition_image_size).value<Size2>();
-        const auto gpu_max_sample_byte = double(SETTING(gpu_max_sample_gb).value<float>()) * 1000.0 * 1000.0 * 1000.0 / double(sizeof(float)) * 0.5;
         
-        py::import_module(module);
+        //py::import_module(module);
+        py::check_module(module);
         
         auto reset_variables = [](){
             Debug("Reset python functions and variables...");
@@ -1183,7 +1199,7 @@ void Work::start_learning() {
         };
         
         Timer timer;
-        while(_labels.empty() && Work::_learning) {
+        while(FAST_SETTINGS(categories_ordered).empty() && Work::_learning) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             if(timer.elapsed() >= 1) {
                 Warning("# Waiting for labels...");
@@ -1202,12 +1218,19 @@ void Work::start_learning() {
         
         std::unique_lock guard(Work::_learning_mutex);
         while(Work::_learning) {
+            const auto dims = SETTING(recognition_image_size).value<Size2>();
+            const auto gpu_max_sample_images = double(SETTING(gpu_max_sample_gb).value<float>()) * 1000.0 * 1000.0 * 1000.0 / double(sizeof(float)) * 0.5 / dims.width / dims.height;
+            
             Work::_learning_variable.wait_for(guard, std::chrono::seconds(1));
             
             size_t executed = 0;
             bool clear_probs = false;
             
             while(!queue().empty() && Work::_learning) {
+                if(py::check_module(module)) {
+                    reset_variables();
+                }
+                
                 auto item = std::move(queue().front());
                 queue().pop();
 
@@ -1216,58 +1239,63 @@ void Work::start_learning() {
                     Debug("Module '%S' changed, reset variables...", &module);
                     reset_variables();
                 }*/
-                
-                switch (item.type) {
-                    case LearningTask::Type::Load: {
-                        py::run(module, "load");
-                        //py::run(module, "send_samples");
-                        clear_probs = true;
-                        if (item.callback)
-                            item.callback(item);
-                        break;
-                    }
-                        
-                    case LearningTask::Type::Restart:
-                        py::run(module, "clear_images");
-                        if (item.callback)
-                            item.callback(item);
-                        break;
-                        
-                    case LearningTask::Type::Prediction: {
-                        auto idx = prediction_images.size();
-                        prediction_images.insert(prediction_images.end(), item.sample->_images.begin(), item.sample->_images.end());
-                        prediction_tasks.emplace_back(std::move(item), idx);
-                        last_insert.reset();
-                        break;
-                    }
-                        
-                    case LearningTask::Type::Training: {
-                        auto ldx = training_labels.size();
-                        auto idx = training_images.size();
+                try {
+                    switch (item.type) {
+                        case LearningTask::Type::Load: {
+                            py::run(module, "load");
+                            //py::run(module, "send_samples");
+                            clear_probs = true;
+                            if (item.callback)
+                                item.callback(item);
+                            break;
+                        }
+                            
+                        case LearningTask::Type::Restart:
+                            py::run(module, "clear_images");
+                            if (item.callback)
+                                item.callback(item);
+                            break;
+                            
+                        case LearningTask::Type::Prediction: {
+                            auto idx = prediction_images.size();
+                            prediction_images.insert(prediction_images.end(), item.sample->_images.begin(), item.sample->_images.end());
+                            prediction_tasks.emplace_back(std::move(item), idx);
+                            last_insert.reset();
+                            break;
+                        }
+                            
+                        case LearningTask::Type::Training: {
+                            auto ldx = training_labels.size();
+                            auto idx = training_images.size();
 
-                        training_labels.insert(training_labels.end(), item.sample->_frames.size(), item.sample->_assigned_label->name);
-                        training_images.insert(training_images.end(), item.sample->_images.begin(), item.sample->_images.end());
-                        training_tasks.emplace_back(std::move(item), idx, ldx);
-                        last_insert.reset();
-                        break;
+                            training_labels.insert(training_labels.end(), item.sample->_frames.size(), item.sample->_assigned_label->name);
+                            training_images.insert(training_images.end(), item.sample->_images.begin(), item.sample->_images.end());
+                            training_tasks.emplace_back(std::move(item), idx, ldx);
+                            last_insert.reset();
+                            break;
+                        }
+                            
+                        default:
+                            break;
                     }
-                        
-                    default:
-                        break;
+                    
+                } catch(const SoftException& e) {
+                    // pass
                 }
                 
                 guard.lock();
                 
                 // dont collect too many tasks
-                if(prediction_images.size() * dims.width * dims.height > gpu_max_sample_byte
-                   || training_images.size() * dims.width * dims.height > gpu_max_sample_byte)
+                if(prediction_images.size() >= gpu_max_sample_images
+                   || training_images.size() >= gpu_max_sample_images)
                 {
                     Work::_learning_variable.notify_all();
                     break;
                 }
             }
 
-            if(prediction_images.size() >= 1000 || training_images.size() >= 250 || last_insert.elapsed() >= 1) {
+            if(prediction_images.size() >= gpu_max_sample_images || training_images.size() >= 250 || last_insert.elapsed() >= 2)
+            {
                 if (!prediction_tasks.empty()) {
                     guard.unlock();
 
@@ -1283,22 +1311,28 @@ void Work::start_learning() {
                     }*/
                     
                     Work::status() = "Prediction...";
-                    Debug("Predicting %lu samples, %lu collected...", prediction_images.size(), prediction_tasks.size());
-                    py::set_variable("images", prediction_images, module);
-                    py::set_function("receive", [&](std::vector<float> results)
-                    {
-                        Debug("Predicted %lu values...", results.size());
-                        for (auto& [item, offset] : prediction_tasks) {
-                            if (item.type == LearningTask::Type::Prediction) {
-                                item.result.insert(item.result.end(), results.begin() + offset, results.begin() + offset + item.sample->_images.size());
-                                if (item.callback)
-                                    item.callback(item);
+                    
+                    try {
+                        Debug("Predicting %lu samples, %lu collected...", prediction_images.size(), prediction_tasks.size());
+                        py::set_variable("images", prediction_images, module);
+                        py::set_function("receive", [&](std::vector<float> results)
+                        {
+                            Debug("Predicted %lu values...", results.size());
+                            for (auto& [item, offset] : prediction_tasks) {
+                                if (item.type == LearningTask::Type::Prediction) {
+                                    item.result.insert(item.result.end(), results.begin() + offset, results.begin() + offset + item.sample->_images.size());
+                                    if (item.callback)
+                                        item.callback(item);
+                                }
                             }
-                        }
 
-                    }, module);
+                        }, module);
 
-                    py::run(module, "predict");
+                        py::run(module, "predict");
+                    } catch(...) {
+                        Except("Prediction failed. See above for an error description.");
+                    }
+                    
                     Work::status() = "";
 
                     guard.lock();
@@ -1306,23 +1340,27 @@ void Work::start_learning() {
 
                 if (!training_images.empty()) {
                     Debug("Training on %lu additional samples", training_images.size());
-                    // train for a couple epochs
-                    py::set_variable("epochs", int(10));
-                    py::set_variable("additional", training_images, module);
-                    py::set_variable("additional_labels", training_labels, module);
-                    py::run(module, "add_images");
-                    clear_probs = true;
+                    try {
+                        // train for a couple epochs
+                        py::set_variable("epochs", int(10));
+                        py::set_variable("additional", training_images, module);
+                        py::set_variable("additional_labels", training_labels, module);
+                        py::run(module, "add_images");
+                        clear_probs = true;
 
-                    guard.unlock();
-                    for (auto& [item, _, __] : training_tasks) {
-                        if (item.type == LearningTask::Type::Training) {
-                            if (item.callback)
-                                item.callback(item);
+                        guard.unlock();
+                        for (auto& [item, _, __] : training_tasks) {
+                            if (item.type == LearningTask::Type::Training) {
+                                if (item.callback)
+                                    item.callback(item);
+                            }
                         }
-                    }
 
-                    Work::status() = "Training...";
-                    py::run(module, "post_queue");
+                        Work::status() = "Training...";
+                        py::run(module, "post_queue");
+                    } catch(...) {
+                        Except("Training failed. See above for additional details.");
+                    }
                     Work::status() = "";
                     guard.lock();
                 }
@@ -1352,10 +1390,15 @@ void Work::start_learning() {
                     training_images.clear();
                     training_labels.clear();
                 }
+                
+                last_insert.reset();
+                
             } else {
                 Work::_learning_variable.notify_one();
             }
         }
+        
+        Debug("## Ending python blockade.");
         
         return true;
         
@@ -1430,7 +1473,7 @@ void Work::loop() {
                     {
                         Tracker::LockGuard g("get_random::loop");
                         sample = DataStore::get_random();
-                        if (sample && sample->_images.size() < 50) {
+                        if (sample && sample->_images.size() < 1) {
                             sample = Sample::Invalid();
                         }
                     }
@@ -1618,13 +1661,22 @@ void DataStore::clear() {
         _frame_cache.clear();
     }
     
-    std::lock_guard guard(mutex());
-    _samples.clear();
-    _used_indexes.clear();
+    {
+        std::lock_guard guard(mutex());
+        _samples.clear();
+        _used_indexes.clear();
+        
+        //! maintain labels, but clear samples
+        for(auto &[k, v] : _labels)
+            v.clear();
+    }
     
-    //! maintain labels, but clear samples
-    for(auto &[k, v] : _labels)
-        v.clear();
+    {
+        std::lock_guard guard(GUI::instance()->gui().lock());
+        for(auto &row : rows) {
+            row.clear();
+        }
+    }
 }
 
 Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInformation>& segment,
@@ -2268,6 +2320,20 @@ void draw(gui::DrawStructure& base) {
         txt = "<i>Predictions for all visible tiles will be displayed as soon as the network becomes confident enough.</i>\n"+txt;
     }
     desc_text.to<StaticText>()->set_txt(txt);
+}
+
+void clear_labels() {
+    {
+        std::unique_lock guard(DataStore::range_mutex());
+        _ranged_labels.clear();
+    }
+    
+    {
+        std::unique_lock g(DataStore::cache_mutex());
+        _interpolated_probability_cache.clear();
+        _averaged_probability_cache.clear();
+    }
+
 }
 
 }

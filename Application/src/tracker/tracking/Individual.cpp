@@ -1042,18 +1042,6 @@ void Individual::iterate_frames(const Rangel& segment, const std::function<bool(
     }
 }
 
-enum class Reasons {
-    None = 0,
-    LostForOneFrame = 1,
-    TimestampTooDifferent = 2,
-    ProbabilityTooSmall = 4,
-    ManualMatch = 8,
-    WeirdDistance = 16,
-    NoBlob = 32,
-    MaxSegmentLength = 64
-    
-};
-
 template<typename Enum>
 Enum operator |(Enum lhs, Enum rhs)
 {
@@ -1070,6 +1058,16 @@ Enum operator |(Enum lhs, Enum rhs)
 
 template<typename T>
 T operator *(const T& lhs, Reasons rhs)
+{
+    using underlying = typename std::underlying_type<Reasons>::type;
+
+    return static_cast<T> (
+        lhs * static_cast<underlying>(rhs)
+    );
+}
+
+template<typename T>
+T operator *(Reasons rhs, const T& lhs)
 {
     using underlying = typename std::underlying_type<Reasons>::type;
 
@@ -1110,13 +1108,13 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(l
     
     double tdelta = prop && prev_prop ? prop->time - prev_prop->time : 0;
     uint32_t error_code = 0;
-    error_code |= uint32_t(prev_frame != frameIndex-1) * Reasons::LostForOneFrame;
-    error_code |= uint32_t(current_prob != -1 && current_prob < FAST_SETTINGS(track_trusted_probability)) * Reasons::ProbabilityTooSmall;
-    error_code |= uint32_t(FAST_SETTINGS(huge_timestamp_ends_segment) && tdelta >= FAST_SETTINGS(huge_timestamp_seconds)) * Reasons::TimestampTooDifferent;
-    error_code |= (uint32_t)is_manual_match(frameIndex) * Reasons::ManualMatch;
-    error_code |= uint32_t(!blob) * Reasons::NoBlob;
-    error_code |= uint32_t(FAST_SETTINGS(track_end_segment_for_speed) && current && current->speed(Units::CM_AND_SECONDS) >= weird_distance()) * Reasons::WeirdDistance;
-    error_code |= uint32_t(FAST_SETTINGS(track_segment_max_length) > 0 && segment && segment->length() / float(FAST_SETTINGS(frame_rate)) >= FAST_SETTINGS(track_segment_max_length)) * Reasons::MaxSegmentLength;
+    error_code |= Reasons::LostForOneFrame       * uint32_t(prev_frame != frameIndex-1);
+    error_code |= Reasons::ProbabilityTooSmall   * uint32_t(current_prob != -1 && current_prob < FAST_SETTINGS(track_trusted_probability));
+    error_code |= Reasons::TimestampTooDifferent * uint32_t(FAST_SETTINGS(huge_timestamp_ends_segment) && tdelta >= FAST_SETTINGS(huge_timestamp_seconds));
+    error_code |= Reasons::ManualMatch           * uint32_t(is_manual_match(frameIndex));
+    error_code |= Reasons::NoBlob                * uint32_t(!blob);
+    error_code |= Reasons::WeirdDistance         * uint32_t(FAST_SETTINGS(track_end_segment_for_speed) && current && current->speed(Units::CM_AND_SECONDS) >= weird_distance());
+    error_code |= Reasons::MaxSegmentLength      * uint32_t(FAST_SETTINGS(track_segment_max_length) > 0 && segment && segment->length() / float(FAST_SETTINGS(frame_rate)) >= FAST_SETTINGS(track_segment_max_length));
     
     if(frameIndex == _startFrame || error_code != 0) {
     

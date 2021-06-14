@@ -207,6 +207,7 @@ void hide();
 void draw(gui::DrawStructure&);
 void terminate();
 file::Path output_location();
+void clear_labels();
 
 }
 }

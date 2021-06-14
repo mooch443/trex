@@ -3,6 +3,7 @@
 #include <tracking/Tracker.h>
 #include <tracking/Recognition.h>
 #include <gui/Timeline.h>
+#include <gui/types/Tooltip.h>
 
 namespace gui {
     InfoCard::InfoCard()
@@ -15,6 +16,21 @@ _fish(nullptr)
     }
 
 void InfoCard::update() {
+    static Tooltip tooltip(nullptr);
+    Text *other = nullptr;
+    
+    for(auto &[text, tooltip_text] : segment_texts) {
+        if(text->hovered()) {
+            tooltip.set_text(tooltip_text);
+            other = text;
+            break;
+        }
+    }
+    
+    if(other != previous) {
+        set_content_changed(true);
+    }
+    
     if(!content_changed())
         return;
     
@@ -52,6 +68,7 @@ void InfoCard::update() {
     }
     
     auto segments = _fish->frame_segments();
+    segment_texts.clear();
     
     auto add_segments = [txt = text, this
 #if DEBUG_ORIENTATION
@@ -105,9 +122,29 @@ void InfoCard::update() {
         
         for (; it != segments.end() && cmn::abs(std::distance(it0, it)) < 5; ++it, ++i)
         {
-            auto str = std::to_string(range_of(it).start())+"-"+std::to_string(range_of(it).end());
+            std::string str = std::to_string(range_of(it).start())+"-"+std::to_string(range_of(it).end());
             auto p = Vec2(width() - 10 + offx, float(height() - 40) * 0.5f + ((i - 2) + 1) * (float)Base::default_line_spacing(Font(1.1f)));
-            text = advance(new Text(str, p, White.alpha(25 + 230 * (1 - cmn::abs(i-2) / 5.0f)), Font(0.8f), Vec2(1), Vec2(1, 0.5f)));
+            
+            text = new Text(str, p, White.alpha(25 + 230 * (1 - cmn::abs(i-2) / 5.0f)), Font(0.8f), Vec2(1), Vec2(1, 0.5f));
+            text->set_clickable(true);
+            text = advance(text);
+            
+            std::string tt;
+            if constexpr(std::is_same<typename decltype(it)::value_type, std::shared_ptr<Individual::SegmentInformation>>::value)
+            {
+                const std::shared_ptr<Individual::SegmentInformation>& ptr = *it;
+                std::vector<std::string> reasons;
+                auto bitset = ptr->error_code;
+                while (bitset != 0) {
+                    auto t = bitset & -bitset;
+                    int r = __builtin_ctz(bitset);
+                    reasons.push_back(ReasonsNames.at(r + 1));
+                    //reasons.push_back((Reasons)(1 << r));
+                    bitset ^= t;
+                }
+                tt = Meta::toStr(reasons);
+            }
+            segment_texts.push_back({text, tt});
             
             if(range_of(*it).start() == current_segment) {
                 bool inside = range_of(*it).contains(_frameNr);
@@ -385,6 +422,11 @@ void InfoCard::update() {
         tmp.height = _max_y - tmp.y + 10;
         
         rect->set_size(tmp.size());
+    }
+    
+    if(other) {
+        tooltip.set_other(other);
+        advance_wrap(tooltip);
     }
     
     end();

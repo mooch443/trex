@@ -26,6 +26,30 @@ namespace track { class Individual; }
 namespace mem { struct IndividualMemoryStats; }
 
 namespace track {
+
+enum class Reasons {
+    None = 0,
+    LostForOneFrame = 1,
+    TimestampTooDifferent = 2,
+    ProbabilityTooSmall = 4,
+    ManualMatch = 8,
+    WeirdDistance = 16,
+    NoBlob = 32,
+    MaxSegmentLength = 64
+    
+};
+
+constexpr std::array<const char*, 8> ReasonsNames {
+    "None",
+    "LostForOneFrame",
+    "TimestampTooDifferent",
+    "ProbabilityTooSmall",
+    "ManualMatch",
+    "WeirdDistance",
+    "NoBlob",
+    "MaxSegmentLength"
+};
+
     template<typename Iterator, typename T>
     Iterator find_frame_in_sorted_segments(Iterator start, Iterator end, T object, typename std::enable_if< !is_pair<typename Iterator::value_type>::value, void* >::type = nullptr) {
         if(start != end) {

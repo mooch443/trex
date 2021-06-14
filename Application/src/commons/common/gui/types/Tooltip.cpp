@@ -22,8 +22,19 @@ namespace gui {
     }
     
     void Tooltip::update() {
+        auto mp = stage()->mouse_position();
+        if(parent()) {
+            auto tf = parent()->global_transform().getInverse();
+            mp = tf.transformPoint(mp) + Vec2(5, 0);
+        }
+        
+        if(mp.y - _text.height() < 0)
+            set_origin(Vec2(0, 0));
+        else
+            set_origin(Vec2(0, 1));
+        
         if(!content_changed()) {
-            set_pos(stage()->mouse_position() + Vec2(5, 0));
+            set_pos(mp);
             return;
         }
         
@@ -35,12 +46,7 @@ namespace gui {
         _text.update();
         _text.set_bounds_changed();
         
-        auto global_offset = stage()->mouse_position() + Vec2(5, 0);
-        if(global_offset.y - _text.height() < 0)
-            set_origin(Vec2(0, 0));
-        else
-            set_origin(Vec2(0, 1));
-        set_bounds(Bounds(global_offset, _text.size() + Vec2(5, 2) * 2));
+        set_bounds(Bounds(mp, _text.size() + Vec2(5, 2) * 2));
     }
     
     void Tooltip::set_text(const std::string& text) {
