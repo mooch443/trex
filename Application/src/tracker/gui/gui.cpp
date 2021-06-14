@@ -3126,8 +3126,10 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
         cache().updated_raw_blobs();
         
         if(draw_blobs_separately) {
-            for(auto &&[k,fish] : cache()._fish_map) {
-                fish->shadow(base);
+            if(GUI_SETTINGS(gui_mode) == gui::mode_t::tracking) {
+                for(auto &&[k,fish] : cache()._fish_map) {
+                    fish->shadow(base);
+                }
             }
             
             if(GUI_SETTINGS(gui_mode) != gui::mode_t::blobs) {
@@ -3172,7 +3174,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
                 }
             }
             
-        } else if(draw_blobs) {
+        } else if(draw_blobs && GUI_SETTINGS(gui_mode) == gui::mode_t::tracking) {
             for(auto &&[k,fish] : cache()._fish_map) {
                 fish->shadow(base);
             }
