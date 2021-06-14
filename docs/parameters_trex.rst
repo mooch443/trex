@@ -296,6 +296,16 @@ TRex parameters
 
 
 
+.. function:: categories_min_sample_images(uint)
+
+	**default value:** 50
+
+
+	Minimum number of images for a sample to be considered relevant. This will default to 50, or ten percent of ``track_segment_max_length``, if that parameter is set. If ``track_segment_max_length`` is set, the value of this parameter will be ignored. If set to zero or one, then all samples are valid.
+
+	.. seealso:: :func:`track_segment_max_length`, :func:`track_segment_max_length`, 
+
+
 .. function:: categories_ordered(array<string>)
 
 	**default value:** []

@@ -135,12 +135,19 @@ void InfoCard::update() {
                 const std::shared_ptr<Individual::SegmentInformation>& ptr = *it;
                 std::vector<std::string> reasons;
                 auto bitset = ptr->error_code;
-                while (bitset != 0) {
-                    auto t = bitset & -bitset;
-                    int r = __builtin_ctz(bitset);
-                    reasons.push_back(ReasonsNames.at(r + 1));
-                    //reasons.push_back((Reasons)(1 << r));
-                    bitset ^= t;
+                if(ptr->error_code != std::numeric_limits<decltype(ptr->error_code)>::max()) {
+                    while (bitset != 0) {
+                        auto t = bitset & -bitset;
+                        int r = __builtin_ctz(bitset);
+                        if(size_t(r + 1) >= ReasonsNames.size())
+                            reasons.push_back("<invalid>");
+                        else
+                            reasons.push_back(ReasonsNames.at(r + 1));
+                        //reasons.push_back((Reasons)(1 << r));
+                        bitset ^= t;
+                    }
+                } else {
+                    reasons.push_back("<end of analysis>");
                 }
                 tt = Meta::toStr(reasons);
             }
