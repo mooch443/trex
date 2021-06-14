@@ -636,7 +636,7 @@ static Callback callback;
         uint32_t id = blob_id();
         //auto x = id >> 16;
         //auto y = id & 0x0000FFFF;
-        return Meta::toStr(id)+" "+Meta::toStr(center)+" "+Meta::toStr(_parent_id);
+        return Meta::toStr(id)+" "+Meta::toStr(center);
     }
     
     void Blob::add_offset(const cmn::Vec2 &off) {
