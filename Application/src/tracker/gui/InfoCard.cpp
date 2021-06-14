@@ -447,6 +447,9 @@ void InfoCard::update() {
         auto fish = GUI::cache().primary_selection();
         
         if(_fish != fish) {
+            segment_texts.clear();
+            previous = nullptr;
+            
             if(_fish) {
                 _fish->unregister_delete_callback(this);
             }
