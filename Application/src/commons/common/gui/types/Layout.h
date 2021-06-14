@@ -14,6 +14,7 @@ namespace gui {
         
         Base& operator*() const { return ptr ? *ptr : *raw_ptr; }
         Base* get() const { return ptr ? ptr.get() : raw_ptr; }
+        template<typename T> T* to() const { auto ptr = dynamic_cast<T*>(get()); if(!ptr) U_EXCEPTION("Cannot cast object to specified type."); return ptr; }
         
         bool operator==(Base* raw) const { return get() == raw; }
         //bool operator==(decltype(ptr) other) const { return ptr == other; }

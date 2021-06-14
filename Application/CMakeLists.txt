@@ -829,7 +829,7 @@ if(${TREX_BUILD_PNG})
         PATCH_COMMAND ${PNG_PATCH}
 
         GIT_REPOSITORY  https://github.com/glennrp/libpng.git
-        GIT_TAG v1.6.21
+        GIT_TAG a37d4836519517bdce6cb9d956092321eca3e73b
 
         INSTALL_DIR ${png_install_dir}
         CMAKE_ARGS ${trex_subproject_CMAKE_ARGS} -DCMAKE_PREFIX_PATH=${zlib_install_dir} # to find zlib

@@ -18,11 +18,14 @@ namespace pv {
     struct CompressedBlob;
     
     class Blob : public cmn::Blob {
+    public:
+        constexpr static uint32_t invalid = std::numeric_limits<uint32_t>::max();
+        
     protected:
         GETTER_PTR(std::shared_ptr<const std::vector<uchar>>, pixels)
-        GETTER(bool, split)
-        GETTER(long_t, parent_id)
-        GETTER(uint32_t, blob_id)
+        GETTER_I(bool, split, false)
+        GETTER_I(long_t, parent_id, -1)
+        GETTER_I(uint32_t, blob_id, pv::Blob::invalid)
         GETTER_SETTER(bool, tried_to_split)
         
         float _recount;
@@ -72,7 +75,9 @@ namespace pv {
         bool operator!=(const pv::Blob& other) const;
         bool operator==(const pv::Blob& other) const;
         static cmn::Vec2 position_from_id(uint32_t id);
-        static uint32_t id_from_position(const cmn::Vec2&);
+        //static uint32_t id_from_position(const cmn::Vec2&);
+        static uint32_t id_from_blob(const pv::Blob&);
+        static uint32_t id_from_blob(const pv::CompressedBlob&);
         operator cmn::MetaObject() const override;
         
     protected:
@@ -120,7 +125,8 @@ namespace pv {
     struct CompressedBlob {
         //! this represents parent_id (2^1), split (2^0) and tried_to_split (2^2)
         uint8_t status_byte;
-        long_t parent_id;
+        int32_t parent_id;
+        mutable uint32_t own_id = pv::Blob::invalid;
         
         //! y of first position (everything is relative to this)
         uint16_t start_y;
@@ -129,9 +135,10 @@ namespace pv {
         CompressedBlob() : status_byte(0), parent_id(-1) {}
         CompressedBlob(const pv::BlobPtr& val) {
             parent_id = val->parent_id();
-            status_byte = (val->parent_id() != -1 ? 0x2 : 0x0)
-                            | uint8_t(val->split() ? 0x1 : 0)
-                            | uint8_t(val->tried_to_split() ? 0x4 : 0x0);
+            own_id = val->blob_id();
+            status_byte = (uint8_t(val->split())           * 0x1)
+                        | (uint8_t(val->parent_id() != -1) * 0x2)
+                        | (uint8_t(val->tried_to_split())  * 0x4);
             lines = ShortHorizontalLine::compress(val->hor_lines());
             start_y = val->lines()->empty() ? 0 : val->lines()->front().y;
         }

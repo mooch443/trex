@@ -46,4 +46,12 @@ namespace std
             return std::hash<uint32_t>{}((uint32_t)k);
         }
     };
+    template<>
+    struct hash<track::Frame_t>
+    {
+        size_t operator()(const track::Frame_t& k) const
+        {
+            return std::hash<long_t>{}((long_t)k);
+        }
+    };
 }

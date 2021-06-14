@@ -5,15 +5,11 @@ namespace pv {
     using namespace cmn;
 
     uint32_t CompressedBlob::blob_id() const {
-        auto bounds = calculate_bounds();
-        const auto center = bounds.pos() + bounds.size() * 0.5;
-        /*auto ptr = unpack();
-        auto id = pv::Blob::id_from_position(center);
-        if (ptr->blob_id() != id) {
-            Except("ID %d != %d", id, ptr->blob_id());
-        }*/
+        if(own_id == pv::Blob::invalid) {
+            own_id = pv::Blob::id_from_blob(*this);
+        }
         
-        return pv::Blob::id_from_position(center);
+        return own_id;
     }
 
 bool Blob::operator!=(const pv::Blob& other) const {
@@ -232,9 +228,7 @@ static Callback callback;
 //#endif
         
         calculate_properties();
-        
-        auto center = bounds().pos() + bounds().size() * 0.5;
-        _blob_id = id_from_position(center);
+        _blob_id = id_from_blob(*this);
     }
     
     void Blob::set_split(bool split, pv::BlobPtr parent) {
@@ -356,7 +350,7 @@ static Callback callback;
         return std::make_shared<Blob>(lines, tmp_pixels);
     }
     
-    std::tuple<Vec2, std::unique_ptr<Image>> Blob::image(const cmn::Background* background, const Bounds& restricted) const {
+    std::tuple<Vec2, Image::UPtr> Blob::image(const cmn::Background* background, const Bounds& restricted) const {
         Bounds b(bounds().pos()-Vec2(1), bounds().size()+Vec2(2));
         if(background)
             b.restrict_to(background->bounds());
@@ -365,7 +359,7 @@ static Callback callback;
         else
             b.restrict_to(Bounds(0, 0, infinity<Float2_t>(), infinity<Float2_t>()));
         
-        auto image = std::make_unique<Image>(b.height, b.width);
+        auto image = Image::Make(b.height, b.width);
         
         if(!background)
             std::fill(image->data(), image->data() + image->size(), uchar(0));
@@ -387,11 +381,11 @@ static Callback callback;
         return {b.pos(), std::move(image)};
     }
     
-    std::tuple<Vec2, std::unique_ptr<Image>> Blob::alpha_image(const cmn::Background& background, int32_t threshold) const {
+    std::tuple<Vec2, Image::UPtr> Blob::alpha_image(const cmn::Background& background, int32_t threshold) const {
         Bounds b(bounds().pos()-Vec2(1), bounds().size()+Vec2(2));
         b.restrict_to(background.bounds());
         
-        auto image = std::make_unique<Image>(b.height, b.width, 4);
+        auto image = Image::Make(b.height, b.width, 4);
         std::fill(image->data(), image->data() + image->size(), uchar(0));
         
         ushort _x = (ushort)b.x;
@@ -427,15 +421,17 @@ static Callback callback;
         return {b.pos(), std::move(image)};
     }
 
-    std::tuple<Vec2, std::unique_ptr<Image>> Blob::equalized_luminance_alpha_image(const cmn::Background& background, int32_t threshold, float minimum, float maximum) const {
+    std::tuple<Vec2, Image::UPtr> Blob::equalized_luminance_alpha_image(const cmn::Background& background, int32_t threshold, float minimum, float maximum) const {
         Bounds b(bounds().pos()-Vec2(1), bounds().size()+Vec2(2));
         b.restrict_to(background.bounds());
         
-        auto image = std::make_unique<Image>(b.height, b.width, 2);
+        auto image = Image::Make(b.height, b.width, 2);
         std::fill(image->data(), image->data() + image->size(), uchar(0));
         
         ushort _x = (ushort)b.x;
         ushort _y = (ushort)b.y;
+        
+        minimum *= 0.5;
         
         /*if constexpr(false) {
             static Timing timing("equalize_histogram", 0.01);
@@ -452,7 +448,7 @@ static Callback callback;
         
         float factor = 1;
         if(maximum > 0 && maximum != minimum)
-            factor = 1.f / ((maximum - minimum) * 0.6) * 255;
+            factor = 1.f / ((maximum - minimum) * 0.5) * 255;
         else
             minimum = 0;
         
@@ -466,18 +462,18 @@ static Callback callback;
                 if(!threshold || background.is_value_different(x, line.y, value, threshold)) {
                     *image_ptr = saturate((float(*ptr) - minimum) * factor);
                     //*image_ptr = *ptr;
-                    *(image_ptr+1) = value;//saturate((float(value) - minimum) * factor);
+                    *(image_ptr+1) = saturate(int32_t(255 - SQR(1 - value / 255.0) * 255.0));
                 }
             }
         }
         return {b.pos(), std::move(image)};
     }
 
-    std::tuple<Vec2, std::unique_ptr<Image>> Blob::luminance_alpha_image(const cmn::Background& background, int32_t threshold) const {
+    std::tuple<Vec2, Image::UPtr> Blob::luminance_alpha_image(const cmn::Background& background, int32_t threshold) const {
         Bounds b(bounds().pos()-Vec2(1), bounds().size()+Vec2(2));
         b.restrict_to(background.bounds());
         
-        auto image = std::make_unique<Image>(b.height, b.width, 2);
+        auto image = Image::Make(b.height, b.width, 2);
         std::fill(image->data(), image->data() + image->size(), uchar(0));
         
         ushort _x = (ushort)b.x;
@@ -492,18 +488,18 @@ static Callback callback;
                 value = background.diff(x, line.y, *ptr);
                 if(!threshold || background.is_value_different(x, line.y, value, threshold)) {
                     *image_ptr = *ptr;
-                    *(image_ptr+1) = value;
+                    *(image_ptr+1) = saturate(int32_t(255 - SQR(1 - value / 255.0) * 255.0) * 2);
                 }
             }
         }
         return {b.pos(), std::move(image)};
     }
     
-    std::tuple<Vec2, std::unique_ptr<Image>> Blob::difference_image(const cmn::Background& background, int32_t threshold) const {
+    std::tuple<Vec2, Image::UPtr> Blob::difference_image(const cmn::Background& background, int32_t threshold) const {
         Bounds b(bounds().pos()-Vec2(1), bounds().size()+Vec2(2));
         b.restrict_to(background.bounds());
         
-        auto image = std::make_unique<Image>(b.height, b.width);
+        auto image = Image::Make(b.height, b.width);
         std::fill(image->data(), image->data() + image->size(), uchar(0));
         
         ushort _x = (ushort)b.x;
@@ -546,11 +542,11 @@ static Callback callback;
         return pixels;
     }
     
-    std::tuple<Vec2, std::unique_ptr<Image>> Blob::thresholded_image(const cmn::Background& background, int32_t threshold) const {
+    std::tuple<Vec2, Image::UPtr> Blob::thresholded_image(const cmn::Background& background, int32_t threshold) const {
         Bounds b(bounds().pos()-Vec2(1), bounds().size()+Vec2(2));
         b.restrict_to(background.bounds());
         
-        auto image = std::make_unique<Image>(b.height, b.width);
+        auto image = Image::Make(b.height, b.width);
         std::fill(image->data(), image->data() + image->size(), uchar(0));
         
         ushort _x = (ushort)b.x;
@@ -568,11 +564,11 @@ static Callback callback;
         return {b.pos(), std::move(image)};
     }
     
-    std::tuple<Vec2, std::unique_ptr<Image>> Blob::binary_image(const cmn::Background& background, int32_t threshold) const {
+    std::tuple<Vec2, Image::UPtr> Blob::binary_image(const cmn::Background& background, int32_t threshold) const {
         Bounds b(bounds().pos()-Vec2(1), bounds().size()+Vec2(2));
         b.restrict_to(background.bounds());
         
-        auto image = std::make_unique<Image>(b.height, b.width);
+        auto image = Image::Make(b.height, b.width);
         std::fill(image->data(), image->data() + image->size(), uchar(0));
         
         ushort _x = (ushort)b.x;
@@ -595,12 +591,12 @@ static Callback callback;
         return {b.pos(), std::move(image)};
     }
     
-    std::tuple<Vec2, std::unique_ptr<Image>> Blob::binary_image() const {
+    std::tuple<Vec2, Image::UPtr> Blob::binary_image() const {
         Bounds b(bounds().pos()-Vec2(1), bounds().size()+Vec2(2));
         if(b.x < 0) {b.x = 0;--b.width;}
         if(b.y < 0) {b.y = 0;--b.height;}
         
-        auto image = std::make_unique<Image>(b.height, b.width);
+        auto image = Image::Make(b.height, b.width);
         std::fill(image->data(), image->data() + image->size(), uchar(0));
         
         ushort _x = (ushort)b.x;
@@ -640,7 +636,7 @@ static Callback callback;
         uint32_t id = blob_id();
         //auto x = id >> 16;
         //auto y = id & 0x0000FFFF;
-        return Meta::toStr(id)+" "+Meta::toStr(center);
+        return Meta::toStr(id)+" "+Meta::toStr(center)+" "+Meta::toStr(_parent_id);
     }
     
     void Blob::add_offset(const cmn::Vec2 &off) {
@@ -649,8 +645,8 @@ static Callback callback;
         
         cmn::Blob::add_offset(off);
         
-        auto center = bounds().pos() + bounds().size() * 0.5;
-        _blob_id = id_from_position(center);
+        //auto center = bounds().pos() + bounds().size() * 0.5;
+        _blob_id = id_from_blob(*this);
     }
     
     void Blob::scale_coordinates(const cmn::Vec2 &scale) {
@@ -659,9 +655,33 @@ static Callback callback;
         
         add_offset(offset);
     }
-    
-    uint32_t Blob::id_from_position(const cmn::Vec2 &center) {
+
+    uint32_t id_from_position(const cmn::Vec2 &center) {
         return (uint32_t)( uint32_t((center.x))<<16 | uint32_t((center.y)) );
+    }
+
+    uint32_t Blob::id_from_blob(const pv::Blob &blob) {
+        if(!blob.lines() || blob.lines()->empty())
+            return pv::Blob::invalid;
+        
+        const auto start = Vec2(blob.lines()->front().x0,
+                                blob.lines()->front().y);
+        const auto end = Vec2(blob.lines()->back().x1,
+                              blob.lines()->size());
+        
+        return id_from_position(start + (end - start) * 0.5);
+    }
+
+    uint32_t Blob::id_from_blob(const pv::CompressedBlob &blob) {
+        if(blob.lines.empty())
+            return pv::Blob::invalid;
+        
+        const auto start = Vec2(blob.lines.front().x0(),
+                                blob.start_y);
+        const auto end = Vec2(blob.lines.back().x1(),
+                              blob.lines.size());
+        
+        return id_from_position(start + (end - start) * 0.5);
     }
     
     size_t Blob::memory_size() const {

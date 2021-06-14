@@ -36,7 +36,7 @@ namespace gui {
         derived_ptr<Button> _abort, _second, _third, _fourth;
         derived_ptr<HorizontalLayout> _buttons;
         GETTER(derived_ptr<Entangled>, custom)
-        VerticalLayout _layout;
+        GETTER_NCONST(VerticalLayout, layout)
         std::function<bool(Result)> _callback;
         
     public:

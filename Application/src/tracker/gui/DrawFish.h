@@ -11,6 +11,10 @@
 #include <misc/EventAnalysis.h>
 #include <gui/Graph.h>
 
+namespace pv {
+struct CompressedBlob;
+}
+
 namespace gui {
     class Fish : public DrawableCollection {
         track::Individual& _obj;
@@ -46,6 +50,7 @@ namespace gui {
         std::deque<FrameVertex> frame_vertices;
         std::vector<Vertex> vertices;
         std::shared_ptr<Circle> _recognition_circle;
+        std::vector<Vec2> points;
         //ExternalImage _colored;
         
         Graph _graph;
@@ -62,6 +67,9 @@ namespace gui {
         void paintPath(DrawStructure& window, const Vec2& offset, long_t to = -1, long_t from = -1, const Color& = Transparent);
         //void paintPixels() const;
         void update_recognition_circle(DrawStructure&);
+    public:
+        void label(DrawStructure&);
+        void shadow(DrawStructure&);
     };
 }
 

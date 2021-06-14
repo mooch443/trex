@@ -70,7 +70,7 @@ IMPLEMENT(FrameGrabber::instance) = NULL;
 IMPLEMENT(FrameGrabber::gpu_average);
 IMPLEMENT(FrameGrabber::gpu_average_original);
 
-std::shared_ptr<Image> FrameGrabber::latest_image() {
+Image::Ptr FrameGrabber::latest_image() {
     return _current_image;
 }
 
@@ -137,7 +137,7 @@ void FrameGrabber::apply_filters(gpuMat& gpu_buffer) {
 }
 
 void ImageThreads::loading() {
-    Image_t *last_loaded = NULL;
+    long_t last_loaded = -1;
     cmn::set_thread_name("ImageThreads::loading");
 
     while(!_terminate) {
@@ -149,24 +149,24 @@ void ImageThreads::loading() {
             std::this_thread::sleep_for(std::chrono::microseconds(10));
             
         } else {
-            Image_t *current = _unused.front();
+            auto current = std::move(_unused.front());
             _unused.pop_front();
             _image_lock.unlock();
             
             _fn_prepare(last_loaded, *current);
-            last_loaded = current;
+            last_loaded = current->index();
             
             if(_fn_load(*current)) {
                 // loading was successful, so push to processing
                 _image_lock.lock();
-                _used.push_front(current);
+                _used.push_front(std::move(current));
                 _image_lock.unlock();
                 
                 _condition.notify_one();
                 
             } else {
                 _image_lock.lock();
-                _unused.push_front(current);
+                _unused.push_front(std::move(current));
                 _image_lock.unlock();
             }
         }
@@ -183,7 +183,7 @@ void ImageThreads::processing() {
         _condition.wait(lock, [this](){ return !_used.empty() || _terminate; });
         
         if(!_used.empty()) {
-            Image_t *current = _used.back();
+            auto current = std::move(_used.back());
             _used.pop_back();
             lock.unlock();
             
@@ -191,7 +191,7 @@ void ImageThreads::processing() {
             
             lock.lock();
             assert(!contains(_unused, current));
-            _unused.push_back(current);
+            _unused.push_back(std::move(current));
         }
     }
 }
@@ -219,8 +219,8 @@ void FrameGrabber::prepare_average() {
     if(GRAB_SETTINGS(cam_scale) != 1)
         resize_image(_average, GRAB_SETTINGS(cam_scale));
     
-    if(GRAB_SETTINGS(image_invert))
-        cv::subtract(cv::Scalar(255), _average, _average);
+    //if(GRAB_SETTINGS(image_invert))
+    //    cv::subtract(cv::Scalar(255), _average, _average);
     
     if(GRAB_SETTINGS(correct_luminance)) {
         Debug("Calculating relative luminance...");
@@ -252,7 +252,7 @@ void FrameGrabber::prepare_average() {
     _average.copyTo(temp);
     _processed.set_average(temp);
     if(tracker)
-        tracker->set_average(std::make_shared<Image>(temp));
+        tracker->set_average(Image::Make(temp));
     //}
     
     if(_video) {
@@ -517,6 +517,8 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
     cv::Mat cam_matrix = cv::Mat(3, 3, CV_32FC1, SETTING(cam_matrix).value<std::vector<float>>().data());
     cv::Mat cam_undistort_vector = cv::Mat(1, 5, CV_32FC1, SETTING(cam_undistort_vector).value<std::vector<float>>().data());
     
+    GlobalSettings::map().dont_print("cam_undistort1");
+    GlobalSettings::map().dont_print("cam_undistort2");
     cv::Mat drawtransform = cv::getOptimalNewCameraMatrix(cam_matrix, cam_undistort_vector, size, 1.0, size);
     print_mat("draw_transform", drawtransform);
     print_mat("cam", cam_matrix);
@@ -556,13 +558,13 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
     _real_timing = std::chrono::system_clock::now();
     
     _analysis = new std::decay<decltype(*_analysis)>::type(
-          [&]() -> Image_t* { // create object
-              return new Image_t(_cam_size.height, _cam_size.width);
+          [&]() -> ImagePtr { // create object
+              return ImageMake(_cam_size.height, _cam_size.width);
           },
-          [&](const Image_t* prev, Image_t& current) -> bool { // prepare object
+          [&](long_t prev, Image_t& current) -> bool { // prepare object
               if(_reset_first_index) {
                   _reset_first_index = false;
-                  prev = NULL;
+                  prev = -1;
               }
         
               if(_video) {
@@ -570,13 +572,13 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
                   
                   if(!_average_finished) {
                       double step = _video->length() / floor((double)min(_video->length()-1, max(1u, GRAB_SETTINGS(average_samples))));
-                      current.set_index(prev ? (prev->index() +  step) : 0);
+                      current.set_index(prev != -1 ? (prev + step) : 0);
                       if(current.index() >= long_t(_video->length())) {
                           return false;
                       }
                       
                   } else {
-                      current.set_index(prev != NULL ? prev->index() + 1 : conversion_range_start);
+                      current.set_index(prev != -1 ? prev + 1 : conversion_range_start);
                       
                       if(GRAB_SETTINGS(video_conversion_range).second != -1) {
                           if(current.index() >= GRAB_SETTINGS(video_conversion_range).second) {
@@ -606,7 +608,7 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
                       return false;
                   
               } else {
-                  current.set_index(prev != NULL ? prev->index() + 1 : 0);
+                  current.set_index(prev != -1 ? prev + 1 : 0);
               }
               
               return true;
@@ -831,7 +833,7 @@ bool FrameGrabber::add_image_to_average(const Image_t& current) {
             }
             
             _last_frame = nullptr;
-            std::atomic_store(&_current_image, std::shared_ptr<Image>());
+            std::atomic_store(&_current_image, Image::Ptr());
         }
         
         if(!_accumulator)
@@ -934,9 +936,9 @@ bool FrameGrabber::load_image(Image_t& current) {
     if(add_image_to_average(current))
         return false;
     
-    if(GRAB_SETTINGS(image_invert)) {
+    /*if(GRAB_SETTINGS(image_invert)) {
         cv::subtract(cv::Scalar(255), current.get(), current.get());
-    }
+    }*/
     
     _loading_timing = _loading_timing * 0.75 + timer.elapsed() * 0.25;
     return true;
@@ -1450,13 +1452,13 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
      */
     struct Task {
         size_t index = 0;
-        std::unique_ptr<Image> current, raw;
+        Image::UPtr current, raw;
         std::unique_ptr<pv::Frame> frame;
         Timer timer;
         std::vector<pv::BlobPtr> filtered, filtered_out;
         
         Task() {}
-        Task(size_t index, std::unique_ptr<Image>&& current, std::unique_ptr<Image>&& raw, std::unique_ptr<pv::Frame>&& frame)
+        Task(size_t index, Image::UPtr&& current, Image::UPtr&& raw, std::unique_ptr<pv::Frame>&& frame)
             : index(index), current(std::move(current)), raw(std::move(raw)), frame(std::move(frame))
         {
             
@@ -1698,9 +1700,9 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
             
             if(!_terminate_tracker) {
                 for_the_pool.push(Task(global_index++,
-                    std::make_unique<Image>(local, current.index(), TS),
+                    Image::Make(local, current.index(), TS),
 #if WITH_FFMPEG
-                    /*mp4_queue ?*/ std::make_unique<Image>(current_copy) /*: nullptr*/,
+                    /*mp4_queue ?*/ Image::Make(current_copy) /*: nullptr*/,
 #else
                     nullptr,
 #endif
@@ -1712,9 +1714,9 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
         
     } else {
         Task task(global_index++,
-            std::make_unique<Image>(local, current.index(), TS),
+            Image::Make(local, current.index(), TS),
 #if WITH_FFMPEG
-            /*mp4_queue ?*/ std::make_unique<Image>(current_copy) /*: nullptr*/,
+            /*mp4_queue ?*/ Image::Make(current_copy) /*: nullptr*/,
 #else
             nullptr,
 #endif

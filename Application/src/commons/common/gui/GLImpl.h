@@ -16,8 +16,8 @@ namespace gui {
         Timer draw_timer;
         int index, nextIndex;
         uint32_t pboIds[2];
-        Image::Ptr pboImage;
-        Image::Ptr pboOutput;
+        Image::UPtr pboImage;
+        Image::UPtr pboOutput;
         std::thread::id _update_thread;
         
         bool fullscreen = true;
@@ -41,7 +41,7 @@ namespace gui {
         void set_title(std::string) override;
         void enable_readback();
         void disable_readback();
-        Image::Ptr current_frame_buffer() override;
+        const Image::UPtr& current_frame_buffer() override;
         void update_pbo();
         void init_pbo(uint dwidth, uint dheight);
         void set_icons(const std::vector<file::Path>& icons) override;

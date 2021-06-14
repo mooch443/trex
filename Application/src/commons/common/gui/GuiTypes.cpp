@@ -523,7 +523,7 @@ void Text::refresh_dims() {
 }
 
 ExternalImage::ExternalImage(Ptr&& source, const Vec2& pos, const Vec2& scale, const Color& color)
-    : gui::Drawable(Type::IMAGE, Bounds(pos, Vec2(source->cols, source->rows))), _url(""), _source(nullptr), _color(color)
+    : gui::Drawable(Type::IMAGE, Bounds(pos, Vec2(source ? source->cols : 0, source ? source->rows : 0))), _url(""), _source(nullptr), _color(color)
 {
     if(scale.x != 1 || scale.y != 1)
         set_scale(scale);
@@ -535,7 +535,7 @@ void ExternalImage::update_with(const gpuMat& mat) {
         U_EXCEPTION("Only support greyscale, RG, or RGBA images.");
     
     if(!_source) {
-        _source = std::make_unique<Image>(mat.rows, mat.cols, mat.dims);
+        _source = Image::Make(mat.rows, mat.cols, mat.dims);
         set_size(Vec2(_source->cols, _source->rows));
     } else if(   (int)_source->cols != mat.cols
               || (int)_source->rows != mat.rows
@@ -561,7 +561,7 @@ void ExternalImage::update_with(const Image& mat) {
         U_EXCEPTION("Only support greyscale, RG, or RGBA images.");
     
     if(!_source) {
-        _source = std::make_unique<Image>(mat.rows, mat.cols, mat.dims);
+        _source = Image::Make(mat.rows, mat.cols, mat.dims);
         set_size(Vec2(_source->cols, _source->rows));
         
     } else if(   _source->cols != mat.cols

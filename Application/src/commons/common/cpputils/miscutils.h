@@ -81,7 +81,7 @@ inline bool contains(const std::vector<T>& v, T obj) {
 }*/
 
 template<typename T, typename Q>
-inline bool contains(const Q& v, T obj) {
+inline bool contains(const Q& v, const T& obj) {
     return std::find(v.begin(), v.end(), obj) != v.end();
 }
 

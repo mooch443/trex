@@ -54,7 +54,7 @@ namespace gui {
         struct DrawOrder {
             enum Type {
                 DEFAULT = 0,
-                POP,
+                //POP,
                 END_ROTATION,
                 START_ROTATION
             };
@@ -63,10 +63,11 @@ namespace gui {
             Drawable* ptr;
             gui::Transform transform;
             Bounds bounds;
+            ImVec4 _clip_rect;
             
             DrawOrder() {}
-            DrawOrder(Type type, size_t index, Drawable*ptr, const gui::Transform& transform, const Bounds& bounds)
-            : type(type), index(index), ptr(ptr), transform(transform), bounds(bounds)
+            DrawOrder(Type type, size_t index, Drawable*ptr, const gui::Transform& transform, const Bounds& bounds, const ImVec4& clip)
+            : type(type), index(index), ptr(ptr), transform(transform), bounds(bounds), _clip_rect(clip)
             {}
         };
         
@@ -79,7 +80,7 @@ namespace gui {
         
     public:
         template<typename impl_t = default_impl_t>
-        IMGUIBase(std::string title, DrawStructure& base, CrossPlatform::custom_function_t custom_loop, std::function<void(const gui::Event&)> event_fn) : _custom_loop(custom_loop), _event_fn(event_fn)
+        IMGUIBase(std::string title, DrawStructure& base, CrossPlatform::custom_function_t custom_loop, std::function<void(const gui::Event&)> event_fn) : _custom_loop(custom_loop), _event_fn(event_fn), _title(title)
         {
             set_graph(base);
             
@@ -117,7 +118,7 @@ namespace gui {
             _graph = &base;
             
         }
-        void init(const std::string& title);
+        void init(const std::string& title, bool soft = false);
         ~IMGUIBase();
         
         void set_open_files_fn(std::function<bool(const std::vector<file::Path>&)> fn) {
@@ -126,7 +127,7 @@ namespace gui {
         
         void set_background_color(const Color&) override;
         void set_frame_recording(bool v) override;
-        Image::Ptr current_frame_buffer() override;
+        const Image::UPtr& current_frame_buffer() override;
         void loop();
         LoopStatus update_loop() override;
         virtual void paint(DrawStructure& s) override;
@@ -152,7 +153,7 @@ namespace gui {
         Event toggle_fullscreen(DrawStructure& g) override;
         
     private:
-        void redraw(Drawable* o, std::vector<DrawOrder>& draw_order, bool is_background = false);
+        void redraw(Drawable* o, std::vector<DrawOrder>& draw_order, bool is_background = false, ImVec4 clip_rect = ImVec4());
         void draw_element(const DrawOrder& order);
         void event(const gui::Event& e);
         static void update_size_scale(GLFWwindow*);

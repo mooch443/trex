@@ -1561,7 +1561,7 @@ bool Accumulation::start() {
                         Recognition::ImageData image_data(Recognition::ImageData::Blob{blob->num_pixels(), blob->blob_id(), -1, blob->parent_id(), blob->bounds()}, frame, (FrameRange)(*it->get()), fish, Idx_t(fish->identity().ID()), midline ? midline->transform(method) : gui::Transform());
                         image_data.filters = std::make_shared<TrainingFilterConstraints>(filters);
                         
-                        image = Recognition::calculate_diff_image_with_settings(method, blob, image_data, output_size);
+                        image = std::get<0>(Recognition::calculate_diff_image_with_settings(method, blob, image_data, output_size));
                         if(image)
                             images[frames_assignment[frame][id]].push_back(image);
                     }
@@ -1841,18 +1841,20 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
             const Font font(0.6f, Align::Center);
             
             for(auto &d : history) {
+                bool improvement = previous <= d;
+                if(improvement)
+                    previous = d;
+                
                 if(long_t(i) < long_t(history.size()) - 10) {
                     ++i;
                     continue;
                 }
                 
-                bool improvement = previous <= d;
                 e.advance(new Circle(offset, 5, improvement ? Green : White, improvement ? Green.alpha(50) : Transparent));
                 auto text = e.advance(new Text(Meta::toStr(i), offset + Vec2(0, Base::default_line_spacing(font) + 2), White, font));
                 text = e.advance(new Text(Meta::toStr(int(d * 10000) / 100.0)+"%", offset + Vec2(0, Base::default_line_spacing(font) * 2 + 4), White, font));
                 offset += Vec2(max(12, text->width() + 10), 0);
-                if(improvement)
-                    previous = d;
+                
                 ++i;
             }
         });

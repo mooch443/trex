@@ -19,6 +19,7 @@
 
 #include <stdio.h>
 #include <misc/Timer.h>
+#include <misc/GlobalSettings.h>
 
 #include <Availability.h>
 
@@ -42,12 +43,14 @@ struct MetalData {
     id <MTLCommandQueue> commandQueue;
     CAMetalLayer *layer;
     MTLRenderPassDescriptor *renderPassDescriptor;
+#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
     MTLComputePassDescriptor *computePassDescriptor;
     MTLTextureDescriptor *computeTextureDescriptor;
     MTLTextureDescriptor *binaryTextureDescriptor;
     id<MTLTexture> stencilTexture;
     id<MTLTexture> maskTexture;
     id<MTLTexture> binaryTexture, testTexture;
+#endif
 };
 namespace metal {
 gui::MetalImpl * current_instance = nullptr;
@@ -256,9 +259,11 @@ bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
         nswin.contentView.wantsLayer = YES;
         
         _data->renderPassDescriptor = [MTLRenderPassDescriptor new];
+#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
         _data->computePassDescriptor = [MTLComputePassDescriptor new];
         _data->computeTextureDescriptor = nullptr;
         _data->binaryTextureDescriptor = nullptr;
+#endif
         
         ImGui_ImplGlfw_InitForOpenGL(window, true);
         [nswin setCollectionBehavior:NSWindowCollectionBehaviorFullScreenPrimary];
@@ -300,6 +305,11 @@ void MetalImpl::message(const std::string &msg) const {
         if(new_frame_fn()) {
             int width, height;
             glfwGetFramebufferSize(window, &width, &height);
+            if(_frame_capture_enabled) {
+                if(!_current_framebuffer)
+                    _current_framebuffer = Image::Make(height, width, 4);
+            } else if(_current_framebuffer)
+                _current_framebuffer = nullptr;
             
             @autoreleasepool {
                 
@@ -308,13 +318,13 @@ void MetalImpl::message(const std::string &msg) const {
                 id<CAMetalDrawable> drawable = [_data->layer nextDrawable];
                 if(_frame_capture_enabled) {
                     if(!_current_framebuffer) {
-                        _current_framebuffer = std::make_shared<Image>(height, width, 4);
+                        _current_framebuffer = Image::Make(height, width, 4);
                     }
                 } else if(_current_framebuffer)
                     _current_framebuffer = nullptr;
                 
                 id<MTLCommandBuffer> commandBuffer = [_data->commandQueue commandBuffer];
-                
+#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
                 if(!_data->computeTextureDescriptor || (int)_data->computeTextureDescriptor.width != width || (int)_data->computeTextureDescriptor.height != height) {
                     MTLTextureDescriptor *textureDescriptor = [[MTLTextureDescriptor alloc] init];
 
@@ -347,12 +357,12 @@ void MetalImpl::message(const std::string &msg) const {
                     _data->testTexture = [commandBuffer.device newTextureWithDescriptor:_data->computeTextureDescriptor];
                 if(!_data->binaryTexture)
                     _data->binaryTexture = [commandBuffer.device newTextureWithDescriptor:_data->binaryTextureDescriptor];
-                
+#endif
                 _data->renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(_clear_color[0] / 255.f, _clear_color[1] / 255.f, _clear_color[2] / 255.f, _clear_color[3] / 255.f);
                 _data->renderPassDescriptor.colorAttachments[0].texture = drawable.texture;
                 _data->renderPassDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
                 _data->renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
-                
+#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
                 _data->renderPassDescriptor.colorAttachments[1].texture = _data->maskTexture;
                 _data->renderPassDescriptor.colorAttachments[1].loadAction = MTLLoadActionClear;
                 _data->renderPassDescriptor.colorAttachments[1].clearColor = MTLClearColorMake(0, 0, 0, 0);
@@ -362,10 +372,14 @@ void MetalImpl::message(const std::string &msg) const {
                 _data->renderPassDescriptor.colorAttachments[2].loadAction = MTLLoadActionClear;
                 _data->renderPassDescriptor.colorAttachments[2].clearColor = MTLClearColorMake(0, 0, 0, 0);
                 _data->renderPassDescriptor.colorAttachments[2].storeAction = MTLStoreActionStore;
-                
+#endif
                 id <MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:_data->renderPassDescriptor];
                 
                 [renderEncoder pushDebugGroup:@"TRex"];
+#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
+                uint8_t buffer = SETTING(gui_blur_enabled).value<bool>();
+                [renderEncoder setVertexBytes:&buffer length:sizeof(buffer) atIndex:2];
+#endif
                 
                 // Start the Dear ImGui frame
                 ImGui_ImplMetal_NewFrame(_data->renderPassDescriptor);
@@ -386,105 +400,110 @@ void MetalImpl::message(const std::string &msg) const {
                 [renderEncoder popDebugGroup];
                 [renderEncoder endEncoding];
                 
-                static id<MTLLibrary> library;
-                
-                //static MPSImageGaussianBlur* kernel = [[MPSImageGaussianBlur alloc] initWithDevice:_data->device sigma:7.0];
-                //[kernel encodeToCommandBuffer:commandBuffer inPlaceTexture:&_data->maskTexture fallbackCopyAllocator:nil];
-                
-                id<MTLComputeCommandEncoder> computeEncoder = [commandBuffer computeCommandEncoderWithDescriptor:_data->computePassDescriptor];
-                
-                static id<MTLComputePipelineState> computeState;
-                
-                if(!library) {
-                    NSString *shaderSource = @"#include <metal_stdlib>\n"
-                    "using namespace metal;\n"
-                    "\n"
-                    "struct Uniforms {\n"
-                    "    float center_x;\n"
-                    "    float center_y;\n"
-                    "};\n"
-                    "kernel void computeShader(\n"
-                    "    texture2d<half, access::read> source [[ texture(0) ]],\n"
-                    "    texture2d<half, access::read> mask [[ texture(1) ]],\n"
-                    "    texture2d<half, access::write> dest [[ texture(2) ]],\n"
-                    "    texture2d<half, access::read> dtest [[ texture(3) ]],\n"
-                    "    uint2 gid [[ thread_position_in_grid ]])\n"
-                    "    {\n"
-                    "        half4 source_color = source.read(gid);\n"
-                    "        half4 mask_color = mask.read(gid) * min(1.0, (1.0 - dtest.read(gid).r) * 2.0);\n"
-                    "        half4 result_color = (1 - mask_color.a) * source_color + (mask_color.a) * mask_color;\n"
-                    "        result_color.a = source_color.a;\n"
-                    "        \n"
-                    "        dest.write(result_color, gid);\n"
-                    "}\n"
-                    "kernel void customBlur(\n"
-                    "    texture2d<half, access::sample> source [[ texture(0) ]],\n"
-                    "    texture2d<half, access::write> dest [[ texture(1) ]],\n"
-                    "    uint2 gid [[ thread_position_in_grid ]],\n"
-                    "    constant Uniforms &uniforms [[buffer(0)]]\n"
-                    ")\n"
-                    "    {\n"
-                    "    constexpr sampler linearSampler(coord::normalized, min_filter::linear, mag_filter::linear, mip_filter::linear);\n"
-                    "        const float w = source.get_width(), h = source.get_height();\n"
-                    "        constexpr float max_kernel_size = 100.0;\n"
-                    "        const float x = (float(gid.x) / w) - uniforms.center_x;\n"
-                    "        const float y = (float(gid.y) / h) - uniforms.center_y;\n"
-                    "        const float d = sqrt(x * x + y * y);\n"
-                    "        constexpr int kernel_size = 3;\n"
-                    "        const float step = max_kernel_size * d * d / (kernel_size * 2);"
-                    "        const float2 dim(w, h);"
-                        "    float4 result_color = float4(source.sample(linearSampler, float2(gid) / dim));\n"
-                        //"    float N = (kernel_size + 1) * (kernel_size + 1) * 4 + 1;"
-                        "    float N = 1.0;\n"
-                        "    float2 coord = float2(gid) / dim;"
-                        "    for (int i=1; i<kernel_size + 1; ++i) {\n"
-                                "for(int j=1; j<kernel_size + 1; ++j) {\n"
-                                    "result_color += float4(source.sample(linearSampler, coord + float2( i, j) / dim * step));\n"
-                                    "result_color += float4(source.sample(linearSampler, coord + float2( i,-j) / dim * step));\n"
-                                    "result_color += float4(source.sample(linearSampler, coord + float2(-i, j) / dim * step));\n"
-                                    "result_color += float4(source.sample(linearSampler, coord + float2(-i,-j) / dim * step));\n"
-                                    "N += 4.0;\n"
-                                "}\n"
-                        "    }\n"
-                    "        result_color /= N * 0.95;"
-                    "        dest.write(half4(result_color), gid);\n"
-                    "   }\n";
+#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
+                if(SETTING(gui_blur_enabled)) {
+                    static id<MTLLibrary> library;
                     
-                    NSError *error;
-                    library = [commandBuffer.device newLibraryWithSource:shaderSource options:nil error:&error];
-                    if (library == nil)
-                    {
-                        NSLog(@"Error: failed to create Metal library: %@", error);
+                    //static MPSImageGaussianBlur* kernel = [[MPSImageGaussianBlur alloc] initWithDevice:_data->device sigma:7.0];
+                    //[kernel encodeToCommandBuffer:commandBuffer inPlaceTexture:&_data->maskTexture fallbackCopyAllocator:nil];
+                    
+                    id<MTLComputeCommandEncoder> computeEncoder = [commandBuffer computeCommandEncoderWithDescriptor:_data->computePassDescriptor];
+                    
+                    static id<MTLComputePipelineState> computeState;
+                    
+                    if(!library) {
+                        NSString *shaderSource = @"#include <metal_stdlib>\n"
+                        "using namespace metal;\n"
+                        "\n"
+                        "struct Uniforms {\n"
+                        "    float center_x;\n"
+                        "    float center_y;\n"
+                        "};\n"
+                        "kernel void computeShader(\n"
+                        "    texture2d<half, access::read> source [[ texture(0) ]],\n"
+                        "    texture2d<half, access::read> mask [[ texture(1) ]],\n"
+                        "    texture2d<half, access::write> dest [[ texture(2) ]],\n"
+                        "    texture2d<half, access::read> dtest [[ texture(3) ]],\n"
+                        "    uint2 gid [[ thread_position_in_grid ]])\n"
+                        "    {\n"
+                        "        half4 source_color = source.read(gid);\n"
+                        "        half4 mask_color = mask.read(gid) * min(1.0, (1.0 - dtest.read(gid).r) * 2.0);\n"
+                        "        half4 result_color = (1 - mask_color.a) * source_color + (mask_color.a) * mask_color;\n"
+                        "        result_color.a = source_color.a;\n"
+                        "        \n"
+                        "        dest.write(result_color, gid);\n"
+                        "}\n"
+                        "kernel void customBlur(\n"
+                        "    texture2d<half, access::sample> source [[ texture(0) ]],\n"
+                        "    texture2d<half, access::write> dest [[ texture(1) ]],\n"
+                        "    uint2 gid [[ thread_position_in_grid ]],\n"
+                        "    constant Uniforms &uniforms [[buffer(0)]]\n"
+                        ")\n"
+                        "    {\n"
+                        "    constexpr sampler linearSampler(coord::normalized, min_filter::linear, mag_filter::linear, mip_filter::linear);\n"
+                        "        const float w = source.get_width(), h = source.get_height();\n"
+                        "        constexpr float max_kernel_size = 100.0;\n"
+                        "        const float x = (float(gid.x) / w) - uniforms.center_x;\n"
+                        "        const float y = (float(gid.y) / h) - uniforms.center_y;\n"
+                        "        const float d = sqrt(x * x + y * y);\n"
+                        "        constexpr int kernel_size = 3;\n"
+                        "        const float step = max_kernel_size * d * d / (kernel_size * 2);"
+                        "        const float2 dim(w, h);"
+                            "    float4 result_color = float4(source.sample(linearSampler, float2(gid) / dim));\n"
+                            //"    float N = (kernel_size + 1) * (kernel_size + 1) * 4 + 1;"
+                            "    float N = 1.0;\n"
+                            "    float2 coord = float2(gid) / dim;"
+                            "    for (int i=1; i<kernel_size + 1; ++i) {\n"
+                                    "for(int j=1; j<kernel_size + 1; ++j) {\n"
+                                        "result_color += float4(source.sample(linearSampler, coord + float2( i, j) / dim * step));\n"
+                                        "result_color += float4(source.sample(linearSampler, coord + float2( i,-j) / dim * step));\n"
+                                        "result_color += float4(source.sample(linearSampler, coord + float2(-i, j) / dim * step));\n"
+                                        "result_color += float4(source.sample(linearSampler, coord + float2(-i,-j) / dim * step));\n"
+                                        "N += 4.0;\n"
+                                    "}\n"
+                            "    }\n"
+                        "        result_color /= N * 0.95;"
+                        "        dest.write(half4(result_color), gid);\n"
+                        "   }\n";
+                        
+                        NSError *error;
+                        library = [commandBuffer.device newLibraryWithSource:shaderSource options:nil error:&error];
+                        if (library == nil)
+                        {
+                            NSLog(@"Error: failed to create Metal library: %@", error);
+                        }
                     }
+                    
+                    MTLSize threadGroupSize = MTLSizeMake(8, 8, 1);
+                    
+                    id<MTLFunction> blurFunction = [library newFunctionWithName:@"customBlur"];
+                    computeState = [commandBuffer.device newComputePipelineStateWithFunction:blurFunction error:nil];
+                    
+                    [computeEncoder setComputePipelineState:computeState];
+                    id<MTLBuffer> mbuffer = [_data->device newBufferWithBytes:center length:sizeof(center) options:MTLResourceOptionCPUCacheModeDefault];
+                    [computeEncoder setBuffer:mbuffer offset:0 atIndex:0];
+                    [computeEncoder setTexture:_data->maskTexture atIndex:0];
+                    
+                    [computeEncoder setTexture:_data->testTexture atIndex:1];
+                    //[computeEncoder dispatchThreads:MTLSizeMake(width, height, 1) threadsPerThreadgroup:MTLSizeMake(1, 1, 1)];
+                    [computeEncoder dispatchThreadgroups:MTLSizeMake(width/threadGroupSize.width+1, height/threadGroupSize.height+1, 1) threadsPerThreadgroup:threadGroupSize];
+                    [computeEncoder endEncoding];
+                    
+                    computeEncoder = [commandBuffer computeCommandEncoderWithDescriptor:_data->computePassDescriptor];
+                    id<MTLFunction> computeFunction = [library newFunctionWithName:@"computeShader"];
+                    computeState = [commandBuffer.device newComputePipelineStateWithFunction:computeFunction error:nil];
+                    
+                    [computeEncoder setComputePipelineState:computeState];
+                    [computeEncoder setTexture:drawable.texture atIndex:0];
+                    [computeEncoder setTexture:_data->testTexture atIndex:1];
+                    [computeEncoder setTexture:drawable.texture atIndex:2];
+                    [computeEncoder setTexture:_data->binaryTexture atIndex:3];
+                    
+                    [computeEncoder dispatchThreadgroups:
+                        MTLSizeMake(width/threadGroupSize.width+1, height/threadGroupSize.height+1, 1) threadsPerThreadgroup:threadGroupSize];
+                    [computeEncoder endEncoding];
                 }
-                
-                MTLSize threadGroupSize = MTLSizeMake(8, 8, 1);
-                
-                id<MTLFunction> blurFunction = [library newFunctionWithName:@"customBlur"];
-                computeState = [commandBuffer.device newComputePipelineStateWithFunction:blurFunction error:nil];
-                
-                [computeEncoder setComputePipelineState:computeState];
-                id<MTLBuffer> mbuffer = [_data->device newBufferWithBytes:center length:sizeof(center)*sizeof(float) options:MTLResourceOptionCPUCacheModeDefault];
-                [computeEncoder setBuffer:mbuffer offset:0 atIndex:0];
-                [computeEncoder setTexture:_data->maskTexture atIndex:0];
-                [computeEncoder setTexture:_data->testTexture atIndex:1];
-                //[computeEncoder dispatchThreads:MTLSizeMake(width, height, 1) threadsPerThreadgroup:MTLSizeMake(1, 1, 1)];
-                [computeEncoder dispatchThreadgroups:MTLSizeMake(width/threadGroupSize.width+1, height/threadGroupSize.height+1, 1) threadsPerThreadgroup:threadGroupSize];
-                [computeEncoder endEncoding];
-                
-                computeEncoder = [commandBuffer computeCommandEncoderWithDescriptor:_data->computePassDescriptor];
-                id<MTLFunction> computeFunction = [library newFunctionWithName:@"computeShader"];
-                computeState = [commandBuffer.device newComputePipelineStateWithFunction:computeFunction error:nil];
-                
-                [computeEncoder setComputePipelineState:computeState];
-                [computeEncoder setTexture:drawable.texture atIndex:0];
-                [computeEncoder setTexture:_data->testTexture atIndex:1];
-                [computeEncoder setTexture:drawable.texture atIndex:2];
-                [computeEncoder setTexture:_data->binaryTexture atIndex:3];
-                
-                [computeEncoder dispatchThreadgroups:
-                    MTLSizeMake(width/threadGroupSize.width+1, height/threadGroupSize.height+1, 1) threadsPerThreadgroup:threadGroupSize];
-                [computeEncoder endEncoding];
+#endif
                 
                 [commandBuffer presentDrawable:drawable];
                 
@@ -527,8 +546,8 @@ void MetalImpl::message(const std::string &msg) const {
         return status;
     }
 
-    Image::Ptr MetalImpl::current_frame_buffer() {
-        return _frame_capture_enabled ? _current_framebuffer : nullptr;
+    const Image::UPtr& MetalImpl::current_frame_buffer() {
+        return _current_framebuffer;
     }
     
     /*void MetalImpl::loop(CrossPlatform::custom_function_t custom_loop) {

@@ -241,10 +241,10 @@ void TrainingData::set_classes(const std::set<Idx_t>& classes) {
     _all_classes = classes;
 }
 
-std::unique_ptr<Image> TrainingData::draw_coverage(const std::map<Frame_t, float>& unique_percentages, const std::vector<Rangel>& next_ranges, const std::vector<Rangel>& added_ranges, const std::map<Frame_t, float>& uniquenesses_temp, std::shared_ptr<TrainingData::DataRange> current_salt, const std::map<Rangel, std::tuple<double, FrameRange>>& assigned_unique_averages) const
+Image::UPtr TrainingData::draw_coverage(const std::map<Frame_t, float>& unique_percentages, const std::vector<Rangel>& next_ranges, const std::vector<Rangel>& added_ranges, const std::map<Frame_t, float>& uniquenesses_temp, std::shared_ptr<TrainingData::DataRange> current_salt, const std::map<Rangel, std::tuple<double, FrameRange>>& assigned_unique_averages) const
 {
     auto analysis_range = Tracker::analysis_range();
-    auto image = std::make_unique<Image>(500, 1800, 4);
+    auto image = Image::Make(500, 1800, 4);
     auto mat = image->get();
     mat = cv::Scalar(0, 0, 0, 0);
     
@@ -1180,7 +1180,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             Recognition::ImageData image_data(Recognition::ImageData::Blob{blob->num_pixels(), blob->blob_id(), -1, blob->parent_id(), blob->bounds()}, frame, (FrameRange)*it->get(), fish, fish->identity().ID(), midline ? midline->transform(normalized()) : gui::Transform());
             image_data.filters = std::make_shared<TrainingFilterConstraints>(filters);
             
-            image = Recognition::calculate_diff_image_with_settings(normalized(), blob, image_data, output_size);
+            image = std::get<0>(Recognition::calculate_diff_image_with_settings(normalized(), blob, image_data, output_size));
             
             if(blob->bounds().width > output_size.width
                || blob->bounds().height > output_size.height)

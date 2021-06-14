@@ -47,6 +47,12 @@ namespace cmn {
         set(index, image, timestamp);
     }
     
+    Image::Image(uint rows, uint cols, uint dims, const uchar* data)
+        : Image(rows, cols, dims)
+    {
+        set(0, data);
+    }
+
     void Image::clear() {
         if(_data) {
             free(_data);
@@ -129,6 +135,11 @@ namespace cmn {
             _data = (uchar*)malloc(_size);
             _array_size = _size;
         }
+    }
+
+    void Image::create(uint rows, uint cols, uint dims, const uchar* data) {
+        create(rows, cols, dims);
+        set(0, data);
     }
     
     void Image::create(const cv::Mat &matrix) {
@@ -288,14 +299,14 @@ void Image::set(Image&& other) {
         if(_input.dims < 4 && _input.dims != 1 && _input.dims != 2)
             U_EXCEPTION("Currently, only RGBA and GRAY is supported.");
         
-        Image::Ptr tmp;
+        Image::UPtr tmp;
         const Image *input = &_input;
         if (_input.dims == 2) {
             std::vector<cv::Mat> vector;
             cv::split(_input.get(), vector);
             cv::Mat image;
             cv::merge(std::vector<cv::Mat>{vector[0], vector[0], vector[0], vector[1]}, image);
-            tmp = std::make_shared<Image>(image);
+            tmp = Image::Make(image);
             input = tmp.get();
         }
         
@@ -328,7 +339,7 @@ void Image::set(Image&& other) {
         png_write_png(p, info_ptr, PNG_TRANSFORM_IDENTITY, NULL);
     }
     
-    std::shared_ptr<Image> from_png(const file::Path& path) {
+    Image::UPtr from_png(const file::Path& path) {
         int width, height;
         png_byte color_type;
         png_byte bit_depth;
@@ -392,7 +403,7 @@ void Image::set(Image&& other) {
         
         static_assert(sizeof(png_byte) == sizeof(uchar), "Must be the same.");
         
-        std::shared_ptr<Image> ptr = std::make_shared<Image>(height, width, 4);
+        auto ptr = Image::Make(height, width, 4);
         for(int y = 0; y < height; y++) {
             png_bytep row = row_pointers[y];
             memcpy(ptr->data() + y * width * 4, row, width * 4);

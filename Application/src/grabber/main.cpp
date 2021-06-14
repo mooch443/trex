@@ -203,8 +203,8 @@ int main(int argc, char** argv)
 #endif
     
 #ifdef __APPLE__
-    char env[] = "OPENCV_OPENCL_DEVICE=:GPU:1";
-    putenv(env);
+//char env[] = "OPENCV_OPENCL_DEVICE=:GPU:1";
+//    putenv(env);
     
     std::string PATH = (std::string)getenv("PATH");
     if(!utils::contains(PATH, "/usr/local/bin")) {
@@ -231,8 +231,10 @@ int main(int argc, char** argv)
     
     pv::DataLocation::register_path("settings", [](file::Path path) -> file::Path {
         auto settings_file = path.str().empty() ? SETTING(settings_file).value<Path>() : path;
-        if(settings_file.empty())
-            Except("settings_file is an empty string. You should really specify a settings file.");
+        if(settings_file.empty()) {
+            Debug("The parameter settings_file (or -s) is empty. You can specify a settings file in the command-line by adding:\n\t-s path/to/file.settings");
+            return settings_file;
+        }
 		
         if(!settings_file.is_absolute()) {
             settings_file = SETTING(output_dir).value<file::Path>() / settings_file;
@@ -240,8 +242,6 @@ int main(int argc, char** argv)
         
         if(!settings_file.has_extension() || settings_file.extension() != "settings")
             settings_file = settings_file.add_extension("settings");
-        
-        Debug("settings: %S", &settings_file.str());
         
         return settings_file;
     });
@@ -271,7 +271,7 @@ int main(int argc, char** argv)
     pv::DataLocation::register_path("output_settings", [](file::Path) -> file::Path {
         file::Path settings_file(SETTING(filename).value<Path>().filename());
         if(settings_file.empty())
-            U_EXCEPTION("settings_file is an empty string.");
+            U_EXCEPTION("settings_file (and like filename) is an empty string.");
         
         if(!settings_file.has_extension() || settings_file.extension() != "settings")
             settings_file = settings_file.add_extension("settings");

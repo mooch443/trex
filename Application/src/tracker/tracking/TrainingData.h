@@ -244,7 +244,7 @@ public:
     //! used as an override for when data is just used to initialize the network and nothing more.
     void set_classes(const std::set<Idx_t>& classes);
     
-    std::unique_ptr<Image> draw_coverage(const std::map<Frame_t, float>& uniquenesses = {}, const std::vector<Rangel>& = {}, const std::vector<Rangel>& added_ranges = {}, const std::map<Frame_t, float>& uniquenesses_temp = {}, std::shared_ptr<DataRange> current_salt = nullptr, const std::map<Rangel, std::tuple<double, FrameRange>>& assigned_unique_averages = {}) const;
+    Image::UPtr draw_coverage(const std::map<Frame_t, float>& uniquenesses = {}, const std::vector<Rangel>& = {}, const std::vector<Rangel>& added_ranges = {}, const std::map<Frame_t, float>& uniquenesses_temp = {}, std::shared_ptr<DataRange> current_salt = nullptr, const std::map<Rangel, std::tuple<double, FrameRange>>& assigned_unique_averages = {}) const;
 };
 
 }

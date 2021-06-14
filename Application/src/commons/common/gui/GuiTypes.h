@@ -329,14 +329,14 @@ protected:
     
     class ExternalImage : public Drawable {
     public:
-        using Ptr = std::unique_ptr<Image>;
+        using Ptr = Image::UPtr;
     private:
         GETTER(std::string, url)
-        std::unique_ptr<Image> _source;
+        Ptr _source;
         GETTER(Color, color)
         
     public:
-        ExternalImage() : ExternalImage(std::make_unique<Image>(), Vec2()) {}
+        ExternalImage() : ExternalImage(Image::Make(), Vec2()) {}
         ExternalImage(Ptr&& source, const Vec2& pos = Vec2(), const Vec2& scale = Vec2(1,1), const Color& color = Transparent);
         ~ExternalImage() { }
         ExternalImage(const ExternalImage& e) = delete;

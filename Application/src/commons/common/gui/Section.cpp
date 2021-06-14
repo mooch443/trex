@@ -250,6 +250,8 @@ namespace gui {
         if(!obj)
             return;
         
+        assert(!contains(_children, obj));
+        assert(_index <= _children.size());
         _children.insert(_children.begin() + _index, obj);
         _wrapped_children[d] = obj;
         _index++;
