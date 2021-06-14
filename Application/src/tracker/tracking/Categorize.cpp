@@ -187,7 +187,9 @@ const Sample::Ptr& DataStore::random_sample(Idx_t fid) {
     if(!segment)
         return Sample::Invalid();
     
-    return sample(segment, fish, 150u, 1u);
+    const auto max_len = FAST_SETTINGS(track_segment_max_length);
+    const auto min_len = uint32_t(max_len > 0 ? max(1, max_len * 0.1 * float(FAST_SETTINGS(frame_rate))) : FAST_SETTINGS(categories_min_sample_images));
+    return sample(segment, fish, 150u, min_len);
 }
 
 Sample::Ptr DataStore::get_random() {
@@ -620,13 +622,18 @@ public:
                     task.type = LearningTask::Type::Prediction;
                     task.callback = [](const LearningTask& task) {
                         std::lock_guard guard(Work::_recv_mutex);
+                        task.sample->_probabilities.clear();
                         for(size_t i=0; i<task.result.size(); ++i) {
                             task.sample->_probabilities[DataStore::label(task.result.at(i))] += float(1);
                         }
                         
                         auto str0 = Meta::toStr(task.sample->_probabilities);
-                        for(auto &[k, v] : task.sample->_probabilities)
+                        for(auto &[k, v] : task.sample->_probabilities) {
                             v /= float(task.result.size());
+                            if(v > 1) {
+                                Warning("Probability > 1? %f for k '%S'", v, &k->name);
+                            }
+                        }
                         
                         auto str1 = Meta::toStr(task.sample->_probabilities);
                         Debug("%lu: %S -> %S", task.result.size(), &str0, &str1);
@@ -963,7 +970,9 @@ struct NetworkApplicationState {
 
             segment = *it;
             if(!DataStore::label_interpolated(fish->identity().ID(), Frame_t(segment->start()))) {
-                task.sample = DataStore::temporary(segment, fish, 300u, 1u, true);
+                const auto max_len = FAST_SETTINGS(track_segment_max_length);
+                const auto min_len = uint32_t(max_len > 0 ? max(1, max_len * 0.1 * float(FAST_SETTINGS(frame_rate))) : FAST_SETTINGS(categories_min_sample_images));
+                task.sample = DataStore::temporary(segment, fish, 300u, min_len, true);
                 task.segment = segment;
             }
 #ifndef NDEBUG
@@ -1317,9 +1326,9 @@ void Work::start_learning() {
                         py::set_variable("images", prediction_images, module);
                         py::set_function("receive", [&](std::vector<float> results)
                         {
-                            Debug("Predicted %lu values...", results.size());
                             for (auto& [item, offset] : prediction_tasks) {
                                 if (item.type == LearningTask::Type::Prediction) {
+                                    item.result.clear();
                                     item.result.insert(item.result.end(), results.begin() + offset, results.begin() + offset + item.sample->_images.size());
                                     if (item.callback)
                                         item.callback(item);

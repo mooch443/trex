@@ -400,6 +400,8 @@ namespace gui {
         
         GETTER_PTR(Rect*, background)
         GETTER_PTR(DrawStructure*, stage)
+        GETTER_I(Color, bg_fill_color, Transparent)
+        GETTER_I(Color, bg_line_color, Transparent)
         
         void update_bounds() override;
         

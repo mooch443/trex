@@ -104,7 +104,8 @@ CREATE_STRUCT(Settings,
   (std::vector<std::string>, categories_ordered),
   (std::vector<std::string>, track_only_categories),
   (float, track_segment_max_length),
-  (Size2, recognition_image_size)
+  (Size2, recognition_image_size),
+  (uint32_t, categories_min_sample_images)
 )
 
     class Tracker {

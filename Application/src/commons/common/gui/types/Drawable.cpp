@@ -831,20 +831,28 @@ namespace gui {
     }
     
     void SectionInterface::set_background(const Color& color, const Color& line) {
-        if(_background && color == _background->fillclr() && line == _background->lineclr())
+        if(color == _bg_fill_color && line == _bg_line_color)
             return;
         
-        if(!_background) {
-            _background = new Rect(Bounds());
-            _background->set_parent(this);
-            _background->set_z_index(_z_index);
+        _bg_fill_color = color;
+        _bg_line_color = line;
+        
+        if(_bg_fill_color != Transparent || _bg_line_color != Transparent) {
+            if(!_background) {
+                _background = new Rect(Bounds());
+                _background->set_parent(this);
+                _background->set_z_index(_z_index);
+            }
+            
+            _background->set_fillclr(_bg_fill_color);
+            _background->set_lineclr(_bg_line_color);
+            
+        } else if(_background) {
+            delete _background;
+            _background = NULL;
         }
         
-        if(_background->fillclr() != color || _background->lineclr() != line) {
-            _background->set_fillclr(color);
-            _background->set_lineclr(line);
-            set_dirty();
-        }
+        set_dirty();
     }
 
 void SectionInterface::set_z_index(int index) {

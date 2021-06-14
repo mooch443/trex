@@ -150,6 +150,9 @@ void StaticText::set_default_font(const Font& font) {
             // subtract position, add margins
             m = m + _margins.size();
             set_size(m);
+            if(bg_fill_color() != Transparent || bg_line_color() != Transparent)
+                set_background(bg_fill_color() != Transparent ? bg_fill_color().alpha(_alpha * 255) : Transparent,
+                    bg_line_color() != Transparent ? bg_line_color().alpha(_alpha * 255) : Transparent);
             
             end();
         }
