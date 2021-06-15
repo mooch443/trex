@@ -106,12 +106,12 @@ void Blob::calculate_moments() {
             _moments.mu[0][2] += 1 * vy2;
 
             _moments.mu[1][0] += vx * 1;
-            _moments.mu[1][1] += vx * vy;
-            _moments.mu[1][2] += vx * vy2;
+            _moments.mu[1][1] += float(vx) * float(vy);
+            _moments.mu[1][2] += float(vx) * float(vy2);
 
             _moments.mu[2][0] += vx2 * 1;
-            _moments.mu[2][1] += vx2 * vy;
-            _moments.mu[2][2] += vx2 * vy2;
+            _moments.mu[2][1] += float(vx2) * float(vy);
+            _moments.mu[2][2] += float(vx2) * float(vy2);
         }
     }
 

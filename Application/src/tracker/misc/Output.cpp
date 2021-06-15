@@ -7,6 +7,7 @@
 #include <gui/gui.h>
 #include <gui/WorkProgress.h>
 #include <misc/checked_casts.h>
+#include <tracking/Categorize.h>
 
 using namespace track;
 typedef int64_t data_long_t;
@@ -413,9 +414,9 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                     auto prop = new PhysicalProperties(fish, frameIndex, data.pos, data.angle, cache_ptr);
                     data.stuff->centroid = prop;
                     
-                    
+                    auto label = Categorize::DataStore::ranged_label(Frame_t(frameIndex), data.stuff->blob);
                     auto cache = fish->cache_for_frame(frameIndex, Tracker::properties(frameIndex, cache_ptr)->time, cache_ptr);
-                    auto p = fish->probability(cache, frameIndex, data.stuff->blob).p;
+                    auto p = fish->probability(label ? label->id : -1, cache, frameIndex, data.stuff->blob).p;
                     
                     auto segment = fish->update_add_segment(
                         frameIndex,
@@ -1060,6 +1061,9 @@ namespace Output {
             }
         }
         
+        // write categorization data, if it exists
+        Categorize::DataStore::write(*this, header().version);
+        
         // write frame properties
         write<uint64_t>(frames.size());
         if(!SETTING(quiet))
@@ -1265,6 +1269,11 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
                     recognition.data()[(long_t)frame][bid] = tmp;
                 }
             }
+        }
+        
+        if(file.header().version >= ResultsFormat::Versions::V_33) {
+            // read category data
+            Categorize::DataStore::read(file, file.header().version);
         }
         
         // read frame properties

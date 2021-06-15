@@ -7,6 +7,7 @@
 #include <misc/checked_casts.h>
 #include <gui/Graph.h>
 #include <tracker/misc/default_config.h>
+#include <tracking/Categorize.h>
 
 namespace Output {
     using namespace gui;
@@ -709,6 +710,22 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             delete events;
             return 0;
         });
+
+        _cache_func["category"] = LIB_NO_CHECK_FNC({
+            auto l = Categorize::DataStore::label_interpolated(fish, Frame_t(frame));
+            if (l) {
+                return l->id;
+            }
+            return gui::Graph::invalid();
+        });
+        
+        _cache_func["average_category"] = LIB_NO_CHECK_FNC({
+            auto l = Categorize::DataStore::label_averaged(fish, Frame_t(frame));
+            if (l) {
+                return l->id;
+            }
+            return gui::Graph::invalid();
+        });
         
         _cache_func["event_direction_change"] = LIBFNC({
             auto events = EventAnalysis::events();
@@ -782,7 +799,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             return gui::Graph::invalid();
         });
         
-        _cache_func["consecutive"] = LIBFNC({
+        _cache_func["consecutive"] = LIB_NO_CHECK_FNC({
             auto segment = fish->segment_for(frame);
             
             if (segment) {
@@ -791,8 +808,17 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             
             return gui::Graph::invalid();
         });
+
+        _cache_func["consecutive_segment_id"] = LIB_NO_CHECK_FNC({
+            auto segment = fish->segment_for(frame);
+            if (segment) {
+                return (uint64_t)segment.get();
+            }
+
+            return gui::Graph::invalid();
+        });
         
-        _cache_func["blobid"] = LIBFNC({
+        _cache_func["blobid"] = LIB_NO_CHECK_FNC({
             auto blob = fish->compressed_blob(frame);
             
             if (blob) {
@@ -802,7 +828,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             return gui::Graph::invalid();
         });
         
-        _cache_func["num_pixels"] = LIBFNC({
+        _cache_func["num_pixels"] = LIB_NO_CHECK_FNC({
             auto blob = fish->blob(frame);
             
             if (blob) {
@@ -812,7 +838,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             return gui::Graph::invalid();
         });
         
-        _cache_func["pixels_squared"] = LIBFNC({
+        _cache_func["pixels_squared"] = LIB_NO_CHECK_FNC({
             auto blob = fish->blob(frame);
             
             if (blob) {

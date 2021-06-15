@@ -68,6 +68,7 @@ CREATE_STRUCT(Cache,
     (default_config::output_format_t::Class, output_format),
     (uchar, gui_timeline_alpha)
 )
+//(bool, gui_blur_enabled)
 
 }
 }
@@ -247,14 +248,13 @@ private:
     void draw(gui::DrawStructure& main_base);
     void draw_footer(gui::DrawStructure& base);
     void draw_posture(gui::DrawStructure &base, Individual* fish, long_t frameNr);
-    void label_fish(gui::DrawStructure &base, Individual* fish, long_t frameNr, const Vec2& scale = Vec2(1), bool highlighted = false);
     void draw_menu(gui::DrawStructure& base);
     void draw_export_options(gui::DrawStructure& base);
     void draw_grid(gui::DrawStructure& base);
     
     void removed_frames(long_t including);
     
-    void debug_binary(gui::DrawStructure& main_base, long_t frameIndex);
+    void draw_raw_mode(gui::DrawStructure& main_base, long_t frameIndex);
     void debug_optical_flow(gui::DrawStructure& base, long_t frameIndex);
     void redraw();
     
@@ -298,6 +298,7 @@ public:
     void update_recognition_rect();
     static Size2 screen_dimensions();
     static gui::Base* best_base();
+    static void set_status(const std::string& text);
     
 private:
     std::tuple<Vec2, Vec2> gui_scale_with_boundary(Bounds& bounds, gui::Section* section, bool singular);

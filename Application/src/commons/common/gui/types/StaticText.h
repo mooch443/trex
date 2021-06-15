@@ -36,7 +36,7 @@ namespace gui {
         };
         
     public:
-        StaticText(const std::string& txt, const Vec2& pos, const Vec2& max_size = Vec2(-1, -1), const Font& font = Font(0.75));
+        StaticText(const std::string& txt = "", const Vec2& pos = Vec2(), const Vec2& max_size = Vec2(-1, -1), const Font& font = Font(0.75));
         virtual ~StaticText() {
             texts.clear();
         }

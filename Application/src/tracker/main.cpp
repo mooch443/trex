@@ -4,14 +4,6 @@
 //                                                                           //
 //===========================================================================//
 
-// TODO
-// - make fish max/min size adaptive per fish
-// x be able to make assumptions about number of fish
-// x posture fails sometimes when it finds a smaller blob even though
-//   a big one is also present
-// - create a file format to save the whole analysis in and load it back up
-// - create profiles for export
-
 //-Includes--------------------------------------------------------------------
 
 #include <signal.h>
@@ -67,6 +59,7 @@
 #include <gui/FileChooser.h>
 #include <gui/types/Checkbox.h>
 #include <misc/MemoryStats.h>
+#include <tracking/Categorize.h>
 #include "VideoOpener.h"
 
 #if WIN32
@@ -553,11 +546,12 @@ int main(int argc, char** argv)
                     
                 case Arguments::update: {
                     auto status = CheckUpdates::perform(false).get();
-                    if(status == CheckUpdates::VersionStatus::OLD) {
+                    if(status == CheckUpdates::VersionStatus::OLD || status == CheckUpdates::VersionStatus::ALREADY_ASKED)
+                    {
                         CheckUpdates::display_update_dialog();
-                    } else if(status == CheckUpdates::VersionStatus::NEWEST)
+                    } else if(status == CheckUpdates::VersionStatus::NEWEST) {
                         Debug("You have the newest version (%S).", &CheckUpdates::newest_version());
-                     else
+                    } else
                          Error("Error checking for the newest version: '%S'. Please check your internet connection and try again.", &CheckUpdates::last_error());
                     
                     PythonIntegration::quit();
@@ -699,10 +693,14 @@ int main(int argc, char** argv)
     Library::InitVariables();
     
     Path settings_file = pv::DataLocation::parse("settings");
-    if(GUI::execute_settings(settings_file, AccessLevelType::STARTUP))
-        executed_a_settings = true;
-    else
-        Warning("Settings file '%S' does not exist.", &settings_file.str());
+    if(SETTING(settings_file).value<file::Path>().empty()) {
+        if(GUI::execute_settings(settings_file, AccessLevelType::STARTUP))
+            executed_a_settings = true;
+        else {
+            SETTING(settings_file) = file::Path();
+            Warning("Settings file '%S' does not exist.", &settings_file.str());
+        }
+    }
     
     if(SETTING(meta_real_width).value<float>() == 0) {
         Warning("This video does not set `meta_real_width`. Please set this value during conversion (see https://trex.run/docs/parameters_trex.html#meta_real_width for details).");
@@ -718,6 +716,22 @@ int main(int argc, char** argv)
      * ignored previously.
      */
     cmd.load_settings();
+    
+    if(SETTING(settings_file).value<file::Path>().empty()) {
+        auto output_settings = pv::DataLocation::parse("output_settings");
+        if(output_settings.exists() && output_settings != settings_file) {
+            if(GUI::execute_settings(output_settings, AccessLevelType::STARTUP))
+                executed_a_settings = true;
+            else if(!executed_a_settings)
+                Warning("Output settings '%S' does not exist.", &output_settings.str());
+        }
+        
+    } else {
+        if(GUI::execute_settings(settings_file, AccessLevelType::STARTUP))
+            executed_a_settings = true;
+        else
+            Warning("Settings file '%S' does not exist.", &settings_file.str());
+    }
 
     Tracker tracker;
     tracker.update_history_log();
@@ -744,21 +758,6 @@ int main(int argc, char** argv)
         U_EXCEPTION("Cannot continue with the mentioned deprecated command-line options.");
     }
     
-    auto output_settings = pv::DataLocation::parse("output_settings");
-    if(output_settings.exists() && output_settings != settings_file) {
-        if(GUI::execute_settings(output_settings, AccessLevelType::STARTUP))
-            executed_a_settings = true;
-        else if(!executed_a_settings)
-            Warning("Output settings '%S' does not exist.", &output_settings.str());
-    }
-    
-    /*for(auto &option : cmd.settings()) {
-        if(utils::lowercase(option.name) == "output_prefix") {
-            SETTING(output_prefix) = option.value;
-        } else if(utils::lowercase(option.name) == "output_graphs") {
-            sprite::parse_values(GlobalSettings::map(), "{'"+option.name+"':"+option.value+"}");
-        }
-    }*/
     cmd.load_settings();
     
     if(SETTING(output_graphs).value< std::vector<std::pair<std::string, std::vector<std::string>>>>().empty()) {
@@ -810,7 +809,7 @@ int main(int argc, char** argv)
     
     cv::Mat local;
     average.copyTo(local);
-    tracker.set_average(std::make_unique<Image>(local));
+    tracker.set_average(Image::Make(local));
     
     if(!SETTING(log_file).value<file::Path>().empty()) {
         auto path = pv::DataLocation::parse("output", SETTING(log_file).value<file::Path>());
@@ -1658,13 +1657,7 @@ int main(int argc, char** argv)
                         }
                         
                         try {
-                            // write changed date to file 'update_check' in the resource folder
-                            std::string str = SETTING(app_last_update_check).get().valueString()+"\n"+SETTING(app_check_for_updates).get().valueString();
-                            auto f = fopen("update_check", "wb");
-                            if(f) {
-                                fwrite(str.c_str(), sizeof(char), str.length(), f);
-                                fclose(f);
-                            }
+                            CheckUpdates::write_version_file();
                             
                         } catch(...) { }
                         
@@ -1680,6 +1673,7 @@ int main(int argc, char** argv)
     
     Debug("Preparing for shutdown...");
     CheckUpdates::cleanup();
+    Categorize::terminate();
     Recognition::notify();
     
     {

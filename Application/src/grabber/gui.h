@@ -40,7 +40,7 @@ protected:
     GETTER_NCONST(gui::DrawStructure, gui)
     gui::Base* _sf_base;
     std::unique_ptr<pv::Frame> _frame, _noise;
-    std::unique_ptr<Image> _image;
+    Image::UPtr _image;
 
     gui::HTMLBase _html_base;
     

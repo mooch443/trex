@@ -102,10 +102,13 @@ set_target_properties(${TREX_EXEC_NAME} PROPERTIES
 
 set(TRACKER_PATH "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>")
 message("TRACKER PATH ${TRACKER_PATH}")
-set_target_properties(trex_check_python PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${TRACKER_PATH}")
 
-if(TREX_WITH_TESTS)
-    set_target_properties(test_imgui PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${TRACKER_PATH}")
+if(NOT APPLE)
+    set_target_properties(trex_check_python PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${TRACKER_PATH}")
+
+    if(TREX_WITH_TESTS)
+        set_target_properties(test_imgui PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${TRACKER_PATH}")
+    endif()
 endif()
 
 set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/gfx/TRexIcon.icns PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
@@ -119,6 +122,7 @@ set(RESOURCE_COPY_SINGLE_FILES
 	${CMAKE_SOURCE_DIR}/default.settings
     ${CMAKE_SOURCE_DIR}/learn_static.py
     ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py
+    ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_learn_category.py
 )
 
 IF("${CMAKE_SYSTEM}" MATCHES "Linux")
@@ -165,11 +169,8 @@ elseif(WIN32)
                 "${comp}"
                 "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/${comp_s}")
     endforeach()
+    
 else()
-
-    #add_custom_command(TARGET ${TREX_EXEC_NAME} POST_BUILD
-        #COMMAND ${CMAKE_COMMAND} -E make_directory
-         #   "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>")
 	message(STATUS "Copying files ${RESOURCE_COPY_SINGLE_FILES}")
     foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
         get_filename_component(comp_s ${comp} NAME)
@@ -239,4 +240,4 @@ install(TARGETS ${targets}
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/fonts DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/html DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/gfx DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
-install(FILES ${CMAKE_SOURCE_DIR}/default.settings ${CMAKE_SOURCE_DIR}/learn_static.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
+install(FILES ${CMAKE_SOURCE_DIR}/default.settings ${CMAKE_SOURCE_DIR}/learn_static.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_learn_category.py DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)

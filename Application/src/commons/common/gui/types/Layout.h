@@ -14,6 +14,7 @@ namespace gui {
         
         Base& operator*() const { return ptr ? *ptr : *raw_ptr; }
         Base* get() const { return ptr ? ptr.get() : raw_ptr; }
+        template<typename T> T* to() const { auto ptr = dynamic_cast<T*>(get()); if(!ptr) U_EXCEPTION("Cannot cast object to specified type."); return ptr; }
         
         bool operator==(Base* raw) const { return get() == raw; }
         //bool operator==(decltype(ptr) other) const { return ptr == other; }
@@ -40,6 +41,12 @@ namespace gui {
         std::vector<Ptr> _objects;
         
     public:
+        template<typename T, typename... Args>
+        static Layout::Ptr Make(Args&&... args) {
+            return Layout::Ptr(std::make_shared<T>(std::forward<Args>(args)...));
+        }
+        
+    public:
         Layout(const std::vector<Layout::Ptr>&);
         virtual ~Layout() { clear_children(); }
         
@@ -52,7 +59,9 @@ namespace gui {
         void set_children(const std::vector<Layout::Ptr>&);
         void clear_children() override;
         
+        
         virtual void update_layout() {}
+        virtual void auto_size(Margin margins) override;
     };
     
     class HorizontalLayout : public Layout {
@@ -72,6 +81,7 @@ namespace gui {
         
         void set_policy(Policy);
         void set_margins(const Bounds&);
+        virtual std::string name() const override { return "HorizontalLayout"; }
         
         void update_layout() override;
     };
@@ -93,6 +103,7 @@ namespace gui {
         
         void set_policy(Policy);
         void set_margins(const Bounds&);
+        virtual std::string name() const override { return "VerticalLayout"; }
         
         void update_layout() override;
     };

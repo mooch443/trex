@@ -33,6 +33,10 @@ namespace Output {
 #define _LIBGLFNC(CONTENT) LIBPARAM -> double \
 { (void)props; (void)smooth; CONTENT }
 #define LIBGLFNC(CONTENT) [] _LIBGLFNC(CONTENT)
+
+#define _LIBNCFNC(CONTENT) LIBPARAM -> double \
+{ Individual* fish = info.fish; (void)props; (void)smooth; CONTENT }
+#define LIB_NO_CHECK_FNC(CONTENT) [] _LIBNCFNC(CONTENT)
     
 #define MODIFIED(FNC, MODIFIER) (_output_modifiers.count(FNC) != 0 ? _output_modifiers.at(FNC).is(MODIFIER) : false)
     

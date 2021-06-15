@@ -22,6 +22,7 @@
 #include <misc/CircularGraph.h>
 #include <misc/MemoryStats.h>
 #include <gui/WorkProgress.h>
+#include <tracking/Categorize.h>
 
 #ifndef NDEBUG
 //#define PAIRING_PRINT_STATS
@@ -323,7 +324,6 @@ void Tracker::analysis_state(AnalysisState pause) {
             
             if(v != FAST_SETTINGS(posture_direction_smoothing))
             {
-                Debug("Updating midlines / head positions...");
                 auto worker = [key](){
                     LockGuard guard("Updating midlines in changed_setting("+key+")");
                     
@@ -737,6 +737,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
         frame.bdx_to_ptr = fill_proximity_grid(frame.blob_grid, frame.blobs);
         
         if(do_history_split) {
+            Tracker::LockGuard guard("preprocess_frame");
             Tracker::instance()->history_split(frame, active_individuals, out, pool);
         }
     }
@@ -783,6 +784,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
         auto &filtered_out = result->filtered_out;
         
         std::vector<pv::BlobPtr> ptrs;
+        auto only_allowed = FAST_SETTINGS(track_only_categories);
         
         for(; it != end; ++it) {
             ptrs.clear();
@@ -878,13 +880,21 @@ bool operator<(long_t frame, const FrameProperties& props) {
                 if(result->fish_size.in_range_of_one(recount)) {
                     if(FAST_SETTINGS(track_threshold_2) > 0) {
                         auto second_count = ptr->recount(FAST_SETTINGS(track_threshold_2), *result->background);
-                        if((FAST_SETTINGS(threshold_ratio_range) * recount).contains(second_count)) {
-                            filtered.push_back(ptr);
-                        } else
-                            filtered_out.push_back(ptr);
                         
                         ptr->force_set_recount(result->threshold, recount / cm_sqr);
-                        continue;
+                        
+                        if(!(FAST_SETTINGS(threshold_ratio_range) * recount).contains(second_count)) {
+                            filtered_out.push_back(ptr);
+                            continue;
+                        }
+                    }
+                    
+                    if(!only_allowed.empty()) {
+                        auto label = Categorize::DataStore::_ranged_label_unsafe(Frame_t(result->frame_index), ptr->blob_id());
+                        if(!label || !contains(only_allowed, label->name)) {
+                            filtered_out.push_back(ptr);
+                            continue;
+                        }
                     }
                     
                     filtered.push_back(ptr);
@@ -930,6 +940,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
         size_t available_threads = 1 + (pool ? pool->num_threads() : 0);
         size_t maximal_threads = frame.blobs.size();
         size_t needed_threads = min(maximal_threads / (size_t)FAST_SETTINGS(blobs_per_thread), available_threads);
+        std::shared_lock guard(Categorize::DataStore::range_mutex());
         
         if (maximal_threads > 1 && needed_threads > 1 && available_threads > 1 && pool) {
             size_t used_threads = min(needed_threads, available_threads);
@@ -1825,9 +1836,11 @@ void Tracker::clear_properties() {
             if(save_tags) {
                 if(!blob->split()){
                     blob_fish_map[blob->blob_id()] = fish;
+                    if(blob->parent_id() != -1)
+                        blob_fish_map[blob->parent_id()] = fish;
                     
-                    pv::BlobPtr copy = std::make_shared<pv::Blob>((Blob*)blob.get(), std::make_shared<std::vector<uchar>>(*blob->pixels()));
-                    tagged_fish.push_back(copy);
+                    //pv::BlobPtr copy = std::make_shared<pv::Blob>((Blob*)blob.get(), std::make_shared<std::vector<uchar>>(*blob->pixels()));
+                    tagged_fish.push_back(std::make_shared<pv::Blob>(blob->lines(), blob->pixels()));
                 }
             }
             
@@ -2239,12 +2252,15 @@ void Tracker::clear_properties() {
             }
             
             // Create Individuals for unassigned blobs
-            static std::vector<pv::BlobPtr> unassigned_blobs;
+            static std::vector<std::tuple<pv::BlobPtr, int>> unassigned_blobs;
             unassigned_blobs.clear();
+            unassigned_blobs.reserve(frame.blobs.size());
             
             for(auto &p : frame.blobs) {
-                if(!blob_assigned[p.get()])
-                    unassigned_blobs.push_back(p);
+                if(!blob_assigned[p.get()]) {
+                    auto label = Categorize::DataStore::ranged_label(Frame_t(frameIndex), p->blob_id());
+                    unassigned_blobs.push_back(std::make_tuple(p, label ? label->id : -1));
+                }
             }
             
             size_t last = unassigned_individuals.size() % concurrentThreadsSupported;
@@ -2270,8 +2286,8 @@ void Tracker::clear_properties() {
                     
                     auto &cache = frame.cached_individuals.at(fish->identity().ID());
 
-                    for (auto &blob: unassigned_blobs) {
-                        auto p = fish->probability(cache, frameIndex, blob->center(), blob->num_pixels()).p;
+                    for (auto &[blob, label]: unassigned_blobs) {
+                        auto p = fish->probability(label, cache, frameIndex, blob).p;//blob->center(), blob->num_pixels()).p;
 
                         // discard elements with probabilities that are too low
                         if (p <= FAST_SETTINGS(matching_probability_threshold))
@@ -2780,8 +2796,8 @@ void Tracker::clear_properties() {
 #endif
         
         if(save_tags) {
-           _thread_pool.enqueue([&](){
-                this->check_save_tags(frameIndex, blob_fish_map, tagged_fish, noise, tags_path);
+           _thread_pool.enqueue([&, bmf = blob_fish_map](){
+                this->check_save_tags(frameIndex, bmf, tagged_fish, noise, tags_path);
             });
         }
         
@@ -3191,6 +3207,8 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
     }
     
     void Tracker::_remove_frames(long_t frameIndex) {
+        Categorize::DataStore::reanalysed_from(Frame_t(frameIndex));
+        
         LockGuard guard("_remove_frames("+Meta::toStr(frameIndex)+")");
         recognition_pool.wait();
         _thread_pool.wait();
@@ -4009,7 +4027,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
 #endif
     }
 
-pv::BlobPtr Tracker::find_blob_noisy(std::map<uint32_t, pv::BlobPtr>& blob_to_id, int64_t bid, int64_t pid, const Bounds& bounds, long_t frame)
+pv::BlobPtr Tracker::find_blob_noisy(const std::map<uint32_t, pv::BlobPtr>& blob_to_id, int64_t bid, int64_t pid, const Bounds& bounds, long_t frame)
 {
     if(blob_to_id.count(bid) == 0) {
         if(pid != -1) {
@@ -4019,9 +4037,10 @@ pv::BlobPtr Tracker::find_blob_noisy(std::map<uint32_t, pv::BlobPtr>& blob_to_id
                 
                 for(auto & sub : blobs) {
                     if(sub->blob_id() == bid) {
-                        //Debug("Found perfect match for %d in blob %d", bid, b->blob_id());
-                        blob_to_id[bid] = sub;
-                        break;
+                        //Debug("Found perfect match for %d in blob %d", bid, b->blob_id());//blob_to_id[bid] = sub;
+                        //sub->calculate_moments();
+                        return sub;
+                        //break;
                     }
                 }
                 
@@ -4077,8 +4096,10 @@ pv::BlobPtr Tracker::find_blob_noisy(std::map<uint32_t, pv::BlobPtr>& blob_to_id
             auto && [var, bid, ptr, f] = tags::is_good_image(r, *_average);
             if(ptr) {
                 auto it = blob_fish_map.find(r.blob->blob_id());
-                assert(it != blob_fish_map.end());
-                it->second->add_tag_image(tags::Tag{var, r.blob->blob_id(), ptr, frameIndex} /* ptr? */);
+                if(it != blob_fish_map.end())
+                    it->second->add_tag_image(tags::Tag{var, r.blob->blob_id(), ptr, frameIndex} /* ptr? */);
+                else
+                    Warning("Blob %u in frame %d contains a tag, but is not associated with an individual.", r.blob->blob_id(), frameIndex);
             }
         }
         
@@ -4087,51 +4108,7 @@ pv::BlobPtr Tracker::find_blob_noisy(std::map<uint32_t, pv::BlobPtr>& blob_to_id
             for(auto fish : _active_individuals_frame.at(frameIndex-1)) {
                 if(fish->start_frame() < frameIndex && fish->has(frameIndex-1) && !fish->has(frameIndex))
                 {
-                    auto set = fish->has_tag_images_for(frameIndex-1);
-                    if(set && !set->empty()) {
-                        std::vector<uchar> arrays;
-                        std::vector<long_t> frame_indices;
-                        std::vector<long_t> blob_ids;
-                        
-                        std::vector<uchar> image_data;
-                        Size2 shape;
-                        
-                        printf("tags for %u: ", (uint32_t)fish->identity().ID());
-                        for(auto && [var, bid, ptr, frame] : *set) {
-                            shape = Size2(ptr->cols, ptr->rows);
-                            // had previous frame, lost in this frame (finalize segment)
-                            assert(frame <= frameIndex-1);
-                            auto before = arrays.size();
-                            arrays.resize(arrays.size() + ptr->size());
-                            
-                            printf("%d ", frame);
-                            frame_indices.push_back(frame);
-                            blob_ids.push_back(bid);
-                            std::copy(ptr->data(), ptr->data() + ptr->size(), arrays.begin() + before);
-                        }
-                        printf("\n");
-                        
-                        if(arrays.size() > 0) {
-                            auto range = fish->get_segment(frameIndex-1);
-                            
-                            if(!fish->has(range.start()))
-                                U_EXCEPTION("Range starts at %d, but frame is not set for fish %d.", range.start(), fish->identity().ID());
-                            uint32_t start_blob_id = fish->blob(range.start())->blob_id();
-                            
-                            file::Path path(tags_path / SETTING(filename).value<file::Path>().filename() / ("frame"+std::to_string(range.start())+"_blob"+std::to_string(start_blob_id)+".npz"));
-                            if(!path.remove_filename().exists()) {
-                                if(!path.remove_filename().create_folder())
-                                    U_EXCEPTION("Cannot create folder '%S' please check permissions.", &path.remove_filename().str());
-                            }
-                            
-                            Debug("Writing %d images '%S'", set->size(), &path.str());
-                            cmn::npz_save(path.str(), "images", arrays.data(), {set->size(), (uint)shape.width, (uint)shape.height});
-                            
-                            //path = path.remove_filename() / ("fdx_"+path.filename().to_string());
-                            cmn::npz_save(path.str(), "frames", frame_indices, "a");
-                            cmn::npz_save(path.str(), "blob_ids", blob_ids, "a");
-                        }
-                    }
+                    // - none
                 }
             }
         }

@@ -41,6 +41,7 @@
 #include <tracking/ConfirmedCrossings.h>
 #include <gui/DrawMenu.h>
 #include <gui/Label.h>
+#include <tracking/Categorize.h>
 
 #if WIN32
 #include <Shellapi.h>
@@ -102,12 +103,12 @@ public:
 };
 
 class OuterBlobs {
-    std::unique_ptr<Image> image;
+    Image::UPtr image;
     Vec2 pos;
     std::unique_ptr<gui::ExternalImage> ptr;
     
 public:
-    OuterBlobs(std::unique_ptr<Image>&& image = nullptr, std::unique_ptr<gui::ExternalImage>&& available = nullptr, const Vec2& pos = Vec2(), long_t id = -1) : image(std::move(image)), pos(pos), ptr(std::move(available)) {
+    OuterBlobs(Image::UPtr&& image = nullptr, std::unique_ptr<gui::ExternalImage>&& available = nullptr, const Vec2& pos = Vec2(), long_t id = -1) : image(std::move(image)), pos(pos), ptr(std::move(available)) {
         
     }
     
@@ -223,6 +224,9 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
             return;
         
         this->work().add_queue("", [this, name, &value](){
+            if(!GUI::instance())
+                return;
+            
             std::lock_guard<std::recursive_mutex> lock_guard(this->gui().lock());
             
             /*if(name == "track_max_speed") {
@@ -279,7 +283,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                     }
                     
                     std::lock_guard<std::recursive_mutex> lock_guard(this->gui().lock());
-                    _recognition_image.set_source(std::make_unique<Image>());
+                    _recognition_image.set_source(Image::Make());
                     cache().set_tracking_dirty();
                     cache().set_blobs_dirty();
                     cache().recognition_updated = true;
@@ -439,7 +443,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
         track::PythonIntegration::set_settings(GlobalSettings::instance());
         track::PythonIntegration::set_display_function([](const std::string& name, const cv::Mat& image)
         {
-            GUI::work().set_image(name, std::make_shared<Image>(image));
+            GUI::work().set_image(name, Image::Make(image));
         });
     }
 }
@@ -453,12 +457,17 @@ GUI::~GUI() {
 #endif
     
     _timeline = nullptr;
+    set_base(nullptr);
     
     {
-        std::lock_guard<std::recursive_mutex> lock(GUI::instance()->gui().lock());
+        std::lock_guard<std::recursive_mutex> lock(_gui.lock());
         GUI::_instance = NULL;
-        delete _work_progress;
+    }
+    
+    delete _work_progress;
         
+    {
+        std::lock_guard<std::recursive_mutex> lock(_gui.lock());
         for(auto d : _static_pointers) {
             d->clear_parent_dont_check();
         }
@@ -735,121 +744,94 @@ void GUI::run_loop(gui::LoopStatus status) {
 }
 
 void GUI::do_recording() {
-    if(_recording && _recording_frame != _last_recording_frame && _base) {
-        assert(_base->frame_recording());
-        static Timing timing("recording_timing");
-        TakeTiming take(timing);
-        
+    if(!_recording || _recording_frame == _last_recording_frame || !_base)
+        return;
+    
+    assert(_base->frame_recording());
+    static Timing timing("recording_timing");
+    TakeTiming take(timing);
+    
+    if(_last_recording_frame == -1) {
         _last_recording_frame = _recording_frame;
-        auto image = _base->current_frame_buffer();
-        if(!image || image->empty() || !image->cols || !image->rows) {
-            Warning("Expected image, but there is none.");
-            return;
+        return; // skip first frame
+    }
+    _last_recording_frame = _recording_frame;
+    
+    auto& image = _base->current_frame_buffer();
+    if(!image || image->empty() || !image->cols || !image->rows) {
+        Warning("Expected image, but there is none.");
+        return;
+    }
+    
+    auto mat = image->get();
+    
+    if(_recording_capture) {
+        static cv::Mat output;
+        auto bounds = Bounds(0, 0, _recording_size.width, _recording_size.height);
+        if(output.size() != _recording_size) {
+            output = cv::Mat::zeros(_recording_size.height, _recording_size.width, CV_8UC3);
         }
         
-        auto mat = image->get();
+        auto input_bounds = bounds;
+        input_bounds.restrict_to(Bounds(mat));
+        auto output_bounds = input_bounds;
+        output_bounds.restrict_to(Bounds(output));
+        input_bounds.size() = output_bounds.size();
         
-        if(_recording_capture) {
-            static cv::Mat output;
-            auto bounds = Bounds(0, 0, _recording_size.width, _recording_size.height);
-            if(output.size() != _recording_size) {
-                output = cv::Mat::zeros(_recording_size.height, _recording_size.width, CV_8UC3);
-            }
-            
-            auto input_bounds = bounds;
-            input_bounds.restrict_to(Bounds(mat));
-            auto output_bounds = input_bounds;
-            output_bounds.restrict_to(Bounds(output));
-            input_bounds.size() = output_bounds.size();
-            
-            if(output_bounds.size() != Size2(output))
-                output.mul(cv::Scalar(0));
-            
-            cv::cvtColor(mat(input_bounds), output(output_bounds), cv::COLOR_RGBA2RGB);
-            _recording_capture->write(output);
-            
-        } else {
-            std::stringstream ss;
-            ss << std::setw(6) << std::setfill('0') << _recording_frame << "." << _recording_format.name();
-            //image.saveToFile((_recording_path / ss.str()).str());
-            auto filename = _recording_path / ss.str();
-            
-            if(_recording_format == "jpg") {
-                cv::Mat output;
-                cv::cvtColor(mat, output, cv::COLOR_RGBA2RGB);
-                if(!cv::imwrite(filename.str(), output, { cv::IMWRITE_JPEG_QUALITY, 100 })) {
-                    Except("Cannot save to '%S'. Stopping recording.", &filename.str());
-                    _recording = false;
-                }
-                
-            } else if(_recording_format == "png") {
-                static std::vector<uchar> binary;
-                static Image image;
-                if(image.cols != (uint)mat.cols || image.rows != (uint)mat.rows)
-                    image.create(mat.rows, mat.cols, 4);
-                
-                cv::Mat output = image.get();
-                cv::cvtColor(mat, output, cv::COLOR_BGRA2RGBA);
-                
-                to_png(image, binary);
-                
-                FILE *f = fopen(filename.str().c_str(), "wb");
-                if(f) {
-                    fwrite(binary.data(), sizeof(char), binary.size(), f);
-                    fclose(f);
-                } else {
-                    Except("Cannot write to '%S'. Stopping recording.", &filename.str());
-                    _recording = false;
-                }
-            }
-        }
+        if(output_bounds.size() != Size2(output))
+            output.mul(cv::Scalar(0));
         
-        static Timer last_print;
-        if(last_print.elapsed() > 2) {
-            DurationUS duration{static_cast<uint64_t>((_recording_frame - _recording_start) / float(FAST_SETTINGS(frame_rate)) * 1000) * 1000};
-            auto str = ("frame "+Meta::toStr(_recording_frame)+"/"+Meta::toStr(_cache.tracked_frames.end)+" length: "+Meta::toStr(duration));
-            auto playback_speed = GUI_SETTINGS(gui_playback_speed);
-            if(playback_speed > 1) {
-                duration.timestamp = uint64_t(double(duration.timestamp) / double(playback_speed));
-                str += " (real: "+Meta::toStr(duration)+")";
+        cv::cvtColor(mat(input_bounds), output(output_bounds), cv::COLOR_RGBA2RGB);
+        _recording_capture->write(output);
+        
+    } else {
+        std::stringstream ss;
+        ss << std::setw(6) << std::setfill('0') << _recording_frame << "." << _recording_format.name();
+        //image.saveToFile((_recording_path / ss.str()).str());
+        auto filename = _recording_path / ss.str();
+        
+        if(_recording_format == "jpg") {
+            cv::Mat output;
+            cv::cvtColor(mat, output, cv::COLOR_RGBA2RGB);
+            if(!cv::imwrite(filename.str(), output, { cv::IMWRITE_JPEG_QUALITY, 100 })) {
+                Except("Cannot save to '%S'. Stopping recording.", &filename.str());
+                _recording = false;
             }
-            Debug("[rec] %S", &str);
-            last_print.reset();
+            
+        } else if(_recording_format == "png") {
+            static std::vector<uchar> binary;
+            static Image image;
+            if(image.cols != (uint)mat.cols || image.rows != (uint)mat.rows)
+                image.create(mat.rows, mat.cols, 4);
+            
+            cv::Mat output = image.get();
+            cv::cvtColor(mat, output, cv::COLOR_BGRA2RGBA);
+            
+            to_png(image, binary);
+            
+            FILE *f = fopen(filename.str().c_str(), "wb");
+            if(f) {
+                fwrite(binary.data(), sizeof(char), binary.size(), f);
+                fclose(f);
+            } else {
+                Except("Cannot write to '%S'. Stopping recording.", &filename.str());
+                _recording = false;
+            }
         }
     }
-#if WITH_SFML
     
-    
-    float interface_scale = 1 / gui::interface_scale();
-    sf::Text text("Saving to "+_recording_path.str(), SFBase::font(), 18 / interface_scale);
-    sf::Text subtext("frame "+Meta::toStr(_recording_frame)+" length:"+Meta::toStr(duration), SFBase::font(), 17 / interface_scale);
-    
-    text.setFillColor(White);
-    subtext.setFillColor(Color(200,200,200,255));
-    text.setScale(_gui.scale().reciprocal());
-    subtext.setScale(_gui.scale().reciprocal());
-    
-    text.setPosition((window().getView().getSize().x - text.getGlobalBounds().width) * 0.5, (window().getView().getSize().y - text.getGlobalBounds().height) * 0.5);
-    subtext.setPosition(text.getGlobalBounds().left + (text.getGlobalBounds().width - subtext.getGlobalBounds().width) * 0.5, text.getGlobalBounds().top + text.getGlobalBounds().height + 5 * interface_scale);
-    
-    Size2 combined(text.getGlobalBounds().width, text.getGlobalBounds().height);
-    combined = Size2(max(combined.width, subtext.getGlobalBounds().width), combined.height + subtext.getGlobalBounds().height);
-    combined += Vec2(0, subtext.getGlobalBounds().top - (text.getGlobalBounds().top + text.getGlobalBounds().height));
-    Vec2 center(text.getGlobalBounds().left, text.getGlobalBounds().top);
-    center += combined * 0.5;
-    
-    sf::RectangleShape rect(combined + Size2(20, 20).mul(interface_scale));
-    rect.setFillColor(Black.alpha(150));
-    rect.setOutlineColor(Gray.alpha(50));
-    rect.setOutlineThickness(1);
-    rect.setPosition(center.x - rect.getGlobalBounds().width * 0.5 ,
-                     center.y - rect.getGlobalBounds().height * 0.5);
-    
-    _base->window().draw(rect);
-    _base->window().draw(subtext);
-    _base->window().draw(text);
-    _base->window().display();
-#endif
+    static Timer last_print;
+    if(last_print.elapsed() > 2) {
+        DurationUS duration{static_cast<uint64_t>((_recording_frame - _recording_start) / float(FAST_SETTINGS(frame_rate)) * 1000) * 1000};
+        auto str = ("frame "+Meta::toStr(_recording_frame)+"/"+Meta::toStr(_cache.tracked_frames.end)+" length: "+Meta::toStr(duration));
+        auto playback_speed = GUI_SETTINGS(gui_playback_speed);
+        if(playback_speed > 1) {
+            duration.timestamp = uint64_t(double(duration.timestamp) / double(playback_speed));
+            str += " (real: "+Meta::toStr(duration)+")";
+        }
+        Debug("[rec] %S", &str);
+        last_print.reset();
+    }
 }
 
 bool GUI::is_recording() const {
@@ -858,7 +840,8 @@ bool GUI::is_recording() const {
 
 void GUI::start_recording() {
     if(_base) {
-        _recording_start = frame();
+        _recording_start = frame()+1;
+        _last_recording_frame = -1;
         _recording = true;
         _base->set_frame_recording(true);
         
@@ -898,17 +881,18 @@ void GUI::start_recording() {
         Debug("Clip index is %d. Starting at frame %d.", max_number, frame());
         
         frames = frames / ("clip" + Meta::toStr(max_number));
-        cv::Size size(_base->window_dimensions());
+        cv::Size size(_base && dynamic_cast<IMGUIBase*>(_base) ? static_cast<IMGUIBase*>(_base)->real_dimensions() : _base->window_dimensions());
         
         using namespace default_config;
         auto format = SETTING(gui_recording_format).value<gui_recording_format_t::Class>();
         
         if(format == gui_recording_format_t::avi) {
+            auto original_dims = size;
             if(size.width % 2 > 0)
                 size.width -= size.width % 2;
             if(size.height % 2 > 0)
                 size.height -= size.height % 2;
-            Debug("Trying to record with size %dx%d instead of %fx%f @ %d", size.width, size.height, _base->window_dimensions().width, _base->window_dimensions().height, FAST_SETTINGS(frame_rate));
+            Debug("Trying to record with size %dx%d instead of %fx%f @ %d", size.width, size.height, original_dims.width, original_dims.height, FAST_SETTINGS(frame_rate));
             
             frames = frames.add_extension("avi").str();
             _recording_capture = new cv::VideoWriter(frames.str(),
@@ -1016,7 +1000,7 @@ void GUI::redraw() {
         if(Tracker::instance()->grid())
             Tracker::instance()->grid()->correct_image(corrected);*/
         
-        gui_background = new ExternalImage(std::make_unique<Image>(original), Vec2(0, 0), Vec2(1), Color(255, 255, 255, 125));
+        gui_background = new ExternalImage(Image::Make(original), Vec2(0, 0), Vec2(1), Color(255, 255, 255, 125));
         //corrected_bg = new ExternalImage(corrected, Vec2(0, 0));
         
         gui_background->add_event_handler(EventType::MBUTTON, [this](Event e){
@@ -1041,7 +1025,7 @@ void GUI::redraw() {
             cv::Mat mask = _video_source->mask().mul(cv::Scalar(255));
             mask.convertTo(mask, CV_8UC1);
             
-            gui_mask = new ExternalImage(std::make_unique<Image>(mask), Vec2(0, 0), Vec2(1), Color(255, 255, 255, 125));
+            gui_mask = new ExternalImage(Image::Make(mask), Vec2(0, 0), Vec2(1), Color(255, 255, 255, 125));
         }
     }
     
@@ -1097,7 +1081,7 @@ void GUI::draw(DrawStructure &base) {
             if(mode == gui::mode_t::tracking)
                 this->draw_tracking(base, this->frame());
             else if(mode == gui::mode_t::blobs)
-                this->debug_binary(base, this->frame());
+                this->draw_raw_mode(base, this->frame());
             
             _cache.updated_blobs();
         }
@@ -1527,7 +1511,7 @@ void GUI::debug_optical_flow(DrawStructure &base, long_t frameIndex) {
         _next_frame = frameIndex+1;
     }
     
-    base.image(Vec2(0, 0), std::make_unique<Image>(_cflow));
+    base.image(Vec2(0, 0), Image::Make(_cflow));
 }
 
 void GUI::set_redraw() {
@@ -1773,66 +1757,6 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
     return {Vec2(), Vec2()};
 }
 
-void GUI::label_fish(gui::DrawStructure &base, track::Individual *fish, long_t frameNr, const Vec2& scale, bool highlighted) {
-    auto blob = fish->compressed_blob(frameNr);
-
-    std::string color = "";
-    std::stringstream text;
-    std::string secondary_text;
-
-    text << fish->identity().raw_name() << " ";
-    
-    if (DrawMenu::matching_list_open() && blob) {
-        secondary_text = "blob" + Meta::toStr(blob->blob_id());
-    }
-    else if (GUI_SETTINGS(gui_show_recognition_bounds)) {
-        auto&& [valid, segment] = fish->has_processed_segment(frameNr);
-        if (valid) {
-            auto&& [samples, map] = fish->processed_recognition(segment.start());
-            auto it = std::max_element(map.begin(), map.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b) {
-                return a.second < b.second;
-            });
-
-            if (it == map.end() || it->first != fish->identity().ID()) {
-                color = "str";
-                secondary_text += " avg" + Meta::toStr(it->first);
-            }
-            else
-                color = "nr";
-        }
-
-        if (blob) {
-            auto raw = _tracker.recognition()->ps_raw(frameNr, blob->blob_id());
-            if (!raw.empty()) {
-                auto it = std::max_element(raw.begin(), raw.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b) {
-                    return a.second < b.second;
-                });
-
-                if (it != raw.end()) {
-                    secondary_text += " loc" + Meta::toStr(it->first) + " (" + Meta::toStr(it->second) + ")";
-                }
-            }
-        }
-    }
-
-    float alpha = (_timeline->visible() ? 255 : SETTING(gui_faded_brightness).value<uchar>()) / 255.f * 200.f;
-    
-    if (blob) {
-        auto label = (Label*)_cache._fish_map[fish]->custom_data("label");
-        auto label_text = (color.empty() ? text.str() : ("<"+color+">"+text.str()+"</"+color+">")) + "<a>" + secondary_text + "</a>";
-        if (!label) {
-            label = new Label(label_text, blob->calculate_bounds(), _cache._fish_map[fish]->fish_pos());
-            _cache._fish_map[fish]->add_custom_data("label", (void*)label, [](void* ptr) {
-                delete (Label*)ptr;
-            });
-        }
-        else
-            label->set_data(label_text, blob->calculate_bounds(), _cache._fish_map[fish]->fish_pos());
-
-        label->update(base, base.active_section(), 1, blob == nullptr);
-    }
-}
-
 void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
     static Timing timing("draw_tracking", 10);
     
@@ -1972,9 +1896,8 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                     _cache._fish_map[fish]->set_data((uint32_t)frameNr, props->time, _cache.processed_frame, empty_map);
                     
                     base.wrap_object(*_cache._fish_map[fish]);
-                    
                     if(GUI_SETTINGS(gui_show_texts))
-                        label_fish(base, fish, frameNr, scale, _cache._fish_map[fish]->hovered() || _cache.is_selected(fish->identity().ID()));
+                        _cache._fish_map[fish]->label(base);
                 }
                 
                 if(GUI_SETTINGS(gui_show_midline_histogram)) {
@@ -2596,12 +2519,26 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
     }
 }
 
+std::string& additional_status_text() {
+    static std::string _text = "";
+    return _text;
+}
+
+void GUI::set_status(const std::string& text) {
+    if(!instance())
+        return;
+    
+    std::lock_guard guard(instance()->gui().lock());
+    additional_status_text() = text;
+}
+
 void GUI::draw_footer(DrawStructure& base) {
     static bool first = true;
     auto && [bg_offset, max_w] = Timeline::timeline_offsets();
     
     static HorizontalLayout status_layout({}, Vec2(), Bounds(10,0,0,0));
     static Text gpu_status("", Vec2(), White, Font(0.7)), python_status("", Vec2(), Red, Font(0.7));
+    static Text additional_status("", Vec2(), White, Font(0.7));
     static Text mouse_status("", Vec2(), White.alpha(200), Font(0.7));
 #define SITEM(NAME) DirectSettingsItem<globals::Cache::Variables:: NAME>
     static List options_dropdown(Size2(150, 33 + 2), "display", {
@@ -2964,6 +2901,8 @@ void GUI::draw_footer(DrawStructure& base) {
         mouse_position = (mouse_position - section->pos()).div(section->scale());
          mouse_status.set_txt(Meta::toStr(std::vector<int>{static_cast<int>(mouse_position.x), static_cast<int>(mouse_position.y)}));
     }
+        
+    additional_status.set_txt(additional_status_text());
     
     status_layout.set_origin(Vec2(1, 0.5));
     status_layout.set_scale(1.1 * base.scale().reciprocal());
@@ -2971,7 +2910,7 @@ void GUI::draw_footer(DrawStructure& base) {
     status_layout.set_pos(Vec2(max_w / base.scale().x - 30, layout.pos().y - layout.local_bounds().height * 0.5) - bg_offset / base.scale().x);
 
     if(status_layout.children().empty())
-        status_layout.set_children({&python_status, &gpu_status, &mouse_status});
+        status_layout.set_children({&python_status, &gpu_status, &additional_status, &mouse_status});
     status_layout.set_policy(HorizontalLayout::Policy::CENTER);
 }
 
@@ -2980,7 +2919,7 @@ void GUI::update_recognition_rect() {
     const float max_h = Tracker::average().rows;
     
     if((_recognition_image.source()->cols != max_w || _recognition_image.source()->rows != max_h) && Tracker::instance()->border().type() != Border::Type::none) {
-        auto border_distance = std::make_unique<Image>(max_h, max_w, 4);
+        auto border_distance = Image::Make(max_h, max_w, 4);
         border_distance->set_to(0);
         
         auto worker = [&border_distance, max_h](ushort x) {
@@ -3016,7 +2955,7 @@ void GUI::update_recognition_rect() {
             if(it == _include_shapes.end()) {
                 if(rect.size() == 2) {
                     auto ptr = std::make_shared<Rect>(Bounds(rect[0], rect[1] - rect[0]), Green.alpha(25), Green.alpha(100));
-                    ptr->set_clickable(true);
+                    //ptr->set_clickable(true);
                     _include_shapes[rect] = ptr;
                     
                 } else if(rect.size() > 2) {
@@ -3025,7 +2964,7 @@ void GUI::update_recognition_rect() {
                     auto ptr = std::make_shared<gui::Polygon>(r);
                     ptr->set_fill_clr(Green.alpha(25));
                     ptr->set_border_clr(Green.alpha(100));
-                    ptr->set_clickable(true);
+                    //ptr->set_clickable(true);
                     _include_shapes[rect] = ptr;
                 }
             }
@@ -3052,7 +2991,7 @@ void GUI::update_recognition_rect() {
             if(it == _ignore_shapes.end()) {
                 if(rect.size() == 2) {
                     auto ptr = std::make_shared<Rect>(Bounds(rect[0], rect[1] - rect[0]), Red.alpha(25), Red.alpha(100));
-                    ptr->set_clickable(true);
+                    //ptr->set_clickable(true);
                     _ignore_shapes[rect] = ptr;
                     
                 } else if(rect.size() > 2) {
@@ -3061,7 +3000,7 @@ void GUI::update_recognition_rect() {
                     auto ptr = std::make_shared<gui::Polygon>(r);
                     ptr->set_fill_clr(Red.alpha(25));
                     ptr->set_border_clr(Red.alpha(100));
-                    ptr->set_clickable(true);
+                    //ptr->set_clickable(true);
                     _ignore_shapes[rect] = ptr;
                 }
             }
@@ -3089,7 +3028,7 @@ gui::mode_t::Class GUI::mode() const {
 }
 
 void GUI::update_display_blobs(bool draw_blobs, Section* fishbowl) {
-    if(_cache.display_blobs.size() != _cache.raw_blobs.size() && draw_blobs)
+    if((_cache.raw_blobs_dirty() || _cache.display_blobs.size() != _cache.raw_blobs.size()) && draw_blobs)
     {
         static std::mutex vector_mutex;
         auto bowl = fishbowl->global_transform();
@@ -3101,10 +3040,7 @@ void GUI::update_display_blobs(bool draw_blobs, Section* fishbowl) {
             std::vector<std::unique_ptr<gui::ExternalImage>> vector;
             
             for(auto it = start; it != end; ++it) {
-                bool found = false;
-                {
-                    found = copy.count((*it)->blob.get());
-                }
+                bool found = copy.count((*it)->blob.get());
                 if(!found) {
                     auto bds = bowl.transformRect((*it)->blob->bounds());
                     if(bds.overlaps(screen_bounds))
@@ -3127,11 +3063,16 @@ void GUI::update_display_blobs(bool draw_blobs, Section* fishbowl) {
 void GUI::draw_raw(gui::DrawStructure &base, long_t) {
     Section* fishbowl;
     
-    static auto collection = std::make_unique<ExternalImage>(std::make_unique<Image>(Tracker::average().rows, Tracker::average().cols, 4), Vec2());
+    static auto collection = std::make_unique<ExternalImage>(Image::Make(Tracker::average().rows, Tracker::average().cols, 4), Vec2());
     const auto mode = GUI_SETTINGS(gui_mode);
     const auto draw_blobs = GUI_SETTINGS(gui_show_blobs) || mode != gui::mode_t::tracking;
     const double coverage = double(_cache._num_pixels) / double(collection->source()->rows * collection->source()->cols);
-    const bool draw_blobs_separately = coverage < 0.002 && draw_blobs;
+#if defined(TREX_ENABLE_EXPERIMENTAL_BLUR) && defined(__APPLE__) && TREX_METAL_AVAILABLE
+    const bool draw_blobs_separately =
+    (!GUI_SETTINGS(gui_blur_enabled) || !std::is_same<MetalImpl, default_impl_t>::value || GUI_SETTINGS(gui_mode) != gui::mode_t::blobs) && coverage < 0.002 && draw_blobs;
+#else
+    const bool draw_blobs_separately = false;//coverage < 0.002 && draw_blobs;
+#endif
     bool redraw_blobs = true;
     
     //Debug("Coverage: %f (%d)", coverage, draw_blobs_separately);
@@ -3151,7 +3092,6 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
             return;
         }
         
-        cache().updated_raw_blobs();
         
         if(Recognition::recognition_enabled() && GUI_SETTINGS(gui_show_recognition_bounds)) {
             if(!_recognition_image.source()->empty()) {
@@ -3183,10 +3123,60 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
         }
         
         update_display_blobs(draw_blobs, fishbowl);
+        cache().updated_raw_blobs();
         
         if(draw_blobs_separately) {
-            for(auto &e : _cache.display_blobs_list) {
-                base.wrap_object(*e);
+            if(GUI_SETTINGS(gui_mode) == gui::mode_t::tracking) {
+                for(auto &&[k,fish] : cache()._fish_map) {
+                    fish->shadow(base);
+                }
+            }
+            
+            if(GUI_SETTINGS(gui_mode) != gui::mode_t::blobs) {
+                /*std::unordered_map<uint32_t, Idx_t> blob_fish;
+                for(auto &[fid, bid] : _cache.fish_selected_blobs) {
+                    bool found = false;
+                    for(auto & [b, ptr] : _cache.display_blobs) {
+                        if(b->blob_id() == bid) {
+                            found = true;
+                            blob_fish[b->blob_id()] = fid;
+                            break;
+                        }
+                    }
+                }*/
+                
+                for(auto & [b, ptr] : _cache.display_blobs) {
+                    //if(blob_fish.find(b->blob_id()) == blob_fish.end())
+                    {
+#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
+#if defined(__APPLE__) && TREX_METAL_AVAILABLE
+                        if(GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)
+                        {
+                            ptr->tag(Effects::blur);
+                        }
+#endif
+#endif
+                        base.wrap_object(*ptr);
+                    }
+                }
+                
+            } else {
+                for(auto &e : _cache.display_blobs_list) {
+#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
+#if defined(__APPLE__) && TREX_METAL_AVAILABLE
+                    if(GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)
+                    {
+                        e->untag(Effects::blur);
+                    }
+#endif
+#endif
+                    base.wrap_object(*e);
+                }
+            }
+            
+        } else if(draw_blobs && GUI_SETTINGS(gui_mode) == gui::mode_t::tracking) {
+            for(auto &&[k,fish] : cache()._fish_map) {
+                fish->shadow(base);
             }
         }
     });
@@ -3230,15 +3220,6 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
         collection->set_scale(fishbowl->scale());
         collection->set_pos(fishbowl->pos());
         base.wrap_object(*collection);
-        /*static auto blobs = std::make_shared<Entangled>();
-        blobs->update([this](auto& base){
-            for(auto e : _cache.blob_images)
-                base.advance_wrap(*e);
-        });
-        blobs->set_scroll_enabled(true);
-        blobs->set_scroll_limits(Rangef(0,0), Rangef(0,0));
-        base.wrap_object(*blobs);
-        blobs->set_bounds(Bounds(0, 0, Tracker::average().cols, Tracker::average().rows));*/
     }
     
 #ifndef NDEBUG
@@ -3384,9 +3365,9 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
     });
 }
 
-std::unique_ptr<ExternalImage> generate_outer(const pv::BlobPtr& blob) {
+/*std::unique_ptr<ExternalImage> generate_outer(const pv::BlobPtr& blob) {
     Vec2 offset;
-    std::unique_ptr<Image> image, greyscale;
+    Image::UPtr image, greyscale;
     Vec2 image_pos;
     
     auto &percentiles = GUI::cache().pixel_value_percentiles;
@@ -3420,20 +3401,20 @@ std::unique_ptr<ExternalImage> generate_outer(const pv::BlobPtr& blob) {
     
     cv::Mat tmp = outer - inner;
     
-    auto gimage = OuterBlobs(std::make_unique<Image>(tmp), nullptr, offset, blob->blob_id()).convert();
+    auto gimage = OuterBlobs(Image::Make(tmp), nullptr, offset, blob->blob_id()).convert();
     gimage->add_custom_data("blob_id", (void*)(uint64_t)blob->blob_id());
     return gimage;
-}
+}*/
 
-void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
+void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
     pv::File *file = dynamic_cast<pv::File*>(_video_source);
     if(file && file->length() > size_t(frameIndex)) {
         struct Outer {
-            std::unique_ptr<Image> image;
+            Image::UPtr image;
             Vec2 off;
             pv::BlobPtr blob;
             
-            Outer(std::unique_ptr<Image>&& image = nullptr, const Vec2& off = Vec2(), pv::BlobPtr blob = nullptr)
+            Outer(Image::UPtr&& image = nullptr, const Vec2& off = Vec2(), pv::BlobPtr blob = nullptr)
             : image(std::move(image)), off(off), blob(blob)
             {}
         };
@@ -3490,8 +3471,8 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
                 for(auto it = start; it != end; ++it) {
                     if(copy.find(*it) == copy.end()) {
                         auto& blob = id_to_ptr.at(*it);
-                        auto image = generate_outer(blob);
-                        outer_images.emplace_back(std::move(image));
+                        //auto image = generate_outer(blob);
+                        //outer_images.emplace_back(std::move(image));
                         added_ids.insert(blob->blob_id());
                     }
                 }
@@ -3543,8 +3524,8 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
                 _cache.updated_blobs(); // if show_pixel_grid is active, it will set the cache to "updated"
             }
             
-            for(auto &image : outer_images)
-                base.wrap_object(*image);
+            //for(auto &image : outer_images)
+            //    base.wrap_object(*image);
             
             //if(_timeline.visible())
             {
@@ -3631,13 +3612,26 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
                     std::stringstream ss;
                     if(!active)
                         ss << "<ref>";
-                    ss << blob->name();
-                    if(!active)
-                        ss << "</ref>";
-                    ss << " <a>size: " << real_size << (blob->split() ? " split" : "");
+                    ss << blob->name() << " ";
+                    if (active)
+                        ss << "<a>";
+                    ss << "size: " << real_size << (blob->split() ? " split" : "");
                     if(blob->tried_to_split())
                         ss << " tried";
-                    ss << "</a>";
+                    if (!active)
+                        ss << "</ref>";
+                    else
+                        ss << "</a>";
+                    
+                    {
+                        auto label = Categorize::DataStore::ranged_label(Frame_t(cache().frame_idx), blob->blob_id());
+                        if(label) {
+                            ss << " <str>" << label->name << "</str>";
+                        }
+                        if(blob->parent_id() != -1 && (label = Categorize::DataStore::ranged_label(Frame_t(cache().frame_idx), blob->parent_id()))) {
+                            ss << " parent:<str>" << label->name << "</str>";
+                        }
+                    }
                     
                     decltype(_blob_labels)::iterator it = _blob_labels.find(blob->blob_id());
                     if(it == _blob_labels.end()) {
@@ -3748,6 +3742,7 @@ void GUI::debug_binary(DrawStructure &base, long_t frameIndex) {
                     
                     _clicked_blob_id = -1;
                     this->set_redraw();
+                    cache().set_raw_blobs_dirty();
                 });
                 //list->set_background(Black.alpha(125), Black.alpha(230));
                 //popup->set_size(Size2(200, 400));
@@ -3947,7 +3942,7 @@ void GUI::key_event(const gui::Event &event) {
     if(key.code >= Codes::Num0 && key.code <= Codes::Num9) {
         std::lock_guard<std::recursive_mutex> lock(_gui.lock());
         Identity id(narrow_cast<uint32_t>(key.code - Codes::Num0));
-        SETTING(gui_focus_group) = std::vector<Idx_t>{id.ID()};
+        _cache.deselect_all_select(id.ID());
         set_redraw();
         return;
     }
@@ -4137,8 +4132,7 @@ void GUI::key_event(const gui::Event &event) {
             } else
                 break;
             
-            SETTING(gui_focus_group) = std::vector<Idx_t>{id.ID()};
-            
+            _cache.deselect_all_select(id.ID());
             break;
         }
             
@@ -4162,8 +4156,7 @@ void GUI::key_event(const gui::Event &event) {
             } else
                 break;
             
-            SETTING(gui_focus_group) = std::vector<Idx_t>{id.ID()};
-            
+            _cache.deselect_all_select(id.ID());
             break;
         }
             
@@ -4340,7 +4333,7 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
                 _cache.set_tracking_dirty();
             });
             
-        }, "This will generate averaged recognition scores per segment. Attempt automatic correction as well?\n<b>That overwrites manual_matches and reanalyses video!</b>", "Auto-correct", "Yes", "No");
+        }, "Do you wish to overwrite <key>manual_matches</key> and reanalyse the video from the beginning with automatic corrections enabled? You will probably want to click <b>Yes</b> after training the visual identification network.\n<b>No</b> will only generate averages and does not change any tracked trajectories.", "Auto-correct", "Yes", "No");
     } else {
         this->work().add_queue("checking identities...", [this, force_correct](){
             Tracker::instance()->check_segments_identities(force_correct, [](float x) { work().set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
@@ -4532,14 +4525,17 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                 }
             }, from);
         } catch(const UtilsException& e) {
-            work().add_queue("", [e, from](){
-                GUI::instance()->gui().dialog([](Dialog::Result){}, "Cannot load results from '"+from.str()+"'. Loading crashed with this message:\n<i>"+std::string(e.what())+"</i>", "Error");
-            });
-            
             Except("Cannot load results. Crashed with exception: %s", e.what());
-            auto start = Tracker::start_frame();
-            Tracker::instance()->_remove_frames(start);
-            removed_frames(start);
+            
+            if(GUI::instance()) {
+                work().add_queue("", [e, from](){
+                    GUI::instance()->gui().dialog([](Dialog::Result){}, "Cannot load results from '"+from.str()+"'. Loading crashed with this message:\n<i>"+std::string(e.what())+"</i>", "Error");
+                });
+            
+                auto start = Tracker::start_frame();
+                Tracker::instance()->_remove_frames(start);
+                removed_frames(start);
+            }
         }
         
         //_analysis->reset_cache();

@@ -65,6 +65,8 @@ namespace gui {
         std::unordered_map<const Base*, CacheObject::Ptr> _cache;
         
         std::unordered_map<std::string, std::tuple<void*, std::function<void(void*)>>> _custom_data;
+        std::unordered_set<uchar> _custom_tags;
+        
         GETTER_SETTER(std::string, name)
         
     public:
@@ -82,6 +84,15 @@ namespace gui {
                 return std::get<0>(it->second);
             }
             return NULL;
+        }
+        
+        template<typename T> bool tagged(T tag) const { return _custom_tags.count((uint32_t)tag); }
+        template<typename T> void tag(T t) { if(!tagged(t)) _custom_tags.insert((uint32_t)t); }
+        template<typename T>
+        void untag(T t) {
+            auto it = _custom_tags.find((uint32_t)t);
+            if(it != _custom_tags.end())
+                _custom_tags.erase(it);
         }
         
     /**
@@ -183,7 +194,10 @@ namespace gui {
         GETTER(Vec2, relative_drag_start)
         
         //! Gives a Z-Index for an item. If this is set > 0, then it will be drawn later than items with smaller z indexes
-        GETTER(int, z_index)
+        int _z_index = 0;
+        
+    public:
+        int z_index() const;
         
     public:
         Drawable(Drawable&) = delete;
@@ -386,6 +400,8 @@ namespace gui {
         
         GETTER_PTR(Rect*, background)
         GETTER_PTR(DrawStructure*, stage)
+        GETTER_I(Color, bg_fill_color, Transparent)
+        GETTER_I(Color, bg_line_color, Transparent)
         
         void update_bounds() override;
         

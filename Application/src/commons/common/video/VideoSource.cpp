@@ -270,26 +270,30 @@ VideoSource::~VideoSource() {
 
 VideoSource::VideoSource(const std::string& source) {
     std::smatch m;
-    std::regex rplaceholder ("%[0-9]+(\\.[0-9]+(.[1-9][0-9]*)?)?d$"), rext(".*(\\..+)$");
+    std::regex rplaceholder ("%[0-9]+(\\.[0-9]+(.[1-9][0-9]*)?)?d");
+    std::regex rext (".*(\\..+)$");
     
     long_t number_length = -1, start_number = 0, end_number = VIDEO_SEQUENCE_UNSPECIFIED_VALUE;
     
-    std::string base_name, extension;
+    std::string prefix, suffix, extension;
     if(std::regex_search(source,m,rext)) {
         auto x = m[1];
         extension = x.str().substr(1);
-        base_name = source.substr(0u, (uint64_t)m.position(1));
+        prefix = source.substr(0u, (uint64_t)m.position(1));
         
-        Debug("Extension '%S' basename '%S'", &extension, &base_name);
+        Debug("Extension '%S' basename '%S'", &extension, &prefix);
         
     } else {
         U_EXCEPTION("File extension not found in '%S'", &source);
     }
     
-    if(std::regex_search (base_name,m,rplaceholder)) {
+    Debug("Searching for '%S'", &prefix);
+    if(std::regex_search (prefix,m,rplaceholder)) {
         auto x = m[0];
+        auto s = x.str();
+        Debug("Match '%S'", &s);
         
-        std::string s = x.str();
+        auto L = s.length();
         auto p = (uint64_t)m.position();
         
         s = s.substr(1, s.length()-2);
@@ -303,15 +307,16 @@ VideoSource::VideoSource(const std::string& source) {
         }
         
         number_length = std::stoi(split[0]);
-        base_name = base_name.substr(0u, p);
-        Debug("match '%S' at %d with nr %d", &s, p, number_length);
+        suffix = prefix.substr(p + L);
+        prefix = prefix.substr(0u, p);
+        Debug("match '%S' at %d with nr %d. suffix = '%S'", &s, p, number_length, &suffix);
     }
     
     if(number_length != -1) {
         // no placeholders found, just load file.
-        open(base_name, extension, start_number, end_number, number_length);
+        open(prefix, suffix, extension, start_number, end_number, number_length);
     } else {
-        open(base_name, extension);
+        open(prefix, suffix, extension);
     }
 }
 
@@ -338,10 +343,10 @@ VideoSource::VideoSource(const std::vector<file::Path>& files)
 }
 
 VideoSource::VideoSource() {}
-void VideoSource::open(const std::string& basename, const std::string& extension, int seq_start, int seq_end, int padding)
+void VideoSource::open(const std::string& prefix, const std::string& suffix, const std::string& extension, int seq_start, int seq_end, int padding)
 {
     if (seq_start == VIDEO_SEQUENCE_INVALID_VALUE || seq_end == VIDEO_SEQUENCE_INVALID_VALUE) {
-        File *f = File::open(0, basename, extension);
+        File *f = File::open(0, prefix + suffix, extension);
 
         if(f && f->type() != File::VIDEO)
             Warning("Just loading one image because seq_end/seq_start were not specified.");
@@ -350,12 +355,12 @@ void VideoSource::open(const std::string& basename, const std::string& extension
             _files_in_seq.push_back(f);
             _length += f->length();
         } else {
-            U_EXCEPTION("Input source '%S' not found.", &basename);
+            U_EXCEPTION("Input source '%S%s%S' not found.", &prefix, suffix.empty() ? "" : "%d", &suffix);
         }
         
     } else if(seq_end == VIDEO_SEQUENCE_UNSPECIFIED_VALUE) {
-        std::string base(file::Path(basename).is_folder() ? "" : file::Path(basename).filename());
-        Debug("Trying to find the last file (starting at %d) pattern '%S%%%dd.%S'...", seq_start, &base, padding, &extension);
+        std::string base(file::Path(prefix).is_folder() ? "" : file::Path(prefix).filename());
+        Debug("Trying to find the last file (starting at %d) pattern '%S%%%dd%S.%S'...", seq_start, &base, padding, &suffix, &extension);
         
         _files_in_seq.reserve(10000);
         
@@ -364,7 +369,7 @@ void VideoSource::open(const std::string& basename, const std::string& extension
             std::stringstream ss;
             
             try {
-                ss << basename << std::setfill('0') << std::setw(padding) << i;
+                ss << prefix << std::setfill('0') << std::setw(padding) << i << suffix;
                 File *file = File::open(sign_cast<size_t>(i - seq_start), ss.str(), extension);
                 if(!file) {
                     break;
@@ -391,10 +396,10 @@ void VideoSource::open(const std::string& basename, const std::string& extension
         _files_in_seq.shrink_to_fit();
         
     } else {
-        Debug("Finding all relevant files in sequence with base name '%S'...", &basename);
+        Debug("Finding all relevant files in sequence with base name '%S%s%S'...", &prefix, suffix.empty() ? "" : "%d", &suffix);
         for (int i=seq_start; i<=seq_end; i++) {
             std::stringstream ss;
-            ss << basename << std::setfill('0') << std::setw(padding) << i;
+            ss << prefix << std::setfill('0') << std::setw(padding) << i << suffix;
             
             File *f = File::open(i-seq_start, ss.str(), extension, i != seq_start);
             if(!f)
@@ -411,11 +416,11 @@ void VideoSource::open(const std::string& basename, const std::string& extension
         }
         
         if (_files_in_seq.empty())
-            U_EXCEPTION("Provided an empty video sequence for video source '%S'.", &basename);
+            U_EXCEPTION("Provided an empty video sequence for video source '%S%s%S'.", &prefix, suffix.empty() ? "" : "%d", &suffix);
     }
     
     if(_files_in_seq.empty())
-        U_EXCEPTION("Cannot load video sequence '%S' (it is empty).", &basename);
+        U_EXCEPTION("Cannot load video sequence '%S%s%S' (it is empty).", &prefix, suffix.empty() ? "" : "%d", &suffix);
     
     _size = _files_in_seq.at(0)->resolution();
     _has_timestamps = _files_in_seq.front()->has_timestamps();
@@ -436,14 +441,14 @@ void VideoSource::open(const std::string& basename, const std::string& extension
             cv::Mat image;
             first->frame(0, image);
             if(image.cols != _size.width || image.rows != _size.height) {
-                Warning("VideoSource '%S' reports resolution %dx%d in metadata, but is actually %dx%d. Going with the actual video dimensions for now.", &basename, _size.width, _size.height, image.cols, image.rows);
+                Warning("VideoSource '%S%s%S' reports resolution %dx%d in metadata, but is actually %dx%d. Going with the actual video dimensions for now.", &prefix, suffix.empty() ? "" : "%d", &suffix, _size.width, _size.height, image.cols, image.rows);
                 _size = cv::Size(image.cols, image.rows);
             }
             _last_file = first;
         }
     }
     
-    Debug("Resolution of VideoSource '%S' is [%dx%d]", &basename, _size.width, _size.height);
+    Debug("Resolution of VideoSource '%S%s%S' is [%dx%d]", &prefix, suffix.empty() ? "" : "%d", &suffix, _size.width, _size.height);
     
     if(type() == File::VIDEO) {
         _framerate = _files_in_seq.at(0)->framerate();

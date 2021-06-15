@@ -87,7 +87,7 @@ void GLImpl::post_init() {
 
 void GLImpl::set_icons(const std::vector<file::Path>& icons) {
     std::vector<GLFWimage> images;
-    std::vector<Image::Ptr> data;
+    std::vector<Image::UPtr> data;
 
     for (auto& path : icons) {
         if (!path.exists()) {
@@ -103,12 +103,12 @@ void GLImpl::set_icons(const std::vector<file::Path>& icons) {
 
         cv::cvtColor(image, image, image.channels() == 3 ? cv::COLOR_BGR2RGBA : (image.channels() == 4 ? cv::COLOR_BGRA2RGBA : cv::COLOR_GRAY2RGBA));
 
-        auto ptr = std::make_shared<Image>(image);
-        data.push_back(ptr);
+        auto ptr = Image::Make(image);
+        data.emplace_back(std::move(ptr));
         images.push_back(GLFWimage());
-        images.back().pixels = ptr->data();
-        images.back().width = sign_cast<int>(ptr->cols);
-        images.back().height = sign_cast<int>(ptr->rows);
+        images.back().pixels = data.back()->data();
+        images.back().width = sign_cast<int>(data.back()->cols);
+        images.back().height = sign_cast<int>(data.back()->rows);
     }
 
     glfwSetWindowIcon(window, images.size(), images.data());
@@ -230,6 +230,10 @@ LoopStatus GLImpl::update_loop(const CrossPlatform::custom_function_t& custom_lo
         
         if(_frame_capture_enabled)
             update_pbo();
+        else if(pboImage) {
+            pboImage = nullptr;
+            pboOutput = nullptr;
+        }
         
         if(!OPENGL3_CONDITION)
             glfwMakeContextCurrent(window);
@@ -256,8 +260,8 @@ void GLImpl::init_pbo(uint width, uint height) {
                 glDeleteBuffers(2, pboIds);
             }
             
-            pboImage = std::make_shared<Image>(height, width, 4);
-            pboOutput = std::make_shared<Image>(height, width, 4);
+            pboImage = Image::Make(height, width, 4);
+            pboOutput = Image::Make(height, width, 4);
             
             glGenBuffers(2, pboIds);
             auto nbytes = width * height * 4;
@@ -327,8 +331,8 @@ void GLImpl::disable_readback() {
     
 }
 
-Image::Ptr GLImpl::current_frame_buffer() {
-    return _frame_capture_enabled ? pboOutput : nullptr;
+const Image::UPtr& GLImpl::current_frame_buffer() {
+    return pboOutput;
 }
 
 void GLImpl::check_thread_id(int line, const char* file) const {

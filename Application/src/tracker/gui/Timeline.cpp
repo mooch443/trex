@@ -107,7 +107,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
        || _bar->source()->cols != _consecutives->source()->cols
        || _consecutives->source()->rows != new_height)
     {
-        auto image = std::make_unique<Image>(new_height, _bar->source()->cols, 4);
+        auto image = Image::Make(new_height, _bar->source()->cols, 4);
         if(!_consecutives)
             _consecutives = std::make_unique<ExternalImage>(std::move(image), Vec2());
         else
@@ -236,7 +236,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
             number << " " << status;
         //number << " midline-err/frame:" << Tracker::instance()->midline_errors_frame();
         
-        _title_layout.set_pos(Vec2(20, 28) - offset);
+        _title_layout.set_pos(Vec2(20, 25) - offset);
         _title_layout.set_origin(Vec2(0, 0.5));
         _status_text3.set_txt(number.str());
         
@@ -366,7 +366,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
         
         //if(_proximity_bar.image.rows && _proximity_bar.image.cols) {
         if(_bar == NULL) {
-            _bar = std::make_unique<ExternalImage>(std::make_unique<Image>(), pos);
+            _bar = std::make_unique<ExternalImage>(Image::Make(), pos);
             _bar->set_color(White.alpha(GUI_SETTINGS(gui_timeline_alpha)));
             _bar->set_clickable(true);
             _bar->on_hover([this](Event e) {
@@ -450,7 +450,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
                || (uint)1 != _bar->source()->rows
                || _proximity_bar.end == -1)
             {
-                auto image = std::make_unique<Image>(1, max_w, 4);
+                auto image = Image::Make(1, max_w, 4);
                 image->set_to(0);
                 _bar->set_source(std::move(image));
                 

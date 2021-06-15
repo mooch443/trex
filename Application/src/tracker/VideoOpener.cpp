@@ -30,7 +30,7 @@ void VideoOpener::CustomFileChooser::update_size() {
     FileChooser::update_size();
     
     float s = _graph->scale().x / gui::interface_scale();
-    auto column = Size2(_graph->width() * 0.4 - 50, _graph->height() * 0.5 * gui::interface_scale() - (_selected_text ? _selected_text->height() + _button->height() + 10 : 0)).div(s);
+    auto column = Size2(_graph->width() * 0.5 - 50, _graph->height() * 0.5 * gui::interface_scale() - (_selected_text ? _selected_text->height() + _button->height() + 10 : 0)).div(s);
     
     _update(column.width, column.height);
     
@@ -194,7 +194,7 @@ VideoOpener::VideoOpener()
     _horizontal_raw->set_clickable(true);
     _recording_panel = std::make_shared<gui::HorizontalLayout>();
     _recording_panel->set_clickable(true);
-    _camera = std::make_shared<gui::ExternalImage>(std::make_unique<Image>(32, 32, 4));
+    _camera = std::make_shared<gui::ExternalImage>(Image::Make(32, 32, 4));
     _raw_settings = std::make_shared<gui::VerticalLayout>();
     _raw_info = std::make_shared<gui::VerticalLayout>();
     _raw_info->set_policy(gui::VerticalLayout::LEFT);
@@ -363,7 +363,7 @@ VideoOpener::VideoOpener()
         }
         
         for(auto &[key, ptr] : _text_fields) {
-            ptr.get()->representative()->set_size(Size2(_screenshot_max_size.width * 0.5, ptr->representative()->height()));
+            ptr.get()->representative()->set_size(Size2(_screenshot_max_size.width * 0.3, ptr->representative()->height()));
         }
         
         if(_background && _background->source()) {
@@ -467,7 +467,7 @@ VideoOpener::VideoOpener()
             if(image) {
                 _screenshot->set_source(std::move(image));
                 
-                auto max_scale = 0.4f;
+                auto max_scale = 1.0f;
                 auto max_size = _screenshot_max_size.mul(max_scale);
                 auto scree_size = _screenshot->source()->bounds().size();
                 auto size = max_size;
@@ -660,20 +660,25 @@ void VideoOpener::BufferedVideo::restart_background() {
         while(!_terminate_background && background_video_index+1+step < background_video->length())
         {
             background_video_index += step;
-            _number_samples += 1;
             
-            background_video->frame(background_video_index, img);
-            if(max(img.cols, img.rows) > video_chooser_column_width)
-                resize_image(img, video_chooser_column_width / double(max(img.cols, img.rows)));
-            
-            accumulator->add(img);
-            
-            auto image = accumulator->finalize();
-            
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
-            
-            std::lock_guard guard(_frame_mutex);
-            _background_copy = std::move(image);
+            try {
+                background_video->frame(background_video_index, img);
+                
+                _number_samples += 1;
+                if(max(img.cols, img.rows) > video_chooser_column_width)
+                    resize_image(img, video_chooser_column_width / double(max(img.cols, img.rows)));
+                
+                accumulator->add(img);
+                
+                auto image = accumulator->finalize();
+                
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                
+                std::lock_guard guard(_frame_mutex);
+                _background_copy = std::move(image);
+            } catch(...) {
+                Warning("Exception while trying to read video frame.");
+            }
         }
         
         _terminated_background_task = true;
@@ -728,7 +733,7 @@ void VideoOpener::BufferedVideo::open(std::function<void(const bool)>&& callback
             
             {
                 std::lock_guard gaurd(_frame_mutex);
-                _cached_frame = std::make_unique<Image>(local);
+                _cached_frame = Image::Make(local);
             }
             
             cb(true);
@@ -779,7 +784,7 @@ void VideoOpener::BufferedVideo::open(std::function<void(const bool)>&& callback
                     }
                     
                     std::lock_guard frame_guard(_frame_mutex);
-                    _cached_frame = std::make_unique<Image>(local);
+                    _cached_frame = Image::Make(local);
                     
                 } catch(const std::exception& e) {
                     Except("Caught exception while updating '%s'", e.what());
@@ -813,7 +818,7 @@ Size2 VideoOpener::BufferedVideo::size() {
     return Size2(_video->size());
 }
 
-std::unique_ptr<Image> VideoOpener::BufferedVideo::next() {
+Image::UPtr VideoOpener::BufferedVideo::next() {
     std::lock_guard guard(_frame_mutex);
     return std::move(_cached_frame);
 }
@@ -833,7 +838,7 @@ void VideoOpener::select_file(const file::Path &p) {
                 
                 cv::Mat img = cv::Mat::zeros((int)max_width, (int)max_width, CV_8UC1);
                 cv::putText(img, "Cannot open video.", Vec2(50, 220), cv::FONT_HERSHEY_PLAIN, 1, White);
-                _screenshot->set_source(std::make_unique<Image>(img));
+                _screenshot->set_source(Image::Make(img));
                 _screenshot->set_scale(Vec2(1));
                 _file_chooser->deselect();
                 move_to_stale(std::move(_buffer));
@@ -1019,7 +1024,7 @@ void VideoOpener::select_file(const file::Path &p) {
         _mini_bowl->set_scale(Vec2(scale.min()));
         
         _mini_bowl->update([&](Entangled& b){
-            _background = std::make_shared<ExternalImage>(std::move(std::make_unique<Image>(video->average())));
+            _background = std::make_shared<ExternalImage>(std::move(Image::Make(video->average())));
             b.advance_wrap(*_background);
             
             std::lock_guard guard(_blob_mutex);
@@ -1082,7 +1087,7 @@ void VideoOpener::select_file(const file::Path &p) {
         {
             cmn::set_thread_name("_accumulate_video_frames_thread");
             
-            track::StaticBackground bg(std::make_shared<Image>(video->average()), nullptr);
+            track::StaticBackground bg(Image::Make(video->average()), nullptr);
             
             size_t step = max(1ul, min(video->length() / 100ul, (ushort)video->framerate()));
             pv::Frame frame;

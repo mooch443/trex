@@ -11,6 +11,7 @@
 #include <tracking/Individual.h>
 #include <misc/MemoryStats.h>
 #include <misc/CheckUpdates.h>
+#include <tracking/Categorize.h>
 
 namespace gui {
 
@@ -93,6 +94,7 @@ class DrawMenuPrivate {
         EXPORT,
         EXPORT_VF,
         START_VALIDATION,
+        CATEGORIZE,
         DOCS,
         QUIT
     };
@@ -158,7 +160,6 @@ public:
             std::make_shared<TextItem>("save tracking data [S]", EXPORT),
             
             std::make_shared<TextItem>("load settings", LOAD_SETTINGS),
-            std::make_shared<TextItem>("check updates", CHECK_UPDATE),
             
             //std::make_shared<TextItem>("training faces", FACES),
             std::make_shared<TextItem>("visual identification", TRAINING),
@@ -168,7 +169,10 @@ public:
             std::make_shared<TextItem>("export visual fields", EXPORT_VF),
             std::make_shared<TextItem>("validation", START_VALIDATION),
             
+            std::make_shared<TextItem>("categorize", CATEGORIZE),
+            
             std::make_shared<TextItem>("online docs [F1]", DOCS),
+            std::make_shared<TextItem>("check updates", CHECK_UPDATE),
             std::make_shared<TextItem>("quit [Esc]", QUIT)
             
         }, [this](auto, const List::Item& item) {
@@ -182,7 +186,7 @@ public:
                 case CHECK_UPDATE: {
                     gPtr->work().add_queue("", []() {
                         auto status = CheckUpdates::perform(false).get();
-                        if(status == CheckUpdates::VersionStatus::OLD)
+                        if(status == CheckUpdates::VersionStatus::OLD || status == CheckUpdates::VersionStatus::ALREADY_ASKED)
                             CheckUpdates::display_update_dialog();
                         else if(status == CheckUpdates::VersionStatus::NEWEST)
                             GUI::instance()->gui().dialog("You own the newest available version (<nr>"+CheckUpdates::newest_version()+"</nr>).");
@@ -237,6 +241,12 @@ public:
                 case EXPORT_VF:
                     gPtr->work().add_queue("saving visual fields...", [](){
                         GUI::instance()->save_visual_fields();
+                    });
+                    break;
+                    
+                case CATEGORIZE:
+                    gPtr->work().add_queue("", [](){
+                        Categorize::show();
                     });
                     break;
 
@@ -295,8 +305,8 @@ public:
             SETTING(analysis_paused) = false;
         });
         
-        layout->set_origin(Vec2(1, 0));
-        layout->set_policy(HorizontalLayout::Policy::TOP);
+        layout->set_origin(Vec2(1, 0.5));
+        layout->set_policy(HorizontalLayout::Policy::CENTER);
         
         std::vector<Layout::Ptr> tmp {foi_list, reanalyse, menu};
         layout->set_children(tmp);
@@ -582,7 +592,13 @@ public:
     }
     
     void draw() {
+        auto &base = GUI::instance()->gui();
+        auto && [offset, max_w] = Timeline::timeline_offsets();
+        auto use_scale = base.scale().reciprocal();
+        Vec2 pos = Vec2(max_w - 10, 25).mul(use_scale);
+        
         matching_gui();
+        Categorize::draw(base);
         
         if(_foi_items.empty() || _foi_ids != FOI::ids()) {
             _foi_items.clear();
@@ -595,13 +611,9 @@ public:
             foi_list->set_items(_foi_items);
         }
         
-        auto &base = GUI::instance()->gui();
-        auto && [offset, max_w] = Timeline::timeline_offsets();
-        Vec2 pos = Vec2(max_w / base.scale().x - 10, 5) - offset / base.scale().x;
-        
-        layout->set_scale(base.scale().reciprocal());
+        layout->set_scale(use_scale);
         layout->set_pos(pos);
-        second_list->set_scale(layout->scale());
+        second_list->set_scale(use_scale);
         second_list->set_pos(_list->global_bounds().pos() - Vec2(second_list->global_bounds().width, 0));
         
         base.wrap_object(*layout);

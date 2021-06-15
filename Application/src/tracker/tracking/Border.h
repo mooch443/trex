@@ -21,7 +21,7 @@ namespace track {
         GETTER(std::vector<std::vector<Vec2>>, vertices)
         bool poly_set;
         std::mutex mutex;
-        GETTER(Image::Ptr, mask)
+        GETTER(Image::UPtr, mask)
         std::vector<bool> x_valid, y_valid;
         std::map<std::tuple<uint16_t, uint16_t>, uint32_t> grid_cells;
         float _recognition_border_size_rescale;

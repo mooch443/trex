@@ -127,7 +127,7 @@ FFMPEGQueue::~FFMPEGQueue() {
 lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo_align_t) ]
 HEAP_ALLOC(wrkmem, LZO1X_1_MEM_COMPRESS);
 
-void FFMPEGQueue::add(std::unique_ptr<Image>&& ptr) {
+void FFMPEGQueue::add(Image::UPtr&& ptr) {
     /*Image *ptr = new Image(_ptr->rows, _ptr->cols, 1);
     _ptr->get().copyTo(ptr->get());
     ptr->set_index(_ptr->index());
