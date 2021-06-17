@@ -285,8 +285,7 @@ namespace gui {
         auto &gb = global_bounds();
         float gscale = gb.height / height();
         
-        const bool inverted = foldable() && stage() && gb.y + (1 + _items.size()) * _row_height * gscale >= stage()->height()
-            && gb.y - (1 + _items.size()) * _row_height * gscale >= 0;
+        const bool inverted = foldable() && stage() && gb.y + (1 + _items.size()) * _row_height * gscale >= stage()->height();
         
         if(foldable()) {
             set_size(Size2(bounds().width, _row_height));//(1 + (_folded ? 0 : _items.size())) * _row_height));

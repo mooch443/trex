@@ -67,6 +67,10 @@ namespace gui {
     }
     
     bool GUICache::is_animating(Drawable* obj) const {
+        if(GUI_SETTINGS(gui_happy_mode) && mode() == mode_t::tracking) {
+            return true;
+        }
+        
         if(!obj)
             return !_animators.empty();
         auto it = _animators.find(obj);

@@ -610,13 +610,13 @@ void GUI::run_loop(gui::LoopStatus status) {
     if(!run()) {
         t = 0;
         
-        if(!GUI_SETTINGS(nowindow) && cache().is_animating() &&  redraw_timer.elapsed() >= 0.15) {
+        if(!GUI_SETTINGS(nowindow) && cache().is_animating() &&  redraw_timer.elapsed() >= 0.2) {
             redraw_timer.reset();
             //set_redraw();
             _gui.set_dirty(base);
             is_automatic = true;
             
-        } else if((!GUI_SETTINGS(nowindow) && redraw_timer.elapsed() >= 0.1) || _recording) {
+        } else if((!GUI_SETTINGS(nowindow) && redraw_timer.elapsed() >= 0.15) || _recording) {
             redraw_timer.reset();
             //set_redraw();
             //_gui.set_dirty(base);
@@ -1698,14 +1698,18 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
     e = min(0.1, e);
     e *= 3;
     
-    auto check_target = [](const Vec2& start, const Vec2& target, double e) {
-        Vec2 direction = target - start;
-        double speed = direction.length();
+    auto check_target = [](const Vec2& start, const Vec2& target, Float2_t e) {
+        Vec2 direction = (target - start) * e;
+        Float2_t speed = direction.length();
+        auto epsilon = max(target.abs().max(), start.abs().max()) * 0.000001;
+
+        if(speed <= epsilon)
+            return target;
+        
         if(speed > 0)
             direction /= speed;
-        direction = direction * speed * e;
         
-        auto scale = start + direction;
+        auto scale = start + direction * speed;
         
         if((direction.x > 0 && scale.x > target.x)
            || (direction.x < 0 && scale.x < target.x))
@@ -1721,11 +1725,10 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
         return scale;
     };
     
-    //timer.reset();
-    //float percent = 1 - min(1, e * 0.1);
     
-    //if((section->scale() - target_scale).length() > 0.001
-    //   || (section->pos() - target_pos).length() > 0.01) {
+    target_pos.x = round(target_pos.x);
+    target_pos.y = round(target_pos.y);
+    
     if(!section->scale().Equals(target_scale)
        || !section->pos().Equals(target_pos))
     {
@@ -1734,16 +1737,12 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
         auto playback_factor = max(1, sqrt(SETTING(gui_playback_speed).value<float>()));
         auto scale = check_target(section->scale(), target_scale, e * playback_factor);
         
-        //Debug("%f,%f -> %f,%f = %f,%f", section->scale().x, section->scale().y, target_scale.x, target_scale.y, scale.x, scale.y);
-        
         section->set_scale(scale);
         
         auto next_pos = check_target(section->pos(), target_pos, e * playback_factor);
         auto next_size = check_target(section->size(), target_size, e * playback_factor);
         
         section->set_bounds(Bounds(next_pos, next_size));
-        
-        //section->set_bounds(Bounds(section->pos() * (1 - percent) + target_pos * percent, section->size() * (1 - percent) + target_size * percent));
         
     } else {
         cache().set_animating(section, false);
@@ -3073,7 +3072,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
 #else
     const bool draw_blobs_separately = false;//coverage < 0.002 && draw_blobs;
 #endif
-    bool redraw_blobs = true;
+    bool redraw_blobs = cache().raw_blobs_dirty();
     
     //Debug("Coverage: %f (%d)", coverage, draw_blobs_separately);
     
@@ -3126,7 +3125,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
         cache().updated_raw_blobs();
         
         if(draw_blobs_separately) {
-            if(GUI_SETTINGS(gui_mode) == gui::mode_t::tracking) {
+            if(GUI_SETTINGS(gui_mode) == gui::mode_t::tracking && cache().tracked_frames.contains(frame())) {
                 for(auto &&[k,fish] : cache()._fish_map) {
                     fish->shadow(base);
                 }
@@ -3174,7 +3173,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
                 }
             }
             
-        } else if(draw_blobs && GUI_SETTINGS(gui_mode) == gui::mode_t::tracking) {
+        } else if(draw_blobs && GUI_SETTINGS(gui_mode) == gui::mode_t::tracking && cache().tracked_frames.contains(frame())) {
             for(auto &&[k,fish] : cache()._fish_map) {
                 fish->shadow(base);
             }
