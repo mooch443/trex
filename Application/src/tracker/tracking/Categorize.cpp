@@ -67,6 +67,11 @@ namespace Work {
         static std::string _status;
         return _status;
     }
+
+auto& initialized() {
+    static bool _init = false;
+    return _init;
+}
     
     std::unique_ptr<std::thread> thread;
     constexpr float good_enough() {
@@ -140,25 +145,50 @@ std::vector<std::string> DataStore::label_names() {
     return FAST_SETTINGS(categories_ordered);
 }
 
+void init_labels() {
+    std::lock_guard guard(DataStore::mutex());
+    _labels.clear();
+    for(size_t i=0; i<FAST_SETTINGS(categories_ordered).size(); ++i)
+        _labels[Label::Make(FAST_SETTINGS(categories_ordered).at(i))] = {};
+}
+
 Label::Ptr DataStore::label(const char* name) {
-    std::lock_guard guard(mutex());
-    for(auto &[l, s] : _labels) {
-        if(l->name == name)
-            return l;
+    for(auto &n : FAST_SETTINGS(categories_ordered)) {
+        if(n == name) {
+            {
+                std::lock_guard guard(mutex());
+                for(auto &[l, v] : _labels) {
+                    if(l->name == name) {
+                        return l;
+                    }
+                }
+            }
+            
+            // not initialized! it should have been here.
+            init_labels();
+            
+            // try again after initialization
+            std::lock_guard guard(mutex());
+            for(auto &[l, v] : _labels) {
+                if(l->name == name) {
+                    return l;
+                }
+            }
+            
+            break;
+        }
     }
     
-    auto l = Label::Make(std::string(name));
-    _labels.insert({l, {}});
-    return l;
+    Warning("Label for '%s' not found.", name);
+    return nullptr;
 }
 
 Label::Ptr DataStore::label(int ID) {
-    std::lock_guard guard(mutex());
-    for(auto &[l, s] : _labels) {
-        if(l->id == ID) {
-            return l;
-        }
+    auto names = FAST_SETTINGS(categories_ordered);
+    if(/*ID >= 0 && */size_t(ID) < names.size()) {
+        return label(names[ID].c_str());
     }
+    
     Warning("ID %d not found", ID);
     return nullptr;
 }
@@ -349,14 +379,13 @@ Label::Ptr DataStore::label_averaged(const Individual* fish, Frame_t frame) {
             size_t N = 0;
             
             {
-                std::lock_guard g(mutex());
-                auto nit = _labels.begin();
-                for (size_t i=0; i<_labels.size(); ++i, ++nit) {
-                    label_id_to_index[nit->first->id] = i;
-                    index_to_label[i] = nit->first;
+                auto names = FAST_SETTINGS(categories_ordered);
+                for (size_t i=0; i<names.size(); ++i) {
+                    label_id_to_index[i] = i;
+                    index_to_label[i] = label(names[i].c_str());
                 }
                 
-                N = _labels.size();
+                N = names.size();
             }
             
             std::vector<size_t> counts(N);
@@ -847,8 +876,8 @@ Sample::Ptr Work::retrieve() {
 }
 
 
-static void log_event(const std::string& name, Frame_t frame, const Identity& identity) {
 #ifndef NDEBUG
+static void log_event(const std::string& name, Frame_t frame, const Identity& identity) {
     time_t rawtime;
     struct tm * timeinfo;
     char buffer[128];
@@ -872,8 +901,8 @@ static void log_event(const std::string& name, Frame_t frame, const Identity& id
         fwrite(text.c_str(), sizeof(char), text.length(), f);
         fclose(f);
     }
-#endif
 }
+#endif
 
 struct NetworkApplicationState {
     Individual *fish;
@@ -927,6 +956,7 @@ struct NetworkApplicationState {
 
         if(size_t(offset) > segments.size()) {
             Warning("Offset %ld larger than segments size %lu.", offset.load(), segments.size());
+            it = segments.end();
         } else
             std::advance(it, offset.load());
         
@@ -943,40 +973,27 @@ struct NetworkApplicationState {
             
             bool done = size_t(offset) >= segments.size();
             
-            {
-                std::lock_guard g(tm);
-                if(done || update.elapsed() > 5) {
-                    update.reset();
-                    
-                    auto percent = NetworkApplicationState::percent();
-                    auto text = "Applying "+Meta::toStr(int(percent * 100))+"%...";
-                    if(!Work::visible()) {
-                        if(percent >= 1) {
-                            GUI::set_status("");
-                            Debug("Done categorizing. Clearing DataStore.");
-                            DataStore::clear();
-                            Work::_learning = false;
-                        } else {
-                            Debug("[Categorize] %S", &text);
-                            GUI::set_status(text);
-                        }
-                    } else
-                        Work::status() = text;
-                }
-            }
+//            Debug("Individual Fish%d checking offset %d/%lu (%s)...", fish->identity().ID(), offset.load(), segments.size(), done ? "done" : "not done");
             
             if (done || it == segments.end())
                 break;
 
             segment = *it;
-            if(!DataStore::label_interpolated(fish->identity().ID(), Frame_t(segment->start()))) {
+            Label::Ptr ptr;
+            if(!(ptr = DataStore::label_interpolated(fish, Frame_t(segment->start())))) {
                 const auto max_len = FAST_SETTINGS(track_segment_max_length);
                 const auto min_len = uint32_t(max_len > 0 ? max(1, max_len * 0.1 * float(FAST_SETTINGS(frame_rate))) : FAST_SETTINGS(categories_min_sample_images));
                 task.sample = DataStore::temporary(segment, fish, 300u, min_len, true);
                 task.segment = segment;
+                
+#ifndef NDEBUG
+                if(!task.sample)
+                    Debug("Skipping (failed) Fish%d: (%d-%d)", fish->identity().ID(), segment->start(), segment->end());
+#endif
             }
 #ifndef NDEBUG
             else {
+                Debug("Skipping Fish%d (%d-%d): %s", fish->identity().ID(), segment->start(), segment->end(), ptr->name.c_str());
                 ++skipped;
             }
 #endif
@@ -992,6 +1009,7 @@ struct NetworkApplicationState {
 #endif
         
         if(task.sample != Sample::Invalid()) {
+            task.idx = fish->identity().ID();
             task.callback = [this](const LearningTask& task)
             {
                 for(size_t i=0; i<task.result.size(); ++i) {
@@ -1009,6 +1027,7 @@ struct NetworkApplicationState {
                     }
 
                     DataStore::set_label(Frame_t(frame), bdx, DataStore::label(task.result.at(i)));
+//                    Debug("Fish%d: Labelled %d", fish->identity().ID(), frame);
 #ifndef NDEBUG
                     log_event("Labelled", Frame_t(frame), fish->identity());
 #endif
@@ -1050,6 +1069,7 @@ struct NetworkApplicationState {
                 Work::_variable.notify_one();
             };
             
+//            Debug("Fish%d: Inserting %d-%d", fish->identity().ID(), task.segment->start(), task.segment->end());
             Work::add_task(std::move(task));
             
         }
@@ -1153,6 +1173,7 @@ void Work::start_learning() {
     
     PythonIntegration::async_python_function([]() -> bool{
         Work::status() = "Initializing...";
+        Work::initialized() = false;
         
         using py = PythonIntegration;
         static const std::string module = "trex_learn_category";
@@ -1187,6 +1208,7 @@ void Work::start_learning() {
             }, module);
             
             py::run(module, "start");
+            Work::initialized() = true;
             
             /*if(!DataStore::composition().empty()) {
                 std::vector<Image::Ptr> _images;
@@ -1224,6 +1246,31 @@ void Work::start_learning() {
         std::vector<Image::Ptr> prediction_images, training_images;
         std::vector<std::string> training_labels;
         Timer last_insert;
+        Timer update;
+        
+        bool force_prediction = false;
+        auto check_updates = [&](){
+            if(state() != State::APPLY)
+                return false;
+            
+            static Timer print;
+            auto percent = NetworkApplicationState::percent();
+            auto text = "Applying "+Meta::toStr(int(percent * 100))+"%...";
+            if(!Work::visible()) {
+                if(percent >= 1) {
+                    GUI::set_status("");
+                    Work::_learning = false;
+                    return true;
+                } else if(print.elapsed() >= 1) {
+                    Debug("[Categorize] %S", &text);
+                    GUI::set_status(text);
+                    print.reset();
+                }
+                
+            } else
+                Work::status() = text;
+            return false;
+        };
         
         std::unique_lock guard(Work::_learning_mutex);
         while(Work::_learning) {
@@ -1234,6 +1281,13 @@ void Work::start_learning() {
             
             size_t executed = 0;
             bool clear_probs = false;
+            bool force_training = false;
+            force_prediction = false;
+            
+            if(state() == State::APPLY && update.elapsed() >= 5) {
+                check_updates();
+                update.reset();
+            }
             
             while(!queue().empty() && Work::_learning) {
                 if(py::check_module(module)) {
@@ -1269,6 +1323,8 @@ void Work::start_learning() {
                             auto idx = prediction_images.size();
                             prediction_images.insert(prediction_images.end(), item.sample->_images.begin(), item.sample->_images.end());
                             prediction_tasks.emplace_back(std::move(item), idx);
+                            if(item.segment)
+                                Debug("Emplacing Fish%d: %d-%d", item.idx, item.segment->start(), item.segment->end());
                             last_insert.reset();
                             break;
                         }
@@ -1276,9 +1332,11 @@ void Work::start_learning() {
                         case LearningTask::Type::Training: {
                             auto ldx = training_labels.size();
                             auto idx = training_images.size();
-
-                            training_labels.insert(training_labels.end(), item.sample->_frames.size(), item.sample->_assigned_label->name);
-                            training_images.insert(training_images.end(), item.sample->_images.begin(), item.sample->_images.end());
+                            if(item.sample) {
+                                training_labels.insert(training_labels.end(), item.sample->_frames.size(), item.sample->_assigned_label->name);
+                                training_images.insert(training_images.end(), item.sample->_images.begin(), item.sample->_images.end());
+                            } else
+                                force_training = true;
                             training_tasks.emplace_back(std::move(item), idx, ldx);
                             last_insert.reset();
                             break;
@@ -1302,8 +1360,15 @@ void Work::start_learning() {
                     break;
                 }
             }
+            
+            if(queue().empty()) {
+                if(check_updates()) {
+                    force_prediction = true;
+                    Debug("Forcing prediction (%lu)", prediction_images.size());
+                }
+            }
 
-            if(prediction_images.size() >= gpu_max_sample_images || training_images.size() >= 250 || last_insert.elapsed() >= 2)
+            if(prediction_images.size() >= gpu_max_sample_images || training_images.size() >= 250 || last_insert.elapsed() >= 2 || force_training || force_prediction)
             {
                 if (!prediction_tasks.empty()) {
                     guard.unlock();
@@ -1322,6 +1387,7 @@ void Work::start_learning() {
                     Work::status() = "Prediction...";
                     
                     try {
+                        Timer timer;
                         Debug("Predicting %lu samples, %lu collected...", prediction_images.size(), prediction_tasks.size());
                         py::set_variable("images", prediction_images, module);
                         py::set_function("receive", [&](std::vector<float> results)
@@ -1332,12 +1398,14 @@ void Work::start_learning() {
                                     item.result.insert(item.result.end(), results.begin() + offset, results.begin() + offset + item.sample->_images.size());
                                     if (item.callback)
                                         item.callback(item);
-                                }
+                                } else
+                                    Warning("LearningTask type was not prediction?");
                             }
 
                         }, module);
 
                         py::run(module, "predict");
+                        Debug("Prediction took %fs", timer.elapsed());
                     } catch(...) {
                         Except("Prediction failed. See above for an error description.");
                     }
@@ -1347,7 +1415,7 @@ void Work::start_learning() {
                     guard.lock();
                 }
 
-                if (!training_images.empty()) {
+                if (!training_images.empty() || force_training) {
                     Debug("Training on %lu additional samples", training_images.size());
                     try {
                         // train for a couple epochs
@@ -1408,6 +1476,8 @@ void Work::start_learning() {
         }
         
         Debug("## Ending python blockade.");
+        Debug("Clearing DataStore.");
+        DataStore::clear();
         
         return true;
         
@@ -1448,8 +1518,8 @@ void Work::loop() {
                                 task_queue().erase(it);
                                 ++hits;
                                 
-                                for(auto &t : task_queue())
-                                    t.is_cached = true;
+                                //for(auto &t : task_queue())
+                                //    t.is_cached = true;
                                 break;
                                 
                             } else {
@@ -1717,7 +1787,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     static size_t _reuse = 0, _create = 0, _delete = 0;
 #endif
     
-    const size_t step = max(1u, segment->basic_index.size() / sample_rate);
+    const size_t step = segment->basic_index.size() < min_samples ? 1u : max(1u, segment->basic_index.size() / sample_rate);
     size_t s = step; // start with 1, try to find something that is already in cache
     std::shared_ptr<PPFrame> ptr;
     size_t found_frame_immediately = 0, found_frames = 0;
@@ -1771,31 +1841,10 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
             ++jit;
     }
     
-    /*size_t removed = 0;
-    if(exclude_labelled) {
-        static Timing timing("cache_check", 0.001);
-        TakeTiming take(timing);
-        
-        //std::lock_guard guard(cache_mutex());
-        for(auto jit=stuff_indexes.begin(); jit != stuff_indexes.end();) {
-            if(label_interpolated(fish->identity().ID(), jit->frame)) {
-                jit = stuff_indexes.erase(jit);
-                ++removed;
-            } else {
-                ++jit;
-            }
-            /*auto it = _probability_cache.find(jit->frame);
-            if(_probability_cache.end() != it
-               && it->second.count(fish->basic_stuff().at(jit->index)->blob.blob_id()))
-            {*/
-                
-        /*}
-    }
-    
-    Debug("Removed: %lu", removed);*/
-    
-    if(stuff_indexes.size() < min_samples)
+    if(stuff_indexes.size() < min_samples) {
+        Warning("#1 Below min_samples (%lu) Fish%d frames %d-%d", min_samples, fish->identity().ID(), segment->start(), segment->end());
         return Sample::Invalid();
+    }
 
     size_t non = 0, cont = 0;
     
@@ -1814,6 +1863,9 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
             midline = posture ? fish->calculate_midline_for(basic, posture) : nullptr;
         }
 
+        if(!Work::initialized())
+            ptr = nullptr;
+        
         if(!ptr) {
             ptr = std::make_shared<PPFrame>();
 #ifndef NDEBUG
@@ -1850,11 +1902,17 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
                 }
             }
             
+#ifndef NDEBUG
             log_event("Created", frame, fish->identity());
+#endif
             
             std::lock_guard g(Work::_mutex);
             std::unique_lock guard(_cache_mutex);
-            if(!_frame_cache.count(frame)) {
+            //if(!_frame_cache.count(frame))
+            if(true)
+            {
+                _frame_cache.clear();
+                
                 for (auto it = _frame_cache.begin(); it != _frame_cache.end() && _frame_cache.size() > 1000u;) {
                     //if(it->first._frame < basic->frame - 50 || it->first._frame > basic->frame + 50)
                     bool found = false;
@@ -1921,10 +1979,14 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
                 images.emplace_back(std::move(image));
                 indexes.emplace_back(basic->frame);
                 positions.emplace_back(pos);
-            }
+            } else
+                Warning("Image failed (Fish%d, frame %d)", image_data.fdx, image_data.frame);
         }
-        else
+        else {
+            // no blob!
+            Warning("No blob (Fish%d, frame %d) vs. %lu (parent:%d)", fish->identity().ID(), basic->frame, basic->blob.blob_id(), basic->blob.parent_id);
             ++non;
+        }
     }
     
 #ifndef NDEBUG
@@ -1932,7 +1994,8 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
 #endif
     if(images.size() >= min_samples) {
         return Sample::Make(std::move(indexes), std::move(images), std::move(positions));
-    }
+    } else
+        Warning("Below min_samples (%lu) Fish%d frames %d-%d", min_samples, fish->identity().ID(), segment->start(), segment->end());
     
     return Sample::Invalid();
 }
@@ -1974,7 +2037,8 @@ static Layout::Ptr apply(Layout::Make<Button>("Apply", Bounds(0, 0, 100, 33)));
 static Layout::Ptr load(Layout::Make<Button>("Load", Bounds(0, 0, 100, 33)));
 static Layout::Ptr close(Layout::Make<Button>("Hide", Bounds(0, 0, 100, 33)));
 static Layout::Ptr restart(Layout::Make<Button>("Restart", Bounds(0, 0, 100, 33)));
-static Layout::Ptr buttons(Layout::Make<HorizontalLayout>(std::vector<Layout::Ptr>{apply, restart, load, close}));
+static Layout::Ptr train(Layout::Make<Button>("Train", Bounds(0, 0, 100, 33)));
+static Layout::Ptr buttons(Layout::Make<HorizontalLayout>(std::vector<Layout::Ptr>{apply, restart, load, train, close}));
 
 void initialize(DrawStructure& base) {
     static double R = 0, elap = 0;
@@ -2021,6 +2085,12 @@ void initialize(DrawStructure& base) {
             //PythonIntegration::quit();
             
             Work::set_state(Work::State::SELECTION);
+        });
+        train->on_click([](auto){
+            if(Work::state() == Work::State::SELECTION) {
+                Work::add_training_sample(nullptr);
+            } else
+                Warning("Not in selection mode. Can only train while samples are being selected, not during apply or inactive.");
         });
         
         apply.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Green.exposure(0.15)));
