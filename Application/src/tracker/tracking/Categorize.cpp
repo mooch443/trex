@@ -1988,8 +1988,10 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
                 Warning("Image failed (Fish%d, frame %d)", image_data.fdx, image_data.frame);
         }
         else {
+#ifndef NDEBUG
             // no blob!
             Warning("No blob (Fish%d, frame %d) vs. %lu (parent:%d)", fish->identity().ID(), basic->frame, basic->blob.blob_id(), basic->blob.parent_id);
+#endif
             ++non;
         }
     }
