@@ -2046,7 +2046,8 @@ static Layout::Ptr load(Layout::Make<Button>("Load", Bounds(0, 0, 100, 33)));
 static Layout::Ptr close(Layout::Make<Button>("Hide", Bounds(0, 0, 100, 33)));
 static Layout::Ptr restart(Layout::Make<Button>("Restart", Bounds(0, 0, 100, 33)));
 static Layout::Ptr train(Layout::Make<Button>("Train", Bounds(0, 0, 100, 33)));
-static Layout::Ptr buttons(Layout::Make<HorizontalLayout>(std::vector<Layout::Ptr>{apply, restart, load, train, close}));
+static Layout::Ptr shuffle(Layout::Make<Button>("Shuffle", Bounds(0, 0, 100, 33)));
+static Layout::Ptr buttons(Layout::Make<HorizontalLayout>(std::vector<Layout::Ptr>{apply, restart, load, train, shuffle, close}));
 
 void initialize(DrawStructure& base) {
     static double R = 0, elap = 0;
@@ -2100,10 +2101,19 @@ void initialize(DrawStructure& base) {
             } else
                 Warning("Not in selection mode. Can only train while samples are being selected, not during apply or inactive.");
         });
+        shuffle->on_click([](auto){
+            std::lock_guard gui_guard(GUI::instance()->gui().lock());
+            for(auto &row : rows) {
+                for (size_t i=0; i<row._cells.size(); ++i) {
+                    row.update(i, Work::retrieve());
+                }
+            }
+        });
         
         apply.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Green.exposure(0.15)));
         close.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Red.exposure(0.2)));
         load.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Yellow.exposure(0.2)));
+        shuffle.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Yellow.exposure(0.5)));
         
         tooltip.set_scale(base.scale().reciprocal());
         tooltip.text().set_default_font(Font(0.5));
