@@ -2252,6 +2252,7 @@ void Work::set_state(State state) {
             task.type = LearningTask::Type::Load;
             Work::add_task(std::move(task));
             Work::_variable.notify_one();
+            state = State::SELECTION;
             break;
         }
         case State::NONE:
