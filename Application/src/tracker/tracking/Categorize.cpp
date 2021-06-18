@@ -1422,6 +1422,7 @@ void Work::start_learning() {
                         py::set_variable("epochs", int(10));
                         py::set_variable("additional", training_images, module);
                         py::set_variable("additional_labels", training_labels, module);
+                        py::set_variable("force_training", force_training, module);
                         py::run(module, "add_images");
                         clear_probs = true;
 

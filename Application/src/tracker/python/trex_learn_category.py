@@ -78,7 +78,7 @@ class Categorize:
         TRex.log("# sending "+str(len(self.samples))+" samples")
         recv_samples(np.array(self.samples).astype(np.uint8).flatten(), self.labels)
 
-    def add_images(self, images, labels):
+    def add_images(self, images, labels, force_training):
         # length before adding images
         prev_L = len(self.labels)
         TRex.log("# previously had "+str(len(self.samples))+" images")
@@ -89,9 +89,9 @@ class Categorize:
         for l in labels:
             self.labels.append(str(l));
 
-        self.updated_data(prev_L, labels)
+        self.updated_data(prev_L, labels, force_training)
 
-    def updated_data(self, prev_L, labels):
+    def updated_data(self, prev_L, labels, force):
         TRex.log("# samples are "+str(np.shape(self.samples))+" labels:"+str(np.shape(self.labels)))
         TRex.log("# "+str(np.unique(self.labels)))
 
@@ -112,7 +112,7 @@ class Categorize:
 
         TRex.log("# labels dist: "+str(per_class))
         if len(np.unique(self.labels)) == len(self.categories):
-            if len(self.samples) - self.last_size >= 500:
+            if len(self.samples) - self.last_size >= 500 or force:
                 self.update_required = True
                 TRex.log("# scheduling update. previous:"+str(self.last_size)+" now:"+str(len(self.samples)))
                 self.last_size = len(self.samples)
@@ -170,7 +170,7 @@ class Categorize:
             for y in npz["y"]:
                 self.labels.append(str(y))
 
-            self.updated_data(prev_L, [])
+            self.updated_data(prev_L, [], False)
 
         if len(self.samples) > 0:
             X = np.array(self.samples)
@@ -292,11 +292,11 @@ def load():
         categorize.load()
 
 def add_images():
-    global categorize, additional, additional_labels
+    global categorize, additional, additional_labels, force_training
     assert type(categorize) != type(None)
 
-    TRex.log("# adding "+str(len(additional))+" images")
-    categorize.add_images(additional, additional_labels)
+    TRex.log("# adding "+str(len(additional))+" images (force:"+str(force_training)+")")
+    categorize.add_images(additional, additional_labels, force_training)
 
     del additional
     del additional_labels
