@@ -1518,8 +1518,8 @@ void Work::loop() {
                                 task_queue().erase(it);
                                 ++hits;
                                 
-                                //for(auto &t : task_queue())
-                                //    t.is_cached = true;
+                                for(auto &t : task_queue())
+                                    t.is_cached = true;
                                 break;
                                 
                             } else {
@@ -1911,7 +1911,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
             //if(!_frame_cache.count(frame))
             if(true)
             {
-                _frame_cache.clear();
+                //_frame_cache.clear();
                 
                 for (auto it = _frame_cache.begin(); it != _frame_cache.end() && _frame_cache.size() > 1000u;) {
                     //if(it->first._frame < basic->frame - 50 || it->first._frame > basic->frame + 50)
