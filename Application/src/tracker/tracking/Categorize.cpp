@@ -148,8 +148,9 @@ std::vector<std::string> DataStore::label_names() {
 void init_labels() {
     std::lock_guard guard(DataStore::mutex());
     _labels.clear();
-    for(size_t i=0; i<FAST_SETTINGS(categories_ordered).size(); ++i)
-        _labels[Label::Make(FAST_SETTINGS(categories_ordered).at(i))] = {};
+    for(size_t i=0; i<FAST_SETTINGS(categories_ordered).size(); ++i) {
+        _labels[Label::Make(FAST_SETTINGS(categories_ordered).at(i), i)] = {};
+    }
 }
 
 Label::Ptr DataStore::label(const char* name) {
@@ -1657,8 +1658,7 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
             data.read(id);
             data.read(name);
             
-            auto ptr = Label::Make(name);
-            ptr->id = id;
+            auto ptr = Label::Make(name, id);
             _labels[ptr] = {};
             labels[i] = name;
         }

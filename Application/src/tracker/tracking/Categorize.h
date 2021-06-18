@@ -21,9 +21,11 @@ struct Label {
         return std::make_shared<Label>(std::forward<Args>(args)...);
     }
     
-    Label(const std::string& name) : name(name) {
-        static int _ID = 0;
-        id = _ID++;
+    Label(const std::string& name, int id) : name(name), id(id) {
+        if(id == -1) {
+            static int _ID = 0;
+            id = _ID++;
+        }
     }
 };
 
