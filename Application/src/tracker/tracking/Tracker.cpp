@@ -4030,6 +4030,8 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
 pv::BlobPtr Tracker::find_blob_noisy(const std::map<uint32_t, pv::BlobPtr>& blob_to_id, int64_t bid, int64_t pid, const Bounds& bounds, long_t frame)
 {
     if(blob_to_id.count(bid) == 0) {
+        return nullptr;
+        
         if(pid != -1) {
             if(blob_to_id.count((uint32_t)pid) != 0) {
                 auto b = blob_to_id.at((uint32_t)pid);
@@ -4044,7 +4046,8 @@ pv::BlobPtr Tracker::find_blob_noisy(const std::map<uint32_t, pv::BlobPtr>& blob
                     }
                 }
                 
-                if(!blob_to_id.count(bid)) {
+                /*if(!blob_to_id.count(bid)) {
+                    return nullptr;*/
                     /*int first_found = -1, last_found = -1;
                     
                     for(int threshold = FAST_SETTINGS(track_threshold)+1; threshold<100; ++threshold) {
@@ -4065,14 +4068,14 @@ pv::BlobPtr Tracker::find_blob_noisy(const std::map<uint32_t, pv::BlobPtr>& blob
                     
                     if(first_found != -1) {
                         Debug("Found blob %d in parent %d within thresholds [%d - %d]", bid, pid, first_found, last_found);
-                    } else {*/
+                    } else {
                         //Warning("Cannot find blob %d in it, but can find the parent %d in frame %d (threshold=%d).", bid, pid, frame, FAST_SETTINGS(track_threshold));
-                    //}
-                }
+                    //}*/
+                //}
             }
         }
         
-        if(!blob_to_id.count(bid)) {
+        /*if(!blob_to_id.count(bid)) {
             //std::set<std::tuple<Match::PairingGraph::prob_t, long_t, Vec2>> sorted;
             //for(auto && [id, ptr] : blob_to_id) {
             //    sorted.insert({euclidean_distance(ptr->center(), bounds.pos() + bounds.size() * 0.5), id, ptr->center()});
@@ -4081,7 +4084,9 @@ pv::BlobPtr Tracker::find_blob_noisy(const std::map<uint32_t, pv::BlobPtr>& blob
             
             //Error("Cannot find blob %d (%.0f,%.0f) in frame %d with threshold=%d. (%S)", bid, bounds.x,bounds.y, frame, FAST_SETTINGS(track_threshold), &str);
             return nullptr;
-        }
+        }*/
+        
+        return nullptr;
     }
     
     return blob_to_id.at(bid);

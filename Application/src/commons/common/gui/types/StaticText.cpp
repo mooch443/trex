@@ -198,10 +198,10 @@ void StaticText::RichString::convert(std::shared_ptr<Text> text) const {
                 size_t idx = L;
                 
                 static const std::set<char> whitespace {
-                    ' ',':',',','/'
+                    ' ',':',',','/','\\'
                 };
                 static const std::set<char> extended_whitespace {
-                    ' ','-',':',',','/','.','_'
+                    ' ','-',':',',','/','\\','.','_'
                 };
                 
                 while(cw > max_w && idx > 1) {

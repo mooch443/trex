@@ -2539,11 +2539,11 @@ void GUI::draw_footer(DrawStructure& base) {
     static Text gpu_status("", Vec2(), White, Font(0.7)), python_status("", Vec2(), Red, Font(0.7));
     static Text additional_status("", Vec2(), White, Font(0.7));
     static Text mouse_status("", Vec2(), White.alpha(200), Font(0.7));
+    
 #define SITEM(NAME) DirectSettingsItem<globals::Cache::Variables:: NAME>
     static List options_dropdown(Size2(150, 33 + 2), "display", {
         std::make_shared<SITEM(gui_show_blobs)>("blobs"),
         std::make_shared<SITEM(gui_show_paths)>("paths"),
-        //std::make_shared<SITEM(gui_show_manual_matches)>("manual matches"),
         std::make_shared<SITEM(gui_show_texts)>("texts"),
         std::make_shared<SITEM(gui_show_selections)>("selections"),
         std::make_shared<SITEM(gui_show_inactive_individuals)>("inactive"),
@@ -2561,6 +2561,7 @@ void GUI::draw_footer(DrawStructure& base) {
         std::make_shared<SITEM(gui_auto_scale_focus_one)>("zoom on selected"),
         std::make_shared<SITEM(gui_show_export_options)>("export options")
     });
+#undef SITEM
     
     static Dropdown settings_dropdown(Size2(200, 33), GlobalSettings::map().keys());
     static Textfield textfield("", Size2(300, settings_dropdown.height()));
@@ -2580,18 +2581,22 @@ void GUI::draw_footer(DrawStructure& base) {
     else
         textfield.set_size(Size2(300, textfield.height()));
     
-    static FlowMenu pie( min(_average_image.cols, _average_image.rows) * 0.25f * 0.5f, [](size_t , const std::string& item){
+#ifndef NDEBUG
+    static FlowMenu pie( min(_average_image.cols, _average_image.rows) * 0.25f, [](size_t , const std::string& item){
         SETTING(enable_pie_chart) = false;
     });
     
-    pie.set_scale(base.scale().reciprocal());
+    pie.set_scale(base.scale().reciprocal() * gui::interface_scale());
     
     if(SETTING(enable_pie_chart))
         base.wrap_object(pie);
+#endif
     
     if(first) {
         _static_pointers.insert(_static_pointers.end(), {
+#ifndef NDEBUG
             &pie,
+#endif
             &textfield,
             &options_dropdown,
             &layout,
@@ -2765,6 +2770,8 @@ void GUI::draw_footer(DrawStructure& base) {
         options_dropdown.set_accent_color(Color(80, 80, 80, 200));
         
         layout.set_origin(Vec2(0, 1));
+            
+#ifndef NDEBUG
         auto base_idx = pie.add_layer(FlowMenu::Layer("menu", {"view", "load", "save", "identity", "quit"}));
         auto view_idx = pie.add_layer(FlowMenu::Layer("view", {"back", "posture", "ai stuff", "confusion", "outlines", "texts", "paths"}));
         auto save_idx = pie.add_layer(FlowMenu::Layer("save", {"back", "state", "config", "csv", "npz"}));
@@ -2777,7 +2784,8 @@ void GUI::draw_footer(DrawStructure& base) {
         pie.link(view_idx, "back", base_idx);
         pie.link(save_idx, "back", base_idx);
         pie.link(load_idx, "back", base_idx);
-        
+#endif
+            
         settings_dropdown.on_select([&](long_t index, const std::string& name) {
             this->selected_setting(index, name, textfield, settings_dropdown, layout, base);
         });

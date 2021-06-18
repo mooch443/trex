@@ -106,8 +106,10 @@ namespace gui {
         if(_current != -1) {
             check_layer_index(_current);
             auto clr = ColorWheel(_current >= 0 ? _current : 0).next().alpha(200).saturation(0.2).exposure(0.2);
-            auto rect = advance(new Rect(Bounds(Vec2(0, height() * 0.05), Size2(width(), Base::default_line_spacing(Font(1, Style::Bold)) + 100)), clr, White.alpha(200)));
-            advance(new Text(_layers.at(_current)._title, rect->pos() + rect->size() * 0.5, White, Font(1, Style::Bold, Align::Center)));
+            auto rect = new Rect(Bounds(Vec2(width() * 0.5, height() * 0.05), Size2(width() * 0.33, Base::default_line_spacing(Font(0.5, Style::Bold)) + 25)), clr, White.alpha(200));
+            rect->set_origin(Vec2(0.5, 0));
+            rect = advance(rect);
+            advance(new Text(_layers.at(_current)._title, rect->pos() + Vec2(0, rect->height() * 0.5), White, Font(0.5, Style::Bold, Align::Center)));
         }
         
         end();
