@@ -1842,7 +1842,9 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     }
     
     if(stuff_indexes.size() < min_samples) {
+#ifndef NDEBUG
         Warning("#1 Below min_samples (%lu) Fish%d frames %d-%d", min_samples, fish->identity().ID(), segment->start(), segment->end());
+#endif
         return Sample::Invalid();
     }
 
@@ -1852,7 +1854,9 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         Midline::Ptr midline;
         std::shared_ptr<Individual::BasicStuff> basic;
 
-        const auto normalize = SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>();
+        auto normalize = SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>();
+        if(normalize == default_config::recognition_normalization_t::posture && !FAST_SETTINGS(calculate_posture))
+            normalize = default_config::recognition_normalization_t::moments;
         const auto scale = FAST_SETTINGS(recognition_image_scale);
         const auto dims = SETTING(recognition_image_size).value<Size2>();
 
@@ -1994,8 +1998,11 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
 #endif
     if(images.size() >= min_samples) {
         return Sample::Make(std::move(indexes), std::move(images), std::move(positions));
-    } else
+    }
+#ifndef NDEBUG
+    else
         Warning("Below min_samples (%lu) Fish%d frames %d-%d", min_samples, fish->identity().ID(), segment->start(), segment->end());
+#endif
     
     return Sample::Invalid();
 }
