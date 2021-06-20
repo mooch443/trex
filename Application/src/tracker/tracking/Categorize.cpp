@@ -1751,8 +1751,12 @@ void DataStore::clear() {
             v.clear();
     }
     
-    {
+    if(GUI::instance()) {
         std::lock_guard guard(GUI::instance()->gui().lock());
+        for(auto &row : rows) {
+            row.clear();
+        }
+    } else {
         for(auto &row : rows) {
             row.clear();
         }
