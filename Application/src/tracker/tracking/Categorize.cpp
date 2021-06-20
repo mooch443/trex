@@ -2049,7 +2049,7 @@ static Layout::Ptr close(Layout::Make<Button>("Hide", Bounds(0, 0, 100, 33)));
 static Layout::Ptr restart(Layout::Make<Button>("Restart", Bounds(0, 0, 100, 33)));
 static Layout::Ptr train(Layout::Make<Button>("Train", Bounds(0, 0, 100, 33)));
 static Layout::Ptr shuffle(Layout::Make<Button>("Shuffle", Bounds(0, 0, 100, 33)));
-static Layout::Ptr buttons(Layout::Make<HorizontalLayout>(std::vector<Layout::Ptr>{apply, restart, load, train, shuffle, close}));
+static Layout::Ptr buttons(Layout::Make<HorizontalLayout>(std::vector<Layout::Ptr>{}));
 
 void initialize(DrawStructure& base) {
     static double R = 0, elap = 0;
@@ -2402,6 +2402,23 @@ void draw(gui::DrawStructure& base) {
     }
     
     max_w = per_row * (max_w + 10);
+    
+    if(Work::initialized()) {
+        auto all_options = std::vector<Layout::Ptr>{restart, load, train, shuffle, close};
+        if(Work::best_accuracy() >= Work::good_enough() * 0.5) {
+            all_options.insert(all_options.begin(), apply);
+        }
+        
+        if(buttons.to<HorizontalLayout>()->children().size() != all_options.size())
+            buttons.to<HorizontalLayout>()->set_children(all_options);
+    } else {
+        auto no_network = std::vector<Layout::Ptr>{
+            shuffle, close
+        };
+        
+        if(buttons.to<HorizontalLayout>()->children().size() != no_network.size())
+            buttons.to<HorizontalLayout>()->set_children(no_network);
+    }
     
     if(buttons) buttons->set_scale(base.scale().reciprocal());
     if(desc_text) desc_text->set_scale(base.scale().reciprocal());
