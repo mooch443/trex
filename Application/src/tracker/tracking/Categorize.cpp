@@ -1017,28 +1017,30 @@ struct NetworkApplicationState {
             task.idx = fish->identity().ID();
             task.callback = [this](const LearningTask& task)
             {
-                std::unique_lock guard(DataStore::cache_mutex());
-                for(size_t i=0; i<task.result.size(); ++i) {
-                    auto frame = task.sample->_frames.at(i);
-                    uint32_t bdx;
-                    {
-                        Tracker::LockGuard guard("task.callback");
-                        auto blob = fish->compressed_blob(frame);
-                        if (!blob) {
-                            Except("Blob in frame %d not found", frame);
-                            continue;
+                {
+                    std::unique_lock guard(DataStore::cache_mutex());
+                    for(size_t i=0; i<task.result.size(); ++i) {
+                        auto frame = task.sample->_frames.at(i);
+                        uint32_t bdx;
+                        {
+                            Tracker::LockGuard guard("task.callback");
+                            auto blob = fish->compressed_blob(frame);
+                            if (!blob) {
+                                Except("Blob in frame %d not found", frame);
+                                continue;
+                            }
+
+                            bdx = blob->blob_id();
                         }
 
-                        bdx = blob->blob_id();
+                        DataStore::_set_label_unsafe(Frame_t(frame), bdx, DataStore::label(task.result.at(i)));
+    //                    Debug("Fish%d: Labelled %d", fish->identity().ID(), frame);
+    #ifndef NDEBUG
+                        log_event("Labelled", Frame_t(frame), fish->identity());
+    #endif
                     }
-
-                    DataStore::_set_label_unsafe(Frame_t(frame), bdx, DataStore::label(task.result.at(i)));
-//                    Debug("Fish%d: Labelled %d", fish->identity().ID(), frame);
-#ifndef NDEBUG
-                    log_event("Labelled", Frame_t(frame), fish->identity());
-#endif
                 }
-                
+            
                 if(task.segment) {
                     RangedLabel ranged;
                     ranged._label = DataStore::label_averaged(fish->identity().ID(), Frame_t(task.segment->start()));
