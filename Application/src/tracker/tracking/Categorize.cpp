@@ -1031,23 +1031,34 @@ struct NetworkApplicationState {
             task.idx = fish->identity().ID();
             task.callback = [this](const LearningTask& task)
             {
+                std::vector<int64_t> blobs;
+                blobs.resize(task.result.size());
+                
                 {
-                    std::unique_lock guard(DataStore::cache_mutex());
+                    Tracker::LockGuard guard("task.callback");
                     for(size_t i=0; i<task.result.size(); ++i) {
                         auto frame = task.sample->_frames.at(i);
-                        uint32_t bdx;
-                        {
-                            Tracker::LockGuard guard("task.callback");
-                            auto blob = fish->compressed_blob(frame);
-                            if (!blob) {
-                                Except("Blob in frame %d not found", frame);
-                                continue;
-                            }
-
-                            bdx = blob->blob_id();
+                        auto blob = fish->compressed_blob(frame);
+                        if (!blob) {
+                            Except("Blob in frame %d not found", frame);
+                            blobs[i] = -1;
+                            continue;
                         }
-
-                        DataStore::_set_label_unsafe(Frame_t(frame), bdx, DataStore::label(task.result.at(i)));
+                        blobs[i] = blob->blob_id();
+                    }
+                }
+                
+                {
+                    
+                    
+                    std::unique_lock guard(DataStore::cache_mutex());
+                    for(size_t i=0; i<task.result.size(); ++i) {
+                        auto bdx = blobs[i];
+                        if(bdx == -1)
+                            continue;
+                        
+                        auto frame = task.sample->_frames[i];
+                        DataStore::_set_label_unsafe(Frame_t(frame), (uint32_t)bdx, DataStore::label(task.result[i]));
     //                    Debug("Fish%d: Labelled %d", fish->identity().ID(), frame);
     #ifndef NDEBUG
                         log_event("Labelled", Frame_t(frame), fish->identity());
