@@ -10,6 +10,7 @@
 #include <gui/Timeline.h>
 #include <misc/EventAnalysis.h>
 #include <gui/Graph.h>
+#include <misc/OutputLibrary.h>
 
 namespace pv {
 struct CompressedBlob;
@@ -57,6 +58,9 @@ namespace gui {
         IndividualCache _next_frame_cache;
         std::shared_ptr<Individual::BasicStuff> _basic_stuff;
         std::shared_ptr<Individual::PostureStuff> _posture_stuff;
+        int _avg_cat = -1;
+        Output::Library::LibInfo _info;
+        double _library_y = Graph::invalid();
         //ExternalImage _colored;
         
         Graph _graph;

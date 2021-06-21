@@ -42,7 +42,8 @@ CREATE_STRUCT(CachedGUIOptions,
         : gui::DrawableCollection(obj.identity().name()),
         _obj(obj),
         _idx(-1),
-        _graph(Bounds(0, 0, 300, 300), "Recent direction histogram")
+        _graph(Bounds(0, 0, 300, 300), "Recent direction histogram"),
+        _info(&_obj, OptionsList<Output::Modifiers>{})
     {
         CachedGUIOptions::init();
         
@@ -88,6 +89,8 @@ CREATE_STRUCT(CachedGUIOptions,
         _events = events;
         
         if(_idx != frameIndex) {
+            _library_y = Graph::invalid();
+            _avg_cat = -1;
             _next_frame_cache.valid = false;
             _image = nullptr;
             points.clear();
@@ -124,6 +127,21 @@ CREATE_STRUCT(CachedGUIOptions,
             auto [_basic, _posture] = _obj.all_stuff(_safe_idx);
             _basic_stuff = _basic;
             _posture_stuff = _posture;
+            
+            if(frameIndex == _safe_idx && _basic) {
+                auto c = Categorize::DataStore::label_averaged(&_obj, Frame_t(frameIndex));
+                if(c)
+                    _avg_cat = c->id;
+            }
+            
+            auto color_source = GUIOPTION(gui_fish_color);
+            if(color_source != "identity" && _blob) {
+                _library_y = Output::Library::get_with_modifiers(color_source, _info, _safe_idx);
+                if(!Graph::is_invalid(_library_y)) {
+                    if(color_source == "X") _library_y /= float(Tracker::average().cols) * FAST_SETTINGS(cm_per_pixel);
+                    else if(color_source == "Y") _library_y /= float(Tracker::average().rows) * FAST_SETTINGS(cm_per_pixel);
+                }
+            }
         }
         
         _idx = frameIndex;
@@ -495,13 +513,11 @@ CREATE_STRUCT(CachedGUIOptions,
             }
         }
         
-        auto color_source = GUIOPTION(gui_fish_color);
-        if(color_source != "identity" && _obj.compressed_blob(_safe_idx)) {
-            auto blob = _obj.compressed_blob(_safe_idx);
-            
+        if(!Graph::is_invalid(_library_y)) {
+            auto color_source = GUIOPTION(gui_fish_color);
             if(color_source == "viridis") {
                 for(auto b : GUI::instance()->cache().processed_frame.blobs) {
-                    if(b->blob_id() == blob->blob_id() || (long_t)b->blob_id() == blob->parent_id) {
+                    if(b->blob_id() == _blob->blob_id() || (long_t)b->blob_id() == _blob->parent_id) {
                         auto && [dpos, difference] = b->difference_image(*Tracker::instance()->background(), 0);
                         auto rgba = Image::Make(difference->rows, difference->cols, 4);
                         
@@ -536,37 +552,29 @@ CREATE_STRUCT(CachedGUIOptions,
                 }
                 
             } else {
-                Output::Library::LibInfo info(&_obj, OptionsList<Output::Modifiers>{});
-                double y = Output::Library::get_with_modifiers(color_source, info, _idx);
-            
-                if(!Graph::is_invalid(y)) {
-                    if(color_source == "X") y /= float(Tracker::average().cols) * FAST_SETTINGS(cm_per_pixel);
-                    else if(color_source == "Y") y/= float(Tracker::average().rows) * FAST_SETTINGS(cm_per_pixel);
-                    
-                    auto percent = min(1.f, cmn::abs(y));
-                    Color clr = /*Color(225, 255, 0, 255)*/ base_color * percent + Color(50, 50, 50, 255) * (1 - percent);
-                    
-                    for(auto b : GUI::instance()->cache().processed_frame.blobs) {
-                        if(b->blob_id() == blob->blob_id() || (long_t)b->blob_id() == blob->parent_id) {
-                            auto && [image_pos, image] = b->binary_image(*Tracker::instance()->background(), FAST_SETTINGS(track_threshold));
-                            auto && [dpos, difference] = b->difference_image(*Tracker::instance()->background(), 0);
-                            
-                            auto rgba = Image::Make(image->rows, image->cols, 4);
-                            
-                            uchar maximum = 0;
-                            for(size_t i=0; i<difference->size(); ++i) {
-                                maximum = max(maximum, difference->data()[i]);
-                            }
-                            for(size_t i=0; i<difference->size(); ++i)
-                                difference->data()[i] = (uchar)min(255, float(difference->data()[i]) / maximum * 255);
-                            
-                            rgba->set_channels(image->data(), {0, 1, 2});
-                            rgba->set_channel(3, difference->data());
-                            
-                            window.image(image_pos + offset, std::move(rgba), Vec2(1), clr);
-                            
-                            break;
+                auto percent = min(1.f, cmn::abs(_library_y));
+                Color clr = /*Color(225, 255, 0, 255)*/ base_color * percent + Color(50, 50, 50, 255) * (1 - percent);
+                
+                for(auto b : GUI::instance()->cache().processed_frame.blobs) {
+                    if(b->blob_id() == _blob->blob_id() || (long_t)b->blob_id() == _blob->parent_id) {
+                        auto && [image_pos, image] = b->binary_image(*Tracker::instance()->background(), FAST_SETTINGS(track_threshold));
+                        auto && [dpos, difference] = b->difference_image(*Tracker::instance()->background(), 0);
+                        
+                        auto rgba = Image::Make(image->rows, image->cols, 4);
+                        
+                        uchar maximum = 0;
+                        for(size_t i=0; i<difference->size(); ++i) {
+                            maximum = max(maximum, difference->data()[i]);
                         }
+                        for(size_t i=0; i<difference->size(); ++i)
+                            difference->data()[i] = (uchar)min(255, float(difference->data()[i]) / maximum * 255);
+                        
+                        rgba->set_channels(image->data(), {0, 1, 2});
+                        rgba->set_channel(3, difference->data());
+                        
+                        window.image(image_pos + offset, std::move(rgba), Vec2(1), clr);
+                        
+                        break;
                     }
                 }
             }
@@ -1062,7 +1070,7 @@ void Fish::label(DrawStructure &base) {
         }
         //auto raw_cat = Categorize::DataStore::label(Frame_t(_idx), blob);
         //auto cat = Categorize::DataStore::label_interpolated(_obj.identity().ID(), Frame_t(_idx));
-        auto avg_cat = Categorize::DataStore::_ranged_label_unsafe(Frame_t(_idx), blob->blob_id());//(_obj.identity().ID(), Frame_t(_idx));
+
         auto it = GUI::cache().processed_frame.cached_individuals.find(_obj.identity().ID());
         if(it != GUI::cache().processed_frame.cached_individuals.end()) {
             auto cat = it->second.current_category;
@@ -1078,8 +1086,15 @@ void Fish::label(DrawStructure &base) {
             secondary_text += std::string(" ") + (cat ? "<b>" : "") + "<i>" + cat->name + "</i>" + (cat ? "</b>" : "");
         }
         
-        if(avg_cat) {
-            secondary_text += (avg_cat ? std::string(" ") : std::string()) + "<nr>" + avg_cat->name + "</nr>";
+        if(_avg_cat != -1) {
+            auto c = Categorize::DataStore::label(_avg_cat);
+            if(c)
+                secondary_text += (_avg_cat != -1 ? std::string(" ") : std::string()) + "<nr>" + c->name + "</nr>";
+            auto color = ColorWheel(_avg_cat).next();
+            base.circle(pos() + size() * 0.5, size().length(), Transparent, color.alpha(125));
+            
+        } else {
+            base.circle(pos() + size() * 0.5, size().length(), Transparent, Purple.alpha(25));
         }
     }
 

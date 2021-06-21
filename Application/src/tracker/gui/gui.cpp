@@ -1859,9 +1859,6 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                 }
                 
                 {
-                    std::shared_lock guard(Categorize::DataStore::range_mutex());
-                    std::shared_lock guard_(Categorize::DataStore::cache_mutex());
-                    
                     for (auto &fish : (source.empty() ? _cache.active : source)) {
                         if (fish->start_frame() > frameNr || fish->empty())
                             continue;
