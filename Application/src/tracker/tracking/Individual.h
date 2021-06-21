@@ -86,21 +86,15 @@ constexpr std::array<const char*, 8> ReasonsNames {
         const PhysicalProperties* h;
         Vec2 last_seen_px;
         Vec2 estimated_px;
-        Vec2 estimated_cm;
-        //Vec2 smoothed_direction;
         bool last_frame_manual;
-        //float smooth_angle;
+        bool valid = false;
         float tdelta;
         float local_tdelta;
         long_t previous_frame;
         int current_category;
-        //float size_average;
-        //float head_distance;
         
         Match::prob_t speed;
         Match::prob_t time_probability;
-        
-        size_t recent_number_samples;
     };
     
     class PPFrame : public IndexedDataTransport {
@@ -475,7 +469,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //! Calculates the probability for this fish to be at pixel-position in frame at time.
         Probability probability(int label, const IndividualCache& estimated_px, long_t frameIndex, const pv::CompressedBlob& blob) const;
         Probability probability(const IndividualCache& estimated_px, long_t frameIndex, const Vec2& position, size_t pixels) const;
-        Match::prob_t time_probability(const IndividualCache& cache, long_t frameIndex, double time) const;
+        Match::prob_t time_probability(const IndividualCache& cache, size_t recent_number_samples) const;
         //Match::PairingGraph::prob_t size_probability(const IndividualCache& cache, long_t frameIndex, size_t num_pixels) const;
         std::tuple<Match::prob_t, Match::prob_t, Match::prob_t> position_probability(const IndividualCache& estimated_px, long_t frameIndex, size_t size, const Vec2& position, const Vec2& blob_center) const;
         

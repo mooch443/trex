@@ -298,6 +298,7 @@ constexpr static const Color
              Red = Color(255, 0, 0, 255),
             Blue = Color(0, 0, 255, 255),
            Green = Color(0, 255, 0, 255),
+          Purple = Color(200, 0, 255, 255),
      Transparent = Color(0, 0, 0, 0);
 
 constexpr inline Color operator*(const Color& c0, const Color& c1) {

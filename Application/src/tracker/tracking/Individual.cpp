@@ -1648,7 +1648,7 @@ IndividualCache Individual::cache_for_frame(long_t frameIndex, double time, cons
         }
     }
     
-    cache.recent_number_samples = N;
+    auto recent_number_samples = N;
     
     Rangel range(max(_startFrame, cache.previous_frame - 6), cache.previous_frame);
     std::vector<prob_t> average_speed;
@@ -1805,15 +1805,15 @@ IndividualCache Individual::cache_for_frame(long_t frameIndex, double time, cons
     cache.speed = h ? h->speed(Units::CM_AND_SECONDS) : 0;
     cache.h = h;
     cache.estimated_px = est;
-    cache.estimated_cm = cache.estimated_px * FAST_SETTINGS(cm_per_pixel);
-    cache.time_probability = time_probability(cache, frameIndex, time);
+    cache.time_probability = time_probability(cache, recent_number_samples);
     
-    assert(!std::isnan(cache.estimated_cm.x) && !std::isnan(cache.estimated_cm.y));
+    assert(!std::isnan(cache.estimated_px.x) && !std::isnan(cache.estimated_px.y));
+    cache.valid = true;
     
     return cache;
 }
 
-prob_t Individual::time_probability(const IndividualCache& cache, long_t , double ) const {
+prob_t Individual::time_probability(const IndividualCache& cache, size_t recent_number_samples) const {
     if(!FAST_SETTINGS(track_time_probability_enabled))
         return 1;
     if (cache.tdelta > FAST_SETTINGS(track_max_reassign_time))
@@ -1841,7 +1841,7 @@ prob_t Individual::time_probability(const IndividualCache& cache, long_t , doubl
     
     float p = 1.0f - min(1.0f, max(0, (cache.tdelta - Tdelta) / FAST_SETTINGS(track_max_reassign_time)));
     if(cache.previous_frame >= Tracker::start_frame() + minimum_frames)
-        p *= min(1.f, float(cache.recent_number_samples - 1) / minimum_frames + FAST_SETTINGS(matching_probability_threshold));
+        p *= min(1.f, float(recent_number_samples - 1) / minimum_frames + FAST_SETTINGS(matching_probability_threshold));
     
     return p * 0.75 + 0.25;
 }
@@ -1873,7 +1873,7 @@ std::tuple<prob_t, prob_t, prob_t> Individual::position_probability(const Indivi
     if(cache.local_tdelta == 0)
         velocity = Vec2(0);
     else
-        velocity = (position - cache.estimated_cm) / cache.local_tdelta;
+        velocity = (position - cache.estimated_px * FAST_SETTINGS(cm_per_pixel)) / cache.local_tdelta;
     assert(!std::isnan(velocity.x) && !std::isnan(velocity.y));
     
     auto speed = length(velocity) / (FAST_SETTINGS(track_max_speed));

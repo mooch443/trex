@@ -82,19 +82,13 @@ CREATE_STRUCT(CachedGUIOptions,
     
     void Fish::set_data(long_t frameIndex, double time, const PPFrame &frame, const EventAnalysis::EventMap *events)
     {
-        //const bool events_changed = (_events != events && (events == NULL || _events == NULL))
-        //            || (_events && events && _events->memory_size() != events->memory_size());
-        //if(_idx == frameIndex)
-        //    return;
-        
         _safe_idx = _obj.find_frame(frameIndex)->frame;
         _time = time;
         _frame = &frame;
         _events = events;
         
-        //Debug("%d -> %d", frameIndex, _safe_idx);
-        
         if(_idx != frameIndex) {
+            _next_frame_cache.valid = false;
             _image = nullptr;
             points.clear();
             
@@ -122,6 +116,14 @@ CREATE_STRUCT(CachedGUIOptions,
             }
             
             set_dirty();
+            
+            _blob = _obj.compressed_blob(_safe_idx);
+            _blob_bounds = _blob ? _blob->calculate_bounds() : bounds();
+            
+            
+            auto [_basic, _posture] = _obj.all_stuff(_safe_idx);
+            _basic_stuff = _basic;
+            _posture_stuff = _posture;
         }
         
         _idx = frameIndex;
@@ -141,17 +143,14 @@ CREATE_STRUCT(CachedGUIOptions,
         const float time_fade_percent = 1.0f - float(properties ? cmn::abs(properties->time - safe_properties->time) : 0) / track_max_reassign_time;
         auto &cache = GUI::instance()->cache();
         
-        auto && [basic, posture] = _obj.all_stuff(_safe_idx);
-        auto blob = basic ? &basic->blob : nullptr;
-        auto blob_bounds = blob? blob->calculate_bounds() : bounds();
-        set_bounds(blob_bounds);
+        set_bounds(_blob_bounds);
         
-        const Vec2 offset = -blob_bounds.pos();
+        const Vec2 offset = -_blob_bounds.pos();
         
-        const auto centroid = basic ? basic->centroid : nullptr;
-        const auto head = posture ? posture->head : nullptr;
+        const auto centroid = _basic_stuff ? _basic_stuff->centroid : nullptr;
+        const auto head = _posture_stuff ? _posture_stuff->head : nullptr;
         
-        _fish_pos = centroid ? centroid->pos(Units::PX_AND_SECONDS) : (blob_bounds.pos() + blob_bounds.size() * 0.5);
+        _fish_pos = centroid ? centroid->pos(Units::PX_AND_SECONDS) : (_blob_bounds.pos() + _blob_bounds.size() * 0.5);
         
         const bool hovered = this->hovered();
         const bool timeline_visible = GUI::instance() && GUI::instance()->timeline().visible();
@@ -395,12 +394,13 @@ CREATE_STRUCT(CachedGUIOptions,
         }
         
         auto ML = _obj.midline_length();
-        auto radius = (FAST_SETTINGS(calculate_posture) && ML != Graph::invalid() ? ML : blob_bounds.size().max()) * 0.6;
+        auto radius = (FAST_SETTINGS(calculate_posture) && ML != Graph::invalid() ? ML : _blob_bounds.size().max()) * 0.6;
         if(GUIOPTION(gui_show_texts)) {
             // DISPLAY NEXT POSITION (estimated position in _idx + 1)
             //if(cache.processed_frame.cached_individuals.count(_obj.identity().ID())) {
-            auto fcache = _obj.cache_for_frame(_idx + 1, next_time);
-            auto estimated = fcache.estimated_px + offset;
+            if(!_next_frame_cache.valid)
+                _next_frame_cache = std::move(_obj.cache_for_frame(_idx + 1, next_time));
+            auto estimated = _next_frame_cache.estimated_px + offset;
             
             window.circle(c_pos, 2, White.alpha(max_color));
                 //auto &fcache = cache.processed_frame.cached_individuals.at(_obj.identity().ID());
@@ -418,7 +418,7 @@ CREATE_STRUCT(CachedGUIOptions,
             //window.circle(estimated, FAST_SETTINGS(track_max_speed) * tdelta, clr);
         }
         
-        if(GUIOPTION(gui_happy_mode) && _cached_midline && _cached_outline && posture && posture->head) {
+        if(GUIOPTION(gui_happy_mode) && _cached_midline && _cached_outline && _posture_stuff && _posture_stuff->head) {
             struct Physics {
                 Vec2 direction = Vec2();
                 Vec2 v = Vec2();
@@ -443,7 +443,7 @@ CREATE_STRUCT(CachedGUIOptions,
                 ph.frame = _idx;
             }
             
-            auto alpha = posture->head->angle();
+            auto alpha = _posture_stuff->head->angle();
             Vec2 movement = Vec2(cos(alpha), sin(alpha));
             Vec2 distance = ph.direction - movement;
             double CL = distance.length();
@@ -460,7 +460,7 @@ CREATE_STRUCT(CachedGUIOptions,
             ph.v += force / mass * dt;
             ph.direction += ph.v * dt;
             
-            auto &&[eyes, off] = VisualField::generate_eyes(&_obj, basic, points, _cached_midline, alpha);
+            auto &&[eyes, off] = VisualField::generate_eyes(&_obj, _basic_stuff, points, _cached_midline, alpha);
             
             auto d = ph.direction;
             auto L = d.length();
@@ -1062,7 +1062,7 @@ void Fish::label(DrawStructure &base) {
         }
         //auto raw_cat = Categorize::DataStore::label(Frame_t(_idx), blob);
         //auto cat = Categorize::DataStore::label_interpolated(_obj.identity().ID(), Frame_t(_idx));
-        auto avg_cat = Categorize::DataStore::label_averaged(_obj.identity().ID(), Frame_t(_idx));
+        auto avg_cat = Categorize::DataStore::_ranged_label_unsafe(Frame_t(_idx), blob->blob_id());//(_obj.identity().ID(), Frame_t(_idx));
         auto it = GUI::cache().processed_frame.cached_individuals.find(_obj.identity().ID());
         if(it != GUI::cache().processed_frame.cached_individuals.end()) {
             auto cat = it->second.current_category;
@@ -1073,7 +1073,7 @@ void Fish::label(DrawStructure &base) {
             }
         }
         
-        auto cat = Categorize::DataStore::label(Frame_t(_idx), blob);
+        auto cat = Categorize::DataStore::_label_unsafe(Frame_t(_idx), blob->blob_id());
         if (cat) {
             secondary_text += std::string(" ") + (cat ? "<b>" : "") + "<i>" + cat->name + "</i>" + (cat ? "</b>" : "");
         }

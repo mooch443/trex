@@ -51,6 +51,12 @@ namespace gui {
         std::vector<Vertex> vertices;
         std::shared_ptr<Circle> _recognition_circle;
         std::vector<Vec2> points;
+        
+        pv::CompressedBlob *_blob;
+        Bounds _blob_bounds;
+        IndividualCache _next_frame_cache;
+        std::shared_ptr<Individual::BasicStuff> _basic_stuff;
+        std::shared_ptr<Individual::PostureStuff> _posture_stuff;
         //ExternalImage _colored;
         
         Graph _graph;

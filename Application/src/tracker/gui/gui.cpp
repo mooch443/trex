@@ -1858,45 +1858,50 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                     }
                 }
                 
-                for (auto &fish : (source.empty() ? _cache.active : source)) {
-                    if (fish->start_frame() > frameNr || fish->empty())
-                        continue;
+                {
+                    std::shared_lock guard(Categorize::DataStore::range_mutex());
+                    std::shared_lock guard_(Categorize::DataStore::cache_mutex());
                     
-                    auto segment = fish->segment_for(frameNr);
-                    if(!GUI_SETTINGS(gui_show_inactive_individuals)
-                       && (!segment || (segment->end() != Tracker::end_frame()
-                       && segment->length() < (long_t)GUI_SETTINGS(output_min_frames))))
-                    {
-                        continue;
+                    for (auto &fish : (source.empty() ? _cache.active : source)) {
+                        if (fish->start_frame() > frameNr || fish->empty())
+                            continue;
+                        
+                        auto segment = fish->segment_for(frameNr);
+                        if(!GUI_SETTINGS(gui_show_inactive_individuals)
+                           && (!segment || (segment->end() != Tracker::end_frame()
+                           && segment->length() < (long_t)GUI_SETTINGS(output_min_frames))))
+                        {
+                            continue;
+                        }
+                        
+                        auto it = container->map().find(fish);
+                        if(it != container->map().end())
+                            empty_map = &it->second;
+                        else
+                            empty_map = NULL;
+                        
+                        if(_cache._fish_map.find(fish) == _cache._fish_map.end()) {
+                            _cache._fish_map[fish] = std::make_unique<gui::Fish>(*fish);
+                            fish->register_delete_callback(_cache._fish_map[fish].get(), [this](Individual *f) {
+                                //std::lock_guard<std::mutex> lock(_individuals_frame._mutex);
+                                if(!GUI::instance())
+                                    return;
+                                
+                                std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
+                                
+                                auto it = _cache._fish_map.find(f);
+                                if(it != _cache._fish_map.end()) {
+                                    _cache._fish_map.erase(f);
+                                }
+                            });
+                        }
+                        
+                        _cache._fish_map[fish]->set_data((uint32_t)frameNr, props->time, _cache.processed_frame, empty_map);
+                        
+                        base.wrap_object(*_cache._fish_map[fish]);
+                        if(GUI_SETTINGS(gui_show_texts))
+                            _cache._fish_map[fish]->label(base);
                     }
-                    
-                    auto it = container->map().find(fish);
-                    if(it != container->map().end())
-                        empty_map = &it->second;
-                    else
-                        empty_map = NULL;
-                    
-                    if(_cache._fish_map.find(fish) == _cache._fish_map.end()) {
-                        _cache._fish_map[fish] = std::make_unique<gui::Fish>(*fish);
-                        fish->register_delete_callback(_cache._fish_map[fish].get(), [this](Individual *f) {
-                            //std::lock_guard<std::mutex> lock(_individuals_frame._mutex);
-                            if(!GUI::instance())
-                                return;
-                            
-                            std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
-                            
-                            auto it = _cache._fish_map.find(f);
-                            if(it != _cache._fish_map.end()) {
-                                _cache._fish_map.erase(f);
-                            }
-                        });
-                    }
-                    
-                    _cache._fish_map[fish]->set_data((uint32_t)frameNr, props->time, _cache.processed_frame, empty_map);
-                    
-                    base.wrap_object(*_cache._fish_map[fish]);
-                    if(GUI_SETTINGS(gui_show_texts))
-                        _cache._fish_map[fish]->label(base);
                 }
                 
                 if(GUI_SETTINGS(gui_show_midline_histogram)) {

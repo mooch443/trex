@@ -1388,11 +1388,14 @@ void Work::start_learning() {
                     Work::status() = "Prediction...";
                     
                     try {
-                        Timer timer;
                         Debug("Predicting %lu samples, %lu collected...", prediction_images.size(), prediction_tasks.size());
+                        Timer set_timer;
                         py::set_variable("images", prediction_images, module);
+                        Debug("Setting: %fs", set_timer.elapsed());
                         py::set_function("receive", [&](std::vector<float> results)
                         {
+                            Timer receive_timer;
+                            
                             for (auto& [item, offset] : prediction_tasks) {
                                 if (item.type == LearningTask::Type::Prediction) {
                                     item.result.clear();
@@ -1402,9 +1405,12 @@ void Work::start_learning() {
                                 } else
                                     Warning("LearningTask type was not prediction?");
                             }
+                            
+                            Debug("Receive: %fs", receive_timer.elapsed());
 
                         }, module);
 
+                        Timer timer;
                         py::run(module, "predict");
                         Debug("Prediction took %fs", timer.elapsed());
                     } catch(...) {
