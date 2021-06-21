@@ -322,6 +322,10 @@ Label::Ptr DataStore::_ranged_label_unsafe(Frame_t frame, uint32_t bdx) {
 
 void DataStore::set_label(Frame_t idx, uint32_t bdx, const Label::Ptr& label) {
     std::unique_lock guard(cache_mutex());
+    _set_label_unsafe(idx, bdx, label);
+}
+
+void DataStore::_set_label_unsafe(Frame_t idx, uint32_t bdx, const Label::Ptr& label) {
 #ifndef NDEBUG
     if (_probability_cache[idx].count(bdx)) {
         auto str = Meta::toStr(_probability_cache[idx]);
@@ -1013,6 +1017,7 @@ struct NetworkApplicationState {
             task.idx = fish->identity().ID();
             task.callback = [this](const LearningTask& task)
             {
+                std::unique_lock guard(DataStore::cache_mutex());
                 for(size_t i=0; i<task.result.size(); ++i) {
                     auto frame = task.sample->_frames.at(i);
                     uint32_t bdx;
@@ -1027,7 +1032,7 @@ struct NetworkApplicationState {
                         bdx = blob->blob_id();
                     }
 
-                    DataStore::set_label(Frame_t(frame), bdx, DataStore::label(task.result.at(i)));
+                    DataStore::_set_label_unsafe(Frame_t(frame), bdx, DataStore::label(task.result.at(i)));
 //                    Debug("Fish%d: Labelled %d", fish->identity().ID(), frame);
 #ifndef NDEBUG
                     log_event("Labelled", Frame_t(frame), fish->identity());
