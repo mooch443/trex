@@ -626,7 +626,7 @@ public:
     
     void set_sample(const Sample::Ptr& sample);
     
-    static void receive_prediction_results(const LearningTask& task) {
+    __attribute__((noinline)) static void receive_prediction_results(const LearningTask& task) {
         std::lock_guard guard(Work::_recv_mutex);
         auto cats = FAST_SETTINGS(categories_ordered);
         task.sample->_probabilities.resize(cats.size());
@@ -955,6 +955,81 @@ struct NetworkApplicationState {
         return Rangel(-1,-1);
     }
     
+    __attribute__((noinline)) void receive_samples(const LearningTask& task) {
+        
+        {
+            std::vector<int64_t> blobs;
+            blobs.resize(task.result.size());
+            
+            {
+                Tracker::LockGuard guard("task.callback");
+                for(size_t i=0; i<task.result.size(); ++i) {
+                    auto frame = task.sample->_frames.at(i);
+                    auto blob = fish->compressed_blob(frame);
+                    if (!blob) {
+                        Except("Blob in frame %d not found", frame);
+                        blobs[i] = -1;
+                        continue;
+                    }
+                    blobs[i] = blob->blob_id();
+                }
+            }
+            
+            {
+                
+                
+                std::unique_lock guard(DataStore::cache_mutex());
+                for(size_t i=0; i<task.result.size(); ++i) {
+                    auto bdx = blobs[i];
+                    if(bdx == -1)
+                        continue;
+                    
+                    auto frame = task.sample->_frames[i];
+                    DataStore::_set_label_unsafe(Frame_t(frame), (uint32_t)bdx, DataStore::label(task.result[i]));
+//                    Debug("Fish%d: Labelled %d", fish->identity().ID(), frame);
+#ifndef NDEBUG
+                    log_event("Labelled", Frame_t(frame), fish->identity());
+#endif
+                }
+            }
+        
+            if(task.segment) {
+                RangedLabel ranged;
+                ranged._label = DataStore::label_averaged(fish->identity().ID(), Frame_t(task.segment->start()));
+                assert(ranged._label);
+                ranged._range = *task.segment;
+                ranged._blobs.reserve(task.segment->length());
+                
+                for(auto f = task.segment->start(); f <= task.segment->end(); ++f) {
+                    assert(task.segment->contains(f));
+                    {
+                        auto &basic = fish->basic_stuff().at(task.segment->basic_stuff(f));
+                        ranged._blobs.push_back(basic->blob.blob_id());
+                    } //else
+                       // Warning("Segment does not contain %d", f);
+                }
+                
+                DataStore::set_ranged_label(std::move(ranged));
+            }
+            
+            {
+                auto f = peek();
+                
+                std::lock_guard guard(Work::_mutex);
+                Work::task_queue().push_back(Work::Task{
+                    f.start >= 0 ? Frame_t(f.start) : Frame_t(0),
+                    f,
+                    [this]()
+                    {
+                        this->next();
+                    }
+                });
+            }
+
+            Work::_variable.notify_one();
+        }
+    }
+    
     //! start the next prediction task
     void next() {
         std::shared_ptr<Individual::SegmentInformation> segment;
@@ -1029,77 +1104,8 @@ struct NetworkApplicationState {
         
         if(task.sample != Sample::Invalid()) {
             task.idx = fish->identity().ID();
-            task.callback = [this](const LearningTask& task)
-            {
-                std::vector<int64_t> blobs;
-                blobs.resize(task.result.size());
-                
-                {
-                    Tracker::LockGuard guard("task.callback");
-                    for(size_t i=0; i<task.result.size(); ++i) {
-                        auto frame = task.sample->_frames.at(i);
-                        auto blob = fish->compressed_blob(frame);
-                        if (!blob) {
-                            Except("Blob in frame %d not found", frame);
-                            blobs[i] = -1;
-                            continue;
-                        }
-                        blobs[i] = blob->blob_id();
-                    }
-                }
-                
-                {
-                    
-                    
-                    std::unique_lock guard(DataStore::cache_mutex());
-                    for(size_t i=0; i<task.result.size(); ++i) {
-                        auto bdx = blobs[i];
-                        if(bdx == -1)
-                            continue;
-                        
-                        auto frame = task.sample->_frames[i];
-                        DataStore::_set_label_unsafe(Frame_t(frame), (uint32_t)bdx, DataStore::label(task.result[i]));
-    //                    Debug("Fish%d: Labelled %d", fish->identity().ID(), frame);
-    #ifndef NDEBUG
-                        log_event("Labelled", Frame_t(frame), fish->identity());
-    #endif
-                    }
-                }
-            
-                if(task.segment) {
-                    RangedLabel ranged;
-                    ranged._label = DataStore::label_averaged(fish->identity().ID(), Frame_t(task.segment->start()));
-                    assert(ranged._label);
-                    ranged._range = *task.segment;
-                    ranged._blobs.reserve(task.segment->length());
-                    
-                    for(auto f = task.segment->start(); f <= task.segment->end(); ++f) {
-                        assert(task.segment->contains(f));
-                        {
-                            auto &basic = fish->basic_stuff().at(task.segment->basic_stuff(f));
-                            ranged._blobs.push_back(basic->blob.blob_id());
-                        } //else
-                           // Warning("Segment does not contain %d", f);
-                    }
-                    
-                    DataStore::set_ranged_label(std::move(ranged));
-                }
-                
-                {
-                    auto f = peek();
-                    
-                    std::lock_guard guard(Work::_mutex);
-                    Work::task_queue().push_back(Work::Task{
-                        f.start >= 0 ? Frame_t(f.start) : Frame_t(0),
-                        f,
-                        [this]()
-                        {
-                            this->next();
-                        }
-                    });
-                }
-
-                Work::_variable.notify_one();
+            task.callback = [this](const LearningTask& task) {
+                receive_samples(task);
             };
             
 //            Debug("Fish%d: Inserting %d-%d", fish->identity().ID(), task.segment->start(), task.segment->end());
@@ -1427,18 +1433,23 @@ void Work::start_learning() {
                         py::set_function("receive", [&](std::vector<float> results)
                         {
                             Timer receive_timer;
+                            Timer timer;
+                            double by_callbacks = 0;
                             
                             for (auto& [item, offset] : prediction_tasks) {
                                 if (item.type == LearningTask::Type::Prediction) {
                                     item.result.clear();
                                     item.result.insert(item.result.end(), results.begin() + offset, results.begin() + offset + item.sample->_images.size());
-                                    if (item.callback)
+                                    if (item.callback) {
+                                        timer.reset();
                                         item.callback(item);
+                                        by_callbacks += timer.elapsed();
+                                    }
                                 } else
                                     Warning("LearningTask type was not prediction?");
                             }
                             
-                            Debug("Receive: %fs", receive_timer.elapsed());
+                            Debug("Receive: %fs Callbacks: %fs (%lu tasks)", receive_timer.elapsed(), by_callbacks, prediction_tasks.size());
 
                         }, module);
 
