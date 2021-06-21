@@ -41,7 +41,8 @@ struct Sample {
     std::vector<Vec2> _positions;
     
     Label::Ptr _assigned_label;
-    std::map<Label::Ptr, float> _probabilities;
+    std::vector<float> _probabilities;
+    //std::map<Label::Ptr, float> _probabilities;
     bool _requested = false;
     
     Sample(std::vector<long_t>&& frames,

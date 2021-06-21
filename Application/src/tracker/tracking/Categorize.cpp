@@ -626,6 +626,38 @@ public:
     
     void set_sample(const Sample::Ptr& sample);
     
+    static void receive_prediction_results(const LearningTask& task) {
+        std::lock_guard guard(Work::_recv_mutex);
+        auto cats = FAST_SETTINGS(categories_ordered);
+        task.sample->_probabilities.resize(cats.size());
+        std::fill(task.sample->_probabilities.begin(), task.sample->_probabilities.end(), 0);
+        
+        for(size_t i=0; i<task.result.size(); ++i) {
+            assert(task.result.at(i) == DataStore::label(task.result.at(i))->id);
+            task.sample->_probabilities[task.result.at(i)] += float(1);
+        }
+        
+#ifndef NDEBUG
+        auto str0 = Meta::toStr(task.sample->_probabilities);
+#endif
+        float S = narrow_cast<float>(task.result.size());
+        assert(S == cats.size());
+        
+        for (size_t i=0; i<cats.size(); ++i) {
+            task.sample->_probabilities[i] /= S;
+#ifndef NDEBUG
+            if(task.sample->_probabilities[i] > 1) {
+                Warning("Probability > 1? %f for k '%s'", task.sample->_probabilities[i], cats[i].c_str());
+            }
+#endif
+        }
+        
+#ifndef NDEBUG
+        auto str1 = Meta::toStr(task.sample->_probabilities);
+        Debug("%lu: %S -> %S", task.result.size(), &str0, &str1);
+#endif
+    }
+    
     void update(float s) {
         for(auto &c : _buttons) {
             c.to<Button>()->set_text_clr(White.alpha(235 * s));
@@ -640,9 +672,8 @@ public:
             if(!_sample->_probabilities.empty()) {
                 std::map<std::string, float> summary;
                 
-                for (auto &[l, v] : _sample->_probabilities) {
-                    if(l)
-                        summary[l->name] = v;
+                for(size_t i=0; i<_sample->_probabilities.size(); ++i) {
+                    summary[DataStore::label(i)->name] = _sample->_probabilities[i];
                 }
                 
                 text = settings::htmlify(Meta::toStr(summary)) + "\n" + text;
@@ -654,24 +685,7 @@ public:
                     LearningTask task;
                     task.sample = _sample;
                     task.type = LearningTask::Type::Prediction;
-                    task.callback = [](const LearningTask& task) {
-                        std::lock_guard guard(Work::_recv_mutex);
-                        task.sample->_probabilities.clear();
-                        for(size_t i=0; i<task.result.size(); ++i) {
-                            task.sample->_probabilities[DataStore::label(task.result.at(i))] += float(1);
-                        }
-                        
-                        auto str0 = Meta::toStr(task.sample->_probabilities);
-                        for(auto &[k, v] : task.sample->_probabilities) {
-                            v /= float(task.result.size());
-                            if(v > 1) {
-                                Warning("Probability > 1? %f for k '%S'", v, &k->name);
-                            }
-                        }
-                        
-                        auto str1 = Meta::toStr(task.sample->_probabilities);
-                        Debug("%lu: %S -> %S", task.result.size(), &str0, &str1);
-                    };
+                    task.callback = receive_prediction_results;
                     
                     Work::add_task(std::move(task));
                 }
