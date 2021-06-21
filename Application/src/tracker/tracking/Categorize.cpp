@@ -254,7 +254,7 @@ bool DataStore::Composition::empty() const {
     return N == 0;
 }
 
-std::unordered_map<Frame_t, std::unordered_map<uint32_t, Label::Ptr>> _probability_cache;
+std::unordered_map<Frame_t, std::vector<std::tuple<uint32_t, Label::Ptr>>> _probability_cache;
 std::vector<RangedLabel> _ranged_labels;
 std::unordered_map<Idx_t, std::unordered_map<const Individual::SegmentInformation*, Label::Ptr>> _interpolated_probability_cache;
 std::unordered_map<Idx_t, std::unordered_map<const Individual::SegmentInformation*, Label::Ptr>> _averaged_probability_cache;
@@ -332,7 +332,7 @@ void DataStore::_set_label_unsafe(Frame_t idx, uint32_t bdx, const Label::Ptr& l
         Warning("Cache already contains blob %d in frame %d.\n%S", bdx, (int)idx, &str);
     }
 #endif
-    _probability_cache[idx][bdx] = label;
+    _probability_cache[idx].emplace_back(bdx, label);
 }
 
 void DataStore::set_label(Frame_t idx, const pv::CompressedBlob* blob, const Label::Ptr& label) {
@@ -543,9 +543,9 @@ Label::Ptr DataStore::label(Frame_t idx, const pv::CompressedBlob* blob) {
 Label::Ptr DataStore::_label_unsafe(Frame_t idx, uint32_t bdx) {
     auto fit = _probability_cache.find(idx);
     if(fit != _probability_cache.end()) {
-        auto sit = fit->second.find(bdx);
+        auto sit = std::find_if(fit->second.begin(), fit->second.end(), [bdx](auto& tuple) { return std::get<0>(tuple) == bdx; });
         if(sit != fit->second.end()) {
-            return sit->second;
+            return std::get<1>(*sit);
         }
     }
     return nullptr;
@@ -1726,7 +1726,7 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
                 data.read(bdx);
                 data.read(lid);
                 
-                _probability_cache[Frame_t(frame)][bdx] = DataStore::label(lid);
+                _probability_cache[Frame_t(frame)].emplace_back(bdx, DataStore::label(lid));
             }
         }
     }
