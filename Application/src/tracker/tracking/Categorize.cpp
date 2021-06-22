@@ -1876,9 +1876,10 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     std::vector<long_t> indexes;
     std::vector<Vec2> positions;
     
-#ifndef NDEBUG
+//#ifndef NDEBUG
     static size_t _reuse = 0, _create = 0, _delete = 0;
-#endif
+    static Timer debug_timer;
+///#endif
     
     const size_t step = segment->basic_index.size() < min_samples ? 1u : max(1u, segment->basic_index.size() / sample_rate);
     size_t s = step; // start with 1, try to find something that is already in cache
@@ -1965,12 +1966,13 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         
         if(!ptr) {
             ptr = std::make_shared<PPFrame>();
-#ifndef NDEBUG
+//#ifndef NDEBUG
             ++_create;
-            if(_create % 50 == 0) {
+            if(debug_timer.elapsed() >= 1) {
                 Debug("Create: %lu Reuse: %lu Delete: %lu", _create, _reuse, _delete);
+                debug_timer.reset();
             }
-#endif
+//#endif
             
             if(Work::terminate || !GUI::instance())
                 return nullptr;
@@ -2051,8 +2053,8 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
             }
             
         } else {
-#ifndef NDEBUG
             ++_reuse;
+#ifndef NDEBUG
             log_event("Used", frame, fish->identity());
 #endif
         }
