@@ -1119,6 +1119,9 @@ struct NetworkApplicationState {
         size_t skipped = 0;
 #endif
         
+        const auto max_len = FAST_SETTINGS(track_segment_max_length);
+        const auto min_len = uint32_t(max_len > 0 ? max(1, max_len * 0.1 * float(FAST_SETTINGS(frame_rate))) : FAST_SETTINGS(categories_min_sample_images));
+        
         do {
             if(Work::terminate)
                 break;
@@ -1135,23 +1138,23 @@ struct NetworkApplicationState {
 
             segment = *it;
             Label::Ptr ptr;
-            if(!(ptr = DataStore::label_interpolated(fish, Frame_t(segment->start())))) {
-                const auto max_len = FAST_SETTINGS(track_segment_max_length);
-                const auto min_len = uint32_t(max_len > 0 ? max(1, max_len * 0.1 * float(FAST_SETTINGS(frame_rate))) : FAST_SETTINGS(categories_min_sample_images));
+            if(segment->length() >= (int)min_len && !(ptr = DataStore::label_interpolated(fish, Frame_t(segment->start())))) {
                 task.sample = DataStore::temporary(segment, fish, 300u, min_len, true);
                 task.segment = segment;
                 
-#ifndef NDEBUG
+//#ifndef NDEBUG
                 if(!task.sample)
-                    Debug("Skipping (failed) Fish%d: (%d-%d)", fish->identity().ID(), segment->start(), segment->end());
-#endif
+                    Debug("Skipping (failed) Fish%d: (%d-%d, len=%d)", fish->identity().ID(), segment->start(), segment->end(), segment->length());
+                else
+                    Debug("No-Skipping Fish%d: (%d-%d, len=%d)", fish->identity().ID(), segment->start(), segment->end(), segment->length());
+//#endif
             }
-#ifndef NDEBUG
+//#ifndef NDEBUG
             else {
-                Debug("Skipping Fish%d (%d-%d): %s", fish->identity().ID(), segment->start(), segment->end(), ptr->name.c_str());
-                ++skipped;
+                Debug("Skipping Fish%d (%d-%d, len=%d): %s", fish->identity().ID(), segment->start(), segment->end(), segment->length(), ptr ? ptr->name.c_str() : "none");
+                //++skipped;
             }
-#endif
+//#endif
             
             ++offset;
             ++it;
