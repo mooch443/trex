@@ -1995,16 +1995,16 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
             for (auto it = _frame_cache.begin(); it != _frame_cache.end() && _frame_cache.size() > 1000u;)
             {
                 auto &[f, pp] = *it;
-                
-                // see whether this cached frame is needed elsewhere in the task queue
-                for(auto &t : Work::task_queue()) {
-                    if(t.range.contains(f)) {
-                        goto just_continue;
-                    }
-                }
-                
+
                 // check whether it is far away from the current frame. if so, we can delete it:
-                if(f <= segment->start() - 250 || f >= segment->end() + 250) {
+                if(f <= segment->start() - 1000 || f >= segment->end() + 1000) {
+                    // see whether this cached frame is needed elsewhere in the task queue
+                    for (auto& t : Work::task_queue()) {
+                        if (t.range.contains(f)) {
+                            goto just_continue;
+                        }
+                    }
+
                     //Debug("Deleted cached frame %d (for %d/%d).", f, frame, segment->start());
                     ++_delete;
 #ifndef NDEBUG
