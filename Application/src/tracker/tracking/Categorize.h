@@ -88,10 +88,10 @@ struct RangedLabel {
         return _range.end() > other._frame;
     }
     bool operator<(const RangedLabel& other) const {
-        return _range.end() < other._range.end();
+        return _range.end() < other._range.end() || (_range.end() == other._range.end() && _range.start() < other._range.start());
     }
     bool operator>(const RangedLabel& other) const {
-        return _range.end() > other._range.end();
+        return _range.end() > other._range.end() || (_range.end() == other._range.end() && _range.start() < other._range.start());
     }
 };
 
@@ -151,10 +151,10 @@ struct DataStore {
     static Label::Ptr _label_unsafe(Frame_t, uint32_t);
     static Label::Ptr label(Frame_t, const pv::CompressedBlob*);
     //! does not lock the mutex (assumes it is locked)
-    static Label::Ptr _label_unsafe(Frame_t, const pv::CompressedBlob*);
-    static void set_label(Frame_t idx, uint32_t bdx, const Label::Ptr& label);
-    static void _set_ranged_label_unsafe(RangedLabel&&);
-    static void set_ranged_label(RangedLabel&&);
+    __attribute__((noinline)) static Label::Ptr _label_unsafe(Frame_t, const pv::CompressedBlob*);
+    __attribute__((noinline)) static void set_label(Frame_t idx, uint32_t bdx, const Label::Ptr& label);
+    __attribute__((noinline)) static void _set_ranged_label_unsafe(RangedLabel&&);
+    __attribute__((noinline)) static void set_ranged_label(RangedLabel&&);
     static Label::Ptr ranged_label(Frame_t, uint32_t);
     static Label::Ptr ranged_label(Frame_t, const pv::CompressedBlob&);
     __attribute__((noinline)) static Label::Ptr _ranged_label_unsafe(Frame_t, uint32_t);
@@ -162,8 +162,8 @@ struct DataStore {
     static Label::Ptr label_interpolated(const Individual*, Frame_t);
     static Label::Ptr label_averaged(Idx_t, Frame_t);
     static Label::Ptr label_averaged(const Individual*, Frame_t);
-    static void set_label(Frame_t, const pv::CompressedBlob*, const Label::Ptr&);
-    static void _set_label_unsafe(Frame_t, uint32_t bdx, const Label::Ptr&);
+    __attribute__((noinline)) static void set_label(Frame_t, const pv::CompressedBlob*, const Label::Ptr&);
+    __attribute__((noinline)) static void _set_label_unsafe(Frame_t, uint32_t bdx, const Label::Ptr&);
     
     static void reanalysed_from(Frame_t);
 };

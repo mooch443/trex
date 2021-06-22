@@ -26,6 +26,7 @@ std::random_device rd;
 
 std::shared_mutex _cache_mutex;
 std::vector<std::tuple<Frame_t, std::shared_ptr<PPFrame>>> _frame_cache;
+std::unordered_set<Frame_t> _current_cached_frames;
 
 template<class T, class U>
 typename std::vector<T>::const_iterator find_in_sorted(const std::vector<T>& vector, const U& v) {
@@ -1203,7 +1204,7 @@ void start_applying() {
                 Debug("## Created %lu objects", NetworkApplicationState::current().size());
             }
             
-            Work::status() = "Applying "+Meta::toStr(int(NetworkApplicationState::percent() * 100))+"%...";
+            Work::status() = "Applying "+Meta::toStr((NetworkApplicationState::percent() * 100))+"%...";
             
             {
                 std::lock_guard guard(NetworkApplicationState::current_mutex());
@@ -1333,7 +1334,7 @@ void Work::start_learning() {
             
             static Timer print;
             auto percent = NetworkApplicationState::percent();
-            auto text = "Applying "+Meta::toStr(int(percent * 100))+"%...";
+            auto text = "Applying "+Meta::toStr((percent * 100))+"%...";
             if(!Work::visible()) {
                 if(percent >= 1) {
                     GUI::set_status("");
@@ -1611,11 +1612,11 @@ void Work::loop() {
                             it->is_cached = find_keyed_tuple(_frame_cache, it->frame) != _frame_cache.end();
                             if(it->is_cached) {
                                 task = std::move(*it);
-                                task_queue().erase(it);
+                                it = task_queue().erase(it);
                                 ++hits;
                                 
-                                for(auto &t : task_queue())
-                                    t.is_cached = true;
+                                //for(auto kit = task_queue().begin(); kit != it; ++kit)
+                                //    kit->is_cached = false;
                                 break;
                                 
                             } else {
@@ -1825,6 +1826,19 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
             
             _ranged_labels.emplace_back(std::move(ranged));
         }
+
+        std::sort(_ranged_labels.begin(), _ranged_labels.end());
+
+        if (!_ranged_labels.empty()) {
+            auto m = _ranged_labels.back()._range.start();
+            for (auto it = _ranged_labels.rbegin(); it != _ranged_labels.rend(); ++it) {
+                if (it->_range.start() < m) {
+                    m = it->_range.start();
+                }
+
+                it->_maximum_frame_after = m;
+            }
+        }
     }
 }
 
@@ -1833,6 +1847,7 @@ void DataStore::clear() {
         std::unique_lock guard(_cache_mutex);
         Debug("[Categorize] Clearing frame cache (%lu).", _frame_cache.size());
         _frame_cache.clear();
+        _current_cached_frames.clear();
     }
     
     {
@@ -1860,44 +1875,90 @@ void DataStore::clear() {
 std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_ptr<Individual::SegmentInformation>& segment, size_t& _delete) {
     if(Work::terminate || !GUI::instance())
         return nullptr;
-    
-    auto ptr = std::make_shared<PPFrame>();
-    
-    std::unordered_set<Individual*> active;
+
+
+    std::shared_ptr<PPFrame> ptr;
+    static std::unordered_map<Frame_t, std::tuple<size_t, size_t>> _ever_created;
+    static std::vector<Frame_t> _currently_processed;
+    static std::mutex _mutex;
+    static std::condition_variable _variable;
+
+    bool found = false;
     {
-        Tracker::LockGuard guard("Categorize::sample");
-        active = frame == Tracker::start_frame()
-                    ? decltype(active)()
-                    : Tracker::active_individuals(frame-1);
-    }
-     
-    {
-        auto &video_file = *GUI::instance()->video_source();
-        video_file.read_frame(ptr->frame(), sign_cast<uint64_t>(frame));
-        
-        Tracker::instance()->preprocess_frame(*ptr, active, NULL);
-        
-        for(auto &b : ptr->blobs)
-            b->calculate_moments();
-        
-        ptr->bdx_to_ptr.clear();
-        for (auto b : ptr->blobs) {
-            ptr->bdx_to_ptr[b->blob_id()] = b;
-            assert(b->moments().ready);
+        std::lock_guard g(Work::_mutex);
+        std::unique_lock guard(_cache_mutex);
+
+        auto it = find_keyed_tuple(_frame_cache, frame);
+        if (it != _frame_cache.end()) {
+            return std::get<1>(*it);
+        }
+
+        std::lock_guard guard2(_mutex);
+        found = contains(_currently_processed, frame);
+
+        if (!found) {
+            if (_ever_created.count(frame)) {
+                Warning("Frame %d is created %lu times", frame, std::get<0>(_ever_created[frame]));
+                ++std::get<0>(_ever_created[frame]);
+            }
+            else
+                _ever_created[frame] = { 1, 0 };
+            
+            _currently_processed.push_back(frame);
         }
     }
     
+    if (!found) {
+        ptr = std::make_shared<PPFrame>();
+
+        std::unordered_set<Individual*> active;
+        {
+            Tracker::LockGuard guard("Categorize::sample");
+            active = frame == Tracker::start_frame()
+                ? decltype(active)()
+                : Tracker::active_individuals(frame - 1);
+        }
+
+        {
+            auto& video_file = *GUI::instance()->video_source();
+            video_file.read_frame(ptr->frame(), sign_cast<uint64_t>(frame));
+
+            Tracker::instance()->preprocess_frame(*ptr, active, NULL);
+
+            for (auto& b : ptr->blobs)
+                b->calculate_moments();
+
+            ptr->bdx_to_ptr.clear();
+            for (auto b : ptr->blobs) {
+                ptr->bdx_to_ptr[b->blob_id()] = b;
+                assert(b->moments().ready);
+            }
+        }
+
 #ifndef NDEBUG
-    log_event("Created", frame, fish->identity());
+        log_event("Created", frame, fish->identity());
 #endif
+    }
+    else {
+        std::unique_lock guard(_mutex);
+        while(contains(_currently_processed, frame))
+            _variable.wait_for(guard, std::chrono::seconds(1));
+        //Debug("Waited for %d", frame);
+    }
     
     std::lock_guard g(Work::_mutex);
     std::unique_lock guard(_cache_mutex);
     
     auto it = find_keyed_tuple(_frame_cache, frame);
     if(it == _frame_cache.end()) {
+        assert(!found);
+
+        auto fit = _current_cached_frames.find(frame);
+        if(fit != _current_cached_frames.end())
+            Warning("Cannot find frame %d in _frame_cache, but can find it in _current_cached_frames!", frame);
+
         if(!_frame_cache.empty()) {
-            for (auto it = _frame_cache.begin(); it != _frame_cache.end() && _frame_cache.size() > 1000u;)
+            /*for (auto it = _frame_cache.begin(); it != _frame_cache.end() && _frame_cache.size() > 1000u;)
             {
                 auto &[f, pp] = *it;
                 
@@ -1915,6 +1976,12 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
 #ifndef NDEBUG
                     log_event("Deleted", it->first, fish->identity());
 #endif
+                    auto kit = _current_cached_frames.find(f);
+                    if (kit == _current_cached_frames.end())
+                        Warning("Cannot find %d in _current_cached_frames, but trying to delete from _frame_cache!");
+                    else
+                        _current_cached_frames.erase(kit);
+
                     it = _frame_cache.erase(it);
                     continue;
                 }
@@ -1922,13 +1989,41 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
                 // jump here to just continue the loop (+1)
               just_continue:
                 ++it;
-            }
+            }*/
         }
         
         insert_sorted(_frame_cache, std::make_tuple(frame, ptr));
+        _current_cached_frames.insert(frame);
+
+        std::unique_lock guard(_mutex);
+        ++std::get<1>(_ever_created[frame]);
+
+        auto kit = std::find(_currently_processed.begin(), _currently_processed.end(), frame);
+        if (kit != _currently_processed.end()) {
+            _currently_processed.erase(kit);
+            //Debug("Processed %d", frame);
+        }
+        else
+            Warning("Cannot find currently processed %d!", frame);
+
+        _variable.notify_all();
         
     } else {
+        auto fit = _current_cached_frames.find(frame);
+        if (fit == _current_cached_frames.end())
+            Warning("Cannot find frame %d in _current_cached_frames, but can find it in _frame_cache!", frame);
+
         ptr = std::get<1>(*it);
+    }
+
+    {
+        std::lock_guard guard(_mutex);
+        static Timer timer;
+        if (timer.elapsed() > 5) {
+            //auto str = Meta::toStr(_ever_created);
+            //Debug("Created frames: %S", &str);
+            timer.reset();
+        }
     }
     
     return ptr;
@@ -1993,6 +2088,15 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
                 ptr = std::get<1>(*it);
                 ++found_frames;
                 ++found_frame_immediately;
+
+                auto fit = _current_cached_frames.find(Frame_t(f));
+                if (fit == _current_cached_frames.end())
+                    Warning("Cannot find frame %d in _current_cached_frames, but can find it in _frame_cache!", f);
+            }
+            else {
+                auto fit = _current_cached_frames.find(Frame_t(f));
+                if (fit != _current_cached_frames.end())
+                    Warning("Cannot find frame %d in _frame_cache, but can find it in _current_cached_frames!", f);
             }
         }
         
@@ -2009,7 +2113,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     // iterate through indexes in stuff_indexes, which we found in the last steps. now replace
     // relevant frames with the %5 step normalized ones + retrieve ptrs:
     size_t replaced = 0;
-    auto jit = stuff_indexes.begin();
+    /*auto jit = stuff_indexes.begin();
     for(size_t i=0; i+start_offset<segment->basic_index.size() && jit != stuff_indexes.end() && found_frames < stuff_indexes.size(); ++i) {
         if(i % step) {
             auto index = segment->basic_index.at(i+start_offset);
@@ -2032,7 +2136,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
             
         } else
             ++jit;
-    }
+    }*/
 
     // actually generate frame data + load pixels from PV file, if the cache for a certain frame has not yet been generated.
     size_t non = 0, cont = 0;

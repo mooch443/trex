@@ -2733,19 +2733,21 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
         
         std::map<Idx_t, std::tuple<long_t, float>> samples;
         size_t overall = 0;
-        
-        for(long_t i = segment.start; i < segment.end; ++i) {
-            auto blob = this->blob(i);
-            if(!blob)
-                continue;
-            
-            auto raw = Tracker::recognition()->ps_raw(i, blob->blob_id());
-            if(!raw.empty()) {
-                ++overall;
-                
-                for (auto && [fdx, p] : raw) {
-                    ++std::get<0>(samples[Idx_t(fdx)]);
-                    std::get<1>(samples[Idx_t(fdx)]) += p;
+
+        if (!Tracker::recognition()->data().empty()) {
+            for (long_t i = segment.start; i < segment.end; ++i) {
+                auto blob = this->blob(i);
+                if (!blob)
+                    continue;
+
+                auto raw = Tracker::recognition()->ps_raw(i, blob->blob_id());
+                if (!raw.empty()) {
+                    ++overall;
+
+                    for (auto&& [fdx, p] : raw) {
+                        ++std::get<0>(samples[Idx_t(fdx)]);
+                        std::get<1>(samples[Idx_t(fdx)]) += p;
+                    }
                 }
             }
         }
