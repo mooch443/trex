@@ -25,7 +25,31 @@ std::unordered_map<Label::Ptr, std::vector<Sample::Ptr>> _labels;
 std::random_device rd;
 
 std::shared_mutex _cache_mutex;
-std::unordered_map<Frame_t, std::shared_ptr<PPFrame>> _frame_cache;
+std::vector<std::tuple<Frame_t, std::shared_ptr<PPFrame>>> _frame_cache;
+
+template<class T, class U>
+typename std::vector<T>::const_iterator find_in_sorted(const std::vector<T>& vector, const U& v) {
+    auto it = std::lower_bound(vector.begin(),
+                               vector.end(),
+                               v,
+                    [](auto& l, auto& r){ return l < r; });
+    return it == vector.end() || *it == v ? it : vector.end();
+}
+
+template<class T, class U>
+typename std::vector<T>::const_iterator find_keyed_tuple(const std::vector<T>& vector, const U& v) {
+    auto it = std::lower_bound(vector.begin(),
+                               vector.end(),
+                               v,
+                    [](const T& l, const U& r){ return std::get<0>(l) < r; });
+    return it == vector.end() || std::get<0>(*it) == v ? it : vector.end();
+}
+
+template<class T>
+void insert_sorted(std::vector<T>& vector, T&& element) {
+    vector.insert(std::upper_bound(vector.begin(), vector.end(), element), std::move(element));
+}
+
 
 namespace Work {
     std::atomic_bool terminate = false, _learning = false;
@@ -276,8 +300,7 @@ void DataStore::set_ranged_label(RangedLabel&& ranged)
 void DataStore::_set_ranged_label_unsafe(RangedLabel&& ranged)
 {
     assert(ranged._range.length() == ranged._blobs.size());
-    _ranged_labels.insert(std::upper_bound(_ranged_labels.begin(), _ranged_labels.end(), ranged), std::move(ranged));
-    //std::sort(_ranged_labels.begin(), _ranged_labels.end());
+    insert_sorted(_ranged_labels, std::move(ranged));
     
     auto m = _ranged_labels.back()._range.start();
     for(auto it = _ranged_labels.rbegin(); it != _ranged_labels.rend(); ++it) {
@@ -956,12 +979,17 @@ struct NetworkApplicationState {
     }
     
     __attribute__((noinline)) void receive_samples(const LearningTask& task) {
+        static Timing timing("receive_samples", 0.1);
+        TakeTiming take(timing);
         
         {
             std::vector<int64_t> blobs;
             blobs.resize(task.result.size());
             
             {
+                static Timing timing("callback.find_blobs", 0.1);
+                TakeTiming take(timing);
+                
                 Tracker::LockGuard guard("task.callback");
                 for(size_t i=0; i<task.result.size(); ++i) {
                     auto frame = task.sample->_frames.at(i);
@@ -976,7 +1004,8 @@ struct NetworkApplicationState {
             }
             
             {
-                
+                static Timing timing("callback.set_label_unsafe", 0.1);
+                TakeTiming take(timing);
                 
                 std::unique_lock guard(DataStore::cache_mutex());
                 for(size_t i=0; i<task.result.size(); ++i) {
@@ -994,6 +1023,9 @@ struct NetworkApplicationState {
             }
         
             if(task.segment) {
+                static Timing timing("callback.set_ranged_label", 0.1);
+                TakeTiming take(timing);
+                
                 RangedLabel ranged;
                 ranged._label = DataStore::label_averaged(fish->identity().ID(), Frame_t(task.segment->start()));
                 assert(ranged._label);
@@ -1013,6 +1045,9 @@ struct NetworkApplicationState {
             }
             
             {
+                static Timing timing("callback.peek", 0.1);
+                TakeTiming take(timing);
+                
                 auto f = peek();
                 
                 std::lock_guard guard(Work::_mutex);
@@ -1557,13 +1592,17 @@ void Work::loop() {
                         }
                     }
                     
-                    std::sort(Work::task_queue().begin(), Work::task_queue().end(), std::less<Task>());
+                    {
+                        static Timing timing("SortTaskQueue", 0.1);
+                        TakeTiming take(timing);
+                        std::sort(Work::task_queue().begin(), Work::task_queue().end(), std::less<Task>());
+                    }
                     
                     // sort tasks according to currently cached frames, as well as frame order
                     {
                         std::shared_lock g(_cache_mutex);
                         for(auto it = --task_queue().end(); ; ) {
-                            it->is_cached = _frame_cache.count(it->frame);
+                            it->is_cached = find_keyed_tuple(_frame_cache, it->frame) != _frame_cache.end();
                             if(it->is_cached) {
                                 task = std::move(*it);
                                 task_queue().erase(it);
@@ -1858,9 +1897,9 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         
         {
             std::shared_lock guard(_cache_mutex);
-            auto it = _frame_cache.find(Frame_t(f));
+            auto it = find_keyed_tuple(_frame_cache, Frame_t(f));
             if(it != _frame_cache.end()) {
-                ptr = it->second;
+                ptr = std::get<1>(*it);
                 ++found_frames;
                 ++found_frame_immediately;
             }
@@ -1878,9 +1917,9 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
             
             {
                 std::shared_lock guard(_cache_mutex);
-                auto it = _frame_cache.find(f);
+                auto it = find_keyed_tuple(_frame_cache, f);
                 if(it != _frame_cache.end()) {
-                    jit->ptr = it->second;
+                    jit->ptr = std::get<1>(*it);
                     jit->frame = f;
                     jit->index = index;
                     ++jit;
@@ -1966,39 +2005,49 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
             
             std::lock_guard g(Work::_mutex);
             std::unique_lock guard(_cache_mutex);
-            //if(!_frame_cache.count(frame))
-            if(true)
-            {
-                //_frame_cache.clear();
-                
-                for (auto it = _frame_cache.begin(); it != _frame_cache.end() && _frame_cache.size() > 1000u;) {
-                    //if(it->first._frame < basic->frame - 50 || it->first._frame > basic->frame + 50)
-                    bool found = false;
-                    for(auto &t : Work::task_queue()) {
-                        if(t.range.contains(it->first)) {
-                            found = true;
-                            break;
+            
+            auto it = find_keyed_tuple(_frame_cache, frame);
+            if(it == _frame_cache.end()) {
+                if(!_frame_cache.empty()) {
+                    for (auto it = _frame_cache.begin(); it != _frame_cache.end() && _frame_cache.size() > 1000u;)
+                    {
+                        auto &[f, pp] = *it;
+                        bool found = false;
+                        for(auto &t : Work::task_queue()) {
+                            if(t.range.contains(f)) {
+                                found = true;
+                                break;
+                            }
                         }
-                    }
-                    
-                    if(!found) {
-                        it = _frame_cache.erase(it);
-#ifndef NDEBUG
-                        ++_delete;
-                        log_event("Deleted", it->first, fish->identity());
-#endif
-                    } else {
-#ifndef NDEBUG
-                        log_event("Not deleted", it->first, fish->identity());
-#endif
-                        ++it;
+                        
+                        if(!found && (f <= segment->start() - 250 || f >= segment->end() + 250)) {
+                            Debug("Deleted cached frame %d (for %d/%d).", f, frame, segment->start());
+    #ifndef NDEBUG
+                            ++_delete;
+                            log_event("Deleted", it->first, fish->identity());
+    #endif
+                            it = _frame_cache.erase(it);
+                        } else
+                            ++it;
+                        
+                        //if(it->first._frame < basic->frame - 50 || it->first._frame > basic->frame + 50)
+                        /*
+                        
+                        if(!found) {*/
+                            
+                        /*} else {
+    #ifndef NDEBUG
+                            log_event("Not deleted", it->first, fish->identity());
+    #endif
+                            ++it;
+                        }*/
                     }
                 }
                 
-                _frame_cache[frame] = ptr;
+                insert_sorted(_frame_cache, std::make_tuple(frame, ptr));
                 
             } else {
-                ptr = _frame_cache[frame];
+                ptr = std::get<1>(*it);
             }
             
         } else {

@@ -157,7 +157,7 @@ struct DataStore {
     static void set_ranged_label(RangedLabel&&);
     static Label::Ptr ranged_label(Frame_t, uint32_t);
     static Label::Ptr ranged_label(Frame_t, const pv::CompressedBlob&);
-    static Label::Ptr _ranged_label_unsafe(Frame_t, uint32_t);
+    __attribute__((noinline)) static Label::Ptr _ranged_label_unsafe(Frame_t, uint32_t);
     static Label::Ptr label_interpolated(Idx_t, Frame_t);
     static Label::Ptr label_interpolated(const Individual*, Frame_t);
     static Label::Ptr label_averaged(Idx_t, Frame_t);
