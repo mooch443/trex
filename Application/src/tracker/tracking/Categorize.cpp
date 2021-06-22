@@ -137,7 +137,7 @@ struct Task {
     Frame_t frame;
     Rangel range;
     std::function<void()> func;
-    bool is_cached = true;
+    bool is_cached = false;
     
     bool operator<(const Task& other) const {
         
@@ -1145,8 +1145,8 @@ struct NetworkApplicationState {
 //#ifndef NDEBUG
                 if(!task.sample)
                     Debug("Skipping (failed) Fish%d: (%d-%d, len=%d)", fish->identity().ID(), segment->start(), segment->end(), segment->length());
-                else
-                    Debug("No-Skipping Fish%d: (%d-%d, len=%d)", fish->identity().ID(), segment->start(), segment->end(), segment->length());
+                //else
+                //    Debug("No-Skipping Fish%d: (%d-%d, len=%d)", fish->identity().ID(), segment->start(), segment->end(), segment->length());
 //#endif
             }
 //#ifndef NDEBUG
