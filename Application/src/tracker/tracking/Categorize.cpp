@@ -1561,6 +1561,8 @@ void Work::start_learning() {
             }
         }
         
+        guard.unlock();
+        
         Debug("## Ending python blockade.");
         Debug("Clearing DataStore.");
         DataStore::clear();
@@ -1851,6 +1853,90 @@ void DataStore::clear() {
     }
 }
 
+std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_ptr<Individual::SegmentInformation>& segment) {
+#ifndef NDEBUG
+    ++_create;
+    if(_create % 50 == 0) {
+        Debug("Create: %lu Reuse: %lu Delete: %lu", _create, _reuse, _delete);
+    }
+#endif
+    
+    if(Work::terminate || !GUI::instance())
+        return nullptr;
+    
+    auto ptr = std::make_shared<PPFrame>();
+    
+    std::unordered_set<Individual*> active;
+    {
+        Tracker::LockGuard guard("Categorize::sample");
+        active = frame == Tracker::start_frame()
+                    ? decltype(active)()
+                    : Tracker::active_individuals(frame-1);
+    }
+     
+    {
+        auto &video_file = *GUI::instance()->video_source();
+        video_file.read_frame(ptr->frame(), sign_cast<uint64_t>(frame));
+        
+        Tracker::instance()->preprocess_frame(*ptr, active, NULL);
+        
+        for(auto &b : ptr->blobs)
+            b->calculate_moments();
+        
+        ptr->bdx_to_ptr.clear();
+        for (auto b : ptr->blobs) {
+            ptr->bdx_to_ptr[b->blob_id()] = b;
+            assert(b->moments().ready);
+        }
+    }
+    
+#ifndef NDEBUG
+    log_event("Created", frame, fish->identity());
+#endif
+    
+    std::lock_guard g(Work::_mutex);
+    std::unique_lock guard(_cache_mutex);
+    
+    auto it = find_keyed_tuple(_frame_cache, frame);
+    if(it == _frame_cache.end()) {
+        if(!_frame_cache.empty()) {
+            for (auto it = _frame_cache.begin(); it != _frame_cache.end() && _frame_cache.size() > 1000u;)
+            {
+                auto &[f, pp] = *it;
+                
+                // see whether this cached frame is needed elsewhere in the task queue
+                for(auto &t : Work::task_queue()) {
+                    if(t.range.contains(f)) {
+                        goto just_continue;
+                    }
+                }
+                
+                // check whether it is far away from the current frame. if so, we can delete it:
+                if(f <= segment->start() - 250 || f >= segment->end() + 250) {
+                    Debug("Deleted cached frame %d (for %d/%d).", f, frame, segment->start());
+#ifndef NDEBUG
+                    ++_delete;
+                    log_event("Deleted", it->first, fish->identity());
+#endif
+                    it = _frame_cache.erase(it);
+                    continue;
+                }
+                
+                // jump here to just continue the loop (+1)
+              just_continue:
+                ++it;
+            }
+        }
+        
+        insert_sorted(_frame_cache, std::make_tuple(frame, ptr));
+        
+    } else {
+        ptr = std::get<1>(*it);
+    }
+    
+    return ptr;
+}
+
 Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInformation>& segment,
                                  Individual* fish,
                                  const size_t sample_rate,
@@ -1858,6 +1944,8 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
                                  bool exclude_labelled)
 {
     {
+        // try to find the sought after segment in the already cached ones
+        // TODO: This disregards changing sample rate and min_samples
         std::lock_guard guard(mutex());
         auto fit = _used_indexes.find(segment.get());
         if(fit != _used_indexes.end()) {
@@ -1870,6 +1958,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         Frame_t frame;
         std::shared_ptr<PPFrame> ptr;
     };
+    
     std::vector<IndexedFrame> stuff_indexes;
     
     std::vector<Image::Ptr> images;
@@ -1885,12 +1974,16 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     std::shared_ptr<PPFrame> ptr;
     size_t found_frame_immediately = 0, found_frames = 0;
     
+    // add an offset to the frame we start with, so that initial frame is dividable by 5
+    // this helps to find more matches when randomly sampling around:
     long_t start_offset = 0;
     if(segment->basic_index.size() >= 15u) {
         start_offset = fish->basic_stuff().at(segment->basic_index.front())->frame;
         start_offset = 5 - start_offset % 5;
     }
     
+    // see how many of the indexes we can already find in _frame_cache, and insert
+    // indexes with added ptr of the cached item, if possible
     for (size_t i=0; i+start_offset<segment->basic_index.size(); i += step) {
         auto index = segment->basic_index.at(i + start_offset);
         auto f = Frame_t(fish->basic_stuff().at(index)->frame);
@@ -1908,6 +2001,15 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         stuff_indexes.push_back(IndexedFrame{index, f, ptr});
     }
     
+    if(stuff_indexes.size() < min_samples) {
+#ifndef NDEBUG
+        Warning("#1 Below min_samples (%lu) Fish%d frames %d-%d", min_samples, fish->identity().ID(), segment->start(), segment->end());
+#endif
+        return Sample::Invalid();
+    }
+    
+    // iterate through indexes in stuff_indexes, which we found in the last steps. now replace
+    // relevant frames with the %5 step normalized ones + retrieve ptrs:
     size_t replaced = 0;
     auto jit = stuff_indexes.begin();
     for(size_t i=0; i+start_offset<segment->basic_index.size() && jit != stuff_indexes.end() && found_frames < stuff_indexes.size(); ++i) {
@@ -1933,14 +2035,8 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         } else
             ++jit;
     }
-    
-    if(stuff_indexes.size() < min_samples) {
-#ifndef NDEBUG
-        Warning("#1 Below min_samples (%lu) Fish%d frames %d-%d", min_samples, fish->identity().ID(), segment->start(), segment->end());
-#endif
-        return Sample::Invalid();
-    }
 
+    // actually generate frame data + load pixels from PV file, if the cache for a certain frame has not yet been generated.
     size_t non = 0, cont = 0;
     
     for(auto &[index, frame, ptr] : stuff_indexes) {
@@ -1960,101 +2056,19 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
             midline = posture ? fish->calculate_midline_for(basic, posture) : nullptr;
         }
 
-        if(!Work::initialized())
-            ptr = nullptr;
-        
-        if(!ptr) {
-            ptr = std::make_shared<PPFrame>();
-#ifndef NDEBUG
-            ++_create;
-            if(_create % 50 == 0) {
-                Debug("Create: %lu Reuse: %lu Delete: %lu", _create, _reuse, _delete);
-            }
-#endif
-            
-            if(Work::terminate || !GUI::instance())
-                return nullptr;
-            
-            std::unordered_set<Individual*> active;
-            {
-                Tracker::LockGuard guard("Categorize::sample");
-                active = frame == Tracker::start_frame()
-                            ? decltype(active)()
-                            : Tracker::active_individuals(frame-1);
-            }
-             
-            {
-                auto &video_file = *GUI::instance()->video_source();
-                video_file.read_frame(ptr->frame(), sign_cast<uint64_t>(frame));
-                
-                Tracker::instance()->preprocess_frame(*ptr, active, NULL);
-                
-                for(auto &b : ptr->blobs)
-                    b->calculate_moments();
-                
-                ptr->bdx_to_ptr.clear();
-                for (auto b : ptr->blobs) {
-                    ptr->bdx_to_ptr[b->blob_id()] = b;
-                    assert(b->moments().ready);
-                }
-            }
-            
-#ifndef NDEBUG
-            log_event("Created", frame, fish->identity());
-#endif
-            
-            std::lock_guard g(Work::_mutex);
-            std::unique_lock guard(_cache_mutex);
-            
-            auto it = find_keyed_tuple(_frame_cache, frame);
-            if(it == _frame_cache.end()) {
-                if(!_frame_cache.empty()) {
-                    for (auto it = _frame_cache.begin(); it != _frame_cache.end() && _frame_cache.size() > 1000u;)
-                    {
-                        auto &[f, pp] = *it;
-                        bool found = false;
-                        for(auto &t : Work::task_queue()) {
-                            if(t.range.contains(f)) {
-                                found = true;
-                                break;
-                            }
-                        }
-                        
-                        if(!found && (f <= segment->start() - 250 || f >= segment->end() + 250)) {
-                            Debug("Deleted cached frame %d (for %d/%d).", f, frame, segment->start());
-    #ifndef NDEBUG
-                            ++_delete;
-                            log_event("Deleted", it->first, fish->identity());
-    #endif
-                            it = _frame_cache.erase(it);
-                        } else
-                            ++it;
-                        
-                        //if(it->first._frame < basic->frame - 50 || it->first._frame > basic->frame + 50)
-                        /*
-                        
-                        if(!found) {*/
-                            
-                        /*} else {
-    #ifndef NDEBUG
-                            log_event("Not deleted", it->first, fish->identity());
-    #endif
-                            ++it;
-                        }*/
-                    }
-                }
-                
-                insert_sorted(_frame_cache, std::make_tuple(frame, ptr));
-                
-            } else {
-                ptr = std::get<1>(*it);
-            }
+        if(!ptr || !Work::initialized()) {
+            ptr = cache_pp_frame(frame, segment);
             
         } else {
 #ifndef NDEBUG
             ++_reuse;
             log_event("Used", frame, fish->identity());
 #endif
+        }
+        
+        if(!ptr) {
+            Except("Failed to generate frame %d.", frame);
+            return Sample::Invalid();
         }
         
         if(basic->frame != frame) {
