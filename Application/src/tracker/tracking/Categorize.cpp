@@ -26,7 +26,9 @@ std::random_device rd;
 
 std::shared_mutex _cache_mutex;
 std::vector<std::tuple<Frame_t, std::shared_ptr<PPFrame>>> _frame_cache;
+#ifndef NDEBUG
 std::unordered_set<Frame_t> _current_cached_frames;
+#endif
 
 template<class T, class U>
 typename std::vector<T>::const_iterator find_in_sorted(const std::vector<T>& vector, const U& v) {
@@ -1847,7 +1849,9 @@ void DataStore::clear() {
         std::unique_lock guard(_cache_mutex);
         Debug("[Categorize] Clearing frame cache (%lu).", _frame_cache.size());
         _frame_cache.clear();
+#ifndef NDEBUG
         _current_cached_frames.clear();
+#endif
     }
     
     {
@@ -1878,7 +1882,9 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
 
 
     std::shared_ptr<PPFrame> ptr;
+#ifndef NDEBUG
     static std::unordered_map<Frame_t, std::tuple<size_t, size_t>> _ever_created;
+#endif
     static std::vector<Frame_t> _currently_processed;
     static std::mutex _mutex;
     static std::condition_variable _variable;
@@ -1897,12 +1903,14 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
         found = contains(_currently_processed, frame);
 
         if (!found) {
+#ifndef NDEBUG
             if (_ever_created.count(frame)) {
-                Warning("Frame %d is created %lu times", frame, std::get<0>(_ever_created[frame]));
                 ++std::get<0>(_ever_created[frame]);
+                Warning("Frame %d is created %lu times", frame, std::get<0>(_ever_created[frame]));
             }
             else
                 _ever_created[frame] = { 1, 0 };
+#endif
             
             _currently_processed.push_back(frame);
         }
@@ -1952,13 +1960,14 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
     auto it = find_keyed_tuple(_frame_cache, frame);
     if(it == _frame_cache.end()) {
         assert(!found);
-
+#ifndef NDEBUG
         auto fit = _current_cached_frames.find(frame);
         if(fit != _current_cached_frames.end())
             Warning("Cannot find frame %d in _frame_cache, but can find it in _current_cached_frames!", frame);
+#endif
 
         if(!_frame_cache.empty()) {
-            /*for (auto it = _frame_cache.begin(); it != _frame_cache.end() && _frame_cache.size() > 1000u;)
+            for (auto it = _frame_cache.begin(); it != _frame_cache.end() && _frame_cache.size() > 1000u;)
             {
                 auto &[f, pp] = *it;
                 
@@ -1976,11 +1985,13 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
 #ifndef NDEBUG
                     log_event("Deleted", it->first, fish->identity());
 #endif
+#ifndef NDEBUG
                     auto kit = _current_cached_frames.find(f);
                     if (kit == _current_cached_frames.end())
                         Warning("Cannot find %d in _current_cached_frames, but trying to delete from _frame_cache!");
                     else
                         _current_cached_frames.erase(kit);
+#endif
 
                     it = _frame_cache.erase(it);
                     continue;
@@ -1989,14 +2000,18 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
                 // jump here to just continue the loop (+1)
               just_continue:
                 ++it;
-            }*/
+            }
         }
         
         insert_sorted(_frame_cache, std::make_tuple(frame, ptr));
+#ifndef NDEBUG
         _current_cached_frames.insert(frame);
+#endif
 
         std::unique_lock guard(_mutex);
+#ifndef NDEBUG
         ++std::get<1>(_ever_created[frame]);
+#endif
 
         auto kit = std::find(_currently_processed.begin(), _currently_processed.end(), frame);
         if (kit != _currently_processed.end()) {
@@ -2009,10 +2024,11 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
         _variable.notify_all();
         
     } else {
+#ifndef NDEBUG
         auto fit = _current_cached_frames.find(frame);
         if (fit == _current_cached_frames.end())
             Warning("Cannot find frame %d in _current_cached_frames, but can find it in _frame_cache!", frame);
-
+#endif
         ptr = std::get<1>(*it);
     }
 
@@ -2089,15 +2105,19 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
                 ++found_frames;
                 ++found_frame_immediately;
 
+#ifndef NDEBUG
                 auto fit = _current_cached_frames.find(Frame_t(f));
                 if (fit == _current_cached_frames.end())
                     Warning("Cannot find frame %d in _current_cached_frames, but can find it in _frame_cache!", f);
+#endif
             }
+#ifndef NDEBUG
             else {
                 auto fit = _current_cached_frames.find(Frame_t(f));
                 if (fit != _current_cached_frames.end())
                     Warning("Cannot find frame %d in _frame_cache, but can find it in _current_cached_frames!", f);
             }
+#endif
         }
         
         stuff_indexes.push_back(IndexedFrame{index, f, ptr});
