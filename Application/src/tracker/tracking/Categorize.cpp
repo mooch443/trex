@@ -160,9 +160,11 @@ struct Task {
 
 Sample::Sample(std::vector<long_t>&& frames,
                const std::vector<Image::Ptr>& images,
+               const std::vector<uint32_t>& blob_ids,
                std::vector<Vec2>&& positions)
     :   _frames(std::move(frames)),
         _images(images),
+        _blob_ids(std::move(blob_ids)),
         _positions(std::move(positions))
 {
     assert(!_images.empty());
@@ -302,6 +304,9 @@ void DataStore::set_ranged_label(RangedLabel&& ranged)
 
 void DataStore::_set_ranged_label_unsafe(RangedLabel&& ranged)
 {
+    if(!ranged._label) {
+        Error("Ranged._label == nullptr");
+    }
     assert(ranged._range.length() == ranged._blobs.size());
     insert_sorted(_ranged_labels, std::move(ranged));
     
@@ -958,6 +963,8 @@ struct NetworkApplicationState {
     //! set to true after first next()
     bool initialized = false;
     
+    Individual::segment_map segments;
+    
     //! basically the iterator, but not using pointers here,
     /// in case i want to change the iterator type later.
     std::atomic<Individual::segment_map::difference_type> offset = 0;
@@ -966,18 +973,17 @@ struct NetworkApplicationState {
         static Timing timing("NetworkApplicationState::peek", 0.1);
         TakeTiming take(timing);
         
-        Tracker::LockGuard guard("next()");
-        if (size_t(offset) == fish->frame_segments().size()) {
+        if (size_t(offset) == segments.size()) {
             Debug("Finished %d", fish->identity().ID());
             return Rangel(-1,-1); // no more segments
         }
-        else if (size_t(offset) > fish->frame_segments().size()) {
+        else if (size_t(offset) > segments.size()) {
             return Rangel(-1,-1); // probably something changed and we are now behind
         }
 
-        auto it = fish->frame_segments().begin();
+        auto it = segments.begin();
         std::advance(it, offset.load());
-        if(it != fish->frame_segments().end()) {
+        if(it != segments.end()) {
             return (*it)->range;
         }
         
@@ -990,17 +996,14 @@ struct NetworkApplicationState {
         Rangel f;
         
         {
-            std::vector<int64_t> blobs;
-            blobs.resize(task.result.size());
-            
             {
                 static Timing timing("callback.find_blobs", 0.1);
                 TakeTiming take(timing);
                 
-                Tracker::LockGuard guard("task.callback");
+               // Tracker::LockGuard guard("task.callback");
                 f = peek();
                 
-                for(size_t i=0; i<task.result.size(); ++i) {
+                /*for(size_t i=0; i<task.result.size(); ++i) {
                     auto frame = task.sample->_frames.at(i);
                     auto blob = fish->compressed_blob(frame);
                     if (!blob) {
@@ -1009,49 +1012,67 @@ struct NetworkApplicationState {
                         continue;
                     }
                     blobs[i] = blob->blob_id();
-                }
+                }*/
             }
             
-            {
+            if(!task.result.empty()) {
                 static Timing timing("callback.set_label_unsafe", 0.1);
                 TakeTiming take(timing);
                 
-                std::unique_lock guard(DataStore::cache_mutex());
-                for(size_t i=0; i<task.result.size(); ++i) {
-                    auto bdx = blobs[i];
-                    if(bdx == -1)
-                        continue;
+                std::vector<float> sums(FAST_SETTINGS(categories_ordered).size());
+                
+                {
+                    std::unique_lock guard(DataStore::cache_mutex());
+                    for(size_t i=0; i<task.result.size(); ++i) {
+                        auto frame = task.sample->_frames[i];
+                        auto bdx = task.sample->_blob_ids[i];
+                        DataStore::_set_label_unsafe(Frame_t(frame), (uint32_t)bdx, DataStore::label(task.result[i]));
+                        sums.at(task.result[i]) += 1;
+    //                    Debug("Fish%d: Labelled %d", fish->identity().ID(), frame);
+    #ifndef NDEBUG
+                        log_event("Labelled", Frame_t(frame), fish->identity());
+    #endif
+                    }
+                }
+                
+                if(task.segment) {
+                    size_t biggest_i = 0;
+                    float biggest = 0;
+                    for(size_t i=0; i<sums.size(); ++i) {
+                        sums[i] /= float(task.result.size());
+                        
+                        if(sums[i] > biggest) {
+                            biggest_i = i;
+                            biggest = sums[i];
+                        }
+                    }
                     
-                    auto frame = task.sample->_frames[i];
-                    DataStore::_set_label_unsafe(Frame_t(frame), (uint32_t)bdx, DataStore::label(task.result[i]));
-//                    Debug("Fish%d: Labelled %d", fish->identity().ID(), frame);
-#ifndef NDEBUG
-                    log_event("Labelled", Frame_t(frame), fish->identity());
-#endif
+                    RangedLabel ranged;
+                    ranged._label = DataStore::label(biggest_i); //DataStore::label_averaged(fish->identity().ID(), Frame_t(task.segment->start()));
+                    assert(ranged._label);
+                    ranged._range = *task.segment;
+                    ranged._blobs.reserve(task.segment->length());
+                    
+                    //Tracker::LockGuard guard("task.callback.set_ranged_label");
+                    for(auto f = task.segment->start(); f <= task.segment->end(); ++f) {
+                        assert(task.segment->contains(f));
+                        {
+                            auto &basic = fish->basic_stuff().at(task.segment->basic_stuff(f));
+                            ranged._blobs.push_back(basic->blob.blob_id());
+                        } //else
+                           // Warning("Segment does not contain %d", f);
+                    }
+                    
+                    DataStore::set_ranged_label(std::move(ranged));
                 }
             }
         
-            if(task.segment) {
+            /*if(task.segment) {
                 static Timing timing("callback.set_ranged_label", 0.1);
                 TakeTiming take(timing);
                 
-                RangedLabel ranged;
-                ranged._label = DataStore::label_averaged(fish->identity().ID(), Frame_t(task.segment->start()));
-                assert(ranged._label);
-                ranged._range = *task.segment;
-                ranged._blobs.reserve(task.segment->length());
                 
-                for(auto f = task.segment->start(); f <= task.segment->end(); ++f) {
-                    assert(task.segment->contains(f));
-                    {
-                        auto &basic = fish->basic_stuff().at(task.segment->basic_stuff(f));
-                        ranged._blobs.push_back(basic->blob.blob_id());
-                    } //else
-                       // Warning("Segment does not contain %d", f);
-                }
-                
-                DataStore::set_ranged_label(std::move(ranged));
-            }
+            }*/
             
             {
                 static Timing timing("callback.peek", 0.1);
@@ -1077,8 +1098,6 @@ struct NetworkApplicationState {
         std::shared_ptr<Individual::SegmentInformation> segment;
         LearningTask task;
         task.type = LearningTask::Type::Prediction;
-
-        Individual::segment_map segments;
 
         {
             Tracker::LockGuard guard("next()");
@@ -1809,6 +1828,9 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
             int labelid;
             data.read(labelid);
             ranged._label = DataStore::label(labelid);
+            if(!ranged._label) {
+                Error("Ranged.label is nullptr for id %d", labelid);
+            }
             
             if(!ranged._label) {
                 Warning("Cannot find label %d.", labelid);
@@ -2072,6 +2094,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     std::vector<Image::Ptr> images;
     std::vector<long_t> indexes;
     std::vector<Vec2> positions;
+    std::vector<uint32_t> blob_ids;
     
 //#ifndef NDEBUG
     static size_t _reuse = 0, _create = 0, _delete = 0;
@@ -2231,6 +2254,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
                 images.emplace_back(std::move(image));
                 indexes.emplace_back(basic->frame);
                 positions.emplace_back(pos);
+                blob_ids.emplace_back(image_data.blob.blob_id);
             } else
                 Warning("Image failed (Fish%d, frame %d)", image_data.fdx, image_data.frame);
         }
@@ -2247,7 +2271,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     Debug("Segment(%lu): Of %lu frames, %lu were found and %lu found immediately (replaced %lu).", segment->basic_index.size(), stuff_indexes.size(), found_frames, found_frame_immediately, replaced, min_samples);
 #endif
     if(images.size() >= min_samples) {
-        return Sample::Make(std::move(indexes), std::move(images), std::move(positions));
+        return Sample::Make(std::move(indexes), std::move(images), std::move(blob_ids), std::move(positions));
     }
 #ifndef NDEBUG
     else

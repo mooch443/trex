@@ -37,6 +37,7 @@ struct Sample {
     }
     
     std::vector<long_t> _frames;
+    std::vector<uint32_t> _blob_ids;
     std::vector<Image::Ptr> _images;
     std::vector<Vec2> _positions;
     
@@ -47,6 +48,7 @@ struct Sample {
     
     Sample(std::vector<long_t>&& frames,
            const std::vector<Image::Ptr>& images,
+           const std::vector<uint32_t>& blob_ids,
            std::vector<Vec2>&& positions);
     
     static const Sample::Ptr& Invalid() {
