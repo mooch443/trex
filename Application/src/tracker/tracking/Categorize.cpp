@@ -566,7 +566,7 @@ Label::Ptr DataStore::label(Frame_t idx, const pv::CompressedBlob* blob) {
 Label::Ptr DataStore::_label_unsafe(Frame_t idx, uint32_t bdx) {
     auto fit = _probability_cache.find(idx);
     if(fit != _probability_cache.end()) {
-        auto sit = std::find_if(fit->second.begin(), fit->second.end(), [bdx](auto& tuple) { return std::get<0>(tuple) == bdx; });
+        auto sit = find_keyed_tuple(fit->second, bdx);
         if(sit != fit->second.end()) {
             return std::get<1>(*sit);
         }
@@ -959,7 +959,10 @@ struct NetworkApplicationState {
     /// in case i want to change the iterator type later.
     std::atomic<Individual::segment_map::difference_type> offset = 0;
     
-    Rangel peek() {
+    __attribute__((noinline)) Rangel peek() {
+        static Timing timing("NetworkApplicationState::peek", 0.1);
+        TakeTiming take(timing);
+        
         Tracker::LockGuard guard("next()");
         if (size_t(offset) == fish->frame_segments().size()) {
             Debug("Finished %d", fish->identity().ID());
@@ -981,6 +984,7 @@ struct NetworkApplicationState {
     __attribute__((noinline)) void receive_samples(const LearningTask& task) {
         static Timing timing("receive_samples", 0.1);
         TakeTiming take(timing);
+        Rangel f;
         
         {
             std::vector<int64_t> blobs;
@@ -991,6 +995,8 @@ struct NetworkApplicationState {
                 TakeTiming take(timing);
                 
                 Tracker::LockGuard guard("task.callback");
+                f = peek();
+                
                 for(size_t i=0; i<task.result.size(); ++i) {
                     auto frame = task.sample->_frames.at(i);
                     auto blob = fish->compressed_blob(frame);
@@ -1047,8 +1053,6 @@ struct NetworkApplicationState {
             {
                 static Timing timing("callback.peek", 0.1);
                 TakeTiming take(timing);
-                
-                auto f = peek();
                 
                 std::lock_guard guard(Work::_mutex);
                 Work::task_queue().push_back(Work::Task{
@@ -1484,7 +1488,7 @@ void Work::start_learning() {
                                     Warning("LearningTask type was not prediction?");
                             }
                             
-                            Debug("Receive: %fs Callbacks: %fs (%lu tasks)", receive_timer.elapsed(), by_callbacks, prediction_tasks.size());
+                            Debug("Receive: %fs Callbacks: %fs (%lu tasks, %lu images)", receive_timer.elapsed(), by_callbacks, prediction_tasks.size(), prediction_images.size());
 
                         }, module);
 
