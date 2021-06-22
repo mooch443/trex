@@ -1857,14 +1857,7 @@ void DataStore::clear() {
     }
 }
 
-std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_ptr<Individual::SegmentInformation>& segment) {
-#ifndef NDEBUG
-    ++_create;
-    if(_create % 50 == 0) {
-        Debug("Create: %lu Reuse: %lu Delete: %lu", _create, _reuse, _delete);
-    }
-#endif
-    
+std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_ptr<Individual::SegmentInformation>& segment, size_t& _delete) {
     if(Work::terminate || !GUI::instance())
         return nullptr;
     
@@ -1917,9 +1910,9 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
                 
                 // check whether it is far away from the current frame. if so, we can delete it:
                 if(f <= segment->start() - 250 || f >= segment->end() + 250) {
-                    Debug("Deleted cached frame %d (for %d/%d).", f, frame, segment->start());
-#ifndef NDEBUG
+                    //Debug("Deleted cached frame %d (for %d/%d).", f, frame, segment->start());
                     ++_delete;
+#ifndef NDEBUG
                     log_event("Deleted", it->first, fish->identity());
 #endif
                     it = _frame_cache.erase(it);
@@ -2061,101 +2054,23 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
             midline = posture ? fish->calculate_midline_for(basic, posture) : nullptr;
         }
 
-        if(!Work::initialized())
-            ptr = nullptr;
-        
-        if(!ptr) {
-            ptr = std::make_shared<PPFrame>();
-#ifndef NDEBUG
+        if(!ptr || !Work::initialized()) {
+            ptr = cache_pp_frame(frame, segment, _delete);
+
+//#ifndef NDEBUG
             ++_create;
-            if(_create % 50 == 0) {
-                Debug("Create: %lu Reuse: %lu Delete: %lu", _create, _reuse, _delete);
-            }
-#endif
-            
-            if(Work::terminate || !GUI::instance())
-                return nullptr;
-            
-            std::unordered_set<Individual*> active;
-            {
-                Tracker::LockGuard guard("Categorize::sample");
-                active = frame == Tracker::start_frame()
-                            ? decltype(active)()
-                            : Tracker::active_individuals(frame-1);
-            }
-             
-            {
-                auto &video_file = *GUI::instance()->video_source();
-                video_file.read_frame(ptr->frame(), sign_cast<uint64_t>(frame));
-                
-                Tracker::instance()->preprocess_frame(*ptr, active, NULL);
-                
-                for(auto &b : ptr->blobs)
-                    b->calculate_moments();
-                
-                ptr->bdx_to_ptr.clear();
-                for (auto b : ptr->blobs) {
-                    ptr->bdx_to_ptr[b->blob_id()] = b;
-                    assert(b->moments().ready);
-                }
-            }
-            
-#ifndef NDEBUG
-            log_event("Created", frame, fish->identity());
-#endif
-            
-            std::lock_guard g(Work::_mutex);
-            std::unique_lock guard(_cache_mutex);
-            
-            auto it = find_keyed_tuple(_frame_cache, frame);
-            if(it == _frame_cache.end()) {
-                if(!_frame_cache.empty()) {
-                    for (auto it = _frame_cache.begin(); it != _frame_cache.end() && _frame_cache.size() > 1000u;)
-                    {
-                        auto &[f, pp] = *it;
-                        bool found = false;
-                        for(auto &t : Work::task_queue()) {
-                            if(t.range.contains(f)) {
-                                found = true;
-                                break;
-                            }
-                        }
-                        
-                        if(!found && (f <= segment->start() - 250 || f >= segment->end() + 250)) {
-                            Debug("Deleted cached frame %d (for %d/%d).", f, frame, segment->start());
-    #ifndef NDEBUG
-                            ++_delete;
-                            log_event("Deleted", it->first, fish->identity());
-    #endif
-                            it = _frame_cache.erase(it);
-                        } else
-                            ++it;
-                        
-                        //if(it->first._frame < basic->frame - 50 || it->first._frame > basic->frame + 50)
-                        /*
-                        
-                        if(!found) {*/
-                            
-                        /*} else {
-    #ifndef NDEBUG
-                            log_event("Not deleted", it->first, fish->identity());
-    #endif
-                            ++it;
-                        }*/
-                    }
-                }
-                
-                insert_sorted(_frame_cache, std::make_tuple(frame, ptr));
-                
-            } else {
-                ptr = std::get<1>(*it);
-            }
+//#endif
             
         } else {
             ++_reuse;
 #ifndef NDEBUG
             log_event("Used", frame, fish->identity());
 #endif
+        }
+
+        if (debug_timer.elapsed() >= 1) {
+            Debug("Create: %lu Reuse: %lu Delete: %lu", _create, _reuse, _delete);
+            debug_timer.reset();
         }
         
         if(!ptr) {
