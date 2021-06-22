@@ -276,8 +276,8 @@ void DataStore::set_ranged_label(RangedLabel&& ranged)
 void DataStore::_set_ranged_label_unsafe(RangedLabel&& ranged)
 {
     assert(ranged._range.length() == ranged._blobs.size());
-    _ranged_labels.emplace_back(std::move(ranged));
-    std::sort(_ranged_labels.begin(), _ranged_labels.end());
+    _ranged_labels.insert(std::upper_bound(_ranged_labels.begin(), _ranged_labels.end(), ranged), std::move(ranged));
+    //std::sort(_ranged_labels.begin(), _ranged_labels.end());
     
     auto m = _ranged_labels.back()._range.start();
     for(auto it = _ranged_labels.rbegin(); it != _ranged_labels.rend(); ++it) {
