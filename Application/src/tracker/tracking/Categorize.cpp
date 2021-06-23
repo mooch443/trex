@@ -363,7 +363,7 @@ void DataStore::_set_label_unsafe(Frame_t idx, uint32_t bdx, const Label::Ptr& l
         Warning("Cache already contains blob %d in frame %d.\n%S", bdx, (int)idx, &str);
     }
 #endif
-    _probability_cache[idx].emplace_back(bdx, label);
+    insert_sorted(_probability_cache[idx], std::make_tuple(bdx, label));
 }
 
 void DataStore::set_label(Frame_t idx, const pv::CompressedBlob* blob, const Label::Ptr& label) {
@@ -972,6 +972,12 @@ struct NetworkApplicationState {
     __attribute__((noinline)) Rangel peek() {
         static Timing timing("NetworkApplicationState::peek", 0.1);
         TakeTiming take(timing);
+
+        if (segments.empty()) {
+            Tracker::LockGuard guard("NetworkApplicationState::peek");
+            segments = fish->frame_segments();
+            N = segments.size();
+        }
         
         if (size_t(offset) == segments.size()) {
             Debug("Finished %d", fish->identity().ID());
@@ -1026,12 +1032,23 @@ struct NetworkApplicationState {
                     for(size_t i=0; i<task.result.size(); ++i) {
                         auto frame = task.sample->_frames[i];
                         auto bdx = task.sample->_blob_ids[i];
-                        DataStore::_set_label_unsafe(Frame_t(frame), (uint32_t)bdx, DataStore::label(task.result[i]));
-                        sums.at(task.result[i]) += 1;
-    //                    Debug("Fish%d: Labelled %d", fish->identity().ID(), frame);
-    #ifndef NDEBUG
+                        auto l = DataStore::label(task.result[i]);
+                        if (!l)
+                            Warning("Label for frame %d blob %d is nullptr.", frame, bdx);
+                        else {
+                            DataStore::_set_label_unsafe(Frame_t(frame), (uint32_t)bdx, DataStore::label(task.result[i]));
+                            sums.at(task.result[i]) += 1;
+ //                           Debug("Fish%d: Labelled frame %d (blob%ld) = '%s'", fish->identity().ID(), frame, bdx, l->name.c_str());
+#ifndef NDEBUG
+                            auto L = DataStore::_label_unsafe(Frame_t(frame), (uint32_t)bdx);
+                            if (L != l) {
+                                Warning("Fish%d: Labels do not match.", fish->identity().ID());
+                            }
+#endif
+                        }
+#ifndef NDEBUG
                         log_event("Labelled", Frame_t(frame), fish->identity());
-    #endif
+#endif
                     }
                 }
                 
@@ -1062,7 +1079,10 @@ struct NetworkApplicationState {
                         } //else
                            // Warning("Segment does not contain %d", f);
                     }
-                    
+
+#ifndef NDEBUG
+                    Debug("Fish%d: Segment %d-%d done with %lu blobs", fish->identity().ID(), task.segment->start(), task.segment->end(), ranged._blobs.size());
+#endif
                     DataStore::set_ranged_label(std::move(ranged));
                 }
             }
@@ -1142,19 +1162,19 @@ struct NetworkApplicationState {
                 task.sample = DataStore::temporary(segment, fish, 300u, min_len, true);
                 task.segment = segment;
                 
-//#ifndef NDEBUG
+#ifndef NDEBUG
                 if(!task.sample)
                     Debug("Skipping (failed) Fish%d: (%d-%d, len=%d)", fish->identity().ID(), segment->start(), segment->end(), segment->length());
                 //else
                 //    Debug("No-Skipping Fish%d: (%d-%d, len=%d)", fish->identity().ID(), segment->start(), segment->end(), segment->length());
-//#endif
+#endif
             }
-//#ifndef NDEBUG
+#ifndef NDEBUG
             else {
                 Debug("Skipping Fish%d (%d-%d, len=%d): %s", fish->identity().ID(), segment->start(), segment->end(), segment->length(), ptr ? ptr->name.c_str() : "none");
                 //++skipped;
             }
-//#endif
+#endif
             
             ++offset;
             ++it;
@@ -1172,7 +1192,7 @@ struct NetworkApplicationState {
                 receive_samples(task);
             };
             
-//            Debug("Fish%d: Inserting %d-%d", fish->identity().ID(), task.segment->start(), task.segment->end());
+//           Debug("Fish%d: Inserting (%d-%d) with %lu images", fish->identity().ID(), task.segment->start(), task.segment->end(), task.sample->_images.size());
             Work::add_task(std::move(task));
             
         }
@@ -1807,7 +1827,7 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
                 data.read(bdx);
                 data.read(lid);
                 
-                _probability_cache[Frame_t(frame)].emplace_back(bdx, DataStore::label(lid));
+                DataStore::_set_label_unsafe(Frame_t(frame), bdx, DataStore::label(lid));
             }
         }
     }
