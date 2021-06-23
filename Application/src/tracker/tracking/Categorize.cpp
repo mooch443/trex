@@ -55,83 +55,17 @@ void insert_sorted(std::vector<T>& vector, T&& element) {
 
 
 namespace Work {
-    std::atomic_bool terminate = false, _learning = false;
-    std::mutex _mutex;
-    std::mutex _recv_mutex;
-    std::condition_variable _variable, _recv_variable;
-    std::queue<Sample::Ptr> _generated_samples;
-    
-    std::condition_variable _learning_variable;
-    std::mutex _learning_mutex;
 
-    static void add_training_sample(const Sample::Ptr& sample);
-    static void start_learning();
-    void loop();
+std::atomic_bool terminate = false, _learning = false;
+std::mutex _mutex;
+std::mutex _recv_mutex;
+std::condition_variable _variable, _recv_variable;
+std::queue<Sample::Ptr> _generated_samples;
 
-    Sample::Ptr retrieve();
+std::condition_variable _learning_variable;
+std::mutex _learning_mutex;
 
-    size_t& requested_samples() {
-        static size_t _request = 0;
-        return _request;
-    }
-    
-    bool& visible() {
-        static bool _visible = false;
-        return _visible;
-    }
-
-    bool& initialized_apply() {
-        static bool _init = false;
-        return _init;
-    }
-    
-    auto& queue() {
-        static std::queue<LearningTask> _tasks;
-        return _tasks;
-    }
-    
-    auto& status() {
-        static std::string _status;
-        return _status;
-    }
-
-auto& initialized() {
-    static bool _init = false;
-    return _init;
-}
-    
-    std::unique_ptr<std::thread> thread;
-    constexpr float good_enough() {
-        return 0.75;
-    }
-    
-    void work() {
-        set_thread_name("Categorize::work_thread");
-        Work::loop();
-    }
-    
-    size_t num_ready() {
-        std::lock_guard guard(_mutex);
-        return _generated_samples.size();
-    }
-    
-    float& best_accuracy() {
-        static float _a = 0;
-        return _a;
-    }
-    
-    void set_best_accuracy(float a) {
-        best_accuracy() = a;
-    }
-
-    void add_task(LearningTask&& task) {
-        {
-            std::lock_guard guard(_learning_mutex);
-            queue().push(std::move(task));
-        }
-        
-        Work::_learning_variable.notify_one();
-    }
+std::unique_ptr<std::thread> thread;
 
 struct Task {
     Rangel range;
@@ -139,10 +73,81 @@ struct Task {
     bool is_cached = false;
 };
 
-    auto& task_queue() {
-        static std::vector<Task> _queue;
-        return _queue;
+static void add_training_sample(const Sample::Ptr& sample);
+static void start_learning();
+void loop();
+void work_thread();
+Task _pick_front_thread();
+
+Sample::Ptr retrieve();
+
+size_t& requested_samples() {
+    static size_t _request = 0;
+    return _request;
+}
+
+bool& visible() {
+    static bool _visible = false;
+    return _visible;
+}
+
+bool& initialized_apply() {
+    static bool _init = false;
+    return _init;
+}
+
+auto& queue() {
+    static std::queue<LearningTask> _tasks;
+    return _tasks;
+}
+
+auto& status() {
+    static std::string _status;
+    return _status;
+}
+
+auto& initialized() {
+    static bool _init = false;
+    return _init;
+}
+
+constexpr float good_enough() {
+    return 0.75;
+}
+
+void work() {
+    set_thread_name("Categorize::work_thread");
+    Work::loop();
+}
+
+size_t num_ready() {
+    std::lock_guard guard(_mutex);
+    return _generated_samples.size();
+}
+
+float& best_accuracy() {
+    static float _a = 0;
+    return _a;
+}
+
+void set_best_accuracy(float a) {
+    best_accuracy() = a;
+}
+
+void add_task(LearningTask&& task) {
+    {
+        std::lock_guard guard(_learning_mutex);
+        queue().push(std::move(task));
     }
+    
+    Work::_learning_variable.notify_one();
+}
+
+auto& task_queue() {
+    static std::vector<Task> _queue;
+    return _queue;
+}
+
 };
 
 Sample::Sample(std::vector<long_t>&& frames,
@@ -657,7 +662,7 @@ public:
     
     void set_sample(const Sample::Ptr& sample);
     
-    __attribute__((noinline)) static void receive_prediction_results(const LearningTask& task) {
+    static void receive_prediction_results(const LearningTask& task) {
         std::lock_guard guard(Work::_recv_mutex);
         auto cats = FAST_SETTINGS(categories_ordered);
         task.sample->_probabilities.resize(cats.size());
@@ -969,7 +974,7 @@ struct NetworkApplicationState {
     /// in case i want to change the iterator type later.
     std::atomic<Individual::segment_map::difference_type> offset = 0;
     
-    __attribute__((noinline)) Rangel peek() {
+    Rangel peek() {
         static Timing timing("NetworkApplicationState::peek", 0.1);
         TakeTiming take(timing);
 
@@ -996,7 +1001,7 @@ struct NetworkApplicationState {
         return Rangel(-1,-1);
     }
     
-    __attribute__((noinline)) void receive_samples(const LearningTask& task) {
+    void receive_samples(const LearningTask& task) {
         static Timing timing("receive_samples", 0.1);
         TakeTiming take(timing);
         Rangel f;
@@ -1639,117 +1644,127 @@ T CalcMHWScore(std::vector<T> hWScores) {
     }
 }
 
+Work::Task Work::_pick_front_thread() {
+    int64_t center;
+    {
+        static Timing timing("SortTaskQueue", 0.1);
+        TakeTiming take(timing);
+
+        int64_t minimum_range = std::numeric_limits<int64_t>::max(), maximum_range = 0;
+        double mean = 0;
+        std::vector<int64_t> vector;
+        {
+            std::shared_lock g(_cache_mutex);
+            vector.reserve(_frame_cache.size());
+
+            for (auto& [v, pp] : _frame_cache) {
+                minimum_range = min(v._frame, minimum_range);
+                maximum_range = max(v._frame, maximum_range);
+                mean += v;
+                vector.push_back(v._frame);
+            }
+
+            if(!_frame_cache.empty())
+                mean /= _frame_cache.size();
+        }
+
+        //double median = CalcMHWScore(vector);
+        /*for (auto& t : Work::task_queue()) {
+            minimum_range = min(t.range.start, minimum_range);
+            maximum_range = max(t.range.end, maximum_range);
+            mean += t.range.start + t.range.length() * 0.5;
+        }
+
+        if (Work::task_queue().size() > 0)
+            mean /= double(Work::task_queue().size());*/
+
+        center = mean;//minimum_range;//minimum_range + (maximum_range - minimum_range) * 0.5;
+
+        std::sort(Work::task_queue().begin(), Work::task_queue().end(), [center](const Task& A, const Task&B) -> bool {
+            if (A.range.start == -1 && B.range.start != A.range.start)
+                return false;
+            if (A.range.start != -1 && B.range.start == -1)
+                return true;
+
+            return abs(A.range.start + A.range.length() * 0.5 - center) > abs(B.range.start + B.range.length() * 0.5 - center);
+        });
+
+        static Timer print;
+        static std::mutex mutex;
+        
+        std::lock_guard g(mutex);
+        if (print.elapsed() >= 1 && Work::task_queue().size() > 20) {
+            std::vector<Rangel> _values;
+            for (auto it = Work::task_queue().end() - 20; it != Work::task_queue().end(); ++it) {
+                if (it->range.start != -1)
+                    _values.push_back(Rangel(abs(it->range.start - center), abs(it->range.end - center)));
+                else
+                    _values.push_back(it->range);
+            }
+            auto str = Meta::toStr(_values);
+            Debug("... end of task queue:\n\t%S", &str);
+            print.reset();
+        }
+    }
+    
+    // sort tasks according to currently cached frames, as well as frame order
+    auto task = std::move(Work::task_queue().back());
+    Work::task_queue().pop_back();
+    
+    Debug("Picking task for %d-%d (cached:%d, center is %ld)", task.range.start, task.range.end, task.is_cached, center);
+    return task;
+}
+
+void Work::work_thread() {
+    std::unique_lock guard(_mutex);
+    while (!terminate) {
+        while (!Work::task_queue().empty()) {
+            auto task = _pick_front_thread();
+            
+            guard.unlock();
+            _variable.notify_one();
+            task.func();
+            guard.lock();
+
+            if (terminate)
+                break;
+        }
+
+        Sample::Ptr sample;
+        while (_generated_samples.size() < requested_samples() && !terminate) {
+            guard.unlock();
+            {
+                Tracker::LockGuard g("get_random::loop");
+                sample = DataStore::get_random();
+                if (sample && sample->_images.size() < 1) {
+                    sample = Sample::Invalid();
+                }
+            }
+            guard.lock();
+
+            if (sample != Sample::Invalid() && !sample->_assigned_label) {
+                _generated_samples.push(sample);
+                _recv_variable.notify_one();
+            }
+        }
+
+        if (_generated_samples.size() < requested_samples() && !terminate)
+            _variable.notify_one();
+
+        if (terminate)
+            break;
+
+        _variable.wait_for(guard, std::chrono::seconds(1));
+    }
+}
+
 void Work::loop() {
     static std::atomic<size_t> hits = 0, misses = 0;
     static Timer timer;
     static std::mutex timer_mutex;
     
     for (size_t i = 0; i < pool.num_threads(); ++i) {
-        pool.enqueue([]() {
-            std::unique_lock guard(_mutex);
-            while (!terminate) {
-                while (!Work::task_queue().empty()) {
-                    Task task;
-                    
-                    int64_t center;
-                    {
-                        static Timing timing("SortTaskQueue", 0.1);
-                        TakeTiming take(timing);
-
-                        int64_t minimum_range = std::numeric_limits<int64_t>::max(), maximum_range = 0;
-                        double mean = 0;
-                        std::vector<int64_t> vector;
-                        {
-                            std::shared_lock g(_cache_mutex);
-                            vector.reserve(_frame_cache.size());
-
-                            for (auto& [v, pp] : _frame_cache) {
-                                minimum_range = min(v._frame, minimum_range);
-                                maximum_range = max(v._frame, maximum_range);
-                                mean += v;
-                                vector.push_back(v._frame);
-                            }
-
-                            if(!_frame_cache.empty())
-                                mean /= _frame_cache.size();
-                        }
-
-                        double median = CalcMHWScore(vector);
-                        /*for (auto& t : Work::task_queue()) {
-                            minimum_range = min(t.range.start, minimum_range);
-                            maximum_range = max(t.range.end, maximum_range);
-                            mean += t.range.start + t.range.length() * 0.5;
-                        }
-
-                        if (Work::task_queue().size() > 0)
-                            mean /= double(Work::task_queue().size());*/
-
-                        center = median;//mean;//minimum_range;//minimum_range + (maximum_range - minimum_range) * 0.5;
-
-                        std::sort(Work::task_queue().begin(), Work::task_queue().end(), [center](const Task& A, const Task&B) -> bool {
-                            if (A.range.start == -1 && B.range.start != A.range.start)
-                                return false;
-                            if (A.range.start != -1 && B.range.start == -1)
-                                return true;
-
-                            return abs(A.range.start - center) > abs(B.range.start - center);
-                        });
-
-                        if (Work::task_queue().size() > 20) {
-                            std::vector<Rangel> _values;
-                            for (auto it = Work::task_queue().end() - 20; it != Work::task_queue().end(); ++it) {
-                                if (it->range.start != -1)
-                                    _values.push_back(Rangel(abs(it->range.start - center), abs(it->range.end - center)));
-                                else
-                                    _values.push_back(it->range);
-                            }
-                            auto str = Meta::toStr(_values);
-                            Debug("... end of task queue:\n\t%S", &str);
-                        }
-                    }
-                    
-                    // sort tasks according to currently cached frames, as well as frame order
-                    task = std::move(Work::task_queue().back());
-                    Work::task_queue().pop_back();
-
-                    Debug("Checking task for %d-%d (cached:%d, center is %ld)", task.range.start, task.range.end, task.is_cached, center);
-                    
-                    guard.unlock();
-                    _variable.notify_one();
-                    task.func();
-                    guard.lock();
-
-                    if (terminate)
-                        break;
-                }
-
-                Sample::Ptr sample;
-                while (_generated_samples.size() < requested_samples() && !terminate) {
-                    guard.unlock();
-                    {
-                        Tracker::LockGuard g("get_random::loop");
-                        sample = DataStore::get_random();
-                        if (sample && sample->_images.size() < 1) {
-                            sample = Sample::Invalid();
-                        }
-                    }
-                    guard.lock();
-
-                    if (sample != Sample::Invalid() && !sample->_assigned_label) {
-                        _generated_samples.push(sample);
-                        _recv_variable.notify_one();
-                    }
-                }
-
-                if (_generated_samples.size() < requested_samples() && !terminate)
-                    _variable.notify_one();
-
-                if (terminate)
-                    break;
-
-                _variable.wait_for(guard, std::chrono::seconds(1));
-            }
-        });
+        pool.enqueue(Work::work_thread);
     }
 }
 
@@ -2188,7 +2203,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
             double sum = std::accumulate(v.begin(), v.end(), 0.0);
             double mean = sum / v.size();
             double median = CalcMHWScore(v);
-            int64_t center = minimum_range;//mean;//(minimum_range + (maximum_range - minimum_range) / 2.0);
+            int64_t center = median;//mean;//(minimum_range + (maximum_range - minimum_range) / 2.0);
 
             for (auto& [f, pp] : _frame_cache) {
                 frames_in_cache.push_back({ abs(int64_t(f) - center), i });
