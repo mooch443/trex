@@ -134,22 +134,9 @@ auto& initialized() {
     }
 
 struct Task {
-    Frame_t frame;
     Rangel range;
     std::function<void()> func;
     bool is_cached = false;
-    
-    bool operator<(const Task& other) const {
-        
-        /*bool Ain = false, Bin = false;
-        {
-            Ain = is_cached;
-            Bin = other.is_cached;
-        }*/
-        //return ((Ain == Bin || (Ain && !Bin)) && frame > other.frame) || (!Ain && Bin);
-        //return ;
-        return frame > other.frame;
-    }
 };
 
     auto& task_queue() {
@@ -1100,7 +1087,6 @@ struct NetworkApplicationState {
                 
                 std::lock_guard guard(Work::_mutex);
                 Work::task_queue().push_back(Work::Task{
-                    f.start >= 0 ? Frame_t(f.start) : Frame_t(0),
                     f,
                     [this]()
                     {
@@ -1231,7 +1217,6 @@ void start_applying() {
     
     std::lock_guard guard(Work::_mutex);
     Work::task_queue().push_back(Work::Task{
-        Frame_t(-1),
         Rangel(-1,-1),
         [](){
             Debug("## Initializing APPLY.");
@@ -1257,8 +1242,7 @@ void start_applying() {
                     
                     std::lock_guard guard(Work::_mutex);
                     Work::task_queue().push_back(Work::Task{
-                        f.start >= 0 ? Frame_t(f.start) : Frame_t(0),
-                        f,
+                        Rangel(-1,-1),//f,
                         [k=k](){
                             NetworkApplicationState::current().at(k).next();
                             // start first task
@@ -1623,6 +1607,22 @@ void Work::start_learning() {
 
 GenericThreadPool pool(cmn::hardware_concurrency(), [](auto e) { std::rethrow_exception(e); }, "Work::LoopPool");
 
+template<typename T>
+T CalcMHWScore(std::vector<T> hWScores) {
+    if (hWScores.empty())
+        return 0;
+
+    const auto middleItr = hWScores.begin() + hWScores.size() / 2;
+    std::nth_element(hWScores.begin(), middleItr, hWScores.end());
+    if (hWScores.size() % 2 == 0) {
+        const auto leftMiddleItr = std::max_element(hWScores.begin(), middleItr);
+        return (*leftMiddleItr + *middleItr) / 2;
+    }
+    else {
+        return *middleItr;
+    }
+}
+
 void Work::loop() {
     static std::atomic<size_t> hits = 0, misses = 0;
     static Timer timer;
@@ -1635,48 +1635,52 @@ void Work::loop() {
                 while (!Work::task_queue().empty()) {
                     Task task;
                     
-                    {
-                        std::lock_guard g(timer_mutex);
-                        if(timer.elapsed() > 5) {
-                            Debug("Hits: %lu Misses: %lu Size: %lu", hits.load(), misses.load(), Work::task_queue().size());
-                            timer.reset();
-                        }
-                    }
-                    
+                    int64_t center;
                     {
                         static Timing timing("SortTaskQueue", 0.1);
                         TakeTiming take(timing);
-                        std::sort(Work::task_queue().begin(), Work::task_queue().end(), std::less<Task>());
+
+                        int64_t minimum_range = std::numeric_limits<int64_t>::max(), maximum_range = 0;
+                        double mean = 0;
+                        std::vector<int64_t> vector;
+                        {
+                            std::shared_lock g(_cache_mutex);
+                            vector.reserve(_frame_cache.size());
+
+                            for (auto& [v, pp] : _frame_cache) {
+                                minimum_range = min(v._frame, minimum_range);
+                                maximum_range = max(v._frame, maximum_range);
+                                mean += v;
+                                vector.push_back(v._frame);
+                            }
+
+                            if(!_frame_cache.empty())
+                                mean /= _frame_cache.size();
+                        }
+
+                        double median = CalcMHWScore(vector);
+                        /*for (auto& t : Work::task_queue()) {
+                            minimum_range = min(t.range.start, minimum_range);
+                            maximum_range = max(t.range.end, maximum_range);
+                            mean += t.range.start + t.range.length() * 0.5;
+                        }
+
+                        if (Work::task_queue().size() > 0)
+                            mean /= double(Work::task_queue().size());*/
+
+                        center = median;//mean;//minimum_range;//minimum_range + (maximum_range - minimum_range) * 0.5;
+
+                        std::sort(Work::task_queue().begin(), Work::task_queue().end(), [center](const Task& A, const Task&B) -> bool {
+                            return (A.range.start == -1 && B.range.start != -1) || (!(A.range.start == -1 && B.range.start != -1) 
+                                && abs(A.range.start + A.range.length() * 0.5 - center) > abs(B.range.start + B.range.length() * 0.5 - center));
+                        });
                     }
                     
                     // sort tasks according to currently cached frames, as well as frame order
-                    {
-                        std::shared_lock g(_cache_mutex);
-                        for(auto it = --task_queue().end(); ; ) {
-                            it->is_cached = find_keyed_tuple(_frame_cache, it->frame) != _frame_cache.end();
-                            if(it->is_cached) {
-                                task = std::move(*it);
-                                it = task_queue().erase(it);
-                                ++hits;
-                                
-                                //for(auto kit = task_queue().begin(); kit != it; ++kit)
-                                //    kit->is_cached = false;
-                                break;
-                                
-                            } else {
-                                if(it == task_queue().begin())
-                                    break;
-                                
-                                --it;
-                            }
-                        }
-                    }
-                    
-                    if(!task.frame.valid()) {
-                        task = std::move(Work::task_queue().back());
-                        Work::task_queue().pop_back();
-                        ++misses;
-                    }
+                    task = std::move(Work::task_queue().back());
+                    Work::task_queue().pop_back();
+
+                    Debug("Checking task for %d-%d (cached:%d, center is %ld)", task.range.start, task.range.end, task.is_cached, center);
                     
                     guard.unlock();
                     _variable.notify_one();
@@ -1921,33 +1925,138 @@ void DataStore::clear() {
     }
 }
 
-std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_ptr<Individual::SegmentInformation>& segment, size_t& _delete) {
+template<typename T>
+inline std::vector<T> erase_indices(const std::vector<T>& data, std::vector<size_t>& indicesToDelete/* can't assume copy elision, don't pass-by-value */)
+{
+    if (indicesToDelete.empty())
+        return data;
+
+    std::vector<T> ret;
+    ret.reserve(data.size() - indicesToDelete.size());
+
+    std::sort(indicesToDelete.begin(), indicesToDelete.end());
+
+    // now we can assume there is at least 1 element to delete. copy blocks at a time.
+    std::vector<T>::const_iterator itBlockBegin = data.begin();
+    for (std::vector<size_t>::const_iterator it = indicesToDelete.begin(); it != indicesToDelete.end(); ++it)
+    {
+        std::vector<T>::const_iterator itBlockEnd = data.begin() + *it;
+        if (itBlockBegin != itBlockEnd)
+        {
+            std::copy(itBlockBegin, itBlockEnd, std::back_inserter(ret));
+        }
+        itBlockBegin = itBlockEnd + 1;
+    }
+
+    // copy last block.
+    if (itBlockBegin != data.end())
+    {
+        std::copy(itBlockBegin, data.end(), std::back_inserter(ret));
+    }
+
+    return ret;
+}
+
+std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_ptr<Individual::SegmentInformation>& segment, size_t& _delete, size_t& _create, size_t& _reuse) {
     if(Work::terminate || !GUI::instance())
         return nullptr;
 
+    static std::mutex distri_mutex;
+    static Timer distri_timer;
+    int64_t minimum_range = segment->start(), maximum_range = segment->end();
+    std::vector<int64_t> v;
 
-    std::shared_ptr<PPFrame> ptr;
+    {
+        std::lock_guard guard(distri_mutex);
+        if (distri_timer.elapsed() >= 0.15) {
+            //auto [mit, mat] = std::minmax_element(v.begin(), v.end());
+            //if (mit != v.end() && mat != v.end()) 
+            {
+                std::lock_guard g(Work::_mutex);
+                for (auto& t : Work::task_queue()) {
+                    if (t.range.start == -1)
+                        continue;
+                    v.insert(v.end(), { int64_t(t.range.start), int64_t(t.range.end) });
+                    minimum_range = min(t.range.start, minimum_range);
+                    maximum_range = max(t.range.end, maximum_range);
+                }
+            }
+
+            if (!v.empty())
+            {
+                float scale = 1024.0 / float(Tracker::end_frame() - Tracker::start_frame());
+                Image task_queue_images(200, 1024, 4);
+                auto mat = task_queue_images.get();
+                std::fill(task_queue_images.data(), task_queue_images.data() + task_queue_images.size(), 0);
+
+                double sum = std::accumulate(v.begin(), v.end(), 0.0);
+                double mean = sum / v.size();
+                double median = CalcMHWScore(v);
+                
+                for (size_t i = 0; i < v.size(); i+=2) {
+                    cv::rectangle(mat, Vec2(v[i] - Tracker::start_frame(), 0) * scale, Vec2(v[i+1] - Tracker::start_frame(), 100 / scale) * scale, Red, cv::FILLED);
+                }
+
+                cv::line(mat, Vec2(mean - Tracker::start_frame(), 0) * scale, Vec2(mean - Tracker::start_frame(), 100 / scale) * scale, Green, 2);
+                cv::line(mat, Vec2(median - Tracker::start_frame(), 0) * scale, Vec2(median - Tracker::start_frame(), 100 / scale) * scale, Blue, 2);
+
+                {
+                    std::unique_lock guard(_cache_mutex);
+                    sum = 0;
+                    for (auto& [c, pp] : _frame_cache) {
+                        cv::line(mat, Vec2(c._frame - Tracker::start_frame(), 100 / scale) * scale, Vec2(c._frame - Tracker::start_frame(), 200 / scale) * scale, Yellow);
+                        sum += c;
+                    }
+                    if (_frame_cache.size() > 0)
+                        mean = sum / double(_frame_cache.size());
+                }
+
+                cv::line(mat, Vec2(mean - Tracker::start_frame(), 100 / scale) * scale, Vec2(mean - Tracker::start_frame(), 200 / scale) * scale, Purple, 2);
+
+                cv::line(mat, Vec2(frame - Tracker::start_frame(), 0) * scale, Vec2(frame - Tracker::start_frame(), 200 / scale) * scale, White, 2);
+                cv::cvtColor(mat, mat, cv::COLOR_BGRA2RGBA);
+
+                tf::imshow("Distribution", mat);
+
+                std::vector<double> diff(v.size());
+                std::transform(v.begin(), v.end(), diff.begin(), [mean](double x) { return x - mean; });
+                double sq_sum = std::inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
+                double stdev = std::sqrt(sq_sum / v.size());
+
+                //minimum_range = min((int64_t)*mit, minimum_range);
+                //maximum_range = max((int64_t)*mat, maximum_range);
+                Debug("Frames range from %ld to %ld, with %f+-%f with median %f", minimum_range, maximum_range, mean, stdev, median);
+            }
+            else {
+                Debug("Range is empty, so we do not have to look for any frames (%lu).", v.size());
+            }
+
+            distri_timer.reset();
+        }
+    }
+
+    std::shared_ptr<PPFrame> ptr = nullptr;
+
 #ifndef NDEBUG
     static std::unordered_map<Frame_t, std::tuple<size_t, size_t>> _ever_created;
 #endif
     static std::vector<Frame_t> _currently_processed;
     static std::mutex _mutex;
     static std::condition_variable _variable;
+    bool already_being_processed = false;
 
-    bool found = false;
     {
-        std::lock_guard g(Work::_mutex);
+        //std::lock_guard g(Work::_mutex);
         std::unique_lock guard(_cache_mutex);
 
         auto it = find_keyed_tuple(_frame_cache, frame);
         if (it != _frame_cache.end()) {
+            ++_reuse;
             return std::get<1>(*it);
         }
 
         std::lock_guard guard2(_mutex);
-        found = contains(_currently_processed, frame);
-
-        if (!found) {
+        if (!contains(_currently_processed, frame)) {
 #ifndef NDEBUG
             if (_ever_created.count(frame)) {
                 ++std::get<0>(_ever_created[frame]);
@@ -1956,13 +2065,15 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
             else
                 _ever_created[frame] = { 1, 0 };
 #endif
-            
             _currently_processed.push_back(frame);
         }
+        else
+            already_being_processed = true;
     }
-    
-    if (!found) {
+
+    if (!already_being_processed) {
         ptr = std::make_shared<PPFrame>();
+        ++_create;
 
         std::unordered_set<Individual*> active;
         {
@@ -1998,10 +2109,20 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
             _variable.wait_for(guard, std::chrono::seconds(1));
         //Debug("Waited for %d", frame);
     }
-    
-    std::lock_guard g(Work::_mutex);
+
+    if(v.empty()) {
+        std::lock_guard g(Work::_mutex);
+        for (auto& t : Work::task_queue()) {
+            if (t.range.start == -1)
+                continue;
+
+            v.insert(v.end(), { int64_t(t.range.start), int64_t(t.range.end) });
+            minimum_range = min(t.range.start, minimum_range);
+            maximum_range = max(t.range.end, maximum_range);
+        }
+    }
+
     std::unique_lock guard(_cache_mutex);
-    
     auto it = find_keyed_tuple(_frame_cache, frame);
     if(it == _frame_cache.end()) {
         assert(!found);
@@ -2011,41 +2132,37 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
             Warning("Cannot find frame %d in _frame_cache, but can find it in _current_cached_frames!", frame);
 #endif
 
-        if(!_frame_cache.empty()) {
-            for (auto it = _frame_cache.begin(); it != _frame_cache.end() && _frame_cache.size() > 1000u;)
-            {
-                auto &[f, pp] = *it;
+        constexpr size_t maximum_cache_size = 1500u;
+        if(_frame_cache.size() > maximum_cache_size + 100u) {
+            // need to do some cleanup
+            std::vector < std::tuple<int64_t, size_t> > frames_in_cache;
+            frames_in_cache.reserve(_frame_cache.size());
+            size_t i = 0;
 
-                // check whether it is far away from the current frame. if so, we can delete it:
-                if(f <= segment->start() - 1000 || f >= segment->end() + 1000) {
-                    // see whether this cached frame is needed elsewhere in the task queue
-                    for (auto& t : Work::task_queue()) {
-                        if (t.range.contains(f)) {
-                            goto just_continue;
-                        }
-                    }
+            double sum = std::accumulate(v.begin(), v.end(), 0.0);
+            double mean = sum / v.size();
+            double median = CalcMHWScore(v);
+            int64_t center = median;//mean;//(minimum_range + (maximum_range - minimum_range) / 2.0);
 
-                    //Debug("Deleted cached frame %d (for %d/%d).", f, frame, segment->start());
-                    ++_delete;
-#ifndef NDEBUG
-                    log_event("Deleted", it->first, fish->identity());
-#endif
-#ifndef NDEBUG
-                    auto kit = _current_cached_frames.find(f);
-                    if (kit == _current_cached_frames.end())
-                        Warning("Cannot find %d in _current_cached_frames, but trying to delete from _frame_cache!");
-                    else
-                        _current_cached_frames.erase(kit);
-#endif
-
-                    it = _frame_cache.erase(it);
-                    continue;
-                }
-                
-                // jump here to just continue the loop (+1)
-              just_continue:
-                ++it;
+            for (auto& [f, pp] : _frame_cache) {
+                frames_in_cache.push_back({ abs(int64_t(f) - center), i });
+                ++i;
             }
+
+            std::sort(frames_in_cache.begin(), frames_in_cache.end(), std::greater<>());
+            auto start = frames_in_cache.begin();
+            auto end = start + (_frame_cache.size() - maximum_cache_size);
+
+            std::vector<size_t> indices;
+            indices.reserve(maximum_cache_size);
+
+            for (auto it = start; it != end; ++it) {
+                indices.push_back(std::get<1>(*it));
+            }
+
+            Debug("Deleting %ld items from frame cache, which are farther away than %ld from the mean of %f (%lu size) and median %f", std::distance(start, end), end != frames_in_cache.end() ? std::get<0>(*end) : -1, (minimum_range + (maximum_range - minimum_range) / 2.0), _frame_cache.size(), median);
+            _frame_cache = erase_indices(_frame_cache, indices);
+            _delete += indices.size();
         }
         
         insert_sorted(_frame_cache, std::make_tuple(frame, ptr));
@@ -2075,6 +2192,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
             Warning("Cannot find frame %d in _current_cached_frames, but can find it in _frame_cache!", frame);
 #endif
         ptr = std::get<1>(*it);
+        ++_reuse;
     }
 
     {
@@ -2147,7 +2265,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
             std::shared_lock guard(_cache_mutex);
             auto it = find_keyed_tuple(_frame_cache, Frame_t(f));
             if(it != _frame_cache.end()) {
-                ptr = std::get<1>(*it);
+                //ptr = std::get<1>(*it);
                 ++found_frames;
                 ++found_frame_immediately;
 
@@ -2225,10 +2343,10 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         }
 
         if(!ptr || !Work::initialized()) {
-            ptr = cache_pp_frame(frame, segment, _delete);
+            ptr = cache_pp_frame(frame, segment, _delete, _create, _reuse);
 
 //#ifndef NDEBUG
-            ++_create;
+//            ++_create;
 //#endif
             
         } else {
