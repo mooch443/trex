@@ -1687,9 +1687,25 @@ void Work::loop() {
                         center = median;//mean;//minimum_range;//minimum_range + (maximum_range - minimum_range) * 0.5;
 
                         std::sort(Work::task_queue().begin(), Work::task_queue().end(), [center](const Task& A, const Task&B) -> bool {
-                            return (A.range.start == -1 && B.range.start != -1) || (!(A.range.start == -1 && B.range.start != -1) 
-                                && abs(A.range.start - center) > abs(B.range.start - center));
+                            if (A.range.start == -1 && B.range.start != A.range.start)
+                                return false;
+                            if (A.range.start != -1 && B.range.start == -1)
+                                return true;
+
+                            return abs(A.range.start - center) > abs(B.range.start - center);
                         });
+
+                        if (Work::task_queue().size() > 20) {
+                            std::vector<Rangel> _values;
+                            for (auto it = Work::task_queue().end() - 20; it != Work::task_queue().end(); ++it) {
+                                if (it->range.start != -1)
+                                    _values.push_back(Rangel(abs(it->range.start - center), abs(it->range.end - center)));
+                                else
+                                    _values.push_back(it->range);
+                            }
+                            auto str = Meta::toStr(_values);
+                            Debug("... end of task queue:\n\t%S", &str);
+                        }
                     }
                     
                     // sort tasks according to currently cached frames, as well as frame order
@@ -2001,7 +2017,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
             if (!v.empty())
             {
                 float scale = 1024.0 / float(Tracker::end_frame() - Tracker::start_frame());
-                Image task_queue_images(200, 1024, 4);
+                Image task_queue_images(300, 1024, 4);
                 auto mat = task_queue_images.get();
                 std::fill(task_queue_images.data(), task_queue_images.data() + task_queue_images.size(), 0);
 
@@ -2030,8 +2046,15 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
                 cv::line(mat, Vec2(mean - Tracker::start_frame(), 100 / scale) * scale, Vec2(mean - Tracker::start_frame(), 200 / scale) * scale, Purple, 2);
 
                 cv::line(mat, Vec2(frame - Tracker::start_frame(), 0) * scale, Vec2(frame - Tracker::start_frame(), 200 / scale) * scale, White, 2);
-                cv::cvtColor(mat, mat, cv::COLOR_BGRA2RGBA);
 
+                {
+                    std::unique_lock guard(DataStore::cache_mutex());
+                    for (auto& [frame, blobs] : _probability_cache) {
+                        cv::line(mat, Vec2(frame - Tracker::start_frame(), 200 / scale) * scale, Vec2(frame - Tracker::start_frame(), 300 / scale) * scale, Green, 2);
+                    }
+                }
+
+                cv::cvtColor(mat, mat, cv::COLOR_BGRA2RGBA);
                 tf::imshow("Distribution", mat);
 
                 std::vector<double> diff(v.size());
