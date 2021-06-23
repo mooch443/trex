@@ -351,6 +351,19 @@ void DataStore::_set_label_unsafe(Frame_t idx, uint32_t bdx, const Label::Ptr& l
     }
 #endif
     insert_sorted(_probability_cache[idx], std::make_tuple(bdx, label));
+
+    static std::mutex mutex;
+    static Timer timer;
+    std::unique_lock g(mutex);
+    if (timer.elapsed() > 5) {
+        size_t N = 0;
+        for (auto& [k, values] : _probability_cache) {
+            N += values.size();
+        }
+
+        Debug("[CAT] %lu frames in cache, with %lu labels (%.1f labels / frame)", _probability_cache.size(), N, double(N) / double(_probability_cache.size()));
+        timer.reset();
+    }
 }
 
 void DataStore::set_label(Frame_t idx, const pv::CompressedBlob* blob, const Label::Ptr& label) {
