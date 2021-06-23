@@ -2000,7 +2000,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
 
     {
         std::lock_guard guard(distri_mutex);
-        if (distri_timer.elapsed() >= 0.15) {
+        if (distri_timer.elapsed() >= 1) {
             //auto [mit, mat] = std::minmax_element(v.begin(), v.end());
             //if (mit != v.end() && mat != v.end()) 
             {
@@ -2057,7 +2057,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
 
                     for (auto& [frame, blobs] : _probability_cache) {
                         cv::line(mat, Vec2(frame - Tracker::start_frame(), 200 / scale) * scale, Vec2(frame - Tracker::start_frame(), 300 / scale) * scale, 
-                            Green.saturation(0.1 + 0.9 * blobs.size() / float(max_per_frame)), 2);
+                            Green.exposure(0.1 + 0.9 * blobs.size() / float(max_per_frame)), 2);
                     }
                 }
 
