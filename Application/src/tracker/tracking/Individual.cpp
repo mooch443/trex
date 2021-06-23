@@ -470,7 +470,9 @@ Individual::~Individual() {
     
     if(Tracker::recognition())
         Tracker::recognition()->remove_individual(this);
+#ifndef NDEBUG
     Debug("Deleting individual %d", identity().ID());
+#endif
 }
 
 void Individual::unregister_delete_callback(void* ptr) {
