@@ -1399,6 +1399,9 @@ void Work::start_learning() {
             while(!queue().empty() && Work::_learning) {
                 if(py::check_module(module)) {
                     reset_variables();
+                    py::run(module, "load");
+                    //py::run(module, "send_samples");
+                    clear_probs = true;
                 }
                 
                 auto item = std::move(queue().front());
@@ -1672,7 +1675,7 @@ void Work::loop() {
 
                         std::sort(Work::task_queue().begin(), Work::task_queue().end(), [center](const Task& A, const Task&B) -> bool {
                             return (A.range.start == -1 && B.range.start != -1) || (!(A.range.start == -1 && B.range.start != -1) 
-                                && abs(A.range.start + A.range.length() * 0.5 - center) > abs(B.range.start + B.range.length() * 0.5 - center));
+                                && abs(A.range.start - center) > abs(B.range.start - center));
                         });
                     }
                     
@@ -1937,10 +1940,10 @@ inline std::vector<T> erase_indices(const std::vector<T>& data, std::vector<size
     std::sort(indicesToDelete.begin(), indicesToDelete.end());
 
     // now we can assume there is at least 1 element to delete. copy blocks at a time.
-    std::vector<T>::const_iterator itBlockBegin = data.begin();
+    typename std::vector<T>::const_iterator itBlockBegin = data.begin();
     for (std::vector<size_t>::const_iterator it = indicesToDelete.begin(); it != indicesToDelete.end(); ++it)
     {
-        std::vector<T>::const_iterator itBlockEnd = data.begin() + *it;
+        typename std::vector<T>::const_iterator itBlockEnd = data.begin() + *it;
         if (itBlockBegin != itBlockEnd)
         {
             std::copy(itBlockBegin, itBlockEnd, std::back_inserter(ret));
@@ -2142,7 +2145,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
             double sum = std::accumulate(v.begin(), v.end(), 0.0);
             double mean = sum / v.size();
             double median = CalcMHWScore(v);
-            int64_t center = median;//mean;//(minimum_range + (maximum_range - minimum_range) / 2.0);
+            int64_t center = minimum_range;//mean;//(minimum_range + (maximum_range - minimum_range) / 2.0);
 
             for (auto& [f, pp] : _frame_cache) {
                 frames_in_cache.push_back({ abs(int64_t(f) - center), i });
