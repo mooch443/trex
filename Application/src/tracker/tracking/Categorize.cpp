@@ -2049,8 +2049,15 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
 
                 {
                     std::unique_lock guard(DataStore::cache_mutex());
+                    size_t max_per_frame = 0;
                     for (auto& [frame, blobs] : _probability_cache) {
-                        cv::line(mat, Vec2(frame - Tracker::start_frame(), 200 / scale) * scale, Vec2(frame - Tracker::start_frame(), 300 / scale) * scale, Green, 2);
+                        if (blobs.size() > max_per_frame)
+                            max_per_frame = blobs.size();
+                    }
+
+                    for (auto& [frame, blobs] : _probability_cache) {
+                        cv::line(mat, Vec2(frame - Tracker::start_frame(), 200 / scale) * scale, Vec2(frame - Tracker::start_frame(), 300 / scale) * scale, 
+                            Green.saturation(0.1 + 0.9 * blobs.size() / float(max_per_frame)), 2);
                     }
                 }
 
