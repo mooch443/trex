@@ -67,6 +67,8 @@ std::mutex _learning_mutex;
 
 std::unique_ptr<std::thread> thread;
 
+std::vector<std::tuple<std::thread::id, Rangel>> _currently_processed_segments;
+
 struct Task {
     Rangel range;
     std::function<void()> func;
@@ -1716,15 +1718,30 @@ Work::Task Work::_pick_front_thread() {
 }
 
 void Work::work_thread() {
-    std::unique_lock guard(_mutex);
+    std::unique_lock guard(Work::_mutex);
+    const std::thread::id id = std::this_thread::get_id();
+    
     while (!terminate) {
         while (!Work::task_queue().empty()) {
             auto task = _pick_front_thread();
             
+            // note current segment
+            _currently_processed_segments.insert(_currently_processed_segments.end(), { id, task.range });
+            
+            // process sergment
             guard.unlock();
             _variable.notify_one();
             task.func();
             guard.lock();
+            
+            // remove segment again
+            for(auto it = _currently_processed_segments.begin(); it != _currently_processed_segments.end(); ++it)
+            {
+                if(std::get<0>(*it) == id) {
+                    _currently_processed_segments.erase(it);
+                    break;
+                }
+            }
 
             if (terminate)
                 break;
@@ -2004,20 +2021,18 @@ inline std::vector<T> erase_indices(const std::vector<T>& data, std::vector<size
     return ret;
 }
 
-std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_ptr<Individual::SegmentInformation>& segment, size_t& _delete, size_t& _create, size_t& _reuse) {
-    if(Work::terminate || !GUI::instance())
-        return nullptr;
-
+void paint_distributions(int64_t frame) {
     static std::mutex distri_mutex;
     static Timer distri_timer;
-    int64_t minimum_range = segment->start(), maximum_range = segment->end();
+    int64_t minimum_range = std::numeric_limits<int64_t>::max(), maximum_range = 0;
     std::vector<int64_t> v;
+    std::vector<int64_t> current;
 
     {
         std::lock_guard guard(distri_mutex);
         if (distri_timer.elapsed() >= 1) {
             //auto [mit, mat] = std::minmax_element(v.begin(), v.end());
-            //if (mit != v.end() && mat != v.end()) 
+            //if (mit != v.end() && mat != v.end())
             {
                 std::lock_guard g(Work::_mutex);
                 for (auto& t : Work::task_queue()) {
@@ -2027,9 +2042,16 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
                     minimum_range = min(t.range.start, minimum_range);
                     maximum_range = max(t.range.end, maximum_range);
                 }
+                
+                for(auto& [id, range] : Work::_currently_processed_segments) {
+                    v.insert(v.end(), { int64_t(range.start), int64_t(range.end) });
+                    current.insert(current.end(), { int64_t(range.start), int64_t(range.end) });
+                    minimum_range = min(range.start, minimum_range);
+                    maximum_range = max(range.end, maximum_range);
+                }
             }
 
-            if (!v.empty())
+            //if (!v.empty())
             {
                 float scale = 1024.0 / float(Tracker::end_frame() - Tracker::start_frame());
                 Image task_queue_images(300, 1024, 4);
@@ -2037,11 +2059,18 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
                 std::fill(task_queue_images.data(), task_queue_images.data() + task_queue_images.size(), 0);
 
                 double sum = std::accumulate(v.begin(), v.end(), 0.0);
-                double mean = sum / v.size();
+                double mean = 0;
+                if(!v.empty())
+                    mean = sum / v.size();
+                
                 double median = CalcMHWScore(v);
                 
                 for (size_t i = 0; i < v.size(); i+=2) {
                     cv::rectangle(mat, Vec2(v[i] - Tracker::start_frame(), 0) * scale, Vec2(v[i+1] - Tracker::start_frame(), 100 / scale) * scale, Red, cv::FILLED);
+                }
+                
+                for (size_t i = 0; i < current.size(); i+=2) {
+                    cv::rectangle(mat, Vec2(current[i] - Tracker::start_frame(), 0) * scale, Vec2(current[i+1] - Tracker::start_frame(), 100 / scale) * scale, Cyan, cv::FILLED);
                 }
 
                 cv::line(mat, Vec2(mean - Tracker::start_frame(), 0) * scale, Vec2(mean - Tracker::start_frame(), 100 / scale) * scale, Green, 2);
@@ -2071,7 +2100,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
                     }
 
                     for (auto& [frame, blobs] : _probability_cache) {
-                        cv::line(mat, Vec2(frame - Tracker::start_frame(), 200 / scale) * scale, Vec2(frame - Tracker::start_frame(), 300 / scale) * scale, 
+                        cv::line(mat, Vec2(frame - Tracker::start_frame(), 200 / scale) * scale, Vec2(frame - Tracker::start_frame(), 300 / scale) * scale,
                             Green.exposure(0.1 + 0.9 * blobs.size() / float(max_per_frame)), 2);
                     }
                 }
@@ -2088,13 +2117,18 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
                 //maximum_range = max((int64_t)*mat, maximum_range);
                 Debug("Frames range from %ld to %ld, with %f+-%f with median %f", minimum_range, maximum_range, mean, stdev, median);
             }
-            else {
-                Debug("Range is empty, so we do not have to look for any frames (%lu).", v.size());
-            }
 
             distri_timer.reset();
         }
     }
+}
+
+std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_ptr<Individual::SegmentInformation>& segment, size_t& _delete, size_t& _create, size_t& _reuse) {
+    if(Work::terminate || !GUI::instance())
+        return nullptr;
+    
+    // debug information
+    paint_distributions(frame);
 
     std::shared_ptr<PPFrame> ptr = nullptr;
 
@@ -2171,7 +2205,10 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
         //Debug("Waited for %d", frame);
     }
 
-    if(v.empty()) {
+    std::vector<int64_t> v;
+    int64_t minimum_range = std::numeric_limits<int64_t>::max(), maximum_range = 0;
+    
+    {
         std::lock_guard g(Work::_mutex);
         for (auto& t : Work::task_queue()) {
             if (t.range.start == -1)
@@ -2180,6 +2217,12 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
             v.insert(v.end(), { int64_t(t.range.start), int64_t(t.range.end) });
             minimum_range = min(t.range.start, minimum_range);
             maximum_range = max(t.range.end, maximum_range);
+        }
+        
+        for(auto& [id, range] : Work::_currently_processed_segments) {
+            v.insert(v.end(), { int64_t(range.start), int64_t(range.end) });
+            minimum_range = min(range.start, minimum_range);
+            maximum_range = max(range.end, maximum_range);
         }
     }
 
