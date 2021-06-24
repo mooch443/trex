@@ -2207,6 +2207,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
     }
 
     std::vector<int64_t> v;
+    std::vector<Rangel> ranges;
     int64_t minimum_range = std::numeric_limits<int64_t>::max(), maximum_range = 0;
     
     {
@@ -2218,12 +2219,14 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
             v.insert(v.end(), { int64_t(t.range.start), int64_t(t.range.end) });
             minimum_range = min(t.range.start, minimum_range);
             maximum_range = max(t.range.end, maximum_range);
+            ranges.push_back(t.range);
         }
         
         for(auto& [id, range] : Work::_currently_processed_segments) {
             v.insert(v.end(), { int64_t(range.start), int64_t(range.end) });
             minimum_range = min(range.start, minimum_range);
             maximum_range = max(range.end, maximum_range);
+            ranges.push_back(range);
         }
     }
 
@@ -2250,7 +2253,23 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
             int64_t center = median;//mean;//(minimum_range + (maximum_range - minimum_range) / 2.0);
 
             for (auto& [f, pp] : _frame_cache) {
-                frames_in_cache.push_back({ abs(int64_t(f) - center), i });
+                //bool found = false;
+                int64_t min_distance = std::numeric_limits<int64_t>::max();
+                
+                if(ranges.empty()) {
+                    frames_in_cache.push_back({abs(int64_t(f) - center), i});
+                } else {
+                    for(auto &r : ranges) {
+                        if(r.contains(f)) {
+                            min_distance = 0;
+                            break;
+                        }
+                        
+                        min_distance = min(min_distance, abs(r.start - f), abs(f - r.end));
+                    }
+                    
+                    frames_in_cache.push_back({ min_distance, i });
+                }
                 ++i;
             }
 
