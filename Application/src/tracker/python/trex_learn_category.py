@@ -217,7 +217,7 @@ class Categorize:
         X_test = X[self.validation_indexes]
         Y_test = Y[self.validation_indexes]
 
-        training_data = tf.data.Dataset.from_tensor_slices((tf.cast(X_train, float), Y_train)).batch(batch_size)
+        training_data = tf.data.Dataset.from_tensor_slices((tf.cast(X_train, float), Y_train)).shuffle().batch(batch_size)
         validation_data = tf.data.Dataset.from_tensor_slices((tf.cast(X_test, float), Y_test)).batch(batch_size)
 
         early_stopping_monitor = EarlyStopping(

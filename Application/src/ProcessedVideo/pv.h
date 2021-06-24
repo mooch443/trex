@@ -129,11 +129,12 @@ namespace pv {
 
         uint64_t size() const;
         void clear();
+        void serialize(DataPackage&, bool& compressed) const;
         
     protected:
         friend class File;
         
-        void serialize(DataPackage&) const;
+        //void update_timestamp(DataPackage&) const;
     };
         
     struct Header {
@@ -261,6 +262,7 @@ namespace pv {
         }
         
         void add_individual(const Frame& frame);
+        void add_individual(const Frame& frame, DataPackage& pack, bool compressed);
         
         void read_frame(Frame& frame, uint64_t frameIndex);
         void read_next_frame(Frame& frame, uint64_t frame_to_read);
