@@ -250,7 +250,12 @@ const Sample::Ptr& DataStore::random_sample(Idx_t fid) {
 Sample::Ptr DataStore::get_random() {
     static std::mt19937 mt(rd());
     
-    std::set<Idx_t> individuals(extract_keys(Tracker::instance()->individuals()));
+    std::set<Idx_t> individuals;
+    {
+        Tracker::LockGuard guard("Categorize::random_sample");
+        individuals = extract_keys(Tracker::instance()->individuals());
+    }
+    
     if(individuals.empty())
         return {};
     
@@ -1649,6 +1654,9 @@ T CalcMHWScore(std::vector<T> hWScores) {
 
 Work::Task Work::_pick_front_thread() {
     int64_t center;
+    
+    std::vector<std::tuple<bool, int64_t, int64_t, size_t>> sorted;
+    
     {
         static Timing timing("SortTaskQueue", 0.1);
         TakeTiming take(timing);
@@ -1656,7 +1664,7 @@ Work::Task Work::_pick_front_thread() {
         int64_t minimum_range = std::numeric_limits<int64_t>::max(), maximum_range = 0;
         double mean = 0;
         std::vector<int64_t> vector;
-        {
+        /*{
             std::shared_lock g(_cache_mutex);
             vector.reserve(_frame_cache.size());
 
@@ -1669,52 +1677,80 @@ Work::Task Work::_pick_front_thread() {
 
             if(!_frame_cache.empty())
                 mean /= _frame_cache.size();
-        }
+        }*/
 
         //double median = CalcMHWScore(vector);
         /*for (auto& t : Work::task_queue()) {
             minimum_range = min(t.range.start, minimum_range);
             maximum_range = max(t.range.end, maximum_range);
             mean += t.range.start + t.range.length() * 0.5;
-        }
-
-        if (Work::task_queue().size() > 0)
-            mean /= double(Work::task_queue().size());*/
+        }*/
+        
+        if(!vector.empty())
+            mean /= double(vector.size());
 
         center = mean;//minimum_range;//minimum_range + (maximum_range - minimum_range) * 0.5;
+        
+        sorted.clear();
+        sorted.reserve(Work::task_queue().size());
+        
+        for (size_t i=0; i<Work::task_queue().size(); ++i) {
+            int64_t min_distance = std::numeric_limits<int64_t>::max();
+            auto& task = Work::task_queue()[i];
+            
+            if(!Work::_currently_processed_segments.empty()) {
+                for(auto& [id, r] : Work::_currently_processed_segments) {
+                    if(r.overlaps(task.real_range)) {
+                        min_distance = 0;
+                        break;
+                    }
+                    
+                    min_distance = min(min_distance,
+                                       abs(r.start - task.real_range.end),
+                                       abs(r.end - task.real_range.start));
+                }
+            }
+            
+            int64_t d = abs(int64_t(task.real_range.start + task.real_range.length() * 0.5) - mean);
+            sorted.push_back({ task.range.start != -1, min_distance, d, i });
+        }
+        
+        std::sort(sorted.begin(), sorted.end(), std::greater<>());
 
-        std::sort(Work::task_queue().begin(), Work::task_queue().end(), [center](const Task& A, const Task&B) -> bool {
+        /*std::sort(Work::task_queue().begin(), Work::task_queue().end(), [center](const Task& A, const Task&B) -> bool {
             if (A.range.start == -1 && B.range.start != A.range.start)
                 return false;
             if (A.range.start != -1 && B.range.start == -1)
                 return true;
 
             return abs(A.range.start + A.range.length() * 0.5 - center) > abs(B.range.start + B.range.length() * 0.5 - center);
-        });
+        });*/
 
         static Timer print;
         static std::mutex mutex;
         
         std::lock_guard g(mutex);
-        if (print.elapsed() >= 1 && Work::task_queue().size() > 20) {
-            std::vector<Rangel> _values;
-            for (auto it = Work::task_queue().end() - 20; it != Work::task_queue().end(); ++it) {
-                if (it->range.start != -1)
-                    _values.push_back(Rangel(abs(it->range.start - center), abs(it->range.end - center)));
+        if (print.elapsed() >= 1 && sorted.size() > 20) {
+            std::vector<std::tuple<bool, Rangel>> _values;
+            for (auto it = sorted.begin(); it != sorted.end(); ++it) {
+                auto& item = Work::task_queue().at(std::get<3>(*it));
+                if (item.range.start != -1)
+                    _values.push_back({std::get<0>(*it), Rangel(abs(item.real_range.start - center), abs(item.real_range.end - center))});
                 else
-                    _values.push_back(it->range);
+                    _values.push_back({std::get<0>(*it), item.real_range});
             }
             auto str = Meta::toStr(_values);
-            Debug("... end of task queue:\n\t%S", &str);
+            Debug("... end of task queue: %S", &str);
             print.reset();
         }
     }
     
     // sort tasks according to currently cached frames, as well as frame order
-    auto task = std::move(Work::task_queue().back());
-    Work::task_queue().pop_back();
+    auto it = Work::task_queue().begin() + (sorted.empty() ? (Work::task_queue().size()-1) : std::get<3>(sorted.back()));
+    auto task = std::move(*it);
+    Work::task_queue().erase(it);
     
-    Debug("Picking task for %d-%d (cached:%d, center is %ld)", task.range.start, task.range.end, task.is_cached, center);
+    Debug("Picking task for (%d) %d-%d (cached:%d, center is %ld)", task.range.start, task.real_range.start, task.real_range.end, task.is_cached, center);
     return task;
 }
 
@@ -2219,7 +2255,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
             v.insert(v.end(), { int64_t(t.range.start), int64_t(t.range.end) });
             minimum_range = min(t.range.start, minimum_range);
             maximum_range = max(t.range.end, maximum_range);
-            ranges.push_back(t.range);
+            //ranges.push_back(t.range);
         }
         
         for(auto& [id, range] : Work::_currently_processed_segments) {
@@ -2366,56 +2402,60 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     static Timer debug_timer;
 ///#endif
     
-    const size_t step = segment->basic_index.size() < min_samples ? 1u : max(1u, segment->basic_index.size() / sample_rate);
-    size_t s = step; // start with 1, try to find something that is already in cache
-    std::shared_ptr<PPFrame> ptr;
-    size_t found_frame_immediately = 0, found_frames = 0;
+    {
+        Tracker::LockGuard guard("Categorize::sample");
     
-    // add an offset to the frame we start with, so that initial frame is dividable by 5
-    // this helps to find more matches when randomly sampling around:
-    long_t start_offset = 0;
-    if(segment->basic_index.size() >= 15u) {
-        start_offset = fish->basic_stuff().at(segment->basic_index.front())->frame;
-        start_offset = 5 - start_offset % 5;
-    }
-    
-    // see how many of the indexes we can already find in _frame_cache, and insert
-    // indexes with added ptr of the cached item, if possible
-    for (size_t i=0; i+start_offset<segment->basic_index.size(); i += step) {
-        auto index = segment->basic_index.at(i + start_offset);
-        auto f = Frame_t(fish->basic_stuff().at(index)->frame);
+        const size_t step = segment->basic_index.size() < min_samples ? 1u : max(1u, segment->basic_index.size() / sample_rate);
+        size_t s = step; // start with 1, try to find something that is already in cache
+        std::shared_ptr<PPFrame> ptr;
+        size_t found_frame_immediately = 0, found_frames = 0;
         
-        {
-            std::shared_lock guard(_cache_mutex);
-            auto it = find_keyed_tuple(_frame_cache, Frame_t(f));
-            if(it != _frame_cache.end()) {
-                //ptr = std::get<1>(*it);
-                ++found_frames;
-                ++found_frame_immediately;
-
-#ifndef NDEBUG
-                auto fit = _current_cached_frames.find(Frame_t(f));
-                if (fit == _current_cached_frames.end())
-                    Warning("Cannot find frame %d in _current_cached_frames, but can find it in _frame_cache!", f);
-#endif
-            }
-#ifndef NDEBUG
-            else {
-                auto fit = _current_cached_frames.find(Frame_t(f));
-                if (fit != _current_cached_frames.end())
-                    Warning("Cannot find frame %d in _frame_cache, but can find it in _current_cached_frames!", f);
-            }
-#endif
+        // add an offset to the frame we start with, so that initial frame is dividable by 5
+        // this helps to find more matches when randomly sampling around:
+        long_t start_offset = 0;
+        if(segment->basic_index.size() >= 15u) {
+            start_offset = fish->basic_stuff().at(segment->basic_index.front())->frame;
+            start_offset = 5 - start_offset % 5;
         }
         
-        stuff_indexes.push_back(IndexedFrame{index, f, ptr});
-    }
-    
-    if(stuff_indexes.size() < min_samples) {
-#ifndef NDEBUG
-        Warning("#1 Below min_samples (%lu) Fish%d frames %d-%d", min_samples, fish->identity().ID(), segment->start(), segment->end());
-#endif
-        return Sample::Invalid();
+        // see how many of the indexes we can already find in _frame_cache, and insert
+        // indexes with added ptr of the cached item, if possible
+        for (size_t i=0; i+start_offset<segment->basic_index.size(); i += step) {
+            auto index = segment->basic_index.at(i + start_offset);
+            auto f = Frame_t(fish->basic_stuff().at(index)->frame);
+            
+            {
+                std::shared_lock guard(_cache_mutex);
+                auto it = find_keyed_tuple(_frame_cache, Frame_t(f));
+                if(it != _frame_cache.end()) {
+                    //ptr = std::get<1>(*it);
+                    ++found_frames;
+                    ++found_frame_immediately;
+
+    #ifndef NDEBUG
+                    auto fit = _current_cached_frames.find(Frame_t(f));
+                    if (fit == _current_cached_frames.end())
+                        Warning("Cannot find frame %d in _current_cached_frames, but can find it in _frame_cache!", f);
+    #endif
+                }
+    #ifndef NDEBUG
+                else {
+                    auto fit = _current_cached_frames.find(Frame_t(f));
+                    if (fit != _current_cached_frames.end())
+                        Warning("Cannot find frame %d in _frame_cache, but can find it in _current_cached_frames!", f);
+                }
+    #endif
+            }
+            
+            stuff_indexes.push_back(IndexedFrame{index, f, ptr});
+        }
+        
+        if(stuff_indexes.size() < min_samples) {
+    #ifndef NDEBUG
+            Warning("#1 Below min_samples (%lu) Fish%d frames %d-%d", min_samples, fish->identity().ID(), segment->start(), segment->end());
+    #endif
+            return Sample::Invalid();
+        }
     }
     
     // iterate through indexes in stuff_indexes, which we found in the last steps. now replace
