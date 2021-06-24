@@ -1726,13 +1726,14 @@ Work::Task Work::_pick_front_thread() {
             return abs(A.range.start + A.range.length() * 0.5 - center) > abs(B.range.start + B.range.length() * 0.5 - center);
         });*/
 
+#ifndef NDEBUG
         static Timer print;
         static std::mutex mutex;
         
         std::lock_guard g(mutex);
         if (print.elapsed() >= 1 && sorted.size() > 20) {
             std::vector<std::tuple<bool, Rangel>> _values;
-            for (auto it = sorted.begin(); it != sorted.end(); ++it) {
+            for (auto it = sorted.end() - 20; it != sorted.end(); ++it) {
                 auto& item = Work::task_queue().at(std::get<3>(*it));
                 if (item.range.start != -1)
                     _values.push_back({std::get<0>(*it), Rangel(abs(item.real_range.start - center), abs(item.real_range.end - center))});
@@ -1743,6 +1744,7 @@ Work::Task Work::_pick_front_thread() {
             Debug("... end of task queue: %S", &str);
             print.reset();
         }
+#endif
     }
     
     // sort tasks according to currently cached frames, as well as frame order
