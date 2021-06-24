@@ -2499,21 +2499,11 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     size_t non = 0, cont = 0;
     
     for(auto &[index, frame, ptr] : stuff_indexes) {
-        Midline::Ptr midline;
-        std::shared_ptr<Individual::BasicStuff> basic;
-
         auto normalize = SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>();
         if(normalize == default_config::recognition_normalization_t::posture && !FAST_SETTINGS(calculate_posture))
             normalize = default_config::recognition_normalization_t::moments;
         const auto scale = FAST_SETTINGS(recognition_image_scale);
         const auto dims = SETTING(recognition_image_size).value<Size2>();
-
-        {
-            Tracker::LockGuard guard("Categorize::sample");
-            basic = fish->basic_stuff().at(index);
-            auto posture = fish->posture_stuff(frame);
-            midline = posture ? fish->calculate_midline_for(basic, posture) : nullptr;
-        }
 
         if(!ptr || !Work::initialized()) {
             ptr = cache_pp_frame(frame, segment, _delete, _create, _reuse);
@@ -2530,13 +2520,23 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         }
 
         if (debug_timer.elapsed() >= 1) {
-            Debug("Ratio: %.2f%% - Create:%lu Reuse:%lu Delete:%lu", double(_create) / double(_reuse) * 100.0, _create, _reuse, _delete);
+            Debug("RatioRegenerate: %f - Create:%lu Reuse:%lu Delete:%lu", double(_create) / double(_reuse), _create, _reuse, _delete);
             debug_timer.reset();
         }
         
         if(!ptr) {
             Except("Failed to generate frame %d.", frame);
             return Sample::Invalid();
+        }
+        
+        Midline::Ptr midline;
+        std::shared_ptr<Individual::BasicStuff> basic;
+        
+        {
+            Tracker::LockGuard guard("Categorize::sample");
+            basic = fish->basic_stuff().at(index);
+            auto posture = fish->posture_stuff(frame);
+            midline = posture ? fish->calculate_midline_for(basic, posture) : nullptr;
         }
         
         if(basic->frame != frame) {
