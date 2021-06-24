@@ -1796,7 +1796,7 @@ void Work::work_thread() {
         while (_generated_samples.size() < requested_samples() && !terminate) {
             guard.unlock();
             {
-                Tracker::LockGuard g("get_random::loop");
+                //Tracker::LockGuard g("get_random::loop");
                 sample = DataStore::get_random();
                 if (sample && sample->_images.size() < 1) {
                     sample = Sample::Invalid();
