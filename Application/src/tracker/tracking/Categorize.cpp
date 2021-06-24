@@ -71,6 +71,7 @@ std::vector<std::tuple<std::thread::id, Rangel>> _currently_processed_segments;
 
 struct Task {
     Rangel range;
+    Rangel real_range;
     std::function<void()> func;
     bool is_cached = false;
 };
@@ -1107,7 +1108,7 @@ struct NetworkApplicationState {
                 
                 std::lock_guard guard(Work::_mutex);
                 Work::task_queue().push_back(Work::Task{
-                    f,
+                    f,f,
                     [this]()
                     {
                         this->next();
@@ -1237,7 +1238,7 @@ void start_applying() {
     
     std::lock_guard guard(Work::_mutex);
     Work::task_queue().push_back(Work::Task{
-        Rangel(-1,-1),
+        Rangel(-1,-1),Rangel(-1,-1),
         [](){
             Debug("## Initializing APPLY.");
             {
@@ -1262,7 +1263,7 @@ void start_applying() {
                     
                     std::lock_guard guard(Work::_mutex);
                     Work::task_queue().push_back(Work::Task{
-                        Rangel(-1,-1),//f,
+                        Rangel(-1,-1),f,
                         [k=k](){
                             NetworkApplicationState::current().at(k).next();
                             // start first task
@@ -1726,7 +1727,7 @@ void Work::work_thread() {
             auto task = _pick_front_thread();
             
             // note current segment
-            _currently_processed_segments.insert(_currently_processed_segments.end(), { id, task.range });
+            _currently_processed_segments.insert(_currently_processed_segments.end(), { id, task.real_range });
             
             // process sergment
             guard.unlock();
