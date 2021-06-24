@@ -1759,11 +1759,12 @@ Work::Task Work::_pick_front_thread() {
 void Work::work_thread() {
     std::unique_lock guard(Work::_mutex);
     const std::thread::id id = std::this_thread::get_id();
+    constexpr size_t maximum_tasks = 10u;
     
     while (!terminate) {
         size_t collected = 0;
         
-        while (!Work::task_queue().empty() && collected < 100) {
+        while (!Work::task_queue().empty() && collected++ < maximum_tasks) {
             auto task = _pick_front_thread();
             
             // note current segment
@@ -1786,11 +1787,10 @@ void Work::work_thread() {
 
             if (terminate)
                 break;
-            
-            ++collected;
         }
 
-        Debug("Collected tasks: %lu", collected);
+        if(collected > 0)
+            Debug("Collected tasks: %lu", collected);
         
         Sample::Ptr sample;
         while (_generated_samples.size() < requested_samples() && !terminate) {
@@ -1816,7 +1816,7 @@ void Work::work_thread() {
         if (terminate)
             break;
 
-        if(collected < 100)
+        if(collected < maximum_tasks)
             _variable.wait_for(guard, std::chrono::seconds(1));
     }
 }
@@ -2530,7 +2530,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         }
 
         if (debug_timer.elapsed() >= 1) {
-            Debug("Create: %lu Reuse: %lu Delete: %lu", _create, _reuse, _delete);
+            Debug("Ratio: %.2f%% - Create:%lu Reuse:%lu Delete:%lu", double(_create) / double(_reuse) * 100.0, _create, _reuse, _delete);
             debug_timer.reset();
         }
         
