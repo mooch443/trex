@@ -2422,11 +2422,22 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     static size_t _reuse = 0, _create = 0, _delete = 0;
     static Timer debug_timer;
 ///#endif
+
+    std::vector<long_t> basic_index;
+    std::vector<long_t> frames;
+    Rangel range;
     
     {
-        Tracker::LockGuard guard("Categorize::sample");
-    
-        const size_t step = segment->basic_index.size() < min_samples ? 1u : max(1u, segment->basic_index.size() / sample_rate);
+        {
+            Tracker::LockGuard guard("Categorize::sample");
+            range = segment->range;
+            basic_index = segment->basic_index;
+            frames.reserve(basic_index.size());
+            for (auto index : basic_index)
+                frames.push_back(fish->basic_stuff()[index]->frame);
+        }
+
+        const size_t step = basic_index.size() < min_samples ? 1u : max(1u, basic_index.size() / sample_rate);
         size_t s = step; // start with 1, try to find something that is already in cache
         std::shared_ptr<PPFrame> ptr;
         size_t found_frame_immediately = 0, found_frames = 0;
@@ -2434,16 +2445,16 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         // add an offset to the frame we start with, so that initial frame is dividable by 5
         // this helps to find more matches when randomly sampling around:
         long_t start_offset = 0;
-        if(segment->basic_index.size() >= 15u) {
-            start_offset = fish->basic_stuff().at(segment->basic_index.front())->frame;
+        if(basic_index.size() >= 15u) {
+            start_offset = frames.front();
             start_offset = 5 - start_offset % 5;
         }
         
         // see how many of the indexes we can already find in _frame_cache, and insert
         // indexes with added ptr of the cached item, if possible
-        for (size_t i=0; i+start_offset<segment->basic_index.size(); i += step) {
-            auto index = segment->basic_index.at(i + start_offset);
-            auto f = Frame_t(fish->basic_stuff().at(index)->frame);
+        for (size_t i=0; i+start_offset<basic_index.size(); i += step) {
+            auto index = basic_index.at(i + start_offset);
+            auto f = Frame_t(frames.at(i + start_offset));
             
             {
                 std::shared_lock guard(_cache_mutex);
@@ -2509,13 +2520,14 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
 
     // actually generate frame data + load pixels from PV file, if the cache for a certain frame has not yet been generated.
     size_t non = 0, cont = 0;
-    
+
+    auto normalize = SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>();
+    if (normalize == default_config::recognition_normalization_t::posture && !FAST_SETTINGS(calculate_posture))
+        normalize = default_config::recognition_normalization_t::moments;
+    const auto scale = FAST_SETTINGS(recognition_image_scale);
+    const auto dims = SETTING(recognition_image_size).value<Size2>();
+
     for(auto &[index, frame, ptr] : stuff_indexes) {
-        auto normalize = SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>();
-        if(normalize == default_config::recognition_normalization_t::posture && !FAST_SETTINGS(calculate_posture))
-            normalize = default_config::recognition_normalization_t::moments;
-        const auto scale = FAST_SETTINGS(recognition_image_scale);
-        const auto dims = SETTING(recognition_image_size).value<Size2>();
 
         if(!ptr || !Work::initialized()) {
             ptr = cache_pp_frame(frame, segment, _delete, _create, _reuse);
@@ -2558,8 +2570,8 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         auto blob = Tracker::find_blob_noisy(ptr->bdx_to_ptr, basic->blob.blob_id(), basic->blob.parent_id, basic->blob.calculate_bounds(), basic->frame);
         //auto it = fish->iterator_for(basic->frame);
         if (blob) { //&& it != fish->frame_segments().end()) {
-            Tracker::LockGuard guard("Categorize::sample");
-            auto custom_len = Tracker::recognition()->local_midline_length(fish, segment->range);
+            //Tracker::LockGuard guard("Categorize::sample");
+            auto custom_len = Tracker::recognition()->local_midline_length(fish, range);
 
             Recognition::ImageData image_data(
                 Recognition::ImageData::Blob{

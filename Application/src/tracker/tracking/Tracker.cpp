@@ -737,7 +737,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
         frame.bdx_to_ptr = fill_proximity_grid(frame.blob_grid, frame.blobs);
         
         if(do_history_split) {
-            Tracker::LockGuard guard("preprocess_frame");
+            //Tracker::LockGuard guard("preprocess_frame");
             Tracker::instance()->history_split(frame, active_individuals, out, pool);
         }
     }
@@ -1233,11 +1233,16 @@ bool operator<(long_t frame, const FrameProperties& props) {
     void Tracker::history_split(PPFrame &frame, const std::unordered_set<Individual *> &active_individuals, std::ostream* out, GenericThreadPool* pool) {
         static Timing timing("history_split", 20);
         TakeTiming take(timing);
+
+        float tdelta;
         
         auto resolution = _average->bounds().size();
         //ProximityGrid proximity(resolution);
-        auto props = properties(frame.index() - 1);
-        float tdelta = props ? (frame.time - props->time) : 0;
+        {
+            Tracker::LockGuard guard("history_split#1");
+            auto props = properties(frame.index() - 1);
+            tdelta = props ? (frame.time - props->time) : 0;
+        }
         const float max_d = FAST_SETTINGS(track_max_speed) * tdelta / FAST_SETTINGS(cm_per_pixel) * 0.5;
 
         Log(out, "");
@@ -1253,6 +1258,8 @@ bool operator<(long_t frame, const FrameProperties& props) {
         std::map<long_t, std::set<long_t>> fish_mappings;
         std::map<long_t, std::set<long_t>> blob_mappings;
         std::map<long_t, std::map<uint32_t, Match::prob_t>> paired;
+
+        const auto frame_limit = FAST_SETTINGS(frame_rate) * FAST_SETTINGS(track_max_reassign_time);
         
         {
             //static Timing just_splitting("caching", 0.1);
@@ -1262,44 +1269,47 @@ bool operator<(long_t frame, const FrameProperties& props) {
             //num_threads = 1;
             std::mutex thread_mutex;
             auto space_limit = Individual::weird_distance() * 0.5;
-            
+            std::condition_variable variable;
+
+            size_t count = 0;
+            std::mutex mutex;
+
             auto fn = [&](Tracker::set_of_individuals_t::const_iterator it, Tracker::set_of_individuals_t::const_iterator end) {
                 for(; it != end; ++it) {
                     auto fish = *it;
-                    
-                    auto &obj = frame.cached_individuals.at(fish->identity().ID());
-                    obj = fish->cache_for_frame(frame.index(), frame.time);
-                    
-                    auto frame_limit = FAST_SETTINGS(frame_rate) * FAST_SETTINGS(track_max_reassign_time);
-                    auto time_limit = obj.previous_frame - frame_limit;
 					
                     Vec2 last_pos(-1,-1);
                     auto last_frame = -1;
                     long_t last_L = -1;
+                    float time_limit;
 
-                    
+                    auto& obj = frame.cached_individuals.at(fish->identity().ID());
+                    obj = fish->cache_for_frame(frame.index(), frame.time);
+
+                    time_limit = obj.previous_frame - frame_limit;
+                        
                     size_t counter = 0;
                     auto sit = fish->iterator_for(obj.previous_frame);
-                    if(sit != fish->frame_segments().end() && (*sit)->contains(obj.previous_frame)) {
-                        
+                    if (sit != fish->frame_segments().end() && (*sit)->contains(obj.previous_frame)) {
 
-                        for(; sit != fish->frame_segments().end() && min((*sit)->end(), obj.previous_frame) >= time_limit && counter < frame_limit; ++counter)
+
+                        for (; sit != fish->frame_segments().end() && min((*sit)->end(), obj.previous_frame) >= time_limit && counter < frame_limit; ++counter)
                         {
                             auto pos = fish->basic_stuff().at((*sit)->basic_stuff((*sit)->end()))->centroid->pos(Units::DEFAULT);
-                            
-                            if((*sit)->length() > FAST_SETTINGS(frame_rate) * FAST_SETTINGS(track_max_reassign_time) * 0.25)
+
+                            if ((*sit)->length() > FAST_SETTINGS(frame_rate) * FAST_SETTINGS(track_max_reassign_time) * 0.25)
                             {
                                 //! segment is long enough, we can stop. but only actually use it if its not too far away:
-                                if(last_pos.x == -1 || euclidean_distance(pos, last_pos) < space_limit) {
+                                if (last_pos.x == -1 || euclidean_distance(pos, last_pos) < space_limit) {
                                     last_frame = min((*sit)->end(), obj.previous_frame);
                                     last_L = last_frame - (*sit)->start();
                                 }
                                 break;
                             }
-                            
+
                             last_pos = fish->basic_stuff().at((*sit)->basic_stuff((*sit)->start()))->centroid->pos(Units::DEFAULT);
-                            
-                            if(sit != fish->frame_segments().begin())
+
+                            if (sit != fish->frame_segments().begin())
                                 --sit;
                             else
                                 break;
@@ -1330,6 +1340,10 @@ bool operator<(long_t frame, const FrameProperties& props) {
                     
                     Log(out, "\tFish %d (%f,%f) proximity: %S", fish->identity().ID(), obj.estimated_px.x, obj.estimated_px.y, &str);
                 }
+
+                std::unique_lock lock(mutex);
+                ++count;
+                variable.notify_one();
             };
             
             //pool = nullptr;
@@ -1337,13 +1351,16 @@ bool operator<(long_t frame, const FrameProperties& props) {
                 frame.cached_individuals[fish->identity().ID()];
             
             if(num_threads < 2 || !pool || active_individuals.size() < num_threads) {
+                Tracker::LockGuard guard("history_split#2");
                 fn(active_individuals.begin(), active_individuals.end());
                 
             } else if(active_individuals.size()) {
                 size_t last = active_individuals.size() % num_threads;
                 size_t per_thread = (active_individuals.size() - last) / num_threads;
-                
-                for (size_t i=0; (i<=num_threads && last) || (!last && i<num_threads); ++i) {
+                size_t i = 0;
+
+                Tracker::LockGuard guard("history_split#2");
+                for (; (i<=num_threads && last) || (!last && i<num_threads); ++i) {
                     size_t n = per_thread;
                     if(i == num_threads)
                         n = last;
@@ -1359,7 +1376,11 @@ bool operator<(long_t frame, const FrameProperties& props) {
                     pool->enqueue(fn, start, end);
                 }
                 
-                pool->wait();
+                std::unique_lock lock(mutex);
+                while (count < i) {
+                    variable.wait(lock);
+                }
+                //pool->wait();
             }
         }
         
