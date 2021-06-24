@@ -1761,7 +1761,9 @@ void Work::work_thread() {
     const std::thread::id id = std::this_thread::get_id();
     
     while (!terminate) {
-        while (!Work::task_queue().empty()) {
+        size_t collected = 0;
+        
+        while (!Work::task_queue().empty() && collected < 100) {
             auto task = _pick_front_thread();
             
             // note current segment
@@ -1784,8 +1786,12 @@ void Work::work_thread() {
 
             if (terminate)
                 break;
+            
+            ++collected;
         }
 
+        Debug("Collected tasks: %lu", collected);
+        
         Sample::Ptr sample;
         while (_generated_samples.size() < requested_samples() && !terminate) {
             guard.unlock();
@@ -1810,7 +1816,8 @@ void Work::work_thread() {
         if (terminate)
             break;
 
-        _variable.wait_for(guard, std::chrono::seconds(1));
+        if(collected < 100)
+            _variable.wait_for(guard, std::chrono::seconds(1));
     }
 }
 
