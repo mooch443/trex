@@ -2252,7 +2252,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
     }
 
     std::vector<int64_t> v;
-    std::vector<Rangel> ranges;
+    std::vector<Rangel> ranges, secondary;
     int64_t minimum_range = std::numeric_limits<int64_t>::max(), maximum_range = 0;
     
     {
@@ -2265,6 +2265,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
             minimum_range = min(t.range.start, minimum_range);
             maximum_range = max(t.range.end, maximum_range);
             //ranges.push_back(t.range);
+            secondary.push_back(t.range);
         }
         
         for(auto& [id, range] : Work::_currently_processed_segments) {
@@ -2288,7 +2289,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
         constexpr size_t maximum_cache_size = 1500u;
         if(_frame_cache.size() > maximum_cache_size + 100u) {
             // need to do some cleanup
-            std::vector < std::tuple<int64_t, size_t> > frames_in_cache;
+            std::vector < std::tuple<int64_t, int64_t, size_t> > frames_in_cache;
             frames_in_cache.reserve(_frame_cache.size());
             size_t i = 0;
 
@@ -2300,10 +2301,10 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
             for (auto& [f, pp] : _frame_cache) {
                 //bool found = false;
                 int64_t min_distance = std::numeric_limits<int64_t>::max();
+                int64_t secondary_distance = min_distance;
+                int64_t center_distance = abs(int64_t(f) - center);
                 
-                if(ranges.empty()) {
-                    frames_in_cache.push_back({abs(int64_t(f) - center), i});
-                } else {
+                if(!ranges.empty()) {
                     for(auto &r : ranges) {
                         if(r.contains(f)) {
                             min_distance = 0;
@@ -2312,9 +2313,20 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
                         
                         min_distance = min(min_distance, abs(r.start - f), abs(f - r.end));
                     }
-                    
-                    frames_in_cache.push_back({ min_distance, i });
                 }
+                
+                if(!secondary.empty()) {
+                    for(auto &r : secondary) {
+                        if(r.contains(f)) {
+                            secondary_distance = 0;
+                            break;
+                        }
+                        
+                        secondary_distance = min(min_distance, abs(r.start - f), abs(f - r.end));
+                    }
+                }
+                
+                frames_in_cache.push_back({ min_distance, secondary_distance, i });
                 ++i;
             }
 
@@ -2326,7 +2338,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
             indices.reserve(maximum_cache_size);
 
             for (auto it = start; it != end; ++it) {
-                indices.push_back(std::get<1>(*it));
+                indices.push_back(std::get<2>(*it));
             }
 
             Debug("Deleting %ld items from frame cache, which are farther away than %ld from the mean of %f (%lu size) and median %f", std::distance(start, end), end != frames_in_cache.end() ? std::get<0>(*end) : -1, (minimum_range + (maximum_range - minimum_range) / 2.0), _frame_cache.size(), median);
