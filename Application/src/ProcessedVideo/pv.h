@@ -223,9 +223,9 @@ namespace pv {
         uint64_t _prev_frame_time;
         
         // debug compression
-        GETTER(std::atomic<double>, compression_ratio)
-        double _compression_value;
-        uint32_t _compression_samples;
+        GETTER_I(std::atomic<double>, compression_ratio, 0.0)
+        double _compression_value = 0;
+        uint32_t _compression_samples = 0;
         
         pv::Frame _last_frame;
         std::mutex _task_list_mutex;
@@ -239,9 +239,7 @@ namespace pv {
             : DataFormat(filename.add_extension("pv"), filename.str()),
                 _header(filename.str()),
                 _filename(filename),
-                _prev_frame_time(0),
-                _compression_value(0),
-                _compression_samples(0)
+                _prev_frame_time(0)
         { }
         
         ~File();

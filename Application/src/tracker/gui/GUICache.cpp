@@ -221,12 +221,17 @@ namespace gui {
             tracked_frames = Rangel(_tracker.start_frame(), _tracker.end_frame());
             
             auto delete_callback = [this](Individual* fish) {
+                if(!GUI::instance())
+                    return;
+                
                 std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
                 
                 auto id = fish->identity().ID();
                 auto it = individuals.find(id);
                 if(it != individuals.end())
                     individuals.erase(it);
+                
+                active.clear();
                 
                 auto kit = active_ids.find(id);
                 if(kit != active_ids.end())

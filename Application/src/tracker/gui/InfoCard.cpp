@@ -459,6 +459,7 @@ void InfoCard::update() {
                     return;
                 std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
                 _fish = nullptr;
+                _frameNr = -1;
                 set_content_changed(true);
             });
         }
