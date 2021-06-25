@@ -2664,7 +2664,7 @@ void GUI::draw_footer(DrawStructure& base) {
             
             if(v) {
                 if(is_bounds) {
-                    if(_current_boundary.back().size() >= 3) {
+                    if(!_current_boundary.empty() && _current_boundary.back().size() >= 3) {
                         Bounds bds(FLT_MAX, FLT_MAX, 0, 0);
                         for(auto &pt : _current_boundary.back()) {
                             if(pt.x < bds.x) bds.x = pt.x;
@@ -2690,7 +2690,7 @@ void GUI::draw_footer(DrawStructure& base) {
                     }
                     
                 } else if(is_vec_of_vec) {
-                    if(_current_boundary.back().size() >= 3) {
+                    if(!_current_boundary.empty() && _current_boundary.back().size() >= 3) {
                         try {
                             auto array = GlobalSettings::get(key).value<std::vector<std::vector<Vec2>>>();
                             
