@@ -171,7 +171,7 @@ void InfoCard::update() {
     if(first) {
         prev->on_click([](auto) {
             auto & cache = GUI::instance()->cache();
-            long_t next_frame = GUI::frame();
+            auto next_frame = GUI::frame();
             if(cache.has_selection()) {
                 Tracker::LockGuard guard("InfoCard::update->prev->on_click");
                 auto segment = cache.primary_selection()->get_segment(next_frame);
@@ -191,7 +191,7 @@ void InfoCard::update() {
         
         next->on_click([](auto) {
             auto & cache = GUI::instance()->cache();
-            long_t next_frame = GUI::frame();
+            auto next_frame = GUI::frame();
             if(cache.has_selection()) {
                 Tracker::LockGuard guard("InfoCard::update->next->on_click");
                 auto segment = cache.primary_selection()->get_segment(next_frame);

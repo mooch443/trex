@@ -1434,12 +1434,15 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
                 Error("Illegal syntax in .results settings.");
             }
             
-            if(config.has("gui_focus_group")) {
-                SETTING(gui_focus_group) = config["gui_focus_group"].value<std::vector<Idx_t>>();
-            } else
-                SETTING(gui_focus_group) = std::vector<Idx_t>{};
+            std::vector<Idx_t> focus_group;
+            if(config.has("gui_focus_group"))
+                focus_group = config["gui_focus_group"].value<std::vector<Idx_t>>();
             
-            SETTING(gui_frame).value<long_t>() = (long_t)file.header().gui_frame;
+            GUI::work().add_queue("", [f = (long_t)file.header().gui_frame, focus_group](){
+                SETTING(gui_frame) = f;
+                SETTING(gui_focus_group) = focus_group;
+            });
+            
         }
         
         if((file.header().analysis_range.start != -1 || file.header().analysis_range.end != -1) && SETTING(analysis_range).value<std::pair<long_t, long_t>>() == std::pair<long_t,long_t>{-1,-1})

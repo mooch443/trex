@@ -118,6 +118,8 @@ class Categorize:
                 self.last_size = len(self.samples)
             else:
                 TRex.log("# no update required. previous:"+str(self.last_size)+" now:"+str(len(self.samples)))
+        else:
+            TRex.log("# not performing training because there are no samples for some categories "+str(per_class))
 
     def load(self):
         self.reload_model()
@@ -217,7 +219,7 @@ class Categorize:
         X_test = X[self.validation_indexes]
         Y_test = Y[self.validation_indexes]
 
-        training_data = tf.data.Dataset.from_tensor_slices((tf.cast(X_train, float), Y_train)).shuffle().batch(batch_size)
+        training_data = tf.data.Dataset.from_tensor_slices((tf.cast(X_train, float), Y_train)).shuffle(buffer_size=int(len(X_train) * 0.1)).batch(batch_size)
         validation_data = tf.data.Dataset.from_tensor_slices((tf.cast(X_test, float), Y_test)).batch(batch_size)
 
         early_stopping_monitor = EarlyStopping(

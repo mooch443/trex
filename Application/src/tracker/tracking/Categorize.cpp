@@ -1425,7 +1425,15 @@ void Work::start_learning() {
             while(!queue().empty() && Work::_learning) {
                 if(py::check_module(module)) {
                     reset_variables();
-                    py::run(module, "load");
+                    if(best_accuracy() > 0) {
+                        Debug("[Categorize] The python file has been updated. Best accuracy was already %f, so will attempt to reload the weights.", best_accuracy());
+                        
+                        try {
+                            py::run(module, "load");
+                        } catch(...) {
+                            
+                        }
+                    }
                     //py::run(module, "send_samples");
                     clear_probs = true;
                 }
@@ -2068,9 +2076,17 @@ void paint_distributions(int64_t frame) {
     int64_t minimum_range = std::numeric_limits<int64_t>::max(), maximum_range = 0;
     std::vector<int64_t> v;
     std::vector<int64_t> current;
+    static std::vector<int64_t> recent_frames;
 
     {
         std::lock_guard guard(distri_mutex);
+        recent_frames.push_back(frame);
+        
+        constexpr size_t max_size = 100u;
+        if(recent_frames.size() > max_size) {
+            recent_frames.erase(recent_frames.begin(), recent_frames.begin() + recent_frames.size() - max_size);
+        }
+        
         if (distri_timer.elapsed() >= 1) {
             //auto [mit, mat] = std::minmax_element(v.begin(), v.end());
             //if (mit != v.end() && mat != v.end())
@@ -2129,8 +2145,15 @@ void paint_distributions(int64_t frame) {
                 }
 
                 cv::line(mat, Vec2(mean - Tracker::start_frame(), 100 / scale) * scale, Vec2(mean - Tracker::start_frame(), 200 / scale) * scale, Purple, 2);
+                
+                for(size_t i=0; i<recent_frames.size(); ++i) {
+                    cv::line(mat,
+                             Vec2(recent_frames[i] - Tracker::start_frame(), 0) * scale,
+                             Vec2(recent_frames[i] - Tracker::start_frame(), 300 / scale) * scale,
+                             White.exposure(0.1 + 0.9 * (recent_frames[i] / double(recent_frames.size()))), 1);
+                }
 
-                cv::line(mat, Vec2(frame - Tracker::start_frame(), 0) * scale, Vec2(frame - Tracker::start_frame(), 200 / scale) * scale, White, 2);
+                cv::line(mat, Vec2(frame - Tracker::start_frame(), 0) * scale, Vec2(frame - Tracker::start_frame(), 300 / scale) * scale, White, 2);
 
                 {
                     std::unique_lock guard(DataStore::cache_mutex());
