@@ -1664,7 +1664,7 @@ Work::Task Work::_pick_front_thread() {
         int64_t minimum_range = std::numeric_limits<int64_t>::max(), maximum_range = 0;
         double mean = 0;
         std::vector<int64_t> vector;
-        /*{
+        {
             std::shared_lock g(_cache_mutex);
             vector.reserve(_frame_cache.size());
 
@@ -1677,7 +1677,7 @@ Work::Task Work::_pick_front_thread() {
 
             if(!_frame_cache.empty())
                 mean /= _frame_cache.size();
-        }*/
+        }
 
         //double median = CalcMHWScore(vector);
         /*for (auto& t : Work::task_queue()) {
@@ -1717,15 +1717,6 @@ Work::Task Work::_pick_front_thread() {
         
         std::sort(sorted.begin(), sorted.end(), std::greater<>());
 
-        /*std::sort(Work::task_queue().begin(), Work::task_queue().end(), [center](const Task& A, const Task&B) -> bool {
-            if (A.range.start == -1 && B.range.start != A.range.start)
-                return false;
-            if (A.range.start != -1 && B.range.start == -1)
-                return true;
-
-            return abs(A.range.start + A.range.length() * 0.5 - center) > abs(B.range.start + B.range.length() * 0.5 - center);
-        });*/
-
 #ifndef NDEBUG
         static Timer print;
         static std::mutex mutex;
@@ -1747,12 +1738,19 @@ Work::Task Work::_pick_front_thread() {
 #endif
     }
     
-    // sort tasks according to currently cached frames, as well as frame order
-    auto it = Work::task_queue().begin() + (sorted.empty() ? (Work::task_queue().size()-1) : std::get<3>(sorted.back()));
+    // choose the task that is the last in the sorted list, or choose the last added task
+    // because the last task is easier to delete from the vector (no moving)
+    auto it = Work::task_queue().begin()
+            + (sorted.empty()
+               ? Work::task_queue().size()-1
+               : std::get<3>(sorted.back()));
+
     auto task = std::move(*it);
     Work::task_queue().erase(it);
     
+#ifndef NDEBUG
     Debug("Picking task for (%d) %d-%d (cached:%d, center is %ld)", task.range.start, task.real_range.start, task.real_range.end, task.is_cached, center);
+#endif
     return task;
 }
 
@@ -1789,9 +1787,6 @@ void Work::work_thread() {
                 break;
         }
 
-        if(collected > 0)
-            Debug("Collected tasks: %lu", collected);
-        
         Sample::Ptr sample;
         while (_generated_samples.size() < requested_samples() && !terminate) {
             guard.unlock();
