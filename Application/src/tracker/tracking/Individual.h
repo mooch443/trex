@@ -92,6 +92,8 @@ constexpr std::array<const char*, 8> ReasonsNames {
         float local_tdelta;
         long_t previous_frame;
         int current_category;
+        bool consistent_categories;
+        float cm_per_pixel, track_max_speed;
         
         Match::prob_t speed;
         Match::prob_t time_probability;
@@ -467,8 +469,9 @@ constexpr std::array<const char*, 8> ReasonsNames {
         };
         
         //! Calculates the probability for this fish to be at pixel-position in frame at time.
+        Probability probability(int label, const IndividualCache& estimated_px, long_t frameIndex, const pv::BlobPtr& blob) const;
         Probability probability(int label, const IndividualCache& estimated_px, long_t frameIndex, const pv::CompressedBlob& blob) const;
-        Probability probability(const IndividualCache& estimated_px, long_t frameIndex, const Vec2& position, size_t pixels) const;
+        Probability probability(int label, const IndividualCache& estimated_px, long_t frameIndex, const Vec2& position, size_t pixels) const;
         Match::prob_t time_probability(const IndividualCache& cache, size_t recent_number_samples) const;
         //Match::PairingGraph::prob_t size_probability(const IndividualCache& cache, long_t frameIndex, size_t num_pixels) const;
         std::tuple<Match::prob_t, Match::prob_t, Match::prob_t> position_probability(const IndividualCache& estimated_px, long_t frameIndex, size_t size, const Vec2& position, const Vec2& blob_center) const;

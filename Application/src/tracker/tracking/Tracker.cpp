@@ -941,12 +941,22 @@ bool operator<(long_t frame, const FrameProperties& props) {
         for(auto &blob : filtered)
             blob->calculate_moments();
         
-        if(result->frame_index == Tracker::start_frame() || Tracker::start_frame() == -1) {
-            auto big_filtered = Tracker::instance()->split_big(result->filtered_out, big_blobs, {});
-            if(!big_filtered.empty())
-                filtered.insert(filtered.end(), big_filtered.begin(), big_filtered.end());
-            
-        } else if(!big_blobs.empty()) {
+        if (result->frame_index == Tracker::start_frame() || Tracker::start_frame() == -1)
+            big_blobs = Tracker::instance()->split_big(result->filtered_out, big_blobs, {});
+
+        if (!only_allowed.empty()) {
+            for (auto it = big_blobs.begin(); it != big_blobs.end(); ) {
+                auto label = Categorize::DataStore::_ranged_label_unsafe(Frame_t(result->frame_index), (*it)->blob_id());
+                if (!label || !contains(only_allowed, label->name)) {
+                    filtered_out.push_back(*it);
+                    it = big_blobs.erase(it);
+                    continue;
+                }
+                ++it;
+            }
+        }
+
+        if (!big_blobs.empty()) {
             filtered.insert(filtered.end(), big_blobs.begin(), big_blobs.end());
             big_blobs.clear();
         }
@@ -2329,9 +2339,12 @@ void Tracker::clear_properties() {
             unassigned_blobs.clear();
             unassigned_blobs.reserve(frame.blobs.size());
             
+            const bool enable_labels = FAST_SETTINGS(track_consistent_categories) || !FAST_SETTINGS(track_only_categories).empty();
             for(auto &p : frame.blobs) {
                 if(!blob_assigned[p.get()]) {
-                    auto label = Categorize::DataStore::ranged_label(Frame_t(frameIndex), p->blob_id());
+                    auto label = enable_labels
+                        ? Categorize::DataStore::ranged_label(Frame_t(frameIndex), p->blob_id())
+                        : nullptr;
                     unassigned_blobs.push_back(std::make_tuple(p, label ? label->id : -1));
                 }
             }
@@ -2351,6 +2364,7 @@ void Tracker::clear_properties() {
             {
                 std::unordered_set<pv::BlobPtr> blobs_used;
                 std::unordered_set<Individual*> individuals_used;
+                const auto matching_probability_threshold = FAST_SETTINGS(matching_probability_threshold);
 
                 for(size_t i=from; i<to; i++) {
                     auto fish = unassigned_individuals[i];
@@ -2363,7 +2377,7 @@ void Tracker::clear_properties() {
                         auto p = fish->probability(label, cache, frameIndex, blob).p;//blob->center(), blob->num_pixels()).p;
 
                         // discard elements with probabilities that are too low
-                        if (p <= FAST_SETTINGS(matching_probability_threshold))
+                        if (p <= matching_probability_threshold)
                             continue;
 
                         //Debug("%d: %d -> %d: %f", frameIndex, fish->identity().ID(), blob->blob_id(), p);

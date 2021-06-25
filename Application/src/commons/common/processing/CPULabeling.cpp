@@ -1076,6 +1076,8 @@ blobs_t run_fast(List_t* blobs)
     /**
      * FILTER BLOBS FOR SIZE, transform them into proper format
      */
+    result.reserve(std::distance(blobs->begin(), blobs->end()));
+
     for(auto it=blobs->begin(); it != blobs->end(); ++it) {
         if(it->obj && !it->obj->empty()) {
             result.emplace_back(std::make_shared<std::vector<HorizontalLine>>(), std::make_shared<std::vector<uchar>>());

@@ -599,7 +599,7 @@ CREATE_STRUCT(CachedGUIOptions,
                         if(y < 0 || y >= mat.rows)
                             return;
                         
-                        auto p = _obj.probability(it->second, _idx, Vec2(x, y) + 1 * 0.5, 1);
+                        auto p = _obj.probability(-1, it->second, _idx, Vec2(x, y) + 1 * 0.5, 1);
                         if(p.p < FAST_SETTINGS(matching_probability_threshold))
                             return;
                         

@@ -1507,6 +1507,9 @@ IndividualCache Individual::cache_for_frame(long_t frameIndex, double time, cons
     cache.last_frame_manual = false;
     cache.last_seen_px = Vec2(-FLT_MAX);
     cache.current_category = -1;
+    cache.cm_per_pixel = FAST_SETTINGS(cm_per_pixel);
+    cache.consistent_categories = FAST_SETTINGS(track_consistent_categories);
+    cache.track_max_speed = FAST_SETTINGS(track_max_speed);
     
     //auto segment = get_segment(frameIndex-1);
     if(it != _frame_segments.end()) {
@@ -1665,7 +1668,7 @@ IndividualCache Individual::cache_for_frame(long_t frameIndex, double time, cons
     std::unordered_map<Categorize::Label::Ptr, size_t> labels;
     size_t samples = 0;
     
-    if(FAST_SETTINGS(track_consistent_categories)) {
+    if(cache.consistent_categories) {
         std::shared_lock guard(Categorize::DataStore::range_mutex());
         iterate_frames(Rangel(max(_startFrame, cache.previous_frame - FAST_SETTINGS(frame_rate) * 2), cache.previous_frame), [&labels, &samples, &guard](auto frame, auto&, auto& basic, auto&) -> bool
         {
@@ -1678,7 +1681,7 @@ IndividualCache Individual::cache_for_frame(long_t frameIndex, double time, cons
         });
     }
     
-    const float max_speed = FAST_SETTINGS(track_max_speed) / FAST_SETTINGS(cm_per_pixel);
+    const float max_speed = cache.track_max_speed / cache.cm_per_pixel;
     iterate_frames(range, [&](long_t frame, const std::shared_ptr<SegmentInformation> &seg, const std::shared_ptr<Individual::BasicStuff> &basic, const std::shared_ptr<Individual::PostureStuff> &posture) -> bool
     {
         if(is_manual_match(frame)) {
@@ -1875,10 +1878,10 @@ std::tuple<prob_t, prob_t, prob_t> Individual::position_probability(const Indivi
     if(cache.local_tdelta == 0)
         velocity = Vec2(0);
     else
-        velocity = (position - cache.estimated_px * FAST_SETTINGS(cm_per_pixel)) / cache.local_tdelta;
+        velocity = (position - cache.estimated_px * cache.cm_per_pixel) / cache.local_tdelta;
     assert(!std::isnan(velocity.x) && !std::isnan(velocity.y));
     
-    auto speed = length(velocity) / (FAST_SETTINGS(track_max_speed));
+    auto speed = length(velocity) / cache.track_max_speed;
     speed = 1 / SQR(1 + speed);
     
     // additional condition, if blobs are apart more than a pixel,
@@ -1927,34 +1930,38 @@ std::tuple<prob_t, prob_t, prob_t> Individual::position_probability(const Indivi
 }*/
 
 Individual::Probability Individual::probability(int label, const IndividualCache& cache, long_t frameIndex, const pv::CompressedBlob& blob) const {
-    if(FAST_SETTINGS(track_consistent_categories) && cache.current_category != -1) {
+    auto bounds = blob.calculate_bounds();
+    return probability(label, cache, frameIndex, bounds.pos() + bounds.size() * 0.5, blob.num_pixels());
+}
+
+Individual::Probability Individual::probability(int label, const IndividualCache& cache, long_t frameIndex, const pv::BlobPtr& blob) const {
+    return probability(label, cache, frameIndex, blob->bounds().pos() + blob->bounds().size() * 0.5, blob->num_pixels());
+}
+
+Individual::Probability Individual::probability(int label, const IndividualCache& cache, long_t frameIndex, const Vec2& position, size_t pixels) const {
+    if (frameIndex < _startFrame)
+        U_EXCEPTION("Cannot calculate probability for a frame thats previous to all known frames.");
+
+    if(empty() || frameIndex < _startFrame)
+        return {0,0,0,0};//FAST_SETTINGS(matching_probability_threshold);
+
+
+    if (cache.consistent_categories && cache.current_category != -1) {
         //auto l = Categorize::DataStore::ranged_label(Frame_t(frameIndex), blob);
         //if(identity().ID() == 38)
         //    Warning("Frame %ld: blob %lu -> %s (%d) and previous is %d", frameIndex, blob.blob_id(), l ? l->name.c_str() : "N/A", l ? l->id : -1, cache.current_category);
-        if(label != -1) {
-            if(label != cache.current_category) {
+        if (label != -1) {
+            if (label != cache.current_category) {
                 //if(identity().ID() == 38)
                  //   Warning("Frame %ld: current category does not match for blob %d", frameIndex, blob.blob_id());
-                return Probability{0, 0, 0, 0};
+                return Probability{ 0, 0, 0, 0 };
             }
         }
     }
-    
-    auto bounds = blob.calculate_bounds();
-    const Vec2& position = bounds.pos() + bounds.size() * 0.5;
-    size_t pixels = blob.num_pixels();
-    return probability(cache, frameIndex, position, pixels);
-}
 
-Individual::Probability Individual::probability(const IndividualCache& cache, long_t frameIndex, const Vec2& position, size_t pixels) const {
-    if (frameIndex < _startFrame)
-        U_EXCEPTION("Cannot calculate probability for a frame thats previous to all known frames.");
-    
-    if(empty() || frameIndex < _startFrame)
-        return {0,0,0,0};//FAST_SETTINGS(matching_probability_threshold);
-    const Vec2 blob_pos = FAST_SETTINGS(cm_per_pixel) * position;
-    
-    const auto& p_time = cache.time_probability;
+    const Vec2 blob_pos = cache.cm_per_pixel * position;
+    const auto p_time = cache.time_probability;
+
     auto && [ p_position, p_speed, p_angle ] = position_probability(cache, frameIndex, pixels, blob_pos, position);
     
     /**

@@ -414,7 +414,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                     auto prop = new PhysicalProperties(fish, frameIndex, data.pos, data.angle, cache_ptr);
                     data.stuff->centroid = prop;
                     
-                    auto label = Categorize::DataStore::ranged_label(Frame_t(frameIndex), data.stuff->blob);
+                    auto label = FAST_SETTINGS(track_consistent_categories)/* || !FAST_SETTINGS(track_only_categories).empty()*/ ? Categorize::DataStore::ranged_label(Frame_t(frameIndex), data.stuff->blob) : nullptr;
                     auto cache = fish->cache_for_frame(frameIndex, Tracker::properties(frameIndex, cache_ptr)->time, cache_ptr);
                     auto p = fish->probability(label ? label->id : -1, cache, frameIndex, data.stuff->blob).p;
                     
