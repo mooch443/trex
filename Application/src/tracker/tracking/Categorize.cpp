@@ -653,6 +653,7 @@ public:
     Sample::Ptr _sample;
     double _animation_time = 0;
     size_t _animation_index = 0;
+    int _max_id = -1;
     
     // gui elements
     std::shared_ptr<ExternalImage> _image;
@@ -809,6 +810,25 @@ struct Row {
                 auto d = euclidean_distance(base.mouse_position(), cell.bounds().pos() + cell.bounds().size() * 0.5) / (layout->parent()->global_bounds().size().length() * 0.45);
                 cell._block->set_scale(Vec2(1.25 + 0.35 / (1 + d * d)) * (cell.selected() ? 1.5 : 1));
                 
+                if(cell._max_id == -1) {
+                    std::lock_guard g(Work::_recv_mutex);
+                    float max_p = 0;
+                    if(!cell._sample->_probabilities.empty()) {
+                        for(size_t j=0; j<cell._sample->_probabilities.size(); ++j) {
+                            auto p = cell._sample->_probabilities[j];
+                            if(p > max_p) {
+                                max_p = p;
+                                cell._max_id = j;
+                            }
+                        }
+                    }
+                }
+                
+                Color color;
+                if(cell._max_id != -1)
+                    color = ColorWheel(cell._max_id).next();
+                cell._block->set_background(Transparent, color);
+                
                 const double seconds_for_all_samples = (cell._image->hovered() ? 15.0 : 2.0);
                 const double samples_per_second = cell._sample->_images.size() / seconds_for_all_samples;
                 
@@ -865,6 +885,8 @@ struct Row {
 };
 
 void Cell::set_sample(const Sample::Ptr &sample) {
+    if(sample != _sample)
+        _max_id = -1;
     _sample = sample;
     
     if(!sample) {
@@ -1679,12 +1701,9 @@ Work::Task Work::_pick_front_thread() {
             for (auto& [v, pp] : _frame_cache) {
                 minimum_range = min(v._frame, minimum_range);
                 maximum_range = max(v._frame, maximum_range);
-                mean += v;
+                mean += v._frame;
                 vector.push_back(v._frame);
             }
-
-            if(!_frame_cache.empty())
-                mean /= _frame_cache.size();
         }
 
         //double median = CalcMHWScore(vector);
