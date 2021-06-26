@@ -1765,7 +1765,7 @@ Work::Task Work::_pick_front_thread() {
 void Work::work_thread() {
     std::unique_lock guard(Work::_mutex);
     const std::thread::id id = std::this_thread::get_id();
-    constexpr size_t maximum_tasks = 10u;
+    constexpr size_t maximum_tasks = 5u;
     
     while (!terminate) {
         size_t collected = 0;
@@ -2077,9 +2077,10 @@ void paint_distributions(int64_t frame) {
     std::vector<int64_t> v;
     std::vector<int64_t> current;
     static std::vector<int64_t> recent_frames;
+    static bool being_processed = false;
 
     {
-        std::lock_guard guard(distri_mutex);
+        std::unique_lock guard(distri_mutex);
         recent_frames.push_back(frame);
         
         constexpr size_t max_size = 100u;
@@ -2087,7 +2088,9 @@ void paint_distributions(int64_t frame) {
             recent_frames.erase(recent_frames.begin(), recent_frames.begin() + recent_frames.size() - max_size);
         }
         
-        if (distri_timer.elapsed() >= 1) {
+        if (!being_processed && distri_timer.elapsed() >= 1) {
+            being_processed = true;
+            guard.unlock();
             //auto [mit, mat] = std::minmax_element(v.begin(), v.end());
             //if (mit != v.end() && mat != v.end())
             {
@@ -2183,6 +2186,8 @@ void paint_distributions(int64_t frame) {
             }
 
             distri_timer.reset();
+            guard.lock();
+            being_processed = false;
         }
     }
 }
