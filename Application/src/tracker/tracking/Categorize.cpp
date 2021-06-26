@@ -1739,8 +1739,9 @@ Work::Task Work::_pick_front_thread() {
                     }
                     
                     min_distance = min(min_distance,
-                                       abs(r.start - task.real_range.end),
-                                       abs(r.end - task.real_range.start));
+                                       abs(r.start + r.length() * 0.5 - (task.real_range.start + task.real_range.length() * 0.5)));
+                                       //abs(r.start - task.real_range.end),
+                                       //abs(r.end - task.real_range.start));
                 }
             }
             
