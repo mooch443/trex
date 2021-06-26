@@ -1109,10 +1109,14 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
         
         transform = Transform();
         transform.scale(scale);
-        transform.combine(o->parent()->global_transform());
+        transform.combine(o->global_transform());
+        /*transform.combine(o->parent()->global_transform());
+        
         transform.translate(o->pos());
         transform.scale(o->scale());
-        transform.translate(-o->size().mul(o->origin()));
+        transform.translate(-o->size().mul(o->origin()));*/
+        if(o->origin().x || o->origin().y)
+            transform.translate(o->width() * o->origin().x, o->height() * o->origin().y);
         
         bds = transform.transformRect(Bounds(Vec2(), o->size()));
         center = bds.pos() + bds.size().mul(o->origin());
@@ -1280,10 +1284,14 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
                 break;
             
             if(ptr->fillclr().a > 0)
-                list->AddRectFilled(ImVec2(rect.pos().x, rect.pos().y), ImVec2(rect.size().width + rect.pos().x, rect.size().height + rect.pos().y), cvtClr(ptr->fillclr()));
+                list->AddRectFilled((ImVec2)transform.transformPoint(Vec2()),
+                                    (ImVec2)transform.transformPoint(o->size()),
+                                    cvtClr(ptr->fillclr()));
             
             if(ptr->lineclr().a > 0)
-                list->AddRect(ImVec2(rect.pos().x, rect.pos().y), ImVec2(rect.size().width + rect.pos().x, rect.size().height + rect.pos().y), cvtClr(ptr->lineclr()));
+                list->AddRect((ImVec2)transform.transformPoint(Vec2()),
+                              (ImVec2)transform.transformPoint(o->size()),
+                              cvtClr(ptr->lineclr()));
             
             break;
         }

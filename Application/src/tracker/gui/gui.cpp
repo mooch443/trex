@@ -2865,8 +2865,6 @@ void GUI::draw_footer(DrawStructure& base) {
                     txt += " finished.";
                 else if (current_status.percent > 0 || current_status.added > current_status.processed)
                     txt += " processed " + Meta::toStr(size_t(current_status.percent * 100)) + "% of known frames" + (current_status.failed_blobs ? (" " + Meta::toStr(current_status.failed_blobs) + " failed blobs") : "");
-                else
-                    txt += " idle.";
             }
 
             //txt += " " + Meta::toStr(_cache.tracked_frames.length()) + " " + Meta::toStr(current_status.N) + " " + Meta::toStr(current_status.processed) + " " + Meta::toStr(current_status.added);

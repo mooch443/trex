@@ -658,6 +658,7 @@ public:
     // gui elements
     std::shared_ptr<ExternalImage> _image;
     std::shared_ptr<StaticText> _text;
+    std::shared_ptr<Rect> _cat_border;
     std::shared_ptr<Entangled> _block;
     
 public:
@@ -742,15 +743,39 @@ public:
         }
         
         _image->set_color(White.alpha(200 + 55 * s));
-        _text->set_alpha(0.1 + s * 0.9);
+        _text->set_alpha(0.25 + s * 0.75);
         
         auto rscale = _button_layout->parent() ? _button_layout->parent()->stage()->scale().reciprocal().mul(_block->scale().reciprocal()) : Vec2(1);
         _text->set_scale(rscale);
         _button_layout->set_scale(rscale);
         
+        if(_sample && _max_id == -1) {
+            std::lock_guard g(Work::_recv_mutex);
+            float max_p = 0;
+            if(!_sample->_probabilities.empty()) {
+                for(size_t j=0; j<_sample->_probabilities.size(); ++j) {
+                    auto p = _sample->_probabilities[j];
+                    if(p > max_p) {
+                        max_p = p;
+                        _max_id = j;
+                    }
+                }
+            }
+        }
+        
+        Color color = DarkGray;
+        if(_max_id != -1)
+            color = ColorWheel(_max_id).next();
+        _cat_border->set_fillclr(color.alpha(255 * (0.75 * s + 0.25)));
+        
+        auto bds = _image->bounds();
+        _cat_border->set_scale(_image->scale());
+        _cat_border->set_pos(bds.pos() - 5);
+        _cat_border->set_size(bds.size() + 10 / _cat_border->scale().x);
+        
         //_text->set_base_text_color(White.alpha(100 + 155 * s));
         _button_layout->auto_size(Margin{0, 0});
-        _text->set_pos(Vec2(5, _block->height() - 5));
+        _text->set_pos(Vec2(10, _block->height() - 15));
     }
     
     const Bounds& bounds() {
@@ -780,7 +805,7 @@ struct Row {
         }
         
         layout->set_origin(Vec2(0.5));
-        layout->set_background(Transparent, White.alpha(125));
+        layout->set_background(Transparent);
     }
     
     void clear() {
@@ -809,25 +834,6 @@ struct Row {
             if(cell._sample) {
                 auto d = euclidean_distance(base.mouse_position(), cell.bounds().pos() + cell.bounds().size() * 0.5) / (layout->parent()->global_bounds().size().length() * 0.45);
                 cell._block->set_scale(Vec2(1.25 + 0.35 / (1 + d * d)) * (cell.selected() ? 1.5 : 1));
-                
-                if(cell._max_id == -1) {
-                    std::lock_guard g(Work::_recv_mutex);
-                    float max_p = 0;
-                    if(!cell._sample->_probabilities.empty()) {
-                        for(size_t j=0; j<cell._sample->_probabilities.size(); ++j) {
-                            auto p = cell._sample->_probabilities[j];
-                            if(p > max_p) {
-                                max_p = p;
-                                cell._max_id = j;
-                            }
-                        }
-                    }
-                }
-                
-                Color color;
-                if(cell._max_id != -1)
-                    color = ColorWheel(cell._max_id).next();
-                cell._block->set_background(Transparent, color);
                 
                 const double seconds_for_all_samples = (cell._image->hovered() ? 15.0 : 2.0);
                 const double samples_per_second = cell._sample->_images.size() / seconds_for_all_samples;
@@ -2809,6 +2815,7 @@ void initialize(DrawStructure& base) {
 Cell::Cell() :
     _button_layout(std::make_shared<HorizontalLayout>()),
     _selected(false),
+    _cat_border(std::make_shared<Rect>(Bounds(50,50))),
     _image(std::make_shared<ExternalImage>(Image::Make(50,50,1))),
     _text(std::make_shared<StaticText>("", Vec2(), Vec2(-1), Font(0.5))),
     _block(std::make_shared<Entangled>([this](Entangled& e){
@@ -2818,6 +2825,7 @@ Cell::Cell() :
          * 2. TODO: Buttons to assign classes
          * 3. Text with current playback status
          */
+        e.advance_wrap(*_cat_border);
         e.advance_wrap(*_image);
         e.advance_wrap(*_button_layout);
         e.advance_wrap(*_text);
