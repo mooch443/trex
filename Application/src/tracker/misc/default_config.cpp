@@ -427,6 +427,7 @@ file::Path conda_environment_path() {
         CONFIG("manual_identities", std::set<track::Idx_t>{}, "", SYSTEM);
         CONFIG("pixel_grid_cells", size_t(25), "");
         
+        CONFIG("gui_highlight_categories", false, "If enabled, categories (if applied in the video) will be highlighted in the tracking view.");
         CONFIG("categories_ordered", std::vector<std::string>{}, "Ordered list of names of categories that are used in categorization (classification of types of individuals).");
         CONFIG("categories_min_sample_images", uint32_t(50), "Minimum number of images for a sample to be considered relevant. This will default to 50, or ten percent of `track_segment_max_length`, if that parameter is set. If `track_segment_max_length` is set, the value of this parameter will be ignored. If set to zero or one, then all samples are valid.");
         CONFIG("track_segment_max_length", float(0), "If set to something bigger than zero, this represents the maximum number of seconds that a consecutive segment can be.");

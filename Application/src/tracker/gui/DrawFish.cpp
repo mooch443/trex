@@ -33,7 +33,8 @@ CREATE_STRUCT(CachedGUIOptions,
     (bool, gui_show_texts),
     (float, gui_max_path_time),
     (int, panic_button),
-    (bool, gui_happy_mode)
+    (bool, gui_happy_mode),
+    (bool, gui_highlight_categories)
 )
 
 #define GUIOPTION(NAME) CachedGUIOptions::copy < CachedGUIOptions :: NAME > ()
@@ -1090,11 +1091,14 @@ void Fish::label(DrawStructure &base) {
             auto c = Categorize::DataStore::label(_avg_cat);
             if(c)
                 secondary_text += (_avg_cat != -1 ? std::string(" ") : std::string()) + "<nr>" + c->name + "</nr>";
-            auto color = ColorWheel(_avg_cat).next();
-            base.circle(pos() + size() * 0.5, size().length(), Transparent, color.alpha(125));
             
-        } else {
-            base.circle(pos() + size() * 0.5, size().length(), Transparent, Purple.alpha(25));
+            if(GUIOPTION(gui_highlight_categories)) {
+                auto color = ColorWheel(_avg_cat).next();
+                base.circle(pos() + size() * 0.5, size().length(), Transparent, color.alpha(75));
+            }
+            
+        } else if(GUIOPTION(gui_highlight_categories)) {
+            base.circle(pos() + size() * 0.5, size().length(), Transparent, Purple.alpha(15));
         }
     }
 

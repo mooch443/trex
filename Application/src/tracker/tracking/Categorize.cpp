@@ -2114,7 +2114,7 @@ void paint_distributions(int64_t frame) {
             recent_frames.erase(recent_frames.begin(), recent_frames.begin() + recent_frames.size() - max_size);
         }
         
-        if (!being_processed && distri_timer.elapsed() >= 1) {
+        if (!being_processed && distri_timer.elapsed() >= 0.1) {
             being_processed = true;
             guard.unlock();
             //auto [mit, mat] = std::minmax_element(v.begin(), v.end());
