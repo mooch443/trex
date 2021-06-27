@@ -1010,6 +1010,10 @@ struct NetworkApplicationState {
     /// in case i want to change the iterator type later.
     std::atomic<Individual::segment_map::difference_type> offset = 0;
     
+    //! Used to measure completion time for each task
+    Timer _timer, _predict;
+    double _prepare;
+    
     Rangel peek() {
         static Timing timing("NetworkApplicationState::peek", 0.1);
         TakeTiming take(timing);
@@ -1127,6 +1131,23 @@ struct NetworkApplicationState {
                     DataStore::set_ranged_label(std::move(ranged));
                 }
             }
+            
+            {
+                static std::mutex _task_timings_m;
+                static double tps = 0, tpp = 0, tpre = 0;
+                static uint64_t samples = 0;
+                
+                std::lock_guard g(_task_timings_m);
+                tps += _timer.elapsed();
+                tpre += _prepare;
+                tpp += _predict.elapsed();
+                ++samples;
+                
+                //! print every 25s
+                if(uint32_t(tps) % 25 == 0) {
+                    Debug("TPS: %fs for each image, preparation: %fs, predict: %fs, %lu samples", tps / double(samples), tpre / double(samples), tpp / double(samples), samples);
+                }
+            }
         
             /*if(task.segment) {
                 static Timing timing("callback.set_ranged_label", 0.1);
@@ -1155,6 +1176,7 @@ struct NetworkApplicationState {
     
     //! start the next prediction task
     void next() {
+        _predict.reset();
         std::shared_ptr<Individual::SegmentInformation> segment;
         LearningTask task;
         task.type = LearningTask::Type::Prediction;
@@ -1225,12 +1247,15 @@ struct NetworkApplicationState {
         if(skipped)
             log_event("Skipped "+Meta::toStr(skipped), Frame_t(-1), fish->identity());
 #endif
+        _prepare = _predict.elapsed();
+        //_prepare = _timer.elapsed();
         
         if(task.sample != Sample::Invalid()) {
             task.idx = fish->identity().ID();
             task.callback = [this](const LearningTask& task) {
                 receive_samples(task);
             };
+            _predict.reset();
             
 //           Debug("Fish%d: Inserting (%d-%d) with %lu images", fish->identity().ID(), task.segment->start(), task.segment->end(), task.sample->_images.size());
             Work::add_task(std::move(task));
@@ -1422,10 +1447,13 @@ void Work::start_learning() {
                     GUI::set_status("");
                     Work::_learning = false;
                     return true;
-                } else if(print.elapsed() >= 1) {
-                    Debug("[Categorize] %S", &text);
+                } else if(int(print.elapsed()) % 2 == 0) {
                     GUI::set_status(text);
-                    print.reset();
+                    
+                    if(print.elapsed() >= 10) {
+                        Debug("[Categorize] %S", &text);
+                        print.reset();
+                    }
                 }
                 
             } else
@@ -2595,7 +2623,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
 
         {
             std::lock_guard g(debug_mutex);
-            if (debug_timer.elapsed() >= 1) {
+            if (debug_timer.elapsed() >= 10) {
                 Debug("RatioRegenerate: %f - Create:%lu Reuse:%lu Delete:%lu", double(_create) / double(_reuse), _create, _reuse, _delete);
                 debug_timer.reset();
             }
