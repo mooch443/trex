@@ -2201,14 +2201,14 @@ void paint_distributions(int64_t frame) {
                 cv::cvtColor(mat, mat, cv::COLOR_BGRA2RGBA);
                 tf::imshow("Distribution", mat);
 
-                std::vector<double> diff(v.size());
-                std::transform(v.begin(), v.end(), diff.begin(), [mean](double x) { return x - mean; });
-                double sq_sum = std::inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
-                double stdev = std::sqrt(sq_sum / v.size());
+                //std::vector<double> diff(v.size());
+                //std::transform(v.begin(), v.end(), diff.begin(), [mean](double x) { return x - mean; });
+                //double sq_sum = std::inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
+                //double stdev = std::sqrt(sq_sum / v.size());
 
                 //minimum_range = min((int64_t)*mit, minimum_range);
                 //maximum_range = max((int64_t)*mat, maximum_range);
-                Debug("Frames range from %ld to %ld, with %f+-%f with median %f", minimum_range, maximum_range, mean, stdev, median);
+                //Debug("Frames range from %ld to %ld, with %f+-%f with median %f", minimum_range, maximum_range, mean, stdev, median);
             }
 
             distri_timer.reset();
@@ -2470,6 +2470,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
 //#ifndef NDEBUG
     static size_t _reuse = 0, _create = 0, _delete = 0;
     static Timer debug_timer;
+    std::mutex debug_mutex;
 ///#endif
 
     std::vector<long_t> basic_index;
@@ -2592,9 +2593,12 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
 #endif
         }
 
-        if (debug_timer.elapsed() >= 1) {
-            Debug("RatioRegenerate: %f - Create:%lu Reuse:%lu Delete:%lu", double(_create) / double(_reuse), _create, _reuse, _delete);
-            debug_timer.reset();
+        {
+            std::lock_guard g(debug_mutex);
+            if (debug_timer.elapsed() >= 1) {
+                Debug("RatioRegenerate: %f - Create:%lu Reuse:%lu Delete:%lu", double(_create) / double(_reuse), _create, _reuse, _delete);
+                debug_timer.reset();
+            }
         }
         
         if(!ptr) {
