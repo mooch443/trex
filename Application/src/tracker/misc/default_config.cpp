@@ -658,6 +658,7 @@ file::Path conda_environment_path() {
             "auto_quit",
             "auto_apply",
             "output_dir",
+            "auto_categorize",
             "tags_path",
             "analysis_range",
             "output_prefix",
