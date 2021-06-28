@@ -769,9 +769,11 @@ bool Accumulation::start() {
         unique_map = map;
     }
     
-    if(_mode == TrainingMode::Restart /*|| _mode == TrainingMode::Continue*/) {
+    if(_mode == TrainingMode::Restart || _mode == TrainingMode::Continue) {
         // save validation data
-        if(SETTING(recognition_save_training_images)) {
+        if(_mode == TrainingMode::Restart
+           && SETTING(recognition_save_training_images))
+        {
             try {
                 auto data = _collected_data->join_split_data();
                 auto ranges_path = pv::DataLocation::parse("output", Path(SETTING(filename).value<file::Path>().filename()+"_validation_data.npz"));
