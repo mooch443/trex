@@ -1446,6 +1446,11 @@ void Work::start_learning() {
                 if(percent >= 1) {
                     GUI::set_status("");
                     Work::_learning = false;
+                    
+                    if(SETTING(auto_categorize) && SETTING(auto_quit)) {
+                        GUI::auto_quit();
+                    }
+                    
                     return true;
                 } else if(int(print.elapsed()) % 2 == 0) {
                     GUI::set_status(text);
@@ -1510,6 +1515,7 @@ void Work::start_learning() {
                             clear_probs = true;
                             if (item.callback)
                                 item.callback(item);
+                            Work::_learning_variable.notify_one();
                             break;
                         }
                             
@@ -1539,6 +1545,12 @@ void Work::start_learning() {
                                 force_training = true;
                             training_tasks.emplace_back(std::move(item), idx, ldx);
                             last_insert.reset();
+                            break;
+                        }
+                            
+                        case LearningTask::Type::Apply: {
+                            start_applying();
+                            Work::_variable.notify_one();
                             break;
                         }
                             
@@ -2949,8 +2961,17 @@ Work::State& Work::state() {
 }
 
 void Work::set_state(State state) {
+    static std::mutex thread_m;
+    {
+        std::lock_guard g(thread_m);
+        if(!Work::thread) {
+            Work::thread = std::make_unique<std::thread>(Work::work);
+        }
+    }
+    
     switch (state) {
         case State::LOAD: {
+            show();
             Work::start_learning();
             
             LearningTask task;
@@ -3002,7 +3023,12 @@ void Work::set_state(State state) {
         case State::APPLY: {
             //assert(Work::state() == State::SELECTION);
             hide();
-            start_applying();
+            LearningTask task;
+            task.type = LearningTask::Type::Apply;
+            Work::add_task(std::move(task));
+            Work::_variable.notify_one();
+            Work::_learning_variable.notify_one();
+            state = State::APPLY;
             break;
         }
             
@@ -3069,10 +3095,6 @@ void draw(gui::DrawStructure& base) {
     rect.set_size(window);
     
     base.wrap_object(rect);
-    
-    if(!Work::thread) {
-        Work::thread = std::make_unique<std::thread>(Work::work);
-    }
     
     initialize(base);
     
@@ -3143,6 +3165,10 @@ void clear_labels() {
         _averaged_probability_cache.clear();
     }
 
+}
+
+bool weights_available() {
+    return output_location().exists();
 }
 
 }

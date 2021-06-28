@@ -685,6 +685,15 @@ TRex parameters
 	.. seealso:: :func:`calculate_posture`, 
 
 
+.. function:: gui_highlight_categories(bool)
+
+	**default value:** false
+
+
+	If enabled, categories (if applied in the video) will be highlighted in the tracking view.
+
+
+
 .. function:: gui_interface_scale(float)
 
 	**default value:** 1.25

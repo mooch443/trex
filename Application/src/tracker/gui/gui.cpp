@@ -4462,6 +4462,11 @@ void GUI::auto_quit() {
     if(!SETTING(terminate))
         SETTING(terminate) = true;
 }
+    
+void GUI::auto_categorize() {
+    Categorize::Work::set_state(Categorize::Work::State::LOAD);
+    Categorize::Work::set_state(Categorize::Work::State::APPLY);
+}
 
 void GUI::auto_train() {
     SETTING(auto_train) = false;
@@ -4550,7 +4555,9 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
         
         auto range = _tracker.analysis_range();
         bool finished = _tracker.end_frame() >= range.end;
-        if(finished && SETTING(auto_train)) {
+        if(finished && SETTING(auto_categorize)) {
+            auto_categorize();
+        } else if(finished && SETTING(auto_train)) {
             auto_train();
         }
         else if(finished && SETTING(auto_apply)) {

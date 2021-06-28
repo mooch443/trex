@@ -251,7 +251,12 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
             in_layout.insert(in_layout.begin(), &_raw_text);
         }
         
-        if(GUI_SETTINGS(auto_train)) {
+        if(GUI_SETTINGS(auto_categorize)) {
+            base.rect(-offset, Size2(max_w, bar_height + y), Purple.alpha(75));
+            _auto_text.set_txt("[auto_categorize]");
+            in_layout.insert(in_layout.begin(), &_auto_text);
+            
+        } else if(GUI_SETTINGS(auto_train)) {
             base.rect(-offset, Size2(max_w, bar_height + y), Red.alpha(75));
             _auto_text.set_txt("[auto_train]");
             in_layout.insert(in_layout.begin(), &_auto_text);

@@ -1371,6 +1371,17 @@ int main(int argc, char** argv)
         
         Warning("The application is going to apply a trained network after finishing the analysis and auto_correct it afterwards.");
     }
+    if(SETTING(auto_categorize)) {
+        if(!Categorize::weights_available()) {
+            auto file = (std::string)SETTING(filename).value<file::Path>().filename();
+            auto output = (std::string)pv::DataLocation::parse("output").str();
+            
+            SETTING(terminate_error) = true;
+            SETTING(terminate) = true;
+            U_EXCEPTION("Make sure that a file called '%S_categories.npz' is located inside '%S'", &file, &output);
+        }
+        Warning("The application is going to load a pretrained categories network and apply it after finishing the analysis (or loading).");
+    }
     if(SETTING(auto_quit))
         Warning("Application is going to quit after analysing and exporting data.");
     
@@ -1586,7 +1597,9 @@ int main(int argc, char** argv)
                 analysis->set_paused(true).get();
                 already_pausing = false;
                 
-                if(SETTING(auto_train)) {
+                if(SETTING(auto_categorize)) {
+                    GUI::auto_categorize();
+                } else if(SETTING(auto_train)) {
                     GUI::auto_train();
                 } else if(SETTING(auto_apply)) {
                     GUI::auto_apply();

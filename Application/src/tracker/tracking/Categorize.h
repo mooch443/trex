@@ -176,6 +176,7 @@ struct LearningTask {
         Training,
         Restart,
         Load,
+        Apply,
         Invalid
     } type = Type::Invalid;
     
@@ -215,6 +216,8 @@ void draw(gui::DrawStructure&);
 void terminate();
 file::Path output_location();
 void clear_labels();
+
+bool weights_available();
 
 }
 }
