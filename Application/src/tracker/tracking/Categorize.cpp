@@ -1471,7 +1471,7 @@ void Work::start_learning() {
             const auto dims = SETTING(recognition_image_size).value<Size2>();
             const auto gpu_max_sample_images = double(SETTING(gpu_max_sample_gb).value<float>()) * 1000.0 * 1000.0 * 1000.0 / double(sizeof(float)) * 0.5 / dims.width / dims.height;
             
-            Work::_learning_variable.wait_for(guard, std::chrono::seconds(1));
+            Work::_learning_variable.wait_for(guard, std::chrono::milliseconds(200));
             
             size_t executed = 0;
             bool clear_probs = false;
@@ -1580,7 +1580,7 @@ void Work::start_learning() {
                 }
             }
 
-            if(prediction_images.size() >= gpu_max_sample_images || training_images.size() >= 250 || last_insert.elapsed() >= 2 || force_training || force_prediction)
+            if(prediction_images.size() >= gpu_max_sample_images || training_images.size() >= 250 || last_insert.elapsed() >= 0.5 || force_training || force_prediction)
             {
                 if (!prediction_tasks.empty()) {
                     guard.unlock();
