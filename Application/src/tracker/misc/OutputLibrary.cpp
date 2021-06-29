@@ -712,9 +712,11 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
         });
 
         _cache_func["category"] = LIB_NO_CHECK_FNC({
-            auto l = Categorize::DataStore::label_interpolated(fish, Frame_t(frame));
-            if (l) {
-                return l->id;
+            auto blob = fish->compressed_blob(frame);
+            if (blob) {
+                auto l = Categorize::DataStore::label(Frame_t(frame), blob);
+                if (l)
+                    return l->id;
             }
             return gui::Graph::invalid();
         });
