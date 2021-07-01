@@ -3598,7 +3598,9 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                         ++it;
                 }
                 
-                auto draw_blob = [&](pv::BlobPtr blob, float real_size, bool active){
+                auto cats = FAST_SETTINGS(categories_ordered);
+                
+                auto draw_blob = [&](const pv::BlobPtr& blob, float real_size, bool active){
                     if(displayed >= maximum_number_texts && !active)
                         return;
                     
@@ -3631,13 +3633,15 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                         ss << "</a>";
                     
                     {
-                        auto label = Categorize::DataStore::ranged_label(Frame_t(cache().frame_idx), blob->blob_id());
-                        if(label) {
-                            ss << " <str>" << label->name << "</str>";
+                        //auto label = Categorize::DataStore::ranged_label(Frame_t(cache().frame_idx), blob->blob_id());
+                        auto it = cache()._ranged_blob_labels.find(blob->blob_id());
+                        if(it != cache()._ranged_blob_labels.end()) {
+                            ss << " <nr>" << cats.at(it->second) << "</nr>";
                         }
-                        if(blob->parent_id() != -1 && (label = Categorize::DataStore::ranged_label(Frame_t(cache().frame_idx), blob->parent_id()))) {
+                        /*if(blob->parent_id() != -1 && (label = Categorize::DataStore::ranged_label(Frame_t(cache().frame_idx), blob->parent_id()))) {
                             ss << " parent:<str>" << label->name << "</str>";
                         }
+                         */
                     }
                     
                     decltype(_blob_labels)::iterator it = _blob_labels.find(blob->blob_id());

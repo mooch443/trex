@@ -345,16 +345,45 @@ CREATE_STRUCT(Settings,
             const Background* background;
             int threshold;
             
+            size_t overall_pixels = 0;
+            size_t samples = 0;
+            
             PrefilterBlobs(long_t index, int threshold, const BlobSizeRange& fish_size, const Background& background)
             : frame_index(index), fish_size(fish_size), background(&background), threshold(threshold)
             {
                 
             }
+            
+            void commit(const pv::BlobPtr& b) {
+                overall_pixels += b->num_pixels();
+                ++samples;
+                filtered.push_back(b);
+            }
+            
+            void commit(const std::vector<pv::BlobPtr>& v) {
+                for(auto &b:v)
+                    overall_pixels += b->num_pixels();
+                samples += v.size();
+                filtered.insert(filtered.end(), v.begin(), v.end());
+            }
+            
+            void filter_out(const pv::BlobPtr& b) {
+                overall_pixels += b->num_pixels();
+                ++samples;
+                filtered_out.push_back(b);
+            }
+            
+            void filter_out(const std::vector<pv::BlobPtr>& v) {
+                for(auto &b:v)
+                    overall_pixels += b->num_pixels();
+                samples += v.size();
+                filtered_out.insert(filtered_out.end(), v.begin(), v.end());
+            }
         };
         
-        std::vector<pv::BlobPtr> split_big(std::vector<pv::BlobPtr>& filtered_out, const std::vector<std::shared_ptr<pv::Blob>>& big_blobs, const std::map<pv::BlobPtr, split_expectation> &expect, bool discard_small = false, std::ostream *out = NULL, GenericThreadPool* pool = nullptr);
+        std::vector<pv::BlobPtr> split_big(const std::function<void(const std::vector<pv::BlobPtr>&)>& filter_out, const std::vector<std::shared_ptr<pv::Blob>>& big_blobs, const std::map<pv::BlobPtr, split_expectation> &expect, bool discard_small = false, std::ostream *out = NULL, GenericThreadPool* pool = nullptr);
         
-        static void prefilter(std::shared_ptr<PrefilterBlobs>, std::vector<pv::BlobPtr>::const_iterator it, std::vector<pv::BlobPtr>::const_iterator end);
+        static void prefilter(const std::shared_ptr<PrefilterBlobs>&, std::vector<pv::BlobPtr>::const_iterator it, std::vector<pv::BlobPtr>::const_iterator end);
         
         void update_iterator_maps(long_t frame, const set_of_individuals_t& active_individuals, std::unordered_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators);
     };

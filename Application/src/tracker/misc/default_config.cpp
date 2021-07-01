@@ -339,6 +339,7 @@ file::Path conda_environment_path() {
         CONFIG("gui_mode", gui::mode_t::tracking, "The currently used display mode for the GUI.");
         CONFIG("panic_button", int(0), "42");
         CONFIG("gui_run", false, "When set to true, the GUI starts playing back the video and stops once it reaches the end, or is set to false.");
+        CONFIG("gui_show_only_unassigned", false, "Showing only unassigned objects.");
         CONFIG("gui_show_memory_stats", false, "Showing or hiding memory statistics.");
         CONFIG("gui_show_outline", true, "Showing or hiding individual outlines in tracking view.");
         CONFIG("gui_show_midline", true, "Showing or hiding individual midlines in tracking view.");

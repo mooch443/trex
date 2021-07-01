@@ -29,7 +29,7 @@ namespace gui {
         long_t last_frame;
         Bounds boundary;
         std::vector<Idx_t> previous_active_fish;
-        std::set<uint32_t> previous_active_blobs, active_blobs;
+        std::set<uint32_t> previous_active_blobs, active_blobs, selected_blobs;
         Vec2 previous_mouse_position;
         bool _dirty;
         FOIStatus _current_foi;
@@ -84,12 +84,15 @@ namespace gui {
     public:
         std::map<Individual*, std::unique_ptr<gui::Fish>> _fish_map;
         std::map<long_t, track::Tracker::Statistics> _statistics;
+        std::unordered_map<uint32_t, int> _ranged_blob_labels;
         
         long_t connectivity_last_frame;
         std::vector<float> connectivity_matrix;
         
         PPFrame processed_frame;
         std::vector<Idx_t> selected;
+        std::atomic<uint64_t> _current_pixels = 0;
+        std::atomic<double> _average_pixels = 0;
         
     public:
         bool has_selection() const;

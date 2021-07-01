@@ -965,11 +965,11 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             }
             
             std::map<uint32_t, pv::BlobPtr> blob_to_id;
-            for (auto b : frame.original_blobs)
+            for (auto &b : frame.original_blobs)
                 blob_to_id[b->blob_id()] = b;
-            for (auto b : frame.blobs)
+            for (auto &b : frame.blobs)
                 blob_to_id[b->blob_id()] = b;
-            for (auto b : frame.filtered_out)
+            for (auto &b : frame.filtered_out)
                 blob_to_id[b->blob_id()] = b;
             
             //elements_per_frame += elements.size();

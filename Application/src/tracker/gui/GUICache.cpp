@@ -4,6 +4,7 @@
 #include <tracking/Tracker.h>
 #include <gui/DrawFish.h>
 #include <gui/gui.h>
+#include <tracking/Categorize.h>
 
 namespace gui {
     static std::unique_ptr<std::thread> percentile_ptr = nullptr;
@@ -214,6 +215,7 @@ namespace gui {
             individuals = _tracker.individuals();
             selected = SETTING(gui_focus_group).value<std::vector<Idx_t>>();
             active_blobs.clear();
+            selected_blobs.clear();
             inactive_ids.clear();
             active_ids.clear();
             fish_selected_blobs.clear();
@@ -314,14 +316,15 @@ namespace gui {
             shift = shift && (!_base || _base->window().hasFocus());
 #endif
             
+            // display all blobs that are assigned to an individual
+            for(auto fish : active) {
+                auto blob = fish->compressed_blob(frameIndex);
+                if(blob)
+                    active_blobs.insert(blob->blob_id());
+            }
+            
             if(!has_selection() || !SETTING(gui_auto_scale_focus_one) || shift) {
-                // display all blobs that are assigned to an individual
-                for(auto fish : active) {
-                    auto blob = fish->compressed_blob(frameIndex);
-                    if(blob)
-                        active_blobs.insert(blob->blob_id());
-                }
-                
+                selected_blobs = active_blobs;
             } else {
                 // display blobs that are selected
                 for(auto id : selected) {
@@ -329,7 +332,7 @@ namespace gui {
                     if(it != individuals.end()) {
                         auto blob = it->second->compressed_blob(frameIndex);
                         if(blob)
-                            active_blobs.insert(blob->blob_id());
+                            selected_blobs.insert(blob->blob_id());
                     }
                 }
             }
@@ -337,6 +340,7 @@ namespace gui {
         } else {
             active.clear();
             active_blobs.clear();
+            selected_blobs.clear();
         }
         
         bool something_important_changed = frameIndex != last_frame || last_threshold != threshold || selected != previous_active_fish || active_blobs != previous_active_blobs || _gui.mouse_position() != previous_mouse_position;
@@ -403,14 +407,14 @@ namespace gui {
             }
             //}
             
-            const bool nothing_to_zoom_on = !has_selection() || (inactive_estimates.empty() && active_blobs.empty());
+            const bool nothing_to_zoom_on = !has_selection() || (inactive_estimates.empty() && selected_blobs.empty());
             
             _num_pixels = 0;
             
             for (size_t i=0; i<processed_frame.blobs.size(); i++) {
                 auto blob = processed_frame.blobs.at(i);
                 
-                if(nothing_to_zoom_on || active_blobs.find(blob->blob_id()) != active_blobs.end())
+                if(nothing_to_zoom_on || selected_blobs.find(blob->blob_id()) != selected_blobs.end())
                 {
                     min_vec = min(min_vec, blob->bounds().pos());
                     max_vec = max(max_vec, blob->bounds().pos() + blob->bounds().size());
@@ -433,7 +437,7 @@ namespace gui {
                 blob->calculate_moments();
                 
                 if((nothing_to_zoom_on && blob->recount(-1) >= FAST_SETTINGS(blob_size_ranges).max_range().start)
-                   || active_blobs.find(blob->blob_id()) != active_blobs.end())
+                   || selected_blobs.find(blob->blob_id()) != selected_blobs.end())
                 {
                     min_vec = min(min_vec, blob->bounds().pos());
                     max_vec = max(max_vec, blob->bounds().pos() + blob->bounds().size());
@@ -451,9 +455,18 @@ namespace gui {
             }
             
             if(reload_blobs) {
+                _ranged_blob_labels.clear();
+                Frame_t f(frameIndex);
+                for(auto &b: raw_blobs) {
+                    auto label = Categorize::DataStore::ranged_label(f, b->blob->blob_id());
+                    if(label)
+                        _ranged_blob_labels[b->blob->blob_id()] = label->id;
+                }
+                
                 display_blobs.clear();
                 display_blobs_list.clear();
             }
+            
             boundary = Bounds(min_vec, max_vec - min_vec);
             
             last_frame = frameIndex;

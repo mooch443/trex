@@ -170,18 +170,25 @@ std::vector<std::string> DataStore::label_names() {
 }
 
 void init_labels() {
-    std::lock_guard guard(DataStore::mutex());
     _labels.clear();
-    for(size_t i=0; i<FAST_SETTINGS(categories_ordered).size(); ++i) {
-        _labels[Label::Make(FAST_SETTINGS(categories_ordered).at(i), i)] = {};
+    auto cats = FAST_SETTINGS(categories_ordered);
+    for(size_t i=0; i<cats.size(); ++i) {
+        _labels[Label::Make(cats.at(i), i)] = {};
     }
 }
 
 Label::Ptr DataStore::label(const char* name) {
-    for(auto &n : FAST_SETTINGS(categories_ordered)) {
-        if(n == name) {
+    {
+        std::lock_guard guard(DataStore::mutex());
+        if(_labels.empty()) {
+            init_labels();
+        }
+    }
+    
+    for(auto &[n, _] : _labels) {
+        if(n->name == name) {
             {
-                std::lock_guard guard(mutex());
+                std::lock_guard guard(DataStore::mutex());
                 for(auto &[l, v] : _labels) {
                     if(l->name == name) {
                         return l;
@@ -189,17 +196,7 @@ Label::Ptr DataStore::label(const char* name) {
                 }
             }
             
-            // not initialized! it should have been here.
-            init_labels();
-            
-            // try again after initialization
-            std::lock_guard guard(mutex());
-            for(auto &[l, v] : _labels) {
-                if(l->name == name) {
-                    return l;
-                }
-            }
-            
+            Except("Label '%s' should have been in the map already.", name);
             break;
         }
     }
@@ -358,7 +355,7 @@ void DataStore::set_label(Frame_t idx, uint32_t bdx, const Label::Ptr& label) {
 
 void DataStore::_set_label_unsafe(Frame_t idx, uint32_t bdx, const Label::Ptr& label) {
 #ifndef NDEBUG
-    if (_probability_cache[idx].count(bdx)) {
+    if (contains(_probability_cache[idx], std::make_tuple(bdx, label))) {
         auto str = Meta::toStr(_probability_cache[idx]);
         Warning("Cache already contains blob %d in frame %d.\n%S", bdx, (int)idx, &str);
     }
@@ -2330,7 +2327,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
         }
 
 #ifndef NDEBUG
-        log_event("Created", frame, fish->identity());
+        log_event("Created", frame, -1);
 #endif
     }
     else {
@@ -2368,7 +2365,6 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
     std::unique_lock guard(_cache_mutex);
     auto it = find_keyed_tuple(_frame_cache, frame);
     if(it == _frame_cache.end()) {
-        assert(!found);
 #ifndef NDEBUG
         auto fit = _current_cached_frames.find(frame);
         if(fit != _current_cached_frames.end())
@@ -2699,7 +2695,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     }
     
 #ifndef NDEBUG
-    Debug("Segment(%lu): Of %lu frames, %lu were found and %lu found immediately (replaced %lu).", segment->basic_index.size(), stuff_indexes.size(), found_frames, found_frame_immediately, replaced, min_samples);
+    Debug("Segment(%lu): Of %lu frames, %lu were found (replaced %lu, min_samples=%ld).", segment->basic_index.size(), stuff_indexes.size(), replaced, min_samples);
 #endif
     if(images.size() >= min_samples) {
         return Sample::Make(std::move(indexes), std::move(images), std::move(blob_ids), std::move(positions));

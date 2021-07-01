@@ -304,7 +304,7 @@ void InfoCard::update() {
     if(fprobs) {
         track::Match::prob_t max_prob = 0;
         int64_t bdx = -1;
-        for(auto blob : cache.processed_frame.blobs) {
+        for(auto &blob : cache.processed_frame.blobs) {
             if(fprobs->count(blob->blob_id())) {
                 auto &probs = (*fprobs).at(blob->blob_id());
                 if(probs.p > max_prob) {
@@ -314,7 +314,7 @@ void InfoCard::update() {
             }
         }
         
-        for(auto blob : cache.processed_frame.blobs) {
+        for(auto &blob : cache.processed_frame.blobs) {
             if(fprobs->count(blob->blob_id())) {
                 auto color = Color(200, 200, 200, 255);
                 if(cache.fish_selected_blobs.find(fdx) != cache.fish_selected_blobs.end() && (long_t)blob->blob_id() == cache.fish_selected_blobs.at(fdx)) {

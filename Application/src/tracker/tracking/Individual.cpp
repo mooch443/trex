@@ -1006,7 +1006,13 @@ std::shared_ptr<Individual::BasicStuff> Individual::add(long_t frameIndex, const
     //stuff->weighted_centroid = new PhysicalProperties(prev_props, time, centroid_point, current->angle());
     //push_to_segments(frameIndex, prev_frame);
     
-    auto p = current_prob != -1 || frame.cached_individuals.find(identity().ID()) == frame.cached_individuals.end() ? current_prob : probability(frame.label(blob), frame.cached_individuals.at(identity().ID()), frameIndex, stuff->blob).p;
+    auto it = frame.cached_individuals.find(identity().ID());
+    auto p = current_prob != -1 || it == frame.cached_individuals.end()
+            ? current_prob
+            : probability(it->second.consistent_categories ? frame.label(blob) : -1,
+                          it->second,
+                          frameIndex,
+                          stuff->blob).p;
     auto segment = update_add_segment(frameIndex, current, prev_frame, &stuff->blob, p);
     
     // add BasicStuff index to segment

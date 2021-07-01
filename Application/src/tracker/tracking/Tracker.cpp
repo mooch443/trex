@@ -772,7 +772,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
         return false;
     }
     
-    void Tracker::prefilter(std::shared_ptr<Tracker::PrefilterBlobs> result, std::vector<pv::BlobPtr>::const_iterator it, std::vector<pv::BlobPtr>::const_iterator end)
+    void Tracker::prefilter(const std::shared_ptr<Tracker::PrefilterBlobs>& result, std::vector<pv::BlobPtr>::const_iterator it, std::vector<pv::BlobPtr>::const_iterator end)
     {
         static Timing timing("prefilter", 10);
         TakeTiming take(timing);
@@ -789,28 +789,38 @@ bool operator<(long_t frame, const FrameProperties& props) {
         std::vector<pv::BlobPtr> ptrs;
         auto only_allowed = FAST_SETTINGS(track_only_categories);
         
-        for(; it != end; ++it) {
-            ptrs.clear();
-            
-            auto b = *it;
+        auto check_blob = [&track_ignore, &track_include, &result, &cm_sqr](pv::BlobPtr& b){
             if(b->pixels()->size() * cm_sqr > result->fish_size.max_range().end * 100)
                 b->force_set_recount(result->threshold);
+            else
+                b->recount(result->threshold, *result->background);
             
-            float recount = b->recount(result->threshold, *result->background);
-
             if (!track_ignore.empty()) {
                 if (blob_matches_shapes(b, track_ignore)) {
-                    filtered_out.push_back(b);
-                    continue;
+                    result->filter_out(b);
+                    return false;
                 }
             }
 
             if (!track_include.empty()) {
                 if (!blob_matches_shapes(b, track_include)) {
-                    filtered_out.push_back(b);
-                    continue;
+                    result->filter_out(b);
+                    return false;
                 }
             }
+            
+            return true;
+        };
+        
+        for(; it != end; ++it) {
+            ptrs.clear();
+            
+            auto b = *it;
+            
+            if(!check_blob(b))
+                continue;
+            
+            float recount = b->recount(-1);
             
             // TODO: magic numbers
             //! If the size is appropriately big, try to split the blob using the minimum of threshold and
@@ -820,66 +830,12 @@ bool operator<(long_t frame, const FrameProperties& props) {
             if(result->fish_size.close_to_minimum_of_one(recount, 0.5)) {
                 Timer timer;
                 auto pblobs = pixel::threshold_blob(b, result->threshold, result->background);
-                size_t actual_relevant_blobs = 0;
-                //float average = 0;
-                
-                // optimization for very large blobs
-                if(!result->fish_size.close_to_maximum_of_one(recount, 100))
-                {
-                    //average = (result->fish_size.max_range().end - result->fish_size.max_range().start) * 0.5 + result->fish_size.max_range().start;
-                    
-                    for (auto& blob : pblobs) {
-                        if(result->fish_size.in_range_of_one(blob->pixels()->size() * cm_sqr, 0.25, 2)) {
-                            ++actual_relevant_blobs;
-                        }
-                    }
-                    
-                } else {
-                    float average = 0;
-                    
-                    Median<float> median;
-                    for (auto& blob : pblobs) {
-                        median.addNumber(blob->pixels()->size() * cm_sqr);
-                        average += blob->pixels()->size() * cm_sqr;
-                    }
-                    average /= float(pblobs.size());
-                    if(pblobs.size() > 2)
-                        average = median.getValue();
-                    
-                    // we're not interested in very very small blobs only
-                    if(average > result->fish_size.max_range().start * 0.25) {
-                        for(auto &tmp : pblobs) {
-                            float rec = tmp->pixels()->size() * cm_sqr;
-                            if(result->fish_size.in_range_of_one(rec, 0.5, 10))
-                                ++actual_relevant_blobs;
-                        }
-                    }
-                }
                 
                 // only use blobs that split at least into 2 new blobs
-                //if(actual_relevant_blobs > 1) {
                 for(auto &add : pblobs) {
                     add->set_split(false, b); // set_split even if the blob has just been thresholded normally?
-
-                    if (!track_ignore.empty()) {
-                        if (blob_matches_shapes(add, track_ignore)) {
-                            if (!result->fish_size.close_to_maximum_of_one(add->pixels()->size() * cm_sqr, 100))
-                                add->force_set_recount(result->threshold);
-                            recount = add->recount(result->threshold, *result->background);
-                            filtered_out.push_back(add);
-                            continue;
-                        }
-                    }
-
-                    if (!track_include.empty()) {
-                        if (!blob_matches_shapes(add, track_include)) {
-                            if (!result->fish_size.close_to_maximum_of_one(add->pixels()->size() * cm_sqr, 100))
-                                add->force_set_recount(result->threshold);
-                            recount = add->recount(result->threshold, *result->background);
-                            filtered_out.push_back(add);
-                            continue;
-                        }
-                    }
+                    if(!check_blob(add))
+                        continue;
 
                     ptrs.push_back(add);
                 }
@@ -887,13 +843,6 @@ bool operator<(long_t frame, const FrameProperties& props) {
                 if (ptrs.empty()) {
                     ptrs.push_back(b);
                 }
-                    
-                //} else
-                //    ptrs.push_back(b);
-                
-                /*if(recount > result->fish_size.end * 3) {
-                    Debug("Frame %d: Took %fs for size %f blob to split into %d (%d)", result->frame_index, timer.elapsed(), recount, actual_relevant_blobs, pblobs.size());
-                }*/
                 
             } else {
                 ptrs.push_back(b);
@@ -901,9 +850,10 @@ bool operator<(long_t frame, const FrameProperties& props) {
             
             //! actually add the blob(s) to the filtered/filtered_out arrays
             for(auto& ptr : ptrs) {
-                if(!result->fish_size.close_to_maximum_of_one( ptr->pixels()->size() * cm_sqr, 100))
-                    ptr->force_set_recount(result->threshold);
-                recount = ptr->recount(result->threshold, *result->background);
+                //if(!result->fish_size.close_to_maximum_of_one( ptr->pixels()->size() * cm_sqr, 100))
+                //    ptr->force_set_recount(result->threshold);
+                //recount = ptr->recount(result->threshold, *result->background);
+                recount = ptr->recount(-1);
 
                 if(result->fish_size.in_range_of_one(recount)) {
                     if(FAST_SETTINGS(track_threshold_2) > 0) {
@@ -912,7 +862,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
                         ptr->force_set_recount(result->threshold, recount / cm_sqr);
                         
                         if(!(FAST_SETTINGS(threshold_ratio_range) * recount).contains(second_count)) {
-                            filtered_out.push_back(ptr);
+                            result->filter_out(ptr);
                             continue;
                         }
                     }
@@ -920,15 +870,17 @@ bool operator<(long_t frame, const FrameProperties& props) {
                     if(!only_allowed.empty()) {
                         auto label = Categorize::DataStore::_ranged_label_unsafe(Frame_t(result->frame_index), ptr->blob_id());
                         if(!label || !contains(only_allowed, label->name)) {
-                            filtered_out.push_back(ptr);
+                            result->filter_out(ptr);
                             continue;
                         }
                     }
                     
-                    filtered.push_back(ptr);
+                    //! only after all the checks passed, do we commit the blob
+                    /// to the "filtered" array:
+                    result->commit(ptr);
                     
                 } else if(recount < result->fish_size.max_range().start) {
-                    filtered_out.push_back(ptr);
+                    result->filter_out(ptr);
                 } else
                     big_blobs.push_back(ptr);
             }
@@ -942,13 +894,16 @@ bool operator<(long_t frame, const FrameProperties& props) {
             blob->calculate_moments();
         
         if (result->frame_index == Tracker::start_frame() || Tracker::start_frame() == -1)
-            big_blobs = Tracker::instance()->split_big(result->filtered_out, big_blobs, {});
+            big_blobs = Tracker::instance()->split_big(
+                    [&](auto& v) { result->filter_out(v); },
+                    big_blobs,
+                    {});
 
         if (!only_allowed.empty()) {
             for (auto it = big_blobs.begin(); it != big_blobs.end(); ) {
                 auto label = Categorize::DataStore::_ranged_label_unsafe(Frame_t(result->frame_index), (*it)->blob_id());
                 if (!label || !contains(only_allowed, label->name)) {
-                    filtered_out.push_back(*it);
+                    result->filter_out(*it);
                     it = big_blobs.erase(it);
                     continue;
                 }
@@ -957,7 +912,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
         }
 
         if (!big_blobs.empty()) {
-            filtered.insert(filtered.end(), big_blobs.begin(), big_blobs.end());
+            result->commit(big_blobs);
             big_blobs.clear();
         }
     }
@@ -1007,12 +962,16 @@ bool operator<(long_t frame, const FrameProperties& props) {
             
             frame.blobs.clear();
             frame.filtered_out.clear();
+            frame.num_pixels = 0;
+            frame.pixel_samples = 0;
             
-            for(auto filter : prefilters) {
+            for(auto& filter : prefilters) {
                 if(!filter)
                     continue;
                 frame.blobs.insert(frame.blobs.end(), filter->filtered.begin(), filter->filtered.end());
                 frame.filtered_out.insert(frame.filtered_out.end(), filter->filtered_out.begin(), filter->filtered_out.end());
+                frame.num_pixels += filter->overall_pixels;
+                frame.pixel_samples += filter->samples;
             }
 
         } else {
@@ -1021,13 +980,15 @@ bool operator<(long_t frame, const FrameProperties& props) {
             
             frame.blobs = pref->filtered;
             frame.filtered_out = pref->filtered_out;
+            frame.num_pixels = pref->overall_pixels;
+            frame.pixel_samples = pref->samples;
         }
         
         //initial_filter.conclude_measure();
     }
 
     std::vector<std::shared_ptr<pv::Blob>> Tracker::split_big(
-        std::vector<pv::BlobPtr>& filtered_out,
+        const std::function<void(const std::vector<pv::BlobPtr>&)>& filter_out,
         const std::vector<std::shared_ptr<pv::Blob>> &big_blobs,
         const std::map<pv::BlobPtr, split_expectation> &expect,
         bool discard_small,
@@ -1042,6 +1003,24 @@ bool operator<(long_t frame, const FrameProperties& props) {
         const auto track_include = FAST_SETTINGS(track_include);
 
         std::mutex _mutex;
+        
+        auto check_blob = [&track_ignore, &track_include, &filter_out](const pv::BlobPtr& b) {
+            if (!track_ignore.empty()) {
+                if (blob_matches_shapes(b, track_ignore)) {
+                    filter_out({b});
+                    return false;
+                }
+            }
+
+            if (!track_include.empty()) {
+                if (!blob_matches_shapes(b, track_include)) {
+                    filter_out({b});
+                    return false;
+                }
+            }
+            
+            return true;
+        };
         
         auto work = [&](auto b, std::vector<pv::BlobPtr>& big_filtered, std::vector<pv::BlobPtr>& noise){
             if(!fish_size.close_to_maximum_of_one(b->pixels()->size() * cm_sq, 1000))
@@ -1164,7 +1143,8 @@ bool operator<(long_t frame, const FrameProperties& props) {
 
                         std::lock_guard<std::mutex> guard(_mutex);
                         result.insert(result.end(), r.begin(), r.end());
-                        filtered_out.insert(filtered_out.end(), noise.begin(), noise.end());
+                        filter_out(noise);
+                        //filtered_out.insert(filtered_out.end(), noise.begin(), noise.end());
                         
                     }, i);
                 }
@@ -1183,7 +1163,8 @@ bool operator<(long_t frame, const FrameProperties& props) {
                     
                     std::lock_guard<std::mutex> guard(_mutex);
                     result.insert(result.end(), r.begin(), r.end());
-                    filtered_out.insert(filtered_out.end(), noise.begin(), noise.end());
+                    filter_out(noise);
+                    //filtered_out.insert(filtered_out.end(), noise.begin(), noise.end());
                 }
                 
                 pool->wait();
@@ -1195,7 +1176,8 @@ bool operator<(long_t frame, const FrameProperties& props) {
         for(auto &b : big_blobs) {
             if(!fish_size.close_to_maximum_of_one(b->pixels()->size() * cm_sq, 1000))
             {
-                filtered_out.push_back(b);
+                filter_out({b});
+                //filtered_out.push_back(b);
                 continue;
             }
             
@@ -1207,7 +1189,8 @@ bool operator<(long_t frame, const FrameProperties& props) {
             if(!fish_size.close_to_maximum_of_one(rec, 10 * ex.number))
                //|| (!expect.empty() && !expect.count(b)))
             {
-                filtered_out.push_back(b);
+                filter_out({b});
+                //filtered_out.push_back(b);
                 continue;
             }
             
@@ -1229,7 +1212,8 @@ bool operator<(long_t frame, const FrameProperties& props) {
                     if(out)
                         added.insert({rec, b});
                 } else {
-                    filtered_out.push_back(b);
+                    filter_out({b});
+                    //filtered_out.push_back(b);
                 }
                 
             } else {
@@ -1247,18 +1231,8 @@ bool operator<(long_t frame, const FrameProperties& props) {
 
                     ptr->calculate_moments();
 
-                    if (!track_ignore.empty()) {
-                        if (blob_matches_shapes(ptr, track_ignore)) {
-                            filtered_out.push_back(ptr);
-                            continue;
-                        }
-                    }
-
-                    if (!track_include.empty()) {
-                        if (!blob_matches_shapes(ptr, track_include)) {
-                            filtered_out.push_back(ptr);
-                            continue;
-                        }
+                    if(!check_blob(ptr)) {
+                        continue;
                     }
                     
                     if(fish_size.in_range_of_one(r, 0.35, 1) && (!discard_small || counter < ex.number)) {
@@ -1267,15 +1241,16 @@ bool operator<(long_t frame, const FrameProperties& props) {
                             added.insert({r, ptr});
                         ++counter;
                     } else {
-                        filtered_out.push_back(ptr);
+                        filter_out({ptr});
                     }
                 }
                 
                 if(ret.empty()) {
-                    filtered_out.push_back(b);
+                    filter_out({b});
                 } else if(for_this_blob.size() < ex.number) {
                     Log(out, "Not allowing less than %d, but only found %d blobs", ex.number, for_this_blob.size());
-                    filtered_out.insert(filtered_out.end(), for_this_blob.begin(), for_this_blob.end());
+                    filter_out(for_this_blob);
+                    //filtered_out.insert(filtered_out.end(), for_this_blob.begin(), for_this_blob.end());
                     
                     if(out)
                         added.clear();
@@ -1471,8 +1446,11 @@ bool operator<(long_t frame, const FrameProperties& props) {
                 if(ptr) {
                     big_blobs.push_back(ptr);
                     auto it = std::find(frame.blobs.begin(), frame.blobs.end(), ptr);
-                    if(it != frame.blobs.end())
+                    if(it != frame.blobs.end()) {
+                        frame.num_pixels -= (*it)->num_pixels();
+                        --frame.pixel_samples;
                         frame.blobs.erase(it);
+                    }
                     
                     expect[ptr].number = 2;
                     expect[ptr].allow_less_than = false;
@@ -1665,6 +1643,8 @@ bool operator<(long_t frame, const FrameProperties& props) {
                                     ++expect[ptr].number;
                                     big_blobs.push_back(ptr);
                                     frame.blobs.erase(it);
+                                    frame.num_pixels -= ptr->num_pixels();
+                                    --frame.pixel_samples;
                                 }
                                 else {
                                     if(expect.count(ptr)) {
@@ -1707,9 +1687,21 @@ bool operator<(long_t frame, const FrameProperties& props) {
         //static Timing tim("history_split_split_big", 0.1);
         //TakeTiming tak(tim);
         
-        auto big_filtered = split_big(frame.filtered_out, big_blobs, expect, true, out, pool);
-        if(!big_filtered.empty())
+        auto big_filtered = split_big([&](const std::vector<pv::BlobPtr>& v) {
+            for(auto &b:v)
+                frame.num_pixels += b->num_pixels();
+            frame.pixel_samples += v.size();
+            frame.filtered_out.insert(frame.filtered_out.end(), v.begin(), v.end());
+            
+        }, big_blobs, expect, true, out, pool);
+        
+        if(!big_filtered.empty()) {
+            for(auto &b:big_filtered)
+                frame.num_pixels += b->num_pixels();
+            frame.pixel_samples += big_filtered.size();
+            
             frame.blobs.insert(frame.blobs.end(), big_filtered.begin(), big_filtered.end());
+        }
         
         for(auto it = frame.blobs.begin(); it != frame.blobs.end();) {
             if(!FAST_SETTINGS(blob_size_ranges).in_range_of_one(it->get()->recount(-1))) { //it->get()->recount(-1) > FAST_SETTINGS(blob_size_ranges).max_range().end) {
@@ -2119,7 +2111,7 @@ void Tracker::clear_properties() {
                     std::map<pv::BlobPtr, split_expectation> expect;
                     expect[blob] = split_expectation(clique.size() == 1 ? 2 : clique.size(), false);
                     
-                    auto big_filtered = split_big(frame.filtered_out, {blob}, expect);
+                    auto big_filtered = split_big([&](auto& v) { frame.filtered_out.insert(frame.filtered_out.end(), v.begin(), v.end()); }, {blob}, expect);
                     if(!big_filtered.empty()) {
                         /*std::map<Individual*, std::map<pv::BlobPtr, float>> distances;
                         std::map<Individual*, float> max_probs;

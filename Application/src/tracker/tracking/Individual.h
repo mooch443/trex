@@ -114,6 +114,9 @@ constexpr std::array<const char*, 8> ReasonsNames {
         std::vector<std::shared_ptr<pv::Blob>> blobs, original_blobs;
         std::vector<std::shared_ptr<pv::Blob>> filtered_out;
         
+        size_t num_pixels = 0;
+        size_t pixel_samples = 0;
+        
         std::map<Idx_t, IndividualCache> cached_individuals;
         std::map<uint32_t, std::set<long_t>> blob_cliques, fish_cliques;
         std::set<uint32_t> split_blobs;
@@ -136,6 +139,8 @@ constexpr std::array<const char*, 8> ReasonsNames {
             fish_cliques.clear();
             split_blobs.clear();
             bdx_to_ptr.clear();
+            num_pixels = 0;
+            pixel_samples = 0;
         }
     };
     
