@@ -428,6 +428,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                     
                     segment->add_basic_at(frameIndex, (long_t)fish->_basic_stuff.size());
                     fish->_basic_stuff.push_back(data.stuff);
+                    fish->_matched_using.push_back(default_config::matching_mode_t::benchmark);
                 }
                 guard.lock();
                 
@@ -438,6 +439,9 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     
     TemporaryData data;
     double time;
+    
+    fish->_basic_stuff.reserve(N);
+    fish->_matched_using.reserve(N);
     
     for (uint64_t i=0; i<N; i++) {
         ref.read<data_long_t>(frameIndex);

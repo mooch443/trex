@@ -86,7 +86,7 @@ namespace gui {
         std::map<long_t, track::Tracker::Statistics> _statistics;
         std::unordered_map<uint32_t, int> _ranged_blob_labels;
         
-        std::vector<std::set<uint32_t>> _cliques;
+        std::vector<Tracker::Clique> _cliques;
         
         long_t connectivity_last_frame;
         std::vector<float> connectivity_matrix;

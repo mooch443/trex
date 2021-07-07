@@ -35,7 +35,8 @@ CREATE_STRUCT(CachedGUIOptions,
     (int, panic_button),
     (bool, gui_happy_mode),
     (bool, gui_highlight_categories),
-    (bool, gui_show_cliques)
+    (bool, gui_show_cliques),
+    (bool, gui_show_match_modes)
 )
 
 #define GUIOPTION(NAME) CachedGUIOptions::copy < CachedGUIOptions :: NAME > ()
@@ -96,6 +97,12 @@ CREATE_STRUCT(CachedGUIOptions,
             _next_frame_cache.valid = false;
             _image = nullptr;
             points.clear();
+            
+            auto seg = _obj.segment_for(_idx);
+            if(seg) {
+                _match_mode = (int)_obj.matched_using().at(seg->basic_stuff(_idx)).value();
+            } else
+                _match_mode = -1;
             
             auto && [basic, posture] = _obj.all_stuff(_safe_idx);
             
@@ -1039,11 +1046,15 @@ void Fish::label(DrawStructure &base) {
         }
     }
     
+    if(GUIOPTION(gui_show_match_modes)) {
+        base.circle(pos() + size() * 0.5, size().length(), Transparent, ColorWheel(_match_mode).next().alpha(50));
+    }
+    
     //auto bdx = blob->blob_id();
     if(GUIOPTION(gui_show_cliques)) {
         uint32_t i=0;
         for(auto &clique : GUI::cache()._cliques) {
-            if(contains(clique, _obj.identity().ID())) {
+            if(contains(clique.fishs, _obj.identity().ID())) {
                 base.circle(pos() + size() * 0.5, size().length(), Transparent, ColorWheel(i).next().alpha(50));
                 break;
             }

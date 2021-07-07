@@ -136,6 +136,12 @@ CREATE_STRUCT(Settings,
         std::unordered_map<Idx_t, Individual*> _individuals;
         friend class Individual;
         
+    public:
+        struct Clique {
+            std::unordered_set<uint32_t> bids, fishs;
+        };
+        std::unordered_map<long_t, std::vector<Clique>> _cliques;
+        
         set_of_individuals_t _active_individuals;
         std::unordered_map<long_t, set_of_individuals_t> _active_individuals_frame;
         

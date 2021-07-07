@@ -466,12 +466,17 @@ namespace gui {
                 display_blobs.clear();
                 display_blobs_list.clear();
                 
-                std::vector<std::set<uint32_t>> cliques;
+                /*std::vector<std::set<uint32_t>> cliques;
                 for(auto &[bdx, clique] : processed_frame.blob_cliques) {
                     if(!contains(cliques, clique))
                         cliques.push_back(clique);
                 }
-                _cliques = std::move(cliques);
+                _cliques = std::move(cliques);*/
+                
+                if(Tracker::instance()->_cliques.count(frameIndex)) {
+                    _cliques = Tracker::instance()->_cliques.at(frameIndex);
+                } else
+                    _cliques.clear();
             }
             
             boundary = Bounds(min_vec, max_vec - min_vec);

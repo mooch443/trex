@@ -225,6 +225,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
     protected:
         //! dense array of all the basic stuff we want to save
         GETTER(std::vector<std::shared_ptr<BasicStuff>>, basic_stuff)
+        GETTER(std::vector<default_config::matching_mode_t::Class>, matched_using)
         
     public:
         //! Stuff that is only present if postures are
@@ -402,7 +403,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         const decltype(_identity)& identity() const { return _identity; }
         decltype(_identity)& identity() { return _identity; }
         
-        std::shared_ptr<BasicStuff> add(long_t frameIndex, const PPFrame& frame, const pv::BlobPtr& blob, Match::prob_t current_prob);
+        std::shared_ptr<BasicStuff> add(long_t frameIndex, const PPFrame& frame, const pv::BlobPtr& blob, Match::prob_t current_prob, default_config::matching_mode_t::Class);
         void remove_frame(long_t frameIndex);
         void register_delete_callback(void* ptr, const std::function<void(Individual*)>& lambda);
         void unregister_delete_callback(void* ptr);

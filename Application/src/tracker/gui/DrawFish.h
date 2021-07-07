@@ -55,6 +55,7 @@ namespace gui {
         
         pv::CompressedBlob *_blob;
         Bounds _blob_bounds;
+        int _match_mode;
         IndividualCache _next_frame_cache;
         std::shared_ptr<Individual::BasicStuff> _basic_stuff;
         std::shared_ptr<Individual::PostureStuff> _posture_stuff;

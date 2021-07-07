@@ -590,6 +590,7 @@ void Individual::remove_frame(long_t frameIndex) {
             
             (*it)->basic_index.resize((*it)->length());
             _basic_stuff.resize((*it)->basic_index.back() + 1);
+            _matched_using.resize(_basic_stuff.size());
             shortened_basic_index = true;
             
             for (auto kit = (*it)->posture_index.begin(); kit != (*it)->posture_index.end(); ++kit) {
@@ -632,8 +633,10 @@ void Individual::remove_frame(long_t frameIndex) {
             Debug("(%d) found that we need to delete everything after and including %d-%d", identity().ID(), (*it)->range.start, (*it)->range.end);
 #endif
             
-            if(!shortened_basic_index && !(*it)->basic_index.empty())
+            if(!shortened_basic_index && !(*it)->basic_index.empty()) {
                 _basic_stuff.resize((*it)->basic_index.front());
+                _matched_using.resize(_basic_stuff.size());
+            }
             
             if(!shortened_posture_index) {
                 auto start = it;
@@ -946,7 +949,7 @@ void Individual::LocalCache::add(const std::shared_ptr<PostureStuff>& stuff) {
     }
 }
 
-std::shared_ptr<Individual::BasicStuff> Individual::add(long_t frameIndex, const PPFrame& frame, const pv::BlobPtr& blob, prob_t current_prob) {
+std::shared_ptr<Individual::BasicStuff> Individual::add(long_t frameIndex, const PPFrame& frame, const pv::BlobPtr& blob, prob_t current_prob, default_config::matching_mode_t::Class match_mode) {
     if (has(frameIndex))
         return nullptr;
     
@@ -1020,6 +1023,7 @@ std::shared_ptr<Individual::BasicStuff> Individual::add(long_t frameIndex, const
     if(!_basic_stuff.empty() && stuff->frame < _basic_stuff.back()->frame)
         SOFT_EXCEPTION("(%d) Added basic stuff for frame %d after frame %d.", identity().ID(), stuff->frame, _basic_stuff.back()->frame);
     _basic_stuff.push_back(stuff);
+    _matched_using.push_back(match_mode);
     
     const long_t video_length = Tracker::analysis_range().end;
     if(frameIndex >= video_length) {
