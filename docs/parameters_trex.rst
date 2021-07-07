@@ -71,6 +71,16 @@ TRex parameters
 
 
 
+.. function:: auto_categorize(bool)
+
+	**default value:** false
+
+
+	If set to true, the program will try to load <video>_categories.npz from the ``output_dir``. If successful, then categories will be computed according to the current categories_ settings. Combine this with the ``auto_quit`` parameter to automatically save and quit afterwards. If weights cannot be loaded, the app crashes.
+
+	.. seealso:: :func:`output_dir`, :func:`auto_quit`, 
+
+
 .. function:: auto_minmax_size(bool)
 
 	**default value:** false
@@ -2077,7 +2087,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1.2-20-g45ac929"
+	**default value:** "v1.1.3-76-g70182f7"
 
 
 	Current application version.

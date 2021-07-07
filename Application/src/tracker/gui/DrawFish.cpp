@@ -34,7 +34,8 @@ CREATE_STRUCT(CachedGUIOptions,
     (float, gui_max_path_time),
     (int, panic_button),
     (bool, gui_happy_mode),
-    (bool, gui_highlight_categories)
+    (bool, gui_highlight_categories),
+    (bool, gui_show_cliques)
 )
 
 #define GUIOPTION(NAME) CachedGUIOptions::copy < CachedGUIOptions :: NAME > ()
@@ -1030,7 +1031,32 @@ CREATE_STRUCT(CachedGUIOptions,
     }
 
 void Fish::label(DrawStructure &base) {
+    if(GUIOPTION(gui_highlight_categories)) {
+        if(_avg_cat != -1) {
+            base.circle(pos() + size() * 0.5, size().length(), Transparent, ColorWheel(_avg_cat).next().alpha(75));
+        } else {
+            base.circle(pos() + size() * 0.5, size().length(), Transparent, Purple.alpha(15));
+        }
+    }
+    
+    //auto bdx = blob->blob_id();
+    if(GUIOPTION(gui_show_cliques)) {
+        uint32_t i=0;
+        for(auto &clique : GUI::cache()._cliques) {
+            if(contains(clique, _obj.identity().ID())) {
+                base.circle(pos() + size() * 0.5, size().length(), Transparent, ColorWheel(i).next().alpha(50));
+                break;
+            }
+            ++i;
+        }
+    }
+    
+    if (!GUIOPTION(gui_show_texts))
+        return;
+    
     auto blob = _obj.compressed_blob(_idx);
+    if(!blob)
+        return;
     
     std::string color = "";
     std::stringstream text;
@@ -1057,67 +1083,55 @@ void Fish::label(DrawStructure &base) {
                 color = "nr";
         }
     }
-
-    if (blob) {
-        auto raw = Tracker::instance()->recognition()->ps_raw(_idx, blob->blob_id());
-        if (!raw.empty()) {
-            auto it = std::max_element(raw.begin(), raw.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b) {
-                return a.second < b.second;
-                });
-
-            if (it != raw.end()) {
-                secondary_text += " loc" + Meta::toStr(it->first) + " (" + Meta::toStr(it->second) + ")";
-            }
-        }
-        //auto raw_cat = Categorize::DataStore::label(Frame_t(_idx), blob);
-        //auto cat = Categorize::DataStore::label_interpolated(_obj.identity().ID(), Frame_t(_idx));
-
-        auto it = GUI::cache().processed_frame.cached_individuals.find(_obj.identity().ID());
-        if(it != GUI::cache().processed_frame.cached_individuals.end()) {
-            auto cat = it->second.current_category;
-            if(cat != -1) {
-                auto l = Categorize::DataStore::label(cat);
-                if(l)
-                    secondary_text += "<key>"+l->name+"</key>";
-            }
-        }
-        
-        auto cat = Categorize::DataStore::_label_unsafe(Frame_t(_idx), blob->blob_id());
-        if (cat) {
-            secondary_text += std::string(" ") + (cat ? "<b>" : "") + "<i>" + cat->name + "</i>" + (cat ? "</b>" : "");
-        }
-        
-        if(_avg_cat != -1) {
-            auto c = Categorize::DataStore::label(_avg_cat);
-            if(c)
-                secondary_text += (_avg_cat != -1 ? std::string(" ") : std::string()) + "<nr>" + c->name + "</nr>";
-            
-            if(GUIOPTION(gui_highlight_categories)) {
-                auto color = ColorWheel(_avg_cat).next();
-                base.circle(pos() + size() * 0.5, size().length(), Transparent, color.alpha(75));
-            }
-            
-        } else if(GUIOPTION(gui_highlight_categories)) {
-            base.circle(pos() + size() * 0.5, size().length(), Transparent, Purple.alpha(15));
-        }
-    }
-
-    float alpha = (GUI::instance()->timeline().visible() ? 255 : SETTING(gui_faded_brightness).value<uchar>()) / 255.f * 200.f;
     
-    if (blob) {
-        auto label = (Label*)custom_data("label");
-        auto label_text = (color.empty() ? text.str() : ("<"+color+">"+text.str()+"</"+color+">")) + "<a>" + secondary_text + "</a>";
-        if (!label) {
-            label = new Label(label_text, blob->calculate_bounds(), fish_pos());
-            add_custom_data("label", (void*)label, [](void* ptr) {
-                delete (Label*)ptr;
+    auto raw = Tracker::instance()->recognition()->ps_raw(_idx, blob->blob_id());
+    if (!raw.empty()) {
+        auto it = std::max_element(raw.begin(), raw.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b) {
+            return a.second < b.second;
             });
-        }
-        else
-            label->set_data(label_text, blob->calculate_bounds(), fish_pos());
 
-        label->update(base, base.active_section(), 1, blob == nullptr);
+        if (it != raw.end()) {
+            secondary_text += " loc" + Meta::toStr(it->first) + " (" + Meta::toStr(it->second) + ")";
+        }
     }
+    //auto raw_cat = Categorize::DataStore::label(Frame_t(_idx), blob);
+    //auto cat = Categorize::DataStore::label_interpolated(_obj.identity().ID(), Frame_t(_idx));
+
+    auto it = GUI::cache().processed_frame.cached_individuals.find(_obj.identity().ID());
+    if(it != GUI::cache().processed_frame.cached_individuals.end()) {
+        auto cat = it->second.current_category;
+        if(cat != -1) {
+            auto l = Categorize::DataStore::label(cat);
+            if(l)
+                secondary_text += "<key>"+l->name+"</key>";
+        }
+    }
+    
+    auto cat = Categorize::DataStore::_label_unsafe(Frame_t(_idx), blob->blob_id());
+    if (cat) {
+        secondary_text += std::string(" ") + (cat ? "<b>" : "") + "<i>" + cat->name + "</i>" + (cat ? "</b>" : "");
+    }
+    
+    if(_avg_cat != -1) {
+        auto c = Categorize::DataStore::label(_avg_cat);
+        if(c)
+            secondary_text += (_avg_cat != -1 ? std::string(" ") : std::string()) + "<nr>" + c->name + "</nr>";
+    }
+    
+    float alpha = (GUI::instance()->timeline().visible() ? 255 : SETTING(gui_faded_brightness).value<uchar>()) / 255.f * 200.f;
+
+    auto label = (Label*)custom_data("label");
+    auto label_text = (color.empty() ? text.str() : ("<"+color+">"+text.str()+"</"+color+">")) + "<a>" + secondary_text + "</a>";
+    if (!label) {
+        label = new Label(label_text, blob->calculate_bounds(), fish_pos());
+        add_custom_data("label", (void*)label, [](void* ptr) {
+            delete (Label*)ptr;
+        });
+    }
+    else
+        label->set_data(label_text, blob->calculate_bounds(), fish_pos());
+
+    label->update(base, base.active_section(), 1, blob == nullptr);
 }
 
 void Fish::shadow(DrawStructure &window) {

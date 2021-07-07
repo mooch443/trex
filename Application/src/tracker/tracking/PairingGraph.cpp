@@ -51,6 +51,12 @@ size_t PairedProbabilities::index(row_t::value_type row) const {
     return _row_index.at(row);
 }
 
+bool PairedProbabilities::has(row_t::value_type row) const {
+    if(!_row_index.count(row))
+        return false;
+    return true;
+}
+
 const decltype(PairedProbabilities::_col_edges)::mapped_type& PairedProbabilities::edges_for_col(size_t cdx) const {
     return _col_edges.at(col(cdx));
 }

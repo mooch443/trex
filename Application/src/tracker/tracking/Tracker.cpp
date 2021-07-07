@@ -1292,8 +1292,8 @@ bool operator<(long_t frame, const FrameProperties& props) {
         }
         
         using namespace Match;
-        std::map<long_t, std::set<long_t>> fish_mappings;
-        std::map<long_t, std::set<long_t>> blob_mappings;
+        std::map<long_t, std::set<uint32_t>> fish_mappings;
+        std::map<uint32_t, std::set<long_t>> blob_mappings;
         std::map<long_t, std::map<uint32_t, Match::prob_t>> paired;
 
         const auto frame_limit = FAST_SETTINGS(frame_rate) * FAST_SETTINGS(track_max_reassign_time);
@@ -1486,8 +1486,8 @@ bool operator<(long_t frame, const FrameProperties& props) {
                 continue;
             Log(out, "\tFinding clique of this blob:");
             
-            std::set<long_t> clique;
-            std::set<long_t> others;
+            std::set<uint32_t> clique;
+            std::set<uint32_t> others;
             std::queue<long_t> q;
             q.push(bdx);
             

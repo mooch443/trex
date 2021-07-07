@@ -359,6 +359,7 @@ file::Path conda_environment_path() {
         CONFIG("gui_show_visualfield", false, "Show/hide the visual field rays.");
         CONFIG("gui_show_uniqueness", false, "Show/hide uniqueness overview after training.");
         CONFIG("gui_show_probabilities", false, "Show/hide probability visualisation when an individual is selected.");
+        CONFIG("gui_show_cliques", false, "Show/hide cliques of potentially difficult tracking situations.");
         //CONFIG("gui_show_manual_matches", true, "Show/hide manual matches in path.");
         CONFIG("gui_show_graph", false, "Show/hide the data time-series graph.");
         CONFIG("gui_show_number_individuals", false, "Show/hide the #individuals time-series graph.");

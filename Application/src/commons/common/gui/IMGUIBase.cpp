@@ -358,6 +358,7 @@ class PolyCache : public CacheObject {
 
 void IMGUIBase::update_size_scale(GLFWwindow* window) {
     auto base = base_pointers.at(window);
+    std::lock_guard lock_guard(base->_graph->lock());
     
     int x, y;
     glfwGetWindowPos(window, &x, &y);

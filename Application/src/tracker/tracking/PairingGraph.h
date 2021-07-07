@@ -77,6 +77,8 @@ namespace Match
         size_t index(col_t::value_type) const;
         size_t index(row_t::value_type) const;
         
+        bool has(row_t::value_type) const;
+        
         //! return -1 if invalid assignment
         prob_t probability(row_t::value_type, col_t::value_type) const;
         prob_t probability(size_t row, size_t col) const;

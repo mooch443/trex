@@ -1896,8 +1896,7 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                         _cache._fish_map[fish]->set_data((uint32_t)frameNr, props->time, _cache.processed_frame, empty_map);
                         
                         base.wrap_object(*_cache._fish_map[fish]);
-                        if(GUI_SETTINGS(gui_show_texts))
-                            _cache._fish_map[fish]->label(base);
+                        _cache._fish_map[fish]->label(base);
                     }
                 }
                 
@@ -3046,14 +3045,18 @@ void GUI::update_display_blobs(bool draw_blobs, Section* fishbowl) {
             std::unordered_map<pv::Blob*, gui::ExternalImage*> map;
             std::vector<std::unique_ptr<gui::ExternalImage>> vector;
             
+            const bool gui_show_only_unassigned = SETTING(gui_show_only_unassigned).value<bool>();
+            
             for(auto it = start; it != end; ++it) {
                 bool found = copy.count((*it)->blob.get());
                 if(!found) {
                     auto bds = bowl.transformRect((*it)->blob->bounds());
                     if(bds.overlaps(screen_bounds))
                     {
-                        vector.push_back((*it)->convert());
-                        map[(*it)->blob.get()] = vector.back().get();
+                        if(!gui_show_only_unassigned || !contains(_cache.active_blobs, (*it)->blob->blob_id())) {
+                            vector.push_back((*it)->convert());
+                            map[(*it)->blob.get()] = vector.back().get();
+                        }
                     }
                 }
             }

@@ -118,7 +118,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         size_t pixel_samples = 0;
         
         std::map<Idx_t, IndividualCache> cached_individuals;
-        std::map<uint32_t, std::set<long_t>> blob_cliques, fish_cliques;
+        std::map<uint32_t, std::set<uint32_t>> blob_cliques, fish_cliques;
         std::set<uint32_t> split_blobs;
         std::map<uint32_t, pv::BlobPtr> bdx_to_ptr;
         grid::ProximityGrid blob_grid;
