@@ -2463,6 +2463,143 @@ void Tracker::clear_properties() {
             relevant_individuals = copy_individuals;
         }
         
+        
+        auto match_mode = frame_uses_approximate
+                ? default_config::matching_mode_t::hungarian
+                : FAST_SETTINGS(match_mode);
+        
+        if(match_mode == default_config::matching_mode_t::automatic) {
+            struct Clique {
+                std::unordered_set<uint32_t> bids, fishs;
+            };
+            
+            std::unordered_set<uint32_t> all_individuals;
+            std::vector<std::set<uint32_t>> blob_cliques;
+            std::vector<Clique> cliques;
+            
+            for(auto &&[bdx, c] : frame.blob_cliques) {
+                if(!contains(blob_cliques, c)) {
+                    auto &fishies = frame.fish_cliques.at(bdx);
+                    blob_cliques.push_back(c);
+                    
+                    Clique clique;
+                    for(auto i : c) {
+                        if(contains(all_individuals, i)) {
+                            for(auto &sub : cliques) {
+                                if(contains(sub.fishs, i)) {
+                                    // merge cliques
+                                    auto str0 = Meta::toStr(c);
+                                    auto str1 = Meta::toStr(sub.fishs);
+                                    Debug("Frame %d: Should merge cliques %S and %S.", frameIndex, &str0, &str1);
+                                    break;
+                                }
+                            }
+                        } else
+                            all_individuals.insert(i);
+                    }
+                    
+                    clique.fishs.insert(c.begin(), c.end());
+                    clique.bids.insert(fishies.begin(), fishies.end());
+                    cliques.push_back(clique);
+                }
+            }
+            
+            if(cliques.empty()) {
+                match_mode = matching_mode_t::approximate;
+            } else {
+                for(auto &clique : cliques) {
+                    std::unordered_set<uint32_t> fishs = clique.fishs;
+                    do {
+                        std::unordered_set<uint32_t> added_individuals;
+                        
+                        for(auto fdx : fishs) {
+                            auto fish = _individuals.at(Idx_t(fdx));
+                            if(paired_blobs.has(fish)) {
+                                auto i = paired_blobs.index(fish);
+                                for(auto &e : paired_blobs.edges_for_row(i)) {
+                                    auto bdx = paired_blobs.col( e.cdx )->blob_id();
+                                    if(!contains(clique.bids, bdx)) {
+                                        clique.bids.insert(bdx);
+                                        for(auto fdi : paired_blobs.edges_for_col(e.cdx)) {
+                                            auto fdx = paired_blobs.row(fdi)->identity().ID();
+                                            if(!contains(fishs, fdx) && !contains(added_individuals, fdx))
+                                                added_individuals.insert(fdx);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        fishs = added_individuals;
+                        clique.fishs.insert(added_individuals.begin(), added_individuals.end());
+                        
+                    } while(!fishs.empty());
+                    
+                    match_mode = matching_mode_t::hungarian;
+                    std::map<pv::Blob*, pv::BlobPtr> ptr2ptr;
+                    for(auto &r : relevant_blobs)
+                        ptr2ptr[r.get()] = r;
+                    
+                    using namespace Match;
+                    Match::PairedProbabilities paired;
+                    for(auto fish : paired_blobs.rows()) {
+                        if(!contains(clique.fishs, fish->identity().ID())
+                           || (fish_assigned.count(fish) && fish_assigned.at(fish)))
+                            continue;
+                        
+                        auto edges = paired_blobs.edges_for_row(paired_blobs.index(fish));
+                        
+                        std::unordered_map<pv::Blob*, prob_t> probs;
+                        for(auto &e : edges) {
+                            auto blob = paired_blobs.col(e.cdx);
+                            if(!blob_assigned.count(blob) || !blob_assigned.at(blob))
+                                probs[blob] = e.p;
+                        }
+                        
+                        if(!probs.empty())
+                            paired.add(fish, probs);
+                    }
+                    
+                    PairingGraph graph(frameIndex, paired);
+                    
+                    try {
+                        auto &optimal = graph.get_optimal_pairing(false, match_mode);
+                        for (auto &p: optimal.pairings) {
+                            assign_blob_individual(frameIndex, frame, p.first, ptr2ptr.at(p.second));
+                            active_individuals.insert(p.first);
+                        }
+                        
+                    } catch(...) {
+                        Except("Failed to generate optimal solution (frame %d).", frameIndex);
+                    }
+                }
+                
+                Match::PairedProbabilities paired;
+                for(auto fish : paired_blobs.rows()) {
+                    if(fish_assigned.find(fish) == fish_assigned.end() || !fish_assigned.at(fish)) {
+                        auto edges = paired_blobs.edges_for_row(paired_blobs.index(fish));
+                        
+                        std::unordered_map<pv::Blob*, Match::prob_t> probs;
+                        for(auto &e : edges) {
+                            auto blob = paired_blobs.col(e.cdx);
+                            auto it = blob_assigned.find(blob);
+                            if(it == blob_assigned.end() || !it->second) {
+                                probs[blob] = e.p;
+                            }
+                        }
+                        
+                        if(!probs.empty())
+                            paired.add(fish, probs);
+                    }
+                }
+                
+                paired_blobs = paired;
+                match_mode = matching_mode_t::approximate;
+            }
+        }
+        
+        //Debug("Frame %d: %s", frameIndex, match_mode.name());
+        
         {
             // calculate optimal permutation of blob assignments
             static Timing perm_timing("PairingGraph", 30);
@@ -2580,10 +2717,6 @@ void Tracker::clear_properties() {
     #endif
             
             try {
-                auto match_mode = frame_uses_approximate
-                    ? default_config::matching_mode_t::hungarian
-                    : FAST_SETTINGS(match_mode);
-                
                 //if(match_mode == default_config::matching_mode_t::accurate)
                 //    U_EXCEPTION("Test %d", frameIndex);
                 auto &optimal = graph.get_optimal_pairing(false, match_mode);

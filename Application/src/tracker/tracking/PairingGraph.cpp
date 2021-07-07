@@ -912,7 +912,8 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 size_t num = 0;
                 for(size_t i=0; i<_paired.n_rows(); ++i) {
                     individual_index[_paired.row(i)] = i;
-                    if(_paired.degree(i) > 0) {
+                    //if(_paired.degree(i) > 0)
+                    {
                         ++num;
                     }
                 }
