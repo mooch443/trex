@@ -790,6 +790,15 @@ TRex parameters
 
 
 
+.. function:: gui_show_cliques(bool)
+
+	**default value:** false
+
+
+	Show/hide cliques of potentially difficult tracking situations.
+
+
+
 .. function:: gui_show_dataset(bool)
 
 	**default value:** false
@@ -896,6 +905,15 @@ TRex parameters
 
 
 	Show/hide the #individuals time-series graph.
+
+
+
+.. function:: gui_show_only_unassigned(bool)
+
+	**default value:** false
+
+
+	Showing only unassigned objects.
 
 
 
@@ -2087,7 +2105,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1.3-76-g70182f7"
+	**default value:** "v1.1.3-80-g6b53e36"
 
 
 	Current application version.
