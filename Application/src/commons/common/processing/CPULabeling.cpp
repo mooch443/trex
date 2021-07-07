@@ -300,6 +300,9 @@ struct Source {
         iterator end() { return _iterator<Combined>(Combined(*this, end_tag{} )); }
         
         void inc_row() {
+            if (!valid())
+                return;
+
             pixel_start = pixel_end;
             node_start = node_end;
             line_start = line_end;

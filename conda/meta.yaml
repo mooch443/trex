@@ -84,9 +84,11 @@ requirements:
     - cudatoolkit =10.1 # [win]
     - cudnn ==7.6.5 # [win]
     - tensorflow =2.* # [osx and not arm64]
+    - tensorboard <2.5 # [win]
     - scikit-learn
     - ffmpeg
     - numpy # [osx and arm64]
+    - numpy ==1.18.5 # [win]
     - python # [not arm64]
     - python=3.8 # [osx and arm64]
     - nomkl # [osx]
