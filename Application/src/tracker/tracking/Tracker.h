@@ -296,6 +296,15 @@ CREATE_STRUCT(Settings,
         static void emergency_finish();
         static void delete_automatic_assignments(Idx_t fish_id, const FrameRange& frame_range);
         
+        static Match::PairedProbabilities calculate_paired_probabilities
+                (const PPFrame& frame,
+                 const Tracker::set_of_individuals_t& active_individuals,
+                 const std::unordered_map<Individual*, bool>& fish_assigned,
+                 const std::unordered_map<pv::Blob*, bool>& blob_assigned,
+                 std::unordered_map<pv::Blob*, pv::BlobPtr>& ptr2ptr,
+                 GenericThreadPool* pool);
+        static std::vector<Clique> generate_cliques(const Match::PairedProbabilities& paired);
+        
         enum class AnalysisState {
             PAUSED,
             UNPAUSED
