@@ -1766,7 +1766,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
     const Tracker::set_of_individuals_t& active_individuals,
     const std::unordered_map<Individual*, bool>& fish_assigned,
     const std::unordered_map<pv::Blob*, bool>& blob_assigned,
-    std::unordered_map<pv::Blob*, pv::BlobPtr>& ptr2ptr,
+    //std::unordered_map<pv::Blob*, pv::BlobPtr>& ptr2ptr,
     GenericThreadPool* pool
  )
 {
@@ -1798,17 +1798,17 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         }
         
         // Create Individuals for unassigned blobs
-        std::vector<std::tuple<pv::BlobPtr, int>> unassigned_blobs;
+        std::vector<std::tuple<size_t, int>> unassigned_blobs;
         unassigned_blobs.reserve(frame.blobs.size());
         
         const bool enable_labels = FAST_SETTINGS(track_consistent_categories) || !FAST_SETTINGS(track_only_categories).empty();
-        for(auto &p : frame.blobs) {
-            if(!blob_assigned.at(p.get())) {
+        for(size_t i=0; i<frame.blobs.size(); ++i) {//auto &p : frame.blobs) {
+            if(!blob_assigned.at(frame.blobs[i].get())) {
                 auto label = enable_labels
-                    ? Categorize::DataStore::ranged_label(Frame_t(frameIndex), p->blob_id())
+                    ? Categorize::DataStore::ranged_label(Frame_t(frameIndex), frame.blobs[i]->blob_id())
                     : nullptr;
-                unassigned_blobs.push_back(std::make_tuple(p, label ? label->id : -1));
-                ptr2ptr[p.get()] = p;
+                unassigned_blobs.push_back(std::make_tuple(i, label ? label->id : -1));
+                //ptr2ptr[p.get()] = p;
             }
         }
         
@@ -1825,18 +1825,19 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         std::mutex guard;
         const auto work = [&](size_t from, size_t to)
         {
-            std::unordered_set<pv::BlobPtr> blobs_used;
+            //std::unordered_set<pv::BlobPtr> blobs_used;
             std::unordered_set<Individual*> individuals_used;
             const auto matching_probability_threshold = FAST_SETTINGS(matching_probability_threshold);
 
             for(size_t i=from; i<to; i++) {
                 auto fish = unassigned_individuals[i];
                 Match::prob_t max_p = 0;
-                std::unordered_map<pv::Blob*, Match::prob_t> probs;
+                std::unordered_map<Match::Blob_t, Match::prob_t> probs;
                 
                 auto &cache = frame.cached_individuals.at(fish->identity().ID());
 
-                for (auto &[blob, label]: unassigned_blobs) {
+                for (auto &[blob_index, label]: unassigned_blobs) {
+                    auto &blob = frame.blobs[blob_index];
                     auto p = fish->probability(label, cache, frameIndex, blob).p;//blob->center(), blob->num_pixels()).p;
 
                     // discard elements with probabilities that are too low
@@ -1845,10 +1846,10 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
 
                     //Debug("%d: %d -> %d: %f", frameIndex, fish->identity().ID(), blob->blob_id(), p);
                     
-                    probs[blob.get()] = p;
+                    probs[&blob] = p;
                     max_p = max(max_p, p);
 
-                    blobs_used.insert(blob);
+                    //blobs_used.insert(blob);
                     individuals_used.insert(fish);
                 }
 
@@ -1937,14 +1938,14 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         
         //auto blob_to_pixels = filter_blobs(frame);
         auto assign_blob_individual = [&tagged_fish, &blob_fish_map, &fish_assigned, &blob_assigned, &assigned_count, &do_posture, &need_postures, save_tags]
-            (size_t frameIndex, PPFrame& frame, Individual* fish, const pv::BlobPtr& blob, default_config::matching_mode_t::Class match_mode)
+            (size_t frameIndex, const PPFrame& frame, Individual* fish, const pv::BlobPtr& blob, default_config::matching_mode_t::Class match_mode)
         {
             // transfer ownership of blob to individual
             // delete the copied objects from the original array.
             // otherwise they would be deleted after the RawProcessing
             // object gets deleted (ownership of blobs is gonna be
             // transferred to Individuals)
-            auto it = std::find(frame.blobs.begin(), frame.blobs.end(), blob);
+            /*auto it = std::find(frame.blobs.begin(), frame.blobs.end(), blob);
             if(it != frame.blobs.end())
                 frame.blobs.erase(it);
             else if((it = std::find(frame.filtered_out.begin(), frame.filtered_out.end(), blob)) != frame.filtered_out.end()) {
@@ -1953,6 +1954,13 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
 #ifndef NDEBUG
             else
                 U_EXCEPTION("Cannot find blob in frame.");
+#endif*/
+#ifndef NDEBUG
+            if(!contains(frame.blobs, blob)
+               && !contains(frame.filtered_out, blob))
+            {
+                U_EXCEPTION("Cannot find blob in frame.");
+            }
 #endif
             
             //auto &pixels = *blob_to_pixels.at(blob);
@@ -2030,9 +2038,9 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         
         // prepare active_individuals array and assign fixed matches for which
         // the individuals already exist
-        std::map<uint32_t, std::set<Idx_t>> cannot_find;
-        std::map<uint32_t, std::set<Idx_t>> double_find;
-        std::map<uint32_t, Idx_t> actually_assign;
+        std::unordered_map<uint32_t, std::set<Idx_t>> cannot_find;
+        std::unordered_map<uint32_t, std::set<Idx_t>> double_find;
+        std::unordered_map<uint32_t, Idx_t> actually_assign;
         
         for(auto && [fdx, bdx] : current_fixed_matches) {
             auto it = _individuals.find(fdx);
@@ -2128,16 +2136,23 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             
             fish->add_manual_match(frameIndex);
             assign_blob_individual(frameIndex, frame, fish, blob, default_config::matching_mode_t::benchmark);
+            
+            {
+                auto it = std::find(frame.blobs.begin(), frame.blobs.end(), blob);
+                if(it != frame.blobs.end())
+                    frame.blobs.erase(it);
+            }
         }
         
         if(!cannot_find.empty()) {
-            std::map<uint32_t, std::vector<std::tuple<Idx_t, Vec2, uint32_t>>> assign_blobs;
+            std::unordered_map<uint32_t, std::vector<std::tuple<Idx_t, Vec2, uint32_t>>> assign_blobs;
+            const auto max_speed_px = FAST_SETTINGS(track_max_speed) / FAST_SETTINGS(cm_per_pixel);
             
             for(auto && [bdx, fdxs] : cannot_find) {
                 assert(bdx >= 0);
                 auto pos = pv::Blob::position_from_id(bdx);
                 //Debug("Trying to find blob for %d (-> fish %d) at %f,%f", bdx, fdx, pos.x, pos.y);
-                auto list = blob_grid.query(pos, FAST_SETTINGS(track_max_speed) / FAST_SETTINGS(cm_per_pixel));
+                auto list = blob_grid.query(pos, max_speed_px);
                 //auto str = Meta::toStr(list);
                 //Debug("\t%S", &str);
                 
@@ -2280,6 +2295,11 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 } else {
                     fish->add_manual_match(frameIndex);
                     assign_blob_individual(frameIndex, frame, fish, blob, default_config::matching_mode_t::benchmark);
+                    
+                    auto it = std::find(frame.blobs.begin(), frame.blobs.end(), blob);
+                    if(it != frame.blobs.end())
+                        frame.blobs.erase(it);
+                    
                     active_individuals.insert(fish);
                     
                     identities.insert(FOI::fdx_t(fdx));
@@ -2327,6 +2347,11 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             
             if(fish && blob && !fish_assigned[fish] && !blob_assigned[blob.get()]) {
                 assign_blob_individual(frameIndex, frame, fish, blob, default_config::matching_mode_t::benchmark);
+                
+                auto it = std::find(frame.blobs.begin(), frame.blobs.end(), blob);
+                if(it != frame.blobs.end())
+                    frame.blobs.erase(it);
+                
                 fish->add_automatic_match(frameIndex);
                 active_individuals.insert(fish);
                 
@@ -2353,12 +2378,12 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         }
         // now that the blobs array has been cleared of all the blobs for fixed matches,
         // get pairings for all the others:
-        std::unordered_map<pv::Blob*, pv::BlobPtr> ptr2ptr;
+        //std::unordered_map<pv::Blob*, pv::BlobPtr> ptr2ptr;
         auto paired_blobs = calculate_paired_probabilities(frame,
                                                            active_individuals,
                                                            fish_assigned,
                                                            blob_assigned,
-                                                           ptr2ptr,
+                                                           //ptr2ptr,
                                                            &_thread_pool);
         
         if(!manual_identities.empty() && manual_identities.size() < paired_blobs.n_rows()) {
@@ -2367,9 +2392,11 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             for (auto r : paired_blobs.rows()) {
                 if(r->identity().manual()) {
                     // this is an important fish, check
-                    auto edges = paired_blobs.edges_for_row(paired_blobs.index(r));
+                    auto idx = paired_blobs.index(r);
                     
-                    if(edges.size() == 1) {
+                    if(paired_blobs.degree(idx) == 1) {
+                        auto edges = paired_blobs.edges_for_row(idx);
+                        
                         // only one possibility!
                         auto blob = edges.front();
                         Individual *other = NULL;
@@ -2463,14 +2490,18 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 }
             }*/
             
+            Clique clique;
+            
             for(auto &row : paired_blobs.rows()) {
-                auto edges = paired_blobs.edges_for_row(paired_blobs.index(row));
-                
-                if(edges.size() > 1) {
-                    Clique clique;
+                auto idx = paired_blobs.index(row);
+                if(paired_blobs.degree(idx) > 1) {
+                    auto edges = paired_blobs.edges_for_row(idx);
+                    clique.bids.clear();
+                    clique.fishs.clear();
+                    
                     for(auto &col : edges) {
                         if(col.p >= FAST_SETTINGS(matching_probability_threshold)) {
-                            auto bdx = paired_blobs.col(col.cdx)->blob_id();
+                            auto bdx = (*paired_blobs.col(col.cdx))->blob_id();
                             
                             for (auto it = cliques.begin(); it != cliques.end();) {
                                 if(contains(it->fishs, row->identity().ID()) || contains(it->bids, bdx)) {
@@ -2489,7 +2520,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     if(!clique.bids.empty()) {
                         all_individuals.insert(row->identity().ID());
                         clique.fishs.insert(row->identity().ID());
-                        cliques.push_back(clique);
+                        cliques.emplace_back(std::move(clique));
                     }
                 }
             }
@@ -2508,7 +2539,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                             if(paired_blobs.has(fish)) {
                                 auto i = paired_blobs.index(fish);
                                 for(auto &e : paired_blobs.edges_for_row(i)) {
-                                    auto bdx = paired_blobs.col( e.cdx )->blob_id();
+                                    auto bdx = (*paired_blobs.col( e.cdx ))->blob_id();
                                     if(!contains(cliques[index].bids, bdx)) {
                                         cliques[index].bids.insert(bdx);
                                         
@@ -2572,7 +2603,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     //auto str = Meta::toStr(clique.fishs);
                     //Debug("Frame %d: Matching %S together.", frameIndex, &str);
                     
-                    _thread_pool.enqueue([&paired_blobs, &blob_assigned, &fish_assigned, &frame, &assign_blob_individual, &thread_mutex, &ptr2ptr, &active_individuals, &executed, &_variable]
+                    _thread_pool.enqueue([&paired_blobs, &blob_assigned, &fish_assigned, &frame, &assign_blob_individual, &thread_mutex, &active_individuals, &executed, &_variable]
                                          (const Clique& clique, long_t frameIndex)
                     {
                         using namespace Match;
@@ -2584,10 +2615,10 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                             
                             auto edges = paired_blobs.edges_for_row(paired_blobs.index(fish));
                             
-                            std::unordered_map<pv::Blob*, prob_t> probs;
+                            std::unordered_map<Match::Blob_t, prob_t> probs;
                             for(auto &e : edges) {
                                 auto blob = paired_blobs.col(e.cdx);
-                                if(!blob_assigned.count(blob) || !blob_assigned.at(blob))
+                                if(!blob_assigned.count(blob->get()) || !blob_assigned.at(blob->get()))
                                     probs[blob] = e.p;
                             }
                             
@@ -2611,7 +2642,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                                 }
     #endif
                                 std::unique_lock g(thread_mutex);
-                                assign_blob_individual(frameIndex, frame, p.first, ptr2ptr.at(p.second), matching_mode_t::hungarian);
+                                assign_blob_individual(frameIndex, frame, p.first, *p.second, matching_mode_t::hungarian);
                                 active_individuals.insert(p.first);
                             }
                             
@@ -2633,16 +2664,34 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     }
                 }
                 
+                /*{
+                    auto fishes = paired_blobs.rows();
+                    for(auto fish : fishes) {
+                        if(fish_assigned.find(fish) != fish_assigned.end() && fish_assigned.at(fish)) {
+                            Debug("Frame %d: Erasing fish %d (%d)", frameIndex, fish->identity().ID(), paired_blobs.index(fish));
+                            paired_blobs.erase(fish);
+                        }
+                    }
+                    
+                    auto blobs = paired_blobs.cols();
+                    for(auto blob : blobs) {
+                        if(blob_assigned.find(blob) != blob_assigned.end() && blob_assigned.at(blob)) {
+                            Debug("Frame %d: Erasing blob %d (%d)", frameIndex, blob->blob_id(), paired_blobs.index(blob));
+                            paired_blobs.erase(blob);
+                        }
+                    }
+                }*/
+                
                 Match::PairedProbabilities paired;
                 auto in_map = paired_blobs.rows();
                 for(auto fish : in_map) {
                     if(fish_assigned.find(fish) == fish_assigned.end() || !fish_assigned.at(fish)) {
                         auto edges = paired_blobs.edges_for_row(paired_blobs.index(fish));
                         
-                        std::unordered_map<pv::Blob*, Match::prob_t> probs;
+                        std::unordered_map<Match::Blob_t, Match::prob_t> probs;
                         for(auto &e : edges) {
                             auto blob = paired_blobs.col(e.cdx);
-                            auto it = blob_assigned.find(blob);
+                            auto it = blob_assigned.find(blob->get());
                             if(it == blob_assigned.end() || !it->second) {
                                 probs[blob] = e.p;
                             }
@@ -2809,7 +2858,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     }
 #endif
                     
-                    assign_blob_individual(frameIndex, frame, p.first, ptr2ptr.at(p.second), match_mode);
+                    assign_blob_individual(frameIndex, frame, p.first, *p.second, match_mode);
                     active_individuals.insert(p.first);
                 }
                 
@@ -2840,7 +2889,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 
                 auto &optimal = graph.get_optimal_pairing(false, default_config::matching_mode_t::hungarian);
                 for (auto &p: optimal.pairings) {
-                    assign_blob_individual(frameIndex, frame, p.first, ptr2ptr.at(p.second), default_config::matching_mode_t::hungarian);
+                    assign_blob_individual(frameIndex, frame, p.first, *p.second, default_config::matching_mode_t::hungarian);
                     active_individuals.insert(p.first);
                 }
                 
@@ -2862,7 +2911,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         
         // Create Individuals for unassigned blobs
         std::vector<pv::BlobPtr> unassigned_blobs;
-        for(auto p: frame.blobs) {
+        for(auto &p: frame.blobs) {
             if(!blob_assigned[p.get()])
                 unassigned_blobs.push_back(p);
         }

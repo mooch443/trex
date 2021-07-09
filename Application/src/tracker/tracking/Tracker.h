@@ -301,7 +301,7 @@ CREATE_STRUCT(Settings,
                  const Tracker::set_of_individuals_t& active_individuals,
                  const std::unordered_map<Individual*, bool>& fish_assigned,
                  const std::unordered_map<pv::Blob*, bool>& blob_assigned,
-                 std::unordered_map<pv::Blob*, pv::BlobPtr>& ptr2ptr,
+                 //std::unordered_map<pv::Blob*, pv::BlobPtr>& ptr2ptr,
                  GenericThreadPool* pool);
         static std::vector<Clique> generate_cliques(const Match::PairedProbabilities& paired);
         

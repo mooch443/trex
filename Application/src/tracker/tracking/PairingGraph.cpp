@@ -41,7 +41,7 @@ size_t PairedProbabilities::degree(size_t rdx) const {
 
 size_t PairedProbabilities::index(col_t::value_type col) const {
     if(!_col_index.count(col))
-        U_EXCEPTION("Cannot find blob %u in map.", col->blob_id());
+        U_EXCEPTION("Cannot find blob %u in map.", (*col)->blob_id());
     return _col_index.at(col);
 }
 
@@ -95,8 +95,17 @@ void PairedProbabilities::erase(row_t::value_type row) {
             --idx;
     }
     
-    for(auto & [col, edges] : _col_edges)
-        std::remove(edges.begin(), edges.end(), rdx);
+    for(auto & [col, edges] : _col_edges) {
+        for(auto it = edges.begin(); it != edges.end(); ) {
+            if(*it == rdx) {
+                it = edges.erase(it);
+            } else if(*it > rdx) {
+                --(*it);
+                ++it;
+            } else
+                ++it;
+        }
+    }
     
     _degree.erase(_degree.begin() + rdx);
     _row_max_probs.erase(_row_max_probs.begin() + rdx);
@@ -1215,11 +1224,11 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                                     Warning("\tindividual %d: (%s)%d (%f) != (%s)%d (%f)", fish->identity().ID(),
                                         key_0.name(),
                                         assignments[key_0][fish] ?
-                                            assignments[key_0][fish]->blob_id() : -1,
+                                            (*assignments[key_0][fish])->blob_id() : -1,
                                         p0,
                                         key_1.name(),
                                         assignments[key_1][fish] ?
-                                            assignments[key_1][fish]->blob_id() : -1,
+                                            (*assignments[key_1][fish])->blob_id() : -1,
                                         p1);
                                 }
                             }

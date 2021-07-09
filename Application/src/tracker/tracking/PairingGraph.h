@@ -12,12 +12,12 @@ class Individual;
 namespace Match
 {
     using prob_t = double;
-    using Blob_t = pv::Blob*;
+    using Blob_t = const pv::BlobPtr*;
 
     class PairedProbabilities {
     public:
         using row_t = std::vector<Individual*>;
-        using col_t = std::vector<pv::Blob*>;
+        using col_t = std::vector<Blob_t>;
         
         struct Edge {
             long_t cdx;
@@ -78,6 +78,7 @@ namespace Match
         size_t index(row_t::value_type) const;
         
         bool has(row_t::value_type) const;
+        bool has(col_t::value_type) const;
         
         //! return -1 if invalid assignment
         prob_t probability(row_t::value_type, col_t::value_type) const;
