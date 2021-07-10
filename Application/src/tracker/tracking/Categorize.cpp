@@ -1782,7 +1782,7 @@ Work::Task Work::_pick_front_thread() {
                 }
             }
             
-            int64_t d = abs(int64_t(task.real_range.start + task.real_range.length() * 0.5) - mean) / max(10, (Tracker::end_frame() - Tracker::start_frame()) * 0.08);
+            int64_t d = abs(int64_t(task.real_range.start + task.real_range.length() * 0.5)) / max(10, (Tracker::end_frame() - Tracker::start_frame()) * 0.08);
             sorted.push_back({ task.range.start != -1, d, min_distance, i });
         }
         
