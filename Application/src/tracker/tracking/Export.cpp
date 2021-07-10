@@ -819,14 +819,6 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                     Tracker::instance()->preprocess_frame(obj, active, &_blob_thread_pool);
                 }
                 
-                std::map<uint32_t, pv::BlobPtr> blob_to_id;
-                for(auto &blob : obj.blobs)
-                    blob_to_id[blob->blob_id()] = blob;
-                for(auto &blob : obj.filtered_out)
-                    blob_to_id[blob->blob_id()] = blob;
-                for(auto &blob : obj.original_blobs)
-                    blob_to_id[blob->blob_id()] = blob;
-                
                 for(auto && [id, data] : vec) {
                     struct ImagePosition {
                         Image::UPtr image;
@@ -834,9 +826,9 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                         pv::BlobPtr blob;
                     } reduced, full;
                     
-                    reduced.blob = Tracker::find_blob_noisy(blob_to_id, data.blob.blob_id, data.blob.parent_id, Bounds(), data.frame);
+                    reduced.blob = Tracker::find_blob_noisy(obj, data.blob.blob_id, data.blob.parent_id, Bounds());
                     if(data.blob.org_id != -1) {
-                        full.blob = Tracker::find_blob_noisy(blob_to_id, data.blob.org_id, data.blob.parent_id, Bounds(), data.frame);
+                        full.blob = Tracker::find_blob_noisy(obj, data.blob.org_id, data.blob.parent_id, Bounds());
                     }
                     /*for (auto b : obj.blobs) {
                         if(data.blob.org_id != -1) {

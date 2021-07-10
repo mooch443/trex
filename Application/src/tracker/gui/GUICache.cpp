@@ -411,8 +411,8 @@ namespace gui {
             
             _num_pixels = 0;
             
-            for (size_t i=0; i<processed_frame.blobs.size(); i++) {
-                auto blob = processed_frame.blobs.at(i);
+            for (size_t i=0; i<processed_frame.blobs().size(); i++) {
+                auto& blob = processed_frame.blobs().at(i);
                 
                 if(nothing_to_zoom_on || selected_blobs.find(blob->blob_id()) != selected_blobs.end())
                 {
@@ -433,7 +433,7 @@ namespace gui {
                 }
             }
             
-            for(auto blob : processed_frame.filtered_out) {
+            for(auto &blob : processed_frame.noise()) {
                 blob->calculate_moments();
                 
                 if((nothing_to_zoom_on && blob->recount(-1) >= FAST_SETTINGS(blob_size_ranges).max_range().start)
@@ -535,7 +535,7 @@ namespace gui {
             auto it = processed_frame.cached_individuals.find(fdx);
             if(it != processed_frame.cached_individuals.end()) {
                 auto && [fdx, cache] = *it;
-                for(auto blob : processed_frame.blobs) {
+                for(auto& blob : processed_frame.blobs()) {
                     auto p = individuals.count(fdx) ? individuals.at(fdx)->probability(processed_frame.label(blob), cache, frame_idx, blob) : Individual::Probability{0,0,0,0};
                     if(p.p >= FAST_SETTINGS(matching_probability_threshold))
                         probabilities[fdx][blob->blob_id()] = p;

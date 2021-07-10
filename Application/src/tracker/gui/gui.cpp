@@ -2437,16 +2437,10 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                     Tracker::instance()->preprocess_frame(frame, active, &_blob_thread_pool);
                 }
                 
-                std::map<long_t, pv::BlobPtr> blob_to_id;
-                for (auto b : frame.blobs) {
-                    blob_to_id[b->blob_id()] = b;
-                }
-                
                 for(auto fish : active) {
                     auto loaded_blob = fish->compressed_blob(idx);
-                    
-                    if(loaded_blob && blob_to_id.count(loaded_blob->blob_id())) {
-                        auto blob = blob_to_id.at(loaded_blob->blob_id());
+                    auto blob = frame.find_bdx(loaded_blob->blob_id());
+                    if(loaded_blob && blob) {
                         if(blob->split())
                             continue;
                         
@@ -2509,9 +2503,9 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             cvbase.display();
         } else if(settings_dropdown.text() == "blob_info") {
             Debug("Preprocessed frame %d:", _cache.frame_idx);
-            auto str = Meta::toStr(_cache.processed_frame.filtered_out);
+            auto str = Meta::toStr(_cache.processed_frame.noise());
             Debug("Filtered out: %S", &str);
-            str = Meta::toStr(_cache.processed_frame.blobs);
+            str = Meta::toStr(_cache.processed_frame.blobs());
             Debug("Blobs: %S", &str);
         }
         
@@ -2905,7 +2899,7 @@ void GUI::draw_footer(DrawStructure& base) {
     if(section) {
         Vec2 mouse_position = _gui.mouse_position();
         mouse_position = (mouse_position - section->pos()).div(section->scale());
-         mouse_status.set_txt(Meta::toStr(std::vector<int>{static_cast<int>(mouse_position.x), static_cast<int>(mouse_position.y)}));
+         mouse_status.set_txt(Meta::toStr(std::vector<int>{static_cast<int>(mouse_position.x), static_cast<int>(mouse_position.y)})+" "+Meta::toStr(cache().display_blobs.size())+" blobs "+Meta::toStr(cache()._current_pixels)+"px "+Meta::toStr(cache()._average_pixels)+"px/blob pp:"+Meta::toStr(cache().processed_frame.num_pixels())+"px");
     }
         
     additional_status.set_txt(additional_status_text());
@@ -3040,12 +3034,16 @@ void GUI::update_display_blobs(bool draw_blobs, Section* fishbowl) {
         auto bowl = fishbowl->global_transform();
         auto screen_bounds = Bounds(Vec2(), screen_dimensions());
         auto copy = _cache.display_blobs;
+        size_t gpixels = 0;
+        double gaverage_pixels = 0, gsamples = 0;
         
         distribute_vector([&](auto start, auto end, auto){
             std::unordered_map<pv::Blob*, gui::ExternalImage*> map;
             std::vector<std::unique_ptr<gui::ExternalImage>> vector;
             
             const bool gui_show_only_unassigned = SETTING(gui_show_only_unassigned).value<bool>();
+            size_t pixels = 0;
+            double average_pixels = 0, samples = 0;
             
             for(auto it = start; it != end; ++it) {
                 bool found = copy.count((*it)->blob.get());
@@ -3059,14 +3057,24 @@ void GUI::update_display_blobs(bool draw_blobs, Section* fishbowl) {
                         }
                     }
                 }
+                
+                pixels += (*it)->blob->num_pixels();
+                average_pixels += (*it)->blob->num_pixels();
+                ++samples;
             }
             
             std::lock_guard guard(vector_mutex);
+            gpixels += pixels;
+            gaverage_pixels += average_pixels;
+            gsamples += samples;
             _cache.display_blobs.insert(map.begin(), map.end());
             std::move(vector.begin(), vector.end(), std::back_inserter(_cache.display_blobs_list));
             //_cache.display_blobs_list.insert(_cache.display_blobs_list.end(), vector.begin(), vector.end());
             
         }, _blob_thread_pool, _cache.raw_blobs.begin(), _cache.raw_blobs.end());
+        
+        _cache._current_pixels = gpixels;
+        _cache._average_pixels = gsamples > 0 ? gaverage_pixels / gsamples : 0;
     }
 }
 
@@ -3448,17 +3456,14 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
         }
         
         static std::unordered_set<uint32_t> shown_ids;
-        
         std::unordered_set<uint32_t> to_show_ids;
-        std::unordered_map<uint32_t, pv::BlobPtr> id_to_ptr;
         
-        for(auto &blob : _cache.processed_frame.original_blobs) {
+        for(auto &blob : _cache.processed_frame.original_blobs()) {
             auto bounds = transform.transformRect(blob->bounds());
             
             if(!Bounds(100, 100, dim.width-100, dim.height-100).overlaps(bounds))
                 continue;
             
-            id_to_ptr[blob->blob_id()] = blob;
             to_show_ids.insert(blob->blob_id());
         }
         
@@ -3475,15 +3480,15 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
             std::atomic<size_t> added_items = 0;
             auto copy = shown_ids;
             
-            distribute_vector([&id_to_ptr, &added_items, &sync, &copy](auto start, auto end, auto) {
+            distribute_vector([&added_items, &sync, &copy](auto start, auto end, auto) {
                 std::unordered_set<uint32_t> added_ids;
                 
                 for(auto it = start; it != end; ++it) {
                     if(copy.find(*it) == copy.end()) {
-                        auto& blob = id_to_ptr.at(*it);
+                        //auto& blob = _cache.processed_frame.bdx_to_ptr(*it);
                         //auto image = generate_outer(blob);
                         //outer_images.emplace_back(std::move(image));
-                        added_ids.insert(blob->blob_id());
+                        added_ids.insert(*it);
                     }
                 }
                 
@@ -3540,9 +3545,9 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
             //if(_timeline.visible())
             {
                 constexpr size_t maximum_number_texts = 200;
-                if(_cache.processed_frame.blobs.size() >= maximum_number_texts) {
+                if(_cache.processed_frame.blobs().size() >= maximum_number_texts) {
                     Vec2 pos(10, _timeline->bar()->global_bounds().height + _timeline->bar()->global_bounds().y + 10);
-                    auto text = "Hiding some blob texts because of too many blobs ("+Meta::toStr(_cache.processed_frame.blobs.size())+").";
+                    auto text = "Hiding some blob texts because of too many blobs ("+Meta::toStr(_cache.processed_frame.blobs().size())+").";
                     
                     Rect *rect = new Rect(Bounds(pos, Base::text_dimensions(text, s, Font(0.5)) + Vec2(2, 2)), Black.alpha(125));
                     rect->set_scale(base.scale().reciprocal());
@@ -3564,23 +3569,23 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                 Transform section_transform = s->global_transform();
                 auto mp = section_transform.transformPoint(_gui.mouse_position());
                 
-                for (size_t i=0; i<_cache.processed_frame.filtered_out.size(); i++) {
-                    if(_cache.processed_frame.filtered_out.at(i)->recount(FAST_SETTINGS(track_threshold), *Tracker::instance()->background()) < FAST_SETTINGS(blob_size_ranges).max_range().start * 0.01)
+                for (size_t i=0; i<_cache.processed_frame.noise().size(); i++) {
+                    if(_cache.processed_frame.noise().at(i)->recount(FAST_SETTINGS(track_threshold), *Tracker::instance()->background()) < FAST_SETTINGS(blob_size_ranges).max_range().start * 0.01)
                         continue;
                     
-                    auto id = _cache.processed_frame.filtered_out.at(i)->blob_id();
-                    auto d = sqdistance(mp, _cache.processed_frame.filtered_out.at(i)->bounds().pos());
-                    draw_order.insert({d, _cache.processed_frame.filtered_out.at(i), false});
+                    auto id = _cache.processed_frame.noise().at(i)->blob_id();
+                    auto d = sqdistance(mp, _cache.processed_frame.noise().at(i)->bounds().pos());
+                    draw_order.insert({d, _cache.processed_frame.noise().at(i), false});
                     
                     if(_blob_labels.count(id))
                         std::get<0>(_blob_labels.at(id)) = true;
                 }
                 
                 if(!SETTING(gui_draw_only_filtered_out)) {
-                    for (size_t i=0; i<_cache.processed_frame.blobs.size(); i++) {
-                        auto id = _cache.processed_frame.blobs.at(i)->blob_id();
-                        auto d = sqdistance(mp, _cache.processed_frame.blobs.at(i)->bounds().pos());
-                        draw_order.insert({d, _cache.processed_frame.blobs.at(i), true});
+                    for (size_t i=0; i<_cache.processed_frame.blobs().size(); i++) {
+                        auto id = _cache.processed_frame.blobs().at(i)->blob_id();
+                        auto d = sqdistance(mp, _cache.processed_frame.blobs().at(i)->bounds().pos());
+                        draw_order.insert({d, _cache.processed_frame.blobs().at(i), true});
                         
                         if(_blob_labels.count(id))
                             std::get<0>(_blob_labels.at(id)) = true;
@@ -3833,11 +3838,11 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                 
                 std::map<uint32_t, Color> colors;
                 ColorWheel wheel;
-                for(auto &b : _cache.processed_frame.original_blobs) {
+                for(auto &b : _cache.processed_frame.original_blobs()) {
                     colors[b->blob_id()] = wheel.next().alpha(200);
                 }
                 
-                auto &grid = _cache.processed_frame.blob_grid.get_grid();
+                auto &grid = _cache.processed_frame.blob_grid().get_grid();
                 for(auto &set : grid) {
                     for(auto &pixel : set) {
                         base.circle(Vec2(pixel.x, pixel.y), 1, Transparent, colors.find(pixel.v) != colors.end() ? colors.at(pixel.v) : Color(255, 0, 255, 255));
@@ -5015,15 +5020,10 @@ void GUI::generate_training_data_faces(const file::Path& path) {
         ((pv::File*)this->_video_source)->read_frame(frame.frame(), i);
         Tracker::instance()->preprocess_frame(frame, active, NULL);
         
-        std::map<long_t, pv::BlobPtr> blob_to_id;
-        for (auto b : frame.blobs) {
-            blob_to_id[b->blob_id()] = b;
-        }
-        
         cv::Mat image, padded, mask;
-        for(auto && [bdx, blob] : blob_to_id) {
+        for(auto &blob : frame.blobs()) {
             if(!_tracker.border().in_recognition_bounds(blob->bounds().pos() + blob->bounds().size() * 0.5)) {
-                Debug("Skipping %d@%d because its out of bounds.", bdx, i);
+                Debug("Skipping %d@%d because its out of bounds.", blob->blob_id(), i);
                 continue;
             }
             
@@ -5089,7 +5089,7 @@ void GUI::generate_training_data_faces(const file::Path& path) {
                     auto fish_blob = fish->blob(i);
                     auto head = fish->head(i);
                     
-                    if(fish_blob && fish_blob->blob_id() == (uint32_t)bdx && head) {
+                    if(fish_blob && fish_blob->blob_id() == blob->blob_id() && head) {
                         found_head = head;
                         break;
                     }

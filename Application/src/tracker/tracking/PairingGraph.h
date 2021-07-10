@@ -28,8 +28,8 @@ namespace Match
             {}
             operator std::string() const {
                 return cdx >= 0
-                    ? std::to_string(cdx)
-                    : "NULL";
+                    ? std::to_string(cdx)+"["+std::to_string(p)+"]"
+                    : "null";
             }
             bool operator==(const Edge& other) const {
                 return other.cdx == cdx;
@@ -65,6 +65,7 @@ namespace Match
         
         size_t add(row_t::value_type, const std::unordered_map<col_t::value_type, prob_t>&);
         void erase(row_t::value_type);
+        void erase(col_t::value_type);
         
         size_t n_rows() const { return _num_rows; }
         size_t n_cols() const { return _num_cols; }

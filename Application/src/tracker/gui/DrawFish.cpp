@@ -525,7 +525,7 @@ CREATE_STRUCT(CachedGUIOptions,
         if(!Graph::is_invalid(_library_y)) {
             auto color_source = GUIOPTION(gui_fish_color);
             if(color_source == "viridis") {
-                for(auto b : GUI::instance()->cache().processed_frame.blobs) {
+                for(auto &b : GUI::instance()->cache().processed_frame.blobs()) {
                     if(b->blob_id() == _blob->blob_id() || (long_t)b->blob_id() == _blob->parent_id) {
                         auto && [dpos, difference] = b->difference_image(*Tracker::instance()->background(), 0);
                         auto rgba = Image::Make(difference->rows, difference->cols, 4);
@@ -564,7 +564,7 @@ CREATE_STRUCT(CachedGUIOptions,
                 auto percent = min(1.f, cmn::abs(_library_y));
                 Color clr = /*Color(225, 255, 0, 255)*/ base_color * percent + Color(50, 50, 50, 255) * (1 - percent);
                 
-                for(auto b : GUI::instance()->cache().processed_frame.blobs) {
+                for(auto &b : GUI::instance()->cache().processed_frame.blobs()) {
                     if(b->blob_id() == _blob->blob_id() || (long_t)b->blob_id() == _blob->parent_id) {
                         auto && [image_pos, image] = b->binary_image(*Tracker::instance()->background(), FAST_SETTINGS(track_threshold));
                         auto && [dpos, difference] = b->difference_image(*Tracker::instance()->background(), 0);

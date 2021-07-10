@@ -872,6 +872,15 @@ TRex parameters
 	.. seealso:: :func:`track_max_reassign_time`, 
 
 
+.. function:: gui_show_match_modes(bool)
+
+	**default value:** false
+
+
+	Shows the match mode used for every tracked object. Green is 'approximate', yellow is 'hungarian', and red is 'created/loaded'.
+
+
+
 .. function:: gui_show_memory_stats(bool)
 
 	**default value:** false

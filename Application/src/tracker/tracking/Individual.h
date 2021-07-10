@@ -16,6 +16,8 @@
 #include <misc/Timer.h>
 
 #include <tracking/PairingGraph.h>
+#include <tracking/IndividualCache.h>
+#include <tracking/PPFrame.h>
 
 #define DEBUG_ORIENTATION false
 
@@ -81,68 +83,6 @@ constexpr std::array<const char*, 8> ReasonsNames {
         
         return end;
     }
-
-    struct IndividualCache {
-        const PhysicalProperties* h;
-        Vec2 last_seen_px;
-        Vec2 estimated_px;
-        bool last_frame_manual;
-        bool valid = false;
-        float tdelta;
-        float local_tdelta;
-        long_t previous_frame;
-        int current_category;
-        bool consistent_categories;
-        float cm_per_pixel, track_max_speed;
-        
-        Match::prob_t speed;
-        Match::prob_t time_probability;
-    };
-    
-    class PPFrame : public IndexedDataTransport {
-        GETTER_NCONST(pv::Frame, frame)
-    public:
-        //! Time in seconds
-        double time;
-        
-        //! Original timestamp
-        uint64_t timestamp;
-        
-        //! Original frame index
-        //long_t index;
-        
-        std::vector<std::shared_ptr<pv::Blob>> blobs, original_blobs;
-        std::vector<std::shared_ptr<pv::Blob>> filtered_out;
-        
-        size_t num_pixels = 0;
-        size_t pixel_samples = 0;
-        
-        std::map<Idx_t, IndividualCache> cached_individuals;
-        std::map<uint32_t, std::set<uint32_t>> blob_cliques, fish_cliques;
-        std::set<uint32_t> split_blobs;
-        std::map<uint32_t, pv::BlobPtr> bdx_to_ptr;
-        grid::ProximityGrid blob_grid;
-        
-        int label(const pv::BlobPtr&) const;
-        
-        PPFrame();
-        ~PPFrame() {
-        }
-        
-        void clear() {
-            blobs.clear();
-            filtered_out.clear();
-            cached_individuals.clear();
-            blob_grid.clear();
-            original_blobs.clear();
-            blob_cliques.clear();
-            fish_cliques.clear();
-            split_blobs.clear();
-            bdx_to_ptr.clear();
-            num_pixels = 0;
-            pixel_samples = 0;
-        }
-    };
     
     class Identity {
     public:

@@ -2315,15 +2315,8 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
             video_file.read_frame(ptr->frame(), sign_cast<uint64_t>(frame));
 
             Tracker::instance()->preprocess_frame(*ptr, active, NULL);
-
-            for (auto& b : ptr->blobs)
+            for (auto& b : ptr->blobs())
                 b->calculate_moments();
-
-            ptr->bdx_to_ptr.clear();
-            for (auto b : ptr->blobs) {
-                ptr->bdx_to_ptr[b->blob_id()] = b;
-                assert(b->moments().ready);
-            }
         }
 
 #ifndef NDEBUG
@@ -2656,7 +2649,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
             U_EXCEPTION("frame %d != %d", basic->frame, frame);
         }
         
-        auto blob = Tracker::find_blob_noisy(ptr->bdx_to_ptr, basic->blob.blob_id(), basic->blob.parent_id, basic->blob.calculate_bounds(), basic->frame);
+        auto blob = Tracker::find_blob_noisy(*ptr, basic->blob.blob_id(), basic->blob.parent_id, basic->blob.calculate_bounds());
         //auto it = fish->iterator_for(basic->frame);
         if (blob) { //&& it != fish->frame_segments().end()) {
             //Tracker::LockGuard guard("Categorize::sample");

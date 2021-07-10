@@ -26,15 +26,6 @@
 using namespace track;
 using prob_t = track::Match::prob_t;
 
-PPFrame::PPFrame() : blob_grid(Tracker::average().bounds().size()) {}
-
-int PPFrame::label(const pv::BlobPtr& blob) const {
-    auto l = Categorize::DataStore::ranged_label(Frame_t(index()), blob->blob_id());
-    if(l)
-        return l->id;
-    return -1;
-}
-
 std::atomic<uint32_t> RUNNING_ID(0);
 
 void Identity::set_running_id(uint32_t value) { RUNNING_ID = value; }

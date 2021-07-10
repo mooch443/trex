@@ -283,7 +283,7 @@ CREATE_STRUCT(Settings,
         void prepare_shutdown();
         void wait();
         
-        static pv::BlobPtr find_blob_noisy(const std::map<uint32_t, pv::BlobPtr>& blob_to_id, int64_t bid, int64_t pid, const Bounds& bounds, long_t frame);
+        static pv::BlobPtr find_blob_noisy(const PPFrame& frame, int64_t bid, int64_t pid, const Bounds& bounds);
         
         //static bool generate_training_images(pv::File&, std::map<long_t, std::set<long_t>> individuals_per_frame, TrainingData&, const std::function<void(float)>& = [](float){}, const TrainingData* source = nullptr);
         //static bool generate_training_images(pv::File&, const std::set<long_t>& frames, TrainingData&, const std::function<void(float)>& = [](float){});
@@ -396,7 +396,87 @@ CREATE_STRUCT(Settings,
             }
         };
         
-        std::vector<pv::BlobPtr> split_big(const std::function<void(const std::vector<pv::BlobPtr>&)>& filter_out, const std::vector<std::shared_ptr<pv::Blob>>& big_blobs, const std::map<pv::BlobPtr, split_expectation> &expect, bool discard_small = false, std::ostream *out = NULL, GenericThreadPool* pool = nullptr);
+        struct BlobReceiver {
+            const enum PPFrameType {
+                noise,
+                regular,
+                none
+            } _type = none;
+            
+            std::vector<pv::BlobPtr>* _base = nullptr;
+            PPFrame* _frame = nullptr;
+            Tracker::PrefilterBlobs *_prefilter = nullptr;
+            
+            BlobReceiver(Tracker::PrefilterBlobs& prefilter, PPFrameType type)
+                : _type(type), _prefilter(&prefilter)
+            { }
+            
+            BlobReceiver(PPFrame& frame, PPFrameType type)
+                : _type(type), _frame(&frame)
+            { }
+            
+            BlobReceiver(std::vector<pv::BlobPtr>& base)
+                : _base(&base)
+            { }
+            
+            void operator()(std::vector<pv::BlobPtr>&& v) const {
+                if(_base) {
+                    _base->insert(_base->end(), std::make_move_iterator(v.begin()), std::make_move_iterator(v.end()));
+                } else if(_prefilter) {
+                    switch(_type) {
+                        case noise:
+                            _prefilter->filter_out(std::move(v));
+                            break;
+                        case regular:
+                            _prefilter->commit(std::move(v));
+                            break;
+                        case none:
+                            break;
+                    }
+                } else {
+                    switch(_type) {
+                        case noise:
+                            _frame->add_noise(std::move(v));
+                            break;
+                        case regular:
+                            _frame->add_regular(std::move(v));
+                            break;
+                        case none:
+                            break;
+                    }
+                }
+            }
+            
+            void operator()(const pv::BlobPtr& b) const {
+                if(_base) {
+                    _base->insert(_base->end(), b);
+                } else if(_prefilter) {
+                    switch(_type) {
+                        case noise:
+                            _prefilter->filter_out(b);
+                            break;
+                        case regular:
+                            _prefilter->commit(b);
+                            break;
+                        case none:
+                            break;
+                    }
+                } else {
+                    switch(_type) {
+                        case noise:
+                            _frame->add_noise(b);
+                            break;
+                        case regular:
+                            _frame->add_regular(b);
+                            break;
+                        case none:
+                            break;
+                    }
+                }
+            }
+        };
+        
+        std::vector<pv::BlobPtr> split_big(const BlobReceiver&, const std::vector<std::shared_ptr<pv::Blob>>& big_blobs, const std::map<pv::BlobPtr, split_expectation> &expect, bool discard_small = false, std::ostream *out = NULL, GenericThreadPool* pool = nullptr);
         
         static void prefilter(const std::shared_ptr<PrefilterBlobs>&, std::vector<pv::BlobPtr>::const_iterator it, std::vector<pv::BlobPtr>::const_iterator end);
         
