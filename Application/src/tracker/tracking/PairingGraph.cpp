@@ -16,8 +16,8 @@ namespace track {
 namespace Match {
     static GenericThreadPool *pool = NULL;
     
-    IMPLEMENT(PairingGraph::unused);
-    IMPLEMENT(PairingGraph::unused_mutex);
+    //IMPLEMENT(PairingGraph::unused);
+    //IMPLEMENT(PairingGraph::unused_mutex);
     
 PairedProbabilities::PairedProbabilities() : _num_rows(0), _num_cols(0)
 {
@@ -1363,10 +1363,20 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
 #endif
     }
     
-    PairingGraph::PairingGraph(long_t frame, const decltype(_paired)& paired)
+PairingGraph::PairingGraph(long_t frame, const decltype(_paired)& paired)
     : _frame(frame), _time(Tracker::properties(frame)->time), _paired(paired), _optimal_pairing(NULL)
-    {
+{
+}
+
+PairingGraph::~PairingGraph() {
+    if(_optimal_pairing)
+        delete _optimal_pairing;
+    
+    while(!unused.empty()) {
+        delete unused.front();
+        unused.pop();
     }
+}
     
     /*cv::Point2f PairingGraph::pos(const Individual* o) const {
      const auto centroid = o->centroid(_frame);

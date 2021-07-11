@@ -172,14 +172,7 @@ namespace Match
         
     public:
         PairingGraph(long_t frame, const decltype(_paired)& paired);
-        ~PairingGraph() {
-            if(_optimal_pairing)
-                delete _optimal_pairing;
-            while(!unused.empty()) {
-                delete unused.front();
-                unused.pop();
-            }
-        }
+        ~PairingGraph();
         
         static void prepare_shutdown();
         
@@ -250,8 +243,7 @@ namespace Match
         bool connected_to(Individual *o, Blob_t b) const;
         
     public:
-        static std::queue<Stack*> unused;
-        static std::mutex unused_mutex;
+        std::queue<Stack*> unused;
         
     private:
         //void work(gq_t_&, std::deque<Stack*>&, Stack&);

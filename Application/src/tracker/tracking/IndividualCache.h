@@ -9,7 +9,7 @@ namespace track {
 using prob_t = track::Match::prob_t;
 
 struct IndividualCache {
-    Idx_t _idx = Idx_t(-1);
+    Idx_t _idx;
     const PhysicalProperties* h;
     Vec2 last_seen_px;
     Vec2 estimated_px;

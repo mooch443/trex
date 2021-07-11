@@ -2584,7 +2584,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                         PairingGraph graph(frameIndex, paired);
                         
                         try {
-                            auto &optimal = graph.get_optimal_pairing(false, matching_mode_t::hungarian);
+                            auto &optimal = graph.get_optimal_pairing(false, matching_mode_t::accurate);
                             for (auto &p: optimal.pairings) {
     #ifdef TREX_DEBUG_MATCHING
                                 for(auto &[i, b] : pairs) {
@@ -2597,7 +2597,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                                 }
     #endif
                                 std::unique_lock g(thread_mutex);
-                                assign_blob_individual(frameIndex, frame, p.first, *p.second, matching_mode_t::hungarian);
+                                assign_blob_individual(frameIndex, frame, p.first, *p.second, matching_mode_t::accurate);
                                 active_individuals.insert(p.first);
                             }
                             
@@ -2643,7 +2643,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     }
                 }
                 
-                paired_blobs = paired;
+                paired_blobs = std::move(paired);
                 match_mode = matching_mode_t::approximate;
             }
         }
