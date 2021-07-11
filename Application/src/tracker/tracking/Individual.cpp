@@ -1000,11 +1000,11 @@ std::shared_ptr<Individual::BasicStuff> Individual::add(long_t frameIndex, const
     //stuff->weighted_centroid = new PhysicalProperties(prev_props, time, centroid_point, current->angle());
     //push_to_segments(frameIndex, prev_frame);
     
-    auto it = frame.cached_individuals.find(identity().ID());
-    auto p = current_prob != -1 || it == frame.cached_individuals.end()
+    auto cached = frame.cached(identity().ID());
+    auto p = current_prob != -1 || !cached
             ? current_prob
-            : probability(it->second.consistent_categories ? frame.label(blob) : -1,
-                          it->second,
+            : probability(cached->consistent_categories ? frame.label(blob) : -1,
+                          *cached,
                           frameIndex,
                           stuff->blob).p;
     auto segment = update_add_segment(frameIndex, current, prev_frame, &stuff->blob, p);
@@ -1493,6 +1493,7 @@ const FrameProperties* CacheHints::properties(long_t index) const {
 
 IndividualCache Individual::cache_for_frame(long_t frameIndex, double time, const CacheHints* hints) const {
     IndividualCache cache;
+    cache._idx = Idx_t(identity().ID());
     if(empty())
         return cache;
     
@@ -1683,6 +1684,10 @@ IndividualCache Individual::cache_for_frame(long_t frameIndex, double time, cons
     }
     
     const float max_speed = cache.track_max_speed / cache.cm_per_pixel;
+    const FrameProperties *properties = nullptr;
+    auto end = Tracker::instance()->frames().end();
+    auto iterator = end;
+    
     iterate_frames(range, [&](long_t frame, const std::shared_ptr<SegmentInformation> &seg, const std::shared_ptr<Individual::BasicStuff> &basic, const std::shared_ptr<Individual::PostureStuff> &posture) -> bool
     {
         if(is_manual_match(frame)) {
@@ -1690,16 +1695,30 @@ IndividualCache Individual::cache_for_frame(long_t frameIndex, double time, cons
             return true;
         }
         
-        auto c_props = Tracker::properties(frame, hints);
+        const FrameProperties* c_props = nullptr;
+        if(iterator != end && ++iterator != end && iterator->frame == frame) {
+            c_props = &(*iterator);
+        } else {
+            iterator = Tracker::properties_iterator(frame/*, hints*/);
+            if(iterator != end)
+                c_props = &(*iterator);
+        }
+        
         const auto h = basic->centroid;
         if(!previous_p) {
+            properties = c_props;
+            
             previous_p = h;
             previous_t = c_props ? c_props->time : 0;
             previous_f = frame;
             return true;
         }
         
-        auto p_props = Tracker::properties(frame-1, hints);
+        auto p_props = properties && properties->frame == frame-1
+                        ? properties
+                        : Tracker::properties(frame-1, hints);
+        properties = c_props;
+        
         if (c_props && p_props && h && previous_p) {//(he || h)) {
             double tdelta = c_props->time - p_props->time;
             
@@ -1884,6 +1903,18 @@ std::tuple<prob_t, prob_t, prob_t> Individual::position_probability(const Indivi
     
     auto speed = length(velocity) / cache.track_max_speed;
     speed = 1 / SQR(1 + speed);
+    
+    
+    /*if((frameIndex >= 48181 && identity().ID() == 368) || frameIndex == 48182)
+        Debug("Frame %d: Fish%d estimate:%f,%f pos:%f,%f velocity:%f,%f p:%f (raw %f)",
+              frameIndex,
+              identity().ID(),
+              cache.estimated_px.x * cache.cm_per_pixel,
+              cache.estimated_px.y * cache.cm_per_pixel,
+              position.x, position.y,
+              velocity.x, velocity.y,
+              speed,
+              length(velocity) / cache.track_max_speed);*/
     
     // additional condition, if blobs are apart more than a pixel,
     // check for their angular difference

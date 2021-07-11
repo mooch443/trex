@@ -595,9 +595,9 @@ CREATE_STRUCT(CachedGUIOptions,
                 
                 auto mat = probability->get();
                 mat.setTo(0);
-                auto it = cache.processed_frame.cached_individuals.find(_obj.identity().ID());
-                if(it != cache.processed_frame.cached_individuals.end()) {
-                    Vec2 start = it->second.estimated_px;
+                auto c = cache.processed_frame.cached(_obj.identity().ID());
+                if(c) {
+                    Vec2 start = c->estimated_px;
                     int32_t radius = 0;
                     float sum;
                     //const float norm = exp(M_PI) - exp(0);
@@ -608,7 +608,7 @@ CREATE_STRUCT(CachedGUIOptions,
                         if(y < 0 || y >= mat.rows)
                             return;
                         
-                        auto p = _obj.probability(-1, it->second, _idx, Vec2(x, y) + 1 * 0.5, 1);
+                        auto p = _obj.probability(-1, *c, _idx, Vec2(x, y) + 1 * 0.5, 1);
                         if(p.p < FAST_SETTINGS(matching_probability_threshold))
                             return;
                         
@@ -1108,9 +1108,9 @@ void Fish::label(DrawStructure &base) {
     //auto raw_cat = Categorize::DataStore::label(Frame_t(_idx), blob);
     //auto cat = Categorize::DataStore::label_interpolated(_obj.identity().ID(), Frame_t(_idx));
 
-    auto it = GUI::cache().processed_frame.cached_individuals.find(_obj.identity().ID());
-    if(it != GUI::cache().processed_frame.cached_individuals.end()) {
-        auto cat = it->second.current_category;
+    auto c = GUI::cache().processed_frame.cached(_obj.identity().ID());
+    if(c) {
+        auto cat = c->current_category;
         if(cat != -1) {
             auto l = Categorize::DataStore::label(cat);
             if(l)

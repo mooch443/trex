@@ -30,8 +30,12 @@ private:
     GETTER_I(size_t, num_pixels, 0)
     GETTER_I(size_t, pixel_samples, 0)
     
+    GETTER_NCONST(std::vector<IndividualCache>, individual_cache)
+    
 public:
-    std::map<Idx_t, IndividualCache> cached_individuals;
+    const IndividualCache* cached(Idx_t) const;
+    
+    //std::map<Idx_t, IndividualCache> cached_individuals;
     std::map<uint32_t, std::set<uint32_t>> blob_cliques, fish_cliques;
     std::set<uint32_t> split_blobs;
     
@@ -93,7 +97,7 @@ public:
     
 private:
     void _assume_not_finalized(const char*, int);
-    void _add_to_map(const pv::BlobPtr&);
+    bool _add_to_map(const pv::BlobPtr&);
     void _remove_from_map(uint32_t);
 };
 

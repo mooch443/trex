@@ -532,13 +532,12 @@ namespace gui {
         
         {
             Tracker::LockGuard guard("GUICache::probs");
-            auto it = processed_frame.cached_individuals.find(fdx);
-            if(it != processed_frame.cached_individuals.end()) {
-                auto && [fdx, cache] = *it;
+            auto c = processed_frame.cached(fdx);
+            if(c) {
                 for(auto& blob : processed_frame.blobs()) {
-                    auto p = individuals.count(fdx) ? individuals.at(fdx)->probability(processed_frame.label(blob), cache, frame_idx, blob) : Individual::Probability{0,0,0,0};
+                    auto p = individuals.count(fdx) ? individuals.at(fdx)->probability(processed_frame.label(blob), *c, frame_idx, blob) : Individual::Probability{0,0,0,0};
                     if(p.p >= FAST_SETTINGS(matching_probability_threshold))
-                        probabilities[fdx][blob->blob_id()] = p;
+                        probabilities[c->_idx][blob->blob_id()] = p;
                 }
             }
         }

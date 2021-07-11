@@ -18,7 +18,7 @@ namespace std
 namespace cmn {
 namespace grid {
 
-using fdx_pos = long_t;
+using fdx_pos = int64_t;
 static constexpr int proximity_res = 100;
 
 class ProximityGrid : public Grid2D<fdx_pos, std::vector<pixel<fdx_pos>>> {

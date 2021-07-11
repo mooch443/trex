@@ -1996,11 +1996,9 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                         Vec2 p0(gui::Graph::invalid());
                         
                         if(!fish0->has(frameIndex)) {
-                            if(_cache.processed_frame.cached_individuals.count(fish0->identity().ID()))
-                            {
-                                auto cache = _cache.processed_frame.cached_individuals.at(fish0->identity().ID());
-                                p0 = cache.estimated_px;
-                            }
+                            auto c = _cache.processed_frame.cached(fish0->identity().ID());
+                            if(c)
+                                p0 = c->estimated_px;
                         } else
                             p0 = fish0->centroid_weighted(frameIndex)->pos(Units::PX_AND_SECONDS);
                         
@@ -2017,11 +2015,9 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                             Vec2 p1(infinity<Float2_t>());
                             
                             if(!fish1->has(frameIndex)) {
-                                if(_cache.processed_frame.cached_individuals.count(fish1->identity().ID()))
-                                {
-                                    auto cache = _cache.processed_frame.cached_individuals.at(fish1->identity().ID());
-                                    p1 = cache.estimated_px;
-                                }
+                                auto c = _cache.processed_frame.cached(fish1->identity().ID());
+                                if(c)
+                                    p1 = c->estimated_px;
                             } else
                                 p1 = fish1->centroid_weighted(frameIndex)->pos(Units::PX_AND_SECONDS);
                             
@@ -3783,8 +3779,9 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                 for(auto id : FAST_SETTINGS(manual_identities)) {
                     if(_cache.individuals.count(id) && (!_cache.fish_selected_blobs.count(id) ||_cache.fish_selected_blobs.at(id) != _clicked_blob_id)) {
                         float d = FLT_MAX;
-                        if(frameIndex > Tracker::start_frame() && _cache.processed_frame.cached_individuals.count(id)) {
-                            d = (_cache.processed_frame.cached_individuals.at(id).estimated_px - blob_pos).length();
+                        auto c = _cache.processed_frame.cached(id);
+                        if(frameIndex > Tracker::start_frame() && c) {
+                            d = (c->estimated_px - blob_pos).length();
                         }
                         items.insert({d, Dropdown::TextItem(_cache.individuals.at(id)->identity().name() + (d != FLT_MAX ? (" ("+Meta::toStr(d * FAST_SETTINGS(cm_per_pixel))+"cm)") : ""), id + 1, _cache.individuals.at(id)->identity().name(), (void*)uint64_t(_clicked_blob_id.load()))});
                     }

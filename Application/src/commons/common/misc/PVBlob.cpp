@@ -656,8 +656,14 @@ static Callback callback;
         add_offset(offset);
     }
 
-    uint32_t id_from_position(const cmn::Vec2 &center) {
-        return (uint32_t)( uint32_t((center.x))<<16 | uint32_t((center.y)) );
+    uint32_t id_from_data(ushort x0, ushort x1, ushort y0, uint8_t N) {
+        assert((uint32_t)x0 < (uint32_t)4096u);
+        assert((uint32_t)x1 < (uint32_t)4096u);
+        assert((uint32_t)y0 < (uint32_t)4096u);
+        
+        return (uint32_t(x0 + (x1 - x0) / 2) << 20)
+                | ((uint32_t(y0) & 0x00000FFF) << 8)
+                |  (uint32_t(N)  & 0x000000FF);
     }
 
     uint32_t Blob::id_from_blob(const pv::Blob &blob) {
@@ -669,19 +675,20 @@ static Callback callback;
         const auto end = Vec2(blob.lines()->back().x1,
                               blob.lines()->size());
         
-        return id_from_position(start + (end - start) * 0.5);
+        return id_from_data(blob.lines()->front().x0,
+                            blob.lines()->front().x1,
+                            blob.lines()->front().y,
+                            blob.lines()->size());
     }
 
     uint32_t Blob::id_from_blob(const pv::CompressedBlob &blob) {
         if(blob.lines.empty())
             return pv::Blob::invalid;
         
-        const auto start = Vec2(blob.lines.front().x0(),
-                                blob.start_y);
-        const auto end = Vec2(blob.lines.back().x1(),
-                              blob.lines.size());
-        
-        return id_from_position(start + (end - start) * 0.5);
+        return id_from_data(blob.lines.front().x0(),
+                            blob.lines.front().x1(),
+                            blob.start_y,
+                            blob.lines.size());
     }
     
     size_t Blob::memory_size() const {
@@ -693,8 +700,9 @@ static Callback callback;
     }
     
     Vec2 Blob::position_from_id(uint32_t id) {
-        auto x = id >> 16;
-        auto y = id & 0x0000FFFF;
+        auto x = (id >> 20) & 0x00000FFF;
+        auto y = (id >> 8) & 0x00000FFF;
+        //auto N = id & 0x000000FF;
         return Vec2(x, y);
     }
     

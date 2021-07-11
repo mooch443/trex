@@ -294,8 +294,9 @@ void InfoCard::update() {
         
     std::string speed_str;
     
-    if(cache.processed_frame.cached_individuals.count(fdx))
-        speed_str = Meta::toStr(cache.processed_frame.cached_individuals.at(fdx).speed) + "cm/s";
+    auto c = cache.processed_frame.cached(fdx);
+    if(c)
+        speed_str = Meta::toStr(c->speed) + "cm/s";
     else if(cache.individuals.count(fdx) && cache.individuals.at(fdx)->basic_stuff(_frameNr)) {
         auto s = cache.individuals.at(fdx)->basic_stuff(_frameNr)->centroid->speed(Units::CM_AND_SECONDS);
         speed_str = Meta::toStr(s)+"cm/s";

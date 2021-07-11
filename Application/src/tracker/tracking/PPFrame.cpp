@@ -24,12 +24,55 @@ PPFrame::PPFrame()
     : _blob_grid(Tracker::average().bounds().size())
 { }
 
-void PPFrame::_add_to_map(const pv::BlobPtr &blob) {
+const IndividualCache* PPFrame::cached(Idx_t id) const {
+    auto it = std::find(_individual_cache.begin(), _individual_cache.end(), id);
+    if(it != _individual_cache.end()) {
+        return &(*it);
+    }
+    return nullptr;
+}
+
+bool PPFrame::_add_to_map(const pv::BlobPtr &blob) {
+    if(_bdx_to_ptr.count(blob->blob_id())) {
+#ifndef NDEBUG
+        auto blob1 = _bdx_to_ptr.at(blob->blob_id());
+        
+        Debug("Blob0 %u << 24 = %u (mask %u, max=%u)",
+              uint32_t(blob->bounds().x) & 0x00000FFF,
+              (uint32_t(blob->bounds().x) & 0x00000FFF) << 20,
+              (uint32_t(blob->lines()->front().y) & 0x00000FFF) << 8,
+              std::numeric_limits<uint32_t>::max());
+        
+        Debug("Blob1 %u << 24 = %u (mask %u, max=%u)",
+              uint32_t(blob1->bounds().x) & 0x00000FFF,
+              (uint32_t(blob1->bounds().x) & 0x00000FFF) << 20,
+              0x00000FFF,
+              std::numeric_limits<uint32_t>::max());
+        
+        uint32_t bid0 = pv::Blob::id_from_blob(blob);
+        uint32_t bid1 = pv::Blob::id_from_blob(_bdx_to_ptr.at(blob->blob_id()));
+        
+        Except("Frame %d: Blob %u already in map (%d), at %f,%f bid=%u vs. %f,%f bid=%u", _index, blob->blob_id(), blob == _bdx_to_ptr.at(blob->blob_id()),
+               blob->bounds().x, blob->bounds().y, bid0,
+               _bdx_to_ptr.at(blob->blob_id())->bounds().x, _bdx_to_ptr.at(blob->blob_id())->bounds().y, bid1);
+#endif
+        return false;
+    }
+    
     _bdx_to_ptr[blob->blob_id()] = blob;
+    return true;
 }
 
 void PPFrame::_remove_from_map(uint32_t bdx) {
     _bdx_to_ptr.erase(bdx);
+    
+    for(auto &g : _blob_grid.get_grid()) {
+        if(!g.empty()) {
+            auto it = std::find(g.begin(), g.end(), bdx);
+            if(it != g.end())
+                g.erase(it);
+        }
+    }
 }
 
 void PPFrame::_assume_not_finalized(const char* file, int line) {
@@ -48,18 +91,24 @@ int PPFrame::label(const pv::BlobPtr& blob) const {
 void PPFrame::add_noise(const pv::BlobPtr & blob) {
     ASSUME_NOT_FINALIZED;
     
-    _add_to_map(blob);
-    _noise.emplace_back(blob);
-    _num_pixels += blob->num_pixels();
-    ++_pixel_samples;
+    if(_add_to_map(blob)) {
+        _noise.emplace_back(blob);
+        _num_pixels += blob->num_pixels();
+        ++_pixel_samples;
+    }
 }
 
 void PPFrame::add_noise(std::vector<pv::BlobPtr>&& v) {
     ASSUME_NOT_FINALIZED;
     
-    for(auto &b:v) {
-        _add_to_map(b);
-        _num_pixels += b->num_pixels();
+    for(auto it = v.begin(); it != v.end(); ) {
+        if(!_add_to_map(*it)) {
+            it = v.erase(it);
+        } else {
+            _num_pixels += (*it)->num_pixels();
+            ++_pixel_samples;
+            ++it;
+        }
     }
     
     _pixel_samples += v.size();
@@ -128,20 +177,26 @@ pv::BlobPtr PPFrame::erase_anywhere(uint32_t bdx) {
 void PPFrame::add_regular(const pv::BlobPtr & blob) {
     ASSUME_NOT_FINALIZED;
     
-    _add_to_map(blob);
-    _blobs.emplace_back(blob);
-    _num_pixels += blob->num_pixels();
-    ++_pixel_samples;
+    if(_add_to_map(blob)) {
+        _blobs.emplace_back(blob);
+        _num_pixels += blob->num_pixels();
+        ++_pixel_samples;
+    }
 }
 
 void PPFrame::add_regular(std::vector<pv::BlobPtr>&& v) {
     ASSUME_NOT_FINALIZED;
     
-    for(auto &b:v) {
-        _add_to_map(b);
-        _num_pixels += b->num_pixels();
+    for(auto it = v.begin(); it != v.end(); ) {
+        if(!_add_to_map(*it)) {
+            it = v.erase(it);
+        } else {
+            _num_pixels += (*it)->num_pixels();
+            ++_pixel_samples;
+            ++it;
+        }
     }
-    _pixel_samples += v.size();
+    
     _blobs.insert(_blobs.end(), std::make_move_iterator( v.begin() ), std::make_move_iterator( v.end() ));
 }
 
@@ -198,10 +253,19 @@ void PPFrame::add_blobs(std::vector<pv::BlobPtr>&& blobs,
     _num_pixels += pixels;
     _pixel_samples += samples;
     
-    for(auto &b : blobs)
-        _add_to_map(b);
-    for(auto &b : noise)
-        _add_to_map(b);
+    for(auto it = blobs.begin(); it != blobs.end(); ) {
+        if(!_add_to_map(*it)) {
+            it = blobs.erase(it);
+        } else
+            ++it;
+    }
+    
+    for(auto it = noise.begin(); it != noise.end(); ) {
+        if(!_add_to_map(*it)) {
+            it = noise.erase(it);
+        } else
+            ++it;
+    }
     
     _blobs.insert(_blobs.end(), std::make_move_iterator(blobs.begin()), std::make_move_iterator(blobs.end()));
     _noise.insert(_noise.end(), std::make_move_iterator(noise.begin()), std::make_move_iterator(noise.end()));
@@ -225,7 +289,7 @@ void PPFrame::clear() {
     _finalized = false;
     _blobs.clear();
     _noise.clear();
-    cached_individuals.clear();
+    _individual_cache.clear();
     _blob_grid.clear();
     _original_blobs.clear();
     blob_cliques.clear();
@@ -239,6 +303,7 @@ void PPFrame::clear() {
 void PPFrame::fill_proximity_grid() {
     ASSUME_NOT_FINALIZED;
     
+    std::set<uint32_t> added;
     for(auto &b : _blobs) {
         auto N = b->hor_lines().size();
         auto ptr = b->hor_lines().data();
@@ -263,6 +328,12 @@ void PPFrame::fill_proximity_grid() {
             for(; ptr != end; ++ptr)
                 insert_line(_blob_grid, ptr, b->blob_id(), step_size_x);
         }
+        added.insert(b->blob_id());
+    }
+    
+    if(_index == 4391) {
+        auto str = Meta::toStr(added);
+        Debug("Frame %d: Added blobs %S to proximity grid.", _index, &str);
     }
 }
 

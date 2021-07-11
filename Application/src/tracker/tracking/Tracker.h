@@ -233,7 +233,8 @@ CREATE_STRUCT(Settings,
         }
         static const Image& average() { if(!instance()->_average) U_EXCEPTION("Pointer to average image is nullptr."); return *instance()->_average; }
         
-        //! Returns true if a frame with the given index exists.
+        
+        static decltype(_added_frames)::const_iterator properties_iterator(long_t frameIndex);
         static const FrameProperties* properties(long_t frameIndex, const CacheHints* cache = nullptr);
         static double time_delta(long_t frame_1, long_t frame_2, const CacheHints* cache = nullptr) {
             auto props_1 = properties(frame_1, cache);
