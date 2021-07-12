@@ -2056,7 +2056,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             
             fish->add_manual_match(frameIndex);
             assign_blob_individual(frameIndex, frame, fish, blob, default_config::matching_mode_t::benchmark);
-            frame.erase_anywhere(blob);
+            //frame.erase_anywhere(blob);
         }
         
         if(!cannot_find.empty()) {
@@ -2242,7 +2242,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             pv::BlobPtr blob = frame.find_bdx((uint32_t)bdx);
             if(fish && blob && !fish_assigned[fish] && !blob_assigned[blob.get()]) {
                 assign_blob_individual(frameIndex, frame, fish, blob, default_config::matching_mode_t::benchmark);
-                frame.erase_anywhere(blob);
+                //frame.erase_anywhere(blob);
                 fish->add_automatic_match(frameIndex);
                 active_individuals.insert(fish);
                 
@@ -2584,7 +2584,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                         PairingGraph graph(frameIndex, paired);
                         
                         try {
-                            auto &optimal = graph.get_optimal_pairing(false, matching_mode_t::accurate);
+                            auto &optimal = graph.get_optimal_pairing(false, matching_mode_t::hungarian);
                             for (auto &p: optimal.pairings) {
     #ifdef TREX_DEBUG_MATCHING
                                 for(auto &[i, b] : pairs) {
