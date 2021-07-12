@@ -2597,7 +2597,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                                 }
     #endif
                                 std::unique_lock g(thread_mutex);
-                                assign_blob_individual(frameIndex, frame, p.first, *p.second, matching_mode_t::accurate);
+                                assign_blob_individual(frameIndex, frame, p.first, *p.second, matching_mode_t::hungarian);
                                 active_individuals.insert(p.first);
                             }
                             
