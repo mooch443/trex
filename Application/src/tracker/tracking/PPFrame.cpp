@@ -303,7 +303,7 @@ void PPFrame::clear() {
 void PPFrame::fill_proximity_grid() {
     ASSUME_NOT_FINALIZED;
     
-    std::set<uint32_t> added;
+    //std::set<uint32_t> added;
     for(auto &b : _blobs) {
         auto N = b->hor_lines().size();
         auto ptr = b->hor_lines().data();
@@ -328,12 +328,7 @@ void PPFrame::fill_proximity_grid() {
             for(; ptr != end; ++ptr)
                 insert_line(_blob_grid, ptr, b->blob_id(), step_size_x);
         }
-        added.insert(b->blob_id());
-    }
-    
-    if(_index == 4391) {
-        auto str = Meta::toStr(added);
-        Debug("Frame %d: Added blobs %S to proximity grid.", _index, &str);
+        //added.insert(b->blob_id());
     }
 }
 
