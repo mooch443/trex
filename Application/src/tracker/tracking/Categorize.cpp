@@ -2134,6 +2134,7 @@ inline std::vector<T> erase_indices(const std::vector<T>& data, std::vector<size
 }
 
 void paint_distributions(int64_t frame) {
+#ifndef __linux__
     static std::mutex distri_mutex;
     static Timer distri_timer;
     int64_t minimum_range = std::numeric_limits<int64_t>::max(), maximum_range = 0;
@@ -2253,6 +2254,7 @@ void paint_distributions(int64_t frame) {
             being_processed = false;
         }
     }
+#endif
 }
 
 std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_ptr<Individual::SegmentInformation>& segment, size_t& _delete, size_t& _create, size_t& _reuse) {
