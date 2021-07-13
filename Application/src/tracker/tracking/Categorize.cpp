@@ -1022,7 +1022,6 @@ struct NetworkApplicationState {
         }
         
         if (size_t(offset) == segments.size()) {
-            Debug("Finished %d", fish->identity().ID());
             return Rangel(-1,-1); // no more segments
         }
         else if (size_t(offset) > segments.size()) {
@@ -1138,10 +1137,11 @@ struct NetworkApplicationState {
                 tps += _timer.elapsed();
                 tpre += _prepare;
                 tpp += _predict.elapsed();
+                
                 ++samples;
                 
                 //! print every 25s
-                if(uint32_t(tps) % 25 == 0) {
+                if(uint32_t(tps) % 2500 == 0) {
                     Debug("TPS: %fs for each image, preparation: %fs, predict: %fs, %lu samples", tps / double(samples), tpre / double(samples), tpp / double(samples), samples);
                 }
             }

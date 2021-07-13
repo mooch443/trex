@@ -267,11 +267,7 @@ class Categorize:
 
     def predict(self, images):
         assert self.model
-
-        TRex.log(str(np.shape(images)))
         images = np.array(images, dtype=float)
-        TRex.log(str(np.shape(images)))
-
         y = np.argmax(self.model.predict(images), axis=-1)
         return  y
 
