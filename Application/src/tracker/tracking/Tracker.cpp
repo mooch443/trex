@@ -885,8 +885,8 @@ bool operator<(long_t frame, const FrameProperties& props) {
         //initial_filter.conclude_measure();
     }
 
-    std::vector<std::shared_ptr<pv::Blob>> Tracker::split_big(
-        const BlobReceiver& receiver,
+    std::vector<pv::BlobPtr> Tracker::split_big(
+        const BlobReceiver& filter_out,
         const std::vector<pv::BlobPtr> &big_blobs,
         const std::map<pv::BlobPtr, split_expectation> &expect,
         bool discard_small,
@@ -899,268 +899,117 @@ bool operator<(long_t frame, const FrameProperties& props) {
         const float cm_sq = SQR(FAST_SETTINGS(cm_per_pixel));
         const auto track_ignore = FAST_SETTINGS(track_ignore);
         const auto track_include = FAST_SETTINGS(track_include);
-
-        std::mutex _mutex;
         
-        auto check_blob = [&track_ignore, &track_include, &receiver](const pv::BlobPtr& b) {
+        std::mutex thread_mutex;
+        
+        auto check_blob = [&track_ignore, &track_include](const pv::BlobPtr& b) {
             if (!track_ignore.empty()) {
-                if (blob_matches_shapes(b, track_ignore)) {
-                    receiver(b);
+                if (blob_matches_shapes(b, track_ignore))
                     return false;
-                }
             }
 
             if (!track_include.empty()) {
-                if (!blob_matches_shapes(b, track_include)) {
-                    receiver(b);
+                if (!blob_matches_shapes(b, track_include))
                     return false;
-                }
             }
             
             return true;
         };
         
-        auto work = [&](auto b, std::vector<pv::BlobPtr>& regular, std::vector<pv::BlobPtr>& noise){
-            if(!fish_size.close_to_maximum_of_one(b->pixels()->size() * cm_sq, 1000))
-            {
-                noise.push_back(b);
-                return;
-            }
+        auto work = [&](auto, auto start, auto end, auto)
+        {
+            std::vector<pv::BlobPtr> noise, regular;
             
-            split_expectation ex(2, false);
-            if(!expect.empty() && expect.count(b))
-                ex = expect.at(b);
-            
-            auto rec = b->recount(threshold, *_background);
-            if(!fish_size.close_to_maximum_of_one(rec, 10 * ex.number))
-               //|| (!expect.empty() && !expect.count(b)))
-            {
-                noise.push_back(b);
-                return;
-            }
-            
-            SplitBlob s(*_background, b);
-            auto ret = s.split(ex.number);//now < prev ? 2 : 1);
-            for(auto &ptr : ret) {
-                if(b->blob_id() != ptr->blob_id())
-                    ptr->set_split(true, b);
-            }
-            
-            std::set<std::tuple<float, pv::BlobPtr>, std::greater<>> added;
-            if(ex.allow_less_than && ret.empty()) {
-                Log(out, "Filling self in for blob %d.", b->blob_id());
-                //b->set_split(true, nullptr);
+            for(auto it = start; it != end; ++it) {
+                auto &b = *it;
                 
-                if((!discard_small || fish_size.close_to_minimum_of_one(rec, 0.25)))
+                if(!fish_size.close_to_maximum_of_one(b->pixels()->size() * cm_sq, 1000))
                 {
-                    if(out)
-                        added.insert({rec, b});
-                    regular.push_back(b);
-                    
-                } else {
                     noise.push_back(b);
+                    continue;
                 }
                 
-            } else {
-                std::vector<pv::BlobPtr> for_this_blob;
-                std::set<std::tuple<float, pv::BlobPtr>, std::greater<>> found;
+                split_expectation ex(2, false);
+                if(!expect.empty() && expect.count(b))
+                    ex = expect.at(b);
+                
+                auto rec = b->recount(threshold, *_background);
+                if(!fish_size.close_to_maximum_of_one(rec, 10 * ex.number)) {
+                    noise.push_back(b);
+                    continue;
+                }
+                
+                SplitBlob s(*_background, b);
+                std::vector<pv::BlobPtr> copy;
+                auto ret = s.split(ex.number);
+                
                 for(auto &ptr : ret) {
-                    float recount = ptr->recount(0, *_background);
-                    found.insert({recount, ptr});
+                    if(b->blob_id() != ptr->blob_id())
+                        ptr->set_split(true, b);
                 }
                 
-                size_t counter = 0;
-                for(auto && [r, ptr] : found) {
-                    ptr->add_offset(b->bounds().pos());
-                    ptr->set_split(true, b);
-                    ptr->calculate_moments();
-
-                    if (!track_ignore.empty()) {
-                        if (blob_matches_shapes(ptr, track_ignore)) {
-                            noise.push_back(ptr);
-                            continue;
-                        }
-                    }
-
-                    if (!track_include.empty()) {
-                        if (!blob_matches_shapes(ptr, track_include)) {
-                            noise.push_back(ptr);
-                            continue;
-                        }
-                    }
-                    
-                    if(fish_size.in_range_of_one(r, 0.35, 1) && (!discard_small || counter < ex.number)) {
-                        for_this_blob.push_back(ptr);
-                        if(out)
-                            added.insert({r, ptr});
-                        ++counter;
+                if(ex.allow_less_than && ret.empty()) {
+                    if((!discard_small || fish_size.close_to_minimum_of_one(rec, 0.25))) {
+                        result.push_back(b);
                     } else {
-                        noise.push_back(ptr);
+                        noise.push_back(b);
                     }
-                }
-                
-                if(ret.empty()) {
-                    noise.push_back(b);
-                } else if(for_this_blob.size() < ex.number) {
-                    Log(out, "Not allowing less than %d, but only found %d blobs", ex.number, for_this_blob.size());
-                    noise.insert(noise.end(), for_this_blob.begin(), for_this_blob.end());
                     
-                    if(out)
-                        added.clear();
                 } else {
-                    regular.insert(regular.end(), for_this_blob.begin(), for_this_blob.end());
+                    std::vector<pv::BlobPtr> for_this_blob;
+                    std::set<std::tuple<float, pv::BlobPtr>, std::greater<>> found;
+                    for(auto &ptr : ret) {
+                        float recount = ptr->recount(0, *_background);
+                        found.insert({recount, ptr});
+                    }
+                    
+                    size_t counter = 0;
+                    for(auto & [r, ptr] : found) {
+                        ptr->add_offset(b->bounds().pos());
+                        ptr->set_split(true, b);
+
+                        ptr->calculate_moments();
+
+                        if(!check_blob(ptr)) {
+                            noise.push_back(ptr);
+                            continue;
+                        }
+                        
+                        if(fish_size.in_range_of_one(r, 0.35, 1) && (!discard_small || counter < ex.number)) {
+                            for_this_blob.push_back(ptr);
+                            ++counter;
+                        } else {
+                            noise.push_back(ptr);
+                        }
+                    }
+                    
+                    if(ret.empty()) {
+                        noise.push_back(b);
+                    } /*else if(for_this_blob.size() < ex.number) {
+                        Log(out, "Not allowing less than %d, but only found %d blobs", ex.number, for_this_blob.size());
+                        receiver(std::move(for_this_blob));
+                        //filtered_out.insert(filtered_out.end(), for_this_blob.begin(), for_this_blob.end());
+                        
+                        if(out)
+                            added.clear();
+                    }*/ else
+                        regular.insert(regular.end(),
+                                       std::make_move_iterator(for_this_blob.begin()),
+                                       std::make_move_iterator(for_this_blob.end()));
                 }
             }
             
-            if(out) {
-                auto str = Meta::toStr(added);
-                Log(out, "split blob %d -> %S", b->blob_id(), &str);
-            }
+            std::unique_lock guard(thread_mutex);
+            result.insert(result.end(),
+                          std::make_move_iterator(regular.begin()),
+                          std::make_move_iterator(regular.end()));
+            filter_out(std::move(noise));
         };
         
-        if(pool && big_blobs.size() >= 4) {
-            static const uint32_t max_threads = max(1u, cmn::hardware_concurrency());
-            const uint32_t end = big_blobs.size() % max_threads;
-            const uint32_t per_thread = (big_blobs.size() - end) / max_threads;
-            //Debug("max_threads = %lu, per_thread = %lu, size = %lu, end = %lu", max_threads, per_thread, big_blobs.size(), end);
-            
-            if(per_thread > 0) {
-                for (uint32_t i = 0; i < max_threads; ++i) {
-                    pool->enqueue([&](uint32_t tid){
-                        std::vector<pv::BlobPtr> r, noise;
-                        
-                        auto from = tid  * per_thread;
-                        auto to   = from + per_thread;
-                        
-                        //Debug("Thread %lu working %lu to %lu.", tid, from, to);
-                        
-                        for (size_t i=from; i < to; ++i) {
-                            work(big_blobs[i], r, noise);
-                        }
-                        
-
-                        std::lock_guard<std::mutex> guard(_mutex);
-                        result.insert(result.end(), r.begin(), r.end());
-                        receiver(std::move(noise));
-                        //filtered_out.insert(filtered_out.end(), noise.begin(), noise.end());
-                        
-                    }, i);
-                }
-                
-                if(end != 0) {
-                    auto from = per_thread  * max_threads;
-                    auto to   = from + end;
-                    
-                    std::vector<pv::BlobPtr> r, noise;
-                    
-                    //Debug("Main thread working %lu to %lu", from, to);
-                    
-                    for (size_t i=from; i < to; ++i) {
-                        work(big_blobs[i], r, noise);
-                    }
-                    
-                    std::lock_guard<std::mutex> guard(_mutex);
-                    result.insert(result.end(), r.begin(), r.end());
-                    receiver(std::move(noise));
-                    //filtered_out.insert(filtered_out.end(), noise.begin(), noise.end());
-                }
-                
-                pool->wait();
-                
-                return result;
-            }
-        }
-        
-        for(auto &b : big_blobs) {
-            if(!fish_size.close_to_maximum_of_one(b->pixels()->size() * cm_sq, 1000))
-            {
-                receiver(b);
-                //filtered_out.push_back(b);
-                continue;
-            }
-            
-            split_expectation ex(2, false);
-            if(!expect.empty() && expect.count(b))
-                ex = expect.at(b);
-            
-            auto rec = b->recount(threshold, *_background);
-            if(!fish_size.close_to_maximum_of_one(rec, 10 * ex.number))
-               //|| (!expect.empty() && !expect.count(b)))
-            {
-                receiver(b);
-                //filtered_out.push_back(b);
-                continue;
-            }
-            
-            SplitBlob s(*_background, b);
-            auto ret = s.split(ex.number);//now < prev ? 2 : 1);
-            for(auto &ptr : ret) {
-                if(b->blob_id() != ptr->blob_id())
-                    ptr->set_split(true, b);
-            }
-            
-            std::set<std::tuple<float, pv::BlobPtr>, std::greater<>> added;
-            if(ex.allow_less_than && ret.empty()) {
-                Log(out, "Filling self in for blob %d.", b->blob_id());
-                //b->set_split(true, nullptr);
-                
-                if((!discard_small || fish_size.close_to_minimum_of_one(rec, 0.25))) {
-                    result.push_back(b);
-                    
-                    if(out)
-                        added.insert({rec, b});
-                } else {
-                    receiver(b);
-                    //filtered_out.push_back(b);
-                }
-                
-            } else {
-                std::vector<pv::BlobPtr> for_this_blob;
-                std::set<std::tuple<float, pv::BlobPtr>, std::greater<>> found;
-                for(auto &ptr : ret) {
-                    float recount = ptr->recount(0, *_background);
-                    found.insert({recount, ptr});
-                }
-                
-                size_t counter = 0;
-                for(auto & [r, ptr] : found) {
-                    ptr->add_offset(b->bounds().pos());
-                    ptr->set_split(true, b);
-
-                    ptr->calculate_moments();
-
-                    if(!check_blob(ptr)) {
-                        continue;
-                    }
-                    
-                    if(fish_size.in_range_of_one(r, 0.35, 1) && (!discard_small || counter < ex.number)) {
-                        for_this_blob.push_back(ptr);
-                        if(out)
-                            added.insert({r, ptr});
-                        ++counter;
-                    } else {
-                        receiver(ptr);
-                    }
-                }
-                
-                if(ret.empty()) {
-                    receiver(b);
-                } else if(for_this_blob.size() < ex.number) {
-                    Log(out, "Not allowing less than %d, but only found %d blobs", ex.number, for_this_blob.size());
-                    receiver(std::move(for_this_blob));
-                    //filtered_out.insert(filtered_out.end(), for_this_blob.begin(), for_this_blob.end());
-                    
-                    if(out)
-                        added.clear();
-                } else
-                    result.insert(result.end(), for_this_blob.begin(), for_this_blob.end());
-            }
-            
-            if(out) {
-                auto str = Meta::toStr(added);
-                Log(out, "split blob %d -> %S", b->blob_id(), &str);
-            }
-        }
+        if(big_blobs.size() >= 2 && pool) {
+            distribute_vector(work, *pool, big_blobs.begin(), big_blobs.end());
+        } else
+            work(0, big_blobs.begin(), big_blobs.end(), 0);
         
         return result;
     }
@@ -2060,6 +1909,17 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         }
         
         if(!cannot_find.empty()) {
+            struct Blaze {
+                PPFrame *_frame;
+                Blaze(PPFrame& frame) : _frame(&frame) {
+                    _frame->_finalized = false;
+                }
+                
+                ~Blaze() {
+                    _frame->finalize();
+                }
+            } blaze(frame);
+            
             std::unordered_map<uint32_t, std::vector<std::tuple<Idx_t, Vec2, uint32_t>>> assign_blobs;
             const auto max_speed_px = FAST_SETTINGS(track_max_speed) / FAST_SETTINGS(cm_per_pixel);
             

@@ -96,6 +96,9 @@ void distribute_vector(F&& fn, Pool& pool, Iterator start, Iterator end, const u
     static const auto threads = cmn::hardware_concurrency();
     int64_t i = 0, N = std::distance(start, end);
     const int64_t per_thread = max(1, N / threads);
+    int64_t processed = 0, enqueued = 0;
+    std::mutex mutex;
+    std::condition_variable variable;
     
     Iterator nex = start;
     
@@ -104,16 +107,29 @@ void distribute_vector(F&& fn, Pool& pool, Iterator start, Iterator end, const u
         std::advance(nex, step);
         
         assert(step > 0);
-        if(nex == end)
-            fn(it, nex, step);
-        else
-            pool.enqueue(std::forward<F>(fn), it, nex, step);
+        if(nex == end) {
+            fn(i, it, nex, step);
+            
+        } else {
+            ++enqueued;
+            
+            pool.enqueue([&](auto i, auto it, auto nex, auto step) {
+                fn(i, it, nex, step);
+                
+                std::unique_lock g(mutex);
+                ++processed;
+                variable.notify_one();
+                
+            }, i, it, nex, step);
+        }
         
         it = nex;
         i += step;
     }
     
-    pool.wait();
+    std::unique_lock g(mutex);
+    while(processed < enqueued)
+        variable.wait(g);
 }
 
     template<typename T>

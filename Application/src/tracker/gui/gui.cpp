@@ -3033,7 +3033,7 @@ void GUI::update_display_blobs(bool draw_blobs, Section* fishbowl) {
         size_t gpixels = 0;
         double gaverage_pixels = 0, gsamples = 0;
         
-        distribute_vector([&](auto start, auto end, auto){
+        distribute_vector([&](auto, auto start, auto end, auto){
             std::unordered_map<pv::Blob*, gui::ExternalImage*> map;
             std::vector<std::unique_ptr<gui::ExternalImage>> vector;
             
@@ -3044,8 +3044,8 @@ void GUI::update_display_blobs(bool draw_blobs, Section* fishbowl) {
             for(auto it = start; it != end; ++it) {
                 bool found = copy.count((*it)->blob.get());
                 if(!found) {
-                    auto bds = bowl.transformRect((*it)->blob->bounds());
-                    if(bds.overlaps(screen_bounds))
+                    //auto bds = bowl.transformRect((*it)->blob->bounds());
+                    //if(bds.overlaps(screen_bounds))
                     {
                         if(!gui_show_only_unassigned || !contains(_cache.active_blobs, (*it)->blob->blob_id())) {
                             vector.push_back((*it)->convert());
@@ -3200,12 +3200,12 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
             auto mat = collection->source()->get();
             //std::fill((int*)collection->source()->data(), (int*)collection->source()->data() + collection->source()->cols * collection->source()->rows, 0);
             
-            distribute_vector([](auto start, auto end, auto) {
+            distribute_vector([](auto, auto start, auto end, auto) {
                 std::fill(start, end, 0);
                 
             }, _blob_thread_pool, (int*)collection->source()->data(), (int*)collection->source()->data() + collection->source()->cols * collection->source()->rows);
             
-            distribute_vector([&mat](auto start, auto end, auto N){
+            distribute_vector([&mat](auto, auto start, auto end, auto N){
                 for(auto it = start; it != end; ++it) {
                     auto& e = *it;
                     auto input = e->source()->get();
@@ -3476,7 +3476,7 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
             std::atomic<size_t> added_items = 0;
             auto copy = shown_ids;
             
-            distribute_vector([&added_items, &sync, &copy](auto start, auto end, auto) {
+            distribute_vector([&added_items, &sync, &copy](auto, auto start, auto end, auto) {
                 std::unordered_set<uint32_t> added_ids;
                 
                 for(auto it = start; it != end; ++it) {
@@ -3540,7 +3540,10 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
             
             //if(_timeline.visible())
             {
-                constexpr size_t maximum_number_texts = 200;
+                auto bowl = ptr ? ptr->global_transform() : gui::Transform();
+                auto screen_bounds = Bounds(Vec2(-50), screen_dimensions() + 100);
+                
+                constexpr size_t maximum_number_texts = 1000;
                 if(_cache.processed_frame.blobs().size() >= maximum_number_texts) {
                     Vec2 pos(10, _timeline->bar()->global_bounds().height + _timeline->bar()->global_bounds().y + 10);
                     auto text = "Hiding some blob texts because of too many blobs ("+Meta::toStr(_cache.processed_frame.blobs().size())+").";
@@ -3566,8 +3569,8 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                 auto mp = section_transform.transformPoint(_gui.mouse_position());
                 
                 for (size_t i=0; i<_cache.processed_frame.noise().size(); i++) {
-                    if(_cache.processed_frame.noise().at(i)->recount(FAST_SETTINGS(track_threshold), *Tracker::instance()->background()) < FAST_SETTINGS(blob_size_ranges).max_range().start * 0.01)
-                        continue;
+                    //if(_cache.processed_frame.noise().at(i)->recount(FAST_SETTINGS(track_threshold), *Tracker::instance()->background()) < FAST_SETTINGS(blob_size_ranges).max_range().start * 0.01)
+                       // continue;
                     
                     auto id = _cache.processed_frame.noise().at(i)->blob_id();
                     auto d = sqdistance(mp, _cache.processed_frame.noise().at(i)->bounds().pos());
@@ -3607,6 +3610,10 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                 auto draw_blob = [&](const pv::BlobPtr& blob, float real_size, bool active){
                     if(displayed >= maximum_number_texts && !active)
                         return;
+                    
+                    if(!bowl.transformRect(blob->bounds()).overlaps(screen_bounds)) {
+                        return;
+                    }
                     
                     auto d = euclidean_distance(blob->bounds().pos() + blob->bounds().size() * 0.5, mpos);
                     if(d <= max_distance * 2 && d > max_distance) {

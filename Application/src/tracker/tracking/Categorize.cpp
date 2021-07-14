@@ -633,6 +633,10 @@ void show() {
 
 void hide() {
     Work::visible() = false;
+    if(Work::state() != Work::State::APPLY) {
+        Work::_learning = false;
+        Work::_variable.notify_all();
+    }
 }
 
 using namespace gui;
