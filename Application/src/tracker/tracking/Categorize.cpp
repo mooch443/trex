@@ -633,10 +633,6 @@ void show() {
 
 void hide() {
     Work::visible() = false;
-    if(Work::state() != Work::State::APPLY) {
-        Work::_learning = false;
-        Work::_variable.notify_all();
-    }
 }
 
 using namespace gui;
@@ -2978,6 +2974,10 @@ void Work::set_state(State state) {
         }
         case State::NONE:
             hide();
+            
+            Work::_learning = false;
+            Work::_variable.notify_all();
+            
             {
                 std::lock_guard g(Work::_recv_mutex);
                 for(auto &row : rows) {
