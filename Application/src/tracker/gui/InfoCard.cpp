@@ -38,6 +38,9 @@ void InfoCard::update() {
     
     auto &cache = GUI::instance()->cache();
     if(!cache.has_selection() || !_fish) {
+        segment_texts.clear();
+        other = nullptr;
+        
         begin();
         end();
         return;
@@ -171,7 +174,7 @@ void InfoCard::update() {
     if(first) {
         prev->on_click([](auto) {
             auto & cache = GUI::instance()->cache();
-            long_t next_frame = GUI::frame();
+            auto next_frame = GUI::frame();
             if(cache.has_selection()) {
                 Tracker::LockGuard guard("InfoCard::update->prev->on_click");
                 auto segment = cache.primary_selection()->get_segment(next_frame);
@@ -191,7 +194,7 @@ void InfoCard::update() {
         
         next->on_click([](auto) {
             auto & cache = GUI::instance()->cache();
-            long_t next_frame = GUI::frame();
+            auto next_frame = GUI::frame();
             if(cache.has_selection()) {
                 Tracker::LockGuard guard("InfoCard::update->next->on_click");
                 auto segment = cache.primary_selection()->get_segment(next_frame);
@@ -291,8 +294,9 @@ void InfoCard::update() {
         
     std::string speed_str;
     
-    if(cache.processed_frame.cached_individuals.count(fdx))
-        speed_str = Meta::toStr(cache.processed_frame.cached_individuals.at(fdx).speed) + "cm/s";
+    auto c = cache.processed_frame.cached(fdx);
+    if(c)
+        speed_str = Meta::toStr(c->speed) + "cm/s";
     else if(cache.individuals.count(fdx) && cache.individuals.at(fdx)->basic_stuff(_frameNr)) {
         auto s = cache.individuals.at(fdx)->basic_stuff(_frameNr)->centroid->speed(Units::CM_AND_SECONDS);
         speed_str = Meta::toStr(s)+"cm/s";
@@ -304,7 +308,7 @@ void InfoCard::update() {
     if(fprobs) {
         track::Match::prob_t max_prob = 0;
         int64_t bdx = -1;
-        for(auto blob : cache.processed_frame.blobs) {
+        for(auto &blob : cache.processed_frame.blobs()) {
             if(fprobs->count(blob->blob_id())) {
                 auto &probs = (*fprobs).at(blob->blob_id());
                 if(probs.p > max_prob) {
@@ -314,7 +318,7 @@ void InfoCard::update() {
             }
         }
         
-        for(auto blob : cache.processed_frame.blobs) {
+        for(auto &blob : cache.processed_frame.blobs()) {
             if(fprobs->count(blob->blob_id())) {
                 auto color = Color(200, 200, 200, 255);
                 if(cache.fish_selected_blobs.find(fdx) != cache.fish_selected_blobs.end() && (long_t)blob->blob_id() == cache.fish_selected_blobs.at(fdx)) {
@@ -459,6 +463,7 @@ void InfoCard::update() {
                     return;
                 std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
                 _fish = nullptr;
+                _frameNr = -1;
                 set_content_changed(true);
             });
         }

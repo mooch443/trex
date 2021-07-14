@@ -253,6 +253,7 @@ IndividualMemoryStats::IndividualMemoryStats(Individual *fish) {
     //IND_BYTE_SIZE(_weighted_centroid);
     
     IND_BYTE_SIZE(_basic_stuff);
+    IND_BYTE_SIZE(_matched_using);
     IND_BYTE_SIZE(_posture_stuff);
     
     //IND_BYTE_SIZE(_thresholded_size);

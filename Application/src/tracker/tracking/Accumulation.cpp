@@ -769,9 +769,11 @@ bool Accumulation::start() {
         unique_map = map;
     }
     
-    if(_mode == TrainingMode::Restart /*|| _mode == TrainingMode::Continue*/) {
+    if(_mode == TrainingMode::Restart || _mode == TrainingMode::Continue) {
         // save validation data
-        if(SETTING(recognition_save_training_images)) {
+        if(_mode == TrainingMode::Restart
+           && SETTING(recognition_save_training_images))
+        {
             try {
                 auto data = _collected_data->join_split_data();
                 auto ranges_path = pv::DataLocation::parse("output", Path(SETTING(filename).value<file::Path>().filename()+"_validation_data.npz"));
@@ -1512,10 +1514,6 @@ bool Accumulation::start() {
                     video_file.read_frame(video_frame.frame(), sign_cast<uint64_t>(frame));
                     Tracker::instance()->preprocess_frame(video_frame, active, NULL);
                     
-                    std::map<uint32_t, pv::BlobPtr> blob_to_id;
-                    for (auto b : video_frame.blobs)
-                        blob_to_id[b->blob_id()] = b;
-                    
                     for(auto id : ids) {
                         auto filters = _collected_data->filters().has(id)
                             ? _collected_data->filters().get(id, frame)
@@ -1538,7 +1536,7 @@ bool Accumulation::start() {
                         auto bid = basic->blob.blob_id();
                         auto pid = basic->blob.parent_id;
                         
-                        auto blob = Tracker::find_blob_noisy(blob_to_id, bid, pid, basic->blob.calculate_bounds(), frame);
+                        auto blob = Tracker::find_blob_noisy(video_frame, bid, pid, basic->blob.calculate_bounds());
                         if(!blob)
                             ++failed_blobs;
                         else

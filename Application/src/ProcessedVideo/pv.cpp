@@ -127,18 +127,6 @@ namespace pv {
         return _blobs;
     }
     
-#define OUT_LEN(L)     (L + L / 16 + 64 + 3)
-    
-    
-    /* Work-memory needed for compression. Allocate memory in units
-     * of 'lzo_align_t' (instead of 'char') to make sure it is properly aligned.
-     */
-    
-#define HEAP_ALLOC(var,size) \
-lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo_align_t) ]
-    
-    static HEAP_ALLOC(wrkmem, LZO1X_1_MEM_COMPRESS);
-    
     void Frame::clear() {
         _mask.clear();
         _pixels.clear();
@@ -374,10 +362,15 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
         
         return bytes;
     }
+
+    //void Frame::update_timestamp(DataPackage& pack) const {
+    //    pack.write(_timestamp, 0u); // just update the timestamp
+    //}
     
-    void Frame::serialize(DataPackage &pack) const {
+    void Frame::serialize(DataPackage &pack, bool& compressed) const {
         uint64_t bytes = size();
         uint64_t elem_size = sizeof(Header::line_type);
+        compressed = false;
         
         pack.resize(bytes);
         pack.reset_offset();
@@ -395,6 +388,59 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
             pack.write(uint16_t(compressed.size()));
             pack.write_data(compressed.size() * elem_size, (char*)compressed.data());
             pack.write_data(pixels->size() * sizeof(char), (char*)pixels->data());
+        }
+
+        // see whether this frame is worth compressing (size-threshold)
+        if (pack.size() >= 1500) {
+#define OUT_LEN(L)     (L + L / 16 + 64 + 3)
+
+
+            /* Work-memory needed for compression. Allocate memory in units
+             * of 'lzo_align_t' (instead of 'char') to make sure it is properly aligned.
+             */
+
+#define HEAP_ALLOC(var,size) \
+    lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo_align_t) ]
+
+            HEAP_ALLOC(wrkmem, LZO1X_1_MEM_COMPRESS);
+
+            lzo_uint out_len = 0;
+            assert(pack.size() < UINT32_MAX);
+            uint32_t in_len = (uint32_t)pack.size();
+            uint64_t reserved_size = OUT_LEN(in_len);
+
+            DataPackage out;
+            out.resize(reserved_size);
+
+            // lock for wrkmem
+            if (lzo1x_1_compress((uchar*)pack.data(), in_len, (uchar*)out.data(), &out_len, wrkmem) == LZO_E_OK)
+            {
+                uint64_t size = out_len + sizeof(uint32_t) * 2;
+                /*if (size < in_len) {
+                    if (_compression_samples > 1000) {
+                        _compression_value = _compression_value / _compression_samples;
+                        _compression_samples = 1;
+                    }
+
+                    _compression_value = _compression_value + size / float(in_len);
+                    _compression_samples++;
+                    _compression_ratio = _compression_value / double(_compression_samples);
+                }*/
+
+                if (size < in_len) {
+                    pack.reset_offset();
+                    compressed = true;
+
+                    assert(out_len < UINT32_MAX);
+                    pack.write<uint32_t>((uint32_t)out_len);
+                    pack.write<uint32_t>(in_len);
+                    pack.write_data(out_len, out.data());
+                }
+
+            }
+            else {
+                Error("Compression of %d bytes failed.", pack.size());
+            }
         }
     }
     
@@ -780,74 +826,28 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
         return _last_frame;
     }
 
-    void File::add_individual(const Frame& frame) {
+    void File::add_individual(const Frame& frame, DataPackage& pack, bool compressed) {
         assert(_open_for_writing);
         assert(_header.timestamp != 0); // start time has to be set
-        
+
         std::unique_lock<std::mutex> lock(_lock);
-        
+
         _header.num_frames++;
         assert(!_prev_frame_time || frame._timestamp > _prev_frame_time);
         //if(frame._timestamp >= _header.timestamp)
-	    //    frame._timestamp -= _header.timestamp; // make timestamp relative to start of video
-        
-        if(_prev_frame_time && frame._timestamp <= _prev_frame_time) {
+        //    frame._timestamp -= _header.timestamp; // make timestamp relative to start of video
+
+        if (_prev_frame_time && frame._timestamp <= _prev_frame_time) {
             U_EXCEPTION("Should be dropping frame because %lu <= %lu.", frame._timestamp, _prev_frame_time);
         }
-        
+
         _header._running_average_tdelta += frame._timestamp - _prev_frame_time;
         _header.average_tdelta = _header._running_average_tdelta / (_header.num_frames > 0 ? double(_header.num_frames) : 1);
         _prev_frame_time = frame._timestamp;
-        
-        //! Use this DataPackage for writing the frame
-        static DataPackage pack;
-        bool compressed = false;
-        
+
         // resets the offset and writes frame content to the pack
-        frame.serialize(pack);
-        
-        // see whether this frame is worth compressing (size-threshold)
-        if(pack.size() >= 1500) {
-            lzo_uint out_len = 0;
-            assert(pack.size() < UINT32_MAX);
-            uint32_t in_len = (uint32_t)pack.size();
-            uint64_t reserved_size = OUT_LEN(in_len);
-            
-            static DataPackage out;
-            out.resize(reserved_size);
-            
-            // lock for wrkmem
-            if(lzo1x_1_compress((uchar*)pack.data(), in_len, (uchar*)out.data(), &out_len, wrkmem) == LZO_E_OK)
-            {
-                uint64_t size = out_len + sizeof(uint32_t)*2;
-                if(size < in_len) {
-                    if(_compression_samples > 1000) {
-                        _compression_value = _compression_value / _compression_samples;
-                        _compression_samples = 1;
-                    }
-                    
-                    _compression_value = _compression_value + size / float(in_len);
-                    _compression_samples ++;
-                    _compression_ratio = _compression_value / double(_compression_samples);
-                }
-                
-                if(size < in_len) {
-                    pack.reset_offset();
-                    compressed = true;
-                    
-                    assert(out_len < UINT32_MAX);
-                    pack.write<uint32_t>((uint32_t)out_len);
-                    pack.write<uint32_t>(in_len);
-                    pack.write_data(out_len, out.data());
-                }
-                
-            } else {
-                Error("Compression of %d bytes failed.", pack.size());
-            }
-        }
-        
         auto index = tell();
-        if(!compressed)
+        if (!compressed)
             this->write<uchar>(0);
         else
             this->write<uchar>(1);
@@ -857,6 +857,16 @@ lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo
         
         // cache last_frame
         _last_frame = frame;
+    }
+
+    void File::add_individual(const Frame& frame) {
+        static std::mutex pack_mutex;
+        static DataPackage pack;
+
+        std::lock_guard g(pack_mutex);
+        bool compressed;
+        frame.serialize(pack, compressed);
+        add_individual(frame, pack, compressed);
     }
         
     void File::stop_writing() {

@@ -192,7 +192,7 @@ void GUI::update() {
 void GUI::draw(gui::DrawStructure &base) {
     using namespace gui;
     static Timer last_frame_time;
-    static ExternalImage *background = NULL;
+    static ExternalImage *background = NULL, *noise_image = NULL;
     
     {
         gui::DrawStructure::SectionGuard guard(base, "draw()");
@@ -236,55 +236,47 @@ void GUI::draw(gui::DrawStructure &base) {
                 //float scale = SETTING(web_quality).value<int>() / 100.f;
                 float scale = 1;
 
-                /*static cv::Mat mat;
-                if(mat.empty() || (uint)mat.rows != _image->rows || (uint)mat.cols != _image->cols)
-                    mat = cv::Mat::zeros(_image->rows, _image->cols, CV_8UC1);
-                _image->get(mat);
-
-                static cv::Mat resized;
-
-                resize_image(mat, resized, scale);*/
-                /*if(dynamic_cast<HTMLBase*>(&base)) {
-                    scale = 0.25;
-                    resize_image(mat, scale);
-                }*/
-
-                //static cv::Mat convert;
-                //cv::cvtColor(resized, convert, cv::COLOR_GRAY2RGBA);
-                //setAlpha(convert, 255);
-
-                //tf::imshow("image", _image->get());
-
-                /*if (_noise) {
-                    for (int i=0; i<_noise->n(); i++) {
-                        auto &m = _noise->mask().at(i);
-
-                        for (auto &line : *m) {
-                            for (ushort x=line.x0; x<=line.x1; x++) {
-                                convert.at<cv::Vec4b>(line.y*scale, x*scale) = cv::Vec4b(255, 0, 255, 255);
-                            }
-                        }
-                    }
-                }*/
-
                 if (!background || background->source()->cols != uint(_image->cols) || background->source()->rows != uint(_image->rows))
                 {
                     if (background) {
                         background->set_source(std::move(_image));
                         background->set_pos(offset);
                         background->set_scale(Vec2(1 / scale));
+                        noise_image->set_source(Image::Make(_image->rows, _image->cols, 4));
+                        noise_image->set_pos(offset);
+                        noise_image->set_scale(Vec2(1 / scale));
                     }
-                    else
+                    else {
+                        noise_image = new ExternalImage(Image::Make(_image->rows, _image->cols, 4), offset, Vec2(1 / scale));
                         background = new ExternalImage(std::move(_image), offset, Vec2(1 / scale));
+                    }
                 }
                 else {
                     background->set_scale(Vec2(1 / scale));
                     background->set_source(std::move(_image));
                 }
+
+                if (_noise) {
+                    std::fill(noise_image->source()->data(), noise_image->source()->data() + noise_image->source()->size(), 0);
+
+                    auto mat = noise_image->source()->get();
+                    for (int i = 0; i < _noise->n(); i++) {
+                        auto& m = _noise->mask().at(i);
+
+                        for (auto& line : *m) {
+                            for (ushort x = line.x0; x <= line.x1; x++) {
+                                mat.at<cv::Vec4b>(line.y, x) = cv::Vec4b(255, 0, 255, 255);
+                            }
+                        }
+                    }
+                    noise_image->set_dirty();
+                }
             }
 
             if (background)
-                base.wrap_object(*background);
+                base.wrap_object(*background); 
+            if (noise_image)
+                base.wrap_object(*noise_image);
             //base.image(offset, convert, 1/scale);
 
             if (_frame) {

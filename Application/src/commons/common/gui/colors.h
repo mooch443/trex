@@ -290,7 +290,7 @@ inline std::ostream &operator<<(std::ostream &os, const Color*obj) {
 constexpr static const Color
            White = Color(255, 255, 255, 255),
            Black = Color(0, 0, 0, 255),
-            Gray = Color(125, 125, 125, 255),
+            Gray = Color(135, 135, 135, 255),
         DarkGray = Color(50, 50, 50, 255),
         DarkCyan = Color(0, 125, 250, 255),
             Cyan = Color(0, 255, 255, 255),
@@ -298,6 +298,7 @@ constexpr static const Color
              Red = Color(255, 0, 0, 255),
             Blue = Color(0, 0, 255, 255),
            Green = Color(0, 255, 0, 255),
+          Purple = Color(200, 0, 255, 255),
      Transparent = Color(0, 0, 0, 0);
 
 constexpr inline Color operator*(const Color& c0, const Color& c1) {

@@ -21,9 +21,11 @@ struct Label {
         return std::make_shared<Label>(std::forward<Args>(args)...);
     }
     
-    Label(const std::string& name) : name(name) {
-        static int _ID = 0;
-        id = _ID++;
+    Label(const std::string& name, int id) : name(name), id(id) {
+        if(id == -1) {
+            static int _ID = 0;
+            id = _ID++;
+        }
     }
 };
 
@@ -35,15 +37,18 @@ struct Sample {
     }
     
     std::vector<long_t> _frames;
+    std::vector<uint32_t> _blob_ids;
     std::vector<Image::Ptr> _images;
     std::vector<Vec2> _positions;
     
     Label::Ptr _assigned_label;
-    std::map<Label::Ptr, float> _probabilities;
+    std::vector<float> _probabilities;
+    //std::map<Label::Ptr, float> _probabilities;
     bool _requested = false;
     
     Sample(std::vector<long_t>&& frames,
            const std::vector<Image::Ptr>& images,
+           const std::vector<uint32_t>& blob_ids,
            std::vector<Vec2>&& positions);
     
     static const Sample::Ptr& Invalid() {
@@ -85,10 +90,10 @@ struct RangedLabel {
         return _range.end() > other._frame;
     }
     bool operator<(const RangedLabel& other) const {
-        return _range.end() < other._range.end();
+        return _range.end() < other._range.end() || (_range.end() == other._range.end() && _range.start() < other._range.start());
     }
     bool operator>(const RangedLabel& other) const {
-        return _range.end() > other._range.end();
+        return _range.end() > other._range.end() || (_range.end() == other._range.end() && _range.start() < other._range.start());
     }
 };
 
@@ -160,6 +165,7 @@ struct DataStore {
     static Label::Ptr label_averaged(Idx_t, Frame_t);
     static Label::Ptr label_averaged(const Individual*, Frame_t);
     static void set_label(Frame_t, const pv::CompressedBlob*, const Label::Ptr&);
+    static void _set_label_unsafe(Frame_t, uint32_t bdx, const Label::Ptr&);
     
     static void reanalysed_from(Frame_t);
 };
@@ -170,6 +176,7 @@ struct LearningTask {
         Training,
         Restart,
         Load,
+        Apply,
         Invalid
     } type = Type::Invalid;
     
@@ -177,6 +184,7 @@ struct LearningTask {
     std::function<void(const LearningTask&)> callback;
     std::vector<float> result;
     std::shared_ptr<Individual::SegmentInformation> segment;
+    long_t idx;
     
     bool valid() const {
         return type != Type::Invalid;
@@ -208,6 +216,8 @@ void draw(gui::DrawStructure&);
 void terminate();
 file::Path output_location();
 void clear_labels();
+
+bool weights_available();
 
 }
 }

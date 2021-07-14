@@ -16,6 +16,8 @@
 #include <misc/Timer.h>
 
 #include <tracking/PairingGraph.h>
+#include <tracking/IndividualCache.h>
+#include <tracking/PPFrame.h>
 
 #define DEBUG_ORIENTATION false
 
@@ -81,67 +83,6 @@ constexpr std::array<const char*, 8> ReasonsNames {
         
         return end;
     }
-
-    struct IndividualCache {
-        const PhysicalProperties* h;
-        Vec2 last_seen_px;
-        Vec2 estimated_px;
-        Vec2 estimated_cm;
-        //Vec2 smoothed_direction;
-        bool last_frame_manual;
-        //float smooth_angle;
-        float tdelta;
-        float local_tdelta;
-        long_t previous_frame;
-        int current_category;
-        //float size_average;
-        //float head_distance;
-        
-        Match::prob_t speed;
-        Match::prob_t time_probability;
-        
-        size_t recent_number_samples;
-    };
-    
-    class PPFrame : public IndexedDataTransport {
-        GETTER_NCONST(pv::Frame, frame)
-    public:
-        //! Time in seconds
-        double time;
-        
-        //! Original timestamp
-        uint64_t timestamp;
-        
-        //! Original frame index
-        //long_t index;
-        
-        std::vector<std::shared_ptr<pv::Blob>> blobs, original_blobs;
-        std::vector<std::shared_ptr<pv::Blob>> filtered_out;
-        
-        std::map<Idx_t, IndividualCache> cached_individuals;
-        std::map<uint32_t, std::set<long_t>> blob_cliques, fish_cliques;
-        std::set<uint32_t> split_blobs;
-        std::map<uint32_t, pv::BlobPtr> bdx_to_ptr;
-        grid::ProximityGrid blob_grid;
-        
-        int label(const pv::BlobPtr&) const;
-        
-        PPFrame();
-        ~PPFrame() {
-        }
-        
-        void clear() {
-            blobs.clear();
-            filtered_out.clear();
-            cached_individuals.clear();
-            blob_grid.clear();
-            original_blobs.clear();
-            blob_cliques.clear();
-            fish_cliques.clear();
-            split_blobs.clear();
-            bdx_to_ptr.clear();
-        }
-    };
     
     class Identity {
     public:
@@ -224,6 +165,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
     protected:
         //! dense array of all the basic stuff we want to save
         GETTER(std::vector<std::shared_ptr<BasicStuff>>, basic_stuff)
+        GETTER(std::vector<default_config::matching_mode_t::Class>, matched_using)
         
     public:
         //! Stuff that is only present if postures are
@@ -401,7 +343,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         const decltype(_identity)& identity() const { return _identity; }
         decltype(_identity)& identity() { return _identity; }
         
-        std::shared_ptr<BasicStuff> add(long_t frameIndex, const PPFrame& frame, const pv::BlobPtr& blob, Match::prob_t current_prob);
+        std::shared_ptr<BasicStuff> add(long_t frameIndex, const PPFrame& frame, const pv::BlobPtr& blob, Match::prob_t current_prob, default_config::matching_mode_t::Class);
         void remove_frame(long_t frameIndex);
         void register_delete_callback(void* ptr, const std::function<void(Individual*)>& lambda);
         void unregister_delete_callback(void* ptr);
@@ -473,9 +415,10 @@ constexpr std::array<const char*, 8> ReasonsNames {
         };
         
         //! Calculates the probability for this fish to be at pixel-position in frame at time.
+        Probability probability(int label, const IndividualCache& estimated_px, long_t frameIndex, const pv::BlobPtr& blob) const;
         Probability probability(int label, const IndividualCache& estimated_px, long_t frameIndex, const pv::CompressedBlob& blob) const;
-        Probability probability(const IndividualCache& estimated_px, long_t frameIndex, const Vec2& position, size_t pixels) const;
-        Match::prob_t time_probability(const IndividualCache& cache, long_t frameIndex, double time) const;
+        Probability probability(int label, const IndividualCache& estimated_px, long_t frameIndex, const Vec2& position, size_t pixels) const;
+        Match::prob_t time_probability(const IndividualCache& cache, size_t recent_number_samples) const;
         //Match::PairingGraph::prob_t size_probability(const IndividualCache& cache, long_t frameIndex, size_t num_pixels) const;
         std::tuple<Match::prob_t, Match::prob_t, Match::prob_t> position_probability(const IndividualCache& estimated_px, long_t frameIndex, size_t size, const Vec2& position, const Vec2& blob_center) const;
         

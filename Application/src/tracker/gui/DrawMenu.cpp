@@ -317,7 +317,7 @@ public:
          * DISPLAY MANUAL MATCHING GUI
          * -----------------------------
          */
-        {
+        
             /**
              * Try and match the last displayed fish items to the currently existing ones
              */
@@ -355,10 +355,12 @@ public:
                 //    fish_and_blob.push_back(std::make_shared<FishAndBlob>(id, -1));
             }
             
-            update_vector_elements<List::Item, ItemIndividual>(_individual_items, fish_and_blob);
-        }
+            
+        
         
         if(_individual_items.size() < 100) {
+            update_vector_elements<List::Item, ItemIndividual>(_individual_items, fish_and_blob);
+            
             _list->set_items(_individual_items);
             //base.wrap_object(_list);
             

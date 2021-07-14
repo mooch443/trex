@@ -78,7 +78,7 @@ class Categorize:
         TRex.log("# sending "+str(len(self.samples))+" samples")
         recv_samples(np.array(self.samples).astype(np.uint8).flatten(), self.labels)
 
-    def add_images(self, images, labels):
+    def add_images(self, images, labels, force_training):
         # length before adding images
         prev_L = len(self.labels)
         TRex.log("# previously had "+str(len(self.samples))+" images")
@@ -89,9 +89,9 @@ class Categorize:
         for l in labels:
             self.labels.append(str(l));
 
-        self.updated_data(prev_L, labels)
+        self.updated_data(prev_L, labels, force_training)
 
-    def updated_data(self, prev_L, labels):
+    def updated_data(self, prev_L, labels, force):
         TRex.log("# samples are "+str(np.shape(self.samples))+" labels:"+str(np.shape(self.labels)))
         TRex.log("# "+str(np.unique(self.labels)))
 
@@ -112,12 +112,14 @@ class Categorize:
 
         TRex.log("# labels dist: "+str(per_class))
         if len(np.unique(self.labels)) == len(self.categories):
-            if len(self.samples) - self.last_size >= 500:
+            if len(self.samples) - self.last_size >= 500 or force:
                 self.update_required = True
                 TRex.log("# scheduling update. previous:"+str(self.last_size)+" now:"+str(len(self.samples)))
                 self.last_size = len(self.samples)
             else:
                 TRex.log("# no update required. previous:"+str(self.last_size)+" now:"+str(len(self.samples)))
+        else:
+            TRex.log("# not performing training because there are no samples for some categories "+str(per_class))
 
     def load(self):
         self.reload_model()
@@ -170,7 +172,7 @@ class Categorize:
             for y in npz["y"]:
                 self.labels.append(str(y))
 
-            self.updated_data(prev_L, [])
+            self.updated_data(prev_L, [], False)
 
         if len(self.samples) > 0:
             X = np.array(self.samples)
@@ -217,7 +219,7 @@ class Categorize:
         X_test = X[self.validation_indexes]
         Y_test = Y[self.validation_indexes]
 
-        training_data = tf.data.Dataset.from_tensor_slices((tf.cast(X_train, float), Y_train)).batch(batch_size)
+        training_data = tf.data.Dataset.from_tensor_slices((tf.cast(X_train, float), Y_train)).shuffle(buffer_size=int(len(X_train) * 0.1)).batch(batch_size)
         validation_data = tf.data.Dataset.from_tensor_slices((tf.cast(X_test, float), Y_test)).batch(batch_size)
 
         early_stopping_monitor = EarlyStopping(
@@ -265,11 +267,7 @@ class Categorize:
 
     def predict(self, images):
         assert self.model
-
-        TRex.log(str(np.shape(images)))
         images = np.array(images, dtype=float)
-        TRex.log(str(np.shape(images)))
-
         y = np.argmax(self.model.predict(images), axis=-1)
         return  y
 
@@ -292,11 +290,11 @@ def load():
         categorize.load()
 
 def add_images():
-    global categorize, additional, additional_labels
+    global categorize, additional, additional_labels, force_training
     assert type(categorize) != type(None)
 
-    TRex.log("# adding "+str(len(additional))+" images")
-    categorize.add_images(additional, additional_labels)
+    TRex.log("# adding "+str(len(additional))+" images (force:"+str(force_training)+")")
+    categorize.add_images(additional, additional_labels, force_training)
 
     del additional
     del additional_labels
