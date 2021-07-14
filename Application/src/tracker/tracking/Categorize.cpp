@@ -3027,6 +3027,7 @@ void Work::set_state(State state) {
             Work::_variable.notify_one();
             Work::_learning_variable.notify_one();
             state = State::APPLY;
+            Work::state() = State::APPLY;
             hide();
             break;
         }
