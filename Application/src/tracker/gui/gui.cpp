@@ -1658,8 +1658,8 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
             cache().set_animating(&temporary, true);
         }
         
-        if((_recording && _cache.gui_time() - time_lost >= 1)
-           || (!_recording && lost_timer.elapsed() >= 1))
+        if((_recording && _cache.gui_time() - time_lost >= 0.5)
+           || (!_recording && lost_timer.elapsed() >= 0.5))
         {
             target_scale = Vec2(1);
             //target_pos = offset;//Vec2(0, 0);
@@ -3093,8 +3093,8 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
     
     base.section("fishbowl", [&](auto &base, Section* section) {
         fishbowl = section;
-        
-        gui_scale_with_boundary(_cache.boundary, section, GUI_SETTINGS(gui_auto_scale) || (GUI_SETTINGS(gui_auto_scale_focus_one) && _cache.has_selection()));
+        bool shift = _gui.is_key_pressed(gui::LShift) && (!_gui.selected_object() || !dynamic_cast<Textfield*>(_gui.selected_object()));
+        gui_scale_with_boundary(_cache.boundary, section, !shift && (GUI_SETTINGS(gui_auto_scale) || (GUI_SETTINGS(gui_auto_scale_focus_one) && _cache.has_selection())));
         
         //if(((cache().mode() == Mode::DEBUG && !cache().blobs_dirty()) || (cache().mode() == Mode::DEFAULT && !cache().is_tracking_dirty()))
         if(!cache().raw_blobs_dirty() && !cache().is_animating(section) //!cache().is_animating(_setting_animation.display.get()))

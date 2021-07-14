@@ -312,9 +312,6 @@ namespace gui {
             }
             
             bool shift = _gui.is_key_pressed(gui::LShift) && (!_gui.selected_object() || !dynamic_cast<Textfield*>(_gui.selected_object()));
-#if WITH_SFML
-            shift = shift && (!_base || _base->window().hasFocus());
-#endif
             
             // display all blobs that are assigned to an individual
             for(auto fish : active) {
@@ -323,7 +320,7 @@ namespace gui {
                     active_blobs.insert(blob->blob_id());
             }
             
-            if(!has_selection() || !SETTING(gui_auto_scale_focus_one) || shift) {
+            if(!has_selection() || !SETTING(gui_auto_scale_focus_one)) {
                 selected_blobs = active_blobs;
             } else {
                 // display blobs that are selected
