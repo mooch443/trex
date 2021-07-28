@@ -112,6 +112,8 @@ CREATE_STRUCT(Settings,
     public:
         static Tracker* instance();
         using set_of_individuals_t = std::unordered_set<Individual*>;
+
+        std::map<Idx_t, int64_t> automatically_assigned(long_t frame);
         
     protected:
         friend class Output::TrackingResults;
