@@ -3643,26 +3643,18 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
 #ifndef NDEBUG
         auto f = fopen("identities.log", "wb");
 #endif
-        for(auto && [fdx, fish] : _individuals) {
-            if(manual_identities.empty() || manual_identities.find(fdx) != manual_identities.end()) {
-                if(recognition_pool.queue_length() >= recognition_pool.num_threads() * 2)
-                    recognition_pool.wait_one();
-                
-                recognition_pool.enqueue([](Individual* fish) {
-                    fish->clear_recognition();
-                    fish->calculate_average_recognition();
-                }, fish);
-            }
-        }
-        
-        while (recognition_pool.queue_length() && count < _individuals.size()) {
-            recognition_pool.wait_one();
+        distribute_vector([this, &count, &callback, &manual_identities](auto i, auto it, auto nex, auto step){
+            auto & [fdx, fish] = *it;
             
-            callback(count / float(_individuals.size()) * 0.5f);
-            ++count;
-        }
-        
-        recognition_pool.wait();
+            if(manual_identities.empty() || manual_identities.find(fdx) != manual_identities.end()) {
+                fish->clear_recognition();
+                fish->calculate_average_recognition();
+                
+                callback(count / float(_individuals.size()) * 0.5f);
+                ++count;
+            }
+            
+        }, recognition_pool, _individuals.begin(), _individuals.end());
         
         using fdx_t = Idx_t;
         using range_t = FrameRange;
