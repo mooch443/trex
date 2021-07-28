@@ -630,7 +630,7 @@ void GUI::run_loop(gui::LoopStatus status) {
         
         if(inc >= 1) {
             auto before = image_index;
-            image_index = min((float)_tracker.end_frame(), image_index + inc);
+            image_index = max(0, _tracker.start_frame(), min((float)_tracker.end_frame(), image_index + inc));
             
             t = 0;
             if(before != image_index) {
