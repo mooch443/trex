@@ -1110,14 +1110,10 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
         
         transform = Transform();
         transform.scale(scale);
-        transform.combine(o->global_transform());
-        /*transform.combine(o->parent()->global_transform());
-        
+        transform.combine(o->parent()->global_transform());
         transform.translate(o->pos());
         transform.scale(o->scale());
-        transform.translate(-o->size().mul(o->origin()));*/
-        if(o->origin().x || o->origin().y)
-            transform.translate(o->width() * o->origin().x, o->height() * o->origin().y);
+        transform.translate(-o->size().mul(o->origin()));
         
         bds = transform.transformRect(Bounds(Vec2(), o->size()));
         center = bds.pos() + bds.size().mul(o->origin());

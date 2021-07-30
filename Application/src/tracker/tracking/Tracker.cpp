@@ -1864,7 +1864,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     Warning("Individual number %d out of range in frame %d. Creating new one.", fdx, frameIndex);
                 
                 auto blob = frame.find_bdx((uint32_t)bdx);
-                if(blob) {
+                if(!blob) {
                     //Warning("Cannot find blob %d in frame %d. Fallback to normal assignment behavior.", it->second, frameIndex);
                     cannot_find[(uint32_t)bdx].insert(fdx);
                     continue;
