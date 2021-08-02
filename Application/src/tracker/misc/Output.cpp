@@ -1442,10 +1442,12 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             if(config.has("gui_focus_group"))
                 focus_group = config["gui_focus_group"].value<std::vector<Idx_t>>();
             
-            GUI::work().add_queue("", [f = (long_t)file.header().gui_frame, focus_group](){
-                SETTING(gui_frame) = f;
-                SETTING(gui_focus_group) = focus_group;
-            });
+            if(GUI::instance()) {
+                GUI::work().add_queue("", [f = (long_t)file.header().gui_frame, focus_group](){
+                    SETTING(gui_frame) = f;
+                    SETTING(gui_focus_group) = focus_group;
+                });
+            }
             
         }
         
