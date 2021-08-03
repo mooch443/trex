@@ -147,6 +147,12 @@ void HeatmapController::save() {
 
     std::vector<long_t> frames;
     size_t package_index = 0;
+    
+    auto fishdata_dir = SETTING(fishdata_dir).value<file::Path>();
+    auto fishdata = pv::DataLocation::parse("output", fishdata_dir);
+    if(!fishdata.exists())
+        if(!fishdata.create_folder())
+            U_EXCEPTION("Cannot create folder '%S' for saving fishdata.", &fishdata.str());
 
     auto save_package = [&]() {
         std::vector<size_t> shape = {
@@ -159,14 +165,14 @@ void HeatmapController::save() {
         if(source.find('#') != std::string::npos)
             source = source.substr(0, source.find('#'));
         
-        file::Path path = pv::DataLocation::parse("output", 
-            file::Path((std::string)SETTING(filename).value<file::Path>().filename() 
+        file::Path path = fishdata /
+                ((std::string)SETTING(filename).value<file::Path>().filename()
                 + "_heatmap" 
                 + "_p" + Meta::toStr(package_index) + "_"
                 + Meta::toStr(uniform_grid_cell_size) 
                 + "_" + Meta::toStr(N) + "x" + Meta::toStr(N)
                 + "_" + source
-                + ".npz"));
+                + ".npz");
         DebugHeader("Saving package %lu to '%S'...", package_index, &path.str());
 
         cmn::npz_save(path.str(), "heatmap", per_frame.data(), shape);
