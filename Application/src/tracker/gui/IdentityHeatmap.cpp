@@ -4,6 +4,7 @@
 #include <tracking/Individual.h>
 #include <misc/cnpy_wrapper.h>
 #include <misc/checked_casts.h>
+#include <tracking/Export.h>
 
 namespace gui {
 namespace heatmap {
@@ -171,12 +172,15 @@ void HeatmapController::save() {
                 + "_p" + Meta::toStr(package_index) + "_"
                 + Meta::toStr(uniform_grid_cell_size) 
                 + "_" + Meta::toStr(N) + "x" + Meta::toStr(N)
-                + "_" + source
+                + (source.empty() ? "" : ("_" + source))
                 + ".npz");
+        
         DebugHeader("Saving package %lu to '%S'...", package_index, &path.str());
+        temporary_save(path, [&](file::Path use_path) {
+            cmn::npz_save(use_path.str(), "heatmap", per_frame.data(), shape);
+            cmn::npz_save(use_path.str(), "frames", frames, "a");
+        });
 
-        cmn::npz_save(path.str(), "heatmap", per_frame.data(), shape);
-        cmn::npz_save(path.str(), "frames", frames, "a");
         Debug("Saved to '%S'.", &path.str());
 
         per_frame.clear();

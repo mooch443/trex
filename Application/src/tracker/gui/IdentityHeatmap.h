@@ -327,7 +327,7 @@ protected:
     std::map<track::Individual*, size_t> _capacities;
     
 public:
-    HeatmapController();
+        HeatmapController();
     
     void set_frame(long_t frame);
     void update() override;
