@@ -1482,7 +1482,7 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
         long_t used_index_here = infinity<long_t>();
         bool added = false;
         
-        static int64_t last_task_processed = -1;
+        static int64_t last_task_processed = (GRAB_SETTINGS(video_conversion_range).first == -1 ? 0 : GRAB_SETTINGS(video_conversion_range).first) - 1;
         DataPackage pack;
         bool compressed;
         int64_t _last_task_peek;
