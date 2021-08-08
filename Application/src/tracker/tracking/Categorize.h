@@ -150,7 +150,7 @@ struct DataStore {
     static void clear();
     static Label::Ptr label(Frame_t, uint32_t);
     //! does not lock the mutex (assumes it is locked)
-    static Label::Ptr _label_unsafe(Frame_t, uint32_t);
+    static int _label_unsafe(Frame_t, uint32_t);
     static Label::Ptr label(Frame_t, const pv::CompressedBlob*);
     //! does not lock the mutex (assumes it is locked)
     static Label::Ptr _label_unsafe(Frame_t, const pv::CompressedBlob*);
@@ -165,7 +165,7 @@ struct DataStore {
     static Label::Ptr label_averaged(Idx_t, Frame_t);
     static Label::Ptr label_averaged(const Individual*, Frame_t);
     static void set_label(Frame_t, const pv::CompressedBlob*, const Label::Ptr&);
-    static void _set_label_unsafe(Frame_t, uint32_t bdx, const Label::Ptr&);
+    static void _set_label_unsafe(Frame_t, uint32_t bdx, int ldx);
     
     static void reanalysed_from(Frame_t);
 };

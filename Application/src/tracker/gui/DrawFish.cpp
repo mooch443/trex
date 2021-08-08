@@ -1119,8 +1119,8 @@ void Fish::label(DrawStructure &base) {
     }
     
     auto cat = Categorize::DataStore::_label_unsafe(Frame_t(_idx), blob->blob_id());
-    if (cat) {
-        secondary_text += std::string(" ") + (cat ? "<b>" : "") + "<i>" + cat->name + "</i>" + (cat ? "</b>" : "");
+    if (cat != -1) {
+        secondary_text += std::string(" ") + (cat ? "<b>" : "") + "<i>" + Categorize::DataStore::label(cat)->name + "</i>" + (cat ? "</b>" : "");
     }
     
     if(_avg_cat != -1) {

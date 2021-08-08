@@ -44,8 +44,11 @@ typename std::vector<T>::const_iterator find_keyed_tuple(const std::vector<T>& v
     auto it = std::lower_bound(vector.begin(),
                                vector.end(),
                                v,
-                    [](const T& l, const U& r){ return std::get<0>(l) < r; });
-    return it == vector.end() || std::get<0>(*it) == v ? it : vector.end();
+        [](const T& l, const U& r){ auto& [a, b] = l; return a < r; });
+    if(it == vector.end())
+        return it;
+    auto& [a, b] = *it;
+    return (a == v) ? it : vector.end();
 }
 
 template<class T>
@@ -206,6 +209,9 @@ Label::Ptr DataStore::label(const char* name) {
 }
 
 Label::Ptr DataStore::label(int ID) {
+    if(ID == -1)
+        return nullptr;
+    
     auto names = FAST_SETTINGS(categories_ordered);
     if(/*ID >= 0 && */size_t(ID) < names.size()) {
         return label(names[ID].c_str());
@@ -280,7 +286,47 @@ bool DataStore::Composition::empty() const {
     return N == 0;
 }
 
-std::unordered_map<Frame_t, std::vector<std::tuple<uint32_t, Label::Ptr>>> _probability_cache;
+struct BlobLabel {
+    uint32_t bdx;
+    int ldx;
+    
+    Label::Ptr label() const {
+        if(ldx == -1)
+            return nullptr;
+        return DataStore::label(ldx);
+    }
+    
+    bool operator<(const BlobLabel& other) const {
+        return bdx < other.bdx;
+    }
+    bool operator==(const BlobLabel& other) const {
+        return bdx == other.bdx;
+    }
+    std::string toStr() const {
+        return Meta::toStr(bdx)+"->"+(ldx != -1 ? DataStore::label(ldx)->name : "NULL");
+    }
+};
+
+//std::unordered_map<Frame_t, std::vector<std::tuple<uint32_t, Label::Ptr>>> _probability_cache;
+std::vector<std::vector<BlobLabel>> _probability_cache; // frame - start_frame => index in this array
+
+auto& tracker_start_frame() {
+    static int64_t start_frame = FAST_SETTINGS(analysis_range).first == -1 ? 0 : FAST_SETTINGS(analysis_range).first;
+    return start_frame;
+}
+
+inline size_t cache_frame_index(Frame_t frame) {
+    return sign_cast<size_t>(frame - tracker_start_frame());
+}
+
+inline std::vector<BlobLabel>& _cache_for_frame(Frame_t frame) {
+    auto index = cache_frame_index(frame);
+    if(index >= _probability_cache.size()) {
+        _probability_cache.resize((frame + 1) * 2);
+    }
+    return _probability_cache[index];
+}
+
 std::vector<RangedLabel> _ranged_labels;
 std::unordered_map<Idx_t, std::unordered_map<const Individual::SegmentInformation*, Label::Ptr>> _interpolated_probability_cache;
 std::unordered_map<Idx_t, std::unordered_map<const Individual::SegmentInformation*, Label::Ptr>> _averaged_probability_cache;
@@ -350,24 +396,24 @@ Label::Ptr DataStore::_ranged_label_unsafe(Frame_t frame, uint32_t bdx) {
 
 void DataStore::set_label(Frame_t idx, uint32_t bdx, const Label::Ptr& label) {
     std::unique_lock guard(cache_mutex());
-    _set_label_unsafe(idx, bdx, label);
+    _set_label_unsafe(idx, bdx, label? label->id : -1);
 }
 
-void DataStore::_set_label_unsafe(Frame_t idx, uint32_t bdx, const Label::Ptr& label) {
+void DataStore::_set_label_unsafe(Frame_t idx, uint32_t bdx, int ldx) {
 #ifndef NDEBUG
-    if (contains(_probability_cache[idx], std::make_tuple(bdx, label))) {
-        auto str = Meta::toStr(_probability_cache[idx]);
+    if (contains(_cache_for_frame(idx), BlobLabel{bdx, ldx})) {
+        auto str = Meta::toStr(_cache_for_frame(idx));
         Warning("Cache already contains blob %d in frame %d.\n%S", bdx, (int)idx, &str);
     }
 #endif
-    insert_sorted(_probability_cache[idx], std::make_tuple(bdx, label));
+    insert_sorted(_cache_for_frame(idx), BlobLabel{bdx, ldx});
 
     static std::mutex mutex;
     static Timer timer;
     std::unique_lock g(mutex);
     if (timer.elapsed() > 5) {
         size_t N = 0;
-        for (auto& [k, values] : _probability_cache) {
+        for (auto& values : _probability_cache) {
             N += values.size();
         }
 
@@ -574,26 +620,32 @@ Label::Ptr DataStore::label_interpolated(const Individual* fish, Frame_t frame) 
 
 Label::Ptr DataStore::label(Frame_t idx, uint32_t bdx) {
     std::shared_lock guard(cache_mutex());
-    return _label_unsafe(idx, bdx);
+    return DataStore::label(_label_unsafe(idx, bdx));
 }
 
 Label::Ptr DataStore::label(Frame_t idx, const pv::CompressedBlob* blob) {
     return label(idx, /*blob->parent_id != -1 ? uint32_t(blob->parent_id) :*/ blob->blob_id());
 }
 
-Label::Ptr DataStore::_label_unsafe(Frame_t idx, uint32_t bdx) {
-    auto fit = _probability_cache.find(idx);
+int DataStore::_label_unsafe(Frame_t idx, uint32_t bdx) {
+    auto &cache = _cache_for_frame(idx);
+    auto sit = find_keyed_tuple(cache, bdx);
+    if(sit != cache.end()) {
+        return sit->ldx;
+    }
+    return -1;
+    /*auto fit = _probability_cache.find(idx);
     if(fit != _probability_cache.end()) {
         auto sit = find_keyed_tuple(fit->second, bdx);
         if(sit != fit->second.end()) {
             return std::get<1>(*sit);
         }
     }
-    return nullptr;
+    return nullptr;*/
 }
 
 Label::Ptr DataStore::_label_unsafe(Frame_t idx, const pv::CompressedBlob* blob) {
-    return _label_unsafe(idx, /*blob->parent_id != -1 ? uint32_t(blob->parent_id) :*/ blob->blob_id());
+    return DataStore::label(_label_unsafe(idx, /*blob->parent_id != -1 ? uint32_t(blob->parent_id) :*/ blob->blob_id()));
 }
 
 constexpr size_t per_row = 4;
@@ -1082,12 +1134,12 @@ struct NetworkApplicationState {
                         if (!l)
                             Warning("Label for frame %d blob %d is nullptr.", frame, bdx);
                         else {
-                            DataStore::_set_label_unsafe(Frame_t(frame), (uint32_t)bdx, DataStore::label(task.result[i]));
+                            //Debug("Fish%d: Labelled frame %d (blob%ld) = '%s'", fish->identity().ID(), frame, bdx, l->name.c_str());
+                            DataStore::_set_label_unsafe(Frame_t(frame), (uint32_t)bdx, task.result[i]);
                             sums.at(task.result[i]) += 1;
- //                           Debug("Fish%d: Labelled frame %d (blob%ld) = '%s'", fish->identity().ID(), frame, bdx, l->name.c_str());
 #ifndef NDEBUG
                             auto L = DataStore::_label_unsafe(Frame_t(frame), (uint32_t)bdx);
-                            if (L != l) {
+                            if (L != l->id) {
                                 Warning("Fish%d: Labels do not match.", fish->identity().ID());
                             }
 #endif
@@ -1928,15 +1980,17 @@ void DataStore::write(file::DataFormat& data, int /*version*/) {
         std::shared_lock guard(cache_mutex());
         data.write<uint64_t>(_probability_cache.size()); // write number of frames
         
-        for(auto &[k, v] : _probability_cache) {
+        int64_t k = tracker_start_frame();
+        for(auto &v : _probability_cache) {
             data.write<uint32_t>(k); // frame index
             data.write<uint32_t>(narrow_cast<uint32_t>(v.size())); // number of blobs assigned
             
             for(auto &[bdx, label] : v) {
                 assert(label);
                 data.write<uint32_t>(bdx); // blob id
-                data.write<int32_t>(label->id); // label id
+                data.write<int32_t>(label); // label id
             }
+            ++k;
         }
     }
     
@@ -2012,7 +2066,7 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
                 data.read(bdx);
                 data.read(lid);
                 
-                DataStore::_set_label_unsafe(Frame_t(frame), bdx, DataStore::label(lid));
+                DataStore::_set_label_unsafe(Frame_t(frame), bdx, lid);
             }
         }
     }
@@ -2182,7 +2236,7 @@ void paint_distributions(int64_t frame) {
 
             //if (!v.empty())
             {
-                float scale = 1024.0 / float(Tracker::end_frame() - Tracker::start_frame());
+                float scale = (Tracker::end_frame() != Tracker::start_frame()) ? 1024.0 / float(Tracker::end_frame() - Tracker::start_frame()) : 1;
                 Image task_queue_images(300, 1024, 4);
                 auto mat = task_queue_images.get();
                 std::fill(task_queue_images.data(), task_queue_images.data() + task_queue_images.size(), 0);
@@ -2230,14 +2284,18 @@ void paint_distributions(int64_t frame) {
                 {
                     std::unique_lock guard(DataStore::cache_mutex());
                     size_t max_per_frame = 0;
-                    for (auto& [frame, blobs] : _probability_cache) {
+                    size_t frame = tracker_start_frame();
+                    for (auto& blobs : _probability_cache) {
                         if (blobs.size() > max_per_frame)
                             max_per_frame = blobs.size();
+                        ++frame;
                     }
 
-                    for (auto& [frame, blobs] : _probability_cache) {
+                    frame = tracker_start_frame();
+                    for (auto& blobs : _probability_cache) {
                         cv::line(mat, Vec2(frame - Tracker::start_frame(), 200 / scale) * scale, Vec2(frame - Tracker::start_frame(), 300 / scale) * scale,
-                            Green.exposure(0.1 + 0.9 * blobs.size() / float(max_per_frame)), 2);
+                            Green.exposure(0.1 + 0.9 * (max_per_frame > 0 ? blobs.size() / float(max_per_frame) : 0)), 2);
+                        ++frame;
                     }
                 }
 
