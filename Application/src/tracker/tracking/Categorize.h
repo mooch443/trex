@@ -184,7 +184,7 @@ struct LearningTask {
     std::function<void(const LearningTask&)> callback;
     std::vector<float> result;
     std::shared_ptr<Individual::SegmentInformation> segment;
-    long_t idx;
+    long_t idx = -1;
     
     bool valid() const {
         return type != Type::Invalid;

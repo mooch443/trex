@@ -345,22 +345,53 @@ void DataStore::set_ranged_label(RangedLabel&& ranged)
     _set_ranged_label_unsafe(std::move(ranged));
 }
 
-void DataStore::_set_ranged_label_unsafe(RangedLabel&& ranged)
+void DataStore::_set_ranged_label_unsafe(RangedLabel&& r)
 {
-    if(!ranged._label) {
-        Error("Ranged._label == nullptr");
-    }
+    assert(ranged._label != -1);
     assert(ranged._range.length() == ranged._blobs.size());
-    insert_sorted(_ranged_labels, std::move(ranged));
+    int32_t m = -1; // initialize with start of inserted range
+    auto it = insert_sorted(_ranged_labels, std::move(r)); // iterator pointing to inserted value
+    assert(!_ranged_labels.empty());
+    assert(it != _ranged_labels.end());
     
-    auto m = _ranged_labels.back()._range.start();
-    for(auto it = _ranged_labels.rbegin(); it != _ranged_labels.rend(); ++it) {
-        if(it->_range.start() < m) {
-            m = it->_range.start();
+    if(it + 1 != _ranged_labels.end()) {
+        if((it + 1)->_maximum_frame_after != -1) {
+            m = min((it + 1)->_maximum_frame_after, (it + 1)->_range.start());
+        } else {
+            m = (it + 1)->_range.start();
+        }
+    } else
+        m = -1;
+    
+    for(;;) {
+        if(it->_maximum_frame_after != -1
+           && it->_maximum_frame_after <= m)
+        {
+            break;
         }
         
         it->_maximum_frame_after = m;
+        
+        if(it != _ranged_labels.begin()) {
+            if(m == -1 || it->_range.start() < m)
+                m = it->_range.start();
+            
+            --it;
+            
+        } else
+            break;
     }
+    
+    /*m = -1;
+    for(auto it = _ranged_labels.rbegin(); it != _ranged_labels.rend(); ++it) {
+        if(it->_maximum_frame_after != m) {
+            Warning("ranged(%d-%d): maximum_frame_after = %d != %d", it->_range.start(), it->_range.end(), it->_maximum_frame_after, m);
+            it->_maximum_frame_after = m;
+        }
+        if(it->_range.start() < m || m == -1) {
+            m = it->_range.start();
+        }
+    } */
 }
 
 Label::Ptr DataStore::ranged_label(Frame_t frame, uint32_t bdx) {
