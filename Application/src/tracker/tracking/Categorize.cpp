@@ -347,8 +347,8 @@ void DataStore::set_ranged_label(RangedLabel&& ranged)
 
 void DataStore::_set_ranged_label_unsafe(RangedLabel&& r)
 {
-    assert(ranged._label != -1);
-    assert(ranged._range.length() == ranged._blobs.size());
+    assert(r._label != -1);
+    assert(r._range.length() == r._blobs.size());
     int32_t m = -1; // initialize with start of inserted range
     auto it = insert_sorted(_ranged_labels, std::move(r)); // iterator pointing to inserted value
     assert(!_ranged_labels.empty());
@@ -1194,7 +1194,7 @@ struct NetworkApplicationState {
                     
                     RangedLabel ranged;
                     ranged._label = biggest_i; //DataStore::label_averaged(fish->identity().ID(), Frame_t(task.segment->start()));
-                    assert(ranged._label);
+                    assert(ranged._label != -1);
                     ranged._range = *task.segment;
                     ranged._blobs.reserve(task.segment->length());
                     
