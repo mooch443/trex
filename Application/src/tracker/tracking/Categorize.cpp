@@ -1147,12 +1147,11 @@ struct NetworkApplicationState {
             }
             
             if(!task.result.empty()) {
-                static Timing timing("callback.set_label_unsafe", 0.1);
-                TakeTiming take(timing);
-                
                 std::vector<float> sums(FAST_SETTINGS(categories_ordered).size());
                 
                 {
+                    static Timing timing("callback.set_labels_unsafe", 0.1);
+                    TakeTiming take(timing);
                     std::unique_lock guard(DataStore::cache_mutex());
                     for(size_t i=0; i<task.result.size(); ++i) {
                         auto frame = task.sample->_frames[i];
@@ -1179,6 +1178,9 @@ struct NetworkApplicationState {
                 }
                 
                 if(task.segment) {
+                    static Timing timing("callback.task.set_ranged_label", 0.1);
+                    TakeTiming take(timing);
+                    
                     size_t biggest_i = 0;
                     float biggest = 0;
                     for(size_t i=0; i<sums.size(); ++i) {
