@@ -11,6 +11,7 @@
 #include <tracker/misc/MemoryStats.h>
 #include <pv.h>
 #include <misc/checked_casts.h>
+#include <gui/IdentityHeatmap.h>
 
 #if WIN32
 #include <io.h>
@@ -623,6 +624,11 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
         } else {
             for (auto&& [id, fish] : tracker.individuals())
                 work_item(0, id, fish);
+        }
+        
+        if(SETTING(output_heatmaps)) {
+            heatmap::HeatmapController svenja;
+            svenja.save();
         }
         
         if(SETTING(output_statistics))

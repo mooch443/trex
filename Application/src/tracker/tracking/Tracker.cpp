@@ -772,8 +772,8 @@ bool operator<(long_t frame, const FrameProperties& props) {
                     }
                     
                     if(!only_allowed.empty()) {
-                        auto label = Categorize::DataStore::_ranged_label_unsafe(Frame_t(result->frame_index), ptr->blob_id());
-                        if(!label || !contains(only_allowed, label->name)) {
+                        auto ldx = Categorize::DataStore::_ranged_label_unsafe(Frame_t(result->frame_index), ptr->blob_id());
+                        if(ldx == -1 || !contains(only_allowed, Categorize::DataStore::label(ldx)->name)) {
                             result->filter_out(ptr);
                             continue;
                         }
@@ -805,8 +805,8 @@ bool operator<(long_t frame, const FrameProperties& props) {
 
         if (!only_allowed.empty()) {
             for (auto it = big_blobs.begin(); it != big_blobs.end(); ) {
-                auto label = Categorize::DataStore::_ranged_label_unsafe(Frame_t(result->frame_index), (*it)->blob_id());
-                if (!label || !contains(only_allowed, label->name)) {
+                auto ldx = Categorize::DataStore::_ranged_label_unsafe(Frame_t(result->frame_index), (*it)->blob_id());
+                if (ldx == -1 || !contains(only_allowed, Categorize::DataStore::label(ldx)->name)) {
                     result->filter_out(*it);
                     it = big_blobs.erase(it);
                     continue;

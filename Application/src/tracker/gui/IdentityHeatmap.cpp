@@ -118,9 +118,9 @@ void HeatmapController::paint_heatmap() {
 void HeatmapController::save() {
     update_variables();
     
-    _frame_context = 0;
-    _normalization = normalization_t::none;
-    custom_heatmap_value_range = Range<double>(-1, -1);
+    //_frame_context = 0;
+    //_normalization = normalization_t::none;
+    //custom_heatmap_value_range = Range<double>(-1, -1);
     
     size_t count_frames = 0, package_count = 0;
     size_t max_frames = sign_cast<size_t>(Tracker::end_frame() - Tracker::start_frame());
@@ -179,6 +179,12 @@ void HeatmapController::save() {
         temporary_save(path, [&](file::Path use_path) {
             cmn::npz_save(use_path.str(), "heatmap", per_frame.data(), shape);
             cmn::npz_save(use_path.str(), "frames", frames, "a");
+            cmn::npz_save(use_path.str(), "meta", std::vector<double>{
+                (double)package_index,
+                (double)uniform_grid_cell_size,
+                (double)_normalization.value(),
+                (double)_frame_context
+            }, "a");
         });
 
         Debug("Saved to '%S'.", &path.str());

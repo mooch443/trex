@@ -1544,6 +1544,15 @@ TRex parameters
 
 
 
+.. function:: output_heatmaps(bool)
+
+	**default value:** false
+
+
+	When set to true, heatmaps are going to be saved to a separate file, or set of files '_p*' - with all the settings in heatmap_* applied.
+
+
+
 .. function:: output_image_per_tracklet(bool)
 
 	**default value:** false

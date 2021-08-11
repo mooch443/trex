@@ -1667,16 +1667,16 @@ IndividualCache Individual::cache_for_frame(long_t frameIndex, double time, cons
     double previous_t = 0;
     long_t previous_f = -1;
     
-    std::unordered_map<Categorize::Label::Ptr, size_t> labels;
+    std::unordered_map<int, size_t> labels;
     size_t samples = 0;
     
     if(cache.consistent_categories) {
         std::shared_lock guard(Categorize::DataStore::range_mutex());
         iterate_frames(Rangel(max(_startFrame, cache.previous_frame - FAST_SETTINGS(frame_rate) * 2), cache.previous_frame), [&labels, &samples, &guard](auto frame, auto&, auto& basic, auto&) -> bool
         {
-            auto label = Categorize::DataStore::_ranged_label_unsafe(Frame_t(frame), basic->blob.blob_id());
-            if(label) {
-                ++labels[label];
+            auto ldx = Categorize::DataStore::_ranged_label_unsafe(Frame_t(frame), basic->blob.blob_id());
+            if(ldx != -1) {
+                ++labels[ldx];
                 ++samples;
             }
             return true;
@@ -1768,7 +1768,7 @@ IndividualCache Individual::cache_for_frame(long_t frameIndex, double time, cons
         auto N = n / double(samples);
         if(N > max_samples) {
             max_samples = N;
-            mid = l->id;
+            mid = l;
         }
     }
     

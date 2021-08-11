@@ -52,8 +52,8 @@ typename std::vector<T>::const_iterator find_keyed_tuple(const std::vector<T>& v
 }
 
 template<class T>
-void insert_sorted(std::vector<T>& vector, T&& element) {
-    vector.insert(std::upper_bound(vector.begin(), vector.end(), element), std::move(element));
+auto insert_sorted(std::vector<T>& vector, T&& element) {
+    return vector.insert(std::upper_bound(vector.begin(), vector.end(), element), std::move(element));
 }
 
 
@@ -365,13 +365,13 @@ void DataStore::_set_ranged_label_unsafe(RangedLabel&& ranged)
 
 Label::Ptr DataStore::ranged_label(Frame_t frame, uint32_t bdx) {
     std::shared_lock guard(range_mutex());
-    return _ranged_label_unsafe(frame, bdx);
+    return DataStore::label(_ranged_label_unsafe(frame, bdx));
 }
 Label::Ptr DataStore::ranged_label(Frame_t frame, const pv::CompressedBlob& blob) {
     std::shared_lock guard(range_mutex());
-    return _ranged_label_unsafe(frame, blob.blob_id());
+    return DataStore::label(_ranged_label_unsafe(frame, blob.blob_id()));
 }
-Label::Ptr DataStore::_ranged_label_unsafe(Frame_t frame, uint32_t bdx) {
+int DataStore::_ranged_label_unsafe(Frame_t frame, uint32_t bdx) {
     static const auto frame_rate = FAST_SETTINGS(frame_rate) * 10;
     const auto mi = frame - frame_rate, ma = frame + frame_rate;
     
@@ -391,7 +391,7 @@ Label::Ptr DataStore::_ranged_label_unsafe(Frame_t frame, uint32_t bdx) {
         }
     }
     
-    return nullptr;
+    return -1;
 }
 
 void DataStore::set_label(Frame_t idx, uint32_t bdx, const Label::Ptr& label) {
@@ -741,8 +741,6 @@ public:
         auto str0 = Meta::toStr(task.sample->_probabilities);
 #endif
         float S = narrow_cast<float>(task.result.size());
-        assert(S == cats.size());
-        
         for (size_t i=0; i<cats.size(); ++i) {
             task.sample->_probabilities[i] /= S;
 #ifndef NDEBUG
@@ -1085,11 +1083,9 @@ struct NetworkApplicationState {
             return Rangel(-1,-1); // probably something changed and we are now behind
         }
 
-        auto it = segments.begin();
-        std::advance(it, offset.load());
-        if(it != segments.end()) {
+        auto it = segments.begin() + offset.load();
+        if(it != segments.end())
             return (*it)->range;
-        }
         
         return Rangel(-1,-1);
     }
@@ -1130,8 +1126,9 @@ struct NetworkApplicationState {
                     for(size_t i=0; i<task.result.size(); ++i) {
                         auto frame = task.sample->_frames[i];
                         auto bdx = task.sample->_blob_ids[i];
-                        auto l = DataStore::label(task.result[i]);
-                        if (!l)
+                        if(task.result[i] == -1)
+                        //auto l = DataStore::label(task.result[i]);
+                        //if (!l)
                             Warning("Label for frame %d blob %d is nullptr.", frame, bdx);
                         else {
                             //Debug("Fish%d: Labelled frame %d (blob%ld) = '%s'", fish->identity().ID(), frame, bdx, l->name.c_str());
@@ -1139,7 +1136,7 @@ struct NetworkApplicationState {
                             sums.at(task.result[i]) += 1;
 #ifndef NDEBUG
                             auto L = DataStore::_label_unsafe(Frame_t(frame), (uint32_t)bdx);
-                            if (L != l->id) {
+                            if (L != task.result[i]) {
                                 Warning("Fish%d: Labels do not match.", fish->identity().ID());
                             }
 #endif
@@ -1163,7 +1160,7 @@ struct NetworkApplicationState {
                     }
                     
                     RangedLabel ranged;
-                    ranged._label = DataStore::label(biggest_i); //DataStore::label_averaged(fish->identity().ID(), Frame_t(task.segment->start()));
+                    ranged._label = biggest_i; //DataStore::label_averaged(fish->identity().ID(), Frame_t(task.segment->start()));
                     assert(ranged._label);
                     ranged._range = *task.segment;
                     ranged._blobs.reserve(task.segment->length());
@@ -2003,7 +2000,7 @@ void DataStore::write(file::DataFormat& data, int /*version*/) {
             data.write<uint32_t>(ranged._range.end());
             
             assert(ranged._label);
-            data.write<int>(ranged._label->id);
+            data.write<int>(ranged._label);
             
             assert(ranged._range.length() == ranged._blobs.size());
             for(auto &bdx : ranged._blobs)
@@ -2087,15 +2084,9 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
             
             ranged._range = FrameRange(Rangel(start, end));
             
-            int labelid;
-            data.read(labelid);
-            ranged._label = DataStore::label(labelid);
-            if(!ranged._label) {
-                Error("Ranged.label is nullptr for id %d", labelid);
-            }
-            
-            if(!ranged._label) {
-                Warning("Cannot find label %d.", labelid);
+            data.read<int>(ranged._label);
+            if(ranged._label == -1) {
+                Error("Ranged.label is nullptr for id %d", ranged._label);
             }
             
             // should probably check this always and fault gracefully on error since this is user input
