@@ -87,8 +87,8 @@ Task _pick_front_thread();
 
 Sample::Ptr retrieve();
 
-size_t& requested_samples() {
-    static size_t _request = 0;
+auto& requested_samples() {
+    static std::atomic<size_t> _request = 0;
     return _request;
 }
 
@@ -131,8 +131,8 @@ size_t num_ready() {
     return _generated_samples.size();
 }
 
-float& best_accuracy() {
-    static float _a = 0;
+std::atomic<float>& best_accuracy() {
+    static std::atomic<float> _a = 0;
     return _a;
 }
 
@@ -221,7 +221,7 @@ Label::Ptr DataStore::label(int ID) {
     return nullptr;
 }
 
-const Sample::Ptr& DataStore::random_sample(Idx_t fid) {
+Sample::Ptr DataStore::random_sample(Idx_t fid) {
     static std::mt19937 mt(rd());
     std::shared_ptr<Individual::SegmentInformation> segment;
     Individual *fish;
@@ -1571,7 +1571,7 @@ void Work::start_learning() {
                 if(py::check_module(module)) {
                     reset_variables();
                     if(best_accuracy() > 0) {
-                        Debug("[Categorize] The python file has been updated. Best accuracy was already %f, so will attempt to reload the weights.", best_accuracy());
+                        Debug("[Categorize] The python file has been updated. Best accuracy was already %f, so will attempt to reload the weights.", best_accuracy().load());
                         
                         try {
                             py::run(module, "load");
@@ -2296,11 +2296,14 @@ void paint_distributions(int64_t frame) {
 
                 cv::line(mat, Vec2(mean - Tracker::start_frame(), 100 / scale) * scale, Vec2(mean - Tracker::start_frame(), 200 / scale) * scale, Purple, 2);
                 
-                for(size_t i=0; i<recent_frames.size(); ++i) {
-                    cv::line(mat,
-                             Vec2(recent_frames[i] - Tracker::start_frame(), 0) * scale,
-                             Vec2(recent_frames[i] - Tracker::start_frame(), 300 / scale) * scale,
-                             White.exposure(0.1 + 0.9 * (recent_frames[i] / double(recent_frames.size()))), 1);
+                {
+                    std::unique_lock guard(distri_mutex);
+                    for(size_t i=0; i<recent_frames.size(); ++i) {
+                        cv::line(mat,
+                                 Vec2(recent_frames[i] - Tracker::start_frame(), 0) * scale,
+                                 Vec2(recent_frames[i] - Tracker::start_frame(), 300 / scale) * scale,
+                                 White.exposure(0.1 + 0.9 * (recent_frames[i] / double(recent_frames.size()))), 1);
+                    }
                 }
 
                 cv::line(mat, Vec2(frame - Tracker::start_frame(), 0) * scale, Vec2(frame - Tracker::start_frame(), 300 / scale) * scale, White, 2);
@@ -2344,7 +2347,7 @@ void paint_distributions(int64_t frame) {
 #endif
 }
 
-std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_ptr<Individual::SegmentInformation>& segment, size_t& _delete, size_t& _create, size_t& _reuse) {
+std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_ptr<Individual::SegmentInformation>& segment, std::atomic<size_t>& _delete, std::atomic<size_t>& _create, std::atomic<size_t>& _reuse) {
     if(Work::terminate || !GUI::instance())
         return nullptr;
     
@@ -2586,7 +2589,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     std::vector<uint32_t> blob_ids;
     
 //#ifndef NDEBUG
-    static size_t _reuse = 0, _create = 0, _delete = 0;
+    static std::atomic<size_t> _reuse = 0, _create = 0, _delete = 0;
     static Timer debug_timer;
     std::mutex debug_mutex;
 ///#endif
@@ -2714,7 +2717,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         {
             std::lock_guard g(debug_mutex);
             if (debug_timer.elapsed() >= 10) {
-                Debug("RatioRegenerate: %f - Create:%lu Reuse:%lu Delete:%lu", double(_create) / double(_reuse), _create, _reuse, _delete);
+                Debug("RatioRegenerate: %f - Create:%lu Reuse:%lu Delete:%lu", double(_create.load()) / double(_reuse.load()), _create.load(), _reuse.load(), _delete.load());
                 debug_timer.reset();
             }
         }
@@ -2726,12 +2729,15 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         
         Midline::Ptr midline;
         std::shared_ptr<Individual::BasicStuff> basic;
+        TrainingFilterConstraints custom_len;
         
         {
             Tracker::LockGuard guard("Categorize::sample");
             basic = fish->basic_stuff().at(index);
             auto posture = fish->posture_stuff(frame);
             midline = posture ? fish->calculate_midline_for(basic, posture) : nullptr;
+            
+            custom_len = Tracker::recognition()->local_midline_length(fish, range);
         }
         
         if(basic->frame != frame) {
@@ -2742,7 +2748,6 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         //auto it = fish->iterator_for(basic->frame);
         if (blob) { //&& it != fish->frame_segments().end()) {
             //Tracker::LockGuard guard("Categorize::sample");
-            auto custom_len = Tracker::recognition()->local_midline_length(fish, range);
 
             Recognition::ImageData image_data(
                 Recognition::ImageData::Blob{
@@ -2790,7 +2795,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     return Sample::Invalid();
 }
 
-const Sample::Ptr& DataStore::sample(
+Sample::Ptr DataStore::sample(
         const std::shared_ptr<Individual::SegmentInformation>& segment,
         Individual* fish,
         const size_t max_samples,

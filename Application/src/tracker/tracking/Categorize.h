@@ -119,7 +119,7 @@ struct DataStore {
     static Label::Ptr label(const char* name);
     static Label::Ptr label(int ID);
     
-    static const Sample::Ptr& sample(
+    static Sample::Ptr sample(
          const std::shared_ptr<Individual::SegmentInformation>& segment,
          Individual* fish,
          const size_t max_samples,
@@ -131,7 +131,7 @@ struct DataStore {
                                  const size_t min_samples = 50u,
                                  bool exclude_labelled = false);
     
-    static const Sample::Ptr& random_sample(Idx_t fid);
+    static Sample::Ptr random_sample(Idx_t fid);
     static Sample::Ptr get_random();
     
     struct Composition {
