@@ -4450,12 +4450,6 @@ void GUI::auto_quit() {
     cache().deselect_all();
     instance()->write_config(true);
     
-    try {
-        instance()->export_tracks();
-    } catch(const UtilsException&) {
-        SETTING(error_terminate) = true;
-    }
-    
     if(!SETTING(auto_no_results)) {
         Output::TrackingResults results(instance()->_tracker);
         results.save();
@@ -4472,6 +4466,12 @@ void GUI::auto_quit() {
             fclose(f);
         } else
             Warning("Cannot write '%S' meta file.", &path.str());
+    }
+    
+    try {
+        instance()->export_tracks();
+    } catch(const UtilsException&) {
+        SETTING(error_terminate) = true;
     }
     
     SETTING(auto_quit) = false;
