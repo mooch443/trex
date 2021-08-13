@@ -676,14 +676,6 @@ int DataStore::_label_unsafe(Frame_t idx, uint32_t bdx) {
         }
     }
     return -1;
-    /*auto fit = _probability_cache.find(idx);
-    if(fit != _probability_cache.end()) {
-        auto sit = find_keyed_tuple(fit->second, bdx);
-        if(sit != fit->second.end()) {
-            return std::get<1>(*sit);
-        }
-    }
-    return nullptr;*/
 }
 
 Label::Ptr DataStore::_label_unsafe(Frame_t idx, const pv::CompressedBlob* blob) {
@@ -1899,7 +1891,11 @@ Work::Task Work::_pick_front_thread() {
             for (auto it = sorted.end() - 20; it != sorted.end(); ++it) {
                 auto& item = Work::task_queue().at(std::get<3>(*it));
                 if (item.range.start != -1)
-                    _values.push_back({std::get<0>(*it), Rangel(abs(item.real_range.start - center), abs(item.real_range.end - center))});
+                    _values.push_back({
+                        std::get<0>(*it),
+                        Rangel(item.real_range.start - center,
+                               item.real_range.end - center)
+                    });
                 else
                     _values.push_back({std::get<0>(*it), item.real_range});
             }
