@@ -319,12 +319,20 @@ inline size_t cache_frame_index(Frame_t frame) {
     return sign_cast<size_t>(frame - tracker_start_frame());
 }
 
-inline std::vector<BlobLabel>& _cache_for_frame(Frame_t frame) {
+inline std::vector<BlobLabel>* _cache_for_frame(Frame_t frame) {
     auto index = cache_frame_index(frame);
     if(index >= _probability_cache.size()) {
-        _probability_cache.resize((frame + 1) * 2);
+        //_probability_cache.resize((frame + 1) * 2);
+        return nullptr;
     }
-    return _probability_cache[index];
+    return _probability_cache.data() + index;
+}
+
+inline std::vector<BlobLabel>* _insert_cache_for_frame(Frame_t frame) {
+    auto index = cache_frame_index(frame);
+    if(index >= _probability_cache.size())
+        _probability_cache.resize((frame + 1) * 2);
+    return _probability_cache.data() + index;
 }
 
 std::vector<RangedLabel> _ranged_labels;
@@ -431,13 +439,14 @@ void DataStore::set_label(Frame_t idx, uint32_t bdx, const Label::Ptr& label) {
 }
 
 void DataStore::_set_label_unsafe(Frame_t idx, uint32_t bdx, int ldx) {
+    auto cache = _insert_cache_for_frame(idx);
 #ifndef NDEBUG
-    if (contains(_cache_for_frame(idx), BlobLabel{bdx, ldx})) {
-        auto str = Meta::toStr(_cache_for_frame(idx));
+    if (contains(*cache, BlobLabel{bdx, ldx})) {
+        auto str = Meta::toStr(*cache);
         Warning("Cache already contains blob %d in frame %d.\n%S", bdx, (int)idx, &str);
     }
 #endif
-    insert_sorted(_cache_for_frame(idx), BlobLabel{bdx, ldx});
+    insert_sorted(*cache, BlobLabel{bdx, ldx});
 
     static std::mutex mutex;
     static Timer timer;
@@ -659,10 +668,12 @@ Label::Ptr DataStore::label(Frame_t idx, const pv::CompressedBlob* blob) {
 }
 
 int DataStore::_label_unsafe(Frame_t idx, uint32_t bdx) {
-    auto &cache = _cache_for_frame(idx);
-    auto sit = find_keyed_tuple(cache, bdx);
-    if(sit != cache.end()) {
-        return sit->ldx;
+    auto cache = _cache_for_frame(idx);
+    if(cache) {
+        auto sit = find_keyed_tuple(*cache, bdx);
+        if(sit != cache->end()) {
+            return sit->ldx;
+        }
     }
     return -1;
     /*auto fit = _probability_cache.find(idx);
@@ -1683,14 +1694,16 @@ void Work::start_learning() {
                     Work::status() = "Prediction...";
                     
                     try {
-                        Debug("Predicting %lu samples, %lu collected...", prediction_images.size(), prediction_tasks.size());
-                        Timer set_timer;
+                        static Timing timing("Categorize::Predict");
+                        TakeTiming take(timing);
+                        
                         py::set_variable("images", prediction_images, module);
-                        Debug("Setting: %fs", set_timer.elapsed());
                         py::set_function("receive", [&](std::vector<float> results)
                         {
+#ifndef NDEBUG
                             Timer receive_timer;
                             Timer timer;
+#endif
                             double by_callbacks = 0;
                             
                             for (auto& [item, offset] : prediction_tasks) {
@@ -1706,13 +1719,14 @@ void Work::start_learning() {
                                     Warning("LearningTask type was not prediction?");
                             }
                             
+#ifndef NDEBUG
                             Debug("Receive: %fs Callbacks: %fs (%lu tasks, %lu images)", receive_timer.elapsed(), by_callbacks, prediction_tasks.size(), prediction_images.size());
+#endif
 
                         }, module);
-
-                        Timer timer;
+                        
                         py::run(module, "predict");
-                        Debug("Prediction took %fs", timer.elapsed());
+                        
                     } catch(...) {
                         Except("Prediction failed. See above for an error description.");
                     }
@@ -2352,7 +2366,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
         return nullptr;
     
     // debug information
-    paint_distributions(frame);
+    //paint_distributions(frame);
 
     std::shared_ptr<PPFrame> ptr = nullptr;
 
@@ -2511,7 +2525,9 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
                 indices.push_back(std::get<2>(*it));
             }
 
+#ifndef NDEBUG
             Debug("Deleting %ld items from frame cache, which are farther away than %ld from the mean of %f (%lu size) and median %f", std::distance(start, end), end != frames_in_cache.end() ? std::get<0>(*end) : -1, (minimum_range + (maximum_range - minimum_range) / 2.0), _frame_cache.size(), median);
+#endif
             _frame_cache = erase_indices(_frame_cache, indices);
             _delete += indices.size();
         }
@@ -2559,6 +2575,12 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
     return ptr;
 }
 
+//#ifndef NDEBUG
+static std::atomic<size_t> _reuse = 0, _create = 0, _delete = 0;
+static Timer debug_timer;
+std::mutex debug_mutex;
+///#endif
+
 Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInformation>& segment,
                                  Individual* fish,
                                  const size_t sample_rate,
@@ -2588,12 +2610,6 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     std::vector<Vec2> positions;
     std::vector<uint32_t> blob_ids;
     
-//#ifndef NDEBUG
-    static std::atomic<size_t> _reuse = 0, _create = 0, _delete = 0;
-    static Timer debug_timer;
-    std::mutex debug_mutex;
-///#endif
-
     std::vector<long_t> basic_index;
     std::vector<long_t> frames;
     Rangel range;
