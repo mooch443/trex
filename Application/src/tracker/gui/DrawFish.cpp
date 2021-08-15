@@ -872,6 +872,15 @@ CREATE_STRUCT(CachedGUIOptions,
         }
         
         auto clr = base_color.alpha(255);
+        if(!Graph::is_invalid(_library_y)) {
+            const auto single_identity = GUIOPTION(gui_single_identity_color);
+            auto percent = min(1.f, cmn::abs(_library_y));
+            if(single_identity.a != 0) {
+                clr = single_identity;
+            }
+            
+            clr = clr.alpha(255) * percent + Color(50, 50, 50, 255) * (1 - percent);
+        }
         auto inactive_clr = clr.saturation(0.5);
         Color use = clr;
         
