@@ -36,12 +36,18 @@ namespace track {
         try {
             fn(use_path);
             
+            static std::mutex mutex;
+            std::lock_guard guard(mutex);
             if(final_path != use_path) {
-                if(!use_path.move_to(final_path))
+                Debug("Moving '%S' to '%S'...", &use_path.str(), &final_path.str());
+                if(!use_path.move_to(final_path)) {
                     U_EXCEPTION("Cannot move file '%S' to '%S'.", &use_path.str(), &final_path.str());
+                } else
+                    Debug("  Moved '%S' to '%S'.", &use_path.str(), &final_path.str());
             }
             
-        } catch(...) {
+        } catch(const std::exception& ex) {
+            Except("Problem copying file '%S' to '%S': %s", &use_path.str(), &final_path.str(), ex.what());
             // there will be a utils exception, so its printed out already
         }
     }
