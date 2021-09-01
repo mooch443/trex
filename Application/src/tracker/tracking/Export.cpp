@@ -22,6 +22,52 @@
 
 namespace track {
 
+    void temporary_save(file::Path path, std::function<void(file::Path)> fn) {
+        /**
+         * There is sometimes a problem when people save to network harddrives.
+         * The first NPY file will not finish writing / sync completely before the next one starts.
+         * This leads to "does not contain a ZIP file" exception and terminates the saving process.
+         * Instead, we move the file to a temporary folder first (on our local harddrive) and then
+         * move it.
+         * (Only if a /tmp/ folder exists though.)
+         */
+
+        file::Path final_path = path;
+        file::Path tmp_path, use_path;
+
+#ifdef WIN32
+        char chPath[MAX_PATH];
+        if (GetTempPath(MAX_PATH, chPath))
+            tmp_path = chPath;
+#else
+        tmp_path = "/tmp";
+#endif
+
+        if (tmp_path.exists()) {
+            if (access(tmp_path.c_str(), W_OK) == 0)
+                use_path = tmp_path / path.filename();
+        }
+
+        try {
+            fn(use_path);
+
+            static std::mutex mutex;
+            std::lock_guard guard(mutex);
+            if (final_path != use_path) {
+                //Debug("Moving '%S' to '%S'...", &use_path.str(), &final_path.str());
+                if (!use_path.move_to(final_path)) {
+                    U_EXCEPTION("Cannot move file '%S' to '%S'.", &use_path.str(), &final_path.str());
+                } //else
+                  //  Debug("  Moved '%S' to '%S'.", &use_path.str(), &final_path.str());
+            }
+
+        }
+        catch (const std::exception& ex) {
+            Except("Problem copying file '%S' to '%S': %s", &use_path.str(), &final_path.str(), ex.what());
+            // there will be a utils exception, so its printed out already
+        }
+    }
+
 namespace hist_utils {
     /**
      * Taken from: https://stackoverflow.com/questions/38910945/pixel-wise-median-of-sequence-of-cvmats
