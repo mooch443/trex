@@ -522,7 +522,7 @@ CREATE_STRUCT(CachedGUIOptions,
             }
         }
         
-        if(!Graph::is_invalid(_library_y)) {
+        
             auto color_source = GUIOPTION(gui_fish_color);
             if(color_source == "viridis") {
                 for(auto &b : GUI::instance()->cache().processed_frame.blobs()) {
@@ -530,8 +530,8 @@ CREATE_STRUCT(CachedGUIOptions,
                         auto && [dpos, difference] = b->difference_image(*Tracker::instance()->background(), 0);
                         auto rgba = Image::Make(difference->rows, difference->cols, 4);
                         
-                        uchar maximum_grey = 0, minimum_grey = std::numeric_limits<uchar>::max();
-                        for(size_t i=0; i<difference->size(); ++i) {
+                        uchar maximum_grey = 255, minimum_grey = 0;//std::numeric_limits<uchar>::max();
+                        /*for(size_t i=0; i<difference->size(); ++i) {
                             auto c = difference->data()[i];
                             maximum_grey = max(maximum_grey, c);
                             
@@ -542,7 +542,7 @@ CREATE_STRUCT(CachedGUIOptions,
                             difference->data()[i] = (uchar)min(255, float(difference->data()[i]) / maximum_grey * 255);
                         
                         if(minimum_grey == maximum_grey)
-                            minimum_grey = maximum_grey - 1;
+                            minimum_grey = maximum_grey - 1;*/
                         
                         auto ptr = rgba->data();
                         auto m = difference->data();
@@ -560,7 +560,7 @@ CREATE_STRUCT(CachedGUIOptions,
                     }
                 }
                 
-            } else {
+            } else if(!Graph::is_invalid(_library_y)) {
                 auto percent = min(1.f, cmn::abs(_library_y));
                 Color clr = /*Color(225, 255, 0, 255)*/ base_color * percent + Color(50, 50, 50, 255) * (1 - percent);
                 
@@ -587,7 +587,7 @@ CREATE_STRUCT(CachedGUIOptions,
                     }
                 }
             }
-        }
+        
             
         if(is_selected && GUIOPTION(gui_show_probabilities)) {
             if(!_image) {

@@ -1516,7 +1516,7 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
             return { -1, false, 0.0 };
         
         // write frame to file if recording (and if there's anything in the frame)
-        if(task.frame->n() > 0 && GRAB_SETTINGS(recording) && !GRAB_SETTINGS(quit_after_average)) {
+        if(/*task.frame->n() > 0 &&*/ GRAB_SETTINGS(recording) && !GRAB_SETTINGS(quit_after_average)) {
             if(!_processed.open()) {
                 // set (real time) timestamp for video start
                 // (just for the user to read out later)
