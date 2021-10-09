@@ -4,6 +4,16 @@ PWD=$(pwd)/../../videos
 TGRABS=tgrabs
 TREX=trex
 
+echo "Detecting system..."
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    echo "Linux";
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+    echo "MacOS";
+else 
+    echo "Windows"
+    PWD=$(wslpath -w ${PWD})
+fi
+
 #TGRABS=~/trex/Application/build/RelWithDebInfo/TGrabs.app/Contents/MacOS/TGrabs
 #TREX=~/trex/Application/build/RelWithDebInfo/TRex.app/Contents/MacOS/TRex
 
