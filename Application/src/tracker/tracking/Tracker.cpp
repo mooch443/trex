@@ -957,14 +957,14 @@ bool operator<(long_t frame, const FrameProperties& props) {
                     
                 } else {
                     std::vector<pv::BlobPtr> for_this_blob;
-                    std::set<std::tuple<float, pv::BlobPtr>, std::greater<>> found;
+                    std::set<std::tuple<float, uint32_t, pv::BlobPtr>, std::greater<>> found;
                     for(auto &ptr : ret) {
                         float recount = ptr->recount(0, *_background);
-                        found.insert({recount, ptr});
+                        found.insert({recount, ptr->blob_id(), ptr});
                     }
                     
                     size_t counter = 0;
-                    for(auto & [r, ptr] : found) {
+                    for(auto & [r, id, ptr] : found) {
                         ptr->add_offset(b->bounds().pos());
                         ptr->set_split(true, b);
 
@@ -1830,7 +1830,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         
         // prepare active_individuals array and assign fixed matches for which
         // the individuals already exist
-        std::unordered_map<uint32_t, std::set<Idx_t>> cannot_find;
+        std::map<uint32_t, std::set<Idx_t>> cannot_find;
         std::unordered_map<uint32_t, std::set<Idx_t>> double_find;
         std::map<uint32_t, Idx_t> actually_assign;
         
