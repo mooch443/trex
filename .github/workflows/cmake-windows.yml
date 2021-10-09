@@ -57,7 +57,7 @@ jobs:
         echo "::endgroup::"
         echo "::group::Test"
         echo $CONDA_PREFIX
-        conda create -y -n test -c $CONDA_PREFIX/conda-bld/ trex
+        conda create -y -n test -c $CONDA_PREFIX/conda-bld/ trex wget
         conda activate test
         pvinfo -opencv_ffmpeg_support
         pvinfo -opencv_opencl_support

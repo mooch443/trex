@@ -11,7 +11,14 @@ elif [[ "$OSTYPE" == "darwin"* ]]; then
     echo "MacOS";
 else 
     echo "Windows"
-    PWD=$(wslpath -w ${PWD})
+    if ! which wslpath; then
+        echo "Cannot find wslpath. Downloading..."
+        wget 'https://raw.githubusercontent.com/laurent22/wslpath/master/wslpath'
+        chmod 755 wslpath
+        PWD=$(./wslpath -w ${PWD})
+    else
+        PWD=$(wslpath -w ${PWD})
+    fi
 fi
 
 #TGRABS=~/trex/Application/build/RelWithDebInfo/TGrabs.app/Contents/MacOS/TGrabs
