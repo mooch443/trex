@@ -616,10 +616,10 @@ void GUI::run_loop(gui::LoopStatus status) {
             _gui.set_dirty(base);
             is_automatic = true;
             
-        } else if((!GUI_SETTINGS(nowindow) && redraw_timer.elapsed() >= 0.15) || _recording) {
+        } else if((!GUI_SETTINGS(nowindow) && redraw_timer.elapsed() >= 0.30) || _recording) {
             redraw_timer.reset();
             //set_redraw();
-            //_gui.set_dirty(base);
+            _gui.set_dirty(base);
             is_automatic = true;
         }
         

@@ -1704,5 +1704,5 @@ int main(int argc, char** argv)
         fclose(log_file);
     log_file = NULL;
     
-    return SETTING(error_terminate) ? 1 : 0;
+    exit(SETTING(error_terminate) ? 1 : 0);
 }
