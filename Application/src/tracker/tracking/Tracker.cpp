@@ -1939,7 +1939,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 }
             } blaze(frame);
             
-            std::unordered_map<uint32_t, std::vector<std::tuple<Idx_t, Vec2, uint32_t>>> assign_blobs;
+            std::map<uint32_t, std::vector<std::tuple<Idx_t, Vec2, uint32_t>>> assign_blobs;
             const auto max_speed_px = FAST_SETTINGS(track_max_speed) / FAST_SETTINGS(cm_per_pixel);
             
             for(auto && [bdx, fdxs] : cannot_find) {
