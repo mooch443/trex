@@ -140,7 +140,7 @@ void GLImpl::create_window(const char* title, int width, int height) {
 #endif
     
     // Create window with graphics context
-    window = glfwCreateWindow(width, height, "", NULL, NULL);
+    window = glfwCreateWindow(width, height, title, NULL, NULL);
     if (window == NULL)
         U_EXCEPTION("[GL] Cannot create GLFW window.");
     glfwMakeContextCurrent(window);
