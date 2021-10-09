@@ -57,12 +57,13 @@ jobs:
         echo "::endgroup::"
         echo "::group::Test"
         echo $CONDA_PREFIX
-        conda create -y -n test -c $CONDA_PREFIX/conda-bld/ trex wget
+        conda create -y -n test -c $CONDA_PREFIX/conda-bld/ trex
         conda activate test
         pvinfo -opencv_ffmpeg_support
         pvinfo -opencv_opencl_support
         echo "::endgroup::"
         echo "::group::TestFunctions"
         cd $GITHUB_WORKSPACE/Application/Tests
+        const install -y -c conda-forge wget
         ./run_unix.bash
         echo "::endgroup::"
