@@ -64,6 +64,5 @@ jobs:
         echo "::endgroup::"
         echo "::group::TestFunctions"
         cd $GITHUB_WORKSPACE/Application/Tests
-        conda install -y -c conda-forge wget
         ./run_unix.bash
         echo "::endgroup::"

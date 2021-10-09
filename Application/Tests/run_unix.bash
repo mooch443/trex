@@ -13,8 +13,8 @@ else
     echo "Windows"
     if ! which wslpath; then
         echo "Cannot find wslpath. Downloading..."
-        wget 'https://raw.githubusercontent.com/laurent22/wslpath/master/wslpath'
-        chmod 755 wslpath
+        curl --output wslpath --url 'https://raw.githubusercontent.com/laurent22/wslpath/master/wslpath'
+        chmod u+x wslpath
         PWD=$(./wslpath -w ${PWD})
     else
         PWD=$(wslpath -w ${PWD})
