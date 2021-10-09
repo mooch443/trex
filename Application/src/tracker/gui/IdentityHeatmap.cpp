@@ -1453,8 +1453,6 @@ void Grid::collect_cells(uint32_t grid_size, std::vector<Region *> &output) cons
     std::queue<Node::Ptr> q;
     q.push(_root);
     
-    ColorWheel wheel;
-    
     while (!q.empty()) {
         auto ptr = q.front();
         q.pop();
@@ -1611,9 +1609,6 @@ void Region::insert(std::vector<DataPoint>::iterator start, std::vector<DataPoin
         sections[size_t(previous) * 2 + 1] = end;
         counted += std::distance(last_section, it);
     }
-    
-    size_t replaced = 0, end_size = 0;
-    //Debug("Overall items: %d, counted: %d", items, counted);
     
     for(size_t i=0; i<4; ++i) {
         if(std::distance(sections[i * 2], sections[i * 2 + 1]) != 0) {

@@ -3027,7 +3027,6 @@ void GUI::update_display_blobs(bool draw_blobs, Section* fishbowl) {
     if((_cache.raw_blobs_dirty() || _cache.display_blobs.size() != _cache.raw_blobs.size()) && draw_blobs)
     {
         static std::mutex vector_mutex;
-        auto bowl = fishbowl->global_transform();
         auto screen_bounds = Bounds(Vec2(), screen_dimensions());
         auto copy = _cache.display_blobs;
         size_t gpixels = 0;
@@ -3658,7 +3657,6 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                     decltype(_blob_labels)::iterator it = _blob_labels.find(blob->blob_id());
                     if(it == _blob_labels.end()) {
                         if(!_unused_labels.empty()) {
-                            auto S = _unused_labels.size();
                             auto [k, success] = _blob_labels.try_emplace(blob->blob_id(), std::move(_unused_labels.back()));
                             _unused_labels.resize(_unused_labels.size()-1);
                             
@@ -3676,7 +3674,6 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                         circ->set_radius(8);
                         //circ->clear_event_handlers();
                         circ->on_click([this, id = blob->blob_id(), circ = circ](auto) mutable {
-                            auto pos = circ->pos();
                             _current_boundary.clear();
                             GUI::instance()->set_clicked_blob_id(id);
                             GUI::instance()->set_clicked_blob_frame(GUI::frame());
@@ -3840,7 +3837,7 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                 
                 _cache.updated_blobs();
                 
-                std::map<uint32_t, Color> colors;
+                std::unordered_map<uint32_t, Color> colors;
                 ColorWheel wheel;
                 for(auto &b : _cache.processed_frame.original_blobs()) {
                     colors[b->blob_id()] = wheel.next().alpha(200);

@@ -1300,13 +1300,13 @@ TRex parameters
 	**default value:** automatic
 
 	**possible values:**
-		- `accurate`: Maximizes the probability sum by assigning (or potentially not assigning) individuals to objects in the frame. This returns the correct solution, but might take long for high quantities of individuals.
+		- `tree`: Maximizes the probability sum by assigning (or potentially not assigning) individuals to objects in the frame. This returns the correct solution, but might take long for high quantities of individuals.
 		- `approximate`: Simply assigns the highest probability edges (blob to individual) to all individuals - first come, first serve. Parameters have to be set very strictly (especially speed) in order to have as few objects to choose from as possible and limit the error.
 		- `hungarian`: The hungarian algorithm (as implemented in O(n^3) by Mattias Andrée `https://github.com/maandree/hungarian-algorithm-n3`).
 		- `benchmark`: Runs all algorithms and pits them against each other, outputting statistics every few frames.
 		- `automatic`: Uses automatic selection based on density.
 
-	Changes the default algorithm to be used for matching blobs in one frame to blobs in the next frame. The accurate algorithm performs best, but also scales less well for more individuals than the approximate one. However, if it is too slow (temporarily) in a few frames, the program falls back to using the approximate one that doesnt slow down.
+	Changes the default algorithm to be used for matching blobs in one frame with blobs in the next frame. The accurate algorithm performs best, but also scales less well for more individuals than the approximate one. However, if it is too slow (temporarily) in a few frames, the program falls back to using the approximate one that doesnt slow down.
 
 
 

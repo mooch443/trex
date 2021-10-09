@@ -741,7 +741,7 @@ int main(int argc, char** argv)
         if(default_config::is_deprecated(option.name)) {
             if(utils::lowercase(option.name) == "match_use_approximate") {
                 bool v = option.value.empty() || Meta::fromStr<bool>(option.value);
-                SETTING(match_mode) = v ? default_config::matching_mode_t::approximate : default_config::matching_mode_t::accurate;
+                SETTING(match_mode) = v ? default_config::matching_mode_t::approximate : default_config::matching_mode_t::automatic;
                 continue;
             }
             contains_illegal_options = true;

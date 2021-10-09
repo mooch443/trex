@@ -311,8 +311,6 @@ namespace gui {
                 }
             }
             
-            bool shift = _gui.is_key_pressed(gui::LShift) && (!_gui.selected_object() || !dynamic_cast<Textfield*>(_gui.selected_object()));
-            
             // display all blobs that are assigned to an individual
             for(auto fish : active) {
                 auto blob = fish->compressed_blob(frameIndex);

@@ -208,7 +208,7 @@ prob_t PairedProbabilities::probability(size_t rdx, size_t cdx) const {
 
 size_t PairedProbabilities::add(
       row_t::value_type row,
-      const std::unordered_map<col_t::value_type, prob_t>& edges)
+      const std::map<col_t::value_type, prob_t>& edges)
 {
     size_t rdx, offset;
     if(_row_index.count(row))
@@ -1125,7 +1125,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
             }
             
             //! Compares the degree of two nodes
-            if(match_mode == matching_mode_t::accurate
+            if(match_mode == matching_mode_t::tree
                || match_mode == matching_mode_t::benchmark)
             {
                 Timer timer;
@@ -1228,7 +1228,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 if(match_mode == matching_mode_t::benchmark) {
                     auto s = timer.elapsed();
                     std::lock_guard<std::mutex> guard(mutex);
-                    auto &val = benchmarks[matching_mode_t::accurate];
+                    auto &val = benchmarks[matching_mode_t::tree];
                     ++val.samples;
                     val.time_acc += s;
                     val.ptr = _optimal_pairing;
@@ -1273,7 +1273,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                     }
                 }
                 
-                if(!different.empty() && ((agree.find(matching_mode_t::hungarian) != agree.end()) ^ (agree.find(matching_mode_t::accurate) != agree.end()))) {
+                if(!different.empty() && ((agree.find(matching_mode_t::hungarian) != agree.end()) ^ (agree.find(matching_mode_t::tree) != agree.end()))) {
                     auto str = Meta::toStr(different);
                     auto str2 = Meta::toStr(agree);
                     Warning("Assignments in frame %d are not identical (%S) these agree (%S):", frame(), &str, &str2);

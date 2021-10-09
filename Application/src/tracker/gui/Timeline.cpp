@@ -429,14 +429,6 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
             });
         }
         
-        float new_height = roundf(bar_height / use_scale.y);
-        //_bar->set_scale(Vec2(1, new_height));
-        
-        /*if(_proximity_bar._image) {
-            _bar->set_source(std::move(_proximity_bar._image));
-            //_proximity_bar.changed = false;
-        }*/
-        
         _bar->set_pos(pos);
         
         bool changed = false;

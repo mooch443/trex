@@ -63,7 +63,7 @@ namespace Match
     public:
         PairedProbabilities();
         
-        size_t add(row_t::value_type, const std::unordered_map<col_t::value_type, prob_t>&);
+        size_t add(row_t::value_type, const std::map<col_t::value_type, prob_t>&);
         void erase(row_t::value_type);
         void erase(col_t::value_type);
         
@@ -184,7 +184,7 @@ namespace Match
         //cv::Point2f pos(const Individual*) const;
         //cv::Point2f pos(const Blob*) const;
         
-        const Result& get_optimal_pairing(bool print = false, default_config::matching_mode_t::Class mode = default_config::matching_mode_t::accurate);
+        const Result& get_optimal_pairing(bool print = false, default_config::matching_mode_t::Class mode = default_config::matching_mode_t::automatic);
         
     public:
         //psets_t _psets;

@@ -463,6 +463,16 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
 {
     if(_video)
         initialize_video();
+    
+    if(!SETTING(enable_difference)) {
+        auto size = SETTING(video_size).value<Size2>();
+        _average = gpuMat::zeros(size.height, size.width, CV_8UC1);
+        _average.setTo(0);
+        _average_finished = true;
+        _average_samples = 1;
+        
+    }
+    
     _average.copyTo(_original_average);
     
     callback_before_starting(*this);

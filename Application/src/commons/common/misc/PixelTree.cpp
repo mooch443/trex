@@ -161,7 +161,8 @@ inline void update_tmp_line (ushort x, const unsigned char px, HorizontalLine& t
         if(found)
             return std::make_shared<pv::Blob>(std::get<0>(*found), std::get<1>(*found));
         
-        return std::make_shared<pv::Blob>(std::make_shared<std::vector<HorizontalLine>>(), std::make_shared<std::vector<uchar>>());
+        return std::make_shared<pv::Blob>(std::make_shared<std::vector<HorizontalLine>>(),
+                                          std::make_shared<std::vector<uchar>>());
         //auto ptr = std::make_shared<pv::Blob>(lines, pixels);
         //return ptr;
     }

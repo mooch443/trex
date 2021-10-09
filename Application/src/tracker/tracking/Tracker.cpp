@@ -1578,7 +1578,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             for(size_t i=from; i<to; i++) {
                 auto fish = unassigned_individuals[i];
                 //Match::prob_t max_p = 0;
-                std::unordered_map<Match::Blob_t, Match::prob_t> probs;
+                std::map<Match::Blob_t, Match::prob_t> probs;
                 
                 auto cache = frame.cached(fish->identity().ID());
                 if(!cache) {
@@ -1702,9 +1702,17 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         
         std::vector<tags::blob_pixel> tagged_fish, noise;
         std::unordered_map<uint32_t, Individual*> blob_fish_map;
+//#define TREX_DEBUG_MATCHING
+#ifdef TREX_DEBUG_MATCHING
+        std::vector<std::pair<Individual*, Match::Blob_t>> pairs;
+#endif
         
         //auto blob_to_pixels = filter_blobs(frame);
-        auto assign_blob_individual = [&tagged_fish, &blob_fish_map, &fish_assigned, &blob_assigned, &assigned_count, &do_posture, &need_postures, save_tags]
+        auto assign_blob_individual = [&tagged_fish, &blob_fish_map, &fish_assigned, &blob_assigned, &assigned_count, &do_posture, &need_postures, save_tags
+#ifdef TREX_DEBUG_MATCHING
+                                        ,&pairs
+#endif
+        ]
             (size_t frameIndex, const PPFrame& frame, Individual* fish, const pv::BlobPtr& blob, default_config::matching_mode_t::Class match_mode)
         {
             // transfer ownership of blob to individual
@@ -1727,6 +1735,17 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                && !contains(frame.noise(), blob))
             {
                 Except("Cannot find blob %u in frame %d.", blob->blob_id(), frameIndex);
+            }
+#endif
+            
+#ifdef TREX_DEBUG_MATCHING
+            for(auto &[i, b] : pairs) {
+                if(i == fish) {
+                    if(b != &blob) {
+                        Warning("Frame %d: Assigning individual %d to %u instead of %u", frameIndex, i->identity().ID(), blob ? blob->blob_id() : 0,  b ? (*b)->blob_id() : 0);
+                    }
+                    break;
+                }
             }
 #endif
             
@@ -1813,7 +1832,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         // the individuals already exist
         std::unordered_map<uint32_t, std::set<Idx_t>> cannot_find;
         std::unordered_map<uint32_t, std::set<Idx_t>> double_find;
-        std::unordered_map<uint32_t, Idx_t> actually_assign;
+        std::map<uint32_t, Idx_t> actually_assign;
         
         for(auto && [fdx, bdx] : current_fixed_matches) {
             auto it = _individuals.find(fdx);
@@ -2192,10 +2211,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         auto match_mode = frame_uses_approximate
                 ? default_config::matching_mode_t::hungarian
                 : FAST_SETTINGS(match_mode);
-//#define TREX_DEBUG_MATCHING
 #ifdef TREX_DEBUG_MATCHING
-        std::vector<std::pair<Individual*, Match::Blob_t>> pairs;
-        
         {
             Match::PairingGraph graph(frameIndex, paired_blobs);
             
@@ -2430,7 +2446,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                             
                             auto edges = paired_blobs.edges_for_row(fdi);
                             
-                            std::unordered_map<Match::Blob_t, prob_t> probs;
+                            std::map<Match::Blob_t, prob_t> probs;
                             for(auto &e : edges) {
                                 auto blob = paired_blobs.col(e.cdx);
                                 if(!blob_assigned.count(blob->get()) || !blob_assigned.at(blob->get()))
@@ -2446,16 +2462,6 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                         try {
                             auto &optimal = graph.get_optimal_pairing(false, matching_mode_t::hungarian);
                             for (auto &p: optimal.pairings) {
-    #ifdef TREX_DEBUG_MATCHING
-                                for(auto &[i, b] : pairs) {
-                                    if(i == p.first) {
-                                        if(b != p.second) {
-                                            Warning("Frame %d: Assigning individual %d to %u instead of %u", frameIndex, i->identity().ID(), p.second ? (*p.second)->blob_id() : 0,  b ? (*b)->blob_id() : 0);
-                                        }
-                                        break;
-                                    }
-                                }
-    #endif
                                 std::unique_lock g(thread_mutex);
                                 assign_blob_individual(frameIndex, frame, p.first, *p.second, matching_mode_t::hungarian);
                                 active_individuals.insert(p.first);
@@ -2485,7 +2491,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     if(fish_assigned.find(fish) == fish_assigned.end() || !fish_assigned.at(fish)) {
                         auto edges = paired_blobs.edges_for_row(paired_blobs.index(fish));
                         
-                        std::unordered_map<Match::Blob_t, Match::prob_t> probs;
+                        std::map<Match::Blob_t, Match::prob_t> probs;
                         for(auto &e : edges) {
                             auto blob = paired_blobs.col(e.cdx);
                             if(!frame.find_bdx((*blob)->blob_id())) {
@@ -2624,8 +2630,6 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
     #endif
             
             try {
-                //if(match_mode == default_config::matching_mode_t::accurate)
-                //    U_EXCEPTION("Test %d", frameIndex);
                 auto &optimal = graph.get_optimal_pairing(false, match_mode);
                 
                 if(!frame_uses_approximate) {
@@ -2703,12 +2707,12 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         static Timing rest("rest", 30);
         TakeTiming take(rest);
         // see how many are missing
-        std::vector<Individual*> unassigned_individuals;
+        /*std::vector<Individual*> unassigned_individuals;
         for(auto &p : fish_assigned) {
             if(!p.second) {
                 unassigned_individuals.push_back(p.first);
             }
-        }
+        }*/
         
         // Create Individuals for unassigned blobs
         std::vector<pv::BlobPtr> unassigned_blobs;
@@ -2721,11 +2725,11 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             // the number of individuals is limited
             // fallback to creating new individuals if the blobs cant be matched
             // to existing ones
-            if(frameIndex > 1) {
+            /*if(frameIndex > 1) {
                 static std::random_device rng;
                 static std::mt19937 urng(rng());
                 std::shuffle(unassigned_blobs.begin(), unassigned_blobs.end(), urng);
-            }
+            }*/
             
             for(auto fish :_active_individuals)
                 if(active_individuals.find(fish) == active_individuals.end())
@@ -2771,18 +2775,6 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             //  + the number of individuals is limited
             //  + there are unassigned individuals
             //    (the number of currently active individuals is smaller than the limit)
-            
-            /*if(_individuals.size() < number_fish) {
-                for(auto id : manual_identities) {
-                    if(!_individuals.count(id)) {
-                        Individual *fish = new Individual();
-                        fish->identity().set_ID(id);
-                        _individuals[id] = fish;
-                        
-                        Debug("Creating new individual %d", id);
-                    }
-                }
-            }*/
             
             if(!unassigned_blobs.empty()) {
                 // there are blobs left to be assigned

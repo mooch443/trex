@@ -40,37 +40,44 @@ fi
 
 rm -rf ${PWD}/data
 echo ""
-CMD="${TREX} -d \"${PWD}\" -i test -s \"${PWD}/test.settings\" -p corrected -auto_quit -auto_no_results -output_format csv -nowindow"
 
-echo "Running TRex... ${CMD}"
+MODES="automatic
+hungarian
+tree"
 
-if ! { ${CMD} 2>&1; } > "${PWD}/trex.log"; then
-    cat "${PWD}/trex.log"
-    echo "TRex could not be executed."
-    exit_code=1
-else
-    echo "  Scanning files..."
-    FILES=$(ls ${PWD}/corrected/data/test_fish*.csv)
-    
-    if [ -z "${FILES}" ]; then
-        echo "[ERROR] No files found."
+for MODE in ${MODES}; do
+    CMD="${TREX} -d \"${PWD}\" -i test -s \"${PWD}/test.settings\" -p corrected -match_mode ${MODE} -auto_quit -auto_no_results -output_format csv -nowindow"
+
+    echo "Running TRex (${MODE})... ${CMD}"
+
+    if ! { ${CMD} 2>&1; } > "${PWD}/trex.log"; then
+        cat "${PWD}/trex.log"
+        echo "TRex could not be executed."
         exit_code=1
     else
-        for f in ${FILES}; do
-            f=$(basename $f .csv)
+        echo "  Scanning files..."
+        FILES=$(ls ${PWD}/corrected/data/test_fish*.csv)
+        
+        if [ -z "${FILES}" ]; then
+            echo "[ERROR] No files found."
+            exit_code=1
+        else
+            for f in ${FILES}; do
+                f=$(basename $f .csv)
 
-            echo -e -n "\tChecking $f ..."
-            if ! git --no-pager diff --word-diff --no-index -- ${PWD}/corrected/data/${f}.csv ${PWD}/compare_data/raw/${f}.csv; then
-                echo "FAIL"
-                echo "[ERROR] corrected file $f differs from baseline"
-                exit_code=1
-            else
-                echo 'OK'
-            fi
-        done
+                echo -e -n "\tChecking $f ..."
+                if ! git --no-pager diff --word-diff --no-index -- ${PWD}/corrected/data/${f}.csv ${PWD}/compare_data/raw/${f}.csv; then
+                    echo "FAIL"
+                    echo "[ERROR] corrected file $f differs from baseline"
+                    exit_code=1
+                else
+                    echo 'OK'
+                fi
+            done
+        fi
     fi
-fi
 
-rm -rf ${PWD}/corrected/data
+    rm -rf ${PWD}/corrected/data
+done
 
 exit ${exit_code}

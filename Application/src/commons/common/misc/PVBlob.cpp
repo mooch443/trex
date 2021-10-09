@@ -24,7 +24,8 @@ bool Blob::operator==(const pv::Blob& other) const {
         Float2_t max_x = 0, height = 0, min_x = lines.empty() ? 0 : infinity<Float2_t>();
         Float2_t x0, x1;
         for(auto &line : lines) {
-            x0 = line.x0(), x1 = line.x1();
+            x0 = line.x0();
+            x1 = line.x1();
             if(x1 > max_x) max_x = x1;
             if(x0 < min_x) min_x = x0;
             if(line.eol()) ++height;
@@ -85,9 +86,9 @@ bool Blob::operator==(const pv::Blob& other) const {
         return ret;
     }
     
-    std::shared_ptr<std::vector<HorizontalLine>>
-        ShortHorizontalLine::uncompress(uint16_t start_y,
-                                        const std::vector<ShortHorizontalLine>& compressed)
+    Blob::line_ptr_t ShortHorizontalLine::uncompress(
+        uint16_t start_y,
+        const std::vector<ShortHorizontalLine>& compressed)
     {
         auto uncompressed = std::make_shared<std::vector<HorizontalLine>>((NoInitializeAllocator<HorizontalLine>()));
         uncompressed->resize(compressed.size());
@@ -124,7 +125,7 @@ bool Blob::operator==(const pv::Blob& other) const {
         _tried_to_split = other._tried_to_split;
     }
     
-    Blob::Blob(std::shared_ptr<std::vector<HorizontalLine>> lines, decltype(_pixels) pixels)
+    Blob::Blob(line_ptr_t lines, decltype(_pixels) pixels)
         : cmn::Blob(lines), _pixels(pixels)
     {
         init();
@@ -669,11 +670,6 @@ static Callback callback;
     uint32_t Blob::id_from_blob(const pv::Blob &blob) {
         if(!blob.lines() || blob.lines()->empty())
             return pv::Blob::invalid;
-        
-        const auto start = Vec2(blob.lines()->front().x0,
-                                blob.lines()->front().y);
-        const auto end = Vec2(blob.lines()->back().x1,
-                              blob.lines()->size());
         
         return id_from_data(blob.lines()->front().x0,
                             blob.lines()->front().x1,

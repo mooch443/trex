@@ -163,11 +163,10 @@ CREATE_STRUCT(CachedGUIOptions,
     
     void Fish::update(DrawStructure &window) {
         const int frame_rate = FAST_SETTINGS(frame_rate);
-        const float track_max_reassign_time = FAST_SETTINGS(track_max_reassign_time);
+        //const float track_max_reassign_time = FAST_SETTINGS(track_max_reassign_time);
         const auto single_identity = GUIOPTION(gui_single_identity_color);
-        const auto properties = Tracker::properties(_idx);
-        const auto safe_properties = Tracker::properties(_safe_idx);
-        const float time_fade_percent = 1.0f - float(properties ? cmn::abs(properties->time - safe_properties->time) : 0) / track_max_reassign_time;
+        //const auto properties = Tracker::properties(_idx);
+        //const auto safe_properties = Tracker::properties(_safe_idx);
         auto &cache = GUI::instance()->cache();
         
         set_bounds(_blob_bounds);
@@ -426,7 +425,7 @@ CREATE_STRUCT(CachedGUIOptions,
             // DISPLAY NEXT POSITION (estimated position in _idx + 1)
             //if(cache.processed_frame.cached_individuals.count(_obj.identity().ID())) {
             if(!_next_frame_cache.valid)
-                _next_frame_cache = std::move(_obj.cache_for_frame(_idx + 1, next_time));
+                _next_frame_cache = _obj.cache_for_frame(_idx + 1, next_time);
             auto estimated = _next_frame_cache.estimated_px + offset;
             
             window.circle(c_pos, 2, White.alpha(max_color));
@@ -1138,8 +1137,6 @@ void Fish::label(DrawStructure &base) {
             secondary_text += (_avg_cat != -1 ? std::string(" ") : std::string()) + "<nr>" + c->name + "</nr>";
     }
     
-    float alpha = (GUI::instance()->timeline().visible() ? 255 : SETTING(gui_faded_brightness).value<uchar>()) / 255.f * 200.f;
-
     auto label = (Label*)custom_data("label");
     auto label_text = (color.empty() ? text.str() : ("<"+color+">"+text.str()+"</"+color+">")) + "<a>" + secondary_text + "</a>";
     if (!label) {

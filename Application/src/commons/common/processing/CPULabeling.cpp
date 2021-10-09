@@ -377,7 +377,8 @@ struct Source {
         clear();
         
         //! local width, height
-        lw = image.cols, lh = image.rows;
+        lw = image.cols;
+        lh = image.rows;
         
         if(max_threads > 1) {
             /**
@@ -889,7 +890,7 @@ void Node::Ref::release_check() {
     obj->release();
     if(obj->unique()) {
         if(obj->parent) {
-            obj->parent->cache().receive(std::move(Ref(obj)));
+            obj->parent->cache().receive(Ref(obj));
         } else
             delete obj;
     }
