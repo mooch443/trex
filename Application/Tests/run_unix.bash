@@ -13,7 +13,6 @@ else
     echo "Windows: ${PWD}"
     if ! which wslpath; then
         echo "Cannot find wslpath. Downloading..."
-        curl --output wslpath --url 'https://raw.githubusercontent.com/Milly/wslpath/master/wslpath'
         chmod u+x wslpath
         PWD=$(./wslpath -w ${PWD})
     else
