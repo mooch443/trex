@@ -1,6 +1,7 @@
 #!/bin/bash
 
 PWD=$(pwd)/../../videos
+WPWD=${PWD}
 TGRABS=tgrabs
 TREX=trex
 
@@ -10,21 +11,21 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
 elif [[ "$OSTYPE" == "darwin"* ]]; then
     echo "MacOS";
 else 
-    echo "Windows: ${PWD}"
+    echo "Windows: ${WPWD}"
     if ! which wslpath; then
         echo "Cannot find wslpath. Downloading..."
         chmod u+x wslpath
-        PWD=$(./wslpath -w ${PWD})
+        WPWD=$(./wslpath -w ${WPWD})
     else
-        PWD=$(wslpath -w ${PWD})
+        WPWD=$(wslpath -w ${WPWD})
     fi
 fi
 
 #TGRABS=~/trex/Application/build/RelWithDebInfo/TGrabs.app/Contents/MacOS/TGrabs
 #TREX=~/trex/Application/build/RelWithDebInfo/TRex.app/Contents/MacOS/TRex
 
-CMD="${TGRABS} -d "${PWD}" -i \"${PWD}/test_frames/frame_%3d.jpg\" -o test -threshold 9 -average_samples 100 
-    -averaging_method mode -meta_real_width 2304 -exec \"${PWD}/test.settings\" 
+CMD="${TGRABS} -d "${WPWD}" -i \"${WPWD}/test_frames/frame_%3d.jpg\" -o test -threshold 9 -average_samples 100 
+    -averaging_method mode -meta_real_width 2304 -exec \"${WPWD}/test.settings\" 
     -enable_live_tracking -auto_no_results -output_format csv -nowindow"
 echo "Running TGrabs... ${CMD}"
 if ! { ${CMD} 2>&1; } > "${PWD}/tgrabs.log"; then
@@ -62,7 +63,7 @@ hungarian
 tree"
 
 for MODE in ${MODES}; do
-    CMD="${TREX} -d \"${PWD}\" -i test -s \"${PWD}/test.settings\" -p corrected -match_mode ${MODE} -auto_quit -auto_no_results -output_format csv -nowindow"
+    CMD="${TREX} -d \"${WPWD}\" -i test -s \"${WPWD}/test.settings\" -p corrected -match_mode ${MODE} -auto_quit -auto_no_results -output_format csv -nowindow"
 
     echo "Running TRex (${MODE})... ${CMD}"
 
