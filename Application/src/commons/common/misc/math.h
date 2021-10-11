@@ -4,6 +4,7 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 #include <intrin.h>
+#include <cstdint>
 
 #if defined(_MSC_VER)
     static inline int __builtin_clz(unsigned x) {
@@ -350,8 +351,19 @@ inline constexpr auto infinity()
     return std::numeric_limits<T>::max();
 }
 
-inline uint64_t next_pow2(uint64_t x) {
-    return x == 1 ? 1 : 1<<(64-__builtin_clzl(x-1));
+template <typename T>
+constexpr T next_pow2 (T n)
+{
+    if(n == T{1}) return 1;
+    
+    static_assert(sizeof(T) <= 64, "Cannot use this for >64bit.");
+    T clz = 0;
+    if constexpr (sizeof(T) <= 32)
+        clz = __builtin_clzl(n-1); // unsigned long
+    else
+        clz = __builtin_clzll(n-1); // unsigned long long
+    
+    return T{1} << (CHAR_BIT * sizeof(T) - clz);
 }
 }
 

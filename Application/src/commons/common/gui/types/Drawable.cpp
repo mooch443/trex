@@ -250,7 +250,7 @@ namespace gui {
         if(_scale == scale)
             return;
         
-        if(_scale.Equals(scale))
+        if(!_scale.Equals(scale))
             set_bounds_changed();
         
 #ifndef NDEBUG

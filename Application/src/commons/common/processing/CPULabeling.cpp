@@ -300,6 +300,9 @@ struct Source {
         iterator end() { return _iterator<Combined>(Combined(*this, end_tag{} )); }
         
         void inc_row() {
+            if (!valid())
+                return;
+
             pixel_start = pixel_end;
             node_start = node_end;
             line_start = line_end;
@@ -374,7 +377,8 @@ struct Source {
         clear();
         
         //! local width, height
-        lw = image.cols, lh = image.rows;
+        lw = image.cols;
+        lh = image.rows;
         
         if(max_threads > 1) {
             /**
@@ -886,7 +890,7 @@ void Node::Ref::release_check() {
     obj->release();
     if(obj->unique()) {
         if(obj->parent) {
-            obj->parent->cache().receive(std::move(Ref(obj)));
+            obj->parent->cache().receive(Ref(obj));
         } else
             delete obj;
     }
@@ -1076,6 +1080,8 @@ blobs_t run_fast(List_t* blobs)
     /**
      * FILTER BLOBS FOR SIZE, transform them into proper format
      */
+    result.reserve(std::distance(blobs->begin(), blobs->end()));
+
     for(auto it=blobs->begin(); it != blobs->end(); ++it) {
         if(it->obj && !it->obj->empty()) {
             result.emplace_back(std::make_shared<std::vector<HorizontalLine>>(), std::make_shared<std::vector<uchar>>());

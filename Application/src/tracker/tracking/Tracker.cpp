@@ -75,9 +75,9 @@ namespace track {
     //std::map<long_t, std::map<uint32_t, long_t>> automatically_assigned_blobs;
     std::map<Idx_t, std::map<Rangel, std::vector<int64_t>>> automatically_assigned_ranges;
     
-    inline std::map<Idx_t, long_t> automatically_assigned(long_t frame) {
+    std::map<Idx_t, int64_t> Tracker::automatically_assigned(long_t frame) {
         //LockGuard guard;
-        std::map<Idx_t, long_t> blob_for_fish;
+        std::map<Idx_t, int64_t> blob_for_fish;
         
         for(auto && [fdx, bff] : automatically_assigned_ranges) {
             blob_for_fish[fdx] = -1;
@@ -164,7 +164,7 @@ Tracker::LockGuard::LockGuard(std::string purpose, uint32_t timeout_ms) : _purpo
 }
 
 static CacheHints _properties_cache;
-static std::mutex _properties_mutex;
+static std::shared_mutex _properties_mutex;
 
 const FrameProperties* Tracker::properties(long_t frameIndex, const CacheHints* hints) {
     if(frameIndex < 0)
@@ -179,26 +179,33 @@ const FrameProperties* Tracker::properties(long_t frameIndex, const CacheHints* 
         }
         
     } else {
-        std::lock_guard<std::mutex> guard(_properties_mutex);
+        std::shared_lock guard(_properties_mutex);
         auto ptr = _properties_cache.properties(frameIndex);
         if(ptr)
             return ptr;
     }
     
     auto &frames = instance()->frames();
+    auto it = properties_iterator(frameIndex);
+    return it != frames.end() ? &(*it) : nullptr;
+}
+
+decltype(Tracker::_added_frames)::const_iterator Tracker::properties_iterator(long_t frameIndex) {
+    auto &frames = instance()->frames();
+    
     auto it = std::upper_bound(frames.begin(), frames.end(), frameIndex, [](long_t frame, const FrameProperties& prop) -> bool {
         return frame < prop.frame;
     });
+    
     if((it == frames.end() && !frames.empty()) || (it != frames.begin())) {
         --it;
         
         if(it->frame == frameIndex) {
-            return &(*it);
+            return it;
         }
-        
     }
     
-    return nullptr;
+    return frames.end();
 }
 
     std::string Tracker::thread_name_holding() {
@@ -315,7 +322,7 @@ void Tracker::analysis_state(AnalysisState pause) {
         Settings::set_callback(Settings::track_ignore, track_list_update);
         Settings::set_callback(Settings::track_include, track_list_update);
         Settings::set_callback(Settings::frame_rate, [this](auto&, auto&){
-            std::lock_guard<std::mutex> guard(_properties_mutex);
+            std::unique_lock guard(_properties_mutex);
             _properties_cache.clear(); //! TODO: need to refill as well
         });
         Settings::set_callback(Settings::posture_direction_smoothing, [](auto&key, auto&value) {
@@ -616,108 +623,6 @@ bool operator<(long_t frame, const FrameProperties& props) {
             }
         }
     }
-            
-    inline void insert_line(grid::ProximityGrid& grid, const HorizontalLine* ptr, uint32_t blob_id, size_t step_size) {
-        /*float d = ptr->x1 - ptr->x0;
-        grid.insert(ptr->x0 + d * 0.5, ptr->y, blob_id);
-        if(d >= 5) {
-            grid.insert(ptr->x0, ptr->y, blob_id);
-            grid.insert(ptr->x1, ptr->y, blob_id);
-        }*/
-        
-        auto d = ptr->x1 - ptr->x0;
-        grid.insert(ptr->x0, ptr->y, blob_id);
-        grid.insert(ptr->x1, ptr->y, blob_id);
-        grid.insert(ptr->x0 + d * 0.5, ptr->y, blob_id);
-        
-        if(d >= (short)step_size * 2 && step_size >= 5) {
-            for(auto x = ptr->x0 + step_size; x <= ptr->x1 - step_size; x += step_size) {
-                grid.insert(x, ptr->y, blob_id);
-            }
-        }
-        
-        /*if(ptr->x1 - ptr->x0 < 10) {
-            
-            
-            
-        } else { //  if(ptr->x1 - ptr->x0 >= step_size * 2) {
-            for(auto x = ptr->x0; x <= ptr->x1; x += step_size) {
-                grid.insert(x, ptr->y, blob_id);
-            }
-            
-        }*//*else {
-            for(auto x = ptr->x0; x <= ptr->x1; ++x)
-                grid.insert(x, ptr->y, blob_id);
-        }*/
-    }
-            
-    std::map<uint32_t, pv::BlobPtr> Tracker::fill_proximity_grid(grid::ProximityGrid &grid, const std::vector<pv::BlobPtr> &blobs)
-    {
-        std::map<uint32_t, pv::BlobPtr> bdx_to_ptr;
-        size_t calls = 0;
-        size_t all_pixels = 0;
-        
-        for(auto &b : blobs) {
-            auto N = b->hor_lines().size();
-            auto ptr = b->hor_lines().data();
-            const auto end = ptr + N;
-            
-            auto &size = b->bounds().size();
-            const size_t step_size = 2;
-            const size_t step_size_x = (size_t)max(1, size.width * 0.1);
-            
-            all_pixels += b->num_pixels();
-            
-            if(N >= step_size * 2) {
-                insert_line(grid, ptr, b->blob_id(), step_size_x);
-                
-                for(ptr = ptr + 1; ptr < end-1; ++ptr) {
-                    if(ptr->y % step_size == 0) {
-                        insert_line(grid, ptr, b->blob_id(), step_size_x);
-                    }
-                }
-                
-                insert_line(grid, end-1, b->blob_id(), step_size_x);
-                
-            } else {
-                for(; ptr != end; ++ptr) {
-                    insert_line(grid, ptr, b->blob_id(), step_size_x);
-                    ++calls;
-                }
-            }
-            
-            /*if(ptr != end) {
-                insert_line(grid, ptr, b->blob_id());
-                ++ calls;
-            }
-            
-            if(N >= 7) {
-                for(; ptr < end - 1; ptr += size_t(N * 0.15)) {
-                    insert_line(grid, ptr, b->blob_id());
-                    ++ calls;
-                }
-                
-            } else if(N >= 4) {
-                insert_line(grid, ptr + (end - ptr) / 2, b->blob_id());
-                ++ calls;
-            }
-            
-            if(N > 1) {
-                insert_line(grid, end - 1, b->blob_id());
-                ++ calls;
-            }*/
-            
-            bdx_to_ptr[b->blob_id()] = b;
-        }
-        
-        /*size_t pxs = 0;
-        for(auto &set : grid.get_grid()) {
-            pxs += set.size();
-        }
-        Debug("%f calls, %d/%d pixels", calls / double(blobs.size()), pxs, all_pixels);*/
-        
-        return bdx_to_ptr;
-    }
     
     void Tracker::preprocess_frame(PPFrame& frame, const Tracker::set_of_individuals_t& active_individuals, GenericThreadPool* pool, std::ostream* out, bool do_history_split)
     {
@@ -730,14 +635,13 @@ bool operator<(long_t frame, const FrameProperties& props) {
         frame.timestamp = frame.frame().timestamp();
         frame.set_index(frame.frame().index());
         //assert(frame.index() == frame.frame().index());
-        frame.blobs = frame.frame().get_blobs();
-        frame.original_blobs = frame.blobs;
+        frame.init_from_blobs(std::move(frame.frame().get_blobs()));
         
         filter_blobs(frame, pool);
-        frame.bdx_to_ptr = fill_proximity_grid(frame.blob_grid, frame.blobs);
+        frame.fill_proximity_grid();
         
         if(do_history_split) {
-            Tracker::LockGuard guard("preprocess_frame");
+            //Tracker::LockGuard guard("preprocess_frame");
             Tracker::instance()->history_split(frame, active_individuals, out, pool);
         }
     }
@@ -772,7 +676,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
         return false;
     }
     
-    void Tracker::prefilter(std::shared_ptr<Tracker::PrefilterBlobs> result, std::vector<pv::BlobPtr>::const_iterator it, std::vector<pv::BlobPtr>::const_iterator end)
+    void Tracker::prefilter(const std::shared_ptr<Tracker::PrefilterBlobs>& result, std::vector<pv::BlobPtr>::const_iterator it, std::vector<pv::BlobPtr>::const_iterator end)
     {
         static Timing timing("prefilter", 10);
         TakeTiming take(timing);
@@ -782,32 +686,45 @@ bool operator<(long_t frame, const FrameProperties& props) {
         auto &big_blobs = result->big_blobs;
         auto &filtered  = result->filtered;
         auto &filtered_out = result->filtered_out;
+
+        const auto track_include = FAST_SETTINGS(track_include);
+        const auto track_ignore = FAST_SETTINGS(track_ignore);
         
         std::vector<pv::BlobPtr> ptrs;
         auto only_allowed = FAST_SETTINGS(track_only_categories);
+        
+        auto check_blob = [&track_ignore, &track_include, &result, &cm_sqr](pv::BlobPtr& b){
+            if(b->pixels()->size() * cm_sqr > result->fish_size.max_range().end * 100)
+                b->force_set_recount(result->threshold);
+            else
+                b->recount(result->threshold, *result->background);
+            
+            if (!track_ignore.empty()) {
+                if (blob_matches_shapes(b, track_ignore)) {
+                    result->filter_out(b);
+                    return false;
+                }
+            }
+
+            if (!track_include.empty()) {
+                if (!blob_matches_shapes(b, track_include)) {
+                    result->filter_out(b);
+                    return false;
+                }
+            }
+            
+            return true;
+        };
         
         for(; it != end; ++it) {
             ptrs.clear();
             
             auto b = *it;
-            if(b->pixels()->size() * cm_sqr > result->fish_size.max_range().end * 100)
-                b->force_set_recount(result->threshold);
             
-            float recount = b->recount(result->threshold, *result->background);
+            if(!check_blob(b))
+                continue;
             
-            if(!FAST_SETTINGS(track_ignore).empty()) {
-                if(blob_matches_shapes(b, FAST_SETTINGS(track_ignore))) {
-                    filtered_out.push_back(b);
-                    continue;
-                }
-            }
-            
-            if(!FAST_SETTINGS(track_include).empty()) {
-                if(!blob_matches_shapes(b, FAST_SETTINGS(track_include))) {
-                    filtered_out.push_back(b);
-                    continue;
-                }
-            }
+            float recount = b->recount(-1);
             
             // TODO: magic numbers
             //! If the size is appropriately big, try to split the blob using the minimum of threshold and
@@ -817,66 +734,31 @@ bool operator<(long_t frame, const FrameProperties& props) {
             if(result->fish_size.close_to_minimum_of_one(recount, 0.5)) {
                 Timer timer;
                 auto pblobs = pixel::threshold_blob(b, result->threshold, result->background);
-                size_t actual_relevant_blobs = 0;
-                //float average = 0;
-                
-                // optimization for very large blobs
-                if(!result->fish_size.close_to_maximum_of_one(recount, 100))
-                {
-                    //average = (result->fish_size.max_range().end - result->fish_size.max_range().start) * 0.5 + result->fish_size.max_range().start;
-                    
-                    for (auto& blob : pblobs) {
-                        if(result->fish_size.in_range_of_one(blob->pixels()->size() * cm_sqr, 0.25, 2)) {
-                            ++actual_relevant_blobs;
-                        }
-                    }
-                    
-                } else {
-                    float average = 0;
-                    
-                    Median<float> median;
-                    for (auto& blob : pblobs) {
-                        median.addNumber(blob->pixels()->size() * cm_sqr);
-                        average += blob->pixels()->size() * cm_sqr;
-                    }
-                    average /= float(pblobs.size());
-                    if(pblobs.size() > 2)
-                        average = median.getValue();
-                    
-                    // we're not interested in very very small blobs only
-                    if(average > result->fish_size.max_range().start * 0.25) {
-                        for(auto tmp : pblobs) {
-                            float rec = tmp->pixels()->size() * cm_sqr;
-                            if(result->fish_size.in_range_of_one(rec, 0.5, 10))
-                                ++actual_relevant_blobs;
-                        }
-                    }
-                }
                 
                 // only use blobs that split at least into 2 new blobs
-                //if(actual_relevant_blobs > 1) {
-                for(auto add : pblobs) {
+                for(auto &add : pblobs) {
                     add->set_split(false, b); // set_split even if the blob has just been thresholded normally?
+                    if(!check_blob(add))
+                        continue;
+
                     ptrs.push_back(add);
                 }
-                    
-                //} else
-                //    ptrs.push_back(b);
-                
-                /*if(recount > result->fish_size.end * 3) {
-                    Debug("Frame %d: Took %fs for size %f blob to split into %d (%d)", result->frame_index, timer.elapsed(), recount, actual_relevant_blobs, pblobs.size());
-                }*/
+
+                if (ptrs.empty()) {
+                    ptrs.push_back(b);
+                }
                 
             } else {
                 ptrs.push_back(b);
             }
             
             //! actually add the blob(s) to the filtered/filtered_out arrays
-            for(auto ptr : ptrs) {
-                if(!result->fish_size.close_to_maximum_of_one( ptr->pixels()->size() * cm_sqr, 100))
-                    ptr->force_set_recount(result->threshold);
-                recount = ptr->recount(result->threshold, *result->background);
-                
+            for(auto& ptr : ptrs) {
+                //if(!result->fish_size.close_to_maximum_of_one( ptr->pixels()->size() * cm_sqr, 100))
+                //    ptr->force_set_recount(result->threshold);
+                //recount = ptr->recount(result->threshold, *result->background);
+                recount = ptr->recount(-1);
+
                 if(result->fish_size.in_range_of_one(recount)) {
                     if(FAST_SETTINGS(track_threshold_2) > 0) {
                         auto second_count = ptr->recount(FAST_SETTINGS(track_threshold_2), *result->background);
@@ -884,23 +766,25 @@ bool operator<(long_t frame, const FrameProperties& props) {
                         ptr->force_set_recount(result->threshold, recount / cm_sqr);
                         
                         if(!(FAST_SETTINGS(threshold_ratio_range) * recount).contains(second_count)) {
-                            filtered_out.push_back(ptr);
+                            result->filter_out(ptr);
                             continue;
                         }
                     }
                     
                     if(!only_allowed.empty()) {
-                        auto label = Categorize::DataStore::_ranged_label_unsafe(Frame_t(result->frame_index), ptr->blob_id());
-                        if(!label || !contains(only_allowed, label->name)) {
-                            filtered_out.push_back(ptr);
+                        auto ldx = Categorize::DataStore::_ranged_label_unsafe(Frame_t(result->frame_index), ptr->blob_id());
+                        if(ldx == -1 || !contains(only_allowed, Categorize::DataStore::label(ldx)->name)) {
+                            result->filter_out(ptr);
                             continue;
                         }
                     }
                     
-                    filtered.push_back(ptr);
+                    //! only after all the checks passed, do we commit the blob
+                    /// to the "filtered" array:
+                    result->commit(ptr);
                     
                 } else if(recount < result->fish_size.max_range().start) {
-                    filtered_out.push_back(ptr);
+                    result->filter_out(ptr);
                 } else
                     big_blobs.push_back(ptr);
             }
@@ -910,16 +794,29 @@ bool operator<(long_t frame, const FrameProperties& props) {
             Debug("Frame %d: %d big blobs", result->frame_index, big_blobs.size());
         }*/
         
-        for(auto blob : filtered)
+        for(auto &blob : filtered)
             blob->calculate_moments();
         
-        if(result->frame_index == Tracker::start_frame() || Tracker::start_frame() == -1) {
-            auto big_filtered = Tracker::instance()->split_big(result->filtered_out, big_blobs, {});
-            if(!big_filtered.empty())
-                filtered.insert(filtered.end(), big_filtered.begin(), big_filtered.end());
-            
-        } else if(!big_blobs.empty()) {
-            filtered.insert(filtered.end(), big_blobs.begin(), big_blobs.end());
+        if (result->frame_index == Tracker::start_frame() || Tracker::start_frame() == -1)
+            big_blobs = Tracker::instance()->split_big(
+                    BlobReceiver(*result, BlobReceiver::noise),
+                    big_blobs,
+                    {});
+
+        if (!only_allowed.empty()) {
+            for (auto it = big_blobs.begin(); it != big_blobs.end(); ) {
+                auto ldx = Categorize::DataStore::_ranged_label_unsafe(Frame_t(result->frame_index), (*it)->blob_id());
+                if (ldx == -1 || !contains(only_allowed, Categorize::DataStore::label(ldx)->name)) {
+                    result->filter_out(*it);
+                    it = big_blobs.erase(it);
+                    continue;
+                }
+                ++it;
+            }
+        }
+
+        if (!big_blobs.empty()) {
+            result->commit(big_blobs);
             big_blobs.clear();
         }
     }
@@ -929,7 +826,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
         TakeTiming take(timing);
         
         const BlobSizeRange fish_size = FAST_SETTINGS(blob_size_ranges);
-        const uint32_t num_blobs = (uint32_t)frame.blobs.size();
+        const uint32_t num_blobs = (uint32_t)frame.blobs().size();
         const int threshold = FAST_SETTINGS(track_threshold);
         
         //static const unsigned concurrentThreadsSupported = cmn::hardware_concurrency();
@@ -938,7 +835,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
         //initial_filter.start_measure();
         
         size_t available_threads = 1 + (pool ? pool->num_threads() : 0);
-        size_t maximal_threads = frame.blobs.size();
+        size_t maximal_threads = frame.blobs().size();
         size_t needed_threads = min(maximal_threads / (size_t)FAST_SETTINGS(blobs_per_thread), available_threads);
         std::shared_lock guard(Categorize::DataStore::range_mutex());
         
@@ -950,11 +847,11 @@ bool operator<(long_t frame, const FrameProperties& props) {
             std::vector<std::shared_ptr<PrefilterBlobs>> prefilters;
             prefilters.resize(used_threads);
             
-            auto start = frame.blobs.begin();
+            auto start = frame.blobs().begin();
             auto end = start + per_thread;
             
             for(size_t i=0; i<used_threads - 1; ++i) {
-                assert(end < frame.blobs.end());
+                assert(end < frame.blobs().end());
                 
                 prefilters.at(i) = std::make_shared<PrefilterBlobs>(frame.index(), threshold, fish_size, *Tracker::instance()->_background);
                 pool->enqueue(prefilter, prefilters[i], start, end);
@@ -964,33 +861,33 @@ bool operator<(long_t frame, const FrameProperties& props) {
             }
             
             prefilters.back() = std::make_shared<PrefilterBlobs>(frame.index(), threshold, fish_size, *Tracker::instance()->_background);
-            prefilter(prefilters.back(), start, frame.blobs.end());
+            prefilter(prefilters.back(), start, frame.blobs().end());
             pool->wait();
             
-            frame.blobs.clear();
-            frame.filtered_out.clear();
+            frame.clear_blobs();
             
-            for(auto filter : prefilters) {
+            for(auto& filter : prefilters) {
                 if(!filter)
                     continue;
-                frame.blobs.insert(frame.blobs.end(), filter->filtered.begin(), filter->filtered.end());
-                frame.filtered_out.insert(frame.filtered_out.end(), filter->filtered_out.begin(), filter->filtered_out.end());
+                frame.add_blobs(std::move(filter->filtered), std::move(filter->filtered_out), filter->overall_pixels, filter->samples);
             }
 
         } else {
             auto pref = std::make_shared<PrefilterBlobs>(frame.index(), threshold, fish_size, *Tracker::instance()->_background);
-            prefilter(pref, frame.blobs.begin(), frame.blobs.end());
+            prefilter(pref, frame.blobs().begin(), frame.blobs().end());
             
-            frame.blobs = pref->filtered;
-            frame.filtered_out = pref->filtered_out;
+            frame.clear_blobs();
+            frame.add_blobs(std::move(pref->filtered),
+                            std::move(pref->filtered_out),
+                            pref->overall_pixels, pref->samples);
         }
         
         //initial_filter.conclude_measure();
     }
 
-    std::vector<std::shared_ptr<pv::Blob>> Tracker::split_big(
-        std::vector<pv::BlobPtr>& filtered_out,
-        const std::vector<std::shared_ptr<pv::Blob>> &big_blobs,
+    std::vector<pv::BlobPtr> Tracker::split_big(
+        const BlobReceiver& filter_out,
+        const std::vector<pv::BlobPtr> &big_blobs,
         const std::map<pv::BlobPtr, split_expectation> &expect,
         bool discard_small,
         std::ostream* out,
@@ -1000,232 +897,119 @@ bool operator<(long_t frame, const FrameProperties& props) {
         const int threshold = FAST_SETTINGS(track_threshold);
         const BlobSizeRange fish_size = FAST_SETTINGS(blob_size_ranges);
         const float cm_sq = SQR(FAST_SETTINGS(cm_per_pixel));
-        auto blacklist = FAST_SETTINGS(track_ignore);
-        std::mutex _mutex;
+        const auto track_ignore = FAST_SETTINGS(track_ignore);
+        const auto track_include = FAST_SETTINGS(track_include);
         
-        auto work = [&](auto b, std::vector<pv::BlobPtr>& big_filtered, std::vector<pv::BlobPtr>& noise){
-            if(!fish_size.close_to_maximum_of_one(b->pixels()->size() * cm_sq, 1000))
-            {
-                noise.push_back(b);
-                return;
+        std::mutex thread_mutex;
+        
+        auto check_blob = [&track_ignore, &track_include](const pv::BlobPtr& b) {
+            if (!track_ignore.empty()) {
+                if (blob_matches_shapes(b, track_ignore))
+                    return false;
+            }
+
+            if (!track_include.empty()) {
+                if (!blob_matches_shapes(b, track_include))
+                    return false;
             }
             
-            split_expectation ex(2, false);
-            if(!expect.empty() && expect.count(b))
-                ex = expect.at(b);
-            
-            auto rec = b->recount(threshold, *_background);
-            if(!fish_size.close_to_maximum_of_one(rec, 10 * ex.number))
-               //|| (!expect.empty() && !expect.count(b)))
-            {
-                noise.push_back(b);
-                return;
-            }
-            
-            SplitBlob s(*_background, b);
-            auto ret = s.split(ex.number);//now < prev ? 2 : 1);
-            for(auto &ptr : ret) {
-                if(b->blob_id() != ptr->blob_id())
-                    ptr->set_split(true, b);
-            }
-            
-            std::set<std::tuple<float, pv::BlobPtr>, std::greater<>> added;
-            if(ex.allow_less_than && ret.empty()) {
-                Log(out, "Filling self in for blob %d.", b->blob_id());
-                //b->set_split(true, nullptr);
-                
-                if((!discard_small || fish_size.close_to_minimum_of_one(rec, 0.25)) && !blob_matches_shapes(b, blacklist))
-                {
-                    if(out)
-                        added.insert({rec, b});
-                    big_filtered.push_back(b);
-                    
-                } else {
-                    noise.push_back(b);
-                }
-                
-            } else {
-                std::vector<pv::BlobPtr> for_this_blob;
-                std::set<std::tuple<float, pv::BlobPtr>, std::greater<>> found;
-                for(auto ptr : ret) {
-                    float recount = ptr->recount(0, *_background);
-                    found.insert({recount, ptr});
-                }
-                
-                size_t counter = 0;
-                for(auto && [r, ptr] : found) {
-                    ptr->add_offset(b->bounds().pos());
-                    ptr->set_split(true, b);
-                    ptr->calculate_moments();
-                    
-                    if(fish_size.in_range_of_one(r, 0.35, 1) && (!discard_small || counter < ex.number) && !blob_matches_shapes(ptr, blacklist)) {
-                        for_this_blob.push_back(ptr);
-                        if(out)
-                            added.insert({r, ptr});
-                        ++counter;
-                    } else {
-                        noise.push_back(ptr);
-                    }
-                }
-                
-                if(ret.empty()) {
-                    noise.push_back(b);
-                } else if(for_this_blob.size() < ex.number) {
-                    Log(out, "Not allowing less than %d, but only found %d blobs", ex.number, for_this_blob.size());
-                    noise.insert(noise.end(), for_this_blob.begin(), for_this_blob.end());
-                    
-                    if(out)
-                        added.clear();
-                } else {
-                    big_filtered.insert(big_filtered.end(), for_this_blob.begin(), for_this_blob.end());
-                }
-            }
-            
-            if(out) {
-                auto str = Meta::toStr(added);
-                Log(out, "split blob %d -> %S", b->blob_id(), &str);
-            }
+            return true;
         };
         
-        if(pool && big_blobs.size() >= 4) {
-            static const uint32_t max_threads = max(1u, cmn::hardware_concurrency());
-            const uint32_t end = big_blobs.size() % max_threads;
-            const uint32_t per_thread = (big_blobs.size() - end) / max_threads;
-            //Debug("max_threads = %lu, per_thread = %lu, size = %lu, end = %lu", max_threads, per_thread, big_blobs.size(), end);
+        auto work = [&](auto, auto start, auto end, auto)
+        {
+            std::vector<pv::BlobPtr> noise, regular;
             
-            if(per_thread > 0) {
-                for (uint32_t i = 0; i < max_threads; ++i) {
-                    pool->enqueue([&](uint32_t tid){
-                        std::vector<pv::BlobPtr> r, noise;
-                        
-                        auto from = tid  * per_thread;
-                        auto to   = from + per_thread;
-                        
-                        //Debug("Thread %lu working %lu to %lu.", tid, from, to);
-                        
-                        for (size_t i=from; i < to; ++i) {
-                            work(big_blobs[i], r, noise);
+            for(auto it = start; it != end; ++it) {
+                auto &b = *it;
+                
+                if(!fish_size.close_to_maximum_of_one(b->pixels()->size() * cm_sq, 1000))
+                {
+                    noise.push_back(b);
+                    continue;
+                }
+                
+                split_expectation ex(2, false);
+                if(!expect.empty() && expect.count(b))
+                    ex = expect.at(b);
+                
+                auto rec = b->recount(threshold, *_background);
+                if(!fish_size.close_to_maximum_of_one(rec, 10 * ex.number)) {
+                    noise.push_back(b);
+                    continue;
+                }
+                
+                SplitBlob s(*_background, b);
+                std::vector<pv::BlobPtr> copy;
+                auto ret = s.split(ex.number);
+                
+                for(auto &ptr : ret) {
+                    if(b->blob_id() != ptr->blob_id())
+                        ptr->set_split(true, b);
+                }
+                
+                if(ex.allow_less_than && ret.empty()) {
+                    if((!discard_small || fish_size.close_to_minimum_of_one(rec, 0.25))) {
+                        result.push_back(b);
+                    } else {
+                        noise.push_back(b);
+                    }
+                    
+                } else {
+                    std::vector<pv::BlobPtr> for_this_blob;
+                    std::set<std::tuple<float, uint32_t, pv::BlobPtr>, std::greater<>> found;
+                    for(auto &ptr : ret) {
+                        float recount = ptr->recount(0, *_background);
+                        found.insert({recount, ptr->blob_id(), ptr});
+                    }
+                    
+                    size_t counter = 0;
+                    for(auto & [r, id, ptr] : found) {
+                        ptr->add_offset(b->bounds().pos());
+                        ptr->set_split(true, b);
+
+                        ptr->calculate_moments();
+
+                        if(!check_blob(ptr)) {
+                            noise.push_back(ptr);
+                            continue;
                         }
                         
-
-                        std::lock_guard<std::mutex> guard(_mutex);
-                        result.insert(result.end(), r.begin(), r.end());
-                        filtered_out.insert(filtered_out.end(), noise.begin(), noise.end());
+                        if(fish_size.in_range_of_one(r, 0.35, 1) && (!discard_small || counter < ex.number)) {
+                            for_this_blob.push_back(ptr);
+                            ++counter;
+                        } else {
+                            noise.push_back(ptr);
+                        }
+                    }
+                    
+                    if(ret.empty()) {
+                        noise.push_back(b);
+                    } /*else if(for_this_blob.size() < ex.number) {
+                        Log(out, "Not allowing less than %d, but only found %d blobs", ex.number, for_this_blob.size());
+                        receiver(std::move(for_this_blob));
+                        //filtered_out.insert(filtered_out.end(), for_this_blob.begin(), for_this_blob.end());
                         
-                    }, i);
-                }
-                
-                if(end != 0) {
-                    auto from = per_thread  * max_threads;
-                    auto to   = from + end;
-                    
-                    std::vector<pv::BlobPtr> r, noise;
-                    
-                    //Debug("Main thread working %lu to %lu", from, to);
-                    
-                    for (size_t i=from; i < to; ++i) {
-                        work(big_blobs[i], r, noise);
-                    }
-                    
-                    std::lock_guard<std::mutex> guard(_mutex);
-                    result.insert(result.end(), r.begin(), r.end());
-                    filtered_out.insert(filtered_out.end(), noise.begin(), noise.end());
-                }
-                
-                pool->wait();
-                
-                return result;
-                
-            } else {
-                
-            }
-        }
-        
-        for(auto b : big_blobs) {
-            //Debug("history_split_big %d blobs (%d)", big_blobs.size(), b->pixels()->size());
-            
-            if(!fish_size.close_to_maximum_of_one(b->pixels()->size() * cm_sq, 1000))
-            {
-                filtered_out.push_back(b);
-                continue;
-            }
-            
-            
-            
-            split_expectation ex(2, false);
-            if(!expect.empty() && expect.count(b))
-                ex = expect.at(b);
-            
-            auto rec = b->recount(threshold, *_background);
-            if(!fish_size.close_to_maximum_of_one(rec, 10 * ex.number))
-               //|| (!expect.empty() && !expect.count(b)))
-            {
-                filtered_out.push_back(b);
-                continue;
-            }
-            
-            SplitBlob s(*_background, b);
-            auto ret = s.split(ex.number);//now < prev ? 2 : 1);
-            for(auto &ptr : ret) {
-                if(b->blob_id() != ptr->blob_id())
-                    ptr->set_split(true, b);
-            }
-            
-            std::set<std::tuple<float, pv::BlobPtr>, std::greater<>> added;
-            if(ex.allow_less_than && ret.empty()) {
-                Log(out, "Filling self in for blob %d.", b->blob_id());
-                //b->set_split(true, nullptr);
-                
-                if((!discard_small || fish_size.close_to_minimum_of_one(rec, 0.25)) && !blob_matches_shapes(b, blacklist)) {
-                    result.push_back(b);
-                    
-                    if(out)
-                        added.insert({rec, b});
-                } else {
-                    filtered_out.push_back(b);
-                }
-                
-            } else {
-                std::vector<pv::BlobPtr> for_this_blob;
-                std::set<std::tuple<float, pv::BlobPtr>, std::greater<>> found;
-                for(auto ptr : ret) {
-                    float recount = ptr->recount(0, *_background);
-                    found.insert({recount, ptr});
-                }
-                
-                size_t counter = 0;
-                for(auto && [r, ptr] : found) {
-                    ptr->add_offset(b->bounds().pos());
-                    ptr->set_split(true, b);
-                    ptr->calculate_moments();
-                    
-                    if(fish_size.in_range_of_one(r, 0.35, 1) && (!discard_small || counter < ex.number) && !blob_matches_shapes(ptr, blacklist)) {
-                        for_this_blob.push_back(ptr);
                         if(out)
-                            added.insert({r, ptr});
-                        ++counter;
-                    } else {
-                        filtered_out.push_back(ptr);
-                    }
+                            added.clear();
+                    }*/ else
+                        regular.insert(regular.end(),
+                                       std::make_move_iterator(for_this_blob.begin()),
+                                       std::make_move_iterator(for_this_blob.end()));
                 }
-                
-                if(ret.empty()) {
-                    filtered_out.push_back(b);
-                } else if(for_this_blob.size() < ex.number) {
-                    Log(out, "Not allowing less than %d, but only found %d blobs", ex.number, for_this_blob.size());
-                    filtered_out.insert(filtered_out.end(), for_this_blob.begin(), for_this_blob.end());
-                    
-                    if(out)
-                        added.clear();
-                } else
-                    result.insert(result.end(), for_this_blob.begin(), for_this_blob.end());
             }
             
-            if(out) {
-                auto str = Meta::toStr(added);
-                Log(out, "split blob %d -> %S", b->blob_id(), &str);
-            }
-        }
+            std::unique_lock guard(thread_mutex);
+            result.insert(result.end(),
+                          std::make_move_iterator(regular.begin()),
+                          std::make_move_iterator(regular.end()));
+            filter_out(std::move(noise));
+        };
+        
+        if(big_blobs.size() >= 2 && pool) {
+            distribute_vector(work, *pool, big_blobs.begin(), big_blobs.end());
+        } else
+            work(0, big_blobs.begin(), big_blobs.end(), 0);
         
         return result;
     }
@@ -1233,11 +1017,16 @@ bool operator<(long_t frame, const FrameProperties& props) {
     void Tracker::history_split(PPFrame &frame, const std::unordered_set<Individual *> &active_individuals, std::ostream* out, GenericThreadPool* pool) {
         static Timing timing("history_split", 20);
         TakeTiming take(timing);
+
+        float tdelta;
         
         auto resolution = _average->bounds().size();
         //ProximityGrid proximity(resolution);
-        auto props = properties(frame.index() - 1);
-        float tdelta = props ? (frame.time - props->time) : 0;
+        {
+            Tracker::LockGuard guard("history_split#1");
+            auto props = properties(frame.index() - 1);
+            tdelta = props ? (frame.time - props->time) : 0;
+        }
         const float max_d = FAST_SETTINGS(track_max_speed) * tdelta / FAST_SETTINGS(cm_per_pixel) * 0.5;
 
         Log(out, "");
@@ -1250,9 +1039,11 @@ bool operator<(long_t frame, const FrameProperties& props) {
         }
         
         using namespace Match;
-        std::map<long_t, std::set<long_t>> fish_mappings;
-        std::map<long_t, std::set<long_t>> blob_mappings;
+        std::map<long_t, std::set<uint32_t>> fish_mappings;
+        std::map<uint32_t, std::set<long_t>> blob_mappings;
         std::map<long_t, std::map<uint32_t, Match::prob_t>> paired;
+
+        const auto frame_limit = FAST_SETTINGS(frame_rate) * FAST_SETTINGS(track_max_reassign_time);
         
         {
             //static Timing just_splitting("caching", 0.1);
@@ -1262,44 +1053,52 @@ bool operator<(long_t frame, const FrameProperties& props) {
             //num_threads = 1;
             std::mutex thread_mutex;
             auto space_limit = Individual::weird_distance() * 0.5;
-            
-            auto fn = [&](Tracker::set_of_individuals_t::const_iterator it, Tracker::set_of_individuals_t::const_iterator end) {
-                for(; it != end; ++it) {
+            std::condition_variable variable;
+
+            size_t count = 0;
+            std::mutex mutex;
+
+            auto fn = [&](const Tracker::set_of_individuals_t& active_individuals,
+                          size_t start,
+                          size_t N)
+            {
+                auto it = active_individuals.begin();
+                std::advance(it, start);
+                
+                for(auto i = start; i < start + N; ++i, ++it) {
                     auto fish = *it;
-                    
-                    auto &obj = frame.cached_individuals.at(fish->identity().ID());
-                    obj = fish->cache_for_frame(frame.index(), frame.time);
-                    
-                    auto frame_limit = FAST_SETTINGS(frame_rate) * FAST_SETTINGS(track_max_reassign_time);
-                    auto time_limit = obj.previous_frame - frame_limit;
+                    auto &cache = frame.individual_cache()[i];
 					
                     Vec2 last_pos(-1,-1);
                     auto last_frame = -1;
                     long_t last_L = -1;
+                    float time_limit;
 
-                    
-                    size_t counter = 0;
-                    auto sit = fish->iterator_for(obj.previous_frame);
-                    if(sit != fish->frame_segments().end() && (*sit)->contains(obj.previous_frame)) {
+                    // IndividualCache is in the same position as the indexes here
+                    //auto& obj = frame.cached_individuals.at(fish->identity().ID());
+                    cache = fish->cache_for_frame(frame.index(), frame.time);
+                    time_limit = cache.previous_frame - frame_limit;
                         
-
-                        for(; sit != fish->frame_segments().end() && min((*sit)->end(), obj.previous_frame) >= time_limit && counter < frame_limit; ++counter)
+                    size_t counter = 0;
+                    auto sit = fish->iterator_for(cache.previous_frame);
+                    if (sit != fish->frame_segments().end() && (*sit)->contains(cache.previous_frame)) {
+                        for (; sit != fish->frame_segments().end() && min((*sit)->end(), cache.previous_frame) >= time_limit && counter < frame_limit; ++counter)
                         {
                             auto pos = fish->basic_stuff().at((*sit)->basic_stuff((*sit)->end()))->centroid->pos(Units::DEFAULT);
-                            
-                            if((*sit)->length() > FAST_SETTINGS(frame_rate) * FAST_SETTINGS(track_max_reassign_time) * 0.25)
+
+                            if ((*sit)->length() > FAST_SETTINGS(frame_rate) * FAST_SETTINGS(track_max_reassign_time) * 0.25)
                             {
                                 //! segment is long enough, we can stop. but only actually use it if its not too far away:
-                                if(last_pos.x == -1 || euclidean_distance(pos, last_pos) < space_limit) {
-                                    last_frame = min((*sit)->end(), obj.previous_frame);
+                                if (last_pos.x == -1 || euclidean_distance(pos, last_pos) < space_limit) {
+                                    last_frame = min((*sit)->end(), cache.previous_frame);
                                     last_L = last_frame - (*sit)->start();
                                 }
                                 break;
                             }
-                            
+
                             last_pos = fish->basic_stuff().at((*sit)->basic_stuff((*sit)->start()))->centroid->pos(Units::DEFAULT);
-                            
-                            if(sit != fish->frame_segments().begin())
+
+                            if (sit != fish->frame_segments().begin())
                                 --sit;
                             else
                                 break;
@@ -1311,7 +1110,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
                         continue;
                     }
                     
-                    auto set = frame.blob_grid.query(obj.estimated_px, max_d);
+                    auto set = frame.blob_grid().query(cache.estimated_px, max_d);
                     
                     std::string str = "";
                     if(out)
@@ -1319,47 +1118,57 @@ bool operator<(long_t frame, const FrameProperties& props) {
                     
                     if(!set.empty()) {
                         auto fdx = fish->identity().ID();
+                        
+                        std::unique_lock guard(thread_mutex);
+                        auto &map = fish_mappings[fdx];
+                        auto &pair_map = paired[fdx];
+                        
                         for(auto && [d, bdx] : set) {
-                            std::lock_guard<std::mutex> guard(thread_mutex);
-                            auto blob = frame.bdx_to_ptr.at(bdx);
-                            fish_mappings[fdx].insert(blob->blob_id());
-                            blob_mappings[blob->blob_id()].insert(fdx);
-                            paired[fdx][blob->blob_id()] = d;
+                            if(!frame.find_bdx(bdx)) {
+                                continue;
+                            }
+                            
+                            map.insert(bdx);
+                            blob_mappings[bdx].insert(fdx);
+                            pair_map[bdx] = d;
                         }
                     }
                     
-                    Log(out, "\tFish %d (%f,%f) proximity: %S", fish->identity().ID(), obj.estimated_px.x, obj.estimated_px.y, &str);
+                    Log(out, "\tFish %d (%f,%f) proximity: %S", fish->identity().ID(), cache.estimated_px.x, cache.estimated_px.y, &str);
                 }
+
+                std::unique_lock lock(mutex);
+                ++count;
+                variable.notify_one();
             };
             
             //pool = nullptr;
-            for(auto fish : active_individuals)
-                frame.cached_individuals[fish->identity().ID()];
+            frame.individual_cache().clear();
+            frame.individual_cache().resize(active_individuals.size());
             
             if(num_threads < 2 || !pool || active_individuals.size() < num_threads) {
-                fn(active_individuals.begin(), active_individuals.end());
+                Tracker::LockGuard guard("history_split#2");
+                fn(active_individuals, 0, active_individuals.size());
                 
             } else if(active_individuals.size()) {
                 size_t last = active_individuals.size() % num_threads;
                 size_t per_thread = (active_individuals.size() - last) / num_threads;
-                
-                for (size_t i=0; (i<=num_threads && last) || (!last && i<num_threads); ++i) {
+                size_t i = 0;
+
+                Tracker::LockGuard guard("history_split#2");
+                for (; (i<=num_threads && last) || (!last && i<num_threads); ++i) {
                     size_t n = per_thread;
                     if(i == num_threads)
                         n = last;
                     
-                    auto start = active_individuals.begin();
-                    std::advance(start, i * per_thread);
-                    auto end = start;
-                    std::advance(end, n);
-                    
-                    //Log(out, "Thread %d: %d-%d / %d", i, i*per_thread, i*per_thread+n, active_individuals.size());
-                    
-                    //fn(start, end);
-                    pool->enqueue(fn, start, end);
+                    pool->enqueue(fn,
+                                  active_individuals,
+                                  i * per_thread, n);
                 }
                 
-                pool->wait();
+                std::unique_lock lock(mutex);
+                while (count < i)
+                    variable.wait(lock);
             }
         }
         
@@ -1384,12 +1193,9 @@ bool operator<(long_t frame, const FrameProperties& props) {
                 }
                 
                 Log(out, "\t\tManually splitting %d", bdx);
-                auto ptr = frame.bdx_to_ptr.count(bdx) ? frame.bdx_to_ptr.at(bdx) : nullptr;
+                auto ptr = frame.erase_anywhere(bdx);
                 if(ptr) {
                     big_blobs.push_back(ptr);
-                    auto it = std::find(frame.blobs.begin(), frame.blobs.end(), ptr);
-                    if(it != frame.blobs.end())
-                        frame.blobs.erase(it);
                     
                     expect[ptr].number = 2;
                     expect[ptr].allow_less_than = false;
@@ -1411,6 +1217,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
         }
         
         if(!FAST_SETTINGS(track_do_history_split)) {
+            frame.finalize();
             return;
         }
         
@@ -1425,8 +1232,8 @@ bool operator<(long_t frame, const FrameProperties& props) {
                 continue;
             Log(out, "\tFinding clique of this blob:");
             
-            std::set<long_t> clique;
-            std::set<long_t> others;
+            std::set<uint32_t> clique;
+            std::set<uint32_t> others;
             std::queue<long_t> q;
             q.push(bdx);
             
@@ -1574,16 +1381,23 @@ bool operator<(long_t frame, const FrameProperties& props) {
                             
                             if(max_id > 0) {
                                 frame.split_blobs.insert((uint32_t)max_id);
-                                auto ptr = frame.bdx_to_ptr.at(max_id);
-                                auto it = std::find(frame.blobs.begin(), frame.blobs.end(), ptr);
-                                if(it != frame.blobs.end()) {
+                                auto ptr = frame.erase_regular(max_id);
+                                
+                                if(ptr) {
                                     Log(out, "Splitting blob %d", max_id);
+                                    
+                                    for(auto && [ind, blobs] : paired) {
+                                        auto it = blobs.find(max_id);
+                                        if(it != blobs.end()) {
+                                            blobs.erase(it);
+                                            //Debug("Frame %d: Erasing blob %u from paired (ind=%d)", frame.index(), max_id, ind);
+                                        }
+                                    }
                                     
                                     ++expect[ptr].number;
                                     big_blobs.push_back(ptr);
-                                    frame.blobs.erase(it);
                                 }
-                                else {
+                                else if((ptr = frame.find_bdx(max_id))) {
                                     if(expect.count(ptr)) {
                                         Log(out, "Increasing expect number for blob %d.", max_id);
                                         ++expect[ptr].number;
@@ -1591,6 +1405,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
                                     
                                     Log(out, "Would split blob %d, but its part of additional.", max_id);
                                 }
+                                
                                 if(allow_less_than)
                                     expect[ptr].allow_less_than = allow_less_than;
                             }
@@ -1613,7 +1428,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
         
         if(!manual_splits_frame.empty()) {
             for(auto bdx : manual_splits_frame) {
-                auto ptr = frame.bdx_to_ptr.count(bdx) ? frame.bdx_to_ptr.at(bdx) : nullptr;
+                auto ptr = frame.find_bdx(bdx);
                 if(ptr) {
                     expect[ptr].allow_less_than = false;
                     expect[ptr].number = 2;
@@ -1624,17 +1439,19 @@ bool operator<(long_t frame, const FrameProperties& props) {
         //static Timing tim("history_split_split_big", 0.1);
         //TakeTiming tak(tim);
         
-        auto big_filtered = split_big(frame.filtered_out, big_blobs, expect, true, out, pool);
-        if(!big_filtered.empty())
-            frame.blobs.insert(frame.blobs.end(), big_filtered.begin(), big_filtered.end());
+        auto big_filtered = split_big(BlobReceiver(frame, BlobReceiver::noise), big_blobs, expect, true, out, pool);
         
-        for(auto it = frame.blobs.begin(); it != frame.blobs.end();) {
-            if(!FAST_SETTINGS(blob_size_ranges).in_range_of_one(it->get()->recount(-1))) { //it->get()->recount(-1) > FAST_SETTINGS(blob_size_ranges).max_range().end) {
-                frame.filtered_out.push_back(*it);
-                it = frame.blobs.erase(it);
+        if(!big_filtered.empty())
+            frame.add_regular(std::move(big_filtered));
+        
+        for(size_t i=0; i<frame.blobs().size(); ) {
+            if(!FAST_SETTINGS(blob_size_ranges).in_range_of_one(frame.blobs()[i]->recount(-1))) {
+                frame.move_to_noise(i);
             } else
-                ++it;
+                ++i;
         }
+        
+        frame.finalize();
     }
     
     Individual* Tracker::create_individual(Idx_t ID, Tracker::set_of_individuals_t& active_individuals) {
@@ -1653,68 +1470,6 @@ bool operator<(long_t frame, const FrameProperties& props) {
         
         return fish;
     }
-            
-    void approximative_matching(
-        long_t frameIndex,
-        PPFrame& frame,
-        const std::map<const pv::Blob*, std::map<Individual*, Match::prob_t>>& paired_blobs,
-        const std::set<pv::BlobPtr>& relevant_blobs,
-        std::set<Individual*>& active_individuals,
-        const std::function<void(size_t frameIndex, PPFrame& frame, Individual* fish, pv::BlobPtr blob)>& assign_blob_individual
-    ) {
-        static Timing probs("Tracker::match_use_approximate", 10);
-        TakeTiming take(probs);
-        
-        using namespace Match;
-        std::map<const pv::Blob*, pv::BlobPtr> ptr2ptr;
-        std::set<Individual*> used_blobs;
-        
-        for (auto r : relevant_blobs) {
-            ptr2ptr[r.get()] = r;
-        }
-        
-        //auto str = Meta::toStr(paired_blobs);
-        //Debug("Assigning %S", &str);
-        
-        size_t nedges = 0, looked_at = 0;
-        
-        for(auto && [blob, edges] : paired_blobs) {
-            prob_t max_p = 0;
-            Individual* max_fish = nullptr;
-            //auto && [max_fish, max_p] = edges;
-            for(auto && [fish, p] : edges) {
-                if(used_blobs.find(fish) == used_blobs.end()) {
-                    if(p > max_p) {
-                        max_p = p;
-                        max_fish = fish;
-                    }
-                }
-            }
-            
-            if(max_fish) {
-                used_blobs.insert(max_fish);
-                
-                assign_blob_individual(frameIndex, frame, max_fish, ptr2ptr.at(blob));
-                active_individuals.insert(max_fish);
-                
-            } //else
-                //Warning("Not assigning fish %d because no blobs available.", fish->identity().ID());
-            nedges += edges.size();
-            looked_at += edges.size();
-        }
-        
-        std::lock_guard<std::mutex> guard(Tracker::instance()->_statistics_mutex);
-        auto &_statistics = Tracker::instance()->_statistics;
-        _statistics[frameIndex].match_number_blob = relevant_blobs.size();
-        _statistics[frameIndex].match_number_fish = active_individuals.size();
-        _statistics[frameIndex].match_number_edges = nedges;
-        _statistics[frameIndex].match_stack_objects = looked_at;
-        _statistics[frameIndex].method_used = (int)default_config::matching_mode_t::approximate.value();
-        /*_statistics[frameIndex].match_max_edges_per_blob = max_edges_per_blob;
-        _statistics[frameIndex].match_max_edges_per_fish = max_edges_per_fish;
-        _statistics[frameIndex].match_mean_edges_per_blob = mean_edges_per_blob;
-        _statistics[frameIndex].match_mean_edges_per_fish = mean_edges_per_fish;*/
-    }
 
 const FrameProperties* Tracker::add_next_frame(const FrameProperties & props) {
     auto &frames = instance()->frames();
@@ -1722,7 +1477,7 @@ const FrameProperties* Tracker::add_next_frame(const FrameProperties & props) {
     instance()->_added_frames.push_back(props);
     
     if(frames.capacity() != capacity) {
-        std::lock_guard<std::mutex> guard(_properties_mutex);
+        std::unique_lock guard(_properties_mutex);
         _properties_cache.clear();
         
         long_t frame = end_frame();
@@ -1735,7 +1490,7 @@ const FrameProperties* Tracker::add_next_frame(const FrameProperties & props) {
         assert((frames.empty() && end_frame() == -1) || (end_frame() != -1 && frames.rbegin()->frame == end_frame()));
         
     } else {
-        std::lock_guard<std::mutex> guard(_properties_mutex);
+        std::unique_lock guard(_properties_mutex);
         _properties_cache.push(props.frame, &frames.back());
     }
     
@@ -1743,8 +1498,152 @@ const FrameProperties* Tracker::add_next_frame(const FrameProperties & props) {
 }
 
 void Tracker::clear_properties() {
-    std::lock_guard<std::mutex> guard(_properties_mutex);
+    std::unique_lock guard(_properties_mutex);
     _properties_cache.clear();
+}
+
+Match::PairedProbabilities Tracker::calculate_paired_probabilities
+ (
+    const PPFrame& frame,
+    const Tracker::set_of_individuals_t& active_individuals,
+    const std::unordered_map<Individual*, bool>& fish_assigned,
+    const std::unordered_map<pv::Blob*, bool>& blob_assigned,
+    //std::unordered_map<pv::Blob*, pv::BlobPtr>& ptr2ptr,
+    GenericThreadPool* pool
+ )
+{
+    // now that the blobs array has been cleared of all the blobs for fixed matches,
+    // get pairings for all the others:
+    //static std::unordered_map<Individual*, Match::prob_t> max_probs;
+    //std::unordered_map<const pv::Blob*, std::unordered_map<Individual*, Match::prob_t>> paired_blobs;
+    //max_probs.clear();
+    Match::PairedProbabilities paired_blobs;
+    std::mutex paired_mutex;
+    auto frameIndex = frame.index();
+    
+    using namespace default_config;
+    
+    {
+        using namespace Match;
+        static const unsigned concurrentThreadsSupported = cmn::hardware_concurrency();
+        
+        static Timing probs("Tracker::paired", 30);
+        TakeTiming take(probs);
+        
+        // see how many are missing
+        std::vector<Individual*> unassigned_individuals;
+        unassigned_individuals.reserve(active_individuals.size());
+        
+        for(auto &p : active_individuals) {
+            if(!fish_assigned.at(p))
+                unassigned_individuals.push_back(p);
+        }
+        
+        // Create Individuals for unassigned blobs
+        std::vector<std::tuple<const pv::BlobPtr*, int>> unassigned_blobs;
+        unassigned_blobs.reserve(frame.blobs().size());
+        
+        const bool enable_labels = FAST_SETTINGS(track_consistent_categories) || !FAST_SETTINGS(track_only_categories).empty();
+        for(size_t i=0; i<frame.blobs().size(); ++i) {//auto &p : frame.blobs) {
+            if(!blob_assigned.at(frame.blobs()[i].get())) {
+                auto bdx = frame.blobs()[i]->blob_id();
+                auto label = enable_labels
+                    ? Categorize::DataStore::ranged_label(Frame_t(frameIndex), bdx)
+                    : nullptr;
+                auto ptr = &frame.bdx_to_ptr(bdx);
+                unassigned_blobs.push_back(std::make_tuple(ptr, label ? label->id : -1));
+                //ptr2ptr[p.get()] = p;
+            }
+        }
+        
+        size_t last = unassigned_individuals.size() % concurrentThreadsSupported;
+        size_t per_thread = (unassigned_individuals.size() - last) / concurrentThreadsSupported;
+        
+        size_t num_threads = max(1, min((float)concurrentThreadsSupported, floorf(unassigned_individuals.size() / SETTING(individuals_per_thread).value<float>())));
+        if(num_threads > 1) {
+            last = unassigned_individuals.size() % num_threads;
+            per_thread = (unassigned_individuals.size() - last) / num_threads;
+        } else
+            per_thread = 0;
+        
+        size_t processed = 0;
+        std::condition_variable variable;
+        
+        const auto work = [&](size_t from, size_t to)
+        {
+            //std::unordered_set<pv::BlobPtr> blobs_used;
+            //std::unordered_set<Individual*> individuals_used;
+            const auto matching_probability_threshold = FAST_SETTINGS(matching_probability_threshold);
+
+            for(size_t i=from; i<to; i++) {
+                auto fish = unassigned_individuals[i];
+                //Match::prob_t max_p = 0;
+                std::map<Match::Blob_t, Match::prob_t> probs;
+                
+                auto cache = frame.cached(fish->identity().ID());
+                if(!cache) {
+                    Except("Fish %d not found in cache.", fish->identity().ID());
+                    continue;
+                }
+
+                for (auto &[blob, label]: unassigned_blobs) {
+/*#ifndef NDEBUG
+                    if(!frame.find_bdx(bdx)) {
+                        auto it = std::find_if(frame.original_blobs().begin(), frame.original_blobs().end(), [bdx=bdx](const pv::BlobPtr& b) {
+                            if(b->blob_id() == bdx) {
+                                return true;
+                            }
+                            return false;
+                        });
+                        U_EXCEPTION("Frame %d: Blob %u not found (in original=>%d).", frameIndex, bdx, it != frame.original_blobs().end());
+                    }
+#endif*/
+                    auto p = fish->probability(label, *cache, frameIndex, *blob).p;//blob->center(), blob->num_pixels()).p;
+
+                    // discard elements with probabilities that are too low
+                    if (p <= matching_probability_threshold)
+                        continue;
+
+                    //Debug("%d: %d -> %d: %f", frameIndex, fish->identity().ID(), blob->blob_id(), p);
+                    
+                    probs[blob] = p;
+                    //max_p = max(max_p, p);
+
+                    //blobs_used.insert(blob);
+                    //individuals_used.insert(fish);
+                }
+
+                if(!probs.empty()) {
+                    std::lock_guard<std::mutex> guard(paired_mutex);
+                    paired_blobs.add(fish, probs);
+                }
+                //local_paired[fish] = probs;
+                //local_max_probs[fish] = max_p;
+            }
+            
+            std::lock_guard<std::mutex> guard(paired_mutex);
+            ++processed;
+            variable.notify_one();
+
+            /*std::lock_guard<std::mutex> lock(guard);
+            relevant_individuals.insert(individuals_used.begin(), individuals_used.end());
+            relevant_blobs.insert(blobs_used.begin(), blobs_used.end());*/
+        };
+
+        if(num_threads <= 1 && pool) {
+            work(0, unassigned_individuals.size());
+        } else {
+            for(size_t i=0; i<num_threads; i++) {
+                pool->enqueue(work, i*per_thread, (i+1)*per_thread + (i == num_threads-1 ? last : 0));
+            }
+            
+            std::unique_lock g(paired_mutex);
+            while(processed < num_threads)
+                variable.wait(g);
+        }
+    }
+    
+    return paired_blobs;
 }
 
     void Tracker::add(long_t frameIndex, PPFrame& frame) {
@@ -1803,16 +1702,25 @@ void Tracker::clear_properties() {
         
         std::vector<tags::blob_pixel> tagged_fish, noise;
         std::unordered_map<uint32_t, Individual*> blob_fish_map;
+//#define TREX_DEBUG_MATCHING
+#ifdef TREX_DEBUG_MATCHING
+        std::vector<std::pair<Individual*, Match::Blob_t>> pairs;
+#endif
         
         //auto blob_to_pixels = filter_blobs(frame);
-        auto assign_blob_individual = [&tagged_fish, &blob_fish_map, &fish_assigned, &blob_assigned, &assigned_count, &do_posture, &need_postures, save_tags](size_t frameIndex, PPFrame& frame, Individual* fish, pv::BlobPtr blob)
+        auto assign_blob_individual = [&tagged_fish, &blob_fish_map, &fish_assigned, &blob_assigned, &assigned_count, &do_posture, &need_postures, save_tags
+#ifdef TREX_DEBUG_MATCHING
+                                        ,&pairs
+#endif
+        ]
+            (size_t frameIndex, const PPFrame& frame, Individual* fish, const pv::BlobPtr& blob, default_config::matching_mode_t::Class match_mode)
         {
             // transfer ownership of blob to individual
             // delete the copied objects from the original array.
             // otherwise they would be deleted after the RawProcessing
             // object gets deleted (ownership of blobs is gonna be
             // transferred to Individuals)
-            auto it = std::find(frame.blobs.begin(), frame.blobs.end(), blob);
+            /*auto it = std::find(frame.blobs.begin(), frame.blobs.end(), blob);
             if(it != frame.blobs.end())
                 frame.blobs.erase(it);
             else if((it = std::find(frame.filtered_out.begin(), frame.filtered_out.end(), blob)) != frame.filtered_out.end()) {
@@ -1821,6 +1729,24 @@ void Tracker::clear_properties() {
 #ifndef NDEBUG
             else
                 U_EXCEPTION("Cannot find blob in frame.");
+#endif*/
+#ifndef NDEBUG
+            if(!contains(frame.blobs(), blob)
+               && !contains(frame.noise(), blob))
+            {
+                Except("Cannot find blob %u in frame %d.", blob->blob_id(), frameIndex);
+            }
+#endif
+            
+#ifdef TREX_DEBUG_MATCHING
+            for(auto &[i, b] : pairs) {
+                if(i == fish) {
+                    if(b != &blob) {
+                        Warning("Frame %d: Assigning individual %d to %u instead of %u", frameIndex, i->identity().ID(), blob ? blob->blob_id() : 0,  b ? (*b)->blob_id() : 0);
+                    }
+                    break;
+                }
+            }
 #endif
             
             //auto &pixels = *blob_to_pixels.at(blob);
@@ -1828,7 +1754,11 @@ void Tracker::clear_properties() {
             if(!blob->moments().ready) {
                 blob->calculate_moments();
             }
-            auto basic = fish->add(frameIndex, frame, blob, -1);
+            auto basic = fish->add(frameIndex, frame, blob, -1, match_mode);
+            if(!basic) {
+                Except("Was not able to assign individual %d with blob %u", fish->identity().ID(), blob->blob_id());
+                return;
+            }
             
             fish_assigned[fish] = true;
             blob_assigned[blob.get()] = true;
@@ -1853,27 +1783,25 @@ void Tracker::clear_properties() {
         };
         
         if(save_tags) {
-            for(auto blob : frame.filtered_out) {
+            for(auto &blob : frame.noise()) {
                 if(blob->recount(-1) <= minmax.max_range().start) {
                     pv::BlobPtr copy = std::make_shared<pv::Blob>((Blob*)blob.get(), std::make_shared<std::vector<uchar>>(*blob->pixels()));
-                    noise.push_back(copy);
+                    noise.emplace_back(std::move(copy));
                 }
             }
         }
         
         //blobs = frame.blobs;
-        for(auto blob: frame.blobs)
+        for(auto &blob: frame.blobs())
             blob_assigned[blob.get()] = false;
         
         // collect all the currently active individuals
         Tracker::set_of_individuals_t active_individuals;
         
-        set_of_individuals_t relevant_individuals;
-        std::unordered_set<pv::BlobPtr> relevant_blobs;
-        //std::set<Individual*> mark_to_delete;
+        //std::unordered_map<Individual*, std::unordered_map<pv::Blob*, Match::prob_t>> paired;
+        //std::unordered_map<uint32_t, pv::BlobPtr> id_to_blob;
         
-        std::unordered_map<Individual*, std::unordered_map<pv::Blob*, Match::prob_t>> paired;
-        std::unordered_map<uint32_t, pv::BlobPtr> id_to_blob;
+        //! TODO: Can probably reuse frame.blob_grid here, but need to add noise() as well
         static grid::ProximityGrid blob_grid(_average->bounds().size());
         blob_grid.clear();
         
@@ -1882,12 +1810,12 @@ void Tracker::clear_properties() {
             SETTING(manual_identities) = Settings::manual_identities_t();
         }
         
-        for(auto b : frame.blobs) {
-            id_to_blob[b->blob_id()] = b;
+        for(auto &b : frame.blobs()) {
+            //id_to_blob[b->blob_id()] = b;
             blob_grid.insert(b->bounds().x + b->bounds().width * 0.5f, b->bounds().y + b->bounds().height * 0.5f, b->blob_id());
         }
-        for(auto b : frame.filtered_out) {
-            id_to_blob[b->blob_id()] = b;
+        for(auto &b : frame.noise()) {
+            //id_to_blob[b->blob_id()] = b;
             blob_grid.insert(b->bounds().x + b->bounds().width * 0.5f, b->bounds().y + b->bounds().height * 0.5f, b->blob_id());
         }
         
@@ -1903,7 +1831,7 @@ void Tracker::clear_properties() {
         // prepare active_individuals array and assign fixed matches for which
         // the individuals already exist
         std::map<uint32_t, std::set<Idx_t>> cannot_find;
-        std::map<uint32_t, std::set<Idx_t>> double_find;
+        std::unordered_map<uint32_t, std::set<Idx_t>> double_find;
         std::map<uint32_t, Idx_t> actually_assign;
         
         for(auto && [fdx, bdx] : current_fixed_matches) {
@@ -1917,14 +1845,12 @@ void Tracker::clear_properties() {
                     continue;
                 }
                 
-                auto blob_it = id_to_blob.find((uint32_t)bdx);
-                if(blob_it == id_to_blob.end()) {
+                auto blob = frame.find_bdx((uint32_t)bdx);
+                if(!blob) {
                     //Error("Blob number %d out of range in frame %d", fm.second, frameIndex);
                     cannot_find[(uint32_t)bdx].insert(fdx);
                     continue;
                 }
-                
-                auto blob = blob_it->second; //blobs.at(fm.second);
                 
                 if(actually_assign.count((uint32_t)bdx) > 0) {
                     Error("(fixed matches) Trying to assign blob %d twice in frame %d (fish %d and %d).", (uint32_t)bdx, frameIndex, fdx, actually_assign.at((uint32_t)bdx));
@@ -1956,8 +1882,8 @@ void Tracker::clear_properties() {
                 if(frameIndex != _startFrame)
                     Warning("Individual number %d out of range in frame %d. Creating new one.", fdx, frameIndex);
                 
-                auto blob_it = id_to_blob.find((uint32_t)bdx);
-                if(/*bdx < 0 ||*/ blob_it == id_to_blob.end()) {
+                auto blob = frame.find_bdx((uint32_t)bdx);
+                if(!blob) {
                     //Warning("Cannot find blob %d in frame %d. Fallback to normal assignment behavior.", it->second, frameIndex);
                     cannot_find[(uint32_t)bdx].insert(fdx);
                     continue;
@@ -1985,9 +1911,7 @@ void Tracker::clear_properties() {
         }
         
         for(auto && [bdx, fdx] : actually_assign) {
-            auto blob_it = id_to_blob.find(bdx);
-            assert(blob_it != id_to_blob.end());
-            auto blob = blob_it->second;
+            auto &blob = frame.bdx_to_ptr(bdx);
             Individual *fish = NULL;
             
             auto it = _individuals.find(fdx);
@@ -1999,17 +1923,30 @@ void Tracker::clear_properties() {
             }
             
             fish->add_manual_match(frameIndex);
-            assign_blob_individual(frameIndex, frame, fish, blob);
+            assign_blob_individual(frameIndex, frame, fish, blob, default_config::matching_mode_t::benchmark);
+            //frame.erase_anywhere(blob);
         }
         
         if(!cannot_find.empty()) {
+            struct Blaze {
+                PPFrame *_frame;
+                Blaze(PPFrame& frame) : _frame(&frame) {
+                    _frame->_finalized = false;
+                }
+                
+                ~Blaze() {
+                    _frame->finalize();
+                }
+            } blaze(frame);
+            
             std::map<uint32_t, std::vector<std::tuple<Idx_t, Vec2, uint32_t>>> assign_blobs;
+            const auto max_speed_px = FAST_SETTINGS(track_max_speed) / FAST_SETTINGS(cm_per_pixel);
             
             for(auto && [bdx, fdxs] : cannot_find) {
                 assert(bdx >= 0);
                 auto pos = pv::Blob::position_from_id(bdx);
                 //Debug("Trying to find blob for %d (-> fish %d) at %f,%f", bdx, fdx, pos.x, pos.y);
-                auto list = blob_grid.query(pos, FAST_SETTINGS(track_max_speed) / FAST_SETTINGS(cm_per_pixel));
+                auto list = blob_grid.query(pos, max_speed_px);
                 //auto str = Meta::toStr(list);
                 //Debug("\t%S", &str);
                 
@@ -2030,13 +1967,14 @@ void Tracker::clear_properties() {
                 //if(clique.size() > 1)
                 {
                     // have to split blob...
-                    auto blob = id_to_blob.at(bdx);
+                    auto blob = frame.bdx_to_ptr(bdx);
                     
                     //std::vector<pv::BlobPtr> additional;
                     std::map<pv::BlobPtr, split_expectation> expect;
                     expect[blob] = split_expectation(clique.size() == 1 ? 2 : clique.size(), false);
                     
-                    auto big_filtered = split_big(frame.filtered_out, {blob}, expect);
+                    auto big_filtered = split_big(BlobReceiver(frame, BlobReceiver::noise),
+                                                  {blob}, expect);
                     if(!big_filtered.empty()) {
                         /*std::map<Individual*, std::map<pv::BlobPtr, float>> distances;
                         std::map<Individual*, float> max_probs;
@@ -2091,17 +2029,9 @@ void Tracker::clear_properties() {
                         }
                         
                         if(found_perfect) {
-                            frame.blobs.insert(frame.blobs.end(), big_filtered.begin(), big_filtered.end());
-                            
+                            frame.add_regular(std::move(big_filtered));
                             // remove the blob thats to be split from all arrays
-                            auto it = std::find(frame.filtered_out.begin(), frame.filtered_out.end(), blob);
-                            if(it != frame.filtered_out.end())
-                                frame.filtered_out.erase(it);
-                            else {
-                                it = std::find(frame.blobs.begin(), frame.blobs.end(), blob);
-                                if(it != frame.blobs.end())
-                                    frame.blobs.erase(it);
-                            }
+                            frame.erase_anywhere(blob);
                         }
                         
                         if(found_perfect == clique.size()) {
@@ -2118,14 +2048,6 @@ void Tracker::clear_properties() {
                     //actual_assignments[std::get<0>(*clique.begin())] = bdx;
             }
             
-            // update maps
-            id_to_blob.clear();
-            
-            for(auto b : frame.blobs)
-                id_to_blob[b->blob_id()] = b;
-            for(auto b : frame.filtered_out)
-                id_to_blob[b->blob_id()] = b;
-            
             if(!actual_assignments.empty()) {
                 auto str = prettify_array(Meta::toStr(actual_assignments));
                 Debug("frame %d: actually assigning:\n%S", frame.index(), &str);
@@ -2134,7 +2056,7 @@ void Tracker::clear_properties() {
             std::set<FOI::fdx_t> identities;
             
             for(auto && [fdx, bdx] : actual_assignments) {
-                auto blob = id_to_blob.at(bdx);
+                auto blob = frame.bdx_to_ptr(bdx);
                 
                 Individual *fish = nullptr;
                 auto it = _individuals.find(fdx);
@@ -2151,7 +2073,9 @@ void Tracker::clear_properties() {
                     Error("Trying to assign fish %d twice.", fdx);
                 } else {
                     fish->add_manual_match(frameIndex);
-                    assign_blob_individual(frameIndex, frame, fish, blob);
+                    assign_blob_individual(frameIndex, frame, fish, blob, default_config::matching_mode_t::benchmark);
+                    
+                    frame.erase_anywhere(blob);
                     active_individuals.insert(fish);
                     
                     identities.insert(FOI::fdx_t(fdx));
@@ -2193,18 +2117,17 @@ void Tracker::clear_properties() {
             Individual *fish = nullptr;
             if(_individuals.find(fdx) != _individuals.end())
                 fish = _individuals.at(fdx);
-            pv::BlobPtr blob = nullptr;
-            if(id_to_blob.find((uint32_t)bdx) != id_to_blob.end())
-                blob = id_to_blob.at((uint32_t)bdx);
             
+            pv::BlobPtr blob = frame.find_bdx((uint32_t)bdx);
             if(fish && blob && !fish_assigned[fish] && !blob_assigned[blob.get()]) {
-                assign_blob_individual(frameIndex, frame, fish, blob);
+                assign_blob_individual(frameIndex, frame, fish, blob, default_config::matching_mode_t::benchmark);
+                //frame.erase_anywhere(blob);
                 fish->add_automatic_match(frameIndex);
                 active_individuals.insert(fish);
                 
             } else {
 #ifndef NDEBUG
-                Error("frame %d: Automatic assignment cannot be executed with %d(%s) and %d(%s)", frameIndex, fdx, fish ? (fish_assigned[fish] ? "assigned" : "unassigned") : "no fish", bdx, blob ? (blob_assigned[blob.get()] ? "assigned" : "unassigned") : "no blob");
+                Error("frame %d: Automatic assignment cannot be executed with fdx %d(%s) and bdx %ld(%s)", frameIndex, fdx, fish ? (fish_assigned[fish] ? "assigned" : "unassigned") : "no fish", bdx, blob ? (blob_assigned[blob.get()] ? "assigned" : "unassigned") : "no blob");
 #endif
             }
         }
@@ -2223,132 +2146,33 @@ void Tracker::clear_properties() {
                 }
             }
         }
-        
         // now that the blobs array has been cleared of all the blobs for fixed matches,
         // get pairings for all the others:
-        //static std::unordered_map<Individual*, Match::prob_t> max_probs;
-        //std::unordered_map<const pv::Blob*, std::unordered_map<Individual*, Match::prob_t>> paired_blobs;
-        //max_probs.clear();
-        Match::PairedProbabilities paired_blobs;
-        std::mutex paired_mutex;
+        //std::unordered_map<pv::Blob*, pv::BlobPtr> ptr2ptr;
+        auto paired_blobs = calculate_paired_probabilities(frame,
+                                                           active_individuals,
+                                                           fish_assigned,
+                                                           blob_assigned,
+                                                           //ptr2ptr,
+                                                           &_thread_pool);
         
-        using namespace default_config;
-        const long_t approximation_delay_time = max(1, FAST_SETTINGS(frame_rate) * 0.25);
-        bool frame_uses_approximate = (_approximative_enabled_in_frame >= 0 && frameIndex - _approximative_enabled_in_frame < approximation_delay_time);
-        
-        {
+        if(!manual_identities.empty() && manual_identities.size() < paired_blobs.n_rows()) {
             using namespace Match;
             
-            static Timing probs("Tracker::paired", 30);
-            TakeTiming take(probs);
-            
-            // see how many are missing
-            static std::vector<Individual*> unassigned_individuals;
-            unassigned_individuals.clear();
-            
-            for(auto &p : active_individuals) {
-                if(!fish_assigned[p])
-                    unassigned_individuals.push_back(p);
-            }
-            
-            // Create Individuals for unassigned blobs
-            static std::vector<std::tuple<pv::BlobPtr, int>> unassigned_blobs;
-            unassigned_blobs.clear();
-            unassigned_blobs.reserve(frame.blobs.size());
-            
-            for(auto &p : frame.blobs) {
-                if(!blob_assigned[p.get()]) {
-                    auto label = Categorize::DataStore::ranged_label(Frame_t(frameIndex), p->blob_id());
-                    unassigned_blobs.push_back(std::make_tuple(p, label ? label->id : -1));
-                }
-            }
-            
-            size_t last = unassigned_individuals.size() % concurrentThreadsSupported;
-            size_t per_thread = (unassigned_individuals.size() - last) / concurrentThreadsSupported;
-            
-            size_t num_threads = max(1, min((float)concurrentThreadsSupported, floorf(unassigned_individuals.size() / SETTING(individuals_per_thread).value<float>())));
-            if(num_threads > 1) {
-                last = unassigned_individuals.size() % num_threads;
-                per_thread = (unassigned_individuals.size() - last) / num_threads;
-            } else
-                per_thread = 0;
-            
-            std::mutex guard;
-            const auto work = [&](size_t from, size_t to)
-            {
-                std::unordered_set<pv::BlobPtr> blobs_used;
-                std::unordered_set<Individual*> individuals_used;
-
-                for(size_t i=from; i<to; i++) {
-                    auto fish = unassigned_individuals[i];
-                    Match::prob_t max_p = 0;
-                    std::unordered_map<pv::Blob*, Match::prob_t> probs;
-                    
-                    auto &cache = frame.cached_individuals.at(fish->identity().ID());
-
-                    for (auto &[blob, label]: unassigned_blobs) {
-                        auto p = fish->probability(label, cache, frameIndex, blob).p;//blob->center(), blob->num_pixels()).p;
-
-                        // discard elements with probabilities that are too low
-                        if (p <= FAST_SETTINGS(matching_probability_threshold))
-                            continue;
-
-                        //Debug("%d: %d -> %d: %f", frameIndex, fish->identity().ID(), blob->blob_id(), p);
-                        
-                        probs[blob.get()] = p;
-                        
-                        if(frame_uses_approximate) {
-                            
-                            //local_paired_blobs[blob.get()][fish] = p;
-                        }
-                        
-                        max_p = max(max_p, p);
-
-                        blobs_used.insert(blob);
-                        individuals_used.insert(fish);
-                    }
-
-                    if(!probs.empty()) {
-                        std::lock_guard<std::mutex> guard(paired_mutex);
-                        paired_blobs.add(fish, probs);
-                    }
-                    //local_paired[fish] = probs;
-                    //local_max_probs[fish] = max_p;
-                }
-
-                std::lock_guard<std::mutex> lock(guard);
-                relevant_individuals.insert(individuals_used.begin(), individuals_used.end());
-                relevant_blobs.insert(blobs_used.begin(), blobs_used.end());
-            };
-
-            if(num_threads <= 1) {
-                work(0, unassigned_individuals.size());
-            } else {
-                for(size_t i=0; i<num_threads; i++) {
-                    _thread_pool.enqueue(work, i*per_thread, (i+1)*per_thread + (i == num_threads-1 ? last : 0));
-                }
-                _thread_pool.wait();
-            }
-        }
-        
-        if(!manual_identities.empty() && manual_identities.size() < relevant_individuals.size()) {
-            using namespace Match;
-            
-            auto copy_individuals = relevant_individuals;
-
-            
-            for (auto r : relevant_individuals) {
+            for (auto r : paired_blobs.rows()) {
                 if(r->identity().manual()) {
                     // this is an important fish, check
-                    auto edges = paired_blobs.edges_for_row(paired_blobs.index(r));
+                    auto idx = paired_blobs.index(r);
                     
-                    if(edges.size() == 1) {
+                    if(paired_blobs.degree(idx) == 1) {
+                        auto edges = paired_blobs.edges_for_row(idx);
+                        
                         // only one possibility!
                         auto blob = edges.front();
                         Individual *other = NULL;
                         size_t count = 0;
                         
-                        for (auto f : relevant_individuals) {
+                        for (auto f : paired_blobs.rows()) {
                             if(f == r)
                                 continue;
                             
@@ -2372,17 +2196,325 @@ void Tracker::clear_properties() {
                         
                         // found another fish, and its the only possibility
                         //Debug("Prioritizing %d over %d in frame %d for blob %d.", r->identity().ID(), other->identity().ID(), frameIndex, blob.blob->blob_id());
-                        auto it = std::find(copy_individuals.begin(), copy_individuals.end(), other);
-                        if(it != copy_individuals.end()) {
-                            paired_blobs.erase(*it);
-                            copy_individuals.erase(it);
+                        if(paired_blobs.has(other))
+                            paired_blobs.erase(other);
+                    }
+                }
+            }
+        }
+        
+        
+        using namespace default_config;
+        const long_t approximation_delay_time = max(1, FAST_SETTINGS(frame_rate) * 0.25);
+        bool frame_uses_approximate = (_approximative_enabled_in_frame >= 0 && frameIndex - _approximative_enabled_in_frame < approximation_delay_time);
+        
+        auto match_mode = frame_uses_approximate
+                ? default_config::matching_mode_t::hungarian
+                : FAST_SETTINGS(match_mode);
+#ifdef TREX_DEBUG_MATCHING
+        {
+            Match::PairingGraph graph(frameIndex, paired_blobs);
+            
+            try {
+                auto &optimal = graph.get_optimal_pairing(false, matching_mode_t::hungarian);
+                pairs = optimal.pairings;
+                
+            } catch(...) {
+                Except("Failed to generate optimal solution (frame %d).", frameIndex);
+            }
+        }
+#endif
+        
+        if(match_mode == default_config::matching_mode_t::automatic) {
+            std::unordered_set<uint32_t> all_individuals;
+            std::vector<std::set<uint32_t>> blob_cliques;
+            std::vector<Clique> cliques;
+            
+            /*for(auto &&[bdx, c] : frame.blob_cliques) {
+                if(!contains(blob_cliques, c)) {
+                    auto &fishies = frame.fish_cliques.at(bdx);
+                    blob_cliques.push_back(c);
+                    
+                    Clique clique;
+                    for(auto i : c) {
+                        if(contains(all_individuals, i)) {
+                            for(auto &sub : cliques) {
+                                if(contains(sub.fishs, i)) {
+                                    // merge cliques
+                                    auto str0 = Meta::toStr(c);
+                                    auto str1 = Meta::toStr(sub.fishs);
+                                    Debug("Frame %d: Should merge cliques %S and %S.", frameIndex, &str0, &str1);
+                                    break;
+                                }
+                            }
+                        } else
+                            all_individuals.insert(i);
+                    }
+                    
+                    clique.fishs.insert(c.begin(), c.end());
+                    clique.bids.insert(fishies.begin(), fishies.end());
+                    cliques.push_back(clique);
+                }
+            }*/
+            
+            Clique clique;
+            
+            for(auto &row : paired_blobs.rows()) {
+                auto idx = paired_blobs.index(row);
+                if(paired_blobs.degree(idx) > 1) {
+                    auto edges = paired_blobs.edges_for_row(idx);
+                    clique.bids.clear();
+                    clique.fishs.clear();
+                    
+                    for(auto &col : edges) {
+                        if(!frame.find_bdx((*paired_blobs.col(col.cdx))->blob_id())) {
+                            Debug("Frame %d: Cannot find blob %u in map.", frameIndex, (*paired_blobs.col(col.cdx))->blob_id());
+                            continue;
                         }
+                        
+                        if(col.p >= FAST_SETTINGS(matching_probability_threshold)) {
+                            clique.bids.insert(col.cdx);
+                            
+                            for (auto it = cliques.begin(); it != cliques.end();) {
+                                if(contains(it->fishs, idx) || contains(it->bids, col.cdx)) {
+                                    clique.fishs.insert(it->fishs.begin(), it->fishs.end());
+                                    clique.bids.insert(it->bids.begin(), it->bids.end());
+                                    
+                                    it = cliques.erase(it);
+                                    
+                                } else
+                                    ++it;
+                            }
+                        }
+                    }
+                    
+                    if(!clique.bids.empty()) {
+                        all_individuals.insert(idx);
+                        clique.fishs.insert(idx);
+                        cliques.emplace_back(std::move(clique));
                     }
                 }
             }
             
-            relevant_individuals = copy_individuals;
+            if(cliques.empty()) {
+                match_mode = matching_mode_t::approximate;
+            } else {
+                // try to extend cliques as far as possible (and merge)
+                for(size_t index = 0; index < cliques.size(); ++index) {
+                    std::unordered_set<uint32_t> added_individuals, added_blobs = cliques[index].bids;
+                    do {
+                        added_individuals.clear();
+                        
+                        for(auto cdx : added_blobs) {
+                            auto blob = paired_blobs.col(cdx);
+                            auto bedges = paired_blobs.edges_for_col(cdx);
+                            
+                            if(!frame.find_bdx((*blob)->blob_id())) {
+                                Debug("Frame %d: Cannot find blob %u in map.", frameIndex, (*blob)->blob_id());
+                                continue;
+                            }
+                            
+#ifdef TREX_DEBUG_MATCHING
+                            auto str = Meta::toStr(bedges);
+                            Debug("\t\tExploring blob %u (aka %u) with edges %S", cdx, (*blob)->blob_id(), &str);
+#endif
+                            for(auto fdi : bedges) {
+                                if(!contains(cliques[index].fishs, fdi) && !contains(added_individuals, fdi)) {
+                                    added_individuals.insert(fdi);
+                                    
+                                    for(size_t j=0; j<cliques.size(); ++j) {
+                                        if(j == index)
+                                            continue;
+                                        
+                                        if(contains(cliques[j].bids, cdx) || contains(cliques[j].fishs, fdi))
+                                        {
+#ifdef TREX_DEBUG_MATCHING
+                                            // merge cliques
+                                            auto str0 = Meta::toStr(cliques[index].fishs);
+                                            auto str1 = Meta::toStr(cliques[j].fishs);
+                                            
+                                            auto str2 = Meta::toStr(cliques[index].bids);
+                                            auto str3 = Meta::toStr(cliques[j].bids);
+#endif
+                                            
+                                            added_individuals.insert(cliques[j].fishs.begin(), cliques[j].fishs.end());
+                                            cliques[index].bids.insert(cliques[j].bids.begin(), cliques[j].bids.end());
+                                            
+#ifdef TREX_DEBUG_MATCHING
+                                            auto afterf = Meta::toStr(added_individuals);
+                                            auto afterb = Meta::toStr(cliques[index].bids);
+#endif
+                                            
+                                            if(j < index) {
+                                                --index;
+                                            }
+                                            cliques.erase(cliques.begin() + j);
+                                            
+#ifdef TREX_DEBUG_MATCHING
+                                            Debug("Frame %d: Merging cliques fishs:%S+%d vs. %S and blobs:%S+%u vs. %S -> added_fishs:%S and blobs:%S.",
+                                                  frameIndex,
+                                                  &str0, fdi, &str1,
+                                                  &str2, cdx, &str3,
+                                                  &afterf, &afterb);
+#endif
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        added_blobs.clear();
+                        for(auto i : added_individuals) {
+                            auto edges = paired_blobs.edges_for_row(i);
+#ifdef TREX_DEBUG_MATCHING
+                            auto estr = Meta::toStr(edges);
+                            Debug("\t\tExploring row %d (aka fish%d) with edges=%S", i, paired_blobs.row(i)->identity().ID(), &estr);
+#endif
+                            for(auto &e : edges) {
+                                if(!contains(cliques[index].bids, e.cdx))
+                                    added_blobs.insert(e.cdx);
+                            }
+                        }
+                        
+#ifdef TREX_DEBUG_MATCHING
+                        if(!added_individuals.empty()) {
+                            auto str = Meta::toStr(added_individuals);
+                            Debug("Adding %S to clique %lu", &str, index);
+                        }
+#endif
+                        cliques[index].fishs.insert(added_individuals.begin(), added_individuals.end());
+                        
+                    } while(!added_individuals.empty());
+                }
+                
+                Clique translated;
+                _cliques[frameIndex].clear();
+                
+                for(auto &clique : cliques) {
+                    translated.bids.clear();
+                    translated.fishs.clear();
+                    
+                    for(auto bdi : clique.bids)
+                        translated.fishs.emplace((*paired_blobs.col(bdi))->blob_id());
+                    for(auto fdi : clique.fishs)
+                        translated.fishs.emplace(paired_blobs.row(fdi)->identity().ID());
+                    
+                    _cliques[frameIndex].emplace_back(std::move(translated));
+                }
+                
+                std::mutex thread_mutex;
+                std::condition_variable _variable;
+                size_t executed = 0;
+                
+                size_t index = 0;
+                for(auto &clique : cliques) {
+#ifdef TREX_DEBUG_MATCHING
+                    std::set<uint32_t> fishs, blobs;
+                    for(auto fdi : clique.fishs)
+                        fishs.insert(paired_blobs.row(fdi)->identity().ID());
+                    for(auto bdi : clique.bids)
+                        blobs.insert((*paired_blobs.col(bdi))->blob_id());
+                    
+                    auto str = Meta::toStr(fishs);
+                    auto str1 = Meta::toStr(blobs);
+                    Debug("Frame %d: Clique %lu, Matching fishs %S and blobs %S together.", frameIndex,index, &str, &str1);
+                    ++index;
+                    
+                    for(auto &cdx : clique.bids) {
+                        Debug("\tBlob %u edges:", (*paired_blobs.col(cdx))->blob_id());
+                        for(auto &e : paired_blobs.edges_for_col(cdx)) {
+                            Debug("\t\tFish%s", paired_blobs.row(e)->identity().raw_name().c_str());
+                        }
+                    }
+#endif
+                    
+                    _thread_pool.enqueue([&paired_blobs, &blob_assigned, &fish_assigned, &frame, &assign_blob_individual, &thread_mutex, &active_individuals, &executed, &_variable
+#ifdef TREX_DEBUG_MATCHING
+                                          , &pairs
+#endif
+                                          ]
+                                         (const Clique& clique, long_t frameIndex)
+                    {
+                        using namespace Match;
+                        Match::PairedProbabilities paired;
+                        for(auto fish : paired_blobs.rows()) {
+                            auto fdi = paired_blobs.index(fish);
+                            if(!contains(clique.fishs, fdi)
+                               || (fish_assigned.count(fish) && fish_assigned.at(fish)))
+                                continue;
+                            
+                            auto edges = paired_blobs.edges_for_row(fdi);
+                            
+                            std::map<Match::Blob_t, prob_t> probs;
+                            for(auto &e : edges) {
+                                auto blob = paired_blobs.col(e.cdx);
+                                if(!blob_assigned.count(blob->get()) || !blob_assigned.at(blob->get()))
+                                    probs[blob] = e.p;
+                            }
+                            
+                            if(!probs.empty())
+                                paired.add(fish, probs);
+                        }
+                        
+                        PairingGraph graph(frameIndex, paired);
+                        
+                        try {
+                            auto &optimal = graph.get_optimal_pairing(false, matching_mode_t::hungarian);
+                            for (auto &p: optimal.pairings) {
+                                std::unique_lock g(thread_mutex);
+                                assign_blob_individual(frameIndex, frame, p.first, *p.second, matching_mode_t::hungarian);
+                                active_individuals.insert(p.first);
+                            }
+                            
+                        } catch(...) {
+                            Except("Failed to generate optimal solution (frame %d).", frameIndex);
+                        }
+                        
+                        std::unique_lock g(thread_mutex);
+                        ++executed;
+                        _variable.notify_one();
+                        
+                    }, clique, frameIndex);
+                }
+                
+                {
+                    std::unique_lock g(thread_mutex);
+                    while(executed < cliques.size()) {
+                        _variable.wait(g);
+                    }
+                }
+                
+                Match::PairedProbabilities paired;
+                auto in_map = paired_blobs.rows();
+                for(auto fish : in_map) {
+                    if(fish_assigned.find(fish) == fish_assigned.end() || !fish_assigned.at(fish)) {
+                        auto edges = paired_blobs.edges_for_row(paired_blobs.index(fish));
+                        
+                        std::map<Match::Blob_t, Match::prob_t> probs;
+                        for(auto &e : edges) {
+                            auto blob = paired_blobs.col(e.cdx);
+                            if(!frame.find_bdx((*blob)->blob_id())) {
+                                Debug("Frame %d: Cannot find blob %u in map.", frameIndex, (*blob)->blob_id());
+                                continue;
+                            }
+                            auto it = blob_assigned.find(blob->get());
+                            if(it == blob_assigned.end() || !it->second) {
+                                probs[blob] = e.p;
+                            }
+                        }
+                        
+                        if(!probs.empty())
+                            paired.add(fish, probs);
+                    }
+                }
+                
+                paired_blobs = std::move(paired);
+                match_mode = matching_mode_t::approximate;
+            }
         }
+        
+        //Debug("Frame %d: %s", frameIndex, match_mode.name());
         
         {
             // calculate optimal permutation of blob assignments
@@ -2391,9 +2523,6 @@ void Tracker::clear_properties() {
             
             using namespace Match;
             PairingGraph graph(frameIndex, paired_blobs);
-            std::map<pv::Blob*, pv::BlobPtr> ptr2ptr;
-            for(auto r : relevant_blobs)
-                ptr2ptr[r.get()] = r;
             
             size_t nedges = 0;
             size_t max_edges_per_fish = 0, max_edges_per_blob = 0;
@@ -2501,18 +2630,12 @@ void Tracker::clear_properties() {
     #endif
             
             try {
-                auto match_mode = frame_uses_approximate
-                    ? default_config::matching_mode_t::hungarian
-                    : FAST_SETTINGS(match_mode);
-                
-                //if(match_mode == default_config::matching_mode_t::accurate)
-                //    U_EXCEPTION("Test %d", frameIndex);
                 auto &optimal = graph.get_optimal_pairing(false, match_mode);
                 
                 if(!frame_uses_approximate) {
                     std::lock_guard<std::mutex> guard(_statistics_mutex);
-                    _statistics[frameIndex].match_number_blob = relevant_blobs.size();
-                    _statistics[frameIndex].match_number_fish = relevant_individuals.size();
+                    _statistics[frameIndex].match_number_blob = paired_blobs.n_cols();
+                    _statistics[frameIndex].match_number_fish = paired_blobs.n_rows();
                     _statistics[frameIndex].match_number_edges = nedges;
                     _statistics[frameIndex].match_stack_objects = optimal.objects_looked_at;
                     _statistics[frameIndex].match_max_edges_per_blob = max_edges_per_blob;
@@ -2529,7 +2652,18 @@ void Tracker::clear_properties() {
     #endif
                 
                 for (auto &p: optimal.pairings) {
-                    assign_blob_individual(frameIndex, frame, p.first, ptr2ptr.at(p.second));
+#ifdef TREX_DEBUG_MATCHING
+                    for(auto &[i, b] : pairs) {
+                        if(i == p.first) {
+                            if(b != p.second) {
+                                Warning("Frame %d: Assigning individual %d to %u instead of %u", frameIndex, i->identity().ID(), p.second ? (*p.second)->blob_id() : 0,  b ? (*b)->blob_id() : 0);
+                            }
+                            break;
+                        }
+                    }
+#endif
+                    
+                    assign_blob_individual(frameIndex, frame, p.first, *p.second, match_mode);
                     active_individuals.insert(p.first);
                 }
                 
@@ -2560,13 +2694,12 @@ void Tracker::clear_properties() {
                 
                 auto &optimal = graph.get_optimal_pairing(false, default_config::matching_mode_t::hungarian);
                 for (auto &p: optimal.pairings) {
-                    assign_blob_individual(frameIndex, frame, p.first, ptr2ptr.at(p.second));
+                    assign_blob_individual(frameIndex, frame, p.first, *p.second, default_config::matching_mode_t::hungarian);
                     active_individuals.insert(p.first);
                 }
                 
                 _approximative_enabled_in_frame = frameIndex;
                 
-                //approximative_matching(frameIndex, frame, paired_blobs, relevant_blobs, active_individuals, assign_blob_individual);
                 FOI::add(FOI(Rangel(frameIndex, frameIndex + approximation_delay_time - 1), "apprx matching"));
             }
         }
@@ -2574,35 +2707,35 @@ void Tracker::clear_properties() {
         static Timing rest("rest", 30);
         TakeTiming take(rest);
         // see how many are missing
-        std::vector<Individual*> unassigned_individuals;
+        /*std::vector<Individual*> unassigned_individuals;
         for(auto &p : fish_assigned) {
             if(!p.second) {
                 unassigned_individuals.push_back(p.first);
             }
-        }
+        }*/
         
         // Create Individuals for unassigned blobs
         std::vector<pv::BlobPtr> unassigned_blobs;
-        for(auto p: frame.blobs) {
+        for(auto &p: frame.blobs()) {
             if(!blob_assigned[p.get()])
-                unassigned_blobs.push_back(p);
+                unassigned_blobs.emplace_back(p);
         }
         
         if(!number_fish /*|| (number_fish && number_individuals < number_fish)*/) {
             // the number of individuals is limited
             // fallback to creating new individuals if the blobs cant be matched
             // to existing ones
-            if(frameIndex > 1) {
+            /*if(frameIndex > 1) {
                 static std::random_device rng;
                 static std::mt19937 urng(rng());
                 std::shuffle(unassigned_blobs.begin(), unassigned_blobs.end(), urng);
-            }
+            }*/
             
             for(auto fish :_active_individuals)
                 if(active_individuals.find(fish) == active_individuals.end())
                     _inactive_individuals.insert(fish->identity().ID());
             
-            for (auto blob: unassigned_blobs) {
+            for (auto &blob: unassigned_blobs) {
                 // we measure the number of currently assigned fish based on whether a maximum number has been set. if there is a maximum, then we only look at the currently active individuals and extend that array with new individuals if necessary.
                 const size_t number_individuals = number_fish ? _individuals.size() : active_individuals.size();
                 if(number_fish && number_individuals >= number_fish) {
@@ -2631,7 +2764,7 @@ void Tracker::clear_properties() {
                     //Debug("Creating new identity %d", fish->identity().ID());
                     _individuals[fish->identity().ID()] = fish;
                 }
-                assign_blob_individual(frameIndex, frame, fish, blob);
+                assign_blob_individual(frameIndex, frame, fish, blob, default_config::matching_mode_t::benchmark);
                 active_individuals.insert(fish);
             }
         }
@@ -2642,18 +2775,6 @@ void Tracker::clear_properties() {
             //  + the number of individuals is limited
             //  + there are unassigned individuals
             //    (the number of currently active individuals is smaller than the limit)
-            
-            /*if(_individuals.size() < number_fish) {
-                for(auto id : manual_identities) {
-                    if(!_individuals.count(id)) {
-                        Individual *fish = new Individual();
-                        fish->identity().set_ID(id);
-                        _individuals[id] = fish;
-                        
-                        Debug("Creating new individual %d", id);
-                    }
-                }
-            }*/
             
             if(!unassigned_blobs.empty()) {
                 // there are blobs left to be assigned
@@ -2761,7 +2882,7 @@ void Tracker::clear_properties() {
                             
                             //Debug("Best match for blob %d is %d in %d (%f)", r.bdx()->blob_id(), fish->identity().ID(), frameIndex, r.p());
                             
-                            assign_blob_individual(frameIndex, frame, fish, r.bdx());
+                            assign_blob_individual(frameIndex, frame, fish, r.bdx(), default_config::matching_mode_t::benchmark);
                             active_individuals.insert(fish);
                             
                             //Debug("Assigning individual because its the most likely (fixed_count, %d-%d in frame %d, p:%f).", r.idx()->identity().ID(), r.bdx()->blob_id(), frameIndex, r.p());
@@ -3328,7 +3449,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         
         {
             //! update the cache for frame properties
-            std::lock_guard<std::mutex> guard(_properties_mutex);
+            std::unique_lock guard(_properties_mutex);
             _properties_cache.clear();
             
             long_t frame = end_frame();
@@ -3511,29 +3632,21 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         if(fid != -1)
             FOI::remove_frames(after_frame != -1 ? 0 : after_frame, fid);
         
-#ifndef NDEBUG
-        auto f = fopen("identities.log", "wb");
+#ifdef TREX_DEBUG_IDENTITIES
+        auto f = fopen(pv::DataLocation::parse("output", "identities.log").c_str(), "wb");
 #endif
-        for(auto && [fdx, fish] : _individuals) {
-            if(manual_identities.empty() || manual_identities.find(fdx) != manual_identities.end()) {
-                if(recognition_pool.queue_length() >= recognition_pool.num_threads() * 2)
-                    recognition_pool.wait_one();
-                
-                recognition_pool.enqueue([](Individual* fish) {
-                    fish->clear_recognition();
-                    fish->calculate_average_recognition();
-                }, fish);
-            }
-        }
-        
-        while (recognition_pool.queue_length() && count < _individuals.size()) {
-            recognition_pool.wait_one();
+        distribute_vector([this, &count, &callback, &manual_identities](auto i, auto it, auto nex, auto step){
+            auto & [fdx, fish] = *it;
             
-            callback(count / float(_individuals.size()) * 0.5f);
-            ++count;
-        }
-        
-        recognition_pool.wait();
+            if(manual_identities.empty() || manual_identities.find(fdx) != manual_identities.end()) {
+                fish->clear_recognition();
+                fish->calculate_average_recognition();
+                
+                callback(count / float(_individuals.size()) * 0.5f);
+                ++count;
+            }
+            
+        }, recognition_pool, _individuals.begin(), _individuals.end());
         
         using fdx_t = Idx_t;
         using range_t = FrameRange;
@@ -3585,9 +3698,10 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                         continue;
                     
                     if(n >= n_lower_bound || (segment.start() == fish->start_frame() && n > 0)) {
-#ifndef NDEBUG
+#ifdef TREX_DEBUG_IDENTITIES
                         log(f, "fish %d: segment %d-%d has %d samples", fdx, segment.start(), segment.end(), n);
 #endif
+                        Debug("fish %d: segment %d-%d has %d samples", fdx, segment.start(), segment.end(), n);
                         
                         std::set<std::pair<Idx_t, Match::prob_t>, decltype(compare_greatest)> sorted(compare_greatest);
                         sorted.insert(average.begin(), average.end());
@@ -3602,7 +3716,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                             if(ratio >= 0.6) {
                                 //Debug("Fish %d (%d-%d)", fdx, segment.start(), segment.end());
                                 //Debug("\ttwo largest probs %f and %f are too close (ratio %f)", sorted.begin()->second, (++sorted.begin())->second, ratio);
-#ifndef NDEBUG
+#ifdef TREX_DEBUG_IDENTITIES
                                 log(f, "\ttwo largest probs %f and %f are too close (ratio %f)", sorted.begin()->second, (++sorted.begin())->second, ratio);
 #endif
                                 continue;
@@ -3637,7 +3751,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                                 // is a much longer segment (because it overlaps multiple smaller segments
                                 // because it starts earlier, cause thats the execution order)
                                 auto rit = matches.begin();
-#ifndef NDEBUG
+#ifdef TREX_DEBUG_IDENTITIES
                                 log(f, "\t%d (as %d) Found range(s) %d-%d for search range %d-%d p:%f n:%d (self:%f,n:%d)", fdx, it->first, rit->start(), rit->end(), segment.start(), segment.end(), fit->second.probs.at(*rit), fit->second.samples.at(*rit), it->second, n);
 #endif
                                 
@@ -3651,12 +3765,12 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                                 Match::prob_t sum_me = sigmoid(it->second) * sigmoid(n_me);
                                 Match::prob_t sum_he = sigmoid(fit->second.probs.at(*rit)) * sigmoid(n_he);
                                 
-#ifndef NDEBUG
+#ifdef TREX_DEBUG_IDENTITIES
                                 log(f, "\tself:%d %f other:%d %f => %f / %f", segment.length(), it->second, rit->length(), fit->second.probs.at(*rit), sum_me, sum_he);
 #endif
                                 
                                 if(sum_me > sum_he) {
-#ifndef NDEBUG
+#ifdef TREX_DEBUG_IDENTITIES
                                     log(f, "\t* Replacing");
 #endif
                                     
@@ -3672,7 +3786,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                             }
                         }
                         
-#ifndef NDEBUG
+#ifdef TREX_DEBUG_IDENTITIES
                         log(f, "\tassigning %d to %d with p %f for %d-%d", it->first, fdx, it->second, segment.start(), segment.end());
 #endif
                         virtual_fish[it->first].segments.insert(segment);
@@ -3688,11 +3802,11 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         
         Settings::manual_splits_t manual_splits;
         
-#ifndef NDEBUG
+#ifdef TREX_DEBUG_IDENTITIES
         log(f, "Found segments:");
 #endif
         for(auto && [fdx, fish] : virtual_fish) {
-#ifndef NDEBUG
+#ifdef TREX_DEBUG_IDENTITIES
             log(f, "\t%d:", fdx);
 #endif
             // manual_match for first segment
@@ -3730,7 +3844,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                     U_EXCEPTION("Cannot find %d-%d in fish.probs", segment.start(), segment.end());
                 if(!fish.track_ids.count(segment.range))
                     U_EXCEPTION("Cannot find %d-%d in track_ids", segment.start(), segment.end());
-#ifndef NDEBUG
+#ifdef TREX_DEBUG_IDENTITIES
                 log(f, "\t\t%d-%d: %f (from %d)", segment.start(), segment.end(), fish.probs.at(segment), fish.track_ids.at(segment.range));
 #endif
                 auto track = _individuals.at(fish.track_ids.at(segment.range));
@@ -3786,7 +3900,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                 tmp_assigned_ranges[fdx][segment.range] = blob_ids;
             }
         }
-#ifndef NDEBUG
+#ifdef TREX_DEBUG_IDENTITIES
         log(f, "----");
 #endif
         decltype(unassigned_ranges) still_unassigned;
@@ -3822,7 +3936,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                 if(next != fish->recognition_segments().end() && /*previous.start() != -1 &&*/ next->second.start() != -1) {
                     Idx_t prev_id, next_id;
                     PhysicalProperties *prev_pos = nullptr, *next_pos = nullptr;
-                    long_t prev_blob = -1;
+                    int64_t prev_blob = -1;
                     
                     auto it = assigned_ranges.find(fdx);
                     if(it != assigned_ranges.end()) {
@@ -3900,7 +4014,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                                 chosen_id = prev_id;
                             
                             if(chosen_id.valid()) {
-#ifndef NDEBUG
+#ifdef TREX_DEBUG_IDENTITIES
                                 if(segment.start() == 0) {
                                     log(f, "Fish %d: chosen_id %d, assigning %d-%d (%f / %f)...", fdx, chosen_id, segment.start(), segment.end(), dprev, dnext);
                                 }
@@ -4020,20 +4134,23 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
             }, "");
         }
         
-#ifndef NDEBUG
+#ifdef TREX_DEBUG_IDENTITIES
         log(f, "Done.");
         if(f)
             fclose(f);
 #endif
     }
 
-pv::BlobPtr Tracker::find_blob_noisy(const std::map<uint32_t, pv::BlobPtr>& blob_to_id, int64_t bid, int64_t pid, const Bounds& bounds, long_t frame)
+pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, int64_t bid, int64_t pid, const Bounds& bounds)
 {
-    if(blob_to_id.count(bid) == 0) {
+    auto blob = pp.find_bdx(bid);
+    if(!blob) {
+        return nullptr;
+        
         if(pid != -1) {
-            if(blob_to_id.count((uint32_t)pid) != 0) {
-                auto b = blob_to_id.at((uint32_t)pid);
-                auto blobs = pixel::threshold_blob(b, FAST_SETTINGS(track_threshold), Tracker::instance()->background());
+            blob = pp.find_bdx((uint32_t)pid);
+            if(blob) {
+                auto blobs = pixel::threshold_blob(blob, FAST_SETTINGS(track_threshold), Tracker::instance()->background());
                 
                 for(auto & sub : blobs) {
                     if(sub->blob_id() == bid) {
@@ -4044,7 +4161,8 @@ pv::BlobPtr Tracker::find_blob_noisy(const std::map<uint32_t, pv::BlobPtr>& blob
                     }
                 }
                 
-                if(!blob_to_id.count(bid)) {
+                /*if(!blob_to_id.count(bid)) {
+                    return nullptr;*/
                     /*int first_found = -1, last_found = -1;
                     
                     for(int threshold = FAST_SETTINGS(track_threshold)+1; threshold<100; ++threshold) {
@@ -4065,14 +4183,14 @@ pv::BlobPtr Tracker::find_blob_noisy(const std::map<uint32_t, pv::BlobPtr>& blob
                     
                     if(first_found != -1) {
                         Debug("Found blob %d in parent %d within thresholds [%d - %d]", bid, pid, first_found, last_found);
-                    } else {*/
+                    } else {
                         //Warning("Cannot find blob %d in it, but can find the parent %d in frame %d (threshold=%d).", bid, pid, frame, FAST_SETTINGS(track_threshold));
-                    //}
-                }
+                    //}*/
+                //}
             }
         }
         
-        if(!blob_to_id.count(bid)) {
+        /*if(!blob_to_id.count(bid)) {
             //std::set<std::tuple<Match::PairingGraph::prob_t, long_t, Vec2>> sorted;
             //for(auto && [id, ptr] : blob_to_id) {
             //    sorted.insert({euclidean_distance(ptr->center(), bounds.pos() + bounds.size() * 0.5), id, ptr->center()});
@@ -4081,10 +4199,12 @@ pv::BlobPtr Tracker::find_blob_noisy(const std::map<uint32_t, pv::BlobPtr>& blob
             
             //Error("Cannot find blob %d (%.0f,%.0f) in frame %d with threshold=%d. (%S)", bid, bounds.x,bounds.y, frame, FAST_SETTINGS(track_threshold), &str);
             return nullptr;
-        }
+        }*/
+        
+        return nullptr;
     }
     
-    return blob_to_id.at(bid);
+    return blob;
 }
 
     void Tracker::check_save_tags(long_t frameIndex, const std::unordered_map<uint32_t, Individual*>& blob_fish_map, const std::vector<tags::blob_pixel> &tagged_fish, const std::vector<tags::blob_pixel> &noise, const file::Path & tags_path) {

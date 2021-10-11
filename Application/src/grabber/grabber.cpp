@@ -25,6 +25,7 @@ using conversion_range_t = std::pair<long_t,long_t>;
 CREATE_STRUCT(GrabSettings,
   (bool, grabber_use_threads),
   (bool, cam_undistort),
+  (int, frame_rate),
   (Rangef,        blob_size_range),
   (int,        threshold),
   (int,        threshold_maximum),
@@ -462,6 +463,16 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
 {
     if(_video)
         initialize_video();
+    
+    if(!SETTING(enable_difference)) {
+        auto size = SETTING(video_size).value<Size2>();
+        _average = gpuMat::zeros(size.height, size.width, CV_8UC1);
+        _average.setTo(0);
+        _average_finished = true;
+        _average_samples = 1;
+        
+    }
+    
     _average.copyTo(_original_average);
     
     callback_before_starting(*this);
@@ -1464,36 +1475,58 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
             
         }
     };
-    
+//#define TGRABS_DEBUG_TIMING
     static std::mutex to_pool_mutex, to_main_mutex;
-    static std::queue<Task> for_the_pool;
+    static std::vector<Task> for_the_pool;
     static std::once_flag flag;
     static std::vector<std::thread*> thread_pool;
     static std::condition_variable single_variable;
+
+    static int64_t last_updated = -1;
+    static double last_frame_s = -1;
+    static Timer last_gui_update;
+    static const double frame_time = 1.0 / double(GRAB_SETTINGS(frame_rate));
+    static std::mutex time_mutex;
     
-    static const auto in_main_thread = [&](Task& task){
+    static const auto in_main_thread = [&](Task& task) -> std::tuple<int64_t, bool, double> {
         long_t used_index_here = infinity<long_t>();
         bool added = false;
         
-        static int64_t last_task_processed = -1;
+        static int64_t last_task_processed = (GRAB_SETTINGS(video_conversion_range).first == -1 ? 0 : GRAB_SETTINGS(video_conversion_range).first) - 1;
+        DataPackage pack;
+        bool compressed;
+        int64_t _last_task_peek;
+
+        double _serialize, _waiting, _writing, _gui, _rest;
+
+#ifdef TGRABS_DEBUG_TIMING
+        Timer timer;
+#endif
+        task.frame->serialize(pack, compressed);
+
+#ifdef TGRABS_DEBUG_TIMING
+        _serialize = timer.elapsed(); timer.reset();
+#endif
+
         {
-            std::unique_lock<std::mutex> guard(to_main_mutex);
             Timer timer;
+            std::unique_lock<std::mutex> guard(to_main_mutex);
+            _last_task_peek = last_task_processed;
+
             while(last_task_processed + 1 != task.current->index() && !_terminate_tracker) {
-                single_variable.wait_for(guard, std::chrono::milliseconds(30));
-                
-                if(timer.elapsed() >= 1) {
-                    //Debug("Still waiting to finalize task %d (%d)", task.index, last_task_processed);
-                    timer.reset();
-                }
+                single_variable.wait(guard);
             }
         }
-        
+
+#ifdef TGRABS_DEBUG_TIMING
+        _waiting = timer.elapsed(); timer.reset();
+#endif
+
         if(_terminate_tracker)
-            return;
+            return { -1, false, 0.0 };
         
         // write frame to file if recording (and if there's anything in the frame)
-        if(task.frame->n() > 0 && GRAB_SETTINGS(recording) && !GRAB_SETTINGS(quit_after_average)) {
+        if(/*task.frame->n() > 0 &&*/ GRAB_SETTINGS(recording) && !GRAB_SETTINGS(quit_after_average)) {
             if(!_processed.open()) {
                 // set (real time) timestamp for video start
                 // (just for the user to read out later)
@@ -1502,11 +1535,10 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
                 _processed.start_writing(true);
             }
             
-            static Timer timer;
-            timer.reset();
+            Timer timer;
             
             used_index_here = _processed.length();
-            _processed.add_individual(*task.frame);
+            _processed.add_individual(*task.frame, pack, compressed);
             _saving_time = _saving_time * 0.75 + timer.elapsed() * 0.25;
             
             _paused = false;
@@ -1514,51 +1546,83 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
         } else {
             _paused = true;
         }
-        
+
         auto stamp = task.current->timestamp();
         auto index = task.current->index();
-        
-        if(!_current_image)
-            std::atomic_store(&_current_image, std::make_shared<Image>(*task.raw));
-        else
-            _current_image->set(index, task.raw->data());
-        
+
         assert(index == _last_index + 1);
         _last_index = index;
-        
-        if(added && tracker) {
+
+        if (added && tracker) {
             add_tracker_queue(*task.frame, used_index_here);
         }
-        
+
         uint64_t tdelta, tdelta_camera, now;
+        //static previous_time;
         {
             std::lock_guard<std::mutex> guard(_frame_lock);
-            if(_last_frame) {
-                tdelta_camera = task.frame->timestamp() - _last_frame->timestamp();
-                
+            //if (previous_time == 0) 
+            {
+                tdelta_camera = _last_frame ? task.frame->timestamp() - _last_frame->timestamp() : 0;
+
                 now = std::chrono::steady_clock::now().time_since_epoch().count();
-                if(previous_time == 0)
+                if (previous_time == 0)
                     previous_time = now;
                 tdelta = now - previous_time;
-                
+
                 previous_time = now;
-            } else {
-                tdelta = 0;
-                tdelta_camera = 0;
-                now = 0;
             }
-            
+            ////    tdelta = 0;
+            //    tdelta_camera = 0;
+            //    now = 0;
+           // }
+        }
+
+        bool transfer_to_gui;
+        double last_time;
+        {
+            std::lock_guard g(time_mutex); 
+            last_time = last_gui_update.elapsed();
+            transfer_to_gui = last_frame_s == -1
+                || (last_frame_s <= 0.75 * frame_time && last_time >= frame_time * 0.9)
+                || (last_frame_s > 0.75 * frame_time && last_time >= frame_time * frame_time / last_frame_s);
+        }
+
+#ifdef TGRABS_DEBUG_TIMING
+        _writing = timer.elapsed(); timer.reset();
+#endif
+
+        if (!_current_image) {
+            std::atomic_store(&_current_image, std::make_shared<Image>(*task.raw));
+        } 
+        else if (transfer_to_gui) {
+            _current_image->set(index, task.raw->data());
             _last_frame = std::move(task.frame);
-            _noise = nullptr;
-            
-            if(!task.filtered_out.empty() && task.index % 10 == 0) {
-                _noise = std::make_unique<pv::Frame>(task.current->timestamp(), task.filtered_out.size());
-                for (auto b: task.filtered_out) {
-                    _noise->add_object(b->lines(), b->pixels());
+
+            //if(false) 
+            {
+                std::lock_guard<std::mutex> guard(_frame_lock);
+                _noise = nullptr;
+
+                if (!task.filtered_out.empty()) {
+                    _noise = std::make_unique<pv::Frame>(task.current->timestamp(), task.filtered_out.size());
+                    for (auto b : task.filtered_out) {
+                        _noise->add_object(b->lines(), b->pixels());
+                    }
                 }
             }
+
+            std::lock_guard g(time_mutex);
+            last_gui_update.reset();
         }
-        
+
+#ifdef TGRABS_DEBUG_TIMING
+        _gui = timer.elapsed(); timer.reset();
+#endif
+
+        if (tdelta > 0)
+            update_fps(index, stamp, tdelta, now);
+
     #if WITH_FFMPEG
         if(mp4_queue && used_index_here != -1) {
             task.current->set_index(used_index_here);
@@ -1571,9 +1635,6 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
     #endif
         _processing_timing = _processing_timing * 0.75 + task.timer.elapsed() * 0.25;
         
-        if(tdelta > 0)
-            update_fps(index, stamp, tdelta, now);
-        
         {
             std::lock_guard<std::mutex> guard(to_main_mutex);
             last_task_processed = index; //! allow next task
@@ -1584,16 +1645,46 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
                     SETTING(terminate) = true;
             }
         }
+
         single_variable.notify_all();
+
+#ifdef TGRABS_DEBUG_TIMING
+        _rest = timer.elapsed(); timer.reset();
+
+        if (index % 10 == 0) {
+            std::lock_guard g(time_mutex);
+            Debug("\t[main] serialize:%fms waiting:%fms writing:%fms gui:%fms rest:%fms => %fms (frame_time=%fs time=%fs last=%fs)",
+                _serialize * 1000,
+                _waiting * 1000,
+                _writing * 1000,
+                _gui * 1000,
+                _rest * 1000,
+                (_serialize + _waiting + _writing + _gui + _rest) * 1000,
+                frame_time,
+                last_frame_s,
+                last_time);
+        }
+#endif
+
+        return { _last_task_peek, transfer_to_gui, last_time };
     };
+
+    static const Rangef min_max = GRAB_SETTINGS(blob_size_range);
+    static const float cm_per_pixel = SQR(SETTING(cm_per_pixel).value<float>());
     
     static const auto threadable_task = [in_main_thread = &in_main_thread](Task& task) {
-        const Rangef min_max = GRAB_SETTINGS(blob_size_range);
-        static const float cm_per_pixel = SQR(SETTING(cm_per_pixel).value<float>());
-        
+#ifdef TGRABS_DEBUG_TIMING
         Timer _sub_timer;
+        double _raw_blobs, _filtering, _pv_frame, _main_thread;
+#endif
+        Timer _overall;
+
         auto rawblobs = CPULabeling::run(task.current->get(), true);
-        
+#ifdef TGRABS_DEBUG_TIMING
+        _raw_blobs = _sub_timer.elapsed();
+        _sub_timer.reset();
+#endif
+
         for(auto  && [lines, pixels] : rawblobs) {
             //b->calculate_properties();
             
@@ -1617,7 +1708,12 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
                 task.filtered_out.push_back(std::make_shared<pv::Blob>(lines, pixels));
             }
         }
-        
+
+#ifdef TGRABS_DEBUG_TIMING
+        _filtering = _sub_timer.elapsed();
+        _sub_timer.reset();
+#endif
+
         // create pv::Frame object for this frame
         // (creating new object so it can be swapped with _last_frame)
         task.frame = std::make_unique<pv::Frame>(task.current->timestamp(), task.filtered.size());
@@ -1625,7 +1721,7 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
             static Timing timing("adding frame");
             TakeTiming take(timing);
             
-            for (auto b: task.filtered) {
+            for (auto &b: task.filtered) {
                 if(b->hor_lines().size() < UINT16_MAX) {
                     if(b->hor_lines().size() < UINT16_MAX)
                         task.frame->add_object(b->lines(), b->pixels());
@@ -1636,8 +1732,34 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
                     Warning("Probably a lot of noise with %lu lines!", b->hor_lines().size());
             }
         }
+
+#ifdef TGRABS_DEBUG_TIMING
+        _pv_frame = _sub_timer.elapsed();
+        _sub_timer.reset();
+#endif
         
-        (*in_main_thread)(task);
+        auto [_last_task_peek, gui_updated, last_time] = (*in_main_thread)(task);
+#ifdef TGRABS_DEBUG_TIMING
+        _main_thread = _sub_timer.elapsed();
+
+        if (gui_updated)
+            Debug("[Timing] Frame:%ld raw_blobs:%fms filtering:%fms pv::Frame:%fms main:%fms => %fms (diff:%ld, %fs)",
+                task.index,
+                _raw_blobs * 1000,
+                _filtering * 1000,
+                _pv_frame * 1000,
+                _main_thread * 1000,
+                (_raw_blobs + _filtering + _pv_frame + _main_thread) * 1000,
+                task.index - _last_task_peek,
+                last_time);
+#endif
+
+        std::lock_guard g(time_mutex);
+        last_frame_s = last_frame_s == -1
+            ? _overall.elapsed()
+            : last_frame_s * 0.75 + _overall.elapsed() * 0.25;
+
+        _overall.reset();
     };
     
     std::call_once(flag, [&](){
@@ -1656,15 +1778,14 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
                         timer.reset();
                         
                         auto task = std::move(for_the_pool.front());
-                        for_the_pool.pop();
+                        for_the_pool.erase(for_the_pool.begin());
                         
                         guard.unlock();
                         _multi_variable.notify_one();
                         
                         try {
-                            auto index = task.index;
                             threadable_task(task);
-                            
+
                         } catch(const std::exception& ex) {
                             Except("std::exception from threadable task: %s", ex.what());
                         } catch(...) {
@@ -1699,14 +1820,14 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
             }
             
             if(!_terminate_tracker) {
-                for_the_pool.push(Task(global_index++,
+                for_the_pool.emplace_back(global_index++,
                     Image::Make(local, current.index(), TS),
 #if WITH_FFMPEG
                     /*mp4_queue ?*/ Image::Make(current_copy) /*: nullptr*/,
 #else
                     nullptr,
 #endif
-                    nullptr));
+                    nullptr);
             }
         }
         

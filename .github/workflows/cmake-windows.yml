@@ -64,5 +64,5 @@ jobs:
         echo "::endgroup::"
         echo "::group::TestFunctions"
         cd $GITHUB_WORKSPACE/Application/Tests
-        ./run_windows.bash
+        ./run_unix.bash
         echo "::endgroup::"

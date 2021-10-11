@@ -194,7 +194,28 @@ We can now map from segments (meta) to tracklet images from the big file
 Visual fields
 =============
 
-(todo)
+Visual fields are saved by clicking the respective menu button ("export visual fields") in |trex|. This will save one or multiple files, depending on file size. If the files are bigger than ~3GB, then they have to be saved separately in individual .npy files - otherwise they will all be merged into one .npz container called e.g. ``data/<VIDEONAME>_visual_field_fish0.npz``.
+
+Each container holds multiple arrays, each are shaped ``Nx2x2x512`` for ``N`` frames, 2 eyes and 2 depth-layers per eye:
+
+	- depth: distance to the visible individual
+	- ids: id of the visible individual (or -1 for self-intersection)
+	- body_part: a percentage that indicates how far from the head (and how close to the tail) the point on the seen individual is on its outline
+
+as well as some meta data:
+
+	- colors: (``Mx4``): ID + RGB for M individuals
+	- fov_range (``2x1``): FOV range in radians
+	- frame_range (``2x1``): Start and end of exported region
+	- fish_pos (``Nx2``): XY position of the individual for each frame
+	- fish_angle (``Nx1``): angle of the body relative to the x-axis
+	- eye_pos (``Nx2x2``): XY position for each eye
+	- eye_angle (``Nx2``): angle for each eye
+	- frames (``Nx1``): frame index
+
+Heatmaps
+========
+(Todo)
 
 PreprocessedVideo (pv)
 ======================

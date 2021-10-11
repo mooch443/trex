@@ -30,15 +30,15 @@ protected:
     
     std::mutex _gui_frame_lock;
     Timer _gui_bytes_timer, _gui_timer;
-    long _gui_bytes_count, _gui_bytes_per_second;
+    long _gui_bytes_count = 0, _gui_bytes_per_second = 0;
     std::vector<uchar> _gui_frame_bytes;
     
     bool _pulse_direction;
-    float _pulse;
+    float _pulse = 0;
     Timer pulse_timer;
     
     GETTER_NCONST(gui::DrawStructure, gui)
-    gui::Base* _sf_base;
+    gui::Base* _sf_base = nullptr;
     std::unique_ptr<pv::Frame> _frame, _noise;
     Image::UPtr _image;
 

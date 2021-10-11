@@ -1,0 +1,259 @@
+#!/usr/bin/env python
+#
+# Copyright 2017 Milly
+#
+# This software is released under the MIT License.
+#
+
+"""Convert Unix and Windows format paths in WSL."""
+
+__author__ = 'Milly'
+__copyright__ = 'Copyright 2017 Milly'
+__license__ = 'MIT'
+__version__ = '1.0.0'
+
+
+import ntpath
+import os
+import posixpath
+import re
+import signal
+import sys
+
+from optparse import OptionGroup, OptionParser
+
+
+def _parse_options():
+    parser = OptionParser(
+        usage='Usage: %prog (-d|-m|-u|-w|-t TYPE) [-f FILE] [OPTION]... NAME...',
+        description='Convert Unix and Windows format paths',
+        version='%%prog (Windows Subsytem for Linux) %s' % __version__)
+
+    type_group = OptionGroup(parser, 'Output type options')
+    type_group.add_option('-d', '--dos', dest='type', action='store_const', const='dos',
+                          help='like --windows (for compatibility)')
+    type_group.add_option('-m', '--mixed', dest='type', action='store_const', const='mixed',
+                          help='like --windows, but with regular slashes (C:/WINNT)')
+    type_group.add_option('-u', '--unix', dest='type', action='store_const', const='unix',
+                          help='(default) print Unix form of NAMEs (/mnt/c/winnt)')
+    type_group.add_option('-w', '--windows', dest='type', action='store_const', const='windows',
+                          help='print Windows form of NAMEs (C:\WINNT)')
+    type_group.add_option('-t', '--type', metavar='TYPE', choices=('dos', 'mixed', 'unix', 'windows'),
+                          help="print TYPE form: 'dos', 'mixed', 'unix', or 'windows'")
+    parser.add_option_group(type_group)
+
+    path_group = OptionGroup(parser, 'Path conversion options')
+    path_group.add_option('-a', '--absolute', action='store_true',
+                          help='output absolute path')
+    path_group.add_option('-l', '--long-name', dest='short_name', action='store_false',
+                          help='no effect (for compatibility)')
+    path_group.add_option('-p', '--path', action='store_true',
+                          help="NAME is a PATH list (i.e., '/bin:/usr/bin')")
+    path_group.add_option('-s', '--short-name', dest='short_name', action='store_true',
+                          help='no effect (for compatibility)')
+    parser.add_option_group(path_group)
+
+    other_group = OptionGroup(parser, 'Other options')
+    other_group.add_option('-f', '--file', metavar='FILE',
+                           help='read FILE for input; use - to read from STDIN')
+    other_group.add_option('-i', '--ignore', action='store_true',
+                           help='ignore missing argument')
+    parser.add_option_group(other_group)
+
+    parser.set_defaults(
+        type='unix',
+        absolute=False,
+        path=False,
+        ignore=False)
+
+    (options, args) = parser.parse_args()
+
+    options.windows = options.type in ('dos', 'mixed', 'windows')
+    options.regular_slashes = options.type == 'mixed'
+
+    if options.file and args:
+        if not options.ignore:
+            parser.error("can't use both -f FILE and NAMEs")
+    elif not options.file and not args:
+        if not options.ignore:
+            parser.error('require -f FILE or NAMEs')
+
+    return options, args
+
+
+def _signal_handler(sig, frame):
+    sys.exit(0x80 + sig)
+
+
+def main():
+    (options, args) = _parse_options()
+    wslpath = WslPath(absolute=options.absolute,
+                      ignore_error=options.ignore,
+                      regular_slashes=options.regular_slashes,
+                      windows=options.windows)
+
+    def _convert(file_or_pathlist):
+        if options.path:
+            res = wslpath.convert_pathlist(file_or_pathlist)
+        else:
+            res = wslpath.convert_filepath(file_or_pathlist)
+        if res:
+            print(res)
+
+    try:
+        if options.file:
+            if options.file == '-':
+                file = sys.stdin
+            else:
+                file = open(options.file, mode='rt')
+            with file:
+                for line in file:
+                    _convert(line)
+        else:
+            for arg in args:
+                _convert(arg)
+    except (IOError, Error) as err:
+        prog = os.path.basename(sys.argv[0])
+        print('%s: error: %s' % (prog, err))
+        sys.exit(1)
+
+
+class Error(Exception):
+    """Base exception."""
+
+    pass
+
+
+class PathConvertError(Error):
+    """Path convert error."""
+
+    pass
+
+
+class WslPath(object):
+    """Convert Unix and Windows format paths in WSL."""
+
+    def __init__(self, windows=False, regular_slashes=False, ignore_error=False, absolute=False):
+        """Initialize WslPath.
+
+        Args:
+            windows (bool): Convert to Windows form. (C:\WINNT)
+            regular_slashes (bool): Using regular slashes. (C:/WINNT)
+            ignore_error (bool): Ignore error raises.
+            absolute (bool): Convert to absolute path.
+
+        """
+        self.absolute = absolute
+        self.ignore_error = ignore_error
+        self.regular_slashes = regular_slashes
+        self.windows = windows
+
+    def _error_invalid_path(self, msg):
+        if not self.ignore_error:
+            raise PathConvertError(msg)
+        return None
+
+    def _check_path(self, path):
+        path = path.rstrip('\r\n')
+        if not path and not self.ignore_error:
+            raise PathConvertError("can't convert empty path")
+        return path
+
+    def convert_filepath(self, filepath):
+        """Convert file path format.
+
+        Args:
+            filepath (str): Input file path.
+
+        Returns:
+            Converted file path string.
+            None if error occurred and `self.ignore_error` is True.
+
+        Raises:
+            PathConvertError: `filepath` is invalid.
+
+        """
+        # check input
+        filepath = self._check_path(filepath)
+        if not filepath:
+            return None
+        drivematch = re.match(r"^[A-Za-z]:", filepath)
+        if drivematch or '\\' in filepath:
+            is_windows = True
+            is_abs = ntpath.isabs(filepath)
+        else:
+            is_windows = False
+            is_abs = posixpath.isabs(filepath)
+        if self.windows == is_windows and self.absolute == is_abs:
+            return filepath
+
+        # parse input
+        if is_windows:
+            tree = re.split(r"[\\/]", filepath)
+            if is_abs and drivematch:
+                tree = ['/', 'mnt', drivematch.group(0)[0].lower()] + tree[1:]
+            elif is_abs:
+                cwd = os.getcwd() + '/'
+                if not re.match(r"^/mnt/[a-z]/", cwd):
+                    return self._error_invalid_path('not a windows mount point: %s' % filepath)
+                tree = ['/', 'mnt', cwd[5]] + tree[1:]
+            elif drivematch:
+                cwd = os.getcwd() + '/'
+                dirpath = '/mnt/' + drivematch.group(0)[0].lower() + '/'
+                if not cwd.startswith(dirpath):
+                    return self._error_invalid_path('not a windows mount point: %s' % filepath)
+                tree[0] = tree[0][2:]
+        else:
+            tree = filepath.split('/')
+            if is_abs:
+                tree[0] = '/'
+
+        # convert to unix
+        relpath = posixpath.join(*tree)
+        abspath = relpath if is_abs else posixpath.abspath(relpath)
+        if not self.windows:
+            if self.absolute:
+                return abspath
+            else:
+                return relpath
+
+        # convert to windows
+        pathmatch = re.match(r"^/mnt/([a-z])(/.*|$)", abspath)
+        if not pathmatch:
+            return self._error_invalid_path('not a windows mount point: %s' % filepath)
+        if self.absolute or is_abs:
+            drive = pathmatch.group(1).upper() + ':'
+            tree = pathmatch.group(2).split('/')[1:]
+            if self.regular_slashes:
+                tree = [drive] + tree
+            else:
+                tree = [drive, '\\'] + tree
+        if self.regular_slashes:
+            return posixpath.join(*tree)
+        else:
+            return ntpath.join(*tree)
+
+    def convert_pathlist(self, pathlist):
+        """Convert PATH list format.
+
+        Args:
+            pathlist (str): Input PATH list.
+
+        Returns:
+            Converted PATH list string.
+            None if error occurred and `self.ignore_error` is True.
+
+        Raises:
+            PathConvertError: `pathlist` is invalid.
+
+        """
+        pathlist = self._check_path(pathlist)
+        if not pathlist:
+            return None
+        srcsep = ';' if (';' in pathlist) else ':'
+        destsep = ';' if self.windows else ':'
+        return destsep.join(self.convert_filepath(p) for p in pathlist.split(srcsep))
+
+
+if __name__ == '__main__':
+    main()

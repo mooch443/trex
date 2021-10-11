@@ -21,9 +21,11 @@ struct Label {
         return std::make_shared<Label>(std::forward<Args>(args)...);
     }
     
-    Label(const std::string& name) : name(name) {
-        static int _ID = 0;
-        id = _ID++;
+    Label(const std::string& name, int id) : name(name), id(id) {
+        if(id == -1) {
+            static int _ID = 0;
+            id = _ID++;
+        }
     }
 };
 
@@ -35,15 +37,18 @@ struct Sample {
     }
     
     std::vector<long_t> _frames;
+    std::vector<uint32_t> _blob_ids;
     std::vector<Image::Ptr> _images;
     std::vector<Vec2> _positions;
     
     Label::Ptr _assigned_label;
-    std::map<Label::Ptr, float> _probabilities;
+    std::vector<float> _probabilities;
+    //std::map<Label::Ptr, float> _probabilities;
     bool _requested = false;
     
     Sample(std::vector<long_t>&& frames,
            const std::vector<Image::Ptr>& images,
+           const std::vector<uint32_t>& blob_ids,
            std::vector<Vec2>&& positions);
     
     static const Sample::Ptr& Invalid() {
@@ -74,7 +79,7 @@ struct Probabilities {
 
 struct RangedLabel {
     FrameRange _range;
-    Label::Ptr _label;
+    int _label = -1;
     std::vector<uint32_t> _blobs;
     int32_t _maximum_frame_after = -1;
     
@@ -85,10 +90,10 @@ struct RangedLabel {
         return _range.end() > other._frame;
     }
     bool operator<(const RangedLabel& other) const {
-        return _range.end() < other._range.end();
+        return _range.end() < other._range.end() || (_range.end() == other._range.end() && _range.start() < other._range.start());
     }
     bool operator>(const RangedLabel& other) const {
-        return _range.end() > other._range.end();
+        return _range.end() > other._range.end() || (_range.end() == other._range.end() && _range.start() < other._range.start());
     }
 };
 
@@ -114,7 +119,7 @@ struct DataStore {
     static Label::Ptr label(const char* name);
     static Label::Ptr label(int ID);
     
-    static const Sample::Ptr& sample(
+    static Sample::Ptr sample(
          const std::shared_ptr<Individual::SegmentInformation>& segment,
          Individual* fish,
          const size_t max_samples,
@@ -126,7 +131,7 @@ struct DataStore {
                                  const size_t min_samples = 50u,
                                  bool exclude_labelled = false);
     
-    static const Sample::Ptr& random_sample(Idx_t fid);
+    static Sample::Ptr random_sample(Idx_t fid);
     static Sample::Ptr get_random();
     
     struct Composition {
@@ -145,7 +150,7 @@ struct DataStore {
     static void clear();
     static Label::Ptr label(Frame_t, uint32_t);
     //! does not lock the mutex (assumes it is locked)
-    static Label::Ptr _label_unsafe(Frame_t, uint32_t);
+    static int _label_unsafe(Frame_t, uint32_t);
     static Label::Ptr label(Frame_t, const pv::CompressedBlob*);
     //! does not lock the mutex (assumes it is locked)
     static Label::Ptr _label_unsafe(Frame_t, const pv::CompressedBlob*);
@@ -154,12 +159,13 @@ struct DataStore {
     static void set_ranged_label(RangedLabel&&);
     static Label::Ptr ranged_label(Frame_t, uint32_t);
     static Label::Ptr ranged_label(Frame_t, const pv::CompressedBlob&);
-    static Label::Ptr _ranged_label_unsafe(Frame_t, uint32_t);
+    static int _ranged_label_unsafe(Frame_t, uint32_t);
     static Label::Ptr label_interpolated(Idx_t, Frame_t);
     static Label::Ptr label_interpolated(const Individual*, Frame_t);
     static Label::Ptr label_averaged(Idx_t, Frame_t);
     static Label::Ptr label_averaged(const Individual*, Frame_t);
     static void set_label(Frame_t, const pv::CompressedBlob*, const Label::Ptr&);
+    static void _set_label_unsafe(Frame_t, uint32_t bdx, int ldx);
     
     static void reanalysed_from(Frame_t);
 };
@@ -170,6 +176,7 @@ struct LearningTask {
         Training,
         Restart,
         Load,
+        Apply,
         Invalid
     } type = Type::Invalid;
     
@@ -177,6 +184,7 @@ struct LearningTask {
     std::function<void(const LearningTask&)> callback;
     std::vector<float> result;
     std::shared_ptr<Individual::SegmentInformation> segment;
+    long_t idx = -1;
     
     bool valid() const {
         return type != Type::Invalid;
@@ -208,6 +216,8 @@ void draw(gui::DrawStructure&);
 void terminate();
 file::Path output_location();
 void clear_labels();
+
+bool weights_available();
 
 }
 }

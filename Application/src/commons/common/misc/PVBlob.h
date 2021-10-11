@@ -20,9 +20,11 @@ namespace pv {
     class Blob : public cmn::Blob {
     public:
         constexpr static uint32_t invalid = std::numeric_limits<uint32_t>::max();
+        using line_ptr_t = std::shared_ptr<std::vector<cmn::HorizontalLine>>;
+        using pixel_ptr_t = std::shared_ptr<const std::vector<uchar>>;
         
     protected:
-        GETTER_PTR(std::shared_ptr<const std::vector<uchar>>, pixels)
+        GETTER_PTR(pixel_ptr_t, pixels)
         GETTER_I(bool, split, false)
         GETTER_I(long_t, parent_id, -1)
         GETTER_I(uint32_t, blob_id, pv::Blob::invalid)
@@ -34,12 +36,11 @@ namespace pv {
         
     public:
         Blob();
-        Blob(std::shared_ptr<std::vector<cmn::HorizontalLine>> lines, decltype(_pixels) pixels);
+        Blob(line_ptr_t lines, pixel_ptr_t pixels);
         Blob(std::shared_ptr<const std::vector<cmn::HorizontalLine>> lines, decltype(_pixels) pixels);
-        //Blob(const std::vector<HorizontalLine>& lines, decltype(_pixels) pixels);
-        Blob(const cmn::Blob* blob, decltype(_pixels) pixels);
+        Blob(const cmn::Blob* blob, pixel_ptr_t pixels);
         Blob(const pv::Blob& other);
-        //std::vector<std::shared_ptr<Blob>> threshold(int value, const Background& background) const;
+        
         BlobPtr threshold(int32_t value, const cmn::Background& background);
         std::tuple<cmn::Vec2, std::unique_ptr<cmn::Image>> image(const cmn::Background* background = NULL, const cmn::Bounds& restricted = cmn::Bounds(-1,-1,-1,-1)) const;
         std::tuple<cmn::Vec2, std::unique_ptr<cmn::Image>> alpha_image(const cmn::Background& background, int32_t threshold) const;
@@ -101,7 +102,7 @@ namespace pv {
         //! compresses an array of HorizontalLines to an array of ShortHorizontalLines
         static std::vector<ShortHorizontalLine> compress(const std::vector<cmn::HorizontalLine>& lines);
         //! uncompresses an array of ShortHorizontalLines back to HorizontalLines
-        static std::shared_ptr<std::vector<cmn::HorizontalLine>> uncompress(uint16_t start_y, const std::vector<ShortHorizontalLine>& compressed);
+        static Blob::line_ptr_t uncompress(uint16_t start_y, const std::vector<ShortHorizontalLine>& compressed);
         
     public:
         constexpr ShortHorizontalLine() : _x0(0), _x1(0) {}

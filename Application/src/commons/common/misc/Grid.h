@@ -23,6 +23,9 @@ namespace grid {
         bool operator==(const pixel& other) const {
             return other.v == v && other.x == x && other.y == y;
         }
+        bool operator==(const T& v) const {
+            return this->v == v;
+        }
     };
 }
 }
@@ -77,6 +80,7 @@ namespace grid {
         
         virtual ~Grid2D() {}
         
+        decltype(grid)& get_grid() { return grid; }
         const decltype(grid)& get_grid() const { return grid; }
         
         int64_t idx(float x, float y) const {

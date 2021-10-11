@@ -11,6 +11,7 @@
 #include <tracker/misc/MemoryStats.h>
 #include <pv.h>
 #include <misc/checked_casts.h>
+#include <gui/IdentityHeatmap.h>
 
 #if WIN32
 #include <io.h>
@@ -20,6 +21,52 @@
 #endif
 
 namespace track {
+
+    void temporary_save(file::Path path, std::function<void(file::Path)> fn) {
+        /**
+         * There is sometimes a problem when people save to network harddrives.
+         * The first NPY file will not finish writing / sync completely before the next one starts.
+         * This leads to "does not contain a ZIP file" exception and terminates the saving process.
+         * Instead, we move the file to a temporary folder first (on our local harddrive) and then
+         * move it.
+         * (Only if a /tmp/ folder exists though.)
+         */
+
+        file::Path final_path = path;
+        file::Path tmp_path, use_path;
+
+#ifdef WIN32
+        char chPath[MAX_PATH];
+        if (GetTempPath(MAX_PATH, chPath))
+            tmp_path = chPath;
+#else
+        tmp_path = "/tmp";
+#endif
+
+        if (tmp_path.exists()) {
+            if (access(tmp_path.c_str(), W_OK) == 0)
+                use_path = tmp_path / path.filename();
+        }
+
+        try {
+            fn(use_path);
+
+            static std::mutex mutex;
+            std::lock_guard guard(mutex);
+            if (final_path != use_path) {
+                //Debug("Moving '%S' to '%S'...", &use_path.str(), &final_path.str());
+                if (!use_path.move_to(final_path)) {
+                    U_EXCEPTION("Cannot move file '%S' to '%S'.", &use_path.str(), &final_path.str());
+                } //else
+                  //  Debug("  Moved '%S' to '%S'.", &use_path.str(), &final_path.str());
+            }
+
+        }
+        catch (const std::exception& ex) {
+            Except("Problem copying file '%S' to '%S': %s", &use_path.str(), &final_path.str(), ex.what());
+            // there will be a utils exception, so its printed out already
+        }
+    }
 
 namespace hist_utils {
     /**
@@ -96,27 +143,6 @@ namespace hist_utils {
         for (uint i = 0; i < (uint)rows; ++i) {
             M[i].resize((uint)cols);
         }
-    }
-}
-
-void temporary_save(file::Path path, std::function<void(file::Path)> fn) {
-    file::Path final_path = path;
-    file::Path use_path = final_path;
-    if(file::Path("/tmp").exists()) {
-        if(access("/tmp/", W_OK) == 0)
-            use_path = file::Path("/tmp/") / path.filename();
-    }
-    
-    try {
-        fn(use_path);
-        
-        if(final_path != use_path) {
-            if(!use_path.move_to(final_path))
-                U_EXCEPTION("Cannot move file '%S' to '%S'.", &use_path.str(), &final_path.str());
-        }
-        
-    } catch(...) {
-        // there will be a utils exception, so its printed out already
     }
 }
 
@@ -268,62 +294,46 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                         fish_graphs.at(thread_index)->setup_graph(fish->start_frame(), Rangel(fish->start_frame(), fish->end_frame()), fish, library_cache.at(thread_index));
                     
                     file::Path path = ((std::string)SETTING(filename).value<file::Path>().filename() + "_" + fish->identity().name() + "." + output_format.name());
-                    
-                    /**
-                     * There is sometimes a problem when people save to network harddrives.
-                     * The first NPY file will not finish writing / sync completely before the next one starts.
-                     * This leads to "does not contain a ZIP file" exception and terminates the saving process.
-                     * Instead, we move the file to a temporary folder first (on our local harddrive) and then
-                     * move it.
-                     * (Only if a /tmp/ folder exists though.)
-                     */
                     file::Path final_path = fishdata / path;
-                    file::Path use_path = final_path;
-                    if(file::Path("/tmp").exists()) {
-                        if(access("/tmp/", W_OK) == 0)
-                            use_path = file::Path("/tmp/") / path;
-                    }
                     
                     try {
                         if(output_format == default_config::output_format_t::npz) {
-                            fish_graphs.at(thread_index)->graph().save_npz(use_path.str(), &callback, true);
-                            
-                            std::vector<long_t> segment_borders;
-                            std::vector<float> vxy;
-                            vxy.reserve(fish->frame_count() * 2);
-                            
-                            for(auto & segment : fish->frame_segments()) {
-                                segment_borders.push_back(segment->start());
-                                segment_borders.push_back(segment->end());
+                            temporary_save(final_path, [&](file::Path use_path) {
+                                fish_graphs.at(thread_index)->graph().save_npz(use_path.str(), &callback, true);
                                 
-                                for(long_t frame = segment->start() + 1; frame <= segment->end(); ++frame)
-                                {
-                                    auto idx = segment->basic_stuff(frame);
-                                    if(idx < 0)
-                                        continue;
+                                std::vector<long_t> segment_borders;
+                                std::vector<float> vxy;
+                                vxy.reserve(fish->frame_count() * 2);
+                                
+                                for(auto & segment : fish->frame_segments()) {
+                                    segment_borders.push_back(segment->start());
+                                    segment_borders.push_back(segment->end());
                                     
-                                    auto centroid = fish->basic_stuff()[(size_t)idx]->centroid;
-                                    
-                                    auto v = centroid->v(Units::PX_AND_SECONDS);
-                                    auto speed = centroid->speed(Units::PX_AND_SECONDS);
-                                    vxy.push_back(frame);
-                                    vxy.push_back(v.x);
-                                    vxy.push_back(v.y);
-                                    vxy.push_back(speed);
+                                    for(long_t frame = segment->start() + 1; frame <= segment->end(); ++frame)
+                                    {
+                                        auto idx = segment->basic_stuff(frame);
+                                        if(idx < 0)
+                                            continue;
+                                        
+                                        auto centroid = fish->basic_stuff()[(size_t)idx]->centroid;
+                                        
+                                        auto v = centroid->v(Units::PX_AND_SECONDS);
+                                        auto speed = centroid->speed(Units::PX_AND_SECONDS);
+                                        vxy.push_back(frame);
+                                        vxy.push_back(v.x);
+                                        vxy.push_back(v.y);
+                                        vxy.push_back(speed);
+                                    }
                                 }
-                            }
-                            cnpy::npz_save(use_path.str(), "frame_segments", segment_borders.data(), std::vector<size_t>{segment_borders.size() / 2, 2}, "a");
-                            cnpy::npz_save(use_path.str(), "segment_vxys", vxy.data(), std::vector<size_t>{vxy.size() / 4, 4}, "a");
+                                cnpy::npz_save(use_path.str(), "frame_segments", segment_borders.data(), std::vector<size_t>{segment_borders.size() / 2, 2}, "a");
+                                cnpy::npz_save(use_path.str(), "segment_vxys", vxy.data(), std::vector<size_t>{vxy.size() / 4, 4}, "a");
+                            });
+                            
                         } else
-                            fish_graphs.at(thread_index)->graph().export_data(use_path.str(), &callback);
-                        
-                        if(final_path != use_path) {
-                            if(!use_path.move_to(final_path))
-                                U_EXCEPTION("Cannot move file '%S' to '%S'.", &use_path.str(), &final_path.str());
-                        }
+                            fish_graphs.at(thread_index)->graph().export_data(final_path.str(), &callback);
                         
                     } catch(const UtilsException& e) {
-                        Except("Failed to save data for fish '%S' to location '%S'.", &fish->identity().raw_name(), &use_path.str());
+                        Except("Failed to save data for fish '%S' to location '%S'.", &fish->identity().raw_name(), &final_path.str());
                     }
                 }
                 
@@ -489,24 +499,10 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                     
                     //Debug("Saving recognition data to '%S'", &path.str());
                     file::Path final_path = fishdata / path;
-                    file::Path use_path = final_path;
-                    if(file::Path("/tmp").exists()) {
-                        if(access("/tmp/", W_OK) == 0)
-                            use_path = file::Path("/tmp/") / path;
-                    }
-                    
-                    try {
+                    temporary_save(fishdata / path, [&](file::Path use_path) {
                         cmn::npz_save(use_path.str(), "frames", recognition_frames);
                         cmn::npz_save(use_path.str(), "probs", probabilities.data(), { recognition_frames.size(), Recognition::number_classes() }, "a");
-                        
-                        if(final_path != use_path) {
-                            if(!use_path.move_to(final_path))
-                                U_EXCEPTION("Cannot move file '%S' to '%S'.", &use_path.str(), &final_path.str());
-                        }
-                        
-                    } catch(...) {
-                        // there will be a utils exception, so its printed out already
-                    }
+                    });
                 }
                 
                 if(output_posture_data) {
@@ -584,14 +580,7 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                         }
                     }
                     
-                    file::Path final_path = fishdata / path;
-                    file::Path use_path = final_path;
-                    if(file::Path("/tmp").exists()) {
-                        if(access("/tmp/", W_OK) == 0)
-                            use_path = file::Path("/tmp/") / path;
-                    }
-                    
-                    try {
+                    temporary_save(fishdata / path, [&](file::Path use_path) {
                         cmn::npz_save(use_path.str(), "frames", posture_frames);
                         cmn::npz_save(use_path.str(), "offset", (const Float2_t*)offsets.data(), { posture_frames.size(), 2 }, "a");
                         cmn::npz_save(use_path.str(), "midline_lengths", midline_lengths, "a");
@@ -611,16 +600,7 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                         
                         cmn::npz_save(use_path.str(), "outline_lengths", outline_lengths, "a");
                         cmn::npz_save(use_path.str(), "outline_points", (const Float2_t*)outline_points.data(), std::vector<size_t>{ num_outline_points, 2 }, "a");
-                        //Debug("Finished range %d-%d", fish_range.start, fish_range.end);
-                        
-                        if(final_path != use_path) {
-                            if(!use_path.move_to(final_path))
-                                U_EXCEPTION("Cannot move file '%S' to '%S'.", &use_path.str(), &final_path.str());
-                        }
-                        
-                    } catch(...) {
-                        // there will be a utils exception, so its printed out already
-                    }
+                    });
                 }
                 
             } else {
@@ -692,6 +672,11 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                 work_item(0, id, fish);
         }
         
+        if(SETTING(output_heatmaps)) {
+            heatmap::HeatmapController svenja;
+            svenja.save();
+        }
+        
         if(SETTING(output_statistics))
         {
             file::Path path = ((std::string)SETTING(filename).value<file::Path>().filename() + "_statistics.npz");
@@ -707,30 +692,14 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                 
                 assert(sizeof(track::Tracker::Statistics) / sizeof(float) * frame_numbers.size() == statistics.size());
                 
-                file::Path final_path = fishdata / path;
-                file::Path use_path = final_path;
-                if(file::Path("/tmp").exists()) {
-                    if(access("/tmp/", W_OK) == 0)
-                        use_path = file::Path("/tmp/") / path;
-                }
-                
-                try {
+                temporary_save(fishdata / path, [&](file::Path use_path) {
                     cmn::npz_save(use_path.str(), "stats", statistics.data(), { frame_numbers.size(), sizeof(track::Tracker::Statistics) / sizeof(float) }, "w");
                     cmn::npz_save(use_path.str(), "frames", frame_numbers, "a");
-                    
-                    if(final_path != use_path) {
-                        if(!use_path.move_to(final_path))
-                            U_EXCEPTION("Cannot move file '%S' to '%S'.", &use_path.str(), &final_path.str());
-                    }
-                    
-                    Debug("Saved statistics at '%S'.", &final_path.str());
-                } catch(...) {
-                    // there will be a utils exception, so its printed out already
-                }
+                    Debug("Saved statistics at '%S'.", &fishdata.str());
+                });
                 
                 if(!auto_no_memory_stats) {
-                    final_path = fishdata / ((std::string)SETTING(filename).value<file::Path>().filename() + "_memory.npz");
-                    temporary_save(final_path, [&](file::Path path){
+                    temporary_save(fishdata / ((std::string)SETTING(filename).value<file::Path>().filename() + "_memory.npz"), [&](file::Path path) {
                         Debug("Generating memory stats...");
                         mem::IndividualMemoryStats overall;
                         std::map<track::Idx_t, mem::IndividualMemoryStats> indstats;
@@ -763,11 +732,11 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                             cmn::npz_save(path.str(), key, size, "a");
                         }
                         
-                        Debug("Saved memory stats at '%S'", &final_path);
+                        auto f = fishdata / (std::string)path.filename();
+                        Debug("Saved memory stats at '%S'", &f.str());
                     });
                     
-                    final_path = fishdata / ((std::string)SETTING(filename).value<file::Path>().filename() + "_global_memory.npz");
-                    temporary_save(final_path, [&](file::Path path){
+                    temporary_save(fishdata / ((std::string)SETTING(filename).value<file::Path>().filename() + "_global_memory.npz"), [&](file::Path path) {
                         mem::OutputLibraryMemoryStats ol;
                         ol.print();
                         
@@ -784,8 +753,6 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                             cmn::npz_save(path.str(), key, std::vector<uint64_t>{size}, written ? "a" : "w");
                             written = true;
                         }
-                        
-                        Debug("Saved global memory stats at '%S'", &final_path);
                     });
                 }
                 
@@ -819,14 +786,6 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                     Tracker::instance()->preprocess_frame(obj, active, &_blob_thread_pool);
                 }
                 
-                std::map<uint32_t, pv::BlobPtr> blob_to_id;
-                for(auto &blob : obj.blobs)
-                    blob_to_id[blob->blob_id()] = blob;
-                for(auto &blob : obj.filtered_out)
-                    blob_to_id[blob->blob_id()] = blob;
-                for(auto &blob : obj.original_blobs)
-                    blob_to_id[blob->blob_id()] = blob;
-                
                 for(auto && [id, data] : vec) {
                     struct ImagePosition {
                         Image::UPtr image;
@@ -834,9 +793,9 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                         pv::BlobPtr blob;
                     } reduced, full;
                     
-                    reduced.blob = Tracker::find_blob_noisy(blob_to_id, data.blob.blob_id, data.blob.parent_id, Bounds(), data.frame);
+                    reduced.blob = Tracker::find_blob_noisy(obj, data.blob.blob_id, data.blob.parent_id, Bounds());
                     if(data.blob.org_id != -1) {
-                        full.blob = Tracker::find_blob_noisy(blob_to_id, data.blob.org_id, data.blob.parent_id, Bounds(), data.frame);
+                        full.blob = Tracker::find_blob_noisy(obj, data.blob.org_id, data.blob.parent_id, Bounds());
                     }
                     /*for (auto b : obj.blobs) {
                         if(data.blob.org_id != -1) {

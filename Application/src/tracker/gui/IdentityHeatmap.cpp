@@ -4,6 +4,7 @@
 #include <tracking/Individual.h>
 #include <misc/cnpy_wrapper.h>
 #include <misc/checked_casts.h>
+#include <tracking/Export.h>
 
 namespace gui {
 namespace heatmap {
@@ -117,9 +118,9 @@ void HeatmapController::paint_heatmap() {
 void HeatmapController::save() {
     update_variables();
     
-    _frame_context = 0;
-    _normalization = normalization_t::none;
-    custom_heatmap_value_range = Range<double>(-1, -1);
+    //_frame_context = 0;
+    //_normalization = normalization_t::none;
+    //custom_heatmap_value_range = Range<double>(-1, -1);
     
     size_t count_frames = 0, package_count = 0;
     size_t max_frames = sign_cast<size_t>(Tracker::end_frame() - Tracker::start_frame());
@@ -147,6 +148,12 @@ void HeatmapController::save() {
 
     std::vector<long_t> frames;
     size_t package_index = 0;
+    
+    auto fishdata_dir = SETTING(fishdata_dir).value<file::Path>();
+    auto fishdata = pv::DataLocation::parse("output", fishdata_dir);
+    if(!fishdata.exists())
+        if(!fishdata.create_folder())
+            U_EXCEPTION("Cannot create folder '%S' for saving fishdata.", &fishdata.str());
 
     auto save_package = [&]() {
         std::vector<size_t> shape = {
@@ -159,18 +166,27 @@ void HeatmapController::save() {
         if(source.find('#') != std::string::npos)
             source = source.substr(0, source.find('#'));
         
-        file::Path path = pv::DataLocation::parse("output", 
-            file::Path((std::string)SETTING(filename).value<file::Path>().filename() 
+        file::Path path = fishdata /
+                ((std::string)SETTING(filename).value<file::Path>().filename()
                 + "_heatmap" 
                 + "_p" + Meta::toStr(package_index) + "_"
                 + Meta::toStr(uniform_grid_cell_size) 
                 + "_" + Meta::toStr(N) + "x" + Meta::toStr(N)
-                + "_" + source
-                + ".npz"));
+                + (source.empty() ? "" : ("_" + source))
+                + ".npz");
+        
         DebugHeader("Saving package %lu to '%S'...", package_index, &path.str());
+        temporary_save(path, [&](file::Path use_path) {
+            cmn::npz_save(use_path.str(), "heatmap", per_frame.data(), shape);
+            cmn::npz_save(use_path.str(), "frames", frames, "a");
+            cmn::npz_save(use_path.str(), "meta", std::vector<double>{
+                (double)package_index,
+                (double)uniform_grid_cell_size,
+                (double)_normalization.value(),
+                (double)_frame_context
+            }, "a");
+        });
 
-        cmn::npz_save(path.str(), "heatmap", per_frame.data(), shape);
-        cmn::npz_save(path.str(), "frames", frames, "a");
         Debug("Saved to '%S'.", &path.str());
 
         per_frame.clear();
@@ -1437,8 +1453,6 @@ void Grid::collect_cells(uint32_t grid_size, std::vector<Region *> &output) cons
     std::queue<Node::Ptr> q;
     q.push(_root);
     
-    ColorWheel wheel;
-    
     while (!q.empty()) {
         auto ptr = q.front();
         q.pop();
@@ -1595,9 +1609,6 @@ void Region::insert(std::vector<DataPoint>::iterator start, std::vector<DataPoin
         sections[size_t(previous) * 2 + 1] = end;
         counted += std::distance(last_section, it);
     }
-    
-    size_t replaced = 0, end_size = 0;
-    //Debug("Overall items: %d, counted: %d", items, counted);
     
     for(size_t i=0; i<4; ++i) {
         if(std::distance(sections[i * 2], sections[i * 2 + 1]) != 0) {

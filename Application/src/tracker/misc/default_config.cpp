@@ -65,7 +65,8 @@ namespace default_config {
         "Maximizes the probability sum by assigning (or potentially not assigning) individuals to objects in the frame. This returns the correct solution, but might take long for high quantities of individuals.",
         "Simply assigns the highest probability edges (blob to individual) to all individuals - first come, first serve. Parameters have to be set very strictly (especially speed) in order to have as few objects to choose from as possible and limit the error.",
         "The hungarian algorithm (as implemented in O(n^3) by Mattias Andrée `https://github.com/maandree/hungarian-algorithm-n3`).",
-        "Runs all algorithms and pits them against each other, outputting statistics every few frames."
+        "Runs all algorithms and pits them against each other, outputting statistics every few frames.",
+        "Uses automatic selection based on density."
     )
 
     ENUM_CLASS_DOCS(output_format_t,
@@ -339,6 +340,8 @@ file::Path conda_environment_path() {
         CONFIG("gui_mode", gui::mode_t::tracking, "The currently used display mode for the GUI.");
         CONFIG("panic_button", int(0), "42");
         CONFIG("gui_run", false, "When set to true, the GUI starts playing back the video and stops once it reaches the end, or is set to false.");
+        CONFIG("gui_show_match_modes", false, "Shows the match mode used for every tracked object. Green is 'approximate', yellow is 'hungarian', and red is 'created/loaded'.");
+        CONFIG("gui_show_only_unassigned", false, "Showing only unassigned objects.");
         CONFIG("gui_show_memory_stats", false, "Showing or hiding memory statistics.");
         CONFIG("gui_show_outline", true, "Showing or hiding individual outlines in tracking view.");
         CONFIG("gui_show_midline", true, "Showing or hiding individual midlines in tracking view.");
@@ -358,6 +361,7 @@ file::Path conda_environment_path() {
         CONFIG("gui_show_visualfield", false, "Show/hide the visual field rays.");
         CONFIG("gui_show_uniqueness", false, "Show/hide uniqueness overview after training.");
         CONFIG("gui_show_probabilities", false, "Show/hide probability visualisation when an individual is selected.");
+        CONFIG("gui_show_cliques", false, "Show/hide cliques of potentially difficult tracking situations.");
         //CONFIG("gui_show_manual_matches", true, "Show/hide manual matches in path.");
         CONFIG("gui_show_graph", false, "Show/hide the data time-series graph.");
         CONFIG("gui_show_number_individuals", false, "Show/hide the #individuals time-series graph.");
@@ -396,7 +400,7 @@ file::Path conda_environment_path() {
         CONFIG("peak_mode", peak_mode_t::pointy, "This determines whether the tail of an individual should be expected to be pointy or broad.");
         CONFIG("manual_matches", std::map<long_t, std::map<track::Idx_t, int64_t>>{ }, "A map of manually defined matches (also updated by GUI menu for assigning manual identities). `{{frame: {fish0: blob2, fish1: blob0}}, ...}`");
         CONFIG("manual_splits", std::map<long_t, std::set<int64_t>>{}, "This map contains `{frame: [blobid1,blobid2,...]}` where frame and blobid are integers. When this is read during tracking for a frame, the tracker will attempt to force-split the given blob ids.");
-        CONFIG("match_mode", matching_mode_t::accurate, "Changes the default algorithm to be used for matching blobs in one frame to blobs in the next frame. The accurate algorithm performs best, but also scales less well for more individuals than the approximate one. However, if it is too slow (temporarily) in a few frames, the program falls back to using the approximate one that doesnt slow down.");
+        CONFIG("match_mode", matching_mode_t::automatic, "Changes the default algorithm to be used for matching blobs in one frame with blobs in the next frame. The accurate algorithm performs best, but also scales less well for more individuals than the approximate one. However, if it is too slow (temporarily) in a few frames, the program falls back to using the approximate one that doesnt slow down.");
         CONFIG("matching_probability_threshold", float(0.1), "The probability below which a possible connection between blob and identity is considered too low. The probability depends largely upon settings like `track_max_speed`.");
         CONFIG("track_do_history_split", true, "If disabled, blobs will not be split automatically in order to separate overlapping individuals. This usually happens based on their history.");
         CONFIG("track_end_segment_for_speed", true, "Sometimes individuals might be assigned to blobs that are far away from the previous position. This could indicate wrong assignments, but not necessarily. If this variable is set to true, consecutive frame segments will end whenever high speeds are reached, just to be on the safe side. For scenarios with lots of individuals (and no recognition) this might spam yellow bars in the timeline and may be disabled.");
@@ -427,6 +431,7 @@ file::Path conda_environment_path() {
         CONFIG("manual_identities", std::set<track::Idx_t>{}, "", SYSTEM);
         CONFIG("pixel_grid_cells", size_t(25), "");
         
+        CONFIG("gui_highlight_categories", false, "If enabled, categories (if applied in the video) will be highlighted in the tracking view.");
         CONFIG("categories_ordered", std::vector<std::string>{}, "Ordered list of names of categories that are used in categorization (classification of types of individuals).");
         CONFIG("categories_min_sample_images", uint32_t(50), "Minimum number of images for a sample to be considered relevant. This will default to 50, or ten percent of `track_segment_max_length`, if that parameter is set. If `track_segment_max_length` is set, the value of this parameter will be ignored. If set to zero or one, then all samples are valid.");
         CONFIG("track_segment_max_length", float(0), "If set to something bigger than zero, this represents the maximum number of seconds that a consecutive segment can be.");
@@ -511,6 +516,7 @@ file::Path conda_environment_path() {
         
         CONFIG("auto_quit", false, "If set to true, the application will automatically save all results and export CSV files and quit, after the analysis is complete."); // save and quit after analysis is done
         CONFIG("auto_apply", false, "If set to true, the application will automatically apply the network with existing weights once the analysis is done. It will then automatically correct and reanalyse the video.");
+        CONFIG("auto_categorize", false, "If set to true, the program will try to load <video>_categories.npz from the `output_dir`. If successful, then categories will be computed according to the current categories_ settings. Combine this with the `auto_quit` parameter to automatically save and quit afterwards. If weights cannot be loaded, the app crashes.");
         CONFIG("auto_no_memory_stats", true, "If set to true, no memory statistics will be saved on auto_quit.");
         CONFIG("auto_no_results", false, "If set to true, the auto_quit option will NOT save a .results file along with the NPZ (or CSV) files. This saves time and space, but also means that the tracked portion cannot be loaded via -load afterwards. Useful, if you only want to analyse the resulting data and never look at the tracked video again.");
         CONFIG("auto_no_tracking_data", false, "If set to true, the auto_quit option will NOT save any `output_graphs` tracking data - just the posture data (if enabled) and the results file (if not disabled). This saves time and space if that is a need.");
@@ -528,6 +534,7 @@ file::Path conda_environment_path() {
         CONFIG("output_csv_decimals", uint8_t(0), "Maximum number of decimal places that is written into CSV files (a text-based format for storing data). A value of 0 results in integer values.");
         CONFIG("output_invalid_value", output_invalid_t::inf, "Determines, what is exported in cases where the individual was not found (or a certain value could not be calculated). For example, if an individual is found but posture could not successfully be generated, then all posture-based values (e.g. `midline_length`) default to the value specified here. By default (and for historic reasons), any invalid value is marked by 'inf'.");
         CONFIG("output_format", output_format_t::npz, "When pressing the S(ave) button or using `auto_quit`, this setting allows to switch between CSV and NPZ output. NPZ files are recommended and will be used by default - some functionality (such as visual fields, posture data, etc.) will remain in NPZ format due to technical constraints.");
+        CONFIG("output_heatmaps", false, "When set to true, heatmaps are going to be saved to a separate file, or set of files '_p*' - with all the settings in heatmap_* applied.");
         CONFIG("output_statistics", false, "Save an NPZ file containing an array with shape Nx16 and contents [`adding_seconds`, `combined_posture_seconds`, `number_fish`, `loading_seconds`, `posture_seconds`, `match_number_fish`, `match_number_blob`, `match_number_edges`, `match_stack_objects`, `match_max_edges_per_blob`, `match_max_edges_per_fish`, `match_mean_edges_per_blob`, `match_mean_edges_per_fish`, `match_improvements_made`, `match_leafs_visited`, `method_used`] and an 1D-array containing all frame numbers. If set to true, a file called '`output_dir`/`fish_data_dir`/`<filename>_statistics.npz`' will be created. This will not output anything interesting, if the data was loaded instead of analysed.");
         CONFIG("output_posture_data", false, "Save posture data npz file along with the usual NPZ/CSV files containing positions and such. If set to true, a file called '`output_dir`/`fish_data_dir`/`<filename>_posture_fishXXX.npz`' will be created for each individual XXX.");
         CONFIG("output_recognition_data", false, "Save recognition / probability data npz file along with the usual NPZ/CSV files containing positions and such. If set to true, a file called '`output_dir`/`fish_data_dir`/`<filename>_recognition_fishXXX.npz`' will be created for each individual XXX.");
@@ -656,6 +663,7 @@ file::Path conda_environment_path() {
             "auto_quit",
             "auto_apply",
             "output_dir",
+            "auto_categorize",
             "tags_path",
             "analysis_range",
             "output_prefix",

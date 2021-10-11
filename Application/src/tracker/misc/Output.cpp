@@ -414,7 +414,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                     auto prop = new PhysicalProperties(fish, frameIndex, data.pos, data.angle, cache_ptr);
                     data.stuff->centroid = prop;
                     
-                    auto label = Categorize::DataStore::ranged_label(Frame_t(frameIndex), data.stuff->blob);
+                    auto label = FAST_SETTINGS(track_consistent_categories)/* || !FAST_SETTINGS(track_only_categories).empty()*/ ? Categorize::DataStore::ranged_label(Frame_t(frameIndex), data.stuff->blob) : nullptr;
                     auto cache = fish->cache_for_frame(frameIndex, Tracker::properties(frameIndex, cache_ptr)->time, cache_ptr);
                     auto p = fish->probability(label ? label->id : -1, cache, frameIndex, data.stuff->blob).p;
                     
@@ -428,6 +428,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                     
                     segment->add_basic_at(frameIndex, (long_t)fish->_basic_stuff.size());
                     fish->_basic_stuff.push_back(data.stuff);
+                    fish->_matched_using.push_back(default_config::matching_mode_t::benchmark);
                 }
                 guard.lock();
                 
@@ -438,6 +439,9 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     
     TemporaryData data;
     double time;
+    
+    fish->_basic_stuff.reserve(N);
+    fish->_matched_using.reserve(N);
     
     for (uint64_t i=0; i<N; i++) {
         ref.read<data_long_t>(frameIndex);
@@ -1434,12 +1438,17 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
                 Error("Illegal syntax in .results settings.");
             }
             
-            if(config.has("gui_focus_group")) {
-                SETTING(gui_focus_group) = config["gui_focus_group"].value<std::vector<Idx_t>>();
-            } else
-                SETTING(gui_focus_group) = std::vector<Idx_t>{};
+            std::vector<Idx_t> focus_group;
+            if(config.has("gui_focus_group"))
+                focus_group = config["gui_focus_group"].value<std::vector<Idx_t>>();
             
-            SETTING(gui_frame).value<long_t>() = (long_t)file.header().gui_frame;
+            if(GUI::instance()) {
+                GUI::work().add_queue("", [f = (long_t)file.header().gui_frame, focus_group](){
+                    SETTING(gui_frame) = f;
+                    SETTING(gui_focus_group) = focus_group;
+                });
+            }
+            
         }
         
         if((file.header().analysis_range.start != -1 || file.header().analysis_range.end != -1) && SETTING(analysis_range).value<std::pair<long_t, long_t>>() == std::pair<long_t,long_t>{-1,-1})

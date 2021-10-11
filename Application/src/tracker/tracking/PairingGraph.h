@@ -12,12 +12,12 @@ class Individual;
 namespace Match
 {
     using prob_t = double;
-    using Blob_t = pv::Blob*;
+    using Blob_t = const pv::BlobPtr*;
 
     class PairedProbabilities {
     public:
         using row_t = std::vector<Individual*>;
-        using col_t = std::vector<pv::Blob*>;
+        using col_t = std::vector<Blob_t>;
         
         struct Edge {
             long_t cdx;
@@ -28,8 +28,8 @@ namespace Match
             {}
             operator std::string() const {
                 return cdx >= 0
-                    ? std::to_string(cdx)
-                    : "NULL";
+                    ? std::to_string(cdx)+"["+std::to_string(p)+"]"
+                    : "null";
             }
             bool operator==(const Edge& other) const {
                 return other.cdx == cdx;
@@ -63,8 +63,9 @@ namespace Match
     public:
         PairedProbabilities();
         
-        size_t add(row_t::value_type, const std::unordered_map<col_t::value_type, prob_t>&);
+        size_t add(row_t::value_type, const std::map<col_t::value_type, prob_t>&);
         void erase(row_t::value_type);
+        void erase(col_t::value_type);
         
         size_t n_rows() const { return _num_rows; }
         size_t n_cols() const { return _num_cols; }
@@ -76,6 +77,9 @@ namespace Match
         
         size_t index(col_t::value_type) const;
         size_t index(row_t::value_type) const;
+        
+        bool has(row_t::value_type) const;
+        bool has(col_t::value_type) const;
         
         //! return -1 if invalid assignment
         prob_t probability(row_t::value_type, col_t::value_type) const;
@@ -168,14 +172,7 @@ namespace Match
         
     public:
         PairingGraph(long_t frame, const decltype(_paired)& paired);
-        ~PairingGraph() {
-            if(_optimal_pairing)
-                delete _optimal_pairing;
-            while(!unused.empty()) {
-                delete unused.front();
-                unused.pop();
-            }
-        }
+        ~PairingGraph();
         
         static void prepare_shutdown();
         
@@ -187,7 +184,7 @@ namespace Match
         //cv::Point2f pos(const Individual*) const;
         //cv::Point2f pos(const Blob*) const;
         
-        const Result& get_optimal_pairing(bool print = false, default_config::matching_mode_t::Class mode = default_config::matching_mode_t::accurate);
+        const Result& get_optimal_pairing(bool print = false, default_config::matching_mode_t::Class mode = default_config::matching_mode_t::automatic);
         
     public:
         //psets_t _psets;
@@ -246,8 +243,7 @@ namespace Match
         bool connected_to(Individual *o, Blob_t b) const;
         
     public:
-        static std::queue<Stack*> unused;
-        static std::mutex unused_mutex;
+        std::queue<Stack*> unused;
         
     private:
         //void work(gq_t_&, std::deque<Stack*>&, Stack&);

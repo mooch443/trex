@@ -66,7 +66,9 @@ CREATE_STRUCT(Cache,
     (int, frame_rate),
     (float, gui_interface_scale),
     (default_config::output_format_t::Class, output_format),
-    (uchar, gui_timeline_alpha)
+    (uchar, gui_timeline_alpha),
+    (bool, gui_happy_mode),
+    (bool, auto_categorize)
 )
 //(bool, gui_blur_enabled)
 
@@ -227,6 +229,7 @@ public:
     static void auto_apply();
     static void auto_train();
     static void auto_quit();
+    static void auto_categorize();
     
     static gui::GUICache& cache();
     

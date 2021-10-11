@@ -251,7 +251,12 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
             in_layout.insert(in_layout.begin(), &_raw_text);
         }
         
-        if(GUI_SETTINGS(auto_train)) {
+        if(GUI_SETTINGS(auto_categorize)) {
+            base.rect(-offset, Size2(max_w, bar_height + y), Purple.alpha(75));
+            _auto_text.set_txt("[auto_categorize]");
+            in_layout.insert(in_layout.begin(), &_auto_text);
+            
+        } else if(GUI_SETTINGS(auto_train)) {
             base.rect(-offset, Size2(max_w, bar_height + y), Red.alpha(75));
             _auto_text.set_txt("[auto_train]");
             in_layout.insert(in_layout.begin(), &_auto_text);
@@ -423,14 +428,6 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
                 }
             });
         }
-        
-        float new_height = roundf(bar_height / use_scale.y);
-        //_bar->set_scale(Vec2(1, new_height));
-        
-        /*if(_proximity_bar._image) {
-            _bar->set_source(std::move(_proximity_bar._image));
-            //_proximity_bar.changed = false;
-        }*/
         
         _bar->set_pos(pos);
         

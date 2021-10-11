@@ -71,6 +71,16 @@ TRex parameters
 
 
 
+.. function:: auto_categorize(bool)
+
+	**default value:** false
+
+
+	If set to true, the program will try to load <video>_categories.npz from the ``output_dir``. If successful, then categories will be computed according to the current categories_ settings. Combine this with the ``auto_quit`` parameter to automatically save and quit afterwards. If weights cannot be loaded, the app crashes.
+
+	.. seealso:: :func:`output_dir`, :func:`auto_quit`, 
+
+
 .. function:: auto_minmax_size(bool)
 
 	**default value:** false
@@ -685,6 +695,15 @@ TRex parameters
 	.. seealso:: :func:`calculate_posture`, 
 
 
+.. function:: gui_highlight_categories(bool)
+
+	**default value:** false
+
+
+	If enabled, categories (if applied in the video) will be highlighted in the tracking view.
+
+
+
 .. function:: gui_interface_scale(float)
 
 	**default value:** 1.25
@@ -771,6 +790,15 @@ TRex parameters
 
 
 
+.. function:: gui_show_cliques(bool)
+
+	**default value:** false
+
+
+	Show/hide cliques of potentially difficult tracking situations.
+
+
+
 .. function:: gui_show_dataset(bool)
 
 	**default value:** false
@@ -844,6 +872,15 @@ TRex parameters
 	.. seealso:: :func:`track_max_reassign_time`, 
 
 
+.. function:: gui_show_match_modes(bool)
+
+	**default value:** false
+
+
+	Shows the match mode used for every tracked object. Green is 'approximate', yellow is 'hungarian', and red is 'created/loaded'.
+
+
+
 .. function:: gui_show_memory_stats(bool)
 
 	**default value:** false
@@ -877,6 +914,15 @@ TRex parameters
 
 
 	Show/hide the #individuals time-series graph.
+
+
+
+.. function:: gui_show_only_unassigned(bool)
+
+	**default value:** false
+
+
+	Showing only unassigned objects.
 
 
 
@@ -1251,15 +1297,16 @@ TRex parameters
 
 .. function:: match_mode(matching_mode_t)
 
-	**default value:** accurate
+	**default value:** automatic
 
 	**possible values:**
-		- `accurate`: Maximizes the probability sum by assigning (or potentially not assigning) individuals to objects in the frame. This returns the correct solution, but might take long for high quantities of individuals.
+		- `tree`: Maximizes the probability sum by assigning (or potentially not assigning) individuals to objects in the frame. This returns the correct solution, but might take long for high quantities of individuals.
 		- `approximate`: Simply assigns the highest probability edges (blob to individual) to all individuals - first come, first serve. Parameters have to be set very strictly (especially speed) in order to have as few objects to choose from as possible and limit the error.
 		- `hungarian`: The hungarian algorithm (as implemented in O(n^3) by Mattias Andrée `https://github.com/maandree/hungarian-algorithm-n3`).
 		- `benchmark`: Runs all algorithms and pits them against each other, outputting statistics every few frames.
+		- `automatic`: Uses automatic selection based on density.
 
-	Changes the default algorithm to be used for matching blobs in one frame to blobs in the next frame. The accurate algorithm performs best, but also scales less well for more individuals than the approximate one. However, if it is too slow (temporarily) in a few frames, the program falls back to using the approximate one that doesnt slow down.
+	Changes the default algorithm to be used for matching blobs in one frame with blobs in the next frame. The accurate algorithm performs best, but also scales less well for more individuals than the approximate one. However, if it is too slow (temporarily) in a few frames, the program falls back to using the approximate one that doesnt slow down.
 
 
 
@@ -1494,6 +1541,15 @@ TRex parameters
 
 
 	The functions that will be exported when saving to CSV, or shown in the graph. ``[['X',[option], ...]]``
+
+
+
+.. function:: output_heatmaps(bool)
+
+	**default value:** false
+
+
+	When set to true, heatmaps are going to be saved to a separate file, or set of files '_p*' - with all the settings in heatmap_* applied.
 
 
 
@@ -2068,7 +2124,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1.2-20-g45ac929"
+	**default value:** "v1.1.3-81-g7f50dc1"
 
 
 	Current application version.

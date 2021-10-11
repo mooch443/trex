@@ -239,7 +239,7 @@ bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
     void MetalImpl::create_window(const char* title, int width, int height) {
         // Create window with graphics context
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        window = glfwCreateWindow(width, height, "", NULL, NULL);
+        window = glfwCreateWindow(width, height, title, NULL, NULL);
         if (window == NULL)
             U_EXCEPTION("[METAL] Cannot create GLFW window.");
         

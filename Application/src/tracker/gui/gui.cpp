@@ -610,16 +610,16 @@ void GUI::run_loop(gui::LoopStatus status) {
     if(!run()) {
         t = 0;
         
-        if(!GUI_SETTINGS(nowindow) && cache().is_animating() &&  redraw_timer.elapsed() >= 0.15) {
+        if(!GUI_SETTINGS(nowindow) && cache().is_animating() &&  redraw_timer.elapsed() >= 0.2) {
             redraw_timer.reset();
             //set_redraw();
             _gui.set_dirty(base);
             is_automatic = true;
             
-        } else if((!GUI_SETTINGS(nowindow) && redraw_timer.elapsed() >= 0.1) || _recording) {
+        } else if((!GUI_SETTINGS(nowindow) && redraw_timer.elapsed() >= 0.30) || _recording) {
             redraw_timer.reset();
             //set_redraw();
-            //_gui.set_dirty(base);
+            _gui.set_dirty(base);
             is_automatic = true;
         }
         
@@ -630,7 +630,7 @@ void GUI::run_loop(gui::LoopStatus status) {
         
         if(inc >= 1) {
             auto before = image_index;
-            image_index = min((float)_tracker.end_frame(), image_index + inc);
+            image_index = max(0, _tracker.start_frame(), min((float)_tracker.end_frame(), image_index + inc));
             
             t = 0;
             if(before != image_index) {
@@ -1658,8 +1658,8 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
             cache().set_animating(&temporary, true);
         }
         
-        if((_recording && _cache.gui_time() - time_lost >= 1)
-           || (!_recording && lost_timer.elapsed() >= 1))
+        if((_recording && _cache.gui_time() - time_lost >= 0.5)
+           || (!_recording && lost_timer.elapsed() >= 0.5))
         {
             target_scale = Vec2(1);
             //target_pos = offset;//Vec2(0, 0);
@@ -1698,14 +1698,18 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
     e = min(0.1, e);
     e *= 3;
     
-    auto check_target = [](const Vec2& start, const Vec2& target, double e) {
-        Vec2 direction = target - start;
-        double speed = direction.length();
+    auto check_target = [](const Vec2& start, const Vec2& target, Float2_t e) {
+        Vec2 direction = (target - start) * e;
+        Float2_t speed = direction.length();
+        auto epsilon = max(target.abs().max(), start.abs().max()) * 0.000001;
+
+        if(speed <= epsilon)
+            return target;
+        
         if(speed > 0)
             direction /= speed;
-        direction = direction * speed * e;
         
-        auto scale = start + direction;
+        auto scale = start + direction * speed;
         
         if((direction.x > 0 && scale.x > target.x)
            || (direction.x < 0 && scale.x < target.x))
@@ -1721,11 +1725,10 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
         return scale;
     };
     
-    //timer.reset();
-    //float percent = 1 - min(1, e * 0.1);
     
-    //if((section->scale() - target_scale).length() > 0.001
-    //   || (section->pos() - target_pos).length() > 0.01) {
+    target_pos.x = round(target_pos.x);
+    target_pos.y = round(target_pos.y);
+    
     if(!section->scale().Equals(target_scale)
        || !section->pos().Equals(target_pos))
     {
@@ -1734,16 +1737,12 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
         auto playback_factor = max(1, sqrt(SETTING(gui_playback_speed).value<float>()));
         auto scale = check_target(section->scale(), target_scale, e * playback_factor);
         
-        //Debug("%f,%f -> %f,%f = %f,%f", section->scale().x, section->scale().y, target_scale.x, target_scale.y, scale.x, scale.y);
-        
         section->set_scale(scale);
         
         auto next_pos = check_target(section->pos(), target_pos, e * playback_factor);
         auto next_size = check_target(section->size(), target_size, e * playback_factor);
         
         section->set_bounds(Bounds(next_pos, next_size));
-        
-        //section->set_bounds(Bounds(section->pos() * (1 - percent) + target_pos * percent, section->size() * (1 - percent) + target_size * percent));
         
     } else {
         cache().set_animating(section, false);
@@ -1859,45 +1858,46 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                     }
                 }
                 
-                for (auto &fish : (source.empty() ? _cache.active : source)) {
-                    if (fish->start_frame() > frameNr || fish->empty())
-                        continue;
-                    
-                    auto segment = fish->segment_for(frameNr);
-                    if(!GUI_SETTINGS(gui_show_inactive_individuals)
-                       && (!segment || (segment->end() != Tracker::end_frame()
-                       && segment->length() < (long_t)GUI_SETTINGS(output_min_frames))))
-                    {
-                        continue;
-                    }
-                    
-                    auto it = container->map().find(fish);
-                    if(it != container->map().end())
-                        empty_map = &it->second;
-                    else
-                        empty_map = NULL;
-                    
-                    if(_cache._fish_map.find(fish) == _cache._fish_map.end()) {
-                        _cache._fish_map[fish] = std::make_unique<gui::Fish>(*fish);
-                        fish->register_delete_callback(_cache._fish_map[fish].get(), [this](Individual *f) {
-                            //std::lock_guard<std::mutex> lock(_individuals_frame._mutex);
-                            if(!GUI::instance())
-                                return;
-                            
-                            std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
-                            
-                            auto it = _cache._fish_map.find(f);
-                            if(it != _cache._fish_map.end()) {
-                                _cache._fish_map.erase(f);
-                            }
-                        });
-                    }
-                    
-                    _cache._fish_map[fish]->set_data((uint32_t)frameNr, props->time, _cache.processed_frame, empty_map);
-                    
-                    base.wrap_object(*_cache._fish_map[fish]);
-                    if(GUI_SETTINGS(gui_show_texts))
+                {
+                    for (auto &fish : (source.empty() ? _cache.active : source)) {
+                        if (fish->start_frame() > frameNr || fish->empty())
+                            continue;
+                        
+                        auto segment = fish->segment_for(frameNr);
+                        if(!GUI_SETTINGS(gui_show_inactive_individuals)
+                           && (!segment || (segment->end() != Tracker::end_frame()
+                           && segment->length() < (long_t)GUI_SETTINGS(output_min_frames))))
+                        {
+                            continue;
+                        }
+                        
+                        auto it = container->map().find(fish);
+                        if(it != container->map().end())
+                            empty_map = &it->second;
+                        else
+                            empty_map = NULL;
+                        
+                        if(_cache._fish_map.find(fish) == _cache._fish_map.end()) {
+                            _cache._fish_map[fish] = std::make_unique<gui::Fish>(*fish);
+                            fish->register_delete_callback(_cache._fish_map[fish].get(), [this](Individual *f) {
+                                //std::lock_guard<std::mutex> lock(_individuals_frame._mutex);
+                                if(!GUI::instance())
+                                    return;
+                                
+                                std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
+                                
+                                auto it = _cache._fish_map.find(f);
+                                if(it != _cache._fish_map.end()) {
+                                    _cache._fish_map.erase(f);
+                                }
+                            });
+                        }
+                        
+                        _cache._fish_map[fish]->set_data((uint32_t)frameNr, props->time, _cache.processed_frame, empty_map);
+                        
+                        base.wrap_object(*_cache._fish_map[fish]);
                         _cache._fish_map[fish]->label(base);
+                    }
                 }
                 
                 if(GUI_SETTINGS(gui_show_midline_histogram)) {
@@ -1996,11 +1996,9 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                         Vec2 p0(gui::Graph::invalid());
                         
                         if(!fish0->has(frameIndex)) {
-                            if(_cache.processed_frame.cached_individuals.count(fish0->identity().ID()))
-                            {
-                                auto cache = _cache.processed_frame.cached_individuals.at(fish0->identity().ID());
-                                p0 = cache.estimated_px;
-                            }
+                            auto c = _cache.processed_frame.cached(fish0->identity().ID());
+                            if(c)
+                                p0 = c->estimated_px;
                         } else
                             p0 = fish0->centroid_weighted(frameIndex)->pos(Units::PX_AND_SECONDS);
                         
@@ -2017,11 +2015,9 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                             Vec2 p1(infinity<Float2_t>());
                             
                             if(!fish1->has(frameIndex)) {
-                                if(_cache.processed_frame.cached_individuals.count(fish1->identity().ID()))
-                                {
-                                    auto cache = _cache.processed_frame.cached_individuals.at(fish1->identity().ID());
-                                    p1 = cache.estimated_px;
-                                }
+                                auto c = _cache.processed_frame.cached(fish1->identity().ID());
+                                if(c)
+                                    p1 = c->estimated_px;
                             } else
                                 p1 = fish1->centroid_weighted(frameIndex)->pos(Units::PX_AND_SECONDS);
                             
@@ -2437,16 +2433,10 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                     Tracker::instance()->preprocess_frame(frame, active, &_blob_thread_pool);
                 }
                 
-                std::map<long_t, pv::BlobPtr> blob_to_id;
-                for (auto b : frame.blobs) {
-                    blob_to_id[b->blob_id()] = b;
-                }
-                
                 for(auto fish : active) {
                     auto loaded_blob = fish->compressed_blob(idx);
-                    
-                    if(loaded_blob && blob_to_id.count(loaded_blob->blob_id())) {
-                        auto blob = blob_to_id.at(loaded_blob->blob_id());
+                    auto blob = frame.find_bdx(loaded_blob->blob_id());
+                    if(loaded_blob && blob) {
                         if(blob->split())
                             continue;
                         
@@ -2509,9 +2499,9 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             cvbase.display();
         } else if(settings_dropdown.text() == "blob_info") {
             Debug("Preprocessed frame %d:", _cache.frame_idx);
-            auto str = Meta::toStr(_cache.processed_frame.filtered_out);
+            auto str = Meta::toStr(_cache.processed_frame.noise());
             Debug("Filtered out: %S", &str);
-            str = Meta::toStr(_cache.processed_frame.blobs);
+            str = Meta::toStr(_cache.processed_frame.blobs());
             Debug("Blobs: %S", &str);
         }
         
@@ -2540,11 +2530,11 @@ void GUI::draw_footer(DrawStructure& base) {
     static Text gpu_status("", Vec2(), White, Font(0.7)), python_status("", Vec2(), Red, Font(0.7));
     static Text additional_status("", Vec2(), White, Font(0.7));
     static Text mouse_status("", Vec2(), White.alpha(200), Font(0.7));
+    
 #define SITEM(NAME) DirectSettingsItem<globals::Cache::Variables:: NAME>
     static List options_dropdown(Size2(150, 33 + 2), "display", {
         std::make_shared<SITEM(gui_show_blobs)>("blobs"),
         std::make_shared<SITEM(gui_show_paths)>("paths"),
-        //std::make_shared<SITEM(gui_show_manual_matches)>("manual matches"),
         std::make_shared<SITEM(gui_show_texts)>("texts"),
         std::make_shared<SITEM(gui_show_selections)>("selections"),
         std::make_shared<SITEM(gui_show_inactive_individuals)>("inactive"),
@@ -2562,6 +2552,7 @@ void GUI::draw_footer(DrawStructure& base) {
         std::make_shared<SITEM(gui_auto_scale_focus_one)>("zoom on selected"),
         std::make_shared<SITEM(gui_show_export_options)>("export options")
     });
+#undef SITEM
     
     static Dropdown settings_dropdown(Size2(200, 33), GlobalSettings::map().keys());
     static Textfield textfield("", Size2(300, settings_dropdown.height()));
@@ -2581,18 +2572,22 @@ void GUI::draw_footer(DrawStructure& base) {
     else
         textfield.set_size(Size2(300, textfield.height()));
     
-    static FlowMenu pie( min(_average_image.cols, _average_image.rows) * 0.25f * 0.5f, [](size_t , const std::string& item){
+#ifndef NDEBUG
+    static FlowMenu pie( min(_average_image.cols, _average_image.rows) * 0.25f, [](size_t , const std::string& item){
         SETTING(enable_pie_chart) = false;
     });
     
-    pie.set_scale(base.scale().reciprocal());
+    pie.set_scale(base.scale().reciprocal() * gui::interface_scale());
     
     if(SETTING(enable_pie_chart))
         base.wrap_object(pie);
+#endif
     
     if(first) {
         _static_pointers.insert(_static_pointers.end(), {
+#ifndef NDEBUG
             &pie,
+#endif
             &textfield,
             &options_dropdown,
             &layout,
@@ -2658,7 +2653,7 @@ void GUI::draw_footer(DrawStructure& base) {
             
             if(v) {
                 if(is_bounds) {
-                    if(_current_boundary.back().size() >= 3) {
+                    if(!_current_boundary.empty() && _current_boundary.back().size() >= 3) {
                         Bounds bds(FLT_MAX, FLT_MAX, 0, 0);
                         for(auto &pt : _current_boundary.back()) {
                             if(pt.x < bds.x) bds.x = pt.x;
@@ -2684,7 +2679,7 @@ void GUI::draw_footer(DrawStructure& base) {
                     }
                     
                 } else if(is_vec_of_vec) {
-                    if(_current_boundary.back().size() >= 3) {
+                    if(!_current_boundary.empty() && _current_boundary.back().size() >= 3) {
                         try {
                             auto array = GlobalSettings::get(key).value<std::vector<std::vector<Vec2>>>();
                             
@@ -2766,6 +2761,8 @@ void GUI::draw_footer(DrawStructure& base) {
         options_dropdown.set_accent_color(Color(80, 80, 80, 200));
         
         layout.set_origin(Vec2(0, 1));
+            
+#ifndef NDEBUG
         auto base_idx = pie.add_layer(FlowMenu::Layer("menu", {"view", "load", "save", "identity", "quit"}));
         auto view_idx = pie.add_layer(FlowMenu::Layer("view", {"back", "posture", "ai stuff", "confusion", "outlines", "texts", "paths"}));
         auto save_idx = pie.add_layer(FlowMenu::Layer("save", {"back", "state", "config", "csv", "npz"}));
@@ -2778,7 +2775,8 @@ void GUI::draw_footer(DrawStructure& base) {
         pie.link(view_idx, "back", base_idx);
         pie.link(save_idx, "back", base_idx);
         pie.link(load_idx, "back", base_idx);
-        
+#endif
+            
         settings_dropdown.on_select([&](long_t index, const std::string& name) {
             this->selected_setting(index, name, textfield, settings_dropdown, layout, base);
         });
@@ -2856,8 +2854,6 @@ void GUI::draw_footer(DrawStructure& base) {
                     txt += " finished.";
                 else if (current_status.percent > 0 || current_status.added > current_status.processed)
                     txt += " processed " + Meta::toStr(size_t(current_status.percent * 100)) + "% of known frames" + (current_status.failed_blobs ? (" " + Meta::toStr(current_status.failed_blobs) + " failed blobs") : "");
-                else
-                    txt += " idle.";
             }
 
             //txt += " " + Meta::toStr(_cache.tracked_frames.length()) + " " + Meta::toStr(current_status.N) + " " + Meta::toStr(current_status.processed) + " " + Meta::toStr(current_status.added);
@@ -2899,7 +2895,7 @@ void GUI::draw_footer(DrawStructure& base) {
     if(section) {
         Vec2 mouse_position = _gui.mouse_position();
         mouse_position = (mouse_position - section->pos()).div(section->scale());
-         mouse_status.set_txt(Meta::toStr(std::vector<int>{static_cast<int>(mouse_position.x), static_cast<int>(mouse_position.y)}));
+         mouse_status.set_txt(Meta::toStr(std::vector<int>{static_cast<int>(mouse_position.x), static_cast<int>(mouse_position.y)})+" "+Meta::toStr(cache().display_blobs.size())+" blobs "+Meta::toStr(cache()._current_pixels)+"px "+Meta::toStr(cache()._average_pixels)+"px/blob pp:"+Meta::toStr(cache().processed_frame.num_pixels())+"px");
     }
         
     additional_status.set_txt(additional_status_text());
@@ -3031,32 +3027,49 @@ void GUI::update_display_blobs(bool draw_blobs, Section* fishbowl) {
     if((_cache.raw_blobs_dirty() || _cache.display_blobs.size() != _cache.raw_blobs.size()) && draw_blobs)
     {
         static std::mutex vector_mutex;
-        auto bowl = fishbowl->global_transform();
         auto screen_bounds = Bounds(Vec2(), screen_dimensions());
         auto copy = _cache.display_blobs;
+        size_t gpixels = 0;
+        double gaverage_pixels = 0, gsamples = 0;
         
-        distribute_vector([&](auto start, auto end, auto){
+        distribute_vector([&](auto, auto start, auto end, auto){
             std::unordered_map<pv::Blob*, gui::ExternalImage*> map;
             std::vector<std::unique_ptr<gui::ExternalImage>> vector;
+            
+            const bool gui_show_only_unassigned = SETTING(gui_show_only_unassigned).value<bool>();
+            size_t pixels = 0;
+            double average_pixels = 0, samples = 0;
             
             for(auto it = start; it != end; ++it) {
                 bool found = copy.count((*it)->blob.get());
                 if(!found) {
-                    auto bds = bowl.transformRect((*it)->blob->bounds());
-                    if(bds.overlaps(screen_bounds))
+                    //auto bds = bowl.transformRect((*it)->blob->bounds());
+                    //if(bds.overlaps(screen_bounds))
                     {
-                        vector.push_back((*it)->convert());
-                        map[(*it)->blob.get()] = vector.back().get();
+                        if(!gui_show_only_unassigned || !contains(_cache.active_blobs, (*it)->blob->blob_id())) {
+                            vector.push_back((*it)->convert());
+                            map[(*it)->blob.get()] = vector.back().get();
+                        }
                     }
                 }
+                
+                pixels += (*it)->blob->num_pixels();
+                average_pixels += (*it)->blob->num_pixels();
+                ++samples;
             }
             
             std::lock_guard guard(vector_mutex);
+            gpixels += pixels;
+            gaverage_pixels += average_pixels;
+            gsamples += samples;
             _cache.display_blobs.insert(map.begin(), map.end());
             std::move(vector.begin(), vector.end(), std::back_inserter(_cache.display_blobs_list));
             //_cache.display_blobs_list.insert(_cache.display_blobs_list.end(), vector.begin(), vector.end());
             
         }, _blob_thread_pool, _cache.raw_blobs.begin(), _cache.raw_blobs.end());
+        
+        _cache._current_pixels = gpixels;
+        _cache._average_pixels = gsamples > 0 ? gaverage_pixels / gsamples : 0;
     }
 }
 
@@ -3073,14 +3086,14 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
 #else
     const bool draw_blobs_separately = false;//coverage < 0.002 && draw_blobs;
 #endif
-    bool redraw_blobs = true;
+    bool redraw_blobs = cache().raw_blobs_dirty();
     
     //Debug("Coverage: %f (%d)", coverage, draw_blobs_separately);
     
     base.section("fishbowl", [&](auto &base, Section* section) {
         fishbowl = section;
-        
-        gui_scale_with_boundary(_cache.boundary, section, GUI_SETTINGS(gui_auto_scale) || (GUI_SETTINGS(gui_auto_scale_focus_one) && _cache.has_selection()));
+        bool shift = _gui.is_key_pressed(gui::LShift) && (!_gui.selected_object() || !dynamic_cast<Textfield*>(_gui.selected_object()));
+        gui_scale_with_boundary(_cache.boundary, section, !shift && (GUI_SETTINGS(gui_auto_scale) || (GUI_SETTINGS(gui_auto_scale_focus_one) && _cache.has_selection())));
         
         //if(((cache().mode() == Mode::DEBUG && !cache().blobs_dirty()) || (cache().mode() == Mode::DEFAULT && !cache().is_tracking_dirty()))
         if(!cache().raw_blobs_dirty() && !cache().is_animating(section) //!cache().is_animating(_setting_animation.display.get()))
@@ -3126,7 +3139,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
         cache().updated_raw_blobs();
         
         if(draw_blobs_separately) {
-            if(GUI_SETTINGS(gui_mode) == gui::mode_t::tracking) {
+            if(GUI_SETTINGS(gui_mode) == gui::mode_t::tracking && cache().tracked_frames.contains(frame())) {
                 for(auto &&[k,fish] : cache()._fish_map) {
                     fish->shadow(base);
                 }
@@ -3174,7 +3187,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
                 }
             }
             
-        } else if(draw_blobs && GUI_SETTINGS(gui_mode) == gui::mode_t::tracking) {
+        } else if(draw_blobs && GUI_SETTINGS(gui_mode) == gui::mode_t::tracking && cache().tracked_frames.contains(frame())) {
             for(auto &&[k,fish] : cache()._fish_map) {
                 fish->shadow(base);
             }
@@ -3186,12 +3199,12 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
             auto mat = collection->source()->get();
             //std::fill((int*)collection->source()->data(), (int*)collection->source()->data() + collection->source()->cols * collection->source()->rows, 0);
             
-            distribute_vector([](auto start, auto end, auto) {
+            distribute_vector([](auto, auto start, auto end, auto) {
                 std::fill(start, end, 0);
                 
             }, _blob_thread_pool, (int*)collection->source()->data(), (int*)collection->source()->data() + collection->source()->cols * collection->source()->rows);
             
-            distribute_vector([&mat](auto start, auto end, auto N){
+            distribute_vector([&mat](auto, auto start, auto end, auto N){
                 for(auto it = start; it != end; ++it) {
                     auto& e = *it;
                     auto input = e->source()->get();
@@ -3438,17 +3451,14 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
         }
         
         static std::unordered_set<uint32_t> shown_ids;
-        
         std::unordered_set<uint32_t> to_show_ids;
-        std::unordered_map<uint32_t, pv::BlobPtr> id_to_ptr;
         
-        for(auto &blob : _cache.processed_frame.original_blobs) {
+        for(auto &blob : _cache.processed_frame.original_blobs()) {
             auto bounds = transform.transformRect(blob->bounds());
             
             if(!Bounds(100, 100, dim.width-100, dim.height-100).overlaps(bounds))
                 continue;
             
-            id_to_ptr[blob->blob_id()] = blob;
             to_show_ids.insert(blob->blob_id());
         }
         
@@ -3465,15 +3475,15 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
             std::atomic<size_t> added_items = 0;
             auto copy = shown_ids;
             
-            distribute_vector([&id_to_ptr, &added_items, &sync, &copy](auto start, auto end, auto) {
+            distribute_vector([&added_items, &sync, &copy](auto, auto start, auto end, auto) {
                 std::unordered_set<uint32_t> added_ids;
                 
                 for(auto it = start; it != end; ++it) {
                     if(copy.find(*it) == copy.end()) {
-                        auto& blob = id_to_ptr.at(*it);
+                        //auto& blob = _cache.processed_frame.bdx_to_ptr(*it);
                         //auto image = generate_outer(blob);
                         //outer_images.emplace_back(std::move(image));
-                        added_ids.insert(blob->blob_id());
+                        added_ids.insert(*it);
                     }
                 }
                 
@@ -3529,10 +3539,13 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
             
             //if(_timeline.visible())
             {
-                constexpr size_t maximum_number_texts = 200;
-                if(_cache.processed_frame.blobs.size() >= maximum_number_texts) {
+                auto bowl = ptr ? ptr->global_transform() : gui::Transform();
+                auto screen_bounds = Bounds(Vec2(-50), screen_dimensions() + 100);
+                
+                constexpr size_t maximum_number_texts = 1000;
+                if(_cache.processed_frame.blobs().size() >= maximum_number_texts) {
                     Vec2 pos(10, _timeline->bar()->global_bounds().height + _timeline->bar()->global_bounds().y + 10);
-                    auto text = "Hiding some blob texts because of too many blobs ("+Meta::toStr(_cache.processed_frame.blobs.size())+").";
+                    auto text = "Hiding some blob texts because of too many blobs ("+Meta::toStr(_cache.processed_frame.blobs().size())+").";
                     
                     Rect *rect = new Rect(Bounds(pos, Base::text_dimensions(text, s, Font(0.5)) + Vec2(2, 2)), Black.alpha(125));
                     rect->set_scale(base.scale().reciprocal());
@@ -3554,23 +3567,23 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                 Transform section_transform = s->global_transform();
                 auto mp = section_transform.transformPoint(_gui.mouse_position());
                 
-                for (size_t i=0; i<_cache.processed_frame.filtered_out.size(); i++) {
-                    if(_cache.processed_frame.filtered_out.at(i)->recount(FAST_SETTINGS(track_threshold), *Tracker::instance()->background()) < FAST_SETTINGS(blob_size_ranges).max_range().start * 0.01)
-                        continue;
+                for (size_t i=0; i<_cache.processed_frame.noise().size(); i++) {
+                    //if(_cache.processed_frame.noise().at(i)->recount(FAST_SETTINGS(track_threshold), *Tracker::instance()->background()) < FAST_SETTINGS(blob_size_ranges).max_range().start * 0.01)
+                       // continue;
                     
-                    auto id = _cache.processed_frame.filtered_out.at(i)->blob_id();
-                    auto d = sqdistance(mp, _cache.processed_frame.filtered_out.at(i)->bounds().pos());
-                    draw_order.insert({d, _cache.processed_frame.filtered_out.at(i), false});
+                    auto id = _cache.processed_frame.noise().at(i)->blob_id();
+                    auto d = sqdistance(mp, _cache.processed_frame.noise().at(i)->bounds().pos());
+                    draw_order.insert({d, _cache.processed_frame.noise().at(i), false});
                     
                     if(_blob_labels.count(id))
                         std::get<0>(_blob_labels.at(id)) = true;
                 }
                 
                 if(!SETTING(gui_draw_only_filtered_out)) {
-                    for (size_t i=0; i<_cache.processed_frame.blobs.size(); i++) {
-                        auto id = _cache.processed_frame.blobs.at(i)->blob_id();
-                        auto d = sqdistance(mp, _cache.processed_frame.blobs.at(i)->bounds().pos());
-                        draw_order.insert({d, _cache.processed_frame.blobs.at(i), true});
+                    for (size_t i=0; i<_cache.processed_frame.blobs().size(); i++) {
+                        auto id = _cache.processed_frame.blobs().at(i)->blob_id();
+                        auto d = sqdistance(mp, _cache.processed_frame.blobs().at(i)->bounds().pos());
+                        draw_order.insert({d, _cache.processed_frame.blobs().at(i), true});
                         
                         if(_blob_labels.count(id))
                             std::get<0>(_blob_labels.at(id)) = true;
@@ -3591,9 +3604,15 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                         ++it;
                 }
                 
-                auto draw_blob = [&](pv::BlobPtr blob, float real_size, bool active){
+                auto cats = FAST_SETTINGS(categories_ordered);
+                
+                auto draw_blob = [&](const pv::BlobPtr& blob, float real_size, bool active){
                     if(displayed >= maximum_number_texts && !active)
                         return;
+                    
+                    if(!bowl.transformRect(blob->bounds()).overlaps(screen_bounds)) {
+                        return;
+                    }
                     
                     auto d = euclidean_distance(blob->bounds().pos() + blob->bounds().size() * 0.5, mpos);
                     if(d <= max_distance * 2 && d > max_distance) {
@@ -3624,19 +3643,20 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                         ss << "</a>";
                     
                     {
-                        auto label = Categorize::DataStore::ranged_label(Frame_t(cache().frame_idx), blob->blob_id());
-                        if(label) {
-                            ss << " <str>" << label->name << "</str>";
+                        //auto label = Categorize::DataStore::ranged_label(Frame_t(cache().frame_idx), blob->blob_id());
+                        auto it = cache()._ranged_blob_labels.find(blob->blob_id());
+                        if(it != cache()._ranged_blob_labels.end()) {
+                            ss << " <nr>" << cats.at(it->second) << "</nr>";
                         }
-                        if(blob->parent_id() != -1 && (label = Categorize::DataStore::ranged_label(Frame_t(cache().frame_idx), blob->parent_id()))) {
+                        /*if(blob->parent_id() != -1 && (label = Categorize::DataStore::ranged_label(Frame_t(cache().frame_idx), blob->parent_id()))) {
                             ss << " parent:<str>" << label->name << "</str>";
                         }
+                         */
                     }
                     
                     decltype(_blob_labels)::iterator it = _blob_labels.find(blob->blob_id());
                     if(it == _blob_labels.end()) {
                         if(!_unused_labels.empty()) {
-                            auto S = _unused_labels.size();
                             auto [k, success] = _blob_labels.try_emplace(blob->blob_id(), std::move(_unused_labels.back()));
                             _unused_labels.resize(_unused_labels.size()-1);
                             
@@ -3654,7 +3674,6 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                         circ->set_radius(8);
                         //circ->clear_event_handlers();
                         circ->on_click([this, id = blob->blob_id(), circ = circ](auto) mutable {
-                            auto pos = circ->pos();
                             _current_boundary.clear();
                             GUI::instance()->set_clicked_blob_id(id);
                             GUI::instance()->set_clicked_blob_frame(GUI::frame());
@@ -3764,8 +3783,9 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                 for(auto id : FAST_SETTINGS(manual_identities)) {
                     if(_cache.individuals.count(id) && (!_cache.fish_selected_blobs.count(id) ||_cache.fish_selected_blobs.at(id) != _clicked_blob_id)) {
                         float d = FLT_MAX;
-                        if(frameIndex > Tracker::start_frame() && _cache.processed_frame.cached_individuals.count(id)) {
-                            d = (_cache.processed_frame.cached_individuals.at(id).estimated_px - blob_pos).length();
+                        auto c = _cache.processed_frame.cached(id);
+                        if(frameIndex > Tracker::start_frame() && c) {
+                            d = (c->estimated_px - blob_pos).length();
                         }
                         items.insert({d, Dropdown::TextItem(_cache.individuals.at(id)->identity().name() + (d != FLT_MAX ? (" ("+Meta::toStr(d * FAST_SETTINGS(cm_per_pixel))+"cm)") : ""), id + 1, _cache.individuals.at(id)->identity().name(), (void*)uint64_t(_clicked_blob_id.load()))});
                     }
@@ -3817,13 +3837,13 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                 
                 _cache.updated_blobs();
                 
-                std::map<uint32_t, Color> colors;
+                std::unordered_map<uint32_t, Color> colors;
                 ColorWheel wheel;
-                for(auto &b : _cache.processed_frame.original_blobs) {
+                for(auto &b : _cache.processed_frame.original_blobs()) {
                     colors[b->blob_id()] = wheel.next().alpha(200);
                 }
                 
-                auto &grid = _cache.processed_frame.blob_grid.get_grid();
+                auto &grid = _cache.processed_frame.blob_grid().get_grid();
                 for(auto &set : grid) {
                     for(auto &pixel : set) {
                         base.circle(Vec2(pixel.x, pixel.y), 1, Transparent, colors.find(pixel.v) != colors.end() ? colors.at(pixel.v) : Color(255, 0, 255, 255));
@@ -4427,12 +4447,6 @@ void GUI::auto_quit() {
     cache().deselect_all();
     instance()->write_config(true);
     
-    try {
-        instance()->export_tracks();
-    } catch(const UtilsException&) {
-        SETTING(error_terminate) = true;
-    }
-    
     if(!SETTING(auto_no_results)) {
         Output::TrackingResults results(instance()->_tracker);
         results.save();
@@ -4451,9 +4465,20 @@ void GUI::auto_quit() {
             Warning("Cannot write '%S' meta file.", &path.str());
     }
     
+    try {
+        instance()->export_tracks();
+    } catch(const UtilsException&) {
+        SETTING(error_terminate) = true;
+    }
+    
     SETTING(auto_quit) = false;
     if(!SETTING(terminate))
         SETTING(terminate) = true;
+}
+    
+void GUI::auto_categorize() {
+    Categorize::Work::set_state(Categorize::Work::State::LOAD);
+    Categorize::Work::set_state(Categorize::Work::State::APPLY);
 }
 
 void GUI::auto_train() {
@@ -4543,7 +4568,9 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
         
         auto range = _tracker.analysis_range();
         bool finished = _tracker.end_frame() >= range.end;
-        if(finished && SETTING(auto_train)) {
+        if(finished && SETTING(auto_categorize)) {
+            auto_categorize();
+        } else if(finished && SETTING(auto_train)) {
             auto_train();
         }
         else if(finished && SETTING(auto_apply)) {
@@ -4994,15 +5021,10 @@ void GUI::generate_training_data_faces(const file::Path& path) {
         ((pv::File*)this->_video_source)->read_frame(frame.frame(), i);
         Tracker::instance()->preprocess_frame(frame, active, NULL);
         
-        std::map<long_t, pv::BlobPtr> blob_to_id;
-        for (auto b : frame.blobs) {
-            blob_to_id[b->blob_id()] = b;
-        }
-        
         cv::Mat image, padded, mask;
-        for(auto && [bdx, blob] : blob_to_id) {
+        for(auto &blob : frame.blobs()) {
             if(!_tracker.border().in_recognition_bounds(blob->bounds().pos() + blob->bounds().size() * 0.5)) {
-                Debug("Skipping %d@%d because its out of bounds.", bdx, i);
+                Debug("Skipping %d@%d because its out of bounds.", blob->blob_id(), i);
                 continue;
             }
             
@@ -5068,7 +5090,7 @@ void GUI::generate_training_data_faces(const file::Path& path) {
                     auto fish_blob = fish->blob(i);
                     auto head = fish->head(i);
                     
-                    if(fish_blob && fish_blob->blob_id() == (uint32_t)bdx && head) {
+                    if(fish_blob && fish_blob->blob_id() == blob->blob_id() && head) {
                         found_head = head;
                         break;
                     }

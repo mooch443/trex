@@ -964,14 +964,6 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                 }
             }
             
-            std::map<uint32_t, pv::BlobPtr> blob_to_id;
-            for (auto b : frame.original_blobs)
-                blob_to_id[b->blob_id()] = b;
-            for (auto b : frame.blobs)
-                blob_to_id[b->blob_id()] = b;
-            for (auto b : frame.filtered_out)
-                blob_to_id[b->blob_id()] = b;
-            
             //elements_per_frame += elements.size();
             ++elements_samples;
             
@@ -985,7 +977,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                     continue; // skip this frame + blob because its already been calculated before
                 }
                 
-                pv::BlobPtr blob = Tracker::find_blob_noisy(blob_to_id, e.blob.blob_id, e.blob.parent_id, e.blob.bounds, e.frame);
+                pv::BlobPtr blob = Tracker::find_blob_noisy(frame, e.blob.blob_id, e.blob.parent_id, e.blob.bounds);
                 if(!blob) {
                     _detail.set_unavailable_blobs(_detail.unavailable_blobs() + 1);
                     _detail.failed_frame(e.frame, e.fdx);

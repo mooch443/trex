@@ -151,7 +151,7 @@ protected:
     std::unique_ptr<pv::Frame> _last_frame;
     std::unique_ptr<pv::Frame> _noise;
     
-    uint64_t previous_time;
+    uint64_t previous_time = 0;
     std::atomic<bool> _reset_first_index = false;
     
     std::atomic<double> _processing_timing;

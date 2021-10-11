@@ -49,6 +49,10 @@ void clear_cache() {
     cache_finds = cache_misses = 0;
 }
 
+class PolyCache : public CacheObject {
+    GETTER_NCONST(std::vector<ImVec2>, points)
+};
+
 #ifndef NDEBUG
     class TextureCache;
     std::set<ImTextureID> all_gpu_texture;
@@ -354,6 +358,7 @@ void clear_cache() {
 
 void IMGUIBase::update_size_scale(GLFWwindow* window) {
     auto base = base_pointers.at(window);
+    std::lock_guard lock_guard(base->_graph->lock());
     
     int x, y;
     glfwGetWindowPos(window, &x, &y);
@@ -810,7 +815,7 @@ bool LineSegementsIntersect(const Vec2& p, const Vec2& p2, const Vec2& q, const 
 /**
  Source: https://github.com/ocornut/imgui/issues/760
  */
-void PolyFillScanFlood(ImDrawList *draw, std::vector<ImVec2> *poly, ImColor color, int gap = 1, int strokeWidth = 1) {
+void PolyFillScanFlood(ImDrawList *draw, std::vector<ImVec2> *poly, std::vector<ImVec2>& output, ImColor color, const int gap = 1, const int strokeWidth = 1) {
     using namespace std;
 
     vector<ImVec2> scanHits;
@@ -993,6 +998,8 @@ void PolyFillScanFlood(ImDrawList *draw, std::vector<ImVec2> *poly, ImColor colo
             {
                 auto l = scanHits.size(); // we need pairs of points, this prevents segfault.
                 for (size_t i = 0; i+1 < l; i += 2) {
+                    output.push_back(scanHits[i]);
+                    output.push_back(scanHits[i+1]);
                     draw->AddLine(scanHits[i], scanHits[i + 1], color, strokeWidth);
                 }
             }
@@ -1171,7 +1178,27 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
                 
                 if(points.size() >= 3) {
                     points.push_back(points.front());
-                    PolyFillScanFlood(list, &points, ptr->fill_clr());
+                    static std::vector<ImVec2> output;
+                    output.clear();
+                    
+                    if(!cache) {
+                        cache = std::make_shared<PolyCache>();
+                        o->insert_cache(this, cache);
+                    }
+                    
+                    if(cache->changed()) {
+                        PolyFillScanFlood(list, &points, output, ptr->fill_clr());
+                        ((PolyCache*)cache.get())->points() = output;
+                        cache->set_changed(false);
+                    } else {
+                        auto& output = ((PolyCache*)cache.get())->points();
+                        for(size_t i=0; i<output.size(); i+=2) {
+                            list->AddLine(output[i], output[i+1], (ImColor)ptr->fill_clr(), 1);
+                        }
+                    }
+                    
+                } else if(cache) {
+                    o->remove_cache(this);
                 }
                 
                 //list->AddConvexPolyFilled(points.data(), points.size(), (ImColor)ptr->fill_clr());
@@ -1225,6 +1252,7 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
             
             auto tex_cache = (TextureCache*)cache.get();
             tex_cache->update_with(static_cast<ExternalImage*>(o));
+            tex_cache->set_changed(false);
             
             ImU32 col = IM_COL32_WHITE;
             uchar a = static_cast<ExternalImage*>(o)->color().a;
@@ -1253,10 +1281,14 @@ void IMGUIBase::draw_element(const DrawOrder& order) {
                 break;
             
             if(ptr->fillclr().a > 0)
-                list->AddRectFilled(ImVec2(rect.pos().x, rect.pos().y), ImVec2(rect.size().width + rect.pos().x, rect.size().height + rect.pos().y), cvtClr(ptr->fillclr()));
+                list->AddRectFilled((ImVec2)transform.transformPoint(Vec2()),
+                                    (ImVec2)transform.transformPoint(o->size()),
+                                    cvtClr(ptr->fillclr()));
             
             if(ptr->lineclr().a > 0)
-                list->AddRect(ImVec2(rect.pos().x, rect.pos().y), ImVec2(rect.size().width + rect.pos().x, rect.size().height + rect.pos().y), cvtClr(ptr->lineclr()));
+                list->AddRect((ImVec2)transform.transformPoint(Vec2()),
+                              (ImVec2)transform.transformPoint(o->size()),
+                              cvtClr(ptr->lineclr()));
             
             break;
         }

@@ -717,6 +717,7 @@ void PythonIntegration::reinit() {
                 Except("Random exception");
             }
         } else {
+            std::unique_lock lock(_data_mutex);
             tasks.push_back(std::move(task));
             _update_condition.notify_one();
         }

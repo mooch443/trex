@@ -198,10 +198,10 @@ void StaticText::RichString::convert(std::shared_ptr<Text> text) const {
                 size_t idx = L;
                 
                 static const std::set<char> whitespace {
-                    ' ',':',',','/'
+                    ' ',':',',','/','\\'
                 };
                 static const std::set<char> extended_whitespace {
-                    ' ','-',':',',','/','.','_'
+                    ' ','-',':',',','/','\\','.','_'
                 };
                 
                 while(cw > max_w && idx > 1) {
@@ -334,7 +334,7 @@ void StaticText::RichString::convert(std::shared_ptr<Text> text) const {
         
         std::stringstream tag; // holds current tag when inside one
         
-        std::set<std::string> commands {
+        std::unordered_set<std::string> commands {
             "h","h1","h2","h3","h4","h5","h6","h7","h8","h9", "i","b","string","number","str","nr","keyword","key","ref","a"
         };
         
