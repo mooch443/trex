@@ -331,7 +331,7 @@ inline std::vector<BlobLabel>* _cache_for_frame(Frame_t frame) {
 inline std::vector<BlobLabel>* _insert_cache_for_frame(Frame_t frame) {
     auto index = cache_frame_index(frame);
     if(index >= _probability_cache.size())
-        _probability_cache.resize((frame + 1) * 2);
+        _probability_cache.resize((index + 1) * 2);
     return _probability_cache.data() + index;
 }
 
@@ -2054,6 +2054,8 @@ void DataStore::write(file::DataFormat& data, int /*version*/) {
 
 void DataStore::read(file::DataFormat& data, int /*version*/) {
     clear();
+
+    const auto start_frame = tracker_start_frame();
     
     uchar has_categories;
     data.read(has_categories);
@@ -2106,7 +2108,8 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
                 data.read(bdx);
                 data.read(lid);
                 
-                DataStore::_set_label_unsafe(Frame_t(frame), bdx, lid);
+                if(frame >= start_frame)
+                    DataStore::_set_label_unsafe(Frame_t(frame), bdx, lid);
             }
         }
     }
