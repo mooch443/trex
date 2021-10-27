@@ -31,7 +31,7 @@ else
         echo "Using up-to-date sysroot for arm64 arch."
         export MACOSX_DEPLOYMENT_TARGET="11.0"
 
-        export CONDA_BUILD_SYSROOT=$(ls -d /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.*.sdk | tail -n1)
+        export CONDA_BUILD_SYSROOT=$(ls -d /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk | tail -n1)
         export SDKROOT="${CONDA_BUILD_SYSROOT}"
         CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}")
     else
