@@ -1009,7 +1009,7 @@ if(${TREX_BUILD_OPENCV})
             -DBUILD_WITH_STATIC_CRT:BOOL=ON
             -DBUILD_FAT_JAVA_LIB=OFF
             -DBUILD_TIFF=ON
-            -DBUILD_opencv_gapi=OFF
+            -DBUILD_opencv_gapi=ON
             -DWITH_OPENCL=ON
             # -DAVCODEC_LIBRARY:FILEPATH=${AVCODEC_LIBRARY}
             # -DAVFORMAT_LIBRARY:FILEPATH=${AVFORMAT_LIBRARY} 
@@ -1108,6 +1108,7 @@ if(${TREX_BUILD_OPENCV})
 		endif()
     endif()
     
+    message(STATUS "Find OpenCV")
 	find_package(OpenCV ${TREX_OPENCV_VERSION} PATHS ${OpenCV_DIR} NO_DEFAULT_PATH)
 	if(OpenCV_FOUND)
 		set(OpenCV_LIBS ${OpenCV_LIBRARIES})
