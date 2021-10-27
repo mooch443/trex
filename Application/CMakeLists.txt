@@ -1009,7 +1009,6 @@ if(${TREX_BUILD_OPENCV})
             -DBUILD_WITH_STATIC_CRT:BOOL=ON
             -DBUILD_FAT_JAVA_LIB=OFF
             -DBUILD_TIFF=ON
-            -DBUILD_opencv_gapi=ON
             -DWITH_OPENCL=ON
             # -DAVCODEC_LIBRARY:FILEPATH=${AVCODEC_LIBRARY}
             # -DAVFORMAT_LIBRARY:FILEPATH=${AVFORMAT_LIBRARY} 
@@ -1026,6 +1025,14 @@ if(${TREX_BUILD_OPENCV})
             "-DCMAKE_PREFIX_PATH:PATH=${CMAKE_PREFIX_PATH}"
             "-DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/opencv_install"
             -DCMAKE_DEBUG_POSTFIX=)
+
+    if(APPLE)
+        set(OPENCV_CMAKE_ARGS ${OPENCV_CMAKE_ARGS}
+            -DBUILD_opencv_gapi=ON)
+    else()
+        set(OPENCV_CMAKE_ARGS ${OPENCV_CMAKE_ARGS}
+            -DBUILD_opencv_gapi=OFF)
+    endif()
 
     message(STATUS "OPENCV_EXTRA_FLAGS_ = ${OPENCV_EXTRA_FLAGS_}")
     set(TREX_OPENCV_VERSION "4.5.4")
