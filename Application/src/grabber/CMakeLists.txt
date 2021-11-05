@@ -226,7 +226,7 @@ if(WIN32)
 	if(TREX_BUILD_OPENCV)
 		install(
 			FILES
-			"${OpenCV_LIB_PATH}/../bin/opencv_videoio_ffmpeg451_64.dll" DESTINATION bin)
+			"${OpenCV_LIB_PATH}/../bin/opencv_videoio_ffmpeg454_64.dll" DESTINATION bin)
 	endif()
 endif()
 
