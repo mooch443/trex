@@ -104,10 +104,11 @@ endif()
 set(CMAKE_DEBUG_POSTFIX -d)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden -DNS_FORMAT_ARGUMENT(A)= -D_Nullable_result=_Nullable")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden -DNS_FORMAT_ARGUMENT(A)= -D_Nullable_result=_Nullable")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden")
 endif()
 set(ORIGINAL_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+message(STATUS "ORIGINAL_CXX_FLAGS=${ORIGINAL_CXX_FLAGS}")
 
 if(WIN32)
     set(BUILD_SHARED_LIBS OFF)
@@ -1023,6 +1024,8 @@ if(${TREX_BUILD_OPENCV})
             #"-DPYTHON_LIBRARY:PATH=${PYTHON_LIBRARY}"
             #"-DPYTHON_EXECUTABLE:FILEPATH=${PYTHON_EXECUTABLE}"
             -DWITH_OPENEXR=OFF
+            "-DNS_FORMAT_ARGUMENT(A)="
+            "-D_Nullable_result=_Nullable"
             "-DCMAKE_PREFIX_PATH:PATH=${CMAKE_PREFIX_PATH}"
             "-DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/opencv_install"
             -DCMAKE_DEBUG_POSTFIX=)
