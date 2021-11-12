@@ -967,8 +967,8 @@ if(${TREX_BUILD_OPENCV})
    
    message(STATUS "TREX_CMAKE_BUILD_TYPE ${TREX_CMAKE_BUILD_TYPE}")
    message(STATUS "ALL trex_subproject_CMAKE_ARGS: ${trex_subproject_CMAKE_ARGS}")
-   set(OPENCV_CXX_FLAGS "${ORIGINAL_CXX_FLAGS} -DNS_FORMAT_ARGUMENT(A)= -D_Nullable_result=_Nullable")
-   set(OPENCV_C_FLAGS "${CMAKE_C_FLAGS} -DNS_FORMAT_ARGUMENT(A)= -D_Nullable_result=_Nullable")
+   set(OPENCV_CXX_FLAGS "${ORIGINAL_CXX_FLAGS} -D'NS_FORMAT_ARGUMENT(A)=' -D_Nullable_result=_Nullable")
+   set(OPENCV_C_FLAGS "${CMAKE_C_FLAGS} -D'NS_FORMAT_ARGUMENT(A)=' -D_Nullable_result=_Nullable")
    set(OPENCV_CMAKE_ARGS
             #${OPENCV_EXTRA_FLAGS_}
             ${trex_subproject_CMAKE_ARGS}
