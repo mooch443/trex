@@ -57,6 +57,10 @@ else()
     )
 endif()
 
+if(APPLE)
+  target_compile_options(commons PRIVATE "-DNS_FORMAT_ARGUMENT(A)=" "-D_Nullable_result=_Nullable")
+endif()
+
 add_dependencies(commons TRex::LibZIP TRex::LibZ TRex::GLFW cnpy)
 if(APPLE OR NOT UNIX)
     add_dependencies(commons TRex::LibPNG)

@@ -108,6 +108,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden")
 endif()
 set(ORIGINAL_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+message(STATUS "ORIGINAL_CXX_FLAGS=${ORIGINAL_CXX_FLAGS}")
 
 if(WIN32)
     set(BUILD_SHARED_LIBS OFF)
@@ -422,6 +423,14 @@ elseif(WITH_PYLON)
 endif()
 
 set(GLFW_add_flags "")
+set(GLFW_CXX_FLAGS "${ORIGINAL_CXX_FLAGS}")
+set(GLFW_C_FLAGS "${CMAKE_C_FLAGS}")
+
+if(APPLE)
+    set(GLFW_CXX_FLAGS "${GLFW_CXX_FLAGS} -D'NS_FORMAT_ARGUMENT(A)=' -D_Nullable_result=_Nullable")
+    set(GLFW_C_FLAGS "${GLFW_C_FLAGS} -D'NS_FORMAT_ARGUMENT(A)=' -D_Nullable_result=_Nullable")
+endif()
+
 if(WIN32)
     set(GLFW_add_flags ${GLFW_add_flags} -DCMAKE_CXX_FLAGS_RELEASE="/MT" -DCMAKE_CXX_FLAGS_DEBUG="/MTd" -DUSE_MSVC_RUNTIME_LIBRARY_DLL=OFF)
 endif()
@@ -451,6 +460,8 @@ if(TREX_BUILD_GLFW)
         GIT_TAG 3.3.4
         CMAKE_ARGS
             ${trex_subproject_CMAKE_ARGS}
+            "-DCMAKE_CXX_FLAGS:STRING=${GLFW_CXX_FLAGS}"
+            "-DCMAKE_C_FLAGS:STRING=${GLFW_C_FLAGS}"
             "-DCMAKE_INSTALL_PREFIX=${GLFW_INSTALL_DIR}"
             "-DGLFW_BUILD_EXAMPLES=OFF"
             "-DGLFW_BUILD_TESTS=OFF"
@@ -538,7 +549,7 @@ include_directories(${imgui_path})
 target_link_libraries(imgui TRex::GLFW)
 
 if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
-    set_property (TARGET imgui APPEND_STRING PROPERTY COMPILE_FLAGS "-fobjc-arc")
+    set_property (TARGET imgui APPEND_STRING PROPERTY COMPILE_FLAGS "-fobjc-arc -D'NS_FORMAT_ARGUMENT(A)=' -D_Nullable_result=_Nullable")
 endif()
 
 if(WITH_FFMPEG)
@@ -966,9 +977,13 @@ if(${TREX_BUILD_OPENCV})
    
    message(STATUS "TREX_CMAKE_BUILD_TYPE ${TREX_CMAKE_BUILD_TYPE}")
    message(STATUS "ALL trex_subproject_CMAKE_ARGS: ${trex_subproject_CMAKE_ARGS}")
+   set(OPENCV_CXX_FLAGS "${ORIGINAL_CXX_FLAGS} -D'NS_FORMAT_ARGUMENT(A)=' -D_Nullable_result=_Nullable")
+   set(OPENCV_C_FLAGS "${CMAKE_C_FLAGS} -D'NS_FORMAT_ARGUMENT(A)=' -D_Nullable_result=_Nullable")
    set(OPENCV_CMAKE_ARGS
             #${OPENCV_EXTRA_FLAGS_}
             ${trex_subproject_CMAKE_ARGS}
+            -DCMAKE_CXX_FLAGS:STRING=${OPENCV_CXX_FLAGS}
+            -DCMAKE_C_FLAGS:STRING=${OPENCV_C_FLAGS}
 			-DCMAKE_BUILD_TYPE:STRING=${TREX_CMAKE_BUILD_TYPE}
             -DBUILD_DOCS:BOOL=FALSE
             -DBUILD_EXAMPLES:BOOL=FALSE
