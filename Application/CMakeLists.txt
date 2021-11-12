@@ -105,7 +105,7 @@ set(CMAKE_DEBUG_POSTFIX -d)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden -D'NS_FORMAT_ARGUMENT(A)=' -D_Nullable_result=_Nullable")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden -D'NS_FORMAT_ARGUMENT(A)=' -D_Nullable_result=_Nullable")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden")
 endif()
 set(ORIGINAL_CXX_FLAGS ${CMAKE_CXX_FLAGS})
 message(STATUS "ORIGINAL_CXX_FLAGS=${ORIGINAL_CXX_FLAGS}")
