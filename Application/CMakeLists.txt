@@ -423,6 +423,14 @@ elseif(WITH_PYLON)
 endif()
 
 set(GLFW_add_flags "")
+set(GLFW_CXX_FLAGS "${ORIGINAL_CXX_FLAGS}")
+set(GLFW_C_FLAGS "${CMAKE_C_FLAGS}")
+
+if(APPLE)
+    set(GLFW_CXX_FLAGS "${GLFW_CXX_FLAGS} -D'NS_FORMAT_ARGUMENT(A)=' -D_Nullable_result=_Nullable")
+    set(GLFW_C_FLAGS "${GLFW_C_FLAGS} -D'NS_FORMAT_ARGUMENT(A)=' -D_Nullable_result=_Nullable")
+endif()
+
 if(WIN32)
     set(GLFW_add_flags ${GLFW_add_flags} -DCMAKE_CXX_FLAGS_RELEASE="/MT" -DCMAKE_CXX_FLAGS_DEBUG="/MTd" -DUSE_MSVC_RUNTIME_LIBRARY_DLL=OFF)
 endif()
@@ -452,6 +460,8 @@ if(TREX_BUILD_GLFW)
         GIT_TAG 3.3.4
         CMAKE_ARGS
             ${trex_subproject_CMAKE_ARGS}
+            "-DCMAKE_CXX_FLAGS:STRING=${GLFW_CXX_FLAGS}"
+            "-DCMAKE_C_FLAGS:STRING=${GLFW_C_FLAGS}"
             "-DCMAKE_INSTALL_PREFIX=${GLFW_INSTALL_DIR}"
             "-DGLFW_BUILD_EXAMPLES=OFF"
             "-DGLFW_BUILD_TESTS=OFF"
