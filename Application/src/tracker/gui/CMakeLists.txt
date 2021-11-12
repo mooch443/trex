@@ -21,5 +21,5 @@ target_link_libraries(tracker_gui PRIVATE cnpy
 )
 
 if(APPLE)
-  target_compile_definitions(tracker_gui PRIVATE "-DNS_FORMAT_ARGUMENT(A)=" "-D_Nullable_result=_Nullable")
+  target_compile_options(tracker_gui PRIVATE "-DNS_FORMAT_ARGUMENT(A)=" "-D_Nullable_result=_Nullable")
 endif()
