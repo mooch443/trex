@@ -3724,7 +3724,7 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                     }
                 });
                 list->on_select([this](long_t, auto& item) {
-                    auto clicked_blob_id = (long_t)int64_t(item.custom());
+                    auto clicked_blob_id = (uint32_t)int64_t(item.custom());
                     if(item.ID() == 0) /* SPLIT */ {
                         auto copy = FAST_SETTINGS(manual_splits);
                         if(!contains(copy[frame()], clicked_blob_id)) {
@@ -5142,8 +5142,8 @@ void GUI::generate_training_data_faces(const file::Path& path) {
     }
 }
 
-void GUI::add_manual_match(long_t frameIndex, Idx_t fish_id, long_t blob_id) {
-    Debug("Requesting change of fish %d to blob %d in frame %d", fish_id, blob_id, frameIndex);
+void GUI::add_manual_match(long_t frameIndex, Idx_t fish_id, uint32_t blob_id) {
+    Debug("Requesting change of fish %d to blob %u in frame %d", fish_id, blob_id, frameIndex);
     
     auto matches = FAST_SETTINGS(manual_matches);
     auto &current = matches[frameinfo().frameIndex];

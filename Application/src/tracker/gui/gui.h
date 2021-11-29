@@ -271,7 +271,7 @@ private:
     std::map<long_t, long_t> check_additional_range(const Rangel& range, TrainingData& data);
     
 public:
-    void add_manual_match(long_t frameIndex, Idx_t fish_id, long_t blob_id);
+    void add_manual_match(long_t frameIndex, Idx_t fish_id, uint32_t blob_id);
     
 private:
     void selected_setting(long_t index, const std::string& name, gui::Textfield& textfield, gui::Dropdown& settings_dropdown, gui::Layout& layout, gui::DrawStructure& base);
