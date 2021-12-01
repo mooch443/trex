@@ -63,6 +63,7 @@ std::vector<std::pair<std::string, VideoSource::File::Type>> VideoSource::File::
     { "mkv", VIDEO },
     { "mxf", VIDEO },
     { "avi", VIDEO },
+    { "gif", VIDEO },
     { "mts", VIDEO },
     { "tiff", IMAGE },
     { "tif", IMAGE },
