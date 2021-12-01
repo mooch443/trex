@@ -151,6 +151,7 @@ set(RESOURCE_COPY_FILES
 set(RESOURCE_COPY_SINGLE_FILES
     ${CMAKE_SOURCE_DIR}/default.settings
     ${CMAKE_SOURCE_DIR}/closed_loop.py
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tracker/python/trex_init.py
 )
 
 if(NOT WIN32)

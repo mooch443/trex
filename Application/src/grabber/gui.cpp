@@ -256,7 +256,7 @@ void GUI::draw(gui::DrawStructure &base) {
                     background->set_source(std::move(_image));
                 }
 
-                if (_noise) {
+                if (noise_image) {
                     std::fill(noise_image->source()->data(), noise_image->source()->data() + noise_image->source()->size(), 0);
 
                     auto mat = noise_image->source()->get();
