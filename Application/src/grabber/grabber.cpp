@@ -633,6 +633,10 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
 FrameGrabber::~FrameGrabber() {
     // stop processing
     Debug("Terminating...");
+    if (GRAB_SETTINGS(enable_closed_loop)) {
+        Output::PythonIntegration::quit();
+    }
+    
     if(_analysis) {
         delete _analysis;
     }

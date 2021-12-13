@@ -270,7 +270,7 @@ namespace cmn {
     
     struct FrameRange {
         Rangel range;
-        long_t first_usable;
+        long_t first_usable = -1;
         
         constexpr explicit FrameRange(Rangel range = Rangel(-1, -1), long_t first_usable = -1)
             : range(range), first_usable(first_usable)
@@ -321,6 +321,10 @@ namespace cmn {
         }
         constexpr bool operator==(const FrameRange& other) const {
             return range == other.range;
+        }
+        
+        arange<long_t> iterable() const {
+            return arange<long_t>(start(), end());
         }
     };
     

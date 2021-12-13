@@ -814,5 +814,5 @@ int main(int argc, char** argv)
     log_file = NULL;
 
     int returncode = SETTING(terminate_error) ? 1 : 0;
-    return returncode;
+    exit(returncode);
 }
