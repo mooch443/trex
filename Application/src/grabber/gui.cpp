@@ -249,6 +249,7 @@ void GUI::draw(gui::DrawStructure &base) {
                     else {
                         noise_image = new ExternalImage(Image::Make(_image->rows, _image->cols, 4), offset, Vec2(1 / scale));
                         background = new ExternalImage(std::move(_image), offset, Vec2(1 / scale));
+                        Debug("Creating images.");
                     }
                 }
                 else {
@@ -290,24 +291,29 @@ void GUI::draw(gui::DrawStructure &base) {
                         continue;
 
                     pv::Blob blob(m, _frame->pixels().at(i));
-                    auto&& [pos, image] = blob.alpha_image(bg, 0);
+                    auto pos = blob.bounds().pos();
+                    base.rect(pos + offset, blob.bounds().size(), Transparent, Red);
+                    
+                    //! only display images if there arent too many of them.
+                    if(_frame->mask().size() < 100) {
+                        auto&& [_, image] = blob.alpha_image(bg, 0);
+                        /*auto clr = wheel.next().alpha((_pulse * 0.6 + 0.2) * 255);
+                        cv::cvtColor(output, output, cv::COLOR_GRAY2RGBA);
 
-                    /*auto clr = wheel.next().alpha((_pulse * 0.6 + 0.2) * 255);
-                    cv::cvtColor(output, output, cv::COLOR_GRAY2RGBA);
+                        for (cv::Mat4b::iterator it = output.begin<cv::Vec4b>(); it != output.end<cv::Vec4b>(); it++)
+                        {
+                            if((*it)[0] || (*it)[1] || (*it)[2]) {
+                                (*it)[0] = clr.r;
+                                (*it)[1] = clr.g;
+                                (*it)[2] = clr.b;
+                                (*it)[3] = 255;
+                            } else
+                                (*it)[3] = 0;
+                        }*/
 
-                    for (cv::Mat4b::iterator it = output.begin<cv::Vec4b>(); it != output.end<cv::Vec4b>(); it++)
-                    {
-                        if((*it)[0] || (*it)[1] || (*it)[2]) {
-                            (*it)[0] = clr.r;
-                            (*it)[1] = clr.g;
-                            (*it)[2] = clr.b;
-                            (*it)[3] = 255;
-                        } else
-                            (*it)[3] = 0;
-                    }*/
-
-                    base.rect(pos + offset, image->bounds().size(), Transparent, Red);
-                    //base.image(pos + offset, std::move(image), Vec2(1.0), wheel.next().alpha(50));
+                        base.image(pos + offset, std::move(image), Vec2(1.0), wheel.next().alpha(150));
+                    }
+                    
                     base.text(Meta::toStr(i), pos + offset, Yellow, 0.5, scale);
                 }
             }

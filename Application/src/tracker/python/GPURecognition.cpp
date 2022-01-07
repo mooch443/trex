@@ -793,7 +793,7 @@ void PythonIntegration::run(const std::string& module_name, const std::string& f
             guard.unlock();
             module();
         } else
-            U_EXCEPTION("Pointer of %S::%S is null.", &module_name, &function);
+            Except("Pointer of %S::%S is null.", &module_name, &function);
     }
     catch (pybind11::error_already_set & e) {
         e.restore();
