@@ -170,7 +170,7 @@ std::string_view Path::filename() const {
             err = mkdir(folder.c_str(), ACCESSPERMS);
             if(err != 0) {
 #endif
-                Except("Cannot create folder '%S' (error: %d).", &folder, err);
+                Except("Cannot create folder '%S' (error: %d).", &folder, errno);
                 return false;
             }
         }

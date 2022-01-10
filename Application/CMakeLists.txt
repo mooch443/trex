@@ -1043,7 +1043,7 @@ if(${TREX_BUILD_OPENCV})
             -DCMAKE_DEBUG_POSTFIX=)
 
     message(STATUS "OPENCV_EXTRA_FLAGS_ = ${OPENCV_EXTRA_FLAGS_}")
-    set(TREX_OPENCV_VERSION "4.5.4")
+    set(TREX_OPENCV_VERSION "4.5.5")
     if(APPLE)
         message(STATUS "CMAKE_SYSTEM_PROCESSOR = ${CMAKE_SYSTEM_PROCESSOR}")
         if(NOT ${CMAKE_SYSTEM_PROCESSOR} MATCHES "x86_64")
@@ -1053,6 +1053,8 @@ if(${TREX_BUILD_OPENCV})
             set(TREX_OPENCV_VERSION "4.3.0")
         endif()
     endif()
+    STRING(REPLACE "." "" TREX_OPENCV_VERSION_NO_DOTS ${TREX_OPENCV_VERSION})
+    message(STATUS "TRex using opencv version ${TREX_OPENCV_VERSION_NO_DOTS}")
 
     if(UNIX)
         message(STATUS "Using custom configure command")
@@ -1107,12 +1109,10 @@ if(${TREX_BUILD_OPENCV})
         message("Including OpenCV lib path: ${CMAKE_CURRENT_BINARY_DIR}/opencv_install/x64/vc${VSTD_VERSION_MAJOR}/staticlib")
         set(OpenCV_LIB_PATH ${CMAKE_CURRENT_BINARY_DIR}/opencv_install/x64/vc${VSTD_VERSION_MAJOR}/staticlib)
         link_directories(${OpenCV_LIB_PATH})
-        #set(OpenCV_LIBS opencv_core454 opencv_imgproc454 opencv_imgcodecs454 opencv_video454 opencv_videoio454 opencv_highgui454 opencv_features2d454 opencv_flann454 opencv_objdetect454 opencv_ml454 opencv_gapi454 opencv_dnn454 opencv_calib3d454 libjpeg-turbo ittnotify ade libprotobuf libtiff quirc ${FFMPEG_LIBRARIES})
-        set(OpenCV_LIBS opencv_core454 opencv_imgproc454 opencv_imgcodecs454 opencv_video454 opencv_videoio454 opencv_highgui454 
-            opencv_features2d454 opencv_flann454 opencv_calib3d454 
+        set(OpenCV_LIBS opencv_core${TREX_OPENCV_VERSION_NO_DOTS} opencv_imgproc${TREX_OPENCV_VERSION_NO_DOTS} opencv_imgcodecs${TREX_OPENCV_VERSION_NO_DOTS} opencv_video${TREX_OPENCV_VERSION_NO_DOTS} opencv_videoio${TREX_OPENCV_VERSION_NO_DOTS} opencv_highgui${TREX_OPENCV_VERSION_NO_DOTS} 
+            opencv_features2d${TREX_OPENCV_VERSION_NO_DOTS} opencv_flann${TREX_OPENCV_VERSION_NO_DOTS} opencv_calib3d${TREX_OPENCV_VERSION_NO_DOTS} 
             libjpeg-turbo ittnotify ade libprotobuf libtiff quirc ${FFMPEG_LIBRARIES})
     else()
-		#set(OpenCV_LIBS opencv_core opencv_imgproc opencv_imgcodecs opencv_stitching opencv_photo opencv_video opencv_videoio opencv_highgui opencv_features2d opencv_flann opencv_objdetect opencv_ml opencv_gapi opencv_dnn opencv_calib3d)
         set(OpenCV_LIBS opencv_core opencv_imgproc opencv_imgcodecs opencv_flann opencv_photo opencv_video opencv_videoio opencv_highgui opencv_features2d opencv_calib3d)
 		set(OpenCV_LIBS ${OpenCV_LIBS} opencv_core libjpeg-turbo ittnotify ade libprotobuf quirc ${FFMPEG_LIBRARIES})
 		if(APPLE)

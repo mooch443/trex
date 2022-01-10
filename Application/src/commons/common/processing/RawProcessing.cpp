@@ -141,32 +141,28 @@ void RawProcessing::generate_binary(const gpuMat& input, cv::Mat& output) {
     Debug("Average: %dx%d Input: %dx%d", _average->cols, _average->rows, input.cols, input.rows);
 #endif
     
+    /*cv::Mat local;
+    input.copyTo(local);
+    tf::imshow("->input", local);*/
+    if(image_invert) {
+        cv::subtract(cv::Scalar(255), input, *INPUT);
+    } else
+        input.copyTo(*INPUT);
+    
+    //INPUT->copyTo(local);
+    //tf::imshow("->input->", local);
+    
     if(enable_diff) {
         if(enable_abs_diff) {
-           cv::absdiff(input, *_average, *INPUT);
+            CALLCV( cv::absdiff(*INPUT, *_average, *OUTPUT) );
         } else {
-           cv::subtract(*_average, input, *INPUT);
+            CALLCV( cv::subtract(*_average, *INPUT, *OUTPUT) );
         }
         
-        if(image_invert) {
-            /*cv::Mat local;
-            INPUT->copyTo(local);
-            tf::imshow("before", local);*/
-            cv::subtract(cv::Scalar(255), *INPUT, *INPUT);
-            /*INPUT->copyTo(local);
-            tf::imshow("after", local);*/
-        }
         
-    } else {
-        if(image_invert) {
-            /*cv::Mat local;
-            input.copyTo(local);
-            tf::imshow("before", local);*/
-            cv::subtract(cv::Scalar(255), input, *INPUT);
-            /*INPUT->copyTo(local);
-            tf::imshow("after", local);*/
-        } else
-            input.copyTo(*INPUT);
+        //INPUT->copyTo(local);
+        //tf::imshow("difference", local);
+        
     }
     
     /*if(image_adjust) {
@@ -439,4 +435,10 @@ void RawProcessing::generate_binary(const gpuMat& input, cv::Mat& output) {
     binary.copyTo(__binary);
     resize_image(__binary, 0.3);
     tf::imshow("binary", __binary);*/
+    
+    /*_average->copyTo(local);
+    tf::imshow("average", local);
+    tf::imshow("output", output);
+    INPUT->copyTo(local);
+    tf::imshow("mask", local);*/
 }

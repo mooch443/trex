@@ -220,8 +220,6 @@ void FrameGrabber::prepare_average() {
     if(GRAB_SETTINGS(cam_scale) != 1)
         resize_image(_average, GRAB_SETTINGS(cam_scale));
     
-    //if(GRAB_SETTINGS(image_invert))
-    //    cv::subtract(cv::Scalar(255), _average, _average);
     
     if(GRAB_SETTINGS(correct_luminance)) {
         Debug("Calculating relative luminance...");
@@ -254,7 +252,9 @@ void FrameGrabber::prepare_average() {
     _processed.set_average(temp);
     if(tracker)
         tracker->set_average(Image::Make(temp));
-    //}
+    
+    if(GRAB_SETTINGS(image_invert))
+        cv::subtract(cv::Scalar(255), _average, _average);
     
     if(_video) {
         _video->processImage(_average, _average, false);
