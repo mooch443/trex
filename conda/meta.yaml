@@ -86,18 +86,20 @@ requirements:
     - cudnn ==7.6.5 # [win]
     - tensorflow =2.* # [osx and not arm64]
     - tensorboard <2.5 # [win]
-    - scikit-learn
+    - scikit-learn # [not arm64]
+    - scikit-learn ==1.0.2 # [arm64]
     - grpcio # [osx and arm64]
-    - ffmpeg
+    - ffmpeg # [not amd64]
+    - ffmpeg ==4.4.1 # [osx and arm64]
     - numpy # [osx and arm64]
     - numpy ==1.18.5 # [win]
     - python # [not arm64]
     - python=3.9.9 # [osx and arm64]
     - nomkl # [osx]
     - h5py # [arm64]
-    - ipython # [arm64]
     - pip=21.3.1  # [arm64]
-    - scipy  # [arm64]
+    - scipy # [not arm64]
+    - scipy ==1.7.3  # [arm64]
     - keras-preprocessing # [arm64]
 
 about:
