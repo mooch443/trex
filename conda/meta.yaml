@@ -96,7 +96,7 @@ requirements:
     - python # [not arm64]
     - python=3.9.9 # [osx and arm64]
     - nomkl # [osx]
-    - h5py # [arm64]
+    - h5py ==3.1.0 # [arm64]
     - pip=21.3.1  # [arm64]
     - scipy # [not arm64]
     - scipy ==1.7.3  # [arm64]

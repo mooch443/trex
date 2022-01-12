@@ -507,7 +507,7 @@ void PythonIntegration::reinit() {
                 _main = py::module::import("__main__");
                 _main.def("set_version", [](std::string x, bool has_gpu, std::string physical_name) {
 #ifndef NDEBUG
-                    Debug("set_version called with '%S' and '%S'", &x, &physical_name);
+                    Debug("set_version called with '%S' and '%S' - %s", &x, &physical_name, has_gpu?"gpu":"no gpu");
 #endif
                     auto array = utils::split(x, ' ');
                     if(array.size() > 0) {
@@ -586,6 +586,7 @@ void PythonIntegration::reinit() {
                     tasks.erase(it);
                     
                     //Debug("Starting python task from queue (elements left: %d)...", tasks.size());
+                    lock.unlock();
                     try {
                         task._task();
                     } catch(py::error_already_set& e) {
@@ -594,6 +595,7 @@ void PythonIntegration::reinit() {
                     } catch( ... ) {
                         Debug("Caught one exception.");
                     }
+                    lock.lock();
                 }
                 
                 if(_terminate)
