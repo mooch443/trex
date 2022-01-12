@@ -222,7 +222,7 @@ void Individual::SegmentInformation::add_basic_at(Frame_t frame, long_t gdx) {
 #define FRAME_SEGMENT_ACCESS(INDEXARRAY, INDEX) INDEXARRAY [ ( INDEX ).get() ]
 #endif
 
-void Individual::SegmentInformation::add_posture_at(const std::shared_ptr<PostureStuff>& stuff, Individual* fish) {//long_t gdx) {
+void Individual::SegmentInformation::add_posture_at(std::unique_ptr<PostureStuff>&& stuff, Individual* fish) {//long_t gdx) {
     long_t L = length();
     if(posture_index.size() != size_t(L)) {
         long_t prev = posture_index.size();
@@ -244,26 +244,10 @@ void Individual::SegmentInformation::add_posture_at(const std::shared_ptr<Postur
     if(!fish->_posture_stuff.empty() && stuff->frame < fish->_posture_stuff.back()->frame)
         throw SoftException("(", fish->identity().ID(),") Adding frame ", stuff->frame," after frame ", fish->_last_posture_added);
     
-    fish->_posture_stuff.push_back(stuff);
     fish->_last_posture_added = stuff->frame;
-    
     FRAME_SEGMENT_ACCESS(posture_index, stuff->frame - start()) = gdx;
-    
-    /*auto it = fish->_posture_stuff.begin();
-    for(auto & seg : fish->_frame_segments) {
-        long_t offset = 0;
-        for(auto id : seg.second->posture_index) {
-            if(id != -1) {
-                if(it == fish->_posture_stuff.end())
-                    SOFT_EXCEPTION("Ended in %d-%d.", seg.second->range.start, seg.second->range.end);
-                if((*it)->frame != seg.second->start() + offset) {
-                    SOFT_EXCEPTION("Frame %d from posture is != %d", (*it)->frame, seg.second->start() + offset);
-                }
-                ++it;
-            }
-            ++offset;
-        }
-    }*/
+
+    fish->_posture_stuff.push_back(std::move(stuff));
 }
 
 long_t Individual::SegmentInformation::basic_stuff(Frame_t frame) const {
@@ -319,31 +303,31 @@ Individual::PostureStuff::~PostureStuff() {
     if(centroid_posture) delete centroid_posture;
 }
 
-std::shared_ptr<Individual::BasicStuff> Individual::basic_stuff(Frame_t frameIndex) const {
+Individual::BasicStuff* Individual::basic_stuff(Frame_t frameIndex) const {
     auto segment = segment_for(frameIndex);
     if(segment)
-        return SEGMENT_ACCESS(_basic_stuff, segment->basic_stuff(frameIndex)); //_basic_stuff.at( segment->basic_stuff(frameIndex) );
+        return SEGMENT_ACCESS(_basic_stuff, segment->basic_stuff(frameIndex)).get(); //_basic_stuff.at( segment->basic_stuff(frameIndex) );
     return nullptr;
 }
 
-std::shared_ptr<Individual::PostureStuff> Individual::posture_stuff(Frame_t frameIndex) const {
+Individual::PostureStuff* Individual::posture_stuff(Frame_t frameIndex) const {
     auto segment = segment_for(frameIndex);
     if(segment) {
         auto index = segment->posture_stuff(frameIndex);
-        return index != -1 ? SEGMENT_ACCESS(_posture_stuff, index) : nullptr;
+        return index != -1 ? SEGMENT_ACCESS(_posture_stuff, index).get() : nullptr;
         //return index != -1 ? _posture_stuff.at( index ) : nullptr;
     }
     return nullptr;
 }
 
-std::tuple<std::shared_ptr<Individual::BasicStuff>, std::shared_ptr<Individual::PostureStuff>> Individual::all_stuff(Frame_t frameIndex) const {
+std::tuple<Individual::BasicStuff*, Individual::PostureStuff*> Individual::all_stuff(Frame_t frameIndex) const {
     auto segment = segment_for(frameIndex);
     if(segment) {
         auto basic_index = segment->basic_stuff(frameIndex);
         auto posture_index = segment->posture_stuff(frameIndex);
         return {
-            basic_index != -1 ? SEGMENT_ACCESS(_basic_stuff, basic_index) : nullptr,
-            posture_index != -1 ? SEGMENT_ACCESS(_posture_stuff, posture_index) : nullptr
+            basic_index != -1 ? SEGMENT_ACCESS(_basic_stuff, basic_index).get() : nullptr,
+            posture_index != -1 ? SEGMENT_ACCESS(_posture_stuff, posture_index).get() : nullptr
         };
         //return index != -1 ? _posture_stuff.at( index ) : nullptr;
     }
@@ -414,7 +398,7 @@ const Midline::Ptr Individual::midline(Frame_t frameIndex) const {
     if(!posture)
         return nullptr;
     
-    return calculate_midline_for(basic, posture);
+    return calculate_midline_for(*basic, *posture);
 }
 
 const Midline::Ptr Individual::pp_midline(Frame_t frameIndex) const {
@@ -457,11 +441,6 @@ Individual::Individual(Identity&& id)
 Individual::~Individual() {
     if(!Tracker::instance())
         return;
-    
-    auto callbacks = _delete_callbacks;
-    for(auto &f : callbacks)
-        f.second(this);
-    _delete_callbacks.clear();
     
     remove_frame(start_frame());
     
@@ -523,6 +502,14 @@ void Individual::remove_frame(Frame_t frameIndex) {
         return;
     
     _hints.remove_after(frameIndex);
+
+    {
+        auto callbacks = _delete_callbacks;
+        for (auto& f : callbacks)
+            f.second(this);
+        _delete_callbacks.clear();
+    }
+
     
     {
         auto it = added_postures.begin();
@@ -893,7 +880,7 @@ void Individual::LocalCache::regenerate(Individual* fish) {
     
     for(auto & p : fish->_posture_stuff) {
         if(p->cached_pp_midline && !p->cached_pp_midline->empty()) {
-            add(p);
+            add(*p);
         }
     }
     
@@ -937,19 +924,19 @@ Vec2 Individual::LocalCache::add(Frame_t frameIndex, const track::MotionRecord *
     return v;
 }
 
-void Individual::LocalCache::add(const std::shared_ptr<PostureStuff>& stuff) {
-    if(stuff->outline) {
-        _outline_size += stuff->outline->size();
+void Individual::LocalCache::add(const PostureStuff& stuff) {
+    if(stuff.outline) {
+        _outline_size += stuff.outline->size();
         ++_outline_samples;
     }
     
-    if(stuff->midline_length != PostureStuff::infinity) {
-        _midline_length += stuff->midline_length;
+    if(stuff.midline_length != PostureStuff::infinity) {
+        _midline_length += stuff.midline_length;
         ++_midline_samples;
     }
 }
 
-std::shared_ptr<Individual::BasicStuff> Individual::add(const FrameProperties* props, Frame_t frameIndex, const PPFrame& frame, const pv::BlobPtr& blob, prob_t current_prob, default_config::matching_mode_t::Class match_mode) {
+const std::unique_ptr<Individual::BasicStuff>& Individual::add(const FrameProperties* props, Frame_t frameIndex, const PPFrame& frame, const pv::BlobPtr& blob, prob_t current_prob, default_config::matching_mode_t::Class match_mode) {
     if (has(frameIndex))
         return nullptr;
     
@@ -970,7 +957,7 @@ std::shared_ptr<Individual::BasicStuff> Individual::add(const FrameProperties* p
     const MotionRecord* prev_prop = nullptr;
     if(!empty()) {
         if(frameIndex > _startFrame) {
-            auto previous = find_frame(prev_frame);
+            auto &previous = find_frame(prev_frame);
             if(previous) {
                 prev_frame = previous->frame;
                 prev_prop = &previous->centroid;
@@ -980,7 +967,7 @@ std::shared_ptr<Individual::BasicStuff> Individual::add(const FrameProperties* p
     
     _hints.push(frameIndex, props);
     
-    auto stuff = std::make_shared<BasicStuff>();
+    auto stuff = std::make_unique<BasicStuff>();
     stuff->centroid.init(prev_prop, frame.time, blob->center(), blob->orientation());
     
     auto v = _local_cache.add(frameIndex, &stuff->centroid);
@@ -1028,7 +1015,7 @@ std::shared_ptr<Individual::BasicStuff> Individual::add(const FrameProperties* p
     segment->add_basic_at(frameIndex, _basic_stuff.size());
     if(!_basic_stuff.empty() && stuff->frame < _basic_stuff.back()->frame)
         throw SoftException("(", identity(),") Added basic stuff for frame ", stuff->frame, " after frame ", _basic_stuff.back()->frame,".");
-    _basic_stuff.push_back(stuff);
+    _basic_stuff.push_back(std::move(stuff));
     _matched_using.push_back(match_mode);
     
     const auto video_length = Tracker::analysis_range().end;
@@ -1036,10 +1023,10 @@ std::shared_ptr<Individual::BasicStuff> Individual::add(const FrameProperties* p
         update_midlines(&_hints);
     }
     
-    return stuff;
+    return _basic_stuff.back();
 }
 
-void Individual::iterate_frames(const Range<Frame_t>& segment, const std::function<bool(Frame_t frame, const std::shared_ptr<SegmentInformation>&, const std::shared_ptr<Individual::BasicStuff>&, const std::shared_ptr<Individual::PostureStuff>&)>& fn) const {
+void Individual::iterate_frames(const Range<Frame_t>& segment, const std::function<bool(Frame_t frame, const std::shared_ptr<SegmentInformation>&, const Individual::BasicStuff*, const Individual::PostureStuff*)>& fn) const {
     auto fit = iterator_for(segment.start);
     auto end = _frame_segments.end();
     
@@ -1054,7 +1041,7 @@ void Individual::iterate_frames(const Range<Frame_t>& segment, const std::functi
             auto pid = (*fit)->posture_stuff(frame);
             
             auto& basic = SEGMENT_ACCESS(_basic_stuff, bid);
-            if(!fn(frame, *fit, basic, pid != -1 ? SEGMENT_ACCESS(_posture_stuff, pid) : nullptr))
+            if(!fn(frame, *fit, basic.get(), pid != -1 ? SEGMENT_ACCESS(_posture_stuff, pid).get() : nullptr))
                 break;
         }
     }
@@ -1422,7 +1409,10 @@ void Individual::update_midlines(const CacheHints* hints) {
             if((smooth_range == 0_f || video_length == end_frame || (*it)->frame <= end_frame - smooth_range) && (*it)->cached_pp_midline)
             {
                 (*it)->posture_original_angle = (*it)->cached_pp_midline->original_angle();
-                update_frame_with_posture(basic_stuff((*it)->frame), *it, hints);
+
+                auto basic = basic_stuff((*it)->frame);
+                auto base_it = it.base() - 1;
+                update_frame_with_posture(*basic, base_it, hints);
             }
             
             if(it == _posture_stuff.rbegin())
@@ -1458,30 +1448,30 @@ void Individual::update_midlines(const CacheHints* hints) {
     }*/
 }
 
-Midline::Ptr Individual::calculate_midline_for(const std::shared_ptr<BasicStuff> &basic, const std::shared_ptr<PostureStuff> &posture) const
+Midline::Ptr Individual::calculate_midline_for(const BasicStuff &basic, const PostureStuff &posture) const
 {
-    if(!posture || !basic)
-        return nullptr;
+    //if(!posture || !basic)
+    //    return nullptr;
     
-    auto ptr = posture->cached_pp_midline;
-    auto blob = basic->blob;
-    basic->pixels = nullptr;
+    auto &ptr = posture.cached_pp_midline;
+    auto &blob = basic.blob;
+    //basic.pixels = nullptr;
     
     Midline::Ptr midline;
     
     if(ptr) {
         //Timer timer;
-        midline = std::make_shared<Midline>(*ptr);
+        midline = std::make_unique<Midline>(*ptr);
         
         MovementInformation movement;
         //movement.position = blob->bounds().pos();
         
         if(FAST_SETTINGS(posture_direction_smoothing) > 1) {
-            auto && [samples, hist, index, mov] = calculate_previous_vector(posture->frame);
+            auto && [samples, hist, index, mov] = calculate_previous_vector(posture.frame);
             movement = mov;
         }
         
-        midline->post_process(movement, DebugInfo{posture->frame, identity().ID(), false});
+        midline->post_process(movement, DebugInfo{posture.frame, identity().ID(), false});
         if(!midline->is_normalized())
             midline = midline->normalize();
         else if(size_t(_warned_normalized_midline.elapsed())%5 == 0) {
@@ -1495,22 +1485,32 @@ Midline::Ptr Individual::calculate_midline_for(const std::shared_ptr<BasicStuff>
     return midline;
 }
 
-Midline::Ptr Individual::update_frame_with_posture(const std::shared_ptr<BasicStuff>& basic, const std::shared_ptr<PostureStuff>& posture, const CacheHints* hints) {
-    auto &ptr = posture->cached_pp_midline;
-    auto &blob = basic->blob;
-    basic->pixels = nullptr;
+/*Midline::Ptr Individual::update_frame_with_posture(const BasicStuff>& basic, const std::shared_ptr<PostureStuff>& posture, const CacheHints* hints) {
+    auto it = std::partition_point(_posture_stuff.begin(), _posture_stuff.end(), [c = posture->frame](const std::shared_ptr<PostureStuff>& other) {
+        return other->frame < c;
+    });
+
+    if (it == _posture_stuff.end())
+        throw U_EXCEPTION("Cannot find the posture we are talking about (", posture->frame, ").");
+
+    return update_frame_with_posture(basic, it, hints);
+}*/
+
+Midline::Ptr Individual::update_frame_with_posture(BasicStuff& basic, const decltype(Individual::_posture_stuff)::const_iterator& posture_it, const CacheHints* hints) {
+    auto &posture = **posture_it;
+    auto &ptr = posture.cached_pp_midline;
+    auto &blob = basic.blob;
+    //basic.pixels = nullptr;
     
     Midline::Ptr midline;
     
     if(ptr) {
         midline = calculate_midline_for(basic, posture);
-        auto &outline = posture->outline;
-        auto &c = basic->centroid;
+        auto &outline = posture.outline;
+        auto &c = basic.centroid;
         
         if(!midline)
             return nullptr;
-        
-        //posture->midline = midline;
         
         size_t head_index = cmn::min(midline->segments().size() - 1u, size_t(roundf(midline->segments().size() * FAST_SETTINGS(posture_head_percentage))));
         auto pt = midline->segments().at(head_index).pos;
@@ -1525,19 +1525,14 @@ Midline::Ptr Individual::update_frame_with_posture(const std::shared_ptr<BasicSt
         pt += bounds.pos() + midline->offset();
         
         const PostureStuff* previous = nullptr;
-        auto it = posture_stuff().rbegin();
-        while(it != posture_stuff().rend()) {
-            if((*it)->frame < posture->frame) {
-                previous = (*it).get();
-                break;
-            }
-            ++it;
+        if (posture_it != _posture_stuff.begin()) {
+            previous = (*(posture_it - 1)).get();
         }
-        
-        auto prop = Tracker::properties(posture->frame, hints);
+
+        auto prop = Tracker::properties(posture.frame, hints);
         assert(prop);
-        posture->head = new MotionRecord;
-        posture->head->init(previous ? previous->head : nullptr, prop->time, pt, midline->angle());
+        posture.head = new MotionRecord;
+        posture.head->init(previous ? previous->head : nullptr, prop->time, pt, midline->angle());
         
          //ptr//.outline().original_angle();
 #if DEBUG_ORIENTATION
@@ -1570,10 +1565,10 @@ Midline::Ptr Individual::update_frame_with_posture(const std::shared_ptr<BasicSt
         centroid_point /= float(points.size());
         centroid_point += bounds.pos();
         
-        posture->centroid_posture = new MotionRecord;
-        posture->centroid_posture->init(previous ? previous->centroid_posture : nullptr, prop->time, centroid_point, midline->angle());
-        posture->midline_angle = midline->angle();
-        posture->midline_length = midline->len();
+        posture.centroid_posture = new MotionRecord;
+        posture.centroid_posture->init(previous ? previous->centroid_posture : nullptr, prop->time, centroid_point, midline->angle());
+        posture.midline_angle = midline->angle();
+        posture.midline_length = midline->len();
         
         _local_cache.add(posture);
     }
@@ -1877,8 +1872,8 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
         }
     }
     
-    auto pp = bdx != -1 ? _basic_stuff.at(bdx) : nullptr;
-    auto pp_posture = pdx != -1 ? _posture_stuff.at(pdx) : nullptr;
+    auto pp = bdx != -1 ? _basic_stuff.at(bdx).get() : nullptr;
+    auto pp_posture = pdx != -1 ? _posture_stuff.at(pdx).get() : nullptr;
     
     /*auto _pp = find_frame(frameIndex-1);
     if(pp != _pp) {
@@ -1967,7 +1962,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     
     //Median<prob_t> average_speed;
     Vec2 previous_v;
-    MotionRecord* previous_p = nullptr;
+    const MotionRecord* previous_p = nullptr;
     double previous_t = 0;
     Frame_t previous_f;
     
@@ -1976,7 +1971,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     
     if(cache.consistent_categories) {
         std::shared_lock guard(Categorize::DataStore::range_mutex());
-        iterate_frames(Range<Frame_t>(max(_startFrame, cache.previous_frame - Frame_t(frame_rate * 2)), cache.previous_frame), [&labels, &samples](auto frame, auto&, auto& basic, auto&) -> bool
+        iterate_frames(Range<Frame_t>(max(_startFrame, cache.previous_frame - Frame_t(frame_rate * 2)), cache.previous_frame), [&labels, &samples](auto frame, const auto&, auto basic, auto) -> bool
         {
             auto ldx = Categorize::DataStore::_ranged_label_unsafe(frame, basic->blob.blob_id());
             if(ldx != -1) {
@@ -1994,7 +1989,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     auto end = Tracker::instance()->frames().end();
     auto iterator = end;
     
-    iterate_frames(range, [&](Frame_t frame, const std::shared_ptr<SegmentInformation> &, const std::shared_ptr<Individual::BasicStuff> &basic, const std::shared_ptr<Individual::PostureStuff> &) -> bool
+    iterate_frames(range, [&](Frame_t frame, const std::shared_ptr<SegmentInformation> &, auto basic, auto) -> bool
     {
         if(is_manual_match(frame)) {
             cache.last_frame_manual = true;
@@ -2316,7 +2311,7 @@ Individual::Probability Individual::probability(int label, const IndividualCache
     //};
 }
 
-const std::shared_ptr<Individual::BasicStuff>& Individual::find_frame(Frame_t frameIndex) const
+const std::unique_ptr<Individual::BasicStuff>& Individual::find_frame(Frame_t frameIndex) const
 {
     if(!empty()) {
         if(frameIndex <= _startFrame)
@@ -2395,7 +2390,7 @@ std::tuple<std::vector<std::tuple<float, float>>, std::vector<float>, size_t, Mo
     
     Range<Frame_t> range(max(start_frame(), frameIndex - min_samples), min(end_frame(), frameIndex + min_samples));
     
-    iterate_frames(range, [&](Frame_t frame, const auto&, const auto& basic, const auto& posture) -> bool
+    iterate_frames(range, [&](Frame_t frame, const auto&, auto basic, auto posture) -> bool
     {
         if(frame == range.start) {
             movement.directions.push_back(Vec2(0));
@@ -2403,10 +2398,7 @@ std::tuple<std::vector<std::tuple<float, float>>, std::vector<float>, size_t, Mo
         }
         
         if(posture && posture->midline_length != PostureStuff::infinity) {
-            if(posture->posture_original_angle == PostureStuff::infinity && posture->cached_pp_midline)
-                posture->posture_original_angle = posture->cached_pp_midline->original_angle();
-            //assert(posture->posture_original_angle != PostureStuff::infinity);
-            //auto midline = calculate_midline_for(basic, posture);
+            assert(posture->posture_original_angle != PostureStuff::infinity);
             all_head_positions.push_back(-Vec2(cos(posture->midline_angle), sin(posture->midline_angle)) * posture->midline_length * 0.5);
             //auto post = head(it->first);
             //all_head_positions.push_back(post->pos(PX_AND_SECONDS, true) - centroid(it->first)->pos(PX_AND_SECONDS, true));
@@ -2541,14 +2533,14 @@ OrientationProperties Individual::why_orientation(Frame_t frame) const {
 }
 #endif
 
-void Individual::save_posture(std::shared_ptr<BasicStuff> stuff, Frame_t frameIndex) {//Image::Ptr greyscale) {
+void Individual::save_posture(const BasicStuff& stuff, Frame_t frameIndex) {//Image::Ptr greyscale) {
     /*auto c = centroid(frameIndex);
     auto direction = c->v();
     direction /= ::length(direction);*/
     
     assert(stuff->pixels);
     Posture ptr(frameIndex, identity().ID());
-    ptr.calculate_posture(frameIndex, stuff->pixels);
+    ptr.calculate_posture(frameIndex, stuff.pixels);
     //ptr.calculate_posture(frameIndex, greyscale->get(), previous_direction);
     
     if(ptr.outline_empty() /*|| !ptr.normalized_midline()*/) {
@@ -2572,7 +2564,7 @@ void Individual::save_posture(std::shared_ptr<BasicStuff> stuff, Frame_t frameIn
     }*/
     
 	if(!ptr.outline_empty()) {
-        const auto midline = ptr.normalized_midline();
+        const auto &midline = ptr.normalized_midline();
 		/*if(midline && midline->size() != FAST_SETTINGS(midline_resolution)) {
             FormatWarning("Posture error (",midline->size()," segments) in ",_identity.ID()," at frame ",frameIndex,".");
 		}*/
@@ -2583,7 +2575,7 @@ void Individual::save_posture(std::shared_ptr<BasicStuff> stuff, Frame_t frameIn
         if(!segment->contains(frameIndex))
             throw U_EXCEPTION("save_posture found segment (",segment->start(),"-",segment->end(),"), but does not contain ",frameIndex,".");
         
-        auto stuff = std::make_shared<PostureStuff>();
+        auto stuff = std::make_unique<PostureStuff>();
         stuff->frame = frameIndex;
         
         if(!ptr.outline_empty())
@@ -2598,9 +2590,14 @@ void Individual::save_posture(std::shared_ptr<BasicStuff> stuff, Frame_t frameIn
             
             //auto copy = std::make_shared<Midline>(*midline);
             stuff->cached_pp_midline = midline;
+
+            if (stuff && stuff->midline_length != PostureStuff::infinity) {
+                if (stuff->posture_original_angle == PostureStuff::infinity && stuff->cached_pp_midline)
+                    stuff->posture_original_angle = stuff->cached_pp_midline->original_angle();
+            }
         }
         
-        segment->add_posture_at(stuff, this);
+        segment->add_posture_at(std::move(stuff), this);
         update_midlines(nullptr);
 	}
 }
@@ -3218,7 +3215,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
     
     size_t len = 0;
 
-    iterate_frames(range, [&](Frame_t, const std::shared_ptr<SegmentInformation>&, const std::shared_ptr<Individual::BasicStuff>&, const std::shared_ptr<Individual::PostureStuff>& posture) -> bool
+    iterate_frames(range, [&](Frame_t, const std::shared_ptr<SegmentInformation>&, auto, auto posture) -> bool
     {
         if (!posture || !posture->head)
             return true;
@@ -3244,7 +3241,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
     
     std::shared_ptr<Tracker::LockGuard> guard;
     
-    iterate_frames(range, [&](Frame_t frame, const std::shared_ptr<SegmentInformation> & segment, const std::shared_ptr<Individual::BasicStuff> & basic, const std::shared_ptr<Individual::PostureStuff> & posture) -> bool
+    iterate_frames(range, [&](Frame_t frame, const std::shared_ptr<SegmentInformation> & segment, auto basic, auto posture) -> bool
     {
         if(blocking)
             guard = std::make_shared<Tracker::LockGuard>("new VisualField");
@@ -3253,8 +3250,8 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
         
         bool owned = false;
         VisualField* ptr = (VisualField*)custom_data(frame, VisualField::custom_id);
-        if(!ptr) {
-            ptr = new VisualField(identity().ID(), frame, basic, posture, false);
+        if(!ptr && basic) {
+            ptr = new VisualField(identity().ID(), frame, *basic, posture, false);
             owned = true;
         }
         

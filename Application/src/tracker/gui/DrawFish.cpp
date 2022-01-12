@@ -161,8 +161,8 @@ Fish::~Fish() {
             
             auto && [basic, posture] = _obj.all_stuff(_safe_idx);
             
-            std::shared_ptr<Individual::PostureStuff> current_posture;
-            std::shared_ptr<Individual::BasicStuff> current_basic;
+            const Individual::PostureStuff* current_posture;
+            const Individual::BasicStuff* current_basic;
             
             if(frameIndex == _safe_idx) {
                 current_posture = posture;
@@ -177,7 +177,7 @@ Fish::~Fish() {
             
             if(GUIOPTION(gui_show_outline) || GUIOPTION(gui_show_midline) || GUIOPTION(gui_happy_mode)) {
                 if(current_posture) {
-                    _cached_midline = SETTING(output_normalize_midline_data) ? _obj.fixed_midline(frameIndex) : _obj.calculate_midline_for(current_basic, current_posture);
+                    _cached_midline = SETTING(output_normalize_midline_data) ? _obj.fixed_midline(frameIndex) : _obj.calculate_midline_for(*current_basic, *current_posture);
                     assert(!_cached_midline || _cached_midline->is_normalized());
                 }
             }
@@ -547,38 +547,40 @@ Fish::~Fish() {
                 ph.v += force / mass * dt;
                 ph.direction += ph.v * dt;
             
-                auto &&[eyes, off] = VisualField::generate_eyes(_basic_stuff, points, _cached_midline, alpha);
-            
-                auto d = ph.direction;
-                auto L = d.length();
-                if(L > 0) d /= L;
-                if(L > 1) L = 1;
-                d *= L;
-            
-                double h = ph.blink / 0.1;
-            
-                if(h > ph.blink_limit && !ph.blinking) {
-                    ph.blinking = true;
-                    ph.blink = 0;
-                    h = 0;
-                    ph.blink_limit = rand() / double(RAND_MAX) * 30;
-                }
-            
-                if(h > 1 && ph.blinking) {
-                    ph.blinking = false;
-                }
-            
-                ph.blink += dt;
-            
-                auto sun_direction = (offset - Vec2(0)).normalize();
-                auto eye_scale = max(0.5, _obj.midline_length() / 90);
-                for(auto &eye : eyes) {
-                    eye.pos += ph.direction;
-                    _view.add<Circle>(eye.pos + offset, 5 * eye_scale, Black.alpha(200), White.alpha(125));
-                    auto c = _view.add<Circle>(eye.pos + Vec2(2.5).mul(d * eye_scale) + offset, 3 * eye_scale, Transparent, Black.alpha(200));
-                    c->set_scale(Vec2(1, ph.blinking ? h : 1));
-                    c->set_rotation(atan2(ph.direction) + RADIANS(90));//posture->head->angle() + RADIANS(90));
-                    _view.add<Circle>(eye.pos + Vec2(2.5).mul(d * eye_scale) + Vec2(2 * eye_scale).mul(sun_direction) + offset, sqrt(eye_scale), Transparent, White.alpha(200 * c->scale().min()));
+                if (_basic_stuff) {
+                    auto&& [eyes, off] = VisualField::generate_eyes(*_basic_stuff, points, _cached_midline, alpha);
+
+                    auto d = ph.direction;
+                    auto L = d.length();
+                    if (L > 0) d /= L;
+                    if (L > 1) L = 1;
+                    d *= L;
+
+                    double h = ph.blink / 0.1;
+
+                    if (h > ph.blink_limit && !ph.blinking) {
+                        ph.blinking = true;
+                        ph.blink = 0;
+                        h = 0;
+                        ph.blink_limit = rand() / double(RAND_MAX) * 30;
+                    }
+
+                    if (h > 1 && ph.blinking) {
+                        ph.blinking = false;
+                    }
+
+                    ph.blink += dt;
+
+                    auto sun_direction = (offset - Vec2(0)).normalize();
+                    auto eye_scale = max(0.5, _obj.midline_length() / 90);
+                    for (auto& eye : eyes) {
+                        eye.pos += ph.direction;
+                        _view.add<Circle>(eye.pos + offset, 5 * eye_scale, Black.alpha(200), White.alpha(125));
+                        auto c = _view.add<Circle>(eye.pos + Vec2(2.5).mul(d * eye_scale) + offset, 3 * eye_scale, Transparent, Black.alpha(200));
+                        c->set_scale(Vec2(1, ph.blinking ? h : 1));
+                        c->set_rotation(atan2(ph.direction) + RADIANS(90));//posture->head->angle() + RADIANS(90));
+                        _view.add<Circle>(eye.pos + Vec2(2.5).mul(d * eye_scale) + Vec2(2 * eye_scale).mul(sun_direction) + offset, sqrt(eye_scale), Transparent, White.alpha(200 * c->scale().min()));
+                    }
                 }
             }
         

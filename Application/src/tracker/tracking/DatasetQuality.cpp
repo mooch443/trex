@@ -368,7 +368,7 @@ DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fis
         prev = fish->centroid_weighted(consec.start() - 1_f)->pos<Units::PX_AND_SECONDS>();
     }
     
-    fish->iterate_frames(consec.range, [&](Frame_t i, const auto&, const std::shared_ptr<Individual::BasicStuff> & basic, const std::shared_ptr<Individual::PostureStuff> & posture) -> bool
+    fish->iterate_frames(consec.range, [&](Frame_t i, const auto&, auto basic, auto posture) -> bool
     {
         if(!Recognition::eligible_for_training(basic, posture, constraints))
             return true;

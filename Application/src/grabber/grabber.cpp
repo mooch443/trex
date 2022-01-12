@@ -1208,7 +1208,12 @@ void FrameGrabber::update_tracker_queue() {
                     if(CL_HAS_FEATURE(VISUAL_FIELD)) {
                         for(auto fish : tracker->active_individuals(frame)) {
                             if(fish->head(frame))
-                                visual_fields[fish->identity().ID()] = std::make_shared<track::VisualField>(fish->identity().ID(), frame, fish->basic_stuff(frame), fish->posture_stuff(frame), false);
+                                visual_fields[fish->identity().ID()] = std::make_shared<track::VisualField>(
+                                    fish->identity().ID(), 
+                                    frame, 
+                                    *fish->basic_stuff(frame), 
+                                    fish->posture_stuff(frame), 
+                                    false);
                             
                         }
                     }

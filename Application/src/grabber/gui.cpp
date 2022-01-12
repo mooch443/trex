@@ -489,8 +489,8 @@ void GUI::draw(gui::DrawStructure &base) {
                         fish->iterate_frames(Range<Frame_t>(tracker->end_frame() - 100_f, tracker->end_frame()), 
                             [&](Frame_t frame, 
                                 const std::shared_ptr<Individual::SegmentInformation>& segment, 
-                                const std::shared_ptr<Individual::BasicStuff>& basic, 
-                                const std::shared_ptr<Individual::PostureStuff>& posture) 
+                                const Individual::BasicStuff* basic, 
+                                const Individual::PostureStuff* posture) 
                             -> bool
                         {
                             if (basic) {

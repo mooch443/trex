@@ -3078,14 +3078,14 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         }
         
         Midline::Ptr midline;
-        std::shared_ptr<Individual::BasicStuff> basic;
+        const Individual::BasicStuff* basic;
         TrainingFilterConstraints custom_len;
         
         {
             Tracker::LockGuard guard("Categorize::sample");
-            basic = fish->basic_stuff().at(index);
+            basic = fish->basic_stuff().at(index).get();
             auto posture = fish->posture_stuff(frame);
-            midline = posture ? fish->calculate_midline_for(basic, posture) : nullptr;
+            midline = posture ? fish->calculate_midline_for(*basic, *posture) : nullptr;
             
             custom_len = Tracker::recognition()->local_midline_length(fish, range);
         }

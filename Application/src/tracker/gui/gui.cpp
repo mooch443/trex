@@ -1597,7 +1597,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                         
                         VisualField* ptr = (VisualField*)fish->custom_data(frameNr, VisualField::custom_id);
                         if(!ptr && fish->head(frameNr)) {
-                            ptr = new VisualField(id, frameNr, fish->basic_stuff(frameNr), fish->posture_stuff(frameNr), true);
+                            ptr = new VisualField(id, frameNr, *fish->basic_stuff(frameNr), fish->posture_stuff(frameNr), true);
                             fish->add_custom_data(frameNr, VisualField::custom_id, ptr, [](void* ptr) {
                                 if(GUI::instance()) {
                                     std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
@@ -1646,7 +1646,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                                     if (it != PD(cache)._fish_map.end()) {
                                         PD(cache)._fish_map.erase(f);
                                     }
-                                    });
+                                });
                             }
 
                             PD(cache)._fish_map[fish]->set_data(frameNr, props->time, PD(cache).processed_frame, empty_map);
