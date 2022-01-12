@@ -586,6 +586,7 @@ void PythonIntegration::reinit() {
                     tasks.erase(it);
                     
                     //Debug("Starting python task from queue (elements left: %d)...", tasks.size());
+                    lock.unlock();
                     try {
                         task._task();
                     } catch(py::error_already_set& e) {
@@ -594,6 +595,7 @@ void PythonIntegration::reinit() {
                     } catch( ... ) {
                         Debug("Caught one exception.");
                     }
+                    lock.lock();
                 }
                 
                 if(_terminate)
