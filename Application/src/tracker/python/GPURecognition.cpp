@@ -507,7 +507,7 @@ void PythonIntegration::reinit() {
                 _main = py::module::import("__main__");
                 _main.def("set_version", [](std::string x, bool has_gpu, std::string physical_name) {
 #ifndef NDEBUG
-                    Debug("set_version called with '%S' and '%S'", &x, &physical_name);
+                    Debug("set_version called with '%S' and '%S' - %s", &x, &physical_name, has_gpu?"gpu":"no gpu");
 #endif
                     auto array = utils::split(x, ' ');
                     if(array.size() > 0) {

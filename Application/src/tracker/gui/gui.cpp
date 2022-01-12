@@ -2895,7 +2895,7 @@ void GUI::draw_footer(DrawStructure& base) {
     if(section) {
         Vec2 mouse_position = _gui.mouse_position();
         mouse_position = (mouse_position - section->pos()).div(section->scale());
-         mouse_status.set_txt(Meta::toStr(std::vector<int>{static_cast<int>(mouse_position.x), static_cast<int>(mouse_position.y)})+" "+Meta::toStr(cache().display_blobs.size())+" blobs "+Meta::toStr(cache()._current_pixels)+"px "+Meta::toStr(cache()._average_pixels)+"px/blob pp:"+Meta::toStr(cache().processed_frame.num_pixels())+"px");
+        mouse_status.set_txt(Meta::toStr(std::vector<int>{static_cast<int>(mouse_position.x), static_cast<int>(mouse_position.y)})+" "+Meta::toStr(cache().display_blobs.size())+" blobs "+Meta::toStr(cache()._current_pixels)+"px"); //"+Meta::toStr(cache()._average_pixels)+"px/blob pp:"+Meta::toStr(cache().processed_frame.num_pixels())+"px");
     }
         
     additional_status.set_txt(additional_status_text());
