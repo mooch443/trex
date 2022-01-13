@@ -104,7 +104,7 @@ namespace grid {
         template<typename S = Set_t>
         void insert(float x, float y, T v, typename std::enable_if<is_container<S>::value, void>::type* = nullptr) {
             const auto i = idx(x, y);
-            assert(i < grid.size());
+            assert(size_t(i) < grid.size());
             grid[i].push_back(pixel<T>(x, y, v));
         }
         

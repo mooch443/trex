@@ -30,9 +30,9 @@ If you own a new Mac with an Apple Silicone CPU, the Intel version (above) works
 
 	conda create -n tracking -c trexing trex  # macOS (arm64)
 
-There is no official tensorflow package yet, which is why |trex| will not allow you to use machine learning right away. But -- yay -- Apple provides their own version for macOS including a native ML Compute (`blog.tensorflow.com <https://blog.tensorflow.org/2020/11/accelerating-tensorflow-performance-on-mac.html>`_) backend, which has shown quite a bit of potential. An Apple Silicone MacBook (2020) only needs ~50ms/step and (with the same data and code) is not much slower than my fast i7 PC with an NVIDIA Geforce 1070 -- running at roughly ~21ms/step. To install tensorflow inside your activated environment, just run::
+There is no official tensorflow package yet, which is why |trex| will not allow you to use machine learning right away. But -- yay -- Apple provides their own version for macOS including a native macOS (`developer.apple.com <https://developer.apple.com/metal/tensorflow-plugin/>`_) backend. An Apple Silicone MacBook (2020) only needs ~50ms/step and (with the same data and code) is not much slower than my fast i7 PC with an NVIDIA Geforce 1070 -- running at roughly ~21ms/step. To install tensorflow inside your activated environment, just run::
 
-	pip install --upgrade --force --no-dependencies https://github.com/apple/tensorflow_macos/releases/download/v0.1alpha3/tensorflow_macos-0.1a3-cp38-cp38-macosx_11_0_arm64.whl https://github.com/apple/tensorflow_macos/releases/download/v0.1alpha3/tensorflow_addons_macos-0.1a3-cp38-cp38-macosx_11_0_arm64.whl
+	conda install -c apple tensorflow-deps && python -m pip install tensorflow-macos tensorflow-metal
 
 Now |trex|, if installed within the same environment, has the full power of your Mac at its disposal. Have fun!
 

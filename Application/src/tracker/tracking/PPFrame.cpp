@@ -46,7 +46,7 @@ bool PPFrame::_add_to_map(const pv::BlobPtr &blob) {
         Debug("Blob1 %u << 24 = %u (mask %u, max=%u)",
               uint32_t(blob1->bounds().x) & 0x00000FFF,
               (uint32_t(blob1->bounds().x) & 0x00000FFF) << 20,
-              0x00000FFF,
+              (uint32_t(blob1->lines()->front().y) & 0x00000FFF) << 8,
               std::numeric_limits<uint32_t>::max());
         
         uint32_t bid0 = pv::Blob::id_from_blob(blob);
@@ -169,7 +169,7 @@ pv::BlobPtr PPFrame::erase_anywhere(uint32_t bdx) {
     }
 #ifndef NDEBUG
     else
-        U_EXCEPTION("Blob %u not found anywhere.", bdx);
+        Except("Blob %u not found anywhere.", bdx);
 #endif
     return nullptr;
 }

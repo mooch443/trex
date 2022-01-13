@@ -608,7 +608,7 @@ std::tuple<float, std::map<Frame_t, float>, float> Accumulation::calculate_uniqu
 }
 
 float Accumulation::good_uniqueness() {
-    return (float(FAST_SETTINGS(manual_identities).size()) - 0.5f) / float(FAST_SETTINGS(manual_identities).size());
+    return max(0.8, (float(FAST_SETTINGS(manual_identities).size()) - 0.5f) / float(FAST_SETTINGS(manual_identities).size()));
 }
 
 Accumulation::Accumulation(TrainingMode::Class mode) : _mode(mode), _accumulation_step(0), _counted_steps(0), _last_step(1337) {
@@ -1837,18 +1837,24 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
             float previous = accepted_uniqueness();
             size_t i=0;
             const Font font(0.6f, Align::Center);
+            const float accepted = SETTING(gpu_accepted_uniqueness).value<float>();
             
             for(auto &d : history) {
-                bool improvement = previous <= d;
-                if(improvement)
+                Color color(255, 255, 255, 0);
+                if(previous <= d) {
+                    color = Yellow;
                     previous = d;
+                }
+                
+                if(d >= accepted)
+                    color = Green;
                 
                 if(long_t(i) < long_t(history.size()) - 10) {
                     ++i;
                     continue;
                 }
                 
-                e.advance(new Circle(offset, 5, improvement ? Green : White, improvement ? Green.alpha(50) : Transparent));
+                e.advance(new Circle(offset, 5, color, color.alpha(50)));
                 auto text = e.advance(new Text(Meta::toStr(i), offset + Vec2(0, Base::default_line_spacing(font) + 2), White, font));
                 text = e.advance(new Text(Meta::toStr(int(d * 10000) / 100.0)+"%", offset + Vec2(0, Base::default_line_spacing(font) * 2 + 4), White, font));
                 offset += Vec2(max(12, text->width() + 10), 0);

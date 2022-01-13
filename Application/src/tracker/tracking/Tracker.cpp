@@ -1172,7 +1172,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
             }
         }
         
-        std::set<long_t> already_walked;
+        std::set<uint32_t> already_walked;
         std::vector<pv::BlobPtr> big_blobs;
         std::map<pv::BlobPtr, split_expectation> expect;
         
@@ -1183,24 +1183,28 @@ bool operator<(long_t frame, const FrameProperties& props) {
         
         if(!manual_splits_frame.empty()) {
             for(auto bdx : manual_splits_frame) {
-                auto it = blob_mappings.find(bdx);
+                if(bdx == -1)
+                    continue;
+                
+                uint32_t converted = narrow_cast<uint32_t>(bdx);
+                auto it = blob_mappings.find(converted);
                 if(it == blob_mappings.end()) {
-                    blob_mappings[bdx] = {-1 };
+                    blob_mappings[converted] = {-1 };
                     //Debug("%d: Inserting 2 additional matches for %d", frame.index(), bdx);
                 } else{
                     it->second.insert(-1);
                     //Debug("%d: Inserting additional match for %d", frame.index(), bdx);
                 }
                 
-                Log(out, "\t\tManually splitting %d", bdx);
-                auto ptr = frame.erase_anywhere(bdx);
+                Log(out, "\t\tManually splitting %u", converted);
+                auto ptr = frame.erase_anywhere(converted);
                 if(ptr) {
                     big_blobs.push_back(ptr);
                     
                     expect[ptr].number = 2;
                     expect[ptr].allow_less_than = false;
                     
-                    already_walked.insert(bdx);
+                    already_walked.insert(converted);
                 }
             }
             
@@ -1270,9 +1274,9 @@ bool operator<(long_t frame, const FrameProperties& props) {
             
             if(clique.size() > others.size()) {
                 using namespace Match;
-                std::map<long_t, std::pair<long_t, Match::prob_t>> assign_blob; // blob: individual
-                std::map<long_t, std::set<std::tuple<Match::prob_t, long_t>>> all_combinations;
-                std::map<long_t, std::set<std::tuple<Match::prob_t, long_t>>> complete_combinations;
+                std::map<uint32_t, std::pair<uint32_t, Match::prob_t>> assign_blob; // blob: individual
+                std::map<uint32_t, std::set<std::tuple<Match::prob_t, uint32_t>>> all_combinations;
+                std::map<uint32_t, std::set<std::tuple<Match::prob_t, uint32_t>>> complete_combinations;
                 
                 if(out) {
                     Log(out, "\t\tMismatch between blobs and number of fish assigned to them.");
@@ -1288,7 +1292,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
                     }
                 }*/
                 
-                auto check_combinations = [&assign_blob, out](long_t c, std::set<std::tuple<Match::prob_t, long_t>>& combinations, std::queue<long_t>& q) -> bool
+                auto check_combinations = [&assign_blob, out](uint32_t c, decltype(all_combinations)::mapped_type& combinations, std::queue<uint32_t>& q) -> bool
                 {
                     if(!combinations.empty()) {
                         auto b = std::get<1>(*combinations.begin());
@@ -1326,11 +1330,11 @@ bool operator<(long_t frame, const FrameProperties& props) {
                 
                 // 1. assign best matches (remove if better one is found)
                 // 2. assign 2. best matches... until nothing is free
-                std::queue<long_t> checks;
+                std::queue<uint32_t> checks;
                 for(auto c : clique) {
-                    std::set<std::tuple<Match::prob_t, long_t>> combinations;
+                    decltype(complete_combinations)::mapped_type combinations;
                     for(auto && [bdx, d] : paired.at(c)) {
-                        combinations.insert({d, bdx});
+                        combinations.insert({Match::prob_t(d), bdx});
                     }
                     
                     complete_combinations[c] = combinations;
@@ -1362,7 +1366,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
                         
                         if(!complete_combinations.at(fdx).empty()) {
                             //float max_s = 0;
-                            long_t max_id = -1;
+                            int64_t max_id = -1;
                             /*for(auto && [d, bdx] : complete_combinations.at(fdx)) {
                                 if(bdx_to_ptr.at(bdx)->recount(-1) > max_s) {
                                     max_s = bdx_to_ptr.at(bdx)->recount(-1);
