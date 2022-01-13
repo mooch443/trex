@@ -28,9 +28,9 @@ If you own a new Mac with an **Apple Silicone CPU**, the Intel version (above) w
 
 	conda create -n tracking -c trexing trex  # macOS (arm64)
 
-There is no official tensorflow package yet, which is why TRex will not allow you to use machine learning right away. But -- yay -- Apple provides their own version for macOS including a native ML Compute (https://blog.tensorflow.org/2020/11/accelerating-tensorflow-performance-on-mac.html) backend, which has shown quite a bit of potential. To install tensorflow inside your activated environment, just run:
+There is no official tensorflow package yet, which is why TRex will not allow you to use machine learning right away. But -- yay -- Apple provides their own version for macOS including a native macOS (https://developer.apple.com/metal/tensorflow-plugin/) backend. To install tensorflow inside your activated environment, just run:
 
-	pip install --upgrade --force --no-dependencies https://github.com/apple/tensorflow_macos/releases/download/v0.1alpha3/tensorflow_macos-0.1a3-cp38-cp38-macosx_11_0_arm64.whl https://github.com/apple/tensorflow_macos/releases/download/v0.1alpha3/tensorflow_addons_macos-0.1a3-cp38-cp38-macosx_11_0_arm64.whl
+	conda install -c apple tensorflow-deps && python -m pip install tensorflow-macos tensorflow-metal
 
 Pre-built binaries are compiled with fewer optimzations and features than a manually compiled one (due to compatibility and licensing issues) and thus are slightly slower =(. For example, the conda versions do not offer support for Basler cameras. If you need to use TGrabs with machine vision cameras, or need as much speed as possible (or the newest version), please consider compiling the software yourself.
 
