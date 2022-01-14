@@ -105,6 +105,8 @@ requirements:
     - scipy ==1.7.3  # [arm64]
     - keras-preprocessing # [arm64]
     - requests # [osx and not arm64]
+    - six ==1.15.0 # [osx and not amd64]
+    - wheel ==0.35.1 # [osx and not amd64]
 
 about:
   home: https://trex.run
