@@ -92,7 +92,7 @@ requirements:
     - grpcio # [osx and arm64]
     - ffmpeg # [not amd64]
     - ffmpeg ==4.4.1 # [osx and arm64]
-    - numpy # [osx and arm64]
+    - numpy ==1.19.5 # [osx and arm64]
     - numpy ==1.18.5 # [win]
     - python=3.7.11 # [not win and not arm64]
     - python=3.9.9 # [osx and arm64]
@@ -104,6 +104,7 @@ requirements:
     - scipy # [not arm64]
     - scipy ==1.7.3  # [arm64]
     - keras-preprocessing # [arm64]
+    - requests # [osx and not arm64]
 
 about:
   home: https://trex.run
