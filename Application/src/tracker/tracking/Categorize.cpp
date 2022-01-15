@@ -356,7 +356,7 @@ void DataStore::set_ranged_label(RangedLabel&& ranged)
 void DataStore::_set_ranged_label_unsafe(RangedLabel&& r)
 {
     assert(r._label != -1);
-    assert(r._range.length() == r._blobs.size());
+    assert(size_t(r._range.length()) == r._blobs.size());
     int32_t m = -1; // initialize with start of inserted range
     auto it = insert_sorted(_ranged_labels, std::move(r)); // iterator pointing to inserted value
     assert(!_ranged_labels.empty());
@@ -2045,7 +2045,7 @@ void DataStore::write(file::DataFormat& data, int /*version*/) {
             assert(ranged._label);
             data.write<int>(ranged._label);
             
-            assert(ranged._range.length() == ranged._blobs.size());
+            assert(size_t(ranged._range.length()) == ranged._blobs.size());
             for(auto &bdx : ranged._blobs)
                 data.write<uint32_t>(bdx);
         }

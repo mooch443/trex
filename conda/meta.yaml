@@ -41,7 +41,8 @@ requirements:
     - pkg-config            # [not win]
     - jom                   # [win]
     - make                  # [unix]
-    - python # [not arm64]
+    - python # [win]
+    - python=3.7.11 # [osx and not arm64]
     - python=3.9.9 # [osx and arm64]
     - {{ compiler('c') }}
     - {{ compiler('cxx') }}
@@ -75,9 +76,10 @@ requirements:
   host:
     - pthread-stubs  # [linux]
     - ffmpeg
-    - python # [not arm64]
+    - python=3.7.11 # [not win and not arm64]
     - python=3.9.9 # [osx and arm64]
-    - nomkl # [osx]
+    - python
+    #- nomkl # [osx]
     
   run:
     - tensorflow-gpu =2.* # [linux]
@@ -91,16 +93,21 @@ requirements:
     - grpcio # [osx and arm64]
     - ffmpeg # [not amd64]
     - ffmpeg ==4.4.1 # [osx and arm64]
-    - numpy # [osx and arm64]
+    - numpy ==1.19.5 # [osx and arm64]
     - numpy ==1.18.5 # [win]
-    - python # [not arm64]
+    - python=3.7.11 # [not win and not arm64]
     - python=3.9.9 # [osx and arm64]
-    - nomkl # [osx]
+    - python  # [win]
+    #- nomkl # [osx]
     - h5py ==3.1.0 # [arm64]
+    - hdf5 ==1.10.6 # [arm64]
     - pip=21.3.1  # [arm64]
     - scipy # [not arm64]
     - scipy ==1.7.3  # [arm64]
     - keras-preprocessing # [arm64]
+    - requests # [osx and not arm64]
+    - six ==1.15.0 # [osx and not amd64]
+    - wheel ==0.35.1 # [osx and not amd64]
 
 about:
   home: https://trex.run
