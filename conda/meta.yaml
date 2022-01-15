@@ -76,8 +76,9 @@ requirements:
   host:
     - pthread-stubs  # [linux]
     - ffmpeg
-    - python=3.7.11 # [not arm64]
+    - python=3.7.11 # [not win and not arm64]
     - python=3.9.9 # [osx and arm64]
+    - python
     #- nomkl # [osx]
     
   run:
@@ -96,7 +97,7 @@ requirements:
     - numpy ==1.18.5 # [win]
     - python=3.7.11 # [not win and not arm64]
     - python=3.9.9 # [osx and arm64]
-    - python=3.9.9 # [win]
+    - python  # [win]
     #- nomkl # [osx]
     - h5py ==3.1.0 # [arm64]
     - hdf5 ==1.10.6 # [arm64]
