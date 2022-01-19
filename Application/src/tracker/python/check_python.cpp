@@ -20,7 +20,7 @@ int main(int argc, char**argv) {
 #ifndef NDEBUG
     printf("loading keras...\n");
 #endif
-    importlib.attr("find_loader")("keras").attr("name");
+    importlib.attr("find_loader")("tensorflow.keras").attr("name");
 #ifndef NDEBUG
     printf("success.\n");
 #endif

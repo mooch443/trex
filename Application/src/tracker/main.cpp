@@ -274,9 +274,15 @@ int main(int argc, char** argv)
         auto conda_prefix = ::default_config::conda_environment_path().str();
         Debug("Conda prefix: %S", &conda_prefix);
         if(!conda_prefix.empty()) {
-            auto files = file::Path(conda_prefix+"/bin").find_files();
+            std::set<file::Path> files;
+            if (file::Path(conda_prefix + "/bin").exists()) {
+                files = file::Path(conda_prefix + "/bin").find_files();
+            }
+            else
+                files = file::Path(conda_prefix + "/Library/bin").find_files();
+
             for(auto file : files) {
-                if(file.filename() == "ffmpeg") {
+                if(file.filename() == "ffmpeg" || file.filename() == "ffmpeg.exe") {
                     Debug("Found ffmpeg in '%S'", &file.str());
                     SETTING(ffmpeg_path) = file;
                     break;
