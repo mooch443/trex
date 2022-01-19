@@ -161,11 +161,11 @@ def reinitialize_network():
         model.compile(loss=#'categorical_crossentropy',
             #SigmoidFocalCrossEntropy(),
             categorical_focal_loss(gamma=2., alpha=.25),
-            optimizer=keras.optimizers.Adam(lr=learning_rate),
+            optimizer=tf.keras.optimizers.Adam(lr=learning_rate),
             metrics=['accuracy'])
     else:
         model.compile(loss='categorical_crossentropy',
-            optimizer=keras.optimizers.Adam(lr=learning_rate),
+            optimizer=tf.keras.optimizers.Adam(lr=learning_rate),
             metrics=['accuracy'])
     model.summary(print_fn=TRex.log)
 
@@ -176,7 +176,7 @@ class UserSkipException(Exception):
     """Raised when user clicks cancel"""
     pass
 
-class ValidationCallback(keras.callbacks.Callback):
+class ValidationCallback(tf.keras.callbacks.Callback):
     def __init__(self, model, classes, X_test, Y_test, epochs, filename, prefix, output_path, compare_acc, estimate_uniqueness, settings):
         import numpy as np
         self.classes = classes
