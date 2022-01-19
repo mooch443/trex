@@ -18,7 +18,7 @@ source:
 build:
     script_env:
       - GITHUB_WORKFLOW
-    number: 22
+    number: 25
     string: "{{ hash }}_{{ number }}"
     run_exports:
         - {{ pin_compatible('ffmpeg', min_pin='x.x.x', max_pin='x.x.x') }}
@@ -41,9 +41,9 @@ requirements:
     - pkg-config            # [not win]
     - jom                   # [win]
     - make                  # [unix]
-    - python # [win]
-    - python=3.7.11 # [osx and not arm64]
-    - python=3.9.9 # [osx and arm64]
+    - python ==3.9.7 # [win]
+    - python ==3.7.11 # [osx and not arm64]
+    - python ==3.9.9 # [osx and arm64]
     - {{ compiler('c') }}
     - {{ compiler('cxx') }}
     - cmake >=3.14
@@ -76,9 +76,9 @@ requirements:
   host:
     - pthread-stubs  # [linux]
     - ffmpeg
-    - python=3.7.11 # [not win and not arm64]
-    - python=3.9.9 # [osx and arm64]
-    - python
+    - python ==3.7.11 # [not win and not arm64]
+    - python ==3.9.9 # [osx and arm64]
+    - python ==3.9.7 # [win]
     #- nomkl # [osx]
     
   run:
@@ -95,9 +95,9 @@ requirements:
     - ffmpeg ==4.4.1 # [osx and arm64]
     - numpy ==1.19.5 # [osx and arm64]
     - numpy # [win]
-    - python=3.7.11 # [not win and not arm64]
-    - python=3.9.9 # [osx and arm64]
-    #- python=3.7.11  # [win]
+    - python ==3.7.11 # [not win and not arm64]
+    - python ==3.9.9 # [osx and arm64]
+    - python ==3.9.7  # [win]
     #- nomkl # [osx]
     - h5py ==3.1.0 # [arm64]
     - hdf5 ==1.10.6 # [arm64]
