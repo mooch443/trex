@@ -24,7 +24,7 @@
 #ifdef _MSC_VER
 #include <intrin.h>
 
-uint32_t __inline __builtin_ctz(uint32_t value)
+DWORD __inline __builtin_ctz(uint32_t value)
 {
     DWORD trailing_zero = 0;
     _BitScanForward(&trailing_zero, value);

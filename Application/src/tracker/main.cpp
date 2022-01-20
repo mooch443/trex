@@ -577,6 +577,12 @@ int main(int argc, char** argv)
             Warning("Unknown option '%S' with value '%S'", &option.name, &option.value);
         }
     }
+
+    if (argc == 2) {
+        Path path = pv::DataLocation::parse("input", Path(argv[1]));
+        if (path.exists())
+            SETTING(filename) = path.remove_extension();
+    }
     
     // check whether a file exists
     gui::VideoOpener::Result opening_result;

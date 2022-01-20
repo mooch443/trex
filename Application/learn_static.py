@@ -576,7 +576,7 @@ def start_learning():
                                  )
     cvalues = np.array(cvalues)
 
-    TRex.log("# [init] weights per class "+str(per_class))
+    TRex.log("# [init] weights per class "+str(per_class))
     TRex.log("# [training] data shapes: train "+str(X_train.shape)+" "+str(Y_train.shape)+" test "+str(Y_test.shape)+" "+str(classes))
     TRex.log("# [values] X:"+str(tf.reduce_max(X_train).numpy())+" - "+str(tf.reduce_min(X_train).numpy()))
     TRex.log("# [values] Y:"+str(tf.reduce_max(Y_train).numpy())+" - "+str(tf.reduce_min(Y_train).numpy()))
