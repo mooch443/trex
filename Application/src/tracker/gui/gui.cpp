@@ -1858,6 +1858,29 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                     }
                 }
                 
+                
+                if(_cache.has_selection() && SETTING(gui_show_visualfield)) {
+                    for(auto id : _cache.selected) {
+                        auto fish = _cache.individuals.at(id);
+                        
+                        VisualField* ptr = (VisualField*)fish->custom_data(frameNr, VisualField::custom_id);
+                        if(!ptr && fish->head(frameNr)) {
+                            ptr = new VisualField(id, frameNr, fish->basic_stuff(frameNr), fish->posture_stuff(frameNr), true);
+                            fish->add_custom_data(frameNr, VisualField::custom_id, ptr, [this](void* ptr) {
+                                if(GUI::instance()) {
+                                    std::lock_guard<std::recursive_mutex> lock(_gui.lock());
+                                    delete (VisualField*)ptr;
+                                } else {
+                                    delete (VisualField*)ptr;
+                                }
+                            });
+                        }
+                        
+                        if(ptr)
+                            ptr->show(base);
+                    }
+                }
+                
                 {
                     for (auto &fish : (source.empty() ? _cache.active : source)) {
                         if (fish->start_frame() > frameNr || fish->empty())
@@ -1953,27 +1976,6 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
             
             delete container;
             
-            if(_cache.has_selection() && SETTING(gui_show_visualfield)) {
-                for(auto id : _cache.selected) {
-                    auto fish = _cache.individuals.at(id);
-                    
-                    VisualField* ptr = (VisualField*)fish->custom_data(frameNr, VisualField::custom_id);
-                    if(!ptr && fish->head(frameNr)) {
-                        ptr = new VisualField(id, frameNr, fish->basic_stuff(frameNr), fish->posture_stuff(frameNr), true);
-                        fish->add_custom_data(frameNr, VisualField::custom_id, ptr, [this](void* ptr) {
-                            if(GUI::instance()) {
-                                std::lock_guard<std::recursive_mutex> lock(_gui.lock());
-                                delete (VisualField*)ptr;
-                            } else {
-                                delete (VisualField*)ptr;
-                            }
-                        });
-                    }
-                    
-                    if(ptr)
-                        ptr->show(base);
-                }
-            }
             
             if(!_cache.connectivity_matrix.empty()) {
                 base.section("connectivity", [frameIndex = frameNr, this](DrawStructure& base, auto s) {

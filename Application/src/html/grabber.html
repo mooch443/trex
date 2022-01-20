@@ -46,7 +46,7 @@
 	});
 	
 	$.get("/setting/version", function(data) {
-		$("#application_name .version").html("v"+data);
+		$("#application_name .version").html(data);
 	});
 	
 	$.get("/setting/recording", function(data) {
