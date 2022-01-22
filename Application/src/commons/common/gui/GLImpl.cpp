@@ -345,10 +345,31 @@ void GLImpl::check_thread_id(int line, const char* file) const {
 static std::vector<uchar> empty;
 
 void GLImpl::toggle_full_screen() {
-    static auto _monitor = glfwGetPrimaryMonitor();
+    GLFWmonitor *_monitor = nullptr;
+
+    static int count;
+    static auto monitors = glfwGetMonitors(&count);
+
+    int wx, wy, wh, ww;
+
+    // backup window position and window size
+    glfwGetWindowPos(window_handle(), &wx, &wy);
+    glfwGetWindowSize(window_handle(), &ww, &wh);
+
+    Vec2 center = Vec2(wx, wy) + Size2(ww, wh) * 0.5;
+
+    for (int i = 0; i < count; ++i) {
+        int x, y, w, h;
+        glfwGetMonitorWorkarea(monitors[i], &x, &y, &w, &h);
+        if (Bounds(x, y, w, h).contains(center)) {
+            _monitor = monitors[i];
+        }
+    }
+
     // get resolution of monitor
     const GLFWvidmode * mode = glfwGetVideoMode(_monitor);
-    
+    if (_monitor == nullptr)
+        _monitor = glfwGetPrimaryMonitor();
     
     if ( fullscreen )
     {

@@ -120,7 +120,7 @@ CREATE_STRUCT(CachedGUIOptions,
             
             _cached_outline = current_posture ? current_posture->outline : nullptr;
             
-            if(GUIOPTION(gui_show_outline) || GUIOPTION(gui_show_midline)) {
+            if(GUIOPTION(gui_show_outline) || GUIOPTION(gui_show_midline) || GUIOPTION(gui_happy_mode)) {
                 if(current_posture) {
                     _cached_midline = SETTING(output_normalize_midline_data) ? _obj.fixed_midline(frameIndex) : _obj.calculate_midline_for(current_basic, current_posture);
                     assert(!_cached_midline || _cached_midline->is_normalized());

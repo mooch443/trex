@@ -443,7 +443,23 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
         _platform->init();
         
         GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+        int count;
+        auto monitors = glfwGetMonitors(&count);
+        int maximum = 0;
+        GLFWmonitor* choice = glfwGetPrimaryMonitor();
+        for (int i = 0; i < count; ++i) {
+            int width, height;
+            glfwGetMonitorPhysicalSize(monitors[i], &width, &height);
+            auto name = glfwGetMonitorName(monitors[i]);
+            if (width * height > maximum) {
+                choice = monitors[i];
+                maximum = width * height;
+            }
+        }
         
+        if (choice)
+            monitor = choice;
+
         float xscale, yscale;
 #if GLFW_HAVE_MONITOR_SCALE
         glfwGetMonitorContentScale(monitor, &xscale, &yscale);
@@ -459,12 +475,12 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
         mx = my = 0;
         glfwGetMonitorPhysicalSize(monitor, &mw, &mh);
 #endif
-        mw -= mx;
-        mh -= my;
+        //mw -= mx;
+        //mh -= my;
         
 #if WIN32
         my += mh * 0.04;
-        mh *= 0.95; //! title bar
+        mh *= 0.95; //! task bar
 #endif
         
 #ifdef WIN32
