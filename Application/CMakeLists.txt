@@ -1172,6 +1172,27 @@ if(NOT WIN32 AND ${TREX_BUILD_DOCS})
           VERBATIM
         )
     endif()
+elseif(${TREX_BUILD_DOCS})
+    message(STATUS "Searching Sphinx at ${CONDA_PREFIX} ${CONDA_PREFIX}/bin")
+    find_package(Sphinx REQUIRED) #PATHS ${CONDA_PREFIX} ${CONDA_PREFIX}/bin )
+    if(NOT Sphinx_FOUND)
+        message(ERROR "Cannot find Sphinx executable")
+    else()
+        get_filename_component(SPHINX_DIR ${SPHINX_EXECUTABLE} DIRECTORY)
+        message(STATUS "Found sphinx at ${SPHINX_EXECUTABLE} (dir: ${SPHINX_DIR}).")
+
+        add_custom_target(
+          doc ALL
+          #COMMAND $<TARGET_FILE:trex> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
+          #COMMAND $<TARGET_FILE:tgrabs> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
+          COMMAND ${CMAKE_SOURCE_DIR}/../docs/make.bat html "${SPHINX_DIR}"
+          DEPENDS
+            trex tgrabs
+          WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/../docs
+          COMMENT "Generating API documentation with Doxygen PATH=$ENV{PATH}:${SPHINX_DIR} ${CMAKE_SOURCE_DIR}/../docs/make.bat"
+          VERBATIM
+        )
+    endif()
 endif()
 
 if(POLICY CMP0114)

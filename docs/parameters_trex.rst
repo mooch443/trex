@@ -217,7 +217,7 @@ TRex parameters
 
 .. function:: build_architecture(string)
 
-	**default value:** "arm64"
+	**default value:** "AMD64"
 
 
 	The architecture this executable was built for.
@@ -498,7 +498,7 @@ TRex parameters
 
 
 
-.. function:: gpu_max_epochs(ulong)
+.. function:: gpu_max_epochs(uint64)
 
 	**default value:** 150
 
@@ -516,7 +516,7 @@ TRex parameters
 
 
 
-.. function:: gpu_min_elements(ulong)
+.. function:: gpu_min_elements(uint64)
 
 	**default value:** 25000
 
@@ -525,7 +525,7 @@ TRex parameters
 
 
 
-.. function:: gpu_min_iterations(ulong)
+.. function:: gpu_min_iterations(uint64)
 
 	**default value:** 100
 
@@ -731,7 +731,7 @@ TRex parameters
 
 
 
-.. function:: gui_outline_thickness(ulong)
+.. function:: gui_outline_thickness(uint64)
 
 	**default value:** 1
 
@@ -1495,7 +1495,7 @@ TRex parameters
 
 .. function:: output_default_options(map<string,array<string>>)
 
-	**default value:** {"event_acceleration":["/10"],"ACCELERATION":["/15","SMOOTH","CENTROID"],"L_V":["/10"],"v_direction":["/10"],"DOT_V":["/10"],"ANGULAR_V":["/10","SMOOTH","CENTROID"],"ANGULAR_A":["/1000","SMOOTH","CENTROID"],"NEIGHBOR_VECTOR_T":["/1"],"SPEED":["/10","SMOOTH"],"NEIGHBOR_DISTANCE":["/10"],"X":["/100"],"Y":["/100"],"tailbeat_threshold":["pm"],"tailbeat_peak":["pm"],"threshold_reached":["POINTS"],"midline_length":["/15"],"amplitude":["/100"],"outline_size":["/100"],"global":["/10"]}
+	**default value:** {"v_direction":["/10"],"NEIGHBOR_DISTANCE":["/10"],"X":["/100"],"outline_size":["/100"],"ANGULAR_A":["/1000","SMOOTH","CENTROID"],"threshold_reached":["POINTS"],"DOT_V":["/10"],"L_V":["/10"],"ANGULAR_V":["/10","SMOOTH","CENTROID"],"event_acceleration":["/10"],"midline_length":["/15"],"SPEED":["/10","SMOOTH"],"ACCELERATION":["/15","SMOOTH","CENTROID"],"NEIGHBOR_VECTOR_T":["/1"],"Y":["/100"],"tailbeat_threshold":["pm"],"tailbeat_peak":["pm"],"amplitude":["/100"],"global":["/10"]}
 
 
 	Default scaling and smoothing options for output functions, which are applied to functions in ``output_graphs`` during export.
@@ -1505,7 +1505,7 @@ TRex parameters
 
 .. function:: output_dir(path)
 
-	**default value:** "/Users/tristan/Videos"
+	**default value:** "C:\\Users\\tristan\\Videos"
 
 
 	Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.
@@ -1584,7 +1584,7 @@ TRex parameters
 
 
 
-.. function:: output_min_frames(ulong)
+.. function:: output_min_frames(uint64)
 
 	**default value:** 1
 
@@ -1665,7 +1665,7 @@ TRex parameters
 
 
 
-.. function:: pixel_grid_cells(ulong)
+.. function:: pixel_grid_cells(uint64)
 
 	**default value:** 25
 
@@ -1693,7 +1693,7 @@ TRex parameters
 
 
 
-.. function:: posture_direction_smoothing(ulong)
+.. function:: posture_direction_smoothing(uint64)
 
 	**default value:** 0
 
@@ -1722,10 +1722,10 @@ TRex parameters
 
 .. function:: python_path(path)
 
-	**default value:** "/Users/tristan/miniforge3/envs/trex/bin/python3"
+	**default value:** "C:\\Users\\tristan\\anaconda3\\envs\\trex\\python.EXE"
 
 
-	Path to the python home folder. If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.
+	Path to the python home folder (containing pythonXX.exe). If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.
 
 
 
@@ -1766,7 +1766,7 @@ TRex parameters
 	.. seealso:: :func:`blob_size_ranges`, 
 
 
-.. function:: recognition_coeff(ulong)
+.. function:: recognition_coeff(uint64)
 
 	**default value:** 50
 
@@ -1854,7 +1854,7 @@ TRex parameters
 	.. seealso:: :func:`recognition_border`, 
 
 
-.. function:: recognition_smooth_amount(ulong)
+.. function:: recognition_smooth_amount(uint64)
 
 	**default value:** 200
 
@@ -2085,7 +2085,7 @@ TRex parameters
 
 
 
-.. function:: tracklet_max_images(ulong)
+.. function:: tracklet_max_images(uint64)
 
 	**default value:** 0
 
@@ -2124,7 +2124,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1.3-81-g7f50dc1"
+	**default value:** "v1.1.6-18-gf49b7f7"
 
 
 	Current application version.
@@ -2140,7 +2140,7 @@ TRex parameters
 
 
 
-.. function:: video_length(ulong)
+.. function:: video_length(uint64)
 
 	**default value:** 0
 

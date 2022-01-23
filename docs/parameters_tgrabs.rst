@@ -97,7 +97,7 @@ TGrabs parameters
 	.. seealso:: :func:`use_closing`, 
 
 
-.. function:: color_channel(ulong)
+.. function:: color_channel(uint64)
 
 	**default value:** 1
 
