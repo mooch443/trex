@@ -63,7 +63,7 @@ A modified version of his script (reference above) follows, which additionally c
   EWD=$ROOT/experiments/$DATE
   CONV_SETTINGS=$ROOT/default_convert.settings
   TRACK_SETTINGS=$ROOT/default_track.settings
-  FILES=$(find "$ROOT/experiments/$DATE/videos_raw" -type f -name *.mp4)
+  FILES=$(find "$ROOT/experiments/$DATE/videos_raw" -type f -name '*'${EXTENSION})
 
   echo "Found $(echo $FILES | wc -l) videos."
   echo "Using ${CONV_SETTINGS} to convert and ${TRACK_SETTINGS} to track."
