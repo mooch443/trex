@@ -4215,7 +4215,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, int64_t bid, int64_t pid
         static Timing tag_timing("tags", 0.1);
         TakeTiming take(tag_timing);
         
-        auto result = tags::prettify_blobs(tagged_fish, noise, *_average);
+        auto result = tags::prettify_blobs(tagged_fish, noise, {}, *_average);
         for (auto &r : result) {
             auto && [var, bid, ptr, f] = tags::is_good_image(r, *_average);
             if(ptr) {

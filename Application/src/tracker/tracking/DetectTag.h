@@ -34,7 +34,7 @@ namespace track {
             Image::UPtr mask;
         };
         
-        std::vector<result_t> prettify_blobs(const std::vector<blob_pixel>& fish, const std::vector<blob_pixel>& noise, const Image& average);
+        std::vector<result_t> prettify_blobs(const std::vector<blob_pixel>& fish, const std::vector<blob_pixel>& noise, const std::vector<blob_pixel>& original, const Image& average);
         Tag is_good_image(const result_t& result, const Image& average);
     }
 }

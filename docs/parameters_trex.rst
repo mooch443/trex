@@ -1891,6 +1891,15 @@ TRex parameters
 
 
 
+.. function:: tags_image_size(size)
+
+	**default value:** [32,32]
+
+
+	The image size that tag images are normalized to.
+
+
+
 .. function:: tags_path(path)
 
 	**default value:** ""
