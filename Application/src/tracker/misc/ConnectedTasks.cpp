@@ -111,19 +111,7 @@ namespace cmn {
     }
 
     ConnectedTasks::~ConnectedTasks() {
-        _stop = true;
-        
-        _finish_condition.notify_all();
-        _main_thread->join();
-        delete _main_thread;
-        
-        for(auto &t : _stages)
-            t.condition.notify_all();
-        
-        for(auto &t : _threads) {
-            t->join();
-            delete t;
-        }
+        terminate();
     }
     
     /*void ConnectedTasks::reset_cache()  {
@@ -139,10 +127,21 @@ namespace cmn {
     }*/
     
     void ConnectedTasks::terminate() {
-        _stop = true;
-        _finish_condition.notify_all();
-        for(auto &s : _stages)
-            s.condition.notify_all();
+        if(!_stop) {
+            _stop = true;
+            
+            _finish_condition.notify_all();
+            _main_thread->join();
+            delete _main_thread;
+            
+            for(auto &t : _stages)
+                t.condition.notify_all();
+            
+            for(auto &t : _threads) {
+                t->join();
+                delete t;
+            }
+        }
     }
     
     bool ConnectedTasks::is_paused() const {
