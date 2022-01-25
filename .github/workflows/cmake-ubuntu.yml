@@ -17,8 +17,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubuntu-latest"]
-        python-version: ["3.7"]
+        os: ["ubuntu-20.04"]
+        python-version: ["3.8.2"]
     steps:
     - uses: actions/checkout@v2
     - name: Cache conda
