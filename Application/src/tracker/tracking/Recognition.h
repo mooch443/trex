@@ -77,14 +77,18 @@ namespace track {
         struct ImageData {
             Image::Ptr image;
             std::shared_ptr<TrainingFilterConstraints> filters;
-            //pv::BlobPtr blob;
+
             struct Blob {
                 uint64_t num_pixels = 0;
                 pv::bid blob_id;
                 pv::bid org_id;
                 pv::bid parent_id;
                 Bounds bounds;
+
+                Blob() {}
+
             } blob;
+
             long_t frame;
             FrameRange segment;
             Individual *fish;
