@@ -346,7 +346,7 @@ file::Path conda_environment_path() {
         CONFIG("gui_show_outline", true, "Showing or hiding individual outlines in tracking view.");
         CONFIG("gui_show_midline", true, "Showing or hiding individual midlines in tracking view.");
         CONFIG("gui_show_shadows", true, "Showing or hiding individual shadows in tracking view.");
-        CONFIG("gui_outline_thickness", size_t(1), "The thickness of outline / midlines in the GUI.");
+        CONFIG("gui_outline_thickness", uint8_t(1), "The thickness of outline / midlines in the GUI.");
         CONFIG("gui_show_texts", true, "Showing or hiding individual identity (and related) texts in tracking view.");
         CONFIG("gui_show_blobs", true, "Showing or hiding individual raw blobs in tracking view (are always shown in RAW mode).");
         CONFIG("gui_show_paths", true, "Equivalent to the checkbox visible in GUI on the bottom-left.");
@@ -418,7 +418,7 @@ file::Path conda_environment_path() {
         
         CONFIG("track_speed_decay", float(0.7), "The amount the expected speed is reduced over time when an individual is lost. When individuals collide, depending on the expected behavior for the given species, one should choose different values for this variable. If the individuals usually stop when they collide, this should be set to 1. If the individuals are expected to move over one another, the value should be set to `0.7 > value > 0`.");
         CONFIG("track_max_speed", float(10), "The maximum speed an individual can have (=> the maximum distance an individual can travel within one second) in cm/s. Uses and is influenced by `meta_real_width` and `cm_per_pixel` as follows: `speed(px/s) * cm_per_pixel(cm/px) -> cm/s`.");
-        CONFIG("posture_direction_smoothing", size_t(0), "Enables or disables smoothing of the posture orientation based on previous frames (not good for fast turns).");
+        CONFIG("posture_direction_smoothing", uint16_t(0), "Enables or disables smoothing of the posture orientation based on previous frames (not good for fast turns).");
         CONFIG("speed_extrapolation", float(3), "Used for matching when estimating the next position of an individual. Smaller values are appropriate for lower frame rates. The higher this value is, the more previous frames will have significant weight in estimating the next position (with an exponential decay).");
         CONFIG("track_intensity_range", Rangel(-1, -1), "When set to valid values, objects will be filtered to have an average pixel intensity within the given range.");
         CONFIG("track_threshold", int(15), "Constant used in background subtraction. Pixels with grey values above this threshold will be interpreted as potential individuals, while pixels below this threshold will be ignored.");
@@ -429,7 +429,6 @@ file::Path conda_environment_path() {
         CONFIG("track_time_probability_enabled", bool(true), "");
         CONFIG("track_max_reassign_time", float(0.5), "Distance in time (seconds) where the matcher will stop trying to reassign an individual based on previous position. After this time runs out, depending on the settings, the tracker will try to find it based on other criteria, or generate a new individual.");
         CONFIG("manual_identities", std::set<track::Idx_t>{}, "", SYSTEM);
-        CONFIG("pixel_grid_cells", size_t(25), "");
         
         CONFIG("gui_highlight_categories", false, "If enabled, categories (if applied in the video) will be highlighted in the tracking view.");
         CONFIG("categories_ordered", std::vector<std::string>{}, "Ordered list of names of categories that are used in categorization (classification of types of individuals).");
@@ -523,11 +522,11 @@ file::Path conda_environment_path() {
         CONFIG("auto_train", false, "If set to true (and `recognition_enable` is also set to true), the application will automatically train the recognition network with the best track segment and apply it to the video.");
         CONFIG("auto_train_on_startup", false, "This is a parameter that is used by the system to determine whether `auto_train` was set on startup, and thus also whether a failure of `auto_train` should result in a crash (return code != 0).", SYSTEM);
         CONFIG("analysis_range", std::pair<long_t,long_t>(-1, -1), "Sets start and end of the analysed frames.");
-        CONFIG("output_min_frames", size_t(1), "Filters all individual with less than N frames when exporting. Individuals with fewer than N frames will also be hidden in the GUI unless `gui_show_inactive_individuals` is enabled (default).");
+        CONFIG("output_min_frames", uint16_t(1), "Filters all individual with less than N frames when exporting. Individuals with fewer than N frames will also be hidden in the GUI unless `gui_show_inactive_individuals` is enabled (default).");
         CONFIG("output_interpolate_positions", bool(false), "If turned on this function will linearly interpolate X/Y, and SPEED values, for all frames in which an individual is missing.");
         CONFIG("output_prefix", std::string(), "A prefix that is prepended to all output files (csv/npz).");
         CONFIG("output_graphs", output_graphs, "The functions that will be exported when saving to CSV, or shown in the graph. `[['X',[option], ...]]`");
-        CONFIG("tracklet_max_images", size_t(0), "Maximum number of images that are being output per tracklet given that `output_image_per_tracklet` is true. If the number is 0, then every image will be exported that has been recognized as an individual.");
+        CONFIG("tracklet_max_images", uint16_t(0), "Maximum number of images that are being output per tracklet given that `output_image_per_tracklet` is true. If the number is 0, then every image will be exported that has been recognized as an individual.");
         CONFIG("tracklet_normalize_orientation", true, "If enabled, all exported tracklet images are normalized according to the calculated posture orientation, so that all heads are looking to the left and only the body moves.");
         CONFIG("tracklet_restore_split_blobs", true, "If enabled, all exported tracklet images are checked for missing pixels. When a blob is too close to another blob, parts of the other blob might be erased so the individuals can be told apart. If enabled, another mask will be saved, that contains only the blob in focus, without the rest-pixels.");
         CONFIG("output_image_per_tracklet", false, "If set to true, the program will output one median image per tracklet (time-series segment) and save it alongside the npz/csv files.");
@@ -559,8 +558,8 @@ file::Path conda_environment_path() {
         CONFIG("debug_recognition_output_all_methods", false, "If set to true, a complete training will attempt to output all images for each identity with all available normalization methods.");
         CONFIG("recognition_border_shrink_percent", float(0.3), "The amount by which the recognition border is shrunk after generating it (roughly and depends on the method).");
         CONFIG("recognition_border_size_rescale", float(0.5), "The amount that blob sizes for calculating the heatmap are allowed to go below or above values specified in `blob_size_ranges` (e.g. 0.5 means that the sizes can range between `blob_size_ranges.min * (1 - 0.5)` and `blob_size_ranges.max * (1 + 0.5)`).");
-        CONFIG("recognition_smooth_amount", size_t(200), "");
-        CONFIG("recognition_coeff", size_t(50), "");
+        CONFIG("recognition_smooth_amount", uint16_t(200), "If `recognition_border` is 'outline', this is the amount that the `recognition_border` is smoothed (similar to `outline_smooth_samples`), where larger numbers will smooth more.");
+        CONFIG("recognition_coeff", uint16_t(50), "If `recognition_border` is 'outline', this is the number of coefficients to use when smoothing the `recognition_border`.");
         CONFIG("recognition_enable", true, "This enables internal training. Requires Python3 and Keras to be available.", STARTUP);
         CONFIG("recognition_normalization", recognition_normalization_t::posture, "This enables or disable normalizing the images before training. If set to `none`, the images will be sent to the GPU raw - they will only be cropped out. Otherwise they will be normalized based on head orientation (posture) or the main axis calculated using `image moments`.");
         CONFIG("recognition_image_size", Size2(80, 80), "Size of each image generated for network training.");

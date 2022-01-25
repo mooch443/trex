@@ -386,10 +386,10 @@ namespace track {
                 _vertices.front().push_back(pt);
             }
             
-            size_t coeff = SETTING(recognition_coeff);
+            uint16_t coeff = SETTING(recognition_coeff);
             if(coeff > 0) {
                 auto ptr = std::make_shared<std::vector<Vec2>>(_vertices.front());
-                ptr = smooth_outline(ptr, SETTING(recognition_smooth_amount).value<size_t>(), 1);
+                ptr = smooth_outline(ptr, SETTING(recognition_smooth_amount).value<uint16_t>(), 1);
                 
                 Vec2 middle;
                 float samples = 0;

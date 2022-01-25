@@ -78,6 +78,8 @@ namespace track {
                 resize_image(padded, local, 5);
                 tf::imshow("padded", local);
                 mgrey = padded;
+                
+                cv::equalizeHist(mgrey, mgrey);
 
                 cv::Mat tmp2;
                 cv::Rect outrect = Bounds((parent ? parent->bounds().pos() : blob->bounds().pos()) - crop_offset, Size2(mgrey));

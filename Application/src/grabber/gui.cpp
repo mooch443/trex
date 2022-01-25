@@ -434,8 +434,11 @@ void GUI::draw(gui::DrawStructure &base) {
                 }
 
                 using namespace track;
+                const auto gui_outline_thickness = SETTING(gui_outline_thickness).value<uint8_t>();
+                
                 auto tracker = _grabber.tracker_instance();
                 auto individuals = tracker->active_individuals();
+                
                 for (auto& fish : individuals) {
                     if (fish->has(tracker->end_frame())) {
                         auto stuff = fish->basic_stuff(tracker->end_frame());
@@ -480,7 +483,7 @@ void GUI::draw(gui::DrawStructure &base) {
                                             }
                                             oline.push_back(Vertex(points.front() + bounds.pos(), clr.alpha(0.04 * max_color)));
                                             //auto line =
-                                            base.add_object(new Line(oline, SETTING(gui_outline_thickness).value<size_t>()));
+                                            base.add_object(new Line(oline, gui_outline_thickness));
                                         }
                                     }
                                 }

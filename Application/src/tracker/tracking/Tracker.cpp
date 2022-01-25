@@ -326,8 +326,8 @@ void Tracker::analysis_state(AnalysisState pause) {
             _properties_cache.clear(); //! TODO: need to refill as well
         });
         Settings::set_callback(Settings::posture_direction_smoothing, [](auto&key, auto&value) {
-            static_assert(std::is_same<Settings::posture_direction_smoothing_t, size_t>::value, "posture_direction_smoothing assumed to be size_t.");
-            size_t v = value.template value<size_t>();
+            static_assert(std::is_same<Settings::posture_direction_smoothing_t, uint16_t>::value, "posture_direction_smoothing assumed to be uint16_t.");
+            size_t v = value.template value<uint16_t>();
             
             if(v != FAST_SETTINGS(posture_direction_smoothing))
             {

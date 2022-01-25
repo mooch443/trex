@@ -1234,23 +1234,21 @@ void GUI::reanalyse_from(long_t frame, bool in_thread) {
 
 void GUI::draw_export_options(gui::DrawStructure &base) {
     static std::set<std::string> selected_export_options;
-    static List export_options(Bounds(100, 100, 200, 400), "export options", {}, [&](auto, const List::Item& item){
-        auto text_item = dynamic_cast<const TextItem*>(&item);
+    static ScrollableList<> export_options(Bounds(100, 100, 200, 400));
+    static Textfield search("", Bounds(0, 0, 200, 25));
+    
+    export_options.on_select([&](auto, const std::string& item){
         auto graphs = SETTING(output_graphs).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
-        auto select = !text_item->selected();
         
-        if(!select) {
-            for(auto it = graphs.begin(); it != graphs.end(); ++it) {
-                if(it->first == text_item->text()) {
-                    graphs.erase(it);
-                    break;
-                }
+        for(auto it = graphs.begin(); it != graphs.end(); ++it) {
+            if(it->first == item) {
+                graphs.erase(it);
+                SETTING(output_graphs) = graphs;
+                return;
             }
-            
-        } else {
-            graphs.push_back({ text_item->text(), {}});
         }
         
+        graphs.push_back({ item, {} });
         SETTING(output_graphs) = graphs;
     });
     
@@ -1287,21 +1285,23 @@ void GUI::draw_export_options(gui::DrawStructure &base) {
     
     base.wrap_object(export_options);
     base.wrap_object(close);
+    base.wrap_object(search);
     
     export_options.set_scale(base.scale().reciprocal());
     close.set_scale(export_options.scale());
+    search.set_scale(export_options.scale());
     
     if(selected_export_options != graphs_map) {
         selected_export_options = graphs_map;
         
-        for(auto item : export_options.items()) {
-            auto text = dynamic_cast<TextItem*>(item.get());
-            if(selected_export_options.find(text->text()) != selected_export_options.end()) {
-                if(!item->selected())
-                    export_options.set_selected(item->ID(), true);
+        for(auto &item : export_options.items()) {
+            if(selected_export_options.find(item.value()) != selected_export_options.end()) {
+                //if(!item.selected())
+                //    export_options.set_selected(item->ID(), true);
             
-            } else if(item->selected())
-                export_options.set_selected(item->ID(), false);
+            } //else if(item->selected()) {
+                //export_options.set_selected(item->ID(), false);
+            //}
         }
     }
     
@@ -1310,15 +1310,16 @@ void GUI::draw_export_options(gui::DrawStructure &base) {
     if(first) {
         _static_pointers.insert(_static_pointers.end(), {
             &export_options,
-            &close
+            &close,
+            &search
         });
         
         export_options.set_draggable();
-        export_options.set_foldable(false);
-        export_options.set_row_height(33);
+        //export_options.set_foldable(false);
+        //export_options.set_row_height(33);
         export_options.set_scroll_enabled(true);
-        export_options.set_toggle(true);
-        export_options.set_multi_select(true);
+        //export_options.set_toggle(true);
+        //export_options.set_multi_select(true);
         export_options.set_pos(Vec2(_average_image.cols - 10, 100));
         export_options.set_origin(Vec2(1, 0));
         
@@ -1328,23 +1329,30 @@ void GUI::draw_export_options(gui::DrawStructure &base) {
         });
         close.set_origin(Vec2(1, 0.5));
         
+        close.set_pos(export_options.pos() + Vec2(1, 0/*export_options.row_height() * 0.5*/).mul(export_options.scale()));
+        search.set_pos(export_options.pos() + Vec2(1, 25/*export_options.row_height() * 0.5*/).mul(export_options.scale()));
         
-        std::vector<std::shared_ptr<List::Item>> export_items;
+        
+        std::vector<std::string> export_items;
         auto functions = Output::Library::functions();
         std::set<std::string, decltype(custom_string_less)> sorted(functions.begin(), functions.end(), custom_string_less);
         
         for(auto x : sorted) {
-            auto item = std::make_shared<TextItem>(x);
-            if(graphs_map.find(x) != graphs_map.end())
-                item->set_selected(true);
-            export_items.push_back(item);
+            //auto item = std::make_shared<TextItem>(x);
+            //if(graphs_map.find(x) != graphs_map.end())
+            //    item->set_selected(true);
+            export_items.push_back(x);
         }
         export_options.set_items(export_items);
         
         first = false;
     }
     
-    close.set_pos(export_options.pos() + Vec2(1, export_options.row_height() * 0.5).mul(export_options.scale()));
+    
+    export_options.add_event_handler(EventType::DRAG, [&](auto) {
+        close.set_pos(export_options.pos() + Vec2(1, 0/*export_options.row_height() * 0.5*/).mul(export_options.scale()));
+        search.set_pos(export_options.pos() + Vec2(1, 25/*export_options.row_height() * 0.5*/).mul(export_options.scale()));
+    });
 }
 
 void GUI::draw_grid(gui::DrawStructure &base) {

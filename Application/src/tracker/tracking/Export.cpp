@@ -185,7 +185,7 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
     auto recognition_enable = FAST_SETTINGS(recognition_enable);
     auto output_format = SETTING(output_format).value<default_config::output_format_t::Class>();
     auto output_posture_data = SETTING(output_posture_data).value<bool>();
-    auto output_min_frames = SETTING(output_min_frames).value<size_t>();
+    auto output_min_frames = SETTING(output_min_frames).value<uint16_t>();
     auto no_tracking_data = SETTING(auto_no_tracking_data).value<bool>();
     auto auto_no_memory_stats = SETTING(auto_no_memory_stats).value<bool>();
     
@@ -201,7 +201,7 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
     const Size2 output_size = SETTING(recognition_image_size);
     const bool do_normalize_tracklets = SETTING(tracklet_normalize_orientation);
     const bool do_normalize_output = SETTING(output_normalize_midline_data);
-    const size_t tracklet_max_images = SETTING(tracklet_max_images);
+    const uchar tracklet_max_images = SETTING(tracklet_max_images);
     
     auto fishdata_dir = SETTING(fishdata_dir).value<file::Path>();
     auto fishdata = pv::DataLocation::parse("output", fishdata_dir);
@@ -411,7 +411,7 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                                     
                                 //}
                                 //if(frames.size() > 100 /** magic number of frames **/) {
-                                    size_t step_size = frames.size() / tracklet_max_images;
+                                    auto step_size = frames.size() / tracklet_max_images;
                                     std::set<long_t> tmp;
                                     for(auto it = frames.begin(); it != frames.end();) {
                                         //Debug("%d-%d adding %d (%d)", range.start(), range.end(), *it, step_size);
@@ -610,7 +610,7 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                 }
                 
             } else {
-                Warning("Not exporting individual %d because it only has %d/%d frames.", fish->identity().ID(), fish->frame_count(), SETTING(output_min_frames).value<size_t>());
+                Warning("Not exporting individual %d because it only has %d/%d frames.", fish->identity().ID(), fish->frame_count(), SETTING(output_min_frames).value<uint16_t>());
             }
         };
         

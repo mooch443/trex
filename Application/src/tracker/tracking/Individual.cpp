@@ -1183,7 +1183,7 @@ void Individual::update_midlines(const CacheHints* hints) {
         update_frame_with_posture(frameIndex);
     }*/
     
-    const auto smooth_range = narrow_cast<long_t>(FAST_SETTINGS(posture_direction_smoothing));
+    const auto smooth_range = FAST_SETTINGS(posture_direction_smoothing);
     const auto video_length = Tracker::analysis_range().end;
     auto end_frame = Tracker::end_frame();
     
