@@ -48,7 +48,7 @@ namespace track {
         
         std::shared_ptr<TrainingData> _last_training_data;
         
-        std::map<long_t, std::map<uint32_t, std::vector<float>>> probs;
+        std::map<long_t, std::map<pv::bid, std::vector<float>>> probs;
         //std::set<long_t> identities;
         //std::map<long_t, long_t> fish_id_to_idx;
         std::map<Idx_t, Idx_t> fish_idx_to_id;
@@ -80,9 +80,9 @@ namespace track {
             //pv::BlobPtr blob;
             struct Blob {
                 uint64_t num_pixels;
-                uint32_t blob_id;
-                int64_t org_id;
-                int64_t parent_id;
+                pv::bid blob_id;
+                pv::bid org_id;
+                pv::bid parent_id;
                 Bounds bounds;
             } blob;
             long_t frame;
@@ -196,7 +196,7 @@ namespace track {
 
         static void fix_python();
         //float p(long_t frame, uint32_t blob_id, const Individual *fish);
-        std::map<Idx_t, float> ps_raw(long_t frame, uint32_t blob_id);
+        std::map<Idx_t, float> ps_raw(long_t frame, pv::bid blob_id);
         //bool has(long_t frame, uint32_t blob_id);
         //bool has(long_t frame, const Individual* fish);
         //std::map<long_t, std::map<long_t, long_t>> check_identities(long_t frame, const std::vector<pv::BlobPtr>& blobs);
@@ -281,6 +281,6 @@ namespace track {
         
         std::shared_ptr<LockVariable<std::atomic_bool>> set_running(bool guarded, const std::string& reason);
         void stop_running();
-        size_t update_elig_frames(std::map<long_t, std::map<uint32_t, ImageData>>&);
+        size_t update_elig_frames(std::map<long_t, std::map<pv::bid, ImageData>>&);
     };
 }

@@ -49,7 +49,7 @@ namespace gui {
             ptr->set_pos(image_pos);
         }
         
-        ptr->add_custom_data("blob_id", (void*)(uint64_t)blob->blob_id());
+        ptr->add_custom_data("blob_id", (void*)(uint64_t)(uint32_t)blob->blob_id());
         if(ptr->name().empty())
             ptr->set_name("SimpleBlob_"+Meta::toStr(blob->blob_id()));
         return std::move(ptr);
@@ -349,11 +349,6 @@ namespace gui {
             if(something_important_changed && mode() == mode_t::tracking)
                 set_tracking_dirty();
             
-            //if(something_important_changed)
-            //    set_raw_blobs_dirty();
-            //set_blobs_dirty();
-            //automatic_assignments = Tracker::blob_automatically_assigned(frameIndex);
-            
             bool reload_blobs = frameIndex != last_frame || last_threshold != threshold;
             if(reload_blobs) {
                 processed_frame.frame().clear();
@@ -515,7 +510,7 @@ namespace gui {
         return probs(fdx) != nullptr;
     }
 
-    const std::map<uint32_t, Individual::Probability>* GUICache::probs(Idx_t fdx) {
+    const std::map<pv::bid, Individual::Probability>* GUICache::probs(Idx_t fdx) {
         if(checked_probs.find(fdx) != checked_probs.end()) {
             auto it = probabilities.find(fdx);
             if(it  != probabilities.end())

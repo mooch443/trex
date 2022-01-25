@@ -345,7 +345,7 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                         if(set && !set->empty()) {
                             std::vector<uchar> arrays;
                             std::vector<long_t> frame_indices;
-                            std::vector<long_t> blob_ids;
+                            std::vector<pv::bid> blob_ids;
                             
                             std::vector<uchar> image_data;
                             Size2 shape;
@@ -370,9 +370,9 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                                 
                                 if(!fish->has(range.start()))
                                     U_EXCEPTION("Range starts at %d, but frame is not set for fish %d.", range.start(), fish->identity().ID());
-                                uint32_t start_blob_id = fish->blob(range.start())->blob_id();
+                                auto start_blob_id = fish->blob(range.start())->blob_id();
                                 
-                                file::Path path(tags_path / SETTING(filename).value<file::Path>().filename() / ("frame"+std::to_string(range.start())+"_blob"+std::to_string(start_blob_id)+".npz"));
+                                file::Path path(tags_path / SETTING(filename).value<file::Path>().filename() / ("frame"+std::to_string(range.start())+"_blob"+Meta::toStr(start_blob_id)+".npz"));
                                 if(!path.remove_filename().exists()) {
                                     if(!path.remove_filename().create_folder())
                                         U_EXCEPTION("Cannot create folder '%S' please check permissions.", &path.remove_filename().str());
@@ -437,14 +437,14 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                                         auto trans = midline->transform(normalize);
                                         int64_t org_id = -1;
                                         
-                                        if(SETTING(tracklet_restore_split_blobs) && blob->parent_id() != -1) {
+                                        if(SETTING(tracklet_restore_split_blobs) && blob->parent_id().valid()) {
                                             pv::Frame pvf;
                                             GUI::instance()->video_source()->read_frame(pvf, (uint64_t)frame);
                                             auto bs = pvf.get_blobs();
                                             //Debug("Blob %d in frame %d has been split (%d)", blob->blob_id(), frame, blob->parent_id());
                                             
-                                            for(auto b : bs) {
-                                                if(b->blob_id() == (uint32_t)blob->parent_id()) {
+                                            for(auto &b : bs) {
+                                                if(b->blob_id() == blob->parent_id()) {
                                                     //Debug("Replacing blob %d with parent blob %d", blob->blob_id(), b->blob_id());
                                                     b->calculate_moments();
                                                     trans.translate(-(blob->bounds().pos() - b->bounds().pos()));
@@ -794,25 +794,11 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                     } reduced, full;
                     
                     reduced.blob = Tracker::find_blob_noisy(obj, data.blob.blob_id, data.blob.parent_id, Bounds());
-                    if(data.blob.org_id != -1) {
+                    if(data.blob.org_id.valid()) {
                         full.blob = Tracker::find_blob_noisy(obj, data.blob.org_id, data.blob.parent_id, Bounds());
                     }
-                    /*for (auto b : obj.blobs) {
-                        if(data.blob.org_id != -1) {
-                            if(b->blob_id() == (uint32_t)data.blob.org_id) {
-                                //Debug("%ld == %d", data.blob.org_id, b->blob_id());
-                                reduced.blob = b;
-                            } else if(b->blob_id() == data.blob.blob_id)
-                                full.blob = b;
-                        } else if(b->blob_id() == data.blob.blob_id) {
-                            reduced.blob = b;
-                        }
-                        
-                        if((reduced.blob && full.blob) || (reduced.blob && data.blob.org_id == -1))
-                            break;
-                    }*/
                     
-                    if(data.blob.org_id != -1 && !full.blob)//if(!reduced.blob)
+                    if(data.blob.org_id.valid() && !full.blob)//if(!reduced.blob)
                     {
                         for(auto b : obj.frame().blobs()) {
                             if(b->blob_id() == data.blob.blob_id) {
@@ -823,7 +809,7 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                         }
                     }
                     
-                    if(data.blob.org_id != -1 && full.blob == nullptr) {
+                    if(data.blob.org_id.valid() && full.blob == nullptr) {
                         Except("Cannot find %d and %ld", data.blob.blob_id, data.blob.org_id);
                         Debug("reduced: %d full: %d", reduced.blob ? reduced.blob->blob_id() : 0, full.blob ? full.blob->blob_id() : 0);
                     }

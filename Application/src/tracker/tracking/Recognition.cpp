@@ -312,7 +312,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         return false;
     }*/
     
-    std::map<Idx_t, float> Recognition::ps_raw(long_t frame, uint32_t blob_id) {
+    std::map<Idx_t, float> Recognition::ps_raw(long_t frame, pv::bid blob_id) {
         std::lock_guard<std::mutex> probs_guard(_mutex);
         auto entry = probs.find(frame);
         if (entry != probs.end()) {
@@ -612,7 +612,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         return true;
     }
     
-    size_t Recognition::update_elig_frames(std::map<long_t, std::map<uint32_t, ImageData>>& waiting_for_pixels)
+    size_t Recognition::update_elig_frames(std::map<long_t, std::map<pv::bid, ImageData>>& waiting_for_pixels)
     {
         Tracker::LockGuard guard("update_elig_frames");
         auto normalize = SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>();
@@ -774,7 +774,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         std::shared_ptr<Tracker::LockGuard> tracker_guard = std::make_shared<Tracker::LockGuard>("update_internal_training");
         auto running = set_running(true, "update_internal_training");
         std::unique_lock<decltype(_data_queue_mutex)> guard(_data_queue_mutex);
-        std::map<long_t, std::map<uint32_t, ImageData>> waiting_for_pixels;
+        std::map<long_t, std::map<pv::bid, ImageData>> waiting_for_pixels;
         
         if(!PythonIntegration::python_initialized())
         {

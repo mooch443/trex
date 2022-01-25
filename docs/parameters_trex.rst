@@ -217,7 +217,7 @@ TRex parameters
 
 .. function:: build_architecture(string)
 
-	**default value:** "AMD64"
+	**default value:** "arm64"
 
 
 	The architecture this executable was built for.
@@ -498,12 +498,12 @@ TRex parameters
 
 
 
-.. function:: gpu_max_epochs(uint64)
+.. function:: gpu_max_epochs(uchar)
 
 	**default value:** 150
 
 
-	Maximum number of epochs for training a recognition network.
+	Maximum number of epochs for training a recognition network (0 means infinite).
 
 
 
@@ -516,7 +516,7 @@ TRex parameters
 
 
 
-.. function:: gpu_min_elements(uint64)
+.. function:: gpu_min_elements(uint)
 
 	**default value:** 25000
 
@@ -525,7 +525,7 @@ TRex parameters
 
 
 
-.. function:: gpu_min_iterations(uint64)
+.. function:: gpu_min_iterations(uchar)
 
 	**default value:** 100
 
@@ -731,7 +731,7 @@ TRex parameters
 
 
 
-.. function:: gui_outline_thickness(uint64)
+.. function:: gui_outline_thickness(ulong)
 
 	**default value:** 1
 
@@ -826,9 +826,9 @@ TRex parameters
 
 
 
-.. function:: gui_show_fish(pair<int64,int>)
+.. function:: gui_show_fish(pair<pv::bid,int>)
 
-	**default value:** [-1,-1]
+	**default value:** [4294967295,-1]
 
 
 	Show debug output for {blob_id, fish_id}.
@@ -1268,7 +1268,7 @@ TRex parameters
 
 
 
-.. function:: manual_matches(map<int,map<Idx_t,int64>>)
+.. function:: manual_matches(map<int,map<Idx_t,pv::bid>>)
 
 	**default value:** {}
 
@@ -1277,7 +1277,7 @@ TRex parameters
 
 
 
-.. function:: manual_splits(map<int,set<int64>>)
+.. function:: manual_splits(map<int,set<pv::bid>>)
 
 	**default value:** {}
 
@@ -1495,7 +1495,7 @@ TRex parameters
 
 .. function:: output_default_options(map<string,array<string>>)
 
-	**default value:** {"v_direction":["/10"],"NEIGHBOR_DISTANCE":["/10"],"X":["/100"],"outline_size":["/100"],"ANGULAR_A":["/1000","SMOOTH","CENTROID"],"threshold_reached":["POINTS"],"DOT_V":["/10"],"L_V":["/10"],"ANGULAR_V":["/10","SMOOTH","CENTROID"],"event_acceleration":["/10"],"midline_length":["/15"],"SPEED":["/10","SMOOTH"],"ACCELERATION":["/15","SMOOTH","CENTROID"],"NEIGHBOR_VECTOR_T":["/1"],"Y":["/100"],"tailbeat_threshold":["pm"],"tailbeat_peak":["pm"],"amplitude":["/100"],"global":["/10"]}
+	**default value:** {"event_acceleration":["/10"],"ACCELERATION":["/15","SMOOTH","CENTROID"],"L_V":["/10"],"v_direction":["/10"],"DOT_V":["/10"],"ANGULAR_V":["/10","SMOOTH","CENTROID"],"ANGULAR_A":["/1000","SMOOTH","CENTROID"],"NEIGHBOR_VECTOR_T":["/1"],"SPEED":["/10","SMOOTH"],"NEIGHBOR_DISTANCE":["/10"],"X":["/100"],"Y":["/100"],"tailbeat_threshold":["pm"],"tailbeat_peak":["pm"],"threshold_reached":["POINTS"],"midline_length":["/15"],"amplitude":["/100"],"outline_size":["/100"],"global":["/10"]}
 
 
 	Default scaling and smoothing options for output functions, which are applied to functions in ``output_graphs`` during export.
@@ -1505,7 +1505,7 @@ TRex parameters
 
 .. function:: output_dir(path)
 
-	**default value:** "C:\\Users\\tristan\\Videos"
+	**default value:** "/Users/tristan/Videos"
 
 
 	Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.
@@ -1584,7 +1584,7 @@ TRex parameters
 
 
 
-.. function:: output_min_frames(uint64)
+.. function:: output_min_frames(ulong)
 
 	**default value:** 1
 
@@ -1665,7 +1665,7 @@ TRex parameters
 
 
 
-.. function:: pixel_grid_cells(uint64)
+.. function:: pixel_grid_cells(ulong)
 
 	**default value:** 25
 
@@ -1693,7 +1693,7 @@ TRex parameters
 
 
 
-.. function:: posture_direction_smoothing(uint64)
+.. function:: posture_direction_smoothing(ulong)
 
 	**default value:** 0
 
@@ -1722,10 +1722,10 @@ TRex parameters
 
 .. function:: python_path(path)
 
-	**default value:** "C:\\Users\\tristan\\anaconda3\\envs\\trex\\python.EXE"
+	**default value:** "/Users/tristan/miniforge3/envs/trex/bin/python3"
 
 
-	Path to the python home folder (containing pythonXX.exe). If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.
+	Path to the python home folder. If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.
 
 
 
@@ -1766,7 +1766,7 @@ TRex parameters
 	.. seealso:: :func:`blob_size_ranges`, 
 
 
-.. function:: recognition_coeff(uint64)
+.. function:: recognition_coeff(ulong)
 
 	**default value:** 50
 
@@ -1854,7 +1854,7 @@ TRex parameters
 	.. seealso:: :func:`recognition_border`, 
 
 
-.. function:: recognition_smooth_amount(uint64)
+.. function:: recognition_smooth_amount(ulong)
 
 	**default value:** 200
 
@@ -2094,7 +2094,7 @@ TRex parameters
 
 
 
-.. function:: tracklet_max_images(uint64)
+.. function:: tracklet_max_images(ulong)
 
 	**default value:** 0
 
@@ -2133,7 +2133,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1.6-18-gf49b7f7"
+	**default value:** "v1.1.6-25-g404410b"
 
 
 	Current application version.

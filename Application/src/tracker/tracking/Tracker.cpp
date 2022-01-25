@@ -73,11 +73,11 @@ namespace track {
     }
     
     //std::map<long_t, std::map<uint32_t, long_t>> automatically_assigned_blobs;
-    std::map<Idx_t, std::map<Rangel, std::vector<int64_t>>> automatically_assigned_ranges;
+    std::map<Idx_t, std::map<Rangel, std::vector<pv::bid>>> automatically_assigned_ranges;
     
-    std::map<Idx_t, int64_t> Tracker::automatically_assigned(long_t frame) {
+    std::map<Idx_t, pv::bid> Tracker::automatically_assigned(long_t frame) {
         //LockGuard guard;
-        std::map<Idx_t, int64_t> blob_for_fish;
+        std::map<Idx_t, pv::bid> blob_for_fish;
         
         for(auto && [fdx, bff] : automatically_assigned_ranges) {
             blob_for_fish[fdx] = -1;
@@ -957,7 +957,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
                     
                 } else {
                     std::vector<pv::BlobPtr> for_this_blob;
-                    std::set<std::tuple<float, uint32_t, pv::BlobPtr>, std::greater<>> found;
+                    std::set<std::tuple<float, pv::bid, pv::BlobPtr>, std::greater<>> found;
                     for(auto &ptr : ret) {
                         float recount = ptr->recount(0, *_background);
                         found.insert({recount, ptr->blob_id(), ptr});
@@ -1039,9 +1039,9 @@ bool operator<(long_t frame, const FrameProperties& props) {
         }
         
         using namespace Match;
-        std::map<long_t, std::set<uint32_t>> fish_mappings;
-        std::map<uint32_t, std::set<long_t>> blob_mappings;
-        std::map<long_t, std::map<uint32_t, Match::prob_t>> paired;
+        std::map<long_t, std::set<pv::bid>> fish_mappings;
+        std::map<pv::bid, std::set<long_t>> blob_mappings;
+        std::map<long_t, std::map<pv::bid, Match::prob_t>> paired;
 
         const auto frame_limit = FAST_SETTINGS(frame_rate) * FAST_SETTINGS(track_max_reassign_time);
         
@@ -1172,7 +1172,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
             }
         }
         
-        std::set<uint32_t> already_walked;
+        std::set<pv::bid> already_walked;
         std::vector<pv::BlobPtr> big_blobs;
         std::map<pv::BlobPtr, split_expectation> expect;
         
@@ -1183,28 +1183,27 @@ bool operator<(long_t frame, const FrameProperties& props) {
         
         if(!manual_splits_frame.empty()) {
             for(auto bdx : manual_splits_frame) {
-                if(bdx == -1)
+                if(!bdx.valid())
                     continue;
                 
-                uint32_t converted = narrow_cast<uint32_t>(bdx);
-                auto it = blob_mappings.find(converted);
+                auto it = blob_mappings.find(bdx);
                 if(it == blob_mappings.end()) {
-                    blob_mappings[converted] = {-1 };
+                    blob_mappings[bdx] = { -1 };
                     //Debug("%d: Inserting 2 additional matches for %d", frame.index(), bdx);
                 } else{
                     it->second.insert(-1);
                     //Debug("%d: Inserting additional match for %d", frame.index(), bdx);
                 }
                 
-                Log(out, "\t\tManually splitting %u", converted);
-                auto ptr = frame.erase_anywhere(converted);
+                Log(out, "\t\tManually splitting %u", (uint32_t)bdx);
+                auto ptr = frame.erase_anywhere(bdx);
                 if(ptr) {
                     big_blobs.push_back(ptr);
                     
                     expect[ptr].number = 2;
                     expect[ptr].allow_less_than = false;
                     
-                    already_walked.insert(converted);
+                    already_walked.insert(bdx);
                 }
             }
             
@@ -1237,8 +1236,8 @@ bool operator<(long_t frame, const FrameProperties& props) {
             Log(out, "\tFinding clique of this blob:");
             
             std::set<uint32_t> clique;
-            std::set<uint32_t> others;
-            std::queue<long_t> q;
+            std::set<pv::bid> others;
+            std::queue<pv::bid> q;
             q.push(bdx);
             
             while(!q.empty()) {
@@ -1262,9 +1261,9 @@ bool operator<(long_t frame, const FrameProperties& props) {
                 }
             }
             
-            assert(bdx > 0);
-            frame.blob_cliques[(uint32_t)bdx] = clique;
-            frame.fish_cliques[(uint32_t)bdx] = others;
+            assert(bdx.valid());
+            frame.clique_for_blob[bdx] = clique;
+            frame.clique_second_order[bdx] = others;
             
             if(out) {
                 auto str = Meta::toStr(clique);
@@ -1274,9 +1273,9 @@ bool operator<(long_t frame, const FrameProperties& props) {
             
             if(clique.size() > others.size()) {
                 using namespace Match;
-                std::map<uint32_t, std::pair<uint32_t, Match::prob_t>> assign_blob; // blob: individual
-                std::map<uint32_t, std::set<std::tuple<Match::prob_t, uint32_t>>> all_combinations;
-                std::map<uint32_t, std::set<std::tuple<Match::prob_t, uint32_t>>> complete_combinations;
+                std::map<pv::bid, std::pair<uint32_t, Match::prob_t>> assign_blob; // blob: individual
+                //std::map<uint32_t, std::set<std::tuple<Match::prob_t, pv::bid>>> all_probs_per_fish;
+                std::map<uint32_t, std::set<std::tuple<Match::prob_t, pv::bid>>> probs_per_fish;
                 
                 if(out) {
                     Log(out, "\t\tMismatch between blobs and number of fish assigned to them.");
@@ -1292,7 +1291,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
                     }
                 }*/
                 
-                auto check_combinations = [&assign_blob, out](uint32_t c, decltype(all_combinations)::mapped_type& combinations, std::queue<uint32_t>& q) -> bool
+                auto check_combinations = [&assign_blob, out](uint32_t c, decltype(probs_per_fish)::mapped_type& combinations, std::queue<uint32_t>& q) -> bool
                 {
                     if(!combinations.empty()) {
                         auto b = std::get<1>(*combinations.begin());
@@ -1332,13 +1331,13 @@ bool operator<(long_t frame, const FrameProperties& props) {
                 // 2. assign 2. best matches... until nothing is free
                 std::queue<uint32_t> checks;
                 for(auto c : clique) {
-                    decltype(complete_combinations)::mapped_type combinations;
+                    decltype(probs_per_fish)::mapped_type combinations;
                     for(auto && [bdx, d] : paired.at(c)) {
                         combinations.insert({Match::prob_t(d), bdx});
                     }
                     
-                    complete_combinations[c] = combinations;
-                    all_combinations[c] = combinations;
+                    probs_per_fish[c] = combinations;
+                    //all_probs_per_fish[c] = combinations;
                     
                     checks.push(c);
                 }
@@ -1347,14 +1346,13 @@ bool operator<(long_t frame, const FrameProperties& props) {
                     auto c = checks.front();
                     checks.pop();
                     
-                    auto &combinations = all_combinations.at(c);
-                    
+                    auto &combinations = probs_per_fish.at(c);
                     if(!combinations.empty() && !check_combinations(c, combinations, checks))
                         checks.push(c);
                 }
                 
                 size_t counter = 0;
-                for(auto && [fdx, set] : all_combinations) {
+                for(auto && [fdx, set] : probs_per_fish) {
                     if(out) {
                         auto str = Meta::toStr(set);
                         Log(out, "Combinations %d: %S", fdx, &str);
@@ -1364,9 +1362,9 @@ bool operator<(long_t frame, const FrameProperties& props) {
                         ++counter;
                         Log(out, "No more alternatives for %d", fdx);
                         
-                        if(!complete_combinations.at(fdx).empty()) {
+                        if(!probs_per_fish.at(fdx).empty()) {
                             //float max_s = 0;
-                            int64_t max_id = -1;
+                            pv::bid max_id;
                             /*for(auto && [d, bdx] : complete_combinations.at(fdx)) {
                                 if(bdx_to_ptr.at(bdx)->recount(-1) > max_s) {
                                     max_s = bdx_to_ptr.at(bdx)->recount(-1);
@@ -1376,15 +1374,14 @@ bool operator<(long_t frame, const FrameProperties& props) {
                             
                             //auto copy = complete_combinations.at(fdx);
                             if(out) {
-                                for(auto && [d, bdx] : complete_combinations.at(fdx)) {
+                                for(auto && [d, bdx] : probs_per_fish.at(fdx)) {
                                     Log(out, "\t%d: %f", bdx, d);
                                 }
                             }
                             
-                            max_id = std::get<1>(*complete_combinations.at(fdx).begin());
-                            
-                            if(max_id > 0) {
-                                frame.split_blobs.insert((uint32_t)max_id);
+                            max_id = std::get<1>(*probs_per_fish.at(fdx).begin());
+                            if(max_id.valid()) {
+                                frame.split_blobs.insert(max_id);
                                 auto ptr = frame.erase_regular(max_id);
                                 
                                 if(ptr) {
@@ -1705,7 +1702,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         size_t assigned_count = 0;
         
         std::vector<tags::blob_pixel> tagged_fish, noise;
-        std::unordered_map<uint32_t, Individual*> blob_fish_map;
+        std::unordered_map<pv::bid, Individual*> blob_fish_map;
 //#define TREX_DEBUG_MATCHING
 #ifdef TREX_DEBUG_MATCHING
         std::vector<std::pair<Individual*, Match::Blob_t>> pairs;
@@ -1770,7 +1767,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             if(save_tags) {
                 if(!blob->split()){
                     blob_fish_map[blob->blob_id()] = fish;
-                    if(blob->parent_id() != -1)
+                    if(blob->parent_id().valid())
                         blob_fish_map[blob->parent_id()] = fish;
                     
                     //pv::BlobPtr copy = std::make_shared<pv::Blob>((Blob*)blob.get(), std::make_shared<std::vector<uchar>>(*blob->pixels()));
@@ -1802,9 +1799,6 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         // collect all the currently active individuals
         Tracker::set_of_individuals_t active_individuals;
         
-        //std::unordered_map<Individual*, std::unordered_map<pv::Blob*, Match::prob_t>> paired;
-        //std::unordered_map<uint32_t, pv::BlobPtr> id_to_blob;
-        
         //! TODO: Can probably reuse frame.blob_grid here, but need to add noise() as well
         static grid::ProximityGrid blob_grid(_average->bounds().size());
         blob_grid.clear();
@@ -1816,11 +1810,11 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         
         for(auto &b : frame.blobs()) {
             //id_to_blob[b->blob_id()] = b;
-            blob_grid.insert(b->bounds().x + b->bounds().width * 0.5f, b->bounds().y + b->bounds().height * 0.5f, b->blob_id());
+            blob_grid.insert(b->bounds().x + b->bounds().width * 0.5f, b->bounds().y + b->bounds().height * 0.5f, (uint32_t)b->blob_id());
         }
         for(auto &b : frame.noise()) {
             //id_to_blob[b->blob_id()] = b;
-            blob_grid.insert(b->bounds().x + b->bounds().width * 0.5f, b->bounds().y + b->bounds().height * 0.5f, b->blob_id());
+            blob_grid.insert(b->bounds().x + b->bounds().width * 0.5f, b->bounds().y + b->bounds().height * 0.5f, (uint32_t)b->blob_id());
         }
         
         // see if there are manually fixed matches for this frame
@@ -1834,36 +1828,35 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         
         // prepare active_individuals array and assign fixed matches for which
         // the individuals already exist
-        std::map<uint32_t, std::set<Idx_t>> cannot_find;
-        std::unordered_map<uint32_t, std::set<Idx_t>> double_find;
-        std::map<uint32_t, Idx_t> actually_assign;
+        std::map<pv::bid, std::set<Idx_t>> cannot_find;
+        std::unordered_map<pv::bid, std::set<Idx_t>> double_find;
+        std::map<pv::bid, Idx_t> actually_assign;
         
         for(auto && [fdx, bdx] : current_fixed_matches) {
             auto it = _individuals.find(fdx);
             if(it != _individuals.end()) { //&& size_t(fm.second) < blobs.size()) {
                 auto fish = it->second;
                 
-                if(bdx < 0) {
+                if(!bdx.valid()) {
                     // dont assign this fish! (bdx == -1)
-                    
                     continue;
                 }
                 
-                auto blob = frame.find_bdx((uint32_t)bdx);
+                auto blob = frame.find_bdx(bdx);
                 if(!blob) {
                     //Error("Blob number %d out of range in frame %d", fm.second, frameIndex);
-                    cannot_find[(uint32_t)bdx].insert(fdx);
+                    cannot_find[bdx].insert(fdx);
                     continue;
                 }
                 
-                if(actually_assign.count((uint32_t)bdx) > 0) {
-                    Error("(fixed matches) Trying to assign blob %d twice in frame %d (fish %d and %d).", (uint32_t)bdx, frameIndex, fdx, actually_assign.at((uint32_t)bdx));
-                    double_find[(uint32_t)bdx].insert(fdx);
+                if(actually_assign.count(bdx) > 0) {
+                    Error("(fixed matches) Trying to assign blob %d twice in frame %d (fish %d and %d).", (uint32_t)bdx, frameIndex, fdx, actually_assign.at(bdx));
+                    double_find[bdx].insert(fdx);
                     
                 } else if(blob_assigned[blob.get()]) {
                     Error("(fixed matches, blob_assigned) Trying to assign blob %d twice in frame %d (fish %d).", bdx, frameIndex, fdx);
                     // TODO: remove assignment from the other fish as well and add it to cannot_find
-                    double_find[(uint32_t)bdx].insert(fdx);
+                    double_find[bdx].insert(fdx);
                     
                     /*for(auto fish : active_individuals) {
                         auto blob = fish->blob(frameIndex);
@@ -1886,18 +1879,18 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 if(frameIndex != _startFrame)
                     Warning("Individual number %d out of range in frame %d. Creating new one.", fdx, frameIndex);
                 
-                auto blob = frame.find_bdx((uint32_t)bdx);
+                auto blob = frame.find_bdx(bdx);
                 if(!blob) {
                     //Warning("Cannot find blob %d in frame %d. Fallback to normal assignment behavior.", it->second, frameIndex);
-                    cannot_find[(uint32_t)bdx].insert(fdx);
+                    cannot_find[bdx].insert(fdx);
                     continue;
                 }
                 
                 if(actually_assign.count((uint32_t)bdx) > 0) {
-                    Error("(fixed matches) Trying to assign blob %d twice in frame %d (fish %d and %d).", bdx, frameIndex, fdx, actually_assign.at((uint32_t)bdx));
-                    double_find[(uint32_t)bdx].insert(fdx);
+                    Error("(fixed matches) Trying to assign blob %d twice in frame %d (fish %d and %d).", bdx, frameIndex, fdx, actually_assign.at(bdx));
+                    double_find[bdx].insert(fdx);
                 } else
-                    actually_assign[(uint32_t)bdx] = fdx;
+                    actually_assign[bdx] = fdx;
                 
                 //auto fish = create_individual(fm.first, active_individuals);
                // fish->add_manual_match(frameIndex);
@@ -1943,12 +1936,12 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 }
             } blaze(frame);
             
-            std::map<uint32_t, std::vector<std::tuple<Idx_t, Vec2, uint32_t>>> assign_blobs;
+            std::map<pv::bid, std::vector<std::tuple<Idx_t, Vec2, pv::bid>>> assign_blobs;
             const auto max_speed_px = FAST_SETTINGS(track_max_speed) / FAST_SETTINGS(cm_per_pixel);
             
             for(auto && [bdx, fdxs] : cannot_find) {
                 assert(bdx >= 0);
-                auto pos = pv::Blob::position_from_id(bdx);
+                auto pos = bdx.calc_position();
                 //Debug("Trying to find blob for %d (-> fish %d) at %f,%f", bdx, fdx, pos.x, pos.y);
                 auto list = blob_grid.query(pos, max_speed_px);
                 //auto str = Meta::toStr(list);
@@ -1958,14 +1951,14 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     // blob ids will not be < 0, as they have been inserted into the
                     // grid before directly from the file. so we can assume (uint32_t)
                     for(auto fdx: fdxs)
-                        assign_blobs[(uint32_t)std::get<1>(*list.begin())].push_back({fdx, pos, (uint32_t)bdx});
+                        assign_blobs[pv::bid(std::get<1>(*list.begin()))].push_back({fdx, pos, bdx});
                 }
             }
             
             //auto str = prettify_array(Meta::toStr(assign_blobs));
             //Debug("replacing blobids / potentially splitting:\n%S", &str);
             
-            std::map<Idx_t, uint32_t> actual_assignments;
+            std::map<Idx_t, pv::bid> actual_assignments;
             
             for(auto && [bdx, clique] : assign_blobs) {
                 //if(clique.size() > 1)
@@ -2305,7 +2298,9 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             } else {
                 // try to extend cliques as far as possible (and merge)
                 for(size_t index = 0; index < cliques.size(); ++index) {
-                    std::unordered_set<uint32_t> added_individuals, added_blobs = cliques[index].bids;
+                    std::unordered_set<uint32_t> added_individuals;
+                    std::unordered_set<uint32_t> added_blobs(cliques[index].bids);
+                    
                     do {
                         added_individuals.clear();
                         
@@ -3663,7 +3658,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
             std::map<Rangel, Idx_t> track_ids;
         };
         
-        std::map<long_t, std::map<Idx_t, int64_t>> automatic_matches;
+        std::map<long_t, std::map<Idx_t, pv::bid>> automatic_matches;
         std::map<fdx_t, VirtualFish> virtual_fish;
         
         // wrong fish -> set of unassigned ranges
@@ -3835,7 +3830,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                 auto blob = track->compressed_blob(segment.start());
                 if(blob) {
                     automatic_matches[segment.start()][fdx] = blob->blob_id();
-                    if(blob->split() && blob->parent_id != -1)
+                    if(blob->split() && blob->parent_id.valid())
                         manual_splits[segment.start()].insert(blob->parent_id);
                 }
             }
@@ -3859,19 +3854,19 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                     assigned_ranges[track->identity().ID()][segment.range] = fdx;
                 
                 auto blob = track->compressed_blob(segment.start());
-                if(blob && blob->split() && blob->parent_id != -1)
+                if(blob && blob->split() && blob->parent_id.valid())
                     manual_splits[segment.start()].insert(blob->parent_id);
                 
-                std::vector<int64_t> blob_ids;
+                std::vector<pv::bid> blob_ids;
                 for(long_t frame=segment.start(); frame<=segment.end(); ++frame) {
                     blob = track->compressed_blob(frame);
                     if(blob) {
                         //automatically_assigned_blobs[frame][blob->blob_id()] = fdx;
                         blob_ids.push_back(blob->blob_id());
-                        //if(blob->split() && blob->parent_id() != -1)
+                        //if(blob->split() && blob->parent_id().valid())
                         //    manual_splits[frame].insert(blob->parent_id());
                     } else
-                        blob_ids.push_back(-1);
+                        blob_ids.push_back(pv::bid::invalid);
                     
                     std::set<Rangel> remove_from;
                     for(auto && [range, blobs] : tmp_assigned_ranges[fdx]) {
@@ -3940,7 +3935,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                 if(next != fish->recognition_segments().end() && /*previous.start() != -1 &&*/ next->second.start() != -1) {
                     Idx_t prev_id, next_id;
                     PhysicalProperties *prev_pos = nullptr, *next_pos = nullptr;
-                    int64_t prev_blob = -1;
+                    int64_t prev_blob_frame = -1;
                     
                     auto it = assigned_ranges.find(fdx);
                     if(it != assigned_ranges.end()) {
@@ -3983,7 +3978,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                                     auto pos = _individuals.at(org_id)->centroid_weighted(previous->second.end());
                                     if(pos) {
                                         prev_pos = pos;
-                                        prev_blob = previous->second.end();
+                                        prev_blob_frame = previous->second.end();
                                     }
                                 }
                                 break;
@@ -4024,18 +4019,18 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                                 }
 #endif
                                 
-                                if(prev_blob != -1 && prev_id.valid()) {
+                                if(prev_blob_frame != -1 && prev_id.valid()) {
                                     // we found the previous blob/segment quickly:
-                                    auto range = _individuals.at(prev_id)->get_segment_safe(prev_blob);
+                                    auto range = _individuals.at(prev_id)->get_segment_safe(prev_blob_frame);
                                     if(!range.empty()) {
                                         long_t frame = range.end();
                                         while(frame >= range.start()) {
                                             auto blob = _individuals.at(prev_id)->compressed_blob(frame);
                                             if(blob->split()) {
-                                                if(blob->parent_id != -1) {
+                                                //if(blob->parent_id != pv::bid::invalid) {
                                                     //manual_splits[frame].insert(blob->parent_id());
                                                     //Debug("Inserting manual split %d : %d (%d)", frame, blob->parent_id(), blob->blob_id());
-                                                }
+                                                //}
                                             } else
                                                 break;
                                             
@@ -4061,17 +4056,17 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                                 
                                 std::set<Rangel> remove_from;
                                 
-                                std::vector<int64_t> blob_ids;
+                                std::vector<pv::bid> blob_ids;
                                 for(long_t frame=segment.start(); frame<=segment.end(); ++frame) {
                                     auto blob = fish->compressed_blob(frame);
                                     
                                     if(blob) {
                                         //automatically_assigned_blobs[frame][blob->blob_id()] = fdx;
                                         blob_ids.push_back(blob->blob_id());
-                                        //if(blob->split() && blob->parent_id() != -1)
+                                        //if(blob->split() && blob->parent_id().valid())
                                         //    manual_splits[frame].insert(blob->parent_id());
                                     } else
-                                        blob_ids.push_back(-1);
+                                        blob_ids.push_back(pv::bid::invalid);
                                     
                                     
                                     for(auto && [range, blobs] : tmp_assigned_ranges[chosen_id]) {
@@ -4093,7 +4088,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                                     tmp_assigned_ranges[chosen_id][segment.range] = blob_ids;
                                     
                                     auto blob = fish->blob(segment.start());
-                                    if(blob && blob->split() && blob->parent_id() != -1)
+                                    if(blob && blob->split() && blob->parent_id().valid())
                                         manual_splits[segment.start()].insert(blob->parent_id());
                                     
                                     assigned_ranges[fdx][segment.range] = chosen_id;
@@ -4145,14 +4140,14 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
 #endif
     }
 
-pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, int64_t bid, int64_t pid, const Bounds& bounds)
+pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid pid, const Bounds& bounds)
 {
     auto blob = pp.find_bdx(bid);
     if(!blob) {
         return nullptr;
         
-        if(pid != -1) {
-            blob = pp.find_bdx((uint32_t)pid);
+        if(pid.valid()) {
+            blob = pp.find_bdx(pid);
             if(blob) {
                 auto blobs = pixel::threshold_blob(blob, FAST_SETTINGS(track_threshold), Tracker::instance()->background());
                 
@@ -4211,7 +4206,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, int64_t bid, int64_t pid
     return blob;
 }
 
-    void Tracker::check_save_tags(long_t frameIndex, const std::unordered_map<uint32_t, Individual*>& blob_fish_map, const std::vector<tags::blob_pixel> &tagged_fish, const std::vector<tags::blob_pixel> &noise, const file::Path & tags_path) {
+    void Tracker::check_save_tags(long_t frameIndex, const std::unordered_map<pv::bid, Individual*>& blob_fish_map, const std::vector<tags::blob_pixel> &tagged_fish, const std::vector<tags::blob_pixel> &noise, const file::Path & tags_path) {
         static Timing tag_timing("tags", 0.1);
         TakeTiming take(tag_timing);
         

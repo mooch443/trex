@@ -329,7 +329,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
             auto end_pos = Vec2(max_w / float(_frame_info.video_length) * _frame_info.analysis_range.start, bar_height);
             base.rect(start_pos, end_pos, Gray);
         }
-        if(_frame_info.analysis_range.end < _frame_info.video_length-1) {
+        if(uint64_t(_frame_info.analysis_range.end) <= _frame_info.video_length) {
             auto start_pos = pos + Vec2(max_w / float(_frame_info.video_length) * _frame_info.analysis_range.end, 0);
             auto end_pos = Vec2(max_w, bar_height);
             base.rect(start_pos, end_pos, Gray);

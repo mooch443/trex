@@ -34,8 +34,8 @@ namespace track {
         IndividualStatus() : prev(nullptr), current(nullptr) {}
     };
 
-using mmatches_t = std::map<long_t, std::map<Idx_t, int64_t>>;
-using msplits_t = std::map<long_t, std::set<int64_t>>;
+using mmatches_t = std::map<long_t, std::map<Idx_t, pv::bid>>;
+using msplits_t = std::map<long_t, std::set<pv::bid>>;
 using inames_t = std::map<uint32_t, std::string>;
 using mapproved_t = std::map<long_t,long_t>;
 using analrange_t = std::pair<long_t,long_t>;
@@ -113,7 +113,7 @@ CREATE_STRUCT(Settings,
         static Tracker* instance();
         using set_of_individuals_t = std::unordered_set<Individual*>;
 
-        std::map<Idx_t, int64_t> automatically_assigned(long_t frame);
+        std::map<Idx_t, pv::bid> automatically_assigned(long_t frame);
         
     protected:
         friend class Output::TrackingResults;
@@ -140,7 +140,8 @@ CREATE_STRUCT(Settings,
         
     public:
         struct Clique {
-            std::unordered_set<uint32_t> bids, fishs;
+            std::unordered_set<uint32_t> bids;  // index of blob, not blob id
+            std::unordered_set<uint32_t> fishs; // index of fish
         };
         std::unordered_map<long_t, std::vector<Clique>> _cliques;
         
@@ -280,13 +281,13 @@ CREATE_STRUCT(Settings,
         
         void update_history_log();
         
-        long_t update_with_manual_matches(const std::map<long_t, std::map<Idx_t, int64_t>>& manual_matches);
+        long_t update_with_manual_matches(const std::map<long_t, std::map<Idx_t, pv::bid>>& manual_matches);
         void check_segments_identities(bool auto_correct, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue = [](auto,auto,auto){}, long_t after_frame = -1);
         void clear_segments_identities();
         void prepare_shutdown();
         void wait();
         
-        static pv::BlobPtr find_blob_noisy(const PPFrame& frame, int64_t bid, int64_t pid, const Bounds& bounds);
+        static pv::BlobPtr find_blob_noisy(const PPFrame& frame, pv::bid bid, pv::bid pid, const Bounds& bounds);
         
         //static bool generate_training_images(pv::File&, std::map<long_t, std::set<long_t>> individuals_per_frame, TrainingData&, const std::function<void(float)>& = [](float){}, const TrainingData* source = nullptr);
         //static bool generate_training_images(pv::File&, const std::set<long_t>& frames, TrainingData&, const std::function<void(float)>& = [](float){});
@@ -326,7 +327,6 @@ CREATE_STRUCT(Settings,
         
     private:
         static void filter_blobs(PPFrame& frame, GenericThreadPool *pool);
-        static std::map<uint32_t, pv::BlobPtr> fill_proximity_grid(cmn::grid::ProximityGrid&, const std::vector<pv::BlobPtr>& blobs);
         void history_split(PPFrame& frame, const std::unordered_set<Individual*>& active_individuals, std::ostream* out = NULL, GenericThreadPool* pool = NULL);
         
         struct split_expectation {
@@ -348,7 +348,7 @@ CREATE_STRUCT(Settings,
         //static void changed_setting(const sprite::Map&, const std::string& key, const sprite::PropertyType& value);
         size_t found_individuals_frame(size_t frameIndex) const;
         void generate_pairdistances(long_t frameIndex);
-        void check_save_tags(long_t frameIndex, const std::unordered_map<uint32_t, Individual*>&, const std::vector<tags::blob_pixel>&, const std::vector<tags::blob_pixel>&, const file::Path&);
+        void check_save_tags(long_t frameIndex, const std::unordered_map<pv::bid, Individual*>&, const std::vector<tags::blob_pixel>&, const std::vector<tags::blob_pixel>&, const file::Path&);
         
         Individual* create_individual(Idx_t ID, set_of_individuals_t& active_individuals);
         

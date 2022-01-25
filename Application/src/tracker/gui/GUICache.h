@@ -29,7 +29,7 @@ namespace gui {
         long_t last_frame;
         Bounds boundary;
         std::vector<Idx_t> previous_active_fish;
-        std::set<uint32_t> previous_active_blobs, active_blobs, selected_blobs;
+        std::set<pv::bid> previous_active_blobs, active_blobs, selected_blobs;
         Vec2 previous_mouse_position;
         bool _dirty;
         FOIStatus _current_foi;
@@ -57,8 +57,6 @@ namespace gui {
         Rangel tracked_frames;
         std::atomic_bool connectivity_reload;
         
-        std::map<uint32_t, long_t> automatic_assignments;
-        
         std::unordered_map<Idx_t, Individual*> individuals;
         std::set<Idx_t> active_ids;
         std::set<Idx_t> inactive_ids;
@@ -68,7 +66,7 @@ namespace gui {
         
         Tracker::set_of_individuals_t _registered_callback;
         
-        std::map<Idx_t, int64_t> fish_selected_blobs;
+        std::map<Idx_t, pv::bid> fish_selected_blobs;
         Tracker::set_of_individuals_t active;
         //std::vector<std::shared_ptr<gui::ExternalImage>> blob_images;
         std::vector<std::shared_ptr<SimpleBlob>> raw_blobs;
@@ -78,13 +76,13 @@ namespace gui {
         std::vector<Vec2> inactive_estimates;
         
     protected:
-        std::map<Idx_t, std::map<uint32_t, Individual::Probability>> probabilities;
+        std::map<Idx_t, std::map<pv::bid, Individual::Probability>> probabilities;
         std::set<uint32_t> checked_probs;
         
     public:
         std::map<Individual*, std::unique_ptr<gui::Fish>> _fish_map;
         std::map<long_t, track::Tracker::Statistics> _statistics;
-        std::unordered_map<uint32_t, int> _ranged_blob_labels;
+        std::unordered_map<pv::bid, int> _ranged_blob_labels;
         
         std::vector<Tracker::Clique> _cliques;
         
@@ -106,7 +104,7 @@ namespace gui {
         void deselect(Idx_t id);
         void deselect_all_select(Idx_t id);
         
-        const std::map<uint32_t, Individual::Probability>* probs(Idx_t fdx);
+        const std::map<pv::bid, Individual::Probability>* probs(Idx_t fdx);
         bool has_probs(Idx_t fdx);
         
         void set_tracking_dirty();

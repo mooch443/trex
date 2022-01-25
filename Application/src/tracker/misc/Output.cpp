@@ -229,7 +229,7 @@ void Output::ResultsFormat::read_blob(Data& ref, pv::CompressedBlob& blob) const
     
     blob.status_byte = byte;
     blob.start_y = start_y;
-    blob.parent_id = (long_t)parent_id;
+    blob.parent_id = pv::bid(parent_id);
 }
 
 template<>
@@ -240,12 +240,12 @@ uint64_t Data::write(const pv::BlobPtr& val) {
     const uint64_t elem_size = sizeof(pv::ShortHorizontalLine);
     
     // this will turn
-    uint8_t byte = (val->parent_id() != -1 ? 0x2 : 0x0)
+    uint8_t byte = (val->parent_id().valid() ? 0x2 : 0x0)
                    | uint8_t(val->split() ? 0x1 : 0)
                    | uint8_t(val->tried_to_split() ? 0x4 : 0x0);
     uint64_t p = write<uint8_t>(byte);
-    if(val->parent_id() != -1)
-        write<data_long_t>(val->parent_id());
+    if(val->parent_id().valid())
+        write<data_long_t>((int64_t)val->parent_id());
     write<uint16_t>(uint16_t(mask.empty() ? 0 : mask.front().y));
     write<uint16_t>(uint16_t(compressed.size()));
     write_data(compressed.size() * elem_size, (char*)compressed.data());
@@ -1059,7 +1059,7 @@ namespace Output {
             write<uint64_t>(map.size());
             
             for(auto && [bid, vector] : map) {
-                write<uint32_t>(bid);
+                write<uint32_t>((uint32_t)bid);
                 write<uint64_t>(vector.size());
                 write_data(sizeof(float) * vector.size(), (const char*)vector.data());
             }

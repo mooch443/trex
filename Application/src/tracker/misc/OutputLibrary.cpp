@@ -824,7 +824,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             auto blob = fish->compressed_blob(frame);
             
             if (blob) {
-                return blob->blob_id();
+                return (uint32_t)blob->blob_id();
             }
             
             return gui::Graph::invalid();

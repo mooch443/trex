@@ -321,7 +321,7 @@ file::Path conda_environment_path() {
         CONFIG("gui_max_path_time", float(3), "Length (in time) of the trails shown in GUI.");
         
         CONFIG("gui_draw_only_filtered_out", false, "Only show filtered out blob texts.");
-        CONFIG<std::pair<int64_t, long_t>>("gui_show_fish", {-1, -1}, "Show debug output for {blob_id, fish_id}.");
+        CONFIG<std::pair<pv::bid, long_t>>("gui_show_fish", {pv::bid::invalid, -1}, "Show debug output for {blob_id, fish_id}.");
         CONFIG("gui_frame", long_t(0), "The currently visible frame.");
 #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
         CONFIG("gui_blur_enabled", false, "MacOS supports a blur filter that can be applied to make unselected individuals look interesting.");
@@ -398,8 +398,8 @@ file::Path conda_environment_path() {
         CONFIG("midline_start_with_head", false, "If enabled, the midline is going to be estimated starting at the head instead of the tail.");
         CONFIG("midline_invert", false, "If enabled, all midlines will be inverted (tail/head swapped).");
         CONFIG("peak_mode", peak_mode_t::pointy, "This determines whether the tail of an individual should be expected to be pointy or broad.");
-        CONFIG("manual_matches", std::map<long_t, std::map<track::Idx_t, int64_t>>{ }, "A map of manually defined matches (also updated by GUI menu for assigning manual identities). `{{frame: {fish0: blob2, fish1: blob0}}, ...}`");
-        CONFIG("manual_splits", std::map<long_t, std::set<int64_t>>{}, "This map contains `{frame: [blobid1,blobid2,...]}` where frame and blobid are integers. When this is read during tracking for a frame, the tracker will attempt to force-split the given blob ids.");
+        CONFIG("manual_matches", std::map<long_t, std::map<track::Idx_t, pv::bid>>{ }, "A map of manually defined matches (also updated by GUI menu for assigning manual identities). `{{frame: {fish0: blob2, fish1: blob0}}, ...}`");
+        CONFIG("manual_splits", std::map<long_t, std::set<pv::bid>>{}, "This map contains `{frame: [blobid1,blobid2,...]}` where frame and blobid are integers. When this is read during tracking for a frame, the tracker will attempt to force-split the given blob ids.");
         CONFIG("match_mode", matching_mode_t::automatic, "Changes the default algorithm to be used for matching blobs in one frame with blobs in the next frame. The accurate algorithm performs best, but also scales less well for more individuals than the approximate one. However, if it is too slow (temporarily) in a few frames, the program falls back to using the approximate one that doesnt slow down.");
         CONFIG("matching_probability_threshold", float(0.1), "The probability below which a possible connection between blob and identity is considered too low. The probability depends largely upon settings like `track_max_speed`.");
         CONFIG("track_do_history_split", true, "If disabled, blobs will not be split automatically in order to separate overlapping individuals. This usually happens based on their history.");

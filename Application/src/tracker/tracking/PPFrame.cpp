@@ -6,16 +6,16 @@ namespace track {
 
 #define ASSUME_NOT_FINALIZED _assume_not_finalized( __FILE__ , __LINE__ )
 
-inline void insert_line(grid::ProximityGrid& grid, const HorizontalLine* ptr, uint32_t blob_id, size_t step_size)
+inline void insert_line(grid::ProximityGrid& grid, const HorizontalLine* ptr, pv::bid blob_id, size_t step_size)
 {
     auto d = ptr->x1 - ptr->x0;
-    grid.insert(ptr->x0, ptr->y, blob_id);
-    grid.insert(ptr->x1, ptr->y, blob_id);
-    grid.insert(ptr->x0 + d * 0.5, ptr->y, blob_id);
+    grid.insert(ptr->x0, ptr->y, (int64_t)blob_id);
+    grid.insert(ptr->x1, ptr->y, (int64_t)blob_id);
+    grid.insert(ptr->x0 + d * 0.5, ptr->y, (int64_t)blob_id);
 
     if(d >= (short)step_size * 2 && step_size >= 5) {
         for(auto x = ptr->x0 + step_size; x <= ptr->x1 - step_size; x += step_size) {
-            grid.insert(x, ptr->y, blob_id);
+            grid.insert(x, ptr->y, (int64_t)blob_id);
         }
     }
 }
@@ -63,12 +63,12 @@ bool PPFrame::_add_to_map(const pv::BlobPtr &blob) {
     return true;
 }
 
-void PPFrame::_remove_from_map(uint32_t bdx) {
+void PPFrame::_remove_from_map(pv::bid bdx) {
     _bdx_to_ptr.erase(bdx);
     
     for(auto &g : _blob_grid.get_grid()) {
         if(!g.empty()) {
-            auto it = std::find(g.begin(), g.end(), bdx);
+            auto it = std::find(g.begin(), g.end(), (int64_t)bdx);
             if(it != g.end())
                 g.erase(it);
         }
@@ -146,7 +146,7 @@ void PPFrame::erase_anywhere(const pv::BlobPtr& blob) {
 #endif
 }
 
-pv::BlobPtr PPFrame::erase_anywhere(uint32_t bdx) {
+pv::BlobPtr PPFrame::erase_anywhere(pv::bid bdx) {
     ASSUME_NOT_FINALIZED;
     
     auto find = [bdx](const auto& blob){ return blob->blob_id() == bdx; };
@@ -200,7 +200,7 @@ void PPFrame::add_regular(std::vector<pv::BlobPtr>&& v) {
     _blobs.insert(_blobs.end(), std::make_move_iterator( v.begin() ), std::make_move_iterator( v.end() ));
 }
 
-pv::BlobPtr PPFrame::erase_regular(uint32_t bdx) {
+pv::BlobPtr PPFrame::erase_regular(pv::bid bdx) {
     ASSUME_NOT_FINALIZED;
     
     auto it = _bdx_to_ptr.find(bdx);
@@ -221,7 +221,7 @@ pv::BlobPtr PPFrame::erase_regular(uint32_t bdx) {
     return nullptr;
 }
 
-pv::BlobPtr PPFrame::find_bdx(uint32_t bdx) const {
+pv::BlobPtr PPFrame::find_bdx(pv::bid bdx) const {
     auto it = _bdx_to_ptr.find(bdx);
     if(it != _bdx_to_ptr.end()) {
         return it->second;
@@ -229,7 +229,7 @@ pv::BlobPtr PPFrame::find_bdx(uint32_t bdx) const {
     return nullptr;
 }
 
-const pv::BlobPtr& PPFrame::bdx_to_ptr(uint32_t bdx) const {
+const pv::BlobPtr& PPFrame::bdx_to_ptr(pv::bid bdx) const {
     return _bdx_to_ptr.at(bdx);
 }
 
@@ -292,8 +292,8 @@ void PPFrame::clear() {
     _individual_cache.clear();
     _blob_grid.clear();
     _original_blobs.clear();
-    blob_cliques.clear();
-    fish_cliques.clear();
+    clique_for_blob.clear();
+    clique_second_order.clear();
     split_blobs.clear();
     _bdx_to_ptr.clear();
     _num_pixels = 0;

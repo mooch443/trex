@@ -1479,12 +1479,12 @@ int main(int argc, char** argv)
                                         auto blob = fish->blob(frame);
                                         if(blob) {
                                             if(manual_matches[frame].find(id) != manual_matches[frame].end()
-                                               && manual_matches[frame][id] != (int64_t)blob->blob_id())
+                                               && manual_matches[frame][id] != blob->blob_id())
                                             {
                                                 Debug("Other blob (%d != %d) was assigned fish %d in frame %d", manual_matches[frame][id], blob->blob_id(), id, frame);
                                             }
                                             for(auto && [fdx, bdx] : manual_matches[frame]) {
-                                                if(fdx != id && bdx == (int64_t)blob->blob_id()) {
+                                                if(fdx != id && bdx == blob->blob_id()) {
                                                     Debug("Other fish (%d != %d) was assigned blob %d in frame %d", fdx, id, bdx, frame);
                                                     break;
                                                 }

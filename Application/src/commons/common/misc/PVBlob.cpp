@@ -4,10 +4,9 @@
 namespace pv {
     using namespace cmn;
 
-    uint32_t CompressedBlob::blob_id() const {
-        if(own_id == pv::Blob::invalid) {
-            own_id = pv::Blob::id_from_blob(*this);
-        }
+    bid CompressedBlob::blob_id() const {
+        if(!own_id.valid())
+            own_id = pv::bid::from_blob(*this);
         
         return own_id;
     }
@@ -189,7 +188,7 @@ static Callback callback;
         
         _split = false;
         _recount = _recount_threshold = -1;
-        _parent_id = -1;
+        _parent_id = bid::invalid;
         
 //#ifndef NDEBUG
         static std::atomic_int counter(0);
@@ -229,22 +228,22 @@ static Callback callback;
 //#endif
         
         calculate_properties();
-        _blob_id = id_from_blob(*this);
+        _blob_id = bid::from_blob(*this);
     }
     
     void Blob::set_split(bool split, pv::BlobPtr parent) {
         _split = split;
         if(parent)
-            _parent_id = parent->parent_id() != -1 ? parent->parent_id() : parent->blob_id();
+            _parent_id = parent->parent_id().valid() ? parent->parent_id() : parent->blob_id();
         else
-            _parent_id = -1;
+            _parent_id = bid::invalid;
         
-        if(_parent_id == -1 && split)
+        if(!_parent_id.valid() && split)
             Warning("Parent has to be set correctly in order to split blobs (%d).", blob_id());
     }
     
-    void Blob::set_parent_id(long_t parent_id) {
-        _split = parent_id != -1;
+    void Blob::set_parent_id(const bid& parent_id) {
+        _split = parent_id.valid();
         _parent_id = parent_id;
     }
     
@@ -634,7 +633,7 @@ static Callback callback;
 
     std::string Blob::name() const {
         auto center = bounds().pos() + bounds().size() * 0.5;
-        uint32_t id = blob_id();
+        auto id = blob_id();
         //auto x = id >> 16;
         //auto y = id & 0x0000FFFF;
         return Meta::toStr(id)+" "+Meta::toStr(center);
@@ -647,7 +646,7 @@ static Callback callback;
         cmn::Blob::add_offset(off);
         
         //auto center = bounds().pos() + bounds().size() * 0.5;
-        _blob_id = id_from_blob(*this);
+        _blob_id = bid::from_blob(*this);
     }
     
     void Blob::scale_coordinates(const cmn::Vec2 &scale) {
@@ -657,49 +656,22 @@ static Callback callback;
         add_offset(offset);
     }
 
-    uint32_t id_from_data(ushort x0, ushort x1, ushort y0, uint8_t N) {
-        assert((uint32_t)x0 < (uint32_t)4096u);
-        assert((uint32_t)x1 < (uint32_t)4096u);
-        assert((uint32_t)y0 < (uint32_t)4096u);
-        
-        return (uint32_t(x0 + (x1 - x0) / 2) << 20)
-                | ((uint32_t(y0) & 0x00000FFF) << 8)
-                |  (uint32_t(N)  & 0x000000FF);
-    }
-
-    uint32_t Blob::id_from_blob(const pv::Blob &blob) {
-        if(!blob.lines() || blob.lines()->empty())
-            return pv::Blob::invalid;
-        
-        return id_from_data(blob.lines()->front().x0,
-                            blob.lines()->front().x1,
-                            blob.lines()->front().y,
-                            blob.lines()->size());
-    }
-
-    uint32_t Blob::id_from_blob(const pv::CompressedBlob &blob) {
-        if(blob.lines.empty())
-            return pv::Blob::invalid;
-        
-        return id_from_data(blob.lines.front().x0(),
-                            blob.lines.front().x1(),
-                            blob.start_y,
-                            blob.lines.size());
-    }
     
+
+    std::string bid::toStr() const {
+        return Meta::toStr<uint32_t>(_id);
+    }
+
+    bid bid::fromStr(const std::string& str) {
+        return bid(Meta::fromStr<uint32_t>(str));
+    }
+
     size_t Blob::memory_size() const {
         size_t overall = sizeof(Blob);
         if(_pixels)
             overall += _pixels->size() * sizeof(uchar);
         overall += _hor_lines->size() * sizeof(decltype(_hor_lines)::element_type::value_type);
         return overall;
-    }
-    
-    Vec2 Blob::position_from_id(uint32_t id) {
-        auto x = (id >> 20) & 0x00000FFF;
-        auto y = (id >> 8) & 0x00000FFF;
-        //auto N = id & 0x000000FF;
-        return Vec2(x, y);
     }
     
     Blob::operator MetaObject() const {

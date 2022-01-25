@@ -145,23 +145,25 @@ CREATE_STRUCT(CachedGUIOptions,
 
                     auto t = tags::is_good_image(image, Tracker::instance()->background()->image());
                     if (t.image) {
-                        auto detector = cv::SiftFeatureDetector::create();
                         cv::Mat local;
                         cv::equalizeHist(t.image->get(), local);
+                        /*auto detector = cv::SiftFeatureDetector::create();
+                        
+                        
 
                         std::vector<cv::KeyPoint> keypoints;
-                        detector->detect(t.image->get(), keypoints);
+                        detector->detect(t.image->get(), keypoints);*/
 
                         cv::Mat k;
                         resize_image(local, k, 15.0);
 
-                        for (auto& k : keypoints) {
+                        /*for (auto& k : keypoints) {
                             k.pt *= 15;
                         }
 
                         cv::Mat output;
                         cv::drawKeypoints(k, keypoints, output);
-                        tf::imshow("keypoints", output);
+                        tf::imshow("keypoints", output);*/
                         tf::imshow("tag", k);
                     }
                 }
@@ -568,7 +570,7 @@ CREATE_STRUCT(CachedGUIOptions,
             auto color_source = GUIOPTION(gui_fish_color);
             if(color_source == "viridis") {
                 for(auto &b : GUI::instance()->cache().processed_frame.blobs()) {
-                    if(b->blob_id() == _blob->blob_id() || (long_t)b->blob_id() == _blob->parent_id) {
+                    if(b->blob_id() == _blob->blob_id() || b->blob_id() == _blob->parent_id) {
                         auto && [dpos, difference] = b->difference_image(*Tracker::instance()->background(), 0);
                         auto rgba = Image::Make(difference->rows, difference->cols, 4);
                         
@@ -607,7 +609,7 @@ CREATE_STRUCT(CachedGUIOptions,
                 Color clr = /*Color(225, 255, 0, 255)*/ base_color * percent + Color(50, 50, 50, 255) * (1 - percent);
                 
                 for(auto &b : GUI::instance()->cache().processed_frame.blobs()) {
-                    if(b->blob_id() == _blob->blob_id() || (long_t)b->blob_id() == _blob->parent_id) {
+                    if(b->blob_id() == _blob->blob_id() || b->blob_id() == _blob->parent_id) {
                         auto && [image_pos, image] = b->binary_image(*Tracker::instance()->background(), FAST_SETTINGS(track_threshold));
                         auto && [dpos, difference] = b->difference_image(*Tracker::instance()->background(), 0);
                         

@@ -158,7 +158,7 @@ auto& task_queue() {
 
 Sample::Sample(std::vector<long_t>&& frames,
                const std::vector<Image::Ptr>& images,
-               const std::vector<uint32_t>& blob_ids,
+               const std::vector<pv::bid>& blob_ids,
                std::vector<Vec2>&& positions)
     :   _frames(std::move(frames)),
         _images(images),
@@ -287,7 +287,7 @@ bool DataStore::Composition::empty() const {
 }
 
 struct BlobLabel {
-    uint32_t bdx;
+    pv::bid bdx;
     int ldx;
     
     Label::Ptr label() const {
@@ -402,7 +402,7 @@ void DataStore::_set_ranged_label_unsafe(RangedLabel&& r)
     } */
 }
 
-Label::Ptr DataStore::ranged_label(Frame_t frame, uint32_t bdx) {
+Label::Ptr DataStore::ranged_label(Frame_t frame, pv::bid bdx) {
     std::shared_lock guard(range_mutex());
     return DataStore::label(_ranged_label_unsafe(frame, bdx));
 }
@@ -410,7 +410,7 @@ Label::Ptr DataStore::ranged_label(Frame_t frame, const pv::CompressedBlob& blob
     std::shared_lock guard(range_mutex());
     return DataStore::label(_ranged_label_unsafe(frame, blob.blob_id()));
 }
-int DataStore::_ranged_label_unsafe(Frame_t frame, uint32_t bdx) {
+int DataStore::_ranged_label_unsafe(Frame_t frame, pv::bid bdx) {
     static const auto frame_rate = FAST_SETTINGS(frame_rate) * 10;
     const auto mi = frame - frame_rate, ma = frame + frame_rate;
     
@@ -433,12 +433,12 @@ int DataStore::_ranged_label_unsafe(Frame_t frame, uint32_t bdx) {
     return -1;
 }
 
-void DataStore::set_label(Frame_t idx, uint32_t bdx, const Label::Ptr& label) {
+void DataStore::set_label(Frame_t idx, pv::bid bdx, const Label::Ptr& label) {
     std::unique_lock guard(cache_mutex());
     _set_label_unsafe(idx, bdx, label? label->id : -1);
 }
 
-void DataStore::_set_label_unsafe(Frame_t idx, uint32_t bdx, int ldx) {
+void DataStore::_set_label_unsafe(Frame_t idx, pv::bid bdx, int ldx) {
     auto cache = _insert_cache_for_frame(idx);
 #ifndef NDEBUG
     if (contains(*cache, BlobLabel{bdx, ldx})) {
@@ -463,11 +463,11 @@ void DataStore::_set_label_unsafe(Frame_t idx, uint32_t bdx, int ldx) {
 }
 
 void DataStore::set_label(Frame_t idx, const pv::CompressedBlob* blob, const Label::Ptr& label) {
-    uint32_t bdx;
+    auto bdx =
     /*if(blob->parent_id != -1)
         bdx = uint32_t(blob->parent_id);
     else*/
-        bdx = blob->blob_id();
+         blob->blob_id();
     
     set_label(idx, bdx, label);
 }
@@ -658,7 +658,7 @@ Label::Ptr DataStore::label_interpolated(const Individual* fish, Frame_t frame) 
     return nullptr;
 }
 
-Label::Ptr DataStore::label(Frame_t idx, uint32_t bdx) {
+Label::Ptr DataStore::label(Frame_t idx, pv::bid bdx) {
     std::shared_lock guard(cache_mutex());
     return DataStore::label(_label_unsafe(idx, bdx));
 }
@@ -667,7 +667,7 @@ Label::Ptr DataStore::label(Frame_t idx, const pv::CompressedBlob* blob) {
     return label(idx, /*blob->parent_id != -1 ? uint32_t(blob->parent_id) :*/ blob->blob_id());
 }
 
-int DataStore::_label_unsafe(Frame_t idx, uint32_t bdx) {
+int DataStore::_label_unsafe(Frame_t idx, pv::bid bdx) {
     auto cache = _cache_for_frame(idx);
     if(cache) {
         auto sit = find_keyed_tuple(*cache, bdx);
@@ -1165,10 +1165,10 @@ struct NetworkApplicationState {
                             Warning("Label for frame %d blob %d is nullptr.", frame, bdx);
                         else {
                             //Debug("Fish%d: Labelled frame %d (blob%ld) = '%s'", fish->identity().ID(), frame, bdx, l->name.c_str());
-                            DataStore::_set_label_unsafe(Frame_t(frame), (uint32_t)bdx, task.result[i]);
+                            DataStore::_set_label_unsafe(Frame_t(frame), bdx, task.result[i]);
                             sums.at(task.result[i]) += 1;
 #ifndef NDEBUG
-                            auto L = DataStore::_label_unsafe(Frame_t(frame), (uint32_t)bdx);
+                            auto L = DataStore::_label_unsafe(Frame_t(frame), bdx);
                             if (L != task.result[i]) {
                                 Warning("Fish%d: Labels do not match.", fish->identity().ID());
                             }
@@ -2027,7 +2027,7 @@ void DataStore::write(file::DataFormat& data, int /*version*/) {
             
             for(auto &[bdx, label] : v) {
                 assert(label);
-                data.write<uint32_t>(bdx); // blob id
+                data.write<uint32_t>((uint32_t)bdx); // blob id
                 data.write<int32_t>(label); // label id
             }
             ++k;
@@ -2047,7 +2047,7 @@ void DataStore::write(file::DataFormat& data, int /*version*/) {
             
             assert(size_t(ranged._range.length()) == ranged._blobs.size());
             for(auto &bdx : ranged._blobs)
-                data.write<uint32_t>(bdx);
+                data.write<uint32_t>((uint32_t)bdx);
         }
     }
 }
@@ -2109,7 +2109,7 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
                 data.read(lid);
                 
                 if(frame >= start_frame)
-                    DataStore::_set_label_unsafe(Frame_t(frame), bdx, lid);
+                    DataStore::_set_label_unsafe(Frame_t(frame), pv::bid(bdx), lid);
             }
         }
     }
@@ -2607,7 +2607,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     std::vector<Image::Ptr> images;
     std::vector<long_t> indexes;
     std::vector<Vec2> positions;
-    std::vector<uint32_t> blob_ids;
+    std::vector<pv::bid> blob_ids;
     
     std::vector<long_t> basic_index;
     std::vector<long_t> frames;

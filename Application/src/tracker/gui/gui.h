@@ -186,11 +186,11 @@ protected:
     
     Timer last_frame_change;
     
-    GETTER(std::atomic<long_t>, clicked_blob_id)
+    GETTER(std::atomic<pv::bid>, clicked_blob_id)
     GETTER(std::atomic<long_t>, clicked_blob_frame)
     
 public:
-    void set_clicked_blob_id(long_t v) { _clicked_blob_id = v; }
+    void set_clicked_blob_id(pv::bid v) { _clicked_blob_id = v; }
     void set_clicked_blob_frame(long_t v) { _clicked_blob_frame = v; }
     
 public:
@@ -271,7 +271,7 @@ private:
     std::map<long_t, long_t> check_additional_range(const Rangel& range, TrainingData& data);
     
 public:
-    void add_manual_match(long_t frameIndex, Idx_t fish_id, uint32_t blob_id);
+    void add_manual_match(long_t frameIndex, Idx_t fish_id, pv::bid blob_id);
     
 private:
     void selected_setting(long_t index, const std::string& name, gui::Textfield& textfield, gui::Dropdown& settings_dropdown, gui::Layout& layout, gui::DrawStructure& base);

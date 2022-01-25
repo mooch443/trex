@@ -3452,8 +3452,8 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
             transform = ptr->global_transform();
         }
         
-        static std::unordered_set<uint32_t> shown_ids;
-        std::unordered_set<uint32_t> to_show_ids;
+        static std::unordered_set<pv::bid> shown_ids;
+        std::unordered_set<pv::bid> to_show_ids;
         
         for(auto &blob : _cache.processed_frame.original_blobs()) {
             auto bounds = transform.transformRect(blob->bounds());
@@ -3478,7 +3478,7 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
             auto copy = shown_ids;
             
             distribute_vector([&added_items, &sync, &copy](auto, auto start, auto end, auto) {
-                std::unordered_set<uint32_t> added_ids;
+                std::unordered_set<pv::bid> added_ids;
                 
                 for(auto it = start; it != end; ++it) {
                     if(copy.find(*it) == copy.end()) {
@@ -3496,13 +3496,13 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                 
             }, _blob_thread_pool, shown_ids.begin(), shown_ids.end());
             
-            std::set<uint32_t> deleted;
+            std::set<pv::bid> deleted;
             for(auto id : shown_ids) {
                 if(to_show_ids.find(id) == to_show_ids.end()) {
                     deleted.insert(id);
                     
                     for(auto it = outer_images.begin(); it != outer_images.end(); ++it) {
-                        if((uint64_t)(*it)->custom_data("blob_id") == id) {
+                        if((uint64_t)(*it)->custom_data("blob_id") == (uint64_t)id) {
                             outer_images.erase(it);
                             break;
                         }
@@ -3558,7 +3558,7 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                     base.add_object(t);
                 }
                 
-                static std::unordered_map<uint32_t, std::tuple<bool, std::unique_ptr<Circle>, std::unique_ptr<Label>>> _blob_labels;
+                static std::unordered_map<pv::bid, std::tuple<bool, std::unique_ptr<Circle>, std::unique_ptr<Label>>> _blob_labels;
                 static std::vector<decltype(_blob_labels)::mapped_type> _unused_labels;
                 
                 for(auto & [id, tup] : _blob_labels)
@@ -3650,7 +3650,7 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                         if(it != cache()._ranged_blob_labels.end()) {
                             ss << " <nr>" << cats.at(it->second) << "</nr>";
                         }
-                        /*if(blob->parent_id() != -1 && (label = Categorize::DataStore::ranged_label(Frame_t(cache().frame_idx), blob->parent_id()))) {
+                        /*if(blob->parent_id().valid() && (label = Categorize::DataStore::ranged_label(Frame_t(cache().frame_idx), blob->parent_id()))) {
                             ss << " parent:<str>" << label->name << "</str>";
                         }
                          */
@@ -3711,8 +3711,8 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
             }
         });
         
-        static long_t last_blob_id = -1337;
-        if(_clicked_blob_id != -1 && _clicked_blob_frame == frameIndex) {
+        static pv::bid last_blob_id;
+        if(_clicked_blob_id.load().valid() && _clicked_blob_frame == frameIndex) {
             static std::shared_ptr<Entangled> popup;
             static std::shared_ptr<Dropdown> list;
             if(popup == nullptr) {
@@ -3772,7 +3772,7 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
             Vec2 blob_pos(FLT_MAX);
             bool found = false;
             for(auto blob : _cache.raw_blobs) {
-                if(blob->blob->blob_id() == (uint32_t)_clicked_blob_id) {
+                if(blob->blob->blob_id() == _clicked_blob_id.load()) {
                     blob_pos = blob->blob->bounds().pos() + blob->blob->bounds().size() * 0.5;
                     popup->set_pos(blob_pos.mul(ptr_scale) + ptr_pos);
                     found = true;
@@ -3801,7 +3801,7 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                 list->set_items(sorted_items);
                 list->set_clickable(true);
                 
-                if(_clicked_blob_id != last_blob_id) {
+                if(_clicked_blob_id.load() != last_blob_id) {
                     list->set_opened(true);
                     list->select_textfield();
                     list->clear_textfield();
@@ -3820,8 +3820,8 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                 _clicked_blob_id = -1;
             }
             
-        } else if(_clicked_blob_id != -1)
-            _clicked_blob_id = -1;
+        } else if(_clicked_blob_id.load().valid())
+            _clicked_blob_id = pv::bid::invalid;
         
         last_blob_id = _clicked_blob_id;
         
@@ -3839,7 +3839,7 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                 
                 _cache.updated_blobs();
                 
-                std::unordered_map<uint32_t, Color> colors;
+                std::unordered_map<pv::bid, Color> colors;
                 ColorWheel wheel;
                 for(auto &b : _cache.processed_frame.original_blobs()) {
                     colors[b->blob_id()] = wheel.next().alpha(200);
@@ -5144,7 +5144,7 @@ void GUI::generate_training_data_faces(const file::Path& path) {
     }
 }
 
-void GUI::add_manual_match(long_t frameIndex, Idx_t fish_id, uint32_t blob_id) {
+void GUI::add_manual_match(long_t frameIndex, Idx_t fish_id, pv::bid blob_id) {
     Debug("Requesting change of fish %d to blob %u in frame %d", fish_id, blob_id, frameIndex);
     
     auto matches = FAST_SETTINGS(manual_matches);

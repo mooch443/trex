@@ -30,7 +30,7 @@ namespace track {
                 Vec2 offset(0);
 
                 pv::Blob* parent = nullptr;
-                if (blob->parent_id() != -1) {
+                if (blob->parent_id().valid()) {
                     for (auto& p : original) {
                         if (p->blob_id() == blob->parent_id()) {
                             parent = p.get();

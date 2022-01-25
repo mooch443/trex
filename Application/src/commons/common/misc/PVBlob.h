@@ -7,6 +7,7 @@
 #include <misc/Image.h>
 #include <misc/Grid.h>
 #include <misc/ProximityGrid.h>
+#include <misc/vec2.h>
 
 namespace Output {
     class ResultsFormat;
@@ -16,18 +17,92 @@ namespace pv {
     class Blob;
     using BlobPtr = std::shared_ptr<pv::Blob>;
     struct CompressedBlob;
+
+struct bid {
+    static constexpr uint32_t invalid = std::numeric_limits<uint32_t>::max();
+    uint32_t _id;
+    bid() = default;
+    constexpr bid(uint32_t v) : _id(v) {}
+    
+    explicit constexpr operator uint32_t() const {
+        return _id;
+    }
+    explicit constexpr operator int64_t() const { return static_cast<int64_t>(_id); }
+    explicit constexpr operator uint64_t() const { return static_cast<uint64_t>(_id); }
+    constexpr bool operator==(const bid& other) const {
+        return other._id == _id;
+    }
+    constexpr bool operator!=(const bid& other) const {
+        return other._id != _id;
+    }
+    //constexpr bid(uint32_t b) : _id(b) {}
+    constexpr bool valid() const { return _id != invalid; }
+    
+    constexpr bool operator<(const bid& other) const {
+        return _id < other._id;
+    }
+    constexpr bool operator>(const bid& other) const {
+        return _id > other._id;
+    }
+    
+    constexpr bool operator<=(const bid& other) const {
+        return _id <= other._id;
+    }
+    constexpr bool operator>=(const bid& other) const {
+        return _id >= other._id;
+    }
+    
+    std::string toStr() const;
+    static std::string class_name() { return "pv::bid"; }
+    static bid fromStr(const std::string& str);
+
+    static constexpr uint32_t from_data(ushort x0, ushort x1, ushort y0, uint8_t N) {
+        assert((uint32_t)x0 < (uint32_t)4096u);
+        assert((uint32_t)x1 < (uint32_t)4096u);
+        assert((uint32_t)y0 < (uint32_t)4096u);
+        
+        return (uint32_t(x0 + (x1 - x0) / 2) << 20)
+                | ((uint32_t(y0) & 0x00000FFF) << 8)
+                |  (uint32_t(N)  & 0x000000FF);
+    }
+    
+    constexpr cmn::Vec2 calc_position() const {
+        auto x = (_id >> 20) & 0x00000FFF;
+        auto y = (_id >> 8) & 0x00000FFF;
+        //auto N = id & 0x000000FF;
+        return cmn::Vec2(x, y);
+    }
+    //static uint32_t id_from_position(const cmn::Vec2&);
+    static inline bid from_blob(const pv::Blob& blob);
+    static inline bid from_blob(const pv::CompressedBlob& blob);
+};
+
+}
+
+namespace std
+{
+    template <>
+    struct hash<pv::bid>
+    {
+        size_t operator()(const pv::bid& k) const
+        {
+            return std::hash<uint32_t>{}((uint32_t)k);
+        }
+    };
+}
+
+namespace pv {
     
     class Blob : public cmn::Blob {
     public:
-        constexpr static uint32_t invalid = std::numeric_limits<uint32_t>::max();
         using line_ptr_t = std::shared_ptr<std::vector<cmn::HorizontalLine>>;
         using pixel_ptr_t = std::shared_ptr<const std::vector<uchar>>;
         
     protected:
         GETTER_PTR(pixel_ptr_t, pixels)
         GETTER_I(bool, split, false)
-        GETTER_I(long_t, parent_id, -1)
-        GETTER_I(uint32_t, blob_id, pv::Blob::invalid)
+        GETTER_I(bid, parent_id, pv::bid::invalid)
+        GETTER_I(bid, blob_id, pv::bid::invalid)
         GETTER_SETTER(bool, tried_to_split)
         
         float _recount;
@@ -75,10 +150,6 @@ namespace pv {
         
         bool operator!=(const pv::Blob& other) const;
         bool operator==(const pv::Blob& other) const;
-        static cmn::Vec2 position_from_id(uint32_t id);
-        //static uint32_t id_from_position(const cmn::Vec2&);
-        static uint32_t id_from_blob(const pv::Blob&);
-        static uint32_t id_from_blob(const pv::CompressedBlob&);
         operator cmn::MetaObject() const override;
         
     protected:
@@ -86,7 +157,7 @@ namespace pv {
         friend struct CompressedBlob;
         
         void set_split(bool);
-        void set_parent_id(long_t parent_id);
+        void set_parent_id(const bid& parent_id);
         void init();
     };
 
@@ -125,20 +196,23 @@ namespace pv {
 
     struct CompressedBlob {
         //! this represents parent_id (2^1), split (2^0) and tried_to_split (2^2)
-        uint8_t status_byte;
-        int32_t parent_id;
-        mutable uint32_t own_id = pv::Blob::invalid;
+        uint8_t status_byte = 0;
+        pv::bid parent_id = pv::bid::invalid;
+        mutable pv::bid own_id = pv::bid::invalid;
         
         //! y of first position (everything is relative to this)
         uint16_t start_y;
         std::vector<ShortHorizontalLine> lines;
         
-        CompressedBlob() : status_byte(0), parent_id(-1) {}
-        CompressedBlob(const pv::BlobPtr& val) {
-            parent_id = val->parent_id();
-            own_id = val->blob_id();
+        CompressedBlob() {
+            static_assert(int32_t(-1) == (uint32_t)bid::invalid, "Must be equal to ensure backwards compatibility.");
+        }
+        CompressedBlob(const pv::BlobPtr& val) :
+            parent_id(val->parent_id()),
+            own_id(val->blob_id())
+        {
             status_byte = (uint8_t(val->split())           * 0x1)
-                        | (uint8_t(val->parent_id() != -1) * 0x2)
+                        | (uint8_t(val->parent_id().valid()) * 0x2)
                         | (uint8_t(val->tried_to_split())  * 0x4);
             lines = ShortHorizontalLine::compress(val->hor_lines());
             start_y = val->lines()->empty() ? 0 : val->lines()->front().y;
@@ -158,6 +232,28 @@ namespace pv {
             
             return result;
         }
-        uint32_t blob_id() const;
+        
+        bid blob_id() const;
     };
+
+
+inline bid bid::from_blob(const pv::Blob &blob) {
+    if(!blob.lines() || blob.lines()->empty())
+        return bid::invalid;
+    
+    return from_data(blob.lines()->front().x0,
+                     blob.lines()->front().x1,
+                     blob.lines()->front().y,
+                     blob.lines()->size());
+}
+
+inline bid bid::from_blob(const pv::CompressedBlob &blob) {
+    if(blob.lines.empty())
+        return bid::invalid;
+    
+    return from_data(blob.lines.front().x0(),
+                     blob.lines.front().x1(),
+                     blob.start_y,
+                     blob.lines.size());
+}
 }

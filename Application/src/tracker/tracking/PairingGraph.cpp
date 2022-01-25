@@ -1298,11 +1298,11 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                                     Warning("\tindividual %d: (%s)%d (%f) != (%s)%d (%f)", fish->identity().ID(),
                                         key_0.name(),
                                         assignments[key_0][fish] ?
-                                            (*assignments[key_0][fish])->blob_id() : -1,
+                                            (*assignments[key_0][fish])->blob_id() : pv::bid::invalid,
                                         p0,
                                         key_1.name(),
                                         assignments[key_1][fish] ?
-                                            (*assignments[key_1][fish])->blob_id() : -1,
+                                            (*assignments[key_1][fish])->blob_id() : pv::bid::invalid,
                                         p1);
                                 }
                             }

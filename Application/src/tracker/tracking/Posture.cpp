@@ -278,8 +278,8 @@ namespace track {
                         _outline.resample(FAST_SETTINGS(outline_resample));
                 }
                 
-                std::pair<int64_t, long_t> gui_show_fish = SETTING(gui_show_fish);
-                auto debug = gui_show_fish.first == (int64_t)blob->blob_id() && frame == gui_show_fish.second;
+                std::pair<pv::bid, long_t> gui_show_fish = SETTING(gui_show_fish);
+                auto debug = gui_show_fish.first == blob->blob_id() && frame == gui_show_fish.second;
                 float confidence = calculate_midline(debug);
                 bool error = !_normalized_midline || (_normalized_midline->size() != FAST_SETTINGS(midline_resolution));
                 error = !_normalized_midline;
@@ -331,8 +331,8 @@ namespace track {
         
         timing.conclude_measure();
         
-        std::pair<int64_t, long_t> gui_show_fish = SETTING(gui_show_fish);
-        if(gui_show_fish.first == (int64_t)blob->blob_id() && frame == gui_show_fish.second) {
+        std::pair<pv::bid, long_t> gui_show_fish = SETTING(gui_show_fish);
+        if(gui_show_fish.first == blob->blob_id() && frame == gui_show_fish.second) {
         
         //if(frame == 532 && blob->blob_id() == 6357990) {
             Debug("%d %d: threshold %d", frame, blob->blob_id(), threshold);

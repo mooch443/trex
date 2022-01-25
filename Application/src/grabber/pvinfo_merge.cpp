@@ -152,7 +152,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     struct Source {
         size_t video_index;
         size_t frame_index;
-        uint32_t blob_id;
+        pv::bid blob_id;
     };
     
     SETTING(meta_write_these) = std::vector<std::string>{
@@ -175,7 +175,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     SETTING(meta_number_merged_videos) = size_t(files.size());
     
     // frame: {blob : source}
-    std::map<long_t, std::map<uint32_t, Source>> meta;
+    std::map<long_t, std::map<pv::bid, Source>> meta;
     if(SETTING(merge_output_path).value<file::Path>().empty())
         SETTING(merge_output_path) = file::Path("merged");
     

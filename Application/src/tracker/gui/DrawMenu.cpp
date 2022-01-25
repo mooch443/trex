@@ -43,13 +43,13 @@ class ItemIndividual : public gui::List::Item {
 protected:
     GETTER_SETTER(std::string, name)
     GETTER_SETTER(Idx_t, ptr)
-    GETTER_SETTER(long_t, selected_blob_id)
+    GETTER_SETTER(pv::bid, selected_blob_id)
     
 public:
-    ItemIndividual(Idx_t fish = Idx_t(), long_t blob = -1)
-    : gui::List::Item(fish),
-    _ptr(fish),
-    _selected_blob_id(blob)
+    ItemIndividual(Idx_t fish = Idx_t(), pv::bid blob = pv::bid::invalid)
+        : gui::List::Item(fish),
+        _ptr(fish),
+        _selected_blob_id(blob)
     {
         if(fish.valid()) {
             Identity id(_ptr);
@@ -270,7 +270,7 @@ public:
                         auto it = GUI::cache().fish_selected_blobs.find(GUI::cache().selected.front());
                         if(it != GUI::cache().fish_selected_blobs.end())
                         {
-                            SETTING(gui_show_fish) = std::pair<int64_t, long_t>(it->second, GUI::frame());
+                            SETTING(gui_show_fish) = std::pair<pv::bid, long_t>(it->second, GUI::frame());
                             GUI::reanalyse_from(GUI::frame());
                             SETTING(analysis_paused) = false;
                         }
@@ -323,9 +323,9 @@ public:
              */
             struct FishAndBlob {
                 Idx_t fish;
-                long_t blob;
+                pv::bid blob;
                 
-                FishAndBlob(Idx_t fish = Idx_t(), long_t blob = -1) : fish(fish), blob(blob)
+                FishAndBlob(Idx_t fish = Idx_t(), pv::bid blob = pv::bid::invalid) : fish(fish), blob(blob)
                 {}
                 
                 void convert(std::shared_ptr<List::Item> ptr) {
@@ -369,16 +369,16 @@ public:
                  * Try and match the last displayed blob items to the currently relevant ones
                  */
                 struct BlobID {
-                    long_t id;
-                    BlobID(long_t id = -1) : id(id) {}
+                    pv::bid id;
+                    BlobID(pv::bid id = pv::bid::invalid) : id(id) {}
                     
                     void convert(std::shared_ptr<List::Item> ptr) {
                         auto item = static_cast<BlobItem*>(ptr.get());
                         
-                        if(item->ID() != id || (id == -1 && item->name() != "none")) {
-                            item->set_ID(id);
+                        if(item->ID() != (uint32_t)id || (!id.valid() && item->name() != "none")) {
+                            item->set_ID((uint32_t)id);
                             
-                            if(id != -1) {
+                            if(id.valid()) {
                                 std::string fish;
                                 for(auto && [fdx, bdx] : GUI::instance()->cache().fish_selected_blobs) {
                                     if(bdx == id) {
@@ -387,7 +387,7 @@ public:
                                     }
                                 }
                                 
-                                item->set_name(fish.empty() ? "blob"+std::to_string(id) : fish+" ("+Meta::toStr(id)+")");
+                                item->set_name(fish.empty() ? "blob"+Meta::toStr(id) : fish+" ("+Meta::toStr(id)+")");
                             }
                             else
                                 item->set_name("none");
@@ -397,7 +397,7 @@ public:
                 
                 // find currently selected individual
                 long_t selected_individual = _list->selected_item();
-                long_t selected = -1;
+                pv::bid selected;
                 
                 for(auto x : _individual_items) {
                     if(x->ID() == selected_individual) {
@@ -407,7 +407,7 @@ public:
                 }
                 
                 // generate blob items
-                std::map<uint32_t, std::shared_ptr<BlobID>> ordered;
+                std::map<pv::bid, std::shared_ptr<BlobID>> ordered;
                 std::vector<std::shared_ptr<BlobID>> blobs = {std::make_shared<BlobID>(-1)};
                 for(auto v : GUI::cache().raw_blobs)
                     ordered[v->blob->blob_id()] = std::make_shared<BlobID>(v->blob->blob_id());
@@ -419,7 +419,7 @@ public:
                 
                 // set items and display
                 second_list->set_items(_blob_items);
-                second_list->select_item(selected);
+                second_list->select_item((uint32_t)selected);
                 
                 GUI::instance()->gui().wrap_object(*second_list);
             }

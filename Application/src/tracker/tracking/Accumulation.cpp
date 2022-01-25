@@ -1041,7 +1041,6 @@ bool Accumulation::start() {
         auto train_confirm_range = [&steps, &successful_ranges, this, &overall_ranges]
             (const Rangel& range, std::shared_ptr<TrainingData> second_data, DatasetQuality::Quality quality) -> std::tuple<bool, std::shared_ptr<TrainingData>>
         {
-            //auto gpu_max_epochs = SETTING(gpu_max_epochs).value<size_t>();
             if(!second_data) {
                 second_data = std::make_shared<TrainingData>();
             }
@@ -1612,7 +1611,7 @@ bool Accumulation::start() {
             }
         }
         
-        size_t gpu_max_epochs = SETTING(gpu_max_epochs);
+        uchar gpu_max_epochs = SETTING(gpu_max_epochs);
         float acc = best_uniqueness();
         current_best = 0;
         Recognition::train(_collected_data, FrameRange(), TrainingMode::Accumulate, narrow_cast<int>(max(3.f, gpu_max_epochs * 0.25f)), true, &acc, -2);

@@ -11,12 +11,12 @@ namespace track {
         
         struct Tag {
             float variance;
-            uint32_t blob_id;
+            pv::bid blob_id;
             Image::Ptr image;
             long_t frame;
             
-            Tag(float v, uint32_t bid, Image::Ptr img, long_t frame = -1)
-                : variance(v), blob_id(bid), image(img), frame(frame)
+            Tag(float v, pv::bid bdx, Image::Ptr img, long_t frame = -1)
+                : variance(v), blob_id(bdx), image(img), frame(frame)
             {}
             
             bool operator>(const Tag& other) const {
