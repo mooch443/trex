@@ -455,7 +455,13 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                                             }
                                         }
                                         
-                                        ImageData data(ImageData::Blob{blob->num_pixels(), blob->blob_id(), org_id, blob->parent_id(), blob->bounds()}, frame, *range, fish, fish->identity().ID(), trans);
+                                        ImageData data(ImageData::Blob{
+                                            blob->num_pixels(), 
+                                            blob->blob_id(), 
+                                            org_id, 
+                                            blob->parent_id(), 
+                                            blob->bounds()
+                                        }, frame, *range, fish, fish->identity().ID(), trans);
                                         data.filters = filters;
                                         assert(data.segment.contains(frame));
                                         

@@ -79,13 +79,11 @@ namespace track {
             std::shared_ptr<TrainingFilterConstraints> filters;
 
             struct Blob {
-                uint64_t num_pixels = 0;
+                uint64_t num_pixels;
                 pv::bid blob_id;
                 pv::bid org_id;
                 pv::bid parent_id;
                 Bounds bounds;
-
-                Blob() {}
 
             } blob;
 
@@ -95,7 +93,7 @@ namespace track {
             Idx_t fdx;
             gui::Transform midline_transform;
             
-            ImageData(Blob blob = Blob(), long_t frame = -1, const FrameRange& segment = FrameRange(), Individual * fish = NULL, Idx_t fdx = Idx_t(), const gui::Transform& transform = gui::Transform())
+            ImageData(Blob blob = {0}, long_t frame = -1, const FrameRange& segment = FrameRange(), Individual* fish = NULL, Idx_t fdx = Idx_t(), const gui::Transform& transform = gui::Transform())
                 : image(nullptr), filters(nullptr), blob(blob), frame(frame), segment(segment), fish(fish), fdx(fdx), midline_transform(transform)
             {}
         };
