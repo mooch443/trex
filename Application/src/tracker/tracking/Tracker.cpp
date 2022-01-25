@@ -1274,7 +1274,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
             if(clique.size() > others.size()) {
                 using namespace Match;
                 std::map<pv::bid, std::pair<uint32_t, Match::prob_t>> assign_blob; // blob: individual
-                //std::map<uint32_t, std::set<std::tuple<Match::prob_t, pv::bid>>> all_probs_per_fish;
+                std::map<uint32_t, std::set<std::tuple<Match::prob_t, pv::bid>>> all_probs_per_fish;
                 std::map<uint32_t, std::set<std::tuple<Match::prob_t, pv::bid>>> probs_per_fish;
                 
                 if(out) {
@@ -1307,7 +1307,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
                             // this blob has been assigned to a different fish!
                             // check for validity (which one is closer)
                             if(assign_blob[b].second <= std::get<0>(*combinations.begin())) {
-                                Log(out, "\t\tBlob %d is already assigned to %d (%d)...", b, assign_blob[b], c);
+                                Log(out, "\t\tBlob %u is already assigned to individual %u (%u)...", b, assign_blob[b], c);
                             } else {
                                 auto oid = assign_blob[b].first;
                                 if(out) {
@@ -1337,7 +1337,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
                     }
                     
                     probs_per_fish[c] = combinations;
-                    //all_probs_per_fish[c] = combinations;
+                    all_probs_per_fish[c] = combinations;
                     
                     checks.push(c);
                 }
@@ -1346,13 +1346,13 @@ bool operator<(long_t frame, const FrameProperties& props) {
                     auto c = checks.front();
                     checks.pop();
                     
-                    auto &combinations = probs_per_fish.at(c);
+                    auto &combinations = all_probs_per_fish.at(c);
                     if(!combinations.empty() && !check_combinations(c, combinations, checks))
                         checks.push(c);
                 }
                 
                 size_t counter = 0;
-                for(auto && [fdx, set] : probs_per_fish) {
+                for(auto && [fdx, set] : all_probs_per_fish) {
                     if(out) {
                         auto str = Meta::toStr(set);
                         Log(out, "Combinations %d: %S", fdx, &str);
