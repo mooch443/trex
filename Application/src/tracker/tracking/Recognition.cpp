@@ -680,7 +680,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                     }
                     
                     try {
-                        ImageData data(ImageData::Blob{blob->num_pixels(), blob->blob_id(), -1, blob->parent_id(), blob->bounds()}, frame, segment, fish, fdx, midline ? midline->transform(normalize) : gui::Transform());
+                        ImageData data(ImageData::Blob{blob->num_pixels(), blob->blob_id(), pv::bid::invalid, blob->parent_id(), blob->bounds()}, frame, segment, fish, fdx, midline ? midline->transform(normalize) : gui::Transform());
                         assert(data.segment.contains(frame));
                         
                         if(!blob->pixels()) {

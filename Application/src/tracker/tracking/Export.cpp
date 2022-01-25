@@ -435,7 +435,7 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                                         assert(blob);
                                         
                                         auto trans = midline->transform(normalize);
-                                        int64_t org_id = -1;
+                                        pv::bid org_id;
                                         
                                         if(SETTING(tracklet_restore_split_blobs) && blob->parent_id().valid()) {
                                             pv::Frame pvf;
@@ -448,7 +448,7 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                                                     //Debug("Replacing blob %d with parent blob %d", blob->blob_id(), b->blob_id());
                                                     b->calculate_moments();
                                                     trans.translate(-(blob->bounds().pos() - b->bounds().pos()));
-                                                    org_id = (int64_t)blob->blob_id();
+                                                    org_id = blob->blob_id();
                                                     blob = b;
                                                     break;
                                                 }

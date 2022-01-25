@@ -2768,7 +2768,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
                 Recognition::ImageData::Blob{
                     blob->num_pixels(),
                     blob->blob_id(),
-                    -1,
+                    pv::bid::invalid,
                     blob->parent_id(),
                     blob->bounds()
                 },
