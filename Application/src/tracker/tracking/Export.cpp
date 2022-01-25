@@ -201,7 +201,7 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
     const Size2 output_size = SETTING(recognition_image_size);
     const bool do_normalize_tracklets = SETTING(tracklet_normalize_orientation);
     const bool do_normalize_output = SETTING(output_normalize_midline_data);
-    const uchar tracklet_max_images = SETTING(tracklet_max_images);
+    const uint16_t tracklet_max_images = SETTING(tracklet_max_images);
     
     auto fishdata_dir = SETTING(fishdata_dir).value<file::Path>();
     auto fishdata = pv::DataLocation::parse("output", fishdata_dir);
