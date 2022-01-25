@@ -504,7 +504,7 @@ int main(int argc, char**argv) {
         
         SETTING(video_size) = Size2(average.cols, average.rows);
         SETTING(video_mask) = video.has_mask();
-        SETTING(video_length) = size_t(video.length());
+        SETTING(video_length) = uint64_t(video.length());
         
         auto output_settings = pv::DataLocation::parse("output_settings");
         if(output_settings.exists() && output_settings != settings_file) {
@@ -849,7 +849,7 @@ int main(int argc, char**argv) {
         if(header.version >= Output::ResultsFormat::Versions::V_28) {
             header.average.get().copyTo(average);
             SETTING(video_size) = Size2(average.cols, average.rows);
-            SETTING(video_length) = size_t(header.video_length);
+            SETTING(video_length) = uint64_t(header.video_length);
             SETTING(analysis_range) = std::pair<long_t, long_t>(header.analysis_range.start, header.analysis_range.end);
             auto consec = header.consecutive_segments;
             std::vector<Rangel> vec(consec.begin(), consec.end());
@@ -866,7 +866,7 @@ int main(int argc, char**argv) {
             
             SETTING(video_size) = Size2(average.cols, average.rows);
             SETTING(video_mask) = video.has_mask();
-            SETTING(video_length) = size_t(video.length());
+            SETTING(video_length) = uint64_t(video.length());
         }
         
         if(SETTING(meta_real_width).value<float>() == 0)

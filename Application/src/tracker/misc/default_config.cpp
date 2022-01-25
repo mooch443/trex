@@ -288,7 +288,7 @@ file::Path conda_environment_path() {
         CONFIG("meta_source_path", Path(""), "Path of the original video file for conversions (saved as debug info).", STARTUP);
         CONFIG("meta_real_width", float(0), "Used to calculate the `cm_per_pixel` conversion factor, relevant for e.g. converting the speed of individuals from px/s to cm/s (to compare to `track_max_speed` which is given in cm/s). By default set to 30 if no other values are available (e.g. via command-line). This variable should reflect actual width (in cm) of what is seen in the video image. For example, if the video shows a tank that is 50cm in X-direction and 30cm in Y-direction, and the image is cropped exactly to the size of the tank, then this variable should be set to 50.", STARTUP);
         CONFIG("cm_per_pixel", float(0), "The ratio of `meta_real_width / video_width` that is used to convert pixels to centimeters. Will be automatically calculated based on a meta-parameter saved inside the video file (`meta_real_width`) and does not need to be set manually.", STARTUP);
-        CONFIG("video_length", size_t(0), "The length of the video in frames", STARTUP);
+        CONFIG("video_length", uint64_t(0), "The length of the video in frames", STARTUP);
         CONFIG("video_size", Size2(-1), "The dimensions of the currently loaded video.", SYSTEM);
         CONFIG("video_info", std::string(), "Information on the current video as provided by PV.", SYSTEM);
         
@@ -571,12 +571,12 @@ file::Path conda_environment_path() {
         CONFIG("auto_train_dont_apply", false, "If set to true, setting `auto_train` will only train and not apply the trained network.");
         CONFIG("gpu_accumulation_enable_final_step", true, "If enabled, the network will be trained on all the validation + training data accumulated, as a last step of the accumulation protocol cascade. This is intentional overfitting.");
         CONFIG("gpu_learning_rate", float(0.0005), "Learning rate for training a recognition network.");
-        CONFIG("gpu_max_epochs", size_t(150), "Maximum number of epochs for training a recognition network.");
+        CONFIG("gpu_max_epochs", uchar(150), "Maximum number of epochs for training a recognition network (0 means infinite).");
         CONFIG("gpu_verbosity", gpu_verbosity_t::full, "Determines the nature of the output on the command-line during training. This does not change any behaviour in the graphical interface.");
-        CONFIG("gpu_min_iterations", size_t(100), "Minimum number of iterations per epoch for training a recognition network.");
+        CONFIG("gpu_min_iterations", uchar(100), "Minimum number of iterations per epoch for training a recognition network.");
         CONFIG("gpu_max_cache", float(2), "Size of the image cache (transferring to GPU) in GigaBytes when applying the network.");
         CONFIG("gpu_max_sample_gb", float(2), "Maximum size of per-individual sample images in GigaBytes. If the collected images are too many, they will be sub-sampled in regular intervals.");
-        CONFIG("gpu_min_elements", size_t(25000), "Minimum number of images being collected, before sending them to the GPU.");
+        CONFIG("gpu_min_elements", uint32_t(25000), "Minimum number of images being collected, before sending them to the GPU.");
         CONFIG("gpu_accumulation_max_segments", uint32_t(15), "If there are more than `gpu_accumulation_max_segments` global segments to be trained on, they will be filtered according to their quality until said limit is reached.");
         CONFIG("terminate_training", bool(false), "Setting this to true aborts the training in progress.");
         

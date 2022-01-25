@@ -17,7 +17,7 @@ namespace gui {
     
     struct FrameInfo {
         std::atomic_int current_fps;
-        long_t video_length;
+        uint64_t video_length;
         std::atomic_long frameIndex;
         
         std::set<Rangel> training_ranges;

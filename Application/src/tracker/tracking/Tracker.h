@@ -85,7 +85,7 @@ CREATE_STRUCT(Settings,
   (bool, enable_absolute_difference),
   (float, blobs_per_thread),
   (std::string, individual_prefix),
-  (size_t, video_length),
+  (uint64_t, video_length),
   (analrange_t, analysis_range),
   (bool, recognition_enable),
   (float, visual_field_eye_offset),
@@ -274,7 +274,7 @@ CREATE_STRUCT(Settings,
         static uint32_t overall_midline_errors() { return instance()->_overall_midline_errors; }
         static Rangel analysis_range() {
             const auto [start, end] = FAST_SETTINGS(analysis_range);
-            const long_t video_length = (long_t)FAST_SETTINGS(video_length)-1;
+            const long_t video_length = narrow_cast<long_t>(FAST_SETTINGS(video_length))-1;
             return Rangel(max(0, start), max(end > -1 ? min(video_length, end) : video_length, max(0, start)));
         }
         

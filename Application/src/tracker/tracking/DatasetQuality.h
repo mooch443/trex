@@ -87,7 +87,7 @@ namespace track {
         
     private:
         void remove_segment(const Rangel& range);
-        bool calculate_segment(const Rangel&, const long_t video_length, const Tracker::LockGuard&);
+        bool calculate_segment(const Rangel&, const uint64_t video_length, const Tracker::LockGuard&);
         Single evaluate_single(Idx_t id, Individual* fish, const Rangel& consec, const Tracker::LockGuard& guard);
     };
 }

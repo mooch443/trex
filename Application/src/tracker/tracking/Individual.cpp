@@ -1016,7 +1016,7 @@ std::shared_ptr<Individual::BasicStuff> Individual::add(long_t frameIndex, const
     _basic_stuff.push_back(stuff);
     _matched_using.push_back(match_mode);
     
-    const long_t video_length = Tracker::analysis_range().end;
+    const auto video_length = Tracker::analysis_range().end;
     if(frameIndex >= video_length) {
         update_midlines(nullptr);
     }
@@ -1183,8 +1183,8 @@ void Individual::update_midlines(const CacheHints* hints) {
         update_frame_with_posture(frameIndex);
     }*/
     
-    const long_t smooth_range = FAST_SETTINGS(posture_direction_smoothing);
-    const long_t video_length = Tracker::analysis_range().end;
+    const auto smooth_range = narrow_cast<long_t>(FAST_SETTINGS(posture_direction_smoothing));
+    const auto video_length = Tracker::analysis_range().end;
     auto end_frame = Tracker::end_frame();
     
     //! find the first frame that needs to be cached, but hasnt been yet
@@ -2836,7 +2836,7 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
         
         const auto && [segment, usable] = (FrameRange)*sit->get();
         
-        if(segment.end >= _endFrame && Tracker::instance()->end_frame()+1 != long_t(SETTING(video_length).value<size_t>())) {
+        if(segment.end >= _endFrame && Tracker::instance()->end_frame()+1 != narrow_cast<long_t>(SETTING(video_length).value<uint64_t>())) {
             return {0, {}};
         }
         

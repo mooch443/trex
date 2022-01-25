@@ -242,7 +242,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
         
         _title_layout.set_policy(HorizontalLayout::Policy::CENTER);
         std::vector<Layout::Ptr> in_layout{&_pause, &_status_text, &_status_text2, &_status_text3};
-        if(_frame_info.video_length == tracker_endframe) {
+        if(_frame_info.video_length == uint64_t(tracker_endframe)) {
             in_layout.erase(in_layout.begin());
         }
         
@@ -408,7 +408,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
                         
                     } else if(_bar->hovered()) {
                         if(tracker_endframe != -1) {
-                            _mOverFrame = min(_frame_info.video_length, e.hover.x * float(_frame_info.video_length) / max_w_);
+                            _mOverFrame = min(float(_frame_info.video_length), e.hover.x * float(_frame_info.video_length) / max_w_);
                             _bar->set_dirty();
                         }
                     }

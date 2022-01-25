@@ -61,7 +61,7 @@ void DatasetQuality::remove_frames(long_t start) {
     _last_seen = Rangel(-1, -1);
 }
 
-bool DatasetQuality::calculate_segment(const Rangel &consec, const long_t video_length, const Tracker::LockGuard& guard) {
+bool DatasetQuality::calculate_segment(const Rangel &consec, const uint64_t video_length, const Tracker::LockGuard& guard) {
     if(consec.length() < 5) {
         //Debug("Not calculating dataset segment [%d,%d] because its too short (%d)", consec.start, consec.end, consec.length());
         return true; // skipping range because its too short, but send "ok" signal
@@ -106,7 +106,7 @@ bool DatasetQuality::calculate_segment(const Rangel &consec, const long_t video_
             auto it = fish->frame_segments().rbegin();
             if((*it)->range.overlaps(consec)) {
                 assert((*it)->range.end == fish->end_frame());
-                if(fish->end_frame() == Tracker::end_frame() && Tracker::end_frame() < video_length)
+                if(fish->end_frame() == Tracker::end_frame() && uint64_t(Tracker::end_frame()) < video_length)
                     return false;
             }
         }

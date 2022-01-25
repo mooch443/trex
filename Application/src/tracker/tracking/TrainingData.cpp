@@ -785,7 +785,6 @@ std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::share
     const double gpu_max_sample_mb = double(SETTING(gpu_max_sample_gb).value<float>()) * 1000;
     const Size2 output_size = SETTING(recognition_image_size);
     const double max_images_per_class = gpu_max_sample_mb * 1000 * 1000 / number_classes / output_size.width / output_size.height / 4;
-    //const long_t video_length = Tracker::analysis_range().length();
     
     for(auto && [id, ranges] : ranges_to_add) {
         auto && [training_samples, validation_samples] = individual_samples[id];

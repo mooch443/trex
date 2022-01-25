@@ -528,7 +528,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
         
         //! Update recognition if enabled and end of video reached
         if(Recognition::recognition_enabled()) {
-            const long_t video_length = Tracker::analysis_range().end;
+            const auto video_length = Tracker::analysis_range().end;
             if(frame.index() >= video_length)
                 Recognition::notify();
         }

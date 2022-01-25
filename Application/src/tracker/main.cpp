@@ -693,7 +693,7 @@ int main(int argc, char** argv)
     
     SETTING(video_size) = Size2(average.cols, average.rows);
     SETTING(video_mask) = video.has_mask();
-    SETTING(video_length) = size_t(video.length());
+    SETTING(video_length) = uint64_t(video.length());
     SETTING(video_info) = std::string(video.get_info());
     
     if(SETTING(frame_rate).value<int>() == 0) {
@@ -1071,7 +1071,7 @@ int main(int argc, char** argv)
     
     //try {
     GUI &gui = *tmp;
-    gui.frameinfo().video_length = (long_t)video.length() - 1;
+    gui.frameinfo().video_length = video.length() > 0 ? (video.length() - 1) : 0;
     
     if(!SETTING(gui_connectivity_matrix_file).value<file::Path>().empty()) {
         try {

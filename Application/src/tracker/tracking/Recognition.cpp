@@ -83,7 +83,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         update_condition.notify_all();
     }
     
-    bool Recognition::train(std::shared_ptr<TrainingData> data, const FrameRange& global_range, TrainingMode::Class load_results, long_t gpu_max_epochs, bool dont_save, float *worst_accuracy_per_class, int accumulation_step) {
+    bool Recognition::train(std::shared_ptr<TrainingData> data, const FrameRange& global_range, TrainingMode::Class load_results, uchar gpu_max_epochs, bool dont_save, float *worst_accuracy_per_class, int accumulation_step) {
         if(!instance) {
             Except("Calling Recognition::train without initializing a Recognition object first.");
             return false;
@@ -795,7 +795,9 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         custom_midline_lengths.clear();
         
         const Size2 output_shape = image_size();
-        long_t video_length = GUI::instance() ? (long_t)GUI::instance()->video_source()->length()-1 : 0;
+        auto video_length = GUI::instance() ? GUI::instance()->video_source()->length() : 0;
+        if(video_length > 0) video_length -= 1;
+        
         auto normalize = SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>();
         if(!FAST_SETTINGS(calculate_posture) && normalize == default_config::recognition_normalization_t::posture)
             normalize = default_config::recognition_normalization_t::moments;
@@ -846,7 +848,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             for (auto it = fish->frame_segments().begin(); it != fish->frame_segments().end(); ++it) {
                 auto& segment = *it->get();
                 
-                if(segment.end() >= fish->end_frame() && !(fish->end_frame() >= video_length || fish->end_frame() < frames.end))
+                if(segment.end() >= fish->end_frame() && !(uint64_t(fish->end_frame()) >= video_length || fish->end_frame() < frames.end))
                 {
                     // dont process the last segment of this fish, unless
                     // it is the end of the video
@@ -1015,11 +1017,11 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                     _detail.failed_frame(e.frame, e.fdx);
                 }
                 
-                if(waiting.size() >= SETTING(gpu_min_elements).value<size_t>() && !_running) {
+                if(waiting.size() >= SETTING(gpu_min_elements).value<uint32_t>() && !_running) {
                     if(guard.try_lock_for(std::chrono::milliseconds(1))) {
                         Debug("Inserting %d items into prediction queue (%d)...", waiting.size(), _data_queue.size());
                         
-                        const size_t maximum_queue_elements = SETTING(gpu_min_elements).value<size_t>() * 5;
+                        const size_t maximum_queue_elements = SETTING(gpu_min_elements).value<uint32_t>() * 5;
                         auto queue_size = _data_queue.size();
                         if(queue_size > maximum_queue_elements && !_running) {
                             add_async_prediction();
@@ -1261,8 +1263,8 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
     }
     
     bool Recognition::is_queue_full_enough() const {
-        const long_t video_length = Tracker::analysis_range().end;
-        return _data_queue.size() >= SETTING(gpu_min_elements).value<size_t>()
+        const auto video_length = Tracker::analysis_range().end;
+        return _data_queue.size() >= SETTING(gpu_min_elements).value<uint32_t>()
             || (!_data_queue.empty() && Tracker::end_frame() >= video_length)
             || (!_data_queue.empty() && _last_data_added.elapsed() > 1);
     }
@@ -1334,7 +1336,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                         return false;
                     }
 
-                    while (!_data_queue.empty() && images.size() < SETTING(gpu_min_elements).value<size_t>()) {
+                    while (!_data_queue.empty() && images.size() < SETTING(gpu_min_elements).value<uint32_t>()) {
                         ImageData obj = _data_queue.front();
                         _data_queue.pop_front();
 
@@ -1502,7 +1504,7 @@ void Recognition::check_learning_module(bool force) {
             py::set_variable("image_height", image_size().height, "learn_static");
             py::set_variable("learning_rate", SETTING(gpu_learning_rate).value<float>(), "learn_static");
             py::set_variable("batch_size", (long_t)batch_size, "learn_static");
-            py::set_variable("video_length", (long_t)SETTING(video_length).value<size_t>(), "learn_static");
+            py::set_variable("video_length", narrow_cast<long_t>(SETTING(video_length).value<uint64_t>()), "learn_static");
             py::set_variable("verbosity", int(SETTING(gpu_verbosity).value<default_config::gpu_verbosity_t::Class>().value()));
             
             auto filename = network_path();
@@ -1737,7 +1739,7 @@ void Recognition::load_weights(std::string postfix) {
         py::run("learn_static", "reinitialize_network");
     }
     
-    bool Recognition::train_internally(std::shared_ptr<TrainingData> data, const FrameRange& global_range, TrainingMode::Class load_results, long_t gpu_max_epochs, bool dont_save, float *worst_accuracy_per_class, int accumulation_step)
+    bool Recognition::train_internally(std::shared_ptr<TrainingData> data, const FrameRange& global_range, TrainingMode::Class load_results, uchar gpu_max_epochs, bool dont_save, float *worst_accuracy_per_class, int accumulation_step)
     {
         bool success = false;
         float best_accuracy_worst_class = worst_accuracy_per_class ? *worst_accuracy_per_class : -1;
@@ -1873,9 +1875,9 @@ void Recognition::load_weights(std::string postfix) {
                     auto mb = Meta::toStr(FileSize((joined_data.validation_images.size() + joined_data.training_images.size()) * image_size().width * image_size().height * 4));
                     Debug("Pushing %d images (%S) to python...", (joined_data.validation_images.size() + joined_data.training_images.size()), &mb);
                     
-                    long_t setting_max_epochs = int(SETTING(gpu_max_epochs).value<size_t>());
-                    py::set_variable("max_epochs", gpu_max_epochs != -1 ? min(setting_max_epochs, gpu_max_epochs) : setting_max_epochs, "learn_static");
-                    py::set_variable("min_iterations", long_t(SETTING(gpu_min_iterations).value<size_t>()), "learn_static");
+                    uchar setting_max_epochs = int(SETTING(gpu_max_epochs).value<uchar>());
+                    py::set_variable("max_epochs", gpu_max_epochs != 0 ? min(setting_max_epochs, gpu_max_epochs) : setting_max_epochs, "learn_static");
+                    py::set_variable("min_iterations", long_t(SETTING(gpu_min_iterations).value<uchar>()), "learn_static");
                     py::set_variable("verbosity", int(SETTING(gpu_verbosity).value<default_config::gpu_verbosity_t::Class>().value()), "learn_static");
                     
                     auto filename = network_path();

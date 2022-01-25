@@ -209,7 +209,7 @@ namespace track {
         
         void check_last_prediction_accuracy();
         
-        static bool train(std::shared_ptr<TrainingData> data, const FrameRange& global_range, TrainingMode::Class load_results, long_t gpu_max_epochs = -1, bool dont_save = false, float *worst_accuracy_per_class = NULL, int accumulation_step = -1);
+        static bool train(std::shared_ptr<TrainingData> data, const FrameRange& global_range, TrainingMode::Class load_results, uchar gpu_max_epochs = 0, bool dont_save = false, float *worst_accuracy_per_class = NULL, int accumulation_step = -1);
         static bool recognition_enabled();
         static bool network_weights_available();
         static bool can_initialize_python();
@@ -245,7 +245,7 @@ namespace track {
         bool cached_filter(const Individual *fish, const Rangel& segment, TrainingFilterConstraints&, const bool with_std);
         
         bool load_weights_internal(std::string postfix = "");
-        bool train_internally(std::shared_ptr<TrainingData> data, const FrameRange& global_range, TrainingMode::Class load_results, long_t gpu_max_epochs, bool dont_save, float *worst_accuracy_per_class, int accumulation_step);
+        bool train_internally(std::shared_ptr<TrainingData> data, const FrameRange& global_range, TrainingMode::Class load_results, uchar gpu_max_epochs, bool dont_save, float *worst_accuracy_per_class, int accumulation_step);
         bool update_internal_training();
         void reinitialize_network_internal();
         void _notify();

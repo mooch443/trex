@@ -443,7 +443,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(long_t current_fr
     {
         auto d = abs(current_frame - _frame);
         //Debug("Frame %d->%d: %d frames", _frame, current_frame, d);
-        const uint32_t frame_range = _frame_context >= 0 ? _frame_context : FAST_SETTINGS(video_length);
+        const uint32_t frame_range = _frame_context >= 0 ? _frame_context : narrow_cast<uint32_t>(FAST_SETTINGS(video_length));
         
         if(_frame == -1 || _grid.empty() || (_frame_context != -1 && d >= _frame_context)) {
             // we cant use any frames from before
