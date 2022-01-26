@@ -5,68 +5,35 @@
 #include <misc/checked_casts.h>
 
 namespace gui {
-    class CustomItem {
-    public:
-        virtual Color base_color() const { return Transparent; }
-        virtual Color text_color() const { return White; }
-        virtual operator std::string() const = 0;
-        virtual ~CustomItem() {}
-        bool operator !=(const CustomItem& other) const {
-            return (std::string)other != this->operator std::string();
-        }
+    /*
+     * Helper concepts (C++20) to determine 
+     * whether a given Item type has color / font information attached.
+     */
+
+    template<typename T>
+    concept has_font_function = requires(T t) {
+        { t.font() } -> std::convertible_to<Font>;
     };
 
-    template<typename, typename T>
-    struct has_font {
-        static_assert(
-            std::integral_constant<T, false>::value,
-            "Second template parameter needs to be of function type.");
+    template<typename T> 
+    concept has_color_function = requires(T t) { 
+        { t.color() } -> std::convertible_to<Color>;
     };
 
-    template<typename C, typename Ret, typename... Args>
-    struct has_font<C, Ret(Args...)> {
-    private:
-        template<typename T>
-        static constexpr auto check(T*)
-            -> typename
-            std::is_same<
-            decltype(std::declval<T>().font(std::declval<Args>()...)), Ret >::type;
-
-        template<typename>
-        static constexpr std::false_type check(...);
-
-        typedef decltype(check<C>(0)) type;
-
-    public:
-        static constexpr bool value = type::value;
+    template<typename T>
+    concept has_base_color_function = requires(T t) {
+        { t.base_color() } -> std::convertible_to<Color>;
     };
 
-    template<typename, typename T>
-    struct has_color {
-        static_assert(
-            std::integral_constant<T, false>::value,
-            "Second template parameter needs to be of function type.");
+    //! Check compatibility with List class
+    template<typename T>
+    concept list_compatible_item = requires(T t) {
+        std::convertible_to<T, std::string>;
+        { t != t }; // has != operator
     };
 
-    template<typename C, typename Ret, typename... Args>
-    struct has_color<C, Ret(Args...)> {
-    private:
-        template<typename T>
-        static constexpr auto check(T*)
-            -> typename
-            std::is_same<
-            decltype(std::declval<T>().color(std::declval<Args>()...)), Ret >::type;
-
-        template<typename>
-        static constexpr std::false_type check(...);
-
-        typedef decltype(check<C>(0)) type;
-
-    public:
-        static constexpr bool value = type::value;
-    };
-
-    template <typename T = std::string, typename std::enable_if<std::is_convertible<T, std::string>::value, bool*>::type = nullptr>
+    template <typename T = std::string>
+    requires list_compatible_item<T>
     class ScrollableList : public Entangled {
         Vec2 item_padding;
         
@@ -379,17 +346,14 @@ namespace gui {
                     _rects.at(idx)->set_pos(Vec2(0, y));
                     _texts.at(idx)->set_txt(item.value());
 
-                    if constexpr (has_font<T, Font(void)>::value) {
-                        if (item.value().font().size > 0)
-                            _texts.at(idx)->set_font(item.value().font());
+                    if constexpr (has_color_function<T>) {
+                        if (item.value().color() != Transparent)
+                            _texts.at(idx)->set_color(item.value().color());
                     }
 
-                    if constexpr(std::is_base_of<CustomItem, T>::value) {
-                        _texts.at(idx)->set_color(static_cast<const CustomItem*>(&item.value())->text_color());
-                    }
-                    else if constexpr (has_color<T, Color(void)>::value) {
-                        if(item.value().color() != Transparent)
-                            _texts.at(idx)->set_color(item.value().color());
+                    if constexpr (has_font_function<T>) {
+                        if (item.value().font().size > 0)
+                            _texts.at(idx)->set_font(item.value().font());
                     }
                     
                     rect_to_idx[_rects.at(idx)] = i;
@@ -415,33 +379,23 @@ namespace gui {
                 set_scroll_offset(Vec2());
                 set_scroll_offset(scroll);
             }
-            
-            if constexpr(std::is_base_of<CustomItem, T>::value) {
-                for(auto rect : _rects) {
-                    auto idx = rect_to_idx[rect];
-                    auto item = static_cast<const CustomItem*>(&_items[idx].value());
-                    _items[idx].set_hovered(rect->hovered());
 
-                    if(rect->pressed() || (_stays_toggled && (long)rect_to_idx[rect] == _last_selected_item))
-                        rect->set_fillclr(item->base_color().exposureHSL(0.15f));
-                    else if(rect->hovered())
-                        rect->set_fillclr(item->base_color().exposureHSL(1.25f));
-                    else
-                        rect->set_fillclr(item->base_color());
-                }
-                
-            } else {
-                for(auto rect : _rects) {
-                    auto idx = rect_to_idx[rect];
-                    _items[idx].set_hovered(rect->hovered());
+            Color base_color;
+            for (auto rect : _rects) {
+                auto idx = rect_to_idx[rect];
+                _items[idx].set_hovered(rect->hovered());
 
-                    if(rect->pressed() || (_stays_toggled && (long)rect_to_idx[rect] == _last_selected_item))
-                        rect->set_fillclr(_item_color.exposure(0.15f));
-                    else if(rect->hovered())
-                        rect->set_fillclr(_item_color.exposure(1.25f));
-                    else
-                        rect->set_fillclr(Transparent);
-                }
+                if constexpr (has_base_color_function<T>)
+                    base_color = _items[idx].value().base_color();
+                else
+                    base_color = _item_color;
+
+                if (rect->pressed() || (_stays_toggled && (long)rect_to_idx[rect] == _last_selected_item))
+                    rect->set_fillclr(base_color.exposure(0.15f));
+                else if (rect->hovered())
+                    rect->set_fillclr(base_color.exposure(1.25f));
+                else
+                    rect->set_fillclr(base_color.alpha(50));
             }
         }
     };

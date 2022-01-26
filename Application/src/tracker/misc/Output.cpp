@@ -1435,7 +1435,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
                 default_config::load_string_with_deprecations(filename, file.header().settings, config, AccessLevelType::STARTUP, true);
                 
             } catch(const cmn::illegal_syntax& e) {
-                Error("Illegal syntax in .results settings.");
+                Error("Illegal syntax in .results settings (%s).", e.what());
             }
             
             std::vector<Idx_t> focus_group;

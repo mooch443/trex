@@ -37,7 +37,7 @@ struct AccumulationLock {
         
         try {
             Accumulation::unsetup();
-        } catch(const SoftException& soft) {
+        } catch(const SoftException& ) {
             //! do nothing
 #ifndef NDEBUG
             Warning("Caught SoftException in ~Accumulation.");

@@ -332,7 +332,7 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
                         } else
                             fish_graphs.at(thread_index)->graph().export_data(final_path.str(), &callback);
                         
-                    } catch(const UtilsException& e) {
+                    } catch(const UtilsException&) {
                         Except("Failed to save data for fish '%S' to location '%S'.", &fish->identity().raw_name(), &final_path.str());
                     }
                 }
@@ -1102,7 +1102,7 @@ void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
             export_singles(single_path);
         }
         
-    } catch(const UtilsException& e) {}
+    } catch(const UtilsException&) {}
     
     // reset values to previous setting
     SETTING(output_default_options) = previous_options;

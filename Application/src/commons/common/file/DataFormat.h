@@ -41,7 +41,7 @@ namespace cmn {
         void read_convert(K& val) {
             T v;
             read<T>(v);
-            val = v;
+            val = narrow_cast<K>(v);
         }
         
         template <typename T>

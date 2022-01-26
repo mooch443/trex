@@ -13,15 +13,18 @@
 namespace gui {
 
 class FileChooser {
-    class FileItem : public CustomItem {
+    class FileItem {
         GETTER(file::Path, path)
         
     public:
         FileItem(const file::Path& path = "");
         
-        Color base_color() const override;
-        Color text_color() const override;
-        operator std::string() const override;
+        Color base_color() const;
+        Color color() const;
+        operator std::string() const;
+        bool operator!=(const FileItem& other) const {
+            return _path != other._path;
+        }
     };
     
 public:

@@ -1645,7 +1645,7 @@ void Work::start_learning() {
                             break;
                     }
                     
-                } catch(const SoftException& e) {
+                } catch(const SoftException&) {
                     // pass
                 }
                 

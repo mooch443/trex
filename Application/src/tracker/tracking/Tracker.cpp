@@ -2666,7 +2666,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     active_individuals.insert(p.first);
                 }
                 
-            } catch (const UtilsException& e) {
+            } catch (const UtilsException&) {
     #if !defined(NDEBUG) && defined(PAIRING_PRINT_STATS)
                 if(graph.optimal_pairing())
                     print_statistics(*graph.optimal_pairing(), true);

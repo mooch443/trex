@@ -173,7 +173,7 @@ FileChooser::FileChooser(const file::Path& start, const std::string& extension,
         _files.insert("..");
         
     } catch(const UtilsException& ex) {
-        Error("Cannot list folder '%S'.", &_path);
+        Error("Cannot list folder '%S' (%s).", &_path, ex.what());
     }
     
     update_names();
@@ -351,7 +351,7 @@ Color FileChooser::FileItem::base_color() const {
     return _path.is_folder() ? Color(80, 80, 80, 200) : Color(100, 100, 100, 200);
 }
 
-Color FileChooser::FileItem::text_color() const {
+Color FileChooser::FileItem::color() const {
     return _path.is_folder() ? Color(180, 255, 255, 255) : White;
 }
 
@@ -376,7 +376,7 @@ void FileChooser::change_folder(const file::Path& p) {
             _list->set_scroll_offset(Vec2());
             _textfield->textfield()->set_text(_path.str());
             
-        } catch(const UtilsException&e) {
+        } catch(const UtilsException&) {
             _path = org;
             _files = copy;
         }
@@ -393,7 +393,7 @@ void FileChooser::change_folder(const file::Path& p) {
             _list->set_scroll_offset(Vec2());
             _textfield->textfield()->set_text(_path.str()+file::Path::os_sep());
             
-        } catch(const UtilsException&e) {
+        } catch(const UtilsException&) {
             _path = org;
             _files = copy;
         }

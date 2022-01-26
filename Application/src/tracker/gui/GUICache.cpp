@@ -366,7 +366,7 @@ namespace gui {
                         std::lock_guard<std::mutex> guard(GUI::instance()->blob_thread_pool_mutex());
                         Tracker::instance()->preprocess_frame(processed_frame, prev_active, &GUI::instance()->blob_thread_pool());
                         
-                    } catch(const UtilsException& e) {
+                    } catch(const UtilsException&) {
                         Except("Frame %d cannot be loaded from file.", frameIndex);
                     }
                 }

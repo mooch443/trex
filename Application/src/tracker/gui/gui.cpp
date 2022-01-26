@@ -1339,7 +1339,8 @@ void GUI::draw_export_options(gui::DrawStructure &base) {
 
             items.push_back(Item{ 
                 ._name = f, 
-                ._count = graphs_map.at(f) 
+                ._count = graphs_map.at(f),
+                ._color = Red
             });
             //items.push_back(Item{ f, Font(0.5, contains(graphs_map, f) ? Style::Bold : Style::Regular, Align::Left), contains(graphs_map, f) ? Red : White });
         }

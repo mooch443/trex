@@ -61,7 +61,7 @@
 #include <cmath>
 #endif
 
-typedef int32_t long_t;
+using long_t = int32_t;
 
 #ifndef _MSC_VER
 #define CV_STATIC_ANALYSIS 0

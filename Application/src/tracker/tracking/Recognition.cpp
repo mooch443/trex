@@ -718,7 +718,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                             //++items_added;
                         }
                         
-                    } catch(const UtilsException& ex) {
+                    } catch(const UtilsException&) {
                         // do nothing, just dont use the thing
                     }
                     
