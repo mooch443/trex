@@ -10,7 +10,7 @@
 #include <gui/types/Tooltip.h>
 #include <tracking/Individual.h>
 #include <misc/MemoryStats.h>
-#include <misc/CheckUpdates.h>
+#include <gui/CheckUpdates.h>
 #include <tracking/Categorize.h>
 
 namespace gui {
