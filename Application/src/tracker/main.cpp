@@ -29,7 +29,7 @@
 #include <misc/Output.h>
 #include <tracking/Recognition.h>
 #include <gui/WorkProgress.h>
-#include <misc/CheckUpdates.h>
+#include <gui/CheckUpdates.h>
 
 #include <tracking/SplitBlob.h>
 
