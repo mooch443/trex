@@ -451,7 +451,7 @@ TexturePtr GLImpl::texture(const Image * ptr) {
     glTexSubImage2D(GL_TEXTURE_2D,0,0,0, (GLsizei)ptr->cols, (GLsizei)ptr->rows, input_type, GL_UNSIGNED_BYTE, ptr->data());
     glBindTexture(GL_TEXTURE_2D, 0);
     
-    return std::unique_ptr<PlatformTexture>(new PlatformTexture{
+    return std::make_unique<PlatformTexture>(
         new ImTextureID_t{ (uint64_t)my_opengl_texture, ptr->dims != 4 },
         [this](void ** ptr) {
             std::lock_guard guard(texture_mutex);
@@ -471,7 +471,7 @@ TexturePtr GLImpl::texture(const Image * ptr) {
         },
         static_cast<uint>(width), static_cast<uint>(height),
         ptr->cols, ptr->rows
-    });
+    );
 }
 
 void GLImpl::clear_texture(TexturePtr&&) {

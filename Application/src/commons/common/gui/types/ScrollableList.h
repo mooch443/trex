@@ -16,6 +16,56 @@ namespace gui {
         }
     };
 
+    template<typename, typename T>
+    struct has_font {
+        static_assert(
+            std::integral_constant<T, false>::value,
+            "Second template parameter needs to be of function type.");
+    };
+
+    template<typename C, typename Ret, typename... Args>
+    struct has_font<C, Ret(Args...)> {
+    private:
+        template<typename T>
+        static constexpr auto check(T*)
+            -> typename
+            std::is_same<
+            decltype(std::declval<T>().font(std::declval<Args>()...)), Ret >::type;
+
+        template<typename>
+        static constexpr std::false_type check(...);
+
+        typedef decltype(check<C>(0)) type;
+
+    public:
+        static constexpr bool value = type::value;
+    };
+
+    template<typename, typename T>
+    struct has_color {
+        static_assert(
+            std::integral_constant<T, false>::value,
+            "Second template parameter needs to be of function type.");
+    };
+
+    template<typename C, typename Ret, typename... Args>
+    struct has_color<C, Ret(Args...)> {
+    private:
+        template<typename T>
+        static constexpr auto check(T*)
+            -> typename
+            std::is_same<
+            decltype(std::declval<T>().color(std::declval<Args>()...)), Ret >::type;
+
+        template<typename>
+        static constexpr std::false_type check(...);
+
+        typedef decltype(check<C>(0)) type;
+
+    public:
+        static constexpr bool value = type::value;
+    };
+
     template <typename T = std::string, typename std::enable_if<std::is_convertible<T, std::string>::value, bool*>::type = nullptr>
     class ScrollableList : public Entangled {
         Vec2 item_padding;
@@ -23,10 +73,10 @@ namespace gui {
         template <typename Q = T>
         class Item {
             GETTER(Q, value)
-            GETTER_SETTER(bool, hovered)
+            GETTER_SETTER_I(bool, hovered, false)
             
         public:
-            Item(T v) : _value(v), _hovered(false) {}
+            Item(T v) : _value(v) { }
         };
         
         GETTER(std::vector<Item<T>>, items)
@@ -328,8 +378,18 @@ namespace gui {
                     
                     _rects.at(idx)->set_pos(Vec2(0, y));
                     _texts.at(idx)->set_txt(item.value());
+
+                    if constexpr (has_font<T, Font(void)>::value) {
+                        if (item.value().font().size > 0)
+                            _texts.at(idx)->set_font(item.value().font());
+                    }
+
                     if constexpr(std::is_base_of<CustomItem, T>::value) {
                         _texts.at(idx)->set_color(static_cast<const CustomItem*>(&item.value())->text_color());
+                    }
+                    else if constexpr (has_color<T, Color(void)>::value) {
+                        if(item.value().color() != Transparent)
+                            _texts.at(idx)->set_color(item.value().color());
                     }
                     
                     rect_to_idx[_rects.at(idx)] = i;

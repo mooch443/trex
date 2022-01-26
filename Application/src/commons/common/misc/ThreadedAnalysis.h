@@ -138,7 +138,7 @@ namespace cmn {
         void pause_from_thread(std::thread::id tid) {
             {
                 std::lock_guard<std::mutex> guard(lock);
-                _paused = pause;
+                _paused = true;
             }
             
             if(tid == _analysis_thread->get_id())

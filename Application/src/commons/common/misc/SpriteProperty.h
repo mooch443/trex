@@ -275,7 +275,7 @@ namespace cmn {
         template<typename T>
         void Property<T>::operator=(const PropertyType& other) {
             LockGuard guard(map());
-            const Property& _other = other.operator const Property<T> &();
+            const Property& _other = other.operator const cmn::sprite::Property<T>&();
             if(_other.valid()) {
                 *this = _other.value();
                 

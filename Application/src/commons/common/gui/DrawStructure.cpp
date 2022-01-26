@@ -644,7 +644,7 @@ void DrawStructure::close_dialogs() {
                     while (draggable && !draggable->draggable())
                         draggable = draggable->parent();
                     
-                    if(draggable && draggable->pressed() && draggable->draggable()) {
+                    if(draggable && draggable->pressed() && draggable->draggable() && draggable->being_dragged()) {
                         auto pos = Vec2(hover.hover.x, hover.hover.y);
                         pos = draggable->global_transform().getInverse().transformPoint(pos);
                         

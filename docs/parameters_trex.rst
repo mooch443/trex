@@ -1584,7 +1584,7 @@ TRex parameters
 
 
 
-.. function:: output_min_frames(ulong)
+.. function:: output_min_frames(uint16)
 
 	**default value:** 1
 
@@ -1665,15 +1665,6 @@ TRex parameters
 
 
 
-.. function:: pixel_grid_cells(ulong)
-
-	**default value:** 25
-
-
-	
-
-
-
 .. function:: posture_closing_size(uchar)
 
 	**default value:** 2
@@ -1693,7 +1684,7 @@ TRex parameters
 
 
 
-.. function:: posture_direction_smoothing(ulong)
+.. function:: posture_direction_smoothing(uint16)
 
 	**default value:** 0
 
@@ -1766,13 +1757,14 @@ TRex parameters
 	.. seealso:: :func:`blob_size_ranges`, 
 
 
-.. function:: recognition_coeff(ulong)
+.. function:: recognition_coeff(uint16)
 
 	**default value:** 50
 
 
-	
+	If ``recognition_border`` is 'outline', this is the number of coefficients to use when smoothing the ``recognition_border``.
 
+	.. seealso:: :func:`recognition_border`, :func:`recognition_border`, 
 
 
 .. function:: recognition_enable(bool)
@@ -1854,13 +1846,14 @@ TRex parameters
 	.. seealso:: :func:`recognition_border`, 
 
 
-.. function:: recognition_smooth_amount(ulong)
+.. function:: recognition_smooth_amount(uint16)
 
 	**default value:** 200
 
 
-	
+	If ``recognition_border`` is 'outline', this is the amount that the ``recognition_border`` is smoothed (similar to ``outline_smooth_samples``), where larger numbers will smooth more.
 
+	.. seealso:: :func:`recognition_border`, :func:`recognition_border`, :func:`outline_smooth_samples`, 
 
 
 .. function:: settings_file(path)
@@ -2094,7 +2087,7 @@ TRex parameters
 
 
 
-.. function:: tracklet_max_images(ulong)
+.. function:: tracklet_max_images(uint16)
 
 	**default value:** 0
 
@@ -2133,7 +2126,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1.6-25-g404410b"
+	**default value:** "v1.1.6-35-gbfeb10c"
 
 
 	Current application version.

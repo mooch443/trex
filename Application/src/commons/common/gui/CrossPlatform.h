@@ -17,6 +17,9 @@ namespace gui {
         uint image_height = 0;
         
         PlatformTexture() = default;
+        PlatformTexture(void* ptr, decltype(deleter) deleter, uint width, uint height, uint image_width, uint image_height) 
+            : ptr(ptr), deleter(deleter), width(width), height(height), image_width(image_width), image_height(image_height)
+        {}
         ~PlatformTexture() {
             if(deleter)
                 deleter(&ptr);

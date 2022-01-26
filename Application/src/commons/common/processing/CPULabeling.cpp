@@ -252,15 +252,12 @@ struct Source {
         size_t idx;
         ushort y;
         
-        const Pixel* pixel_start;
-        const Pixel* pixel_end;
-        Node::Ref* node_start;
-        Node::Ref* node_end;
-        const Line**  line_start;
-        const Line**  line_end;
-        
-    private:
-        RowRef() = default;
+        const Pixel* pixel_start = nullptr;
+        const Pixel* pixel_end = nullptr;
+        Node::Ref* node_start = nullptr;
+        Node::Ref* node_end = nullptr;
+        const Line**  line_start = nullptr;
+        const Line**  line_end = nullptr;
         
     public:
         struct Combined {

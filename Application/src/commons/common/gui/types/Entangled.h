@@ -47,6 +47,7 @@ namespace gui {
         
     public:
         Entangled();
+        Entangled(const Bounds&);
         Entangled(const std::vector<Drawable*>& objects);
         Entangled(std::function<void(Entangled&)>&&);
         void update(const std::function<void(Entangled&)> create);

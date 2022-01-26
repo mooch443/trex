@@ -95,6 +95,16 @@ inline bool contains(const std::set<T>& v, T obj) {
 #endif
 }
 
+template<typename T, typename V>
+inline bool contains(const std::map<T, V>& v, T key) {
+    //static_assert(!std::is_same<T, typename decltype(v)::value_type>::value, "We should not use this for sets.");
+#if __cplusplus >= 202002L
+    return v.contains(key);
+#else
+    return v.find(key) != v.end();
+#endif
+}
+
 // -------------------------------
 //          FILE UTILS
 // -------------------------------

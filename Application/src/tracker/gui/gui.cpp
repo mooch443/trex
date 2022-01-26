@@ -1233,24 +1233,65 @@ void GUI::reanalyse_from(long_t frame, bool in_thread) {
 }
 
 void GUI::draw_export_options(gui::DrawStructure &base) {
-    static std::set<std::string> selected_export_options;
-    static ScrollableList<> export_options(Bounds(100, 100, 200, 400));
-    static Textfield search("", Bounds(0, 0, 200, 25));
+    static Entangled parent(Bounds(100, 100, 200, 500));
     
-    export_options.on_select([&](auto, const std::string& item){
-        auto graphs = SETTING(output_graphs).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
-        
-        for(auto it = graphs.begin(); it != graphs.end(); ++it) {
-            if(it->first == item) {
-                graphs.erase(it);
-                SETTING(output_graphs) = graphs;
-                return;
-            }
+    struct Item {
+        std::string _name;
+        uint32_t _count = 0;
+        Font _font = Font(0.5, Align::Left);
+        Color _color = White;
+
+        Font font() const {
+            return _font;
         }
-        
-        graphs.push_back({ item, {} });
-        SETTING(output_graphs) = graphs;
-    });
+
+        Color color() const {
+            return _color;
+        }
+
+        operator std::string() const {
+            return _name + " ("+Meta::toStr(_count)+")";
+        }
+
+        bool operator!=(const Item& other) const {
+            return _name != other._name || _font != other._font || _count != other._count;
+        }
+    };
+
+    static Button close("x", Bounds(Vec2(parent.width() - 3, 5), Size2(25, 25)));
+    static Textfield search("", Bounds(Vec2(5, close.height() + 15), Size2(parent.width() - 10, 30)));
+    static ScrollableList<Item> export_options(Bounds(
+        search.pos() + Vec2(0, search.height() + 10), 
+        Size2(search.width(), parent.height() - (search.pos().y + search.height() + 20))
+    ), {}, Font(0.5, Align::Left));
+
+    if (parent.empty()) {
+        close.set_font(Font(0.5, Align::Center));
+        search.set_placeholder("Type to search...");
+        parent.update([&](Entangled& e) {
+            e.advance_wrap(export_options);
+            e.advance_wrap(search);
+            e.advance_wrap(close);
+        });
+        parent.set_background(Black.alpha(50), Red.alpha(50));
+
+        export_options.on_select([&](auto idx, const std::string&) {
+            auto graphs = SETTING(output_graphs).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
+            auto& item = export_options.items().at(idx);
+            Debug("Removing '%S'", &item.value()._name);
+
+            for (auto it = graphs.begin(); it != graphs.end(); ++it) {
+                if (it->first == item.value()._name) {
+                    graphs.erase(it);
+                    SETTING(output_graphs) = graphs;
+                    return;
+                }
+            }
+
+            graphs.push_back({ item.value()._name, {} });
+            SETTING(output_graphs) = graphs;
+        });
+    }
     
     static const auto custom_string_less([](const std::string& A, const std::string& B) -> bool {
         if(A.empty() || B.empty())
@@ -1275,84 +1316,51 @@ void GUI::draw_export_options(gui::DrawStructure &base) {
     
     auto graphs = SETTING(output_graphs).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
     auto graphs_map = [&graphs]() {
-        std::set<std::string> result;
+        std::map<std::string, uint32_t> result;
         for(auto &g : graphs)
-            result.insert(g.first);
+            if(search.text().empty() || utils::contains(utils::lowercase(g.first), utils::lowercase(search.text())))
+                ++result[g.first];
         return result;
     }();
+    static decltype(graphs_map) previous_graphs;
     
-    static Button close("x", Bounds(Vec2(), Size2(31, 31.5)));
+    base.wrap_object(parent);
+    parent.set_scale(base.scale().reciprocal());
     
-    base.wrap_object(export_options);
-    base.wrap_object(close);
-    base.wrap_object(search);
-    
-    export_options.set_scale(base.scale().reciprocal());
-    close.set_scale(export_options.scale());
-    search.set_scale(export_options.scale());
-    
-    if(selected_export_options != graphs_map) {
-        selected_export_options = graphs_map;
-        
-        for(auto &item : export_options.items()) {
-            if(selected_export_options.find(item.value()) != selected_export_options.end()) {
-                //if(!item.selected())
-                //    export_options.set_selected(item->ID(), true);
-            
-            } //else if(item->selected()) {
-                //export_options.set_selected(item->ID(), false);
-            //}
+    if(previous_graphs != graphs_map) {
+        previous_graphs = graphs_map;
+
+        auto functions = Output::Library::functions();
+        std::vector<Item> items;
+
+        for (auto& f : functions) {
+            if (!contains(graphs_map, f))
+                continue;
+
+            items.push_back(Item{ 
+                f, 
+                graphs_map.at(f) 
+            });
+            //items.push_back(Item{ f, Font(0.5, contains(graphs_map, f) ? Style::Bold : Style::Regular, Align::Left), contains(graphs_map, f) ? Red : White });
         }
+
+        export_options.set_items(items);
+        Debug("Filtering for: '%S'", &search.text());
     }
     
     static bool first = true;
     
-    if(first) {
-        _static_pointers.insert(_static_pointers.end(), {
-            &export_options,
-            &close,
-            &search
-        });
-        
-        export_options.set_draggable();
-        //export_options.set_foldable(false);
-        //export_options.set_row_height(33);
-        export_options.set_scroll_enabled(true);
-        //export_options.set_toggle(true);
-        //export_options.set_multi_select(true);
-        export_options.set_pos(Vec2(_average_image.cols - 10, 100));
-        export_options.set_origin(Vec2(1, 0));
+    if(first) {        
+        parent.set_draggable();
         
         close.set_fill_clr(Red.exposure(0.5));
         close.on_click([](auto) {
             SETTING(gui_show_export_options) = false;
         });
-        close.set_origin(Vec2(1, 0.5));
-        
-        close.set_pos(export_options.pos() + Vec2(1, 0/*export_options.row_height() * 0.5*/).mul(export_options.scale()));
-        search.set_pos(export_options.pos() + Vec2(1, 25/*export_options.row_height() * 0.5*/).mul(export_options.scale()));
-        
-        
-        std::vector<std::string> export_items;
-        auto functions = Output::Library::functions();
-        std::set<std::string, decltype(custom_string_less)> sorted(functions.begin(), functions.end(), custom_string_less);
-        
-        for(auto x : sorted) {
-            //auto item = std::make_shared<TextItem>(x);
-            //if(graphs_map.find(x) != graphs_map.end())
-            //    item->set_selected(true);
-            export_items.push_back(x);
-        }
-        export_options.set_items(export_items);
+        close.set_origin(Vec2(1, 0));
         
         first = false;
     }
-    
-    
-    export_options.add_event_handler(EventType::DRAG, [&](auto) {
-        close.set_pos(export_options.pos() + Vec2(1, 0/*export_options.row_height() * 0.5*/).mul(export_options.scale()));
-        search.set_pos(export_options.pos() + Vec2(1, 25/*export_options.row_height() * 0.5*/).mul(export_options.scale()));
-    });
 }
 
 void GUI::draw_grid(gui::DrawStructure &base) {

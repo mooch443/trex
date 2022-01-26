@@ -8,6 +8,12 @@ namespace gui {
         : SectionInterface(Type::ENTANGLED, NULL)
     {}
 
+    Entangled::Entangled(const Bounds& bounds) 
+        : SectionInterface(Type::ENTANGLED, NULL)
+    {
+        set_bounds(bounds);
+    }
+
     Entangled::Entangled(std::function<void(Entangled&)>&& fn)
         : SectionInterface(Type::ENTANGLED, NULL)
     {

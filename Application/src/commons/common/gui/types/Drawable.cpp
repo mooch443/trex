@@ -502,6 +502,8 @@ namespace gui {
         
         if(parent())
             parent()->mup(x, y, left_button);
+
+        _being_dragged = false;
     }
     
     bool Drawable::kdown(Event event) {
@@ -592,8 +594,12 @@ namespace gui {
         
         set_clickable(true);
         _drag_handle = add_event_handler(MBUTTON, [this](Event e) {
-            if(e.mbutton.pressed && e.mbutton.button == 0) // save previous relative position
-                _relative_drag_start = Vec2(e.mbutton.x, e.mbutton.y);
+            if (e.mbutton.pressed && e.mbutton.button == 0) {// save previous relative position
+                if (!parent() || !parent()->stage() || parent()->stage()->hovered_object() == this) {
+                    _relative_drag_start = Vec2(e.mbutton.x, e.mbutton.y);
+                    _being_dragged = true;
+                }
+            }
         });
     }
     
