@@ -55,6 +55,7 @@
 #include <cstdint>
 #include <exception>
 #include <stdarg.h>
+#include <concepts>
 
 #ifdef WIN32
 #define _USE_MATH_DEFINES
