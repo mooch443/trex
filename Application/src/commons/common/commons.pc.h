@@ -57,6 +57,23 @@
 #include <stdarg.h>
 #include <concepts>
 
+#if defined(__clang__)
+    #if (__clang_major__) <= 13
+
+namespace std {
+
+template<class From, class To>
+    concept convertible_to =
+        std::is_convertible_v<From, To> &&
+        requires {
+            static_cast<To>(std::declval<From>());
+        };
+
+}
+
+    #endif
+#endif
+
 #ifdef WIN32
 #define _USE_MATH_DEFINES
 #include <cmath>
