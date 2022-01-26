@@ -3,12 +3,6 @@ if(${CMAKE_VERSION} VERSION_LESS "3.11.0")
     message(STATUS "* Please consider to switch to CMake 3.11.0")
 endif()
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-string( TOUPPER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE )
-set_property(GLOBAL PROPERTY DEBUG_CONFIGURATIONS "Debug;DEBUG;")
-
 message("-- USER environment variable is set to: " $ENV{USER})
 
 project(TRex)
@@ -19,7 +13,7 @@ endif()
 set(CMAKE_MACOSX_RPATH ON)
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 include(ExternalProject)
-if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.11.0")
+if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.12.0")
     include(FetchContent)
 endif()
 
@@ -52,7 +46,34 @@ option(WITH_FFMPEG "Compile with ffmpeg streaming support" ON)
 option(WITH_HTTPD "Compile with libmicrohttpd (enable web features)" OFF)
 option(NO_PUT_TIME "Disables std::put_time usage" OFF)
 option(OPENCV_EXTRA_FLAGS "OpenCV extra CMake flags" "")
-option(TREX_ENABLE_CPP20 "Enables CPP20 language standard (if available). Only for GCC and Clang at the moment. Experimental feature." OFF)
+option(TREX_ENABLE_CPP20 "Enables CPP20 language standard (if available). Only for GCC and Clang at the moment. Experimental feature." ON)
+
+if(TREX_ENABLE_CPP20)
+    set(CMAKE_CXX_STANDARD 20)
+    message(STATUS "Using c++20 standard (${CMAKE_CXX_STANDARD}).")
+
+    set(cxx_flag_std_number "")
+    if(CMAKE_COMPILER_IS_GNUCXX OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang"))
+        include(CheckCXXCompilerFlag)
+        check_cxx_compiler_flag(-std=c++2a HAVE_FLAG_STD_CXX20)
+        if(HAVE_FLAG_STD_CXX20)
+            message(STATUS "Using support for C++20")
+            set(CMAKE_CXX_STANDARD 20)
+            set(cxx_flag_std_number "-std=c++2a")
+        endif()
+
+        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${cxx_flag_std_number}")
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${cxx_flag_std_number}")
+        set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} ${cxx_flag_std_number}")
+    endif()
+else()
+    set(CMAKE_CXX_STANDARD 17)
+endif()
+
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+string( TOUPPER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE )
+set_property(GLOBAL PROPERTY DEBUG_CONFIGURATIONS "Debug;DEBUG;")
 
 if(APPLE)
     if(CMAKE_OSX_DEPLOYMENT_TARGET AND NOT ${CMAKE_OSX_DEPLOYMENT_TARGET} MATCHES "")
@@ -122,12 +143,12 @@ if(WIN32)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_ENABLE_ATOMIC_ALIGNMENT_FIX")
     #endif()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_USE_MATH_DEFINES -DNOMINMAX -DWIN32_LEAN_AND_MEAN -DCURL_STATICLIB")
-    #set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /NODEFAULTLIB:MSVCRT")
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT /bigobj /O2 /Oi /Oy /Ot /Ob2")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /DEBUG")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT /bigobj /O2 /Oi /Oy /Ot /Ob2 /Zi")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd /bigobj")
     set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /MT /bigobj /O2 /Oi /Oy /Ot /Ob2")
     
-    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MT /bigobj /O2 /Oi /Oy /Ot /Ob2")
+    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MT /bigobj /O2 /Oi /Oy /Ot /Ob2 /Zi")
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MTd /bigobj")
     set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} /MT /bigobj /O2 /Oi /Oy /Ot /Ob2")
     
@@ -291,23 +312,6 @@ else()
     message(STATUS "***** compiler ID ${CMAKE_CXX_COMPILER_ID}")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Wno-unknown-pragmas")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
-endif()
-
-if(TREX_ENABLE_CPP20)
-    set(cxx_flag_std_number "")
-    if(CMAKE_COMPILER_IS_GNUCXX OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang"))
-        include(CheckCXXCompilerFlag)
-        check_cxx_compiler_flag(-std=c++2a HAVE_FLAG_STD_CXX20)
-        if(HAVE_FLAG_STD_CXX20)
-            message(STATUS "Using support for C++20")
-            set(CMAKE_CXX_STANDARD 20)
-            set(cxx_flag_std_number "-std=c++2a")
-        endif()
-
-        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${cxx_flag_std_number}")
-        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${cxx_flag_std_number}")
-        set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} ${cxx_flag_std_number}")
-    endif()
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX)
@@ -1180,11 +1184,11 @@ elseif(${TREX_BUILD_DOCS})
     else()
         get_filename_component(SPHINX_DIR ${SPHINX_EXECUTABLE} DIRECTORY)
         message(STATUS "Found sphinx at ${SPHINX_EXECUTABLE} (dir: ${SPHINX_DIR}).")
-
+        message(STATUS "$<TARGET_FILE:tgrabs> -d \"${CMAKE_SOURCE_DIR}/../docs\" -h rst")
         add_custom_target(
-          doc ALL
-          #COMMAND $<TARGET_FILE:trex> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
-          #COMMAND $<TARGET_FILE:tgrabs> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
+          doc ALL #-i Z:\work\f9_f10_f11_emptytank_20180220_120156\%256d.mp4 -averaging_method mode -threshold 30 -use_closing -closing_size 5 -correct_luminance
+          COMMAND $<TARGET_FILE:trex> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
+          COMMAND $<TARGET_FILE:tgrabs> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
           COMMAND ${CMAKE_SOURCE_DIR}/../docs/make.bat html "${SPHINX_DIR}"
           DEPENDS
             trex tgrabs
