@@ -21,7 +21,7 @@ const char *homedir = getenv("USERPROFILE");
 
 #include <tracking/Tracker.h>
 #include <misc/default_settings.h>
-#include <gui/gui.h>
+#include <misc/OutputLibrary.h>
 
 using namespace file;
 #define CONFIG adding.add
@@ -580,7 +580,7 @@ file::Path conda_environment_path() {
         CONFIG("terminate_training", bool(false), "Setting this to true aborts the training in progress.");
         
         CONFIG("manually_approved", std::map<long_t,long_t>(), "A list of ranges of manually approved frames that may be used for generating training datasets, e.g. `{232:233,5555:5560}` where each of the numbers is a frame number. Meaning that frames 232-233 and 5555-5560 are manually set to be manually checked for any identity switches, and individual identities can be assumed to be consistent throughout these frames.");
-        CONFIG("gui_focus_group", std::vector<Idx_t>(), "Focus on this group of individuals.");
+        CONFIG("gui_focus_group", std::vector<track::Idx_t>(), "Focus on this group of individuals.");
         
         CONFIG("track_ignore", std::vector<std::vector<Vec2>>(), "If this is not empty, objects within the given rectangles or polygons (>= 3 points) `[[x0,y0],[x1,y1](, ...)], ...]` will be ignored during tracking.");
         CONFIG("track_include", std::vector<std::vector<Vec2>>(), "If this is not empty, objects within the given rectangles or polygons (>= 3 points) `[[x0,y0],[x1,y1](, ...)], ...]` will be the only objects being tracked. (overwrites `track_ignore`)");
@@ -697,8 +697,8 @@ file::Path conda_environment_path() {
             exclude_fields.push_back("cm_per_pixel");
         }
         
-        if(GUI::instance() && SETTING(frame_rate).value<int>() == GUI::instance()->video_source()->framerate())
-            exclude_fields.push_back("frame_rate");
+        //if(GUI::instance() && SETTING(frame_rate).value<int>() == GUI::instance()->video_source()->framerate())
+        //    exclude_fields.push_back("frame_rate");
         
         if((uint32_t)FAST_SETTINGS(manual_identities).size() == FAST_SETTINGS(track_max_individuals))
             exclude_fields.push_back("manual_identities");
