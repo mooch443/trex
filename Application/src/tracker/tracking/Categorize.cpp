@@ -733,11 +733,11 @@ struct Cell {
 private:
     std::vector<Layout::Ptr> _buttons;
     GETTER(std::shared_ptr<HorizontalLayout>, button_layout)
-    GETTER_SETTER(bool, selected)
+    GETTER_SETTER_I(bool, selected, false)
     
 public:
-    Row *_row;
-    size_t _index;
+    Row *_row = nullptr;
+    size_t _index = 0;
     Sample::Ptr _sample;
     double _animation_time = 0;
     size_t _animation_index = 0;
