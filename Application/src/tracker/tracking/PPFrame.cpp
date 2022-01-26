@@ -49,8 +49,8 @@ bool PPFrame::_add_to_map(const pv::BlobPtr &blob) {
               (uint32_t(blob1->lines()->front().y) & 0x00000FFF) << 8,
               std::numeric_limits<uint32_t>::max());
         
-        uint32_t bid0 = pv::Blob::id_from_blob(blob);
-        uint32_t bid1 = pv::Blob::id_from_blob(_bdx_to_ptr.at(blob->blob_id()));
+        auto bid0 = pv::bid::from_blob(blob);
+        auto bid1 = pv::bid::from_blob(_bdx_to_ptr.at(blob->blob_id()));
         
         Except("Frame %d: Blob %u already in map (%d), at %f,%f bid=%u vs. %f,%f bid=%u", _index, blob->blob_id(), blob == _bdx_to_ptr.at(blob->blob_id()),
                blob->bounds().x, blob->bounds().y, bid0,

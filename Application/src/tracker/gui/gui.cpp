@@ -1338,8 +1338,8 @@ void GUI::draw_export_options(gui::DrawStructure &base) {
                 continue;
 
             items.push_back(Item{ 
-                f, 
-                graphs_map.at(f) 
+                ._name = f, 
+                ._count = graphs_map.at(f) 
             });
             //items.push_back(Item{ f, Font(0.5, contains(graphs_map, f) ? Style::Bold : Style::Regular, Align::Left), contains(graphs_map, f) ? Red : White });
         }

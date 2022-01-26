@@ -1186,10 +1186,8 @@ elseif(${TREX_BUILD_DOCS})
         message(STATUS "Found sphinx at ${SPHINX_EXECUTABLE} (dir: ${SPHINX_DIR}).")
         message(STATUS "$<TARGET_FILE:tgrabs> -d \"${CMAKE_SOURCE_DIR}/../docs\" -h rst")
         add_custom_target(
-          doc ALL #-i Z:\work\f9_f10_f11_emptytank_20180220_120156\%256d.mp4 -averaging_method mode -threshold 30 -use_closing -closing_size 5 -correct_luminance
-          COMMAND $<TARGET_FILE:trex> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
-          COMMAND $<TARGET_FILE:tgrabs> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
-          COMMAND ${CMAKE_SOURCE_DIR}/../docs/make.bat html "${SPHINX_DIR}"
+          doc ALL
+          COMMAND ${CMAKE_SOURCE_DIR}/../docs/make.bat html "${SPHINX_DIR}" "${CMAKE_SOURCE_DIR}/../docs" "$<TARGET_FILE:trex>" "$<TARGET_FILE:tgrabs>"
           DEPENDS
             trex tgrabs
           WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/../docs
