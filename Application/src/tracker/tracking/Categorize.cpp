@@ -3020,9 +3020,9 @@ Cell::Cell() :
     /**
      * Handle clicks on cells
      */
+    static Cell* _selected = nullptr;
+
     _image->on_click([this](Event e) {
-        static Cell* _selected = nullptr;
-        
         if(e.mbutton.button == 0 && _image.get() == _image->parent()->stage()->hovered_object()) {
             if(_sample) {
                 if(_selected == this) {

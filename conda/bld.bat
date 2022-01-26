@@ -17,8 +17,9 @@ echo findlib is %findlib%
 echo Generator %CMAKE_GENERATOR%
 echo Python %PYTHON%
 echo GITHUB_WORKFLOW %GITHUB_WORKFLOW%
-
 set GENERATOR=-G "Visual Studio 16 2019"
+
+if "%CMAKE_GENERATOR%" == "Visual Studio 16 2019 Win64" set CMAKE_GENERATOR=Visual Studio 16 2019
 if "%GITHUB_WORKFLOW%" == "" set GENERATOR=-G "%CMAKE_GENERATOR%"
 echo GENERATOR %GENERATOR%
 
