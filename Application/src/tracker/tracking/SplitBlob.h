@@ -18,11 +18,11 @@ class track::SplitBlob {
         std::vector<pv::BlobPtr> blobs;
         //std::vector<std::vector<uchar>> pixels;
         
-        operator MetaObject() const {
-            return MetaObject("t:"+Meta::toStr(threshold)+" obj:"+Meta::toStr(blobs.size())+" r:"+Meta::toStr(ratio), "SplitBlob::ResultProp");
+        std::string toStr() const {
+            return "t:"+Meta::toStr(threshold)+" obj:"+Meta::toStr(blobs.size())+" r:"+Meta::toStr(ratio);
         }
         static std::string class_name() {
-            return "ResultProp";
+            return "SplitBlob::ResultProp";
         }
     };
     

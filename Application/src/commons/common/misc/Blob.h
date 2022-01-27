@@ -105,7 +105,7 @@ namespace cmn {
         
         bool properties_ready() const { return _properties.ready; }
         
-        virtual operator cmn::MetaObject() const;
+        virtual std::string toStr() const;
         static std::string class_name() {
             return "Blob";
         }

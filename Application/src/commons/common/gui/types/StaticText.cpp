@@ -32,8 +32,8 @@ namespace gui {
             return range < other.range;
         }
         
-        operator MetaObject() const {
-            return MetaObject("TRange<"+name+"> "+Meta::toStr(range)+" "+Meta::toStr(subranges)+" '"+text+"'", "TRange");
+        std::string toStr() const {
+            return "TRange<"+name+"> "+Meta::toStr(range)+" "+Meta::toStr(subranges)+" '"+text+"'";
         }
             
         static std::string class_name() {

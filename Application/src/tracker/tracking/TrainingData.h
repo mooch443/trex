@@ -22,7 +22,7 @@ struct TrainingFilterConstraints {
     bool empty() const { return median_midline_length_px == -1; }
     bool has_std() const { return midline_length_px_std != -1; }
     
-    operator MetaObject() const;
+    std::string toStr() const;
     static std::string class_name() {
         return "TrainingFilterConstraints";
     }
@@ -59,7 +59,7 @@ public:
         Idx_t unmap(Idx_t) const;
         void reverse_mapping();
         
-        operator MetaObject() const;
+        std::string toStr() const;
         static std::string class_name() {
             return "DataRange";
         }
@@ -236,7 +236,7 @@ public:
     
     void add_frame(std::shared_ptr<DataRange> ptr, long_t frame_index, Idx_t id, int64_t original_id, Image::Ptr image, const Vec2& pos, size_t px, const FrameRange& from_range);
     void apply_mapping(const std::map<Idx_t, Idx_t>&);
-    operator MetaObject() const;
+    std::string toStr() const;
     static std::string class_name() {
         return "TrainingData";
     }

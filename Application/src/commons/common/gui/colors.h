@@ -277,6 +277,17 @@ public:
     constexpr float diff(const Color& other) const {
         return cmn::abs(float(r) - float(other.r)) + cmn::abs(float(g) - float(other.g)) + cmn::abs(float(b) - float(other.b)) + cmn::abs(float(a) - float(other.a));
     }
+
+    /**
+     * META 
+     */
+
+    std::string toStr() const {
+        return "[" + std::to_string(r) + "," + std::to_string(g) + "," + std::to_string(b) + "," + std::to_string(a) + "]";
+    }
+
+    static Color fromStr(const std::string& str);
+    static std::string class_name() { return "color"; }
 };
 
 inline std::ostream &operator<<(std::ostream &os, const Color& obj) {

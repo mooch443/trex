@@ -1,10 +1,11 @@
 #include "Image.h"
 #include <png.h>
 #include <misc/metastring.h>
+#include <gui/colors.h>
 
 namespace cmn {
-    Image::operator MetaObject() const {
-        return MetaObject("("+Meta::toStr(cols)+"x"+Meta::toStr(rows)+"x"+Meta::toStr(dims)+" "+Meta::toStr(DurationUS{std::chrono::time_point_cast<std::chrono::microseconds>(clock_::now()).time_since_epoch().count() - _timestamp})+" ago)", "Image");
+    std::string Image::toStr() const {
+        return "("+Meta::toStr(cols)+"x"+Meta::toStr(rows)+"x"+Meta::toStr(dims)+" "+Meta::toStr(DurationUS{std::chrono::time_point_cast<std::chrono::microseconds>(clock_::now()).time_since_epoch().count() - _timestamp})+" ago)";
     }
     
     Image::Image()

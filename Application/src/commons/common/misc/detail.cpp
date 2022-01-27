@@ -647,9 +647,9 @@ namespace cmn {
             else
                 U_EXCEPTION("Malformed map string '%S'", &str);
             
-            auto parts = parse_array_parts(str);
+            auto parts = util::parse_array_parts(str);
             for (auto &p : parts) {
-                auto key_value = parse_array_parts(p, ':');
+                auto key_value = util::parse_array_parts(p, ':');
                 auto &key = key_value[0];
                 std::string value;
                 if(key_value.size() > 1) value = key_value[1];
@@ -1003,7 +1003,7 @@ namespace cmn {
         return gui::Color((uint8_t)saturate(r * 255), (uint8_t)saturate(g * 255), (uint8_t)saturate(b * 255), 255);
     }
     
-    HorizontalLine::operator MetaObject() const {
-        return MetaObject("HorizontalLine("+std::to_string(y)+","+std::to_string(x0)+","+std::to_string(x1)+")", "HorizontalLine");
+    std::string HorizontalLine::toStr() const {
+        return "HorizontalLine("+std::to_string(y)+","+std::to_string(x0)+","+std::to_string(x1)+")";
     }
 }

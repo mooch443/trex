@@ -25,7 +25,7 @@ namespace track {
             bool operator ==(const fdx_t& other) const {
                 return other.id == id;
             }
-            operator MetaObject() const;
+            std::string toStr() const;
             static std::string class_name() {
                 return "fdx_t";
             }
@@ -37,7 +37,7 @@ namespace track {
             bool operator <(bdx_t other) const {
                 return id < other.id;
             }
-            operator MetaObject() const;
+            std::string toStr() const;
             static std::string class_name() {
                 return "bdx_t";
             }
@@ -97,10 +97,10 @@ namespace track {
         static void clear();
         static uint64_t last_change();
         static foi_type all_fois();
-        operator MetaObject() const;
-        
+        std::string toStr() const;
+        static std::string class_name() { return "FOI"; }
+
     private:
         static void changed();
-        static std::string class_name() { return "FOI"; }
     };
 }

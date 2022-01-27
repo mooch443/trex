@@ -3173,9 +3173,9 @@ void Individual::save_visual_field(const file::Path& path, Rangel range, const s
     return overall;
 }*/
 
-Individual::operator MetaObject() const {
+std::string Individual::toStr() const {
     //std::stringstream ss;
     //ss << "Individual<" << _identity.ID() << " frames:" << _centroid.size() << " pos:" << head(_endFrame)->pos() << ">";
-    return MetaObject(_identity.name(), "Individual");
+    return _identity.name();
 }
 

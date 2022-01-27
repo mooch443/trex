@@ -41,7 +41,7 @@ namespace cmn {
                 return position.y > other.position.y;
             }
             
-            operator MetaObject() const;
+            std::string toStr() const;
             static std::string class_name() {
                 return "Peak";
             }

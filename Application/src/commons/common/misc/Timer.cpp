@@ -6,9 +6,9 @@
 #undef NDEBUG // we currently want the timers to be always-on
 #endif
 
-Timer::operator cmn::MetaObject() const {
+std::string Timer::toStr() const {
     cmn::DurationUS duration{ uint64_t(elapsed() * 1000 * 1000 * 1000) };
-    return cmn::MetaObject("Timer<"+cmn::Meta::toStr(duration), "Timer");
+    return "Timer<"+cmn::Meta::toStr(duration)+">";
 }
 
 void Timing::start_measure() {

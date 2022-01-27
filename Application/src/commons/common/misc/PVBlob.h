@@ -150,7 +150,7 @@ namespace pv {
         
         bool operator!=(const pv::Blob& other) const;
         bool operator==(const pv::Blob& other) const;
-        operator cmn::MetaObject() const override;
+        std::string toStr() const override;
         
     protected:
         friend class Output::ResultsFormat;

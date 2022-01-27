@@ -81,7 +81,7 @@ namespace cmn {
         static void repair_lines_array(std::vector<HorizontalLine>&, std::vector<uchar>&);
         static void repair_lines_array(std::vector<HorizontalLine>&);
         
-        operator MetaObject() const;
+        std::string toStr() const;
         static std::string class_name() {
             return "HorizontalLine";
         }

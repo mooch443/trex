@@ -4,6 +4,7 @@
 #include <commons/common/misc/defines.h>
 
 #include "metastring.h"
+#include <misc/vec2.h>
 
 #define PROPERTY_INVALID_SPEED ((double)-1.0)
 namespace cmn {

@@ -79,6 +79,9 @@ namespace file {
         bool operator>=(const Path& other) const;
         
         explicit operator std::string() const { return str(); }
+        std::string toStr() const { return str(); }
+        static std::string class_name() { return "path"; }
+        static file::Path fromStr(const std::string& str);
     };
 
     Path operator/( const Path& lhs, const Path& rhs );

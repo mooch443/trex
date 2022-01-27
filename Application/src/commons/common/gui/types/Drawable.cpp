@@ -11,8 +11,8 @@ namespace gui {
     IMPLEMENT(hidden::Global::interface_scale) = 0;
     const char *callback = NULL;
 
-    Drawable::operator MetaObject() const {
-        return MetaObject(std::string(type().name()) + " " + Meta::toStr(_bounds), class_name());
+    std::string Drawable::toStr() const {
+        return std::string(type().name()) + " " + Meta::toStr(_bounds);
     }
     
 #ifdef _DEBUG_MEMORY

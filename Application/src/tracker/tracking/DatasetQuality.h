@@ -30,7 +30,7 @@ namespace track {
                 : id(id), midline_len(0), midline_std(0), distance_travelled(0), grid_cells_visited(0), median_angle_var(0), number_frames(0)
             { }
             
-            operator MetaObject() const;
+            std::string toStr() const;
             static std::string class_name() {
                 return "DatasetQuality::Single";
             }
@@ -55,8 +55,8 @@ namespace track {
                 return min_cells > other.min_cells || (min_cells == other.min_cells && average_samples > other.average_samples);
             }
             
-            operator MetaObject() const {
-                return MetaObject("Quality<"+Meta::toStr(range)+" min_cells:"+Meta::toStr(min_cells)+" samples:"+Meta::toStr(average_samples)+">", "Quality");
+            std::string toStr() const {
+                return "Quality<"+Meta::toStr(range)+" min_cells:"+Meta::toStr(min_cells)+" samples:"+Meta::toStr(average_samples)+">";
             }
             static std::string class_name() {
                 return "Quality";

@@ -36,7 +36,7 @@ class Accumulation {
         {
             
         }
-        operator MetaObject() const;
+        std::string toStr() const;
         static std::string class_name() { return "Accumulation::Result"; }
     };
     

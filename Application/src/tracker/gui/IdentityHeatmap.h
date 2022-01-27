@@ -32,7 +32,7 @@ struct DataPoint {
     Data value;
     Direction _d;
     
-    operator MetaObject() const;
+    std::string toStr() const;
     operator double() const { return value; }
     bool operator<(long_t frame) const {
         return this->frame < frame;

@@ -7,8 +7,8 @@ const std::string& CropOffsets::class_name() {
     return name;
 }
 
-CropOffsets::operator MetaObject() const {
-    return MetaObject(Meta::toStr(Bounds(left,top,right - left,bottom - top)), "offsets");
+std::string CropOffsets::toStr() const {
+    return Meta::toStr(Bounds(left,top,right - left,bottom - top));
 }
 
 CropOffsets CropOffsets::fromStr(const std::string &str ) {

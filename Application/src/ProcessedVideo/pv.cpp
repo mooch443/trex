@@ -1152,7 +1152,7 @@ namespace pv {
         return header().timestamp;
     }
     
-    File::operator MetaObject() const {
-        return MetaObject("pv::File<"+filename().str()+">", "pv::File");
+    std::string File::toStr() const {
+        return "pv::File<"+filename().str()+">";
     }
 }

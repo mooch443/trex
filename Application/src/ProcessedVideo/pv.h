@@ -330,7 +330,7 @@ namespace pv {
         
         UTILS_TOSTRING("pv::File<V" << _header.version+1 << ", " << filesize() << ", '" << filename() << "', " << _header.resolution << ", " << _header.num_frames << " frames, "<< (_header.mask ? "with mask" : "no mask") << ">");
         
-        operator cmn::MetaObject() const;
+        std::string toStr() const;
         static std::string class_name() {
             return "pv::File";
         }

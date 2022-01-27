@@ -4,8 +4,8 @@
 
 namespace cmn {
     namespace periodic {
-        Peak::operator MetaObject() const {
-            return MetaObject("Peak<"+Meta::toStr(position)+" w:"+Meta::toStr(width)+" i:"+Meta::toStr(integral)+" r:"+Meta::toStr(range)+">", "Peak");
+        std::string Peak::toStr() const {
+            return "Peak<"+Meta::toStr(position)+" w:"+Meta::toStr(width)+" i:"+Meta::toStr(integral)+" r:"+Meta::toStr(range)+">";
         }
         
         /**

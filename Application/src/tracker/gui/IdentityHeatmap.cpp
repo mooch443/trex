@@ -987,8 +987,8 @@ void Region::check_range() const {
 #endif
 }
 
-DataPoint::operator MetaObject() const {
-    return MetaObject("DataPoint<"+Meta::toStr(frame)+","+Meta::toStr(x)+","+Meta::toStr(y)+">", "DataPoint");
+std::string DataPoint::toStr() const {
+    return "DataPoint<" + Meta::toStr(frame) + "," + Meta::toStr(x) + "," + Meta::toStr(y) + ">";
 }
 
 size_t Leaf::keep_only(const Range<long_t> &frames) {

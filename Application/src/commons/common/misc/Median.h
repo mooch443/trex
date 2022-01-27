@@ -62,8 +62,8 @@ public:
         return minHeap.size() + maxHeap.size();
     }
     
-    operator cmn::MetaObject() const {
-        return cmn::MetaObject("median<"+cmn::Meta::toStr(getValue())+">", "median");
+    std::string toStr() const {
+        return "median<"+cmn::Meta::toStr(getValue())+">";
     }
     
 private:

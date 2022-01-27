@@ -5,6 +5,7 @@
 
 #include <gui/types/Drawable.h>
 #include <misc/Image.h>
+#include <gui/colors.h>
 
 #define CHANGE_SETTER(NAME) virtual void set_ ## NAME (const decltype( _ ## NAME ) & NAME) { \
 if ( _ ## NAME == NAME ) return; _ ## NAME = NAME; set_dirty(); }

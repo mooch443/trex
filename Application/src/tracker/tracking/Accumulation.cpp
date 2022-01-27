@@ -72,11 +72,11 @@ std::vector<float> Accumulation::uniqueness_history() const {
     return _current_uniqueness_history;
 }
 
-Accumulation::Result::operator MetaObject() const {
+std::string Accumulation::Result::toStr() const {
     auto str = _reason;
     if(_reason.length() > 80)
         str = str.substr(0, 40)+" [...] "+ str.substr(str.length() - 40, 40);
-    return MetaObject(Meta::toStr(_success)+". "+str+" unique:"+Meta::toStr(float(int(_best_uniqueness * 10000)) / 100.f)+"%", class_name());
+    return Meta::toStr(_success)+". "+str+" unique:"+Meta::toStr(float(int(_best_uniqueness * 10000)) / 100.f)+"%";
 }
 
 void Accumulation::unsetup() {

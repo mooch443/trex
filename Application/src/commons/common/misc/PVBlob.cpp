@@ -674,7 +674,7 @@ static Callback callback;
         return overall;
     }
     
-    Blob::operator MetaObject() const {
-        return cmn::MetaObject("pv::Blob<" + Meta::toStr(blob_id()) +" "+ Meta::toStr(bounds().pos() + bounds().size() * 0.5)+" "+Meta::toStr(_pixels ? _pixels->size() * SQR(cm_per_pixel) : -1)+">", "pv::Blob");
+    std::string Blob::toStr() const {
+        return "pv::Blob<" + Meta::toStr(blob_id()) + " " + Meta::toStr(bounds().pos() + bounds().size() * 0.5) + " " + Meta::toStr(_pixels ? _pixels->size() * SQR(cm_per_pixel) : -1) + ">";
     }
 }

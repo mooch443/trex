@@ -6,6 +6,7 @@
 #include <gui/Transform.h>
 #include <gui/Event.h>
 #include <misc/MetaObject.h>
+#include <gui/colors.h>
 
 namespace gui {
     class Base;
@@ -362,7 +363,7 @@ namespace gui {
         //! updates boundaries / global_transform and clickable (if object is section)
         virtual void update_bounds();
         
-        operator MetaObject() const;
+        std::string toStr() const;
         static std::string class_name() { return "Drawable"; }
     };
     

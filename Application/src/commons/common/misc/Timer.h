@@ -21,7 +21,7 @@ public:
         return e;
     }
     
-    operator cmn::MetaObject() const;
+    std::string toStr() const;
     static std::string class_name() { return "Timer"; }
 
 private:

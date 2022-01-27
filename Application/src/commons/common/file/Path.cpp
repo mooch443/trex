@@ -26,6 +26,7 @@
 #endif
 
 #include <misc/checked_casts.h>
+#include <misc/metastring.h>
 
 namespace file {
     char Path::os_sep() { return OS_SEP; }
@@ -51,6 +52,10 @@ namespace file {
     Path& Path::operator/=(const Path &other) {
         _str += other.str();
         return *this;
+    }
+
+    Path Path::fromStr(const std::string& str) {
+        return Path(Meta::fromStr<std::string>(str));
     }
     
     bool Path::is_absolute() const {

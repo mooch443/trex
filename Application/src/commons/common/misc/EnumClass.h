@@ -1,7 +1,5 @@
 #pragma once
 
-#include <misc/MetaObject.h>
-
 #define CHOOSE_MAP_START(count) MAP ## count
 
 #define APPLY(macro, ...) IDENTITY(macro(__VA_ARGS__))
@@ -134,12 +132,8 @@ public:
     constexpr bool operator==(const ValueType& other) const { return other == _value; }
     constexpr bool operator!=(const Enum& other) const { return other._value != _value; }
     constexpr bool operator!=(const ValueType& other) const { return other != _value; }
-    operator cmn::MetaObject() const {
-        return cmn::MetaObject(name(), _names::class_name());
-    }
-    static std::string class_name() {
-        return std::string(_names::class_name());
-    }
+    std::string toStr() const { return name(); }
+    static std::string class_name() { return std::string(_names::class_name());}
     
     template<typename T = std::string>
     static const self_type& get(T name) {

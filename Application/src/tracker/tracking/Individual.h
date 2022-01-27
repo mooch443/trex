@@ -452,7 +452,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         static std::tuple<Image::UPtr, Vec2> calculate_diff_image(pv::BlobPtr blob, const Size2& output_size);
         static std::tuple<Image::UPtr, Vec2> calculate_normalized_diff_image(const gui::Transform& midline_transform, const pv::BlobPtr& blob, float midline_length, const Size2& output_size, bool use_legacy);
         
-        operator MetaObject() const;
+        std::string toStr() const;
         static std::string class_name() {
             return "Individual";
         }

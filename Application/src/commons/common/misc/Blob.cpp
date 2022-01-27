@@ -155,8 +155,8 @@ void Blob::calculate_properties() {
     _properties.ready = true;
 }
 
-Blob::operator cmn::MetaObject() const {
-    return cmn::MetaObject("Blob<pos:" + Meta::toStr(center()) + " size:" + Meta::toStr(_bounds.size()) + ">", "Blob");
+std::string Blob::toStr() const {
+    return "Blob<pos:" + Meta::toStr(center()) + " size:" + Meta::toStr(_bounds.size()) + ">";
 }
 
 void Blob::add_offset(const Vec2& off) {

@@ -12,22 +12,22 @@ namespace track {
     
     static FOI::time_point_t last_change_time;
 
-    FOI::operator MetaObject() const {
+    std::string FOI::toStr() const {
         if(!_props)
-            return MetaObject("FOI<invalid>", "FOI");
-        return MetaObject("FOI<'"+name(id())+"' "+Meta::toStr(_frames)+""+(_ids.empty() ? "" : (" ids:" + Meta::toStr(_ids)))+">", "FOI");
+            return "FOI<invalid>";
+        return "FOI<'"+name(id())+"' "+Meta::toStr(_frames)+""+(_ids.empty() ? "" : (" ids:" + Meta::toStr(_ids)))+">";
     }
 
-bool FOI::operator==(const FOI& other) const {
-    return _frames == other._frames && _fdx == other._fdx && _bdx == other._bdx && _description == other._description && _ids == other._ids;
-}
-    
-    FOI::fdx_t::operator MetaObject() const {
-        return MetaObject(Meta::toStr(id), "fdx_t");
+    bool FOI::operator==(const FOI& other) const {
+        return _frames == other._frames && _fdx == other._fdx && _bdx == other._bdx && _description == other._description && _ids == other._ids;
     }
     
-    FOI::bdx_t::operator MetaObject() const {
-        return MetaObject(Meta::toStr(id), "bdx_t");
+    std::string FOI::fdx_t::toStr() const {
+        return Meta::toStr(id);
+    }
+    
+    std::string FOI::bdx_t::toStr() const {
+        return Meta::toStr(id);
     }
     
     FOI::FOI(long_t frame, std::set<fdx_t> fdx, const std::string& reason, const std::string& description)

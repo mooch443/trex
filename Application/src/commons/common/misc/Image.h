@@ -96,7 +96,7 @@ namespace cmn {
             return other.cols == cols && other.rows == rows && other.dims == dims && (_data == other._data || (_size == other._size && memcmp(_data, other._data, _size) == 0));
         }
         
-        operator MetaObject() const;
+        std::string toStr() const;
         static std::string class_name() {
             return "Image";
         }

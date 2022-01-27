@@ -336,8 +336,8 @@ CREATE_STRUCT(Settings,
                 : number(number), allow_less_than(allow_less_than)
             { }
             
-            operator MetaObject () const {
-                return MetaObject("{"+std::to_string(number)+","+(allow_less_than ? "true" : "false")+"}", "split_expectation");
+            std::string toStr() const {
+                return "{"+std::to_string(number)+","+(allow_less_than ? "true" : "false")+"}";
             }
             static std::string class_name() {
                 return "split_expectation";

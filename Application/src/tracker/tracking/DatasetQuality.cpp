@@ -4,8 +4,8 @@
 #include <tracking/Recognition.h>
 
 namespace track {
-DatasetQuality::Single::operator MetaObject() const {
-    return MetaObject("{"+Meta::toStr(id)+","+Meta::toStr(distance_travelled)+" travelled,"+Meta::toStr(grid_cells_visited)+" cells visited}", "DatasetQuality::Single");
+std::string DatasetQuality::Single::toStr() const {
+    return "{"+Meta::toStr(id)+","+Meta::toStr(distance_travelled)+" travelled,"+Meta::toStr(grid_cells_visited)+" cells visited}";
 }
 
 DatasetQuality::DatasetQuality()

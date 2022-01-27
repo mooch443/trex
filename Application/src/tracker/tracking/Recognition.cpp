@@ -35,8 +35,8 @@ std::condition_variable update_condition;
 Recognition * instance = nullptr;
 
 namespace track {
-Recognition::FishInfo::operator MetaObject() const {
-    return MetaObject("FishInfo<frame:"+Meta::toStr(last_frame)+" N:"+Meta::toStr(number_frames)+">", "FishInfo");
+std::string Recognition::FishInfo::toStr() const {
+    return "FishInfo<frame:"+Meta::toStr(last_frame)+" N:"+Meta::toStr(number_frames)+">";
 }
 
 std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(const default_config::recognition_normalization_t::Class &normalize, const pv::BlobPtr& blob, const Recognition::ImageData& data, const Size2& output_shape) {
@@ -1686,8 +1686,8 @@ void Recognition::load_weights(std::string postfix) {
         ranges = m;
     }
     
-    FrameRanges::operator MetaObject() const {
-        return MetaObject(Meta::toStr(ranges), "FrameRanges");
+    std::string FrameRanges::toStr() const {
+        return Meta::toStr(ranges);
     }
     
     std::set<Rangel> Recognition::trained_ranges() {

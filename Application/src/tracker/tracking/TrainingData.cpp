@@ -57,8 +57,8 @@ void remove_pointer(TrainingData* data) {
 #endif
 }
 
-TrainingFilterConstraints::operator MetaObject() const {
-    return MetaObject("TFC<l:"+Meta::toStr(median_midline_length_px)+"+-"+Meta::toStr(midline_length_px_std)+" pts:"+Meta::toStr(median_number_outline_pts)+"+-"+Meta::toStr(outline_pts_std)+ " angle:"+Meta::toStr(median_angle_diff)+">", "TrainingFilterConstraints");
+std::string TrainingFilterConstraints::toStr() const {
+    return "TFC<l:" + Meta::toStr(median_midline_length_px) + "+-" + Meta::toStr(midline_length_px_std) + " pts:" + Meta::toStr(median_number_outline_pts) + "+-" + Meta::toStr(outline_pts_std) + " angle:" + Meta::toStr(median_angle_diff) + ">";
 }
 
 TrainingData::TrainingData(const MidlineFilters& filters)
@@ -77,11 +77,11 @@ TrainingData::~TrainingData() {
     remove_pointer(this);
 }
 
-TrainingData::operator MetaObject() const {
-    return MetaObject("TrainingData<norm:"+Meta::toStr(_normalized)+"' path:"+save_path().str()+"' size:"+Meta::toStr(size())+" ranges:"+Meta::toStr(_data)+">", "TrainingData");
+std::string TrainingData::toStr() const {
+    return "TrainingData<norm:"+Meta::toStr(_normalized)+"' path:"+save_path().str()+"' size:"+Meta::toStr(size())+" ranges:"+Meta::toStr(_data)+">";
 }
 
-TrainingData::DataRange::operator MetaObject() const {
+std::string TrainingData::DataRange::toStr() const {
     std::stringstream ss;
     ss << "(";
     if(salty) {
@@ -104,7 +104,7 @@ TrainingData::DataRange::operator MetaObject() const {
         ss << ")";
     }
     
-    return MetaObject(ss.str(), "DataRange");
+    return ss.str();
 }
 
 void TrainingData::add_frame(std::shared_ptr<TrainingData::DataRange> data, long_t frame_index, Idx_t id, int64_t original_id, Image::Ptr image, const Vec2 & pos, size_t px, const FrameRange& from_range)

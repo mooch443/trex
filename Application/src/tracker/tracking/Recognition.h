@@ -30,7 +30,7 @@ namespace track {
         bool contains_all(const FrameRanges& other) const;
         void merge(const FrameRanges& other);
         
-        operator MetaObject() const;
+        std::string toStr() const;
         static std::string class_name() {
             return "FrameRanges";
         }
@@ -62,7 +62,7 @@ namespace track {
             size_t number_frames;
             
             explicit FishInfo(frame_t last_frame = -1, size_t number_frames = 0) : last_frame(last_frame), number_frames(number_frames) {}
-            operator MetaObject() const;
+            std::string toStr() const;
             static std::string class_name() {
                 return "FishInfo";
             }
