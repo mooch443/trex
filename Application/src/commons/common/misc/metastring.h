@@ -136,13 +136,13 @@ concept _has_tostr_method = requires(T t) {
 };
 template<typename T>
 concept _has_fromstr_method = requires() {
-    { typename std::remove_cv<T>::type::fromStr(std::string()) } 
+    { T::fromStr(std::string()) }
         -> _clean_same<T>;
 };
 
-template<typename T>
+template<typename T, typename K = typename std::remove_cv<T>::type>
 concept _has_class_name = requires() {
-    { typename std::remove_cv<T>::type::class_name() } -> std::convertible_to<std::string>;
+    { K::class_name() } -> std::convertible_to<std::string>;
 };
 
 template<typename T>
@@ -159,6 +159,7 @@ concept _is_dumb_pointer =
 
 // <util>
 #pragma region util
+#pragma mark
 namespace util {
 
 template <typename T>
@@ -173,9 +174,16 @@ std::string to_string(const T& t) {
     str.erase(str.find_last_not_of('0') + offset, std::string::npos);
     return str;
 }
-        
+
 template <typename T>
-std::string to_string(const T& t, const typename std::enable_if<!std::is_floating_point<T>::value, bool>::type = true) {
+    requires std::convertible_to<T, std::string>
+std::string to_string(const T& t) {
+    return "\""+(std::string)t+"\"";
+}
+template <typename T>
+    requires (!std::convertible_to<T, std::string>)
+             && (!std::floating_point<T>)
+std::string to_string(const T& t) {
     return std::to_string (t);
 }
 
@@ -534,7 +542,8 @@ std::string toStr(const Q& obj) {
 template<class Q>
     requires _is_smart_pointer<Q> && _has_class_name<typename Q::element_type>
 std::string toStr(const Q& obj) {
-    return "ptr<"+typename Q::element_type::class_name() + ">" + (obj == nullptr ? "null" : Meta::toStr<typename Q::element_type>(*obj));//MetaType<typename std::remove_pointer<typename Q::element_type>::type>::toStr(*obj);
+    using K = typename Q::element_type;
+    return "ptr<"+K::class_name() + ">" + (obj == nullptr ? "null" : Meta::toStr<K>(*obj));
 }
 
 template<class Q>

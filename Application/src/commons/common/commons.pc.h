@@ -68,7 +68,14 @@ template<class From, class To>
         requires {
             static_cast<To>(std::declval<From>());
         };
-
+template<class T>
+    concept floating_point = std::is_floating_point_v<T>;
+template<class T>
+    concept integral = std::is_integral_v<T>;
+template <class T>
+    concept signed_integral = std::integral<T> && std::is_signed_v<T>;
+template <class T>
+    concept unsigned_integral = std::integral<T> && !std::signed_integral<T>;
 }
 
     #endif

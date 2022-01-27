@@ -5,6 +5,7 @@
 #include <cpputils/cpputils.h>
 #include <misc/GlobalSettings.h>
 #include <misc/create_struct.h>
+#include <file/Path.h>
 
 #if WIN32
 #define OS_SEP '\\'
