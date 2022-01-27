@@ -76,22 +76,23 @@ requirements:
 
   host:
     - pthread-stubs  # [linux]
-    - ffmpeg <=4.2.2
+    - ffmpeg <=4.2.2 # [not arm64]
+    - ffmpeg >=4 # [arm64]
     - python ==3.7.11 # [not win and not arm64]
     - python ==3.9.9 # [osx and arm64]
     - python ==3.9.7 # [win]
     
   run:
-    - tensorflow =2.6 # [not arm64 and not linux]
+    - tensorflow =2.6 # [not linux and not arm64]
     - tensorflow-gpu =2.4 # [linux]
-    - tensorflow =2   # [arm64]
+    - tensorflow =2   # [osx and arm64]
     - cudatoolkit # [win]
     - cudnn # [win]
     - scikit-learn # [not arm64]
     - scikit-learn ==1.0.2 # [arm64]
     - grpcio # [osx and arm64]
     - ffmpeg <=4.2.2 # [not arm64]
-    - ffmpeg ==4.4.1 # [arm64]
+    - ffmpeg >=4 # [arm64]
     - numpy ==1.19.5 # [arm64]
     - numpy # [win]
     - python ==3.9.7 # [win]
