@@ -53,7 +53,7 @@ jobs:
         cat meta.yaml
         echo "::endgroup::"
         echo "::group::Build"
-        conda build .
+        conda build -c defaults -c conda-forge .
         echo "::endgroup::"
         echo "::group::Test"
         echo $CONDA_PREFIX

@@ -68,6 +68,10 @@ namespace cmn {
             U_EXCEPTION("Not implemented.");
             return DurationUS{0};
         }
+        static std::string class_name() { "duration_us"; }
+        std::string toStr() const {
+            return to_string();
+        }
     };
     
     struct FileSize {
@@ -96,6 +100,13 @@ namespace cmn {
         static FileSize fromStr(const std::string&) {
             U_EXCEPTION("Not implemented.");
         }
+
+        static std::string class_name() {
+            return "filesize";
+        }
+        std::string toStr() const {
+            return to_string();
+        }
     };
 
 // <concepts>
@@ -109,19 +120,8 @@ template<typename T, typename U>
 concept _clean_same =
     std::same_as<T, typename std::remove_cv<U>::type>;
 
-//template<typename T, typename U>
-//concept _is_instance
-//    = (is_instantiation<T, typename std::remove_cv<U>::type>::value);
-
-//template <typename T> using is_shared_ptr = is_instantiation<std::shared_ptr, T>;
-//template <typename T> using is_unique_ptr = is_instantiation<std::unique_ptr, T>;
-
 template <template<class...>class T, class U>
 concept _is_instance = (is_instantiation<T, U>::value);
-
-//template<typename T>
-//concept _is_smart_pointer =
-//  (is_shared_ptr<T>::value || is_unique_ptr<T>::value);
 
 template <typename T>
 concept is_shared_ptr
@@ -151,7 +151,7 @@ concept _is_smart_pointer =
 
 template<typename T>
 concept _is_dumb_pointer =
-    (std::is_pointer<T>::value);
+    (std::is_pointer<T>::value) && (!_is_smart_pointer<T>);
 
 
 #pragma region concepts
@@ -361,7 +361,6 @@ template<class Q> std::string name(const typename std::enable_if< std::is_same<c
 template<class Q> std::string name(const typename std::enable_if< std::is_same<Rangef, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "rangef"; }
 template<class Q> std::string name(const typename std::enable_if< std::is_same<Range<double>, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "range<double>"; }
 template<class Q> std::string name(const typename std::enable_if< std::is_same<Rangel, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "rangel"; }
-template<class Q> std::string name(const typename std::enable_if< std::is_same<FileSize, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "filesize"; }
         
 /**
     * chrono:: time objects
@@ -444,24 +443,22 @@ std::string toStr(const typename std::enable_if< is_container<Q>::value || is_se
 }
     
 template<class Q>
-std::string toStr(const typename std::enable_if< is_queue<Q>::value && !is_deque<Q>::value, Q >::type& obj) {
+    requires (is_queue<Q>::value) && (!is_deque<Q>::value)
+std::string toStr(const Q& obj) {
     return "queue<size:"+Meta::toStr(obj.size())+">";
 }
         
 template<class Q>
     requires (std::convertible_to<Q, std::string> || (std::is_constructible_v<Q, std::string>))
         && (!(is_instantiation<std::tuple, Q>::value))
+        && (!_has_tostr_method<Q>)
 std::string toStr(const Q& obj) {
     return "\"" + util::escape(std::string(obj)) + "\"";
 }
         
 template<class Q>
-std::string toStr(const typename std::enable_if< std::is_same<typename std::remove_cv<Q>::type, DurationUS>::value || std::is_same<Q, FileSize>::value, Q >::type& obj) {
-    return obj.to_string();
-}
-        
-template<class Q>
-std::string toStr(const typename std::enable_if< std::is_same<typename std::remove_cv<Q>::type, cv::Range>::value, Q >::type& obj) {
+    requires _clean_same<cv::Range, Q>
+std::string toStr(const Q& obj) {
     return "[" + Meta::toStr(obj.start) + "," + Meta::toStr(obj.end) + "]";
 }
         
@@ -548,15 +545,17 @@ std::string toStr(const Q& obj) {
     return "ptr<"+K::class_name() + ">" + (obj == nullptr ? "null" : Meta::toStr<K>(*obj));
 }
 
-template<class Q>
-    requires _has_class_name<Q> && _has_tostr_method<Q>
-std::string toStr(const typename std::enable_if< (std::is_pointer<Q>::value), Q >::type& obj) {
-    return "ptr<"+Q::class_name()+">" + obj.toStr();
+template<class Q, 
+    class C = typename std::remove_reference<Q>::type, 
+    class K = typename std::remove_pointer<C>::type>
+  requires _is_dumb_pointer<C> && _has_class_name<K> && _has_tostr_method<K>
+std::string toStr(C obj) {
+    return "ptr<"+K::class_name()+">" + obj->toStr();
 }
         
 template<class Q>
-    requires (!_is_smart_pointer<Q>) && _has_tostr_method<Q>
-std::string toStr(const typename std::enable_if< !std::is_pointer<Q>::value, Q >::type& obj) {
+    requires _has_tostr_method<Q>
+std::string toStr(const Q& obj) {
     return obj.toStr();
 }
     
