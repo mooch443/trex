@@ -12,7 +12,6 @@ struct Idx_t {
     constexpr bool valid() const { return _identity != cmn::infinity<uint32_t>(); }
     
     static std::string class_name() { return "Idx_t"; }
-    //operator std::string() const;
     static Idx_t fromStr(const std::string&);
 };
 

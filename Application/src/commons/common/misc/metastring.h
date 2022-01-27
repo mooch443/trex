@@ -4,110 +4,110 @@
 
 namespace cmn {
     
-    class illegal_syntax : public std::logic_error {
-    public:
-        illegal_syntax(const std::string& str) : std::logic_error(str) { }
-        ~illegal_syntax() throw() { }
-    };
+class illegal_syntax : public std::logic_error {
+public:
+    illegal_syntax(const std::string& str) : std::logic_error(str) { }
+    ~illegal_syntax() throw() { }
+};
     
-    struct DurationUS {
-        //! A duration in microseconds.
-        uint64_t timestamp;
+struct DurationUS {
+    //! A duration in microseconds.
+    uint64_t timestamp;
         
-        std::string to_string() const {
-            static constexpr std::array<std::string_view, 5> names{{"us", "ms", "s", "min", "h"}};
-            static constexpr std::array<double, 5> ratios{{1000, 1000, 60, 60, 24}};
+    std::string to_string() const {
+        static constexpr std::array<std::string_view, 5> names{{"us", "ms", "s", "min", "h"}};
+        static constexpr std::array<double, 5> ratios{{1000, 1000, 60, 60, 24}};
             
-            double scaled = static_cast<double>(timestamp), previous_scaled = 0;
-            size_t i = 0;
-            while(i < ratios.size()-1 && scaled >= ratios[i]) {
-                scaled /= ratios[i];
+        double scaled = static_cast<double>(timestamp), previous_scaled = 0;
+        size_t i = 0;
+        while(i < ratios.size()-1 && scaled >= ratios[i]) {
+            scaled /= ratios[i];
                 
-                previous_scaled = scaled - size_t(scaled);
-                previous_scaled *= ratios[i];
+            previous_scaled = scaled - size_t(scaled);
+            previous_scaled *= ratios[i];
                 
-                i++;
-            }
-            
-            size_t sub_part = (size_t)previous_scaled;
-            
-            std::stringstream ss;
-            ss << std::fixed << std::setprecision(0) << scaled;
-            if(i>0 && i > 2)
-                ss << ":" << std::setfill('0') << std::setw(2) << sub_part;
-            ss << std::string(names[i].begin(), names[i].end());
-            return ss.str();
+            i++;
         }
+            
+        size_t sub_part = (size_t)previous_scaled;
+            
+        std::stringstream ss;
+        ss << std::fixed << std::setprecision(0) << scaled;
+        if(i>0 && i > 2)
+            ss << ":" << std::setfill('0') << std::setw(2) << sub_part;
+        ss << std::string(names[i].begin(), names[i].end());
+        return ss.str();
+    }
         
-        std::string to_html() const {
-            static constexpr std::array<std::string_view, 5> names{{"us", "ms", "s", "min", "h"}};
-            static constexpr std::array<double, 5> ratios{{1000, 1000, 60, 60, 24}};
+    std::string to_html() const {
+        static constexpr std::array<std::string_view, 5> names{{"us", "ms", "s", "min", "h"}};
+        static constexpr std::array<double, 5> ratios{{1000, 1000, 60, 60, 24}};
             
-            double scaled = static_cast<double>(timestamp), previous_scaled = 0;
-            size_t i = 0;
-            while(i < ratios.size()-1 && scaled >= ratios[i]) {
-                scaled /= ratios[i];
+        double scaled = static_cast<double>(timestamp), previous_scaled = 0;
+        size_t i = 0;
+        while(i < ratios.size()-1 && scaled >= ratios[i]) {
+            scaled /= ratios[i];
                 
-                previous_scaled = scaled - size_t(scaled);
-                previous_scaled *= ratios[i];
+            previous_scaled = scaled - size_t(scaled);
+            previous_scaled *= ratios[i];
                 
-                i++;
-            }
-            
-            size_t sub_part = (size_t)previous_scaled;
-            
-            std::stringstream ss;
-            ss << "<nr>" << std::fixed << std::setprecision(0) << scaled << "</nr>";
-            if(i>0 && i > 2)
-                ss << ":<nr>" << std::setfill('0') << std::setw(2) << sub_part << "</nr>";
-            ss << std::string(names[i].begin(), names[i].end());
-            return ss.str();
+            i++;
         }
+            
+        size_t sub_part = (size_t)previous_scaled;
+            
+        std::stringstream ss;
+        ss << "<nr>" << std::fixed << std::setprecision(0) << scaled << "</nr>";
+        if(i>0 && i > 2)
+            ss << ":<nr>" << std::setfill('0') << std::setw(2) << sub_part << "</nr>";
+        ss << std::string(names[i].begin(), names[i].end());
+        return ss.str();
+    }
         
-        static DurationUS fromStr(const std::string&) {
-            U_EXCEPTION("Not implemented.");
-            return DurationUS{0};
-        }
-        static std::string class_name() { return "duration_us"; }
-        std::string toStr() const {
-            return to_string();
-        }
-    };
+    static DurationUS fromStr(const std::string&) {
+        U_EXCEPTION("Not implemented.");
+        return DurationUS{0};
+    }
+    static std::string class_name() { return "duration"; }
+    std::string toStr() const {
+        return to_string();
+    }
+};
     
-    struct FileSize {
-        size_t bytes;
+struct FileSize {
+    size_t bytes;
         
-        FileSize(size_t b = 0) : bytes(b) {}
+    FileSize(size_t b = 0) : bytes(b) {}
         
-        std::string to_string() const {
-            std::vector<std::string> descriptions = {
-                "bytes", "KB", "MB", "GB", "TB"
-            };
+    std::string to_string() const {
+        std::vector<std::string> descriptions = {
+            "bytes", "KB", "MB", "GB", "TB"
+        };
             
-            size_t i=0;
-            auto scaled = static_cast<double>(bytes);
-            while (scaled >= 1000 && i < descriptions.size()-1) {
-                scaled /= 1000.0;
-                i++;
-            }
-            
-            std::stringstream ss;
-            ss << std::fixed << std::setprecision(2) << scaled << descriptions[i];
-            
-            return ss.str();
+        size_t i=0;
+        auto scaled = static_cast<double>(bytes);
+        while (scaled >= 1000 && i < descriptions.size()-1) {
+            scaled /= 1000.0;
+            i++;
         }
+            
+        std::stringstream ss;
+        ss << std::fixed << std::setprecision(2) << scaled << descriptions[i];
+            
+        return ss.str();
+    }
         
-        static FileSize fromStr(const std::string&) {
-            U_EXCEPTION("Not implemented.");
-        }
+    static FileSize fromStr(const std::string&) {
+        U_EXCEPTION("Not implemented.");
+    }
 
-        static std::string class_name() {
-            return "filesize";
-        }
-        std::string toStr() const {
-            return to_string();
-        }
-    };
+    static std::string class_name() {
+        return "filesize";
+    }
+    std::string toStr() const {
+        return to_string();
+    }
+};
 
 // <concepts>
 #pragma region concepts
@@ -153,6 +153,9 @@ template<typename T>
 concept _is_dumb_pointer =
     (std::is_pointer<T>::value) && (!_is_smart_pointer<T>);
 
+template<typename T>
+concept _is_number = 
+    (!_clean_same<bool, T>) && (std::floating_point<T> || std::integral<T> || std::convertible_to<T, int>);
 
 #pragma region concepts
 // </concepts>
@@ -431,7 +434,8 @@ std::string name() {
     */
         
 template<class Q>
-std::string toStr(const typename std::enable_if< is_container<Q>::value || is_set<Q>::value || is_deque<Q>::value, Q >::type& obj) {
+    requires (is_container<Q>::value || is_set<Q>::value || is_deque<Q>::value)
+std::string toStr(const Q& obj) {
     std::stringstream ss;
     auto start = obj.begin(), end = obj.end();
     for(auto it=start; it != end; ++it) {
@@ -449,7 +453,7 @@ std::string toStr(const Q& obj) {
 }
         
 template<class Q>
-    requires (std::convertible_to<Q, std::string> || (std::is_constructible_v<Q, std::string>))
+    requires (std::convertible_to<Q, std::string> || (std::is_constructible_v<std::string, Q>))
         && (!(is_instantiation<std::tuple, Q>::value))
         && (!_has_tostr_method<Q>)
 std::string toStr(const Q& obj) {
@@ -466,14 +470,10 @@ template<class Q, class type>
 std::string toStr(const cmn::Range<type>& obj) {
     return "[" + Meta::toStr(obj.start) + "," + Meta::toStr(obj.end) + "]";
 }
-        
+
 template<class Q>
-std::string toStr(const cmn::FrameRange& obj) {
-    return "[" + Meta::toStr(obj.start()) + "," + Meta::toStr(obj.end()) + "]";
-}
-        
-template<class Q>
-std::string toStr(typename std::enable_if< std::is_same<typename std::remove_cv<Q>::type, bool>::value, Q >::type obj) {
+    requires _clean_same<bool, Q>
+std::string toStr(Q obj) {
     return obj == true ? "true" : "false";
 }
         
@@ -501,22 +501,26 @@ std::string toStr(const Q& obj) {
 }
         
 template<class Q>
-std::string toStr(const typename std::enable_if< !std::is_same<typename std::remove_cv<Q>::type, bool>::value && std::is_same<std::string, decltype(std::to_string(typename std::remove_cv<Q>::type())) >::value, Q >::type& obj) {
+    requires _is_number<Q>
+std::string toStr(const Q& obj) {
     return util::to_string(obj);
 }
         
 template<class Q>
-std::string toStr(const typename std::enable_if< std::is_same<typename std::remove_cv<Q>::type, std::wstring>::value, Q>::type& obj) {
+    requires _clean_same<std::wstring, Q>
+std::string toStr(const Q& obj) {
     return ws2s(obj);
 }
     
 template<class Q>
-std::string toStr(const typename std::enable_if< is_pair<Q>::value, Q >::type& obj) {
+    requires (is_pair<Q>::value)
+std::string toStr(const Q& obj) {
     return "[" + Meta::toStr(obj.first) + "," + Meta::toStr(obj.second) + "]";
 }
         
 template<class Q>
-std::string toStr(const typename std::enable_if< is_map<Q>::value, Q >::type& obj) {
+    requires (is_map<Q>::value)
+std::string toStr(const Q& obj) {
     std::stringstream ss;
     ss << "{";
     for (auto it = obj.begin(); it != obj.end(); ++it) {
@@ -572,7 +576,8 @@ std::string toStr(const Q& obj) {
 }
         
 template<class Q>
-std::string toStr(const typename std::enable_if< std::is_same<cv::Mat, typename std::remove_cv<Q>::type>::value, Q >::type& obj)
+    requires _clean_same<cv::Mat, Q>
+std::string toStr(const Q& obj)
 {
     auto mat = *((const cv::Mat*)&obj);
     std::stringstream ss;
@@ -867,8 +872,8 @@ Enum<ValueType, N, _names> fromStr(const std::string& str, const Enum<ValueType,
 }
         
 template<class Q>
-const Q& fromStr(const std::string& str, const typename std::enable_if< std::is_same<const Q&, decltype(Q::get(std::string_view()))>::value, Q >::type** =nullptr)
-{
+    requires _clean_same<const Q&, decltype(Q::get(std::string_view()))>
+const Q& fromStr(const std::string& str) {
     return Q::get(Meta::fromStr<std::string>(str));
 }
         

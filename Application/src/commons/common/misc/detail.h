@@ -326,6 +326,14 @@ namespace cmn {
         arange<long_t> iterable() const {
             return arange<long_t>(start(), end());
         }
+
+        std::string toStr() const {
+            return "["+std::to_string(start()) + "," + std::to_string(end()) + "]";
+        }
+        static std::string class_name() {
+            return "FrameRange";
+        }
+
     };
     
     template <typename T>
