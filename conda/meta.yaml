@@ -83,7 +83,7 @@ requirements:
     - python ==3.9.7 # [win]
     
   run:
-    - tensorflow =2.6 # [not linux and not arm64]
+    - tensorflow =2.6 # [not linux and not arm64 and not osx]
     - tensorflow-gpu =2.4 # [linux]
     - tensorflow =2   # [osx and not arm64]
     - cudatoolkit # [win]
