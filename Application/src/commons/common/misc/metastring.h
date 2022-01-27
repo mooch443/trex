@@ -449,8 +449,9 @@ std::string toStr(const typename std::enable_if< is_queue<Q>::value && !is_deque
 }
         
 template<class Q>
-std::string toStr(const typename std::enable_if< std::is_convertible<typename std::remove_cv<Q>::type, std::string>::value, Q >::type& obj) {
-    return "\"" + util::escape(obj) + "\"";
+    requires std::convertible_to<Q, std::string> || (std::is_constructible_v<Q, std::string>)
+std::string toStr(const Q& obj) {
+    return "\"" + util::escape(std::string(obj)) + "\"";
 }
         
 template<class Q>
