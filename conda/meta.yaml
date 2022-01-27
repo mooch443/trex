@@ -13,7 +13,7 @@ channels:
 source:
     git_url: https://github.com/mooch443/trex.git
     git_depth: 1
-    git_rev: tags
+    git_rev: master
 
 build:
     script_env:
