@@ -1,29 +1,8 @@
 #pragma once
 
 #include <types.h>
-#include <file/Path.h>
-#include <misc/MetaObject.h>
-#include <gui/colors.h>
 
 namespace cmn {
-    namespace tuple_tools {
-        template <class F, size_t... Is>
-        constexpr auto index_apply_impl(F f,
-                                        std::index_sequence<Is...>) {
-            return f(std::integral_constant<size_t, Is> {}...);
-        }
-
-        template <size_t N, class F>
-        constexpr auto index_apply(F f) {
-            return index_apply_impl(f, std::make_index_sequence<N>{});
-        }
-
-        template <class Tuple, class F>
-        constexpr auto apply(Tuple t, F f) {
-            return index_apply<std::tuple_size<Tuple>{}>(
-                [&](auto... Is) { return f(Is..., std::get<Is>(t)...); });
-        }
-    }
     
     class illegal_syntax : public std::logic_error {
     public:
@@ -118,920 +97,902 @@ namespace cmn {
             U_EXCEPTION("Not implemented.");
         }
     };
-    
-    inline std::string truncate(const std::string& str) {
-        if((utils::beginsWith(str, '{') && utils::endsWith(str, '}'))
-           || (utils::beginsWith(str, '[') && utils::endsWith(str, ']')))
-            return utils::trim(str.substr(1, str.length()-2));
-        
-        throw CustomException<illegal_syntax> ("Cannot parse array '%S'", &str);
-    }
 
-    inline std::string escape(std::string str) {
-        str = utils::find_replace(str, "\\", "\\\\");
-        return utils::find_replace(str, "\"", "\\\"");
-    }
+// <concepts>
+#pragma region concepts
+template<template<class...>class Template, class T>
+struct is_instantiation : std::false_type {};
+template<template<class...>class Template, class... Ts>
+struct is_instantiation<Template, Template<Ts...>> : std::true_type {};
 
-    inline std::string unescape(std::string str) {
-        str = utils::find_replace(str, "\\\"", "\"");
-        return utils::find_replace(str, "\\\\", "\\");
-    }
+template<typename T, typename U>
+concept _clean_same =
+    std::same_as<T, typename std::remove_cv<U>::type>;
 
-    inline std::vector<std::string> parse_array_parts(const std::string& str, const char delimiter=',') {
-        std::deque<char> brackets;
-        std::stringstream value;
-        std::vector<std::string> ret;
-        
-        char prev = 0;
-        for(size_t i=0; i<str.length(); i++) {
-            char c = str.at(i);
-            bool in_string = !brackets.empty() && (brackets.front() == '\'' || brackets.front() == '"');
+//template<typename T, typename U>
+//concept _is_instance
+//    = (is_instantiation<T, typename std::remove_cv<U>::type>::value);
+
+//template <typename T> using is_shared_ptr = is_instantiation<std::shared_ptr, T>;
+//template <typename T> using is_unique_ptr = is_instantiation<std::unique_ptr, T>;
+
+template <template<class...>class T, class U>
+concept _is_instance = (is_instantiation<T, U>::value);
+
+//template<typename T>
+//concept _is_smart_pointer =
+//  (is_shared_ptr<T>::value || is_unique_ptr<T>::value);
+
+template <typename T>
+concept is_shared_ptr
+    = _is_instance<std::shared_ptr, T>;
+template <typename T>
+concept is_unique_ptr 
+    = _is_instance<std::unique_ptr, T>;
+
+template<typename T>
+concept _has_tostr_method = requires(T t) {
+    { t.toStr() } -> std::convertible_to<std::string>;
+};
+template<typename T>
+concept _has_fromstr_method = requires() {
+    { typename std::remove_cv<T>::type::fromStr(std::string()) } 
+        -> _clean_same<T>;
+};
+
+template<typename T>
+concept _has_class_name = requires() {
+    { typename std::remove_cv<T>::type::class_name() } -> std::convertible_to<std::string>;
+};
+
+template<typename T>
+concept _is_smart_pointer = 
+    (is_shared_ptr<T> || is_unique_ptr<T>);
+
+template<typename T>
+concept _is_dumb_pointer =
+    (std::is_pointer<T>::value);
+
+
+#pragma region concepts
+// </concepts>
+
+// <util>
+#pragma region util
+namespace util {
+
+template <typename T>
+    requires std::floating_point<T>
+std::string to_string(const T& t) {
+    std::string str{std::to_string (t)};
+    size_t offset = min(str.size()-1, size_t(1));
+    if (str.find_last_not_of('0') == str.find('.')) {
+        offset = 0;
+    }
             
-            if(in_string) {
-                auto s = value.str();
-                if(prev != '\\' && c == brackets.front()) {
+    str.erase(str.find_last_not_of('0') + offset, std::string::npos);
+    return str;
+}
+        
+template <typename T>
+std::string to_string(const T& t, const typename std::enable_if<!std::is_floating_point<T>::value, bool>::type = true) {
+    return std::to_string (t);
+}
+
+inline std::string truncate(const std::string& str) {
+    if ((utils::beginsWith(str, '{') && utils::endsWith(str, '}'))
+        || (utils::beginsWith(str, '[') && utils::endsWith(str, ']')))
+        return utils::trim(str.substr(1, str.length() - 2));
+
+    throw CustomException<illegal_syntax>("Cannot parse array '%S'", &str);
+}
+
+inline std::string escape(std::string str) {
+    str = utils::find_replace(str, "\\", "\\\\");
+    return utils::find_replace(str, "\"", "\\\"");
+}
+
+inline std::string unescape(std::string str) {
+    str = utils::find_replace(str, "\\\"", "\"");
+    return utils::find_replace(str, "\\\\", "\\");
+}
+
+inline std::vector<std::string> parse_array_parts(const std::string& str, const char delimiter = ',') {
+    std::deque<char> brackets;
+    std::stringstream value;
+    std::vector<std::string> ret;
+
+    char prev = 0;
+    for (size_t i = 0; i < str.length(); i++) {
+        char c = str.at(i);
+        bool in_string = !brackets.empty() && (brackets.front() == '\'' || brackets.front() == '"');
+
+        if (in_string) {
+            auto s = value.str();
+            if (prev != '\\' && c == brackets.front()) {
+                brackets.pop_front();
+            }
+
+            value << c;
+
+        }
+        else {
+            switch (c) {
+            case '[':
+            case '{':
+                brackets.push_front(c);
+                break;
+
+            case '"':
+            case '\'':
+                brackets.push_front(c);
+                break;
+            case ']':
+                if (!brackets.empty() && brackets.front() == '[')
                     brackets.pop_front();
+                break;
+            case '}':
+                if (!brackets.empty() && brackets.front() == '{')
+                    brackets.pop_front();
+                break;
+            default:
+                break;
+            }
+
+            if (brackets.empty()) {
+                if (c == delimiter) {
+                    ret.push_back(utils::trim(value.str()));
+                    value.str("");
                 }
-                
-                value << c;
-                
-            } else {
-                switch(c) {
-                    case '[':
-                    case '{':
-                        brackets.push_front(c);
-                        break;
-                        
-                    case '"':
-                    case '\'':
-                        brackets.push_front(c);
-                        break;
-                    case ']':
-                        if(!brackets.empty() && brackets.front() == '[')
-                            brackets.pop_front();
-                        break;
-                    case '}':
-                        if(!brackets.empty() && brackets.front() == '{')
-                            brackets.pop_front();
-                        break;
-                    default:
-                        break;
-                }
-                
-                if(brackets.empty()) {
-                    if(c == delimiter) {
-                        ret.push_back(utils::trim(value.str()));
-                        value.str("");
-                    } else
-                        value << c;
-                    
-                } else {
+                else
                     value << c;
-                }
+
             }
-            
-            if(prev == '\\' && c == '\\')
-                prev = 0;
-            else
-                prev = c;
+            else {
+                value << c;
+            }
         }
-        
-        std::string s = utils::trim(value.str());
-        if(!s.empty()) {
-            ret.push_back(s);
-        }
-        
-        return ret;
+
+        if (prev == '\\' && c == '\\')
+            prev = 0;
+        else
+            prev = c;
     }
 
-    template<template<class...>class Template, class T>
-    struct is_instantiation : std::false_type {};
-    template<template<class...>class Template, class... Ts>
-    struct is_instantiation<Template, Template<Ts...>> : std::true_type {};
-
-    namespace util {
-        template <typename T>
-        std::string to_string(const T& t, const typename std::enable_if<std::is_floating_point<T>::value, bool>::type = true) {
-            std::string str{std::to_string (t)};
-            size_t offset = min(str.size()-1, size_t(1));
-            if (str.find_last_not_of('0') == str.find('.')) {
-                offset = 0;
-            }
-            
-            str.erase(str.find_last_not_of('0') + offset, std::string::npos);
-            return str;
-        }
-        
-        template <typename T>
-        std::string to_string(const T& t, const typename std::enable_if<!std::is_floating_point<T>::value, bool>::type = true) {
-            return std::to_string (t);
-        }
-    }
-    
-    namespace Meta {
-        template<typename Q>
-        inline std::string name(const typename std::enable_if< std::is_pointer<Q>::value && !std::is_same<Q, const char*>::value, typename remove_cvref<Q>::type >::type* =nullptr);
-        
-        template<typename Q>
-        inline std::string toStr(Q value, const typename std::enable_if< std::is_pointer<Q>::value && !std::is_same<Q, const char*>::value, typename remove_cvref<Q>::type >::type* =nullptr);
-        
-        template<typename Q>
-        inline std::string name(const typename std::enable_if< std::is_pointer<Q>::value && std::is_same<Q, const char*>::value, typename remove_cvref<Q>::type >::type* =nullptr);
-        
-        template<typename Q>
-        inline std::string toStr(Q value, const typename std::enable_if< std::is_pointer<Q>::value && std::is_same<Q, const char*>::value, typename remove_cvref<Q>::type >::type* =nullptr);
-        
-        template<typename Q, typename T = typename remove_cvref<Q>::type>
-        inline T fromStr(const std::string& str, const typename std::enable_if< std::is_pointer<Q>::value, typename remove_cvref<Q>::type >::type* =nullptr);
-        
-        template<typename Q>
-        inline std::string name(const typename std::enable_if< !std::is_pointer<Q>::value, typename remove_cvref<Q>::type >::type* =nullptr);
-        
-        template<typename Q>
-        inline std::string toStr(const Q& value, const typename std::enable_if< !std::is_pointer<Q>::value, typename remove_cvref<Q>::type >::type* =nullptr);
-        
-        template<typename Q, typename T = typename remove_cvref<Q>::type>
-        inline T fromStr(const std::string& str, const typename std::enable_if< !std::is_pointer<Q>::value, typename remove_cvref<Q>::type >::type* =nullptr);
-        
-        template <typename T>
-        struct has_tostr_method;
-    
-        template <typename T>
-        struct has_classname_method;
-    
-        template <typename T>
-        struct has_internal_tostr_method;
-    
-        template <typename T>
-        struct has_fromstr_method;
+    std::string s = utils::trim(value.str());
+    if (!s.empty()) {
+        ret.push_back(s);
     }
 
-    namespace _Meta {
-        
-        /**
-         * These methods return the appropriate type name as a string.
-         * Such as "vector<pair<int,float>>".
-         */
-        //template<class Q> std::string name(const typename std::enable_if< std::is_integral<typename std::remove_cv<Q>::type>::value && !std::is_same<bool, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return sizeof(Q) == sizeof(long) ? "long" : "int"; }
-        template<class Q> std::string name(const typename std::enable_if< std::is_same<int, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "int"; }
-        template<class Q> std::string name(const typename std::enable_if< std::is_same<short, typename std::remove_cv<Q>::type>::value && !std::is_same<int16_t, short>::value, Q >::type* =nullptr) { return "short"; }
-        template<class Q> std::string name(const typename std::enable_if< !std::is_same<int32_t, int>::value && std::is_same<int32_t, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "int32"; }
-        template<class Q> std::string name(const typename std::enable_if< !std::is_same<uint32_t, unsigned int>::value && std::is_same<uint32_t, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "uint32"; }
-        template<class Q> std::string name(const typename std::enable_if< std::is_same<int16_t, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "int16"; }
-        template<class Q> std::string name(const typename std::enable_if< std::is_same<uint16_t, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "uint16"; }
-        template<class Q> std::string name(const typename std::enable_if< std::is_same<unsigned int, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "uint"; }
-    template<class Q> std::string name(const typename std::enable_if< std::is_same<unsigned short, typename std::remove_cv<Q>::type>::value && !std::is_same<uint16_t, unsigned short>::value, Q >::type* =nullptr) { return "ushort"; }
-        template<class Q> std::string name(const typename std::enable_if< !std::is_same<uint64_t, unsigned long>::value && std::is_same<uint64_t, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "uint64"; }
-        template<class Q> std::string name(const typename std::enable_if< std::is_same<unsigned long, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "ulong"; }
-        template<class Q> std::string name(const typename std::enable_if< !std::is_same<int64_t, long>::value && std::is_same<int64_t, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "int64"; }
-        template<class Q> std::string name(const typename std::enable_if< std::is_same<long, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "long"; }
-        template<class Q> std::string name(const typename std::enable_if< std::is_same<uint8_t, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "uchar"; }
-        template<class Q> std::string name(const typename std::enable_if< std::is_same<int8_t, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "char"; }
-    
-        template<class Q> std::string name(const typename std::enable_if< std::is_floating_point<typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return sizeof(double) == sizeof(Q) ? "double" : "float"; }
-        template<class Q> std::string name(const typename std::enable_if< std::is_same<std::string, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "string"; }
-        template<class Q> std::string name(const typename std::enable_if< std::is_same<std::wstring, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "wstring"; }
-        template<class Q> std::string name(const typename std::enable_if< std::is_same<bool, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "bool"; }
-        template<class Q> std::string name(const typename std::enable_if< std::is_same<cv::Mat, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "mat"; }
-        template<class Q> std::string name(const typename std::enable_if< std::is_same<cv::Range, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "range"; }
-        template<class Q> std::string name(const typename std::enable_if< std::is_same<Rangef, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "rangef"; }
-        template<class Q> std::string name(const typename std::enable_if< std::is_same<Range<double>, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "range<double>"; }
-        template<class Q> std::string name(const typename std::enable_if< std::is_same<Rangel, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "rangel"; }
-        template<class Q> std::string name(const typename std::enable_if< std::is_same<file::Path, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "path"; }
-        template<class Q> std::string name(const typename std::enable_if< std::is_same<FileSize, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "filesize"; }
-        
-        /**
-         * chrono:: time objects
-         */
-        template<class Q> std::string name(const typename std::enable_if< std::is_same<DurationUS, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "time"; }
-        
-        template<class Q>
-        std::string name(const typename std::enable_if< std::is_convertible<Q, MetaObject>::value || Meta::has_classname_method<Q>::value, Q >::type* =nullptr) {
-            //MetaObject obj = Q();
-            //return obj.class_name();
-            return Q::class_name();
-        }
-    
-    /*template<class TupType, size_t... I>
-    std::string tuple_name(const TupType&&, std::index_sequence<I...>)
-    {
-        
-        std::stringstream str;
-        str << "tuple<";
-        (..., (str << (I == 0? "" : ",") << Meta::name<typename std::tuple_element<I, TupType>::type>()));
-        str << ">";
-        return str.str();
-    }*/
-    
-    //template<class... Q>
-    template< template < typename...> class Tuple, typename ...Ts >
-    std::string tuple_name (Tuple< Ts... >&& tuple)
-    {
-        /*std::initializer_list<std::string> strs{
-            (Meta::name<Ts>(), 0)...
-        };*/
-        
-        std::stringstream ss;
-        ss << "tuple<";
-        std::apply([&](auto&&... args) {
-            ((ss << Meta::name<decltype(args)>() << ","), ...);
-        }, std::forward<Tuple<Ts...>>(tuple));
-        
-        ss << ">";
-        
-        return ss.str();
-        //return tuple_name<Q...> (std::make_index_sequence<sizeof...(Q)>());
+    return ret;
+}
+
+namespace tuple_tools {
+    template <class F, size_t... Is>
+    constexpr auto index_apply_impl(F f,
+        std::index_sequence<Is...>) {
+        return f(std::integral_constant<size_t, Is> {}...);
     }
-    
-    template<class Q>
-    std::string name(const typename std::enable_if< is_instantiation<std::tuple, Q>::value, Q >::type* =nullptr) {
-    //std::string name(const typename std::enable_if< is_instantiation<std::tuple, Q>::value, Q >::type* =nullptr) {
-        return tuple_name(Q{});
+
+    template <size_t N, class F>
+    constexpr auto index_apply(F f) {
+        return index_apply_impl(f, std::make_index_sequence<N>{});
     }
+
+    template <class Tuple, class F>
+    constexpr auto apply(Tuple t, F f) {
+        return index_apply < std::tuple_size<Tuple>{} > (
+            [&](auto... Is) { return f(Is..., std::get<Is>(t)...); });
+    }
+}
+
+}
+#pragma endregion util
+// </util>
+
+// <Meta prototypes>
+#pragma region Meta prototypes
+namespace Meta {
+template<typename Q>
+inline std::string name(const typename std::enable_if< std::is_pointer<Q>::value && !std::is_same<Q, const char*>::value, typename remove_cvref<Q>::type >::type* =nullptr);
+        
+template<typename Q>
+inline std::string toStr(Q value, const typename std::enable_if< std::is_pointer<Q>::value && !std::is_same<Q, const char*>::value, typename remove_cvref<Q>::type >::type* =nullptr);
+        
+template<typename Q>
+inline std::string name(const typename std::enable_if< std::is_pointer<Q>::value && std::is_same<Q, const char*>::value, typename remove_cvref<Q>::type >::type* =nullptr);
+        
+template<typename Q>
+inline std::string toStr(Q value, const typename std::enable_if< std::is_pointer<Q>::value && std::is_same<Q, const char*>::value, typename remove_cvref<Q>::type >::type* =nullptr);
+        
+template<typename Q, typename T = typename remove_cvref<Q>::type>
+inline T fromStr(const std::string& str, const typename std::enable_if< std::is_pointer<Q>::value, typename remove_cvref<Q>::type >::type* =nullptr);
+        
+template<typename Q>
+inline std::string name(const typename std::enable_if< !std::is_pointer<Q>::value, typename remove_cvref<Q>::type >::type* =nullptr);
+        
+template<typename Q>
+inline std::string toStr(const Q& value, const typename std::enable_if< !std::is_pointer<Q>::value, typename remove_cvref<Q>::type >::type* =nullptr);
+        
+template<typename Q, typename T = typename remove_cvref<Q>::type>
+inline T fromStr(const std::string& str, const typename std::enable_if< !std::is_pointer<Q>::value, typename remove_cvref<Q>::type >::type* =nullptr);
+}
+#pragma endregion Meta prototypes
+// </Meta prototypes>
+
+// <_Meta>
+#pragma region _Meta
+namespace _Meta {
+        
+/**
+    * These methods return the appropriate type name as a string.
+    * Such as "vector<pair<int,float>>".
+    */
+//template<class Q> std::string name(const typename std::enable_if< std::is_integral<typename std::remove_cv<Q>::type>::value && !std::is_same<bool, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return sizeof(Q) == sizeof(long) ? "long" : "int"; }
+template<class Q> std::string name(const typename std::enable_if< std::is_same<int, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "int"; }
+template<class Q> std::string name(const typename std::enable_if< std::is_same<short, typename std::remove_cv<Q>::type>::value && !std::is_same<int16_t, short>::value, Q >::type* =nullptr) { return "short"; }
+template<class Q> std::string name(const typename std::enable_if< !std::is_same<int32_t, int>::value && std::is_same<int32_t, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "int32"; }
+template<class Q> std::string name(const typename std::enable_if< !std::is_same<uint32_t, unsigned int>::value && std::is_same<uint32_t, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "uint32"; }
+template<class Q> std::string name(const typename std::enable_if< std::is_same<int16_t, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "int16"; }
+template<class Q> std::string name(const typename std::enable_if< std::is_same<uint16_t, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "uint16"; }
+template<class Q> std::string name(const typename std::enable_if< std::is_same<unsigned int, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "uint"; }
+template<class Q> std::string name(const typename std::enable_if< std::is_same<unsigned short, typename std::remove_cv<Q>::type>::value && !std::is_same<uint16_t, unsigned short>::value, Q >::type* =nullptr) { return "ushort"; }
+template<class Q> std::string name(const typename std::enable_if< !std::is_same<uint64_t, unsigned long>::value && std::is_same<uint64_t, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "uint64"; }
+template<class Q> std::string name(const typename std::enable_if< std::is_same<unsigned long, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "ulong"; }
+template<class Q> std::string name(const typename std::enable_if< !std::is_same<int64_t, long>::value && std::is_same<int64_t, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "int64"; }
+template<class Q> std::string name(const typename std::enable_if< std::is_same<long, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "long"; }
+template<class Q> std::string name(const typename std::enable_if< std::is_same<uint8_t, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "uchar"; }
+template<class Q> std::string name(const typename std::enable_if< std::is_same<int8_t, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "char"; }
     
+template<class Q> std::string name(const typename std::enable_if< std::is_floating_point<typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return sizeof(double) == sizeof(Q) ? "double" : "float"; }
+template<class Q> std::string name(const typename std::enable_if< std::is_same<std::string, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "string"; }
+template<class Q> std::string name(const typename std::enable_if< std::is_same<std::wstring, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "wstring"; }
+template<class Q> std::string name(const typename std::enable_if< std::is_same<bool, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "bool"; }
+template<class Q> std::string name(const typename std::enable_if< std::is_same<cv::Mat, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "mat"; }
+template<class Q> std::string name(const typename std::enable_if< std::is_same<cv::Range, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "range"; }
+template<class Q> std::string name(const typename std::enable_if< std::is_same<Rangef, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "rangef"; }
+template<class Q> std::string name(const typename std::enable_if< std::is_same<Range<double>, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "range<double>"; }
+template<class Q> std::string name(const typename std::enable_if< std::is_same<Rangel, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "rangel"; }
+template<class Q> std::string name(const typename std::enable_if< std::is_same<FileSize, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "filesize"; }
+        
+/**
+    * chrono:: time objects
+    */
+template<class Q> std::string name(const typename std::enable_if< std::is_same<DurationUS, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "time"; }
+        
+template<class Q>
+    requires _has_class_name<Q>
+std::string name() {
+    return Q::class_name();
+}
     
-        template<class Q>
-        std::string name(const typename std::enable_if< is_container<Q>::value, Q >::type* =nullptr) {
-            return "array<"+Meta::name<typename Q::value_type>()+">";
-        }
-        template<class Q>
-        std::string name(const typename std::enable_if< is_queue<Q>::value, Q >::type* =nullptr) {
-            return "queue<"+Meta::name<typename Q::value_type>()+">";
-        }
-        template<class Q>
-        std::string name(const typename std::enable_if< is_set<Q>::value, Q >::type* =nullptr) {
-            return "set<"+Meta::name<typename Q::value_type>()+">";
-        }
-        template<class Q>
-        std::string name(const typename std::enable_if< is_map<Q>::value, Q >::type* =nullptr) {
-            return "map<"+Meta::name<typename Q::key_type>()+","+name<typename Q::mapped_type>()+">";
-        }
-        template<class Q>
-        std::string name(const typename std::enable_if< is_pair<Q>::value, Q >::type* =nullptr) {
-            return "pair<"+Meta::name<typename Q::first_type>()
-                    +","+Meta::name<typename Q::second_type>()+">";
-        }
-        template<class Q>
-        std::string name(const typename std::enable_if< is_instantiation<cv::Size_, Q>::value, Q >::type* =nullptr) {
-            return "size<"+Meta::name<typename Q::value_type>()+">";
-        }
-        template<class Q>
-        std::string name(const typename std::enable_if< is_instantiation<cv::Rect_, Q>::value, Q >::type* =nullptr) {
-            return "rect<"+Meta::name<typename Q::value_type>()+">";
-        }
-        template<class Q>
-        std::string name(const typename std::enable_if< std::is_same<gui::Color, Q>::value, Q >::type* =nullptr) {
-            return "color";
-        }
+template< template < typename...> class Tuple, typename ...Ts >
+std::string tuple_name (Tuple< Ts... >&& tuple)
+{        
+    std::stringstream ss;
+    ss << "tuple<";
+    std::apply([&](auto&&... args) {
+        ((ss << Meta::name<decltype(args)>() << ","), ...);
+    }, std::forward<Tuple<Ts...>>(tuple));
         
-        /**
-         * The following methods convert any given value to a string.
-         * All objects should be parseable by JavaScript as JSON.
-         */
+    ss << ">";
         
-        template<class Q>
-        std::string toStr(const typename std::enable_if< is_container<Q>::value || is_set<Q>::value || is_deque<Q>::value, Q >::type& obj) {
-            std::stringstream ss;
-            auto start = obj.begin(), end = obj.end();
-            for(auto it=start; it != end; ++it) {
-                if(it != start)
-                    ss << ",";
-                ss << Meta::toStr(*it);
-            }
-            return "[" + ss.str() + "]";
-        }
+    return ss.str();
+}
     
-        template<class Q>
-        std::string toStr(const typename std::enable_if< is_queue<Q>::value && !is_deque<Q>::value, Q >::type& obj) {
-            return "queue<size:"+Meta::toStr(obj.size())+">";
-        }
+template<class Q>
+    requires (is_instantiation<std::tuple, Q>::value)
+std::string name() { 
+    return tuple_name(Q{});
+}
+    
+template<class Q>
+std::string name(const typename std::enable_if< is_container<Q>::value, Q >::type* =nullptr) {
+    return "array<"+Meta::name<typename Q::value_type>()+">";
+}
+template<class Q>
+std::string name(const typename std::enable_if< is_queue<Q>::value, Q >::type* =nullptr) {
+    return "queue<"+Meta::name<typename Q::value_type>()+">";
+}
+template<class Q>
+std::string name(const typename std::enable_if< is_set<Q>::value, Q >::type* =nullptr) {
+    return "set<"+Meta::name<typename Q::value_type>()+">";
+}
+template<class Q>
+std::string name(const typename std::enable_if< is_map<Q>::value, Q >::type* =nullptr) {
+    return "map<"+Meta::name<typename Q::key_type>()+","+name<typename Q::mapped_type>()+">";
+}
+template<class Q>
+std::string name(const typename std::enable_if< is_pair<Q>::value, Q >::type* =nullptr) {
+    return "pair<"+Meta::name<typename Q::first_type>()
+            +","+Meta::name<typename Q::second_type>()+">";
+}
+template<class Q>
+    requires (is_instantiation<cv::Size_, Q>::value)
+std::string name() {
+    return "size<"+Meta::name<typename Q::value_type>()+">";
+}
+template<class Q>
+    requires (is_instantiation<cv::Rect_, Q>::value)
+std::string name() {
+    return "rect<"+Meta::name<typename Q::value_type>()+">";
+}
         
-        template<class Q>
-        std::string toStr(const typename std::enable_if< std::is_convertible<typename std::remove_cv<Q>::type, std::string>::value, Q >::type& obj) {
-            return "\"" + escape(obj) + "\"";
-        }
+/**
+    * The following methods convert any given value to a string.
+    * All objects should be parseable by JavaScript as JSON.
+    */
         
-        template<class Q>
-        std::string toStr(const typename std::enable_if< std::is_convertible<typename std::remove_cv<Q>::type, MetaObject>::value, Q >::type& obj) {
-            MetaObject m(obj);
-            return m.value();
-        }
+template<class Q>
+std::string toStr(const typename std::enable_if< is_container<Q>::value || is_set<Q>::value || is_deque<Q>::value, Q >::type& obj) {
+    std::stringstream ss;
+    auto start = obj.begin(), end = obj.end();
+    for(auto it=start; it != end; ++it) {
+        if(it != start)
+            ss << ",";
+        ss << Meta::toStr(*it);
+    }
+    return "[" + ss.str() + "]";
+}
+    
+template<class Q>
+std::string toStr(const typename std::enable_if< is_queue<Q>::value && !is_deque<Q>::value, Q >::type& obj) {
+    return "queue<size:"+Meta::toStr(obj.size())+">";
+}
         
-        template<class Q>
-        std::string toStr(const typename std::enable_if< std::is_same<typename std::remove_cv<Q>::type, file::Path>::value, Q >::type& obj) {
-            return Meta::toStr(obj.str());
-        }
+template<class Q>
+std::string toStr(const typename std::enable_if< std::is_convertible<typename std::remove_cv<Q>::type, std::string>::value, Q >::type& obj) {
+    return "\"" + util::escape(obj) + "\"";
+}
         
-        template<class Q>
-        std::string toStr(const typename std::enable_if< std::is_same<typename std::remove_cv<Q>::type, DurationUS>::value || std::is_same<Q, FileSize>::value, Q >::type& obj) {
-            return obj.to_string();
-        }
+template<class Q>
+std::string toStr(const typename std::enable_if< std::is_same<typename std::remove_cv<Q>::type, DurationUS>::value || std::is_same<Q, FileSize>::value, Q >::type& obj) {
+    return obj.to_string();
+}
         
-        template<class Q>
-        std::string toStr(const typename std::enable_if< std::is_same<typename std::remove_cv<Q>::type, cv::Range>::value, Q >::type& obj) {
-            return "[" + Meta::toStr(obj.start) + "," + Meta::toStr(obj.end) + "]";
-        }
+template<class Q>
+std::string toStr(const typename std::enable_if< std::is_same<typename std::remove_cv<Q>::type, cv::Range>::value, Q >::type& obj) {
+    return "[" + Meta::toStr(obj.start) + "," + Meta::toStr(obj.end) + "]";
+}
         
-        template<class Q, class type>
-        std::string toStr(const cmn::Range<type>& obj) {
-            return "[" + Meta::toStr(obj.start) + "," + Meta::toStr(obj.end) + "]";
-        }
+template<class Q, class type>
+std::string toStr(const cmn::Range<type>& obj) {
+    return "[" + Meta::toStr(obj.start) + "," + Meta::toStr(obj.end) + "]";
+}
         
-        template<class Q>
-        std::string toStr(const cmn::FrameRange& obj) {
-            return "[" + Meta::toStr(obj.start()) + "," + Meta::toStr(obj.end()) + "]";
-        }
+template<class Q>
+std::string toStr(const cmn::FrameRange& obj) {
+    return "[" + Meta::toStr(obj.start()) + "," + Meta::toStr(obj.end()) + "]";
+}
         
-        template<class Q>
-        std::string toStr(typename std::enable_if< std::is_same<typename std::remove_cv<Q>::type, bool>::value, Q >::type obj) {
-            return obj == true ? "true" : "false";
-        }
+template<class Q>
+std::string toStr(typename std::enable_if< std::is_same<typename std::remove_cv<Q>::type, bool>::value, Q >::type obj) {
+    return obj == true ? "true" : "false";
+}
         
-        template<class TupType, size_t... I>
-        std::string tuple_str(const TupType& _tup, std::index_sequence<I...>)
-        {
+template<class TupType, size_t... I>
+std::string tuple_str(const TupType& _tup, std::index_sequence<I...>)
+{
             
-            std::stringstream str;
-            str << "[";
-            (..., (str << (I == 0? "" : ",") << Meta::toStr(std::get<I>(_tup))));
-            str << "]";
-            return str.str();
-        }
+    std::stringstream str;
+    str << "[";
+    (..., (str << (I == 0? "" : ",") << Meta::toStr(std::get<I>(_tup))));
+    str << "]";
+    return str.str();
+}
         
-        template<class... Q>
-        std::string tuple_str (const std::tuple<Q...>& _tup)
-        {
-            return tuple_str(_tup, std::make_index_sequence<sizeof...(Q)>());
-        }
+template<class... Q>
+std::string tuple_str (const std::tuple<Q...>& _tup)
+{
+    return tuple_str(_tup, std::make_index_sequence<sizeof...(Q)>());
+}
         
-        template<class Q>
-        std::string toStr(const typename std::enable_if< is_instantiation<std::tuple, Q>::value, Q >::type& obj) {
-            return tuple_str(obj);
-        }
+template<class Q>
+    requires (is_instantiation<std::tuple, Q>::value)
+std::string toStr(const Q& obj) {
+    return tuple_str(obj);
+}
         
-        template<class Q>
-        std::string toStr(const typename std::enable_if< !std::is_same<typename std::remove_cv<Q>::type, bool>::value && std::is_same<std::string, decltype(std::to_string(typename std::remove_cv<Q>::type())) >::value, Q >::type& obj) {
-            return util::to_string(obj);
-        }
+template<class Q>
+std::string toStr(const typename std::enable_if< !std::is_same<typename std::remove_cv<Q>::type, bool>::value && std::is_same<std::string, decltype(std::to_string(typename std::remove_cv<Q>::type())) >::value, Q >::type& obj) {
+    return util::to_string(obj);
+}
         
-        template<class Q>
-        std::string toStr(const typename std::enable_if< std::is_same<typename std::remove_cv<Q>::type, std::wstring>::value, Q>::type& obj) {
-            return ws2s(obj);
-        }
+template<class Q>
+std::string toStr(const typename std::enable_if< std::is_same<typename std::remove_cv<Q>::type, std::wstring>::value, Q>::type& obj) {
+    return ws2s(obj);
+}
     
-        template<class Q>
-        std::string toStr(const typename std::enable_if< is_pair<Q>::value, Q >::type& obj) {
-            return "[" + Meta::toStr(obj.first) + "," + Meta::toStr(obj.second) + "]";
-        }
+template<class Q>
+std::string toStr(const typename std::enable_if< is_pair<Q>::value, Q >::type& obj) {
+    return "[" + Meta::toStr(obj.first) + "," + Meta::toStr(obj.second) + "]";
+}
         
-        template<class Q>
-        std::string toStr(const typename std::enable_if< is_map<Q>::value, Q >::type& obj) {
-            std::stringstream ss;
-            ss << "{";
-            for (auto it = obj.begin(); it != obj.end(); ++it) {
-                if(it != obj.begin())
-                    ss << ',';
-                ss << Meta::toStr(it->first);
-                ss << ':';
-                ss << Meta::toStr(it->second);
+template<class Q>
+std::string toStr(const typename std::enable_if< is_map<Q>::value, Q >::type& obj) {
+    std::stringstream ss;
+    ss << "{";
+    for (auto it = obj.begin(); it != obj.end(); ++it) {
+        if(it != obj.begin())
+            ss << ',';
+        ss << Meta::toStr(it->first);
+        ss << ':';
+        ss << Meta::toStr(it->second);
                 
-            }
-            ss << "}";
-            
-            return ss.str();
-        }
-    
-        template<class T, class Q = typename std::remove_cv<T>::type>
-        std::string toStr(const typename std::enable_if< std::is_same<gui::Color, Q>::value, Q >::type& obj) {
-            return "[" + Meta::toStr(obj.r) + "," + Meta::toStr(obj.g) + "," + Meta::toStr(obj.b) + "," + Meta::toStr(obj.a) + "]";
-        }
-        
-        template<class Q>
-        std::string toStr(const typename std::enable_if< is_instantiation<cv::Rect_, Q>::value, Q >::type& obj) {
-            return "[" + Meta::toStr(obj.x) + "," + Meta::toStr(obj.y) + "," + Meta::toStr(obj.width) + "," + Meta::toStr(obj.height) + "]";
-        }
-        
-        template<class Q>
-        std::string toStr(const typename std::enable_if< is_instantiation<std::shared_ptr, Q>::value && (Meta::has_tostr_method<typename Q::element_type>::value || std::is_convertible<typename Q::element_type, MetaObject>::value), Q >::type& obj) {
-            return "ptr<"+Meta::name<typename Q::element_type>()+">" + (obj == nullptr ? "null" : Meta::toStr<typename Q::element_type>(*obj));//MetaType<typename std::remove_pointer<typename Q::element_type>::type>::toStr(*obj);
-        }
-    
-        template<class Q>
-        std::string toStr(const typename std::enable_if< is_instantiation<std::shared_ptr, Q>::value && (Meta::has_internal_tostr_method<typename Q::element_type>::value), Q >::type& obj) {
-            return "ptr<"+Q::class_name()+">" + (obj == nullptr ? "null" : obj->toStr());
-        }
-    
-        template<class Q>
-        std::string toStr(const typename std::enable_if< (std::is_pointer<Q>::value || is_instantiation<std::shared_ptr, Q>::value) && Meta::has_internal_tostr_method<Q>::value, Q >::type& obj) {
-            return "ptr<"+Q::class_name()+">" + obj.toStr();
-        }
-        
-    template<class Q>
-    std::string toStr(const typename std::enable_if< !std::is_pointer<Q>::value && !is_instantiation<std::shared_ptr, Q>::value && Meta::has_internal_tostr_method<Q>::value, Q >::type& obj) {
-        return obj.toStr();
     }
-    
-        template<class Q>
-        std::string toStr(const typename std::enable_if< is_instantiation<std::shared_ptr, Q>::value && !Meta::has_tostr_method<typename Q::element_type>::value && !std::is_convertible<typename Q::element_type, MetaObject>::value, Q >::type& obj) {
-            return "ptr<?>0x" + Meta::toStr(uint64_t(obj.get()));//MetaType<typename std::remove_pointer<typename Q::element_type>::type>::toStr(*obj);
-        }
-        
-        /*template<class Q>
-        std::string toStr(const typename std::enable_if< std::is_same<pv::Blob, typename std::remove_cv<Q>::type>::value, Q >::type& obj) {
-            typedef MetaType<long> M;
-            return "blob{" + M::toStr(obj.blob_id()) + "}";
-        }*/
-        
-        template<class Q>
-        std::string toStr(const typename std::enable_if< is_instantiation<cv::Size_, Q>::value, Q >::type& obj) {
-            return "[" + Meta::toStr(obj.width) + "," + Meta::toStr(obj.height) + "]";
-        }
-        
-        template<class Q>
-        std::string toStr(const typename std::enable_if< std::is_same<cv::Mat, typename std::remove_cv<Q>::type>::value, Q >::type& obj)
-        {
-            auto mat = *((const cv::Mat*)&obj);
-            std::stringstream ss;
+    ss << "}";
             
-            ss << "[";
-            for (int i=0; i<mat.rows; i++) {
-                if(mat.rows > 15 && (i > 5 && i < mat.rows-6)) {
-                    //if(i < 7 || i > mat.rows-8)
-                    //    ss << ",";
-                    //continue;
-                }
+    return ss.str();
+}
+        
+template<class Q>
+    requires (is_instantiation<cv::Rect_, Q>::value)
+std::string toStr(const Q& obj) {
+    return "[" + Meta::toStr(obj.x) + "," + Meta::toStr(obj.y) + "," + Meta::toStr(obj.width) + "," + Meta::toStr(obj.height) + "]";
+}
+        
+template<class Q>
+    requires _is_smart_pointer<Q> && _has_class_name<typename Q::element_type>
+std::string toStr(const Q& obj) {
+    return "ptr<"+typename Q::element_type::class_name() + ">" + (obj == nullptr ? "null" : Meta::toStr<typename Q::element_type>(*obj));//MetaType<typename std::remove_pointer<typename Q::element_type>::type>::toStr(*obj);
+}
+
+template<class Q>
+    requires _has_class_name<Q> && _has_tostr_method<Q>
+std::string toStr(const typename std::enable_if< (std::is_pointer<Q>::value), Q >::type& obj) {
+    return "ptr<"+Q::class_name()+">" + obj.toStr();
+}
+        
+template<class Q>
+    requires (!_is_smart_pointer<Q>) && _has_tostr_method<Q>
+std::string toStr(const typename std::enable_if< !std::is_pointer<Q>::value, Q >::type& obj) {
+    return obj.toStr();
+}
+    
+template<class Q>
+    requires _is_smart_pointer<Q> && (!_has_tostr_method<typename Q::element_type>)
+std::string toStr(const Q& obj) {
+    return "ptr<?>0x" + Meta::toStr(uint64_t(obj.get()));//MetaType<typename std::remove_pointer<typename Q::element_type>::type>::toStr(*obj);
+}
+        
+template<class Q>
+    requires (is_instantiation<cv::Size_, Q>::value)
+std::string toStr(const Q& obj) {
+    return "[" + Meta::toStr(obj.width) + "," + Meta::toStr(obj.height) + "]";
+}
+        
+template<class Q>
+std::string toStr(const typename std::enable_if< std::is_same<cv::Mat, typename std::remove_cv<Q>::type>::value, Q >::type& obj)
+{
+    auto mat = *((const cv::Mat*)&obj);
+    std::stringstream ss;
+            
+    ss << "[";
+    for (int i=0; i<mat.rows; i++) {
+        if(mat.rows > 15 && (i > 5 && i < mat.rows-6)) {
+            //if(i < 7 || i > mat.rows-8)
+            //    ss << ",";
+            //continue;
+        }
                 
-                ss << "[";
-                for (int j=0; j<mat.cols; j++) {
-                    if(mat.cols > 15 && (j > 5 && j < mat.cols-6)) {
-                        //if(j < 8 || j > mat.cols-9)
-                        //    ss << ",";
-                        //continue;
-                    }
+        ss << "[";
+        for (int j=0; j<mat.cols; j++) {
+            if(mat.cols > 15 && (j > 5 && j < mat.cols-6)) {
+                //if(j < 8 || j > mat.cols-9)
+                //    ss << ",";
+                //continue;
+            }
                     
-                    switch(mat.type()) {
-                        case CV_8UC1:
-                            ss << mat.at<uchar>(i, j);
-                            break;
-                        case CV_32FC1:
-                            ss << mat.at<float>(i, j);
-                            break;
-                        case CV_64FC1:
-                            ss << mat.at<double>(i, j);
-                            break;
-                        default:
-                            U_EXCEPTION("unknown matrix type");
-                    }
-                    if(j < mat.cols-1)
-                        ss << ",";
-                }
-                ss << "]";
-                if (i < mat.rows-1) {
-                    ss << ",";
-                }
+            switch(mat.type()) {
+                case CV_8UC1:
+                    ss << mat.at<uchar>(i, j);
+                    break;
+                case CV_32FC1:
+                    ss << mat.at<float>(i, j);
+                    break;
+                case CV_64FC1:
+                    ss << mat.at<double>(i, j);
+                    break;
+                default:
+                    U_EXCEPTION("unknown matrix type");
             }
+            if(j < mat.cols-1)
+                ss << ",";
+        }
+        ss << "]";
+        if (i < mat.rows-1) {
+            ss << ",";
+        }
+    }
             
-            ss << "]";
-            return ss.str();
-        }
+    ss << "]";
+    return ss.str();
+}
         
-        /**
-         * The following methods convert a string like "5.0" to the native
-         * datatype (in this case float or double).
-         * Values in the string are expected to represent datatype T.
-         * Invalid values will throw exceptions.
-         */
-        template<class Q>
-        Q fromStr(const std::string& str, const typename std::enable_if< 
-            std::is_signed<typename std::remove_cv<Q>::type>::value && std::is_integral<typename std::remove_cv<Q>::type>::value 
-            && !std::is_same<bool, Q>::value, Q >::type* =nullptr)
-        {
-            if(!str.empty() && str[0] == '\'' && str.back() == '\'')
-                return Q(std::stoll(str.substr(1,str.length()-2)));
-            return Q(std::stoll(str));
-        }
-        template<class Q>
-        Q fromStr(const std::string& str, const typename std::enable_if<
-            std::is_unsigned<typename std::remove_cv<Q>::type>::value&& std::is_integral<typename std::remove_cv<Q>::type>::value
-            && !std::is_same<bool, Q>::value, Q >::type* = nullptr)
-        {
-            if (!str.empty() && str[0] == '\'' && str.back() == '\'')
-                return Q(std::stoull(str.substr(1, str.length() - 2)));
-            return Q(std::stoull(str));
-        }
+/**
+    * The following methods convert a string like "5.0" to the native
+    * datatype (in this case float or double).
+    * Values in the string are expected to represent datatype T.
+    * Invalid values will throw exceptions.
+    */
+template<class Q>
+    requires std::signed_integral<typename std::remove_cv<Q>::type> 
+             && (!_clean_same<bool, Q>)
+Q fromStr(const std::string& str)
+{
+    if(!str.empty() && str[0] == '\'' && str.back() == '\'')
+        return Q(std::stoll(str.substr(1,str.length()-2)));
+    return Q(std::stoll(str));
+}
+template<class Q>
+    requires std::unsigned_integral<typename std::remove_cv<Q>::type> 
+             && (!_clean_same<bool, Q>)
+Q fromStr(const std::string& str)
+{
+    if (!str.empty() && str[0] == '\'' && str.back() == '\'')
+        return Q(std::stoull(str.substr(1, str.length() - 2)));
+    return Q(std::stoull(str));
+}
     
-        template<class Q>
-        Q fromStr(const std::string& str, const typename std::enable_if<Meta::has_fromstr_method<Q>::value, Q>::type * = nullptr) {
-            return Q::fromStr(str);
-        }
+template<class Q>
+    requires _has_fromstr_method<Q>
+Q fromStr(const std::string& str) {
+    return Q::fromStr(str);
+}
         
-        template<class Q>
-        Q fromStr(const std::string& str, const typename std::enable_if< std::is_floating_point<typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr)
-        {
-            if(!str.empty() && str[0] == '\'' && str.back() == '\'')
-                return Q(std::stod(str.substr(1,str.length()-2)));
-            return (Q)std::stod(str);
-        }
+template<class Q>
+    requires std::floating_point<typename std::remove_cv<Q>::type>
+Q fromStr(const std::string& str)
+{
+    if(!str.empty() && str[0] == '\'' && str.back() == '\'')
+        return Q(std::stod(str.substr(1,str.length()-2)));
+    return (Q)std::stod(str);
+}
         
-        template<class T, class Q = typename std::remove_cv<T>::type>
-        Q fromStr(const std::string& str, const typename std::enable_if< std::is_same<gui::Color, Q>::value, Q >::type* =nullptr)
-        {
-            auto s = utils::lowercase(str);
-            if(s == "red") return gui::Red;
-            if(s == "blue") return gui::Blue;
-            if(s == "green") return gui::Green;
-            if(s == "yellow") return gui::Yellow;
-            if(s == "cyan") return gui::Cyan;
-            if(s == "white") return gui::White;
-            if(s == "black") return gui::Black;
+template<class Q>
+    requires (is_pair<typename std::remove_cv<Q>::type>::value)
+Q fromStr(const std::string& str)
+{
+    using namespace util;
+    auto parts = parse_array_parts(truncate(str));
+    if(parts.size() != 2) {
+        std::string x = name<typename Q::first_type>();
+        std::string y = name<typename Q::second_type>();
+        throw CustomException<std::invalid_argument>("Illegal pair<%S, %S> format ('%S').", &x, &y, &str);
+    }
             
-            auto vec = Meta::fromStr<std::vector<uchar>>(str);
-            if(vec.empty())
-                return Q();
-            if(vec.size() != 4 && vec.size() != 3)
-                throw CustomException<std::invalid_argument>("Can only initialize Color with three or four elements. ('%S')", &str);
-            return Q(vec[0], vec[1], vec[2], vec.size() == 4 ? vec[3] : 255);
-        }
-        
-        template<class Q>
-        Q fromStr(const std::string& str, const typename std::enable_if< is_pair<Q>::value, Q >::type* =nullptr)
-        {
-            auto parts = parse_array_parts(truncate(str));
-            if(parts.size() != 2) {
-                std::string x = name<typename Q::first_type>();
-                std::string y = name<typename Q::second_type>();
-                throw CustomException<std::invalid_argument>("Illegal pair<%S, %S> format ('%S').", &x, &y, &str);
-            }
+    auto x = Meta::fromStr<typename Q::first_type>(parts[0]);
+    auto y = Meta::fromStr<typename Q::second_type>(parts[1]);
             
-            auto x = Meta::fromStr<typename Q::first_type>(parts[0]);
-            auto y = Meta::fromStr<typename Q::second_type>(parts[1]);
-            
-            return Q(x, y);
-        }
+    return Q(x, y);
+}
         
-        template<class Q>
-        Q fromStr(const std::string& str, const typename std::enable_if< std::is_same<std::string, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr)
-        {
-            if((utils::beginsWith(str, '"') && utils::endsWith(str, '"'))
-               || (utils::beginsWith(str, '\'') && utils::endsWith(str, '\'')))
-                return unescape(utils::trim(str.substr(1, str.length()-2)));
-            return unescape(utils::trim(str));
-        }
+template<class Q>
+    requires _clean_same<std::string, Q>
+Q fromStr(const std::string& str)
+{
+    if((utils::beginsWith(str, '"') && utils::endsWith(str, '"'))
+        || (utils::beginsWith(str, '\'') && utils::endsWith(str, '\'')))
+        return util::unescape(utils::trim(str.substr(1, str.length()-2)));
+    return util::unescape(utils::trim(str));
+}
     
-        template<class Q>
-        Q fromStr(const std::string& str, const typename std::enable_if< std::is_same<std::wstring, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr)
-        {
-            return s2ws(str);
-        }
+template<class Q>
+    requires _clean_same<std::wstring, Q>
+Q fromStr(const std::string& str)
+{
+    return s2ws(str);
+}
         
-        template<class Q>
-        Q fromStr(const std::string& str, const typename std::enable_if< std::is_same<file::Path, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr)
-        {
-            return file::Path(Meta::fromStr<std::string>(str));
-        }
+template<class Q>
+    requires _clean_same<DurationUS, Q>
+Q fromStr(const std::string& str)
+{
+    return DurationUS::fromStr(str);
+}
         
-        template<class Q>
-        Q fromStr(const std::string& str, const typename std::enable_if< std::is_same<DurationUS, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr)
-        {
-            return DurationUS::fromStr(str);
-        }
-        
-        template<class Q>
-        Q fromStr(const std::string& str, const typename std::enable_if< is_container<Q>::value || is_deque<Q>::value, Q >::type* =nullptr)
-        {
-            std::vector<typename Q::value_type> ret;
-            std::queue<char> brackets;
-            std::stringstream value;
+template<class Q>
+    requires (is_container<Q>::value || is_deque<Q>::value)
+Q fromStr(const std::string& str)
+{
+    std::vector<typename Q::value_type> ret;
+    std::queue<char> brackets;
+    std::stringstream value;
             
-            auto parts = parse_array_parts(truncate(str));
-            for(auto &s : parts) {
-                if(s.empty()) {
-                    ret.push_back(typename Q::value_type());
-                    Warning("Empty value in '%S'.", &str);
-                }
-                else {
-                    auto v = Meta::fromStr<typename Q::value_type>(s);
-                    ret.push_back(v);
-                }
-            }
-            
-            return ret;
+    auto parts = util::parse_array_parts(util::truncate(str));
+    for(auto &s : parts) {
+        if(s.empty()) {
+            ret.push_back(typename Q::value_type());
+            Warning("Empty value in '%S'.", &str);
         }
+        else {
+            auto v = Meta::fromStr<typename Q::value_type>(s);
+            ret.push_back(v);
+        }
+    }
+            
+    return ret;
+}
     
-        template<class Q>
-        Q fromStr(const std::string& str, const typename std::enable_if< !is_deque<Q>::value && is_queue<Q>::value, Q >::type* =nullptr)
-        {
-            std::vector<typename Q::value_type> ret;
-            std::queue<char> brackets;
-            std::stringstream value;
+template<class Q>
+    requires (!is_deque<Q>::value && is_queue<Q>::value)
+Q fromStr(const std::string& str)
+{
+    std::vector<typename Q::value_type> ret;
+    std::queue<char> brackets;
+    std::stringstream value;
             
-            auto parts = parse_array_parts(truncate(str));
-            for(auto &s : parts) {
-                if(s.empty()) {
-                    ret.push(typename Q::value_type());
-                    Warning("Empty value in '%S'.", &str);
-                }
-                else {
-                    auto v = Meta::fromStr<typename Q::value_type>(s);
-                    ret.push(v);
-                }
-            }
-            
-            return ret;
+    auto parts = util::parse_array_parts(util::truncate(str));
+    for(auto &s : parts) {
+        if(s.empty()) {
+            ret.push(typename Q::value_type());
+            Warning("Empty value in '%S'.", &str);
         }
-        
-        template<class Q>
-        Q fromStr(const std::string& str, const typename std::enable_if< is_set<Q>::value, Q >::type* =nullptr)
-        {
-            std::set<typename Q::value_type> ret;
-            std::queue<char> brackets;
-            std::stringstream value;
-            
-            auto parts = parse_array_parts(truncate(str));
-            for(auto &s : parts) {
-                if(s.empty()) {
-                    ret.insert(typename Q::value_type());
-                    Warning("Empty value in '%S'.", &str);
-                }
-                else {
-                    auto v = Meta::fromStr<typename Q::value_type>(s);
-                    ret.insert(v);
-                }
-            }
-            
-            return ret;
+        else {
+            auto v = Meta::fromStr<typename Q::value_type>(s);
+            ret.push(v);
         }
+    }
+            
+    return ret;
+}
         
-        template<class Q>
-        Q fromStr(const std::string& str, const typename std::enable_if< is_map<Q>::value, Q >::type* =nullptr)
-        {
-            Q r;
+template<class Q>
+    requires (is_set<Q>::value)
+Q fromStr(const std::string& str)
+{
+    std::set<typename Q::value_type> ret;
+    std::queue<char> brackets;
+    std::stringstream value;
             
-            auto parts = parse_array_parts(truncate(str));
+    auto parts = util::parse_array_parts(util::truncate(str));
+    for(auto &s : parts) {
+        if(s.empty()) {
+            ret.insert(typename Q::value_type());
+            Warning("Empty value in '%S'.", &str);
+        }
+        else {
+            auto v = Meta::fromStr<typename Q::value_type>(s);
+            ret.insert(v);
+        }
+    }
             
-            for(auto &p: parts) {
-                auto value_key = parse_array_parts(p, ':');
-                if(value_key.size() != 2)
-                    throw CustomException<std::invalid_argument>("Illegal value/key pair: '%S'", &p);
+    return ret;
+}
+        
+template<class Q>
+    requires (is_map<Q>::value)
+Q fromStr(const std::string& str)
+{
+    Q r;
+            
+    auto parts = util::parse_array_parts(util::truncate(str));
+            
+    for(auto &p: parts) {
+        auto value_key = util::parse_array_parts(p, ':');
+        if(value_key.size() != 2)
+            throw CustomException<std::invalid_argument>("Illegal value/key pair: '%S'", &p);
                 
-                auto x = Meta::fromStr<typename Q::key_type>(value_key[0]);
-                try {
-                    auto y = Meta::fromStr<typename Q::mapped_type>(value_key[1]);
-                    r[x] = y;
-                } catch(const std::logic_error&) {
-                    auto name = Meta::name<Q>();
-                    Warning("Empty/illegal value in %S['%S'] = '%S'", &name, &value_key[0], &value_key[1]);
-                }
-            }
-            
-            return r;
+        auto x = Meta::fromStr<typename Q::key_type>(value_key[0]);
+        try {
+            auto y = Meta::fromStr<typename Q::mapped_type>(value_key[1]);
+            r[x] = y;
+        } catch(const std::logic_error&) {
+            auto name = Meta::name<Q>();
+            Warning("Empty/illegal value in %S['%S'] = '%S'", &name, &value_key[0], &value_key[1]);
         }
-    
-    namespace detail {
+    }
+            
+    return r;
+}
 
-    template <class F, typename... Args, size_t... Is>
-    auto transform_each_impl(const std::tuple<Args...>& t, F&& f, std::index_sequence<Is...>) {
-        return std::make_tuple(
-            f(Is, std::get<Is>(t) )...
-        );
-    }
+// <_Meta::detail>
+#pragma region _Meta::detail
+namespace detail {
 
-    } // namespace detail
+template <class F, typename... Args, size_t... Is>
+auto transform_each_impl(const std::tuple<Args...>& t, F&& f, std::index_sequence<Is...>) {
+    return std::make_tuple(
+        f(Is, std::get<Is>(t) )...
+    );
+}
+
+}
+#pragma endregion _Meta::detail
+// </_Meta::detail>
     
-    template <class F, typename... Args>
-    auto transform_each(const std::tuple<Args...>& t, F&& f) {
-        return detail::transform_each_impl(
-            t, std::forward<F>(f), std::make_index_sequence<sizeof...(Args)>{});
+template <class F, typename... Args>
+auto transform_each(const std::tuple<Args...>& t, F&& f) {
+    return detail::transform_each_impl(
+        t, std::forward<F>(f), std::make_index_sequence<sizeof...(Args)>{});
+}
+    
+template<class Q>
+    requires (is_instantiation<std::tuple, Q>::value)
+Q fromStr(const std::string& str) {
+    auto parts = util::parse_array_parts(util::truncate(str));
+    //size_t i=0;
+    if(parts.size() != std::tuple_size<Q>::value)
+        throw CustomException<illegal_syntax>("tuple has %d parts instead of %d.",parts.size(), std::tuple_size<Q>::value);
+            
+    Q tup;
+    return transform_each(tup, [&](size_t i, auto&& obj) {
+        return Meta::fromStr<decltype(obj)>(parts.at(i));
+    });
+}
+        
+template<class Q>
+    requires _clean_same<cv::Mat, Q>
+Q fromStr(const std::string&)
+{
+    U_EXCEPTION("Not supported.");
+}
+        
+template<class Q>
+    requires _clean_same<bool, Q>
+Q fromStr(const std::string& str)
+{
+    return str == "true" ? true : false;
+}
+        
+template<class Q>
+    requires _clean_same<cv::Range, Q>
+Q fromStr(const std::string& str)
+{
+    auto parts = util::parse_array_parts(util::truncate(str));
+    if(parts.size() != 2) {
+        throw CustomException<std::invalid_argument>("Illegal cv::Range format.");
     }
-    
-        template<class Q>
-        Q fromStr(const std::string& str, const typename std::enable_if< is_instantiation<std::tuple, Q>::value, Q >::type* =nullptr) {
-            auto parts = parse_array_parts(truncate(str));
-            //size_t i=0;
-            if(parts.size() != std::tuple_size<Q>::value)
-                throw CustomException<illegal_syntax>("tuple has %d parts instead of %d.",parts.size(), std::tuple_size<Q>::value);
             
-            Q tup;
-            return transform_each(tup, [&](size_t i, auto&& obj) {
-                return Meta::fromStr<decltype(obj)>(parts.at(i));
-            });
-        }
+    int x = Meta::fromStr<int>(parts[0]);
+    int y = Meta::fromStr<int>(parts[1]);
+            
+    return cv::Range(x, y);
+}
         
-        template<class Q>
-        Q fromStr(const std::string&, const typename std::enable_if< std::is_same<cv::Mat, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr)
-        {
-            U_EXCEPTION("Not supported.");
-        }
+template<typename ValueType, size_t N, typename _names>
+Enum<ValueType, N, _names> fromStr(const std::string& str, const Enum<ValueType, N, _names>* =nullptr)
+{
+    return Enum<ValueType, N, _names>::get(Meta::fromStr<std::string>(str));
+}
         
-        template<class Q>
-        Q fromStr(const std::string& str, const typename std::enable_if< std::is_same<bool, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr)
-        {
-            return str == "true" ? true : false;
-        }
+template<class Q>
+const Q& fromStr(const std::string& str, const typename std::enable_if< std::is_same<const Q&, decltype(Q::get(std::string_view()))>::value, Q >::type** =nullptr)
+{
+    return Q::get(Meta::fromStr<std::string>(str));
+}
         
-        template<class Q>
-        Q fromStr(const std::string& str, const typename std::enable_if< std::is_same<cv::Range, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr)
-        {
-            auto parts = parse_array_parts(truncate(str));
-            if(parts.size() != 2) {
-                throw CustomException<std::invalid_argument>("Illegal cv::Range format.");
-            }
-            
-            int x = Meta::fromStr<int>(parts[0]);
-            int y = Meta::fromStr<int>(parts[1]);
-            
-            return cv::Range(x, y);
-        }
-        
-        template<typename ValueType, size_t N, typename _names>
-        Enum<ValueType, N, _names> fromStr(const std::string& str, const Enum<ValueType, N, _names>* =nullptr)
-        {
-            return Enum<ValueType, N, _names>::get(Meta::fromStr<std::string>(str));
-        }
-        
-        template<class Q>
-        const Q& fromStr(const std::string& str, const typename std::enable_if< std::is_same<const Q&, decltype(Q::get(std::string_view()))>::value, Q >::type** =nullptr)
-        {
-            return Q::get(Meta::fromStr<std::string>(str));
-        }
-        
-        template<class Q>
-        Q fromStr(const std::string& str, const typename std::enable_if< std::is_same<Range<double>, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr)
-        {
-            auto parts = parse_array_parts(truncate(str));
-            if(parts.size() != 2) {
-                throw CustomException<std::invalid_argument>("Illegal Rangef format.");
-            }
-            
-            auto x = Meta::fromStr<double>(parts[0]);
-            auto y = Meta::fromStr<double>(parts[1]);
-            
-            return Range<double>(x, y);
-        }
-    
-        template<class Q>
-        Q fromStr(const std::string& str, const typename std::enable_if< std::is_same<Rangef, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr)
-        {
-            auto parts = parse_array_parts(truncate(str));
-            if(parts.size() != 2) {
-                throw CustomException<std::invalid_argument>("Illegal Rangef format.");
-            }
-            
-            auto x = Meta::fromStr<float>(parts[0]);
-            auto y = Meta::fromStr<float>(parts[1]);
-            
-            return Rangef(x, y);
-        }
-    
-        template<class Q>
-        Q fromStr(const std::string& str, const typename std::enable_if< std::is_same<Rangel, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr)
-        {
-            auto parts = parse_array_parts(truncate(str));
-            if(parts.size() != 2) {
-                throw CustomException<std::invalid_argument>("Illegal Rangel format.");
-            }
-            
-            auto x = Meta::fromStr<long_t>(parts[0]);
-            auto y = Meta::fromStr<long_t>(parts[1]);
-            
-            return Range(x, y);
-        }
-        
-        template<class Q>
-        Q fromStr(const std::string& str, const typename std::enable_if< is_instantiation<cv::Size_, Q>::value, Q >::type* =nullptr)
-        {
-            auto parts = parse_array_parts(truncate(str));
-            if(parts.size() != 2) {
-                std::string x = name<typename Q::value_type>();
-                throw CustomException<std::invalid_argument>("Illegal cv::Size_<%S> format.", &x);
-            }
-            
-            auto x = Meta::fromStr<typename Q::value_type>(parts[0]);
-            auto y = Meta::fromStr<typename Q::value_type>(parts[1]);
-            
-            return cv::Size_<typename Q::value_type>(x, y);
-        }
-        
-        template<class Q>
-        Q fromStr(const std::string& str, const typename std::enable_if< is_instantiation<cv::Rect_, Q>::value, Q >::type* =nullptr)
-        {
-            using C = typename Q::value_type;
-            
-            auto parts = parse_array_parts(truncate(str));
-            if(parts.size() != 4) {
-                std::string x = name<C>();
-                throw CustomException<std::invalid_argument>("Illegal cv::Rect_<%S> format.", &x);
-            }
-            
-            auto x = Meta::fromStr<C>(parts[0]);
-            auto y = Meta::fromStr<C>(parts[1]);
-            auto w = Meta::fromStr<C>(parts[2]);
-            auto h = Meta::fromStr<C>(parts[3]);
-            
-            return Q(x, y, w, h);
-        }
+template<class Q>
+    requires _clean_same<Range<double>, Q>
+Q fromStr(const std::string& str)
+{
+    auto parts = util::parse_array_parts(util::truncate(str));
+    if(parts.size() != 2) {
+        throw CustomException<std::invalid_argument>("Illegal Rangef format.");
     }
+            
+    auto x = Meta::fromStr<double>(parts[0]);
+    auto y = Meta::fromStr<double>(parts[1]);
+            
+    return Range<double>(x, y);
+}
     
-    namespace Meta {
-        template<typename Q>
-        inline std::string name(const typename std::enable_if< !std::is_pointer<Q>::value, typename remove_cvref<Q>::type >::type* ) {
-            return _Meta::name<typename remove_cvref<Q>::type>();
-        }
-        
-        template<typename Q>
-        inline std::string toStr(const Q& value, const typename std::enable_if< !std::is_pointer<Q>::value, typename remove_cvref<Q>::type >::type* ) {
-            return _Meta::toStr<typename remove_cvref<Q>::type>(value);
-        }
-        
-        template<typename Q, typename T>
-        inline T fromStr(const std::string& str, const typename std::enable_if< !std::is_pointer<Q>::value, typename remove_cvref<Q>::type >::type* ) {
-            return _Meta::fromStr<T>(str);
-        }
-        
-        template<typename Q, typename T>
-        inline T fromStr(const std::string& str, const typename std::enable_if< std::is_pointer<Q>::value, typename remove_cvref<Q>::type >::type* ) {
-            return new typename std::remove_pointer<typename remove_cvref<Q>::type>(str);
-        }
-        
-        template<typename Q>
-        inline std::string name(const typename std::enable_if< std::is_pointer<Q>::value && std::is_same<Q, const char*>::value, typename remove_cvref<Q>::type >::type* ) {
-            return "c_str";
-        }
-        
-        template<typename Q>
-        inline std::string toStr(Q value, const typename std::enable_if< std::is_pointer<Q>::value && std::is_same<Q, const char*>::value, typename remove_cvref<Q>::type >::type* ) {
-            return Meta::toStr(std::string(value));
-        }
-        
-        template<typename Q>
-        inline std::string name(const typename std::enable_if< std::is_pointer<Q>::value && !std::is_same<Q, const char*>::value, typename remove_cvref<Q>::type >::type* ) {
-            return Meta::name<typename std::remove_pointer<typename remove_cvref<Q>::type>::type>();
-        }
-        
-        template<typename Q>
-        inline std::string toStr(Q value, const typename std::enable_if< std::is_pointer<Q>::value && !std::is_same<Q, const char*>::value, typename remove_cvref<Q>::type >::type* ) {
-            return "("+Meta::name<Q>()+"*)"+Meta::toStr<const typename std::remove_pointer<typename remove_cvref<Q>::type>::type&>(*value);
-        }
-        
-        template <typename T>
-        struct has_tostr_method
-        {
-            struct dummy {  };
-            
-            template <typename C, typename P>
-            static auto test(P * p) -> decltype(static_cast<void>(sizeof(decltype(_Meta::name<C>()))), std::true_type());
-            
-            template <typename, typename>
-            static std::false_type test(...);
-            
-            typedef decltype(test<T, dummy>(nullptr)) type;
-            static const bool value = std::is_same<std::true_type, decltype(test<T, dummy>(nullptr))>::value;
-        };
-    
-        template <typename T>
-        struct has_classname_method
-        {
-            struct dummy {  };
-            
-            template <typename C, typename P>
-            static auto test(C * p) -> decltype(static_cast<void>(sizeof(decltype(C::class_name()))), std::true_type());
-            
-            template <typename, typename>
-            static std::false_type test(...);
-            
-            typedef decltype(test<T, dummy>(nullptr)) type;
-            static const bool value = std::is_same<std::true_type, decltype(test<T, dummy>(nullptr))>::value;
-        };
-    
-        template <typename T>
-        struct has_internal_tostr_method
-        {
-            struct dummy {  };
-            
-            template <typename C, typename P>
-            static auto test(C * p) -> decltype(static_cast<void>(sizeof(decltype(p->toStr()))), std::true_type());
-            
-            template <typename, typename>
-            static std::false_type test(...);
-            
-            typedef decltype(test<T, dummy>(nullptr)) type;
-            static const bool value = std::is_same<std::true_type, decltype(test<T, dummy>(nullptr))>::value;
-        };
-    
-        template <typename T>
-        struct has_fromstr_method
-        {
-            struct dummy {  };
-            
-            template <typename C, typename P>
-            static auto test(P * p) -> decltype(static_cast<void>(sizeof(decltype(&C::fromStr))), std::true_type());
-            
-            template <typename, typename>
-            static std::false_type test(...);
-            
-            typedef decltype(test<T, dummy>(nullptr)) type;
-            static const bool value = std::is_same<std::true_type, decltype(test<T, dummy>(nullptr))>::value;
-        };
+template<class Q>
+    requires _clean_same<Range<float>, Q>
+Q fromStr(const std::string& str)
+{
+    auto parts = util::parse_array_parts(util::truncate(str));
+    if(parts.size() != 2) {
+        throw CustomException<std::invalid_argument>("Illegal Rangef format.");
     }
+            
+    auto x = Meta::fromStr<float>(parts[0]);
+    auto y = Meta::fromStr<float>(parts[1]);
+            
+    return Rangef(x, y);
+}
+    
+template<class Q>
+    requires _clean_same<Range<long_t>, Q>
+Q fromStr(const std::string& str)
+{
+    auto parts = util::parse_array_parts(util::truncate(str));
+    if(parts.size() != 2) {
+        throw CustomException<std::invalid_argument>("Illegal Rangel format.");
+    }
+            
+    auto x = Meta::fromStr<long_t>(parts[0]);
+    auto y = Meta::fromStr<long_t>(parts[1]);
+            
+    return Range(x, y);
+}
+        
+template<class Q>
+    requires (is_instantiation<cv::Size_, Q>::value)
+Q fromStr(const std::string& str)
+{
+    auto parts = util::parse_array_parts(util::truncate(str));
+    if(parts.size() != 2) {
+        std::string x = name<typename Q::value_type>();
+        throw CustomException<std::invalid_argument>("Illegal cv::Size_<%S> format.", &x);
+    }
+            
+    auto x = Meta::fromStr<typename Q::value_type>(parts[0]);
+    auto y = Meta::fromStr<typename Q::value_type>(parts[1]);
+            
+    return cv::Size_<typename Q::value_type>(x, y);
+}
+        
+template<class Q>
+    requires (is_instantiation<cv::Rect_, Q>::value)
+Q fromStr(const std::string& str)
+{
+    using C = typename Q::value_type;
+            
+    auto parts = util::parse_array_parts(util::truncate(str));
+    if(parts.size() != 4) {
+        std::string x = name<C>();
+        throw CustomException<std::invalid_argument>("Illegal cv::Rect_<%S> format.", &x);
+    }
+            
+    auto x = Meta::fromStr<C>(parts[0]);
+    auto y = Meta::fromStr<C>(parts[1]);
+    auto w = Meta::fromStr<C>(parts[2]);
+    auto h = Meta::fromStr<C>(parts[3]);
+            
+    return Q(x, y, w, h);
+}
+
+}
+#pragma endregion _Meta
+// </_Meta>
+
+// <Meta implementation>
+#pragma region Meta implementation
+namespace Meta {
+
+template<typename Q>
+inline std::string name(const typename std::enable_if< !std::is_pointer<Q>::value, typename remove_cvref<Q>::type >::type* ) {
+    return _Meta::name<typename remove_cvref<Q>::type>();
+}
+        
+template<typename Q>
+inline std::string toStr(const Q& value, const typename std::enable_if< !std::is_pointer<Q>::value, typename remove_cvref<Q>::type >::type* ) {
+    return _Meta::toStr<typename remove_cvref<Q>::type>(value);
+}
+        
+template<typename Q, typename T>
+inline T fromStr(const std::string& str, const typename std::enable_if< !std::is_pointer<Q>::value, typename remove_cvref<Q>::type >::type* ) {
+    return _Meta::fromStr<T>(str);
+}
+        
+template<typename Q, typename T>
+inline T fromStr(const std::string& str, const typename std::enable_if< std::is_pointer<Q>::value, typename remove_cvref<Q>::type >::type* ) {
+    return new typename std::remove_pointer<typename remove_cvref<Q>::type>(str);
+}
+        
+template<typename Q>
+inline std::string name(const typename std::enable_if< std::is_pointer<Q>::value && std::is_same<Q, const char*>::value, typename remove_cvref<Q>::type >::type* ) {
+    return "c_str";
+}
+        
+template<typename Q>
+inline std::string toStr(Q value, const typename std::enable_if< std::is_pointer<Q>::value && std::is_same<Q, const char*>::value, typename remove_cvref<Q>::type >::type* ) {
+    return Meta::toStr(std::string(value));
+}
+        
+template<typename Q>
+inline std::string name(const typename std::enable_if< std::is_pointer<Q>::value && !std::is_same<Q, const char*>::value, typename remove_cvref<Q>::type >::type* ) {
+    return Meta::name<typename std::remove_pointer<typename remove_cvref<Q>::type>::type>();
+}
+        
+template<typename Q>
+inline std::string toStr(Q value, const typename std::enable_if< std::is_pointer<Q>::value && !std::is_same<Q, const char*>::value, typename remove_cvref<Q>::type >::type* ) {
+    return "("+Meta::name<Q>()+"*)"+Meta::toStr<const typename std::remove_pointer<typename remove_cvref<Q>::type>::type&>(*value);
+}
+}
+#pragma endregion Meta implementation
+// </Meta implementation>
+
 }
 
