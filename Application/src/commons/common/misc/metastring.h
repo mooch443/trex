@@ -68,7 +68,7 @@ namespace cmn {
             U_EXCEPTION("Not implemented.");
             return DurationUS{0};
         }
-        static std::string class_name() { "duration_us"; }
+        static std::string class_name() { return "duration_us"; }
         std::string toStr() const {
             return to_string();
         }
