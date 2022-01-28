@@ -659,6 +659,8 @@ void IMGUIBase::update_size_scale(GLFWwindow* window) {
         exec_main_queue([window = _platform->window_handle()](){
             IMGUIBase::update_size_scale(window);
         });
+
+        Debug("IMGUIBase::init complete");
     }
 
     IMGUIBase::~IMGUIBase() {
