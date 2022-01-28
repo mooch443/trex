@@ -3,7 +3,7 @@
 #include <misc/vec2.h>
 #include <misc/detail.h>
 #include <misc/Median.h>
-#include <misc/MetaObject.h>
+#include <misc/ranges.h>
 
 namespace cmn {
     namespace periodic {

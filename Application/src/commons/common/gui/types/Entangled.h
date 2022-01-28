@@ -1,8 +1,8 @@
 #pragma once
 
 #include <gui/GuiTypes.h>
-#include <gui/DrawableCollection.h>
 #include <set>
+#include <misc/ranges.h>
 
 namespace gui {
     struct Margin {

@@ -114,9 +114,6 @@ Map::~Map() {
     
     Reference::Reference(Map& container, PropertyType& type)
     : Reference(container, type, type.name()) {}
-    
-	double Reference::speed() const { return _type.speed(); }
-	Reference& Reference::speed(double s) { _type.speed(s); return *this; }
 
     _TOSTRING_RETURNTYPE Reference:: _TOSTRING_HEAD {
         return _type.toStdString();

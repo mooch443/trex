@@ -2,7 +2,6 @@
 #include <tracking/Tracker.h>
 #include <gui/DrawCVBase.h>
 #include <misc/Timer.h>
-#include <gui/gui.h>
 #include <tracking/Individual.h>
 
 namespace track {
@@ -487,12 +486,12 @@ std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(con
             if(!ptr && selected->head(i)) {
                 ptr = new VisualField(selected->identity().ID(), i, selected->basic_stuff(i), selected->posture_stuff(i), true);
                 selected->add_custom_data(i, VisualField::custom_id, ptr, [&base](void* ptr) {
-                    if(GUI::instance()) {
-                        std::lock_guard<std::recursive_mutex> lock(base.lock());
+                    //if(GUI::instance()) {
+                    //    std::lock_guard<std::recursive_mutex> lock(base.lock());
+                    //    delete (VisualField*)ptr;
+                    //} else {
                         delete (VisualField*)ptr;
-                    } else {
-                        delete (VisualField*)ptr;
-                    }
+                    //}
                 });
             }
             

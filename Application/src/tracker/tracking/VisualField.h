@@ -1,12 +1,14 @@
 #pragma once
 
-#include <types.h>
+#include <misc/defines.h>
 #include <gui/DrawStructure.h>
 #include <tracking/Individual.h>
 
-namespace track {
-    class Individual;
-    
+namespace gui {
+    class DrawStructure;
+}
+
+namespace track {    
     class VisualField {
     public:
         static constexpr uint8_t layers = 2;

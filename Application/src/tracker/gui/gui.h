@@ -1,7 +1,7 @@
 #ifndef _GUI_H
 #define _GUI_H
 
-#include <types.h>
+/*#include <types.h>
 #include <tracking/Posture.h>
 #include <tracking/Tracker.h>
 #include <gui/Graph.h>
@@ -21,12 +21,31 @@
 #include <gui/types/Layout.h>
 #include <misc/ConnectedTasks.h>
 #include <gui/GUICache.h>
+#include <misc/default_config.h>*/
+
+#include <misc/defines.h>
+#include <misc/create_struct.h>
 #include <misc/default_config.h>
+#include <gui/Timeline.h>
+#include <gui/colors.h>
+#include <gui/DrawStructure.h>
+#include <misc/PVBlob.h>
+#include <misc/ThreadPool.h>
+#include <gui/DrawBase.h>
 
 using namespace cmn;
 using namespace track;
 
+namespace cmn {
+    class ConnectedTasks;
+}
+
 namespace gui {
+    class GUICache;
+    class Textfield;
+    class Dropdown;
+    class PropertiesGraph;
+
 namespace globals {
 
 CREATE_STRUCT(Cache,
@@ -36,7 +55,7 @@ CREATE_STRUCT(Cache,
     (bool, auto_train),
     (bool, auto_apply),
     (bool, auto_quit),
-    (long_t, gui_frame),
+    (Frame_t, gui_frame),
     (bool, terminate),
     (bool, gui_show_blobs),
     (bool, gui_show_paths),
@@ -79,12 +98,22 @@ CREATE_STRUCT(Cache,
 
 namespace pv {
     class Frame;
+    class File;
+}
+
+namespace track {
+    class Tracker;
+    class Individual;
+    class TrainingData;
 }
 
 namespace gui {
     class DrawDataset;
     class WorkProgress;
+    class Drawable;
 }
+
+class PrivateData;
 
 class GUI {
 public:
@@ -103,88 +132,27 @@ private:
     //! Saved reference to the average image.
     Image _average_image;
     
-    GETTER_NCONST(gui::DrawStructure, gui)
-    
-    cv::VideoWriter *_recording_capture;
-    cv::Size _recording_size;
-    file::Path _recording_path;
-    default_config::gui_recording_format_t::Class _recording_format;
-    GETTER(bool, recording)
-    
-    gui::GUICache _cache;
-    long_t _recording_start;
-    long_t _recording_frame;
-    long_t _last_recording_frame;
-    
-    long_t _flow_frame;
-    long_t _next_frame;
-    cv::Mat _cflow, _cflow_next;
-    
-    float _tdelta_gui;
-    long_t _gui_last_frame;
-    Timer _gui_last_frame_timer;
-    
-    Timer _gui_last_backup;
-    
-    //! Reference to the Tracker
-    Tracker &_tracker;
-    
-    GETTER_SETTER_PTR(ConnectedTasks*, analysis)
-    
-    //! Timer for determining speed of increase by keypress
-    Timer last_increase_timer, last_direction_change;
-    
     GETTER_NCONST(bool, direction_change)
     GETTER_NCONST(int, play_direction)
 
-    GETTER_PTR(pv::File*, video_source)
-    bool _real_update;
-    
     GETTER_PTR(gui::Base*, base)
     GETTER_NCONST(GenericThreadPool, blob_thread_pool)
     GETTER_NCONST(std::mutex, blob_thread_pool_mutex)
-    
+
     GETTER(bool, properties_visible)
-    std::shared_ptr<gui::DrawDataset> _dataset;
-    
-    GETTER_NCONST(gui::FrameInfo, frameinfo)
+    PrivateData* _private_data = nullptr;
+
+    gui::FrameInfo _frameinfo;
 #if WITH_MHD
     gui::HttpGui* _http_gui;
 #endif
-    
-    std::shared_ptr<gui::Timeline> _timeline;
+
 public:
-    const gui::Timeline& timeline() const {
-        assert(_timeline);
-        return *_timeline;
-    }
-protected:
-    std::vector<gui::PropertiesGraph*> _fish_graphs;
-    gui::Posture _posture_window;
-    gui::Histogram<float, gui::Hist::Options::NORMED> _histogram;
-    gui::Histogram<float, gui::Hist::Options::NORMED> _midline_histogram;
-    gui::Histogram<size_t, gui::Hist::Options::NORMED, std::vector<std::map<long_t, size_t>>> _length_histogram;
-    
-    gui::StaticText _info;
-    
-    /*struct SettingAnimation {
-        std::shared_ptr<gui::Entangled> display;
-        std::string name;
-        Timer timer;
-        Vec2 position;
-        
-        SettingAnimation() {}
-        
-    } _setting_animation;*/
-    
-    gui::WorkProgress *_work_progress;
-    
-    gui::ExternalImage _recognition_image;
-    std::map<std::vector<Vec2>, std::shared_ptr<gui::Drawable>> _ignore_shapes, _include_shapes;
-    
+    static const gui::Timeline& timeline();
+    static pv::File* video_source();
+
+protected:    
     GETTER_SETTER(bool, info_visible)
-    
-    Timer last_frame_change;
     
     GETTER(std::atomic<pv::bid>, clicked_blob_id)
     GETTER(std::atomic<long_t>, clicked_blob_frame)
@@ -196,8 +164,12 @@ public:
 public:
     GUI(pv::File &video_source, const Image& average, Tracker& tracker);
     ~GUI();
-    
+
+    static bool recording();
     static gui::WorkProgress& work();
+    static ConnectedTasks* analysis();
+    static void set_analysis(ConnectedTasks*);
+    static gui::FrameInfo& frameinfo();
     
     static inline void event(const gui::Event& event) {
         instance()->local_event(event);
@@ -205,15 +177,19 @@ public:
     static inline const Image& background_image() {
         return instance()->_average_image;
     }
-    
-    void set_redraw();
-    void set_mode(gui::mode_t::Class mode);
+    static inline const Image& average() { return background_image(); }
+
+    static void set_redraw();
+    static void set_mode(gui::mode_t::Class mode);
     gui::mode_t::Class mode() const;
     
     bool has_window() { return _base != NULL; }
     
-    bool run() const;
-    void run(bool r);
+    static bool run();
+    static void run(bool r);
+    static void run_loop(gui::LoopStatus status);
+
+    static gui::DrawStructure& gui();
     
     void set_base(gui::Base* base);
     
@@ -233,9 +209,8 @@ public:
     
     static gui::GUICache& cache();
     
-    void write_config(bool overwrite, GUIType type = GUIType::GRAPHICAL, const std::string& suffix = "");
+    static void write_config(bool overwrite, GUIType type = GUIType::GRAPHICAL, const std::string& suffix = "");
     
-    void run_loop(gui::LoopStatus);
     void export_tracks(const file::Path& prefix = "", long_t fdx = -1, Rangel range = Rangel());
     void save_visual_fields();
     void load_connectivity_matrix();
@@ -259,7 +234,6 @@ private:
     
     void draw_raw_mode(gui::DrawStructure& main_base, long_t frameIndex);
     void debug_optical_flow(gui::DrawStructure& base, long_t frameIndex);
-    void redraw();
     
     void key_event(const gui::Event& event);
     void local_event(const gui::Event& event);
@@ -272,31 +246,30 @@ private:
     
 public:
     void add_manual_match(long_t frameIndex, Idx_t fish_id, pv::bid blob_id);
-    
+    static void redraw();
+
 private:
     void selected_setting(long_t index, const std::string& name, gui::Textfield& textfield, gui::Dropdown& settings_dropdown, gui::Layout& layout, gui::DrawStructure& base);
-    
-    void start_recording();
+
 public:
     void do_recording();
     bool is_recording() const;
-private:
-    void stop_recording();
-    
+    static void stop_recording();
+    static void start_recording();
+
 public:
     void training_data_dialog(GUIType type = GUIType::GRAPHICAL, bool force_load = false, std::function<void()> = [](){});
-    
     void confirm_terminate();
     
-    void update_backups();
-    void start_backup();
+    static void update_backups();
+    static void start_backup();
     
     void load_state(GUIType type, file::Path from = "");
     void save_state(GUIType type = GUIType::GRAPHICAL, bool force_overwrite = false);
     
     void auto_correct(GUIType type = GUIType::GRAPHICAL, bool force_correct = false);
     
-    file::Path frame_output_dir() const;
+    static file::Path frame_output_dir();
     
     void update_recognition_rect();
     static Size2 screen_dimensions();
@@ -305,15 +278,6 @@ public:
     
 private:
     std::tuple<Vec2, Vec2> gui_scale_with_boundary(Bounds& bounds, gui::Section* section, bool singular);
-    std::function<void(const Vec2&, bool, std::string)> _clicked_background;
-    std::vector<std::vector<Vec2>> _current_boundary;
-    enum class SelectedSettingType {
-        ARRAY_OF_BOUNDS,
-        ARRAY_OF_VECTORS,
-        POINTS,
-        NONE
-    } _selected_setting_type;
-    std::string _selected_setting_name;
     
     friend class DrawMenuPrivate;
     

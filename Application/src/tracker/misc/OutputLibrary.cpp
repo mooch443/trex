@@ -14,7 +14,7 @@ namespace Output {
     
     LibraryCache::Ptr _default_cache = std::make_shared<LibraryCache>();
     std::map<std::string, Library::FunctionType> _cache_func;
-    std::map<std::string, std::vector<std::pair<OptionsList<Modifiers>, Calculation>>> _options_map;
+    std::map<std::string, std::vector<std::pair<Options_t, Calculation>>> _options_map;
     Output::Library::default_options_type _output_defaults;
     std::mutex _output_variables_lock;
 
@@ -60,7 +60,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
     const PhysicalProperties *ptr0 = nullptr;
     const PhysicalProperties *ptr1 = nullptr;
     
-    if(info.modifiers.is(WEIGHTED_CENTROID) || info.modifiers.is(CENTROID)) {
+    if(info.modifiers.is(Modifiers::WEIGHTED_CENTROID) || info.modifiers.is(Modifiers::CENTROID)) {
         auto pair = find_stuffs(info, frame);
         if(pair.first && pair.second) {
             // now we have start/end coordinates, interpolate
@@ -76,7 +76,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             // now we have start/end coordinates, interpolate
             percent = float(frame - pair.first->frame) / float(pair.second->frame - pair.first->frame);
             
-            if(info.modifiers.is(POSTURE_CENTROID)) {
+            if(info.modifiers.is(Modifiers::POSTURE_CENTROID)) {
                 ptr0 = pair.first->centroid_posture;
                 ptr1 = pair.second->centroid_posture;
             } else
@@ -196,7 +196,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                         continue;
                     }
                     
-                    OptionsList<Modifiers> modifiers;
+                    Options_t modifiers;
                     Calculation func;
                     
                     if(_output_defaults.count(fname)) {
@@ -1019,7 +1019,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             
         } else {
             info.rec_depth++;
-            const bool smooth = info.modifiers.is(SMOOTH);
+            const bool smooth = info.modifiers.is(Modifiers::SMOOTH);
             
             auto value = _cache_func.at(name)(info, frame, info.fish ? retrieve_props(name, info.fish, frame, info.modifiers) : NULL, smooth);
             map[info.modifiers] = value;
@@ -1042,7 +1042,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             return gui::Graph::invalid();
         }
         
-        OptionsList<Modifiers> modifiers = info.modifiers;
+        Options_t modifiers = info.modifiers;
         Calculation func;
         
         {
@@ -1088,17 +1088,17 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 LibInfo info(fish, e.first, cache);
                 auto mod_name = fname;
                 
-                if (info.modifiers.is(SMOOTH))
+                if (info.modifiers.is(Modifiers::SMOOTH))
                     mod_name += "#smooth";
-                if(info.modifiers.is(CENTROID))
+                if(info.modifiers.is(Modifiers::CENTROID))
                     mod_name += "#centroid";
-                else if(info.modifiers.is(POSTURE_CENTROID))
+                else if(info.modifiers.is(Modifiers::POSTURE_CENTROID))
                     mod_name += "#pcentroid";
-                else if(info.modifiers.is(WEIGHTED_CENTROID))
+                else if(info.modifiers.is(Modifiers::WEIGHTED_CENTROID))
                     mod_name += "#wcentroid";
                 
                 auto func = Graph::Function(mod_name,
-                    info.modifiers.is(POINTS) ? Graph::POINTS : Graph::DISCRETE,
+                    info.modifiers.is(Modifiers::POINTS) ? Graph::POINTS : Graph::DISCRETE,
                     [fname, mod_name, info, e](int x) {
                         return e.second.apply(Library::get(fname, info, x));
                         
@@ -1106,9 +1106,9 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 
                 graph.add_function(func);
                 
-                if(info.modifiers.is(PLUSMINUS)) {
+                if(info.modifiers.is(Modifiers::PLUSMINUS)) {
                     graph.add_function(Graph::Function(mod_name,
-                       info.modifiers.is(POINTS) ? Graph::POINTS : Graph::DISCRETE,
+                       info.modifiers.is(Modifiers::POINTS) ? Graph::POINTS : Graph::DISCRETE,
                        [fname, mod_name, info, e](int x) {
                            return -e.second.apply(Library::get(fname, info, x));
                            
@@ -1167,7 +1167,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
         return func;
     }
     
-    bool Library::parse_modifiers(const std::string& e, OptionsList<Modifiers>& modifiers) {
+    bool Library::parse_modifiers(const std::string& e, Options_t& modifiers) {
         if (utils::lowercase(e) == "smooth") {
             modifiers.push(Modifiers::SMOOTH);
             
@@ -1214,7 +1214,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
         auto previous_graphs = graphs;
         
         default_options_type modified;
-        OptionsList<Modifiers> modifiers; // temp object
+        Options_t modifiers; // temp object
         
         for (auto &p : previous) {
             auto &fname = p.first;

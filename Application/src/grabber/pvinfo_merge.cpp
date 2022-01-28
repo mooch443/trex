@@ -6,6 +6,7 @@
 #include <misc/default_config.h>
 #include <misc/PVBlob.h>
 #include <processing/CPULabeling.h>
+#include <misc/ranges.h>
 
 using namespace cmn;
 

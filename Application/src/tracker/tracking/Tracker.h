@@ -147,7 +147,7 @@ CREATE_STRUCT(Settings,
         set_of_individuals_t _active_individuals;
         std::unordered_map<long_t, set_of_individuals_t> _active_individuals_frame;
         
-        std::atomic_long _startFrame, _endFrame;
+        std::atomic<Frame_t> _startFrame, _endFrame;
         uint64_t _max_individuals;
         //GETTER_PTR(LuminanceGrid*, grid)
         GETTER_PTR(StaticBackground*, background)

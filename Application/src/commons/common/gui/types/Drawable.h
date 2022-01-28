@@ -1,11 +1,10 @@
 #ifndef _DRAWABLE_H
 #define _DRAWABLE_H
 
-#include <types.h>
-#include <gui/types/Basic.h>
+#include <misc/defines.h>
+//#include <gui/types/Basic.h>
 #include <gui/Transform.h>
 #include <gui/Event.h>
-#include <misc/MetaObject.h>
 #include <gui/colors.h>
 
 namespace gui {

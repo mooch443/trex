@@ -1,6 +1,7 @@
 #pragma once
 #include <misc/defines.h>
 #include <misc/checked_casts.h>
+#include <misc/metastring.h>
 
 namespace track {
 struct Idx_t {
@@ -16,20 +17,36 @@ struct Idx_t {
 };
 
 struct Frame_t {
-    long_t _frame = cmn::infinity<long_t>();
+    static constexpr long_t invalid = -1;
+
+    long_t _frame = invalid;
     constexpr Frame_t() = default;
     explicit constexpr Frame_t(long_t frame) : _frame(frame) {}
     constexpr operator long_t() const { return _frame; }
-    constexpr bool valid() const { return _frame != cmn::infinity<long_t>(); }
+    constexpr bool valid() const { return _frame != invalid; }
     constexpr Frame_t& operator+=(Frame_t&& other) {
         assert(valid() && other.valid());
         _frame += other._frame;
         return *this;
     }
     constexpr Frame_t& operator+=(long_t&& other) {
-        assert(valid() && other != cmn::infinity<long_t>());
+        assert(valid() && other != invalid);
         _frame += other;
         return *this;
+    }
+    constexpr Frame_t& operator=(long_t value) {
+        _frame = value;
+        return *this;
+    }
+
+    //std::string toStr() const {
+    //    return Meta::toStr<long_t>(_frame);
+    //}
+    static std::string class_name() {
+        return "frame";
+    }
+    static Frame_t fromStr(const std::string& str) {
+        return Frame_t(cmn::Meta::fromStr<long_t>(str));
     }
 };
 

@@ -1,4 +1,5 @@
 #include "default_settings.h"
+#include <misc/detail.h>
 
 namespace cmn {
     namespace settings {

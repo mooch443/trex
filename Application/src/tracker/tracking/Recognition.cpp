@@ -18,6 +18,7 @@
 #include <tracking/SplitBlob.h>
 #include <tracking/Accumulation.h>
 #include <misc/default_settings.h>
+#include <gui/GUICache.h>
 
 //#define TT_DEBUG_ENABLED true
 

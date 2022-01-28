@@ -1,5 +1,6 @@
 #include "TestCamera.h"
 #include <misc/GlobalSettings.h>
+#include <misc/SpriteMap.h>
 
 namespace fg {
     TestCamera::TestCamera(cv::Size size, size_t element_size) : _size(size) {

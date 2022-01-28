@@ -1,6 +1,7 @@
 #include "AveragingAccumulator.h"
 #include <misc/GlobalSettings.h>
 #include <misc/Image.h>
+#include <misc/SpriteMap.h>
 
 namespace cmn {
 

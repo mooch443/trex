@@ -1114,7 +1114,7 @@ namespace Output {
         filename = filename.add_extension("tmp01");
         
         ResultsFormat file(filename.str(), update_progress);
-        file.header().gui_frame = sign_cast<uint64_t>(SETTING(gui_frame).value<long_t>());
+        file.header().gui_frame = sign_cast<uint64_t>(SETTING(gui_frame).value<Frame_t>());
         file.start_writing(true);
         file.write_file(_tracker._added_frames, _tracker._active_individuals_frame, _tracker._individuals, exclude_settings);
         file.close();
@@ -1136,8 +1136,8 @@ namespace Output {
         _tracker.clear_properties();
         _tracker._active_individuals.clear();
         _tracker._active_individuals_frame.clear();
-        _tracker._startFrame = -1;
-        _tracker._endFrame = -1;
+        _tracker._startFrame = Frame_t();
+        _tracker._endFrame = Frame_t();
         _tracker._max_individuals = 0;
         _tracker._consecutive.clear();
         FOI::clear();
@@ -1157,7 +1157,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
     const auto number_fish = FAST_SETTINGS(track_max_individuals);
     data_long_t prev = 0;
     data_long_t n = 0;
-    double prev_time = _tracker.start_frame() == -1 ? 0:  _tracker.properties(_tracker.start_frame())->time;
+    double prev_time = !_tracker.start_frame().valid() ? 0 : _tracker.properties(_tracker.start_frame())->time;
     
     //auto it = _tracker._active_individuals_frame.begin();
     if(_tracker._active_individuals_frame.size() != _tracker._added_frames.size()) {
@@ -1309,9 +1309,9 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             if(check_analysis_range && (frameIndex > analysis_range.end || frameIndex < analysis_range.start))
                 continue;
             
-            if(_tracker._startFrame == -1)
-                _tracker._startFrame = frameIndex;
-            _tracker._endFrame = frameIndex;
+            if(!_tracker._startFrame.load().valid())
+                _tracker._startFrame = Frame_t(frameIndex);
+            _tracker._endFrame = Frame_t(frameIndex);
             
             _tracker.add_next_frame(props);
         }
@@ -1443,7 +1443,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
                 focus_group = config["gui_focus_group"].value<std::vector<Idx_t>>();
             
             if(GUI::instance()) {
-                GUI::work().add_queue("", [f = (long_t)file.header().gui_frame, focus_group](){
+                GUI::work().add_queue("", [f = Frame_t(file.header().gui_frame), focus_group](){
                     SETTING(gui_frame) = f;
                     SETTING(gui_focus_group) = focus_group;
                 });

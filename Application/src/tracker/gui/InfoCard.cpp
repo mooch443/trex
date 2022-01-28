@@ -4,6 +4,8 @@
 #include <tracking/Recognition.h>
 #include <gui/Timeline.h>
 #include <gui/types/Tooltip.h>
+#include <gui/GUICache.h>
+#include <gui/DrawBase.h>
 
 namespace gui {
     InfoCard::InfoCard()
@@ -189,7 +191,7 @@ void InfoCard::update() {
                 return;
             
             if(GUI::frame() != next_frame)
-                SETTING(gui_frame) = next_frame;
+                SETTING(gui_frame) = Frame_t(next_frame);
         });
         
         next->on_click([](auto) {
@@ -215,7 +217,7 @@ void InfoCard::update() {
                 return;
             
             if(GUI::frame() != next_frame)
-                SETTING(gui_frame) = next_frame;
+                SETTING(gui_frame) = Frame_t(next_frame);
         });
         
         first = false;

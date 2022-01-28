@@ -3,6 +3,7 @@
 //#include <types.h>
 #include <misc/vec2.h>
 #include <misc/PVBlob.h>
+#include <misc/ranges.h>
 
 //#define TREE_WITH_PIXELS
 

@@ -4,6 +4,8 @@
 #include <misc/CropOffsets.h>
 #include <video/GenericVideo.h>
 #include <video/AveragingAccumulator.h>
+#include <misc/ranges.h>
+#include <misc/idx_t.h>
 
 #ifndef WIN32
 #include <unistd.h>

@@ -60,6 +60,7 @@
 #include <gui/types/Checkbox.h>
 #include <misc/MemoryStats.h>
 #include <tracking/Categorize.h>
+#include <gui/DrawCVBase.h>
 #include "VideoOpener.h"
 
 #if WIN32
@@ -1320,7 +1321,7 @@ int main(int argc, char** argv)
             // explicitly set gui_frame if present in command-line
             if(cmd.settings_keys().find("gui_frame") != cmd.settings_keys().end()) {
                 gui.work().add_queue("", [&](){
-                    SETTING(gui_frame) = Meta::fromStr<long_t>(cmd.settings_keys().at("gui_frame"));
+                    SETTING(gui_frame) = Meta::fromStr<Frame_t>(cmd.settings_keys().at("gui_frame"));
                 });
             }
         }
@@ -1421,7 +1422,7 @@ int main(int argc, char** argv)
     gui::SFLoop loop(gui.gui(), imgui_base, [&](gui::SFLoop&, gui::LoopStatus status){
         {
             std::unique_lock<std::recursive_mutex> guard(gui.gui().lock());
-            gui.run_loop(status);
+            GUI::run_loop(status);
         }
         
         if(pause_stuff) {

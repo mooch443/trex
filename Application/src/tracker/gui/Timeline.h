@@ -1,19 +1,18 @@
 #ifndef _TIMELINE_H
 #define _TIMELINE_H
 
-#include <types.h>
-#include <gui/DrawObject.h>
-#include <tracking/Tracker.h>
-#include <gui/DrawCVBase.h>
-#include <misc/Results.h>
-#include <misc/EventAnalysis.h>
-#include <gui/types/Layout.h>
-#include <gui/types/Button.h>
+#include <misc/defines.h>
+#include <misc/ranges.h>
+#include <misc/idx_t.h>
+#include <misc/vec2.h>
 
 class GUI;
 
 namespace gui {
-    
+    using namespace cmn;
+
+    class DrawStructure;
+    class ExternalImage;
     
     struct FrameInfo {
         std::atomic_int current_fps;
@@ -41,7 +40,7 @@ namespace gui {
     
     using namespace track;
     
-    class Timeline : Object {
+    class Timeline {
         Vec2 pos;
         //Size2 size;
         
@@ -51,54 +50,21 @@ namespace gui {
         std::atomic<long_t> tracker_endframe, tracker_startframe;
         float tdelta;
         
-        GUI& _gui;
-        Tracker& _tracker;
-        FrameInfo& _frame_info;
-        
         bool _visible;
         GETTER(long_t, mOverFrame)
         
         GETTER(std::atomic_bool, update_thread_updated_once)
         
-        std::string _thread_status;
-        std::atomic_bool _terminate;
-        
-        HorizontalLayout _title_layout;
-        Text _status_text, _status_text2, _status_text3;
-        Text _raw_text, _auto_text;
-        Button _pause;
-        
-        std::shared_ptr<std::thread> _update_events_thread;
-        
-        struct {
-            uint64_t last_change;
-            FOI::foi_type::mapped_type changed_frames;
-            std::string name;
-            Color color;
-        } _foi_state;
         
         
     protected:
-        //! NeighborDistances drawn out
-        struct ProximityBar {
-            Size2 _dimensions;
-            long_t start, end;
-            std::map<long_t, std::set<FOI::fdx_t>> changed_frames;
-            std::vector<uint32_t> samples_per_pixel;
-            std::mutex mutex;
-            
-            ProximityBar() : start(-1), end(-1) {}
-        } _proximity_bar;
         
         //Image _border_distance;
         
     public:
         Timeline(GUI& gui, FrameInfo& info);
-        ~Timeline() {
-            _terminate = true;
-            _update_events_thread->join();
-        }
-        void draw(DrawStructure& window) override;
+        ~Timeline();
+        void draw(DrawStructure& window);
         
         bool visible() const { return _visible; }
         void set_visible(bool v);

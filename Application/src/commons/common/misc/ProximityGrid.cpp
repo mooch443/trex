@@ -1,5 +1,6 @@
 #include "ProximityGrid.h"
 #include <misc/metastring.h>
+#include <misc/ranges.h>
 
 namespace cmn {
 namespace grid {

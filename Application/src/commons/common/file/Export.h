@@ -4,6 +4,7 @@
 #include <types.h>
 #include <file/Path.h>
 #include <misc/GlobalSettings.h>
+#include <misc/SpriteMap.h>
 
 namespace file {
 

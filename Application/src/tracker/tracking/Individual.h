@@ -18,6 +18,7 @@
 #include <tracking/PairingGraph.h>
 #include <tracking/IndividualCache.h>
 #include <tracking/PPFrame.h>
+#include <misc/ranges.h>
 
 #define DEBUG_ORIENTATION false
 

@@ -13,6 +13,7 @@
 #include <gui/Graph.h>
 #include <gui/types/StaticText.h>
 #include <misc/checked_casts.h>
+#include <gui/DrawBase.h>
 
 namespace track {
 using namespace file;

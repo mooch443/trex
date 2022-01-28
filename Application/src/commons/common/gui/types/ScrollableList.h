@@ -3,6 +3,7 @@
 #include <gui/types/Entangled.h>
 #include <gui/DrawSFBase.h>
 #include <misc/checked_casts.h>
+#include <gui/types/Tooltip.h>
 
 namespace gui {
     /*
@@ -23,6 +24,11 @@ namespace gui {
     template<typename T>
     concept has_base_color_function = requires(T t) {
         { t.base_color() } -> std::convertible_to<Color>;
+    };
+
+    template<typename T>
+    concept has_tooltip = requires(T t) {
+        { t.tooltip() } -> std::convertible_to<std::string>;
     };
 
     //! Check compatibility with List class
@@ -49,6 +55,8 @@ namespace gui {
         GETTER(std::vector<Item<T>>, items)
         std::vector<Rect*> _rects;
         std::vector<Text*> _texts;
+
+        Tooltip tooltip = Tooltip(nullptr);
         
         std::function<void(size_t, const T&)> _callback;
         std::function<void(size_t)> _on_hovered;
@@ -138,8 +146,15 @@ namespace gui {
             _last_selected_item = -1;
             _last_hovered_item = -1;
             _items.clear();
-            for(auto &item : objs)
+
+            Float2_t y = _line_spacing * objs.size();
+            if (y + scroll_offset().y < 0) {
+                set_scroll_offset(Vec2());
+            }
+
+            for (auto& item : objs) {
                 _items.push_back(Item<T>(item));
+            }
             
             set_content_changed(true);
         }
@@ -322,6 +337,7 @@ namespace gui {
         
     private:
         void update() override {
+
             if(content_changed()) {
                 const float spacing = Base::default_line_spacing(_font) + item_padding.y * 2;
                 if(spacing != _line_spacing || width() != _previous_width) {
@@ -370,6 +386,9 @@ namespace gui {
                 }
                 
                 end();
+
+                if(stage())
+                    stage()->wrap_object(tooltip);
             
                 const float last_y = _line_spacing * (_items.size()-1);
                 set_scroll_limits(Rangef(),
@@ -384,6 +403,14 @@ namespace gui {
             for (auto rect : _rects) {
                 auto idx = rect_to_idx[rect];
                 _items[idx].set_hovered(rect->hovered());
+
+                if constexpr (has_tooltip<T>) {
+                    if (rect->hovered()) {
+                        tooltip.set_text(_items[idx].value().tooltip());
+                        tooltip.set_other(rect);
+                        tooltip.set_z_index(1);
+                    }
+                }
 
                 if constexpr (has_base_color_function<T>)
                     base_color = _items[idx].value().base_color();

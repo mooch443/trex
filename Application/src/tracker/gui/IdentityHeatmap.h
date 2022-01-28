@@ -317,7 +317,7 @@ protected:
     
     Image::UPtr grid_image;
     std::string _original_source, _source;
-    OptionsList<Output::Modifiers> _mods;
+    Output::Options_t _mods;
     std::shared_ptr<ExternalImage> _image;
     
     std::vector<double> _array_grid, _array_sqsum, _array_samples;

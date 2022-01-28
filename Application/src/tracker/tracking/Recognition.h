@@ -6,7 +6,6 @@
 #include <misc/Timer.h>
 #include <gui/Transform.h>
 #include <tracking/Individual.h>
-#include <misc/EnumClass.h>
 #include <tracking/TrainingData.h>
 #include <python/GPURecognition.h>
 #include <misc/EnumClass.h>

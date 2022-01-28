@@ -3,6 +3,7 @@
 #include <misc/Timer.h>
 #include <misc/checked_casts.h>
 #include <misc/pretty.h>
+#include <misc/ranges.h>
 
 namespace cmn {
 namespace CPULabeling {

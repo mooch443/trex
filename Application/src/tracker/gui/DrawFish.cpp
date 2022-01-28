@@ -14,6 +14,7 @@
 #include <gui/IMGUIBase.h>
 #include <gui/DrawBase.h>
 #include <tracking/DetectTag.h>
+#include <gui/GUICache.h>
 
 using namespace track;
 
@@ -47,7 +48,7 @@ CREATE_STRUCT(CachedGUIOptions,
         _obj(obj),
         _idx(-1),
         _graph(Bounds(0, 0, 300, 300), "Recent direction histogram"),
-        _info(&_obj, OptionsList<Output::Modifiers>{})
+        _info(&_obj, Output::Options_t{})
     {
         CachedGUIOptions::init();
         

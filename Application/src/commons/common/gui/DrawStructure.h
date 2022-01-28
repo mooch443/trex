@@ -110,7 +110,7 @@ namespace gui {
         std::set<Codes> pressed_keys;
         
     public:
-        DrawStructure(uint16_t width, uint16_t height, Vec2 scale = Vec2(1, 1))
+        DrawStructure(uint16_t width = 0, uint16_t height = 0, Vec2 scale = Vec2(1, 1))
             : _root(this, NULL, "root"),
               _active_section(NULL),
               _hovered_object(NULL),

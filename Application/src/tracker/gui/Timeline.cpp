@@ -8,14 +8,56 @@
 #include <misc/ReverseAdapter.h>
 #include <tracking/Recognition.h>
 #include <tracking/DatasetQuality.h>
+#include <gui/types/Button.h>
+#include <misc/EventAnalysis.h>
+#include <gui/GUICache.h>
+#include <gui/GuiTypes.h>
+#include <misc/vec2.h>
 
 namespace gui {
+    //! NeighborDistances drawn out
+    struct ProximityBar {
+        Size2 _dimensions;
+        long_t start, end;
+        std::map<long_t, std::set<FOI::fdx_t>> changed_frames;
+        std::vector<uint32_t> samples_per_pixel;
+        std::mutex mutex;
+
+        ProximityBar() : start(-1), end(-1) {}
+    } _proximity_bar;
+
+    std::string _thread_status;
+    std::atomic_bool _terminate;
+
+    HorizontalLayout _title_layout({}, Vec2(20, 20), Bounds(0, 0, 17, 0));
+    Text _status_text("", Vec2(), White, 0.8f), _status_text2("", Vec2(), White, 0.8f), _status_text3("", Vec2(), White, 0.8f);
+    Text _raw_text("[RAW]", Vec2(), Black, Font(0.8f, Style::Bold)), _auto_text("", Vec2(), Black, Font(0.8f, Style::Bold));
+    Button _pause("pause", Size2(100, 27));
+
+    GUI* _gui;
+    const Tracker* _tracker;
+    FrameInfo* _frame_info;
+
+    std::shared_ptr<std::thread> _update_events_thread;
+
+    struct {
+        uint64_t last_change;
+        FOI::foi_type::mapped_type changed_frames;
+        std::string name;
+        Color color;
+    } _foi_state;
+
     const float bar_height = 30;
     static Timeline* _instance = nullptr;
+
+    Timeline::~Timeline() {
+        _terminate = true;
+        _update_events_thread->join();
+    }
     
     std::tuple<Vec2, float> Timeline::timeline_offsets() {
         //const float max_w = Tracker::average().cols;
-        const float max_w = _instance && !_instance->_terminate && GUI::instance() && GUI::instance()->best_base() ? GUI::instance()->best_base()->window_dimensions().width * gui::interface_scale() : Tracker::average().cols;
+        const float max_w = _instance && !_terminate && GUI::instance() && GUI::instance()->best_base() ? GUI::instance()->best_base()->window_dimensions().width * gui::interface_scale() : Tracker::average().cols;
         Vec2 offset(0);
         return {offset, max_w};
     }
@@ -24,19 +66,12 @@ namespace gui {
         : _bar(nullptr),
         tracker_endframe(-1), tracker_startframe(-1),
         tdelta(0),
-        _gui(gui),
-        _tracker(*Tracker::instance()),
-        _frame_info(info),
         _visible(true),
-        _mOverFrame(-1),
-        _title_layout({}, Vec2(20, 20), Bounds(0, 0, 17, 0)),
-        _status_text("", Vec2(), White, 0.8f),
-        _status_text2("", Vec2(), White, 0.8f),
-        _status_text3("", Vec2(), White, 0.8f),
-        _raw_text("[RAW]", Vec2(), Black, Font(0.8f, Style::Bold)),
-        _auto_text("", Vec2(), Black, Font(0.8f, Style::Bold)),
-        _pause("pause", Size2(100,27))
+        _mOverFrame(-1)
     {
+        _gui = &gui;
+        _tracker = Tracker::instance();
+        _frame_info = &info;
         _instance = this;
         
         std::lock_guard<std::mutex> guard(_proximity_bar.mutex);
@@ -54,7 +89,7 @@ namespace gui {
         });
         
         _status_text2.on_click([this](auto){
-            SETTING(gui_frame) = _frame_info.global_segment_order.empty() ? 0 : _frame_info.global_segment_order.front().start;
+            SETTING(gui_frame) = Frame_t(_frame_info->global_segment_order.empty() ? 0 : _frame_info->global_segment_order.front().start);
         });
         _status_text2.on_hover([this](auto){
             _status_text2.set_dirty();
@@ -127,8 +162,8 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
         };
         
         for(auto &consec : other_consec) {
-            auto position = offset + Vec2(max_w * consec.start / float(_frame_info.video_length), 0);
-            auto size = Size2(max_w * (consec.end - consec.start) / float(_frame_info.video_length), bar_height);
+            auto position = offset + Vec2(max_w * consec.start / float(_frame_info->video_length), 0);
+            auto size = Size2(max_w * (consec.end - consec.start) / float(_frame_info->video_length), bar_height);
             
             DEBUG_CV(cv::rectangle(mat, position - Vec2(1), position - Vec2(1) + size + Size2(2), colors.front().alpha(50), cv::FILLED));
             DEBUG_CV(cv::rectangle(mat, position - Vec2(1), position - Vec2(1) + size + Size2(2), Color(alpha, alpha, alpha, 255)));
@@ -138,15 +173,15 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
         }
     }
     
-    //base.line(pos - Vec2(0,1), pos + Vec2(max_w * tracker_endframe / float(_frame_info.video_length), 0) - Vec2(0,1), 1, Red.alpha(255));
+    //base.line(pos - Vec2(0,1), pos + Vec2(max_w * tracker_endframe / float(_frame_info->video_length), 0) - Vec2(0,1), 1, Red.alpha(255));
     
     auto thickness = narrow_cast<int>(scale);
     assert(thickness > 0);
     
-    for(auto &consec : _frame_info.consecutive) {
+    for(auto &consec : _frame_info->consecutive) {
         if( consec.length() > 2 && consec.length() >= consec.length() * 0.25) {
-            auto position = offset + Vec2(max_w * consec.start / float(_frame_info.video_length), 0);
-            auto size = Size2(max_w * consec.length() / float(_frame_info.video_length), bar_height);
+            auto position = offset + Vec2(max_w * consec.start / float(_frame_info->video_length), 0);
+            auto size = Size2(max_w * consec.length() / float(_frame_info->video_length), bar_height);
             
             --position.y;
             DEBUG_CV(cv::line(mat, position, position + Vec2(size.width, 0), Green.alpha(alpha)));
@@ -154,10 +189,10 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
         }
     }
     
-    if(!_frame_info.training_ranges.empty()) {
-        for(auto range : _frame_info.training_ranges) {
-            auto position = offset + Vec2(max_w * range.start / float(_frame_info.video_length), 0);
-            auto size = Size2(max_w * range.length() / float(_frame_info.video_length), bar_height);
+    if(!_frame_info->training_ranges.empty()) {
+        for(auto range : _frame_info->training_ranges) {
+            auto position = offset + Vec2(max_w * range.start / float(_frame_info->video_length), 0);
+            auto size = Size2(max_w * range.length() / float(_frame_info->video_length), bar_height);
             
             DEBUG_CV(cv::rectangle(mat, position - Vec2(1), position - Vec2(1, 0) + size + Size2(2), Red.alpha(50), cv::FILLED));
             DEBUG_CV(cv::rectangle(mat, position - Vec2(1), position - Vec2(1, 0) + size + Size2(2), Color(alpha, alpha, alpha, 255)));
@@ -185,37 +220,37 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
         }
         
         std::stringstream number;
-        number << _frame_info.frameIndex << "/" << _frame_info.video_length << ", " << _frame_info.big_count << " tracks";
-        if(_frame_info.small_count)
-            number << " (" << _frame_info.small_count << " short)";
-        if(_frame_info.up_to_this_frame != _frame_info.big_count)
-            number << ", " << _frame_info.up_to_this_frame << " known here";
+        number << _frame_info->frameIndex << "/" << _frame_info->video_length << ", " << _frame_info->big_count << " tracks";
+        if(_frame_info->small_count)
+            number << " (" << _frame_info->small_count << " short)";
+        if(_frame_info->up_to_this_frame != _frame_info->big_count)
+            number << ", " << _frame_info->up_to_this_frame << " known here";
         
-        if(_frame_info.current_count != FAST_SETTINGS(track_max_individuals))
-            number << " " << _frame_info.current_count << " this frame";
+        if(_frame_info->current_count != FAST_SETTINGS(track_max_individuals))
+            number << " " << _frame_info->current_count << " this frame";
         
         if(!FAST_SETTINGS(analysis_paused))
-            number << " (analysis: " << _frame_info.current_fps << " fps)";
+            number << " (analysis: " << _frame_info->current_fps << " fps)";
         else
             number << " (analysis paused)";
         
-        DurationUS duration{uint64_t((double(_frame_info.frameIndex.load()) / double(FAST_SETTINGS(frame_rate)))) * 1000u * 1000u};
+        DurationUS duration{uint64_t((double(_frame_info->frameIndex.load()) / double(FAST_SETTINGS(frame_rate)))) * 1000u * 1000u};
         number << " " << Meta::toStr(duration);
         
         _status_text.set_txt(number.str());
         number.str("");
         
-        auto consec = _frame_info.global_segment_order.empty() ? Rangel(-1,-1) : _frame_info.global_segment_order.front();
+        auto consec = _frame_info->global_segment_order.empty() ? Rangel(-1,-1) : _frame_info->global_segment_order.front();
         std::vector<Rangel> other_consec;
-        if(_frame_info.global_segment_order.size() > 1) {
-            for (size_t i=0; i<3 && i < _frame_info.global_segment_order.size(); ++i) {
-                other_consec.push_back(_frame_info.global_segment_order.at(i));
+        if(_frame_info->global_segment_order.size() > 1) {
+            for (size_t i=0; i<3 && i < _frame_info->global_segment_order.size(); ++i) {
+                other_consec.push_back(_frame_info->global_segment_order.at(i));
             }
         }
         number << "consec: " << consec.start << "-" << consec.end << " (" << consec.end - consec.start << ")";
         
         Color consec_color = White;
-        if(consec.contains(_frame_info.frameIndex))
+        if(consec.contains(_frame_info->frameIndex))
             consec_color = Green;
         
         if(_status_text2.hovered())
@@ -225,10 +260,10 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
         _status_text2.set_txt(number.str());
         number.str("");
         
-        number << "delta: " << _frame_info.tdelta << "s";
+        number << "delta: " << _frame_info->tdelta << "s";
         
         //number << ", " << tracker_endframe << ")";
-        //number << " tdelta:" << std::fixed << std::setprecision(3) << tdelta << " " << std::fixed << std::setprecision(3) << _frame_info.tdelta_gui;
+        //number << " tdelta:" << std::fixed << std::setprecision(3) << tdelta << " " << std::fixed << std::setprecision(3) << _frame_info->tdelta_gui;
         number << NetworkStats::status();
         
         auto status = EventAnalysis::status();
@@ -242,7 +277,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
         
         _title_layout.set_policy(HorizontalLayout::Policy::CENTER);
         std::vector<Layout::Ptr> in_layout{&_pause, &_status_text, &_status_text2, &_status_text3};
-        if(_frame_info.video_length == uint64_t(tracker_endframe)) {
+        if(_frame_info->video_length == uint64_t(tracker_endframe)) {
             in_layout.erase(in_layout.begin());
         }
         
@@ -280,7 +315,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
         
         base.rect(pos, Vec2(max_w, bar_height), White.alpha(175));
         
-        float percent = float(tracker_endframe) / _frame_info.video_length;
+        float percent = float(tracker_endframe) / _frame_info->video_length;
         base.rect(pos, Size2(max_w * percent, bar_height), red_bar_clr);
         
         if(_bar && use_scale.y > 0) {
@@ -299,7 +334,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
                 }
             }
             
-            base.add_object(new Text(Meta::toStr(tracker_endframe.load()), pos + Vec2(max_w * tracker_endframe / float(_frame_info.video_length) + 5, bar_height * 0.5f), Black, Font(0.5), Vec2(1), Vec2(0,0.5)));
+            base.add_object(new Text(Meta::toStr(tracker_endframe.load()), pos + Vec2(max_w * tracker_endframe / float(_frame_info->video_length) + 5, bar_height * 0.5f), Black, Font(0.5), Vec2(1), Vec2(0,0.5)));
             
             // display hover sign with frame number
             if(_mOverFrame != -1) {
@@ -309,7 +344,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
                     std::string t = "Frame "+std::to_string(_mOverFrame);
                     auto dims = Base::text_dimensions(t, &_title_layout, Font(0.7f));
                     
-                    Vec2 pp(max_w / float(_frame_info.video_length) * _mOverFrame, _bar->pos().y + _bar->global_bounds().height / use_scale.y + dims.height * 0.5f + 2);
+                    Vec2 pp(max_w / float(_frame_info->video_length) * _mOverFrame, _bar->pos().y + _bar->global_bounds().height / use_scale.y + dims.height * 0.5f + 2);
                     
                     if(pp.x < dims.width * 0.5f)
                         pp.x = dims.width * 0.5f;
@@ -324,19 +359,19 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
             }
         }
         
-        if(_frame_info.analysis_range.start != 0) {
+        if(_frame_info->analysis_range.start != 0) {
             auto start_pos = pos;
-            auto end_pos = Vec2(max_w / float(_frame_info.video_length) * _frame_info.analysis_range.start, bar_height);
+            auto end_pos = Vec2(max_w / float(_frame_info->video_length) * _frame_info->analysis_range.start, bar_height);
             base.rect(start_pos, end_pos, Gray);
         }
-        if(uint64_t(_frame_info.analysis_range.end) <= _frame_info.video_length) {
-            auto start_pos = pos + Vec2(max_w / float(_frame_info.video_length) * _frame_info.analysis_range.end, 0);
+        if(uint64_t(_frame_info->analysis_range.end) <= _frame_info->video_length) {
+            auto start_pos = pos + Vec2(max_w / float(_frame_info->video_length) * _frame_info->analysis_range.end, 0);
             auto end_pos = Vec2(max_w, bar_height);
             base.rect(start_pos, end_pos, Gray);
         }
         
         // current position indicator
-        auto current_pos = Vec2(max_w / float(_frame_info.video_length) * _frame_info.frameIndex, y) - offset;
+        auto current_pos = Vec2(max_w / float(_frame_info->video_length) * _frame_info->frameIndex, y) - offset;
         base.rect(current_pos - Vec2(2),
                   Size2(5,bar_height + 4),
                   Black.alpha(255), White.alpha(255));
@@ -361,7 +396,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
             if(!_foi_state.name.empty()) {
                 long_t id = FOI::to_id(_foi_state.name);
                 if(id != -1) {
-                    _foi_state.changed_frames = FOI::foi(id);//_tracker.changed_frames();
+                    _foi_state.changed_frames = FOI::foi(id);//_tracker->changed_frames();
                     _foi_state.color = FOI::color(_foi_state.name);
                 }
             }
@@ -386,10 +421,10 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
                     long_t framemOver = -1;
                     
                     if(_bar && _bar->hovered()) {
-                        //Vec2 pp(max_w / float(_frame_info.video_length) * idx.first, 50);
+                        //Vec2 pp(max_w / float(_frame_info->video_length) * idx.first, 50);
                         //float dis = abs(e.hover.x - pp.x);
                         static Timing timing("Scrubbing", 0.01);
-                        int64_t idx = roundf(e.hover.x / max_w_ * float(_frame_info.video_length));
+                        int64_t idx = roundf(e.hover.x / max_w_ * float(_frame_info->video_length));
                         auto it = _proximity_bar.changed_frames.find(idx);
                         if(it != _proximity_bar.changed_frames.end()) {
                             framemOver = idx;
@@ -408,7 +443,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
                         
                     } else if(_bar->hovered()) {
                         if(tracker_endframe != -1) {
-                            _mOverFrame = min(float(_frame_info.video_length), e.hover.x * float(_frame_info.video_length) / max_w_);
+                            _mOverFrame = min(float(_frame_info->video_length), e.hover.x * float(_frame_info->video_length) / max_w_);
                             _bar->set_dirty();
                         }
                     }
@@ -418,13 +453,13 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
                 
                 if(_bar->hovered() && _bar->pressed() && this->mOverFrame() != -1)
                 {
-                    SETTING(gui_frame) = this->mOverFrame();
+                    SETTING(gui_frame) = Frame_t(this->mOverFrame());
                 }
             });
             _bar->add_event_handler(MBUTTON, [this](Event e) {
                 if(e.mbutton.pressed && this->mOverFrame() != -1 && e.mbutton.button == 0) {
-                    _gui.set_redraw();
-                    SETTING(gui_frame) = this->mOverFrame();
+                    _gui->set_redraw();
+                    SETTING(gui_frame) = Frame_t(this->mOverFrame());
                 }
             });
         }
@@ -471,14 +506,14 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
             };
             
             if(_proximity_bar.end == -1) {
-                _proximity_bar.start = _proximity_bar.end = _tracker.start_frame();
+                _proximity_bar.start = _proximity_bar.end = _tracker->start_frame();
             }
             
-            Vec2 pos(max_w / float(_frame_info.video_length) * _proximity_bar.end, 0);
+            Vec2 pos(max_w / float(_frame_info->video_length) * _proximity_bar.end, 0);
             cv::Mat img = _bar->source()->get();
             
-            if(_proximity_bar.end < _tracker.end_frame()) {
-                _proximity_bar.end = _tracker.end_frame();
+            if(_proximity_bar.end < _tracker->end_frame()) {
+                _proximity_bar.end = _tracker->end_frame();
                 changed = true;
             }
             
@@ -490,7 +525,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
             std::set<uint32_t> multiple_assignments;
             
             for (auto &c : _foi_state.changed_frames) {
-                float x = round(max_w / float(_frame_info.video_length) * c.frames().start);
+                float x = round(max_w / float(_frame_info->video_length) * c.frames().start);
                 if(x >= _proximity_bar.samples_per_pixel.size())
                     x = _proximity_bar.samples_per_pixel.size()-1;
                 ++_proximity_bar.samples_per_pixel[uint32_t(x)];
@@ -498,8 +533,8 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
                     multiple_assignments.insert(uint32_t(x));
                 //auto it = _proximity_bar.changed_frames.find(c.frames().start);
                 //if(it == _proximity_bar.changed_frames.end()) {
-                    /*float x = max_w / float(_frame_info.video_length) * c.frames().start;
-                    float w = max(2, max_w / float(_frame_info.video_length) * c.frames().end - x);
+                    /*float x = max_w / float(_frame_info->video_length) * c.frames().start;
+                    float w = max(2, max_w / float(_frame_info->video_length) * c.frames().end - x);
                     Vec2 pp(x, 0);
                     cv::rectangle(img, pp, pp+Vec2(w,img.rows), _foi_state.color, -1);*/
                 
@@ -538,7 +573,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
                     //cv::rectangle(img, pp, pp+Vec2(1,img.rows), _foi_state.color, -1);
                 }
                 
-                float x = max_w / float(_frame_info.video_length) * tracker_endframe;
+                float x = max_w / float(_frame_info->video_length) * tracker_endframe;
                 if(previous_point.x != -1 && previous_point.x != x)
                 {
                     Vec2 point(x, individual_coverage(tracker_endframe) * img.rows);
@@ -578,30 +613,30 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
                 if(guard.locked()) {
                     Timer timer;
                     
-                    long_t index = _frame_info.frameIndex;
+                    long_t index = _frame_info->frameIndex;
                     auto props = Tracker::properties(index);
                     auto prev_props = Tracker::properties(index - 1);
                     
-                    _frame_info.tdelta = props && prev_props ? props->time - prev_props->time : 0;
-                    _frame_info.small_count = 0;
-                    _frame_info.big_count = 0;
-                    _frame_info.current_count = 0;
-                    _frame_info.up_to_this_frame = 0;
-                    _frame_info.analysis_range = Tracker::analysis_range();
-                    tracker_endframe = _tracker.end_frame();
-                    tracker_startframe = _tracker.start_frame();
+                    _frame_info->tdelta = props && prev_props ? props->time - prev_props->time : 0;
+                    _frame_info->small_count = 0;
+                    _frame_info->big_count = 0;
+                    _frame_info->current_count = 0;
+                    _frame_info->up_to_this_frame = 0;
+                    _frame_info->analysis_range = Tracker::analysis_range();
+                    tracker_endframe = _tracker->end_frame();
+                    tracker_startframe = _tracker->start_frame();
                     
                     if(prev_props && props) {
-                        tdelta = _frame_info.tdelta;
+                        tdelta = _frame_info->tdelta;
                     }
                     
-                    _frame_info.training_ranges = _tracker.recognition() ? _tracker.recognition()->trained_ranges() : std::set<Rangel>{};
-                    _frame_info.consecutive = _tracker.consecutive();
-                    _frame_info.global_segment_order = track::Tracker::global_segment_order();
+                    _frame_info->training_ranges = _tracker->recognition() ? _tracker->recognition()->trained_ranges() : std::set<Rangel>{};
+                    _frame_info->consecutive = _tracker->consecutive();
+                    _frame_info->global_segment_order = track::Tracker::global_segment_order();
                     
-                    //if(longest != _frame_info.longest_consecutive && Tracker::recognition())
+                    //if(longest != _frame_info->longest_consecutive && Tracker::recognition())
                     //if(Tracker::recognition()) {
-                        /*for(auto &consec : _frame_info.global_segment_order) {
+                        /*for(auto &consec : _frame_info->global_segment_order) {
                             if(!Tracker::recognition()->dataset_quality() || !Tracker::recognition()->dataset_quality()->has(consec)) {
                                 Tracker::recognition()->update_dataset_quality();
                                 break;
@@ -610,24 +645,24 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
                         //Tracker::recognition()->update_dataset_quality();
                     //}
                     
-                    if(Tracker::properties(_frame_info.frameIndex)) {
-                        for (auto& fish : _frame_info.frameIndex >= tracker_startframe && _frame_info.frameIndex < tracker_endframe ?  Tracker::active_individuals(_frame_info.frameIndex) : Tracker::set_of_individuals_t{}) {
+                    if(Tracker::properties(_frame_info->frameIndex)) {
+                        for (auto& fish : _frame_info->frameIndex >= tracker_startframe && _frame_info->frameIndex < tracker_endframe ?  Tracker::active_individuals(_frame_info->frameIndex) : Tracker::set_of_individuals_t{}) {
                             if ((int)fish->frame_count() < FAST_SETTINGS(frame_rate)*3) {
-                                _frame_info.small_count++;
+                                _frame_info->small_count++;
                             } else
-                                _frame_info.big_count++;
+                                _frame_info->big_count++;
                             
-                            if(fish->has(_frame_info.frameIndex))
-                                ++_frame_info.current_count;
+                            if(fish->has(_frame_info->frameIndex))
+                                ++_frame_info->current_count;
                             
-                            if(fish->start_frame() <= _frame_info.frameIndex) {
-                                _frame_info.up_to_this_frame++;
+                            if(fish->start_frame() <= _frame_info->frameIndex) {
+                                _frame_info->up_to_this_frame++;
                             }
                         }
                     }
                     
                     //if(FAST_SETTINGS(calculate_posture))
-                    //    changed = EventAnalysis::update_events(_frame_info.frameIndex < tracker_endframe ? Tracker::active_individuals(_frame_info.frameIndex) : std::set<Individual*>{});
+                    //    changed = EventAnalysis::update_events(_frame_info->frameIndex < tracker_endframe ? Tracker::active_individuals(_frame_info->frameIndex) : std::set<Individual*>{});
                     
                     // needs Tracker lock
                     GUI::instance()->update_recognition_rect();
@@ -679,7 +714,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
                     cv::Mat img = _bar->source()->get();
                     
                     Vec2 pos(0, 0);
-                    float x0 = Tracker::average().cols / float(_frame_info.video_length) * after_frame;
+                    float x0 = Tracker::average().cols / float(_frame_info->video_length) * after_frame;
                     float x1 = Tracker::average().cols;
                     
                     Debug("Clearing from %f to %f", x0, x1 + pos.x);
@@ -696,8 +731,8 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
     
     void Timeline::set_visible(bool v) {
         if(_visible != v) {
-            _gui.cache().set_tracking_dirty();
-            _gui.set_redraw();
+            _gui->cache().set_tracking_dirty();
+            _gui->set_redraw();
             _visible = v;
         }
     }
@@ -724,7 +759,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
         }
         
         if(frame != next_frame) {
-            SETTING(gui_frame) = next_frame;
+            SETTING(gui_frame) = Frame_t(next_frame);
             
             if(!_s_fdx.valid())
             {
@@ -762,7 +797,7 @@ void Timeline::update_consecs(float max_w, const Range<long_t>& consec, const st
         }
         
         if(frame != next_frame && next_frame != -1) {
-            SETTING(gui_frame) = next_frame;
+            SETTING(gui_frame) = Frame_t(next_frame);
             
             if(!_s_fdx.valid())
             {

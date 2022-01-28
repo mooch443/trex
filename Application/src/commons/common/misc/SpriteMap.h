@@ -1,7 +1,7 @@
 #ifndef SPRITE_MAP_H
 #define SPRITE_MAP_H
 
-#include <commons/common/commons.pc.h>
+//#include <commons/common/commons.pc.h>
 #include <misc/metastring.h>
 
 namespace cmn {
@@ -381,10 +381,7 @@ namespace sprite {
             
         }
         else {
-            PropertyType& tmp = _container.insert(_name, value);
-            if (_type.speed() != PROPERTY_INVALID_SPEED)
-                tmp.speed(_type.speed());
-            
+            _container.insert(_name, value);
             //Debug("Inserting into map %@: %@", &_container, (PropertyType*)&tmp);
         }
     }

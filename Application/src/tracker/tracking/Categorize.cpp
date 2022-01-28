@@ -9,6 +9,8 @@
 #include <random>
 #include <misc/default_settings.h>
 #include <tracking/StaticBackground.h>
+#include <gui/types/Button.h>
+#include <gui/types/Textfield.h>
 
 namespace track {
 namespace Categorize {

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <types.h>
+#include <misc/defines.h>
 
 namespace cmn {
     
@@ -361,9 +361,6 @@ template<class Q> std::string name(const typename std::enable_if< std::is_same<s
 template<class Q> std::string name(const typename std::enable_if< std::is_same<bool, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "bool"; }
 template<class Q> std::string name(const typename std::enable_if< std::is_same<cv::Mat, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "mat"; }
 template<class Q> std::string name(const typename std::enable_if< std::is_same<cv::Range, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "range"; }
-template<class Q> std::string name(const typename std::enable_if< std::is_same<Rangef, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "rangef"; }
-template<class Q> std::string name(const typename std::enable_if< std::is_same<Range<double>, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "range<double>"; }
-template<class Q> std::string name(const typename std::enable_if< std::is_same<Rangel, typename std::remove_cv<Q>::type>::value, Q >::type* =nullptr) { return "rangel"; }
         
 /**
     * chrono:: time objects
@@ -466,10 +463,10 @@ std::string toStr(const Q& obj) {
     return "[" + Meta::toStr(obj.start) + "," + Meta::toStr(obj.end) + "]";
 }
         
-template<class Q, class type>
+/*template<class Q, class type>
 std::string toStr(const cmn::Range<type>& obj) {
     return "[" + Meta::toStr(obj.start) + "," + Meta::toStr(obj.end) + "]";
-}
+}*/
 
 template<class Q>
     requires _clean_same<bool, Q>
@@ -877,7 +874,7 @@ const Q& fromStr(const std::string& str) {
     return Q::get(Meta::fromStr<std::string>(str));
 }
         
-template<class Q>
+/*template<class Q>
     requires _clean_same<Range<double>, Q>
 Q fromStr(const std::string& str)
 {
@@ -920,7 +917,7 @@ Q fromStr(const std::string& str)
     auto y = Meta::fromStr<long_t>(parts[1]);
             
     return Range(x, y);
-}
+}*/
         
 template<class Q>
     requires (is_instantiation<cv::Size_, Q>::value)

@@ -1,7 +1,7 @@
 #ifndef _DRAW_BASE_H
 #define _DRAW_BASE_H
 
-#include <types.h>
+#include <misc/defines.h>
 
 #include <gui/GuiTypes.h>
 #include <gui/DrawStructure.h>

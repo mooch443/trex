@@ -2,6 +2,7 @@
 #include <misc/GlobalSettings.h>
 #include <grabber/gui.h>
 #include <misc/GlobalSettings.h>
+#include <misc/SpriteMap.h>
 
 namespace fg {
 constexpr bool use_dynamic = true;

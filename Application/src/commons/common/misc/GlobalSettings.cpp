@@ -3,6 +3,8 @@
  */
 
 #include "GlobalSettings.h"
+#include <misc/detail.h>
+#include <misc/SpriteMap.h>
 using namespace cmn;
 
 void GlobalSettings::set_instance(const std::shared_ptr<GlobalSettings>& ptr) {
@@ -18,13 +20,26 @@ std::mutex& GlobalSettings::mutex() {
  * GlobalSettings implementation
  */
 
-GlobalSettings::GlobalSettings() {
+GlobalSettings::GlobalSettings() 
+    : _map(std::make_unique<sprite::Map>()), _defaults(std::make_unique<sprite::Map>()) 
+{
 }
 
 /**
  * Destructor of @class GlobalSettings.
  */
 GlobalSettings::~GlobalSettings() {
+}
+
+std::shared_ptr<GlobalSettings>& GlobalSettings::instance() {
+    static std::shared_ptr<GlobalSettings> _instance;
+
+    if (!_instance) {
+        _instance = std::make_shared<GlobalSettings>();
+        _instance->map().set_do_print(false);
+    }
+
+    return _instance;
 }
 
 /**
@@ -34,19 +49,19 @@ GlobalSettings::~GlobalSettings() {
 sprite::Map& GlobalSettings::map() {
     if(!instance())
 		U_EXCEPTION("No GlobalSettings instance.");
-    return instance()->_map;
+    return *instance()->_map;
 }
 
 const sprite::Map& GlobalSettings::defaults() {
 	if (!instance())
 		U_EXCEPTION("No GlobalSettings instance.");
-    return instance()->_defaults;
+    return *instance()->_defaults;
 }
 
 sprite::Map& GlobalSettings::set_defaults() {
 	if (!instance())
 		U_EXCEPTION("No GlobalSettings instance.");
-    return instance()->_defaults;
+    return *instance()->_defaults;
 }
 
 GlobalSettings::docs_map_t& GlobalSettings::docs() {

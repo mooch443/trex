@@ -21,7 +21,7 @@ namespace gui {
         std::map<uint32_t, std::deque<float>> _scale;
         
     public:
-        Posture(const Bounds& size);
+        Posture(const Bounds& size = Bounds());
         
         void set_fish(track::Individual* fish);
         

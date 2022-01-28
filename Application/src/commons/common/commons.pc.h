@@ -57,6 +57,34 @@
 #include <stdarg.h>
 #include <concepts>
 
+#ifdef WIN32
+#define _USE_MATH_DEFINES
+#include <cmath>
+#include <intrin.h>
+#include <cstdint>
+
+#if defined(_MSC_VER)
+static inline int __builtin_clz(unsigned x) {
+    return (int)__lzcnt(x);
+}
+
+static inline int __builtin_clzll(unsigned long long x) {
+    return (int)__lzcnt64(x);
+}
+
+template<typename T>
+static inline int __builtin_clzl(T x) {
+    if constexpr (sizeof(x) == sizeof(uint64_t)) {
+        return __builtin_clzll(x);
+    }
+    else {
+        return __builtin_clz(x);
+        }
+    }
+#endif
+
+#endif
+
 #if defined(__clang__)
     #if (__clang_major__) <= 13
 

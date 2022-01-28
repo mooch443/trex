@@ -5,13 +5,16 @@
 #include <misc/Output.h>
 #include <gui/gui.h>
 #include <gui/WorkProgress.h>
-#include <tracking/Tracker.h>
 #include <gui/types/StaticText.h>
 #include <gui/types/Tooltip.h>
 #include <tracking/Individual.h>
 #include <misc/MemoryStats.h>
 #include <gui/CheckUpdates.h>
 #include <tracking/Categorize.h>
+#include <gui/GUICache.h>
+#include <gui/types/Button.h>
+
+#include <tracking/Tracker.h>
 
 namespace gui {
 
@@ -119,7 +122,7 @@ public:
         layout = std::make_shared<HorizontalLayout>(std::vector<Layout::Ptr>{}, Vec2(), Bounds(5, 5));
             
         _list = std::make_shared<gui::List>(
-            Bounds(Tracker::average().cols - 300 - 110 - 10 - 80 * 3, 7, 150, 33),
+            Bounds(GUI::average().cols - 300 - 110 - 10 - 80 * 3, 7, 150, 33),
             "match", std::vector<std::shared_ptr<List::Item>>{},
             [this](gui::List*, const List::Item& item){
                 if(item == _list->selected_item()) {
@@ -141,7 +144,7 @@ public:
         });
         
         
-        second_list = std::make_shared<gui::List>(Bounds(Tracker::average().cols - 581 - 110 - 10 - 80 * 2, 7, 200, 33), "blobs", std::vector<std::shared_ptr<List::Item>>{},
+        second_list = std::make_shared<gui::List>(Bounds(GUI::average().cols - 581 - 110 - 10 - 80 * 2, 7, 200, 33), "blobs", std::vector<std::shared_ptr<List::Item>>{},
           [this](List*, const List::Item& item) {
               Debug("%d %d", item.ID(), item.selected());
               if(!item.selected() && item.ID() >= 0) {

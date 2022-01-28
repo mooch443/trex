@@ -256,7 +256,7 @@ void Tracker::analysis_state(AnalysisState pause) {
           : _thread_pool(max(1u, cmn::hardware_concurrency())),
             recognition_pool(max(1u, cmn::hardware_concurrency())),
             _midline_errors_frame(0), _overall_midline_errors(0),
-            _startFrame(-1), _endFrame(-1), _max_individuals(0),
+            _max_individuals(0),
             _background(NULL), _recognition(NULL),
             _approximative_enabled_in_frame(std::numeric_limits<long_t>::lowest()),
             _inactive_individuals([this](Idx_t A, Idx_t B){
@@ -520,7 +520,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
             return;
         }
         
-        if(_startFrame != -1 && frame.index() < _endFrame+1)
+        if(start_frame().valid() && frame.index() < end_frame() + 1)
             throw new UtilsException("Cannot add intermediate frames out of order.");
         
         history_split(frame, _active_individuals, history_log != nullptr && history_log->is_open() ? history_log.get() : nullptr, &_thread_pool);
@@ -1651,17 +1651,17 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         static const unsigned concurrentThreadsSupported = cmn::hardware_concurrency();
         double time = frame.frame().timestamp() / double(1000*1000);
         
-        if(_endFrame < _startFrame) {
-            Error("end frame is %d < %d", _endFrame.load(), _startFrame.load());
-            _endFrame = _startFrame.load();
+        if(start_frame().valid() && end_frame() < start_frame()) {
+            Error("end frame is %d < %d", end_frame(), start_frame());
+            _endFrame = start_frame();
         }
         
-        if (_startFrame > frameIndex || _startFrame == -1) {
-            _startFrame = frameIndex;
+        if (!start_frame().valid() || start_frame() > frameIndex) {
+            _startFrame = Frame_t(frameIndex);
         }
         
-        if (_endFrame < frameIndex || _endFrame == -1) {
-            _endFrame = frameIndex;
+        if (!end_frame().valid() || end_frame() < frameIndex) {
+            _endFrame = Frame_t(frameIndex);
         }
         
         auto props = add_next_frame(FrameProperties(frame.index(), time, frame.frame().timestamp()));
@@ -1876,7 +1876,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 }
                 
             } else {
-                if(frameIndex != _startFrame)
+                if(frameIndex != start_frame())
                     Warning("Individual number %d out of range in frame %d. Creating new one.", fdx, frameIndex);
                 
                 auto blob = frame.find_bdx(bdx);
@@ -2083,7 +2083,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             FOI::add(FOI(frameIndex, identities, "failed matches"));
         }
         
-        if(frameIndex == _startFrame && !manual_identities.empty()) {
+        if(frameIndex == start_frame() && !manual_identities.empty()) {
             // create correct identities
             //assert(_individuals.empty());
             
@@ -3341,7 +3341,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         
         Debug("Removing frames after and including %ld", frameIndex);
         
-        if (_endFrame < frameIndex || _startFrame > frameIndex)
+        if (end_frame() < frameIndex || start_frame() > frameIndex)
             return;
         
         if(history_log && history_log->is_open()) {
@@ -3379,7 +3379,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
             }
         }
         
-        for(auto fdx : to_delete)
+        for(auto& fdx : to_delete)
             _individuals.erase(fdx);
         
         for(auto it = _active_individuals_frame.begin(); it != _active_individuals_frame.end();) {
@@ -3402,21 +3402,21 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                 it = _statistics.erase(it);
         }
         
-        _endFrame = frameIndex-1;
-        while (!properties(_endFrame)) {
-            if (_endFrame < _startFrame) {
-                _endFrame = _startFrame = -1;
+        _endFrame = Frame_t(frameIndex-1);
+        while (!properties(end_frame())) {
+            if (end_frame() < start_frame()) {
+                _endFrame = _startFrame = Frame_t();
                 break;
             }
             
-            _endFrame--;
+            _endFrame = Frame_t(end_frame() - 1);
         }
         
-        if(_endFrame != -1 && _endFrame < analysis_range().start)
-            _endFrame = _startFrame = -1;
+        if(end_frame().valid() && end_frame() < analysis_range().start)
+            _endFrame = _startFrame = Frame_t();
         
-        if(properties(_endFrame))
-            _active_individuals = _active_individuals_frame.at(_endFrame);
+        if(properties(end_frame()))
+            _active_individuals = _active_individuals_frame.at(end_frame());
         else
             _active_individuals = {};
         
@@ -3473,7 +3473,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         Debug("posture: %d", Midline::saved_midlines());
         Debug("physical props: %d", PhysicalProperties::saved_midlines());
         Debug("all blobs: %d", Blob::all_blobs());
-        Debug("Range: %d-%d", _startFrame.load(), _endFrame.load());
+        Debug("Range: %d-%d", start_frame(), end_frame());
     }
 
     size_t Tracker::found_individuals_frame(size_t frameIndex) const {

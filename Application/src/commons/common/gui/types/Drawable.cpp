@@ -4,6 +4,7 @@
 #include <misc/GlobalSettings.h>
 #include <misc/stacktrace.h>
 #include <misc/Timer.h>
+#include <misc/SpriteMap.h>
 //#define _DEBUG_MEMORY
 
 namespace gui {

@@ -1,6 +1,6 @@
 #include "gui.h"
 #include <misc/Timer.h>
-#include <tracking/DebugDrawing.h>
+/*#include <tracking/DebugDrawing.h>
 #include <gui/DrawCVBase.h>
 #include <gui/DrawSFBase.h>
 #include "DrawFish.h"
@@ -25,7 +25,7 @@
 #include <gui/types/PieChart.h>
 #include <gui/types/Tooltip.h>
 #include <gui/FlowMenu.h>
-#include <pv.h>
+
 #include <tracking/Recognition.h>
 #include <misc/cnpy_wrapper.h>
 #include <misc/default_settings.h>
@@ -37,11 +37,45 @@
 #include <gui/WorkProgress.h>
 #include <misc/SoftException.h>
 #include <tracking/Export.h>
-#include <gui/IdentityHeatmap.h>
 #include <tracking/ConfirmedCrossings.h>
 #include <gui/DrawMenu.h>
 #include <gui/Label.h>
+#include <tracking/Categorize.h>*/
+
+#include <misc/detail.h>
+#include <misc/cnpy_wrapper.h>
+
+#include <gui/types/Drawable.h>
+#include <gui/types/List.h>
+#include <gui/types/Button.h>
+#include <gui/types/Dropdown.h>
+#include <gui/types/Textfield.h>
+#include <gui/IMGUIBase.h>
+#include <gui/types/Tooltip.h>
+#include <gui/GuiTypes.h>
+#include <gui/IdentityHeatmap.h>
+#include <gui/GUICache.h>
+#include <gui/WorkProgress.h>
+#include <gui/SFLoop.h>
+#include <gui/DrawBase.h>
+#include <gui/DrawCVBase.h>
+
+#include <tracking/Tracker.h>
+#include <tracking/Recognition.h>
+#include <tracking/DatasetQuality.h>
+#include <tracking/VisualField.h>
+#include <tracking/Export.h>
+#include <tracking/Accumulation.h>
 #include <tracking/Categorize.h>
+
+#include <misc/ConnectedTasks.h>
+#include <misc/default_settings.h>
+#include <misc/Output.h>
+#include <misc/MemoryStats.h>
+#include <processing/PadImage.h>
+#include <misc/Results.h>
+
+#include <pv.h>
 
 #if WIN32
 #include <Shellapi.h>
@@ -63,7 +97,110 @@ GUI* GUI::instance() {
     return _instance;
 }
 
+#include <gui/types/Histogram.h>
+#include <gui/types/StaticText.h>
+
+#include <gui/DrawGraph.h>
+#include <gui/DrawPosture.h>
+#include <gui/Timeline.h>
+#include <gui/DrawMenu.h>
+#include <gui/DrawDataset.h>
+#include <gui/RecognitionSummary.h>
+#include <gui/DrawFish.h>
+#include <gui/Label.h>
+#include <gui/InfoCard.h>
+
 using namespace gui;
+
+enum class SelectedSettingType {
+    ARRAY_OF_BOUNDS,
+    ARRAY_OF_VECTORS,
+    POINTS,
+    NONE
+};
+
+struct PrivateData {
+    GUICache _cache;
+
+    cv::VideoWriter* _recording_capture = nullptr;
+    cv::Size _recording_size;
+    file::Path _recording_path;
+    default_config::gui_recording_format_t::Class _recording_format;
+
+    long_t _recording_start;
+    long_t _recording_frame;
+    long_t _last_recording_frame;
+    std::atomic_bool _recording;
+
+    long_t _flow_frame;
+    long_t _next_frame;
+    cv::Mat _cflow, _cflow_next;
+
+    float _tdelta_gui;
+    long_t _gui_last_frame;
+    Timer _gui_last_frame_timer;
+    Timer _gui_last_backup;
+
+    pv::File *_video_source = nullptr;
+
+    //! Reference to the Tracker
+    Tracker* _tracker = nullptr;
+
+    //! Timer for determining speed of increase by keypress
+    Timer _last_increase_timer, _last_direction_change;
+    bool _real_update = false;
+    std::shared_ptr<gui::DrawDataset> _dataset;
+    std::shared_ptr<gui::Timeline> _timeline;
+
+    std::vector<gui::PropertiesGraph*> _fish_graphs;
+    gui::Posture _posture_window;
+
+    gui::WorkProgress* _work_progress = nullptr;
+    gui::DrawStructure _gui;
+
+    ConnectedTasks* _analysis = nullptr;
+
+    gui::ExternalImage _recognition_image;
+    std::map<std::vector<Vec2>, std::shared_ptr<gui::Drawable>> _ignore_shapes, _include_shapes;
+    Timer _last_frame_change;
+
+    gui::Histogram<float, gui::Hist::Options::NORMED> _histogram{ "Event energy", Bounds(200, 450, 800, 300), Filter::FixedBins(40), Display::LimitY(0.45) };
+    gui::Histogram<float, gui::Hist::Options::NORMED> _midline_histogram{ "Midline length", Bounds(0, 0, 800, 300), Filter::FixedBins(0.6, 1.4, 50) };
+
+    gui::StaticText _info;
+    gui::Histogram<size_t, gui::Hist::Options::NORMED, std::vector<std::map<long_t, size_t>>> _length_histogram{ "Event length", Bounds(1, 800, 800, 300), Filter::FixedBins(0, 100, 50), Display::LimitY(0.45) };
+
+    std::function<void(const Vec2&, bool, std::string)> _clicked_background;
+    std::vector<std::vector<Vec2>> _current_boundary;
+    std::string _selected_setting_name;
+    SelectedSettingType _selected_setting_type;
+
+};
+
+template<typename T>
+requires _is_dumb_pointer<T>
+std::remove_pointer_t<T>& access_private(T& t) {
+    return *t;
+}
+
+template<typename T>
+    requires (!_is_dumb_pointer<T>)
+T& access_private(T& t) {
+    return t;
+}
+
+#define PD(X) access_private( GUI::instance()->_private_data->_ ## X )
+#define PDP(X) ( GUI::instance()->_private_data->_ ## X )
+
+bool GUI::recording() {
+    return PD(recording);
+}
+
+const gui::Timeline& GUI::timeline() {
+    assert(PDP(timeline));
+    return *PD(timeline);
+}
+
 using namespace Hist;
 
 template<globals::Cache::Variables M>
@@ -161,13 +298,7 @@ bool GUI::execute_settings(file::Path settings_file, AccessLevelType::Class acce
 GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
   :
     _average_image(average),
-    _gui(average.cols, average.rows),
-    _recording_capture(NULL),
-    _recording(false),
-    _tracker(tracker),
-    _analysis(NULL),
     _direction_change(false), _play_direction(1),
-    _video_source(&video_source),
     _base(NULL),
     _blob_thread_pool(cmn::hardware_concurrency(), [](std::exception_ptr e) {
         GUI::work().add_queue("", [e](){
@@ -179,31 +310,39 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
         });
     }),
     _properties_visible(false),
+    _private_data(new PrivateData),
 #if WITH_MHD
     _http_gui(NULL),
 #endif
-    _posture_window(Bounds(_average_image.cols - 550 - 10, 100, 550, 400)),
-    _histogram("Event energy", Bounds(_average_image.cols * 0.5, 450, 800, 300), Filter::FixedBins(40), Display::LimitY(0.45)),
-    _midline_histogram("Midline length", Bounds(_average_image.cols * 0.5, _average_image.rows * 0.5, 800, 300), Filter::FixedBins(0.6, 1.4, 50)),
-    _length_histogram("Event length", Bounds(_average_image.cols * 0.5, 800, 800, 300), Filter::FixedBins(0, 100, 50), Display::LimitY(0.45)),
-    _info("", Vec2(_average_image.cols*0.5,_average_image.rows*0.5), Vec2(min(_average_image.cols*0.75, 700), min(_average_image.rows*0.75, 700))),
     _info_visible(false)
 {
     GUI::_instance = this;
+
+    PDP(tracker) = &tracker;
+    PD(posture_window).set_bounds(Bounds(_average_image.cols - 550 - 10, 100, 550, 400));
+    PD(gui).set_size(Size2(average.cols, average.rows));
+    PDP(video_source) = &video_source;
+
     gui::globals::Cache::init();
     
-    _timeline = std::make_shared<Timeline>(*this, _frameinfo);
-    _gui.root().insert_cache(_base, std::make_shared<CacheObject>());
+    PDP(timeline) = std::make_shared<Timeline>(*this, _frameinfo);
+    PD(gui).root().insert_cache(_base, std::make_shared<CacheObject>());
     
-    _info.set_origin(Vec2(0.5, 0.5));
-    _info.set_background(Color(50, 50, 50, 150), Black.alpha(150));
-    
-    _histogram.set_origin(Vec2(0.5, 0.5));
-    _midline_histogram.set_origin(Vec2(0.5, 0.5));
-    _length_histogram.set_origin(Vec2(0.5, 0.5));
+    PD(info).set_pos(Vec2(_average_image.cols * 0.5, _average_image.rows * 0.5));
+    PD(info).set_max_size(Size2(min(_average_image.cols * 0.75, 700), min(_average_image.rows * 0.75, 700)));
+    PD(info).set_origin(Vec2(0.5, 0.5));
+    PD(info).set_background(Color(50, 50, 50, 150), Black.alpha(150));
+
+    PD(histogram).set_bounds(Bounds(_average_image.cols * 0.5, 450, 800, 300));
+    PD(midline_histogram).set_bounds(Bounds(_average_image.cols * 0.5, _average_image.rows * 0.5, 800, 300));
+    PD(length_histogram).set_bounds(Bounds(_average_image.cols * 0.5, 800, 800, 300));
+
+    PD(histogram).set_origin(Vec2(0.5, 0.5));
+    PD(midline_histogram).set_origin(Vec2(0.5, 0.5));
+    PD(length_histogram).set_origin(Vec2(0.5, 0.5));
     
     for(size_t i=0; i<2; ++i)
-        _fish_graphs.push_back(new PropertiesGraph(_tracker, _gui.mouse_position()));
+        PD(fish_graphs).push_back(new PropertiesGraph(PD(tracker), PD(gui).mouse_position()));
     
     auto callback = "TRex::GUI";
     auto changed = [callback, this](sprite::Map::Signal signal, sprite::Map& map, const std::string& name, const sprite::PropertyType& value)
@@ -244,9 +383,9 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                 
             if(name == "output_graphs" || name == "limit" || name == "event_min_peak_offset" || name == "output_normalize_midline_data") {//name != "gui_frame" && name != "analysis_paused") {
                 Output::Library::clear_cache();
-                for(auto &graph : _fish_graphs)
+                for(auto &graph : PD(fish_graphs))
                     graph->reset();
-                set_redraw();
+                GUI::set_redraw();
             }
             
             if(name == "exec") {
@@ -261,16 +400,16 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                 try {
                     this->load_connectivity_matrix();
                 } catch(const UtilsException&) { }
-                this->set_redraw();
+                GUI::set_redraw();
             }
         
             if((name == "track_threshold" || name == "grid_points" || name == "recognition_shapes" || name == "grid_points_scaling" || name == "recognition_border_shrink_percent" || name == "recognition_border" || name == "recognition_coeff" || name == "recognition_border_size_rescale") && Tracker::instance())
             {
                 this->work().add_queue("updating border", [this, name](){
                     if(name == "recognition_coeff" || name == "recognition_border_shrink_percent" || name == "recognition_border_size_rescale" || name == "recognition_border") {
-                        _tracker.border().clear();
+                        PD(tracker).border().clear();
                     }
-                    _tracker.border().update(*_video_source);
+                    PD(tracker).border().update(PD(video_source));
                     
                     {
                         Tracker::LockGuard guard("setting_changed_"+name);
@@ -283,13 +422,13 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                     }
                     
                     std::lock_guard<std::recursive_mutex> lock_guard(this->gui().lock());
-                    _recognition_image.set_source(Image::Make());
-                    cache().set_tracking_dirty();
-                    cache().set_blobs_dirty();
-                    cache().recognition_updated = true;
-                    this->set_redraw();
-                    if(_dataset)
-                        _dataset->clear_cache();
+                    PD(recognition_image).set_source(Image::Make());
+                    PD(cache).set_tracking_dirty();
+                    PD(cache).set_blobs_dirty();
+                    PD(cache).recognition_updated = true;
+                    GUI::set_redraw();
+                    if(PD(dataset))
+                        PD(dataset)->clear_cache();
                 });
             }
         
@@ -316,26 +455,26 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
             };
             
             if(name == "gui_equalize_blob_histograms") {
-                GUI::cache().set_tracking_dirty();
-                GUI::cache().set_blobs_dirty();
-                GUI::cache().set_raw_blobs_dirty();
-                GUI::cache().last_frame = -1;
-                this->set_redraw();
+                PD(cache).set_tracking_dirty();
+                PD(cache).set_blobs_dirty();
+                PD(cache).set_raw_blobs_dirty();
+                PD(cache).last_frame = -1;
+                GUI::set_redraw();
             }
         
             if(contains(display_fields, name)) {
-                GUI::cache().set_tracking_dirty();
-                this->set_redraw();
+                PD(cache).set_tracking_dirty();
+                GUI::set_redraw();
             }
             
             if(name == "output_normalize_midline_data") {
-                _posture_window.set_fish(NULL);
-                this->set_redraw();
+                PD(posture_window).set_fish(NULL);
+                GUI::set_redraw();
             }
             
             if(name == "gui_mode") {
                 //globals::_settings.mode = (Mode)value.value<int>();
-                this->set_redraw();
+                GUI::set_redraw();
             }
             
             if(name == "gui_background_color") {
@@ -344,10 +483,10 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
             
             if(name == "gui_interface_scale") {
                 if(_base) {
-                    _cache.recognition_updated = false;
+                    PD(cache).recognition_updated = false;
                     
                     //auto size = _base ? _base->window_dimensions() : Size2(_average_image);
-                    auto size = (screen_dimensions() / gui::interface_scale()).mul(_gui.scale());
+                    auto size = (screen_dimensions() / gui::interface_scale()).mul(PD(gui).scale());
                     
                     Event e(WINDOW_RESIZED);
                     e.size.width = size.width;
@@ -375,12 +514,12 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                         //Tracker::LockGuard tracker_lock;
                         auto first_change = Tracker::instance()->update_with_manual_matches(matches);
                         
-                        std::lock_guard<std::recursive_mutex> guard(_gui.lock());
+                        std::lock_guard<std::recursive_mutex> guard(PD(gui).lock());
                         if(first_change != -1)
-                            _timeline->reset_events(first_change);
+                            PD(timeline)->reset_events(first_change);
                         
-                        if(this->analysis())
-                            this->analysis()->bump();
+                        if(GUI::analysis())
+                            GUI::analysis()->bump();
                     });
                 }
                 
@@ -398,8 +537,8 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                         if(itn->first != ito->first || itn->second != ito->second) {
                             long_t frame = min(itn->first, ito->first);
                             if(frame == this->frame()) {
-                                cache().last_threshold = -1;
-                                cache().set_tracking_dirty();
+                                PD(cache).last_threshold = -1;
+                                PD(cache).set_tracking_dirty();
                             }
                             //reanalyse_from(frame);
                             break;
@@ -414,7 +553,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
         });
     };
     
-    _work_progress = new WorkProgress;
+    PDP(work_progress) = new WorkProgress;
     
     GlobalSettings::map().register_callback(callback, changed);
     changed(sprite::Map::Signal::NONE, GlobalSettings::map(), "manual_matches", SETTING(manual_matches).get());
@@ -431,10 +570,10 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
     
     { // do this in order to trigger calculating pixel percentages
         Tracker::LockGuard guard("GUI::update_data(-1)");
-        cache().update_data(FAST_SETTINGS(analysis_range).first);
+        PD(cache).update_data(FAST_SETTINGS(analysis_range).first);
     }
     
-    while(!_timeline->update_thread_updated_once()) {
+    while(!PD(timeline)->update_thread_updated_once()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
@@ -456,81 +595,68 @@ GUI::~GUI() {
         delete _http_gui;
 #endif
     
-    _timeline = nullptr;
+    _private_data->_timeline = nullptr;
     set_base(nullptr);
     
     {
-        std::lock_guard<std::recursive_mutex> lock(_gui.lock());
+        std::lock_guard<std::recursive_mutex> lock(_private_data->_gui.lock());
         GUI::_instance = NULL;
     }
     
-    delete _work_progress;
+    delete _private_data->_work_progress;
         
     {
-        std::lock_guard<std::recursive_mutex> lock(_gui.lock());
+        std::lock_guard<std::recursive_mutex> lock(_private_data->_gui.lock());
         for(auto d : _static_pointers) {
             d->clear_parent_dont_check();
         }
     }
     
-    if(_recording_capture) {
-        std::lock_guard<std::recursive_mutex> guard(_gui.lock());
-        _recording = false;
-        delete _recording_capture;
+    if(_private_data->_recording_capture) {
+        std::lock_guard<std::recursive_mutex> guard(_private_data->_gui.lock());
+        _private_data->_recording = false;
+        delete _private_data->_recording_capture;
     }
+
+    delete _private_data;
 }
 
-    void GUI::set_base(gui::Base* base) {
-        std::lock_guard<std::recursive_mutex> guard(_gui.lock());
-        _base = base;
+void GUI::set_base(gui::Base* base) {
+    std::lock_guard<std::recursive_mutex> guard(PD(gui).lock());
+    _base = base;
         
-        if(_base) {
-            /*auto desktop_mode = sf::VideoMode::getDesktopMode();
-            float window_scale = min((desktop_mode.height - 100) / (float)average.rows,
-                                     (desktop_mode.width  - 50) / (float)average.cols);
+    if(_base) {
+        auto size = (screen_dimensions() / gui::interface_scale()).mul(PD(gui).scale());
             
-            float width  = average.cols * window_scale,
-                  height = average.rows * window_scale;
-        
-            window().setSize(sf::Vector2u(width, height));
-            window().setPosition(sf::Vector2i(desktop_mode.width  * 0.5
-                                              width * 0.5,
-              desktop_mode.height * 0.5 - height * 0.5
-    #if __APPLE__
-              + 35
-    #endif
-              ));
+        Event e(EventType::WINDOW_RESIZED);
+        e.size.width = size.width;
+        e.size.height = size.height;
+        local_event(e);
             
-            sf::Event e;
-            e.type = sf::Event::Resized;
-            e.size.width = width;
-            e.size.height = height;
-            local_event(e);*/
-            
-            //auto size = _base ?  _base->window_dimensions() : Size2(_average_image);
-            auto size = (screen_dimensions() / gui::interface_scale()).mul(_gui.scale());
-            
-            Event e(EventType::WINDOW_RESIZED);
-            e.size.width = size.width;
-            e.size.height = size.height;
-            local_event(e);
-            
-            _base->set_title(window_title());
-        }
+        _base->set_title(window_title());
     }
+}
     
-bool GUI::run() const {
+bool GUI::run() {
     return GUI_SETTINGS(gui_run);
 }
 
 gui::GUICache& GUI::cache() {
-    return instance()->_cache;
+    return PD(cache);
+}
+
+gui::DrawStructure& GUI::gui() {
+    return PD(gui);
+}
+
+gui::FrameInfo& GUI::frameinfo() {
+    return instance()->_frameinfo;
 }
 
 WorkProgress& GUI::work() {
     if (!instance())
         U_EXCEPTION("No instance.");
-    return *instance()->_work_progress;
+    return PD(work_progress);
 }
 
 void GUI::run(bool r) {
@@ -587,55 +713,56 @@ void GUI::load_connectivity_matrix() {
     Debug("%d frames read (%d-%d)", matrix.size(), min_frame, max_frame);
     SETTING(gui_connectivity_matrix) = matrix;
     
-    SETTING(gui_frame) = min_frame;
-    _cache.connectivity_reload = true;
+    SETTING(gui_frame) = Frame_t(min_frame);
+    PD(cache).connectivity_reload = true;
 }
 
 void GUI::run_loop(gui::LoopStatus status) {
-    static long_t image_index = -1;
+    static Frame_t image_index;
     static float t = 0.0;
     static Timer timer, redraw_timer;
     
-    image_index = frame();
+    image_index = GUI::frame();
     
     t += timer.elapsed();
     timer.reset();
     bool is_automatic = false;
 #if WITH_MHD
-    Base* base = _base; //? _base : (_http_gui ? &_http_gui->base() : nullptr);
+    Base* base = GUI::instance()->base(); //? _base : (_http_gui ? &_http_gui->base() : nullptr);
 #else
-    Base* base = _base;
+    Base* base = GUI::instance()->base();
 #endif
     
-    if(!run()) {
+    if(!GUI::run()) {
         t = 0;
         
-        if(!GUI_SETTINGS(nowindow) && cache().is_animating() &&  redraw_timer.elapsed() >= 0.2) {
+        if(!GUI_SETTINGS(nowindow) && PD(cache).is_animating() &&  redraw_timer.elapsed() >= 0.2) {
             redraw_timer.reset();
             //set_redraw();
-            _gui.set_dirty(base);
+            GUI::gui().set_dirty(base);
             is_automatic = true;
             
-        } else if((!GUI_SETTINGS(nowindow) && redraw_timer.elapsed() >= 0.30) || _recording) {
+        } else if((!GUI_SETTINGS(nowindow) && redraw_timer.elapsed() >= 0.30) || PD(recording)) {
             redraw_timer.reset();
             //set_redraw();
-            _gui.set_dirty(base);
+            GUI::gui().set_dirty(base);
             is_automatic = true;
         }
         
-    } else if (image_index > -1 && !_recording) {
+    } else if (image_index > -1 && !PD(recording)) {
         const float frame_rate = 1.f / (float(GUI_SETTINGS(frame_rate)) * GUI_SETTINGS(gui_playback_speed));
         float inc = t / frame_rate;
         bool is_required = false;
         
         if(inc >= 1) {
             auto before = image_index;
-            image_index = max(0, _tracker.start_frame(), min((float)_tracker.end_frame(), image_index + inc));
+            if(PD(tracker).start_frame().valid())
+                image_index = max(0, PD(tracker).start_frame(), min((float)PD(tracker).end_frame(), image_index + inc));
             
             t = 0;
             if(before != image_index) {
-                set_redraw();
-                _gui.set_dirty(base);
+                GUI::set_redraw();
+                GUI::gui().set_dirty(base);
                 is_required = true;
             }
         }
@@ -643,51 +770,51 @@ void GUI::run_loop(gui::LoopStatus status) {
         if(redraw_timer.elapsed() >= 0.1) {
             redraw_timer.reset();
             //set_redraw();
-            _gui.set_dirty(base);
+            PD(gui).set_dirty(base);
             if(!is_required)
                 is_automatic = true;
         }
         
-        /*if (image_index > _tracker.end_frame()) {
-            image_index = _tracker.end_frame();
+        /*if (image_index > PD(tracker).end_frame()) {
+            image_index = PD(tracker).end_frame();
         }*/
         
-    } else if(image_index == -1)
-        image_index = _tracker.start_frame();
+    } else if(!image_index.valid())
+        image_index = PD(tracker).start_frame();
     
-    if(_recording) {
+    if(PD(recording)) {
         //! playback_speed can only make it faster
         const float frames_per_second = max(1, GUI_SETTINGS(gui_playback_speed));
-        image_index+=frames_per_second;
+        image_index += frames_per_second;
         
-        if (image_index > _tracker.end_frame()) {
-            image_index = _tracker.end_frame();
-            stop_recording();
+        if (image_index > PD(tracker).end_frame()) {
+            image_index = PD(tracker).end_frame();
+            GUI::stop_recording();
         }
     }
     
-    const bool changed = (base && (!_gui.root().cached(base) || _gui.root().cached(base)->changed())) || cache().must_redraw() || status == LoopStatus::UPDATED;
-    _real_update = changed && (!is_automatic || run() || _recording);
+    const bool changed = (base && (!GUI::gui().root().cached(base) || GUI::gui().root().cached(base)->changed())) || PD(cache).must_redraw() || status == LoopStatus::UPDATED;
+    PD(real_update) = changed && (!is_automatic || GUI::run() || PD(recording));
     
-    if(changed || last_frame_change.elapsed() < 0.5) {
+    if(changed || PD(last_frame_change).elapsed() < 0.5) {
         if(changed) {
-            CacheObject::Ptr ptr = _gui.root().cached(base);
+            CacheObject::Ptr ptr = PD(gui).root().cached(base);
             if(base && !ptr) {
                 ptr = std::make_shared<CacheObject>();
-                _gui.root().insert_cache(base, ptr);
+                PD(gui).root().insert_cache(base, ptr);
             }
             if(ptr)
                 ptr->set_changed(false);
         }
         
-        if(frame() != image_index) {
+        if(GUI::frame() != image_index) {
             SETTING(gui_frame) = image_index;
         }
         
         //std::vector<std::string> changed_objects_str;
         size_t changed_objects = 0;
         if(!is_automatic && changed) {
-            auto o = _gui.collect();
+            auto o = PD(gui).collect();
             for(auto obj : o) {
                 if(obj->type() == Type::SINGLETON) {
                     obj = static_cast<SingletonObject*>(obj)->ptr();
@@ -699,23 +826,23 @@ void GUI::run_loop(gui::LoopStatus status) {
             }
         }
         
-        _frameinfo.frameIndex = GUI::frame();
+        GUI::frameinfo().frameIndex = GUI::frame();
         
         static Timer last_redraw;
-        if(!_recording)
-            cache().set_dt(last_redraw.elapsed());
+        if(!PD(recording))
+            PD(cache).set_dt(last_redraw.elapsed());
         else
-            cache().set_dt(0.75f / (float(GUI_SETTINGS(frame_rate))));
+            PD(cache).set_dt(0.75f / (float(GUI_SETTINGS(frame_rate))));
         
-        if(_base)
-            _gui.set_dialog_window_size(_base->window_dimensions().div(_gui.scale()) * gui::interface_scale());
-        this->redraw();
+        if(GUI::instance()->base())
+            PD(gui).set_dialog_window_size(GUI::instance()->base()->window_dimensions().div(PD(gui).scale()) * gui::interface_scale());
+        GUI::redraw();
         
-        cache().on_redraw();
+        PD(cache).on_redraw();
         last_redraw.reset();
         
         {
-            auto o = _gui.collect();
+            auto o = PD(gui).collect();
             for(auto obj : o) {
                 if(obj->type() == Type::SINGLETON) {
                     obj = static_cast<SingletonObject*>(obj)->ptr();
@@ -731,31 +858,31 @@ void GUI::run_loop(gui::LoopStatus status) {
             /*auto str = Meta::toStr(changed_objects_str);
             Debug("changed: %S", &str);
             Debug("%d changed objects", changed_objects);*/
-            last_frame_change.reset();
+            PD(last_frame_change).reset();
         }
         
         //Debug("Timer/frame %f", timer.elapsed());
     }
     
-    if(_recording)
-        _recording_frame = image_index;
+    if(PD(recording))
+        PD(recording_frame) = image_index;
     
-    update_backups();
+    GUI::update_backups();
 }
 
 void GUI::do_recording() {
-    if(!_recording || _recording_frame == _last_recording_frame || !_base)
+    if(!PD(recording) || PD(recording_frame) == PD(last_recording_frame) || !_base)
         return;
     
     assert(_base->frame_recording());
     static Timing timing("recording_timing");
     TakeTiming take(timing);
     
-    if(_last_recording_frame == -1) {
-        _last_recording_frame = _recording_frame;
+    if(PD(last_recording_frame) == -1) {
+        PD(last_recording_frame) = PD(recording_frame);
         return; // skip first frame
     }
-    _last_recording_frame = _recording_frame;
+    PD(last_recording_frame) = PD(recording_frame);
     
     auto& image = _base->current_frame_buffer();
     if(!image || image->empty() || !image->cols || !image->rows) {
@@ -765,11 +892,11 @@ void GUI::do_recording() {
     
     auto mat = image->get();
     
-    if(_recording_capture) {
+    if(PDP(recording_capture)) {
         static cv::Mat output;
-        auto bounds = Bounds(0, 0, _recording_size.width, _recording_size.height);
-        if(output.size() != _recording_size) {
-            output = cv::Mat::zeros(_recording_size.height, _recording_size.width, CV_8UC3);
+        auto bounds = Bounds(0, 0, PD(recording_size).width, PD(recording_size).height);
+        if(output.size() != PD(recording_size)) {
+            output = cv::Mat::zeros(PD(recording_size).height, PD(recording_size).width, CV_8UC3);
         }
         
         auto input_bounds = bounds;
@@ -782,23 +909,23 @@ void GUI::do_recording() {
             output.mul(cv::Scalar(0));
         
         cv::cvtColor(mat(input_bounds), output(output_bounds), cv::COLOR_RGBA2RGB);
-        _recording_capture->write(output);
+        PD(recording_capture).write(output);
         
     } else {
         std::stringstream ss;
-        ss << std::setw(6) << std::setfill('0') << _recording_frame << "." << _recording_format.name();
-        //image.saveToFile((_recording_path / ss.str()).str());
-        auto filename = _recording_path / ss.str();
+        ss << std::setw(6) << std::setfill('0') << PD(recording_frame) << "." << PD(recording_format).name();
+        //image.saveToFile((PD(recording_path) / ss.str()).str());
+        auto filename = PD(recording_path) / ss.str();
         
-        if(_recording_format == "jpg") {
+        if(PD(recording_format) == "jpg") {
             cv::Mat output;
             cv::cvtColor(mat, output, cv::COLOR_RGBA2RGB);
             if(!cv::imwrite(filename.str(), output, { cv::IMWRITE_JPEG_QUALITY, 100 })) {
                 Except("Cannot save to '%S'. Stopping recording.", &filename.str());
-                _recording = false;
+                PD(recording) = false;
             }
             
-        } else if(_recording_format == "png") {
+        } else if(PD(recording_format) == "png") {
             static std::vector<uchar> binary;
             static Image image;
             if(image.cols != (uint)mat.cols || image.rows != (uint)mat.rows)
@@ -815,15 +942,15 @@ void GUI::do_recording() {
                 fclose(f);
             } else {
                 Except("Cannot write to '%S'. Stopping recording.", &filename.str());
-                _recording = false;
+                PD(recording) = false;
             }
         }
     }
     
     static Timer last_print;
     if(last_print.elapsed() > 2) {
-        DurationUS duration{static_cast<uint64_t>((_recording_frame - _recording_start) / float(FAST_SETTINGS(frame_rate)) * 1000) * 1000};
-        auto str = ("frame "+Meta::toStr(_recording_frame)+"/"+Meta::toStr(_cache.tracked_frames.end)+" length: "+Meta::toStr(duration));
+        DurationUS duration{static_cast<uint64_t>((PD(recording_frame) - PD(recording_start)) / float(FAST_SETTINGS(frame_rate)) * 1000) * 1000};
+        auto str = ("frame "+Meta::toStr(PD(recording_frame))+"/"+Meta::toStr(PD(cache).tracked_frames.end)+" length: "+Meta::toStr(duration));
         auto playback_speed = GUI_SETTINGS(gui_playback_speed);
         if(playback_speed > 1) {
             duration.timestamp = uint64_t(double(duration.timestamp) / double(playback_speed));
@@ -835,21 +962,21 @@ void GUI::do_recording() {
 }
 
 bool GUI::is_recording() const {
-    return _recording;
+    return PD(recording);
 }
 
 void GUI::start_recording() {
-    if(_base) {
-        _recording_start = frame()+1;
-        _last_recording_frame = -1;
-        _recording = true;
-        _base->set_frame_recording(true);
+    if(GUI::instance()->base()) {
+        PD(recording_start) = frame()+1;
+        PD(last_recording_frame) = -1;
+        PD(recording) = true;
+        GUI::instance()->base()->set_frame_recording(true);
         
-        file::Path frames = frame_output_dir();
+        file::Path frames = GUI::frame_output_dir();
         if(!frames.exists()) {
             if(!frames.create_folder()) {
                 Error("Cannot create folder '%S'. Cannot record.", &frames.str());
-                _recording = false;
+                PD(recording) = false;
                 return;
             }
         }
@@ -881,10 +1008,13 @@ void GUI::start_recording() {
         Debug("Clip index is %d. Starting at frame %d.", max_number, frame());
         
         frames = frames / ("clip" + Meta::toStr(max_number));
-        cv::Size size(_base && dynamic_cast<IMGUIBase*>(_base) ? static_cast<IMGUIBase*>(_base)->real_dimensions() : _base->window_dimensions());
+        cv::Size size(GUI::instance()->base() 
+            && dynamic_cast<IMGUIBase*>(GUI::instance()->base()) 
+            ? static_cast<IMGUIBase*>(GUI::instance()->base())->real_dimensions()
+            : GUI::instance()->base()->window_dimensions());
         
         using namespace default_config;
-        auto format = SETTING(gui_recording_format).value<gui_recording_format_t::Class>();
+        auto format = SETTING(guiPD(recording_format)).value<gui_recording_format_t::Class>();
         
         if(format == gui_recording_format_t::avi) {
             auto original_dims = size;
@@ -895,16 +1025,16 @@ void GUI::start_recording() {
             Debug("Trying to record with size %dx%d instead of %fx%f @ %d", size.width, size.height, original_dims.width, original_dims.height, FAST_SETTINGS(frame_rate));
             
             frames = frames.add_extension("avi").str();
-            _recording_capture = new cv::VideoWriter(frames.str(),
+            PDP(recording_capture) = new cv::VideoWriter(frames.str(),
                 cv::VideoWriter::fourcc('F','F','V','1'),
                                                      //cv::VideoWriter::fourcc('H','2','6','4'), //cv::VideoWriter::fourcc('I','4','2','0'),
                                                      FAST_SETTINGS(frame_rate), size, true);
             
-            if(!_recording_capture->isOpened()) {
+            if(!PD(recording_capture).isOpened()) {
                 Except("Cannot open video writer for path '%S'.", &frames.str());
-                _recording = false;
-                delete _recording_capture;
-                _recording_capture = NULL;
+                PD(recording) = false;
+                delete PDP(recording_capture);
+                PDP(recording_capture) = NULL;
                 
                 return;
             }
@@ -913,7 +1043,7 @@ void GUI::start_recording() {
             if(!frames.exists()) {
                 if(!frames.create_folder()) {
                     Error("Cannot create folder '%S'. Cannot record.", &frames.str());
-                    _recording = false;
+                    PD(recording) = false;
                     return;
                 } else
                     Debug("Created folder '%S'.", &frames.str());
@@ -922,30 +1052,30 @@ void GUI::start_recording() {
         
         Debug("Recording to '%S'... (%s)", &frames.str(), format.name());
         
-        _recording_size = size;
-        _recording_path = frames;
-        _recording_format = format;
+        PD(recording_size) = size;
+        PD(recording_path) = frames;
+        PD(recording_format) = format;
     }
 }
 
 void GUI::stop_recording() {
-    if(!_base)
+    if(!GUI::instance()->base())
         return;
-    _base->set_frame_recording(false);
+    GUI::instance()->base()->set_frame_recording(false);
     
-    if(_recording_capture) {
-        //_recording_capture->release();
-        delete _recording_capture;
-        _recording_capture = NULL;
+    if(PDP(recording_capture)) {
+        //PD(recording_capture)->release();
+        delete PDP(recording_capture);
+        PDP(recording_capture) = NULL;
         
         file::Path ffmpeg = SETTING(ffmpeg_path);
         if(!ffmpeg.empty()) {
-            file::Path save_path = _recording_path.replace_extension("mov");
-            std::string cmd = ffmpeg.str()+" -i "+_recording_path.str()+" -vcodec h264 -pix_fmt yuv420p -crf 15 -y "+save_path.str();
+            file::Path save_path = PD(recording_path).replace_extension("mov");
+            std::string cmd = ffmpeg.str()+" -i "+PD(recording_path).str()+" -vcodec h264 -pix_fmt yuv420p -crf 15 -y "+save_path.str();
             
-            _gui.dialog([save_path, cmd, this](Dialog::Result result){
+            PD(gui).dialog([save_path, cmd](Dialog::Result result){
                 if(result == Dialog::OKAY) {
-                    this->work().add_queue("converting video...", [cmd=cmd, save_path=save_path](){
+                    GUI::work().add_queue("converting video...", [cmd=cmd, save_path=save_path](){
                         Debug("Running '%S'..", &cmd);
                         if(system(cmd.c_str()) == 0)
                             Debug("Saved video at '%S'.", &save_path.str());
@@ -958,14 +1088,14 @@ void GUI::stop_recording() {
         }
         
     } else {
-        auto clip_name = std::string(_recording_path.filename());
-        printf("ffmpeg -start_number %d -i %s/%%06d.%s -vcodec h264 -crf 13 -vf 'scale=trunc(iw/2)*2:trunc(ih/2)*2' -profile:v main -pix_fmt yuv420p %s.mp4\n", _recording_start, _recording_path.str().c_str(), _recording_format.name(), clip_name.c_str());
+        auto clip_name = std::string(PD(recording_path).filename());
+        printf("ffmpeg -start_number %d -i %s/%%06d.%s -vcodec h264 -crf 13 -vf 'scale=trunc(iw/2)*2:trunc(ih/2)*2' -profile:v main -pix_fmt yuv420p %s.mp4\n", PD(recording_start), PD(recording_path).str().c_str(), PD(recording_format).name(), clip_name.c_str());
     }
     
-    _recording = false;
-    _last_recording_frame = -1;
+    PD(recording) = false;
+    PD(last_recording_frame) = -1;
     
-    DebugCallback("Stopped recording to '%S'.", &_recording_path.str());
+    DebugCallback("Stopped recording to '%S'.", &PD(recording_path).str());
 }
 
 void GUI::trigger_redraw() {
@@ -980,19 +1110,23 @@ std::string GUI::window_title() const {
         + (output_prefix.empty() ? "" : (" ["+output_prefix+"]"));
 }
 
+pv::File* GUI::video_source() {
+    return PDP(video_source);
+}
+
 void GUI::redraw() {
     static bool added = false;
     static ExternalImage* gui_background = NULL, //*corrected_bg = NULL,
     *gui_mask = NULL;
     
-    std::unique_lock<std::recursive_mutex> lock(_gui.lock());
+    std::unique_lock<std::recursive_mutex> lock(PD(gui).lock());
     
     if(!added) {
         added = true;
         
         gpuMat bg;
-        _video_source->average().copyTo(bg);
-        _video_source->processImage(bg, bg, false);
+        PD(video_source).average().copyTo(bg);
+        PD(video_source).processImage(bg, bg, false);
         cv::Mat original;
         bg.copyTo(original);
         /*cv::Mat corrected;
@@ -1003,26 +1137,26 @@ void GUI::redraw() {
         gui_background = new ExternalImage(Image::Make(original), Vec2(0, 0), Vec2(1), Color(255, 255, 255, 125));
         //corrected_bg = new ExternalImage(corrected, Vec2(0, 0));
         
-        gui_background->add_event_handler(EventType::MBUTTON, [this](Event e){
+        gui_background->add_event_handler(EventType::MBUTTON, [](Event e){
             if(e.mbutton.pressed) {
                 if(e.mbutton.button == 1)
-                    _current_boundary.clear();
-                this->_clicked_background(Vec2(e.mbutton.x, e.mbutton.y).map<round>(), e.mbutton.button == 1, "");
+                    PD(current_boundary).clear();
+                PD(clicked_background)(Vec2(e.mbutton.x, e.mbutton.y).map<round>(), e.mbutton.button == 1, "");
             }
         });
         gui_background->set_clickable(true);
         
         /*corrected_bg->add_event_handler(EventType::MBUTTON, [this](Event e){
             if(e.mbutton.pressed)
-                this->_clicked_background(Vec2(e.mbutton.x, e.mbutton.y).map(roundf), e.mbutton.button == 1);
+                PD(clicked_background)(Vec2(e.mbutton.x, e.mbutton.y).map(roundf), e.mbutton.button == 1);
         });
         corrected_bg->set_clickable(true);*/
         
         gui_background->set_name("gui_background");
         //corrected_bg->set_name("corrected_bg");
         
-        if(_video_source->has_mask()) {
-            cv::Mat mask = _video_source->mask().mul(cv::Scalar(255));
+        if(PD(video_source).has_mask()) {
+            cv::Mat mask = PD(video_source).mask().mul(cv::Scalar(255));
             mask.convertTo(mask, CV_8UC1);
             
             gui_mask = new ExternalImage(Image::Make(mask), Vec2(0, 0), Vec2(1), Color(255, 255, 255, 125));
@@ -1034,16 +1168,16 @@ void GUI::redraw() {
     image->set_color(Color(255, 255, 255, alpha ? alpha : 1));
     
     if(alpha > 0) {
-        _gui.wrap_object(*image);
+        PD(gui).wrap_object(*image);
         if(gui_mask) {
             gui_mask->set_color(image->color().alpha(image->color().a * 0.5));
-            _gui.wrap_object(*gui_mask);
+            PD(gui).wrap_object(*gui_mask);
         }
     }
     
     //const Mode mode = (Mode)VALUE(mode).value<int>();
-    auto ptr = _gui.find("fishbowl");
-    if(ptr && (cache().is_animating(ptr) || cache().blobs_dirty() || cache().is_tracking_dirty())) {
+    auto ptr = PD(gui).find("fishbowl");
+    if(ptr && (PD(cache).is_animating(ptr) || PD(cache).blobs_dirty() || PD(cache).is_tracking_dirty())) {
         assert(dynamic_cast<Section*>(ptr));
         
         auto pos = static_cast<Section*>(ptr)->pos();
@@ -1056,51 +1190,51 @@ void GUI::redraw() {
         }
     }
     
-    draw(_gui);
-    //_gui.print(_base ? _base : &_http_gui->base());
+    instance()->draw(PD(gui));
+    //PD(gui).print(_base ? _base : &_http_gui->base());
 }
 
 void GUI::draw(DrawStructure &base) {
     const auto mode = GUI_SETTINGS(gui_mode);
     
-    if(_gui_last_frame != frame()) {
-        _tdelta_gui = _gui_last_frame_timer.elapsed() / (frame() - _gui_last_frame);
-        _gui_last_frame = frame();
-        _gui_last_frame_timer.reset();
+    if(PD(gui_last_frame) != frame()) {
+        PD(tdelta_gui) = PD(gui_last_frame_timer).elapsed() / (frame() - PD(gui_last_frame));
+        PD(gui_last_frame) = frame();
+        PD(gui_last_frame_timer).reset();
     }
     
-    _gui.section("show", [this, mode](DrawStructure &base, auto* section) {
+    PD(gui).section("show", [this, mode](DrawStructure &base, auto* section) {
         Tracker::LockGuard guard("show()", 100);
-        if(!guard.locked() || !_real_update) {
+        if(!guard.locked() || !PD(real_update)) {
             section->reuse_objects();
         } else {
-            _cache.update_data(this->frame());
+            PD(cache).update_data(this->frame());
             this->draw_raw(base, this->frame());
-            _cache.set_mode(mode);
+            PD(cache).set_mode(mode);
             
             if(mode == gui::mode_t::tracking)
                 this->draw_tracking(base, this->frame());
             else if(mode == gui::mode_t::blobs)
                 this->draw_raw_mode(base, this->frame());
             
-            _cache.updated_blobs();
+            PD(cache).updated_blobs();
         }
     });
     
     
     if(mode == gui::mode_t::optical_flow) {
-        _gui.section("optical", [this](auto& base, auto) {
+        PD(gui).section("optical", [this](auto& base, auto) {
             this->debug_optical_flow(base, this->frame());
         });
     }
     
-    if(_timeline->visible()) {
+    if(PD(timeline)->visible()) {
         DrawStructure::SectionGuard section(base, "head");
         auto scale = base.scale().reciprocal();
         auto dim = _base ? _base->window_dimensions().mul(scale * gui::interface_scale()) : Tracker::average().bounds().size();
         base.draw_log_messages(Bounds(Vec2(0, 85).mul(scale * gui::interface_scale()), dim - Size2(10, 85).mul(scale * gui::interface_scale())));
         
-        if(_cache.has_selection()) {
+        if(PD(cache).has_selection()) {
             /*****************************
              * display the fishX info card
              *****************************/
@@ -1118,7 +1252,7 @@ void GUI::draw(DrawStructure &base) {
          * DISPLAY TIMELINE
          * -----------------------------
          */
-        _timeline->draw(base);
+        PD(timeline)->draw(base);
         
         /**
          * -----------------------------
@@ -1130,21 +1264,21 @@ void GUI::draw(DrawStructure &base) {
         draw_menu(base);
         
         if(FAST_SETTINGS(calculate_posture) && GUI_SETTINGS(gui_show_midline_histogram)) {
-            _midline_histogram.set_scale(base.scale().reciprocal());
-            base.wrap_object(_midline_histogram);
+            PD(midline_histogram).set_scale(base.scale().reciprocal());
+            base.wrap_object(PD(midline_histogram));
         }
         
         if(FAST_SETTINGS(calculate_posture) && GUI_SETTINGS(gui_show_histograms)) {
-            _histogram.set_scale(base.scale().reciprocal());
-            _length_histogram.set_scale(base.scale().reciprocal());
+            PD(histogram).set_scale(base.scale().reciprocal());
+            PD(length_histogram).set_scale(base.scale().reciprocal());
             
             Size2 window_size(_average_image.cols, _average_image.rows);
-            Vec2 pos = window_size * 0.5 - Vec2(0, (_histogram.global_bounds().height + _length_histogram.global_bounds().height + 10) * 0.5);
-            _histogram.set_pos(pos);
-            _length_histogram.set_pos(pos + Vec2(0, _histogram.global_bounds().height + 5));
+            Vec2 pos = window_size * 0.5 - Vec2(0, (PD(histogram).global_bounds().height + PD(length_histogram).global_bounds().height + 10) * 0.5);
+            PD(histogram).set_pos(pos);
+            PD(length_histogram).set_pos(pos + Vec2(0, PD(histogram).global_bounds().height + 5));
             
-            base.wrap_object(_histogram);
-            base.wrap_object(_length_histogram);
+            base.wrap_object(PD(histogram));
+            base.wrap_object(PD(length_histogram));
         }
         
         draw_footer(base);
@@ -1157,17 +1291,17 @@ void GUI::draw(DrawStructure &base) {
      */
     if(_info_visible) {
         static Timer info_timer;
-        if(info_timer.elapsed() > 5 || _info.txt().empty()) {
-            _info.set_txt(info(false));
+        if(info_timer.elapsed() > 5 || PD(info).txt().empty()) {
+            PD(info).set_txt(info(false));
             info_timer.reset();
         }
         
         auto screen = screen_dimensions();
-        _info.set_clickable(false);
-        _info.set_origin(Vec2(0.5));
-        _info.set_pos(screen * 0.5);
-        _info.set_scale(base.scale().reciprocal());
-        base.wrap_object(_info);
+        PD(info).set_clickable(false);
+        PD(info).set_origin(Vec2(0.5));
+        PD(info).set_pos(screen * 0.5);
+        PD(info).set_scale(base.scale().reciprocal());
+        base.wrap_object(PD(info));
     }
     
     static Textfield* ptr = NULL;
@@ -1200,14 +1334,14 @@ void GUI::reanalyse_from(long_t frame, bool in_thread) {
         return;
     
     auto fn = [gui = instance(), frame](){
-        auto before = gui->analysis()->is_paused();
+        auto before = GUI::analysis()->is_paused();
         if(!before)
-            gui->analysis()->set_paused(true).get();
+            GUI::analysis()->set_paused(true).get();
         
         {
             Tracker::instance()->wait();
             
-            std::lock_guard<std::recursive_mutex> gguard(gui->gui().lock());
+            std::lock_guard<std::recursive_mutex> gguard(GUI::gui().lock());
             Tracker::LockGuard guard("reanalyse_from");
             
             if(frame <= Tracker::end_frame()) {
@@ -1215,7 +1349,7 @@ void GUI::reanalyse_from(long_t frame, bool in_thread) {
                 gui->removed_frames(frame);
                 
                 Output::Library::clear_cache();
-                gui->_timeline->reset_events(frame);
+                PD(timeline)->reset_events(frame);
                 
             } else {
                 Except("The requested frame %d is not part of the video, and certainly beyond end_frame (%d).", frame, Tracker::end_frame());
@@ -1223,11 +1357,11 @@ void GUI::reanalyse_from(long_t frame, bool in_thread) {
         }
         
         if(!before)
-            gui->analysis()->set_paused(false).get();
+            GUI::analysis()->set_paused(false).get();
     };
     
     if(in_thread)
-        instance()->work().add_queue("calculating", fn);
+        GUI::work().add_queue("calculating", fn);
     else
         fn();
 }
@@ -1240,6 +1374,7 @@ void GUI::draw_export_options(gui::DrawStructure &base) {
         uint32_t _count = 0;
         Font _font = Font(0.5, Align::Left);
         Color _color = White;
+        std::set<std::string> _sources;
 
         Font font() const {
             return _font;
@@ -1249,8 +1384,22 @@ void GUI::draw_export_options(gui::DrawStructure &base) {
             return _color;
         }
 
+        std::string tooltip() const {
+            std::string append;
+            for (auto s : _sources) {
+                s = utils::lowercase(s);
+                if (utils::endsWith(s, "centroid")) {
+                    append.push_back(s[0]);
+                    append += "centroid";
+                }
+                else
+                    append += s;
+            }
+            return append;
+        }
+
         operator std::string() const {
-            return _name + " ("+Meta::toStr(_count)+")";
+            return _name + (_count ? " (" + Meta::toStr(_count) + ")" : "");
         }
 
         bool operator!=(const Item& other) const {
@@ -1293,33 +1442,24 @@ void GUI::draw_export_options(gui::DrawStructure &base) {
         });
     }
     
-    static const auto custom_string_less([](const std::string& A, const std::string& B) -> bool {
-        if(A.empty() || B.empty())
-            return A < B;
-        if(A.back() >= '0' && A.back() <= '9' && B.back() >= '0' && B.back() <= '9') {
-            // find the beginning of the numbers
-            auto ptr = A.data() + A.length() - 1;
-            while(ptr >= A.data() && *ptr >= '0' && *ptr <= '9')
-                --ptr;
-            auto numberA = Meta::fromStr<long_t>(std::string(ptr+1));
-            
-            ptr = B.data() + B.length() - 1;
-            while(ptr >= B.data() && *ptr >= '0' && *ptr <= '9')
-                --ptr;
-            auto numberB = Meta::fromStr<long_t>(std::string(ptr+1));
-            
-            return numberA < numberB;
-            
-        } else
-            return A < B;
-    });
-    
     auto graphs = SETTING(output_graphs).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
     auto graphs_map = [&graphs]() {
-        std::map<std::string, uint32_t> result;
-        for(auto &g : graphs)
-            if(search.text().empty() || utils::contains(utils::lowercase(g.first), utils::lowercase(search.text())))
-                ++result[g.first];
+        std::map<std::string, std::set<std::string>> result;
+        for(auto &g : graphs) {
+            static const std::set<Output::Modifiers::Class> wanted{
+                Output::Modifiers::CENTROID, 
+                Output::Modifiers::POSTURE_CENTROID, 
+                Output::Modifiers::WEIGHTED_CENTROID
+            };
+            OptionsList<Output::Modifiers::Class> modifiers;
+            for (auto& e : g.second) {
+                Output::Library::parse_modifiers(e, modifiers);
+            }
+            for (auto& e : modifiers.values()) {
+                if (wanted.contains(e))
+                    result[g.first].insert(e.name());
+            }
+        }
         return result;
     }();
     static decltype(graphs_map) previous_graphs;
@@ -1327,22 +1467,32 @@ void GUI::draw_export_options(gui::DrawStructure &base) {
     base.wrap_object(parent);
     parent.set_scale(base.scale().reciprocal());
     
-    if(previous_graphs != graphs_map) {
+    static std::string previous_text;
+    //
+    if(previous_graphs != graphs_map || search.text() != previous_text) {
         previous_graphs = graphs_map;
+        previous_text = search.text();
 
         auto functions = Output::Library::functions();
         std::vector<Item> items;
 
         for (auto& f : functions) {
-            if (!contains(graphs_map, f))
-                continue;
+            if (search.text().empty() || utils::contains(utils::lowercase(f), utils::lowercase(search.text()))) {
+                uint32_t count = 0;
+                std::set<std::string> append;
+                auto it = graphs_map.find(f);
+                if (it != graphs_map.end()) {
+                    count = it->second.size();
+                    append = it->second;
+                }
 
-            items.push_back(Item{ 
-                ._name = f, 
-                ._count = graphs_map.at(f),
-                ._color = Red
-            });
-            //items.push_back(Item{ f, Font(0.5, contains(graphs_map, f) ? Style::Bold : Style::Regular, Align::Left), contains(graphs_map, f) ? Red : White });
+                items.push_back(Item{
+                    ._name = f,
+                    ._count = count,
+                    ._font = Font(0.5, count ? Style::Bold : Style::Regular, Align::Left),
+                    ._sources = append
+                    });
+            }
         }
 
         export_options.set_items(items);
@@ -1440,17 +1590,17 @@ void GUI::draw_grid(gui::DrawStructure &base) {
 }
 
 void GUI::debug_optical_flow(DrawStructure &base, long_t frameIndex) {
-    if(size_t(frameIndex) >= _video_source->length())
+    if(size_t(frameIndex) >= PD(video_source).length())
         return;
     
     auto gen_ov = [this](long_t frameIndex, cv::Mat& image) -> std::vector<std::pair<std::vector<HorizontalLine>, std::vector<uchar>>>{
-        if(size_t(frameIndex) >= _video_source->length() || frameIndex < 0)
+        if(size_t(frameIndex) >= PD(video_source).length() || frameIndex < 0)
             return {};
         
         //image = cv::Mat::zeros(_average_image.rows, _average_image.cols, CV_8UC1);
         _average_image.get().copyTo(image);
         
-        pv::File *file = dynamic_cast<pv::File*>(_video_source);
+        pv::File *file = PDP(video_source);
         
         pv::Frame frame;
         file->read_frame(frame, frameIndex);
@@ -1468,7 +1618,7 @@ void GUI::debug_optical_flow(DrawStructure &base, long_t frameIndex) {
                 for (int x=l.x0; x<=l.x1; x++) {
                     int m = pixels->empty() ? 255 : pixels->at(pos++);
                     
-                    //if((int)_video_source->average().at<uchar>(l.y, x) - (int)m >= threshold)
+                    //if((int)PD(video_source).average().at<uchar>(l.y, x) - (int)m >= threshold)
                     {
                         image.at<uchar>(l.y, x) = m;
                         recount++;
@@ -1486,7 +1636,7 @@ void GUI::debug_optical_flow(DrawStructure &base, long_t frameIndex) {
         Tracker::LockGuard guard("draw_flow");
         
         cv::Mat current_, prev_;
-        gen_ov(frameIndex > _tracker.start_frame() ? frameIndex-1 : _tracker.start_frame(), prev_);
+        gen_ov(frameIndex > PD(tracker).start_frame() ? frameIndex-1 : PD(tracker).start_frame(), prev_);
         auto lines = gen_ov(frameIndex, current_);
         
         gpuMat current, prev;
@@ -1515,39 +1665,39 @@ void GUI::debug_optical_flow(DrawStructure &base, long_t frameIndex) {
         drawOptFlowMap(flow, image);
     };
     
-    if(_flow_frame != frameIndex) {
-        if(_next_frame == frameIndex) {
-            _cflow_next.copyTo(_cflow);
+    if(PD(flow_frame) != frameIndex) {
+        if(PD(next_frame) == frameIndex) {
+            PD(cflow_next).copyTo(PD(cflow));
         } else {
-            draw_flow(frameIndex, _cflow);
+            draw_flow(frameIndex, PD(cflow));
         }
-        _flow_frame = frameIndex;
+        PD(flow_frame) = frameIndex;
         
-    } else if(_next_frame != frameIndex+1) {
-        draw_flow(frameIndex+1, _cflow_next);
-        _next_frame = frameIndex+1;
+    } else if(PD(next_frame) != frameIndex+1) {
+        draw_flow(frameIndex+1, PD(cflow_next));
+        PD(next_frame) = frameIndex+1;
     }
     
-    base.image(Vec2(0, 0), Image::Make(_cflow));
+    base.image(Vec2(0, 0), Image::Make(PD(cflow)));
 }
 
 void GUI::set_redraw() {
-    std::lock_guard<std::recursive_mutex> lock(_gui.lock());
-    cache().set_redraw();
-    _gui.set_dirty(_base);
+    std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
+    PD(cache).set_redraw();
+    PD(gui).set_dirty(GUI::instance()->base());
     //animating = true;
     
-    /*auto cache = _gui.root().cached(_base);
+    /*auto cache = PD(gui).root().cached(_base);
     if(cache)
         cache->set_changed(true);
     else
-        _gui.root().insert_cache(_base, new CacheObject);*/
+        PD(gui).root().insert_cache(_base, new CacheObject);*/
 }
 
 void GUI::set_mode(gui::mode_t::Class mode) {
     if(mode != GUI_SETTINGS(gui_mode)) {
         SETTING(gui_mode) = mode;
-        _cache.set_mode(mode);
+        PD(cache).set_mode(mode);
     }
 }
 
@@ -1564,16 +1714,16 @@ void GUI::draw_posture(DrawStructure &base, Individual *fish, long_t frameNr) {
         // Draw the fish posture with circles
         if(midline) {
             auto && [bg_offset, max_w] = Timeline::timeline_offsets();
-            max_w /= _gui.scale().x;
-            _posture_window.set_scale(base.scale().reciprocal());
-            auto pos = Vec2(max_w - 10 - bg_offset.x  * _posture_window.scale().x,
-                            (_timeline->bar() ? (_timeline->bar()->global_bounds().y + _timeline->bar()->global_bounds().height) : 100) + 10 * _posture_window.scale().y);
-            _posture_window.set_pos(pos);
-            _posture_window.set_origin(Vec2(1, 0));
-            _posture_window.set_fish(fish);
-            _posture_window.set_frameIndex(frameNr);
-            //_posture_window.set_draggable();
-            base.wrap_object(_posture_window);
+            max_w /= PD(gui).scale().x;
+            PD(posture_window).set_scale(base.scale().reciprocal());
+            auto pos = Vec2(max_w - 10 - bg_offset.x  * PD(posture_window).scale().x,
+                            (PD(timeline)->bar() ? (PD(timeline)->bar()->global_bounds().y + PD(timeline)->bar()->global_bounds().height) : 100) + 10 * PD(posture_window).scale().y);
+            PD(posture_window).set_pos(pos);
+            PD(posture_window).set_origin(Vec2(1, 0));
+            PD(posture_window).set_fish(fish);
+            PD(posture_window).set_frameIndex(frameNr);
+            //PD(posture_window).set_draggable();
+            base.wrap_object(PD(posture_window));
             
             //field.show();
         }
@@ -1595,7 +1745,7 @@ Size2 GUI::screen_dimensions() {
         return Size2(1);
     
     auto base = best_base();
-    auto gui_scale = instance()->_gui.scale();
+    auto gui_scale = PD(gui).scale();
     if(gui_scale.x == 0)
         gui_scale = Vec2(1);
     auto window_dimensions = base
@@ -1622,7 +1772,7 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
     if(screen_dimensions.max() <= 0)
         return {Vec2(), Vec2()};
     //if(_base)
-    //    offset = Vec2((_base->window_dimensions().width / _gui.scale().x * gui::interface_scale() - _average_image.cols) * 0.5, 0);
+    //    offset = Vec2((_base->window_dimensions().width / PD(gui).scale().x * gui::interface_scale() - _average_image.cols) * 0.5, 0);
     
     
     /**
@@ -1630,7 +1780,7 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
      */
     if(singular_boundary) {//SETTING(gui_auto_scale) && (singular_boundary || !SETTING(gui_auto_scale_focus_one))) {
         if(lost) {
-            cache().set_animating(&temporary, false);
+            PD(cache).set_animating(&temporary, false);
         }
         
         if(boundary.x != FLT_MAX) {
@@ -1651,7 +1801,7 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
             
             float scale = 1.f / scales.max() * 0.8;
             
-            //Vec2 topleft(Size2(max_w / _gui.scale().x, _average_image.rows) * 0.5 - offset / _gui.scale().x - boundary.size() * scale * 0.5);
+            //Vec2 topleft(Size2(max_w / PD(gui).scale().x, _average_image.rows) * 0.5 - offset / PD(gui).scale().x - boundary.size() * scale * 0.5);
             
             //boundary.pos() -= offset.div(scale);
             
@@ -1670,19 +1820,19 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
         static Timer lost_timer;
         if(!lost) {
             lost = true;
-            time_lost = _cache.gui_time();
+            time_lost = PD(cache).gui_time();
             lost_timer.reset();
-            cache().set_animating(&temporary, true);
+            PD(cache).set_animating(&temporary, true);
         }
         
-        if((_recording && _cache.gui_time() - time_lost >= 0.5)
-           || (!_recording && lost_timer.elapsed() >= 0.5))
+        if((PD(recording) && PD(cache).gui_time() - time_lost >= 0.5)
+           || (!PD(recording) && lost_timer.elapsed() >= 0.5))
         {
             target_scale = Vec2(1);
             //target_pos = offset;//Vec2(0, 0);
             target_size = Size2(_average_image.cols, _average_image.rows);
             target_pos = screen_center - target_size * 0.5;
-            cache().set_animating(&temporary, false);
+            PD(cache).set_animating(&temporary, false);
         }
     }
     
@@ -1706,11 +1856,11 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
     if(target_pos.y / target_scale.y > mh * 0.95f)
         target_pos.y = mh * target_scale.y * 0.95f;
     
-    _cache.set_zoom_level(target_scale.x);
+    PD(cache).set_zoom_level(target_scale.x);
     
     static Timer timer;
-    auto e = _recording ? cache().dt() : timer.elapsed(); //_recording ? (1 / float(FAST_SETTINGS(frame_rate))) : timer.elapsed();
-    //e = cache().dt();
+    auto e = PD(recording) ? PD(cache).dt() : timer.elapsed(); //PD(recording) ? (1 / float(FAST_SETTINGS(frame_rate))) : timer.elapsed();
+    //e = PD(cache).dt();
     
     e = min(0.1, e);
     e *= 3;
@@ -1749,7 +1899,7 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
     if(!section->scale().Equals(target_scale)
        || !section->pos().Equals(target_pos))
     {
-        cache().set_animating(section, true);
+        PD(cache).set_animating(section, true);
         
         auto playback_factor = max(1, sqrt(SETTING(gui_playback_speed).value<float>()));
         auto scale = check_target(section->scale(), target_scale, e * playback_factor);
@@ -1762,7 +1912,7 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
         section->set_bounds(Bounds(next_pos, next_size));
         
     } else {
-        cache().set_animating(section, false);
+        PD(cache).set_animating(section, false);
         
         section->set_scale(target_scale);
         section->set_bounds(Bounds(target_pos, target_size));
@@ -1776,20 +1926,20 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
 void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
     static Timing timing("draw_tracking", 10);
     
-    auto props = _tracker.properties(frameNr);
+    auto props = PD(tracker).properties(frameNr);
     if(props) {
         TakeTiming take(timing);
         
         if(SETTING(gui_show_heatmap)) {
             base.section("heatmap", [&](auto & , Section *s){
-                auto ptr = _gui.find("fishbowl");
+                auto ptr = PD(gui).find("fishbowl");
                 Vec2 ptr_scale(1), ptr_pos(0);
                 if(ptr) {
                     ptr_scale = static_cast<Section*>(ptr)->scale();
                     ptr_pos = static_cast<Section*>(ptr)->pos();
                 }
                 
-                if(ptr && (cache().is_animating(ptr) || _cache.is_tracking_dirty())) {
+                if(ptr && (PD(cache).is_animating(ptr) || PD(cache).is_tracking_dirty())) {
                     assert(dynamic_cast<Section*>(ptr));
                     s->set_scale(ptr_scale);
                     s->set_pos(ptr_pos);
@@ -1803,29 +1953,29 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
         }
         
         base.section("tracking", [&](auto&, Section* s) {
-            auto ptr = _gui.find("fishbowl");
+            auto ptr = PD(gui).find("fishbowl");
             Vec2 ptr_scale(1), ptr_pos(0);
             if(ptr) {
                 ptr_scale = static_cast<Section*>(ptr)->scale();
                 ptr_pos = static_cast<Section*>(ptr)->pos();
             }
             
-            if(ptr && (cache().is_animating(ptr) || _cache.is_tracking_dirty())) {
+            if(ptr && (PD(cache).is_animating(ptr) || PD(cache).is_tracking_dirty())) {
                 assert(dynamic_cast<Section*>(ptr));
                 s->set_scale(ptr_scale);
                 s->set_pos(ptr_pos);
             }
             
-            if(!_cache.is_tracking_dirty() && !_cache.is_animating(s) && !_cache.is_animating(ptr)
+            if(!PD(cache).is_tracking_dirty() && !PD(cache).is_animating(s) && !PD(cache).is_animating(ptr)
                && !s->is_dirty()) {
                 s->reuse_objects();
                 return;
             }
             
-            _cache.updated_tracking();
+            PD(cache).updated_tracking();
             
             std::map<long_t, Color> colors;
-            for(auto fish : _cache.active)
+            for(auto fish : PD(cache).active)
                 colors[fish->identity().ID()] = fish->identity().color();
             
             EventAnalysis::EventsContainer *container = NULL;
@@ -1849,8 +1999,8 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                         hist.push_back(energies);
                 }
                 
-                _length_histogram.set_data(data, ordered_colors);
-                _histogram.set_data(hist, ordered_colors);
+                PD(length_histogram).set_data(data, ordered_colors);
+                PD(histogram).set_data(hist, ordered_colors);
             }
             
             {
@@ -1865,27 +2015,27 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                 Tracker::set_of_individuals_t source;
                 if(FAST_SETTINGS(track_max_individuals) && GUI_SETTINGS(gui_show_inactive_individuals)) {
                     for(auto id : FAST_SETTINGS(manual_identities)) {
-                        auto it = _cache.individuals.find(id);
-                        if(it != _cache.individuals.end())
+                        auto it = PD(cache).individuals.find(id);
+                        if(it != PD(cache).individuals.end())
                             source.insert(it->second);
                     }
                     
-                    for(auto fish : _cache.active) {
+                    for(auto fish : PD(cache).active) {
                         source.insert(fish);
                     }
                 }
                 
                 
-                if(_cache.has_selection() && SETTING(gui_show_visualfield)) {
-                    for(auto id : _cache.selected) {
-                        auto fish = _cache.individuals.at(id);
+                if(PD(cache).has_selection() && SETTING(gui_show_visualfield)) {
+                    for(auto id : PD(cache).selected) {
+                        auto fish = PD(cache).individuals.at(id);
                         
                         VisualField* ptr = (VisualField*)fish->custom_data(frameNr, VisualField::custom_id);
                         if(!ptr && fish->head(frameNr)) {
                             ptr = new VisualField(id, frameNr, fish->basic_stuff(frameNr), fish->posture_stuff(frameNr), true);
                             fish->add_custom_data(frameNr, VisualField::custom_id, ptr, [this](void* ptr) {
                                 if(GUI::instance()) {
-                                    std::lock_guard<std::recursive_mutex> lock(_gui.lock());
+                                    std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
                                     delete (VisualField*)ptr;
                                 } else {
                                     delete (VisualField*)ptr;
@@ -1899,7 +2049,7 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                 }
                 
                 {
-                    for (auto &fish : (source.empty() ? _cache.active : source)) {
+                    for (auto &fish : (source.empty() ? PD(cache).active : source)) {
                         if (fish->start_frame() > frameNr || fish->empty())
                             continue;
                         
@@ -1917,33 +2067,33 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                         else
                             empty_map = NULL;
                         
-                        if(_cache._fish_map.find(fish) == _cache._fish_map.end()) {
-                            _cache._fish_map[fish] = std::make_unique<gui::Fish>(*fish);
-                            fish->register_delete_callback(_cache._fish_map[fish].get(), [this](Individual *f) {
+                        if(PD(cache)._fish_map.find(fish) == PD(cache)._fish_map.end()) {
+                            PD(cache)._fish_map[fish] = std::make_unique<gui::Fish>(*fish);
+                            fish->register_delete_callback(PD(cache)._fish_map[fish].get(), [this](Individual *f) {
                                 //std::lock_guard<std::mutex> lock(_individuals_frame._mutex);
                                 if(!GUI::instance())
                                     return;
                                 
                                 std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
                                 
-                                auto it = _cache._fish_map.find(f);
-                                if(it != _cache._fish_map.end()) {
-                                    _cache._fish_map.erase(f);
+                                auto it = PD(cache)._fish_map.find(f);
+                                if(it != PD(cache)._fish_map.end()) {
+                                    PD(cache)._fish_map.erase(f);
                                 }
                             });
                         }
                         
-                        _cache._fish_map[fish]->set_data((uint32_t)frameNr, props->time, _cache.processed_frame, empty_map);
+                        PD(cache)._fish_map[fish]->set_data((uint32_t)frameNr, props->time, PD(cache).processed_frame, empty_map);
                         
-                        base.wrap_object(*_cache._fish_map[fish]);
-                        _cache._fish_map[fish]->label(base);
+                        base.wrap_object(*PD(cache)._fish_map[fish]);
+                        PD(cache)._fish_map[fish]->label(base);
                     }
                 }
                 
                 if(GUI_SETTINGS(gui_show_midline_histogram)) {
                     static long_t end_frame = -1;
-                    if(FAST_SETTINGS(calculate_posture) && end_frame != _cache.tracked_frames.end) {
-                        end_frame = _cache.tracked_frames.end;
+                    if(FAST_SETTINGS(calculate_posture) && end_frame != PD(cache).tracked_frames.end) {
+                        end_frame = PD(cache).tracked_frames.end;
                         
                         Tracker::LockGuard guard("gui_show_midline_histogram");
                         
@@ -1953,7 +2103,7 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                         std::map<track::Idx_t, Individual*> search;
                         
                         if(FAST_SETTINGS(manual_identities).empty()) {
-                            for(auto fish : _cache.active) {
+                            for(auto fish : PD(cache).active) {
                                 lengths.clear();
                                 for (auto && stuff : fish->posture_stuff()) {
                                     if(stuff->midline_length != Individual::PostureStuff::infinity)
@@ -1964,8 +2114,8 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                             }
                         } else {
                             for(auto id : FAST_SETTINGS(manual_identities)) {
-                                auto it = _cache.individuals.find(id);
-                                if(it != _cache.individuals.end()) {
+                                auto it = PD(cache).individuals.find(id);
+                                if(it != PD(cache).individuals.end()) {
                                     auto fish = it->second;
                                     lengths.clear();
                                     for (auto && stuff : fish->posture_stuff()) {
@@ -1978,14 +2128,14 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                             }
                         }
                         
-                        _midline_histogram.set_data(all);
+                        PD(midline_histogram).set_data(all);
                     }
                 }
                 
-                for(auto it = _cache._fish_map.cbegin(); it != _cache._fish_map.cend();) {
+                for(auto it = PD(cache)._fish_map.cbegin(); it != PD(cache)._fish_map.cend();) {
                     if(!it->second->enabled()) {
                         it->first->unregister_delete_callback(it->second.get());
-                        _cache._fish_map.erase(it++);
+                        PD(cache)._fish_map.erase(it++);
                     } else
                         it++;
                 }
@@ -1994,28 +2144,28 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
             delete container;
             
             
-            if(!_cache.connectivity_matrix.empty()) {
+            if(!PD(cache).connectivity_matrix.empty()) {
                 base.section("connectivity", [frameIndex = frameNr, this](DrawStructure& base, auto s) {
-                    if(_cache.connectivity_last_frame == frameIndex && !_cache.connectivity_reload) {
+                    if(PD(cache).connectivity_last_frame == frameIndex && !PD(cache).connectivity_reload) {
                         s->reuse_objects();
                         return;
                     }
                     
-                    _cache.connectivity_reload = false;
-                    _cache.connectivity_last_frame = frameIndex;
+                    PD(cache).connectivity_reload = false;
+                    PD(cache).connectivity_last_frame = frameIndex;
                     
                     const auto number_fish = FAST_SETTINGS(track_max_individuals);
                     for (uint32_t i=0; i<number_fish; ++i) {
-                        if(!_cache.individuals.count(Idx_t(i))) {
+                        if(!PD(cache).individuals.count(Idx_t(i))) {
                             Except("Individuals seem to be named differently than 0-%d. Cannot find %d.", FAST_SETTINGS(track_max_individuals), i);
                             continue;
                         }
                         
-                        auto fish0 = _cache.individuals.at(Idx_t(i));
+                        auto fish0 = PD(cache).individuals.at(Idx_t(i));
                         Vec2 p0(gui::Graph::invalid());
                         
                         if(!fish0->has(frameIndex)) {
-                            auto c = _cache.processed_frame.cached(fish0->identity().ID());
+                            auto c = PD(cache).processed_frame.cached(fish0->identity().ID());
                             if(c)
                                 p0 = c->estimated_px;
                         } else
@@ -2025,16 +2175,16 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                             continue;
                         
                         for(uint32_t j=i+1; j<number_fish; ++j) {
-                            if(!_cache.individuals.count(Idx_t(j))) {
+                            if(!PD(cache).individuals.count(Idx_t(j))) {
                                 Except("Individuals seem to be named differently than 0-%d. Cannot find %d.", FAST_SETTINGS(track_max_individuals), j);
                                 continue;
                             }
                             
-                            auto fish1 = _cache.individuals.at(Idx_t(j));
+                            auto fish1 = PD(cache).individuals.at(Idx_t(j));
                             Vec2 p1(infinity<Float2_t>());
                             
                             if(!fish1->has(frameIndex)) {
-                                auto c = _cache.processed_frame.cached(fish1->identity().ID());
+                                auto c = PD(cache).processed_frame.cached(fish1->identity().ID());
                                 if(c)
                                     p1 = c->estimated_px;
                             } else
@@ -2043,7 +2193,7 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                             if(Graph::is_invalid(p1.x))
                                 continue;
                             
-                            auto value = _cache.connectivity_matrix.at(FAST_SETTINGS(track_max_individuals) * i + j);
+                            auto value = PD(cache).connectivity_matrix.at(FAST_SETTINGS(track_max_individuals) * i + j);
                             
                             base.line(p0, p1, 1 + 5 * value, Viridis::value(value).alpha((value * 0.6) * 255));
                         }
@@ -2054,27 +2204,27 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
             draw_grid(base);
         });
         
-        if(_cache.has_selection() && SETTING(gui_show_visualfield_ts)) {
-            auto outline = _cache.primary_selection()->outline(frameNr);
+        if(PD(cache).has_selection() && SETTING(gui_show_visualfield_ts)) {
+            auto outline = PD(cache).primary_selection()->outline(frameNr);
             if(outline) {
                 base.section("visual_field", [&](auto&, Section* s) {
                     s->set_scale(base.scale().reciprocal());
-                    VisualField::show_ts(base, frameNr, _cache.primary_selection());
+                    VisualField::show_ts(base, frameNr, PD(cache).primary_selection());
                 });
             }
         }
         
         if(SETTING(gui_show_graph) && draw_graph) {
-            if (_cache.has_selection()) {
+            if (PD(cache).has_selection()) {
                 size_t i = 0;
                 auto window = SETTING(output_frame_window).value<long_t>();
                 
-                for(auto id : _cache.selected) {
-                    _fish_graphs[i]->setup_graph(frameNr, Rangel(frameNr - window, frameNr + window), _cache.individuals.at(id), nullptr);
-                    _fish_graphs[i]->graph().set_scale(base.scale().reciprocal());
-                    _fish_graphs[i]->draw(base);
+                for(auto id : PD(cache).selected) {
+                    PD(fish_graphs)[i]->setup_graph(frameNr, Rangel(frameNr - window, frameNr + window), PD(cache).individuals.at(id), nullptr);
+                    PD(fish_graphs)[i]->graph().set_scale(base.scale().reciprocal());
+                    PD(fish_graphs)[i]->draw(base);
                     
-                    if(++i >= _fish_graphs.size())
+                    if(++i >= PD(fish_graphs).size())
                         break;
                 }
             }
@@ -2082,12 +2232,12 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
         
         if(SETTING(gui_show_number_individuals)) {
             static Graph individuals_graph(Bounds(50, 100, 500, 300), "#individuals");
-            if(individuals_graph.x_range().end == FLT_MAX || individuals_graph.x_range().end != _cache.tracked_frames.end) {
-                individuals_graph.set_ranges(Rangef(_cache.tracked_frames.start, _cache.tracked_frames.end), Rangef(0, _cache.individuals.size()));
+            if(individuals_graph.x_range().end == FLT_MAX || individuals_graph.x_range().end != PD(cache).tracked_frames.end) {
+                individuals_graph.set_ranges(Rangef(PD(cache).tracked_frames.start, PD(cache).tracked_frames.end), Rangef(0, PD(cache).individuals.size()));
                 if(individuals_graph.empty()) {
                     individuals_graph.add_function(Graph::Function("", Graph::Type::DISCRETE, [&](float x) -> float {
-                        auto it = _cache._statistics.find(x);
-                        if(it != _cache._statistics.end()) {
+                        auto it = PD(cache)._statistics.find(x);
+                        if(it != PD(cache)._statistics.end()) {
                             return it->second.number_fish;
                         }
                         return gui::Graph::invalid();
@@ -2134,7 +2284,7 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
             
             std::lock_guard<std::mutex> guard(mutex);
             if(!estimated_uniqueness.empty()) {
-                if(graph.x_range().end == FLT_MAX || graph.x_range().end != _cache.tracked_frames.end) {
+                if(graph.x_range().end == FLT_MAX || graph.x_range().end != PD(cache).tracked_frames.end) {
                     
                     static std::map<long_t, float> smooth_points;
                     long_t L = (long_t)uniquenesses.size();
@@ -2155,7 +2305,7 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                         smooth_points[i] = (smooth_points[i] + uniquenesses[i].y) * 0.5;
                     }
                     
-                    graph.set_ranges(Rangef(_cache.tracked_frames.start, _cache.tracked_frames.end), Rangef(0, 1));
+                    graph.set_ranges(Rangef(PD(cache).tracked_frames.start, PD(cache).tracked_frames.end), Rangef(0, 1));
                     if(graph.empty()) {
                         graph.add_function(Graph::Function("raw", Graph::Type::DISCRETE, [uq = &estimated_uniqueness](float x) -> float {
                             std::lock_guard<std::mutex> guard(mutex);
@@ -2191,19 +2341,19 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
         ConfirmedCrossings::draw(base, frameNr);
         
         // Draw the fish posture with circles
-        if(_cache.has_selection()) {
+        if(PD(cache).has_selection()) {
             if(SETTING(gui_show_posture)) {
-                draw_posture(base, _cache.primary_selection(), frameNr);
+                draw_posture(base, PD(cache).primary_selection(), frameNr);
             }
         }
         
-        if(SETTING(gui_show_dataset) /*&& Recognition::recognition_enabled()*/ && _timeline->visible()) {
-            if(!_dataset) {
-                _dataset = std::make_shared<DrawDataset>();
+        if(SETTING(gui_show_dataset) /*&& Recognition::recognition_enabled()*/ && PD(timeline)->visible()) {
+            if(!PD(dataset)) {
+                PD(dataset) = std::make_shared<DrawDataset>();
                 auto screen = screen_dimensions();
-                _dataset->set_pos(screen * 0.5 - _dataset->size());
+                PD(dataset)->set_pos(screen * 0.5 - PD(dataset)->size());
             }
-            base.wrap_object(*_dataset);
+            base.wrap_object(*PD(dataset));
         }
         
         if(SETTING(gui_show_recognition_summary) && Recognition::recognition_enabled()) {
@@ -2212,12 +2362,12 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
         }
         
     } else
-        _cache.updated_tracking();
+        PD(cache).updated_tracking();
     
     /*Color clr = Red;
-    auto section = _gui.find("fishbowl");
+    auto section = PD(gui).find("fishbowl");
     if(section) {
-        Vec2 mouse_position = _gui.mouse_position();
+        Vec2 mouse_position = PD(gui).mouse_position();
         mouse_position = (mouse_position - section->pos()).div(section->scale());
         
         if(Tracker::instance()->border().in_recognition_bounds(mouse_position))
@@ -2247,7 +2397,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             auto str = Meta::toStr(selected_option);
             Debug("options: %S", &str);
             
-            _settings_choice = std::make_shared<List>(Bounds(0, _gui.height() / _gui.scale().y, 150, textfield.height()), "", items, [&textfield](List*, const List::Item& item){
+            _settings_choice = std::make_shared<List>(Bounds(0, PD(gui).height() / PD(gui).scale().y, 150, textfield.height()), "", items, [&textfield](List*, const List::Item& item){
                 Debug("Clicked on item %d", item.ID());
                 textfield.set_text(item);
                 textfield.enter();
@@ -2346,11 +2496,11 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
         }
         else if(settings_dropdown.text() == "free_fish") {
             std::set<long_t> free_fish, inactive;
-            for(auto && [fdx, fish] : _cache.individuals) {
-                if(_cache.fish_selected_blobs.find(fdx) == _cache.fish_selected_blobs.end() || _cache.fish_selected_blobs.at(fdx) == -1) {
+            for(auto && [fdx, fish] : PD(cache).individuals) {
+                if(PD(cache).fish_selected_blobs.find(fdx) == PD(cache).fish_selected_blobs.end() || PD(cache).fish_selected_blobs.at(fdx) == -1) {
                     free_fish.insert(fdx);
                 }
-                if(_cache.active_ids.find(fdx) == _cache.active_ids.end())
+                if(PD(cache).active_ids.find(fdx) == PD(cache).active_ids.end())
                     inactive.insert(fdx);
             }
             auto str = Meta::toStr(free_fish);
@@ -2373,7 +2523,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
         }
         else if(settings_dropdown.text() == "print_memory") {
             mem::IndividualMemoryStats overall;
-            for(auto && [fdx, fish] : _cache.individuals) {
+            for(auto && [fdx, fish] : PD(cache).individuals) {
                 mem::IndividualMemoryStats stats(fish);
                 stats.print();
                 overall += stats;
@@ -2391,13 +2541,13 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             this->work().add_queue("generating heatmap", [this](){
                 Tracker::LockGuard guard("settings_dropdown.text() heatmap");
                 
-                cv::Mat map(_video_source->header().resolution.height, _video_source->header().resolution.width, CV_8UC4);
+                cv::Mat map(PD(video_source).header().resolution.height, PD(video_source).header().resolution.width, CV_8UC4);
                 
                 const uint32_t width = 30;
                 std::vector<double> grid;
                 grid.resize(SQR(width + 1));
-                Vec2 indexing(ceil(_video_source->header().resolution.width / float(width)),
-                              ceil(_video_source->header().resolution.height / float(width)));
+                Vec2 indexing(ceil(PD(video_source).header().resolution.width / float(width)),
+                              ceil(PD(video_source).header().resolution.height / float(width)));
                 
                 size_t count = 0;
                 for(auto && [id, fish] : Tracker::instance()->individuals()) {
@@ -2439,13 +2589,13 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             std::map<std::string, size_t> samples;
             PPFrame frame;
             
-            for(long_t idx = _tracker.start_frame() + 1; idx <= _tracker.end_frame() && idx <= _tracker.start_frame() + 10000; ++idx)
+            for(long_t idx = PD(tracker).start_frame() + 1; idx <= PD(tracker).end_frame() && idx <= PD(tracker).start_frame() + 10000; ++idx)
             {
-                if(!_tracker.properties(idx))
+                if(!PD(tracker).properties(idx))
                     continue;
                 
-                ((pv::File*)this->_video_source)->read_frame(frame.frame(), idx);
-                auto active = _tracker.active_individuals(idx - 1);
+                PD(video_source).read_frame(frame.frame(), idx);
+                auto active = PD(tracker).active_individuals(idx - 1);
                 
                 {
                     std::lock_guard<std::mutex> guard(_blob_thread_pool_mutex);
@@ -2459,7 +2609,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                         if(blob->split())
                             continue;
                         
-                        auto thresholded = blob->threshold(FAST_SETTINGS(track_threshold), *_tracker.background());
+                        auto thresholded = blob->threshold(FAST_SETTINGS(track_threshold), *PD(tracker).background());
                         
                         average_pixels[fish->identity().name()] += thresholded->pixels()->size();
                         samples[fish->identity().name()] ++;
@@ -2482,13 +2632,13 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             
             float max_val = 0, min_val = FLT_MAX;
             pv::Frame frame;
-            _video_source->read_frame(frame, 0);
+            PD(video_source).read_frame(frame, 0);
             
             std::vector<double> values {
                 frame.timestamp() / 1000.0 / 1000.0
             };
-            for(size_t i = 1; i<_video_source->length(); ++i) {
-                _video_source->read_frame(frame, i);
+            for(size_t i = 1; i<PD(video_source).length(); ++i) {
+                PD(video_source).read_frame(frame, i);
                 auto t = frame.timestamp() / 1000.0 / 1000.0;
                 values[i - 1] = t - values[i - 1];
                 values.push_back(t);
@@ -2496,8 +2646,8 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                 max_val = max(max_val, values[i-1]);
                 min_val = min(min_val, values[i-1]);
                 
-                if(i % int(_video_source->length() * 0.1) == 0) {
-                    Debug("%d/%d", i, _video_source->length());
+                if(i % int(PD(video_source).length() * 0.1) == 0) {
+                    Debug("%d/%d", i, PD(video_source).length());
                 }
             }
             
@@ -2517,10 +2667,10 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             cvbase.paint(window);
             cvbase.display();
         } else if(settings_dropdown.text() == "blob_info") {
-            Debug("Preprocessed frame %d:", _cache.frame_idx);
-            auto str = Meta::toStr(_cache.processed_frame.noise());
+            Debug("Preprocessed frame %d:", PD(cache).frame_idx);
+            auto str = Meta::toStr(PD(cache).processed_frame.noise());
             Debug("Filtered out: %S", &str);
-            str = Meta::toStr(_cache.processed_frame.blobs());
+            str = Meta::toStr(PD(cache).processed_frame.blobs());
             Debug("Blobs: %S", &str);
         }
         
@@ -2614,7 +2764,7 @@ void GUI::draw_footer(DrawStructure& base) {
             &tooltip
         });
         
-        _clicked_background = [&](const Vec2& pos, bool v, std::string key = "") {
+        PD(clicked_background) = [&](const Vec2& pos, bool v, std::string key = "") {
             const std::string chosen = settings_dropdown.selected_id() > -1 ? settings_dropdown.items().at(settings_dropdown.selected_id()).name() : "";
             if (key.empty())
                 key = chosen;
@@ -2624,11 +2774,15 @@ void GUI::draw_footer(DrawStructure& base) {
             bool is_vec_of_vec = GlobalSettings::get(key).is_type<std::vector< std::vector<Vec2> >>();
             bool is_vectors = GlobalSettings::get(key).is_type<std::vector<Vec2>>();
             
-            _selected_setting_type = is_vectors ? SelectedSettingType::POINTS : (is_vec_of_vec ? SelectedSettingType::ARRAY_OF_VECTORS : (is_bounds ? SelectedSettingType::ARRAY_OF_BOUNDS : SelectedSettingType::NONE));
-            _selected_setting_name = key;
+            PD(selected_setting_type) = is_vectors 
+                    ? SelectedSettingType::POINTS 
+                        : (is_vec_of_vec ? SelectedSettingType::ARRAY_OF_VECTORS 
+                            : (is_bounds ? SelectedSettingType::ARRAY_OF_BOUNDS 
+                                : SelectedSettingType::NONE));
+            PD(selected_setting_name) = key;
             
-            if(_selected_setting_type == SelectedSettingType::NONE && v) {
-                if(_current_boundary.size() == 1 && _current_boundary.front().size() == 2) {
+            if(PD(selected_setting_type) == SelectedSettingType::NONE && v) {
+                if(PD(current_boundary).size() == 1 && PD(current_boundary).front().size() == 2) {
                     static NumericTextfield<double> text(1.0, Bounds(0, 0, 200,30), arange<double>{0, infinity<double>()});
                     text.set_postfix("cm");
                     text.set_fill_color(DarkGray.alpha(50));
@@ -2640,12 +2794,12 @@ void GUI::draw_footer(DrawStructure& base) {
                     });
                     e->auto_size(Margin{0, 0});
                     
-                    auto bound = _current_boundary.front();
+                    auto bound = PD(current_boundary).front();
                     auto S = bound.front();
                     auto E = bound.back();
                     auto D = euclidean_distance(S, E);
                     
-                    _gui.dialog([this, D](Dialog::Result r) {
+                    PD(gui).dialog([this, D](Dialog::Result r) {
                         if(r == Dialog::OKAY) {
                             try {
                                 auto value = Meta::fromStr<float>(text.text());
@@ -2654,7 +2808,7 @@ void GUI::draw_footer(DrawStructure& base) {
                                 if(value > 0) {
                                     SETTING(cm_per_pixel) = float(value / D);
                                     
-                                    _gui.dialog("Successfully set <ref>cm_per_pixel</ref> to <nr>"+Meta::toStr(SETTING(cm_per_pixel).value<float>())+"</nr>.");
+                                    PD(gui).dialog("Successfully set <ref>cm_per_pixel</ref> to <nr>"+Meta::toStr(SETTING(cm_per_pixel).value<float>())+"</nr>.");
                                     
                                     return true;
                                 }
@@ -2672,9 +2826,9 @@ void GUI::draw_footer(DrawStructure& base) {
             
             if(v) {
                 if(is_bounds) {
-                    if(!_current_boundary.empty() && _current_boundary.back().size() >= 3) {
+                    if(!PD(current_boundary).empty() && PD(current_boundary).back().size() >= 3) {
                         Bounds bds(FLT_MAX, FLT_MAX, 0, 0);
-                        for(auto &pt : _current_boundary.back()) {
+                        for(auto &pt : PD(current_boundary).back()) {
                             if(pt.x < bds.x) bds.x = pt.x;
                             if(pt.y < bds.y) bds.y = pt.y;
                             if(pt.x > bds.width) bds.width = pt.x;
@@ -2698,7 +2852,7 @@ void GUI::draw_footer(DrawStructure& base) {
                     }
                     
                 } else if(is_vec_of_vec) {
-                    if(!_current_boundary.empty() && _current_boundary.back().size() >= 3) {
+                    if(!PD(current_boundary).empty() && PD(current_boundary).back().size() >= 3) {
                         try {
                             auto array = GlobalSettings::get(key).value<std::vector<std::vector<Vec2>>>();
                             
@@ -2707,7 +2861,7 @@ void GUI::draw_footer(DrawStructure& base) {
                             if(key == chosen && tmp != textfield.text())
                                 array = Meta::fromStr< std::vector<std::vector<Vec2>>>(textfield.text());
                             
-                            array.push_back(_current_boundary.back());
+                            array.push_back(PD(current_boundary).back());
                             if(key == chosen)
                                 textfield.set_text(Meta::toStr(array));
                             GlobalSettings::get(key) = array;
@@ -2715,7 +2869,7 @@ void GUI::draw_footer(DrawStructure& base) {
                         } catch(...) {}
                         
                     } else {
-                        Error("Cannot create a convex polygon from %d points.", _current_boundary.back().size());
+                        Error("Cannot create a convex polygon from %d points.", PD(current_boundary).back().size());
                     }
                 } else if(is_vectors) {
                     try {
@@ -2726,7 +2880,7 @@ void GUI::draw_footer(DrawStructure& base) {
                         if(key == chosen && tmp != textfield.text())
                             array = Meta::fromStr<std::vector<Vec2>>(textfield.text());
                         
-                        for(auto &boundary : _current_boundary) {
+                        for(auto &boundary : PD(current_boundary)) {
                             for(auto &pt : boundary)
                                 array.push_back(pt);
                         }
@@ -2741,38 +2895,38 @@ void GUI::draw_footer(DrawStructure& base) {
                 }
                 
                 Debug("Selected boundary:");
-                for(auto & boundary : _current_boundary) {
+                for(auto & boundary : PD(current_boundary)) {
                     auto str = Meta::toStr(boundary);
                     Debug("\t%S", &str);
                 }
                 
-                _current_boundary.clear();
+                PD(current_boundary).clear();
                 
             } else {
 #ifdef __APPLE__
-                if(!_gui.is_key_pressed(Codes::LSystem)) {
+                if(!PD(gui).is_key_pressed(Codes::LSystem)) {
 #else
-                if(!_gui.is_key_pressed(Codes::LControl)) {
+                if(!PD(gui).is_key_pressed(Codes::LControl)) {
 #endif
-                    if(_current_boundary.empty())
-                        _current_boundary = {{pos}};
+                    if(PD(current_boundary).empty())
+                        PD(current_boundary) = {{pos}};
                     else
-                        _current_boundary.clear();
+                        PD(current_boundary).clear();
                     
                 } else {
-                    if(_current_boundary.empty())
-                        _current_boundary.push_back({});
+                    if(PD(current_boundary).empty())
+                        PD(current_boundary).push_back({});
                     
                     if(is_vectors)
-                        _current_boundary.push_back({pos});
+                        PD(current_boundary).push_back({pos});
                     else
-                        _current_boundary.back().push_back(pos);
+                        PD(current_boundary).back().push_back(pos);
                 }
             }
             
-            _cache.set_tracking_dirty();
-            _cache.set_raw_blobs_dirty();
-            _cache.set_redraw();
+            PD(cache).set_tracking_dirty();
+            PD(cache).set_raw_blobs_dirty();
+            PD(cache).set_redraw();
         };
         
         options_dropdown.set_toggle(true);
@@ -2822,8 +2976,8 @@ void GUI::draw_footer(DrawStructure& base) {
         
         first = false;
     }
-    _gui.wrap_object(layout);
-    _gui.wrap_object(status_layout);
+    PD(gui).wrap_object(layout);
+    PD(gui).wrap_object(status_layout);
     
     if(settings_dropdown.hovered()) {
         auto name = settings_dropdown.hovered_item().name();
@@ -2852,14 +3006,14 @@ void GUI::draw_footer(DrawStructure& base) {
             
             tooltip.set_scale(base.scale().reciprocal());
             tooltip.set_text(str);
-            _gui.wrap_object(tooltip);
+            PD(gui).wrap_object(tooltip);
         }
     }
     
     if (Recognition::python_available()) {
         static Timer status_timer;
         static Recognition::Detail::Info last_status;
-        auto current_status = _tracker.recognition() ? _tracker.recognition()->detail().info() : Recognition::Detail::Info();
+        auto current_status = PD(tracker).recognition() ? PD(tracker).recognition()->detail().info() : Recognition::Detail::Info();
         if (PythonIntegration::python_initialized() && (last_status != current_status || gpu_status.txt().empty() || status_timer.elapsed() > 1)) {
             last_status = current_status;
             status_timer.reset();
@@ -2875,9 +3029,9 @@ void GUI::draw_footer(DrawStructure& base) {
                     txt += " processed " + Meta::toStr(size_t(current_status.percent * 100)) + "% of known frames" + (current_status.failed_blobs ? (" " + Meta::toStr(current_status.failed_blobs) + " failed blobs") : "");
             }
 
-            //txt += " " + Meta::toStr(_cache.tracked_frames.length()) + " " + Meta::toStr(current_status.N) + " " + Meta::toStr(current_status.processed) + " " + Meta::toStr(current_status.added);
+            //txt += " " + Meta::toStr(PD(cache).tracked_frames.length()) + " " + Meta::toStr(current_status.N) + " " + Meta::toStr(current_status.processed) + " " + Meta::toStr(current_status.added);
 
-            //txt += " " + Meta::toStr(current_status.N / float(_cache.tracked_frames.length()));
+            //txt += " " + Meta::toStr(current_status.N / float(PD(cache).tracked_frames.length()));
             //txt += " " + Meta::toStr((float(current_status.processed) / float(current_status.added)));
 
             static Timer print_timer;
@@ -2910,11 +3064,11 @@ void GUI::draw_footer(DrawStructure& base) {
         python_status.set_color(White);
     }
     
-    auto section = _gui.find("fishbowl");
+    auto section = PD(gui).find("fishbowl");
     if(section) {
-        Vec2 mouse_position = _gui.mouse_position();
+        Vec2 mouse_position = PD(gui).mouse_position();
         mouse_position = (mouse_position - section->pos()).div(section->scale());
-        mouse_status.set_txt(Meta::toStr(std::vector<int>{static_cast<int>(mouse_position.x), static_cast<int>(mouse_position.y)})+" "+Meta::toStr(cache().display_blobs.size())+" blobs "+Meta::toStr(cache()._current_pixels)+"px"); //"+Meta::toStr(cache()._average_pixels)+"px/blob pp:"+Meta::toStr(cache().processed_frame.num_pixels())+"px");
+        mouse_status.set_txt(Meta::toStr(std::vector<int>{static_cast<int>(mouse_position.x), static_cast<int>(mouse_position.y)})+" "+Meta::toStr(PD(cache).display_blobs.size())+" blobs "+Meta::toStr(PD(cache)._current_pixels)+"px"); //"+Meta::toStr(PD(cache)._average_pixels)+"px/blob pp:"+Meta::toStr(PD(cache).processed_frame.num_pixels())+"px");
     }
         
     additional_status.set_txt(additional_status_text());
@@ -2933,7 +3087,7 @@ void GUI::update_recognition_rect() {
     const float max_w = Tracker::average().cols;
     const float max_h = Tracker::average().rows;
     
-    if((_recognition_image.source()->cols != max_w || _recognition_image.source()->rows != max_h) && Tracker::instance()->border().type() != Border::Type::none) {
+    if((PD(recognition_image).source()->cols != max_w || PD(recognition_image).source()->rows != max_h) && Tracker::instance()->border().type() != Border::Type::none) {
         auto border_distance = Image::Make(max_h, max_w, 4);
         border_distance->set_to(0);
         
@@ -2954,24 +3108,24 @@ void GUI::update_recognition_rect() {
             blob_thread_pool().wait();
         }
         
-        _recognition_image.set_source(std::move(border_distance));
-        _cache.set_tracking_dirty();
-        _cache.set_blobs_dirty();
-        _cache.set_raw_blobs_dirty();
-        _cache.set_redraw();
+        PD(recognition_image).set_source(std::move(border_distance));
+        PD(cache).set_tracking_dirty();
+        PD(cache).set_blobs_dirty();
+        PD(cache).set_raw_blobs_dirty();
+        PD(cache).set_redraw();
     }
     
     if(!FAST_SETTINGS(track_include).empty())
     {
-        auto keys = extract_keys(_include_shapes);
+        auto keys = extract_keys(PD(include_shapes));
         
         for(auto &rect : FAST_SETTINGS(track_include)) {
-            auto it = _include_shapes.find(rect);
-            if(it == _include_shapes.end()) {
+            auto it = PD(include_shapes).find(rect);
+            if(it == PD(include_shapes).end()) {
                 if(rect.size() == 2) {
                     auto ptr = std::make_shared<Rect>(Bounds(rect[0], rect[1] - rect[0]), Green.alpha(25), Green.alpha(100));
                     //ptr->set_clickable(true);
-                    _include_shapes[rect] = ptr;
+                    PD(include_shapes)[rect] = ptr;
                     
                 } else if(rect.size() > 2) {
                     //auto r = std::make_shared<std::vector<Vec2>>(rect);
@@ -2980,34 +3134,34 @@ void GUI::update_recognition_rect() {
                     ptr->set_fill_clr(Green.alpha(25));
                     ptr->set_border_clr(Green.alpha(100));
                     //ptr->set_clickable(true);
-                    _include_shapes[rect] = ptr;
+                    PD(include_shapes)[rect] = ptr;
                 }
             }
             keys.erase(rect);
         }
         
         for(auto &key : keys) {
-            _include_shapes.erase(key);
+            PD(include_shapes).erase(key);
         }
         
-        _cache.set_raw_blobs_dirty();
+        PD(cache).set_raw_blobs_dirty();
         
-    } else if(FAST_SETTINGS(track_include).empty() && !_include_shapes.empty()) {
-        _include_shapes.clear();
-        _cache.set_raw_blobs_dirty();
+    } else if(FAST_SETTINGS(track_include).empty() && !PD(include_shapes).empty()) {
+        PD(include_shapes).clear();
+        PD(cache).set_raw_blobs_dirty();
     }
     
     if(!FAST_SETTINGS(track_ignore).empty())
     {
-        auto keys = extract_keys(_ignore_shapes);
+        auto keys = extract_keys(PD(ignore_shapes));
         
         for(auto &rect : FAST_SETTINGS(track_ignore)) {
-            auto it = _ignore_shapes.find(rect);
-            if(it == _ignore_shapes.end()) {
+            auto it = PD(ignore_shapes).find(rect);
+            if(it == PD(ignore_shapes).end()) {
                 if(rect.size() == 2) {
                     auto ptr = std::make_shared<Rect>(Bounds(rect[0], rect[1] - rect[0]), Red.alpha(25), Red.alpha(100));
                     //ptr->set_clickable(true);
-                    _ignore_shapes[rect] = ptr;
+                    PD(ignore_shapes)[rect] = ptr;
                     
                 } else if(rect.size() > 2) {
                     //auto r = std::make_shared<std::vector<Vec2>>(rect);
@@ -3016,21 +3170,21 @@ void GUI::update_recognition_rect() {
                     ptr->set_fill_clr(Red.alpha(25));
                     ptr->set_border_clr(Red.alpha(100));
                     //ptr->set_clickable(true);
-                    _ignore_shapes[rect] = ptr;
+                    PD(ignore_shapes)[rect] = ptr;
                 }
             }
             keys.erase(rect);
         }
         
         for(auto &key : keys) {
-            _ignore_shapes.erase(key);
+            PD(ignore_shapes).erase(key);
         }
         
-        _cache.set_raw_blobs_dirty();
+        PD(cache).set_raw_blobs_dirty();
         
-    } else if(FAST_SETTINGS(track_ignore).empty() && !_ignore_shapes.empty()) {
-        _ignore_shapes.clear();
-        _cache.set_raw_blobs_dirty();
+    } else if(FAST_SETTINGS(track_ignore).empty() && !PD(ignore_shapes).empty()) {
+        PD(ignore_shapes).clear();
+        PD(cache).set_raw_blobs_dirty();
     }
 }
 
@@ -3043,11 +3197,11 @@ gui::mode_t::Class GUI::mode() const {
 }
 
 void GUI::update_display_blobs(bool draw_blobs, Section* fishbowl) {
-    if((_cache.raw_blobs_dirty() || _cache.display_blobs.size() != _cache.raw_blobs.size()) && draw_blobs)
+    if((PD(cache).raw_blobs_dirty() || PD(cache).display_blobs.size() != PD(cache).raw_blobs.size()) && draw_blobs)
     {
         static std::mutex vector_mutex;
         auto screen_bounds = Bounds(Vec2(), screen_dimensions());
-        auto copy = _cache.display_blobs;
+        auto copy = PD(cache).display_blobs;
         size_t gpixels = 0;
         double gaverage_pixels = 0, gsamples = 0;
         
@@ -3065,7 +3219,7 @@ void GUI::update_display_blobs(bool draw_blobs, Section* fishbowl) {
                     //auto bds = bowl.transformRect((*it)->blob->bounds());
                     //if(bds.overlaps(screen_bounds))
                     {
-                        if(!gui_show_only_unassigned || !contains(_cache.active_blobs, (*it)->blob->blob_id())) {
+                        if(!gui_show_only_unassigned || !contains(PD(cache).active_blobs, (*it)->blob->blob_id())) {
                             vector.push_back((*it)->convert());
                             map[(*it)->blob.get()] = vector.back().get();
                         }
@@ -3081,14 +3235,14 @@ void GUI::update_display_blobs(bool draw_blobs, Section* fishbowl) {
             gpixels += pixels;
             gaverage_pixels += average_pixels;
             gsamples += samples;
-            _cache.display_blobs.insert(map.begin(), map.end());
-            std::move(vector.begin(), vector.end(), std::back_inserter(_cache.display_blobs_list));
-            //_cache.display_blobs_list.insert(_cache.display_blobs_list.end(), vector.begin(), vector.end());
+            PD(cache).display_blobs.insert(map.begin(), map.end());
+            std::move(vector.begin(), vector.end(), std::back_inserter(PD(cache).display_blobs_list));
+            //PD(cache).display_blobs_list.insert(PD(cache).display_blobs_list.end(), vector.begin(), vector.end());
             
-        }, _blob_thread_pool, _cache.raw_blobs.begin(), _cache.raw_blobs.end());
+        }, _blob_thread_pool, PD(cache).raw_blobs.begin(), PD(cache).raw_blobs.end());
         
-        _cache._current_pixels = gpixels;
-        _cache._average_pixels = gsamples > 0 ? gaverage_pixels / gsamples : 0;
+        PD(cache)._current_pixels = gpixels;
+        PD(cache)._average_pixels = gsamples > 0 ? gaverage_pixels / gsamples : 0;
     }
 }
 
@@ -3098,24 +3252,24 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
     static auto collection = std::make_unique<ExternalImage>(Image::Make(Tracker::average().rows, Tracker::average().cols, 4), Vec2());
     const auto mode = GUI_SETTINGS(gui_mode);
     const auto draw_blobs = GUI_SETTINGS(gui_show_blobs) || mode != gui::mode_t::tracking;
-    const double coverage = double(_cache._num_pixels) / double(collection->source()->rows * collection->source()->cols);
+    const double coverage = double(PD(cache)._num_pixels) / double(collection->source()->rows * collection->source()->cols);
 #if defined(TREX_ENABLE_EXPERIMENTAL_BLUR) && defined(__APPLE__) && TREX_METAL_AVAILABLE
     const bool draw_blobs_separately =
     (!GUI_SETTINGS(gui_blur_enabled) || !std::is_same<MetalImpl, default_impl_t>::value || GUI_SETTINGS(gui_mode) != gui::mode_t::blobs) && coverage < 0.002 && draw_blobs;
 #else
     const bool draw_blobs_separately = false;//coverage < 0.002 && draw_blobs;
 #endif
-    bool redraw_blobs = cache().raw_blobs_dirty();
+    bool redraw_blobs = PD(cache).raw_blobs_dirty();
     
     //Debug("Coverage: %f (%d)", coverage, draw_blobs_separately);
     
     base.section("fishbowl", [&](auto &base, Section* section) {
         fishbowl = section;
-        bool shift = _gui.is_key_pressed(gui::LShift) && (!_gui.selected_object() || !dynamic_cast<Textfield*>(_gui.selected_object()));
-        gui_scale_with_boundary(_cache.boundary, section, !shift && (GUI_SETTINGS(gui_auto_scale) || (GUI_SETTINGS(gui_auto_scale_focus_one) && _cache.has_selection())));
+        bool shift = PD(gui).is_key_pressed(gui::LShift) && (!PD(gui).selected_object() || !dynamic_cast<Textfield*>(PD(gui).selected_object()));
+        gui_scale_with_boundary(PD(cache).boundary, section, !shift && (GUI_SETTINGS(gui_auto_scale) || (GUI_SETTINGS(gui_auto_scale_focus_one) && PD(cache).has_selection())));
         
-        //if(((cache().mode() == Mode::DEBUG && !cache().blobs_dirty()) || (cache().mode() == Mode::DEFAULT && !cache().is_tracking_dirty()))
-        if(!cache().raw_blobs_dirty() && !cache().is_animating(section) //!cache().is_animating(_setting_animation.display.get()))
+        //if(((PD(cache).mode() == Mode::DEBUG && !PD(cache).blobs_dirty()) || (PD(cache).mode() == Mode::DEFAULT && !PD(cache).is_tracking_dirty()))
+        if(!PD(cache).raw_blobs_dirty() && !PD(cache).is_animating(section) //!PD(cache).is_animating(_setting_animation.display.get()))
            //&& !_setting_animation.display
            )
         {
@@ -3126,49 +3280,49 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
         
         
         if(Recognition::recognition_enabled() && GUI_SETTINGS(gui_show_recognition_bounds)) {
-            if(!_recognition_image.source()->empty()) {
-                base.wrap_object(_recognition_image);
+            if(!PD(recognition_image).source()->empty()) {
+                base.wrap_object(PD(recognition_image));
             }
             Tracker::instance()->border().draw(base);
         }
         
-        if(_timeline->visible()) {
-            for(auto && [rect, ptr] : _include_shapes) {
+        if(PD(timeline)->visible()) {
+            for(auto && [rect, ptr] : PD(include_shapes)) {
                 base.wrap_object(*ptr);
                 
                 if(ptr->hovered()) {
-                    const Font font(0.85 / (1 - ((1 - cache().zoom_level()) * 0.5)), Align::VerticalCenter);
+                    const Font font(0.85 / (1 - ((1 - PD(cache).zoom_level()) * 0.5)), Align::VerticalCenter);
                     
-                    base.add_object(new Text("allowing "+Meta::toStr(rect), ptr->pos() + Vec2(5, Base::default_line_spacing(font) + 5), White, font, _gui.scale().reciprocal()));
+                    base.add_object(new Text("allowing "+Meta::toStr(rect), ptr->pos() + Vec2(5, Base::default_line_spacing(font) + 5), White, font, PD(gui).scale().reciprocal()));
                 }
             }
             
-            for(auto && [rect, ptr] : _ignore_shapes) {
+            for(auto && [rect, ptr] : PD(ignore_shapes)) {
                 base.wrap_object(*ptr);
                 
                 if(ptr->hovered()) {
-                    const Font font(0.85 / (1 - ((1 - cache().zoom_level()) * 0.5)), Align::VerticalCenter);
+                    const Font font(0.85 / (1 - ((1 - PD(cache).zoom_level()) * 0.5)), Align::VerticalCenter);
                     
-                    base.add_object(new Text("excluding "+Meta::toStr(rect), ptr->pos() + Vec2(5, Base::default_line_spacing(font) + 5), White, font, _gui.scale().reciprocal()));
+                    base.add_object(new Text("excluding "+Meta::toStr(rect), ptr->pos() + Vec2(5, Base::default_line_spacing(font) + 5), White, font, PD(gui).scale().reciprocal()));
                 }
             }
         }
         
         update_display_blobs(draw_blobs, fishbowl);
-        cache().updated_raw_blobs();
+        PD(cache).updated_raw_blobs();
         
         if(draw_blobs_separately) {
-            if(GUI_SETTINGS(gui_mode) == gui::mode_t::tracking && cache().tracked_frames.contains(frame())) {
-                for(auto &&[k,fish] : cache()._fish_map) {
+            if(GUI_SETTINGS(gui_mode) == gui::mode_t::tracking && PD(cache).tracked_frames.contains(frame())) {
+                for(auto &&[k,fish] : PD(cache)._fish_map) {
                     fish->shadow(base);
                 }
             }
             
             if(GUI_SETTINGS(gui_mode) != gui::mode_t::blobs) {
                 /*std::unordered_map<uint32_t, Idx_t> blob_fish;
-                for(auto &[fid, bid] : _cache.fish_selected_blobs) {
+                for(auto &[fid, bid] : PD(cache).fish_selected_blobs) {
                     bool found = false;
-                    for(auto & [b, ptr] : _cache.display_blobs) {
+                    for(auto & [b, ptr] : PD(cache).display_blobs) {
                         if(b->blob_id() == bid) {
                             found = true;
                             blob_fish[b->blob_id()] = fid;
@@ -3177,7 +3331,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
                     }
                 }*/
                 
-                for(auto & [b, ptr] : _cache.display_blobs) {
+                for(auto & [b, ptr] : PD(cache).display_blobs) {
                     //if(blob_fish.find(b->blob_id()) == blob_fish.end())
                     {
 #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
@@ -3193,7 +3347,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
                 }
                 
             } else {
-                for(auto &e : _cache.display_blobs_list) {
+                for(auto &e : PD(cache).display_blobs_list) {
 #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
 #if defined(__APPLE__) && TREX_METAL_AVAILABLE
                     if(GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)
@@ -3206,8 +3360,8 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
                 }
             }
             
-        } else if(draw_blobs && GUI_SETTINGS(gui_mode) == gui::mode_t::tracking && cache().tracked_frames.contains(frame())) {
-            for(auto &&[k,fish] : cache()._fish_map) {
+        } else if(draw_blobs && GUI_SETTINGS(gui_mode) == gui::mode_t::tracking && PD(cache).tracked_frames.contains(frame())) {
+            for(auto &&[k,fish] : PD(cache)._fish_map) {
                 fish->shadow(base);
             }
         }
@@ -3244,7 +3398,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
                     }
                 }
                 
-            }, _blob_thread_pool, _cache.display_blobs_list.begin(), _cache.display_blobs_list.end());
+            }, _blob_thread_pool, PD(cache).display_blobs_list.begin(), PD(cache).display_blobs_list.end());
             
             collection->set_dirty();
         }
@@ -3266,7 +3420,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
     static std::shared_ptr<Dropdown> dropdown = nullptr;
     
     base.section("boundary", [&](auto &base, Section*s) {
-        if(!_current_boundary.empty()) {
+        if(!PD(current_boundary).empty()) {
             s->set_scale(fishbowl->scale());
             s->set_pos(fishbowl->pos());
             
@@ -3277,7 +3431,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
             Vec2 bottom_right(0, 0);
             float a = 0;
             
-            for(auto &boundary : _current_boundary) {
+            for(auto &boundary : PD(current_boundary)) {
                 if(boundary.size() > 2) {
                     static gui::Polygon polygon(nullptr);
                     
@@ -3329,26 +3483,26 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
                 Bounds bds(Vec2((top_left + bottom_right) * 0.5) + Vec2(0, Base::default_line_spacing(Font(0.85)) + 10).mul(sca), Size2(0, 35));
                 std::string name = "";
                 
-                if(_selected_setting_type == SelectedSettingType::NONE) {
-                    if(_current_boundary.size() == 1 && _current_boundary.front().size() == 2)
+                if(PD(selected_setting_type) == SelectedSettingType::NONE) {
+                    if(PD(current_boundary).size() == 1 && PD(current_boundary).front().size() == 2)
                         name = "use known length to calibrate";
                     else
                         name = "print vectors";
                     
                 } else {
-                    if(_selected_setting_type == SelectedSettingType::ARRAY_OF_VECTORS) {
-                        if(_current_boundary.size() >= 1 && _current_boundary.back().size() >= 3)
-                            name = "append shape to "+_selected_setting_name;
+                    if(PD(selected_setting_type) == SelectedSettingType::ARRAY_OF_VECTORS) {
+                        if(PD(current_boundary).size() >= 1 && PD(current_boundary).back().size() >= 3)
+                            name = "append shape to "+PD(selected_setting_name);
                         else
                             name = "delete invalid shape";
                         
-                    } else if(_selected_setting_type == SelectedSettingType::ARRAY_OF_BOUNDS) {
-                        if(_current_boundary.size() >= 1 && _current_boundary.back().size() >= 2)
-                            name = "append bounds to "+_selected_setting_name;
+                    } else if(PD(selected_setting_type) == SelectedSettingType::ARRAY_OF_BOUNDS) {
+                        if(PD(current_boundary).size() >= 1 && PD(current_boundary).back().size() >= 2)
+                            name = "append bounds to "+PD(selected_setting_name);
                         else
                             name = "delete invalid bounds";
                     } else
-                        name = "append points to "+_selected_setting_name;
+                        name = "append points to "+PD(selected_setting_name);
                 }
                 
                 auto text_bounds = _base ? _base->text_bounds(name, NULL, Font(0.85)) : Base::default_text_bounds(name, NULL, Font(0.85));
@@ -3357,7 +3511,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
                 if(!button) {
                     button = std::make_shared<Button>(name, Bounds(Vec2(), bds.size()));
                     button->on_click([this](auto){
-                        _clicked_background(Vec2(), true, "");
+                        PD(clicked_background)(Vec2(), true, "");
                     });
                     
                 } else {
@@ -3372,7 +3526,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
                         "recognition_shapes"
                     });
                     dropdown->on_select([this](long_t, const Dropdown::TextItem & item){
-                        _clicked_background(Vec2(), true, item.name());
+                        PD(clicked_background)(Vec2(), true, item.name());
                     });
                     dropdown->textfield()->set_placeholder("append to...");
                     
@@ -3380,7 +3534,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
                     dropdown->set_bounds(Bounds(Vec2(0, button->local_bounds().height), bds.size()));
                 
                 combine->update([&](auto&e) {
-                    if(_current_boundary.size() != 1 || _current_boundary.front().size() > 2)
+                    if(PD(current_boundary).size() != 1 || PD(current_boundary).front().size() > 2)
                         e.advance_wrap(*dropdown);
                     e.advance_wrap(*button);
                 });
@@ -3402,8 +3556,8 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
     Image::UPtr image, greyscale;
     Vec2 image_pos;
     
-    auto &percentiles = GUI::cache().pixel_value_percentiles;
-    if(GUI::cache()._equalize_histograms && !percentiles.empty()) {
+    auto &percentiles = PD(cache).pixel_value_percentiles;
+    if(PD(cache)._equalize_histograms && !percentiles.empty()) {
         auto && [pos, img] = blob->equalized_luminance_alpha_image(*Tracker::instance()->background(), FAST_SETTINGS(track_threshold), percentiles.front(), percentiles.back());
         image_pos = pos;
         greyscale = std::move(img);
@@ -3413,7 +3567,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
         greyscale = std::move(img);
     }
     
-    if(GUI::cache()._equalize_histograms && !percentiles.empty()) {
+    if(PD(cache)._equalize_histograms && !percentiles.empty()) {
         auto && [pos, img] = blob->equalized_luminance_alpha_image(*Tracker::instance()->background(), 0, percentiles.front(), percentiles.front());
         offset = pos;
         image = std::move(img);
@@ -3439,7 +3593,7 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
 }*/
 
 void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
-    pv::File *file = dynamic_cast<pv::File*>(_video_source);
+    pv::File *file = PDP(video_source);
     if(file && file->length() > size_t(frameIndex)) {
         struct Outer {
             Image::UPtr image;
@@ -3453,14 +3607,14 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
         
         //static std::vector<Outer> outers;
         static std::vector<std::unique_ptr<ExternalImage>> outer_images;
-        auto ptr = _gui.find("fishbowl");
+        auto ptr = PD(gui).find("fishbowl");
         Vec2 ptr_scale(1), ptr_pos(0);
         //Transform transform;
         auto dim = screen_dimensions(); // / gui::interface_scale()
-        //auto dim = _base ? _base->window_dimensions().div(_gui.scale()) : Size2(_average_image);
+        //auto dim = _base ? _base->window_dimensions().div(PD(gui).scale()) : Size2(_average_image);
         Transform transform;
         
-        //_gui.rect(Bounds(Vec2(10), dim - 20), Transparent, Green);
+        //PD(gui).rect(Bounds(Vec2(10), dim - 20), Transparent, Green);
         
         if(ptr) {
             assert(dynamic_cast<Section*>(ptr));
@@ -3472,7 +3626,7 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
         static std::unordered_set<pv::bid> shown_ids;
         std::unordered_set<pv::bid> to_show_ids;
         
-        for(auto &blob : _cache.processed_frame.original_blobs()) {
+        for(auto &blob : PD(cache).processed_frame.original_blobs()) {
             auto bounds = transform.transformRect(blob->bounds());
             
             if(!Bounds(100, 100, dim.width-100, dim.height-100).overlaps(bounds))
@@ -3481,14 +3635,14 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
             to_show_ids.insert(blob->blob_id());
         }
         
-        //_gui.text("Showing "+Meta::toStr(to_show_ids), Vec2(10, 100));
-        if(_cache.blobs_dirty()) {
+        //PD(gui).text("Showing "+Meta::toStr(to_show_ids), Vec2(10, 100));
+        if(PD(cache).blobs_dirty()) {
             shown_ids.clear();
             outer_images.clear();
         }
         
         if(shown_ids != to_show_ids) {
-            _cache.set_blobs_dirty();
+            PD(cache).set_blobs_dirty();
             //std::vector<Outer> outers;
             std::mutex sync;
             std::atomic<size_t> added_items = 0;
@@ -3499,7 +3653,7 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                 
                 for(auto it = start; it != end; ++it) {
                     if(copy.find(*it) == copy.end()) {
-                        //auto& blob = _cache.processed_frame.bdx_to_ptr(*it);
+                        //auto& blob = PD(cache).processed_frame.bdx_to_ptr(*it);
                         //auto image = generate_outer(blob);
                         //outer_images.emplace_back(std::move(image));
                         added_ids.insert(*it);
@@ -3539,18 +3693,18 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
         }
         
         base.section("blob_outers", [&](auto&base, auto s) {
-            if(ptr && (cache().is_animating(ptr) || _cache.blobs_dirty())) {
+            if(ptr && (PD(cache).is_animating(ptr) || PD(cache).blobs_dirty())) {
                 s->set_scale(ptr_scale);
                 s->set_pos(ptr_pos);
             }
             
-            if(!_cache.blobs_dirty()) {
+            if(!PD(cache).blobs_dirty()) {
                 s->reuse_objects();
                 return;
             }
             
             if(!SETTING(gui_show_pixel_grid)) {
-                _cache.updated_blobs(); // if show_pixel_grid is active, it will set the cache to "updated"
+                PD(cache).updated_blobs(); // if show_pixel_grid is active, it will set the cache to "updated"
             }
             
             //for(auto &image : outer_images)
@@ -3562,9 +3716,9 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                 auto screen_bounds = Bounds(Vec2(-50), screen_dimensions() + 100);
                 
                 constexpr size_t maximum_number_texts = 1000;
-                if(_cache.processed_frame.blobs().size() >= maximum_number_texts) {
-                    Vec2 pos(10, _timeline->bar()->global_bounds().height + _timeline->bar()->global_bounds().y + 10);
-                    auto text = "Hiding some blob texts because of too many blobs ("+Meta::toStr(_cache.processed_frame.blobs().size())+").";
+                if(PD(cache).processed_frame.blobs().size() >= maximum_number_texts) {
+                    Vec2 pos(10, PD(timeline)->bar()->global_bounds().height + PD(timeline)->bar()->global_bounds().y + 10);
+                    auto text = "Hiding some blob texts because of too many blobs ("+Meta::toStr(PD(cache).processed_frame.blobs().size())+").";
                     
                     Rect *rect = new Rect(Bounds(pos, Base::text_dimensions(text, s, Font(0.5)) + Vec2(2, 2)), Black.alpha(125));
                     rect->set_scale(base.scale().reciprocal());
@@ -3584,25 +3738,25 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                 std::map<pv::Blob*, float> distances;
                 std::set<std::tuple<float, pv::BlobPtr, bool>, std::greater<>> draw_order;
                 Transform section_transform = s->global_transform();
-                auto mp = section_transform.transformPoint(_gui.mouse_position());
+                auto mp = section_transform.transformPoint(PD(gui).mouse_position());
                 
-                for (size_t i=0; i<_cache.processed_frame.noise().size(); i++) {
-                    //if(_cache.processed_frame.noise().at(i)->recount(FAST_SETTINGS(track_threshold), *Tracker::instance()->background()) < FAST_SETTINGS(blob_size_ranges).max_range().start * 0.01)
+                for (size_t i=0; i<PD(cache).processed_frame.noise().size(); i++) {
+                    //if(PD(cache).processed_frame.noise().at(i)->recount(FAST_SETTINGS(track_threshold), *Tracker::instance()->background()) < FAST_SETTINGS(blob_size_ranges).max_range().start * 0.01)
                        // continue;
                     
-                    auto id = _cache.processed_frame.noise().at(i)->blob_id();
-                    auto d = sqdistance(mp, _cache.processed_frame.noise().at(i)->bounds().pos());
-                    draw_order.insert({d, _cache.processed_frame.noise().at(i), false});
+                    auto id = PD(cache).processed_frame.noise().at(i)->blob_id();
+                    auto d = sqdistance(mp, PD(cache).processed_frame.noise().at(i)->bounds().pos());
+                    draw_order.insert({d, PD(cache).processed_frame.noise().at(i), false});
                     
                     if(_blob_labels.count(id))
                         std::get<0>(_blob_labels.at(id)) = true;
                 }
                 
                 if(!SETTING(gui_draw_only_filtered_out)) {
-                    for (size_t i=0; i<_cache.processed_frame.blobs().size(); i++) {
-                        auto id = _cache.processed_frame.blobs().at(i)->blob_id();
-                        auto d = sqdistance(mp, _cache.processed_frame.blobs().at(i)->bounds().pos());
-                        draw_order.insert({d, _cache.processed_frame.blobs().at(i), true});
+                    for (size_t i=0; i<PD(cache).processed_frame.blobs().size(); i++) {
+                        auto id = PD(cache).processed_frame.blobs().at(i)->blob_id();
+                        auto d = sqdistance(mp, PD(cache).processed_frame.blobs().at(i)->bounds().pos());
+                        draw_order.insert({d, PD(cache).processed_frame.blobs().at(i), true});
                         
                         if(_blob_labels.count(id))
                             std::get<0>(_blob_labels.at(id)) = true;
@@ -3610,7 +3764,7 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                 }
                 
                 Vec2 sca = base.scale().reciprocal().mul(s->scale().reciprocal());
-                auto mpos = (_gui.mouse_position() - ptr_pos).mul(ptr_scale.reciprocal());
+                auto mpos = (PD(gui).mouse_position() - ptr_pos).mul(ptr_scale.reciprocal());
                 const float max_distance = sqrtf(SQR((_average_image.cols * 0.25) / ptr_scale.x) + SQR((_average_image.rows * 0.25) / ptr_scale.y));
                 size_t displayed = 0;
                 
@@ -3662,12 +3816,12 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                         ss << "</a>";
                     
                     {
-                        //auto label = Categorize::DataStore::ranged_label(Frame_t(cache().frame_idx), blob->blob_id());
-                        auto it = cache()._ranged_blob_labels.find(blob->blob_id());
-                        if(it != cache()._ranged_blob_labels.end()) {
+                        //auto label = Categorize::DataStore::ranged_label(Frame_t(PD(cache).frame_idx), blob->blob_id());
+                        auto it = PD(cache)._ranged_blob_labels.find(blob->blob_id());
+                        if(it != PD(cache)._ranged_blob_labels.end()) {
                             ss << " <nr>" << cats.at(it->second) << "</nr>";
                         }
-                        /*if(blob->parent_id().valid() && (label = Categorize::DataStore::ranged_label(Frame_t(cache().frame_idx), blob->parent_id()))) {
+                        /*if(blob->parent_id().valid() && (label = Categorize::DataStore::ranged_label(Frame_t(PD(cache).frame_idx), blob->parent_id()))) {
                             ss << " parent:<str>" << label->name << "</str>";
                         }
                          */
@@ -3693,10 +3847,10 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                         circ->set_radius(8);
                         //circ->clear_event_handlers();
                         circ->on_click([this, id = blob->blob_id(), circ = circ](auto) mutable {
-                            _current_boundary.clear();
+                            PD(current_boundary).clear();
                             GUI::instance()->set_clicked_blob_id(id);
                             GUI::instance()->set_clicked_blob_frame(GUI::frame());
-                            GUI::cache().set_blobs_dirty();
+                            PD(cache).set_blobs_dirty();
                         });
                     }
                     
@@ -3739,7 +3893,7 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                     if(!opened) {
                         //list->set_items({});
                         _clicked_blob_id = -1;
-                        this->set_redraw();
+                        GUI::set_redraw();
                     }
                 });
                 list->on_select([this](long_t, auto& item) {
@@ -3753,17 +3907,17 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                             SETTING(manual_splits) = copy;
                         });
                     } else {
-                        auto it = _cache.individuals.find(Idx_t(item.ID() - 1));
-                        if(it != _cache.individuals.end()) {
+                        auto it = PD(cache).individuals.find(Idx_t(item.ID() - 1));
+                        if(it != PD(cache).individuals.end()) {
                             auto fish = it->second;
                             auto id = it->first;
                             
-                            for(auto&& [fdx, bdx] : _cache.fish_selected_blobs) {
+                            for(auto&& [fdx, bdx] : PD(cache).fish_selected_blobs) {
                                 if(bdx == clicked_blob_id) {
                                     if(fdx != id) {
-                                        if(_cache.is_selected(fdx)) {
-                                            _cache.deselect(fdx);
-                                            _cache.do_select(id);
+                                        if(PD(cache).is_selected(fdx)) {
+                                            PD(cache).deselect(fdx);
+                                            PD(cache).do_select(id);
                                         }
                                         break;
                                     }
@@ -3779,8 +3933,8 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                     }
                     
                     _clicked_blob_id = -1;
-                    this->set_redraw();
-                    cache().set_raw_blobs_dirty();
+                    GUI::set_redraw();
+                    PD(cache).set_raw_blobs_dirty();
                 });
                 //list->set_background(Black.alpha(125), Black.alpha(230));
                 //popup->set_size(Size2(200, 400));
@@ -3788,7 +3942,7 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
             
             Vec2 blob_pos(FLT_MAX);
             bool found = false;
-            for(auto blob : _cache.raw_blobs) {
+            for(auto blob : PD(cache).raw_blobs) {
                 if(blob->blob->blob_id() == _clicked_blob_id.load()) {
                     blob_pos = blob->blob->bounds().pos() + blob->blob->bounds().size() * 0.5;
                     popup->set_pos(blob_pos.mul(ptr_scale) + ptr_pos);
@@ -3800,13 +3954,13 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
             if(found) {
                 std::set<std::tuple<float, Dropdown::TextItem>> items;
                 for(auto id : FAST_SETTINGS(manual_identities)) {
-                    if(_cache.individuals.count(id) && (!_cache.fish_selected_blobs.count(id) ||_cache.fish_selected_blobs.at(id) != _clicked_blob_id)) {
+                    if(PD(cache).individuals.count(id) && (!PD(cache).fish_selected_blobs.count(id) ||PD(cache).fish_selected_blobs.at(id) != _clicked_blob_id)) {
                         float d = FLT_MAX;
-                        auto c = _cache.processed_frame.cached(id);
+                        auto c = PD(cache).processed_frame.cached(id);
                         if(frameIndex > Tracker::start_frame() && c) {
                             d = (c->estimated_px - blob_pos).length();
                         }
-                        items.insert({d, Dropdown::TextItem(_cache.individuals.at(id)->identity().name() + (d != FLT_MAX ? (" ("+Meta::toStr(d * FAST_SETTINGS(cm_per_pixel))+"cm)") : ""), id + 1, _cache.individuals.at(id)->identity().name(), (void*)uint64_t(_clicked_blob_id.load()))});
+                        items.insert({d, Dropdown::TextItem(PD(cache).individuals.at(id)->identity().name() + (d != FLT_MAX ? (" ("+Meta::toStr(d * FAST_SETTINGS(cm_per_pixel))+"cm)") : ""), id + 1, PD(cache).individuals.at(id)->identity().name(), (void*)uint64_t(_clicked_blob_id.load()))});
                     }
                 }
                 
@@ -3844,25 +3998,25 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
         
         if(SETTING(gui_show_pixel_grid)) {
             base.section("collision_model", [&](auto&, auto s) {
-                if(ptr && (cache().is_animating(ptr) || _cache.blobs_dirty())) {
+                if(ptr && (PD(cache).is_animating(ptr) || PD(cache).blobs_dirty())) {
                     s->set_scale(ptr_scale);
                     s->set_pos(ptr_pos);
                 }
                 
-                if(!_cache.blobs_dirty()) {
+                if(!PD(cache).blobs_dirty()) {
                     s->reuse_objects();
                     return;
                 }
                 
-                _cache.updated_blobs();
+                PD(cache).updated_blobs();
                 
                 std::unordered_map<pv::bid, Color> colors;
                 ColorWheel wheel;
-                for(auto &b : _cache.processed_frame.original_blobs()) {
+                for(auto &b : PD(cache).processed_frame.original_blobs()) {
                     colors[b->blob_id()] = wheel.next().alpha(200);
                 }
                 
-                auto &grid = _cache.processed_frame.blob_grid().get_grid();
+                auto &grid = PD(cache).processed_frame.blob_grid().get_grid();
                 for(auto &set : grid) {
                     for(auto &pixel : set) {
                         base.circle(Vec2(pixel.x, pixel.y), 1, Transparent, colors.find(pixel.v) != colors.end() ? colors.at(pixel.v) : Color(255, 0, 255, 255));
@@ -3877,15 +4031,15 @@ void GUI::local_event(const gui::Event &event) {
     if (event.type == gui::KEY) {
         std::unique_lock<std::recursive_mutex> guard(gui().lock());
         key_event(event);
-        _cache.set_redraw();
+        PD(cache).set_redraw();
         
     } else {
         std::unique_lock<std::recursive_mutex> guard(gui().lock());
         if(event.type == gui::MBUTTON) {
             if(event.mbutton.pressed)
-                _gui.mouse_down(event.mbutton.button == 0);
+                PD(gui).mouse_down(event.mbutton.button == 0);
             else
-                _gui.mouse_up(event.mbutton.button == 0);
+                PD(gui).mouse_up(event.mbutton.button == 0);
         }
         else if(event.type == gui::WINDOW_RESIZED) {
             const float interface_scale = gui::interface_scale();
@@ -3894,26 +4048,26 @@ void GUI::local_event(const gui::Event &event) {
             float scale = min(size.width / float(_average_image.cols),
                               size.height / float(_average_image.rows));
             
-            _gui.set_scale(scale);
+            PD(gui).set_scale(scale);
             
             Vec2 real_size(_average_image.cols * scale,
                            _average_image.rows * scale);
             
-            _cache.set_tracking_dirty();
-            set_redraw();
+            PD(cache).set_tracking_dirty();
+            GUI::set_redraw();
         }
         else if(event.type == gui::MMOVE) {
-            _frameinfo.mx = _gui.mouse_position().x;
-            //_cache.set_tracking_dirty();
-            //_cache.set_blobs_dirty();
-            _cache.set_redraw();
+            _frameinfo.mx = PD(gui).mouse_position().x;
+            //PD(cache).set_tracking_dirty();
+            //PD(cache).set_blobs_dirty();
+            PD(cache).set_redraw();
         }
     }
 }
 
 void GUI::toggle_fullscreen() {
     if(base()) {
-        auto e = _base->toggle_fullscreen(_gui);
+        auto e = _base->toggle_fullscreen(PD(gui));
         this->event(e);
     }
 }
@@ -3926,8 +4080,8 @@ void GUI::confirm_terminate() {
     terminate_visible = true;
     
     work().add_queue("", [this, ptr = &terminate_visible](){
-        std::lock_guard<std::recursive_mutex> lock_guard(_gui.lock());
-        _gui.dialog([ptr = ptr](Dialog::Result result) {
+        std::lock_guard<std::recursive_mutex> lock_guard(PD(gui).lock());
+        PD(gui).dialog([ptr = ptr](Dialog::Result result) {
             if(result == Dialog::Result::OKAY) {
                 SETTING(terminate) = true;
             }
@@ -3940,16 +4094,16 @@ void GUI::confirm_terminate() {
 
 void GUI::update_backups() {
     // every five minutes
-    if(_gui_last_backup.elapsed() > 60 * 5) {
+    if(PD(gui_last_backup).elapsed() > 60 * 5) {
         start_backup();
-        _gui_last_backup.reset();
+        PD(gui_last_backup).reset();
     }
 }
 
 void GUI::start_backup() {
-    work().add_queue("", [this](){
+    work().add_queue("", [](){
         Debug("Writing backup of settings...");
-        this->write_config(true, TEXT, ".backup");
+        GUI::write_config(true, TEXT, ".backup");
     });
 }
 
@@ -3979,20 +4133,20 @@ void GUI::key_event(const gui::Event &event) {
         return;
     
     if(key.code >= Codes::Num0 && key.code <= Codes::Num9) {
-        std::lock_guard<std::recursive_mutex> lock(_gui.lock());
+        std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
         Identity id(narrow_cast<uint32_t>(key.code - Codes::Num0));
-        _cache.deselect_all_select(id.ID());
-        set_redraw();
+        PD(cache).deselect_all_select(id.ID());
+        GUI::set_redraw();
         return;
     }
     
     auto next_crossing = [&](){
-        if(ConfirmedCrossings::next(cache()._current_foi)) {
-            std::lock_guard<std::recursive_mutex> lock(_gui.lock());
+        if(ConfirmedCrossings::next(PD(cache)._current_foi)) {
+            std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
             
-            SETTING(gui_frame) = long_t(cache()._current_foi.foi.frames().start-1);
+            SETTING(gui_frame) = Frame_t(PD(cache)._current_foi.foi.frames().start-1);
             
-            auto &cache = GUI::instance()->cache();
+            auto &cache = PD(cache);
             if(!cache._current_foi.foi.fdx().empty()) {
                 cache.deselect_all();
                 for(auto id : cache._current_foi.foi.fdx()) {
@@ -4012,7 +4166,7 @@ void GUI::key_event(const gui::Event &event) {
             if(_base) {
 #else
         case Codes::F:
-            if(_gui.is_key_pressed(Codes::LSystem) && _base) {
+            if(PD(gui).is_key_pressed(Codes::LSystem) && _base) {
 #endif
                 toggle_fullscreen();
             }
@@ -4035,33 +4189,33 @@ void GUI::key_event(const gui::Event &event) {
         
         case Codes::Right: {
             if(!run()) {
-                std::lock_guard<std::recursive_mutex> lock(_gui.lock());
+                std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
                 
                 direction_change() = play_direction() != 1;
                 if (direction_change()) {
-                    last_direction_change.reset();
-                    last_increase_timer.reset();
+                    PD(last_direction_change).reset();
+                    PD(last_increase_timer).reset();
                 }
                 
-                if(last_increase_timer.elapsed() >= 0.15)
-                    last_direction_change.reset();
+                if(PD(last_increase_timer).elapsed() >= 0.15)
+                    PD(last_direction_change).reset();
                 
-                float percent = min(1, last_direction_change.elapsed() / 2.f);
+                float percent = min(1, PD(last_direction_change).elapsed() / 2.f);
                 percent *= percent;
                 
-                int inc = !direction_change() && last_increase_timer.elapsed() < 0.15 ? ceil(last_increase_timer.elapsed() * max(2, FAST_SETTINGS(frame_rate) * 4) * percent) : 1;
+                int inc = !direction_change() && PD(last_increase_timer).elapsed() < 0.15 ? ceil(PD(last_increase_timer).elapsed() * max(2, FAST_SETTINGS(frame_rate) * 4) * percent) : 1;
                 
-                //Debug("%d %f", inc, last_increase_timer.elapsed());
+                //Debug("%d %f", inc, PD(last_increase_timer).elapsed());
                 
                 play_direction() = 1;
                 
-                long_t new_frame = min((long_t)_video_source->length()-1, frame() + inc);
-                SETTING(gui_frame) = new_frame;
+                long_t new_frame = min((long_t)PD(video_source).length()-1, frame() + inc);
+                SETTING(gui_frame) = Frame_t(new_frame);
                 
-                last_increase_timer.reset();
+                PD(last_increase_timer).reset();
                 
                 //Tracker::LockGuard guard;
-                //Tracker::find_next_problem(*_video_source, frame_ref());
+                //Tracker::find_next_problem(*PD(video_source), frame_ref());
             }
             break;
         }
@@ -4069,7 +4223,7 @@ void GUI::key_event(const gui::Event &event) {
         case Codes::Space: {
             run(!run());
             
-            std::lock_guard<std::recursive_mutex> lock(_gui.lock());
+            std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
             direction_change() = play_direction() != 1;
             play_direction() = 1;
             
@@ -4086,35 +4240,35 @@ void GUI::key_event(const gui::Event &event) {
         
         case Codes::Left: {
             if(!run()) {
-                std::lock_guard<std::recursive_mutex> lock(_gui.lock());
+                std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
                 
                 direction_change() = play_direction() != -1;
                 if (direction_change()) {
-                    last_direction_change.reset();
-                    last_increase_timer.reset();
+                    PD(last_direction_change).reset();
+                    PD(last_increase_timer).reset();
                 }
                 
-                if(last_increase_timer.elapsed() >= 0.15)
-                    last_direction_change.reset();
+                if(PD(last_increase_timer).elapsed() >= 0.15)
+                    PD(last_direction_change).reset();
                 
-                float percent = min(1, last_direction_change.elapsed() / 2.f);
+                float percent = min(1, PD(last_direction_change).elapsed() / 2.f);
                 percent *= percent;
                 
-                int inc = !direction_change() && last_increase_timer.elapsed() < 0.15 ? ceil(last_increase_timer.elapsed() * max(2, FAST_SETTINGS(frame_rate) * 4) * percent) : 1;
+                int inc = !direction_change() && PD(last_increase_timer).elapsed() < 0.15 ? ceil(PD(last_increase_timer).elapsed() * max(2, FAST_SETTINGS(frame_rate) * 4) * percent) : 1;
                 
-                //Debug("%d %f", inc, last_increase_timer.elapsed());
+                //Debug("%d %f", inc, PD(last_increase_timer).elapsed());
                 
                 play_direction() = -1;
                 
                 long_t new_frame = max(0, frame() - inc);
                 if(frame() < 0)
                     new_frame = 0;
-                SETTING(gui_frame) = new_frame;
+                SETTING(gui_frame) = Frame_t(new_frame);
                 
-                last_increase_timer.reset();
+                PD(last_increase_timer).reset();
                 
                 //Tracker::LockGuard guard;
-                //Tracker::find_next_problem(*_video_source, frame_ref());
+                //Tracker::find_next_problem(*PD(video_source), frame_ref());
             }
             
             break;
@@ -4122,12 +4276,12 @@ void GUI::key_event(const gui::Event &event) {
             
         case Codes::Comma: {
             auto fn = [this]() {
-                if(!_analysis->paused())
-                    this->_tracker.wait();
-                _analysis->set_paused(!_analysis->paused());
+                if(!PD(analysis).paused())
+                    PD(tracker).wait();
+                PD(analysis).set_paused(!PD(analysis).paused());
             };
             
-            work().add_queue(_analysis->paused() ? "Unpausing..." : "Pausing...", fn);
+            work().add_queue(PD(analysis).paused() ? "Unpausing..." : "Pausing...", fn);
             break;
         }
             
@@ -4143,7 +4297,7 @@ void GUI::key_event(const gui::Event &event) {
             
         case Codes::D:
             set_mode(mode() == gui::mode_t::blobs ? gui::mode_t::tracking : gui::mode_t::blobs);
-            set_redraw();
+            GUI::set_redraw();
             break;
             
         case Codes::G: {
@@ -4153,54 +4307,54 @@ void GUI::key_event(const gui::Event &event) {
         }
             
         case Codes::P: {
-            std::lock_guard<std::recursive_mutex> lock(_gui.lock());
+            std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
             Identity id;
             
-            if(_cache.has_selection() && !_cache.active_ids.empty()) {
-                auto it = _cache.active_ids.find(_cache.selected.front());
-                if(it != _cache.active_ids.end()) {
-                    if(++it == _cache.active_ids.end())
-                        it = _cache.active_ids.begin();
+            if(PD(cache).has_selection() && !PD(cache).active_ids.empty()) {
+                auto it = PD(cache).active_ids.find(PD(cache).selected.front());
+                if(it != PD(cache).active_ids.end()) {
+                    if(++it == PD(cache).active_ids.end())
+                        it = PD(cache).active_ids.begin();
                 } else
-                    it = _cache.active_ids.begin();
+                    it = PD(cache).active_ids.begin();
                 
                 id = Identity(*it);
                 
-            } else if(!_cache.active_ids.empty()) {
-                id = Identity(*_cache.active_ids.begin());
+            } else if(!PD(cache).active_ids.empty()) {
+                id = Identity(*PD(cache).active_ids.begin());
             } else
                 break;
             
-            _cache.deselect_all_select(id.ID());
+            PD(cache).deselect_all_select(id.ID());
             break;
         }
             
         case Codes::O: {
-            std::lock_guard<std::recursive_mutex> lock(_gui.lock());
+            std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
             Identity id;
             
-            if(_cache.has_selection() && !_cache.active_ids.empty()) {
-                auto it = _cache.active_ids.find(_cache.selected.front());
-                if(it != _cache.active_ids.end()) {
-                    if(it == _cache.active_ids.begin())
-                        it = _cache.active_ids.end();
+            if(PD(cache).has_selection() && !PD(cache).active_ids.empty()) {
+                auto it = PD(cache).active_ids.find(PD(cache).selected.front());
+                if(it != PD(cache).active_ids.end()) {
+                    if(it == PD(cache).active_ids.begin())
+                        it = PD(cache).active_ids.end();
                     --it;
                 } else
-                    it = --_cache.active_ids.end();
+                    it = --PD(cache).active_ids.end();
                 
                 id = Identity(*it);
                 
-            } else if(!_cache.active_ids.empty()) {
-                id = Identity(*(--_cache.active_ids.end()));
+            } else if(!PD(cache).active_ids.empty()) {
+                id = Identity(*(--PD(cache).active_ids.end()));
             } else
                 break;
             
-            _cache.deselect_all_select(id.ID());
+            PD(cache).deselect_all_select(id.ID());
             break;
         }
             
         case Codes::R:
-            if(_recording)
+            if(PD(recording))
                 stop_recording();
             else
                 start_recording();
@@ -4213,44 +4367,44 @@ void GUI::key_event(const gui::Event &event) {
             
         case Codes::T:
             // make timeline visible/hidden
-            _timeline->set_visible(!_timeline->visible());
+            PD(timeline)->set_visible(!PD(timeline)->visible());
             break;
         case Codes::H:
         {
-            if(_cache.has_selection()) {
-                auto fish = _cache.primary_selection();
-                _timeline->prev_poi(fish->identity().ID());
+            if(PD(cache).has_selection()) {
+                auto fish = PD(cache).primary_selection();
+                PD(timeline)->prev_poi(fish->identity().ID());
             }
             break;
         }
             
         case Codes::J:
         {
-            if(_cache.has_selection()) {
-                auto fish = _cache.primary_selection();
-                _timeline->next_poi(fish->identity().ID());
+            if(PD(cache).has_selection()) {
+                auto fish = PD(cache).primary_selection();
+                PD(timeline)->next_poi(fish->identity().ID());
             }
             break;
         }
         case Codes::M:
         {
-            std::lock_guard<std::recursive_mutex> lock(_gui.lock());
+            std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
             if (ConfirmedCrossings::started()) {
                 next_crossing();
                 
             } else
-                _timeline->next_poi();
+                PD(timeline)->next_poi();
             break;
         }
             
         case Codes::N:
         {
-            std::lock_guard<std::recursive_mutex> lock(_gui.lock());
+            std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
             if (ConfirmedCrossings::started()) {
-                if(ConfirmedCrossings::previous(cache()._current_foi)) {
-                    SETTING(gui_frame) = long_t(cache()._current_foi.foi.frames().start-1);
+                if(ConfirmedCrossings::previous(PD(cache)._current_foi)) {
+                    SETTING(gui_frame) = Frame_t(PD(cache)._current_foi.foi.frames().start-1);
                     
-                    auto &cache = GUI::instance()->cache();
+                    auto &cache = PD(cache);
                     if(!cache._current_foi.foi.fdx().empty()) {
                         cache.deselect_all();
                         for(auto id : cache._current_foi.foi.fdx()) {
@@ -4261,7 +4415,7 @@ void GUI::key_event(const gui::Event &event) {
                 }
                 
             } else
-                _timeline->prev_poi();
+                PD(timeline)->prev_poi();
             break;
         }
         case Codes::Z: {
@@ -4277,10 +4431,10 @@ void GUI::key_event(const gui::Event &event) {
             
         case Codes::K: {
             work().add_queue("", [this](){
-                bool before = _analysis->is_paused();
-                _analysis->set_paused(true).get();
+                bool before = PD(analysis).is_paused();
+                PD(analysis).set_paused(true).get();
                 
-                /*auto per_frame = Tracker::find_next_problem(*_video_source, frame());
+                /*auto per_frame = Tracker::find_next_problem(*PD(video_source), frame());
                 if(per_frame.empty()) {
                     Warning("per_frame is empty.");
                     return;
@@ -4305,13 +4459,13 @@ void GUI::key_event(const gui::Event &event) {
         case Codes::I: {
             // save events
             auto fn = [&]() {
-                bool before = _analysis->is_paused();
-                _analysis->set_paused(true).get();
+                bool before = PD(analysis).is_paused();
+                PD(analysis).set_paused(true).get();
                 
                 Tracker::LockGuard guard("Codes::I");
-                _tracker.wait();
+                PD(tracker).wait();
                 
-                Results results(_tracker);
+                Results results(PD(tracker));
                 
                 file::Path fishdata = pv::DataLocation::parse("output", SETTING(fishdata_dir).value<file::Path>());
                 
@@ -4325,10 +4479,10 @@ void GUI::key_event(const gui::Event &event) {
                     
                 }
                 
-                //_analysis->reset_cache();
+                //PD(analysis).reset_PD(cache);
                 Output::Library::clear_cache();
                 if(!before)
-                    _analysis->set_paused(false).get();
+                    PD(analysis).set_paused(false).get();
             };
             
             work().add_queue("Saving events...", fn);
@@ -4348,7 +4502,7 @@ void GUI::key_event(const gui::Event &event) {
             break;
     }
     
-    set_redraw();
+    GUI::set_redraw();
 }
 
 void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
@@ -4361,15 +4515,15 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
     }
     
     if(type == GUIType::GRAPHICAL) {
-        _gui.dialog([this](gui::Dialog::Result r) {
+        PD(gui).dialog([this](gui::Dialog::Result r) {
             this->work().add_queue("checking identities...", [this, r](){
                 Tracker::instance()->check_segments_identities(r == Dialog::OKAY, [](float x) { work().set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
                     this->work().add_queue(t, fn, b);
                 });
                 
-                std::lock_guard<std::recursive_mutex> lock_guard(_gui.lock());
-                _cache.recognition_updated = false;
-                _cache.set_tracking_dirty();
+                std::lock_guard<std::recursive_mutex> lock_guard(PD(gui).lock());
+                PD(cache).recognition_updated = false;
+                PD(cache).set_tracking_dirty();
             });
             
         }, "Do you wish to overwrite <key>manual_matches</key> and reanalyse the video from the beginning with automatic corrections enabled? You will probably want to click <b>Yes</b> after training the visual identification network.\n<b>No</b> will only generate averages and does not change any tracked trajectories.", "Auto-correct", "Yes", "No");
@@ -4378,8 +4532,8 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
             Tracker::instance()->check_segments_identities(force_correct, [](float x) { work().set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
                 this->work().add_queue(t, fn, b);
             });
-            _cache.recognition_updated = false;
-            _cache.set_tracking_dirty();
+            PD(cache).recognition_updated = false;
+            PD(cache).set_tracking_dirty();
             
             if(!force_correct)
                 Debug("Automatic correct has not been performed (only averages have been calculated). In order to do so, add the keyword 'force' after the command.");
@@ -4397,14 +4551,14 @@ void GUI::save_state(GUI::GUIType type, bool force_overwrite) {
     save_state_visible = true;
     
     auto fn = [this, file, ptr = &save_state_visible]() {
-        bool before = _analysis->is_paused();
-        _analysis->set_paused(true).get();
+        bool before = PD(analysis).is_paused();
+        PD(analysis).set_paused(true).get();
         
         Tracker::LockGuard guard("GUI::save_state");
-        _tracker.wait();
+        PD(tracker).wait();
         
         try {
-            Output::TrackingResults results(_tracker);
+            Output::TrackingResults results(PD(tracker));
             results.save([](const std::string& title, float x, const std::string& description){ work().set_progress(title, x, description); }, *file);
         } catch(const UtilsException&e) {
             work().add_queue("", [e](){
@@ -4414,7 +4568,7 @@ void GUI::save_state(GUI::GUIType type, bool force_overwrite) {
             Except("Something went wrong saving program state. Maybe no write permissions?"); }
         
         if(!before)
-            _analysis->set_paused(false).get();
+            PD(analysis).set_paused(false).get();
         
         *ptr = false;
     };
@@ -4425,7 +4579,7 @@ void GUI::save_state(GUI::GUIType type, bool force_overwrite) {
             save_state_visible = false;
         } else {
             this->work().add_queue("", [this, file, fn, ptr = &save_state_visible](){
-                _gui.dialog([file, fn, ptr = ptr](Dialog::Result result) {
+                PD(gui).dialog([file, fn, ptr = ptr](Dialog::Result result) {
                     if(result == Dialog::Result::OKAY) {
                         work().add_queue("Saving results...", fn);
                     } else if(result == Dialog::Result::SECOND) {
@@ -4463,11 +4617,11 @@ void GUI::auto_quit() {
                         
     std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
     Tracker::LockGuard guard("saving and quitting");
-    cache().deselect_all();
+    PD(cache).deselect_all();
     instance()->write_config(true);
     
     if(!SETTING(auto_no_results)) {
-        Output::TrackingResults results(instance()->_tracker);
+        Output::TrackingResults results(PD(tracker));
         results.save();
     } else {
         file::Path path = Output::TrackingResults::expected_filename();
@@ -4550,16 +4704,16 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
     
     state_visible = true;
     auto fn = [&, ptr = &state_visible, from = from]() {
-        bool before = _analysis->is_paused();
-        _analysis->set_paused(true).get();
+        bool before = PD(analysis).is_paused();
+        PD(analysis).set_paused(true).get();
         
         Tracker::LockGuard guard("GUI::load_state");
-        _tracker.wait();
+        PD(tracker).wait();
         
-        Output::TrackingResults results(_tracker);
+        Output::TrackingResults results(PD(tracker));
         
-        _timeline->reset_events();
-        //_analysis->clear();
+        PD(timeline)->reset_events();
+        //PD(analysis).clear();
         
         try {
             results.load([](const std::string& title, float value, const std::string& desc) {
@@ -4582,11 +4736,11 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
             }
         }
         
-        //_analysis->reset_cache();
+        //PD(analysis).reset_PD(cache);
         Output::Library::clear_cache();
         
-        auto range = _tracker.analysis_range();
-        bool finished = _tracker.end_frame() >= range.end;
+        auto range = PD(tracker).analysis_range();
+        bool finished = PD(tracker).end_frame() >= range.end;
         if(finished && SETTING(auto_categorize)) {
             auto_categorize();
         } else if(finished && SETTING(auto_train)) {
@@ -4611,33 +4765,33 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
         }
         
         if(!before || (!finished && SETTING(auto_quit)))
-            _analysis->set_paused(false).get();
+            PD(analysis).set_paused(false).get();
         
         *ptr = false;
     };
     
     if(type == GRAPHICAL) {
-        _gui.dialog([this, ptr = &state_visible, fn](Dialog::Result result) {
+        PD(gui).dialog([this, ptr = &state_visible, fn](Dialog::Result result) {
             if(result == Dialog::Result::OKAY) {
-                work().add_queue("Loading results...", fn, _video_source->filename().str());
+                work().add_queue("Loading results...", fn, PD(video_source).filename().str());
             } else {
                 *ptr = false;
             }
             
         }, "Are you sure you want to load results?\nThis will discard any unsaved changes.", "Load results", "Yes", "Cancel");
     } else {
-        work().add_queue("Loading results...", fn, _video_source->filename().str());
+        work().add_queue("Loading results...", fn, PD(video_source).filename().str());
     }
 }
 
 void GUI::save_visual_fields() {
-    bool before = _analysis->is_paused();
-    _analysis->set_paused(true).get();
+    bool before = PD(analysis).is_paused();
+    PD(analysis).set_paused(true).get();
     
     Tracker::LockGuard guard("GUI::save_visual_fields");
-    _tracker.wait();
+    PD(tracker).wait();
     
-    Individual *selected = _cache.primary_selection();
+    Individual *selected = PD(cache).primary_selection();
     
     auto fishdata_dir = SETTING(fishdata_dir).value<file::Path>();
     auto fishdata = pv::DataLocation::parse("output", fishdata_dir);
@@ -4718,23 +4872,31 @@ Vec2 GUI::pad_image(cv::Mat& padded, Size2 output_size) {
 }
 
 void GUI::export_tracks(const file::Path& , long_t fdx, Rangel range) {
-    bool before = _analysis->is_paused();
-    _analysis->set_paused(true).get();
+    bool before = GUI::analysis()->is_paused();
+    GUI::analysis()->set_paused(true).get();
     
-    track::export_data(_tracker, fdx, range);
+    track::export_data(PD(tracker), fdx, range);
     
     if(!before)
-        _analysis->set_paused(false).get();
+        GUI::analysis()->set_paused(false).get();
 }
 
-file::Path GUI::frame_output_dir() const {
+ConnectedTasks* GUI::analysis() {
+    return PDP(analysis);
+}
+
+void GUI::set_analysis(ConnectedTasks* ptr) {
+    PDP(analysis) = ptr;
+}
+
+file::Path GUI::frame_output_dir() {
     return pv::DataLocation::parse("output", file::Path("frames") / (std::string)SETTING(filename).value<file::Path>().filename());
 }
 
 std::string GUI::info(bool escape) {
     assert(instance);
     
-    auto pv = dynamic_cast<pv::File*>(instance()->_video_source);
+    auto pv = PDP(video_source);
     auto str = std::string("<h1>File</h1>");
     if(escape)
         str += escape_html(pv->get_info());
@@ -4742,7 +4904,7 @@ std::string GUI::info(bool escape) {
         str += pv->get_info_rich_text();
     
     str.append("\n\n<h1>Tracking</h1>");
-    //str.append("\n<b>frames where the number of individuals changed</b>: "+std::to_string(instance()->_tracker.changed_frames().size()-1));
+    //str.append("\n<b>frames where the number of individuals changed</b>: "+std::to_string(PD(tracker).changed_frames().size()-1));
     
     str.append("<b>midline-errors:</b> "+std::to_string(Tracker::overall_midline_errors()));
     str.append("\n<b>max-curvature:</b> "+std::to_string(Outline::max_curvature()));
@@ -4755,9 +4917,9 @@ std::string GUI::info(bool escape) {
     
 #if WITH_SFML
     if(instance()->_base) {
-        instance()->_gui.lock().lock();
+        PD(gui).lock().lock();
         str.append("\n<b>GUI stats:</b> obj:"+std::to_string(instance()->_base->last_draw_objects())+" paint:"+std::to_string(instance()->_base->last_draw_repaint()));
-        instance()->_gui.lock().unlock();
+        PD(gui).lock().unlock();
     }
 #endif
     
@@ -4770,7 +4932,7 @@ void GUI::write_config(bool overwrite, GUI::GUIType type, const std::string& suf
     
     if(filename.exists() && !overwrite) {
         if(type == GUIType::GRAPHICAL) {
-            _gui.dialog([str = text, filename](Dialog::Result r) {
+            PD(gui).dialog([str = text, filename](Dialog::Result r) {
                 if(r == Dialog::OKAY) {
                     if(!filename.remove_filename().exists())
                         filename.remove_filename().create_folder();
@@ -4827,7 +4989,7 @@ void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void
             auto f = PythonIntegration::ensure_started();
             if(!f.get()) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(25));
-                _gui.close_dialogs();
+                PD(gui).close_dialogs();
                 
                 std::string text;
 #if defined(__APPLE__) && defined(__aarch64__)
@@ -4846,7 +5008,7 @@ void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void
                     text += "\n<i>"+escape_html(PythonIntegration::python_init_error())+"</i>";
                     text += "\n\nYou can run <i>"+command+"</i> automatically in the current environment by clicking the button below.";
                     
-                    _gui.dialog([command](Dialog::Result r) {
+                    PD(gui).dialog([command](Dialog::Result r) {
                         if(r == Dialog::ABORT) {
                             // install
                             system(command.c_str());
@@ -4854,7 +5016,7 @@ void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void
                         
                     }, text, "Python initialization failure", "Do nothing", "Install macos-tensorflow");
 #else
-                    _gui.dialog(text, "Error");
+                    PD(gui).dialog(text, "Error");
 #endif
                 }
             } else
@@ -4862,8 +5024,8 @@ void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void
         });
         //PythonIntegration::instance();
         
-        bool before = _analysis->is_paused();
-        _analysis->set_paused(true).get();
+        bool before = PD(analysis).is_paused();
+        PD(analysis).set_paused(true).get();
         
         {
             Tracker::LockGuard guard("GUI::training_data_dialog");
@@ -4921,7 +5083,7 @@ void GUI::generate_training_data(GUI::GUIType type, bool force_load) {
     };
     
     if(Recognition::network_weights_available()) {
-        //auto acc = _tracker.recognition()->available_weights_accuracy(data);
+        //auto acc = PD(tracker).recognition()->available_weights_accuracy(data);
         //Debug("The prediction accuracy for the selected segment was: %.2f%%", acc * 100);
         
         //float full_random = 1 / FAST_SETTINGS(track_max_individuals);
@@ -4930,7 +5092,7 @@ void GUI::generate_training_data(GUI::GUIType type, bool force_load) {
         //}
         
         if(type == GUIType::GRAPHICAL) {
-            _gui.dialog([fn](Dialog::Result result){
+            PD(gui).dialog([fn](Dialog::Result result){
                 work().add_queue("training network", [fn, result](){
                     try {
                         TrainingMode::Class mode;
@@ -5029,25 +5191,25 @@ void GUI::generate_training_data_faces(const file::Path& path) {
     
     for(long_t i=range.start; i<=range.end; i++)
     {
-        if(i < 0 || (size_t)i >= _video_source->length()) {
+        if(i < 0 || (size_t)i >= PD(video_source).length()) {
             Except("Frame %d out of range.", i);
             continue;
         }
         
         work().set_percent((i - range.start) / float(range.end - range.start));
         
-        auto active = i == _tracker.start_frame() ? Tracker::set_of_individuals_t() : Tracker::active_individuals(i-1);
-        ((pv::File*)this->_video_source)->read_frame(frame.frame(), i);
+        auto active = i == PD(tracker).start_frame() ? Tracker::set_of_individuals_t() : Tracker::active_individuals(i-1);
+        PD(video_source).read_frame(frame.frame(), i);
         Tracker::instance()->preprocess_frame(frame, active, NULL);
         
         cv::Mat image, padded, mask;
         for(auto &blob : frame.blobs()) {
-            if(!_tracker.border().in_recognition_bounds(blob->bounds().pos() + blob->bounds().size() * 0.5)) {
+            if(!PD(tracker).border().in_recognition_bounds(blob->bounds().pos() + blob->bounds().size() * 0.5)) {
                 Debug("Skipping %d@%d because its out of bounds.", blob->blob_id(), i);
                 continue;
             }
             
-            auto recount = blob->recount(FAST_SETTINGS(track_threshold), *_tracker.background());
+            auto recount = blob->recount(FAST_SETTINGS(track_threshold), *PD(tracker).background());
             if(recount < FAST_SETTINGS(blob_size_ranges).max_range().start) 
             {
                 continue;

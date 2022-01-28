@@ -167,7 +167,7 @@ Float2_t polygonArea(const std::vector<Vec2>& pts)
     return cmn::abs(area / 2.0f);
 }
 
-void export_data(Tracker& tracker, long_t fdx, const Rangel& range) {
+void export_data(Tracker& tracker, long_t fdx, const Range<long_t>& range) {
     using namespace gui;
     GenericThreadPool _blob_thread_pool(cmn::hardware_concurrency());
     

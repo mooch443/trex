@@ -3,6 +3,7 @@
 #include <gui/gui.h>
 #include <tracking/Recognition.h>
 #include <gui/Timeline.h>
+#include <gui/types/StaticText.h>
 
 namespace gui {
     using namespace track;

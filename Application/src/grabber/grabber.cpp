@@ -18,6 +18,8 @@
 #include <pybind11/numpy.h>
 #include <grabber/default_config.h>
 #include <tracking/Recognition.h>
+#include <misc/SpriteMap.h>
+#include <misc/create_struct.h>
 
 track::Tracker* tracker = nullptr;
 
@@ -70,6 +72,10 @@ ENUM_CLASS(CLFeature,
 IMPLEMENT(FrameGrabber::instance) = NULL;
 IMPLEMENT(FrameGrabber::gpu_average);
 IMPLEMENT(FrameGrabber::gpu_average_original);
+
+bool FrameGrabber::is_recording() const {
+    return GlobalSettings::map().has("recording") && SETTING(recording);
+}
 
 Image::Ptr FrameGrabber::latest_image() {
     return _current_image;

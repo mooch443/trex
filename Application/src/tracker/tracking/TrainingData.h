@@ -6,6 +6,7 @@
 #include <pv.h>
 #include <tracker/misc/default_config.h>
 #include <tracker/misc/idx_t.h>
+#include <misc/ranges.h>
 
 namespace track {
 

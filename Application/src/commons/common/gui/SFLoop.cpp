@@ -1,6 +1,7 @@
 #include "SFLoop.h"
 #include <misc/GlobalSettings.h>
 #include <gui/DrawBase.h>
+#include <misc/SpriteMap.h>
 
 namespace gui {
     SFLoop::SFLoop(DrawStructure& graph, Base* base,

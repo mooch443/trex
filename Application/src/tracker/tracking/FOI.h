@@ -3,6 +3,7 @@
 #include <types.h>
 #include <gui/types/Basic.h>
 #include <gui/colors.h>
+#include <misc/ranges.h>
 
 namespace track {
     //! Frames of interest

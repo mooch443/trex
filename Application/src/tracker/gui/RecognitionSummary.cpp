@@ -2,6 +2,8 @@
 #include <tracking/Tracker.h>
 #include <gui/gui.h>
 #include <tracking/Recognition.h>
+#include <gui/GUICache.h>
+#include <gui/DrawBase.h>
 
 using namespace track;
 

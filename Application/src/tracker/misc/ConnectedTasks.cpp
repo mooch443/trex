@@ -1,4 +1,5 @@
 #include "ConnectedTasks.h"
+#include <misc/SpriteMap.h>
 
 namespace cmn {
     ConnectedTasks::ConnectedTasks(const std::vector<std::function<bool(Type, const Stage&)>>& tasks)

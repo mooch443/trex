@@ -322,7 +322,7 @@ file::Path conda_environment_path() {
         
         CONFIG("gui_draw_only_filtered_out", false, "Only show filtered out blob texts.");
         CONFIG<std::pair<pv::bid, long_t>>("gui_show_fish", {pv::bid::invalid, -1}, "Show debug output for {blob_id, fish_id}.");
-        CONFIG("gui_frame", long_t(0), "The currently visible frame.");
+        CONFIG("gui_frame", track::Frame_t(), "The currently visible frame.");
 #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
         CONFIG("gui_blur_enabled", false, "MacOS supports a blur filter that can be applied to make unselected individuals look interesting.");
 #endif

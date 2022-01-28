@@ -1,7 +1,7 @@
 #ifndef _BLOB_H
 #define _BLOB_H
 
-#include "types.h"
+#include <misc/defines.h>
 #include <misc/vec2.h>
 #include <gui/colors.h>
 

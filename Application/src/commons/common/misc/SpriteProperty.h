@@ -1,12 +1,10 @@
 #ifndef _SPRITE_PROPERTY_H
 #define _SPRITE_PROPERTY_H
 
-#include <commons/common/misc/defines.h>
-
-#include "metastring.h"
+#include <misc/defines.h>
+#include <misc/metastring.h>
 #include <misc/vec2.h>
 
-#define PROPERTY_INVALID_SPEED ((double)-1.0)
 namespace cmn {
     namespace sprite {
         
@@ -34,7 +32,6 @@ namespace cmn {
             GETTER(std::function<std::vector<std::string>()>, enum_values)
             GETTER(std::function<size_t()>, enum_index)
             
-            double _change_speed;
             GETTER_PTR(Map*, map)
             
         public:
@@ -44,7 +41,7 @@ namespace cmn {
                 _type_name([](){return "unknown";}),
                 _enum_values([]() -> std::vector<std::string> {     U_EXCEPTION("PropertyType::enum_values() not initialized."); }),
                 _enum_index([]() -> size_t{ U_EXCEPTION("PropertyType::enum_index() not initialized"); }),
-                _change_speed(PROPERTY_INVALID_SPEED), _map(map)
+                _map(map)
             { }
             
             PropertyType(Map *map, const std::string& name)
@@ -53,7 +50,7 @@ namespace cmn {
                 _type_name([](){return "unknown";}),
                 _enum_values([]() -> std::vector<std::string> {     U_EXCEPTION("PropertyType::enum_values() not initialized."); }),
                 _enum_index([]() -> size_t{ U_EXCEPTION("PropertyType::enum_index() not initialized"); }),
-                _change_speed(1.0), _map(map)
+                _map(map)
             { }
             
             void set_value_from_string(const std::string& str) {
@@ -76,9 +73,6 @@ namespace cmn {
             
             void valid(bool valid) { _valid = valid; }
             bool valid() const { return _valid; }
-
-            double speed() const { return _change_speed; }
-            PropertyType& speed(double s) { _change_speed = s; return *this; }
 
             template<typename T>
             Property<T>& toProperty() {
@@ -138,7 +132,6 @@ namespace cmn {
             UTILS_TOSTRING((
                       "Property<"+type_name()+">")
                      << "('" << _name << "'"
-                     << (speed() != 1.0 ? (speed() != PROPERTY_INVALID_SPEED ? " speed:"+std::to_string(speed()) : "") : "")
                      << ")");
         };
         

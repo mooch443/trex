@@ -3,6 +3,7 @@
 #include <gui/GuiTypes.h>
 #include <gui/types/StaticText.h>
 #include <gui/types/Entangled.h>
+#include <gui/types/Button.h>
 #include <gui/gui.h>
 #ifdef WIN32
 #include <ShObjIdl_core.h>

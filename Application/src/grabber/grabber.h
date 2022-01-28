@@ -182,9 +182,7 @@ public:
     
     static file::Path make_filename();
     
-    bool is_recording() const {
-        return GlobalSettings::map().has("recording") && SETTING(recording);
-    }
+    bool is_recording() const;
     bool is_paused() const {
         if(!is_recording())
             return false;
