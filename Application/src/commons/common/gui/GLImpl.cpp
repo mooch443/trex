@@ -152,9 +152,9 @@ void GLImpl::create_window(const char* title, int width, int height) {
         //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
     #else
         // GL 2.1 + GLSL 120
-        const char* glsl_version = "#version 120";
+        const char* glsl_version = "#version 110";
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
     #endif
 #endif
     
@@ -466,11 +466,11 @@ TexturePtr GLImpl::texture(const Image * ptr) {
         output_type = GL_RGBA;
         
         if(ptr->dims == 1) {
-            output_type = GL_LUMINANCE;
+            //output_type = GL_LUMINANCE8;
             input_type = GL_LUMINANCE;
         }
         if(ptr->dims == 2) {
-            output_type = GL_LUMINANCE_ALPHA;
+            //output_type = GL_LUMINANCE_ALPHA;
             input_type = GL_LUMINANCE_ALPHA;
         }
     }

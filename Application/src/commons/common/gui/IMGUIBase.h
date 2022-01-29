@@ -80,7 +80,8 @@ namespace gui {
         
     public:
         template<typename impl_t = default_impl_t>
-        IMGUIBase(std::string title, DrawStructure& base, CrossPlatform::custom_function_t custom_loop, std::function<void(const gui::Event&)> event_fn) : _custom_loop(custom_loop), _event_fn(event_fn), _title(title)
+        IMGUIBase(std::string title, DrawStructure& base, CrossPlatform::custom_function_t custom_loop, std::function<void(const gui::Event&)> event_fn) 
+            : _custom_loop(custom_loop), _event_fn(event_fn), _title(title)
         {
             set_graph(base);
             

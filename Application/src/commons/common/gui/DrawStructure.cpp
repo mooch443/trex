@@ -446,6 +446,18 @@ void DrawStructure::close_dialogs() {
         
         return _active_section->add(ptr);
     }*/
+
+    void DrawStructure::register_end_object(gui::Drawable& d) {
+        std::unique_lock guard(_end_object_mutex);
+        _end_objects.insert(&d);
+    }
+
+    void DrawStructure::unregister_end_object(gui::Drawable& d) {
+        std::unique_lock guard(_end_object_mutex);
+        auto it = _end_objects.find(&d);
+        if(it != _end_objects.end())
+            _end_objects.erase(it);
+    }
     
     void DrawStructure::wrap_object(gui::Drawable& d) {
         if(!_active_section)

@@ -41,13 +41,11 @@ namespace gui {
     using namespace track;
     
     class Timeline {
-        Vec2 pos;
         //Size2 size;
         
         GETTER(std::unique_ptr<ExternalImage>, bar)
         GETTER(std::unique_ptr<ExternalImage>, consecutives)
         
-        std::atomic<long_t> tracker_endframe, tracker_startframe;
         float tdelta;
         
         bool _visible;
@@ -77,6 +75,7 @@ namespace gui {
         static std::tuple<Vec2, float> timeline_offsets();
         
     private:
+        friend class Interface;
         void update_fois();
         void update_consecs(float max_w, const Range<long_t>&, const std::vector<Rangel>&, float scale);
         //void update_recognition_rect();

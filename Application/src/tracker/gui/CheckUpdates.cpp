@@ -171,8 +171,12 @@ void write_version_file() {
     // write changed date to file 'update_check' in the resource folder
     std::string str = SETTING(app_last_update_check).get().valueString()+"\n"+SETTING(app_check_for_updates).get().valueString()+"\n"+SETTING(app_last_update_version).get().valueString();
     auto f = fopen("update_check", "wb");
-    fwrite(str.c_str(), sizeof(char), str.length(), f);
-    fclose(f);
+    if (f) {
+        fwrite(str.c_str(), sizeof(char), str.length(), f);
+        fclose(f);
+    }
+    else
+        Except("Cannot open update_check file for writing to save the settings (maybe no permissions in app folder?).");
 }
 
 void update_loop() {

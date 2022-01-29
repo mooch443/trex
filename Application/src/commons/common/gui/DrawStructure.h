@@ -91,17 +91,19 @@ namespace gui {
         
     protected:
         GETTER_NCONST(Section, root)
-        GETTER_PTR(Section*, active_section)
-        GETTER_PTR(Drawable*, hovered_object)
-        GETTER_PTR(Drawable*, selected_object)
-        
-        GETTER(uint16_t, width)
-        GETTER(uint16_t, height)
-        GETTER(Vec2, scale)
-        GETTER(std::atomic_bool, changed)
-        GETTER_SETTER(Vec2, dialog_window_size)
-        
-        GETTER(Vec2, mouse_position)
+            GETTER_PTR(Section*, active_section)
+            GETTER_PTR(Drawable*, hovered_object)
+            GETTER_PTR(Drawable*, selected_object)
+
+            GETTER(uint16_t, width)
+            GETTER(uint16_t, height)
+            GETTER(Vec2, scale)
+            GETTER(std::atomic_bool, changed)
+            GETTER_SETTER(Vec2, dialog_window_size)
+
+            GETTER(Vec2, mouse_position)
+            std::set<Drawable*> _end_objects;
+        std::mutex _end_object_mutex;
         
         std::deque<Section*> _sections;
         std::deque<Dialog*> _dialogs;
@@ -160,6 +162,9 @@ namespace gui {
         void print(const Base*);
         
         void wrap_object(Drawable& d);
+        void register_end_object(Drawable& d);
+        void unregister_end_object(Drawable& d);
+
         template<typename T>
         T* add_object(T *ptr, typename std::enable_if<std::is_base_of<Drawable, T>::value, bool>::type = false) {
             if(ptr->type() == Type::SECTION)
@@ -279,13 +284,26 @@ namespace gui {
         void pop_section() {
             if(!_sections.empty()) {
                 assert(_sections.front() == _active_section);
+
+                if (_active_section == &_root) {
+                    std::unique_lock guard(_end_object_mutex);
+                    for (auto& o : _end_objects) {
+                        wrap_object(*o);
+                    }
+                }
+
                 _active_section->end();
+
                 _sections.pop_front();
                 
-                if(!_sections.empty())
+                if (!_sections.empty()) {
                     set_active_section(_sections.front());
-                else
+                }
+                else {
+                    
+
                     set_active_section(NULL);
+                }
             } else
                 U_EXCEPTION("Popping empty stack.");
         }

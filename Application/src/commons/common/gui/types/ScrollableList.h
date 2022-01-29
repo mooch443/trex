@@ -118,6 +118,8 @@ namespace gui {
                 delete r;
             for(auto t : _texts)
                 delete t;
+            if (stage())
+                stage()->unregister_end_object(tooltip);
         }
         
         void set_stays_toggled(bool v) {
@@ -386,9 +388,6 @@ namespace gui {
                 }
                 
                 end();
-
-                if(stage())
-                    stage()->wrap_object(tooltip);
             
                 const float last_y = _line_spacing * (_items.size()-1);
                 set_scroll_limits(Rangef(),
@@ -405,10 +404,11 @@ namespace gui {
                 _items[idx].set_hovered(rect->hovered());
 
                 if constexpr (has_tooltip<T>) {
-                    if (rect->hovered()) {
-                        tooltip.set_text(_items[idx].value().tooltip());
+                    auto tt = _items[idx].value().tooltip();
+                    if (rect->hovered() ) {
+                        tooltip.set_text(tt);
                         tooltip.set_other(rect);
-                        tooltip.set_z_index(1);
+                        tooltip.set_scale(Vec2(rect->global_bounds().width / rect->width()));
                     }
                 }
 
@@ -423,6 +423,14 @@ namespace gui {
                     rect->set_fillclr(base_color.exposure(1.25f));
                 else
                     rect->set_fillclr(base_color.alpha(50));
+            }
+
+            if (stage()) {
+                if(!tooltip.text().txt().empty())
+                    stage()->register_end_object(tooltip);
+                else {
+                    stage()->unregister_end_object(tooltip);
+                }
             }
         }
     };

@@ -1003,9 +1003,247 @@ void Cell::set_sample(const Sample::Ptr &sample) {
     }
 }
 
-static VerticalLayout layout;
-static auto desc_text = Layout::Make<StaticText>();
-static std::array<Row, 2> rows { Row(0), Row(1) };
+struct Interface {
+    VerticalLayout layout;
+    Layout::Ptr desc_text = Layout::Make<StaticText>();
+    std::array<Row, 2> rows{ Row(0), Row(1) };
+
+    Tooltip tooltip{ nullptr, 200 };
+    Layout::Ptr stext = nullptr;
+    Entangled* selected = nullptr;
+    Layout::Ptr apply = Layout::Make<Button>("Apply", Bounds(0, 0, 100, 33));
+    Layout::Ptr load = Layout::Make<Button>("Load", Bounds(0, 0, 100, 33));
+    Layout::Ptr close = Layout::Make<Button>("Hide", Bounds(0, 0, 100, 33));
+    Layout::Ptr restart = Layout::Make<Button>("Restart", Bounds(0, 0, 100, 33));
+    Layout::Ptr train = Layout::Make<Button>("Train", Bounds(0, 0, 100, 33));
+    Layout::Ptr shuffle = Layout::Make<Button>("Shuffle", Bounds(0, 0, 100, 33));
+    Layout::Ptr buttons = Layout::Make<HorizontalLayout>(std::vector<Layout::Ptr>{});
+
+    static Interface& get() {
+        static std::unique_ptr<Interface> obj;
+        if (!obj) {
+            obj = std::make_unique<Interface>();
+        }
+        return *obj;
+    }
+
+    void init(DrawStructure& base) {
+        static double R = 0, elap = 0;
+        static Timer timer;
+        //R += RADIANS(100) * timer.elapsed();
+        elap += timer.elapsed();
+
+        static bool initialized = false;
+        if (!initialized) {
+            //PythonIntegration::ensure_started();
+            //PythonIntegration::async_python_function([]()->bool{return true;});
+            //Work::start_learning();
+
+            elap = 0;
+            initialized = true;
+
+            layout.set_policy(gui::VerticalLayout::CENTER);
+            layout.set_origin(Vec2(0.5));
+            layout.set_pos(Size2(base.width(), base.height()) * 0.5);
+
+            stext = Layout::Make<StaticText>(
+                "<h2>Categorizing types of individuals</h2>"
+                "Below, an assortment of randomly chosen clips is shown. They are compiled automatically to (hopefully) only contain samples belonging to the same category. Choose clips that best represent the categories you have defined before (<str>" + Meta::toStr(DataStore::label_names()) + "</str>) and assign them by clicking the respective button. But be careful - with them being automatically collected, some of the clips may contain images from multiple categories. It is recommended to <b>Skip</b> these clips, lest risking to confuse the poor network. Regularly, when enough new samples have been collected (and for all categories), they are sent to said network for a training step. Each training step, depending on clip quality, should improve the prediction accuracy (see below).",
+                Vec2(),
+                Vec2(base.width() * 0.5 * base.scale().x, -1), Font(0.7)
+                );
+
+            layout.add_child(stext);
+            //layout.add_child(Layout::Make<Text>("Categorizing types of individuals", Vec2(), Cyan, Font(0.75, Style::Bold)));
+
+            apply->on_click([](auto) {
+                Work::set_state(Work::State::APPLY);
+                });
+            close->on_click([](auto) {
+                Work::set_state(Work::State::NONE);
+                });
+            load->on_click([](auto) {
+                Work::set_state(Work::State::LOAD);
+                });
+            restart->on_click([](auto) {
+                Work::_learning = false;
+                Work::_learning_variable.notify_all();
+                DataStore::clear();
+                //PythonIntegration::quit();
+
+                Work::set_state(Work::State::SELECTION);
+                });
+            train->on_click([](auto) {
+                if (Work::state() == Work::State::SELECTION) {
+                    Work::add_training_sample(nullptr);
+                }
+                else
+                    Warning("Not in selection mode. Can only train while samples are being selected, not during apply or inactive.");
+                });
+            shuffle->on_click([](auto) {
+                std::lock_guard gui_guard(GUI::instance()->gui().lock());
+                for (auto& row : Interface::get().rows) {
+                    for (size_t i = 0; i < row._cells.size(); ++i) {
+                        row.update(i, Work::retrieve());
+                    }
+                }
+                });
+
+            apply.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Green.exposure(0.15)));
+            close.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Red.exposure(0.2)));
+            load.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Yellow.exposure(0.2)));
+            shuffle.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Yellow.exposure(0.5)));
+
+            tooltip.set_scale(base.scale().reciprocal());
+            tooltip.text().set_default_font(Font(0.5));
+
+            for (auto& row : rows) {
+                /**
+                 * If the row is empty, that means that the whole grid has not been initialized yet.
+                 * Create images and put them into a per_row^2 grid, and add them to the layout.
+                 */
+                if (row.empty()) {
+                    row.init(per_row);
+                    layout.add_child(Layout::Ptr(row.layout));
+                }
+
+                /**
+                 * After ensuring we do have rows, fill them with new samples:
+                 */
+                for (size_t i = 0; i < row.length(); ++i) {
+                    auto sample = Work::retrieve();
+                    row.update(i, sample);
+                }
+            }
+
+            if (!layout.empty() && layout.children().back() != buttons.get()) {
+                desc_text.to<StaticText>()->set_default_font(Font(0.6));
+                desc_text.to<StaticText>()->set_max_size(stext.to<StaticText>()->max_size());
+
+                layout.add_child(desc_text);
+                layout.add_child(buttons);
+            }
+
+            layout.auto_size(Margin{ 0,0 });
+            layout.set_z_index(1);
+            Work::_variable.notify_one();
+        }
+
+        timer.reset();
+    }
+
+    void draw(DrawStructure& base) {
+        {
+            std::lock_guard guard(DataStore::mutex());
+            /*if(_labels.empty()) {
+                _labels.insert({Label::Make("W"), {}});
+                _labels.insert({Label::Make("S"), {}});
+                //DataStore::_labels.insert({Label::Make("X"), {}});
+            }*/
+
+            if (FAST_SETTINGS(categories_ordered).empty()) {
+                static bool asked = false;
+                if (!asked) {
+                    asked = true;
+
+                    using namespace gui;
+                    static Layout::Ptr textfield;
+
+                    auto d = base.dialog([](Dialog::Result r) {
+                        if (r == Dialog::OKAY) {
+                            std::vector<std::string> categories;
+                            for (auto text : utils::split(textfield.to<Textfield>()->text(), ',')) {
+                                text = utils::trim(text);
+                                if (!text.empty())
+                                    categories.push_back(text);
+                            }
+                            SETTING(categories_ordered) = categories;
+
+                            for (auto& cat : categories)
+                                DataStore::label(cat.c_str()); // create labels
+                        }
+
+                        }, "Please enter the categories (comma-separated), e.g.:\n<i>W,S</i> for categories <str>W</str> and <str>S</str>.", "Categorize", "Okay", "Cancel");
+
+                    textfield = Layout::Make<Textfield>("W,S", Bounds(Size2(d->layout().width() * 0.75, 33)));
+                    textfield->set_size(Size2(d->layout().width() * 0.75, 33));
+                    d->set_custom_element(textfield);
+                    d->layout().Layout::update_layout();
+                }
+                return;
+            }
+        }
+
+        using namespace gui;
+        static Rect rect(Bounds(0, 0, 0, 0), Black.alpha(125));
+
+        auto window = (GUI::instance() && GUI::instance()->base() ? (GUI::instance()->base()->window_dimensions().div(base.scale())) : Size2(base.width(), base.height())) * gui::interface_scale();
+        auto center = window * 0.5;
+        layout.set_pos(center);
+
+        rect.set_z_index(1);
+        rect.set_size(window);
+
+        base.wrap_object(rect);
+
+        init(base);
+
+        layout.auto_size(Margin{ 0,0 });
+        base.wrap_object(layout);
+
+        static Timer timer;
+
+        float max_w = 0;
+        for (auto& row : rows) {
+            for (auto& cell : row._cells) {
+                if (!cell._sample)
+                    row.update(cell._index, Work::retrieve());
+
+                cell._block->auto_size(Margin{ 0,0 });
+                max_w = max(max_w, cell._block->width());
+            }
+            row.update(base, timer.elapsed());
+        }
+
+        max_w = per_row * (max_w + 10);
+
+        if (Work::initialized()) {
+            auto all_options = std::vector<Layout::Ptr>{ restart, load, train, shuffle, close };
+            if (Work::best_accuracy() >= Work::good_enough() * 0.5) {
+                all_options.insert(all_options.begin(), apply);
+            }
+
+            if (buttons.to<HorizontalLayout>()->children().size() != all_options.size())
+                buttons.to<HorizontalLayout>()->set_children(all_options);
+        }
+        else {
+            auto no_network = std::vector<Layout::Ptr>{
+                shuffle, close
+            };
+
+            if (buttons.to<HorizontalLayout>()->children().size() != no_network.size())
+                buttons.to<HorizontalLayout>()->set_children(no_network);
+        }
+
+        if (buttons) buttons->set_scale(base.scale().reciprocal());
+        if (desc_text) desc_text->set_scale(base.scale().reciprocal());
+
+        if (stext) {
+            stext->set_scale(base.scale().reciprocal());
+            stext.to<StaticText>()->set_max_size(Size2(max_w * 1.5 * base.scale().x, -1));
+            if (desc_text)
+                desc_text.to<StaticText>()->set_max_size(stext.to<StaticText>()->max_size());
+        }
+
+        timer.reset();
+
+        auto txt = settings::htmlify(Meta::toStr(DataStore::composition()));
+        if (Work::best_accuracy() < Work::good_enough()) {
+            txt = "<i>Predictions for all visible tiles will be displayed as soon as the network becomes confident enough.</i>\n" + txt;
+        }
+        desc_text.to<StaticText>()->set_txt(txt);
+    }
+};
 
 Sample::Ptr Work::retrieve() {
     _variable.notify_one();
@@ -1039,7 +1277,7 @@ Sample::Ptr Work::retrieve() {
              * to any of the cells.
              */
             std::lock_guard gui_guard(GUI::instance()->gui().lock());
-            for(auto &row : rows) {
+            for(auto &row : Interface::get().rows) {
                 for(auto &c : row._cells) {
                     if(c._sample == sample) {
                         sample = Sample::Invalid();
@@ -1764,7 +2002,7 @@ void Work::start_learning() {
                     guard.unlock();
                     {
                         std::lock_guard g(Work::_recv_mutex);
-                        for(auto &row : rows) {
+                        for(auto &row : Interface::get().rows) {
                             for(auto &cell : row._cells) {
                                 if(cell._sample) {
                                     cell._sample->_probabilities.clear();
@@ -2189,11 +2427,11 @@ void DataStore::clear() {
     
     if(GUI::instance()) {
         std::lock_guard guard(GUI::instance()->gui().lock());
-        for(auto &row : rows) {
+        for(auto &row : Interface::get().rows) {
             row.clear();
         }
     } else {
-        for(auto &row : rows) {
+        for(auto &row : Interface::get().rows) {
             row.clear();
         }
     }
@@ -2842,119 +3080,8 @@ std::string DataStore::Composition::toStr() const {
         + (Work::status().empty() ? "" : " "+Work::status());
 }
 
-static Tooltip tooltip(nullptr, 200);
-static Layout::Ptr stext = nullptr;
-static Entangled* selected = nullptr;
-static Layout::Ptr apply(Layout::Make<Button>("Apply", Bounds(0, 0, 100, 33)));
-static Layout::Ptr load(Layout::Make<Button>("Load", Bounds(0, 0, 100, 33)));
-static Layout::Ptr close(Layout::Make<Button>("Hide", Bounds(0, 0, 100, 33)));
-static Layout::Ptr restart(Layout::Make<Button>("Restart", Bounds(0, 0, 100, 33)));
-static Layout::Ptr train(Layout::Make<Button>("Train", Bounds(0, 0, 100, 33)));
-static Layout::Ptr shuffle(Layout::Make<Button>("Shuffle", Bounds(0, 0, 100, 33)));
-static Layout::Ptr buttons(Layout::Make<HorizontalLayout>(std::vector<Layout::Ptr>{}));
-
 void initialize(DrawStructure& base) {
-    static double R = 0, elap = 0;
-    static Timer timer;
-    //R += RADIANS(100) * timer.elapsed();
-    elap += timer.elapsed();
-    
-    static bool initialized = false;
-    if(!initialized) {
-        //PythonIntegration::ensure_started();
-        //PythonIntegration::async_python_function([]()->bool{return true;});
-        //Work::start_learning();
-        
-        elap = 0;
-        initialized = true;
-        
-        layout.set_policy(gui::VerticalLayout::CENTER);
-        layout.set_origin(Vec2(0.5));
-        layout.set_pos(Size2(base.width(), base.height()) * 0.5);
-        
-        stext = Layout::Make<StaticText>(
-          "<h2>Categorizing types of individuals</h2>"
-          "Below, an assortment of randomly chosen clips is shown. They are compiled automatically to (hopefully) only contain samples belonging to the same category. Choose clips that best represent the categories you have defined before (<str>"+Meta::toStr(DataStore::label_names())+"</str>) and assign them by clicking the respective button. But be careful - with them being automatically collected, some of the clips may contain images from multiple categories. It is recommended to <b>Skip</b> these clips, lest risking to confuse the poor network. Regularly, when enough new samples have been collected (and for all categories), they are sent to said network for a training step. Each training step, depending on clip quality, should improve the prediction accuracy (see below).",
-          Vec2(),
-          Vec2(base.width() * 0.5 * base.scale().x, -1), Font(0.7)
-        );
-        
-        layout.add_child(stext);
-        //layout.add_child(Layout::Make<Text>("Categorizing types of individuals", Vec2(), Cyan, Font(0.75, Style::Bold)));
-        
-        apply->on_click([](auto) {
-            Work::set_state(Work::State::APPLY);
-        });
-        close->on_click([](auto) {
-            Work::set_state(Work::State::NONE);
-        });
-        load->on_click([](auto) {
-            Work::set_state(Work::State::LOAD);
-        });
-        restart->on_click([](auto) {
-            Work::_learning = false;
-            Work::_learning_variable.notify_all();
-            DataStore::clear();
-            //PythonIntegration::quit();
-            
-            Work::set_state(Work::State::SELECTION);
-        });
-        train->on_click([](auto){
-            if(Work::state() == Work::State::SELECTION) {
-                Work::add_training_sample(nullptr);
-            } else
-                Warning("Not in selection mode. Can only train while samples are being selected, not during apply or inactive.");
-        });
-        shuffle->on_click([](auto){
-            std::lock_guard gui_guard(GUI::instance()->gui().lock());
-            for(auto &row : rows) {
-                for (size_t i=0; i<row._cells.size(); ++i) {
-                    row.update(i, Work::retrieve());
-                }
-            }
-        });
-        
-        apply.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Green.exposure(0.15)));
-        close.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Red.exposure(0.2)));
-        load.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Yellow.exposure(0.2)));
-        shuffle.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Yellow.exposure(0.5)));
-        
-        tooltip.set_scale(base.scale().reciprocal());
-        tooltip.text().set_default_font(Font(0.5));
-        
-        for (auto& row : rows) {
-            /**
-             * If the row is empty, that means that the whole grid has not been initialized yet.
-             * Create images and put them into a per_row^2 grid, and add them to the layout.
-             */
-            if(row.empty()) {
-                row.init(per_row);
-                layout.add_child(Layout::Ptr(row.layout));
-            }
-            
-            /**
-             * After ensuring we do have rows, fill them with new samples:
-             */
-            for(size_t i=0; i<row.length(); ++i) {
-                auto sample = Work::retrieve();
-                row.update(i, sample);
-            }
-        }
-        
-        if(!layout.empty() && layout.children().back() != buttons.get()) {
-            desc_text.to<StaticText>()->set_default_font(Font(0.6));
-            desc_text.to<StaticText>()->set_max_size(stext.to<StaticText>()->max_size());
-            
-            layout.add_child(desc_text);
-            layout.add_child(buttons);
-        }
-        
-        layout.auto_size(Margin{0,0});
-        layout.set_z_index(1);
-        Work::_variable.notify_one();
-    }
-    
-    timer.reset();
+    Interface::get().init(base);
 }
 
 Cell::Cell() :
@@ -3088,7 +3215,7 @@ void Work::set_state(State state) {
             hide();
             {
                 std::lock_guard g(Work::_recv_mutex);
-                for(auto &row : rows) {
+                for(auto &row : Interface::get().rows) {
                     for(auto &cell : row._cells) {
                         if(cell._sample) {
                             cell._sample->_probabilities.clear();
@@ -3147,114 +3274,7 @@ void draw(gui::DrawStructure& base) {
     if(!Work::visible())
         return;
     
-    {
-        std::lock_guard guard(DataStore::mutex());
-        /*if(_labels.empty()) {
-            _labels.insert({Label::Make("W"), {}});
-            _labels.insert({Label::Make("S"), {}});
-            //DataStore::_labels.insert({Label::Make("X"), {}});
-        }*/
-        
-        if(FAST_SETTINGS(categories_ordered).empty()) {
-            static bool asked = false;
-            if(!asked) {
-                asked = true;
-                
-                using namespace gui;
-                static Layout::Ptr textfield;
-                
-                auto d = base.dialog([](Dialog::Result r){
-                    if(r == Dialog::OKAY) {
-                        std::vector<std::string> categories;
-                        for(auto text : utils::split(textfield.to<Textfield>()->text(), ',')) {
-                            text = utils::trim(text);
-                            if(!text.empty())
-                                categories.push_back(text);
-                        }
-                        SETTING(categories_ordered) = categories;
-                        
-                        for(auto &cat : categories)
-                            DataStore::label(cat.c_str()); // create labels
-                    }
-                    
-                }, "Please enter the categories (comma-separated), e.g.:\n<i>W,S</i> for categories <str>W</str> and <str>S</str>.", "Categorize", "Okay", "Cancel");
-                
-                textfield = Layout::Make<Textfield>("W,S", Bounds(Size2(d->layout().width() * 0.75,33)));
-                textfield->set_size(Size2(d->layout().width() * 0.75, 33));
-                d->set_custom_element(textfield);
-                d->layout().Layout::update_layout();
-            }
-            return;
-        }
-    }
-    
-    using namespace gui;
-    static Rect rect(Bounds(0, 0, 0, 0), Black.alpha(125));
-    
-    auto window = (GUI::instance() && GUI::instance()->base() ? (GUI::instance()->base()->window_dimensions().div(base.scale())) : Size2(base.width(), base.height())) * gui::interface_scale();
-    auto center = window * 0.5;
-    layout.set_pos(center);
-    
-    rect.set_z_index(1);
-    rect.set_size(window);
-    
-    base.wrap_object(rect);
-    
-    initialize(base);
-    
-    layout.auto_size(Margin{0,0});
-    base.wrap_object(layout);
-    
-    static Timer timer;
-    
-    float max_w = 0;
-    for(auto &row : rows) {
-        for(auto &cell: row._cells) {
-            if(!cell._sample)
-                row.update(cell._index, Work::retrieve());
-            
-            cell._block->auto_size(Margin{0,0});
-            max_w = max(max_w, cell._block->width());
-        }
-        row.update(base, timer.elapsed());
-    }
-    
-    max_w = per_row * (max_w + 10);
-    
-    if(Work::initialized()) {
-        auto all_options = std::vector<Layout::Ptr>{restart, load, train, shuffle, close};
-        if(Work::best_accuracy() >= Work::good_enough() * 0.5) {
-            all_options.insert(all_options.begin(), apply);
-        }
-        
-        if(buttons.to<HorizontalLayout>()->children().size() != all_options.size())
-            buttons.to<HorizontalLayout>()->set_children(all_options);
-    } else {
-        auto no_network = std::vector<Layout::Ptr>{
-            shuffle, close
-        };
-        
-        if(buttons.to<HorizontalLayout>()->children().size() != no_network.size())
-            buttons.to<HorizontalLayout>()->set_children(no_network);
-    }
-    
-    if(buttons) buttons->set_scale(base.scale().reciprocal());
-    if(desc_text) desc_text->set_scale(base.scale().reciprocal());
-    
-    if(stext) {
-        stext->set_scale(base.scale().reciprocal());
-        stext.to<StaticText>()->set_max_size(Size2(max_w * 1.5 * base.scale().x, -1));
-        if(desc_text)
-            desc_text.to<StaticText>()->set_max_size(stext.to<StaticText>()->max_size());
-    }
-    
-    timer.reset();
-    
-    auto txt = settings::htmlify(Meta::toStr(DataStore::composition()));
-    if(Work::best_accuracy() < Work::good_enough()) {
-        txt = "<i>Predictions for all visible tiles will be displayed as soon as the network becomes confident enough.</i>\n"+txt;
-    }
-    desc_text.to<StaticText>()->set_txt(txt);
+    Interface::get().draw(base);
 }
 
 void clear_labels() {
