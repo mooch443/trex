@@ -785,7 +785,7 @@ void GUI::run_loop(gui::LoopStatus status) {
     if(PD(recording)) {
         //! playback_speed can only make it faster
         const float frames_per_second = max(1, GUI_SETTINGS(gui_playback_speed));
-        image_index += frames_per_second;
+        image_index += Frame_t(frames_per_second);
         
         if (image_index > PD(tracker).end_frame()) {
             image_index = PD(tracker).end_frame();
