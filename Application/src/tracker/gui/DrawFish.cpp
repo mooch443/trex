@@ -85,6 +85,53 @@ CREATE_STRUCT(CachedGUIOptions,
         
         _posture.set_origin(Vec2(0.5));
     }
+
+    void Fish::check_tags() {
+        if (_blob) {
+
+            auto p = tags::prettify_blobs(
+                GUI::instance()->cache().processed_frame.blobs(),
+                GUI::instance()->cache().processed_frame.noise(),
+                GUI::instance()->cache().processed_frame.original_blobs(),
+                Tracker::instance()->background()->image());
+
+            for (auto& image : p) {
+
+                auto t = tags::is_good_image(image, Tracker::instance()->background()->image());
+                if (t.image) {
+                    cv::Mat local;
+                    cv::equalizeHist(t.image->get(), local);
+                    /*auto detector = cv::SiftFeatureDetector::create();
+
+
+
+                    std::vector<cv::KeyPoint> keypoints;
+                    detector->detect(t.image->get(), keypoints);*/
+
+                    cv::Mat k;
+                    resize_image(local, k, 15.0);
+
+                    /*for (auto& k : keypoints) {
+                        k.pt *= 15;
+                    }
+
+                    cv::Mat output;
+                    cv::drawKeypoints(k, keypoints, output);
+                    tf::imshow("keypoints", output);*/
+                    tf::imshow("tag", k);
+                }
+            }
+
+
+            /*for (auto& b : GUI::instance()->cache().processed_frame.blobs()) {
+                if (b->blob_id() == _blob->blob_id() || (long_t)b->blob_id() == _blob->parent_id) {
+                    auto&& [image_pos, image] = b->difference_image(*Tracker::instance()->background(), 0);
+                    tf::imshow("blob", image->get());
+
+                }
+            //}*/
+        }
+    }
     
     void Fish::set_data(Frame_t frameIndex, double time, const PPFrame &frame, const EventAnalysis::EventMap *events)
     {
@@ -134,50 +181,7 @@ CREATE_STRUCT(CachedGUIOptions,
             _blob = _obj.compressed_blob(_safe_idx);
             _blob_bounds = _blob ? _blob->calculate_bounds() : bounds();
 
-            if (_blob) {
-
-                auto p = tags::prettify_blobs(
-                    GUI::instance()->cache().processed_frame.blobs(), 
-                    GUI::instance()->cache().processed_frame.noise(), 
-                    GUI::instance()->cache().processed_frame.original_blobs(), 
-                    Tracker::instance()->background()->image());
-
-                for (auto& image : p) {
-
-                    auto t = tags::is_good_image(image, Tracker::instance()->background()->image());
-                    if (t.image) {
-                        cv::Mat local;
-                        cv::equalizeHist(t.image->get(), local);
-                        /*auto detector = cv::SiftFeatureDetector::create();
-                        
-                        
-
-                        std::vector<cv::KeyPoint> keypoints;
-                        detector->detect(t.image->get(), keypoints);*/
-
-                        cv::Mat k;
-                        resize_image(local, k, 15.0);
-
-                        /*for (auto& k : keypoints) {
-                            k.pt *= 15;
-                        }
-
-                        cv::Mat output;
-                        cv::drawKeypoints(k, keypoints, output);
-                        tf::imshow("keypoints", output);*/
-                        tf::imshow("tag", k);
-                    }
-                }
-
-
-                /*for (auto& b : GUI::instance()->cache().processed_frame.blobs()) {
-                    if (b->blob_id() == _blob->blob_id() || (long_t)b->blob_id() == _blob->parent_id) {
-                        auto&& [image_pos, image] = b->difference_image(*Tracker::instance()->background(), 0);
-                        tf::imshow("blob", image->get());
-                        
-                    }
-                //}*/
-            }
+            //check_tags();
             
             auto [_basic, _posture] = _obj.all_stuff(_safe_idx);
             _basic_stuff = _basic;

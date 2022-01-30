@@ -81,6 +81,7 @@ namespace gui {
     public:
         void label(DrawStructure&);
         void shadow(DrawStructure&);
+        void check_tags();
     };
 }
 
