@@ -95,7 +95,7 @@ struct Frame_t {
     }
 };
 
-constexpr Frame_t operator""_f(const uint64_t value) {
+constexpr Frame_t operator""_f(const unsigned long long int value) {
     return Frame_t(value);
 }
 
