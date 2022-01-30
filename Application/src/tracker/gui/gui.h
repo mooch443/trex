@@ -155,11 +155,11 @@ protected:
     GETTER_SETTER(bool, info_visible)
     
     GETTER(std::atomic<pv::bid>, clicked_blob_id)
-    GETTER(std::atomic<long_t>, clicked_blob_frame)
+    GETTER(std::atomic<Frame_t>, clicked_blob_frame)
     
 public:
     void set_clicked_blob_id(pv::bid v) { _clicked_blob_id = v; }
-    void set_clicked_blob_frame(long_t v) { _clicked_blob_frame = v; }
+    void set_clicked_blob_frame(Frame_t v) { _clicked_blob_frame = v; }
     
 public:
     GUI(pv::File &video_source, const Image& average, Tracker& tracker);
@@ -193,11 +193,11 @@ public:
     
     void set_base(gui::Base* base);
     
-    static long_t frame();
+    static Frame_t frame();
     //static inline sprite::Property<long_t>& frame_ref() { return GUI::current_frame; }
     
     static bool execute_settings(file::Path, AccessLevelType::Class);
-    static void reanalyse_from(long_t frame, bool in_thread = true);
+    static void reanalyse_from(Frame_t frame, bool in_thread = true);
     
     static void trigger_redraw();
     
@@ -211,7 +211,7 @@ public:
     
     static void write_config(bool overwrite, GUIType type = GUIType::GRAPHICAL, const std::string& suffix = "");
     
-    void export_tracks(const file::Path& prefix = "", long_t fdx = -1, Rangel range = Rangel());
+    void export_tracks(const file::Path& prefix = "", long_t fdx = -1, Range<Frame_t> range = Range<Frame_t>({}, {}));
     void save_visual_fields();
     void load_connectivity_matrix();
     
@@ -221,31 +221,31 @@ public:
     std::string window_title() const;
     
 private:
-    void draw_raw(gui::DrawStructure&, long_t frameIndex);
-    void draw_tracking(gui::DrawStructure& main_base, long_t frameNr, bool draw_graph = true);
+    void draw_raw(gui::DrawStructure&, Frame_t frameIndex);
+    void draw_tracking(gui::DrawStructure& main_base, Frame_t frameNr, bool draw_graph = true);
     void draw(gui::DrawStructure& main_base);
     void draw_footer(gui::DrawStructure& base);
-    void draw_posture(gui::DrawStructure &base, Individual* fish, long_t frameNr);
+    void draw_posture(gui::DrawStructure &base, Individual* fish, Frame_t frameNr);
     void draw_menu(gui::DrawStructure& base);
     void draw_export_options(gui::DrawStructure& base);
     void draw_grid(gui::DrawStructure& base);
     
-    void removed_frames(long_t including);
+    void removed_frames(Frame_t including);
     
-    void draw_raw_mode(gui::DrawStructure& main_base, long_t frameIndex);
-    void debug_optical_flow(gui::DrawStructure& base, long_t frameIndex);
+    void draw_raw_mode(gui::DrawStructure& main_base, Frame_t frameIndex);
+    void debug_optical_flow(gui::DrawStructure& base, Frame_t frameIndex);
     
     void key_event(const gui::Event& event);
     void local_event(const gui::Event& event);
     
     void generate_training_data(GUIType type = GUIType::GRAPHICAL, bool force_load = false);
-    std::map<long_t, std::set<long_t>> generate_individuals_per_frame(const Rangel& range, TrainingData& data);
+    std::map<Frame_t, std::set<long_t>> generate_individuals_per_frame(const Rangel& range, TrainingData& data);
     
     void generate_training_data_faces(const file::Path& path);
-    std::map<long_t, long_t> check_additional_range(const Rangel& range, TrainingData& data);
+    std::map<Frame_t, long_t> check_additional_range(const Range<Frame_t>& range, TrainingData& data);
     
 public:
-    void add_manual_match(long_t frameIndex, Idx_t fish_id, pv::bid blob_id);
+    void add_manual_match(Frame_t frameIndex, Idx_t fish_id, pv::bid blob_id);
     static void redraw();
 
 private:

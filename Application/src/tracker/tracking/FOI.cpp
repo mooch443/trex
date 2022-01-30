@@ -30,31 +30,31 @@ namespace track {
         return Meta::toStr(id);
     }
     
-    FOI::FOI(long_t frame, std::set<fdx_t> fdx, const std::string& reason, const std::string& description)
-        : FOI(Rangel(frame, frame), fdx, reason, description)
+    FOI::FOI(Frame_t frame, std::set<fdx_t> fdx, const std::string& reason, const std::string& description)
+        : FOI(Range<Frame_t>(frame, frame), fdx, reason, description)
     {}
     
-    FOI::FOI(long_t frame, std::set<bdx_t> bdx, const std::string& reason, const std::string& description)
-        : FOI(Rangel(frame, frame), bdx, reason, description)
+    FOI::FOI(Frame_t frame, std::set<bdx_t> bdx, const std::string& reason, const std::string& description)
+        : FOI(Range<Frame_t>(frame, frame), bdx, reason, description)
     {}
     
-    FOI::FOI(const Rangel& frames, std::set<fdx_t> fdx, const std::string& reason, const std::string& description)
+    FOI::FOI(const Range<Frame_t>& frames, std::set<fdx_t> fdx, const std::string& reason, const std::string& description)
         : FOI(frames, reason, description)
     {
         _fdx.insert(fdx.begin(), fdx.end());
     }
     
-    FOI::FOI(const Rangel& frames, std::set<bdx_t> bdx, const std::string& reason, const std::string& description)
+    FOI::FOI(const Range<Frame_t>& frames, std::set<bdx_t> bdx, const std::string& reason, const std::string& description)
         : FOI(frames, reason, description)
     {
         _bdx.insert(bdx.begin(), bdx.end());
     }
     
-    FOI::FOI(long_t frame, const std::string& reason, const std::string& description)
-        : FOI(Rangel(frame, frame), reason, description)
+    FOI::FOI(Frame_t frame, const std::string& reason, const std::string& description)
+        : FOI(Range<Frame_t>(frame, frame), reason, description)
     {}
     
-    FOI::FOI(const Rangel& frames, const std::string& reason, const std::string& description)
+    FOI::FOI(const Range<Frame_t>& frames, const std::string& reason, const std::string& description)
         : _frames(frames), _description(description)
     {
         std::vector<std::string> all_ids;
@@ -131,7 +131,7 @@ namespace track {
         return _frames_of_interest;
     }
         
-    void FOI::remove_frames(long_t frameIndex) {
+    void FOI::remove_frames(Frame_t frameIndex) {
         ConfirmedCrossings::remove_frames(frameIndex);
 
         std::lock_guard<std::recursive_mutex> guard(_mutex);
@@ -145,7 +145,7 @@ namespace track {
         changed();
     }
     
-    void FOI::remove_frames(long_t frameIndex, long_t id) {
+    void FOI::remove_frames(Frame_t frameIndex, long_t id) {
         ConfirmedCrossings::remove_frames(frameIndex, id);
 
         std::lock_guard<std::recursive_mutex> guard(_mutex);
@@ -182,7 +182,7 @@ namespace track {
     }
     
     void FOI::clear() {
-        remove_frames(0);
+        remove_frames(Frame_t(0));
     }
     
     uint64_t FOI::last_change() {

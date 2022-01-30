@@ -86,7 +86,7 @@ CREATE_STRUCT(CachedGUIOptions,
         _posture.set_origin(Vec2(0.5));
     }
     
-    void Fish::set_data(long_t frameIndex, double time, const PPFrame &frame, const EventAnalysis::EventMap *events)
+    void Fish::set_data(Frame_t frameIndex, double time, const PPFrame &frame, const EventAnalysis::EventMap *events)
     {
         _safe_idx = _obj.find_frame(frameIndex)->frame;
         _time = time;
@@ -234,7 +234,7 @@ CREATE_STRUCT(CachedGUIOptions,
         _color = clr;
         
         auto current_time = _time;
-        auto next_props = Tracker::properties(_idx + 1);
+        auto next_props = Tracker::properties(_idx + 1_f);
         auto next_time = next_props ? next_props->time : (current_time + 1.f/float(frame_rate));
         
         auto active = GUI::cache().active_ids.find(_obj.identity().ID()) != GUI::cache().active_ids.end();
@@ -257,7 +257,7 @@ CREATE_STRUCT(CachedGUIOptions,
 #endif
         
         if(GUIOPTION(gui_show_paths))
-            paintPath(window, offset, _safe_idx, cmn::max(_obj.start_frame(), _safe_idx - 1000l), base_color);
+            paintPath(window, offset, _safe_idx, cmn::max(_obj.start_frame(), _safe_idx - 1000_f), base_color);
         
         if(FAST_SETTINGS(track_max_individuals) > 0 && GUIOPTION(gui_show_boundary_crossings))
             update_recognition_circle(window);
@@ -471,7 +471,7 @@ CREATE_STRUCT(CachedGUIOptions,
             // DISPLAY NEXT POSITION (estimated position in _idx + 1)
             //if(cache.processed_frame.cached_individuals.count(_obj.identity().ID())) {
             if(!_next_frame_cache.valid)
-                _next_frame_cache = _obj.cache_for_frame(_idx + 1, next_time);
+                _next_frame_cache = _obj.cache_for_frame(_idx + 1_f, next_time);
             auto estimated = _next_frame_cache.estimated_px + offset;
             
             window.circle(c_pos, 2, White.alpha(max_color));
@@ -494,7 +494,7 @@ CREATE_STRUCT(CachedGUIOptions,
             struct Physics {
                 Vec2 direction = Vec2();
                 Vec2 v = Vec2();
-                long_t frame = -1;
+                Frame_t frame = {};
                 double blink = 0;
                 bool blinking = false;
                 double blink_limit = 10;
@@ -731,15 +731,15 @@ CREATE_STRUCT(CachedGUIOptions,
             window.line(c_pos, pos, circle_clr);
             
             if(FAST_SETTINGS(posture_direction_smoothing)) {
-                std::map<long_t, float> angles;
-                std::map<long_t, float> dangle, ddangle, interp;
+                std::map<Frame_t, float> angles;
+                std::map<Frame_t, float> dangle, ddangle, interp;
                 
                 float previous = FLT_MAX;
                 bool hit = false;
                 float value = 0;
                 size_t count_ones = 0;
                 
-                for (long_t frame = _idx - (long_t)FAST_SETTINGS(posture_direction_smoothing); frame <= _idx + (long_t)FAST_SETTINGS(posture_direction_smoothing); ++frame)
+                for (auto frame = _idx - Frame_t(FAST_SETTINGS(posture_direction_smoothing)); frame <= _idx + Frame_t(FAST_SETTINGS(posture_direction_smoothing)); ++frame)
                 {
                     auto midline = _obj.pp_midline(frame);
                     if(midline) {
@@ -789,55 +789,55 @@ CREATE_STRUCT(CachedGUIOptions,
                 _graph.clear();
                 _graph.set_pos(c_pos + Vec2(radius, radius));
                 
-                auto first_frame = interp.empty() ? 0 : interp.begin()->first;
-                auto last_frame = interp.empty() ? 0 : interp.rbegin()->first;
-                _graph.set_ranges(Rangef(first_frame, last_frame), Rangef(-1, 1));
+                auto first_frame = interp.empty() ? 0_f : interp.begin()->first;
+                auto last_frame = interp.empty() ? 0_f : interp.rbegin()->first;
+                _graph.set_ranges(Rangef(first_frame.get(), last_frame.get()), Rangef(-1, 1));
                 
                 std::vector<Vec2> points;
                 for(auto && [frame, a] : dangle) {
-                    points.push_back(Vec2(frame, a));
+                    points.push_back(Vec2(frame.get(), a));
                 }
                 _graph.add_points("angle'", points);
                 
                 points.clear();
                 for(auto && [frame, a] : ddangle) {
-                    points.push_back(Vec2(frame, a));
+                    points.push_back(Vec2(frame.get(), a));
                 }
                 _graph.add_points("angle''", points);
-                _graph.set_zero(_idx);
+                _graph.set_zero(_idx.get());
                 
                 window.wrap_object(_graph);
             }
         }
     }
     
-    void Fish::paintPath(DrawStructure& window, const Vec2& offset, long_t to, long_t from, const Color& base_color) {
-        if (to == -1)
+    void Fish::paintPath(DrawStructure& window, const Vec2& offset, Frame_t to, Frame_t from, const Color& base_color) {
+        if (!to.valid())
             to = _obj.end_frame();
-        if (from == -1)
+        if (!from.valid())
             from = _obj.start_frame();
         
         from = _obj.start_frame();
         to = min(_obj.end_frame(), _idx);
         
-        float color_start = max(0, round(_idx - FAST_SETTINGS(frame_rate) * GUIOPTION(gui_max_path_time)));
-        float color_end = max(color_start + 1, _idx);
+        float color_start = max(0, round(_idx.get() - FAST_SETTINGS(frame_rate) * GUIOPTION(gui_max_path_time)));
+        float color_end = max(color_start + 1, _idx.get());
         
-        from = max(color_start, from);
+        from = max(Frame_t(color_start), from);
         
         if(_prev_frame_range.start != _obj.start_frame() || _prev_frame_range.end > _obj.end_frame()) {
             frame_vertices.clear();
         }
         
-        _prev_frame_range = Rangel(_obj.start_frame(), _obj.end_frame());
+        _prev_frame_range = Range<Frame_t>(_obj.start_frame(), _obj.end_frame());
         
         vertices.clear();
         const float max_speed = FAST_SETTINGS(track_max_speed);
         const float thickness = GUIOPTION(gui_outline_thickness);
         
-        long_t first = frame_vertices.empty() ? -1 : frame_vertices.begin()->frame;
+        auto first = frame_vertices.empty() ? Frame_t() : frame_vertices.begin()->frame;
         
-        if(first != -1 && first < from && !frame_vertices.empty()) {
+        if(first.valid() && first < from && !frame_vertices.empty()) {
             auto it = frame_vertices.begin();
             while (it != frame_vertices.end() && it->frame < from)
                 ++it;
@@ -846,11 +846,11 @@ CREATE_STRUCT(CachedGUIOptions,
             //Debug("(%d) #1 Erasing from %d to %d (%d-%d, %d-%d) %d-%d", _obj.identity().ID(), frame_vertices.begin()->frame, end->frame, from, to, first, last, startf, endf);
             
             frame_vertices.erase(frame_vertices.begin(), it);
-            first = frame_vertices.empty() ? -1 : frame_vertices.begin()->frame;
+            first = frame_vertices.empty() ? Frame_t() : frame_vertices.begin()->frame;
         }
         
         if(first > from) {
-            long_t i=(first != -1 ? first-1 : from);
+            auto i = (first.valid() ? first - 1_f : from);
             auto fit = _obj.iterator_for(i);
             auto end = _obj.frame_segments().end();
             auto begin = _obj.frame_segments().begin();
@@ -872,11 +872,11 @@ CREATE_STRUCT(CachedGUIOptions,
                 }
             }
             
-            first = frame_vertices.empty() ? -1 : frame_vertices.begin()->frame;
+            first = frame_vertices.empty() ? Frame_t() : frame_vertices.begin()->frame;
         }
         
-        long_t last = frame_vertices.empty() ? -1 : frame_vertices.rbegin()->frame;
-        if(last == -1)
+        auto last = frame_vertices.empty() ? Frame_t() : frame_vertices.rbegin()->frame;
+        if(!last.valid())
             last = from;
         
         if(last > to && !frame_vertices.empty()) {
@@ -889,11 +889,11 @@ CREATE_STRUCT(CachedGUIOptions,
             frame_vertices.erase(it, frame_vertices.end());
         }
         
-        last = frame_vertices.empty() ? -1 : frame_vertices.rbegin()->frame;
+        last = frame_vertices.empty() ? Frame_t() : frame_vertices.rbegin()->frame;
         
         if(last < to) {
             //Debug("(%d) searching from %d to %d", _obj.identity().ID(), max(from, last), to);
-            long_t i=max(from, last);
+            auto i = max(from, last);
             auto fit = _obj.iterator_for(i);
             auto end = _obj.frame_segments().end();
             
@@ -913,7 +913,7 @@ CREATE_STRUCT(CachedGUIOptions,
                 }
             }
             
-            last = frame_vertices.empty() ? -1 : frame_vertices.rbegin()->frame;
+            last = frame_vertices.empty() ? Frame_t() : frame_vertices.rbegin()->frame;
         }
         
         auto clr = base_color.alpha(255);
@@ -931,13 +931,13 @@ CREATE_STRUCT(CachedGUIOptions,
         
         const float max_distance = Individual::weird_distance() * 0.1 / FAST_SETTINGS(cm_per_pixel);
         
-        auto prev = frame_vertices.empty() ? -1 : frame_vertices.begin()->frame;
+        auto prev = frame_vertices.empty() ? Frame_t() : frame_vertices.begin()->frame;
         Vec2 prev_pos = frame_vertices.empty() ? Vec2(-1) : frame_vertices.begin()->vertex.position();
         for(auto & fv : frame_vertices) {
-            float percent = (fv.speed_percentage * 0.15 + 0.85) * (float(fv.frame - color_start) / float(color_end - color_start));
+            float percent = (fv.speed_percentage * 0.15 + 0.85) * (float(fv.frame.get() - color_start) / float(color_end - color_start));
             percent = percent * percent;
             
-            if(fv.frame - prev > 1 || (prev != -1 && euclidean_distance(prev_pos, fv.vertex.position()) >= max_distance)) {
+            if(fv.frame - prev > 1_f || (prev.valid() && euclidean_distance(prev_pos, fv.vertex.position()) >= max_distance)) {
                 use = inactive_clr;
                 if(vertices.size() > 1) {
                     auto v = new Vertices(vertices, PrimitiveType::LineStrip, Vertices::TRANSPORT);

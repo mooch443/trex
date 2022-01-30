@@ -1,9 +1,10 @@
 #ifndef _PAIRING_GRAPH_H
 #define _PAIRING_GRAPH_H
 
-#include <types.h>
+#include <misc/defines.h>
 #include <misc/PVBlob.h>
 #include <tracker/misc/default_config.h>
+#include <misc/ranges.h>
 
 //! Can transport Individual/Blob
 namespace track {
@@ -161,7 +162,7 @@ namespace Match
         };
         
     protected:
-        GETTER(long_t, frame)
+        GETTER(Frame_t, frame)
         GETTER(float, time)
         PairedProbabilities _paired;
         
@@ -171,7 +172,7 @@ namespace Match
         //GETTER(EdgeMap, edges)
         
     public:
-        PairingGraph(long_t frame, const decltype(_paired)& paired);
+        PairingGraph(Frame_t frame, const decltype(_paired)& paired);
         ~PairingGraph();
         
         static void prepare_shutdown();

@@ -20,8 +20,8 @@ namespace gui {
     class Fish : public DrawableCollection {
         track::Individual& _obj;
         const track::PPFrame* _frame;
-        GETTER(long_t, idx)
-        long_t _safe_idx;
+        GETTER(Frame_t, idx)
+        Frame_t _safe_idx;
         double _time;
         std::unique_ptr<ExternalImage> _image;
         Midline::Ptr _cached_midline;
@@ -40,10 +40,10 @@ namespace gui {
         std::shared_ptr<std::vector<Vec2>> _polygon_points;
         std::shared_ptr<Polygon> _polygon;
         
-        Rangel _prev_frame_range;
+        Range<Frame_t> _prev_frame_range;
         
         struct FrameVertex {
-            long_t frame;
+            Frame_t frame;
             Vertex vertex;
             float speed_percentage;
         };
@@ -71,11 +71,11 @@ namespace gui {
         Fish(track::Individual& obj);
         void update(DrawStructure& d) override;
         //void draw_occlusion(DrawStructure& window);
-        void set_data(long_t frameIndex, double time, const track::PPFrame& frame, const EventAnalysis::EventMap* events);
+        void set_data(Frame_t frameIndex, double time, const track::PPFrame& frame, const EventAnalysis::EventMap* events);
         
     private:
         //void paint(cv::Mat &target, int max_frames = 1000) const;
-        void paintPath(DrawStructure& window, const Vec2& offset, long_t to = -1, long_t from = -1, const Color& = Transparent);
+        void paintPath(DrawStructure& window, const Vec2& offset, Frame_t to = {}, Frame_t from = {}, const Color& = Transparent);
         //void paintPixels() const;
         void update_recognition_circle(DrawStructure&);
     public:

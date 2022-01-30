@@ -844,7 +844,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
             
             std::ofstream file;
             file.open("single.txt", std::ofstream::out | std::ofstream::app);
-            file << frame() << ":\t[" << _optimal_pairing->objects_looked_at <<",\t"<<elapsed*1000<<",\t"<<elapsed*1000/ _optimal_pairing->objects_looked_at <<"" << ",[";
+            file << frame().toStr() << ":\t[" << _optimal_pairing->objects_looked_at <<",\t"<<elapsed*1000<<",\t"<<elapsed*1000/ _optimal_pairing->objects_looked_at <<"" << ",[";
             for(auto &a: _optimal_pairing->path)
             {
                 file << "(" << a.fish->identity().ID() << "," << (a.blob ? long_t((*a.blob)->bounds().pos().x) : LONG_MIN) << "," << (a.blob ? long_t((*a.blob)->bounds().pos().y) : LONG_MIN) <<"," << (a.blob ? prob(a.fish, a.blob) : 0) << "), ";
@@ -1363,7 +1363,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
 #endif
     }
     
-PairingGraph::PairingGraph(long_t frame, const decltype(_paired)& paired)
+PairingGraph::PairingGraph(Frame_t frame, const decltype(_paired)& paired)
     : _frame(frame), _time(Tracker::properties(frame)->time), _paired(paired), _optimal_pairing(NULL)
 {
 }

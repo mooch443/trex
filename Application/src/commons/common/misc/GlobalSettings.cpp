@@ -4,7 +4,6 @@
 
 #include "GlobalSettings.h"
 #include <misc/detail.h>
-#include <misc/SpriteMap.h>
 using namespace cmn;
 
 void GlobalSettings::set_instance(const std::shared_ptr<GlobalSettings>& ptr) {
@@ -12,7 +11,7 @@ void GlobalSettings::set_instance(const std::shared_ptr<GlobalSettings>& ptr) {
 }
 
 std::mutex& GlobalSettings::mutex() {
-	static std::mutex _mutex;
+    static std::mutex _mutex;
     return _mutex;
 }
 
@@ -20,9 +19,7 @@ std::mutex& GlobalSettings::mutex() {
  * GlobalSettings implementation
  */
 
-GlobalSettings::GlobalSettings() 
-    : _map(std::make_unique<sprite::Map>()), _defaults(std::make_unique<sprite::Map>()) 
-{
+GlobalSettings::GlobalSettings() {
 }
 
 /**
@@ -31,48 +28,37 @@ GlobalSettings::GlobalSettings()
 GlobalSettings::~GlobalSettings() {
 }
 
-std::shared_ptr<GlobalSettings>& GlobalSettings::instance() {
-    static std::shared_ptr<GlobalSettings> _instance;
-
-    if (!_instance) {
-        _instance = std::make_shared<GlobalSettings>();
-        _instance->map().set_do_print(false);
-    }
-
-    return _instance;
-}
-
 /**
  * Returns a reference to the settings map.
  * @return sprite::Map&
  */
 sprite::Map& GlobalSettings::map() {
     if(!instance())
-		U_EXCEPTION("No GlobalSettings instance.");
-    return *instance()->_map;
+        U_EXCEPTION("No GlobalSettings instance.");
+    return instance()->_map;
 }
 
 const sprite::Map& GlobalSettings::defaults() {
-	if (!instance())
-		U_EXCEPTION("No GlobalSettings instance.");
-    return *instance()->_defaults;
+    if (!instance())
+        U_EXCEPTION("No GlobalSettings instance.");
+    return instance()->_defaults;
 }
 
 sprite::Map& GlobalSettings::set_defaults() {
-	if (!instance())
-		U_EXCEPTION("No GlobalSettings instance.");
-    return *instance()->_defaults;
+    if (!instance())
+        U_EXCEPTION("No GlobalSettings instance.");
+    return instance()->_defaults;
 }
 
 GlobalSettings::docs_map_t& GlobalSettings::docs() {
-	if (!instance())
-		U_EXCEPTION("No GlobalSettings instance.");
+    if (!instance())
+        U_EXCEPTION("No GlobalSettings instance.");
     return instance()->_doc;
 }
 
 GlobalSettings::user_access_map_t& GlobalSettings::access_levels() {
-	if (!instance())
-		U_EXCEPTION("No GlobalSettings instance.");
+    if (!instance())
+        U_EXCEPTION("No GlobalSettings instance.");
     return instance()->_access_levels;
 }
 

@@ -7,8 +7,8 @@
 
 namespace gui {
     class DrawDataset : public Entangled {
-        long_t _last_frame;
-        Rangel _last_consecutive_frames, _last_current_frames;
+        Frame_t _last_frame;
+        Range<Frame_t> _last_consecutive_frames, _last_current_frames;
         track::DatasetQuality::Quality _quality, _current_quality;
         
         std::map<track::Idx_t, std::tuple<size_t, std::map<track::Idx_t, float>>> _cache;

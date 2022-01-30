@@ -175,9 +175,9 @@ size_t Midline::memory_size() const {
     return sizeof(Midline) + sizeof(decltype(_segments)::value_type) * _segments.size();
 }
 
-Outline::Outline(std::shared_ptr<std::vector<Vec2>> points, long_t f)
-: frameIndex(f), _points(points), _confidence(1.f), _original_angle(0),
-_concluded(false)//, _needs_invert(false)
+Outline::Outline(std::shared_ptr<std::vector<Vec2>> points, Frame_t f)
+    : frameIndex(f), _points(points), _confidence(1.f), _original_angle(0),
+      _concluded(false)//, _needs_invert(false)
 {
     check_constants();
     

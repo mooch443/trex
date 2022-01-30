@@ -51,7 +51,7 @@ TGrabs parameters
 
 
 
-.. function:: blob_size_range(rangef)
+.. function:: blob_size_range(range<float>)
 
 	**default value:** [0.01,500000]
 
@@ -97,7 +97,7 @@ TGrabs parameters
 	.. seealso:: :func:`use_closing`, 
 
 
-.. function:: color_channel(uint64)
+.. function:: color_channel(ulong)
 
 	**default value:** 1
 

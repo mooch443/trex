@@ -107,7 +107,7 @@ void InfoCard::update() {
         
         // draw segment list
         auto rit = segments.rbegin();
-        long_t current_segment = -1;
+        Frame_t current_segment;
         for(; rit != segments.rend(); ++rit) {
             if(range_of(*rit).end() < _frameNr)
                 break;
@@ -127,7 +127,7 @@ void InfoCard::update() {
         
         for (; it != segments.end() && cmn::abs(std::distance(it0, it)) < 5; ++it, ++i)
         {
-            std::string str = std::to_string(range_of(it).start())+"-"+std::to_string(range_of(it).end());
+            std::string str = range_of(it).start().toStr() + "-" + range_of(it).end().toStr();
             auto p = Vec2(width() - 10 + offx, float(height() - 40) * 0.5f + ((i - 2) + 1) * (float)Base::default_line_spacing(Font(1.1f)));
             
             text = new Text(str, p, White.alpha(25 + 230 * (1 - cmn::abs(i-2) / 5.0f)), Font(0.8f), Vec2(1), Vec2(1, 0.5f));
@@ -182,12 +182,12 @@ void InfoCard::update() {
                 auto segment = cache.primary_selection()->get_segment(next_frame);
                 
                 if(next_frame == segment.start())
-                    next_frame = cache.primary_selection()->get_segment(segment.start()-1).start();
+                    next_frame = cache.primary_selection()->get_segment(segment.start() - 1_f).start();
                 else
                     next_frame = segment.start();
             }
             
-            if(next_frame == -1)
+            if(!next_frame.valid())
                 return;
             
             if(GUI::frame() != next_frame)
@@ -200,24 +200,24 @@ void InfoCard::update() {
             if(cache.has_selection()) {
                 Tracker::LockGuard guard("InfoCard::update->next->on_click");
                 auto segment = cache.primary_selection()->get_segment(next_frame);
-                if(segment.start() != -1) {
+                if(segment.start().valid()) {
                     auto it = cache.primary_selection()->find_segment_with_start(segment.start());
                     ++it;
                     if(it == cache.primary_selection()->frame_segments().end()) {
-                        next_frame = -1;
+                        next_frame.invalidate();
                     } else {
                         next_frame = (*it)->start();
                     }
                     
                 } else
-                    next_frame = -1;
+                    next_frame.invalidate();
             }
             
-            if(next_frame == -1)
+            if(!next_frame.valid())
                 return;
             
             if(GUI::frame() != next_frame)
-                SETTING(gui_frame) = Frame_t(next_frame);
+                SETTING(gui_frame) = next_frame;
         });
         
         first = false;
@@ -449,7 +449,7 @@ void InfoCard::update() {
     set_background(bg);
 }
     
-    void InfoCard::update(gui::DrawStructure &base, long_t frameNr) {
+    void InfoCard::update(gui::DrawStructure &base, Frame_t frameNr) {
         auto fish = GUI::cache().primary_selection();
         
         if(_fish != fish) {
@@ -465,7 +465,7 @@ void InfoCard::update() {
                     return;
                 std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
                 _fish = nullptr;
-                _frameNr = -1;
+                _frameNr.invalidate();
                 set_content_changed(true);
             });
         }

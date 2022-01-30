@@ -6,6 +6,7 @@
 #include <file/DataFormat.h>
 #include <gui/Transform.h>
 #include <tracker/misc/default_config.h>
+#include <misc/ranges.h>
 
 namespace Output {
     class ResultsFormat;
@@ -17,7 +18,7 @@ namespace track {
     struct MovementInformation;
     
     struct DebugInfo {
-        long_t frameIndex;
+        Frame_t frameIndex;
         uint32_t fdx;
         bool debug;
         //Vec2 previous_position;
@@ -110,7 +111,7 @@ namespace track {
         };
         
     public:
-        long_t frameIndex;
+        Frame_t frameIndex;
         static float average_curvature();
         static float max_curvature();
         static uint8_t get_outline_approximate();
@@ -144,7 +145,7 @@ namespace track {
         //GETTER(bool, needs_invert)
         
     public:
-        Outline(std::shared_ptr<std::vector<Vec2>> points, long_t f = -1);
+        Outline(std::shared_ptr<std::vector<Vec2>> points, Frame_t f = {});
         ~Outline();
         
         void clear();

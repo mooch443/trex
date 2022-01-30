@@ -7,8 +7,8 @@
 namespace track {
     static constexpr double right_angle = RADIANS(90);
     
-    VisualField::VisualField(Idx_t fish_id, long_t frame, const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture, bool blocking)
-    : max_d(SQR(Tracker::average().cols) + SQR(Tracker::average().rows)), _fish_id(fish_id), _frame(frame)
+    VisualField::VisualField(Idx_t fish_id, Frame_t frame, const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture, bool blocking)
+        : max_d(SQR(Tracker::average().cols) + SQR(Tracker::average().rows)), _fish_id(fish_id), _frame(frame)
     {
         calculate(basic, posture, blocking);
     }
@@ -306,7 +306,7 @@ std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(con
         std::tuple<float, float> p0;
         
         //! allow for a couple of frames look-back, in case individuals arent present in the current frame but have been previously
-        const long_t max_back_view = max(1, FAST_SETTINGS(track_max_reassign_time) * FAST_SETTINGS(frame_rate));
+        const Frame_t max_back_view = Frame_t(max(1, FAST_SETTINGS(track_max_reassign_time) * FAST_SETTINGS(frame_rate)));
         
         //! iterate over all currently visible individuals
         //  for all individuals with outline...
@@ -465,7 +465,7 @@ std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(con
         
     }
     
-    void VisualField::show_ts(gui::DrawStructure &base, long_t frameNr, Individual* selected) {
+    void VisualField::show_ts(gui::DrawStructure &base, Frame_t frameNr, Individual* selected) {
         using namespace gui;
         
         int range = 50;
@@ -481,7 +481,7 @@ std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(con
         }
         
         assert(range <= INT32_MAX);
-        for(long_t i=frameNr-range; i<=frameNr; i++) {
+        for(auto i = frameNr - Frame_t(range); i <= frameNr; ++i) {
             auto ptr = (VisualField*)selected->custom_data(i, VisualField::custom_id);
             if(!ptr && selected->head(i)) {
                 ptr = new VisualField(selected->identity().ID(), i, selected->basic_stuff(i), selected->posture_stuff(i), true);
@@ -503,8 +503,8 @@ std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(con
                     
                     //window.image(p, mat, Vec2(1,1), White.alpha(100));
                     
-                    auto cids = ids[j]->get().row(int(i+range-frameNr));
-                    auto cd = distances[j]->get().row(int(i+range-frameNr));
+                    auto cids = ids[j]->get().row(( i + Frame_t(range) - frameNr).get());
+                    auto cd = distances[j]->get().row((i + Frame_t(range) - frameNr).get());
                     
                     for(int i=0; i<(int)ids[j]->cols; i++) {
                         auto id = e._visible_ids[i] != -1 ? Idx_t(e._visible_ids[i]) : Idx_t();

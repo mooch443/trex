@@ -13,7 +13,7 @@
 namespace gui {
     class Posture : public Entangled {
         track::Individual* _fish;
-        long_t _frameIndex;
+        Frame_t _frameIndex;
         Vec2 zero;
         //gui::Rect _background;
         
@@ -25,7 +25,7 @@ namespace gui {
         
         void set_fish(track::Individual* fish);
         
-        void set_frameIndex(long_t frameIndex) {
+        void set_frameIndex(Frame_t frameIndex) {
             if(frameIndex == _frameIndex)
                 return;
             

@@ -258,10 +258,11 @@ void GUI::draw(gui::DrawStructure &base) {
                 }
 
                 if (noise_image) {
+                    auto N = _noise ? _noise->n() : 0u;
                     std::fill(noise_image->source()->data(), noise_image->source()->data() + noise_image->source()->size(), 0);
 
                     auto mat = noise_image->source()->get();
-                    for (int i = 0; i < _noise->n(); i++) {
+                    for (size_t i = 0; i < N; i++) {
                         auto& m = _noise->mask().at(i);
 
                         for (auto& line : *m) {
@@ -444,7 +445,7 @@ void GUI::draw(gui::DrawStructure &base) {
                         auto stuff = fish->basic_stuff(tracker->end_frame());
 
                         std::vector<Vec2> positions;
-                        fish->iterate_frames(Rangel(tracker->end_frame() - 100, tracker->end_frame()), [&](long_t frame, const std::shared_ptr<Individual::SegmentInformation>& segment, const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture) -> bool
+                        fish->iterate_frames(Range<Frame_t>(tracker->end_frame() - 100_f, tracker->end_frame()), [&](Frame_t frame, const std::shared_ptr<Individual::SegmentInformation>& segment, const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture) -> bool
                             {
                                 if (basic) {
                                     auto bounds = basic->blob.calculate_bounds();

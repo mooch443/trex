@@ -852,7 +852,7 @@ int main(int argc, char**argv) {
             SETTING(video_length) = uint64_t(header.video_length);
             SETTING(analysis_range) = std::pair<long_t, long_t>(header.analysis_range.start, header.analysis_range.end);
             auto consec = header.consecutive_segments;
-            std::vector<Rangel> vec(consec.begin(), consec.end());
+            std::vector<Range<Frame_t>> vec(consec.begin(), consec.end());
             SETTING(consecutive) = vec;
         }
         
@@ -903,7 +903,7 @@ int main(int argc, char**argv) {
             Output::TrackingResults results(tracker);
             results.load([](auto, auto, auto){}, path);
             auto consec = tracker.consecutive();
-            std::vector<Rangel> vec(consec.begin(), consec.end());
+            std::vector<Range<Frame_t>> vec(consec.begin(), consec.end());
             SETTING(consecutive) = vec;
         }
     }

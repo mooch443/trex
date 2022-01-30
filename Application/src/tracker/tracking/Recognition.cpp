@@ -205,7 +205,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
     }
     
     Recognition::Recognition() : //_pool(cmn::hardware_concurrency()),
-        _last_prediction_accuracy(-1), _last_checked_frame(-1), _trained(false), _has_loaded_weights(false),
+        _last_prediction_accuracy(-1), _trained(false), _has_loaded_weights(false),
         _running(false), _internal_begin_analysis(false), _dataset_quality(NULL)
     {
         assert(!instance);
@@ -283,7 +283,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         return FAST_SETTINGS(manual_identities).size();
     }
     
-    /*bool Recognition::has(long_t frame, uint32_t blob_id) {
+    /*bool Recognition::has(Frame_t frame, uint32_t blob_id) {
         std::lock_guard<std::mutex> guard(_mutex);
         auto entry = probs.find(frame);
         if (entry != probs.end())
@@ -291,13 +291,13 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         return false;
     }
     
-    bool Recognition::has(long_t frame) {
+    bool Recognition::has(Frame_t frame) {
         std::lock_guard<std::mutex> guard(_mutex);
         auto entry = probs.find(frame);
         return entry != probs.end();
     }*/
     
-    /*bool Recognition::has(long_t frame, const Individual* fish) {
+    /*bool Recognition::has(Frame_t frame, const Individual* fish) {
         std::lock_guard<std::mutex> guard(_mutex);
         auto entry = probs.find(frame);
         if (entry != probs.end()) {
@@ -313,7 +313,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         return false;
     }*/
     
-    std::map<Idx_t, float> Recognition::ps_raw(long_t frame, pv::bid blob_id) {
+    std::map<Idx_t, float> Recognition::ps_raw(Frame_t frame, pv::bid blob_id) {
         std::lock_guard<std::mutex> probs_guard(_mutex);
         auto entry = probs.find(frame);
         if (entry != probs.end()) {
@@ -362,7 +362,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         _dataset_quality->update(guard);
     }
     
-    TrainingFilterConstraints Recognition::local_midline_length(const Individual *fish, long_t frame, const bool calculate_std) {
+    TrainingFilterConstraints Recognition::local_midline_length(const Individual *fish, Frame_t frame, const bool calculate_std) {
         auto segment = fish->get_segment(frame);
         if(segment.contains(frame)) {
             auto &midline_length_map = custom_midline_lengths[fish->identity().ID()];
@@ -380,7 +380,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         return TrainingFilterConstraints();
     }
     
-    void Recognition::remove_frames(long_t after) {
+    void Recognition::remove_frames(Frame_t after) {
         {
             std::lock_guard<std::mutex> guard(_filter_mutex);
             for(auto && [fish, map] : _filter_cache_std) {
@@ -419,8 +419,9 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                         }
                         
                     } else {
+                        // CHECK THIS
                         for(auto id : it->second)
-                            _fish_last_frame.at(id).last_frame = cmn::max(-1, after - 1);
+                            _fish_last_frame.at(id).last_frame = max(-1_f, after - 1_f);
                     }
                     
                     it = _last_frames.erase(it);
@@ -483,7 +484,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         
         {
             std::unique_lock<decltype(_data_queue_mutex)> guard(_data_queue_mutex);
-            _last_checked_frame = 0;
+            _last_checked_frame = Frame_t(0);
             
             for(auto && [frame, ids] : _last_frames) {
                 if(ids.find(fish->identity().ID()) != ids.end())
@@ -501,7 +502,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         _detail.remove_individual(fish->identity().ID());
     }
     
-    TrainingFilterConstraints Recognition::local_midline_length(const Individual *fish, const Rangel& segment, const bool calculate_std) {
+    TrainingFilterConstraints Recognition::local_midline_length(const Individual *fish, const Range<Frame_t>& segment, const bool calculate_std) {
         TrainingFilterConstraints constraints;
         if(cached_filter(fish, segment, constraints, calculate_std))
             return constraints;
@@ -511,7 +512,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         
         std::shared_ptr<Individual::PostureStuff> previous_midline;
         
-        fish->iterate_frames(segment, [&](long_t frame, const auto&, const std::shared_ptr<Individual::BasicStuff> & basic, const std::shared_ptr<Individual::PostureStuff> & posture) -> bool
+        fish->iterate_frames(segment, [&](Frame_t frame, const auto&, const std::shared_ptr<Individual::BasicStuff> & basic, const std::shared_ptr<Individual::PostureStuff> & posture) -> bool
         {
             if(!basic || !posture || basic->blob.split())
                 return true;
@@ -525,7 +526,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                 if(calculate_std)
                     midline_lengths.insert(posture->midline_length);
                 
-                if(previous_midline && previous_midline->frame == frame - 1) {
+                if(previous_midline && previous_midline->frame == frame - 1_f) {
                     auto first = Vec2(sin(previous_midline->midline_angle), cos(previous_midline->midline_angle));
                     auto second = Vec2(sin(posture->midline_angle), cos(posture->midline_angle));
                     auto diff = (first - second).length();
@@ -573,7 +574,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         _filter_cache_no_std.clear();
     }
     
-    bool Recognition::cached_filter(const Individual *fish, const Rangel& segment, TrainingFilterConstraints & constraints, const bool with_std) {
+    bool Recognition::cached_filter(const Individual *fish, const Range<Frame_t>& segment, TrainingFilterConstraints & constraints, const bool with_std) {
         std::lock_guard<std::mutex> guard(_filter_mutex);
         const auto &cache = with_std ? _filter_cache_std : _filter_cache_no_std;
         auto fit = cache.find(fish);
@@ -613,7 +614,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         return true;
     }
     
-    size_t Recognition::update_elig_frames(std::map<long_t, std::map<pv::bid, ImageData>>& waiting_for_pixels)
+    size_t Recognition::update_elig_frames(std::map<Frame_t, std::map<pv::bid, ImageData>>& waiting_for_pixels)
     {
         Tracker::LockGuard guard("update_elig_frames");
         auto normalize = SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>();
@@ -626,10 +627,10 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         const float cache_capacity_megabytes = SETTING(gpu_max_cache).value<float>() * 1000;
         const float image_megabytes = output_shape.width * output_shape.height / 1000.f / 1000.f;
         
-        auto set_frame_for_fish = [this](fdx_t fdx, frame_t frame) {
+        auto set_frame_for_fish = [this](fdx_t fdx, Frame_t frame) {
             auto it = _fish_last_frame.find(fdx);
             if(it != _fish_last_frame.end()) {
-                if(it->second.last_frame != -1) {
+                if(it->second.last_frame.valid()) {
                     auto fit = _last_frames.find(it->second.last_frame);
                     if(fit != _last_frames.end()) {
                         fit->second.erase(fdx);
@@ -647,7 +648,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             float percent = 1;
             for (auto && [fish, current] : eligible_frames) {
                 if(!current.empty())
-                    percent *= _fish_last_frame[fish->identity().ID()].last_frame / float(current.rbegin()->first.end());
+                    percent *= _fish_last_frame[fish->identity().ID()].last_frame.get() / float(current.rbegin()->first.end().get());
             }
             _detail.set_processing_percent(percent);
         };
@@ -781,7 +782,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         std::shared_ptr<Tracker::LockGuard> tracker_guard = std::make_shared<Tracker::LockGuard>("update_internal_training");
         auto running = set_running(true, "update_internal_training");
         std::unique_lock<decltype(_data_queue_mutex)> guard(_data_queue_mutex);
-        std::map<long_t, std::map<pv::bid, ImageData>> waiting_for_pixels;
+        std::map<Frame_t, std::map<pv::bid, ImageData>> waiting_for_pixels;
         
         if(!PythonIntegration::python_initialized())
         {
@@ -811,10 +812,10 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         
         float segments_done = 0, all_segments = 0;
         
-        Rangel frames(Tracker::start_frame(), Tracker::end_frame());
+        Range<Frame_t> frames(Tracker::start_frame(), Tracker::end_frame());
         const auto [start, stop] = FAST_SETTINGS(analysis_range);
-        if(stop != -1 && stop < frames.end) {
-            frames.end = stop;
+        if(stop != -1 && stop < frames.end.get()) {
+            frames.end = Frame_t(stop);
         }
         video_length = stop;
         
@@ -855,7 +856,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             for (auto it = fish->frame_segments().begin(); it != fish->frame_segments().end(); ++it) {
                 auto& segment = *it->get();
                 
-                if(segment.end() >= fish->end_frame() && !(uint64_t(fish->end_frame()) >= video_length || fish->end_frame() < frames.end))
+                if(segment.end() >= fish->end_frame() && !(uint64_t(fish->end_frame().get()) >= video_length || fish->end_frame() < frames.end))
                 {
                     // dont process the last segment of this fish, unless
                     // it is the end of the video
@@ -869,7 +870,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                 //    continue;
                 
                 // skip this fish if it doesnt have this frame
-                if(segment.empty() || segment.first_usable == -1)
+                if(segment.empty() || !segment.first_usable.valid())
                     continue;
                 
                 if(eligible_frames[fish].find(segment) == eligible_frames[fish].end()) {
@@ -877,7 +878,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                     if(filters.median_midline_length_px <= 0)
                         filters.median_midline_length_px = fish->midline_length();
                     
-                    std::set<long_t> elig_frames;
+                    std::set<Frame_t> elig_frames;
                     if(normalize == default_config::recognition_normalization_t::posture || normalize == default_config::recognition_normalization_t::legacy) {
                         for(auto& index : segment.posture_index) {
                             if(index < 0)
@@ -960,15 +961,15 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             {
                 Tracker::LockGuard guard("waiting_for_pixels");
                 std::unordered_set<Individual*> prev_active;
-                if(Tracker::properties(i-1))
-                    prev_active = Tracker::active_individuals(i-1);
+                if(Tracker::properties( i - 1_f ))
+                    prev_active = Tracker::active_individuals( i - 1_f );
                 
                 {
                     if(terminate_thread || !GUI::instance() || SETTING(terminate)) {
                         return false;
                     }
                     
-                    GUI::instance()->video_source()->read_frame(frame.frame(), (uint64_t)i);
+                    GUI::instance()->video_source()->read_frame(frame.frame(), (uint64_t)i.get());
                     Tracker::instance()->preprocess_frame(frame, prev_active, &Tracker::instance()->thread_pool());
                 }
             }
@@ -1103,7 +1104,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         obj.percent = _percent;
         
         if(!added_individuals_per_frame.empty())
-            obj.max_frame = added_individuals_per_frame.rbegin()->first;
+            obj.max_frame = added_individuals_per_frame.rbegin()->first.get();
         obj.last_frame = _last_checked_frame;
         obj.max_pre_frame = _max_pre_frame;
         obj.max_pst_frame = _max_pst_frame;
@@ -1119,19 +1120,19 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         return obj;
     }
     
-    void Recognition::Detail::inproc_frame(long_t frame, Idx_t fdx) {
+    void Recognition::Detail::inproc_frame(Frame_t frame, Idx_t fdx) {
         std::lock_guard<std::mutex> guard(lock);
         auto & [add, inp, proc] = added_individuals_per_frame[frame];
         inp.insert(fdx);
     }
     
-    void Recognition::Detail::add_frame(long_t frame, Idx_t fdx) {
+    void Recognition::Detail::add_frame(Frame_t frame, Idx_t fdx) {
         std::lock_guard<std::mutex> guard(lock);
         auto & [add, inp, proc] = added_individuals_per_frame[frame];
         add.insert(fdx);
     }
 
-    void Recognition::Detail::failed_frame(long_t frame, Idx_t fdx) {
+    void Recognition::Detail::failed_frame(Frame_t frame, Idx_t fdx) {
         std::lock_guard<std::mutex> guard(lock);
         auto & [add, inp, proc] = added_individuals_per_frame[frame];
         add.insert(fdx);
@@ -1139,10 +1140,10 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         proc.insert(fdx);
     }
     
-    void Recognition::Detail::finished_frames(const std::map<long_t, std::set<Idx_t> > &individuals_per_frame) {
+    void Recognition::Detail::finished_frames(const std::map<Frame_t, std::set<Idx_t> > &individuals_per_frame) {
         size_t added_frames;
-        Rangel analysis_range;
-        long_t end_frame, video_length;
+        Range<Frame_t> analysis_range;
+        Frame_t end_frame, video_length;
         decltype(registered_callbacks) callbacks;
         {
             Tracker::LockGuard guard("Detail::finished_frames");
@@ -1160,7 +1161,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                     fishies.push_back(Tracker::individuals().at(id));
             }
             
-            added_frames = min(added_frames, (size_t)analysis_range.length());
+            added_frames = min(added_frames, (size_t)analysis_range.length().get());
         }
         
         {
@@ -1179,14 +1180,14 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         }
         
         auto obj = info();
-        if(obj.added > 0 && end_frame > 0) {
-            _percent = float(obj.processed) / float(obj.added) * float(obj.last_frame) / float(video_length);
+        if(obj.added > 0 && end_frame.valid()) {
+            _percent = float(obj.processed) / float(obj.added) * float(obj.last_frame.get()) / float(video_length.get());
             
             float per_fish = 0;
             for(auto && [id, frame] : obj.max_pre_frame) {
-                if(frame)
-                    per_fish += float(obj.max_pst_frame[id]) / float(frame);
-                Debug("per_fish %d: (%d vs %d vs %d)  %f (%f)", id, obj.max_pst_frame[id], obj.max_pre_frame[id], frame, float(obj.max_pst_frame[id]) / float(frame), _percent);
+                if(frame.valid())
+                    per_fish += float(obj.max_pst_frame[id].get()) / float(frame.get());
+                Debug("per_fish %d: (%d vs %d vs %d)  %f (%f)", id, obj.max_pst_frame[id], obj.max_pre_frame[id], frame, float(obj.max_pst_frame[id].get()) / float(frame.get()), _percent);
             }
             
             per_fish /= float(obj.max_pre_frame.size());
@@ -1225,9 +1226,9 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         registered_callbacks.push_back(fn);
     }
     
-    void Recognition::Detail::remove_frames(long_t after) {
+    void Recognition::Detail::remove_frames(Frame_t after) {
         std::lock_guard<std::mutex> guard(lock);
-        std::set<long_t> frames;
+        std::set<Frame_t> frames;
         for (auto & [frame, tup] : added_individuals_per_frame) {
             if(frame >= after)
                 frames.insert(frame);
@@ -1235,12 +1236,12 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         
         for(auto && [id, frame] : _max_pre_frame) {
             if(frame >= after)
-                frame = after - 1;
+                frame = after - 1_f;
         }
         
         for(auto && [id, frame] : _max_pst_frame) {
             if(frame >= after)
-                frame = after - 1;
+                frame = after - 1_f;
         }
         
         for(auto frame : frames)
@@ -1251,7 +1252,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
     
     void Recognition::Detail::remove_individual(Idx_t fdx) {
         std::lock_guard<std::mutex> guard(lock);
-        std::set<long_t> frames;
+        std::set<Frame_t> frames;
         for (auto & [frame, tup] : added_individuals_per_frame) {
             auto & [add, inp, proc] = tup;
             if(add.find(fdx) != add.end())
@@ -1332,7 +1333,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
 
                 std::vector<ImageData> data;
                 std::vector<Image::Ptr> images;
-                std::map<long_t, std::set<Idx_t>> uploaded_frames;
+                std::map<Frame_t, std::set<Idx_t>> uploaded_frames;
 
                 {
                     //! TODO: only exit if this is not the end of the video
@@ -1615,7 +1616,7 @@ void Recognition::load_weights(std::string postfix) {
             Warning("Prediction accuracy for the trained network was lower than it should be (%.2f%%, and random is %.2f%% for %d individuals). Proceed with caution.", acc * 100, random_chance * 100, FAST_SETTINGS(track_max_individuals));
     }
     
-    bool FrameRanges::contains(long_t frame) const {
+    bool FrameRanges::contains(Frame_t frame) const {
         for(auto &range : ranges) {
             if(range.end == frame || range.contains(frame))
                 return true;
@@ -1671,7 +1672,7 @@ void Recognition::load_weights(std::string postfix) {
             }
             
             if(found) {
-                m.insert(Rangel(std::min(assigned.start, range.start), std::max(assigned.end, range.end)));
+                m.insert(Range<Frame_t>(min(assigned.start, range.start), max(assigned.end, range.end)));
                 
                 // erase the assigned range
                 o.erase(assigned);
@@ -1691,12 +1692,12 @@ void Recognition::load_weights(std::string postfix) {
         return Meta::toStr(ranges);
     }
     
-    std::set<Rangel> Recognition::trained_ranges() {
+    std::set<Range<Frame_t>> Recognition::trained_ranges() {
         std::unique_lock<decltype(_data_queue_mutex)> guard(_data_queue_mutex);
         if(!_last_training_data)
             return {};
         
-        std::set<Rangel> ranges;
+        std::set<Range<Frame_t>> ranges;
         for(auto&d : _last_training_data->data()) {
             ranges.insert(d->frames);
         }
@@ -1874,7 +1875,7 @@ void Recognition::load_weights(std::string postfix) {
                         U_EXCEPTION("Validation image array size %d != ids array size %d", joined_data.validation_images.size(), joined_data.validation_ids.size());
                     }
                     
-                    py::set_variable("global_segment", std::vector<long_t>{ global_range.start(), global_range.end() }, "learn_static");
+                    py::set_variable("global_segment", std::vector<long_t>{ global_range.start().get(), global_range.end().get() }, "learn_static");
                     py::set_variable("accumulation_step", (long_t)accumulation_step, "learn_static");
                     py::set_variable("classes", classes, "learn_static");
                     py::set_variable("save_weights_after", load_results != TrainingMode::Accumulate, "learn_static");
@@ -1970,8 +1971,8 @@ void Recognition::load_weights(std::string postfix) {
                         Size2 resolution(-1);
                         
                         for(auto &d : data->data()) {
-                            all_ranges.push_back(d->frames.start);
-                            all_ranges.push_back(d->frames.end);
+                            all_ranges.push_back(d->frames.start.get());
+                            all_ranges.push_back(d->frames.end.get());
                             
                             //for(auto && [range, d] : data->data()) {
                                 // save per fish
@@ -1991,7 +1992,7 @@ void Recognition::load_weights(std::string postfix) {
                                         ids.insert(ids.end(), id);
                                         positions.insert(positions.end(), fish.positions.at(i).x);
                                         positions.insert(positions.end(), fish.positions.at(i).y);
-                                        frames.insert(frames.end(), fish.frame_indexes.at(i));
+                                        frames.insert(frames.end(), fish.frame_indexes.at(i).get());
                                     }
                                 }
                             //}

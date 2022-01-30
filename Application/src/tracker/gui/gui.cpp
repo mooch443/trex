@@ -109,7 +109,9 @@ GUI* GUI::instance() {
 #include <gui/DrawFish.h>
 #include <gui/Label.h>
 #include <gui/InfoCard.h>
-
+#ifndef NDEBUG
+#include <gui/FlowMenu.h>
+#endif
 using namespace gui;
 
 enum class SelectedSettingType {
@@ -127,17 +129,17 @@ struct PrivateData {
     file::Path _recording_path;
     default_config::gui_recording_format_t::Class _recording_format;
 
-    long_t _recording_start;
-    long_t _recording_frame;
-    long_t _last_recording_frame;
-    std::atomic_bool _recording;
+    Frame_t _recording_start;
+    Frame_t _recording_frame;
+    Frame_t _last_recording_frame;
+    std::atomic_bool _recording = false;
 
-    long_t _flow_frame;
-    long_t _next_frame;
+    Frame_t _flow_frame;
+    Frame_t _next_frame;
     cv::Mat _cflow, _cflow_next;
 
     float _tdelta_gui;
-    long_t _gui_last_frame;
+    Frame_t _gui_last_frame;
     Timer _gui_last_frame_timer;
     Timer _gui_last_backup;
 
@@ -458,7 +460,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                 PD(cache).set_tracking_dirty();
                 PD(cache).set_blobs_dirty();
                 PD(cache).set_raw_blobs_dirty();
-                PD(cache).last_frame = -1;
+                PD(cache).last_frame = {};
                 GUI::set_redraw();
             }
         
@@ -515,7 +517,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                         auto first_change = Tracker::instance()->update_with_manual_matches(matches);
                         
                         std::lock_guard<std::recursive_mutex> guard(PD(gui).lock());
-                        if(first_change != -1)
+                        if(first_change.valid())
                             PD(timeline)->reset_events(first_change);
                         
                         if(GUI::analysis())
@@ -535,8 +537,8 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                     auto itn = next.begin(), ito = old.begin();
                     for(; itn != next.end() && ito != old.end(); ++itn, ++ito) {
                         if(itn->first != ito->first || itn->second != ito->second) {
-                            long_t frame = min(itn->first, ito->first);
-                            if(frame == this->frame()) {
+                            auto frame = min(itn->first, ito->first);
+                            if(frame == this->frame().get()) {
                                 PD(cache).last_threshold = -1;
                                 PD(cache).set_tracking_dirty();
                             }
@@ -570,7 +572,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
     
     { // do this in order to trigger calculating pixel percentages
         Tracker::LockGuard guard("GUI::update_data(-1)");
-        PD(cache).update_data(FAST_SETTINGS(analysis_range).first);
+        PD(cache).update_data(Frame_t(FAST_SETTINGS(analysis_range).first));
     }
     
     while(!PD(timeline)->update_thread_updated_once()) {
@@ -749,15 +751,15 @@ void GUI::run_loop(gui::LoopStatus status) {
             is_automatic = true;
         }
         
-    } else if (image_index > -1 && !PD(recording)) {
+    } else if (image_index.valid() && !PD(recording)) {
         const float frame_rate = 1.f / (float(GUI_SETTINGS(frame_rate)) * GUI_SETTINGS(gui_playback_speed));
-        float inc = t / frame_rate;
+        Frame_t inc = Frame_t(t / frame_rate);
         bool is_required = false;
         
-        if(inc >= 1) {
+        if(inc >= 1_f) {
             auto before = image_index;
             if(PD(tracker).start_frame().valid())
-                image_index = max(0, PD(tracker).start_frame(), min((float)PD(tracker).end_frame(), image_index + inc));
+                image_index = max(0_f, PD(tracker).start_frame(), min(PD(tracker).end_frame(), image_index + inc));
             
             t = 0;
             if(before != image_index) {
@@ -878,7 +880,7 @@ void GUI::do_recording() {
     static Timing timing("recording_timing");
     TakeTiming take(timing);
     
-    if(PD(last_recording_frame) == -1) {
+    if(!PD(last_recording_frame).valid()) {
         PD(last_recording_frame) = PD(recording_frame);
         return; // skip first frame
     }
@@ -913,7 +915,7 @@ void GUI::do_recording() {
         
     } else {
         std::stringstream ss;
-        ss << std::setw(6) << std::setfill('0') << PD(recording_frame) << "." << PD(recording_format).name();
+        ss << std::setw(6) << std::setfill('0') << PD(recording_frame).toStr() << "." << PD(recording_format).name();
         //image.saveToFile((PD(recording_path) / ss.str()).str());
         auto filename = PD(recording_path) / ss.str();
         
@@ -949,7 +951,7 @@ void GUI::do_recording() {
     
     static Timer last_print;
     if(last_print.elapsed() > 2) {
-        DurationUS duration{static_cast<uint64_t>((PD(recording_frame) - PD(recording_start)) / float(FAST_SETTINGS(frame_rate)) * 1000) * 1000};
+        DurationUS duration{static_cast<uint64_t>((PD(recording_frame) - PD(recording_start)).get() / float(FAST_SETTINGS(frame_rate)) * 1000) * 1000};
         auto str = ("frame "+Meta::toStr(PD(recording_frame))+"/"+Meta::toStr(PD(cache).tracked_frames.end)+" length: "+Meta::toStr(duration));
         auto playback_speed = GUI_SETTINGS(gui_playback_speed);
         if(playback_speed > 1) {
@@ -967,8 +969,8 @@ bool GUI::is_recording() const {
 
 void GUI::start_recording() {
     if(GUI::instance()->base()) {
-        PD(recording_start) = frame()+1;
-        PD(last_recording_frame) = -1;
+        PD(recording_start) = frame() + 1_f;
+        PD(last_recording_frame) = {};
         PD(recording) = true;
         GUI::instance()->base()->set_frame_recording(true);
         
@@ -1089,11 +1091,11 @@ void GUI::stop_recording() {
         
     } else {
         auto clip_name = std::string(PD(recording_path).filename());
-        printf("ffmpeg -start_number %d -i %s/%%06d.%s -vcodec h264 -crf 13 -vf 'scale=trunc(iw/2)*2:trunc(ih/2)*2' -profile:v main -pix_fmt yuv420p %s.mp4\n", PD(recording_start), PD(recording_path).str().c_str(), PD(recording_format).name(), clip_name.c_str());
+        printf("ffmpeg -start_number %d -i %s/%%06d.%s -vcodec h264 -crf 13 -vf 'scale=trunc(iw/2)*2:trunc(ih/2)*2' -profile:v main -pix_fmt yuv420p %s.mp4\n", PD(recording_start).get(), PD(recording_path).str().c_str(), PD(recording_format).name(), clip_name.c_str());
     }
     
     PD(recording) = false;
-    PD(last_recording_frame) = -1;
+    PD(last_recording_frame).invalidate();
     
     DebugCallback("Stopped recording to '%S'.", &PD(recording_path).str());
 }
@@ -1198,7 +1200,7 @@ void GUI::draw(DrawStructure &base) {
     const auto mode = GUI_SETTINGS(gui_mode);
     
     if(PD(gui_last_frame) != frame()) {
-        PD(tdelta_gui) = PD(gui_last_frame_timer).elapsed() / (frame() - PD(gui_last_frame));
+        PD(tdelta_gui) = PD(gui_last_frame_timer).elapsed() / (frame() - PD(gui_last_frame)).get();
         PD(gui_last_frame) = frame();
         PD(gui_last_frame_timer).reset();
     }
@@ -1323,13 +1325,13 @@ void GUI::draw_menu(gui::DrawStructure &base) {
     DrawMenu::draw();
 }
 
-void GUI::removed_frames(long_t including) {
+void GUI::removed_frames(Frame_t including) {
     std::lock_guard<std::recursive_mutex> gguard(gui().lock());
     if(heatmapController)
         heatmapController->frames_deleted_from(including);
 }
 
-void GUI::reanalyse_from(long_t frame, bool in_thread) {
+void GUI::reanalyse_from(Frame_t frame, bool in_thread) {
     if(!instance())
         return;
     
@@ -1589,12 +1591,12 @@ void GUI::draw_grid(gui::DrawStructure &base) {
     }
 }
 
-void GUI::debug_optical_flow(DrawStructure &base, long_t frameIndex) {
-    if(size_t(frameIndex) >= PD(video_source).length())
+void GUI::debug_optical_flow(DrawStructure &base, Frame_t frameIndex) {
+    if(size_t(frameIndex.get()) >= PD(video_source).length())
         return;
     
-    auto gen_ov = [this](long_t frameIndex, cv::Mat& image) -> std::vector<std::pair<std::vector<HorizontalLine>, std::vector<uchar>>>{
-        if(size_t(frameIndex) >= PD(video_source).length() || frameIndex < 0)
+    auto gen_ov = [this](Frame_t frameIndex, cv::Mat& image) -> std::vector<std::pair<std::vector<HorizontalLine>, std::vector<uchar>>>{
+        if(size_t(frameIndex.get()) >= PD(video_source).length() || !frameIndex.valid())
             return {};
         
         //image = cv::Mat::zeros(_average_image.rows, _average_image.cols, CV_8UC1);
@@ -1603,7 +1605,7 @@ void GUI::debug_optical_flow(DrawStructure &base, long_t frameIndex) {
         pv::File *file = PDP(video_source);
         
         pv::Frame frame;
-        file->read_frame(frame, frameIndex);
+        file->read_frame(frame, frameIndex.get());
         
         std::vector<std::pair<std::vector<HorizontalLine>, std::vector<uchar>>> lines;
         
@@ -1632,11 +1634,11 @@ void GUI::debug_optical_flow(DrawStructure &base, long_t frameIndex) {
         return lines;
     };
     
-    auto draw_flow = [&gen_ov, this](long_t frameIndex, cv::Mat& image){
+    auto draw_flow = [&gen_ov, this](Frame_t frameIndex, cv::Mat& image){
         Tracker::LockGuard guard("draw_flow");
         
         cv::Mat current_, prev_;
-        gen_ov(frameIndex > PD(tracker).start_frame() ? frameIndex-1 : PD(tracker).start_frame(), prev_);
+        gen_ov(frameIndex > PD(tracker).start_frame() ? frameIndex - 1_f : PD(tracker).start_frame(), prev_);
         auto lines = gen_ov(frameIndex, current_);
         
         gpuMat current, prev;
@@ -1673,9 +1675,9 @@ void GUI::debug_optical_flow(DrawStructure &base, long_t frameIndex) {
         }
         PD(flow_frame) = frameIndex;
         
-    } else if(PD(next_frame) != frameIndex+1) {
-        draw_flow(frameIndex+1, PD(cflow_next));
-        PD(next_frame) = frameIndex+1;
+    } else if(PD(next_frame) != frameIndex + 1_f) {
+        draw_flow(frameIndex + 1_f, PD(cflow_next));
+        PD(next_frame) = frameIndex + 1_f;
     }
     
     base.image(Vec2(0, 0), Image::Make(PD(cflow)));
@@ -1701,7 +1703,7 @@ void GUI::set_mode(gui::mode_t::Class mode) {
     }
 }
 
-void GUI::draw_posture(DrawStructure &base, Individual *fish, long_t frameNr) {
+void GUI::draw_posture(DrawStructure &base, Individual *fish, Frame_t frameNr) {
     static Timing timing("posture draw", 0.1);
     TakeTiming take(timing);
     
@@ -1923,7 +1925,7 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
     return {Vec2(), Vec2()};
 }
 
-void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
+void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
     static Timing timing("draw_tracking", 10);
     
     auto props = PD(tracker).properties(frameNr);
@@ -2083,7 +2085,7 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                             });
                         }
                         
-                        PD(cache)._fish_map[fish]->set_data((uint32_t)frameNr, props->time, PD(cache).processed_frame, empty_map);
+                        PD(cache)._fish_map[fish]->set_data(frameNr, props->time, PD(cache).processed_frame, empty_map);
                         
                         base.wrap_object(*PD(cache)._fish_map[fish]);
                         PD(cache)._fish_map[fish]->label(base);
@@ -2091,7 +2093,7 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                 }
                 
                 if(GUI_SETTINGS(gui_show_midline_histogram)) {
-                    static long_t end_frame = -1;
+                    static Frame_t end_frame;
                     if(FAST_SETTINGS(calculate_posture) && end_frame != PD(cache).tracked_frames.end) {
                         end_frame = PD(cache).tracked_frames.end;
                         
@@ -2217,10 +2219,10 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
         if(SETTING(gui_show_graph) && draw_graph) {
             if (PD(cache).has_selection()) {
                 size_t i = 0;
-                auto window = SETTING(output_frame_window).value<long_t>();
+                auto window = Frame_t(SETTING(output_frame_window).value<long_t>());
                 
                 for(auto id : PD(cache).selected) {
-                    PD(fish_graphs)[i]->setup_graph(frameNr, Rangel(frameNr - window, frameNr + window), PD(cache).individuals.at(id), nullptr);
+                    PD(fish_graphs)[i]->setup_graph(frameNr.get(), Rangel((frameNr - window).get(), (frameNr + window).get()), PD(cache).individuals.at(id), nullptr);
                     PD(fish_graphs)[i]->graph().set_scale(base.scale().reciprocal());
                     PD(fish_graphs)[i]->draw(base);
                     
@@ -2232,11 +2234,11 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
         
         if(SETTING(gui_show_number_individuals)) {
             static Graph individuals_graph(Bounds(50, 100, 500, 300), "#individuals");
-            if(individuals_graph.x_range().end == FLT_MAX || individuals_graph.x_range().end != PD(cache).tracked_frames.end) {
-                individuals_graph.set_ranges(Rangef(PD(cache).tracked_frames.start, PD(cache).tracked_frames.end), Rangef(0, PD(cache).individuals.size()));
+            if(individuals_graph.x_range().end == FLT_MAX || individuals_graph.x_range().end != PD(cache).tracked_frames.end.get()) {
+                individuals_graph.set_ranges(Rangef(PD(cache).tracked_frames.start.get(), PD(cache).tracked_frames.end.get()), Rangef(0, PD(cache).individuals.size()));
                 if(individuals_graph.empty()) {
                     individuals_graph.add_function(Graph::Function("", Graph::Type::DISCRETE, [&](float x) -> float {
-                        auto it = PD(cache)._statistics.find(x);
+                        auto it = PD(cache)._statistics.find(Frame_t(x));
                         if(it != PD(cache)._statistics.end()) {
                             return it->second.number_fish;
                         }
@@ -2245,7 +2247,7 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                 }
                 individuals_graph.set_draggable();
             }
-            individuals_graph.set_zero(frameNr);
+            individuals_graph.set_zero(frameNr.get());
             base.wrap_object(individuals_graph);
             individuals_graph.set_scale(base.scale().reciprocal());
         }
@@ -2274,7 +2276,7 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                         
                         uniquenesses.clear();
                         for(auto && [frame, q] :umap) {
-                            uniquenesses.push_back(Vec2(frame, q));
+                            uniquenesses.push_back(Vec2(frame.get(), q));
                         }
                         
                         running = false;
@@ -2284,7 +2286,7 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
             
             std::lock_guard<std::mutex> guard(mutex);
             if(!estimated_uniqueness.empty()) {
-                if(graph.x_range().end == FLT_MAX || graph.x_range().end != PD(cache).tracked_frames.end) {
+                if(graph.x_range().end == FLT_MAX || graph.x_range().end != PD(cache).tracked_frames.end.get()) {
                     
                     static std::map<long_t, float> smooth_points;
                     long_t L = (long_t)uniquenesses.size();
@@ -2305,7 +2307,7 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                         smooth_points[i] = (smooth_points[i] + uniquenesses[i].y) * 0.5;
                     }
                     
-                    graph.set_ranges(Rangef(PD(cache).tracked_frames.start, PD(cache).tracked_frames.end), Rangef(0, 1));
+                    graph.set_ranges(Rangef(PD(cache).tracked_frames.start.get(), PD(cache).tracked_frames.end.get()), Rangef(0, 1));
                     if(graph.empty()) {
                         graph.add_function(Graph::Function("raw", Graph::Type::DISCRETE, [uq = &estimated_uniqueness](float x) -> float {
                             std::lock_guard<std::mutex> guard(mutex);
@@ -2332,7 +2334,7 @@ void GUI::draw_tracking(DrawStructure& base, long_t frameNr, bool draw_graph) {
                     graph.set_draggable();
                 }
                 
-                graph.set_zero(frameNr);
+                graph.set_zero(frameNr.get());
                 base.wrap_object(graph);
                 graph.set_scale(base.scale().reciprocal());
             }
@@ -2474,7 +2476,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
         }
         else if(settings_dropdown.text() == "consecutive") {
             Tracker::LockGuard guard("settings_dropdown.text() consecutive");
-            auto consec = std::set<Rangel>(Tracker::instance()->consecutive().begin(), Tracker::instance()->consecutive().end());
+            auto consec = std::set<Range<Frame_t>>(Tracker::instance()->consecutive().begin(), Tracker::instance()->consecutive().end());
             auto str = Meta::toStr(consec);
             Debug("consecutive frames: %S", &str);
             
@@ -2589,13 +2591,13 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             std::map<std::string, size_t> samples;
             PPFrame frame;
             
-            for(long_t idx = PD(tracker).start_frame() + 1; idx <= PD(tracker).end_frame() && idx <= PD(tracker).start_frame() + 10000; ++idx)
+            for(auto idx = PD(tracker).start_frame() + 1_f; idx <= PD(tracker).end_frame() && idx <= PD(tracker).start_frame() + 10000_f; ++idx)
             {
                 if(!PD(tracker).properties(idx))
                     continue;
                 
-                PD(video_source).read_frame(frame.frame(), idx);
-                auto active = PD(tracker).active_individuals(idx - 1);
+                PD(video_source).read_frame(frame.frame(), idx.get());
+                auto active = PD(tracker).active_individuals(idx - 1_f);
                 
                 {
                     std::lock_guard<std::mutex> guard(_blob_thread_pool_mutex);
@@ -3188,7 +3190,7 @@ void GUI::update_recognition_rect() {
     }
 }
 
-long_t GUI::frame() {
+Frame_t GUI::frame() {
     return GUI_SETTINGS(gui_frame);
 }
 
@@ -3246,7 +3248,7 @@ void GUI::update_display_blobs(bool draw_blobs, Section* fishbowl) {
     }
 }
 
-void GUI::draw_raw(gui::DrawStructure &base, long_t) {
+void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
     Section* fishbowl;
     
     static auto collection = std::make_unique<ExternalImage>(Image::Make(Tracker::average().rows, Tracker::average().cols, 4), Vec2());
@@ -3592,9 +3594,9 @@ void GUI::draw_raw(gui::DrawStructure &base, long_t) {
     return gimage;
 }*/
 
-void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
+void GUI::draw_raw_mode(DrawStructure &base, Frame_t frameIndex) {
     pv::File *file = PDP(video_source);
-    if(file && file->length() > size_t(frameIndex)) {
+    if(file && file->length() > size_t(frameIndex.get())) {
         struct Outer {
             Image::UPtr image;
             Vec2 off;
@@ -3897,11 +3899,11 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                     }
                 });
                 list->on_select([this](long_t, auto& item) {
-                    auto clicked_blob_id = (uint32_t)int64_t(item.custom());
+                    pv::bid clicked_blob_id { (uint32_t)int64_t(item.custom()) };
                     if(item.ID() == 0) /* SPLIT */ {
                         auto copy = FAST_SETTINGS(manual_splits);
-                        if(!contains(copy[frame()], clicked_blob_id)) {
-                            copy[frame()].insert(clicked_blob_id);
+                        if(!contains(copy[frame().get()], clicked_blob_id)) {
+                            copy[frame().get()].insert(clicked_blob_id);
                         }
                         work().add_queue("", [copy](){
                             SETTING(manual_splits) = copy;
@@ -3932,7 +3934,7 @@ void GUI::draw_raw_mode(DrawStructure &base, long_t frameIndex) {
                             Warning("Cannot find individual with ID %d.", item.ID()-1);
                     }
                     
-                    _clicked_blob_id = -1;
+                    _clicked_blob_id = pv::bid::invalid;
                     GUI::set_redraw();
                     PD(cache).set_raw_blobs_dirty();
                 });
@@ -4144,7 +4146,7 @@ void GUI::key_event(const gui::Event &event) {
         if(ConfirmedCrossings::next(PD(cache)._current_foi)) {
             std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
             
-            SETTING(gui_frame) = Frame_t(PD(cache)._current_foi.foi.frames().start-1);
+            SETTING(gui_frame) = Frame_t(PD(cache)._current_foi.foi.frames().start - 1_f);
             
             auto &cache = PD(cache);
             if(!cache._current_foi.foi.fdx().empty()) {
@@ -4209,8 +4211,8 @@ void GUI::key_event(const gui::Event &event) {
                 
                 play_direction() = 1;
                 
-                long_t new_frame = min((long_t)PD(video_source).length()-1, frame() + inc);
-                SETTING(gui_frame) = Frame_t(new_frame);
+                Frame_t new_frame = min(Frame_t(PD(video_source).length()-1), frame() + Frame_t(inc));
+                SETTING(gui_frame) = new_frame;
                 
                 PD(last_increase_timer).reset();
                 
@@ -4260,10 +4262,10 @@ void GUI::key_event(const gui::Event &event) {
                 
                 play_direction() = -1;
                 
-                long_t new_frame = max(0, frame() - inc);
-                if(frame() < 0)
-                    new_frame = 0;
-                SETTING(gui_frame) = Frame_t(new_frame);
+                auto new_frame = max(0_f, frame() - Frame_t(inc));
+                if(!frame().valid())
+                    new_frame = 0_f;
+                SETTING(gui_frame) = new_frame;
                 
                 PD(last_increase_timer).reset();
                 
@@ -4402,7 +4404,7 @@ void GUI::key_event(const gui::Event &event) {
             std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
             if (ConfirmedCrossings::started()) {
                 if(ConfirmedCrossings::previous(PD(cache)._current_foi)) {
-                    SETTING(gui_frame) = Frame_t(PD(cache)._current_foi.foi.frames().start-1);
+                    SETTING(gui_frame) = Frame_t(PD(cache)._current_foi.foi.frames().start - 1_f);
                     
                     auto &cache = PD(cache);
                     if(!cache._current_foi.foi.fdx().empty()) {
@@ -4803,7 +4805,7 @@ void GUI::save_visual_fields() {
     if(selected) {
         auto path = fishdata / (filename + "_visual_field_"+selected->identity().name());
         work().set_progress("generating visual field", 0, path.str());
-        selected->save_visual_field(path.str(), Rangel(-1,-1), [](float percent, const std::string& title){ GUI::work().set_progress(title, percent); }, false);
+        selected->save_visual_field(path.str(), Range<Frame_t>({},{}), [](float percent, const std::string& title){ GUI::work().set_progress(title, percent); }, false);
         
     } else {
         std::atomic_size_t counter = 0;
@@ -4814,7 +4816,7 @@ void GUI::save_visual_fields() {
             auto path = fishdata / (filename + "_visual_field_"+fish->identity().name());
             work().set_progress("generating visual fields", -1, path.str());
             
-            fish->save_visual_field(path.str(), Rangel(-1,-1), [&](float percent, const std::string& title){ GUI::work().set_progress(title, (counter + 0) / float(individuals.size())); }, false);
+            fish->save_visual_field(path.str(), Range<Frame_t>({},{}), [&](float percent, const std::string& title){ GUI::work().set_progress(title, (counter + 0) / float(individuals.size())); }, false);
             
             ++counter;
         };
@@ -4871,7 +4873,7 @@ Vec2 GUI::pad_image(cv::Mat& padded, Size2 output_size) {
     return offset;
 }
 
-void GUI::export_tracks(const file::Path& , long_t fdx, Rangel range) {
+void GUI::export_tracks(const file::Path& , long_t fdx, Range<Frame_t> range) {
     bool before = GUI::analysis()->is_paused();
     GUI::analysis()->set_paused(true).get();
     
@@ -4910,9 +4912,9 @@ std::string GUI::info(bool escape) {
     str.append("\n<b>max-curvature:</b> "+std::to_string(Outline::max_curvature()));
     str.append("\n<b>average max-curvature:</b> "+std::to_string(Outline::average_curvature()));
     
-    auto consec = instance()->frameinfo().global_segment_order.empty() ? Rangel(-1,-1) : instance()->frameinfo().global_segment_order.front();
+    auto consec = instance()->frameinfo().global_segment_order.empty() ? Range<Frame_t>({},{}) : instance()->frameinfo().global_segment_order.front();
     std::stringstream number;
-    number << consec.start << "-" << consec.end << " (" << consec.end - consec.start << ")";
+    number << consec.start.toStr() << "-" << consec.end.toStr() << " (" << (consec.end - consec.start).toStr() << ")";
     str.append("\n<b>consecutive frames:</b> "+number.str());
     
 #if WITH_SFML
@@ -5160,7 +5162,7 @@ void GUI::generate_training_data_faces(const file::Path& path) {
     work().set_item("Generating data...");
     
     auto ranges = frameinfo().global_segment_order;
-    auto range = ranges.empty() ? Rangel(-1,-1) : ranges.front();
+    auto range = ranges.empty() ? Range<Frame_t>({},{}) : ranges.front();
     
     if(!path.exists()) {
         if(path.create_folder())
@@ -5189,17 +5191,17 @@ void GUI::generate_training_data_faces(const file::Path& path) {
     
     size_t num_images = 0;
     
-    for(long_t i=range.start; i<=range.end; i++)
+    for(auto i = range.start; i <= range.end; ++i)
     {
-        if(i < 0 || (size_t)i >= PD(video_source).length()) {
+        if(!i.valid() || (size_t)i.get() >= PD(video_source).length()) {
             Except("Frame %d out of range.", i);
             continue;
         }
         
-        work().set_percent((i - range.start) / float(range.end - range.start));
+        work().set_percent((i - range.start).get() / (float)(range.end - range.start).get());
         
-        auto active = i == PD(tracker).start_frame() ? Tracker::set_of_individuals_t() : Tracker::active_individuals(i-1);
-        PD(video_source).read_frame(frame.frame(), i);
+        auto active = i == PD(tracker).start_frame() ? Tracker::set_of_individuals_t() : Tracker::active_individuals(i - 1_f);
+        PD(video_source).read_frame(frame.frame(), i.get());
         Tracker::instance()->preprocess_frame(frame, active, NULL);
         
         cv::Mat image, padded, mask;
@@ -5306,7 +5308,7 @@ void GUI::generate_training_data_faces(const file::Path& path) {
     
     try {
         file::Path npz_path = path / "data.npz";
-        cmn::npz_save(npz_path.str(), "range", std::vector<frame_t>{ range.start, range.end });
+        cmn::npz_save(npz_path.str(), "range", std::vector<long_t>{ range.start.get(), range.end.get() });
         Debug("Saving %d positions...", num_images);
         cmn::npz_save(npz_path.str(), "positions", heads.data(), {num_images, 2}, "a");
         cmn::npz_save(npz_path.str(), "images", images.data(), {num_images, (size_t)output_size.height, (size_t)output_size.width}, "a");
@@ -5323,11 +5325,11 @@ void GUI::generate_training_data_faces(const file::Path& path) {
     }
 }
 
-void GUI::add_manual_match(long_t frameIndex, Idx_t fish_id, pv::bid blob_id) {
+void GUI::add_manual_match(Frame_t frameIndex, Idx_t fish_id, pv::bid blob_id) {
     Debug("Requesting change of fish %d to blob %u in frame %d", fish_id, blob_id, frameIndex);
     
     auto matches = FAST_SETTINGS(manual_matches);
-    auto &current = matches[frameinfo().frameIndex];
+    auto &current = matches[frameinfo().frameIndex.load().get()];
     for(auto &it : current) {
         if(it.first != fish_id && it.second == blob_id) {
             current.erase(it.first);

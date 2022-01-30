@@ -160,6 +160,22 @@ namespace track {
                         if(area > 0.4)
                             continue; // rectangles that are almost the size of the image are too big for a tag inside a blob
                         
+                        cv::Mat qr = cv::Mat::zeros(tmp3.rows, tmp3.cols, CV_8UC3);
+                        tmp3.copyTo(qr);
+                        cv::cvtColor(qr, qr, cv::COLOR_GRAY2BGR);
+                        for (int i=0; i<shape.rows; i++) {
+                            Vec2 next = shape.at<cv::Point>(i < shape.rows-1 ? i+1 : 0);
+                            Vec2 current = shape.at<cv::Point>(i, 0);
+                            Vec2 v0(current - previous);
+                            Vec2 v1(next - current);
+                            
+                            cv::line(qr, current, next, Red);
+                        }
+                        
+                        cv::cvtColor(qr, qr, cv::COLOR_BGR2RGB);
+                        cv::resize(qr, qr, (cv::Size)Size2(1024, float(qr.rows) / float(qr.cols) * 1024));
+                        tf::imshow("qr", qr);
+                        
                         cv::Mat tmp, hist;
                         const Size2 normal_dimensions = SETTING(tags_image_size).value<Size2>();
                         const Vec2 offset(normal_dimensions);

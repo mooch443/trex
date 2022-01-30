@@ -118,7 +118,11 @@ Accumulation* Accumulation::current() {
     return _current_accumulation;
 }
 
-std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(const Rangel& range, TrainingData* data, std::map<Idx_t, std::set<std::shared_ptr<Individual::SegmentInformation>>>* coverage) {
+std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
+        const Range<Frame_t>& range,
+        TrainingData* data,
+        std::map<Idx_t, std::set<std::shared_ptr<Individual::SegmentInformation>>>* coverage)
+{
     Tracker::LockGuard guard("Accumulation::generate_individuals_per_frame");
     std::map<Frame_t, std::set<Idx_t>> individuals_per_frame;
     const bool calculate_posture = FAST_SETTINGS(calculate_posture);
@@ -130,7 +134,7 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
             continue;
         }
         
-        Rangel overall_range(range);
+        Range<Frame_t> overall_range(range);
         
         auto frange = it->second->get_segment(range.start);
         if(frange.contains(range.start)) {
@@ -147,10 +151,15 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
         std::set<std::shared_ptr<Individual::SegmentInformation>> used_segments;
         std::shared_ptr<Individual::SegmentInformation> current_segment;
         
-        it->second->iterate_frames(overall_range, [&individuals_per_frame, id, &used_segments, &current_segment, calculate_posture](long_t frame, const std::shared_ptr<Individual::SegmentInformation>& segment, const std::shared_ptr<Individual::BasicStuff> & basic, const std::shared_ptr<Individual::PostureStuff> & posture) -> bool
+        it->second->iterate_frames(overall_range, [&individuals_per_frame, id, &used_segments, &current_segment, calculate_posture]
+            (Frame_t frame,
+             const std::shared_ptr<Individual::SegmentInformation>& segment,
+             const std::shared_ptr<Individual::BasicStuff> & basic,
+             const std::shared_ptr<Individual::PostureStuff> & posture)
+                -> bool
         {
             if(basic && (posture || !calculate_posture)) {
-                individuals_per_frame[Frame_t(frame)].insert(Idx_t(id));
+                individuals_per_frame[frame].insert(Idx_t(id));
                 if(segment != current_segment) {
                     used_segments.insert(segment);
                     current_segment = segment;
@@ -158,11 +167,6 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
             }
             return true;
         });
-        
-        /*for(auto frame : overall_range.iterable()) {
-            if(it->second->has(frame))
-                individuals_per_frame[frame].insert(id);
-        }*/
         
         if(data) {
             for(auto &segment : used_segments) {
@@ -185,7 +189,7 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
     return individuals_per_frame;
 }
 
-std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(const Rangel& range, TrainingData& data, bool check_length, DatasetQuality::Quality quality) {
+std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(const Range<Frame_t>& range, TrainingData& data, bool check_length, DatasetQuality::Quality quality) {
     const float pure_chance = 1.f / FAST_SETTINGS(manual_identities).size();
    // data.set_normalized(SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>());
     
@@ -431,12 +435,15 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Fram
         
         Debug("Generating discrimination data.");
         
-        auto analysis_range = Tracker::analysis_range();
-        auto &individuals = Tracker::individuals();
+        Range<Frame_t> analysis_range = Range<Frame_t>{
+            Tracker::analysis_range().start,
+            Tracker::analysis_range().end
+        };
         
+        auto &individuals = Tracker::individuals();
         std::map<Frame_t, std::set<Idx_t>> disc_individuals_per_frame;
         
-        for(Frame_t frame(analysis_range.start); frame <= analysis_range.end; frame += max(1, analysis_range.length() / 333))
+        for(Frame_t frame = analysis_range.start; frame <= analysis_range.end; frame += Frame_t(max(1, analysis_range.length().get() / 333)))
         {
             if(frame < Tracker::start_frame())
                 continue;
@@ -860,11 +867,11 @@ bool Accumulation::start() {
     {
         DebugHeader("Beginning accumulation from %d ranges in training mode '%s'.", ranges.size(), _mode.name());
         
-        std::set<Rangel> overall_ranges{_initial_range};
-        std::set<std::tuple<double, int64_t, DatasetQuality::Quality, std::shared_ptr<TrainingData>, Rangel>, std::greater<>> sorted;
+        std::set<Range<Frame_t>> overall_ranges{_initial_range};
+        std::set<std::tuple<double, Frame_t, DatasetQuality::Quality, std::shared_ptr<TrainingData>, Range<Frame_t>>, std::greater<>> sorted;
         auto resort_ranges = [&sorted, &overall_ranges, &analysis_range, this](){
-            std::set<std::tuple<double, int64_t, DatasetQuality::Quality, std::shared_ptr<TrainingData>, Rangel, FrameRange, float>, std::greater<>> copied_sorted;
-            std::map<Rangel, double> all_distances;
+            std::set<std::tuple<double, Frame_t, DatasetQuality::Quality, std::shared_ptr<TrainingData>, Range<Frame_t>, FrameRange, float>, std::greater<>> copied_sorted;
+            std::map<Range<Frame_t>, double> all_distances;
             double max_distance = 0, min_distance = std::numeric_limits<double>::max();
             assigned_unique_averages.clear();
             
@@ -879,23 +886,23 @@ bool Accumulation::start() {
                 }
                 
                 if(!overlaps) {
-                    int64_t range_distance = -1;
+                    Frame_t range_distance;
                     for(auto &r : overall_ranges) {
                         if(range.start > r.end) {
-                            if(range_distance == -1)
+                            if(!range_distance.valid())
                                 range_distance = range.start - r.end;
                             else
                                 range_distance = min(range.start - r.end, range_distance);
-                        } else if(range_distance == -1)
+                        } else if(!range_distance.valid())
                             range_distance = r.start - range.end;
                         else
                             range_distance = min(r.start - range.end, range_distance);
                     }
                     
-                    const long frames_around_center = max(1, analysis_range.length() / 10);
+                    const Frame_t frames_around_center = max(1_f, analysis_range.length() / 10_f);
                     
-                    auto center = range.length() / 2 + range.start;
-                    FrameRange extended_range(Rangel(
+                    auto center = range.length() / 2_f + range.start;
+                    FrameRange extended_range(Range<Frame_t>(
                         max(analysis_range.start, center - frames_around_center),
                         min(analysis_range.end, center + frames_around_center))
                     );
@@ -917,11 +924,11 @@ bool Accumulation::start() {
                     if(distance < min_distance) min_distance = distance;
                     //distance = roundf((1 - SQR(average)) * 10) * 10;
                     
-                    range_distance = narrow_cast<int64_t>(next_pow2(sign_cast<uint64_t>(range_distance)));
+                    range_distance = Frame_t(narrow_cast<int32_t>(next_pow2(sign_cast<uint64_t>(range_distance.get()))));
                     
                     copied_sorted.insert({distance, range_distance, q, cached, range, extended_range, samples});
                 } else {
-                    copied_sorted.insert({distance, -1, q, cached, range, FrameRange(range), -1});
+                    copied_sorted.insert({distance, Frame_t(), q, cached, range, FrameRange(range), -1});
                 }
                 
                 /*if(distance > 0) {
@@ -953,7 +960,7 @@ bool Accumulation::start() {
             //auto d = min(abs(range.end - initial_range.start), abs(range.end - initial_range.end), min(abs(range.start - initial_range.start), abs(range.start - initial_range.end)));
             auto q = track::Tracker::recognition()->dataset_quality()->quality(range);
             if(q.min_cells > 0) {
-                sorted.insert({-1, -1, q, nullptr, range});
+                sorted.insert({-1, Frame_t(), q, nullptr, range});
                 if(maximum_average_samples < q.average_samples)
                     maximum_average_samples = q.average_samples;
             }
@@ -963,14 +970,14 @@ bool Accumulation::start() {
             decltype(sorted) filtered;
             
             //! Splitting video into quadrants, so that we will have the same number of segments left from all parts of the video (if possible).
-            std::map<long_t, std::set<std::tuple<DatasetQuality::Quality, Rangel>>> sorted_by_quality;
-            std::set<std::tuple<DatasetQuality::Quality, Rangel>> filtered_out;
+            std::map<Frame_t::number_t, std::set<std::tuple<DatasetQuality::Quality, Range<Frame_t>>>> sorted_by_quality;
+            std::set<std::tuple<DatasetQuality::Quality, Range<Frame_t>>> filtered_out;
             
-            long_t L = (long_t)floor(analysis_range.length() * 0.25);
+            Frame_t::number_t L = floor(analysis_range.length().get() * 0.25);
             sorted_by_quality[L] = {};
             sorted_by_quality[L * 2] = {};
             sorted_by_quality[L * 3] = {};
-            sorted_by_quality[std::numeric_limits<long_t>::max()] = {};
+            sorted_by_quality[std::numeric_limits<Frame_t::number_t>::max()] = {};
             
             auto quadrants = Meta::toStr(sorted_by_quality);
             Debug("! Sorted segments into quadrants: %S", &quadrants);
@@ -980,7 +987,7 @@ bool Accumulation::start() {
             for(auto && [_, rd, q, cached, range] : sorted) {
                 bool inserted = false;
                 for(auto && [end, qu] : sorted_by_quality) {
-                    if(range.start + range.length() * 0.5 < end) {
+                    if(range.start + range.length() / 2_f < Frame_t(end)) {
                         qu.insert({q, range});
                         inserted = true;
                         ++inserted_elements;
@@ -1023,7 +1030,7 @@ bool Accumulation::start() {
                 sorted.clear();
                 for(auto && [end, queue] : sorted_by_quality) {
                     for(auto && [q, range] : queue)
-                        sorted.insert({-1, -1, q, nullptr, range});
+                        sorted.insert({-1, Frame_t(), q, nullptr, range});
                 }
                 
                 Debug("Reduced global segments array by removing %d elements with a quality worse than %S (%S). %d elements remaining.", filtered_out.size(), &str, &str_filtered_out, sorted_by_quality.size());
@@ -1035,12 +1042,12 @@ bool Accumulation::start() {
         }
         
         // try to find the limits of how many images can be expected for each individual. if we have reached X% of the minimal coverage / individual, we can assume that it will not get much better at differentiating individuals.
-        std::set<std::tuple<DatasetQuality::Quality, Rangel, std::shared_ptr<TrainingData>>> tried_ranges;
+        std::set<std::tuple<DatasetQuality::Quality, Range<Frame_t>, std::shared_ptr<TrainingData>>> tried_ranges;
         size_t successful_ranges = 0, available_ranges = sorted.size();
         size_t steps = 0;
         
         auto train_confirm_range = [&steps, &successful_ranges, this, &overall_ranges]
-            (const Rangel& range, std::shared_ptr<TrainingData> second_data, DatasetQuality::Quality quality) -> std::tuple<bool, std::shared_ptr<TrainingData>>
+            (const Range<Frame_t>& range, std::shared_ptr<TrainingData> second_data, DatasetQuality::Quality quality) -> std::tuple<bool, std::shared_ptr<TrainingData>>
         {
             if(!second_data) {
                 second_data = std::make_shared<TrainingData>();
@@ -1173,7 +1180,7 @@ bool Accumulation::start() {
             return {false, success ? second_data : nullptr};
         };
         
-        auto update_meta_start_acc = [&](std::string prefix, Rangel next_range, DatasetQuality::Quality quality, double average_unique) {
+        auto update_meta_start_acc = [&](std::string prefix, Range<Frame_t> next_range, DatasetQuality::Quality quality, double average_unique) {
             Debug("");
             auto qual_str = Meta::toStr(quality);
             Debug("[Accumulation %d%S] %d ranges remaining for accumulation (%d cached that did not predict unique ids yet), range %d-%d (%S, %f unique weight).", steps, &prefix, sorted.size(), tried_ranges.size(), next_range.start, next_range.end, &qual_str, average_unique);
@@ -1215,14 +1222,14 @@ bool Accumulation::start() {
             }
             
             std::map<Idx_t, std::set<FrameRange>> gaps;
-            std::map<Idx_t, long_t> frame_gaps;
+            std::map<Idx_t, Frame_t::number_t> frame_gaps;
             for(auto && [id, ranges] : assigned_ranges)
             {
-                long_t previous_frame = analysis_range.start;
+                auto previous_frame = analysis_range.start;
                 for(auto& range : ranges) {
-                    if(previous_frame < range.start() - 1) {
-                        gaps[id].insert(FrameRange(Rangel(previous_frame, range.start())));
-                        frame_gaps[id] += range.start() - previous_frame;
+                    if(previous_frame < range.start() - 1_f) {
+                        gaps[id].insert(FrameRange(Range<Frame_t>(previous_frame, range.start())));
+                        frame_gaps[id] += (range.start() - previous_frame).get();
                     }
                     
                     sizes[id] += range.length();
@@ -1230,7 +1237,7 @@ bool Accumulation::start() {
                 }
                 
                 if(previous_frame < analysis_range.end) {
-                    auto r = FrameRange(Rangel(previous_frame, analysis_range.end));
+                    auto r = FrameRange(Range<Frame_t>(previous_frame, analysis_range.end));
                     gaps[id].insert(r);
                     frame_gaps[id] += r.length() - 1;
                 }
@@ -1238,7 +1245,7 @@ bool Accumulation::start() {
             
             auto str_gaps = Meta::toStr(frame_gaps);
             Debug("\tIndividuals frame gaps: %S", &str_gaps);
-            long_t maximal_gaps = 0;
+            Frame_t::number_t maximal_gaps(0);
             for(auto && [id, L] : frame_gaps) {
                 if(L > maximal_gaps)
                     maximal_gaps = L;
@@ -1268,10 +1275,10 @@ bool Accumulation::start() {
                 return false;
             }
             
-            if(maximal_gaps < analysis_range.length() * 0.25) {
+            if(maximal_gaps < analysis_range.length().get() * 0.25) {
                 Debug("---");
                 Debug("Added enough frames for all individuals - stopping accumulation.");
-                reason_to_stop = "Added "+Meta::toStr(frame_gaps)+" of frames from global segments with maximal gap of "+Meta::toStr(maximal_gaps)+" / "+Meta::toStr(analysis_range.length())+" frames ("+Meta::toStr(maximal_gaps / float(analysis_range.length()) * 100)+"%).";
+                reason_to_stop = "Added "+Meta::toStr(frame_gaps)+" of frames from global segments with maximal gap of "+Meta::toStr(maximal_gaps)+" / "+Meta::toStr(analysis_range.length())+" frames ("+Meta::toStr(maximal_gaps / float(analysis_range.length().get()) * 100)+"%).";
                 tried_ranges.clear(); // dont retry stuff
                 
                 //end_a_step(Result("Added enough frames. Maximal gaps are "+Meta::toStr(maximal_gaps)+"/"+Meta::toStr(analysis_range.length() * 0.25)));
@@ -1293,7 +1300,7 @@ bool Accumulation::start() {
                 Debug("\tRetrying from %d ranges...", tried_ranges.size());
                 
                 for(auto && [q, range, ptr] : tried_ranges) {
-                    sorted.insert({-1, -1, q, ptr, range});
+                    sorted.insert({-1, Frame_t(), q, ptr, range});
                 }
                 
                 tried_ranges.clear();
@@ -1485,8 +1492,8 @@ bool Accumulation::start() {
                 Collect all frames for all individuals.
                 Then generate all frames for all normalization methods.
              */
-            std::map<long_t, std::set<Idx_t>> frames_collected;
-            std::map<long_t, std::map<Idx_t, Idx_t>> frames_assignment;
+            std::map<Frame_t, std::set<Idx_t>> frames_collected;
+            std::map<Frame_t, std::map<Idx_t, Idx_t>> frames_assignment;
             for(auto &data : _collected_data->data()) {
                 for(auto && [id, per] : data->mappings) {
                     auto org = data->unmap(id);
@@ -1509,9 +1516,9 @@ bool Accumulation::start() {
                     auto active =
                         frame == Tracker::start_frame()
                             ? std::unordered_set<Individual*>()
-                            : Tracker::active_individuals(frame-1);
+                            : Tracker::active_individuals(frame - 1_f);
                     
-                    video_file.read_frame(video_frame.frame(), sign_cast<uint64_t>(frame));
+                    video_file.read_frame(video_frame.frame(), sign_cast<uint64_t>(frame.get()));
                     Tracker::instance()->preprocess_frame(video_frame, active, NULL);
                     
                     for(auto id : ids) {

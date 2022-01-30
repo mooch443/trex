@@ -26,7 +26,7 @@ namespace track {
 #endif
     }
     
-    PhysicalProperties::PhysicalProperties(Individual* fish, long_t frame, const Vec2& pos, float angle, const CacheHints* hints) :
+    PhysicalProperties::PhysicalProperties(Individual* fish, Frame_t frame, const Vec2& pos, float angle, const CacheHints* hints) :
     _fish(fish), _frame(frame)
     {
         _derivatives[(size_t)Type::POSITION] = (PropertyBase*)new Property<Vec2>(this, Type::POSITION);
@@ -86,8 +86,8 @@ namespace track {
         get(PropertyType::ANGLE).value(normalize_angle(angle() + float(M_PI)));
     }
     
-    uint32_t PhysicalProperties::smooth_window() {
-        return FAST_SETTINGS(smooth_window);
+    Frame_t PhysicalProperties::smooth_window() {
+        return Frame_t(FAST_SETTINGS(smooth_window));
     }
     
     template<typename T>
@@ -100,12 +100,12 @@ namespace track {
         
         const Property<T> *prev_property = NULL;
         if(!_mother->fish()->empty()
-           && _mother->_frame-1 >= _mother->fish()->start_frame()
-           && _mother->_frame-1 <= _mother->fish()->end_frame())
+           && _mother->_frame - 1_f >= _mother->fish()->start_frame()
+           && _mother->_frame - 1_f <= _mother->fish()->end_frame())
         {
-            auto it = _mother->_fish->iterator_for(_mother->_frame - 1);
+            auto it = _mother->_fish->iterator_for(_mother->_frame - 1_f);
             if(it != _mother->_fish->frame_segments().end()) {
-                auto index = (*it)->basic_stuff(_mother->_frame-1);
+                auto index = (*it)->basic_stuff(_mother->_frame - 1_f);
                 if(index != -1) {
                     // valid frame
                     prev_property = _mother->fish()->basic_stuff()[ index ]->centroid->get(type()).is_type<T>();
@@ -186,7 +186,7 @@ namespace track {
         T smoothed = prop->_values[derivative];
 #endif
         
-        prop->_mother->fish()->iterate_frames(Rangel(prop->_mother->frame() - PhysicalProperties::smooth_window(), prop->_mother->frame() + PhysicalProperties::smooth_window()), [&smoothed, &derivative, &samples_prev, prop](long_t, const std::shared_ptr<Individual::SegmentInformation> &, const std::shared_ptr<Individual::BasicStuff> & basic, const std::shared_ptr<Individual::PostureStuff> &) -> bool
+        prop->_mother->fish()->iterate_frames(Range<Frame_t>(prop->_mother->frame() - PhysicalProperties::smooth_window(), prop->_mother->frame() + PhysicalProperties::smooth_window()), [&smoothed, &derivative, &samples_prev, prop](auto, const std::shared_ptr<Individual::SegmentInformation> &, const std::shared_ptr<Individual::BasicStuff> & basic, const std::shared_ptr<Individual::PostureStuff> &) -> bool
         {
             if(basic && basic->frame != prop->_mother->frame()) {
                 auto property = static_cast<const PhysicalProperties::Property<T>*>(&basic->centroid->get(prop->type()));

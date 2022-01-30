@@ -36,13 +36,13 @@ private:
 	ConfirmedCrossings() {}
 
 public:
-	static void remove_frames(long_t frame, long_t id = -1);
+	static void remove_frames(Frame_t frame, long_t id = -1);
 	static bool is_foi_confirmed(const FOI& foi);
 	static bool is_foi_wrong(const FOI& foi);
 	static bool confirmation_available();
 	static void add_foi(const FOI& foi);
     
-    static void draw(gui::DrawStructure&, long_t frame);
+    static void draw(gui::DrawStructure&, Frame_t frame);
 
 	static void start();
 	static void stop();

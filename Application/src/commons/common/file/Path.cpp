@@ -27,6 +27,8 @@
 
 #include <misc/checked_casts.h>
 #include <misc/metastring.h>
+#include <sys/stat.h>
+#include <misc/detail.h>
 
 namespace file {
     char Path::os_sep() { return OS_SEP; }

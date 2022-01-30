@@ -36,7 +36,7 @@ struct Sample {
         return std::make_shared<Sample>(std::forward<Args>(args)...);
     }
     
-    std::vector<long_t> _frames;
+    std::vector<Frame_t> _frames;
     std::vector<pv::bid> _blob_ids;
     std::vector<Image::Ptr> _images;
     std::vector<Vec2> _positions;
@@ -46,7 +46,7 @@ struct Sample {
     //std::map<Label::Ptr, float> _probabilities;
     bool _requested = false;
     
-    Sample(std::vector<long_t>&& frames,
+    Sample(std::vector<Frame_t>&& frames,
            const std::vector<Image::Ptr>& images,
            const std::vector<pv::bid>& blob_ids,
            std::vector<Vec2>&& positions);
@@ -81,13 +81,13 @@ struct RangedLabel {
     FrameRange _range;
     int _label = -1;
     std::vector<pv::bid> _blobs;
-    int32_t _maximum_frame_after = -1;
+    Frame_t _maximum_frame_after;
     
     bool operator<(const Frame_t& other) const {
-        return _range.end() < other._frame;
+        return _range.end() < other;
     }
     bool operator>(const Frame_t& other) const {
-        return _range.end() > other._frame;
+        return _range.end() > other;
     }
     bool operator<(const RangedLabel& other) const {
         return _range.end() < other._range.end() || (_range.end() == other._range.end() && _range.start() < other._range.start());

@@ -112,7 +112,7 @@ CREATE_STRUCT(Settings,
         static Tracker* instance();
         using set_of_individuals_t = std::unordered_set<Individual*>;
 
-        std::map<Idx_t, pv::bid> automatically_assigned(long_t frame);
+        std::map<Idx_t, pv::bid> automatically_assigned(Frame_t frame);
         
     protected:
         friend class Output::TrackingResults;
@@ -142,12 +142,13 @@ CREATE_STRUCT(Settings,
             std::unordered_set<uint32_t> bids;  // index of blob, not blob id
             std::unordered_set<uint32_t> fishs; // index of fish
         };
-        std::unordered_map<long_t, std::vector<Clique>> _cliques;
+        std::unordered_map<Frame_t, std::vector<Clique>> _cliques;
         
         set_of_individuals_t _active_individuals;
-        std::unordered_map<long_t, set_of_individuals_t> _active_individuals_frame;
+        std::unordered_map<Frame_t, set_of_individuals_t> _active_individuals_frame;
         
-        std::atomic<Frame_t> _startFrame, _endFrame;
+        std::atomic<Frame_t> _startFrame{ Frame_t() };
+        std::atomic<Frame_t> _endFrame{ Frame_t() };
         uint64_t _max_individuals;
         //GETTER_PTR(LuminanceGrid*, grid)
         GETTER_PTR(StaticBackground*, background)
@@ -197,10 +198,10 @@ CREATE_STRUCT(Settings,
         };
         
         std::mutex _statistics_mutex;
-        std::map<long_t, Statistics> _statistics;
-        long_t _approximative_enabled_in_frame;
+        std::map<Frame_t, Statistics> _statistics;
+        Frame_t _approximative_enabled_in_frame;
         
-        GETTER(std::deque<Range<long_t>>, consecutive)
+        GETTER(std::deque<Range<Frame_t>>, consecutive)
         std::set<Idx_t, std::function<bool(Idx_t,Idx_t)>> _inactive_individuals;
         
     public:
@@ -214,11 +215,11 @@ CREATE_STRUCT(Settings,
          */
         void add(PPFrame& frame);
     private:
-        void add(long_t frameIndex, PPFrame& frame);
+        void add(Frame_t frameIndex, PPFrame& frame);
         
     public:
         //! Removes all frames after given index
-        void _remove_frames(long_t frameIndex);
+        void _remove_frames(Frame_t frameIndex);
         
         void set_average(const Image::Ptr& average) {
             //average.copyTo(_average);
@@ -236,18 +237,18 @@ CREATE_STRUCT(Settings,
         static const Image& average() { if(!instance()->_average) U_EXCEPTION("Pointer to average image is nullptr."); return *instance()->_average; }
         
         
-        static decltype(_added_frames)::const_iterator properties_iterator(long_t frameIndex);
-        static const FrameProperties* properties(long_t frameIndex, const CacheHints* cache = nullptr);
-        static double time_delta(long_t frame_1, long_t frame_2, const CacheHints* cache = nullptr) {
+        static decltype(_added_frames)::const_iterator properties_iterator(Frame_t frameIndex);
+        static const FrameProperties* properties(Frame_t frameIndex, const CacheHints* cache = nullptr);
+        static double time_delta(Frame_t frame_1, Frame_t frame_2, const CacheHints* cache = nullptr) {
             auto props_1 = properties(frame_1, cache);
             auto props_2 = properties(frame_2, cache);
-            return props_1 && props_2 ? abs(props_1->time - props_2->time) : (abs(frame_1 - frame_2) / double(FAST_SETTINGS(frame_rate)));
+            return props_1 && props_2 ? abs(props_1->time - props_2->time) : (abs((frame_1 - frame_2).get()) / double(FAST_SETTINGS(frame_rate)));
         }
         static const FrameProperties* add_next_frame(const FrameProperties&);
         static void clear_properties();
         
-        static Frame_t start_frame() { return Frame_t(instance()->_startFrame.load()); }
-        static Frame_t end_frame() { return Frame_t(instance()->_endFrame.load()); }
+        static Frame_t start_frame() { return instance()->_startFrame.load(); }
+        static Frame_t end_frame() { return instance()->_endFrame.load(); }
         static size_t number_frames() { return instance()->_added_frames.size(); }
         static bool blob_matches_shapes(const pv::BlobPtr&, const std::vector<std::vector<Vec2>>&);
         
@@ -263,7 +264,7 @@ CREATE_STRUCT(Settings,
             //LockGuard guard("active_individuals()");
             return instance()->_active_individuals;
         }
-        static const std::unordered_set<Individual*>& active_individuals(long_t frame) {
+        static const std::unordered_set<Individual*>& active_individuals(Frame_t frame) {
             //LockGuard guard;
             
             if(instance()->_active_individuals_frame.count(frame))
@@ -272,16 +273,16 @@ CREATE_STRUCT(Settings,
             U_EXCEPTION("Frame out of bounds.");
         }
         static uint32_t overall_midline_errors() { return instance()->_overall_midline_errors; }
-        static Rangel analysis_range() {
+        static Range<Frame_t> analysis_range() {
             const auto [start, end] = FAST_SETTINGS(analysis_range);
             const long_t video_length = narrow_cast<long_t>(FAST_SETTINGS(video_length))-1;
-            return Rangel(max(0, start), max(end > -1 ? min(video_length, end) : video_length, max(0, start)));
+            return Range<Frame_t>(Frame_t(max(0, start)), Frame_t(max(end > -1 ? min(video_length, end) : video_length, max(0, start))));
         }
         
         void update_history_log();
         
-        long_t update_with_manual_matches(const std::map<long_t, std::map<Idx_t, pv::bid>>& manual_matches);
-        void check_segments_identities(bool auto_correct, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue = [](auto,auto,auto){}, long_t after_frame = -1);
+        Frame_t update_with_manual_matches(const Settings::manual_matches_t& manual_matches);
+        void check_segments_identities(bool auto_correct, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue = [](auto,auto,auto){}, Frame_t after_frame = {});
         void clear_segments_identities();
         void prepare_shutdown();
         void wait();
@@ -293,7 +294,7 @@ CREATE_STRUCT(Settings,
         //static bool generate_training_images(pv::File&, const Rangel& range, TrainingData&, const std::function<void(float)>& = [](float){});
         
         static Recognition* recognition();
-        static std::vector<Rangel> global_segment_order();
+        static std::vector<Range<Frame_t>> global_segment_order();
         static void global_segment_order_changed();
         static void auto_calculate_parameters(pv::File& video, bool quiet = false);
         static void emergency_finish();
@@ -321,8 +322,8 @@ CREATE_STRUCT(Settings,
             ++instance()->_overall_midline_errors;
         }
         
-        void update_consecutive(const set_of_individuals_t& active, long_t frameIndex, bool update_dataset = false);
-        void update_warnings(long_t frameIndex, double time, long_t number_fish, long_t n_found, long_t n_prev, const FrameProperties *props, const FrameProperties *prev_props, const set_of_individuals_t& active_individuals, std::unordered_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators);
+        void update_consecutive(const set_of_individuals_t& active, Frame_t frameIndex, bool update_dataset = false);
+        void update_warnings(Frame_t frameIndex, double time, long_t number_fish, long_t n_found, long_t n_prev, const FrameProperties *props, const FrameProperties *prev_props, const set_of_individuals_t& active_individuals, std::unordered_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators);
         
     private:
         static void filter_blobs(PPFrame& frame, GenericThreadPool *pool);
@@ -345,9 +346,9 @@ CREATE_STRUCT(Settings,
         };
         
         //static void changed_setting(const sprite::Map&, const std::string& key, const sprite::PropertyType& value);
-        size_t found_individuals_frame(size_t frameIndex) const;
-        void generate_pairdistances(long_t frameIndex);
-        void check_save_tags(long_t frameIndex, const std::unordered_map<pv::bid, Individual*>&, const std::vector<tags::blob_pixel>&, const std::vector<tags::blob_pixel>&, const file::Path&);
+        size_t found_individuals_frame(Frame_t frameIndex) const;
+        void generate_pairdistances(Frame_t frameIndex);
+        void check_save_tags(Frame_t frameIndex, const std::unordered_map<pv::bid, Individual*>&, const std::vector<tags::blob_pixel>&, const std::vector<tags::blob_pixel>&, const file::Path&);
         
         Individual* create_individual(Idx_t ID, set_of_individuals_t& active_individuals);
         
@@ -357,7 +358,7 @@ CREATE_STRUCT(Settings,
             std::vector<pv::BlobPtr> big_blobs;
             //std::vector<pv::BlobPtr> additional;
             
-            long_t frame_index;
+            Frame_t frame_index;
             BlobSizeRange fish_size;
             const Background* background;
             int threshold;
@@ -365,7 +366,7 @@ CREATE_STRUCT(Settings,
             size_t overall_pixels = 0;
             size_t samples = 0;
             
-            PrefilterBlobs(long_t index, int threshold, const BlobSizeRange& fish_size, const Background& background)
+            PrefilterBlobs(Frame_t index, int threshold, const BlobSizeRange& fish_size, const Background& background)
             : frame_index(index), fish_size(fish_size), background(&background), threshold(threshold)
             {
                 
@@ -482,7 +483,7 @@ CREATE_STRUCT(Settings,
         
         static void prefilter(const std::shared_ptr<PrefilterBlobs>&, std::vector<pv::BlobPtr>::const_iterator it, std::vector<pv::BlobPtr>::const_iterator end);
         
-        void update_iterator_maps(long_t frame, const set_of_individuals_t& active_individuals, std::unordered_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators);
+        void update_iterator_maps(Frame_t frame, const set_of_individuals_t& active_individuals, std::unordered_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators);
     };
 }
 

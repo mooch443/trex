@@ -9,7 +9,7 @@ namespace gui {
     using namespace track;
     
     DrawDataset::DrawDataset()
-        : _last_frame(-1), _last_consecutive_frames(-1, -1), _initial_pos_set(false)
+        : _last_frame(-1), _last_consecutive_frames({}, {}), _initial_pos_set(false)
     {
         set_background(Black.alpha(150));
         set_origin(Vec2(1));
@@ -25,12 +25,12 @@ namespace gui {
     
     void DrawDataset::clear_cache() {
         _cache.clear();
-        _last_consecutive_frames = Rangel(-1, -1);
-        _last_frame = -1;
+        _last_consecutive_frames = Range<Frame_t>({}, {});
+        _last_frame.invalidate();
         _meta.clear();
         _current_quality = DatasetQuality::Quality();
         _meta_current.clear();
-        _last_current_frames = Rangel(-1, -1);
+        _last_current_frames = Range<Frame_t>({}, {});
     }
     
     void DrawDataset::update() {
@@ -39,10 +39,12 @@ namespace gui {
                 set_scale(parent()->stage()->scale().reciprocal());
         }
         
-        long_t frame = GUI::instance()->frameinfo().frameIndex;
-        auto consec = GUI::instance()->frameinfo().global_segment_order.empty() ? Rangel(-1,-1) : GUI::instance()->frameinfo().global_segment_order.front();
+        auto frame = GUI::instance()->frameinfo().frameIndex.load();
+        auto consec = GUI::instance()->frameinfo().global_segment_order.empty()
+            ? Range<Frame_t>({},{})
+            : GUI::instance()->frameinfo().global_segment_order.front();
         
-        Rangel current_consec(-1, -1);
+        Range<Frame_t> current_consec({}, {});
         
         if(!consec.contains(frame)) {
             for(auto & range : GUI::instance()->frameinfo().consecutive) {
@@ -101,7 +103,7 @@ namespace gui {
             
             // the frame we're currently in is not in the range we selected as "best"
             // so we want to display information about the other one too
-            if(current_consec != consec && current_consec.start != -1 && _last_current_frames != current_consec)
+            if(current_consec != consec && current_consec.start.valid() && _last_current_frames != current_consec)
             {
                 if(dataset) {
                     _meta_current = dataset->per_fish(current_consec);
@@ -114,7 +116,7 @@ namespace gui {
                 _last_current_frames = current_consec;
             }
             
-            if(current_consec.start == -1) {
+            if(!current_consec.start.valid()) {
                 _meta_current.clear();
                 _last_current_frames = current_consec;
             }
@@ -251,7 +253,7 @@ namespace gui {
             advance(new Line(Vec2(10, 10 + offset_y + h + 5), Vec2(10 + max_w, 10 + offset_y + h + 5), White.alpha(150)));
         };
         
-        if(_last_current_frames.start != -1 && !_meta_current.empty()) {
+        if(_last_current_frames.start.valid() && !_meta_current.empty()) {
             h = advance(new Text("Current segment "+Meta::toStr(_last_current_frames)+" ("+Meta::toStr(_current_quality)+")", Vec2(x, 10), White, Font(0.8f, Style::Bold)))->height();
             display_dataset(_meta_current, 0);
             

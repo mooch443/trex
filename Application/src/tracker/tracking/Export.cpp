@@ -167,7 +167,7 @@ Float2_t polygonArea(const std::vector<Vec2>& pts)
     return cmn::abs(area / 2.0f);
 }
 
-void export_data(Tracker& tracker, long_t fdx, const Range<long_t>& range) {
+void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
     using namespace gui;
     GenericThreadPool _blob_thread_pool(cmn::hardware_concurrency());
     
@@ -231,7 +231,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<long_t>& range) {
             all_percents[id] = 0;
         
         using ImageData = Recognition::ImageData;
-        std::map<long_t, std::map<long_t, ImageData>> waiting_pixels;
+        std::map<Frame_t, std::map<long_t, ImageData>> waiting_pixels;
         std::mutex sync;
         
         std::vector<std::shared_ptr<PropertiesGraph>> fish_graphs;
@@ -289,9 +289,12 @@ void export_data(Tracker& tracker, long_t fdx, const Range<long_t>& range) {
             if (fish->frame_count() >= output_min_frames) {
                 if(!no_tracking_data) {
                     if(!range.empty())
-                        fish_graphs.at(thread_index)->setup_graph(range.start, range, fish, library_cache.at(thread_index));
+                        fish_graphs.at(thread_index)->setup_graph(range.start.get(), Rangel(range.start.get(), range.end.get()), fish, library_cache.at(thread_index));
                     else
-                        fish_graphs.at(thread_index)->setup_graph(fish->start_frame(), Rangel(fish->start_frame(), fish->end_frame()), fish, library_cache.at(thread_index));
+                        fish_graphs.at(thread_index)->setup_graph(
+                              fish->start_frame().get(),
+                              Rangel(fish->start_frame().get(), fish->end_frame().get()),
+                              fish, library_cache.at(thread_index));
                     
                     file::Path path = ((std::string)SETTING(filename).value<file::Path>().filename() + "_" + fish->identity().name() + "." + output_format.name());
                     file::Path final_path = fishdata / path;
@@ -301,7 +304,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<long_t>& range) {
                             temporary_save(final_path, [&](file::Path use_path) {
                                 fish_graphs.at(thread_index)->graph().save_npz(use_path.str(), &callback, true);
                                 
-                                std::vector<long_t> segment_borders;
+                                std::vector<Frame_t> segment_borders;
                                 std::vector<float> vxy;
                                 vxy.reserve(fish->frame_count() * 2);
                                 
@@ -309,7 +312,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<long_t>& range) {
                                     segment_borders.push_back(segment->start());
                                     segment_borders.push_back(segment->end());
                                     
-                                    for(long_t frame = segment->start() + 1; frame <= segment->end(); ++frame)
+                                    for(auto frame = segment->start() + 1_f; frame <= segment->end(); frame += 1_f)
                                     {
                                         auto idx = segment->basic_stuff(frame);
                                         if(idx < 0)
@@ -319,7 +322,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<long_t>& range) {
                                         
                                         auto v = centroid->v(Units::PX_AND_SECONDS);
                                         auto speed = centroid->speed(Units::PX_AND_SECONDS);
-                                        vxy.push_back(frame);
+                                        vxy.push_back(frame.get());
                                         vxy.push_back(v.x);
                                         vxy.push_back(v.y);
                                         vxy.push_back(speed);
@@ -358,8 +361,8 @@ void export_data(Tracker& tracker, long_t fdx, const Range<long_t>& range) {
                                 auto before = arrays.size();
                                 arrays.resize(arrays.size() + ptr->size());
                                 
-                                printf("%d ", frame);
-                                frame_indices.push_back(frame);
+                                printf("%d ", frame.get());
+                                frame_indices.push_back(frame.get());
                                 blob_ids.push_back(bid);
                                 std::copy(ptr->data(), ptr->data() + ptr->size(), arrays.begin() + before);
                             }
@@ -372,7 +375,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<long_t>& range) {
                                     U_EXCEPTION("Range starts at %d, but frame is not set for fish %d.", range.start(), fish->identity().ID());
                                 auto start_blob_id = fish->blob(range.start())->blob_id();
                                 
-                                file::Path path(tags_path / SETTING(filename).value<file::Path>().filename() / ("frame"+std::to_string(range.start())+"_blob"+Meta::toStr(start_blob_id)+".npz"));
+                                file::Path path(tags_path / SETTING(filename).value<file::Path>().filename() / ("frame"+range.start().toStr()+"_blob"+Meta::toStr(start_blob_id)+".npz"));
                                 if(!path.remove_filename().exists()) {
                                     if(!path.remove_filename().create_folder())
                                         U_EXCEPTION("Cannot create folder '%S' please check permissions.", &path.remove_filename().str());
@@ -405,14 +408,14 @@ void export_data(Tracker& tracker, long_t fdx, const Range<long_t>& range) {
                             size_t image_count = 0;
                             
                             if(filters->median_midline_length_px > 0) {
-                                std::set<long_t> frames(range->range.iterable().begin(), range->range.iterable().end());
+                                std::set<Frame_t> frames(range->range.iterable().begin(), range->range.iterable().end());
                                 
                                 if(tracklet_max_images != 0 && frames.size() > tracklet_max_images) {
                                     
                                 //}
                                 //if(frames.size() > 100 /** magic number of frames **/) {
                                     auto step_size = frames.size() / tracklet_max_images;
-                                    std::set<long_t> tmp;
+                                    std::set<Frame_t> tmp;
                                     for(auto it = frames.begin(); it != frames.end();) {
                                         //Debug("%d-%d adding %d (%d)", range.start(), range.end(), *it, step_size);
                                         tmp.insert(*it);
@@ -439,7 +442,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<long_t>& range) {
                                         
                                         if(SETTING(tracklet_restore_split_blobs) && blob->parent_id().valid()) {
                                             pv::Frame pvf;
-                                            GUI::instance()->video_source()->read_frame(pvf, (uint64_t)frame);
+                                            GUI::instance()->video_source()->read_frame(pvf, (uint64_t)frame.get());
                                             auto bs = pvf.get_blobs();
                                             //Debug("Blob %d in frame %d has been split (%d)", blob->blob_id(), frame, blob->parent_id());
                                             
@@ -480,12 +483,12 @@ void export_data(Tracker& tracker, long_t fdx, const Range<long_t>& range) {
                     // output network data
                     file::Path path = ((std::string)SETTING(filename).value<file::Path>().filename() + "_recognition_" + fish->identity().name() + ".npz");
                     
-                    Rangel fish_range(range);
+                    Range<Frame_t> fish_range(range);
                     if(range.empty())
-                        fish_range = Rangel(fish->start_frame(), fish->end_frame());
+                        fish_range = Range<Frame_t>(fish->start_frame(), fish->end_frame());
                     
                     std::vector<float> probabilities;
-                    probabilities.reserve((size_t)fish_range.length() * Recognition::number_classes());
+                    probabilities.reserve((size_t)fish_range.length().get() * Recognition::number_classes());
                     
                     std::vector<long_t> recognition_frames;
                     
@@ -498,7 +501,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<long_t>& range) {
                                     probabilities.push_back(p);
                                 }
                                 
-                                recognition_frames.push_back(frame);
+                                recognition_frames.push_back(frame.get());
                             }
                         }
                     }
@@ -514,20 +517,20 @@ void export_data(Tracker& tracker, long_t fdx, const Range<long_t>& range) {
                 if(output_posture_data) {
                     file::Path path = ((std::string)SETTING(filename).value<file::Path>().filename() + "_posture_" + fish->identity().name() + ".npz");
                     
-                    Rangel fish_range(range);
+                    Range<Frame_t> fish_range(range);
                     if(range.empty())
-                        fish_range = Rangel(fish->start_frame(), fish->end_frame());
+                        fish_range = Range<Frame_t>(fish->start_frame(), fish->end_frame());
                     
                     //Debug("Writing posture data to '%S' [%d-%d]...", &path.str(), fish_range.start, fish_range.end);
                     
                     std::vector<Vec2> midline_points, outline_points, midline_points_raw;
                     std::vector<Vec2> offsets;
                     std::vector<float> midline_angles, midline_cms, areas, midline_offsets;
-                    midline_points.reserve((size_t)fish_range.length() * 2 * FAST_SETTINGS(midline_resolution));
+                    midline_points.reserve((size_t)fish_range.length().get() * 2 * FAST_SETTINGS(midline_resolution));
                     midline_points_raw.reserve(midline_points.capacity());
-                    midline_angles.reserve((size_t)fish_range.length());
-                    midline_offsets.reserve((size_t)fish_range.length());
-                    areas.reserve((size_t)fish_range.length());
+                    midline_angles.reserve((size_t)fish_range.length().get());
+                    midline_offsets.reserve((size_t)fish_range.length().get());
+                    areas.reserve((size_t)fish_range.length().get());
                     //outline_points.reserve(fish_range.length() * 2);
                     
                     size_t num_midline_points = 0, num_outline_points = 0;
@@ -537,7 +540,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<long_t>& range) {
                     size_t first_midline_length = 0;
                     bool same_midline_length = true;
                     size_t counter = 0;
-                    size_t print_step_size = size_t(fish_range.length()) / 100u;
+                    size_t print_step_size = size_t(fish_range.length().get()) / 100u;
                     if(print_step_size == 0)
                         print_step_size = 1;
                     
@@ -546,7 +549,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<long_t>& range) {
                         auto midline = do_normalize_output ? fish->fixed_midline(frame) : fish->midline(frame);
                         
                         if(outline && midline) {
-                            posture_frames.push_back(frame);
+                            posture_frames.push_back(frame.get());
                             
                             auto blob = fish->blob(frame);
                             offsets.push_back(blob->bounds().pos());
@@ -582,7 +585,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<long_t>& range) {
                         
                         ++counter;
                         if(counter % print_step_size == 0) {
-                            callback(float(counter) / float(fish_range.length()) + 1);
+                            callback(float(counter) / float(fish_range.length().get()) + 1);
                         }
                     }
                     
@@ -692,7 +695,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<long_t>& range) {
                 std::vector<long_t> frame_numbers;
                 std::vector<float> statistics;
                 for(auto && [frame, stats] : Tracker::instance()->_statistics) {
-                    frame_numbers.push_back(frame);
+                    frame_numbers.push_back(frame.get());
                     statistics.insert(statistics.end(), (float*)&stats, (float*)&stats + sizeof(track::Tracker::Statistics) / sizeof(float));
                 }
                 
@@ -776,7 +779,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<long_t>& range) {
             std::vector<uchar> all_images, single_images, split_masks;
             std::vector<long_t> all_ranges, single_frames, single_ids, split_frames, split_ids;
             
-            std::map<long_t, std::map<Rangel, std::queue<std::tuple<long_t, long_t, Image::UPtr>>>> queues;
+            std::map<long_t, std::map<Range<Frame_t>, std::queue<std::tuple<Frame_t, long_t, Image::UPtr>>>> queues;
             PPFrame obj;
             
             size_t index = 0;
@@ -787,8 +790,8 @@ void export_data(Tracker& tracker, long_t fdx, const Range<long_t>& range) {
                 {
                     static Timing timing("[tracklet_images] preprocess", 20);
                     TakeTiming take(timing);
-                    auto active = frame == Tracker::start_frame() ? std::unordered_set<Individual*>() : Tracker::active_individuals(frame-1);
-                    GUI::instance()->video_source()->read_frame(obj.frame(), sign_cast<uint64_t>(frame));
+                    auto active = frame == Tracker::start_frame() ? std::unordered_set<Individual*>() : Tracker::active_individuals(frame - 1_f);
+                    GUI::instance()->video_source()->read_frame(obj.frame(), sign_cast<uint64_t>(frame.get()));
                     Tracker::instance()->preprocess_frame(obj, active, &_blob_thread_pool);
                 }
                 
@@ -951,7 +954,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<long_t>& range) {
                             assert(full.image->cols == output_size.width && full.image->rows == output_size.height);
                             
                             split_ids.push_back(data.fish->identity().ID());
-                            split_frames.push_back(frame);
+                            split_frames.push_back(frame.get());
                             split_masks.insert(split_masks.end(), full.image->data(), full.image->data() + full.image->size());
                         }
                     }
@@ -1064,7 +1067,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<long_t>& range) {
                         
                         if(tracklet_max_images == 0) {
                             single_images.insert(single_images.end(), image->data(), image->data() + image->size());
-                            single_frames.push_back(frame);
+                            single_frames.push_back(frame.get());
                             single_ids.push_back(fid);
                             byte_counter += image->size();
                         }
@@ -1081,8 +1084,8 @@ void export_data(Tracker& tracker, long_t fdx, const Range<long_t>& range) {
                         assert(tmp.isContinuous() && tmp.channels() == 1);
                         all_images.insert(all_images.end(), tmp.data, tmp.data + tmp.cols * tmp.rows);
                         all_ranges.push_back(id);
-                        all_ranges.push_back(range.start);
-                        all_ranges.push_back(range.end);
+                        all_ranges.push_back(range.start.get());
+                        all_ranges.push_back(range.end.get());
                         //tf::imshow("median"+fish->identity().name()+" - "+Meta::toStr(range.range), tmp);
                     }
                 }

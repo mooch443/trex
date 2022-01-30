@@ -8,6 +8,8 @@
 #define PATH_MAX MAX_PATH
 #endif
 
+#include <misc/detail.h>
+
 using namespace file;
 
 namespace cmn {

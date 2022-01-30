@@ -83,7 +83,7 @@ bool Results::save(const Path &filename) const {
 		}
 
 		Table table(header);
-		for (long_t i = fish->start_frame(); i <= fish->end_frame(); i++) {
+		for (auto i = fish->start_frame(); i <= fish->end_frame(); ++i) {
 			Row row;
 			row.add(i);
 

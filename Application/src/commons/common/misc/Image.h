@@ -4,6 +4,7 @@
 #include <misc/vec2.h>
 #include <file/Path.h>
 #include <misc/checked_casts.h>
+#include <gui/colors.h>
 
 namespace cmn {
     /**

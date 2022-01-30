@@ -16,6 +16,7 @@
 
 #include <misc/ThreadPool.h>
 #include <processing/LuminanceGrid.h>
+#include <misc/frame_t.h>
 
 #if CV_MAJOR_VERSION >= 3
 #include <opencv2/core/ocl.hpp>
@@ -219,7 +220,7 @@ public:
     file::Path average_name() const;
     
     void safely_close();
-    void add_tracker_queue(const pv::Frame&, long_t);
+    void add_tracker_queue(const pv::Frame&, Frame_t);
     void update_tracker_queue();
     
     std::atomic_bool _terminate_tracker;

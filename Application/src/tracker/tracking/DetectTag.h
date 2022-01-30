@@ -2,6 +2,7 @@
 
 #include <misc/Image.h>
 #include <misc/PVBlob.h>
+#include <misc/ranges.h>
 
 namespace track {
     using namespace cmn;
@@ -13,9 +14,9 @@ namespace track {
             float variance;
             pv::bid blob_id;
             Image::Ptr image;
-            long_t frame;
+            Frame_t frame;
             
-            Tag(float v, pv::bid bdx, Image::Ptr img, long_t frame = -1)
+            Tag(float v, pv::bid bdx, Image::Ptr img, Frame_t frame = {})
                 : variance(v), blob_id(bdx), image(img), frame(frame)
             {}
             

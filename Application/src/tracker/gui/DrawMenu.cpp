@@ -273,7 +273,7 @@ public:
                         auto it = GUI::cache().fish_selected_blobs.find(GUI::cache().selected.front());
                         if(it != GUI::cache().fish_selected_blobs.end())
                         {
-                            SETTING(gui_show_fish) = std::pair<pv::bid, long_t>(it->second, GUI::frame());
+                            SETTING(gui_show_fish) = std::pair<pv::bid, Frame_t>(it->second, GUI::frame());
                             GUI::reanalyse_from(GUI::frame());
                             SETTING(analysis_paused) = false;
                         }
@@ -432,12 +432,12 @@ public:
     Timer memory_timer;
     mem::IndividualMemoryStats overall;
     gui::derived_ptr<Entangled> stats;
-    long_t last_end_frame;
+    Frame_t last_end_frame;
     
     void memory_stats() {
         if(!stats) {
             stats = std::make_shared<Entangled>();
-            last_end_frame = -1;
+            last_end_frame.invalidate();
         }
         
         auto &base = GUI::instance()->gui();

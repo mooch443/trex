@@ -22,3 +22,4 @@ Color Color::fromStr(const std::string& str) {
 }
 
 }
+

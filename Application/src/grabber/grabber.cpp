@@ -709,7 +709,7 @@ FrameGrabber::~FrameGrabber() {
             tracker->wait();
             
             if(!SETTING(auto_no_tracking_data))
-                track::export_data(*tracker, -1, Rangel());
+                track::export_data(*tracker, -1, Range<Frame_t>());
             
             std::vector<std::string> additional_exclusions;
             sprite::Map config_grabber, config_tracker;
@@ -965,7 +965,7 @@ bool FrameGrabber::load_image(Image_t& current) {
     return true;
 }
 
-void FrameGrabber::add_tracker_queue(const pv::Frame& frame, long_t index) {
+void FrameGrabber::add_tracker_queue(const pv::Frame& frame, Frame_t index) {
     std::unique_ptr<track::PPFrame> ptr;
     static size_t created_items = 0;
     static Timer print_timer;
@@ -996,7 +996,7 @@ void FrameGrabber::add_tracker_queue(const pv::Frame& frame, long_t index) {
     
     ptr->clear();
     ptr->frame() = frame;
-    ptr->frame().set_index(index);
+    ptr->frame().set_index(index.get());
     ptr->frame().set_timestamp(frame.timestamp());
     ptr->set_index(index);
     
@@ -1088,6 +1088,7 @@ void FrameGrabber::update_tracker_queue() {
                 track::Tracker::LockGuard guard("update_tracker_queue");
                 track::Tracker::preprocess_frame(*copy, {}, NULL, NULL, false);
                 tracker->add(*copy);
+                Frame_t frame{copy->frame().index()};
                 
                 static Timer test_timer;
                 if (test_timer.elapsed() > 10) {
@@ -1101,16 +1102,16 @@ void FrameGrabber::update_tracker_queue() {
                     std::map<long_t, track::Midline::Ptr> midlines;
                     
                     if(CL_HAS_FEATURE(VISUAL_FIELD)) {
-                        for(auto fish : tracker->active_individuals(copy->frame().index())) {
-                            if(fish->head(copy->frame().index()))
-                                visual_fields[fish->identity().ID()] = std::make_shared<track::VisualField>(fish->identity().ID(), copy->frame().index(), fish->basic_stuff(copy->frame().index()), fish->posture_stuff(copy->frame().index()), false);
+                        for(auto fish : tracker->active_individuals(frame)) {
+                            if(fish->head(frame))
+                                visual_fields[fish->identity().ID()] = std::make_shared<track::VisualField>(fish->identity().ID(), frame, fish->basic_stuff(frame), fish->posture_stuff(frame), false);
                             
                         }
                     }
                     
                     if(CL_HAS_FEATURE(MIDLINE)) {
-                        for(auto fish : tracker->active_individuals(copy->frame().index())) {
-                            auto midline = fish->midline(copy->frame().index());
+                        for(auto fish : tracker->active_individuals(frame)) {
+                            auto midline = fish->midline(frame);
                             if(midline)
                                 midlines[fish->identity().ID()] = midline;
                         }
@@ -1119,7 +1120,7 @@ void FrameGrabber::update_tracker_queue() {
                     static Timing timing("python::closed_loop", 0.1);
                     TakeTiming take(timing);
                     
-                    track::PythonIntegration::async_python_function([&content_timer, &copy, &visual_fields, &midlines, frame = copy->index(), &request_features, &selected_features]()
+                    track::PythonIntegration::async_python_function([&content_timer, &copy, &visual_fields, &midlines, frame = frame, &request_features, &selected_features]()
                     {
                         std::vector<long_t> ids;
                         std::vector<float> midline_points;
@@ -1130,9 +1131,9 @@ void FrameGrabber::update_tracker_queue() {
                         size_t number_fields = 0;
                         std::vector<long_t> vids;
                         
-                        for(auto & fish : tracker->active_individuals(copy->frame().index()))
+                        for(auto & fish : tracker->active_individuals(frame))
                         {
-                            auto basic = fish->basic_stuff(copy->frame().index());
+                            auto basic = fish->basic_stuff(frame);
                             if(basic) {
                                 
                                 ids.push_back(fish->identity().ID());
@@ -1213,7 +1214,7 @@ void FrameGrabber::update_tracker_queue() {
                                     sizeof(float)
                                 }
                             );
-                            py::set_variable("frame", frame, "closed_loop");
+                            py::set_variable("frame", frame.get(), "closed_loop");
                             py::set_variable("visual_field", vids, "closed_loop",
                                 std::vector<size_t>{ number_fields, 2, track::VisualField::field_resolution },
                                 std::vector<size_t>{ 2 * track::VisualField::field_resolution * sizeof(long_t), track::VisualField::field_resolution * sizeof(long_t), sizeof(long_t) });
@@ -1499,7 +1500,7 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
     static std::mutex time_mutex;
     
     static const auto in_main_thread = [&](Task& task) -> std::tuple<int64_t, bool, double> {
-        long_t used_index_here = infinity<long_t>();
+        Frame_t used_index_here;
         bool added = false;
         
         static int64_t last_task_processed = (GRAB_SETTINGS(video_conversion_range).first == -1 ? 0 : GRAB_SETTINGS(video_conversion_range).first) - 1;
@@ -1547,7 +1548,7 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
             
             Timer timer;
             
-            used_index_here = _processed.length();
+            used_index_here = Frame_t(_processed.length());
             _processed.add_individual(*task.frame, pack, compressed);
             _saving_time = _saving_time * 0.75 + timer.elapsed() * 0.25;
             
@@ -1634,8 +1635,8 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
             update_fps(index, stamp, tdelta, now);
 
     #if WITH_FFMPEG
-        if(mp4_queue && used_index_here != -1) {
-            task.current->set_index(used_index_here);
+        if(mp4_queue && used_index_here.valid()) {
+            task.current->set_index(used_index_here.get());
             mp4_queue->add(std::move(task.raw));
             
             // try and get images back

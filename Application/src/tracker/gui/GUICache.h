@@ -26,7 +26,7 @@ namespace gui {
     class GUICache {
     public:
         int last_threshold;
-        long_t last_frame;
+        Frame_t last_frame;
         Bounds boundary;
         std::vector<Idx_t> previous_active_fish;
         std::set<pv::bid> previous_active_blobs, active_blobs, selected_blobs;
@@ -35,7 +35,7 @@ namespace gui {
         FOIStatus _current_foi;
         size_t _num_pixels;
 
-        long_t frame_idx;
+        Frame_t frame_idx;
         
         std::vector<float> pixel_value_percentiles;
         bool _equalize_histograms;
@@ -54,7 +54,7 @@ namespace gui {
     public:
         bool recognition_updated;
         
-        Rangel tracked_frames;
+        Range<Frame_t> tracked_frames;
         std::atomic_bool connectivity_reload;
         
         std::unordered_map<Idx_t, Individual*> individuals;
@@ -81,12 +81,12 @@ namespace gui {
         
     public:
         std::map<Individual*, std::unique_ptr<gui::Fish>> _fish_map;
-        std::map<long_t, track::Tracker::Statistics> _statistics;
+        std::map<Frame_t, track::Tracker::Statistics> _statistics;
         std::unordered_map<pv::bid, int> _ranged_blob_labels;
         
         std::vector<Tracker::Clique> _cliques;
         
-        long_t connectivity_last_frame;
+        Frame_t connectivity_last_frame;
         std::vector<float> connectivity_matrix;
         
         PPFrame processed_frame;
@@ -121,7 +121,7 @@ namespace gui {
         void updated_blobs() { _blobs_dirty = false; }
         void updated_raw_blobs() { _raw_blobs_dirty = false; }
         void on_redraw() { _dirty = false; }
-        void update_data(long_t frameIndex);
+        void update_data(Frame_t frameIndex);
         
         bool is_tracking_dirty() { return _tracking_dirty; }
         bool must_redraw() const;

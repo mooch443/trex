@@ -72,11 +72,11 @@ std::mutex _learning_mutex;
 
 std::unique_ptr<std::thread> thread;
 
-std::vector<std::tuple<std::thread::id, Rangel>> _currently_processed_segments;
+std::vector<std::tuple<std::thread::id, Range<Frame_t>>> _currently_processed_segments;
 
 struct Task {
-    Rangel range;
-    Rangel real_range;
+    Range<Frame_t> range;
+    Range<Frame_t> real_range;
     std::function<void()> func;
     bool is_cached = false;
 };
@@ -158,7 +158,7 @@ auto& task_queue() {
 
 };
 
-Sample::Sample(std::vector<long_t>&& frames,
+Sample::Sample(std::vector<Frame_t>&& frames,
                const std::vector<Image::Ptr>& images,
                const std::vector<pv::bid>& blob_ids,
                std::vector<Vec2>&& positions)
@@ -313,12 +313,12 @@ struct BlobLabel {
 std::vector<std::vector<BlobLabel>> _probability_cache; // frame - start_frame => index in this array
 
 auto& tracker_start_frame() {
-    static int64_t start_frame = FAST_SETTINGS(analysis_range).first == -1 ? 0 : FAST_SETTINGS(analysis_range).first;
+    static Frame_t start_frame = FAST_SETTINGS(analysis_range).first == -1 ? Frame_t(0) : Frame_t(FAST_SETTINGS(analysis_range).first);
     return start_frame;
 }
 
 inline size_t cache_frame_index(Frame_t frame) {
-    return sign_cast<size_t>(frame - tracker_start_frame());
+    return sign_cast<size_t>((frame - tracker_start_frame()).get());
 }
 
 inline std::vector<BlobLabel>* _cache_for_frame(Frame_t frame) {
@@ -359,22 +359,22 @@ void DataStore::_set_ranged_label_unsafe(RangedLabel&& r)
 {
     assert(r._label != -1);
     assert(size_t(r._range.length()) == r._blobs.size());
-    int32_t m = -1; // initialize with start of inserted range
+    Frame_t m; // initialize with start of inserted range
     auto it = insert_sorted(_ranged_labels, std::move(r)); // iterator pointing to inserted value
     assert(!_ranged_labels.empty());
     assert(it != _ranged_labels.end());
     
     if(it + 1 != _ranged_labels.end()) {
-        if((it + 1)->_maximum_frame_after != -1) {
+        if((it + 1)->_maximum_frame_after.valid()) {
             m = min((it + 1)->_maximum_frame_after, (it + 1)->_range.start());
         } else {
             m = (it + 1)->_range.start();
         }
     } else
-        m = -1;
+        m = Frame_t();
     
     for(;;) {
-        if(it->_maximum_frame_after != -1
+        if(it->_maximum_frame_after.valid()
            && it->_maximum_frame_after <= m)
         {
             break;
@@ -383,7 +383,7 @@ void DataStore::_set_ranged_label_unsafe(RangedLabel&& r)
         it->_maximum_frame_after = m;
         
         if(it != _ranged_labels.begin()) {
-            if(m == -1 || it->_range.start() < m)
+            if(!m.valid() || it->_range.start() < m)
                 m = it->_range.start();
             
             --it;
@@ -414,7 +414,7 @@ Label::Ptr DataStore::ranged_label(Frame_t frame, const pv::CompressedBlob& blob
 }
 int DataStore::_ranged_label_unsafe(Frame_t frame, pv::bid bdx) {
     static const auto frame_rate = FAST_SETTINGS(frame_rate) * 10;
-    const auto mi = frame - frame_rate, ma = frame + frame_rate;
+    //const auto mi = frame.get() - frame_rate, ma = frame.get() + frame_rate;
     
     auto eit = std::lower_bound(_ranged_labels.begin(), _ranged_labels.end(), frame);
     
@@ -426,7 +426,7 @@ int DataStore::_ranged_label_unsafe(Frame_t frame, pv::bid bdx) {
         
         // and see if it is in fact contained
         if(eit->_range.contains(frame)) {
-            if(eit->_blobs.at(frame - eit->_range.start()) == bdx) {
+            if(eit->_blobs.at((frame - eit->_range.start()).get()) == bdx) {
                 return eit->_label;
             }
         }
@@ -445,7 +445,7 @@ void DataStore::_set_label_unsafe(Frame_t idx, pv::bid bdx, int ldx) {
 #ifndef NDEBUG
     if (contains(*cache, BlobLabel{bdx, ldx})) {
         auto str = Meta::toStr(*cache);
-        Warning("Cache already contains blob %d in frame %d.\n%S", bdx, (int)idx, &str);
+        Warning("Cache already contains blob %d in frame %d.\n%S", bdx, (int)idx.get(), &str);
     }
 #endif
     insert_sorted(*cache, BlobLabel{bdx, ldx});
@@ -1340,7 +1340,7 @@ struct NetworkApplicationState {
     Timer _timer, _predict;
     double _prepare;
     
-    Rangel peek() {
+    Range<Frame_t> peek() {
         static Timing timing("NetworkApplicationState::peek", 0.1);
         TakeTiming take(timing);
 
@@ -1351,23 +1351,23 @@ struct NetworkApplicationState {
         }
         
         if (size_t(offset) == segments.size()) {
-            return Rangel(-1,-1); // no more segments
+            return Range<Frame_t>({},{}); // no more segments
         }
         else if (size_t(offset) > segments.size()) {
-            return Rangel(-1,-1); // probably something changed and we are now behind
+            return Range<Frame_t>({},{}); // probably something changed and we are now behind
         }
 
         auto it = segments.begin() + offset.load();
         if(it != segments.end())
             return (*it)->range;
         
-        return Rangel(-1,-1);
+        return Range<Frame_t>({},{});
     }
     
     void receive_samples(const LearningTask& task) {
         static Timing timing("receive_samples", 0.1);
         TakeTiming take(timing);
-        Rangel f;
+        Range<Frame_t> f;
         
         {
             {
@@ -1442,7 +1442,7 @@ struct NetworkApplicationState {
                     ranged._blobs.reserve(task.segment->length());
                     
                     //Tracker::LockGuard guard("task.callback.set_ranged_label");
-                    for(auto f = task.segment->start(); f <= task.segment->end(); ++f) {
+                    for(auto f = task.segment->start(); f <= task.segment->end(); f += 1_f) {
                         assert(task.segment->contains(f));
                         {
                             auto &basic = fish->basic_stuff().at(task.segment->basic_stuff(f));
@@ -1623,7 +1623,7 @@ void start_applying() {
     
     std::lock_guard guard(Work::_mutex);
     Work::task_queue().push_back(Work::Task{
-        Rangel(-1,-1),Rangel(-1,-1),
+        Range<Frame_t>({},{}),Range<Frame_t>({},{}),
         [](){
             Debug("## Initializing APPLY.");
             {
@@ -1648,7 +1648,7 @@ void start_applying() {
                     
                     std::lock_guard guard(Work::_mutex);
                     Work::task_queue().push_back(Work::Task{
-                        Rangel(-1,-1),f,
+                        Range<Frame_t>({},{}),f,
                         [k=k](){
                             NetworkApplicationState::current().at(k).next();
                             // start first task
@@ -1660,7 +1660,7 @@ void start_applying() {
                 }
             }
             
-            std::vector<Rangel> indexes;
+            std::vector<Range<Frame_t>> indexes;
             for(auto& t : Work::task_queue()) {
                 indexes.push_back(t.range);
             }
@@ -2059,7 +2059,7 @@ T CalcMHWScore(std::vector<T> hWScores) {
 }
 
 Work::Task Work::_pick_front_thread() {
-    int64_t center;
+    Frame_t center;
     
     std::vector<std::tuple<bool, int64_t, int64_t, size_t>> sorted;
     
@@ -2092,7 +2092,7 @@ Work::Task Work::_pick_front_thread() {
         if(!vector.empty())
             mean /= double(vector.size());
 
-        center = mean;//minimum_range;//minimum_range + (maximum_range - minimum_range) * 0.5;
+        center = Frame_t(mean);//minimum_range;//minimum_range + (maximum_range - minimum_range) * 0.5;
         
         sorted.clear();
         sorted.reserve(Work::task_queue().size());
@@ -2109,14 +2109,14 @@ Work::Task Work::_pick_front_thread() {
                     }
                     
                     min_distance = min(min_distance,
-                                       abs(r.start + r.length() * 0.5 - (task.real_range.start + task.real_range.length() * 0.5)));
+                                       abs(r.start.get() + r.length().get() * 0.5 - (task.real_range.start.get() + task.real_range.length().get() * 0.5)));
                                        //abs(r.start - task.real_range.end),
                                        //abs(r.end - task.real_range.start));
                 }
             }
             
-            int64_t d = abs(int64_t(task.real_range.start + task.real_range.length() * 0.5)) / max(10, (Tracker::end_frame() - Tracker::start_frame()) * 0.08);
-            sorted.push_back({ task.range.start != -1, d, min_distance, i });
+            int64_t d = abs(int64_t(task.real_range.start.get() + task.real_range.length().get() * 0.5)) / max(10, (Tracker::end_frame() - Tracker::start_frame()).get() * 0.08);
+            sorted.push_back({ task.range.start.valid(), d, min_distance, i });
         }
         
         std::sort(sorted.begin(), sorted.end(), std::greater<>());
@@ -2127,14 +2127,14 @@ Work::Task Work::_pick_front_thread() {
         
         std::lock_guard g(mutex);
         if (print.elapsed() >= 1 && sorted.size() > 20) {
-            std::vector<std::tuple<bool, Rangel>> _values;
+            std::vector<std::tuple<bool, Range<Frame_t>>> _values;
             for (auto it = sorted.end() - 20; it != sorted.end(); ++it) {
                 auto& item = Work::task_queue().at(std::get<3>(*it));
-                if (item.range.start != -1)
+                if (item.range.start.valid())
                     _values.push_back({
                         std::get<0>(*it),
-                        Rangel(item.real_range.start - center,
-                               item.real_range.end - center)
+                        Range<Frame_t>(item.real_range.start - center,
+                                       item.real_range.end - center)
                     });
                 else
                     _values.push_back({std::get<0>(*it), item.real_range});
@@ -2260,7 +2260,7 @@ void DataStore::write(file::DataFormat& data, int /*version*/) {
         std::shared_lock guard(cache_mutex());
         data.write<uint64_t>(_probability_cache.size()); // write number of frames
         
-        int64_t k = tracker_start_frame();
+        int64_t k = tracker_start_frame().get();
         for(auto &v : _probability_cache) {
             data.write<uint32_t>(k); // frame index
             data.write<uint32_t>(narrow_cast<uint32_t>(v.size())); // number of blobs assigned
@@ -2279,8 +2279,10 @@ void DataStore::write(file::DataFormat& data, int /*version*/) {
         data.write<uint64_t>(_ranged_labels.size());
         
         for(auto &ranged : _ranged_labels) {
-            data.write<uint32_t>(ranged._range.start());
-            data.write<uint32_t>(ranged._range.end());
+            assert(ranged._range.start().valid() && ranged._range.end().valid());
+            
+            data.write<uint32_t>(ranged._range.start().get());
+            data.write<uint32_t>(ranged._range.end().get());
             
             assert(ranged._label);
             data.write<int>(ranged._label);
@@ -2348,7 +2350,7 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
                 data.read(bdx);
                 data.read(lid);
                 
-                if(frame >= start_frame)
+                if(frame >= (uint32_t)start_frame.get())
                     DataStore::_set_label_unsafe(Frame_t(frame), pv::bid(bdx), lid);
             }
         }
@@ -2368,7 +2370,7 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
             data.read(start);
             data.read(end);
             
-            ranged._range = FrameRange(Rangel(start, end));
+            ranged._range = FrameRange(Range<Frame_t>(Frame_t(start), Frame_t(end)));
             
             data.read<int>(ranged._label);
             if(ranged._label == -1) {
@@ -2496,24 +2498,24 @@ void paint_distributions(int64_t frame) {
             {
                 std::lock_guard g(Work::_mutex);
                 for (auto& t : Work::task_queue()) {
-                    if (t.range.start == -1)
+                    if (!t.range.start.valid())
                         continue;
-                    v.insert(v.end(), { int64_t(t.range.start), int64_t(t.range.end) });
-                    minimum_range = min(t.range.start, minimum_range);
-                    maximum_range = max(t.range.end, maximum_range);
+                    v.insert(v.end(), { int64_t(t.range.start.get()), int64_t(t.range.end.get()) });
+                    minimum_range = min(t.range.start.get(), minimum_range);
+                    maximum_range = max(t.range.end.get(), maximum_range);
                 }
                 
                 for(auto& [id, range] : Work::_currently_processed_segments) {
-                    v.insert(v.end(), { int64_t(range.start), int64_t(range.end) });
-                    current.insert(current.end(), { int64_t(range.start), int64_t(range.end) });
-                    minimum_range = min(range.start, minimum_range);
-                    maximum_range = max(range.end, maximum_range);
+                    v.insert(v.end(), { int64_t(range.start.get()), int64_t(range.end.get()) });
+                    current.insert(current.end(), { int64_t(range.start.get()), int64_t(range.end.get()) });
+                    minimum_range = min(range.start.get(), minimum_range);
+                    maximum_range = max(range.end.get(), maximum_range);
                 }
             }
 
             //if (!v.empty())
             {
-                float scale = (Tracker::end_frame() != Tracker::start_frame()) ? 1024.0 / float(Tracker::end_frame() - Tracker::start_frame()) : 1;
+                float scale = (Tracker::end_frame() != Tracker::start_frame()) ? 1024.0 / float(Tracker::end_frame().get() - Tracker::start_frame().get()) : 1;
                 Image task_queue_images(300, 1024, 4);
                 auto mat = task_queue_images.get();
                 std::fill(task_queue_images.data(), task_queue_images.data() + task_queue_images.size(), 0);
@@ -2526,55 +2528,72 @@ void paint_distributions(int64_t frame) {
                 double median = CalcMHWScore(v);
                 
                 for (size_t i = 0; i < v.size(); i+=2) {
-                    cv::rectangle(mat, Vec2(v[i] - Tracker::start_frame(), 0) * scale, Vec2(v[i+1] - Tracker::start_frame(), 100 / scale) * scale, Red, cv::FILLED);
+                    cv::rectangle(mat, Vec2(v[i] - Tracker::start_frame().get(), 0) * scale, Vec2(v[i+1] - Tracker::start_frame().get(), 100 / scale) * scale, Red, cv::FILLED);
                 }
                 
                 for (size_t i = 0; i < current.size(); i+=2) {
-                    cv::rectangle(mat, Vec2(current[i] - Tracker::start_frame(), 0) * scale, Vec2(current[i+1] - Tracker::start_frame(), 100 / scale) * scale, Cyan, cv::FILLED);
+                    cv::rectangle(mat,
+                                  Vec2(current[i] - Tracker::start_frame().get(), 0) * scale,
+                                  Vec2(current[i+1] - Tracker::start_frame().get(), 100 / scale) * scale,
+                                  Cyan, cv::FILLED);
                 }
 
-                cv::line(mat, Vec2(mean - Tracker::start_frame(), 0) * scale, Vec2(mean - Tracker::start_frame(), 100 / scale) * scale, Green, 2);
-                cv::line(mat, Vec2(median - Tracker::start_frame(), 0) * scale, Vec2(median - Tracker::start_frame(), 100 / scale) * scale, Blue, 2);
+                cv::line(mat,
+                         Vec2(mean - Tracker::start_frame().get(), 0) * scale,
+                         Vec2(mean - Tracker::start_frame().get(), 100 / scale) * scale,
+                         Green, 2);
+                cv::line(mat,
+                         Vec2(median - Tracker::start_frame().get(), 0) * scale,
+                         Vec2(median - Tracker::start_frame().get(), 100 / scale) * scale,
+                         Blue, 2);
 
                 {
                     std::unique_lock guard(_cache_mutex);
                     sum = 0;
                     for (auto& [c, pp] : _frame_cache) {
-                        cv::line(mat, Vec2(c._frame - Tracker::start_frame(), 100 / scale) * scale, Vec2(c._frame - Tracker::start_frame(), 200 / scale) * scale, Yellow);
-                        sum += c;
+                        cv::line(mat,
+                                 Vec2(c._frame - Tracker::start_frame().get(), 100 / scale) * scale,
+                                 Vec2(c._frame - Tracker::start_frame().get(), 200 / scale) * scale,
+                                 Yellow);
+                        sum += c.get();
                     }
                     if (_frame_cache.size() > 0)
                         mean = sum / double(_frame_cache.size());
                 }
 
-                cv::line(mat, Vec2(mean - Tracker::start_frame(), 100 / scale) * scale, Vec2(mean - Tracker::start_frame(), 200 / scale) * scale, Purple, 2);
+                cv::line(mat,
+                         Vec2(mean - Tracker::start_frame().get(), 100 / scale) * scale,
+                         Vec2(mean - Tracker::start_frame().get(), 200 / scale) * scale,
+                         Purple, 2);
                 
                 {
                     std::unique_lock guard(distri_mutex);
                     for(size_t i=0; i<recent_frames.size(); ++i) {
                         cv::line(mat,
-                                 Vec2(recent_frames[i] - Tracker::start_frame(), 0) * scale,
-                                 Vec2(recent_frames[i] - Tracker::start_frame(), 300 / scale) * scale,
+                                 Vec2(recent_frames[i] - Tracker::start_frame().get(), 0) * scale,
+                                 Vec2(recent_frames[i] - Tracker::start_frame().get(), 300 / scale) * scale,
                                  White.exposure(0.1 + 0.9 * (recent_frames[i] / double(recent_frames.size()))), 1);
                     }
                 }
 
-                cv::line(mat, Vec2(frame - Tracker::start_frame(), 0) * scale, Vec2(frame - Tracker::start_frame(), 300 / scale) * scale, White, 2);
+                cv::line(mat, Vec2(frame - Tracker::start_frame().get(), 0) * scale, Vec2(frame - Tracker::start_frame().get(), 300 / scale) * scale, White, 2);
 
                 {
                     std::unique_lock guard(DataStore::cache_mutex());
                     size_t max_per_frame = 0;
-                    size_t frame = tracker_start_frame();
+                    size_t frame = tracker_start_frame().get();
                     for (auto& blobs : _probability_cache) {
                         if (blobs.size() > max_per_frame)
                             max_per_frame = blobs.size();
                         ++frame;
                     }
 
-                    frame = tracker_start_frame();
+                    frame = tracker_start_frame().get();
                     for (auto& blobs : _probability_cache) {
-                        cv::line(mat, Vec2(frame - Tracker::start_frame(), 200 / scale) * scale, Vec2(frame - Tracker::start_frame(), 300 / scale) * scale,
-                            Green.exposure(0.1 + 0.9 * (max_per_frame > 0 ? blobs.size() / float(max_per_frame) : 0)), 2);
+                        cv::line(mat,
+                                 Vec2(frame - Tracker::start_frame().get(), 200 / scale) * scale,
+                                 Vec2(frame - Tracker::start_frame().get(), 300 / scale) * scale,
+                                 Green.exposure(0.1 + 0.9 * (max_per_frame > 0 ? blobs.size() / float(max_per_frame) : 0)), 2);
                         ++frame;
                     }
                 }
@@ -2652,12 +2671,12 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
             Tracker::LockGuard guard("Categorize::sample");
             active = frame == Tracker::start_frame()
                 ? decltype(active)()
-                : Tracker::active_individuals(frame - 1);
+                : Tracker::active_individuals(frame - 1_f);
         }
 
         if(GUI::instance()) {
             auto& video_file = *GUI::instance()->video_source();
-            video_file.read_frame(ptr->frame(), sign_cast<uint64_t>(frame));
+            video_file.read_frame(ptr->frame(), sign_cast<uint64_t>(frame.get()));
 
             Tracker::instance()->preprocess_frame(*ptr, active, NULL);
             for (auto& b : ptr->blobs())
@@ -2676,26 +2695,26 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
     }
 
     std::vector<int64_t> v;
-    std::vector<Rangel> ranges, secondary;
+    std::vector<Range<Frame_t>> ranges, secondary;
     int64_t minimum_range = std::numeric_limits<int64_t>::max(), maximum_range = 0;
     
     {
         std::lock_guard g(Work::_mutex);
         for (auto& t : Work::task_queue()) {
-            if (t.range.start == -1)
+            if (!t.range.start.valid())
                 continue;
 
-            v.insert(v.end(), { int64_t(t.range.start), int64_t(t.range.end) });
-            minimum_range = min(t.range.start, minimum_range);
-            maximum_range = max(t.range.end, maximum_range);
+            v.insert(v.end(), { int64_t(t.range.start.get()), int64_t(t.range.end.get()) });
+            minimum_range = min(t.range.start.get(), minimum_range);
+            maximum_range = max(t.range.end.get(), maximum_range);
             //ranges.push_back(t.range);
             secondary.push_back(t.range);
         }
         
         for(auto& [id, range] : Work::_currently_processed_segments) {
-            v.insert(v.end(), { int64_t(range.start), int64_t(range.end) });
-            minimum_range = min(range.start, minimum_range);
-            maximum_range = max(range.end, maximum_range);
+            v.insert(v.end(), { int64_t(range.start.get()), int64_t(range.end.get()) });
+            minimum_range = min(range.start.get(), minimum_range);
+            maximum_range = max(range.end.get(), maximum_range);
             ranges.push_back(range);
         }
     }
@@ -2725,7 +2744,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
                 //bool found = false;
                 int64_t min_distance = std::numeric_limits<int64_t>::max();
                 int64_t secondary_distance = min_distance;
-                int64_t center_distance = abs(int64_t(f) - center);
+                int64_t center_distance = abs(int64_t(f.get()) - center);
                 
                 if(!ranges.empty()) {
                     for(auto &r : ranges) {
@@ -2734,7 +2753,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
                             break;
                         }
                         
-                        min_distance = min(min_distance, abs(r.start - f), abs(f - r.end));
+                        min_distance = min(min_distance, abs(r.start.get() - f.get()), abs(f.get() - r.end.get()));
                     }
                 }
                 
@@ -2745,7 +2764,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
                             break;
                         }
                         
-                        secondary_distance = min(min_distance, abs(r.start - f), abs(f - r.end));
+                        secondary_distance = min(min_distance, abs(r.start.get() - f.get()), abs(f.get() - r.end.get()));
                     }
                 }
                 
@@ -2845,13 +2864,13 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     std::vector<IndexedFrame> stuff_indexes;
     
     std::vector<Image::Ptr> images;
-    std::vector<long_t> indexes;
+    std::vector<Frame_t> indexes;
     std::vector<Vec2> positions;
     std::vector<pv::bid> blob_ids;
     
     std::vector<long_t> basic_index;
-    std::vector<long_t> frames;
-    Rangel range;
+    std::vector<Frame_t> frames;
+    Range<Frame_t> range;
     
     {
         {
@@ -2872,7 +2891,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         // this helps to find more matches when randomly sampling around:
         long_t start_offset = 0;
         if(basic_index.size() >= 15u) {
-            start_offset = frames.front();
+            start_offset = frames.front().get();
             start_offset = 5 - start_offset % 5;
         }
         

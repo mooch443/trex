@@ -10,14 +10,14 @@ namespace track {
 namespace gui {
     class InfoCard : public Entangled {
         std::shared_ptr<Button> prev, next, detail_button, automatic_button;
-        long_t _frameNr;
+        Frame_t _frameNr;
         track::Individual *_fish;
         //Button detail_button;
         std::vector<std::tuple<Text*, std::string>> segment_texts;
         Text * previous = nullptr;
     public:
         InfoCard();
-        void update(gui::DrawStructure&, long_t);
+        void update(gui::DrawStructure&, Frame_t);
         void update() override;
     };
 }

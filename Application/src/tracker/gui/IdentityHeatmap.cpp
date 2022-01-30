@@ -123,7 +123,7 @@ void HeatmapController::save() {
     //custom_heatmap_value_range = Range<double>(-1, -1);
     
     size_t count_frames = 0, package_count = 0;
-    size_t max_frames = sign_cast<size_t>(Tracker::end_frame() - Tracker::start_frame());
+    size_t max_frames = sign_cast<size_t>((Tracker::end_frame() - Tracker::start_frame()).get());
     size_t print_step = max_frames / 10 + 1;
 
     std::vector<double> per_frame;
@@ -183,7 +183,7 @@ void HeatmapController::save() {
                 (double)package_index,
                 (double)uniform_grid_cell_size,
                 (double)_normalization.value(),
-                (double)_frame_context
+                (double)_frame_context.get()
             }, "a");
         });
 
@@ -195,13 +195,13 @@ void HeatmapController::save() {
         ++package_index;
     };
 
-    for(long_t frame = Tracker::start_frame(); frame <= Tracker::end_frame(); ++frame) {
+    for(Frame_t frame = Tracker::start_frame(); frame <= Tracker::end_frame(); ++frame) {
         update_data(frame);
         sort_data_into_custom_grid();
         //set_frame(frame);
         per_frame.insert(per_frame.end(), _array_grid.begin(), _array_grid.end());
         per_frame.insert(per_frame.end(), _array_samples.begin(), _array_samples.end());
-        frames.push_back(frame);
+        frames.push_back(frame.get());
         
         if(!be_quiet && count_frames % print_step == 0) {
             Debug("Saving heatmap %.2f%% ... (frame %d / %d)", double(count_frames) / double(max_frames) * 100, frame, Tracker::end_frame());
@@ -428,13 +428,13 @@ void HeatmapController::sort_data_into_custom_grid() {
     push_timing("sort_data_into_custom_grid", timer.elapsed());
 }
 
-void HeatmapController::frames_deleted_from(long_t frame) {
+void HeatmapController::frames_deleted_from(Frame_t frame) {
     _iterators.clear();
     _capacities.clear();
-    _grid.keep_only(Range<long_t>(0, max(0, frame-1)));
+    _grid.keep_only(Range<Frame_t>(0_f, max(0_f, frame - 1_f)));
 }
 
-HeatmapController::UpdatedStats HeatmapController::update_data(long_t current_frame) {
+HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_frame) {
     Timer timer;
             
     static std::vector<heatmap::DataPoint> data;
@@ -443,33 +443,33 @@ HeatmapController::UpdatedStats HeatmapController::update_data(long_t current_fr
     {
         auto d = abs(current_frame - _frame);
         //Debug("Frame %d->%d: %d frames", _frame, current_frame, d);
-        const uint32_t frame_range = _frame_context >= 0 ? _frame_context : narrow_cast<uint32_t>(FAST_SETTINGS(video_length));
+        const auto frame_range = _frame_context >= 0_f ? _frame_context : Frame_t(narrow_cast<Frame_t::number_t>(FAST_SETTINGS(video_length)));
         
-        if(_frame == -1 || _grid.empty() || (_frame_context != -1 && d >= _frame_context)) {
+        if(!_frame.valid() || _grid.empty() || (_frame_context.valid() && d >= _frame_context)) {
             // we cant use any frames from before
             updated.removed = _grid.size();
             _grid.clear();
-            updated.add_range = Range<long_t>(current_frame - frame_range,
-                                              current_frame + frame_range + 1);
+            updated.add_range = Range<Frame_t>(current_frame - frame_range,
+                                               current_frame + frame_range + 1_f);
             //Debug("Clearing grid (%lu).", _grid.size());
             _iterators.clear();
             _capacities.clear();
             
-        } else if(_frame_context != -1) {
+        } else if(_frame_context.valid()) {
             if(current_frame > _frame) {
                 //removed = _grid.erase(Range<long_t>(0, max(0, current_frame - frame_range)));
                 //remove_range = Range<long_t>(0, max(0u, current_frame - frame_range));
-                updated.add_range = Range<long_t>(_frame + frame_range + 1,
-                                                  current_frame + frame_range + 1);
+                updated.add_range = Range<Frame_t>(_frame + frame_range + 1_f,
+                                                   current_frame + frame_range + 1_f);
             } else {
                 //removed = _grid.erase(Range<long_t>(current_frame + frame_range + 1, std::numeric_limits<long_t>::max()));
                 //remove_range = Range<long_t>(current_frame + frame_range + 1, std::numeric_limits<long_t>::max());
-                updated.add_range = Range<long_t>(current_frame - frame_range,
-                                                  min(max(0u, _frame - frame_range), current_frame + frame_range + 1));
+                updated.add_range = Range<Frame_t>(current_frame - frame_range,
+                                                  min(max(0_f, _frame - frame_range), current_frame + frame_range + 1_f));
             }
             
-            updated.remove_range = Range<long_t>(current_frame - frame_range,
-                                                 current_frame + frame_range + 1);
+            updated.remove_range = Range<Frame_t>(current_frame - frame_range,
+                                                  current_frame + frame_range + 1_f);
         }
         
         //if(!remove_range.empty())
@@ -481,7 +481,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(long_t current_fr
         
         if(!updated.add_range.empty()) {
             data.clear();
-            data.reserve(frame_range * 2u * max(1u, FAST_SETTINGS(track_max_individuals)));
+            data.reserve(frame_range.get() * 2u * max(1u, FAST_SETTINGS(track_max_individuals)));
             Individual::segment_map::const_iterator kit;
             
             auto &range = updated.add_range;
@@ -492,7 +492,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(long_t current_fr
                     }
                 }
                 
-                auto frame = max((long_t)Tracker::start_frame(), range.start);
+                auto frame = max(Tracker::start_frame(), range.start);
                 if(fish->end_frame() < frame)
                     continue;
                 if(fish->start_frame() > range.end)
@@ -535,7 +535,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(long_t current_fr
 //                            Debug("Cannot find segment for frame %d in fish %d", frame, fish->identity().ID());
                 Output::Library::LibInfo info(fish, _mods);
                 
-                for(; frame < min((long_t)Tracker::end_frame(), range.end); ++frame) {
+                for(; frame < min(Tracker::end_frame(), range.end); ++frame) {
                     if(_grid.root()->frame_range().contains(frame))
                         continue;
                     //break;
@@ -555,7 +555,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(long_t current_fr
                     auto is_end = kiterator == fish->frame_segments().end();
                     auto is_end_kit = kit == fish->frame_segments().end();
                     if(fish->has(frame) && kit != kiterator)
-                        Warning("Frame %d: fish%d, Iterator for frame %d != iterator_for (iterator_for: %d, starting at %d / vs. kit: %d, starting at %d)", frame, fish->identity().ID(), frame, is_end ? 1 : 0, !is_end ? kiterator->get()->start() : -1, is_end_kit, !is_end_kit ? kit->get()->start() : -1);
+                        Warning("Frame %d: fish%d, Iterator for frame %d != iterator_for (iterator_for: %d, starting at %d / vs. kit: %d, starting at %d)", frame, fish->identity().ID(), frame, is_end ? 1 : 0, !is_end ? kiterator->get()->start() : Frame_t(), is_end_kit, !is_end_kit ? kit->get()->start() : Frame_t());
 #endif
                     
                     if(kit == fish->frame_segments().end() || !(*kit)->contains(frame))
@@ -572,7 +572,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(long_t current_fr
                             v = Output::Library::get_with_modifiers(_source, info, frame);
                         if(!Graph::is_invalid(v)) {
                             data.push_back(heatmap::DataPoint{
-                                long_t(frame),
+                                frame,
                                 uint32_t(pos.x),
                                 uint32_t(pos.y),
                                 uint32_t(fish->identity().ID()), uint32_t(0),
@@ -690,7 +690,7 @@ bool HeatmapController::update_variables() {
             _grid.clear();
         }
         
-        _frame = -1;
+        _frame.invalidate();
     }
     
     auto norm = SETTING(heatmap_normalization).value<default_config::heatmap_normalization_t::Class>();
@@ -699,17 +699,17 @@ bool HeatmapController::update_variables() {
         has_to_paint = true;
     }
     
-    long_t context;
+    Frame_t context;
     if(SETTING(heatmap_dynamic)) {
-        context = max(1, (long_t)SETTING(heatmap_frames).value<uint32_t>());
+        context = max(1_f, Frame_t(SETTING(heatmap_frames).value<uint32_t>()));
         
     } else {
-        context = -1;
+        context.invalidate();
     }
     
     if(_frame_context != context) {
         has_to_paint = true;
-        _frame = -1;
+        _frame.invalidate();
         _frame_context = context;
     }
     
@@ -728,7 +728,7 @@ bool HeatmapController::update_variables() {
         
         _source = source;
         
-        _frame = -1;
+        _frame.invalidate();
         _grid.clear();
         has_to_paint = true;
     }
@@ -739,7 +739,7 @@ bool HeatmapController::update_variables() {
     return has_to_paint;
 }
 
-void HeatmapController::set_frame(long_t current_frame) {
+void HeatmapController::set_frame(Frame_t current_frame) {
     bool has_to_paint = update_variables();
     
     //! check if we have to update the data
@@ -748,7 +748,7 @@ void HeatmapController::set_frame(long_t current_frame) {
         if(updated.added != 0 || updated.removed != 0)
             has_to_paint = true;
         
-        if(_frame % 50 == 0){
+        if(_frame.get() % 50 == 0){
             Debug("-------------------");
             Grid::print_stats("STATS (frame "+Meta::toStr(_frame)+", "+Meta::toStr(_grid.root()->IDs())+")");
             Debug("");
@@ -831,7 +831,8 @@ void Node::init(const Grid* grid, Node::Ptr parent, const Range<uint32_t>& x, co
     _parent = parent;
     _grid = grid;
     
-    _frame_range.start = _frame_range.end = -1;
+    _frame_range.start.invalidate();
+    _frame_range.end.invalidate();
     _value_sum = 0;
     _value_sqsum = 0;
     _value_range = Range<double>(infinity<double>(), infinity<double>());
@@ -839,7 +840,8 @@ void Node::init(const Grid* grid, Node::Ptr parent, const Range<uint32_t>& x, co
 }
 
 void Node::clear() {
-    _frame_range.start = _frame_range.end = -1;
+    _frame_range.start.invalidate();
+    _frame_range.end.invalidate();
     //_parent = nullptr;
     //_grid = nullptr;
     //_IDs.clear();
@@ -867,7 +869,7 @@ void Grid::create(const Size2 &image_dimensions) {
     _elements = 0;
 }
 
-size_t Grid::erase(Range<long_t> frames) {
+size_t Grid::erase(Range<Frame_t> frames) {
     static Timer timer;
     timer.reset();
     
@@ -880,11 +882,11 @@ size_t Grid::erase(Range<long_t> frames) {
     return removed;
 }
 
-const Range<long_t>& Node::frame_range() const {
+const Range<Frame_t>& Node::frame_range() const {
     return _frame_range;
 }
 
-size_t Region::keep_only(const Range<long_t> &frames) {
+size_t Region::keep_only(const Range<Frame_t> &frames) {
     assert(overlaps(frames, _frame_range));
     
     size_t count = 0;
@@ -908,7 +910,7 @@ size_t Region::keep_only(const Range<long_t> &frames) {
     return count;
 }
 
-size_t Region::erase(const Range<long_t> &frames) {
+size_t Region::erase(const Range<Frame_t> &frames) {
     if(!overlaps(frames, _frame_range))
         return 0;
     
@@ -950,7 +952,7 @@ bool float_equals(T a, T b) {
 
 void Region::check_range() const {
 #ifndef NDEBUG
-    Range<long_t> range(-1,-1);
+    Range<Frame_t> range({},{});
     Range<double> vrange(infinity<double>(), infinity<double>());
     double sum = 0;
     size_t count = 0;
@@ -959,8 +961,8 @@ void Region::check_range() const {
     
     apply([&range, &count, &sum, &ids, &vrange](auto &pt) -> bool
     {
-        if(range.start == -1 || pt.frame < range.start) range.start = pt.frame;
-        if(range.end == -1 || pt.frame + 1 > range.end) range.end = pt.frame + 1;
+        if(!range.start.valid() || pt.frame < range.start) range.start = pt.frame;
+        if(!range.end.valid() || pt.frame + 1_f > range.end) range.end = pt.frame + 1_f;
         
         if(vrange.start > pt.value) vrange.start = pt.value;
         if(vrange.end == infinity<double>() || vrange.end < pt.value) vrange.end = pt.value;
@@ -991,10 +993,10 @@ std::string DataPoint::toStr() const {
     return "DataPoint<" + Meta::toStr(frame) + "," + Meta::toStr(x) + "," + Meta::toStr(y) + ">";
 }
 
-size_t Leaf::keep_only(const Range<long_t> &frames) {
+size_t Leaf::keep_only(const Range<Frame_t> &frames) {
     size_t count = _data.size();
     
-    auto it = std::upper_bound(_data.begin(), _data.end(), frames.start - 1, [](long_t frame, const DataPoint& A) -> bool
+    auto it = std::upper_bound(_data.begin(), _data.end(), frames.start - 1_f, [](Frame_t frame, const DataPoint& A) -> bool
     {
         return frame < A.frame;
     });
@@ -1002,7 +1004,7 @@ size_t Leaf::keep_only(const Range<long_t> &frames) {
     if(_data.begin() != it)
         _data.erase(_data.begin(), it);
     
-    it = std::upper_bound(_data.begin(), _data.end(), frames.end - 1, [](long_t frame, const DataPoint& A) -> bool
+    it = std::upper_bound(_data.begin(), _data.end(), frames.end - 1_f, [](Frame_t frame, const DataPoint& A) -> bool
     {
         return frame < A.frame;
     });
@@ -1047,16 +1049,16 @@ void Leaf::update_ranges() {
             _value_range_per_id[d.IDindex].end = d.value;*/
     }
     
-    _frame_range.start = empty() ? -1 : min_frame();
-    _frame_range.end = empty() ? -1 : (max_frame() + 1);
+    _frame_range.start = empty() ? Frame_t() : min_frame();
+    _frame_range.end = empty() ? Frame_t() : (max_frame() + 1_f);
 }
 
-size_t Leaf::erase(const Range<long_t> &frames) {
+size_t Leaf::erase(const Range<Frame_t> &frames) {
     //static Timing timing("Leaf::erase", 0.01);
     //TakeTiming take(timing);
     
     size_t count = _data.size();
-    auto it = std::lower_bound(_data.begin(), _data.end(), frames.start, [](const DataPoint& A, long_t frame) -> bool
+    auto it = std::lower_bound(_data.begin(), _data.end(), frames.start, [](const DataPoint& A, Frame_t frame) -> bool
     {
         return A.frame < frame;
     });
@@ -1067,7 +1069,7 @@ size_t Leaf::erase(const Range<long_t> &frames) {
             _data.erase(it, _data.end());
             update_ranges();
         } else {
-            auto end = std::upper_bound(it, _data.end(), frames.end - 1, [](long_t frame, const DataPoint& A) -> bool
+            auto end = std::upper_bound(it, _data.end(), frames.end - 1_f, [](Frame_t frame, const DataPoint& A) -> bool
             {
                 return frame < A.frame;
             });
@@ -1083,12 +1085,12 @@ size_t Leaf::erase(const Range<long_t> &frames) {
     return count - _data.size();
 }
 
-long_t Leaf::min_frame() const {
-    return _data.empty() ? -1 : _data.front().frame;
+Frame_t Leaf::min_frame() const {
+    return _data.empty() ? Frame_t() : _data.front().frame;
 }
 
-long_t Leaf::max_frame() const {
-    return _data.empty() ? -1 : _data.back().frame;
+Frame_t Leaf::max_frame() const {
+    return _data.empty() ? Frame_t() : _data.back().frame;
 }
 
 Grid::~Grid() {
@@ -1468,7 +1470,7 @@ void Grid::collect_cells(uint32_t grid_size, std::vector<Region *> &output) cons
     }
 }
 
-size_t Grid::keep_only(const Range<long_t> &frames) {
+size_t Grid::keep_only(const Range<Frame_t> &frames) {
     static Timer timer;
     timer.reset();
     
@@ -1654,7 +1656,8 @@ void Region::update_ranges() {
     std::fill(_value_range_per_id.begin(), _value_range_per_id.end(), Range<double>(infinity<double>(), infinity<double>()));*/
     
     _size = 0;
-    _frame_range.start = _frame_range.end = -1;
+    _frame_range.start.invalidate();
+    _frame_range.end.invalidate();
     
     for(auto r : regions()) {
         if(!r)
@@ -1683,7 +1686,7 @@ void Region::update_ranges() {
         }*/
         
         auto &range = r->frame_range();
-        if(range.start < _frame_range.start || _frame_range.start == -1)
+        if(range.start < _frame_range.start || !_frame_range.start.valid())
             _frame_range.start = range.start;
         if(range.end > _frame_range.end)
             _frame_range.end = range.end;
@@ -1716,7 +1719,7 @@ bool Region::apply(const std::function<bool(const DataPoint&)>& fn) const {
     return true;
 }
 
-bool Region::apply(const std::function<bool(const DataPoint&)>& fn, const Range<long_t>& frames, const Range<uint32_t>& xs, const Range<uint32_t>& ys) const {
+bool Region::apply(const std::function<bool(const DataPoint&)>& fn, const Range<Frame_t>& frames, const Range<uint32_t>& xs, const Range<uint32_t>& ys) const {
     for(auto &r : _regions) {
         if(r) {
             if((!xs.empty() && !overlaps(r->x(), xs)) || (!ys.empty() && !overlaps(r->y(), ys)))
@@ -1799,10 +1802,10 @@ void Leaf::insert(std::vector<DataPoint>::iterator start, std::vector<DataPoint>
     });
     
     _frame_range.start = min_frame();
-    _frame_range.end = max_frame() + 1;
+    _frame_range.end = max_frame() + 1_f;
 }
 
-Node::Node() : _frame_range(-1, -1)
+Node::Node() : _frame_range({}, {})
 {}
 
 }

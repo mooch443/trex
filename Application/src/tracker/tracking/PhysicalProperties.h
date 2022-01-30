@@ -1,9 +1,10 @@
 #ifndef PHYSICAL_PROPERTIES_H
 #define PHYSICAL_PROPERTIES_H
 
-#include <types.h>
+#include <misc/defines.h>
 #include <misc/Blob.h>
 #include <misc/GlobalSettings.h>
+#include <misc/frame_t.h>
 
 #define SMOOTH_RECURSIVELY false
 
@@ -42,11 +43,11 @@ namespace track {
     struct FrameProperties {
         double time;
         uint64_t org_timestamp;
-        long_t frame;
+        Frame_t frame;
         long_t active_individuals;
         std::vector<PairDistance> _pair_distances;
         
-        FrameProperties(long_t frame, double t, uint64_t ot, std::vector<PairDistance> pair_distances = {})
+        FrameProperties(Frame_t frame, double t, uint64_t ot, std::vector<PairDistance> pair_distances = {})
             : time(t), org_timestamp(ot), frame(frame), active_individuals(-1), _pair_distances(pair_distances)
         {}
         
@@ -54,22 +55,22 @@ namespace track {
             : time(-1), org_timestamp(0), frame(-1), active_individuals(-1)
         {}
         
-        bool operator<(long_t frame) const {
+        bool operator<(Frame_t frame) const {
             return this->frame < frame;
         }
     };
 
     struct CacheHints {
-        long_t current;
+        Frame_t current;
         std::vector<const FrameProperties *> _last_second;
         
         CacheHints(size_t size = 0);
-        void push(long_t index, const FrameProperties* ptr);
-        void push_front(long_t index, const FrameProperties* ptr);
+        void push(Frame_t index, const FrameProperties* ptr);
+        void push_front(Frame_t index, const FrameProperties* ptr);
         void clear(size_t size = 0);
         size_t size() const;
         bool full() const;
-        const FrameProperties* properties(long_t) const;
+        const FrameProperties* properties(Frame_t) const;
     };
 
     enum class Units {
@@ -174,7 +175,7 @@ namespace track {
         friend class DataFormat;
         
         GETTER_PTR(Individual*, fish)
-        GETTER(long_t, frame)
+        GETTER(Frame_t, frame)
         //GETTER(double, time)
         
         // contains either float or Point2f pointers
@@ -182,7 +183,7 @@ namespace track {
         //std::map<Type, PropertyBase*> _derivatives;
         
     public:
-        PhysicalProperties(Individual* fish, long_t frame, const Vec2& pos, float angle, const CacheHints* hints = nullptr);
+        PhysicalProperties(Individual* fish, Frame_t frame, const Vec2& pos, float angle, const CacheHints* hints = nullptr);
         ~PhysicalProperties();
         
         const decltype(_derivatives)& derivatives() const { return _derivatives; }
@@ -211,7 +212,7 @@ namespace track {
         
         void flip();
         size_t memory_size() const;
-        static uint32_t smooth_window();
+        static Frame_t smooth_window();
         
     private:
         void update_derivatives();

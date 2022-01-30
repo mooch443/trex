@@ -37,11 +37,11 @@ namespace track {
         };
         
         struct Quality {
-            Rangel range;
+            Range<Frame_t> range;
             uint32_t min_cells;
             float average_samples;
             
-            Quality(const Rangel& range = Rangel(-1, -1),
+            Quality(const Range<Frame_t>& range = Range<Frame_t>(Frame_t(), Frame_t()),
                     uint32_t min_cells = 0,
                     float average_samples = -1)
                 : range(range), min_cells(min_cells), average_samples(average_samples)
@@ -64,30 +64,30 @@ namespace track {
         };
         
     private:
-        Rangel _manually_selected;
-        std::map<Rangel, std::map<Idx_t, Single>> _cache;
-        std::map<Rangel, Quality> _quality;
-        Rangel _last_seen;
-        std::set<Rangel> _previous_selected;
+        Range<Frame_t> _manually_selected;
+        std::map<Range<Frame_t>, std::map<Idx_t, Single>> _cache;
+        std::map<Range<Frame_t>, Quality> _quality;
+        Range<Frame_t> _last_seen;
+        std::set<Range<Frame_t>> _previous_selected;
         
         std::set<Quality, std::greater<>> _sorted;
         
     public:
         DatasetQuality();
         
-        void remove_frames(long_t start);
+        void remove_frames(Frame_t start);
         void update(const Tracker::LockGuard&);
-        Quality quality(const Rangel& range) const;
+        Quality quality(const Range<Frame_t>& range) const;
         //Quality quality(float frame) const;
-        bool has(const Rangel& range) const;
-        Rangel best_range() const;
-        std::map<Idx_t, Single> per_fish(const Rangel&) const;
+        bool has(const Range<Frame_t>& range) const;
+        Range<Frame_t> best_range() const;
+        std::map<Idx_t, Single> per_fish(const Range<Frame_t>&) const;
         
         void print_info() const;
         
     private:
-        void remove_segment(const Rangel& range);
-        bool calculate_segment(const Rangel&, const uint64_t video_length, const Tracker::LockGuard&);
-        Single evaluate_single(Idx_t id, Individual* fish, const Rangel& consec, const Tracker::LockGuard& guard);
+        void remove_segment(const Range<Frame_t>& range);
+        bool calculate_segment(const Range<Frame_t>&, const uint64_t video_length, const Tracker::LockGuard&);
+        Single evaluate_single(Idx_t id, Individual* fish, const Range<Frame_t>& consec, const Tracker::LockGuard& guard);
     };
 }

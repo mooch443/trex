@@ -63,23 +63,23 @@ namespace track {
         const Properties* _props;
         
     protected:
-        GETTER(Rangel, frames)
+        GETTER(Range<Frame_t>, frames)
         GETTER(std::set<fdx_t>, fdx)
         GETTER(std::set<bdx_t>, bdx)
         GETTER(std::string, description)
         
     public:
-        FOI() : _props(NULL), _frames(-1, -1) {}
-        bool valid() const { return _frames.start != _frames.end || _frames.start != -1; }
+        FOI() : _props(NULL), _frames({}, {}) {}
+        bool valid() const { return _frames.start != _frames.end || _frames.start.valid(); }
 
-        FOI(const Rangel& frames, std::set<fdx_t> fdx, const std::string& reason, const std::string& _description = "");
-        FOI(const Rangel& frames, std::set<bdx_t> bdx, const std::string& reason, const std::string& _description = "");
+        FOI(const Range<Frame_t>& frames, std::set<fdx_t> fdx, const std::string& reason, const std::string& _description = "");
+        FOI(const Range<Frame_t>& frames, std::set<bdx_t> bdx, const std::string& reason, const std::string& _description = "");
         
-        FOI(long_t frame, std::set<fdx_t> fdx, const std::string& reason, const std::string& _description = "");
-        FOI(long_t frame, std::set<bdx_t> bdx, const std::string& reason, const std::string& _description = "");
+        FOI(Frame_t frame, std::set<fdx_t> fdx, const std::string& reason, const std::string& _description = "");
+        FOI(Frame_t frame, std::set<bdx_t> bdx, const std::string& reason, const std::string& _description = "");
         
-        FOI(long_t frame, const std::string& reason, const std::string& _description = "");
-        FOI(const Rangel& frames, const std::string& reason, const std::string& _description = "");
+        FOI(Frame_t frame, const std::string& reason, const std::string& _description = "");
+        FOI(const Range<Frame_t>& frames, const std::string& reason, const std::string& _description = "");
         
     public:
         bool operator<(const FOI& other) const;
@@ -93,8 +93,8 @@ namespace track {
         static void add(FOI&&);
         static foi_type::mapped_type foi(long_t id);
         static std::set<long_t> ids();
-        static void remove_frames(long_t frameIndex);
-        static void remove_frames(long_t frameIndex, long_t id);
+        static void remove_frames(Frame_t frameIndex);
+        static void remove_frames(Frame_t frameIndex, long_t id);
         static void clear();
         static uint64_t last_change();
         static foi_type all_fois();

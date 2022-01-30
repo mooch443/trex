@@ -272,7 +272,7 @@ IndividualMemoryStats::IndividualMemoryStats(Individual *fish) {
     //IND_BYTE_SIZE(_outlines);
     
     // recognition stuff
-    IND_BYTE_SIZE(_training_data);
+    //IND_BYTE_SIZE(_training_data);
     IND_BYTE_SIZE(_recognition_segments);
     //IND_BYTE_SIZE(average_recognition_segment);
     //IND_BYTE_SIZE(average_processed_segment);

@@ -33,15 +33,15 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
     
     struct AnalysisState {
         bool in_tailbeat;
-        long_t frame;
+        Frame_t frame;
         std::deque<float> offsets;
-        long_t last_threshold_reached;
-        long_t last_event_start, last_event_end;
+        Frame_t last_threshold_reached;
+        Frame_t last_event_start, last_event_end;
         bool last_event_sign;
         
         std::vector<float> current_energy;
         float current_maximum;
-        std::vector<long_t> threshold_reached;
+        std::vector<Frame_t> threshold_reached;
         
         float prev;
         float prev_raw;
@@ -51,7 +51,7 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
         Vec2 v_current;
         float v_samples;
         
-        AnalysisState() : in_tailbeat(false), frame(0), last_threshold_reached(-1), last_event_start(-1), last_event_end(-1), prev(0), prev_raw(gui::Graph::invalid()) {}
+        AnalysisState() : in_tailbeat(false), frame(0), prev(0), prev_raw(gui::Graph::invalid()) {}
         size_t memory_size() const {
             return sizeof(AnalysisState)
                  + sizeof(decltype(threshold_reached)::value_type) * threshold_reached.capacity()
@@ -78,7 +78,7 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
         }
     }
     
-    bool threshold_reached(Individual* fish, long_t frame) {
+    bool threshold_reached(Individual* fish, Frame_t frame) {
         std::lock_guard<decltype(mutex)> guard(mutex);
         auto &state = states[fish];
         if(contains(state.threshold_reached, frame))
@@ -101,7 +101,8 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
             state.offsets.pop_front();
         
         // push the next value
-        state.offsets.push_back(midline_offset(fish, state.frame++));
+        state.offsets.push_back(midline_offset(fish, state.frame));
+        ++state.frame;
         
         // ignore the first 2 frames
         // (generate smoothed offset, need previous and next value)
@@ -111,7 +112,7 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
         // assume state offsets is not empty
         assert(state.offsets.size() > 2);
         
-        long_t frame = state.frame - 2;
+        auto frame = state.frame - 2_f;
         float previous = state.offsets.at(state.offsets.size()-3);
         float current = state.offsets.at(state.offsets.size()-2);
         float next = state.offsets.at(state.offsets.size()-1);
@@ -131,12 +132,13 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
         state.prev = offset;
         state.prev_raw = current;
         
-        Vec2 pt0(frame-1, gui::Graph::is_invalid(prev) ? 0 : prev), pt1(frame, offset);
+        Vec2 pt0(frame.get() - 1, gui::Graph::is_invalid(prev) ? 0 : prev), pt1(frame.get(), offset);
         state.current_energy.push_back(0.5f * FAST_SETTINGS(meta_mass_mg) * SQR(offset));
         
         if(gui::Graph::is_invalid(offset)) {
-            if(state.last_event_start != -1) {
-                state.last_threshold_reached = state.last_event_start = -1;
+            if(state.last_event_start.valid()) {
+                state.last_threshold_reached.invalidate();
+                state.last_event_start.invalidate();
             }
         }
         else if(cmn::abs(offset) >= _limit || crosses_abs_height(pt0, pt1, _limit) != 0)
@@ -145,7 +147,7 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
             state.last_threshold_reached = frame;
             state.threshold_reached.push_back(frame);
             
-            if(state.last_event_start == -1) {
+            if(!state.last_event_start.valid()) {
                 state.last_event_start = frame;
                 state.current_maximum = 0;
                 state.current_energy.clear();
@@ -168,8 +170,8 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
             state.v_samples++;
         }
         
-        const float max_frames = roundf(max(5, 0.055f * FAST_SETTINGS(frame_rate)));
-        if(state.last_threshold_reached != -1
+        const Frame_t max_frames = Frame_t(roundf(max(5, 0.055f * FAST_SETTINGS(frame_rate))));
+        if(state.last_threshold_reached.valid()
            && frame - state.last_threshold_reached <= max_frames)
         {
             // extend until offset function reaches zero
@@ -178,11 +180,11 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
             
             return true;
         }
-        else if(state.last_event_start != -1) {
+        else if(state.last_event_start.valid()) {
             if(insert && state.current_maximum >= SETTING(event_min_peak_offset).value<float>())
             {
-                long_t len = state.last_event_end - state.last_event_start + 1;
-                assert(len > 0);
+                auto len = state.last_event_end - state.last_event_start + 1_f;
+                assert(len.valid());
                 
                 auto velocity = state.v_current / state.v_samples;
                 auto d_angle = atan2(velocity.y, velocity.x) - atan2(state.v_before.y, state.v_before.x);
@@ -190,23 +192,24 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
                 float acceleration = length(state.v_before) - length(velocity);
                 
                 
-                float energy = std::accumulate(state.current_energy.begin(), state.current_energy.begin() + len, 0.f); // len;
+                float energy = std::accumulate(state.current_energy.begin(), state.current_energy.begin() + len.get(), 0.f); // len;
                 if(std::isinf(energy) || std::isnan(energy))
                     U_EXCEPTION("Energy is infinite.");
                 
                 map.events[state.last_event_start] = Event(state.last_event_start, state.last_event_end, energy, angle_change, acceleration, length(state.v_before), length(velocity));
-                map.lengths[state.last_event_start] = sign_cast<size_t>(len);
+                map.lengths[state.last_event_start.get()] = sign_cast<size_t>(len.get());
                 //Debug("%d: Adding event %d", fish->identity().ID(), state.last_event_start);
             }
             
-            state.last_event_start = state.last_event_end = -1;
+            state.last_event_start.invalidate();
+            state.last_event_end.invalidate();
             state.current_maximum = 0;
         }
         
         return false;
     }
 
-    float midline_offset(Individual *fish, long_t frame) {
+    float midline_offset(Individual *fish, Frame_t frame) {
         ///** ZEBRAFISH **
         auto midline = fish->fixed_midline(frame);
         if (!midline)
@@ -240,7 +243,7 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
         
         Timer timer;
         
-        long_t left_over = 0;
+        Frame_t left_over(0);
         
         using namespace EventAnalysis;
         
@@ -254,29 +257,29 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
             
             auto &map = individual_maps[fish];
             
-            if(map.end_frame == -1) {
+            if(!map.end_frame.valid()) {
                 map.start_frame = map.end_frame = fish->start_frame();
             }
             
-            if(states[fish].frame - 1 > fish->end_frame()) {
-                states[fish].frame = fish->end_frame() + 1;
+            if(states[fish].frame - 1_f > fish->end_frame()) {
+                states[fish].frame = fish->end_frame() + 1_f;
             }
             
-            long_t i = map.end_frame;
-            for(; i<=fish->end_frame() && i - map.end_frame <= 10000; i++)
+            auto i = map.end_frame;
+            for(; i<=fish->end_frame() && i - map.end_frame <= 10000_f; ++i)
                 advance_analysis(fish, map);
             
-            left_over += fish->end_frame() - (states[fish].frame - 1);
+            left_over += fish->end_frame() - (states[fish].frame - 1_f);
             map.end_frame = i;
         }
         
-        if(left_over < 0)
-            left_over = 0;
+        if(!left_over.valid())
+            left_over = 0_f;
         
-        if(left_over) {
+        if(left_over.valid()) {
             static Timer timer;
             if(timer.elapsed() > 10) {
-                analysis_status = "processing ("+std::to_string(left_over)+" frames left)";
+                analysis_status = "processing ("+left_over.toStr()+" frames left)";
                 auto str = FileSize(mapCapacity(individual_maps) + mapCapacity(states)).to_string();
                 Debug("Time: %.2fms (%S)", timer.elapsed() * 1000, &str);
                 timer.reset();
@@ -299,10 +302,10 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
         return new EventsContainer(mutex, individual_maps);
     }
     
-    void reset_events(long_t after_frame) {
+    void reset_events(Frame_t after_frame) {
         std::lock_guard<decltype(mutex)> guard(mutex);
         
-        if(after_frame == -1) {
+        if(!after_frame.valid()) {
             individual_maps.clear();
             states.clear();
             
@@ -317,19 +320,19 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
             
             for(auto &map : individual_maps) {
                 Debug("Erasing... %d(%d-%d): %d - %d", map.first->identity().ID(), map.first->start_frame(), map.first->end_frame(), map.second.start_frame, map.second.end_frame);
-                if(map.second.start_frame != -1 && map.second.end_frame >= after_frame) {
-                    int64_t count = 0;
+                if(map.second.start_frame.valid() && map.second.end_frame >= after_frame) {
+                    Frame_t count{0};
                     if(map.second.start_frame >= after_frame) {
-                        count = map.second.end_frame - map.second.start_frame + 1;
+                        count = map.second.end_frame - map.second.start_frame + 1_f;
                         map.second.clear();
                         
                     } else {
                         for(auto iter = map.second.events.begin(), endIter = map.second.events.end(); iter != endIter; )
                         {
                             if (iter->first >= after_frame) {
-                                map.second.lengths.erase(iter->first);
+                                map.second.lengths.erase(iter->first.get());
                                 map.second.events.erase(iter++);
-                                count++;
+                                ++count;
                             } else {
                                 ++iter;
                             }
@@ -340,9 +343,9 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
                     auto &state = states[map.first];
                     
                     // ... clear cache of midline offsets and regenerate
-                    state.last_event_start = -1;
-                    state.last_event_end = -1;
-                    state.frame = min(map.first->end_frame(), max(after_frame - 100, map.first->start_frame()));
+                    state.last_event_start.invalidate();
+                    state.last_event_end.invalidate();
+                    state.frame = min(map.first->end_frame(), max(after_frame - 100_f, map.first->start_frame()));
                     map.second.end_frame = map.second.start_frame = state.frame;
                     if(map.second.end_frame > map.first->end_frame())
                         map.second.end_frame = map.first->end_frame();
@@ -351,10 +354,11 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
                     Debug("Erasing from frame %ld (start_frame: %d) for fish %d.", state.frame, map.first->start_frame(), map.first->identity().ID());
                     
                     if(map.first->start_frame() < after_frame) {
-                        for(; state.frame < min(map.first->end_frame()+1, after_frame);)
+                        for(; state.frame < min(map.first->end_frame() + 1_f, after_frame);)
                             advance_analysis(map.first, map.second, false);
                     } else {
-                        map.second.end_frame = map.second.start_frame = -1;
+                        map.second.end_frame.invalidate();
+                        map.second.start_frame.invalidate();
                     }
                     
                     Debug("Erased %ld events for fish %d (%d-%d).", count, map.first->identity().ID(), map.second.start_frame,map.second.end_frame);

@@ -17,7 +17,7 @@ struct IndividualCache {
     bool valid = false;
     float tdelta;
     float local_tdelta;
-    long_t previous_frame;
+    Frame_t previous_frame;
     int current_category;
     bool consistent_categories;
     float cm_per_pixel, track_max_speed;

@@ -8,8 +8,9 @@
 
 namespace track {
 
-class PPFrame : public IndexedDataTransport {
+class PPFrame {
     GETTER_NCONST(pv::Frame, frame)
+    GETTER_SETTER(Frame_t, index)
 public:
     //! Time in seconds
     double time;

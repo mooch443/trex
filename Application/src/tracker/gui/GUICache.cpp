@@ -56,7 +56,7 @@ namespace gui {
     }
     
     GUICache::GUICache()
-        : last_threshold(-1), last_frame(-1), _dirty(true), _equalize_histograms(true), _blobs_dirty(false), _raw_blobs_dirty(false), _mode(mode_t::tracking), _zoom_level(1),  _tracking_dirty(false), recognition_updated(false)
+        : last_threshold(-1), _dirty(true), _equalize_histograms(true), _blobs_dirty(false), _raw_blobs_dirty(false), _mode(mode_t::tracking), _zoom_level(1),  _tracking_dirty(false), recognition_updated(false)
     {}
     
     bool GUICache::has_selection() const {
@@ -165,7 +165,7 @@ namespace gui {
         return false;
     }
     
-    void GUICache::update_data(long_t frameIndex) {
+    void GUICache::update_data(Frame_t frameIndex) {
         const auto threshold = FAST_SETTINGS(track_threshold);
         auto& _tracker = *Tracker::instance();
         auto& _gui = GUI::instance()->gui();
@@ -220,7 +220,7 @@ namespace gui {
             active_ids.clear();
             fish_selected_blobs.clear();
             inactive_estimates.clear();
-            tracked_frames = Rangel(_tracker.start_frame(), _tracker.end_frame());
+            tracked_frames = Range<Frame_t>(_tracker.start_frame(), _tracker.end_frame());
             
             auto delete_callback = [this](Individual* fish) {
                 if(!GUI::instance())
@@ -270,8 +270,8 @@ namespace gui {
             }
             
             auto connectivity_map = SETTING(gui_connectivity_matrix).value<std::map<long_t, std::vector<float>>>();
-            if(connectivity_map.count(frameIndex))
-                connectivity_matrix = connectivity_map.at(frameIndex);
+            if(connectivity_map.count(frameIndex.get()))
+                connectivity_matrix = connectivity_map.at(frameIndex.get());
             else
                 connectivity_matrix.clear();
             
@@ -293,7 +293,7 @@ namespace gui {
                     active_blobs.clear();
                     active_ids.clear();
                     inactive_ids.clear();
-                    last_frame = -1;
+                    last_frame.invalidate();
                     selected.clear();
                 });
             }
@@ -354,14 +354,14 @@ namespace gui {
                 processed_frame.frame().clear();
                 processed_frame.clear();
                 
-                if(frameIndex >= 0) {
+                if(frameIndex.valid()) {
                     Tracker::set_of_individuals_t prev_active;
-                    if(_tracker.properties(frameIndex-1))
-                        prev_active = _tracker.active_individuals(frameIndex-1);
+                    if(_tracker.properties(frameIndex - 1_f))
+                        prev_active = _tracker.active_individuals(frameIndex - 1_f);
                     
                     try {
                         auto file = static_cast<pv::File*>(GUI::instance()->video_source());
-                        file->read_frame(processed_frame.frame(), (size_t)frameIndex);
+                        file->read_frame(processed_frame.frame(), frameIndex.get());
                         
                         std::lock_guard<std::mutex> guard(GUI::instance()->blob_thread_pool_mutex());
                         Tracker::instance()->preprocess_frame(processed_frame, prev_active, &GUI::instance()->blob_thread_pool());

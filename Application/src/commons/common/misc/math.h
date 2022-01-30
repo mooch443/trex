@@ -135,10 +135,30 @@ namespace cmn {
     {
         return std::abs(std::forward<T>(x));
     }
-    
+
+    namespace check_abs_detail {
+        template<typename T>
+        concept has_coordinates = requires(T t) {
+            { t.x } -> std::convertible_to<float>;
+        };
+
+        template<typename T>
+        concept has_get = requires(T t) {
+            { t.get() } -> std::convertible_to<float>;
+        };
+    }
+
+
     template<typename T>
-    inline T abs(const T& x, typename std::enable_if< !std::is_arithmetic<T>::value, bool>::type* = NULL) {
+        requires check_abs_detail::has_coordinates<T>
+    inline T abs(const T& x) {
         return T(cmn::abs(x.x), cmn::abs(x.y));
+    }
+
+    template<typename T>
+        requires check_abs_detail::has_get<T>
+    inline T abs(const T& x) {
+        return T(std::abs(x.get()));
     }
     
     template <typename T0 = cv::Point2f>

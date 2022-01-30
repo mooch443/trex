@@ -5,6 +5,7 @@
 #include <file/Path.h>
 #include <misc/GlobalSettings.h>
 #include <misc/SpriteMap.h>
+#include <misc/frame_t.h>
 
 namespace file {
 
@@ -37,6 +38,10 @@ public:
         std::stringstream ss;
         ss << data;
         return ss.str();
+    }
+    
+    const std::string to_string(Frame_t frame) {
+        return frame.toStr();
     }
     
     template<typename T>

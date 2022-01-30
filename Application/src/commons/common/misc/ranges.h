@@ -1,8 +1,15 @@
 #pragma once
 #include <misc/defines.h>
 #include <misc/metastring.h>
+#include <misc/frame_t.h>
 
 namespace cmn {
+
+template<typename T>
+concept range_type_needs_get_method = requires (T t) {
+    (!std::convertible_to<T, size_t>);
+    { t.get() } -> std::convertible_to<size_t>;
+};
 
 template<typename T>
 class arange {
@@ -13,8 +20,16 @@ public:
     { }
 
 private:
+    template<typename K = T>
+        requires (!range_type_needs_get_method<K>)
     constexpr size_t num_steps() const {
-        return size_t((last - first) / step + T(1));
+        return size_t((last - first) / step + K(1));
+    }
+    
+    template<typename K = T>
+        requires range_type_needs_get_method<K>
+    constexpr size_t num_steps() const {
+        return (size_t)((last - first) / step + K(1)).get();
     }
 
 public:
@@ -142,8 +157,8 @@ template<typename T>
 struct Range {
     T start, end;
 
-    constexpr Range() noexcept : Range(T(0), T(0)) {}
-    explicit constexpr Range(T s, T e = T(0)) noexcept : start(s), end(e) { assert(s <= e); }
+    constexpr Range() noexcept : Range(T(), T()) {}
+    explicit constexpr Range(T s, T e = T()) noexcept : start(s), end(e) { assert(s <= e); }
     constexpr bool empty() const { return start == end; }
     constexpr bool contains(T v) const {
         return v >= start && v < end;
@@ -158,7 +173,7 @@ struct Range {
         return start < other.start || (start == other.start && end < other.end);
     }
 
-    constexpr T length() const { return end - start + 1; }
+    constexpr T length() const { return T(1) + end - start; }
     constexpr arange<T> iterable() const { return arange<T>(start, end); }
     constexpr bool operator==(const Range<T>& other) const {
         return other.start == start && other.end == end;
@@ -176,7 +191,7 @@ struct Range {
     }
 
     std::string toStr() const {
-        return "[" + std::to_string(start) + "," + std::to_string(end) + "]";
+        return "[" + Meta::toStr(start) + "," + Meta::toStr(end) + "]";
     }
     static std::string class_name() { return "range<" + Meta::template name<T>() + ">"; }
 
@@ -199,32 +214,39 @@ using Rangei = Range<int>;
 using Rangel = Range<long_t>;
 
 struct FrameRange {
-    Rangel range;
-    long_t first_usable = -1;
+    Range<Frame_t> range;
+    Frame_t first_usable;
 
-    constexpr explicit FrameRange(Rangel range = Rangel(-1, -1), long_t first_usable = -1)
+    constexpr explicit FrameRange(Range<Frame_t> range = Range<Frame_t>(Frame_t(), Frame_t()), Frame_t first_usable = Frame_t())
         : range(range), first_usable(first_usable)
     {}
 
-    constexpr long_t length(bool usable_only = false) const {
-        if (range.start == -1)
+    static constexpr FrameRange merge(const FrameRange& A, const FrameRange& B) {
+        return FrameRange { Range<Frame_t>{
+            min(A.start(), B.start()),
+            max(A.end(), B.end())
+        }, A.first_usable.valid() ? (B.first_usable.valid() ? min(A.first_usable, B.first_usable) : A.first_usable) : B.first_usable };
+    }
+    
+    constexpr Frame_t::number_t length(bool usable_only = false) const {
+        if (!range.start.valid())
             return 0;
 
         if (usable_only)
-            return first_usable >= range.start ? (range.end - first_usable) : range.length();
-        return range.length();
+            return (first_usable >= range.start ? (range.end - first_usable) : range.length()).get();
+        return range.length().get();
     }
 
-    constexpr long_t start() const {
+    constexpr Frame_t start() const {
         return range.start;
     }
 
-    constexpr long_t end() const {
+    constexpr Frame_t end() const {
         return range.end;
     }
 
-    constexpr bool contains(long_t frame) const {
-        if (start() == -1)
+    constexpr bool contains(Frame_t frame) const {
+        if (empty())
             return false;
         return frame >= start() && frame <= end();
     }
@@ -243,7 +265,7 @@ struct FrameRange {
     }
 
     constexpr bool empty() const {
-        return range.start == -1;
+        return !range.start.valid();
     }
 
     constexpr bool operator<(const FrameRange& other) const {
@@ -253,12 +275,12 @@ struct FrameRange {
         return range == other.range;
     }
 
-    arange<long_t> iterable() const {
-        return arange<long_t>(start(), end());
+    arange<Frame_t> iterable() const {
+        return arange<Frame_t>(start(), end());
     }
 
     std::string toStr() const {
-        return "[" + std::to_string(start()) + "," + std::to_string(end()) + "]";
+        return "[" + Meta::toStr(start()) + "," + Meta::toStr(end()) + "]";
     }
     static std::string class_name() {
         return "FrameRange";
@@ -267,3 +289,4 @@ struct FrameRange {
 };
 
 }
+

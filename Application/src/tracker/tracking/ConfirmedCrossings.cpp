@@ -8,7 +8,7 @@
 #include <pv.h>
 
 namespace track {
-static std::map<long_t, std::set<FOI>> _fois;
+static std::map<Frame_t, std::set<FOI>> _fois;
 static std::mutex _mutex;
 static std::deque<FOIStatus> _current_queue;
 static std::deque<FOIStatus> _previous;
@@ -17,7 +17,7 @@ static std::set<FOI> _wrong;
 static std::shared_ptr<gui::StaticText> _text;
 static std::string _review;
 
-void ConfirmedCrossings::draw(gui::DrawStructure & base, long_t frame) {
+void ConfirmedCrossings::draw(gui::DrawStructure & base, Frame_t frame) {
     auto _started = started();
     if(!_started && _review.empty())
         return;
@@ -52,7 +52,7 @@ void ConfirmedCrossings::draw(gui::DrawStructure & base, long_t frame) {
                 str += "\n<str>WRONG</str>";
         }
         
-        if((frame <= last.foi.frames().end || (!_current_queue.empty() && frame < _current_queue.front().foi.frames().start-1)) && frame >= last.foi.frames().start) {
+        if((frame <= last.foi.frames().end || (!_current_queue.empty() && frame < _current_queue.front().foi.frames().start - 1_f)) && frame >= last.foi.frames().start) {
             _text->set_background(Color(0,50,0,50));
         }
         else
@@ -132,20 +132,20 @@ bool ConfirmedCrossings::next(FOIStatus& foi) {
             Debug("%lu instances (%.2f%% confirmed)", _wrong.size() + _confirmed.size(), percent);
             DebugHeader("============== ");
             
-            std::vector<long_t> rows;
+            std::vector<Frame_t> rows;
             for (auto && [foi, status] : _previous) {
                 rows.insert(rows.end(), {
                     foi.frames().start,
                     foi.frames().end,
-                    (long_t)status
+                    Frame_t((Frame_t::number_t)status)
                 });
                 
                 const auto range = arange<long_t>(0, FAST_SETTINGS(track_max_individuals)-1);
                 for(auto id : range) {
                     if(foi.fdx().count(FOI::fdx_t(id)))
-                        rows.push_back(1);
+                        rows.push_back(1_f);
                     else
-                        rows.push_back(0);
+                        rows.push_back(0_f);
                 }
             }
             
@@ -223,7 +223,7 @@ void ConfirmedCrossings::add_foi(const FOI& foi) {
     _fois[foi.frames().start].insert(foi);
 }
 
-void ConfirmedCrossings::remove_frames(long_t frame, long_t id) {
+void ConfirmedCrossings::remove_frames(Frame_t frame, long_t id) {
     std::lock_guard<std::mutex> guard(_mutex);
     _current_queue.clear(); // clear current queue if it exists
 

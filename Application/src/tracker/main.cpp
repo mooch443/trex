@@ -1082,12 +1082,12 @@ int main(int argc, char** argv)
     
     bool please_stop_analysis = false;
     
-    std::atomic_long currentID(-1);
+    std::atomic<Frame_t> currentID(Frame_t{});
     std::queue<std::shared_ptr<PPFrame>> unused;
     std::mutex mutex;
-    const int cache_size = 10;
+    const Frame_t cache_size{10};
     
-    for (int i=0; i<cache_size; i++)
+    for (auto i=0_f; i<cache_size; ++i)
         unused.push(std::make_shared<PPFrame>());
         
     //std::mutex stage1_mutex;
@@ -1100,7 +1100,7 @@ int main(int argc, char** argv)
     std::vector<std::function<bool(ConnectedTasks::Type, const ConnectedTasks::Stage&)>> tasks =
     {
         [&](std::shared_ptr<PPFrame> ptr, auto&) -> bool {
-            long_t idx = ptr->index();
+            auto idx = ptr->index();
             auto range = Tracker::analysis_range();
             if(!range.contains(idx) && idx != range.end && idx > Tracker::end_frame()) {
                 std::unique_lock<std::mutex> lock(mutex);
@@ -1109,8 +1109,8 @@ int main(int argc, char** argv)
             }
 
             Timer timer;
-            video.read_frame(ptr->frame(), (size_t)idx);
-            ptr->frame().set_index(idx);
+            video.read_frame(ptr->frame(), (size_t)idx.get());
+            ptr->frame().set_index(idx.get());
             Tracker::preprocess_frame(*ptr, {}, pool.num_threads() > 1 ? &pool : NULL, NULL, false);
 
             ptr->frame().set_loading_time(narrow_cast<float>(timer.elapsed()));
@@ -1133,14 +1133,18 @@ int main(int argc, char** argv)
             
             auto range = Tracker::analysis_range();
 
-            long_t idx = ptr->index();
-            if (idx >= range.start && max(range.start, tracker.end_frame() + 1) == idx && !tracker.properties(idx) && idx <= Tracker::analysis_range().end)
+            auto idx = ptr->index();
+            if (idx >= range.start
+                && max(range.start, tracker.end_frame() + 1_f) == idx
+                && !tracker.properties(idx)
+                && idx <= Tracker::analysis_range().end)
             {
                 tracker.add(*ptr);
 
                 static Timing after_track("Analysis::after_track", 10);
                 TakeTiming after_trackt(after_track);
-                if(idx == long_t(video.length())-1)
+                
+                if(size_t(idx.get() + 1) == video.length())
                     please_stop_analysis = true;
 
                 {
@@ -1167,8 +1171,8 @@ int main(int argc, char** argv)
                         frames_sec_average += frames_sec;
                         ++frames_sec_samples;
 
-                        float percent = min(1, (ptr->index() - range.start) / float(range.length() + 1)) * 100;
-                        DurationUS us{ uint64_t(max(0, double(range.end - ptr->index()) / double(/*frames_sec*/ frames_sec_average / frames_sec_samples ) * 1000 * 1000)) };
+                        float percent = min(1, (ptr->index() - range.start).get() / float(range.length().get() + 1)) * 100;
+                        DurationUS us{ uint64_t(max(0, (double)(range.end - ptr->index()).get() / double(/*frames_sec*/ frames_sec_average / frames_sec_samples ) * 1000 * 1000)) };
                         auto duration = us.to_string();
                         std::string str;
                         
@@ -1220,28 +1224,31 @@ int main(int argc, char** argv)
     analysis = std::make_shared<ConnectedTasks>(tasks);
     analysis->start(// main thread
         [&]() {
-            auto endframe = (long_t)tracker.end_frame();
-            if(currentID > endframe + cache_size
-               || currentID == -1
+            auto endframe = tracker.end_frame();
+            auto current = currentID.load();
+            if(current > endframe + cache_size
+               || !current.valid()
                || (analysis->stage_empty(0) && analysis->stage_empty(1))
-               || currentID < endframe)
+               || current < endframe)
             {
-                currentID = endframe;
+                current = currentID = endframe; // update current as well
             }
         
             auto range = Tracker::analysis_range();
-            if(currentID < range.start)
-                currentID = range.start - 1;
+            if(current < range.start)
+                currentID = range.start - 1_f;
             
             if(FAST_SETTINGS(analysis_range).second != -1
-               && endframe >= FAST_SETTINGS(analysis_range).second
+               && endframe >= Frame_t(FAST_SETTINGS(analysis_range).second)
                && !SETTING(terminate)
                && !please_stop_analysis)
             {
                 please_stop_analysis = true;
             }
             
-            while(currentID < max(range.start, endframe) + cache_size && currentID+1 < (long_t)video.length()) {
+            while(currentID.load() < max(range.start, endframe) + cache_size
+                  && size_t((currentID.load() + 1_f).get()) < video.length())
+            {
                 std::unique_lock<std::mutex> lock(mutex);
                 if(unused.empty())
                     break;
@@ -1249,7 +1256,8 @@ int main(int argc, char** argv)
                 auto ptr = unused.front();
                 unused.pop();
                 
-                ptr->set_index(narrow_cast<long_t>(++currentID));
+                currentID = currentID.load() + 1_f;
+                ptr->set_index(currentID.load());
                 
                 analysis->add(ptr);
             }
@@ -1479,19 +1487,19 @@ int main(int argc, char** argv)
                                     for(auto frame : fish->manually_matched()) {
                                         auto blob = fish->blob(frame);
                                         if(blob) {
-                                            if(manual_matches[frame].find(id) != manual_matches[frame].end()
-                                               && manual_matches[frame][id] != blob->blob_id())
+                                            if(manual_matches[frame.get()].find(id) != manual_matches[frame.get()].end()
+                                               && manual_matches[frame.get()][id] != blob->blob_id())
                                             {
-                                                Debug("Other blob (%d != %d) was assigned fish %d in frame %d", manual_matches[frame][id], blob->blob_id(), id, frame);
+                                                Debug("Other blob (%d != %d) was assigned fish %d in frame %d", manual_matches[frame.get()][id], blob->blob_id(), id, frame);
                                             }
-                                            for(auto && [fdx, bdx] : manual_matches[frame]) {
+                                            for(auto && [fdx, bdx] : manual_matches[frame.get()]) {
                                                 if(fdx != id && bdx == blob->blob_id()) {
                                                     Debug("Other fish (%d != %d) was assigned blob %d in frame %d", fdx, id, bdx, frame);
                                                     break;
                                                 }
                                             }
                                             
-                                            manual_matches[frame][id] = blob->blob_id();
+                                            manual_matches[frame.get()][id] = blob->blob_id();
                                         }
                                     }
                                 }
@@ -1562,7 +1570,7 @@ int main(int argc, char** argv)
                         gui.training_data_dialog(GUI::GUIType::TEXT, utils::endsWith(command, " load"));
                         
                     } else if(utils::beginsWith(command, "reanalyse")) {
-                        GUI::reanalyse_from(0, false);
+                        GUI::reanalyse_from(0_f, false);
                         SETTING(analysis_paused) = false;
                         /*{
                             Tracker::LockGuard guard;

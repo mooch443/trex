@@ -53,13 +53,13 @@ namespace track {
     }
     
     Tracker* _instance = NULL;
-    std::vector<Rangel> _global_segment_order;
+    std::vector<Range<Frame_t>> _global_segment_order;
 
     Tracker* Tracker::instance() {
         return _instance;
     }
     
-    inline void analyse_posture_pack(long_t frameIndex, const std::vector<std::tuple<Individual*, std::shared_ptr<Individual::BasicStuff>>>& p) {
+    inline void analyse_posture_pack(Frame_t frameIndex, const std::vector<std::tuple<Individual*, std::shared_ptr<Individual::BasicStuff>>>& p) {
         Timer t;
         double collected = 0;
         for(auto && [f, b] : p) {
@@ -73,9 +73,9 @@ namespace track {
     }
     
     //std::map<long_t, std::map<uint32_t, long_t>> automatically_assigned_blobs;
-    std::map<Idx_t, std::map<Rangel, std::vector<pv::bid>>> automatically_assigned_ranges;
+    std::map<Idx_t, std::map<Range<Frame_t>, std::vector<pv::bid>>> automatically_assigned_ranges;
     
-    std::map<Idx_t, pv::bid> Tracker::automatically_assigned(long_t frame) {
+    std::map<Idx_t, pv::bid> Tracker::automatically_assigned(Frame_t frame) {
         //LockGuard guard;
         std::map<Idx_t, pv::bid> blob_for_fish;
         
@@ -85,7 +85,7 @@ namespace track {
             for(auto && [range, blob_ids] : bff) {
                 if(range.contains(frame)) {
                     assert(frame >= range.start && range.end >= frame);
-                    blob_for_fish[fdx] = blob_ids.at(sign_cast<size_t>(frame - range.start));
+                    blob_for_fish[fdx] = blob_ids.at(sign_cast<size_t>((frame - range.start).get()));
                     break;
                 }
             }
@@ -166,8 +166,8 @@ Tracker::LockGuard::LockGuard(std::string purpose, uint32_t timeout_ms) : _purpo
 static CacheHints _properties_cache;
 static std::shared_mutex _properties_mutex;
 
-const FrameProperties* Tracker::properties(long_t frameIndex, const CacheHints* hints) {
-    if(frameIndex < 0)
+const FrameProperties* Tracker::properties(Frame_t frameIndex, const CacheHints* hints) {
+    if(!frameIndex.valid())
         return nullptr;
     
     if(hints) {
@@ -190,10 +190,10 @@ const FrameProperties* Tracker::properties(long_t frameIndex, const CacheHints* 
     return it != frames.end() ? &(*it) : nullptr;
 }
 
-decltype(Tracker::_added_frames)::const_iterator Tracker::properties_iterator(long_t frameIndex) {
+decltype(Tracker::_added_frames)::const_iterator Tracker::properties_iterator(Frame_t frameIndex) {
     auto &frames = instance()->frames();
     
-    auto it = std::upper_bound(frames.begin(), frames.end(), frameIndex, [](long_t frame, const FrameProperties& prop) -> bool {
+    auto it = std::upper_bound(frames.begin(), frames.end(), frameIndex, [](Frame_t frame, const FrameProperties& prop) -> bool {
         return frame < prop.frame;
     });
     
@@ -225,7 +225,7 @@ decltype(Tracker::_added_frames)::const_iterator Tracker::properties_iterator(lo
             return;
         }
         
-        std::set<Rangel> ranges_to_remove;
+        std::set<Range<Frame_t>> ranges_to_remove;
         for(auto && [range, blob_ids] : it->second) {
             if(frame_range.overlaps(range)) {
                 ranges_to_remove.insert(range);
@@ -258,7 +258,6 @@ void Tracker::analysis_state(AnalysisState pause) {
             _midline_errors_frame(0), _overall_midline_errors(0),
             _max_individuals(0),
             _background(NULL), _recognition(NULL),
-            _approximative_enabled_in_frame(std::numeric_limits<long_t>::lowest()),
             _inactive_individuals([this](Idx_t A, Idx_t B){
                 auto it = _individuals.find(A);
                 assert(it != _individuals.end());
@@ -417,7 +416,7 @@ void Tracker::analysis_state(AnalysisState pause) {
         PythonIntegration::quit();
     }
 
-    long_t Tracker::update_with_manual_matches(const Settings::manual_matches_t& manual_matches) {
+    Frame_t Tracker::update_with_manual_matches(const Settings::manual_matches_t& manual_matches) {
         LockGuard guard("update_with_manual_matches");
         
         static std::atomic_bool first_run(true);
@@ -427,7 +426,7 @@ void Tracker::analysis_state(AnalysisState pause) {
             //auto str = Meta::toStr(compare);
             //SETTING(manual_matches) = manual_matches;
             //Debug("Manual matches have been updated %S.", &str);
-            return -1;
+            return {};
             
         } else {
             auto str0 = Meta::toStr(compare), str1 = Meta::toStr(manual_matches);
@@ -436,12 +435,12 @@ void Tracker::analysis_state(AnalysisState pause) {
             auto next = copy;
             
             // iterate over old to find frames that are not in the current version
-            long_t first_change = -1;
+            Frame_t first_change;
             
             auto itn = compare.begin(), ito = copy.begin();
             for (; itn != compare.end() && ito != copy.end(); ++itn, ++ito) {
                 if(itn->first != ito->first || itn->second != ito->second) {
-                    first_change = min(itn->first, ito->first);
+                    first_change = Frame_t(min(itn->first, ito->first));
                     break;
                 }
             }
@@ -449,13 +448,13 @@ void Tracker::analysis_state(AnalysisState pause) {
             // if one of the iterators reached the end, but the other one didnt
             if((itn == compare.end()) ^ (ito == copy.end())) {
                 if(itn == compare.end())
-                    first_change = ito->first;
+                    first_change = Frame_t(ito->first);
                 else
-                    first_change = itn->first;
+                    first_change = Frame_t(itn->first);
             }
             
             //Debug("First changed frame is %d", first_change);
-            if(first_change != -1 && first_change <= Tracker::end_frame()) {
+            if(first_change.valid() && first_change <= Tracker::end_frame()) {
                 //bool analysis_paused = SETTING(analysis_paused);
                 GUI::reanalyse_from(first_change, true);
                 //if(!analysis_paused)
@@ -472,7 +471,7 @@ void Tracker::analysis_state(AnalysisState pause) {
         }
     }
 
-bool operator<(long_t frame, const FrameProperties& props) {
+bool operator<(Frame_t frame, const FrameProperties& props) {
     return frame < props.frame;
 }
 
@@ -503,7 +502,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
         Timer overall_timer;
         LockGuard guard("Tracker::add(PPFrame)");
         
-        assert(frame.index() != -1);
+        assert(frame.index().valid());
         
         if (contains_sorted(_added_frames, frame.index())) {
             Warning("Frame %d already in tracker.", frame.index());
@@ -514,13 +513,13 @@ bool operator<(long_t frame, const FrameProperties& props) {
             Warning("frame timestamp is bigger than INT64_MAX! (%f time)", time);
         }
         
-        auto props = properties(frame.index() - 1);
+        auto props = properties(frame.index() - 1_f);
         if(props && frame.frame().timestamp() < props->org_timestamp) {
             Error("Cannot add frame with timestamp smaller than previous timestamp. Frames have to be in order. Skipping.");
             return;
         }
         
-        if(start_frame().valid() && frame.index() < end_frame() + 1)
+        if(start_frame().valid() && frame.index() < end_frame() + 1_f)
             throw new UtilsException("Cannot add intermediate frames out of order.");
         
         history_split(frame, _active_individuals, history_log != nullptr && history_log->is_open() ? history_log.get() : nullptr, &_thread_pool);
@@ -633,7 +632,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
         
         frame.time = time;
         frame.timestamp = frame.frame().timestamp();
-        frame.set_index(frame.frame().index());
+        frame.set_index(Frame_t(frame.frame().index()));
         //assert(frame.index() == frame.frame().index());
         frame.init_from_blobs(std::move(frame.frame().get_blobs()));
         
@@ -797,7 +796,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
         for(auto &blob : filtered)
             blob->calculate_moments();
         
-        if (result->frame_index == Tracker::start_frame() || Tracker::start_frame() == -1)
+        if (result->frame_index == Tracker::start_frame() || !Tracker::start_frame().valid())
             big_blobs = Tracker::instance()->split_big(
                     BlobReceiver(*result, BlobReceiver::noise),
                     big_blobs,
@@ -1024,7 +1023,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
         //ProximityGrid proximity(resolution);
         {
             Tracker::LockGuard guard("history_split#1");
-            auto props = properties(frame.index() - 1);
+            auto props = properties(frame.index() - 1_f);
             tdelta = props ? (frame.time - props->time) : 0;
         }
         const float max_d = FAST_SETTINGS(track_max_speed) * tdelta / FAST_SETTINGS(cm_per_pixel) * 0.5;
@@ -1070,19 +1069,19 @@ bool operator<(long_t frame, const FrameProperties& props) {
                     auto &cache = frame.individual_cache()[i];
 					
                     Vec2 last_pos(-1,-1);
-                    auto last_frame = -1;
+                    Frame_t last_frame;
                     long_t last_L = -1;
                     float time_limit;
 
                     // IndividualCache is in the same position as the indexes here
                     //auto& obj = frame.cached_individuals.at(fish->identity().ID());
                     cache = fish->cache_for_frame(frame.index(), frame.time);
-                    time_limit = cache.previous_frame - frame_limit;
+                    time_limit = cache.previous_frame.get() - frame_limit;
                         
                     size_t counter = 0;
                     auto sit = fish->iterator_for(cache.previous_frame);
                     if (sit != fish->frame_segments().end() && (*sit)->contains(cache.previous_frame)) {
-                        for (; sit != fish->frame_segments().end() && min((*sit)->end(), cache.previous_frame) >= time_limit && counter < frame_limit; ++counter)
+                        for (; sit != fish->frame_segments().end() && min((*sit)->end(), cache.previous_frame).get() >= time_limit && counter < frame_limit; ++counter)
                         {
                             auto pos = fish->basic_stuff().at((*sit)->basic_stuff((*sit)->end()))->centroid->pos(Units::DEFAULT);
 
@@ -1091,7 +1090,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
                                 //! segment is long enough, we can stop. but only actually use it if its not too far away:
                                 if (last_pos.x == -1 || euclidean_distance(pos, last_pos) < space_limit) {
                                     last_frame = min((*sit)->end(), cache.previous_frame);
-                                    last_L = last_frame - (*sit)->start();
+                                    last_L = (last_frame - (*sit)->start()).get();
                                 }
                                 break;
                             }
@@ -1105,7 +1104,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
                         }
                     }
                     
-                    if(last_frame < time_limit) {
+                    if(last_frame.get() < time_limit) {
                         Log(out, "\tNot processing fish %d because its last respected frame is %d, best segment length is %d and were in frame %d.", fish->identity().ID(), last_frame, last_L, frame.index());
                         continue;
                     }
@@ -1177,7 +1176,7 @@ bool operator<(long_t frame, const FrameProperties& props) {
         std::map<pv::BlobPtr, split_expectation> expect;
         
         auto manual_splits = FAST_SETTINGS(manual_splits);
-        auto manual_splits_frame = manual_splits.empty() || manual_splits.count(frame.index()) == 0 ? decltype(manual_splits)::mapped_type() : manual_splits.at(frame.index());
+        auto manual_splits_frame = (manual_splits.empty() || manual_splits.count(frame.index().get()) == 0) ? decltype(manual_splits)::mapped_type() : manual_splits.at(frame.index().get());
         std::string manualstr = out ? Meta::toStr(manual_splits) : "";
         Log(out, "manual_splits = %S", &manualstr);
         
@@ -1481,14 +1480,14 @@ const FrameProperties* Tracker::add_next_frame(const FrameProperties & props) {
         std::unique_lock guard(_properties_mutex);
         _properties_cache.clear();
         
-        long_t frame = end_frame();
+        Frame_t frame = end_frame();
         auto it = frames.rbegin();
         while(it != frames.rend() && !_properties_cache.full())
         {
             _properties_cache.push_front(it->frame, &(*it));
             ++it;
         }
-        assert((frames.empty() && end_frame() == -1) || (end_frame() != -1 && frames.rbegin()->frame == end_frame()));
+        assert((frames.empty() && !end_frame().valid()) || (end_frame().valid() && frames.rbegin()->frame == end_frame()));
         
     } else {
         std::unique_lock guard(_properties_mutex);
@@ -1647,21 +1646,18 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
     return paired_blobs;
 }
 
-    void Tracker::add(long_t frameIndex, PPFrame& frame) {
+    void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
         static const unsigned concurrentThreadsSupported = cmn::hardware_concurrency();
         double time = frame.frame().timestamp() / double(1000*1000);
         
-        if(start_frame().valid() && end_frame() < start_frame()) {
-            Error("end frame is %d < %d", end_frame(), start_frame());
-            _endFrame = start_frame();
-        }
-        
         if (!start_frame().valid() || start_frame() > frameIndex) {
-            _startFrame = Frame_t(frameIndex);
+            _startFrame = frameIndex;
         }
         
         if (!end_frame().valid() || end_frame() < frameIndex) {
-            _endFrame = Frame_t(frameIndex);
+            if(end_frame().valid() && end_frame() < start_frame())
+               Error("end frame is %d < %d", end_frame(), start_frame());
+            _endFrame = frameIndex;
         }
         
         auto props = add_next_frame(FrameProperties(frame.index(), time, frame.frame().timestamp()));
@@ -1670,7 +1666,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             auto it = --_added_frames.end();
             if(it != _added_frames.begin()) {
                 --it;
-                if(it->frame == frame.index() - 1)
+                if(it->frame == frame.index() - 1_f)
                     prev_props = &(*it);
             }
         }
@@ -1714,7 +1710,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                                         ,&pairs
 #endif
         ]
-            (size_t frameIndex, const PPFrame& frame, Individual* fish, const pv::BlobPtr& blob, default_config::matching_mode_t::Class match_mode)
+            (Frame_t frameIndex, const PPFrame& frame, Individual* fish, const pv::BlobPtr& blob, default_config::matching_mode_t::Class match_mode)
         {
             // transfer ownership of blob to individual
             // delete the copied objects from the original array.
@@ -1821,7 +1817,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         Settings::manual_matches_t::mapped_type current_fixed_matches;
         {
             auto manual_matches = Settings::get<Settings::manual_matches>();
-            auto it = manual_matches->find(frameIndex);
+            auto it = manual_matches->find(frameIndex.get());
             if (it != manual_matches->end())
                 current_fixed_matches = it->second;
         }
@@ -2202,8 +2198,8 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         
         
         using namespace default_config;
-        const long_t approximation_delay_time = max(1, FAST_SETTINGS(frame_rate) * 0.25);
-        bool frame_uses_approximate = (_approximative_enabled_in_frame >= 0 && frameIndex - _approximative_enabled_in_frame < approximation_delay_time);
+        const Frame_t approximation_delay_time = Frame_t(max(1, FAST_SETTINGS(frame_rate) * 0.25));
+        bool frame_uses_approximate = (_approximative_enabled_in_frame.valid() && frameIndex - _approximative_enabled_in_frame < approximation_delay_time);
         
         auto match_mode = frame_uses_approximate
                 ? default_config::matching_mode_t::hungarian
@@ -2433,7 +2429,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                                           , &pairs
 #endif
                                           ]
-                                         (const Clique& clique, long_t frameIndex)
+                                         (const Clique& clique, Frame_t frameIndex)
                     {
                         using namespace Match;
                         Match::PairedProbabilities paired;
@@ -2699,7 +2695,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 
                 _approximative_enabled_in_frame = frameIndex;
                 
-                FOI::add(FOI(Rangel(frameIndex, frameIndex + approximation_delay_time - 1), "apprx matching"));
+                FOI::add(FOI(Range<Frame_t>(frameIndex, frameIndex + approximation_delay_time - 1_f), "apprx matching"));
             }
         }
         
@@ -2906,7 +2902,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     if(basic && basic->frame == frameIndex) {
                         Warning("Fish %d not in any of the arrays, but has frame %d.", fdx, frameIndex);
                     } else
-                        Warning("Fish %d is gone (%d)", fdx, basic ? basic->frame : -1);
+                        Warning("Fish %d is gone (%d)", fdx, basic ? basic->frame : -1_f);
                 } else if(lost_ids.find(fdx) != lost_ids.end()) {
                     lost_ids.erase(fdx);
                     Warning("Fish %d found again in frame %d.", fdx, frameIndex);
@@ -3007,7 +3003,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 
                 if(fish->end_frame() == frameIndex)
                     ++n;
-                if(fish->has(frameIndex-1))
+                if(fish->has(frameIndex - 1_f))
                     ++prev;
             }
             
@@ -3020,7 +3016,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     
                     if(fish->end_frame() == frameIndex)
                         ++n;
-                    if(fish->has(frameIndex-1))
+                    if(fish->has(frameIndex - 1_f))
                         ++prev;
                 }
             }
@@ -3033,7 +3029,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         _statistics[frameIndex].posture_seconds = posture_seconds;
     }
 
-void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individuals_t& active_individuals, std::unordered_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators)
+void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individuals_t& active_individuals, std::unordered_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators)
 {
     for(auto fish : active_individuals) {
         auto fit = individual_iterators.find(fish->identity().ID());
@@ -3068,7 +3064,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
     }
 }
             
-    void Tracker::update_warnings(long_t frameIndex, double time, long_t /*number_fish*/, long_t n_found, long_t n_prev, const FrameProperties *props, const FrameProperties *prev_props, const Tracker::set_of_individuals_t& active_individuals, std::unordered_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators) {
+    void Tracker::update_warnings(Frame_t frameIndex, double time, long_t /*number_fish*/, long_t n_found, long_t n_prev, const FrameProperties *props, const FrameProperties *prev_props, const Tracker::set_of_individuals_t& active_individuals, std::unordered_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators) {
         std::map<std::string, std::set<FOI::fdx_t>> merge;
         
         if(n_found < n_prev-1) {
@@ -3093,7 +3089,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
             merge["correcting"].insert(found_matches.begin(), found_matches.end());
         }
         
-        update_iterator_maps(frameIndex - 1, active_individuals, individual_iterators);
+        update_iterator_maps(frameIndex - 1_f, active_individuals, individual_iterators);
         for(auto &fish : active_individuals) {
             if(_warn_individual_status.size() <= (size_t)fish->identity().ID()) {
                 _warn_individual_status.resize(fish->identity().ID() + 1);
@@ -3108,9 +3104,9 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
             }
             
             auto &it = fit->second;
-            if(it != fish->frame_segments().end() && (*it)->contains(frameIndex - 1)) {
+            if(it != fish->frame_segments().end() && (*it)->contains(frameIndex - 1_f)) {
                 // prev
-                auto idx = (*it)->basic_stuff(frameIndex - 1);
+                auto idx = (*it)->basic_stuff(frameIndex - 1_f);
                 property.prev = idx != -1 ? fish->basic_stuff()[uint32_t(idx)]->centroid : nullptr;
                 
                 // current
@@ -3124,20 +3120,20 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
 #ifndef NDEBUG
         for(auto &fish : active_individuals) {
             if(_warn_individual_status.size() <= fish->identity().ID()) {
-                assert(!fish->has(frameIndex-1));
+                assert(!fish->has(frameIndex - 1_f));
                 continue;
             }
             
             auto &property = _warn_individual_status.at(fish->identity().ID());
             if(property.prev == nullptr) {
-                assert(!fish->has(frameIndex-1));
+                assert(!fish->has(frameIndex - 1_f));
             } else {
-                assert((property.prev != nullptr) == fish->has(frameIndex-1));
+                assert((property.prev != nullptr) == fish->has(frameIndex - 1_f));
                 if(property.prev != nullptr) {
                     if(property.current == nullptr) {
-                        assert(fish->segment_for(frameIndex-1) != fish->segment_for(frameIndex));
+                        assert(fish->segment_for(frameIndex - 1_f) != fish->segment_for(frameIndex));
                     } else
-                        assert(fish->segment_for(frameIndex-1) == fish->segment_for(frameIndex));
+                        assert(fish->segment_for(frameIndex - 1_f) == fish->segment_for(frameIndex));
                 } else
                     assert(property.current == nullptr);
             }
@@ -3160,7 +3156,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                 if(properties && properties->prev && properties->current) {
                     // only if both current and prev are set, do we have
                     // both frameIndex-1 and frameIndex present in the same segment:
-                    assert(fish->has(frameIndex-1) && fish->has(frameIndex));
+                    assert(fish->has(frameIndex - 1_f) && fish->has(frameIndex));
                     if(cmn::abs(angle_difference(properties->prev->angle(), properties->current->angle())) >= M_PI * 0.8)
                     {
                         weird_angle.insert(FOI::fdx_t{fish->identity().ID()});
@@ -3170,7 +3166,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                     segment_end.insert(FOI::fdx_t{fish->identity().ID()});
                     
                     if(!fish->has(frameIndex)) {
-                        assert(fish->has(frameIndex-1) && !fish->has(frameIndex));
+                        assert(fish->has(frameIndex - 1_f) && !fish->has(frameIndex));
                         fdx.insert(FOI::fdx_t{fish->identity().ID()});
                     }
                     
@@ -3180,11 +3176,11 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
             
 #ifndef NDEBUG
             for(auto id : segment_end) {
-                assert(individuals().at(Idx_t(id.id))->segment_for(frameIndex) != individuals().at(Idx_t(id.id))->segment_for(frameIndex-1));
+                assert(individuals().at(Idx_t(id.id))->segment_for(frameIndex) != individuals().at(Idx_t(id.id))->segment_for(frameIndex - 1_f));
             }
             for(auto id : fdx) {
                 assert(!individuals().at(Idx_t(id.id))->has(frameIndex));
-                assert(frameIndex != start_frame() && _individuals.at(Idx_t(id.id))->has(frameIndex-1));
+                assert(frameIndex != start_frame() && _individuals.at(Idx_t(id.id))->has(frameIndex - 1_f));
             }
 #endif
             
@@ -3208,7 +3204,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
             if(!weird_angle.empty())
                 FOI::add(FOI(frameIndex, weird_angle, "weird angle"));
             if(!segment_end.empty())
-                FOI::add(FOI(frameIndex-1, segment_end, "segment end"));
+                FOI::add(FOI(frameIndex - 1_f, segment_end, "segment end"));
         }
         
         /*if(n_found < n_prev || frameIndex == start_frame()) {
@@ -3252,7 +3248,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
             FOI::add(FOI(frameIndex, value, key));
     }
 
-    void Tracker::update_consecutive(const Tracker::set_of_individuals_t &active, long_t frameIndex, bool update_dataset) {
+    void Tracker::update_consecutive(const Tracker::set_of_individuals_t &active, Frame_t frameIndex, bool update_dataset) {
         bool all_good = FAST_SETTINGS(track_max_individuals) == (uint32_t)active.size();
         //bool manual = false;
         /*Rangel manual_approval;
@@ -3280,7 +3276,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         }*/
         
         if(all_good) {
-            if(!_consecutive.empty() && _consecutive.back().end == frameIndex-1) {
+            if(!_consecutive.empty() && _consecutive.back().end == frameIndex - 1_f) {
                 _consecutive.back().end = frameIndex;
                 if(frameIndex == analysis_range().end)
                     _recognition->update_dataset_quality();
@@ -3289,14 +3285,14 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                     FOI::add(FOI(_consecutive.back(), "global segment"));
                 }
                 
-                _consecutive.push_back(Range<long_t>(frameIndex, frameIndex));
+                _consecutive.push_back(Range<Frame_t>(frameIndex, frameIndex));
                 if(update_dataset)
                     _recognition->update_dataset_quality();
             }
         }
     }
 
-    void Tracker::generate_pairdistances(long_t frameIndex) {
+    void Tracker::generate_pairdistances(Frame_t frameIndex) {
         std::vector<Individual*> frame_individuals;
         for (auto fish : _active_individuals) {
             if (fish->centroid(frameIndex)) {
@@ -3326,7 +3322,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         //std::copy(distances.begin(), distances.end(), std::back_inserter(properties(frameIndex)->_pair_distances));
     }
     
-    void Tracker::_remove_frames(long_t frameIndex) {
+    void Tracker::_remove_frames(Frame_t frameIndex) {
         Categorize::DataStore::reanalysed_from(Frame_t(frameIndex));
         
         LockGuard guard("_remove_frames("+Meta::toStr(frameIndex)+")");
@@ -3337,7 +3333,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         _segment_map_known_capacity.clear();
         
         if(_approximative_enabled_in_frame >= frameIndex)
-            _approximative_enabled_in_frame = -1;
+            _approximative_enabled_in_frame.invalidate();
         
         Debug("Removing frames after and including %ld", frameIndex);
         
@@ -3360,7 +3356,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
             Debug("Last remaining %d", _consecutive.size());
             if(!_consecutive.empty()) {
                 if(_consecutive.back().end >= frameIndex)
-                    _consecutive.back().end = frameIndex-1;
+                    _consecutive.back().end = frameIndex - 1_f;
                 Debug("%d-%d", _consecutive.back().start, _consecutive.back().end);
             }
         }
@@ -3402,14 +3398,14 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                 it = _statistics.erase(it);
         }
         
-        _endFrame = Frame_t(frameIndex-1);
+        _endFrame = frameIndex - 1_f;
         while (!properties(end_frame())) {
             if (end_frame() < start_frame()) {
                 _endFrame = _startFrame = Frame_t();
                 break;
             }
             
-            _endFrame = Frame_t(end_frame() - 1);
+            _endFrame = end_frame() - 1_f;
         }
         
         if(end_frame().valid() && end_frame() < analysis_range().start)
@@ -3451,14 +3447,14 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
             std::unique_lock guard(_properties_mutex);
             _properties_cache.clear();
             
-            long_t frame = end_frame();
+            Frame_t frame = end_frame();
             auto it = _added_frames.rbegin();
             while(it != _added_frames.rend() && !_properties_cache.full())
             {
                 _properties_cache.push_front(it->frame, &(*it));
                 ++it;
             }
-            assert((_added_frames.empty() && end_frame() == -1) || (end_frame() != -1 && _added_frames.rbegin()->frame == end_frame()));
+            assert((_added_frames.empty() && !end_frame().valid()) || (end_frame().valid() && _added_frames.rbegin()->frame == end_frame()));
         }
         
         FOI::remove_frames(frameIndex);
@@ -3476,7 +3472,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         Debug("Range: %d-%d", start_frame(), end_frame());
     }
 
-    size_t Tracker::found_individuals_frame(size_t frameIndex) const {
+    size_t Tracker::found_individuals_frame(Frame_t frameIndex) const {
         if(!properties(frameIndex))
             return 0;
         
@@ -3498,15 +3494,15 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         _global_segment_order.clear();
     }
     
-    std::vector<Rangel> Tracker::global_segment_order() {
+    std::vector<Range<Frame_t>> Tracker::global_segment_order() {
         LockGuard guard("Tracker::max_range()");
         if(_global_segment_order.empty()) {
-            std::set<Rangel> manuals;
+            std::set<Range<Frame_t>> manuals;
             auto manually_approved = FAST_SETTINGS(manually_approved);
             for(auto && [from, to] : manually_approved)
-                manuals.insert(Rangel(from, to));
+                manuals.insert(Range<Frame_t>(Frame_t(from), Frame_t(to)));
             
-            std::set<Rangel, std::function<bool(Rangel, Rangel)>> ordered([&manuals](Rangel A, Rangel B) -> bool {
+            std::set<Range<Frame_t>, std::function<bool(Range<Frame_t>, Range<Frame_t>)>> ordered([&manuals](Range<Frame_t> A, Range<Frame_t> B) -> bool {
                 if(manuals.find(A) != manuals.end() && manuals.find(B) == manuals.end())
                     return true;
                 if(manuals.find(B) != manuals.end() && manuals.find(A) == manuals.end())
@@ -3518,11 +3514,11 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                 auto str = Meta::toStr(manually_approved);
                 //Debug("Inserting %S", &str);
                 for(auto && [from, to] : manually_approved) {
-                    ordered.insert(Rangel(from, to));
+                    ordered.insert(Range<Frame_t>(Frame_t(from), Frame_t(to)));
                 }
             }
             
-            std::set<Rangel> consecutive;
+            std::set<Range<Frame_t>> consecutive;
             for(auto &range : instance()->consecutive())
                 consecutive.insert(range);
             
@@ -3539,14 +3535,14 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                     ordered.insert(range);
             }
             
-            _global_segment_order = std::vector<Rangel>(ordered.begin(), ordered.end());
+            _global_segment_order = std::vector<Range<Frame_t>>(ordered.begin(), ordered.end());
         }
         
         return _global_segment_order;
     }
     
     struct IndividualImages {
-        std::vector<long_t> frames;
+        std::vector<Frame_t> frames;
         std::vector<Image::Ptr> images;
     };
     
@@ -3560,14 +3556,14 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         
     public:
         SplitData();
-        void add_frame(long_t frame, long_t id, Image::Ptr image);
+        void add_frame(Frame_t frame, long_t id, Image::Ptr image);
     };
     
     SplitData::SplitData() : _normalized(SETTING(recognition_normalize_direction).value<default_config::recognition_normalization_t::Class>()) {
         
     }
     
-    void SplitData::add_frame(long_t frame, long_t id, Image::Ptr image) {
+    void SplitData::add_frame(Frame_t frame, long_t id, Image::Ptr image) {
         assert(image);
         
         if(training.size() <= validation.size() * 1.25) {
@@ -3602,7 +3598,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         recognition_pool.wait();
         auto fid = FOI::to_id("split_up");
         if(fid != -1)
-            FOI::remove_frames(0, fid);
+            FOI::remove_frames(Frame_t(0), fid);
         
         for(auto && [fdx, fish] : _individuals) {
             fish->clear_recognition();
@@ -3611,7 +3607,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         automatically_assigned_ranges.clear();
     }
     
-    void Tracker::check_segments_identities(bool auto_correct, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue, long_t after_frame) {
+    void Tracker::check_segments_identities(bool auto_correct, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue, Frame_t after_frame) {
         
         Debug("Waiting for gui...");
         if(GUI::instance()) {
@@ -3621,7 +3617,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         
         Debug("Waiting for lock...");
         LockGuard guard("check_segments_identities");
-        Debug("Updating automatic ranges starting from %d", after_frame == -1 ? 0 : after_frame);
+        Debug("Updating automatic ranges starting from %d", !after_frame.valid() ? Frame_t(0) : after_frame);
         
         const auto manual_identities = FAST_SETTINGS(manual_identities);
         size_t count=0;
@@ -3629,7 +3625,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
         recognition_pool.wait();
         auto fid = FOI::to_id("split_up");
         if(fid != -1)
-            FOI::remove_frames(after_frame != -1 ? 0 : after_frame, fid);
+            FOI::remove_frames(after_frame.valid() ? Frame_t(0) : after_frame, fid);
         
 #ifdef TREX_DEBUG_IDENTITIES
         auto f = fopen(pv::DataLocation::parse("output", "identities.log").c_str(), "wb");
@@ -3655,15 +3651,15 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
             std::set<range_t> segments;
             std::map<range_t, Match::prob_t> probs;
             std::map<range_t, size_t> samples;
-            std::map<Rangel, Idx_t> track_ids;
+            std::map<Range<Frame_t>, Idx_t> track_ids;
         };
         
-        std::map<long_t, std::map<Idx_t, pv::bid>> automatic_matches;
+        std::map<Frame_t, std::map<Idx_t, pv::bid>> automatic_matches;
         std::map<fdx_t, VirtualFish> virtual_fish;
         
         // wrong fish -> set of unassigned ranges
-        std::map<fdx_t, std::set<Rangel>> unassigned_ranges;
-        std::map<fdx_t, std::map<Rangel, fdx_t>> assigned_ranges;
+        std::map<fdx_t, std::set<Range<Frame_t>>> unassigned_ranges;
+        std::map<fdx_t, std::map<Range<Frame_t>, fdx_t>> assigned_ranges;
         
         decltype(automatically_assigned_ranges) tmp_assigned_ranges;
         //automatically_assigned_ranges.clear();
@@ -3693,7 +3689,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                 for(auto && [start, segment] : fish->recognition_segments()) {
                     auto && [n, average] = fish->processed_recognition(start);
                     
-                    if(after_frame != -1 && segment.range.end < after_frame)
+                    if(after_frame.valid() && segment.range.end < after_frame)
                         continue;
                     
                     if(n >= n_lower_bound || (segment.start() == fish->start_frame() && n > 0)) {
@@ -3819,7 +3815,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                 
                 auto track = _individuals.at(fish.track_ids.at(segment.range));
                 
-                if(segment.first_usable != -1 && segment.first_usable != segment.start()) {
+                if(segment.first_usable.valid() && segment.first_usable != segment.start()) {
                     auto blob = track->compressed_blob(segment.first_usable);
                     if(blob)
                         automatic_matches[segment.first_usable][fdx] = blob->blob_id();
@@ -3831,12 +3827,12 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                 if(blob) {
                     automatic_matches[segment.start()][fdx] = blob->blob_id();
                     if(blob->split() && blob->parent_id.valid())
-                        manual_splits[segment.start()].insert(blob->parent_id);
+                        manual_splits[segment.start().get()].insert(blob->parent_id);
                 }
             }
             
             for(auto segment : fish.segments) {
-                if(after_frame != -1 && segment.range.end < after_frame)
+                if(after_frame.valid() && segment.range.end < after_frame)
                     continue;
                 
                 if(!fish.probs.count(segment))
@@ -3855,10 +3851,10 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                 
                 auto blob = track->compressed_blob(segment.start());
                 if(blob && blob->split() && blob->parent_id.valid())
-                    manual_splits[segment.start()].insert(blob->parent_id);
+                    manual_splits[segment.start().get()].insert(blob->parent_id);
                 
                 std::vector<pv::bid> blob_ids;
-                for(long_t frame=segment.start(); frame<=segment.end(); ++frame) {
+                for(Frame_t frame=segment.start(); frame<=segment.end(); ++frame) {
                     blob = track->compressed_blob(frame);
                     if(blob) {
                         //automatically_assigned_blobs[frame][blob->blob_id()] = fdx;
@@ -3868,7 +3864,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                     } else
                         blob_ids.push_back(pv::bid::invalid);
                     
-                    std::set<Rangel> remove_from;
+                    std::set<Range<Frame_t>> remove_from;
                     for(auto && [range, blobs] : tmp_assigned_ranges[fdx]) {
                         if(range != segment.range && range.contains(frame)) {
                             //if(!blob || contains(blobs, blob->blob_id())) {
@@ -3895,7 +3891,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                     }
                 }
                 
-                assert((long_t)blob_ids.size() == segment.range.end - segment.range.start + 1);
+                assert(Frame_t(blob_ids.size()) == segment.range.end - segment.range.start + 1_f);
                 tmp_assigned_ranges[fdx][segment.range] = blob_ids;
             }
         }
@@ -3913,7 +3909,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                      next = fish->recognition_segments().end();
                 
                 const auto current = fish->recognition_segments().find(start);
-                if(after_frame != -1 && segment.range.end < after_frame)
+                if(after_frame.valid() && segment.range.end < after_frame)
                     continue;
                 //if(start == 741 && fish->identity().ID() == 1)
                 //    Debug("Here");
@@ -3932,15 +3928,15 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                     continue; // already assigned this frame segment to someone...
                 }
                 
-                if(next != fish->recognition_segments().end() && /*previous.start() != -1 &&*/ next->second.start() != -1) {
+                if(next != fish->recognition_segments().end() && /*previous.start() != -1 &&*/ next->second.start().valid()) {
                     Idx_t prev_id, next_id;
                     PhysicalProperties *prev_pos = nullptr, *next_pos = nullptr;
-                    int64_t prev_blob_frame = -1;
+                    Frame_t prev_blob_frame;
                     
                     auto it = assigned_ranges.find(fdx);
                     if(it != assigned_ranges.end()) {
                         decltype(it->second.begin()) rit;
-                        const long_t max_frames = FAST_SETTINGS(frame_rate)*15;
+                        const Frame_t max_frames{ FAST_SETTINGS(frame_rate)*15 };
                         
                         // skip some frame segments to find the next assigned id
                         do {
@@ -4019,11 +4015,11 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                                 }
 #endif
                                 
-                                if(prev_blob_frame != -1 && prev_id.valid()) {
+                                if(prev_blob_frame.valid() && prev_id.valid()) {
                                     // we found the previous blob/segment quickly:
                                     auto range = _individuals.at(prev_id)->get_segment_safe(prev_blob_frame);
                                     if(!range.empty()) {
-                                        long_t frame = range.end();
+                                        Frame_t frame = range.end();
                                         while(frame >= range.start()) {
                                             auto blob = _individuals.at(prev_id)->compressed_blob(frame);
                                             if(blob->split()) {
@@ -4054,10 +4050,10 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                                         it->second.erase(to_erase);
                                 }*/
                                 
-                                std::set<Rangel> remove_from;
+                                std::set<Range<Frame_t>> remove_from;
                                 
                                 std::vector<pv::bid> blob_ids;
-                                for(long_t frame=segment.start(); frame<=segment.end(); ++frame) {
+                                for(Frame_t frame=segment.start(); frame<=segment.end(); ++frame) {
                                     auto blob = fish->compressed_blob(frame);
                                     
                                     if(blob) {
@@ -4084,12 +4080,12 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                                     auto str = Meta::toStr(remove_from);
                                     Warning("[ignore] While assigning %d-%d to %d -> same fish already assigned in ranges %S", segment.range.start, segment.range.end, (uint32_t)chosen_id, &str);
                                 } else {
-                                    assert((int64_t)blob_ids.size() == segment.range.end - segment.range.start + 1);
+                                    assert((int64_t)blob_ids.size() == (segment.range.end - segment.range.start + 1_f).get());
                                     tmp_assigned_ranges[chosen_id][segment.range] = blob_ids;
                                     
                                     auto blob = fish->blob(segment.start());
                                     if(blob && blob->split() && blob->parent_id().valid())
-                                        manual_splits[segment.start()].insert(blob->parent_id());
+                                        manual_splits[segment.start().get()].insert(blob->parent_id());
                                     
                                     assigned_ranges[fdx][segment.range] = chosen_id;
                                 }
@@ -4115,7 +4111,7 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                 
                 {
                     Tracker::LockGuard guard("check_segments_identities::auto_correct");
-                    Tracker::instance()->_remove_frames(after_frame == -1 ? Tracker::analysis_range().start : after_frame);
+                    Tracker::instance()->_remove_frames(!after_frame.valid() ? Tracker::analysis_range().start : after_frame);
                     for(auto && [fdx, fish] : instance()->individuals()) {
                         fish->clear_recognition();
                     }
@@ -4124,9 +4120,9 @@ void Tracker::update_iterator_maps(long_t frame, const Tracker::set_of_individua
                     automatically_assigned_ranges = tmp_assigned_ranges;
                 }
                 
-                if(after_frame == -1)
+                if(!after_frame.valid())
                     SETTING(manual_matches) = automatic_matches;
-                if(after_frame == -1)
+                if(!after_frame.valid())
                     SETTING(manual_splits) = manual_splits;
                 
                 Tracker::analysis_state(Tracker::AnalysisState::UNPAUSED);
@@ -4206,7 +4202,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid pid
     return blob;
 }
 
-    void Tracker::check_save_tags(long_t frameIndex, const std::unordered_map<pv::bid, Individual*>& blob_fish_map, const std::vector<tags::blob_pixel> &tagged_fish, const std::vector<tags::blob_pixel> &noise, const file::Path & tags_path) {
+    void Tracker::check_save_tags(Frame_t frameIndex, const std::unordered_map<pv::bid, Individual*>& blob_fish_map, const std::vector<tags::blob_pixel> &tagged_fish, const std::vector<tags::blob_pixel> &noise, const file::Path & tags_path) {
         static Timing tag_timing("tags", 0.1);
         TakeTiming take(tag_timing);
         
@@ -4222,10 +4218,10 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid pid
             }
         }
         
-        if(_active_individuals_frame.find(frameIndex-1) != _active_individuals_frame.end())
+        if(_active_individuals_frame.find(frameIndex - 1_f) != _active_individuals_frame.end())
         {
-            for(auto fish : _active_individuals_frame.at(frameIndex-1)) {
-                if(fish->start_frame() < frameIndex && fish->has(frameIndex-1) && !fish->has(frameIndex))
+            for(auto fish : _active_individuals_frame.at(frameIndex - 1_f)) {
+                if(fish->start_frame() < frameIndex && fish->has(frameIndex - 1_f) && !fish->has(frameIndex))
                 {
                     // - none
                 }

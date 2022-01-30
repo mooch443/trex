@@ -22,7 +22,7 @@ namespace track {
         Vec2(-1,0)
     };
     
-    Posture::Posture(long_t frameIndex, uint32_t fishID)
+    Posture::Posture(Frame_t frameIndex, uint32_t fishID)
         : _outline_points(std::make_shared<std::vector<Vec2>>()), frameIndex(frameIndex), fishID(fishID), _outline(_outline_points, frameIndex), _normalized_midline(NULL)
     { }
 
@@ -223,7 +223,7 @@ namespace track {
         return eps;
     }
 
-    void Posture::calculate_posture(long_t frame, pv::BlobPtr blob)
+    void Posture::calculate_posture(Frame_t frame, pv::BlobPtr blob)
     {
         const int initial_threshold = FAST_SETTINGS(track_posture_threshold);
         int threshold = initial_threshold;
@@ -278,7 +278,7 @@ namespace track {
                         _outline.resample(FAST_SETTINGS(outline_resample));
                 }
                 
-                std::pair<pv::bid, long_t> gui_show_fish = SETTING(gui_show_fish);
+                std::pair<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
                 auto debug = gui_show_fish.first == blob->blob_id() && frame == gui_show_fish.second;
                 float confidence = calculate_midline(debug);
                 bool error = !_normalized_midline || (_normalized_midline->size() != FAST_SETTINGS(midline_resolution));
@@ -331,10 +331,8 @@ namespace track {
         
         timing.conclude_measure();
         
-        std::pair<pv::bid, long_t> gui_show_fish = SETTING(gui_show_fish);
+        std::pair<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
         if(gui_show_fish.first == blob->blob_id() && frame == gui_show_fish.second) {
-        
-        //if(frame == 532 && blob->blob_id() == 6357990) {
             Debug("%d %d: threshold %d", frame, blob->blob_id(), threshold);
             auto blob = thresholded_blob;
             auto && [pos, image] = blob->image();

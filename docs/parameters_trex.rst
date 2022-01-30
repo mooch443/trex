@@ -226,7 +226,7 @@ TRex parameters
 
 .. function:: build_cxx_options(string)
 
-	**default value:** " -fvisibility-inlines-hidden -fvisibility=hidden -Wno-c++98-compat-pedantic -O3 -DNDEBUG -O3 -Wno-nullability-extension"
+	**default value:** " -fvisibility-inlines-hidden -fvisibility=hidden -Wno-c++98-compat-pedantic -O3 -DNDEBUG -std=c++2a -O3 -Wno-nullability-extension"
 
 
 	The mode the application was built in.
@@ -676,7 +676,7 @@ TRex parameters
 
 
 
-.. function:: gui_frame(int)
+.. function:: gui_frame(frame)
 
 	**default value:** 0
 
@@ -731,7 +731,7 @@ TRex parameters
 
 
 
-.. function:: gui_outline_thickness(ulong)
+.. function:: gui_outline_thickness(uchar)
 
 	**default value:** 1
 
@@ -826,7 +826,7 @@ TRex parameters
 
 
 
-.. function:: gui_show_fish(pair<pv::bid,int>)
+.. function:: gui_show_fish(pair<pv::bid,frame>)
 
 	**default value:** [4294967295,-1]
 
@@ -1920,7 +1920,7 @@ TRex parameters
 
 
 
-.. function:: threshold_ratio_range(rangef)
+.. function:: threshold_ratio_range(range<float>)
 
 	**default value:** [0.5,1]
 
@@ -1976,7 +1976,7 @@ TRex parameters
 	.. seealso:: :func:`track_ignore`, 
 
 
-.. function:: track_intensity_range(rangel)
+.. function:: track_intensity_range(range<int>)
 
 	**default value:** [-1,-1]
 
@@ -2126,7 +2126,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1.6-35-gbfeb10c"
+	**default value:** "v1.1.6-64-g0ff0215"
 
 
 	Current application version.

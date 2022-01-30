@@ -89,7 +89,7 @@ std::string TrainingData::DataRange::toStr() const {
     } else {
         bool first = true;
         for(auto && [id, data] : mappings) {
-            std::set<long_t> frames(data.frame_indexes.begin(), data.frame_indexes.end());
+            std::set<Frame_t> frames(data.frame_indexes.begin(), data.frame_indexes.end());
             if(!first)
                 ss << ", ";
             else
@@ -107,8 +107,9 @@ std::string TrainingData::DataRange::toStr() const {
     return ss.str();
 }
 
-void TrainingData::add_frame(std::shared_ptr<TrainingData::DataRange> data, long_t frame_index, Idx_t id, int64_t original_id, Image::Ptr image, const Vec2 & pos, size_t px, const FrameRange& from_range)
+void TrainingData::add_frame(std::shared_ptr<TrainingData::DataRange> data, Frame_t frame_index, Idx_t id, int64_t original_id, Image::Ptr image, const Vec2 & pos, size_t px, const FrameRange& from_range)
 {
+    assert(!image_is(image, ImageClass::NONE));
     /*auto it = original_ids_check.find(image.get());
     if(it  == original_ids_check.end())
         original_ids_check[image.get()] = id;
@@ -168,7 +169,7 @@ void TrainingData::add_frame(std::shared_ptr<TrainingData::DataRange> data, long
     
     if(frame_index > data->frames.end)
         data->frames.end = frame_index;
-    if(data->frames.start == -1 || frame_index < data->frames.start)
+    if(!data->frames.start.valid() || frame_index < data->frames.start)
         data->frames.start = frame_index;
     
     if(_all_classes.find(id) == _all_classes.end())
@@ -241,7 +242,7 @@ void TrainingData::set_classes(const std::set<Idx_t>& classes) {
     _all_classes = classes;
 }
 
-Image::UPtr TrainingData::draw_coverage(const std::map<Frame_t, float>& unique_percentages, const std::vector<Rangel>& next_ranges, const std::vector<Rangel>& added_ranges, const std::map<Frame_t, float>& uniquenesses_temp, std::shared_ptr<TrainingData::DataRange> current_salt, const std::map<Rangel, std::tuple<double, FrameRange>>& assigned_unique_averages) const
+Image::UPtr TrainingData::draw_coverage(const std::map<Frame_t, float>& unique_percentages, const std::vector<Range<Frame_t>>& next_ranges, const std::vector<Range<Frame_t>>& added_ranges, const std::map<Frame_t, float>& uniquenesses_temp, std::shared_ptr<TrainingData::DataRange> current_salt, const std::map<Range<Frame_t>, std::tuple<double, FrameRange>>& assigned_unique_averages) const
 {
     auto analysis_range = Tracker::analysis_range();
     auto image = Image::Make(500, 1800, 4);
@@ -253,11 +254,11 @@ Image::UPtr TrainingData::draw_coverage(const std::map<Frame_t, float>& unique_p
     int rows = cmn::max(1, (long_t)FAST_SETTINGS(manual_identities).size());
     
     float row_height = float(image->rows) / float(rows);
-    float column_width = float(image->cols) / float(analysis_range.length());
+    float column_width = float(image->cols) / float(analysis_range.length().get());
     
-    auto draw_range = [column_width, row_height, analysis_range, &colors](cv::Mat& mat, const Rangel& range, Idx_t id, uint8_t alpha = 200){
-        Vec2 topleft((range.start - analysis_range.start) * column_width, row_height * id);
-        Vec2 bottomright((range.end - analysis_range.start) * column_width, row_height * (id + 1));
+    auto draw_range = [column_width, row_height, analysis_range, &colors](cv::Mat& mat, const Range<Frame_t>& range, Idx_t id, uint8_t alpha = 200){
+        Vec2 topleft((range.start - analysis_range.start).get() * column_width, row_height * id);
+        Vec2 bottomright((range.end - analysis_range.start).get() * column_width, row_height * (id + 1));
         cv::rectangle(mat, topleft, bottomright, colors[id].alpha(alpha * 0.5), cv::FILLED);
     };
     
@@ -284,21 +285,21 @@ Image::UPtr TrainingData::draw_coverage(const std::map<Frame_t, float>& unique_p
             continue;
         
         for(auto && [id, per] : data->mappings) {
-            std::set<long_t> frames(per.frame_indexes.begin(), per.frame_indexes.end());
-            Rangel range(-1, -1);
+            std::set<Frame_t> frames(per.frame_indexes.begin(), per.frame_indexes.end());
+            Range<Frame_t> range({}, {});
             
             for(auto f : frames) {
-                if(range.end == -1 || f - range.end > 1) {
-                    if(range.end != -1) {
+                if(!range.end.valid() || f - range.end > 1_f) {
+                    if(range.end.valid()) {
                         draw_range(mat, range, id);
                     }
                     
-                    range = Rangel(f, f);
+                    range = Range<Frame_t>(f, f);
                 } else
                     range.end = f;
             }
             
-            if(range.end != -1) {
+            if(range.end.valid()) {
                 draw_range(mat, range, id);
             }
         }
@@ -306,7 +307,7 @@ Image::UPtr TrainingData::draw_coverage(const std::map<Frame_t, float>& unique_p
     
     std::vector<Vec2> unique_points;
     for(auto && [frame, p] : unique_percentages) {
-        Vec2 topleft((frame - analysis_range.start) * column_width, mat.rows * (1 - p) + 1);
+        Vec2 topleft((frame - analysis_range.start).get() * column_width, mat.rows * (1 - p) + 1);
         unique_points.push_back(topleft);
     }
     
@@ -351,7 +352,7 @@ Image::UPtr TrainingData::draw_coverage(const std::map<Frame_t, float>& unique_p
         unique_points.clear();
         
         for(auto && [frame, p] : uniquenesses_temp) {
-            Vec2 topleft((frame - analysis_range.start) * column_width, mat.rows * (1 - p) + 1);
+            Vec2 topleft((frame - analysis_range.start).get() * column_width, mat.rows * (1 - p) + 1);
             unique_points.push_back(topleft);
         }
         
@@ -360,8 +361,8 @@ Image::UPtr TrainingData::draw_coverage(const std::map<Frame_t, float>& unique_p
     
     if(!added_ranges.empty()) {
         for(auto &range : added_ranges) {
-            Vec2 topleft((range.start - analysis_range.start) * column_width, 0);
-            Vec2 bottomright((range.end - analysis_range.start + 1) * column_width, 1);
+            Vec2 topleft((range.start - analysis_range.start).get() * column_width, 0);
+            Vec2 bottomright((range.end - analysis_range.start + 1_f).get() * column_width, 1);
             DEBUG_CV(cv::rectangle(mat, topleft, bottomright, gui::Green.alpha(100 + 100), cv::FILLED));
             DEBUG_CV(cv::putText(mat, Meta::toStr(range), (topleft + (bottomright - topleft) * 0.5) + Vec2(0,10), cv::FONT_HERSHEY_PLAIN, 0.5, gui::Green));
         }
@@ -375,8 +376,8 @@ Image::UPtr TrainingData::draw_coverage(const std::map<Frame_t, float>& unique_p
             
             auto next_range = *it;
             
-            Vec2 topleft((next_range.start - analysis_range.start) * column_width, 0);
-            Vec2 bottomright((next_range.end - analysis_range.start + 1) * column_width, 1);
+            Vec2 topleft((next_range.start - analysis_range.start).get() * column_width, 0);
+            Vec2 bottomright((next_range.end - analysis_range.start + 1_f).get() * column_width, 1);
             DEBUG_CV(cv::rectangle(mat, topleft, bottomright, color.alpha(100 + 100), cv::FILLED));
             
             if(it == --next_ranges.rend())
@@ -385,8 +386,8 @@ Image::UPtr TrainingData::draw_coverage(const std::map<Frame_t, float>& unique_p
             if(assigned_unique_averages.count(next_range)) {
                 auto && [distance, extended_range] = assigned_unique_averages.at(next_range);
                 
-                Vec2 rtl((extended_range.start() - analysis_range.start) * column_width, (1 - distance / 110.0) * mat.rows + 5);
-                Vec2 rbr((extended_range.end() - analysis_range.start + 1) * column_width, (1 - distance / 110.0) * mat.rows + 2 + 5);
+                Vec2 rtl((extended_range.start() - analysis_range.start).get() * column_width, (1 - distance / 110.0) * mat.rows + 5);
+                Vec2 rbr((extended_range.end() - analysis_range.start + 1_f).get() * column_width, (1 - distance / 110.0) * mat.rows + 2 + 5);
                 DEBUG_CV(cv::rectangle(mat, rtl, rbr, color));
                 
                 DEBUG_CV(cv::line(mat, Vec2(rtl.x, rtl.y), Vec2(topleft.x, bottomright.y), gui::Cyan));
@@ -398,8 +399,8 @@ Image::UPtr TrainingData::draw_coverage(const std::map<Frame_t, float>& unique_p
     if(current_salt) {
         for(auto && [id, per] : current_salt->mappings) {
             for(size_t i=0; i<per.frame_indexes.size(); ++i) {
-                Vec2 topleft((per.frame_indexes[i] - analysis_range.start) * column_width, row_height * (id + 0.2));
-                Vec2 bottomright((per.frame_indexes[i] - analysis_range.start + 1) * column_width, row_height * (id + 0.8));
+                Vec2 topleft((per.frame_indexes[i] - analysis_range.start).get() * column_width, row_height * (id + 0.2));
+                Vec2 bottomright((per.frame_indexes[i] - analysis_range.start + 1_f).get() * column_width, row_height * (id + 0.8));
                 DEBUG_CV(cv::rectangle(mat, topleft, bottomright, gui::White.alpha(100 + 100), cv::FILLED));
             }
         }
@@ -455,7 +456,7 @@ void TrainingData::merge_with(std::shared_ptr<TrainingData> other, bool unmap_ev
             new_ptr->applied_mapping = ptr->applied_mapping;
         
         for(auto && [id, per] : ptr->mappings) {
-            std::set<long_t> added_frame_indexes;
+            std::set<Frame_t> added_frame_indexes;
             auto ID = ptr->unmap(id);
             
             for(auto &mdata : data()) {
@@ -748,7 +749,7 @@ std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::share
     }
     
     std::map<Idx_t, std::set<std::tuple<FrameRange, const DataRange::PerIndividual*, const DataRange*, long_t>>> ranges_to_add;
-    std::map<Idx_t, std::set<long_t>> source_frames_per_individual;
+    //std::map<Idx_t, std::set<Frame_t>> source_frames_per_individual;
     
     auto add_range = std::make_shared<DataRange>(true);
     for(auto &d : data()) {
@@ -773,7 +774,7 @@ std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::share
                 }
             }
             
-            source_frames_per_individual[id].insert(per.frame_indexes.begin(), per.frame_indexes.end());
+            //source_frames_per_individual[id].insert(per.frame_indexes.begin(), per.frame_indexes.end());
         }
     }
     
@@ -818,7 +819,7 @@ std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::share
         for(auto && [range, ptr, d, ID] : ranges) {
             size_t step_size = max(1u, (size_t)ceil(SR / (max_images_per_class * double(range.length()) / double(N))));
             
-            std::vector<std::tuple<long_t, Image::Ptr, Vec2, size_t>> frames;
+            std::vector<std::tuple<Frame_t, Image::Ptr, Vec2, size_t>> frames;
             for(size_t i=0; i<ptr->frame_indexes.size(); ++i) {
                 if(range.contains(ptr->frame_indexes[i]))
                     frames.push_back({ptr->frame_indexes[i], ptr->images[i], ptr->positions[i], ptr->num_pixels[i]});
@@ -982,10 +983,10 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
     size_t counter = 0, failed = 0;
     Size2 minmum_size(FLT_MAX), maximum_size(0);
     Median<Float2_t> median_size_x, median_size_y;
-    long_t inserted_start = std::numeric_limits<long_t>::max(), inserted_end = -1;
+    Frame_t inserted_start = Frame_t(std::numeric_limits<Frame_t::number_t>::max()), inserted_end{};
     
     // copy available images to map for easy access
-    std::map<Idx_t, std::map<long_t, std::tuple<long_t, Image::Ptr>>> available_images;
+    std::map<Idx_t, std::map<Frame_t, std::tuple<long_t, Image::Ptr>>> available_images;
     if(source) {
         for(auto & data : source->data()) {
             for(auto && [id, per] : data->mappings) {
@@ -1018,13 +1019,13 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
     }
     
     for(auto && [id, sub] : available_images) {
-        Debug("\t%d: %d available images between %d and %d", id, sub.size(), sub.empty() ? -1 : sub.begin()->first, sub.empty() ? -1 : sub.rbegin()->first);
+        Debug("\t%d: %d available images between %d and %d", id, sub.size(), sub.empty() ? Frame_t() : sub.begin()->first, sub.empty() ? Frame_t() : sub.rbegin()->first);
     }
     
     size_t N_validation_images = 0, N_training_images = 0;
     size_t N_reused_images = 0;
     const bool calculate_posture = FAST_SETTINGS(calculate_posture);
-    std::map<Idx_t, std::vector<std::tuple<long_t, Image::Ptr>>> individual_training_images;
+    std::map<Idx_t, std::vector<std::tuple<Frame_t, Image::Ptr>>> individual_training_images;
     size_t failed_blobs = 0, found_blobs = 0;
     
     for(auto frame : frames) {
@@ -1033,7 +1034,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             continue;
         }
         
-        if(frame < 0 || (size_t)frame >= video_file.length()) {
+        if(!frame.valid() || (size_t)frame.get() >= video_file.length()) {
             ++i;
             Except("Frame %d out of range.", frame);
             continue;
@@ -1091,9 +1092,9 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
         auto active =
             frame == Tracker::start_frame()
                 ? std::unordered_set<Individual*>()
-                : Tracker::active_individuals(frame-1);
+                : Tracker::active_individuals(frame - 1_f);
         
-        video_file.read_frame(video_frame.frame(), frame);
+        video_file.read_frame(video_frame.frame(), sign_cast<uint64_t>(frame.get()));
         Tracker::instance()->preprocess_frame(video_frame, active, NULL);
         
         for (auto id : filtered_ids) {
@@ -1190,15 +1191,15 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             }
             
             if(image != nullptr) {
-                image->set_index(frame);
+                image->set_index(frame.get());
                 
                 assert(!image->custom_data());
-                image->set_custom_data(new TrainingImageData("generate("+Meta::toStr(fish->identity().ID())+" "+step_description+")", id));
-                
+                image->set_custom_data(new TrainingImageData("generate("+Meta::toStr(fish->identity().ID())+" "+step_description+")", id, ImageClass::TRAINING));
                 set_image_class(image, ImageClass::TRAINING);
+                
                 ++N_training_images;
                 
-                if(frame > 0)
+                if(frame.valid())
                     individual_training_images[id].push_back({frame, image});
                 
                 add_frame(data, frame, id, id, image, Vec2(), fish->thresholded_size(frame), *it->get());
@@ -1251,21 +1252,20 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
     return N_training_images + N_validation_images > 0;
 }
 
-std::tuple<std::vector<Image::Ptr>, std::vector<Idx_t>, std::vector<long_t>, std::map<Frame_t, Range<size_t>>> TrainingData::join_arrays_ordered() const
+std::tuple<std::vector<Image::Ptr>, std::vector<Idx_t>, std::vector<Frame_t>, std::map<Frame_t, Range<size_t>>> TrainingData::join_arrays_ordered() const
 {
     using fdx_t = Idx_t;
-    using frame_t = long_t;
     
     std::vector<Image::Ptr> images;
     std::vector<fdx_t> ids;
-    std::vector<frame_t> frames;
+    std::vector<Frame_t> frames;
     
     const size_t L = size();
     ids.reserve(L);
     images.reserve(L);
     frames.reserve(L);
     
-    std::map<frame_t, std::tuple<std::vector<fdx_t>, std::vector<Image::Ptr>>> collector;
+    std::map<Frame_t, std::tuple<std::vector<fdx_t>, std::vector<Image::Ptr>>> collector;
     
     if(_data.size() > 1)
         Debug("Joining TrainingData, expecting %d images from %d arrays.", L, _data.size());
@@ -1285,7 +1285,7 @@ std::tuple<std::vector<Image::Ptr>, std::vector<Idx_t>, std::vector<long_t>, std
     
     for(auto && [frame, data] : collector) {
         auto & [_ids, _images] = data;
-        start_indexes[Frame_t(frame)] = Range<size_t>(ids.size(), ids.size() + _ids.size());
+        start_indexes[frame] = Range<size_t>(ids.size(), ids.size() + _ids.size());
         
         images.insert(images.end(), _images.begin(), _images.end());
         ids.insert(ids.end(), _ids.begin(), _ids.end());

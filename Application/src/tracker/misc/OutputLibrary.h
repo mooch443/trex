@@ -5,6 +5,7 @@
 #include <tracking/Individual.h>
 #include <misc/GlobalSettings.h>
 #include <gui/Graph.h>
+#include <misc/ranges.h>
 
 namespace Output {
     using namespace track;
@@ -25,9 +26,9 @@ namespace Output {
             )
     
     // , const std::function<float(float)>& options
-#define LIBPARAM (Output::Library::LibInfo info, long_t frame, const track::PhysicalProperties* props, bool smooth)
+#define LIBPARAM (Output::Library::LibInfo info, Frame_t frame, const track::PhysicalProperties* props, bool smooth)
 #define _LIBFNC(CONTENT) LIBPARAM -> float \
-{ Individual* fish = info.fish; assert(true || frame || smooth); if(!props) return gui::Graph::invalid(); CONTENT }
+{ Individual* fish = info.fish; assert(true || frame.valid() || smooth); if(!props) return gui::Graph::invalid(); CONTENT }
 #define LIBFNC(CONTENT) [] _LIBFNC(CONTENT)
     
 #define _LIBGLFNC(CONTENT) LIBPARAM -> double \
@@ -87,7 +88,7 @@ namespace Output {
         typedef std::shared_ptr<LibraryCache> Ptr;
         
         std::recursive_mutex _cache_mutex;
-        std::map<const Individual*, std::map<long_t, std::map<std::string, std::map<Options_t, double>>>> _cache;
+        std::map<const Individual*, std::map<Frame_t, std::map<std::string, std::map<Options_t, double>>>> _cache;
         
         void clear();
         static LibraryCache::Ptr default_cache();
@@ -118,10 +119,10 @@ namespace Output {
         static void InitVariables();
         
         static void clear_cache();
-        static void frame_changed(long_t frameIndex, LibraryCache::Ptr cache = nullptr);
+        static void frame_changed(Frame_t frameIndex, LibraryCache::Ptr cache = nullptr);
         
-        static double get(const std::string& name, LibInfo info, long_t frame);
-        static double get_with_modifiers(const std::string& name, LibInfo info, long_t frame);
+        static double get(const std::string& name, LibInfo info, Frame_t frame);
+        static double get_with_modifiers(const std::string& name, LibInfo info, Frame_t frame);
         static void add(const std::string& name, const FunctionType& func);
         static void init_graph(gui::Graph &graph, Individual *fish, LibraryCache::Ptr cache = nullptr);
         static bool has(const std::string& name);
@@ -136,7 +137,7 @@ namespace Output {
         
         static const track::PhysicalProperties* retrieve_props(const std::string&, 
             const Individual* fish, 
-            long_t frame, 
+            Frame_t frame,
             const Options_t& modifiers)
         {
             auto c = fish->centroid(frame);
@@ -164,7 +165,7 @@ namespace Output {
         static bool parse_modifiers(const std::string& str, Options_t& modifiers);
         
     private:
-        static float tailbeats(long_t frame, LibInfo info);
+        static float tailbeats(Frame_t frame, LibInfo info);
     };
 }
 

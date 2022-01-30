@@ -49,11 +49,11 @@ namespace gui {
     void PropertiesGraph::setup_graph(long_t frameNr, const Rangel& range, Individual* fish, Output::LibraryCache::Ptr cache) {
         if(_fish != fish || frameNr != _frameNr) {
             if(!range.empty()) {
-                _graph.set_ranges(Rangef(max(range.start, fish->start_frame()),
-                                         min(range.end, fish->end_frame())),
+                _graph.set_ranges(Rangef(max(range.start, fish->start_frame().get()),
+                                         min(range.end, fish->end_frame().get())),
                                   Rangef(RADIANS(-180), RADIANS(180)));
             } else {
-                _graph.set_ranges(Rangef(fish->start_frame(), fish->end_frame()),
+                _graph.set_ranges(Rangef(fish->start_frame().get(), fish->end_frame().get()),
                                   Rangef(RADIANS(-180), RADIANS(180)));
             }
             

@@ -117,11 +117,11 @@ constexpr std::array<const char*, 8> ReasonsNames {
 
 #if DEBUG_ORIENTATION
     struct OrientationProperties {
-        long_t frame;
+        Frame_t frame;
         float original_angle;
         bool flipped_because_previous;
         
-        OrientationProperties(long_t frame = -1, float original_angle = 0, bool flipped_because_previous = false)
+        OrientationProperties(Frame_t frame = -1, float original_angle = 0, bool flipped_because_previous = false)
             : frame(frame),
               original_angle(original_angle),
               flipped_because_previous(flipped_because_previous)
@@ -147,7 +147,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //! Stuff that belongs together and is definitely
         //! present in every frame
         struct BasicStuff {
-            long_t frame;
+            Frame_t frame;
             
             PhysicalProperties* centroid;
             //PhysicalProperties* weighted_centroid;
@@ -174,7 +174,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //! (There are no frame_segments available for pre-sorting requests)
         struct PostureStuff {
             static constexpr float infinity = cmn::infinity<float>();
-            long_t frame;
+            Frame_t frame;
             
             PhysicalProperties* head;
             PhysicalProperties* centroid_posture;
@@ -195,7 +195,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
     protected:
         //! dense array of all posture related stuff we are saving
         GETTER(std::vector<std::shared_ptr<PostureStuff>>, posture_stuff)
-        long_t _last_posture_added = -1;
+        Frame_t _last_posture_added;
         
     public:
         struct SegmentInformation : public FrameRange {
@@ -203,17 +203,17 @@ constexpr std::array<const char*, 8> ReasonsNames {
             std::vector<long_t> posture_index;
             uint32_t error_code = std::numeric_limits<uint32_t>::max();
             
-            SegmentInformation(const Range<long_t>& range = Rangel(-1, -1),
-                               long_t first_usable = -1)
+            SegmentInformation(const Range<Frame_t>& range = Range<Frame_t>(Frame_t(), Frame_t()),
+                               Frame_t first_usable = Frame_t())
                 : FrameRange(range, first_usable)
             {}
             
-            void add_basic_at(long_t frame, long_t gdx);
+            void add_basic_at(Frame_t frame, long_t gdx);
             void add_posture_at(const std::shared_ptr<PostureStuff>& stuff, Individual* fish); //long_t gdx);
             //void remove_frame(long_t);
             
-            long_t basic_stuff(long_t frame) const;
-            long_t posture_stuff(long_t frame) const;
+            long_t basic_stuff(Frame_t frame) const;
+            long_t posture_stuff(Frame_t frame) const;
             
             constexpr bool overlaps(const SegmentInformation& v) const {
                 return contains(v.start()) || contains(v.end())
@@ -225,28 +225,28 @@ constexpr std::array<const char*, 8> ReasonsNames {
                 return range < other.range;
             }
             
-            constexpr bool operator<(long_t frame) const {
+            constexpr bool operator<(Frame_t frame) const {
                 return range.start < frame;
             }
         };
         
     protected:
-        GETTER(std::set<long_t>, manually_matched)
-        std::set<long_t> automatically_matched;
+        GETTER(std::set<Frame_t>, manually_matched)
+        std::set<Frame_t> automatically_matched;
         
 #if DEBUG_ORIENTATION
         std::map<long_t, OrientationProperties> _why_orientation;
 #endif
-        std::map<long_t, std::map<long_t, std::pair<void*, std::function<void(void*)>>>> _custom_data;
+        std::map<Frame_t, std::map<long_t, std::pair<void*, std::function<void(void*)>>>> _custom_data;
         
-        std::map<long_t, Image::Ptr> _training_data;
+        //std::map<Frame_t, Image::Ptr> _training_data;
         
         //! A frame index is pushed here, if the previous frame was not the current frame - 1 (e.g. frames are missing)
     public:
         //using segment_map = std::map<long_t, std::shared_ptr<SegmentInformation>>;
         using segment_map = std::vector<std::shared_ptr<SegmentInformation>>;
-        segment_map::const_iterator find_segment_with_start(long_t frame) const;
-        using small_segment_map = std::map<long_t, FrameRange>;
+        segment_map::const_iterator find_segment_with_start(Frame_t frame) const;
+        using small_segment_map = std::map<Frame_t, FrameRange>;
         
     protected:
         GETTER(segment_map, frame_segments)
@@ -254,22 +254,22 @@ constexpr std::array<const char*, 8> ReasonsNames {
         
         //! Contains a map with individual -> probability for the blob that has been
         //  assigned to this individual.
-        std::map<long_t, std::tuple<size_t, std::map<Idx_t, float>>> average_recognition_segment;
-        std::map<long_t, std::tuple<size_t, std::map<Idx_t, float>>> average_processed_segment;
+        std::map<Frame_t, std::tuple<size_t, std::map<Idx_t, float>>> average_recognition_segment;
+        std::map<Frame_t, std::tuple<size_t, std::map<Idx_t, float>>> average_processed_segment;
         
         //! Contains a map from fish id to probability that averages over
         //  all available segments when "check identities" was last clicked
         std::map<Idx_t, float> _average_recognition;
         GETTER(size_t, average_recognition_samples)
         
-        long_t _startFrame = -1, _endFrame = -1;
+        Frame_t _startFrame, _endFrame;
         
     public:
         //! These data are generated in order to reduce work-load
         //  on a per-frame basis. They need to be regenerated when
         //  frames are removed.
         struct LocalCache {
-            std::unordered_map<long_t, Vec2> _current_velocities;
+            std::unordered_map<Frame_t, Vec2> _current_velocities;
             Vec2 _current_velocity;
             std::vector<Vec2> _v_samples;
             
@@ -285,7 +285,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
             void clear();
             
         public:
-            Vec2 add(long_t frame, const PhysicalProperties*);
+            Vec2 add(Frame_t frame, const PhysicalProperties*);
             void add(const std::shared_ptr<PostureStuff>&);
             
             LocalCache()
@@ -300,7 +300,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         std::map<void*, std::function<void(Individual*)>> _delete_callbacks;
         
         //! Segment start to Tag
-        std::map<long_t, std::multiset<tags::Tag>> _best_images;
+        std::map<Frame_t, std::multiset<tags::Tag>> _best_images;
         
     public:
         float midline_length() const;
@@ -308,18 +308,18 @@ constexpr std::array<const char*, 8> ReasonsNames {
         float outline_size() const;
         
         void add_tag_image(const tags::Tag& tag);
-        const std::multiset<tags::Tag>* has_tag_images_for(long_t frameIndex) const;
-        std::set<long_t> added_postures;
+        const std::multiset<tags::Tag>* has_tag_images_for(Frame_t frameIndex) const;
+        std::set<Frame_t> added_postures;
         
     public:
         Individual(Identity&& id = Identity());
         ~Individual();
         
 #if DEBUG_ORIENTATION
-        OrientationProperties why_orientation(long_t frame) const;
+        OrientationProperties why_orientation(Frame_t frame) const;
 #endif
         
-        void add_custom_data(long_t frame, long_t id, void* ptr, std::function<void(void*)> fn_delete) {
+        void add_custom_data(Frame_t frame, long_t id, void* ptr, std::function<void(void*)> fn_delete) {
             auto it = _custom_data[frame].find(id);
             if(it != _custom_data[frame].end()) {
                 Warning("Custom data with id %d already present in frame %d.", id, frame);
@@ -328,7 +328,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
             _custom_data[frame][id] = { ptr, fn_delete };
         }
         
-        void * custom_data(long_t frame, long_t id) const {
+        void * custom_data(Frame_t frame, long_t id) const {
             auto it = _custom_data.find(frame);
             if(it == _custom_data.end())
                 return NULL;
@@ -344,100 +344,99 @@ constexpr std::array<const char*, 8> ReasonsNames {
         const decltype(_identity)& identity() const { return _identity; }
         decltype(_identity)& identity() { return _identity; }
         
-        std::shared_ptr<BasicStuff> add(long_t frameIndex, const PPFrame& frame, const pv::BlobPtr& blob, Match::prob_t current_prob, default_config::matching_mode_t::Class);
-        void remove_frame(long_t frameIndex);
+        std::shared_ptr<BasicStuff> add(Frame_t frameIndex, const PPFrame& frame, const pv::BlobPtr& blob, Match::prob_t current_prob, default_config::matching_mode_t::Class);
+        void remove_frame(Frame_t frameIndex);
         void register_delete_callback(void* ptr, const std::function<void(Individual*)>& lambda);
         void unregister_delete_callback(void* ptr);
         
-        long_t start_frame() const { return _startFrame; }
-        long_t end_frame() const { return _endFrame; }
+        Frame_t start_frame() const { return _startFrame; }
+        Frame_t end_frame() const { return _endFrame; }
         size_t frame_count() const { return _basic_stuff.size(); }
         
-        FrameRange get_recognition_segment(long_t frameIndex) const;
-        FrameRange get_recognition_segment_safe(long_t frameIndex) const;
-        FrameRange get_segment(long_t frameIndex) const;
-        FrameRange get_segment_safe(long_t frameIndex) const;
-        std::shared_ptr<SegmentInformation> segment_for(long_t frame) const;
+        FrameRange get_recognition_segment(Frame_t frameIndex) const;
+        FrameRange get_recognition_segment_safe(Frame_t frameIndex) const;
+        FrameRange get_segment(Frame_t frameIndex) const;
+        FrameRange get_segment_safe(Frame_t frameIndex) const;
+        std::shared_ptr<SegmentInformation> segment_for(Frame_t frame) const;
         
         //! Returns iterator for the first segment equal to or before given frame
-        decltype(_frame_segments)::const_iterator iterator_for(long_t frame) const;
-        bool has(long_t frame) const;
+        decltype(_frame_segments)::const_iterator iterator_for(Frame_t frame) const;
+        bool has(Frame_t frame) const;
         
-        std::tuple<bool, FrameRange> frame_has_segment_recognition(long_t frameIndex) const;
-        std::tuple<bool, FrameRange> has_processed_segment(long_t frameIndex) const;
+        std::tuple<bool, FrameRange> frame_has_segment_recognition(Frame_t frameIndex) const;
+        std::tuple<bool, FrameRange> has_processed_segment(Frame_t frameIndex) const;
         //const decltype(average_recognition_segment)::mapped_type& average_recognition(long_t segment_start) const;
-        const decltype(average_recognition_segment)::mapped_type average_recognition(long_t segment_start);
-        const decltype(average_recognition_segment)::mapped_type processed_recognition(long_t segment_start);
-        std::tuple<size_t, Idx_t, float> average_recognition_identity(long_t segment_start) const;
+        const decltype(average_recognition_segment)::mapped_type average_recognition(Frame_t segment_start);
+        const decltype(average_recognition_segment)::mapped_type processed_recognition(Frame_t segment_start);
+        std::tuple<size_t, Idx_t, float> average_recognition_identity(Frame_t segment_start) const;
         
         //! Properties based on centroid:
-        const PhysicalProperties* centroid(long_t frameIndex) const;
-        PhysicalProperties* centroid(long_t frameIndex);
+        const PhysicalProperties* centroid(Frame_t frameIndex) const;
+        PhysicalProperties* centroid(Frame_t frameIndex);
         //! Properties based on posture / head position:
-        const PhysicalProperties* head(long_t frameIndex) const;
-        PhysicalProperties* head(long_t frameIndex);
+        const PhysicalProperties* head(Frame_t frameIndex) const;
+        PhysicalProperties* head(Frame_t frameIndex);
         
-        const PhysicalProperties* centroid_posture(long_t frameIndex) const;
-        PhysicalProperties* centroid_posture(long_t frameIndex);
+        const PhysicalProperties* centroid_posture(Frame_t frameIndex) const;
+        PhysicalProperties* centroid_posture(Frame_t frameIndex);
         
-        const PhysicalProperties* centroid_weighted(long_t frameIndex) const;
-        PhysicalProperties* centroid_weighted(long_t frameIndex);
+        const PhysicalProperties* centroid_weighted(Frame_t frameIndex) const;
+        PhysicalProperties* centroid_weighted(Frame_t frameIndex);
         
         //! Raw blobs
-        pv::BlobPtr blob(long_t frameIndex) const;
-        pv::CompressedBlob* compressed_blob(long_t frameIndex) const;
+        pv::BlobPtr blob(Frame_t frameIndex) const;
+        pv::CompressedBlob* compressed_blob(Frame_t frameIndex) const;
         bool empty() const { return frame_count() == 0; }
         
-        const decltype(_training_data)& training_data() const { return _training_data; }
-        decltype(_training_data)& training_data() { return _training_data; }
-        void clear_training_data();
+        //const decltype(_training_data)& training_data() const { return _training_data; }
+        //decltype(_training_data)& training_data() { return _training_data; }
+        //void clear_training_data();
         
-        //void save_posture(long_t frameIndex, Image::Ptr greyscale, Vec2 previous_direction);
-        void save_posture(std::shared_ptr<BasicStuff> ptr, long_t frameIndex);
+        //void save_posture(Frame_t frameIndex, Image::Ptr greyscale, Vec2 previous_direction);
+        void save_posture(std::shared_ptr<BasicStuff> ptr, Frame_t frameIndex);
         Vec2 weighted_centroid(const Blob& blob, const std::vector<uchar>& pixels);
         
-        long_t thresholded_size(long_t frameIndex) const;
+        long_t thresholded_size(Frame_t frameIndex) const;
         
-        const Midline::Ptr midline(long_t frameIndex) const;
-        //const Midline::Ptr cached_fixed_midline(long_t frameIndex);
-        Midline::Ptr fixed_midline(long_t frameIndex) const;
-        const Midline::Ptr pp_midline(long_t frameIndex) const;
+        const Midline::Ptr midline(Frame_t frameIndex) const;
+        //const Midline::Ptr cached_fixed_midline(Frame_t frameIndex);
+        Midline::Ptr fixed_midline(Frame_t frameIndex) const;
+        const Midline::Ptr pp_midline(Frame_t frameIndex) const;
+        MinimalOutline::Ptr outline(Frame_t frameIndex) const;
         
-        void iterate_frames(const Rangel& segment, const std::function<bool(long_t frame, const std::shared_ptr<SegmentInformation>&, const std::shared_ptr<Individual::BasicStuff>&, const std::shared_ptr<Individual::PostureStuff>&)>& fn) const;
+        void iterate_frames(const Range<Frame_t>& segment, const std::function<bool(Frame_t frame, const std::shared_ptr<SegmentInformation>&, const std::shared_ptr<Individual::BasicStuff>&, const std::shared_ptr<Individual::PostureStuff>&)>& fn) const;
         
-        std::shared_ptr<BasicStuff> basic_stuff(long_t frameIndex) const;
-        std::shared_ptr<PostureStuff> posture_stuff(long_t frameIndex) const;
-        std::tuple<std::shared_ptr<BasicStuff>, std::shared_ptr<PostureStuff>> all_stuff(long_t frameIndex) const;
-        
-        MinimalOutline::Ptr outline(long_t frameIndex) const;
+        std::shared_ptr<BasicStuff> basic_stuff(Frame_t frameIndex) const;
+        std::shared_ptr<PostureStuff> posture_stuff(Frame_t frameIndex) const;
+        std::tuple<std::shared_ptr<BasicStuff>, std::shared_ptr<PostureStuff>> all_stuff(Frame_t frameIndex) const;
         
         struct Probability {
             Match::prob_t p, p_time, p_pos, p_angle;
         };
         
         //! Calculates the probability for this fish to be at pixel-position in frame at time.
-        Probability probability(int label, const IndividualCache& estimated_px, long_t frameIndex, const pv::BlobPtr& blob) const;
-        Probability probability(int label, const IndividualCache& estimated_px, long_t frameIndex, const pv::CompressedBlob& blob) const;
-        Probability probability(int label, const IndividualCache& estimated_px, long_t frameIndex, const Vec2& position, size_t pixels) const;
+        Probability probability(int label, const IndividualCache& estimated_px, Frame_t frameIndex, const pv::BlobPtr& blob) const;
+        Probability probability(int label, const IndividualCache& estimated_px, Frame_t frameIndex, const pv::CompressedBlob& blob) const;
+        Probability probability(int label, const IndividualCache& estimated_px, Frame_t frameIndex, const Vec2& position, size_t pixels) const;
         Match::prob_t time_probability(const IndividualCache& cache, size_t recent_number_samples) const;
-        //Match::PairingGraph::prob_t size_probability(const IndividualCache& cache, long_t frameIndex, size_t num_pixels) const;
-        std::tuple<Match::prob_t, Match::prob_t, Match::prob_t> position_probability(const IndividualCache& estimated_px, long_t frameIndex, size_t size, const Vec2& position, const Vec2& blob_center) const;
+        //Match::PairingGraph::prob_t size_probability(const IndividualCache& cache, Frame_t frameIndex, size_t num_pixels) const;
+        std::tuple<Match::prob_t, Match::prob_t, Match::prob_t> position_probability(const IndividualCache& estimated_px, Frame_t frameIndex, size_t size, const Vec2& position, const Vec2& blob_center) const;
         
-        std::shared_ptr<BasicStuff> find_frame(long_t frameIndex) const;
+        std::shared_ptr<BasicStuff> find_frame(Frame_t frameIndex) const;
         bool evaluate_fitness() const;
         
-        //void recognition_segment(long_t frame, const std::tuple<size_t, std::map<long_t, float>>&);
+        //void recognition_segment(Frame_t frame, const std::tuple<size_t, std::map<long_t, float>>&);
         void calculate_average_recognition();
         const decltype(_average_recognition)& average_recognition() const { return _average_recognition; }
         void clear_recognition();
         
-        void add_manual_match(long_t frameIndex);
-        void add_automatic_match(long_t frameIndex);
-        bool is_manual_match(long_t frameIndex) const;
-        bool is_automatic_match(long_t frameIndex) const;
-        bool recently_manually_matched(long_t frameIndex) const;
+        void add_manual_match(Frame_t frameIndex);
+        void add_automatic_match(Frame_t frameIndex);
+        bool is_manual_match(Frame_t frameIndex) const;
+        bool is_automatic_match(Frame_t frameIndex) const;
+        bool recently_manually_matched(Frame_t frameIndex) const;
         
-        std::tuple<std::vector<std::tuple<float, float>>, std::vector<float>, size_t, MovementInformation> calculate_previous_vector(long_t frameIndex) const;
+        std::tuple<std::vector<std::tuple<float, float>>, std::vector<float>, size_t, MovementInformation> calculate_previous_vector(Frame_t frameIndex) const;
         
         /**
          * Calculates an actual cropped out image for a given frameIndex.
@@ -461,13 +460,13 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //! Estimates the position in the given frame. Uses the previous position, returns
         //  position in the first frame if no previous position was available.
         //  Also pre-caches a few other properties of the individual.
-        IndividualCache cache_for_frame(long_t frameIndex, double time, const CacheHints* = nullptr) const;
+        IndividualCache cache_for_frame(Frame_t frameIndex, double time, const CacheHints* = nullptr) const;
         
-        void save_visual_field(const file::Path& path, Rangel range = Rangel(-1,-1), const std::function<void(float, const std::string&)>& update = [](auto, auto){}, bool blocking = true);
+        void save_visual_field(const file::Path& path, Range<Frame_t> range = Range<Frame_t>({}, {}), const std::function<void(float, const std::string&)>& update = [](auto, auto){}, bool blocking = true);
         //size_t memory_size() const;
         
         static float weird_distance();
-        //void push_to_segments(long_t frameIndex, long_t prev_frame);
+        //void push_to_segments(Frame_t frameIndex, long_t prev_frame);
         void clear_post_processing();
         void update_midlines(const CacheHints*);
         Midline::Ptr calculate_midline_for(const std::shared_ptr<BasicStuff>& basic, const std::shared_ptr<PostureStuff>& posture_stuff) const;
@@ -475,13 +474,13 @@ constexpr std::array<const char*, 8> ReasonsNames {
     private:
         friend class gui::Fish;
         
-        std::shared_ptr<SegmentInformation> update_add_segment(long_t frameIndex, PhysicalProperties* current, long_t prev_frame, const pv::CompressedBlob* blob, Match::prob_t current_prob);
+        std::shared_ptr<SegmentInformation> update_add_segment(Frame_t frameIndex, PhysicalProperties* current, Frame_t prev_frame, const pv::CompressedBlob* blob, Match::prob_t current_prob);
         Midline::Ptr update_frame_with_posture(const std::shared_ptr<BasicStuff>& basic, const std::shared_ptr<PostureStuff>& posture_stuff, const CacheHints* hints);
-        //Vec2 add_current_velocity(long_t frameIndex, const PhysicalProperties* p);
+        //Vec2 add_current_velocity(Frame_t frameIndex, const PhysicalProperties* p);
     };
 }
 
-inline bool operator<(const std::shared_ptr<track::Individual::SegmentInformation>& ptr, long_t frame) {
+inline bool operator<(const std::shared_ptr<track::Individual::SegmentInformation>& ptr, cmn::Frame_t frame) {
     assert(ptr != nullptr);
     return ptr->start() < frame;
 }

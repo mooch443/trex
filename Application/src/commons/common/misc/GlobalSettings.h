@@ -6,7 +6,7 @@
 #ifndef _GLOBALSETTINGS_H
 #define _GLOBALSETTINGS_H
 
-#include <misc/SpriteMap.h>
+#include "SpriteMap.h"
 
 #ifdef _WIN32
 #undef max
@@ -41,7 +41,7 @@ namespace cmn {
         /**
          * A map that contains all the settings.
          */
-        std::unique_ptr<sprite::Map> _map, _defaults;
+        sprite::Map _map, _defaults;
         
         /**
          * A map that contains all available documentation for settings.
@@ -58,7 +58,7 @@ namespace cmn {
         static std::mutex& mutex();
         
     public:
-		GlobalSettings();
+        GlobalSettings();
 
         /**
          * Destructor of @class GlobalSettings.
@@ -66,7 +66,16 @@ namespace cmn {
         ~GlobalSettings();
         
         //! return the instance
-        static std::shared_ptr<GlobalSettings>& instance();
+        static std::shared_ptr<GlobalSettings>& instance() {
+            static std::shared_ptr<GlobalSettings> _instance;
+            
+            if (!_instance) {
+                _instance = std::make_shared<GlobalSettings>();
+                _instance->map().set_do_print(false);
+            }
+            
+            return _instance;
+        }
         
         static void set_instance(const std::shared_ptr<GlobalSettings>&);
         
@@ -101,6 +110,23 @@ namespace cmn {
          * @param name Name of the setting.
          */
         static const std::string& doc(const std::string& name);
+        
+        /**
+         * Returns reference. Creates object if it doesnt exist.
+         * @param name
+         */
+        template<typename T>
+        static sprite::Reference get_create(const std::string& name, const T& default_value) {
+            std::lock_guard<std::mutex> lock(mutex());
+            
+            if(map().has(name)) {
+                return map()[name];
+                
+            } else {
+                auto &p = map().insert(name, default_value);
+                return sprite::Reference(map(), p);
+            }
+        }
         
         /**
          * Loads parameters from a file.
