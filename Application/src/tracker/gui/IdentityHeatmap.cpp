@@ -572,11 +572,12 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
                             v = Output::Library::get_with_modifiers(_source, info, frame);
                         if(!Graph::is_invalid(v)) {
                             data.push_back(heatmap::DataPoint{
-                                frame,
-                                uint32_t(pos.x),
-                                uint32_t(pos.y),
-                                uint32_t(fish->identity().ID()), uint32_t(0),
-                                v
+                                .frame   = frame,
+                                .x       = uint32_t(pos.x),
+                                .y       = uint32_t(pos.y),
+                                .ID      = uint32_t(fish->identity().ID()),
+                                .IDindex = uint32_t(0),
+                                .value   = v
                             });
                         }
                     }

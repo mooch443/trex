@@ -108,7 +108,11 @@ namespace cmn {
         uint64_t pos;
         
     public:
-        ReadonlyMemoryWrapper(uchar *memory, uint64_t size)
+        ReadonlyMemoryWrapper(uchar *memory, uint64_t
+#ifndef NDEBUG
+                              size
+#endif
+                              )
             : _data(memory),
 #ifndef NDEBUG
               _capacity(size),

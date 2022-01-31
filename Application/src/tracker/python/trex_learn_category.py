@@ -73,10 +73,10 @@ class Categorize:
         self.model.summary(print_fn=TRex.log)
 
     def send_samples(self):
-        global recv_samples
+        #global recv_samples
 
         TRex.log("# sending "+str(len(self.samples))+" samples")
-        recv_samples(np.array(self.samples).astype(np.uint8).flatten(), self.labels)
+        #recv_samples(np.array(self.samples).astype(np.uint8).flatten(), self.labels)
 
     def add_images(self, images, labels, force_training):
         # length before adding images

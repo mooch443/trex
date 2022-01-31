@@ -309,9 +309,8 @@ void PPFrame::fill_proximity_grid() {
         auto ptr = b->hor_lines().data();
         const auto end = ptr + N;
         
-        auto &size = b->bounds().size();
         const size_t step_size = 2;
-        const size_t step_size_x = (size_t)max(1, size.width * 0.1);
+        const size_t step_size_x = (size_t)max(1, b->bounds().width * 0.1);
         
         if(N >= step_size * 2) {
             insert_line(_blob_grid, ptr, b->blob_id(), step_size_x);

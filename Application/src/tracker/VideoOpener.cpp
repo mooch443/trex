@@ -271,7 +271,7 @@ VideoOpener::VideoOpener()
     _file_chooser = std::make_shared<CustomFileChooser>(
         SETTING(output_dir).value<file::Path>(),
         "pv",
-        [this](const file::Path& path, std::string tab) mutable
+        [this](const file::Path& path, std::string) mutable
     {
         if(!path.empty()) {
             auto tmp = path;
@@ -348,7 +348,7 @@ VideoOpener::VideoOpener()
             
         }
         
-    }, [this](auto& path, std::string tab) {
+    }, [this](auto& path, std::string) {
         select_file(path);
     });
     
@@ -470,7 +470,6 @@ VideoOpener::VideoOpener()
                 auto max_scale = 1.0f;
                 auto max_size = _screenshot_max_size.mul(max_scale);
                 auto scree_size = _screenshot->source()->bounds().size();
-                auto size = max_size;
                 
                 if(_raw_description->max_size() != max_size) {
                     _raw_description->set_max_size(max_size);

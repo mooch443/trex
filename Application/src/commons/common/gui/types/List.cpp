@@ -280,8 +280,6 @@ namespace gui {
         Timer timer;
         
         auto &size = bounds();
-        auto &dim = size.size();
-        
         auto &gb = global_bounds();
         float gscale = gb.height / height();
         
@@ -368,11 +366,11 @@ namespace gui {
             auto r = _rects.at(i);
 
             r->set_bounds(Bounds(offset + local,
-                             Vec2(dim.width - local.x*2,
+                             Vec2(size.width - local.x*2,
                                   _row_height - local.y*2)));
             advance_wrap(*r);
             advance(new Text(*item,
-                                  offset+local+Vec2(dim.width, _row_height)*0.5f,
+                                  offset+local+Vec2(size.width, _row_height)*0.5f,
                                   White,
                                   Font(0.6, Align::Center)));
             offset.y += inversion_correct_height;

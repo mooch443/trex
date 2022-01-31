@@ -273,7 +273,7 @@ PairingGraph::Stack::Stack(size_t number_individuals, size_t number_blobs, long_
     clear(number_individuals, number_blobs, ID, parent, next, combination, p, set);
 }
 
-void PairingGraph::Stack::construct(size_t number_individuals, size_t number_blobs, long_t ID, const multiset::const_iterator& node, pset_ptr_t set)
+void PairingGraph::Stack::construct(size_t number_individuals, size_t number_blobs, long_t, const multiset::const_iterator& node, pset_ptr_t set)
 {
     _probs = set;
     fish_it = node;
@@ -290,7 +290,7 @@ void PairingGraph::Stack::construct(size_t number_individuals, size_t number_blo
         blobs_present[i] = false;
 }
 
-void PairingGraph::Stack::clear(size_t number_individuals, size_t number_blobs, long_t ID, const Stack& parent, const multiset::const_iterator& next, pset::const_iterator combination, prob_t p, pset_ptr_t set)
+void PairingGraph::Stack::clear(size_t , size_t , long_t ID, const Stack& parent, const multiset::const_iterator& next, pset::const_iterator combination, prob_t p, pset_ptr_t set)
 {
     blobs.clear();
     blobs.insert(blobs.end(), parent.blobs.begin(), parent.blobs.end());
@@ -301,7 +301,7 @@ void PairingGraph::Stack::clear(size_t number_individuals, size_t number_blobs, 
     clear_reuse(ID, parent, next, combination, p, set);
 }
 
-void PairingGraph::Stack::clear_reuse(long_t ID, const Stack&, const multiset::const_iterator& next, pset::const_iterator p, prob_t new_p, pset_ptr_t set)
+void PairingGraph::Stack::clear_reuse(long_t , const Stack&, const multiset::const_iterator& next, pset::const_iterator , prob_t new_p, pset_ptr_t set)
 {
     //blobs.push_back(p->blob_index);
     //if(p->blob_index != -1) {
@@ -559,7 +559,7 @@ void PairingGraph::assign_blob(Stack *stack, long_t blob_index) {
     }*/
 }
 
-void PairingGraph::initialize_stack(Stack* stack) {
+void PairingGraph::initialize_stack(Stack* ) {
     /*if(per_individual.empty()) {
         per_individual.resize(_optimal_pairing->set.size());
         

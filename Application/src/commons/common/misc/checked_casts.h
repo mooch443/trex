@@ -28,7 +28,12 @@ typename std::conditional<
 >::type;
 
 template<typename To, typename From>
-void fail_type(From&& value) {
+void fail_type(From&&
+#ifndef NDEBUG
+               value
+#endif
+               )
+{
 #ifndef NDEBUG
     using FromType = typename remove_cvref<From>::type;
     using ToType = typename remove_cvref<To>::type;
@@ -140,6 +145,7 @@ constexpr bool check_narrow_cast(const From& value) {
         return value >= 0 && static_cast<unsigned_t>(value) <= static_cast<unsigned_t>(std::numeric_limits<To>::max());
     }
 #else
+    UNUSED(value);
     return true;
 #endif
 }

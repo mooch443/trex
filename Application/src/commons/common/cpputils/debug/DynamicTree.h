@@ -285,7 +285,7 @@ public:
     TreeNode<T>* addNode(T v, size_t offset);
     
     //! Adds node to the tree, sorted by its offset value
-    void addNode(TreeNode<T> *node);
+    bool addNode(TreeNode<T> *node);
 
     /**
      * Returns the node for a given offset. If the absolute offset
@@ -319,15 +319,18 @@ OrderedTree<T>::~OrderedTree() {
 }
 
 template <class T>
-void OrderedTree<T>::addNode(TreeNode<T> *node) {
+bool OrderedTree<T>::addNode(TreeNode<T> *node) {
     // if tree has got a node, insert there
     if (!root()) {
         anchor = node;
         last = anchor;
     }
     else {
-        root()->addChild(node);
+        if(!root()->addChild(node))
+            return false;
     }
+    
+    return true;
 }
 
 template <class T>

@@ -129,7 +129,7 @@ namespace gui {
         
     public:
         template<typename F, typename R = typename std::invoke_result_t<F, Dialog::Result>>
-        Dialog* dialog(F&& callback, const std::string &text, const std::string& title = "Dialog", const std::string& okay = "Okay", const std::string& abort = "", const std::string& second = "", const std::string& third = "", const std::string& fourth = "", std::enable_if_t<std::is_same<R, void>::value, void> * ptr = nullptr)
+        Dialog* dialog(F&& callback, const std::string &text, const std::string& title = "Dialog", const std::string& okay = "Okay", const std::string& abort = "", const std::string& second = "", const std::string& third = "", const std::string& fourth = "", std::enable_if_t<std::is_same<R, void>::value, void> *  = nullptr)
         {
             std::function<bool(Dialog::Result)> fn = [callback](Dialog::Result r) {
                 callback(r);
@@ -139,7 +139,7 @@ namespace gui {
         }
         
         template<typename F, typename R = typename std::invoke_result_t<F, Dialog::Result>>
-        Dialog* dialog(F&& callback, const std::string &text, const std::string& title = "Dialog", const std::string& okay = "Okay", const std::string& abort = "", const std::string& second = "", const std::string& third = "", const std::string& fourth = "", std::enable_if_t<std::is_same<R, bool>::value, void> * ptr = nullptr)
+        Dialog* dialog(F&& callback, const std::string &text, const std::string& title = "Dialog", const std::string& okay = "Okay", const std::string& abort = "", const std::string& second = "", const std::string& third = "", const std::string& fourth = "", std::enable_if_t<std::is_same<R, bool>::value, void> *  = nullptr)
         {
             return _dialog(callback, text, title, okay, abort, second, third, fourth);
         }

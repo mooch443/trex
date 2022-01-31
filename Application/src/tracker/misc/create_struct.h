@@ -612,16 +612,17 @@ void update() {
     printf("%s\n", VariableName[v]);
 }*/
 
-inline void member_destruct(const char*name) {
 #ifndef NDEBUG
+inline void member_destruct(const char*name) {
     printf("Destruction members '%s'\n", name);
-#endif
 }
 inline void member_construct(const char*name) {
-#ifndef NDEBUG
     printf("Construction members '%s'\n", name);
-#endif
 }
+#else
+inline void member_destruct(const char*) {}
+inline void member_construct(const char*) {}
+#endif
 
 template<typename Variables, typename callback_fn_t>
 struct CallbackHolder {
@@ -714,7 +715,7 @@ public: \
     static void set_callback(Variables v, callback_fn_t f) { callbacks()[v] = f; } \
     static void clear_callbacks() { callbacks().clear(); } \
     static std::vector<std::string> names() { return std::vector<std::string>{ STRUCT_FOR_EACH(NAM, STRINGIZE_MEMBERS, __VA_ARGS__) }; } \
-    static void variable_changed (sprite::Map::Signal signal, sprite::Map & map, const std::string &key, const sprite::PropertyType& value) { \
+    static void variable_changed (sprite::Map::Signal signal, sprite::Map &, const std::string &key, const sprite::PropertyType& value) { \
         if(signal == sprite::Map::Signal::EXIT) { \
             cmn::GlobalSettings::map().unregister_callback(#NAM); \
             return; \

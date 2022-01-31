@@ -113,7 +113,7 @@ namespace gui {
     class Drawable;
 }
 
-class PrivateData;
+struct PrivateData;
 
 class GUI {
 public:

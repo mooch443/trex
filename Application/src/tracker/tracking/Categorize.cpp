@@ -1710,15 +1710,17 @@ void Work::start_learning() {
                 Debug("Work::set_best_accuracy(%f);", v);
                 Work::set_best_accuracy(v);
             }, module);
-            py::set_function("recv_samples", [dims](std::vector<uchar> images, std::vector<std::string> labels) {
+            
+            //! TODO: is this actually used?
+            /*py::set_function("recv_samples", [](std::vector<uchar> images, std::vector<std::string> labels) {
                 Debug("Received %lu images and %lu labels", images.size(), labels.size());
                 
-                /*for (size_t i=0; i<labels.size(); ++i) {
+                for (size_t i=0; i<labels.size(); ++i) {
                     size_t index = i * size_t(dims.width) * size_t(dims.height);
                     Sample::Make(Image::Make(dims.height, dims.width, 1, images.data() + index), );
-                }*/
+                }
                 
-            }, module);
+            }, module);*/
             
             py::run(module, "start");
             Work::initialized() = true;
@@ -2735,16 +2737,16 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
             frames_in_cache.reserve(_frame_cache.size());
             size_t i = 0;
 
-            double sum = std::accumulate(v.begin(), v.end(), 0.0);
-            double mean = sum / v.size();
+            //double sum = std::accumulate(v.begin(), v.end(), 0.0);
+            //double mean = sum / v.size();
             double median = CalcMHWScore(v);
-            int64_t center = median;//mean;//(minimum_range + (maximum_range - minimum_range) / 2.0);
+            //int64_t center = median;//mean;//(minimum_range + (maximum_range - minimum_range) / 2.0);
 
             for (auto& [f, pp] : _frame_cache) {
                 //bool found = false;
                 int64_t min_distance = std::numeric_limits<int64_t>::max();
                 int64_t secondary_distance = min_distance;
-                int64_t center_distance = abs(int64_t(f.get()) - center);
+                //int64_t center_distance = abs(int64_t(f.get()) - center);
                 
                 if(!ranges.empty()) {
                     for(auto &r : ranges) {
@@ -2969,7 +2971,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     auto normalize = SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>();
     if (normalize == default_config::recognition_normalization_t::posture && !FAST_SETTINGS(calculate_posture))
         normalize = default_config::recognition_normalization_t::moments;
-    const auto scale = FAST_SETTINGS(recognition_image_scale);
+    //const auto scale = FAST_SETTINGS(recognition_image_scale);
     const auto dims = SETTING(recognition_image_size).value<Size2>();
 
     for(auto &[index, frame, ptr] : stuff_indexes) {

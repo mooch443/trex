@@ -192,7 +192,7 @@ namespace gui {
         //! Returns the position, relative to object x/y, where dragging
         //  started. Only valid if _dragged == true.
         GETTER(Vec2, relative_drag_start)
-        GETTER_I(bool, being_dragged, false);
+        GETTER_I(bool, being_dragged, false)
         
         //! Gives a Z-Index for an item. If this is set > 0, then it will be drawn later than items with smaller z indexes
         int _z_index = 0;

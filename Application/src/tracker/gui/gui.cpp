@@ -1634,7 +1634,7 @@ void GUI::debug_optical_flow(DrawStructure &base, Frame_t frameIndex) {
         return lines;
     };
     
-    auto draw_flow = [&gen_ov, this](Frame_t frameIndex, cv::Mat& image){
+    auto draw_flow = [&gen_ov](Frame_t frameIndex, cv::Mat& image){
         Tracker::LockGuard guard("draw_flow");
         
         cv::Mat current_, prev_;
@@ -2035,7 +2035,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                         VisualField* ptr = (VisualField*)fish->custom_data(frameNr, VisualField::custom_id);
                         if(!ptr && fish->head(frameNr)) {
                             ptr = new VisualField(id, frameNr, fish->basic_stuff(frameNr), fish->posture_stuff(frameNr), true);
-                            fish->add_custom_data(frameNr, VisualField::custom_id, ptr, [this](void* ptr) {
+                            fish->add_custom_data(frameNr, VisualField::custom_id, ptr, [](void* ptr) {
                                 if(GUI::instance()) {
                                     std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
                                     delete (VisualField*)ptr;
@@ -2071,7 +2071,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                         
                         if(PD(cache)._fish_map.find(fish) == PD(cache)._fish_map.end()) {
                             PD(cache)._fish_map[fish] = std::make_unique<gui::Fish>(*fish);
-                            fish->register_delete_callback(PD(cache)._fish_map[fish].get(), [this](Individual *f) {
+                            fish->register_delete_callback(PD(cache)._fish_map[fish].get(), [](Individual *f) {
                                 //std::lock_guard<std::mutex> lock(_individuals_frame._mutex);
                                 if(!GUI::instance())
                                     return;
@@ -2147,7 +2147,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
             
             
             if(!PD(cache).connectivity_matrix.empty()) {
-                base.section("connectivity", [frameIndex = frameNr, this](DrawStructure& base, auto s) {
+                base.section("connectivity", [frameIndex = frameNr](DrawStructure& base, auto s) {
                     if(PD(cache).connectivity_last_frame == frameIndex && !PD(cache).connectivity_reload) {
                         s->reuse_objects();
                         return;
@@ -2540,7 +2540,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             ol.print();
             
         } else if(settings_dropdown.text() == "heatmap") {
-            this->work().add_queue("generating heatmap", [this](){
+            this->work().add_queue("generating heatmap", [](){
                 Tracker::LockGuard guard("settings_dropdown.text() heatmap");
                 
                 cv::Mat map(PD(video_source).header().resolution.height, PD(video_source).header().resolution.width, CV_8UC4);
@@ -2801,7 +2801,7 @@ void GUI::draw_footer(DrawStructure& base) {
                     auto E = bound.back();
                     auto D = euclidean_distance(S, E);
                     
-                    PD(gui).dialog([this, D](Dialog::Result r) {
+                    PD(gui).dialog([D](Dialog::Result r) {
                         if(r == Dialog::OKAY) {
                             try {
                                 auto value = Meta::fromStr<float>(text.text());
@@ -3254,7 +3254,7 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
     static auto collection = std::make_unique<ExternalImage>(Image::Make(Tracker::average().rows, Tracker::average().cols, 4), Vec2());
     const auto mode = GUI_SETTINGS(gui_mode);
     const auto draw_blobs = GUI_SETTINGS(gui_show_blobs) || mode != gui::mode_t::tracking;
-    const double coverage = double(PD(cache)._num_pixels) / double(collection->source()->rows * collection->source()->cols);
+    //const double coverage = double(PD(cache)._num_pixels) / double(collection->source()->rows * collection->source()->cols);
 #if defined(TREX_ENABLE_EXPERIMENTAL_BLUR) && defined(__APPLE__) && TREX_METAL_AVAILABLE
     const bool draw_blobs_separately =
     (!GUI_SETTINGS(gui_blur_enabled) || !std::is_same<MetalImpl, default_impl_t>::value || GUI_SETTINGS(gui_mode) != gui::mode_t::blobs) && coverage < 0.002 && draw_blobs;
@@ -3379,7 +3379,7 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
                 
             }, _blob_thread_pool, (int*)collection->source()->data(), (int*)collection->source()->data() + collection->source()->cols * collection->source()->rows);
             
-            distribute_vector([&mat](auto, auto start, auto end, auto N){
+            distribute_vector([&mat](auto, auto start, auto end, auto){
                 for(auto it = start; it != end; ++it) {
                     auto& e = *it;
                     auto input = e->source()->get();
@@ -3512,7 +3512,7 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
                 
                 if(!button) {
                     button = std::make_shared<Button>(name, Bounds(Vec2(), bds.size()));
-                    button->on_click([this](auto){
+                    button->on_click([](auto){
                         PD(clicked_background)(Vec2(), true, "");
                     });
                     
@@ -3527,7 +3527,7 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
                         "track_include",
                         "recognition_shapes"
                     });
-                    dropdown->on_select([this](long_t, const Dropdown::TextItem & item){
+                    dropdown->on_select([](long_t, const Dropdown::TextItem & item){
                         PD(clicked_background)(Vec2(), true, item.name());
                     });
                     dropdown->textfield()->set_placeholder("append to...");
@@ -3848,7 +3848,7 @@ void GUI::draw_raw_mode(DrawStructure &base, Frame_t frameIndex) {
                         circ->set_clickable(true);
                         circ->set_radius(8);
                         //circ->clear_event_handlers();
-                        circ->on_click([this, id = blob->blob_id(), circ = circ](auto) mutable {
+                        circ->on_click([id = blob->blob_id()](auto) mutable {
                             PD(current_boundary).clear();
                             GUI::instance()->set_clicked_blob_id(id);
                             GUI::instance()->set_clicked_blob_frame(GUI::frame());
@@ -4081,7 +4081,7 @@ void GUI::confirm_terminate() {
     
     terminate_visible = true;
     
-    work().add_queue("", [this, ptr = &terminate_visible](){
+    work().add_queue("", [ptr = &terminate_visible](){
         std::lock_guard<std::recursive_mutex> lock_guard(PD(gui).lock());
         PD(gui).dialog([ptr = ptr](Dialog::Result result) {
             if(result == Dialog::Result::OKAY) {
@@ -4277,7 +4277,7 @@ void GUI::key_event(const gui::Event &event) {
         }
             
         case Codes::Comma: {
-            auto fn = [this]() {
+            auto fn = []() {
                 if(!PD(analysis).paused())
                     PD(tracker).wait();
                 PD(analysis).set_paused(!PD(analysis).paused());
@@ -4552,7 +4552,7 @@ void GUI::save_state(GUI::GUIType type, bool force_overwrite) {
     
     save_state_visible = true;
     
-    auto fn = [this, file, ptr = &save_state_visible]() {
+    auto fn = [file, ptr = &save_state_visible]() {
         bool before = PD(analysis).is_paused();
         PD(analysis).set_paused(true).get();
         
@@ -4580,7 +4580,7 @@ void GUI::save_state(GUI::GUIType type, bool force_overwrite) {
             Debug("The file '%S' already exists. To overwrite this setting, add the keyword 'force'.", &file->str());
             save_state_visible = false;
         } else {
-            this->work().add_queue("", [this, file, fn, ptr = &save_state_visible](){
+            this->work().add_queue("", [file, fn, ptr = &save_state_visible](){
                 PD(gui).dialog([file, fn, ptr = ptr](Dialog::Result result) {
                     if(result == Dialog::Result::OKAY) {
                         work().add_queue("Saving results...", fn);
@@ -4773,7 +4773,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
     };
     
     if(type == GRAPHICAL) {
-        PD(gui).dialog([this, ptr = &state_visible, fn](Dialog::Result result) {
+        PD(gui).dialog([ptr = &state_visible, fn](Dialog::Result result) {
             if(result == Dialog::Result::OKAY) {
                 work().add_queue("Loading results...", fn, PD(video_source).filename().str());
             } else {
@@ -4816,7 +4816,7 @@ void GUI::save_visual_fields() {
             auto path = fishdata / (filename + "_visual_field_"+fish->identity().name());
             work().set_progress("generating visual fields", -1, path.str());
             
-            fish->save_visual_field(path.str(), Range<Frame_t>({},{}), [&](float percent, const std::string& title){ GUI::work().set_progress(title, (counter + 0) / float(individuals.size())); }, false);
+            fish->save_visual_field(path.str(), Range<Frame_t>({},{}), [&](float, const std::string& title){ GUI::work().set_progress(title, (counter + 0) / float(individuals.size())); }, false);
             
             ++counter;
         };
@@ -4986,7 +4986,7 @@ void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void
     
     this->work().add_queue("initializing python...", [this, type, force_load, callback]()
     {
-        auto task = std::async(std::launch::async, [this](){
+        auto task = std::async(std::launch::async, [](){
             cmn::set_thread_name("async::ensure_started");
             auto f = PythonIntegration::ensure_started();
             if(!f.get()) {

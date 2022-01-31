@@ -136,8 +136,11 @@ void UnsetDebugCallback(void * callback) {
     
     void insert_end(OrderedTree<PARSE_OBJECTS> &tree, TreeNode<PARSE_OBJECTS> **current_node, size_t &i, PARSE_OBJECTS X, int Y)
     {
-        if(*current_node)
-            (*current_node)->addChild(new TreeNode<PARSE_OBJECTS>(PARSE_OBJECTS::END, (size_t)((int)i + Y + NODE_OFFSET)));
+        if(*current_node) {
+            auto node = new TreeNode<PARSE_OBJECTS>(PARSE_OBJECTS::END, (size_t)((int)i + Y + NODE_OFFSET));
+            if(!(*current_node)->addChild(node))
+                delete node;
+        }
         
         while (*current_node && (*current_node)->value != X) {
             *current_node = (*current_node)->parent;
@@ -149,18 +152,27 @@ void UnsetDebugCallback(void * callback) {
             *current_node = (*current_node)->parent;
     }
     
-    void insert_single(OrderedTree<PARSE_OBJECTS> &tree, TreeNode<PARSE_OBJECTS> **current_node, TreeNode<PARSE_OBJECTS> *e) {
-        if(*current_node)
-            (*current_node)->addChild(e);
-        else {
-            tree.addNode(e);
-            *current_node = e;
+    bool insert_single(OrderedTree<PARSE_OBJECTS> &tree, TreeNode<PARSE_OBJECTS> **current_node, TreeNode<PARSE_OBJECTS> *e) {
+        if(*current_node) {
+            if(!(*current_node)->addChild(e))
+                return false;
+            
+        } else {
+            if(!tree.addNode(e))
+                return false;
+            else
+                *current_node = e;
         }
+        
+        return true;
     }
     
-    void insert_start(OrderedTree<PARSE_OBJECTS> &tree, TreeNode<PARSE_OBJECTS> **current_node, TreeNode<PARSE_OBJECTS> *e) {
-        insert_single(tree, current_node, e);
-        *current_node = e;
+    bool insert_start(OrderedTree<PARSE_OBJECTS> &tree, TreeNode<PARSE_OBJECTS> **current_node, TreeNode<PARSE_OBJECTS> *e) {
+        if(insert_single(tree, current_node, e)) {
+            *current_node = e;
+            return true;
+        }
+        return false;
     }
     
     // macro for inserting an end object at a given position
@@ -168,13 +180,13 @@ void UnsetDebugCallback(void * callback) {
 #define INSERT_END(X, Y) insert_end(tree, &current_node, i, X, Y)
     
     // inserts a single character with a certain color
-#define INSERT_SINGLE(TYPE, POS) auto e = new TreeNode<PARSE_OBJECTS>(TYPE, POS+NODE_OFFSET); insert_single(tree, &current_node, e)
+#define INSERT_SINGLE(TYPE, POS) auto e = new TreeNode<PARSE_OBJECTS>(TYPE, POS+NODE_OFFSET); if(!insert_single(tree, &current_node, e)) delete e
 
     // inserts a node into the tree with the given offset and sets it as the
     // current node, so that all following characters will be colored in this way
 #define INSERT_START(TYPE, POS) { \
 auto e = new TreeNode<PARSE_OBJECTS>(TYPE, POS+NODE_OFFSET); \
-insert_start(tree, &current_node, e); }
+if(!insert_start(tree, &current_node, e)) delete e; }
     
 	//! will be called when debug functions are used for the first time
     void Init() {
@@ -327,6 +339,7 @@ insert_start(tree, &current_node, e); }
 		// create tree and root node
 		OrderedTree<PARSE_OBJECTS> tree;
 		auto current_node = tree.addNode(PARSE_OBJECTS::NORMAL, 0);
+        assert(current_node);
         
 		// this is where the output goes
 		std::stringstream ss;
@@ -551,8 +564,8 @@ insert_start(tree, &current_node, e); }
                                     : PARSE_OBJECTS::CLASSNAME;
                                 
                                 auto e = tree.addNode(type, word_start+off+NODE_OFFSET);
-                                
-                                e->addChild(new TreeNode<PARSE_OBJECTS>(PARSE_OBJECTS::END, word_end+NODE_OFFSET));
+                                if(e)
+                                    e->addChild(new TreeNode<PARSE_OBJECTS>(PARSE_OBJECTS::END, word_end+NODE_OFFSET));
                             }
                         }
                         
