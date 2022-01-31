@@ -136,12 +136,8 @@ void UnsetDebugCallback(void * callback) {
     
     void insert_end(OrderedTree<PARSE_OBJECTS> &tree, TreeNode<PARSE_OBJECTS> **current_node, size_t &i, PARSE_OBJECTS X, int Y)
     {
-        auto e = new TreeNode<PARSE_OBJECTS>(PARSE_OBJECTS::END, (size_t)((int)i+Y+NODE_OFFSET));
-        
         if(*current_node)
-            (*current_node)->addChild(e);
-        else
-            *current_node = e;
+            (*current_node)->addChild(new TreeNode<PARSE_OBJECTS>(PARSE_OBJECTS::END, (size_t)((int)i + Y + NODE_OFFSET)));
         
         while (*current_node && (*current_node)->value != X) {
             *current_node = (*current_node)->parent;
@@ -154,13 +150,11 @@ void UnsetDebugCallback(void * callback) {
     }
     
     void insert_single(OrderedTree<PARSE_OBJECTS> &tree, TreeNode<PARSE_OBJECTS> **current_node, TreeNode<PARSE_OBJECTS> *e) {
-        {
-            if(*current_node)
-                (*current_node)->addChild(e);
-            else {
-                tree.addNode(e);
-                *current_node = e;
-            }
+        if(*current_node)
+            (*current_node)->addChild(e);
+        else {
+            tree.addNode(e);
+            *current_node = e;
         }
     }
     

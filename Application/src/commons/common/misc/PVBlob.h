@@ -194,48 +194,47 @@ namespace pv {
         constexpr void eol(bool v) { _x1 = (_x1 & 0x7FFF) | uint16_t(v << 15); }
     };
 
-    struct CompressedBlob {
-        //! this represents parent_id (2^1), split (2^0) and tried_to_split (2^2)
-        uint8_t status_byte = 0;
-        pv::bid parent_id = pv::bid::invalid;
-        mutable pv::bid own_id = pv::bid::invalid;
-        
-        //! y of first position (everything is relative to this)
-        uint16_t start_y;
-        std::vector<ShortHorizontalLine> lines;
-        
-        CompressedBlob() {
-            static_assert(int32_t(-1) == (uint32_t)bid::invalid, "Must be equal to ensure backwards compatibility.");
-        }
-        CompressedBlob(const pv::BlobPtr& val) :
-            parent_id(val->parent_id()),
-            own_id(val->blob_id())
-        {
-            status_byte = (uint8_t(val->split())           * 0x1)
-                        | (uint8_t(val->parent_id().valid()) * 0x2)
-                        | (uint8_t(val->tried_to_split())  * 0x4);
-            lines = ShortHorizontalLine::compress(val->hor_lines());
-            start_y = val->lines()->empty() ? 0 : val->lines()->front().y;
-        }
-        
-        bool split() const { return status_byte & 0x1; }
-        cmn::Bounds calculate_bounds() const;
-        
-        pv::BlobPtr unpack() const;
-        uint64_t num_pixels() const {
-            // adding +1 to result for each line (in order to include x1 as part of the total count)
-            uint64_t result = lines.size();
-            
-            // adding all line lengths
-            for(auto &line : lines)
-                result += line.x1() - line.x0();
-            
-            return result;
-        }
-        
-        bid blob_id() const;
-    };
+struct CompressedBlob {
+    //! this represents parent_id (2^1), split (2^0) and tried_to_split (2^2)
+    uint8_t status_byte = 0;
+    pv::bid parent_id = pv::bid::invalid;
+    mutable pv::bid own_id = pv::bid::invalid;
 
+    //! y of first position (everything is relative to this)
+    uint16_t start_y{0};
+    std::vector<ShortHorizontalLine> lines;
+
+    CompressedBlob() = default;
+    CompressedBlob(const pv::BlobPtr& val) :
+        parent_id(val->parent_id()),
+        own_id(val->blob_id())
+    {
+        status_byte = (uint8_t(val->split())             * 0x1)
+                    | (uint8_t(val->parent_id().valid()) * 0x2)
+                    | (uint8_t(val->tried_to_split())    * 0x4);
+        lines = ShortHorizontalLine::compress(val->hor_lines());
+        start_y = val->lines()->empty() ? 0 : val->lines()->front().y;
+    }
+        
+    bool split() const { return status_byte & 0x1; }
+    cmn::Bounds calculate_bounds() const;
+        
+    pv::BlobPtr unpack() const;
+    uint64_t num_pixels() const {
+        // adding +1 to result for each line (in order to include x1 as part of the total count)
+        uint64_t result = lines.size();
+            
+        // adding all line lengths
+        for(auto &line : lines)
+            result += line.x1() - line.x0();
+            
+        return result;
+    }
+        
+    bid blob_id() const;
+};
+
+static_assert(int32_t(-1) == (uint32_t)bid::invalid, "Must be equal to ensure backwards compatibility.");
 
 inline bid bid::from_blob(const pv::Blob &blob) {
     if(!blob.lines() || blob.lines()->empty())
@@ -256,4 +255,5 @@ inline bid bid::from_blob(const pv::CompressedBlob &blob) {
                      blob.start_y,
                      blob.lines.size());
 }
+
 }

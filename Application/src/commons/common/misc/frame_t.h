@@ -96,7 +96,8 @@ struct Frame_t {
 };
 
 constexpr Frame_t operator""_f(const unsigned long long int value) {
-    return Frame_t(value);
+    // intentional static cast, but probably unsafe.
+    return Frame_t(static_cast<Frame_t::number_t>(value));
 }
 
 constexpr inline Frame_t min(Frame_t A, Frame_t B) {

@@ -23,7 +23,6 @@ char* memGetAddr( mappedRegion *hReg)
 }
 
 int memmap(bool create, const file::Path& path, mappedRegion* hReg, uint64_t length = 0) {
-    int res;
     unsigned int i;
     int exists = 1;
     char buffer[1024];
