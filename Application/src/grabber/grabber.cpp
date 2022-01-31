@@ -289,10 +289,11 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
     _camera(NULL),
     _current_fps(0), _fps(0),
     _processed(make_filename()),
-    previous_time(0), _loading_timing(0), _grid(NULL), file(NULL), _terminate_tracker(false)
+    previous_time(0), _loading_timing(0), _grid(NULL), file(NULL)
 #if WITH_FFMPEG
 , mp4_thread(NULL), mp4_queue(NULL)
 #endif
+    , _terminate_tracker(false)
 {
     FrameGrabber::instance = this;
     GrabSettings::init();

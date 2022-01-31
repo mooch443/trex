@@ -92,7 +92,7 @@ namespace track {
             Idx_t fdx;
             gui::Transform midline_transform;
             
-            ImageData(Blob blob = {0}, Frame_t frame = {}, const FrameRange& segment = FrameRange(), Individual* fish = NULL, Idx_t fdx = Idx_t(), const gui::Transform& transform = gui::Transform())
+            ImageData(Blob blob = { .num_pixels = 0 }, Frame_t frame = {}, const FrameRange& segment = FrameRange(), Individual* fish = NULL, Idx_t fdx = Idx_t(), const gui::Transform& transform = gui::Transform())
                 : image(nullptr), filters(nullptr), blob(blob), frame(frame), segment(segment), fish(fish), fdx(fdx), midline_transform(transform)
             {}
         };

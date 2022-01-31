@@ -6,281 +6,287 @@
 
 namespace cmn {
     typedef float Float2_t;
-    struct size_members { Float2_t width, height; };
-    struct vec_members { Float2_t x, y; };
-    
-    template<bool is_size>
-    class Float2 : public std::conditional<is_size, size_members, vec_members>::type {
-    public:
-        typedef typename std::conditional<is_size, size_members, vec_members>::type member_base;
-        typedef Float2<is_size> self_type;
-        
-    public:
-#define F2_IS_VECTOR template<typename S = member_base, typename std::enable_if<std::is_same<vec_members, S>::value, int>::type = 0>
-#define F2_IS_SIZE template<typename S = member_base, typename std::enable_if<std::is_same<size_members, S>::value, int>::type = 0>
-        
-        F2_IS_VECTOR inline constexpr const Float2_t& A() const { return member_base::x; }
-        F2_IS_VECTOR inline constexpr const Float2_t& B() const { return member_base::y; }
-        
-        F2_IS_VECTOR inline constexpr Float2_t& A() { return member_base::x; }
-        F2_IS_VECTOR inline constexpr Float2_t& B() { return member_base::y; }
-        
-        F2_IS_SIZE inline constexpr const Float2_t& A() const { return member_base::width; }
-        F2_IS_SIZE inline constexpr const Float2_t& B() const { return member_base::height; }
-        
-        F2_IS_SIZE inline constexpr Float2_t& A() { return member_base::width; }
-        F2_IS_SIZE inline constexpr Float2_t& B() { return member_base::height; }
-        
-        F2_IS_SIZE Float2(const cv::Size& v) : Float2(v.width, v.height) {}
-        
-#undef F2_IS_VECTOR
-#undef F2_IS_SIZE
-        
-    public:
-        template<bool K>
-        explicit constexpr Float2(const Float2<K>& other) noexcept : Float2(other.A(), other.B()) {}
-        constexpr Float2() noexcept : Float2(0, 0) {}
-        explicit constexpr Float2(double a) noexcept : Float2(static_cast<Float2_t>(a), static_cast<Float2_t>(a)) {}
-        constexpr Float2(double a, double b) noexcept : member_base{static_cast<Float2_t>(a), static_cast<Float2_t>(b)} { }
-        
-#if CMN_WITH_IMGUI_INSTALLED
-        Float2(const ImVec2& v) noexcept : Float2(v.x, v.y) {}
-        operator ImVec2() const { return ImVec2(A(), B()); }
-#endif
-        
-        template<typename T>
-        Float2(const cv::Point_<T>& v) noexcept : Float2(v.x, v.y) {}
-        
-        template<bool K = is_size>
-        explicit Float2(const typename std::enable_if<K, cv::Mat>::type& matrix) noexcept
-            : Float2(matrix.cols, matrix.rows)
-        {}
-        
-        template<typename T>
-        operator cv::Point_<T>() const { return cv::Point_<T>(narrow_cast<T>(A()), narrow_cast<T>(B())); }
-        
-        operator const Float2<!is_size>&() const { return *((const Float2<!is_size>*)this); }
-        operator Float2<!is_size>&() { return *((Float2<!is_size>*)this); }
-        
-        constexpr Float2_t min() const { return cmn::min(A(), B()); }
-        constexpr Float2_t max() const { return cmn::max(A(), B()); }
-        constexpr Float2 abs() const { return Float2(cmn::abs(A()), cmn::abs(B())); }
-        
-        constexpr bool empty() const { return operator==(Float2(0)); }
-        
-        //! Element-wise multiplication
-        template<bool K>
-        constexpr Float2 mul(const Float2<K>& other) const {
-            return Float2(A() * other.A(), B() * other.B());
-        }
-        template<bool K>
-        constexpr Float2 div(const Float2<K>& other) const {
-            return Float2(A() / other.A(), B() / other.B());
-        }
-        
-        constexpr Float2 mul(const Float2_t& other) const {
-            return Float2(A() * other, B() * other);
-        }
-        constexpr Float2 div(const Float2_t& other) const {
-            return Float2(A() / other, B() / other);
-        }
-        
-        constexpr Float2 T() const {
-            return Float2(B(), A());
-        }
-        
-        template<Float2_t (*F)(Float2_t)>
-        constexpr Float2 map() const {
-            return Float2(F(A()), F(B()));
-        }
 
-        constexpr Float2 map(std::function<Float2_t(Float2_t)>&& fn) const {
-            return Float2(fn(A()), fn(B()));
-        }
-        
-        static constexpr inline bool almost_equal(Float2_t a, Float2_t b) {
-            constexpr auto epsilon = Float2_t(0.001);
-            return cmn::abs(a - b) <= epsilon;
-        }
-        
-        template<bool K>
-        constexpr bool Equals(const Float2<K>& other) const {
-            return almost_equal(A(), other.A()) && almost_equal(B(), other.B());
-        }
-        
-        template<bool K>
-        constexpr bool operator==(const Float2<K>& other) const {
-            return other.A() == A() && other.B() == B();
-        }
-        template<bool K>
-        constexpr bool operator!=(const Float2<K>& other) const {
-            return other.A() != A() || other.B() != B();
-        }
-        
-        template<bool K>
-        constexpr bool operator<(const Float2<K>& other) const {
-            return other.B() < B() || (other.B() == B() && other.A() < A());
-        }
-        
-        template<bool K>
-        constexpr bool operator>(const Float2<K>& other) const {
-            return other.B() > B() || (other.B() == B() && other.A() > A());
-        }
-        
-        template<bool K>
-        constexpr Float2& operator+=(const Float2<K>& other) {
-            A() += other.A();
-            B() += other.B();
-            return *this;
-        }
-        
-        template<typename K>
-        constexpr Float2& operator+=(const cv::Point_<K>& other) {
-            A() += other.x;
-            B() += other.y;
-            return *this;
-        }
-        
-        template<bool K>
-        constexpr Float2& operator-=(const Float2<K>& other) {
-            A() -= other.A();
-            B() -= other.B();
-            return *this;
-        }
-        
-        template<typename K>
-        constexpr Float2& operator-=(const cv::Point_<K>& other) {
-            A() -= other.x;
-            B() -= other.y;
-            return *this;
-        }
-        
-        template<bool K>
-        constexpr Float2_t dot(const Float2<K>& other) const {
-            return A()*other.A() + B()*other.B();
-        }
-        
-        constexpr Float2 perp() const {
-            return Float2(B(), -A());
-        }
-        
-        constexpr Float2_t length() const {
-            return cmn::sqrt(sqlength());
-        }
-        
-        template<typename K>
-        static constexpr K square(K k) {
-            return k * k;
-        }
-        
-        constexpr Float2_t sqlength() const {
-            return square(A()) + square(B());
-        }
-        
-        constexpr Float2 normalize() const {
-            auto L = length();
-            return Float2_t(L != 0) * (*this / (Float2_t(L == 0) + L));
-        }
-        
-        constexpr Float2 clip(Float2_t start, Float2_t end) const {
-            return Float2(saturate(A(), start, end), saturate(B(), start, end));
-        }
-        
-        constexpr Float2 clip(const Float2& start, const Float2& end) const {
-            return Float2(saturate(A(), start.A(), end.A()), saturate(B(), start.B(), end.B()));
-        }
-        
-        //! Element-wise reciprocal (1/x)
-        constexpr Float2 reciprocal() const {
-            return Float2(1.f / A(), 1.f / B());
-        }
-        
-        constexpr Float2& operator+=(Float2_t other) { A() += other; B() += other; return *this; }
-        constexpr Float2& operator-=(Float2_t other) { A() -= other; B() -= other; return *this; }
-        constexpr Float2& operator*=(Float2_t other) { A() *= other; B() *= other; return *this; }
-        constexpr Float2& operator/=(Float2_t other) { A() /= other; B() /= other; return *this; }
-        
-        std::string toStr() const {
-            return "[" + Meta::toStr(A()) + "," + Meta::toStr(B()) + "]";
-        }
-        
-        static self_type fromStr(const std::string& str)
-        {
-            auto vec = Meta::fromStr<std::vector<Float2_t>>(str);
-            if(vec.empty())
-                return self_type();
-            if(vec.size() != 2)
-                throw CustomException<std::invalid_argument>("Can only initialize Vec2 with two or no elements. ('%S')", &str);
-            return self_type(vec[0], vec[1]);
-        }
-        
-        static std::string class_name() {
-            if constexpr(is_size) {
-                return "size";
-            } else
-                return "vec";
-        }
-    };
+#if CMN_WITH_IMGUI_INSTALLED
+    #define IMGUI_CONSTRUCTOR \
+        Vector2D(const ImVec2& v) noexcept : Vector2D(v.x, v.y) {} \
+        operator ImVec2() const { return ImVec2(A(), B()); }
+#else
+    #define IMGUI_CONSTRUCTOR
+#endif
+
+#define Vector2D_COMMON_FUNCTIONS \
+    static constexpr auto zeros() { return self_type{Scalar(0), Scalar(0)}; } \
+    \
+    template<typename V, bool K> \
+    constexpr Vector2D(const Vector2D<V, K>& other) noexcept : Vector2D(other.A(), other.B()) {} \
+    \
+    template<typename V> \
+    Vector2D(const cv::Point_<V>& v) noexcept : Vector2D(v.x, v.y) {} \
+    template<typename V> \
+    Vector2D(const cv::Size_<V>& v) noexcept : Vector2D(v.width, v.height) {} \
+    template<typename V> operator cv::Point_<V> () const { return cv::Point_<V>(A(), B()); } \
+    template<typename V> operator cv::Size_<V> () const { return cv::Size_<V>(A(), B()); } \
+    \
+    IMGUI_CONSTRUCTOR \
+    \
+    constexpr Scalar min() const { return std::min(A(), B()); } \
+    constexpr Scalar max() const { return std::max(A(), B()); } \
+    constexpr Vector2D abs() const { return self_type(std::abs(A()), std::abs(B())); } \
+    constexpr bool empty() const { return operator==(zeros()); } \
+    \
+    constexpr Vector2D mul(const auto& other) const { \
+        return { A() * other.A(), B() * other.B() }; \
+    } \
+    constexpr Vector2D div(const auto& other) const { \
+        return { A() / other.A(), B() / other.B() }; \
+    } \
+    \
+    constexpr Vector2D mul(const Scalar& other) const { \
+        return Vector2D(A() * other, B() * other); \
+    } \
+    constexpr Vector2D div(const Scalar& other) const { \
+        return Vector2D(A() / other, B() / other); \
+    } \
+    \
+    constexpr Vector2D T() const { \
+        return Vector2D(B(), A()); \
+    } \
+    \
+    template<Scalar (*F)(Scalar)> \
+    constexpr Vector2D map() const { \
+        return Vector2D(F(A()), F(B())); \
+    } \
+    \
+    constexpr Scalar map(std::function<Scalar(Scalar)>&& fn) const { \
+        return Float2(fn(A()), fn(B())); \
+    } \
+    \
+    static constexpr inline bool almost_equal(Scalar a, Scalar b) { \
+        constexpr auto epsilon = Scalar(0.001); \
+        return std::abs(a - b) <= epsilon; \
+    } \
+    \
+    template<typename T, bool K> \
+    constexpr bool Equals(const Vector2D<T, K>& other) const { \
+        return almost_equal(A(), other.A()) && almost_equal(B(), other.B()); \
+    } \
+    \
+    template<typename V, bool K> \
+    constexpr bool operator==(const Vector2D<V, K>& other) const { \
+        return other.A() == A() && other.B() == B(); \
+    } \
+    template<typename V, bool K> \
+    constexpr bool operator!=(const Vector2D<V, K>& other) const { \
+        return other.A() != A() || other.B() != B(); \
+    } \
+    \
+    template<typename V, bool K> \
+    constexpr bool operator<(const Vector2D<V, K>& other) const { \
+        return other.B() < B() || (other.B() == B() && other.A() < A()); \
+    } \
+    \
+    template<typename V, bool K> \
+    constexpr bool operator>(const Vector2D<V, K>& other) const { \
+        return other.B() > B() || (other.B() == B() && other.A() > A()); \
+    } \
+    \
+    template<typename V, bool K> \
+    constexpr Vector2D& operator+=(const Vector2D<V, K>& other) { \
+        A() += other.A(); \
+        B() += other.B(); \
+        return *this; \
+    } \
+    \
+    template<typename V, bool K> \
+    constexpr Vector2D& operator-=(const Vector2D<V, K>& other) { \
+        A() -= other.A(); \
+        B() -= other.B(); \
+        return *this; \
+    } \
+    \
+    template<typename K> \
+    constexpr Vector2D& operator+=(const cv::Point_<K>& other) { \
+        A() += other.x; \
+        B() += other.y; \
+        return *this; \
+    } \
+    \
+    template<typename K> \
+    constexpr Vector2D& operator-=(const cv::Point_<K>& other) { \
+        A() -= other.x; \
+        B() -= other.y; \
+        return *this; \
+    } \
+    \
+    template<typename V, bool K> \
+    constexpr V dot(const Vector2D<V, K>& other) const { \
+        return A()*other.A() + B()*other.B(); \
+    } \
+    \
+    constexpr Vector2D perp() const { \
+        return Vector2D(B(), -A()); \
+    } \
+    \
+    constexpr Scalar length() const { \
+        return std::sqrt(sqlength()); \
+    } \
+    \
+    template<typename K> \
+    static constexpr K square(K k) { \
+        return k * k; \
+    } \
+    \
+    constexpr Scalar sqlength() const { \
+        return square(A()) + square(B()); \
+    } \
+    \
+    constexpr Vector2D normalize() const { \
+        auto L = length(); \
+        return Scalar(L != 0) * (*this / (Scalar(L == 0) + L)); \
+    } \
+    \
+    constexpr Vector2D clip(Scalar start, Scalar end) const { \
+        return Float2(saturate(A(), start, end), saturate(B(), start, end)); \
+    } \
+    \
+    constexpr Vector2D clip(const Vector2D& start, const Vector2D& end) const { \
+        return Float2(saturate(A(), start.A(), end.A()), saturate(B(), start.B(), end.B())); \
+    } \
+    \
+    /* Element-wise reciprocal (1/x) */ \
+    constexpr Vector2D reciprocal() const { \
+        return Vector2D(Scalar(1) / A(), Scalar(1) / B()); \
+    } \
+    \
+    constexpr Vector2D& operator+=(Scalar other) { A() += other; B() += other; return *this; } \
+    constexpr Vector2D& operator-=(Scalar other) { A() -= other; B() -= other; return *this; } \
+    constexpr Vector2D& operator*=(Scalar other) { A() *= other; B() *= other; return *this; } \
+    constexpr Vector2D& operator/=(Scalar other) { A() /= other; B() /= other; return *this; } \
+    \
+    std::string toStr() const { \
+        return "[" + Meta::toStr(A()) + "," + Meta::toStr(B()) + "]"; \
+    } \
+    \
+    static Vector2D fromStr(const std::string& str) \
+    { \
+        auto vec = Meta::fromStr<std::vector<Scalar>>(str); \
+        if(vec.empty()) \
+            return Vector2D(); \
+        if(vec.size() != 2) \
+            throw CustomException<std::invalid_argument>("Can only initialize Vector2D with two or no elements. ('%S')", &str); \
+        return Vector2D(vec[0], vec[1]); \
+    }
+
+template<typename Scalar, bool flag>
+struct Vector2D
+{ Vector2D() = delete; };
+
+template<typename Scalar>
+struct Vector2D<Scalar, true>
+{
+    using self_type = Vector2D<Scalar, true>;
+    Scalar x{0}, y{0};
+
+    Vector2D() = default;
     
-    typedef Float2<true> Size2;
-    typedef Float2<false> Vec2;
+    constexpr Vector2D(Scalar a) : x(a), y(a) {}
+    constexpr Vector2D(Scalar a, Scalar b) : x(a), y(b) {}
+    constexpr const Scalar& A() const { return x; }
+    constexpr const Scalar& B() const { return y; }
+
+    constexpr Scalar& A() { return x; }
+    constexpr Scalar& B() { return y; }
+
+    Vector2D_COMMON_FUNCTIONS
+
+    static std::string class_name() {
+        return "vec";
+    }
+};
+
+template<typename Scalar>
+struct Vector2D<Scalar, false>
+{
+    using self_type = Vector2D<Scalar, true>;
+    Scalar width{0}, height{0};
+
+    Vector2D() = default;
     
-#define TEMPLATE_FLOAT2_OTHER template<typename K, typename T, typename std::enable_if<std::is_base_of<vec_members, T>::value || std::is_base_of<size_members, T>::value, int>::type = 0>
-#define TEMPLATE_FLOAT2 template<typename T, typename std::enable_if<std::is_base_of<vec_members, T>::value || std::is_base_of<size_members, T>::value, int>::type = 0>
-#define TEMPLATE_FLOAT2_SEPERATE template<typename T0, typename T1, typename std::enable_if<(std::is_base_of<vec_members, T0>::value || std::is_base_of<size_members, T0>::value) && (std::is_base_of<vec_members, T1>::value || std::is_base_of<size_members, T1>::value), int>::type = 0>
+    constexpr Vector2D(Scalar a) : width(a), height(a) {}
+    constexpr Vector2D(Scalar a, Scalar b) : width(a), height(b) {}
+    explicit Vector2D(const cv::Mat& m) : width(m.cols), height(m.rows) {}
     
+    constexpr const Scalar& A() const { return width; }
+    constexpr const Scalar& B() const { return height; }
+
+    constexpr Scalar& A() { return width; }
+    constexpr Scalar& B() { return height; }
+
+    Vector2D_COMMON_FUNCTIONS
+
+    static std::string class_name() {
+        return "size";
+    }
+};
+
+using Vec2 = Vector2D<Float2_t, true>;
+using Size2 = Vector2D<Float2_t, false>;
+
 #define ScalarFloat2operator(SIGN) \
-TEMPLATE_FLOAT2 \
-constexpr inline T operator SIGN(const T& v, Float2_t s) { return T(v.A() SIGN s, v.B() SIGN s); }
-    
+template<typename Scalar, bool K, typename S1> \
+    requires std::convertible_to<S1, Scalar> \
+constexpr Vector2D<Scalar, K> operator SIGN (const Vector2D<Scalar, K>& v, S1 s) { return { v.A() SIGN static_cast<Scalar>(s), v.B() SIGN static_cast<Scalar>(s) }; }
+
 #define RScalarFloat2operator(SIGN) \
-TEMPLATE_FLOAT2 \
-constexpr inline T operator SIGN(Float2_t s, const T& v) { return T(s SIGN v.A(), s SIGN v.B()); }
+template<typename Scalar, bool K, typename S1> \
+    requires std::convertible_to<S1, Scalar> \
+constexpr Vector2D<Scalar, K> operator SIGN (S1 s, const Vector2D<Scalar, K>& v) { return { v.A() SIGN static_cast<Scalar>(s), v.B() SIGN static_cast<Scalar>(s) }; }
     
-    ScalarFloat2operator(+)
-    ScalarFloat2operator(-)
-    ScalarFloat2operator(*)
-    RScalarFloat2operator(*)
-    ScalarFloat2operator(/)
+ScalarFloat2operator(+)
+ScalarFloat2operator(-)
+ScalarFloat2operator(*)
+RScalarFloat2operator(*)
+ScalarFloat2operator(/)
     
-    TEMPLATE_FLOAT2
-    constexpr inline T operator -(const T& v) { return T(-v.A(), -v.B()); }
+    template<typename Scalar, bool K>
+    constexpr inline Vector2D<Scalar, K> operator -(const Vector2D<Scalar, K>& v) { return { -v.A(), -v.B() }; }
+
+    template<typename Scalar, bool K>
+    constexpr inline Vector2D<Scalar, K> operator +(const Vector2D<Scalar, K>& v) { return v; }
     
-    TEMPLATE_FLOAT2
-    constexpr inline T operator +(const T& v) { return v; }
-    
-    TEMPLATE_FLOAT2_SEPERATE
-    constexpr inline T0 operator+(const T0& v, const T1& w) {
-        return T0(v.A() + w.A(), v.B() + w.B());
+    template<template<class, bool> class H, typename V, bool K>
+    concept is_vector2d =
+        std::same_as<H<V, K>, Vector2D<V, K>>;
+
+    template<template<class, bool> class T0, typename V0, bool K0,
+             template<class, bool> class T1, typename V1, bool K1>
+        requires is_vector2d<T0, V0, K0>
+              && is_vector2d<T1, V1, K1>
+    constexpr inline auto operator-(const T0<V0, K0>& v, const T1<V1, K1>& w) {
+        return T0<V0, K0>(v.A() - w.A(), v.B() - w.B());
     }
     
-    TEMPLATE_FLOAT2_SEPERATE
-    constexpr inline T0 operator-(const T0& v, const T1& w) {
-        return T0(v.A() - w.A(), v.B() - w.B());
+    template<template<class, bool> class T0, typename V0, bool K0,
+             template<class, bool> class T1, typename V1, bool K1>
+        requires is_vector2d<T0, V0, K0>
+              && is_vector2d<T1, V1, K1>
+    constexpr inline auto operator+(const T0<V0, K0>& v, const T1<V1, K1>& w) {
+        return T0<V0, K0>(v.A() + w.A(), v.B() + w.B());
     }
     
-    TEMPLATE_FLOAT2_OTHER
-    constexpr inline T operator+(const cv::Point_<K>& v, const T& w) {
-        return T(v.x + w.A(), v.y + w.B());
+    template<typename V, bool K>
+    constexpr inline Vector2D<V, K> operator+(const Vector2D<V, K>& w, const cv::Point_<V>& v) {
+        return { v.x + w.A(), v.y + w.B() };
     }
     
-    TEMPLATE_FLOAT2_OTHER
-    constexpr inline T operator-(const cv::Point_<K>& v, const T& w) {
-        return T(v.x - w.A(), v.y - w.B());
+    template<typename V, bool K>
+    constexpr inline Vector2D<V, K> operator-(const Vector2D<V, K>& w, const cv::Point_<V>& v) {
+        return { v.x - w.A(), v.y - w.B() };
     }
     
-    TEMPLATE_FLOAT2_OTHER
-    constexpr inline T operator+(const T& w, const cv::Point_<K>& v) {
-        return T(v.x + w.A(), v.y + w.B());
-    }
-    
-    TEMPLATE_FLOAT2_OTHER
-    constexpr inline T operator-(const T& w, const cv::Point_<K>& v) {
-        return T(w.A() - v.x, w.B() - v.y);
-    }
-    
-    TEMPLATE_FLOAT2
-    inline std::ostream &operator <<(std::ostream &os, const T& obj) {
+    template<typename V, bool K>
+    inline std::ostream &operator <<(std::ostream &os, const Vector2D<V, K>& obj) {
         uint _x = (uint)roundf(obj.A()), _y = (uint)roundf(obj.B());
         //assert(obj.A() >= SHRT_MIN && obj.B() >= SHRT_MIN && obj.A() <= SHRT_MAX && obj.B() <= SHRT_MAX);
         
@@ -296,22 +302,16 @@ constexpr inline T operator SIGN(Float2_t s, const T& v) { return T(s SIGN v.A()
 #undef ScalarFloat2operator
 #undef TEMPLATE_FLOAT2_OTHER
     
-    template<bool T>
-    inline Float2_t atan2(const Float2<T>& vector) {
+    template<typename V, bool K>
+    inline V atan2(const Vector2D<V, K>& vector) {
         return ::atan2(vector.y, vector.x);
     }
-    
+
+    static_assert(sizeof(Float2_t) * 2 == sizeof(Vec2), "This must be true in order to ensure the union hack below works.");
+
     class Bounds {
     public:
-        union {
-            struct { Float2_t x, y; };
-            Vec2 _pos;
-        };
-        
-        union {
-            struct { Float2_t width, height; };
-            Size2 _size;
-        };
+        Float2_t x=0, y=0, width=0, height=0;
         
     public:
         Bounds(Bounds&& other) = default;
@@ -324,12 +324,12 @@ constexpr inline T operator SIGN(Float2_t s, const T& v) { return T(s SIGN v.A()
             : x(static_cast<Float2_t>(_x)), y(static_cast<Float2_t>(_y)), width(static_cast<Float2_t>(w)), height(static_cast<Float2_t>(h))
         {}
         
-        constexpr Bounds(const Vec2& pos,
+        explicit constexpr Bounds(const Vec2& pos,
                          const Size2& dim = Size2())
             : Bounds(pos.x, pos.y, dim.width, dim.height)
         {}
         
-        constexpr Bounds(const Size2& dim)
+        explicit constexpr Bounds(const Size2& dim)
             : Bounds(0, 0, dim.width, dim.height)
         {}
         
@@ -346,11 +346,16 @@ constexpr inline T operator SIGN(Float2_t s, const T& v) { return T(s SIGN v.A()
         template<typename T>
         operator cv::Rect_<T>() const { return cv::Rect_<T>((int)x, (int)y, (int)width, (int)height); }
         
-        constexpr const Vec2& pos() const { return this->_pos; }
-        constexpr Vec2& pos() { return this->_pos; }
-        
-        constexpr const Size2& size() const { return _size; }
-        constexpr Size2& size() { return _size; }
+        constexpr const Vec2 pos() const { return Vec2(x, y); }
+        constexpr const Size2 size() const { return Size2(width, height); }
+        constexpr void operator<<(const Size2& size) {
+            width = size.width;
+            height = size.height;
+        }
+        constexpr void operator<<(const Vec2& pos) {
+            x = pos.x;
+            y = pos.y;
+        }
         
         constexpr void operator=(const Bounds& other) {
             x = other.x;
@@ -389,8 +394,8 @@ constexpr inline T operator SIGN(Float2_t s, const T& v) { return T(s SIGN v.A()
             if(pt.y > height) height = pt.y;
         }
         
-        template<bool K>
-        constexpr Bounds mul(const Float2<K>& other) const {
+        template<typename V, bool K>
+        constexpr Bounds mul(const Vector2D<V, K>& other) const {
             return Bounds(x * other.A(), y * other.B(), width * other.A(), height * other.B());
         }
         
@@ -449,6 +454,9 @@ constexpr inline T operator SIGN(Float2_t s, const T& v) { return T(s SIGN v.A()
             return "bounds";
         }
     };
+
+    //static_assert(std::is_trivial_v<Vec2>, "Trivial type for Vec2.");
+    //static_assert(std::is_trivial_v<Bounds>, "Trivial type for bounds.");
     
     //! Calculates the angle between two given vectors.
     //  The result has a value range from [0, pi] (acos) and thus does

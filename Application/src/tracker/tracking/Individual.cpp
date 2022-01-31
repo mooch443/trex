@@ -2463,7 +2463,7 @@ std::tuple<Image::UPtr, Vec2> Individual::calculate_diff_image(pv::BlobPtr blob,
             cv::copyMakeBorder(padded, padded, top, bottom, left, right, cv::BORDER_CONSTANT, 0);
         }
         
-        bounds.size() -= bounds.pos();
+        bounds << Size2(bounds.size() - bounds.pos());
         
         assert(padded.cols >= output_size.width && padded.rows >= output_size.height);
         if(padded.cols > output_size.width || padded.rows > output_size.height) {

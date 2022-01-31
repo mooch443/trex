@@ -59,7 +59,7 @@ namespace gui {
         void structure_changed(bool downwards) override;
         virtual void set_size(const Size2& size) override;
         
-        virtual const Size2& size() override;
+        virtual Size2 size() override;
         virtual const Bounds& bounds() override;
         void set_max_size(const Size2&);
         void set_default_font(const Font&);

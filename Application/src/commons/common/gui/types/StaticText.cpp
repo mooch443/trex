@@ -74,7 +74,7 @@ void StaticText::set_alpha(float alpha) {
     set_content_changed(true);
 }
     
-    const Size2& StaticText::size() {
+    Size2 StaticText::size() {
         update();
         return Entangled::size();
     }

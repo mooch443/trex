@@ -248,7 +248,7 @@ void Polygon::update_size() {
         if(b.height < p.y) b.height = p.y;
     }
     
-    b.size() -= b.pos();
+    b << Size2(b.size() - b.pos());
     
     for(size_t i=0; i<_vertices->size(); ++i)
         (*_relative)[i] = (*_vertices)[i] - b.pos();
@@ -376,7 +376,7 @@ void reduce_vertex_line(const std::vector<Vertex>& points, std::vector<Vertex>& 
         if(pt.y > bounds.height) bounds.height = pt.y;
     }
     
-    bounds.size() -= bounds.pos();
+    bounds << Size2(bounds.size() - bounds.pos());
     float dim = bounds.size().length();
     float cumlen = 0;
     Vec2 prev_vertex = last_added_point;

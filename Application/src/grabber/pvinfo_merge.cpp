@@ -329,10 +329,10 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
                 Bounds test(FLT_MAX, FLT_MAX, 0, 0);
                 for(auto &b : clique) {
                     bounds.combine(b->bounds());
-                    test.pos() = min(test.pos(), b->bounds().pos());
-                    test.size() = max(test.size(), b->bounds().pos() + b->bounds().size());
+                    test << (Vec2) min(test.pos(), b->bounds().pos());
+                    test << (Size2)max(test.size(), b->bounds().pos() + b->bounds().size());
                 }
-                test.size() -= test.pos();
+                test << Size2(test.size() - test.pos());
                 
                 if(bounds != test)
                     Debug("why");

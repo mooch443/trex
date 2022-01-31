@@ -135,7 +135,7 @@ void DebugDrawing::paint(const Outline &outline, bool erase) {
             if(minima.empty())
                 Debug("minima empty.");
             
-            Graph graph(Size2(800, 600), "outline", Rangef(0, outline.size()+5), Rangef(-max_slope*1.5, max_slope*1.5));
+            Graph graph(Bounds(Size2(800, 600)), "outline", Rangef(0, outline.size()+5), Rangef(-max_slope*1.5, max_slope*1.5));
             graph.set_zero(0);
             
             /*graph.add_function(Graph::Function("derivative", Graph::Type::DISCRETE, [&](float x) {

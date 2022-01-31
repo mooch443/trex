@@ -39,6 +39,8 @@ void add_pointer(TrainingData* data) {
     }
     
     TrainingData::print_pointer_stats();
+#else
+    UNUSED(data);
 #endif
 }
 
@@ -54,6 +56,8 @@ void remove_pointer(TrainingData* data) {
     }
     
     TrainingData::print_pointer_stats();
+#else
+    UNUSED(data);
 #endif
 }
 

@@ -291,7 +291,7 @@ namespace gui {
                 }
                 
                 for(size_t i=_rects.size(); i<N; i++) {
-                    _rects.push_back(new Rect(Size2(width(), item_height), Transparent));
+                    _rects.push_back(new Rect(Bounds(0, 0, width(), item_height), Transparent));
                     _rects.back()->set_clickable(true);
                     _rects.back()->on_hover([r = _rects.back(), this](Event e) {
                         if(!e.hover.hovered)

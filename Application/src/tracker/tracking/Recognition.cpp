@@ -588,7 +588,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         return false;
     }
     
-    bool Recognition::eligible_for_training(const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture, const TrainingFilterConstraints &constraints)
+    bool Recognition::eligible_for_training(const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture, const TrainingFilterConstraints &)
     {
         if(!basic)
             return false;

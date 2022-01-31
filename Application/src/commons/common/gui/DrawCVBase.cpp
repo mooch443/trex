@@ -48,7 +48,7 @@ namespace gui {
         std::vector<cv::Mat> split;
         cv::split(mat, split);
         
-        auto &pos = ptr->pos();
+        auto pos = ptr->pos();
         if(pos.x + mat.cols <= _window.cols && pos.y + mat.rows <= _window.rows)
             mat.copyTo(_window(Bounds(pos.x, pos.y, mat.cols, mat.rows)), split[3]);
         

@@ -297,12 +297,12 @@ public:
         
         menu->set_folded(true);
         
-        foi_list = std::make_shared<gui::List>(Size2(150, 33), "foi type", std::vector<std::shared_ptr<List::Item>>{}, [&](auto, const List::Item& item) {
+        foi_list = std::make_shared<gui::List>(Bounds(0, 0, 150, 33), "foi type", std::vector<std::shared_ptr<List::Item>>{}, [&](auto, const List::Item& item) {
             SETTING(gui_foi_name) = ((TextItem)item).text();
             foi_list->set_folded(true);
         });
         
-        reanalyse = std::make_shared<Button>("reanalyse", Size2(100, 33));
+        reanalyse = std::make_shared<Button>("reanalyse", Bounds(0, 0, 100, 33));
         reanalyse->on_click([&](auto){
             GUI::reanalyse_from(GUI::frame());
             SETTING(analysis_paused) = false;

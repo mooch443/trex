@@ -512,7 +512,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                         first_run = false;
                     compare = matches;
                     
-                    this->work().add_queue("updating with new manual matches...", [this, matches](){
+                    this->work().add_queue("updating with new manual matches...", [matches](){
                         //Tracker::LockGuard tracker_lock;
                         auto first_change = Tracker::instance()->update_with_manual_matches(matches);
                         
@@ -905,7 +905,7 @@ void GUI::do_recording() {
         input_bounds.restrict_to(Bounds(mat));
         auto output_bounds = input_bounds;
         output_bounds.restrict_to(Bounds(output));
-        input_bounds.size() = output_bounds.size();
+        input_bounds << output_bounds.size();
         
         if(output_bounds.size() != Size2(output))
             output.mul(cv::Scalar(0));
@@ -2512,7 +2512,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             Debug("All inactive fish: %S", &str);
         }
         else if(settings_dropdown.text() == "print_uniqueness") {
-            work().add_queue("discrimination", [this](){
+            work().add_queue("discrimination", [](){
                 auto && [data, images, map] = Accumulation::generate_discrimination_data();
                 auto && [unique, unique_map, up] = Accumulation::calculate_uniqueness(false, images, map);
                 auto coverage = data->draw_coverage(unique_map);
@@ -2703,7 +2703,7 @@ void GUI::draw_footer(DrawStructure& base) {
     static Text mouse_status("", Vec2(), White.alpha(200), Font(0.7));
     
 #define SITEM(NAME) DirectSettingsItem<globals::Cache::Variables:: NAME>
-    static List options_dropdown(Size2(150, 33 + 2), "display", {
+    static List options_dropdown(Bounds(0, 0, 150, 33 + 2), "display", {
         std::make_shared<SITEM(gui_show_blobs)>("blobs"),
         std::make_shared<SITEM(gui_show_paths)>("paths"),
         std::make_shared<SITEM(gui_show_texts)>("texts"),
@@ -2725,8 +2725,8 @@ void GUI::draw_footer(DrawStructure& base) {
     });
 #undef SITEM
     
-    static Dropdown settings_dropdown(Size2(200, 33), GlobalSettings::map().keys());
-    static Textfield textfield("", Size2(300, settings_dropdown.height()));
+    static Dropdown settings_dropdown(Bounds(0, 0, 200, 33), GlobalSettings::map().keys());
+    static Textfield textfield("", Bounds(0, 0, 300, settings_dropdown.height()));
     static Tooltip tooltip(&settings_dropdown, 400);
     
     std::vector<Layout::Ptr> objects = { &options_dropdown, &settings_dropdown};
@@ -2836,7 +2836,7 @@ void GUI::draw_footer(DrawStructure& base) {
                             if(pt.x > bds.width) bds.width = pt.x;
                             if(pt.y > bds.height) bds.height = pt.y;
                         }
-                        bds.size() -= bds.pos();
+                        bds << bds.size() - bds.pos();
                         
                         try {
                             auto array = GlobalSettings::get(key).value<std::vector<Bounds>>();
@@ -3383,15 +3383,14 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
                 for(auto it = start; it != end; ++it) {
                     auto& e = *it;
                     auto input = e->source()->get();
-                    auto &pos = e->bounds().pos();
-                    auto &size = e->bounds().size();
-                    if(pos.x >= 0 && pos.y >= 0 && pos.x + size.width < mat.cols && pos.y + size.height < mat.rows) {
+                    auto &bounds = e->bounds();
+                    if(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width < mat.cols && bounds.y + bounds.height < mat.rows) {
                         assert(input.channels() == 2);
                         assert(mat.channels() == 4);
                         
-                        for (int y = pos.y; y < pos.y + size.height; ++y) {
-                            for (int x = pos.x; x < pos.x + size.width; ++x) {
-                                auto inp = Color(input.template at<cv::Vec2b>(y - pos.y, x - pos.x));
+                        for (int y = bounds.y; y < bounds.y + bounds.height; ++y) {
+                            for (int x = bounds.x; x < bounds.x + bounds.width; ++x) {
+                                auto inp = Color(input.template at<cv::Vec2b>(y - bounds.y, x - bounds.x));
                                 if(inp.a > 0)
                                     mat.at<cv::Vec4b>(y, x) = inp;
                                 //Color::blend(Color(out), Color(input.template at<cv::Vec2b>(y - pos.y, x - pos.x)));
@@ -5220,15 +5219,14 @@ void GUI::generate_training_data_faces(const file::Path& path) {
             imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, &Tracker::average(), 0);
             
             auto b = blob->bounds();
-            //
-            b.size() = output_size;
+            b << output_size;
             
             Vec2 offset = (Size2(padded) - Size2(image)) * 0.5;
             
             offset.x = round(offset.x);
             offset.y = round(offset.y);
             
-            b.pos() = b.pos() - offset;
+            b << b.pos() - offset;
             
             padded = cv::Mat::zeros(output_size.height, output_size.width, CV_8UC1);
             b.restrict_to(_average_image.bounds());
@@ -5239,8 +5237,8 @@ void GUI::generate_training_data_faces(const file::Path& path) {
             b.restrict_to(_average_image.bounds());
             
             Bounds p(blob->bounds());
-            p.size() = Size2(mask);
-            p.pos() = offset;
+            p << Size2(mask);
+            p << Vec2(offset);
             
             p.restrict_to(Bounds(padded));
             

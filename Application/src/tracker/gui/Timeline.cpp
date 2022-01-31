@@ -53,7 +53,7 @@ namespace gui {
              _status_text3{"", Vec2(), White, 0.8f };
         Text _raw_text{ "[RAW]", Vec2(), Black, Font(0.8f, Style::Bold) }, 
              _auto_text{ "", Vec2(), Black, Font(0.8f, Style::Bold) };
-        Button _pause{ "pause", Size2(100, 27) };
+        Button _pause{ "pause", Bounds(0, 0, 100, 27) };
         Timeline* _ptr;
 
         Interface(Timeline * ptr) : _ptr(ptr) {
@@ -72,17 +72,17 @@ namespace gui {
                     GUI::instance()->set_info_visible(false);
                 });
 
-            _status_text2.on_click([this](auto) {
+            _status_text2.on_click([](auto) {
                 SETTING(gui_frame) = _frame_info->global_segment_order.empty() ? Frame_t(0) : _frame_info->global_segment_order.front().start;
             });
             _status_text2.on_hover([this](auto) {
                 _status_text2.set_dirty();
-                });
+            });
             _status_text2.set_clickable(true);
 
             _pause.on_click([](auto) {
                 Tracker::analysis_state((Tracker::AnalysisState)!SETTING(analysis_paused));
-                });
+            });
         }
 
         static Interface& get(Timeline* timeline) {

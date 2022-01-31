@@ -81,7 +81,7 @@ namespace gui {
     Textfield::Textfield(const std::string& text, const Bounds& bounds)
         : gui::Entangled(),
             _cursor_position(text.length()),
-            _cursor(Size2(2,30), Black),
+            _cursor(Bounds(0, 0, 2,30), Black),
             _placeholder(NULL),
             _text_offset(0),
             _display_text_len(0),

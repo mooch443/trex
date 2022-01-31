@@ -273,7 +273,7 @@ namespace gui {
         if(std::isnan(npos.x) || std::isnan(npos.y) || std::isinf(npos.x) || std::isinf(npos.y))
             Warning("NaN in set_pos.");
 #endif
-        _bounds.pos() = npos;
+        _bounds << npos;
     }
     
     void Drawable::set_size(const Size2& size) {
@@ -286,7 +286,7 @@ namespace gui {
         if(std::isnan(size.width) || std::isnan(size.height) || std::isinf(size.height) || std::isinf(size.width))
             Warning("NaN in set_size.");
 #endif
-        _bounds.size() = size;
+        _bounds << size;
     }
     
     void Drawable::set_bounds(const Bounds& rect) {

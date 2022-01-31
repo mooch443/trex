@@ -31,7 +31,7 @@ namespace gui {
         _list.set_z_index(1);
         
         if(type == BUTTON) {
-            _button = std::make_shared<Button>("Please select...", bounds.size());
+            _button = std::make_shared<Button>("Please select...", bounds);
             _button->set_toggleable(true);
             _button->add_event_handler(MBUTTON, [this](Event e){
                 if(!e.mbutton.pressed && e.mbutton.button == 0) {
@@ -42,7 +42,7 @@ namespace gui {
             });
             
         } else {
-            _textfield = std::make_shared<Textfield>("", bounds.size());
+            _textfield = std::make_shared<Textfield>("", bounds);
             _textfield->set_placeholder("Please select...");
             _textfield->add_event_handler(KEY, [this](Event e){
                 if(!e.key.pressed)

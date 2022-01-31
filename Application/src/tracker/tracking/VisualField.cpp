@@ -295,7 +295,6 @@ std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(con
         auto opts = outline->uncompress();
         _fish_angle = angle;
         
-        auto bounds = basic->blob.calculate_bounds();
         auto&& [eyes, pos] = generate_eyes(fish, basic, opts, midline, angle);
         _fish_pos = pos;
         _eyes = std::move(eyes);

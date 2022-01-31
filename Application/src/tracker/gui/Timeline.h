@@ -73,7 +73,7 @@ namespace gui {
         static std::tuple<Vec2, float> timeline_offsets();
         
     private:
-        friend class Interface;
+        friend struct Interface;
         void update_fois();
         void update_consecs(float max_w, const Range<Frame_t>&, const std::vector<Range<Frame_t>>&, float scale);
         //void update_recognition_rect();

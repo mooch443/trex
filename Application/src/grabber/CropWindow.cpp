@@ -53,7 +53,7 @@ namespace gui {
         update_rectangle();
         
         SFLoop loop(*_graph, _base.get(),
-        [this, &grabber, &scale, &okay](SFLoop& loop, LoopStatus status){
+        [this, &grabber, &scale, &okay](SFLoop& loop, LoopStatus){
             std::unique_lock<std::recursive_mutex> guard(_graph->lock());
             auto desktop = _base->window_dimensions();
             auto size = _video_size;
@@ -145,7 +145,7 @@ namespace gui {
         if(bounds.width > _video_size.width) bounds.width = _video_size.width;
         if(bounds.height > _video_size.height) bounds.height = _video_size.height;
         
-        bounds.size() -= bounds.pos();
+        bounds << Size2(bounds.size() - bounds.pos());
         _rect->set_bounds(bounds);
     }
 }

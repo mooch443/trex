@@ -916,8 +916,8 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                                 int left = 0, top = 0;
                                 
                                 //Bounds output_bounds(
-                                input_bounds.pos() += (output_size - Size2(image)) * 0.5;
-                                input_bounds.size() = Size2(image);
+                                input_bounds << Vec2(input_bounds.pos() + (output_size - Size2(image)) * 0.5);
+                                input_bounds << Size2(image);
                                 if(input_bounds.x < 0) {
                                     left = -(int)input_bounds.x;
                                     input_bounds.x = 0;

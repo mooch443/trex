@@ -242,7 +242,7 @@ void InfoCard::update() {
         
         auto idx = index();
         if(idx < children().size() && children().at(idx)->type() == Type::RECT)
-            tmp.size() = children().at(idx)->size();
+            tmp << children().at(idx)->size();
         
         float max_w = 200;
         auto rect = advance(new Rect(tmp, bg.alpha(detail ? 50 : bg.a)));
@@ -358,7 +358,7 @@ void InfoCard::update() {
         
         auto idx = index();
         if(idx < children().size() && children().at(idx)->type() == Type::RECT)
-            tmp.size() = children().at(idx)->size();
+            tmp << children().at(idx)->size();
         
         auto blob_id = _fish->compressed_blob(_frameNr)->blob_id();
         auto && [valid, segment] = _fish->has_processed_segment(_frameNr);

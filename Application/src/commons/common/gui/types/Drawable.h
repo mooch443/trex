@@ -302,11 +302,11 @@ namespace gui {
         //  for this object.
         virtual const Bounds& bounds() { return _bounds; }
         
-        virtual const Vec2& pos() { return bounds().pos(); }
-        virtual const Size2& size() { return bounds().size(); }
+        virtual Vec2 pos() { return bounds().pos(); }
+        virtual Size2 size() { return bounds().size(); }
         
-        const Float2_t& width() { return size().width; }
-        const Float2_t& height() { return size().height; }
+        Float2_t width() { return size().width; }
+        Float2_t height() { return size().height; }
         
         //! Returns the actual location, incorporating the origin,
         //  but not the global transform

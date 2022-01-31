@@ -183,7 +183,7 @@ protected:
                float radius = 1,
                const Color& line_color = White,
                const Color& fill_color = Transparent)
-            : gui::Drawable(Type::CIRCLE, Bounds(pos, Vec2(radius*2)), Vec2(0.5)),
+            : gui::Drawable(Type::CIRCLE, Bounds(pos, Size2(radius*2)), Vec2(0.5)),
                 _radius(radius),
                 _line_clr(line_color),
                 _fill_clr(fill_color)
@@ -272,7 +272,7 @@ protected:
             return _text_bounds;
         }
         
-        const Size2& size() override {
+        Size2 size() override {
             //update_bounds();
             refresh_dims();
             return Drawable::size();
@@ -319,7 +319,7 @@ protected:
             if(ptr->_bounds_calculated) {
                 _bounds_calculated = true;
                 _text_bounds = ptr->_text_bounds;
-                set_size(_text_bounds.pos() + _text_bounds.size());
+                set_size(Size2(_text_bounds.pos() + _text_bounds.size()));
             }
             
             return true;
