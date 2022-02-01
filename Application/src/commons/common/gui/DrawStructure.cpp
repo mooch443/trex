@@ -179,7 +179,7 @@ void Dialog::set_closed() {
         
         _text->set_max_size(Size2(_title_bg.width() - 50, 50));
         
-        set_bounds(Bounds(size*0.5, Size2(_title_bg.width() + 10,300)));
+        set_bounds(Bounds(Vec2(size*0.5), Size2(_title_bg.width() + 10,300)));
         set_origin(Vec2(0.5, 0.5));
         
         std::vector<Layout::Ptr> buttons;

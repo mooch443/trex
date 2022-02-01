@@ -148,7 +148,8 @@ namespace cmn {
         return Vector2D(saturate(A(), start, end), saturate(B(), start, end)); \
     } \
     \
-    constexpr Vector2D clip(const Vector2D& start, const Vector2D& end) const { \
+    template<bool K> \
+    constexpr Vector2D clip(const Vector2D<Scalar, K>& start, const Vector2D<Scalar, K>& end) const { \
         return Vector2D(saturate(A(), start.A(), end.A()), saturate(B(), start.B(), end.B())); \
     } \
     \
@@ -174,8 +175,14 @@ namespace cmn {
     constexpr self_type operator+(other_type other) const { \
         return self_type{ A() + other.A(), B() + other.B() }; \
     } \
+    constexpr self_type operator+(self_type other) const { \
+        return self_type{ A() + other.A(), B() + other.B() }; \
+    } \
     \
     constexpr self_type operator-(other_type other) const { \
+        return self_type{ A() - other.A(), B() - other.B() }; \
+    } \
+    constexpr self_type operator-(self_type other) const { \
         return self_type{ A() - other.A(), B() - other.B() }; \
     } \
     \

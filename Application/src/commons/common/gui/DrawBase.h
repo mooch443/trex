@@ -50,7 +50,7 @@ namespace gui {
         
         static inline Size2 text_dimensions(const std::string& text, Drawable* obj = NULL, const Font& font = Font()) {
             auto size = default_text_bounds(text, obj, font);
-            return size.pos() + size.size();
+            return Size2(size.pos() + size.size());
         }
         
         virtual Bounds text_bounds(const std::string& text, Drawable*, const Font& font);

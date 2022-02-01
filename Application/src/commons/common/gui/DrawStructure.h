@@ -99,7 +99,7 @@ namespace gui {
         GETTER(uint16_t, height)
         GETTER_I(Vec2, scale, {0})
         GETTER(std::atomic_bool, changed)
-        GETTER_SETTER_I(Vec2, dialog_window_size, {0})
+        GETTER_SETTER_I(Size2, dialog_window_size, {0})
         GETTER_I(Vec2, mouse_position, {0})
 
         std::set<Drawable*> _end_objects;
