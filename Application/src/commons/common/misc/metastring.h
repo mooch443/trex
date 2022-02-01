@@ -157,6 +157,9 @@ template<typename T>
 concept _is_number = 
     (!_clean_same<bool, T>) && (std::floating_point<T> || std::integral<T> || std::convertible_to<T, int>);
 
+template<typename T>
+concept is_numeric = (!_clean_same<bool, T>) && (std::floating_point<T> || std::integral<T>);
+
 #pragma region concepts
 // </concepts>
 
