@@ -430,7 +430,7 @@ struct Source {
             }
             
         } else {
-            extract_lines(image, this, Range<int32_t>{0, lh});
+            extract_lines(image, this, Range<int32_t>{0, int32_t(lh)});
         }
         
         finalize();

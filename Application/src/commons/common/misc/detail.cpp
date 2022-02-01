@@ -322,7 +322,9 @@ namespace cmn {
             
             if(previous_set && previous.x1 >= int(ptr->x0)-times) {
                 // merge with previous line
-                previous.x1 = max_cols > 0 ? min(ptr->x1+times, max_cols-1) : ptr->x1+times;
+                previous.x1 = max_cols > 0 
+                    ? min(ptr_safe_t(ptr->x1)+ptr_safe_t(times), ptr_safe_t(max_cols-1)) 
+                    : ptr_safe_t(ptr->x1)+times;
                 
             } else {
                 if(previous_set)
@@ -333,8 +335,8 @@ namespace cmn {
                 
                 // expand right
                 previous.x1 = max_cols > 0
-                ? min(previous.x1+times, max_cols-1)
-                : previous.x1+times;
+                    ? min(ptr_safe_t(previous.x1)+times, ptr_safe_t(max_cols-1))
+                    : ptr_safe_t(previous.x1)+times;
                 
                 previous_set = true;
             }
