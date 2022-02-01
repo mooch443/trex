@@ -166,7 +166,7 @@ namespace cmn {
     template<typename S> requires is_numeric<S> \
     constexpr Vector2D operator/(S other) const { return Vector2D{ A() / Scalar(other), B() / Scalar(other) }; } \
     template<typename S> requires is_numeric<S> \
-    constexpr Vector2D operator*(S other) const { return Vector2D{ A() / Scalar(other), B() / Scalar(other) }; } \
+    constexpr Vector2D operator*(S other) const { return Vector2D{ A() * Scalar(other), B() * Scalar(other) }; } \
     template<typename S> requires is_numeric<S> \
     constexpr Vector2D operator-(S other) const { return Vector2D{ A() - Scalar(other), B() - Scalar(other) }; } \
     template<typename S> requires is_numeric<S>  \
