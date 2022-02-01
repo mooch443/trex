@@ -148,10 +148,10 @@ struct Source {
     std::vector<Line> _full_lines;
     std::vector<typename Node::Ref> _nodes;
     
-    std::vector<ushort> _row_y;
+    std::vector<coord_t> _row_y;
     std::vector<size_t> _row_offsets;
     
-    ushort lw = 0, lh = 0;
+    coord_t lw = 0, lh = 0;
     
     size_t num_rows() const {
         return _row_offsets.size();
@@ -251,7 +251,7 @@ struct Source {
         
         Source* _source = nullptr;
         size_t idx;
-        ushort y;
+        coord_t y;
         
         const Pixel* pixel_start = nullptr;
         const Pixel* pixel_end = nullptr;
@@ -316,7 +316,7 @@ struct Source {
                 pixel_end = _source->_pixels.data() + idx1;
                 
             } else {
-                y = std::numeric_limits<ushort>::max();
+                y = std::numeric_limits<coord_t>::max();
             }
         }
         
@@ -325,7 +325,7 @@ struct Source {
          * @param source Source object that contains the desired row
          * @param y y-coordinate of the desired row
          */
-        static RowRef from_index(Source* source, ushort y) {
+        static RowRef from_index(Source* source, coord_t y) {
             auto it = std::upper_bound(source->_row_y.begin(), source->_row_y.end(), y);
             
             // beyond the value ranges
@@ -382,15 +382,15 @@ struct Source {
             /**
              * FIND HORIZONTAL LINES IN ORIGINAL IMAGE
              */
-            std::vector<Range<uint32_t>> thread_ranges;
+            std::vector<Range<int32_t>> thread_ranges;
             thread_ranges.resize(max_threads);
-            uint32_t step = max(1, ceil(lh / float(max_threads)));
-            uint32_t end = 0;
+            int32_t step = max(1, ceil(lh / float(max_threads)));
+            int32_t end = 0;
             
             for(uchar i=0; i<max_threads; i++) {
                 thread_ranges[i].start = end;
                 
-                end = min(lh, end + step);
+                end = min(int32_t(lh), end + step);
                 thread_ranges[i].end = end;
             }
             
@@ -430,7 +430,7 @@ struct Source {
             }
             
         } else {
-            extract_lines(image, this, Range<uint32_t>{0, lh});
+            extract_lines(image, this, Range<int32_t>{0, lh});
         }
         
         finalize();
@@ -439,7 +439,7 @@ struct Source {
     /**
      * Constructs a RowRef struct for a given y-coordinate (see RowRef::from_index).
      */
-    RowRef row(const ushort y) {
+    RowRef row(const coord_t y) {
         return RowRef::from_index(this, y);
     }
     
@@ -449,15 +449,15 @@ struct Source {
      * @param source this is where the converted input data is written to
      * @param rows the y-range for this call
      */
-    static void extract_lines(const cv::Mat& image, Source* source, const Range<uint32_t>& rows) {
-        const ushort rstart = rows.start;
-        const ushort rend = rows.end;
+    static void extract_lines(const cv::Mat& image, Source* source, const Range<int32_t>& rows) {
+        const coord_t rstart = rows.start;
+        const coord_t rend = rows.end;
         Pixel start, end_ptr, ptr;
         
         bool prev;
         Line current;
         
-        for(ushort i = rstart; i < rend; ++i) {
+        for(coord_t i = rstart; i < rend; ++i) {
             start = image.ptr(i);
             end_ptr = start + image.cols;
             ptr = start;
@@ -470,15 +470,15 @@ struct Source {
                     // (the last hline just ended)
                     if(!*ptr) {
                         assert(ptr >= start);
-                        assert(ushort(ptr - start) >= 1);
-                        current.x1 = ushort(ptr - start) - 1; // -1 because we went past x1 already
+                        assert(coord_t(ptr - start) >= 1);
+                        current.x1 = coord_t(ptr - start) - 1; // -1 because we went past x1 already
                         source->push_back(current, start + current.x0);
                         
                         prev = false;
                     }
                     
                 } else if(*ptr) {// !prev && curr (hline starts)
-                    ushort col = ushort(ptr - start);
+                    coord_t col = coord_t(ptr - start);
                     current.y = i;
                     current.x0 = col;
                     
@@ -1086,15 +1086,15 @@ blobs_t run_fast(List_t* blobs)
             auto &lines = std::get<0>(result.back());
             auto &pixels = std::get<1>(result.back());
             
-            size_t L = 0;
+            ptr_safe_t L = 0;
             for(auto & [l, px] : *it->obj)
-                L += (*l)->x1 - (*l)->x0 + 1;
+                L += ptr_safe_t((*l)->x1) - ptr_safe_t((*l)->x0) + ptr_safe_t(1);
             
             pixels->resize(L);
             lines->resize(it->obj->lines().size());
             
 #ifndef NDEBUG
-            ushort y = 0;
+            coord_t y = 0;
 #endif
             auto current = lines->data();
             auto pixel = pixels->data();
@@ -1105,7 +1105,7 @@ blobs_t run_fast(List_t* blobs)
                 if(pixels) {
                     assert(*px);
                     auto start = *px;
-                    auto end = start + (size_t((*l)->x1) - size_t((*l)->x0) + 1u);
+                    auto end = start + (ptr_safe_t((*l)->x1) - ptr_safe_t((*l)->x0) + ptr_safe_t(1));
                     
                     pixel = std::copy(start, end, pixel);
                 }
@@ -1161,13 +1161,13 @@ blobs_t run(const std::vector<HorizontalLine>& lines, const std::vector<uchar>& 
     auto start = lines.begin();
     auto end = lines.end();
     
-    ushort y = 0;
+    coord_t y = 0;
     
     for (auto it = start; it != end; ++it) {
         list->source().push_back(&(*it), px);
         
         if(px)
-            px += it->x1 - it->x0 + 1;
+            px += ptr_safe_t(it->x1) - ptr_safe_t(it->x0) + ptr_safe_t(1);
     }
     
     blobs_t results = run_fast(list.get());

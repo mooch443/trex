@@ -131,9 +131,17 @@ namespace cmn {
     }
     
     template<typename T, typename K = typename std::remove_reference<typename std::remove_cv<T>::type>::type>
+        requires (!std::unsigned_integral<K>)
     constexpr inline auto abs(T&& x, typename std::enable_if_t< std::is_arithmetic<K>::value> * = NULL)
     {
         return std::abs(std::forward<T>(x));
+    }
+
+    template<typename T>
+        requires std::unsigned_integral<T>
+    constexpr inline auto abs(T x)
+    {
+        return x;
     }
 
     namespace check_abs_detail {

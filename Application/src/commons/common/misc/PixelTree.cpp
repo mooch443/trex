@@ -10,16 +10,17 @@
 
 namespace pixel {
     static Image::Ptr debug_greyscale = nullptr;
+    static constexpr auto coord_max_val = std::numeric_limits<coord_t>::max();
 
-inline void update_tmp_line (ushort x, const unsigned char px, HorizontalLine& tmp_line, size_t &count, const std::shared_ptr<std::vector<HorizontalLine>> &lines, const std::shared_ptr<std::vector<uchar>> &pixels) {
+inline void update_tmp_line (coord_t x, const unsigned char px, HorizontalLine& tmp_line, ptr_safe_t&count, const std::shared_ptr<std::vector<HorizontalLine>> &lines, const std::shared_ptr<std::vector<uchar>> &pixels) {
     pixels->push_back(px);
     
-    if(tmp_line.x0 == USHRT_MAX)
+    if(tmp_line.x0 == coord_max_val)
         tmp_line.x0 = tmp_line.x1 = x;
     else if(x > tmp_line.x1+1) {
         assert(tmp_line.x0 <= tmp_line.x1);
         lines->push_back(tmp_line);
-        count += tmp_line.x1 - tmp_line.x0 + 1;
+        count += ptr_safe_t(tmp_line.x1) - ptr_safe_t(tmp_line.x0) + 1;
         
         tmp_line.x0 = x;
         tmp_line.x1 = x;
@@ -27,10 +28,10 @@ inline void update_tmp_line (ushort x, const unsigned char px, HorizontalLine& t
         tmp_line.x1 = x;
 };
 
-#define _____FN_TYPE (const Background* bg, const HorizontalLine& line, const uchar*& px, int threshold, HorizontalLine& tmp_line, size_t &count, const std::shared_ptr<std::vector<HorizontalLine>> &lines, const std::shared_ptr<std::vector<uchar>> &pixels)
+#define _____FN_TYPE (const Background* bg, const HorizontalLine& line, const uchar*& px, int threshold, HorizontalLine& tmp_line, ptr_safe_t &count, const std::shared_ptr<std::vector<HorizontalLine>> &lines, const std::shared_ptr<std::vector<uchar>> &pixels)
     
     inline void line_with_grid _____FN_TYPE {
-        auto threshold_ptr = bg->grid()->thresholds().data() + line.x0 + line.y * int(bg->grid()->bounds().width);
+        auto threshold_ptr = bg->grid()->thresholds().data() + ptr_safe_t(line.x0) + ptr_safe_t(line.y) * ptr_safe_t(bg->grid()->bounds().width);
         
         for (auto x=line.x0; x<=line.x1; ++x, ++px, ++threshold_ptr) {
             if(bg->diff(x, line.y, *px) >= (*threshold_ptr) * threshold) {
@@ -120,19 +121,20 @@ inline void update_tmp_line (ushort x, const unsigned char px, HorizontalLine& t
         auto pixels = std::make_shared<std::vector<uchar>>();
         pixels->reserve(blob->pixels()->size());
         
-        size_t count = 0;
+        ptr_safe_t count = 0;
         auto fn = bg ? (bg->grid() ? &line_with_grid : &line_without_grid) : &line_without_bg;
         
         for (auto &line : blob->hor_lines()) {
             tmp_line.y = line.y;
-            tmp_line.x0 = USHRT_MAX;
+            tmp_line.x0 = coord_max_val;
             tmp_line.x1 = 0;
             
             (*fn)(bg, line, px, threshold, tmp_line, count, lines, pixels);
             
-            if(tmp_line.x0 != USHRT_MAX) {
+            if(tmp_line.x0 != coord_max_val) {
                 lines->push_back(tmp_line);
-                count += tmp_line.x1 - tmp_line.x0 + 1;
+                assert(tmp_line.x1 >= tmp_line.x0);
+                count += ptr_safe_t(tmp_line.x1) - ptr_safe_t(tmp_line.x0) + 1;
             }
             
             assert(count == pixels->size());
@@ -188,11 +190,11 @@ inline blobs_t _threshold_blob(pv::BlobPtr blob,const std::vector<uchar>& differ
     pixels->reserve(blob->pixels()->size());
     lines->reserve(blob->hor_lines().size());
     
-    size_t count = 0;
+    ptr_safe_t count = 0;
     
     for (auto &line : blob->hor_lines()) {
         tmp_line.y = line.y;
-        tmp_line.x0 = USHRT_MAX;
+        tmp_line.x0 = coord_max_val;
         tmp_line.x1 = 0;
         
         for (auto x=line.x0; x<=line.x1; ++x, ++px, ++dpx) {
@@ -200,12 +202,12 @@ inline blobs_t _threshold_blob(pv::BlobPtr blob,const std::vector<uchar>& differ
             //if((!bg && *px >= threshold) || (bg &&  bg->is_different(x, line.y, *px, threshold))) {
                 pixels->push_back(*px);
                 
-                if(tmp_line.x0 == USHRT_MAX)
+                if(tmp_line.x0 == coord_max_val)
                     tmp_line.x0 = tmp_line.x1 = x;
                 else if(x > tmp_line.x1+1) {
                     assert(tmp_line.x0 <= tmp_line.x1);
                     lines->push_back(tmp_line);
-                    count += tmp_line.x1 - tmp_line.x0 + 1;
+                    count += ptr_safe_t(tmp_line.x1) - ptr_safe_t(tmp_line.x0) + 1;
                     
                     tmp_line.x0 = x;
                     tmp_line.x1 = x;
@@ -214,9 +216,9 @@ inline blobs_t _threshold_blob(pv::BlobPtr blob,const std::vector<uchar>& differ
             }
         }
         
-        if(tmp_line.x0 != USHRT_MAX) {
+        if(tmp_line.x0 != coord_max_val) {
             lines->push_back(tmp_line);
-            count += tmp_line.x1 - tmp_line.x0 + 1;
+            count += ptr_safe_t(tmp_line.x1) - ptr_safe_t(tmp_line.x0) + 1;
         }
         
         assert(count == pixels->size());
@@ -468,7 +470,7 @@ inline blobs_t _threshold_blob(pv::BlobPtr blob,const std::vector<uchar>& differ
             
 #ifdef TREE_WITH_PIXELS
             start = px_ptr;
-            px_ptr += x1 - x0 + 1;
+            px_ptr += ptr_safe_t(x1) - ptr_safe_t(x0) + 1;
             std::copy(start, px_ptr, next_row->pixels.begin() + x0);
 #endif
             

@@ -50,7 +50,7 @@ namespace cmn {
         auto pxptr = pixels.data();
         
         std::vector<HorizontalLine> result{ls.front()};
-        corrected.insert(corrected.end(), pixels.begin(), pixels.begin() + ls.front().x1 - ls.front().x0 + 1);
+        corrected.insert(corrected.end(), pixels.begin(), pixels.begin() + ptr_safe_t(ls.front().x1) - ptr_safe_t(ls.front().x0) + 1);
         
         for(; it != lines.end();) {
             if(result.back().y == it->y) {
@@ -60,20 +60,20 @@ namespace cmn {
                     //*prev = prev->merge(*it);
                     
                     if(result.back().x0 > it->x0) {
-                        auto offset = result.back().x0 - it->x0;
+                        auto offset = ptr_safe_t(result.back().x0) - ptr_safe_t(it->x0);
                         // need to add [offset] pixels to the front
-                        corrected.insert(corrected.end() - (result.back().x1 - result.back().x0 + 1), pxptr, pxptr + offset);
+                        corrected.insert(corrected.end() - (ptr_safe_t(result.back().x1) - ptr_safe_t(result.back().x0) + 1), pxptr, pxptr + offset);
                     }
                     
                     if(result.back().x1 < it->x1) {
-                        auto offset = it->x1 - result.back().x1;
-                        corrected.insert(corrected.end(), pxptr + it->x1 - it->x0 + 1 - offset, pxptr + it->x1 - it->x0 + 1);
+                        auto offset = ptr_safe_t(it->x1) - ptr_safe_t(result.back().x1);
+                        corrected.insert(corrected.end(), pxptr + ptr_safe_t(it->x1) - ptr_safe_t(it->x0) + 1 - offset, pxptr + ptr_safe_t(it->x1) - ptr_safe_t(it->x0) + 1);
                     }
                     
                     result.back() = result.back().merge(*it);
                     it = lines.erase(it);
                     
-                    pxptr = pxptr + it->x1 - it->x0 + 1;
+                    pxptr = pxptr + ptr_safe_t(it->x1) - ptr_safe_t(it->x0) + 1;
                     continue;
                 }
                 
@@ -84,16 +84,16 @@ namespace cmn {
             result.push_back(*it);
             
             auto start = pxptr;
-            pxptr = pxptr + it->x1 - it->x0 + 1;
+            pxptr = pxptr + ptr_safe_t(it->x1) - ptr_safe_t(it->x0) + 1;
             corrected.insert(corrected.end(), start, pxptr);
             ++it;
         }
         
         ls = result;
         
-        size_t L = 0;
+        ptr_safe_t L = 0;
         for(auto &line : result) {
-            L += line.x1 - line.x0 + 1;
+            L += ptr_safe_t(line.x1) - ptr_safe_t(line.x0) + 1;
         }
         
         assert(L == corrected.size());
@@ -329,7 +329,7 @@ namespace cmn {
                     ret.insert(ret.end(), previous);
                 
                 previous = *ptr;
-                previous.x0 -= min(previous.x0, (size_t)times); // expand left
+                previous.x0 -= min((ptr_safe_t)previous.x0, (ptr_safe_t)times); // expand left
                 
                 // expand right
                 previous.x1 = max_cols > 0

@@ -6,15 +6,15 @@ namespace track {
 
 #define ASSUME_NOT_FINALIZED _assume_not_finalized( __FILE__ , __LINE__ )
 
-inline void insert_line(grid::ProximityGrid& grid, const HorizontalLine* ptr, pv::bid blob_id, size_t step_size)
+inline void insert_line(grid::ProximityGrid& grid, const HorizontalLine* ptr, pv::bid blob_id, ptr_safe_t step_size)
 {
-    auto d = ptr->x1 - ptr->x0;
+    auto d = ptr_safe_t(ptr->x1) - ptr_safe_t(ptr->x0);
     grid.insert(ptr->x0, ptr->y, (int64_t)blob_id);
     grid.insert(ptr->x1, ptr->y, (int64_t)blob_id);
     grid.insert(ptr->x0 + d * 0.5, ptr->y, (int64_t)blob_id);
 
-    if(d >= (short)step_size * 2 && step_size >= 5) {
-        for(auto x = ptr->x0 + step_size; x <= ptr->x1 - step_size; x += step_size) {
+    if(d >= step_size * 2 && step_size >= 5) {
+        for(auto x = ptr_safe_t(ptr->x0) + step_size; x <= ptr_safe_t(ptr->x1) - step_size; x += step_size) {
             grid.insert(x, ptr->y, (int64_t)blob_id);
         }
     }
@@ -309,8 +309,8 @@ void PPFrame::fill_proximity_grid() {
         auto ptr = b->hor_lines().data();
         const auto end = ptr + N;
         
-        const size_t step_size = 2;
-        const size_t step_size_x = (size_t)max(1, b->bounds().width * 0.1);
+        const ptr_safe_t step_size = 2;
+        const ptr_safe_t step_size_x = (ptr_safe_t)max(1, b->bounds().width * 0.1);
         
         if(N >= step_size * 2) {
             insert_line(_blob_grid, ptr, b->blob_id(), step_size_x);

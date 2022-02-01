@@ -301,17 +301,17 @@ namespace pv {
         
         auto mask = std::make_shared<std::vector<HorizontalLine>>(mask_);
         
-        uint64_t L = mask_.size();
+        ptr_safe_t L = (ptr_safe_t)mask_.size();
         //uint64_t offset = 0;
         
         // calculate overall bytes
-        uint64_t overall = 0;
+        ptr_safe_t overall = 0;
         auto line_ptr = mask->data();
         
         assert(full_image.cols-1 < UINT16_MAX);
         assert(full_image.rows-1 < UINT16_MAX);
         
-        for(uint64_t i=0; i<L; i++) {
+        for(ptr_safe_t i=0; i<L; i++) {
             // restrict to image dimensions
             assert(line_ptr->x1 < full_image.cols);
             assert(line_ptr->y < full_image.rows && line_ptr->x0 < full_image.cols && line_ptr->x1 >= line_ptr->x0);
@@ -327,7 +327,7 @@ namespace pv {
                 continue;
             }*/
             
-            overall += line_ptr->x1 - line_ptr->x0 + 1;
+            overall += ptr_safe_t(line_ptr->x1) - ptr_safe_t(line_ptr->x0) + 1;
             line_ptr++;
         }
         
@@ -340,10 +340,10 @@ namespace pv {
         line_ptr = mask->data(); // reset ptr
         L = mask->size();
         
-        for (uint64_t i=0; i<L; i++, line_ptr++) {
+        for (ptr_safe_t i=0; i<L; i++, line_ptr++) {
             auto ptr = full_image.ptr(line_ptr->y, line_ptr->x0);
             assert(line_ptr->x1 >= line_ptr->x0);
-            long_t N = long_t(line_ptr->x1) - long_t(line_ptr->x0) + 1;
+            auto N = ptr_safe_t(line_ptr->x1) - ptr_safe_t(line_ptr->x0) + ptr_safe_t(1);
             memcpy(pixel_ptr, ptr, sign_cast<size_t>(N));
             pixel_ptr += N;
         }

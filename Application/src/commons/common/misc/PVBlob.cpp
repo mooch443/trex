@@ -72,7 +72,7 @@ bool Blob::operator==(const pv::Blob& other) const {
         
         auto start = lines.data(), end = lines.data() + lines.size();
         auto rptr = ret.data();
-        uint16_t prev_y = ret.empty() ? 0 : lines.front().y;
+        auto prev_y = ret.empty() ? 0 : lines.front().y;
         
         for(auto lptr = start; lptr != end; lptr++, rptr++) {
             *rptr = pv::ShortHorizontalLine(lptr->x0, lptr->x1);
@@ -92,7 +92,7 @@ bool Blob::operator==(const pv::Blob& other) const {
         auto uncompressed = std::make_shared<std::vector<HorizontalLine>>((NoInitializeAllocator<HorizontalLine>()));
         uncompressed->resize(compressed.size());
         
-        uint16_t y = start_y;
+        auto y = start_y;
         auto uptr = uncompressed->data();
         auto cptr = compressed.data(), end = compressed.data()+compressed.size();
         
@@ -283,9 +283,9 @@ static Callback callback;
             auto ptr = _pixels->data();
             for (auto &line : hor_lines()) {
                 _recount += background.count_above_threshold(line.x0, line.x1, line.y, ptr, threshold);
-                ptr += line.x1 - line.x0 + 1;
+                ptr += ptr_safe_t(line.x1) - ptr_safe_t(line.x0) + 1;
 #ifndef NDEBUG
-                for (ushort x=line.x0; x<=line.x1; ++x, ++local_ptr) {
+                for (auto x=line.x0; x<=line.x1; ++x, ++local_ptr) {
                     if(background.is_different(x, line.y, *local_ptr, threshold)) {
                         local_recount++;
                     }
@@ -327,7 +327,7 @@ static Callback callback;
             tmp.x0 = line.x0;
             tmp.y = line.y;
             
-            for (ushort x=line.x0; x<=line.x1; ++x, ++ptr) {
+            for (auto x=line.x0; x<=line.x1; ++x, ++ptr) {
                 assert(ptr < _pixels->data() + _pixels->size());
                 if(background.is_different(x, line.y, *ptr, value)) {
                     tmp.x1 = x;
@@ -366,13 +366,13 @@ static Callback callback;
         else
             background->image().get()(b).copyTo(image->get());
         
-        ushort _x = (ushort)b.x;
-        ushort _y = (ushort)b.y;
+        auto _x = (coord_t)b.x;
+        auto _y = (coord_t)b.y;
         
         auto ptr = _pixels->data();
         for (auto &line : hor_lines()) {
-            auto image_ptr = image->data() + ((line.y - _y) * image->cols + line.x0 - _x);
-            for (ushort x=line.x0; x<=line.x1; ++x, ++ptr, ++image_ptr) {
+            auto image_ptr = image->data() + ((ptr_safe_t(line.y) - ptr_safe_t(_y)) * image->cols + ptr_safe_t(line.x0) - ptr_safe_t(_x));
+            for (auto x=line.x0; x<=line.x1; ++x, ++ptr, ++image_ptr) {
                 assert(ptr < _pixels->data() + _pixels->size());
                 assert(image_ptr < image->data() + image->size());
                 *image_ptr = *ptr;
@@ -388,16 +388,16 @@ static Callback callback;
         auto image = Image::Make(b.height, b.width, 4);
         std::fill(image->data(), image->data() + image->size(), uchar(0));
         
-        ushort _x = (ushort)b.x;
-        ushort _y = (ushort)b.y;
+        auto _x = (coord_t)b.x;
+        auto _y = (coord_t)b.y;
         
         int32_t value;
         float maximum = 0;
         auto ptr = _pixels->data();
         for (auto &line : hor_lines()) {
             //auto image_ptr = image->data() + ((line.y - _y) * image->cols * image->dims + (line.x0 - _x) * image->dims);
-            auto image_ptr = image->data() + ((line.y - _y) * image->cols + (line.x0 - _x)) * image->dims;
-            for (ushort x=line.x0; x<=line.x1; ++x, ++ptr, image_ptr += image->dims) {
+            auto image_ptr = image->data() + ((ptr_safe_t(line.y) - ptr_safe_t(_y)) * image->cols + (ptr_safe_t(line.x0) - ptr_safe_t(_x))) * image->dims;
+            for (auto x=line.x0; x<=line.x1; ++x, ++ptr, image_ptr += image->dims) {
                 assert(ptr < _pixels->data() + _pixels->size());
                 value = background.diff(x, line.y, *ptr);
                 if(background.is_value_different(x, line.y, value, threshold)) {
@@ -411,8 +411,8 @@ static Callback callback;
         
         if(maximum > 0) {
             for (auto &line : hor_lines()) {
-                auto image_ptr = image->data() + ((line.y - _y) * image->cols + (line.x0 - _x)) * image->dims;
-                for (ushort x=line.x0; x<=line.x1; ++x, ++ptr, image_ptr += image->dims) {
+                auto image_ptr = image->data() + ((ptr_safe_t(line.y) - ptr_safe_t(_y)) * image->cols + (ptr_safe_t(line.x0) - ptr_safe_t(_x))) * image->dims;
+                for (auto x=line.x0; x<=line.x1; ++x, ++ptr, image_ptr += image->dims) {
                     *(image_ptr + 3) = min(255, float(*(image_ptr + 3)) / (maximum * 0.6) * 255);
                 }
             }
@@ -428,8 +428,8 @@ static Callback callback;
         auto image = Image::Make(b.height, b.width, 2);
         std::fill(image->data(), image->data() + image->size(), uchar(0));
         
-        ushort _x = (ushort)b.x;
-        ushort _y = (ushort)b.y;
+        auto _x = (coord_t)b.x;
+        auto _y = (coord_t)b.y;
         
         minimum *= 0.5;
         
@@ -455,8 +455,8 @@ static Callback callback;
         int32_t value;
         auto ptr = _pixels->data();
         for (auto &line : hor_lines()) {
-            auto image_ptr = image->data() + ((line.y - _y) * image->cols * 2 + (line.x0 - _x) * 2);
-            for (ushort x=line.x0; x<=line.x1; ++x, ++ptr, image_ptr+=2) {
+            auto image_ptr = image->data() + ((ptr_safe_t(line.y) - ptr_safe_t(_y)) * image->cols * 2 + (ptr_safe_t(line.x0) - ptr_safe_t(_x)) * 2);
+            for (auto x=line.x0; x<=line.x1; ++x, ++ptr, image_ptr+=2) {
                 assert(ptr < _pixels->data() + _pixels->size());
                 value = background.diff(x, line.y, *ptr);
                 if(!threshold || background.is_value_different(x, line.y, value, threshold)) {
@@ -476,14 +476,14 @@ static Callback callback;
         auto image = Image::Make(b.height, b.width, 2);
         std::fill(image->data(), image->data() + image->size(), uchar(0));
         
-        ushort _x = (ushort)b.x;
-        ushort _y = (ushort)b.y;
+        auto _x = (coord_t)b.x;
+        auto _y = (coord_t)b.y;
         
         int32_t value;
         auto ptr = _pixels->data();
         for (auto &line : hor_lines()) {
-            auto image_ptr = image->data() + ((line.y - _y) * image->cols * 2 + (line.x0 - _x) * 2);
-            for (ushort x=line.x0; x<=line.x1; ++x, ++ptr, image_ptr+=2) {
+            auto image_ptr = image->data() + ((ptr_safe_t(line.y) - ptr_safe_t(_y)) * image->cols * 2 + (ptr_safe_t(line.x0) - ptr_safe_t(_x)) * 2);
+            for (auto x=line.x0; x<=line.x1; ++x, ++ptr, image_ptr+=2) {
                 assert(ptr < _pixels->data() + _pixels->size());
                 value = background.diff(x, line.y, *ptr);
                 if(!threshold || background.is_value_different(x, line.y, value, threshold)) {
@@ -502,14 +502,14 @@ static Callback callback;
         auto image = Image::Make(b.height, b.width);
         std::fill(image->data(), image->data() + image->size(), uchar(0));
         
-        ushort _x = (ushort)b.x;
-        ushort _y = (ushort)b.y;
+        auto _x = (coord_t)b.x;
+        auto _y = (coord_t)b.y;
         
         int32_t value;
         auto ptr = _pixels->data();
         for (auto &line : hor_lines()) {
-            auto image_ptr = image->data() + ((line.y - _y) * image->cols + line.x0 - _x);
-            for (ushort x=line.x0; x<=line.x1; ++x, ++ptr, ++image_ptr) {
+            auto image_ptr = image->data() + ((ptr_safe_t(line.y) - ptr_safe_t(_y)) * image->cols + ptr_safe_t(line.x0) - ptr_safe_t(_x));
+            for (auto x=line.x0; x<=line.x1; ++x, ++ptr, ++image_ptr) {
                 assert(ptr < _pixels->data() + _pixels->size());
                 value = background.diff(x, line.y, *ptr);
                 if(!threshold || background.is_value_different(x, line.y, value, threshold))
@@ -522,9 +522,9 @@ static Callback callback;
     void Blob::transfer_backgrounds(const cmn::Background &from, const cmn::Background &to, const Vec2& dest_offset) {
         auto ptr = (uchar*)_pixels->data();
         for (auto &line : hor_lines()) {
-            for (ushort x=line.x0; x<=line.x1; ++x, ++ptr) {
+            for (auto x=line.x0; x<=line.x1; ++x, ++ptr) {
                 assert(ptr < _pixels->data() + _pixels->size());
-                *ptr = saturate(- int32_t(from.color(x, line.y)) + int32_t(*ptr) + to.color(x + dest_offset.x, line.y + dest_offset.y), 0, 255);
+                *ptr = saturate(-int32_t(from.color(x, line.y)) + int32_t(*ptr) + to.color(ptr_safe_t(x) + dest_offset.x, ptr_safe_t(line.y) + dest_offset.y), 0, 255);
                 //*ptr = saturate((int32_t)from.diff(x, line.y, *ptr) - to.color(x, line.y), 0, 255);
             }
         }
@@ -533,8 +533,8 @@ static Callback callback;
     decltype(Blob::_pixels) Blob::calculate_pixels(Image::Ptr image, const decltype(_hor_lines) &lines) {
         auto pixels = std::make_shared<std::vector<uchar>>();
         for(auto &line : *lines) {
-            auto start = image->data() + line.y * image->cols + line.x0;
-            auto end = start + line.x1 - line.x0 + 1;
+            auto start = image->data() + ptr_safe_t(line.y) * image->cols + ptr_safe_t(line.x0);
+            auto end = start + ptr_safe_t(line.x1) - ptr_safe_t(line.x0) + 1;
             assert(line.x1 < image->cols && line.y < image->rows);
             
             pixels->insert(pixels->end(), start, end);
@@ -549,13 +549,13 @@ static Callback callback;
         auto image = Image::Make(b.height, b.width);
         std::fill(image->data(), image->data() + image->size(), uchar(0));
         
-        ushort _x = (ushort)b.x;
-        ushort _y = (ushort)b.y;
+        auto _x = (coord_t)b.x;
+        auto _y = (coord_t)b.y;
         
         auto ptr = _pixels->data();
         for (auto &line : hor_lines()) {
-            auto image_ptr = image->data() + ((line.y - _y) * image->cols + line.x0 - _x);
-            for (ushort x=line.x0; x<=line.x1; ++x, ++ptr, ++image_ptr) {
+            auto image_ptr = image->data() + ((ptr_safe_t(line.y) - ptr_safe_t(_y)) * image->cols + ptr_safe_t(line.x0) - ptr_safe_t(_x));
+            for (auto x=line.x0; x<=line.x1; ++x, ++ptr, ++image_ptr) {
                 assert(ptr < _pixels->data() + _pixels->size());
                 if(background.is_value_different(x, line.y, background.diff(x, line.y, *ptr), threshold))
                     *image_ptr = *ptr;
@@ -571,8 +571,8 @@ static Callback callback;
         auto image = Image::Make(b.height, b.width);
         std::fill(image->data(), image->data() + image->size(), uchar(0));
         
-        ushort _x = (ushort)b.x;
-        ushort _y = (ushort)b.y;
+        auto _x = (coord_t)b.x;
+        auto _y = (coord_t)b.y;
         
         if(_pixels == nullptr)
             U_EXCEPTION("Cannot generate binary image without pixel values.");
@@ -580,8 +580,8 @@ static Callback callback;
         int32_t value;
         auto ptr = _pixels->data();
         for (auto &line : hor_lines()) {
-            auto image_ptr = image->data() + ((line.y - _y) * image->cols + line.x0 - _x);
-            for (ushort x=line.x0; x<=line.x1; ++x, ++ptr, ++image_ptr) {
+            auto image_ptr = image->data() + ((ptr_safe_t(line.y) - ptr_safe_t(_y)) * image->cols + ptr_safe_t(line.x0) - ptr_safe_t(_x));
+            for (auto x=line.x0; x<=line.x1; ++x, ++ptr, ++image_ptr) {
                 assert(ptr < _pixels->data() + _pixels->size());
                 value = background.diff(x, line.y, *ptr);
                 if(background.is_value_different(x, line.y, value, threshold))
@@ -599,12 +599,12 @@ static Callback callback;
         auto image = Image::Make(b.height, b.width);
         std::fill(image->data(), image->data() + image->size(), uchar(0));
         
-        ushort _x = (ushort)b.x;
-        ushort _y = (ushort)b.y;
+        auto _x = (coord_t)b.x;
+        auto _y = (coord_t)b.y;
         
         for (auto &line : hor_lines()) {
-            auto image_ptr = image->data() + ((line.y - _y) * image->cols + line.x0 - _x);
-            for (ushort x=line.x0; x<=line.x1; ++x, ++image_ptr) {
+            auto image_ptr = image->data() + ((ptr_safe_t(line.y) - ptr_safe_t(_y)) * image->cols + ptr_safe_t(line.x0) - ptr_safe_t(_x));
+            for (auto x=line.x0; x<=line.x1; ++x, ++image_ptr) {
                 *image_ptr = 255;
             }
         }

@@ -33,17 +33,19 @@ namespace cmn {
     /**
      * A structure that represents a horizontal line on an image.
      */
+    using coord_t = uint16_t;
+    using ptr_safe_t = uint64_t;
     struct HorizontalLine {
-        unsigned short y;
-        unsigned short x0, x1;
+        coord_t y;
+        coord_t x0, x1;
         
-        HorizontalLine() {}
-        HorizontalLine(unsigned short y_, unsigned short x0_, unsigned short x1_)
+        HorizontalLine() = default;
+        HorizontalLine(coord_t y_, coord_t x0_, coord_t x1_)
         : y(y_), x0(x0_), x1(x1_) {
             //assert(x0 <= x1);
         }
         
-        bool inside(unsigned short x_, unsigned short y_) const {
+        bool inside(coord_t x_, coord_t y_) const {
             return y_ == y && x_ >= x0 && x_ <= x1;
         }
         
@@ -244,7 +246,7 @@ namespace cmn {
     
     template<typename K, typename T = K>
     constexpr inline T saturate(K val, T min = 0, T max = 255) {
-        return std::clamp(val, min, max);
+        return std::clamp(T(val), min, max);
     }
     
     /**

@@ -1700,13 +1700,13 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
         for(auto  && [lines, pixels] : rawblobs) {
             //b->calculate_properties();
             
-            size_t num_pixels;
+            ptr_safe_t num_pixels;
             if(pixels)
                 num_pixels = pixels->size();
             else {
                 num_pixels = 0;
                 for(auto &line : *lines) {
-                    num_pixels += line.x1 - line.x0 + 1;
+                    num_pixels += ptr_safe_t(line.x1) - ptr_safe_t(line.x0) + ptr_safe_t(1);
                 }
             }
             if(num_pixels * cm_per_pixel >= min_max.start
