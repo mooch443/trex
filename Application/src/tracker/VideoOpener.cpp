@@ -186,6 +186,7 @@ VideoOpener::VideoOpener()
     _horizontal->set_children({_infos, _extra});
     
     TEMP_SETTING(output_name) = file::Path("video");
+    TEMP_SETTING(output_dir) = SETTING(output_dir).value<file::Path>();
     gui::temp_docs["output_name"] = "Basename of the converted video in PV-format.";
     TEMP_SETTING(cmd_parameters) = std::string("-reset_average");
     gui::temp_docs["cmd_parameters"] = "Additional command-line parameters for TGrabs.";
@@ -332,8 +333,10 @@ VideoOpener::VideoOpener()
                 // PV file, no need to add cmd
             } else if(!_result.selected_file.empty()) {
                 auto add = TEMP_SETTING(cmd_parameters).value<std::string>();
-                _result.cmd = "-i \"" + path.str() + "\""
-                    + " -o \""+TEMP_SETTING(output_name).value<file::Path>().str()+"\""
+                _result.cmd = std::string()
+                    + "-d \""+TEMP_SETTING(output_dir).value<file::Path>().str()+"\""
+                    +" -i \"" + path.str() + "\""
+                    +" -o \""+TEMP_SETTING(output_name).value<file::Path>().str()+"\""
                     +" -threshold "+TEMP_SETTING(threshold).get().valueString()
                     +" -average_samples "+TEMP_SETTING(average_samples).get().valueString()
                     +" -averaging_method "+TEMP_SETTING(averaging_method).get().valueString()

@@ -84,7 +84,9 @@ extern "C"{
             
             if(!paths.empty() && gui::metal::current_instance) {
                 if(!gui::metal::current_instance->open_files(paths)) {
+#ifndef NDEBUG
                     gui::metal::current_instance->message("Cannot open "+std::string(cstr)+".");
+#endif
                 }
             }
                 
@@ -202,11 +204,11 @@ void MetalImpl::check_thread_id(int line, const char* file) const {
         glfwTerminate();
     }
 
-bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
-    if(_fn_open_files)
-        return _fn_open_files(paths);
-    return false;
-}
+    bool MetalImpl::open_files(const std::vector<file::Path> &paths) {
+        if(_fn_open_files)
+            return _fn_open_files(paths);
+        return false;
+    }
 
     void MetalImpl::init()
     {

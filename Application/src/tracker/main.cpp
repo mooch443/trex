@@ -581,8 +581,10 @@ int main(int argc, char** argv)
 
     if (argc == 2) {
         Path path = pv::DataLocation::parse("input", Path(argv[1]));
-        if (path.exists())
+        if (path.exists()) {
             SETTING(filename) = path.remove_extension();
+            SETTING(output_dir) = path.remove_filename();
+        }
     }
     
     // check whether a file exists
