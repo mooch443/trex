@@ -21,7 +21,7 @@ target_link_libraries(tracker_misc PRIVATE
 	cnpy
 )
 
-add_dependencies(tracker_misc TRex::OpenCV)
+add_dependencies(tracker_misc Commons::OpenCV)
 
 if(TREX_CONDA_PACKAGE_INSTALL)
 	if(WIN32)

@@ -51,16 +51,16 @@ if(NOT WIN32 AND TREX_WITH_TESTS)
         tracker_tracking
         commons
         cnpy
-        TRex::GLFW
+        Commons::GLFW
         ${OpenCV_LIBS}
         ${EXTRA_LIBS}
     )
-    add_dependencies(test_imgui commons TRex::LibZIP TRex::GLFW TRex::OpenCV)
+    add_dependencies(test_imgui commons Commons::LibZIP Commons::GLFW Commons::OpenCV)
 endif()
 
 # add actual executable
 add_executable(${TREX_EXEC_NAME} ${SRCS})
-add_dependencies(${TREX_EXEC_NAME} TRex::GLFW TRex::OpenCV)
+add_dependencies(${TREX_EXEC_NAME} Commons::GLFW Commons::OpenCV)
 
 # link all needed libraries to the target
 target_link_libraries(${TREX_EXEC_NAME} PUBLIC
@@ -70,10 +70,10 @@ target_link_libraries(${TREX_EXEC_NAME} PUBLIC
     tracker_misc
 	pv
 	commons
-	TRex::GLFW
-	TRex::OpenCV
-	TRex::LibPNG
-	TRex::LibZ
+	Commons::GLFW
+	Commons::OpenCV
+	Commons::LibPNG
+	Commons::LibZ
 	${EXTRA_LIBS}
 )
 
@@ -200,10 +200,10 @@ add_executable(trex_starter trex.cpp)
 target_link_libraries(trex_starter PRIVATE
     commons
     cnpy
-    TRex::GLFW
-    TRex::LibPNG
-    TRex::LibZ
-    TRex::OpenCV
+    Commons::GLFW
+    Commons::LibPNG
+    Commons::LibZ
+    Commons::OpenCV
     ${EXTRA_LIBS})
 set_target_properties(trex_starter PROPERTIES OUTPUT_NAME trex)
 set(targets ${targets} trex_starter)

@@ -61,9 +61,9 @@ if(APPLE)
   target_compile_options(commons PRIVATE "-DNS_FORMAT_ARGUMENT(A)=" "-D_Nullable_result=_Nullable")
 endif()
 
-add_dependencies(commons TRex::LibZIP TRex::LibZ TRex::GLFW cnpy)
+add_dependencies(commons Commons::LibZIP Commons::LibZ Commons::GLFW cnpy)
 if(APPLE OR NOT UNIX)
-    add_dependencies(commons TRex::LibPNG)
+    add_dependencies(commons Commons::LibPNG)
 endif()
 
 #if(NOT APPLE AND NOT WIN32)
@@ -106,4 +106,4 @@ if(WITH_HTTPD)
     add_dependencies(commons LibMicroHttpd)
 endif()
 
-add_dependencies(commons TRex::OpenCV)
+add_dependencies(commons Commons::OpenCV)

@@ -22,4 +22,4 @@ if(APPLE AND PYLON_FOUND AND WITH_PYLON)
     target_link_libraries( framegrabber_misc PUBLIC ${PYLON_LIBRARIES} )
 endif()
 
-add_dependencies(framegrabber_misc TRex::OpenCV)
+add_dependencies(framegrabber_misc Commons::OpenCV)

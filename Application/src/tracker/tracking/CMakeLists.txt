@@ -13,7 +13,7 @@ endif()
 target_link_libraries(tracker_tracking PRIVATE cnpy
 #	tracker_python
 )
-add_dependencies(tracker_tracking TRex::OpenCV)
+add_dependencies(tracker_tracking Commons::OpenCV)
 
 if(WITH_HTTPD)
     add_dependencies(tracker_tracking LibMicroHttpd)

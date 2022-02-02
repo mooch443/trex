@@ -66,4 +66,4 @@ set_target_properties(pv
 
 add_subdirectory(lzo)
 target_link_libraries(pv PRIVATE lzo cnpy)
-add_dependencies(pv TRex::OpenCV)
+add_dependencies(pv Commons::OpenCV)

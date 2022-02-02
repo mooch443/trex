@@ -55,21 +55,21 @@ if(APPLE)
 ADD_CUSTOM_COMMAND(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
 COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:trex_check_python> $<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>)
 endif()
-add_dependencies(${TGRABS_EXEC_NAME} trex_check_python TRex::OpenCV)
+add_dependencies(${TGRABS_EXEC_NAME} trex_check_python Commons::OpenCV)
 
 add_executable(pvconvert pvconvert.cpp gif.h ${GIT_SOURCES})
 target_link_libraries(pvconvert PUBLIC
     tracker_gui
     pv
     commons
-    TRex::GLFW
-    TRex::LibPNG
-    TRex::LibZ
-    TRex::OpenCV
+    Commons::GLFW
+    Commons::LibPNG
+    Commons::LibZ
+    Commons::OpenCV
     ${EXTRA_LIBS}
 )
 
-add_dependencies(pvconvert TRex::OpenCV)
+add_dependencies(pvconvert Commons::OpenCV)
 
 if(PYLON_FOUND AND WITH_PYLON)
     message(STATUS "linking with pylon")
@@ -84,17 +84,17 @@ target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE
     tracker_python
 	pv
 	commons
-	TRex::GLFW
-    TRex::LibPNG
-    TRex::LibZ
-	TRex::OpenCV
+	Commons::GLFW
+    Commons::LibPNG
+    Commons::LibZ
+	Commons::OpenCV
 	${EXTRA_LIBS})
 
 if(WITH_HTTPD)
     add_dependencies(${TGRABS_EXEC_NAME} LibMicroHttpd)
 endif()
 if(WITH_FFMPEG)
-    target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE TRex::FFMPEG)
+    target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE Commons::FFMPEG)
 endif()
 
 add_executable(pvinfo pvinfo.cpp pvinfo_merge.cpp pvinfo_merge.h ${GIT_SOURCES})
@@ -106,17 +106,17 @@ target_link_libraries(pvinfo PRIVATE
     tracker_python
     tracker_misc
 	commons
-	TRex::LibPNG
-	TRex::GLFW
-	TRex::OpenCV
+	Commons::LibPNG
+	Commons::GLFW
+	Commons::OpenCV
 	${EXTRA_LIBS}
 	pv
 )
 
-add_dependencies(pvinfo TRex::OpenCV)
+add_dependencies(pvinfo Commons::OpenCV)
 
-get_target_property(OUT TRex::GLFW INTERFACE_LINK_LIBRARIES)
-message(STATUS "TRex::GLFW libraries: ${OUT}")
+get_target_property(OUT Commons::GLFW INTERFACE_LINK_LIBRARIES)
+message(STATUS "Commons::GLFW libraries: ${OUT}")
 
 set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES
   MACOSX_BUNDLE TRUE
