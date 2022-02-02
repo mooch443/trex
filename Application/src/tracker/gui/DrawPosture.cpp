@@ -13,6 +13,7 @@ namespace gui {
     }
     
     void Posture::update() {
+        zero = Vec2{ width() * 0.1f, height() * 0.5f };
         // --------------
         // Draw the fish posture with circles
         // --------------

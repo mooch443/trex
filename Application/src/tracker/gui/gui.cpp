@@ -1,47 +1,5 @@
 #include "gui.h"
 #include <misc/Timer.h>
-/*#include <tracking/DebugDrawing.h>
-#include <gui/DrawCVBase.h>
-#include <gui/DrawSFBase.h>
-#include "DrawFish.h"
-#include "DrawPosture.h"
-#include <iomanip>
-#include <misc/Output.h>
-#include <gui/DrawHTMLBase.h>
-#include <misc/Results.h>
-#include <tracking/SplitBlob.h>
-#include <gui/GuiTypes.h>
-#include <video/GenericVideo.h>
-#include <misc/default_config.h>
-#include <gui/types/Textfield.h>
-#include <gui/types/Checkbox.h>
-#include <processing/PadImage.h>
-#include <tracking/VisualField.h>
-#include <tracking/DetectTag.h>
-#include <gui/RecognitionSummary.h>
-#include <gui/InfoCard.h>
-//#include <pthread.h>
-#include <tracking/FOI.h>
-#include <gui/types/PieChart.h>
-#include <gui/types/Tooltip.h>
-#include <gui/FlowMenu.h>
-
-#include <tracking/Recognition.h>
-#include <misc/cnpy_wrapper.h>
-#include <misc/default_settings.h>
-#include <python/GPURecognition.h>
-#include <gui/DrawDataset.h>
-#include <gui/IMGUIBase.h>
-#include <misc/MemoryStats.h>
-#include <tracking/Accumulation.h>
-#include <gui/WorkProgress.h>
-#include <misc/SoftException.h>
-#include <tracking/Export.h>
-#include <tracking/ConfirmedCrossings.h>
-#include <gui/DrawMenu.h>
-#include <gui/Label.h>
-#include <tracking/Categorize.h>*/
-
 #include <misc/detail.h>
 #include <misc/cnpy_wrapper.h>
 
@@ -321,7 +279,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
     GUI::_instance = this;
 
     PDP(tracker) = &tracker;
-    PD(posture_window).set_bounds(Bounds(_average_image.cols - 550 - 10, 100, 550, 400));
+    PD(posture_window).set_bounds(Bounds(average.cols - 550 - 10, 100, 550, 400));
     PD(gui).set_size(Size2(average.cols, average.rows));
     PDP(video_source) = &video_source;
 
