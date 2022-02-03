@@ -18,6 +18,7 @@ add_dependencies(tracker_gui tracker_misc commons Commons::GLFW) #Commons::OpenC
 target_link_libraries(tracker_gui PRIVATE cnpy
     tracker_tracking
     tracker_misc
+    commons
     Commons::GLFW
 )
 
