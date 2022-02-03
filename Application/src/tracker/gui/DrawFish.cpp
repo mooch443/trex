@@ -536,7 +536,7 @@ CREATE_STRUCT(CachedGUIOptions,
             ph.v += force / mass * dt;
             ph.direction += ph.v * dt;
             
-            auto &&[eyes, off] = VisualField::generate_eyes(&_obj, _basic_stuff, points, _cached_midline, alpha);
+            auto &&[eyes, off] = VisualField::generate_eyes(_basic_stuff, points, _cached_midline, alpha);
             
             auto d = ph.direction;
             auto L = d.length();
@@ -1198,7 +1198,7 @@ void Fish::label(DrawStructure &base) {
     else
         label->set_data(label_text, blob->calculate_bounds(), fish_pos());
 
-    label->update(base, base.active_section(), 1, blob == nullptr);
+    label->update(base, 1, blob == nullptr);
 }
 
 void Fish::shadow(DrawStructure &window) {

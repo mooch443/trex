@@ -102,8 +102,6 @@ namespace track {
             static Timing timing("is_good_image");
             TakeTiming take(timing);
             
-            Bounds bounds(average.bounds());
-            
             auto && [blob, grey, mask] = result;
             
             cv::Mat tmp3;
@@ -166,9 +164,6 @@ namespace track {
                         for (int i=0; i<shape.rows; i++) {
                             Vec2 next = shape.at<cv::Point>(i < shape.rows-1 ? i+1 : 0);
                             Vec2 current = shape.at<cv::Point>(i, 0);
-                            Vec2 v0(current - previous);
-                            Vec2 v1(next - current);
-                            
                             cv::line(qr, current, next, Red);
                         }
                         

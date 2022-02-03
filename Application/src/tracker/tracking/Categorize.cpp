@@ -413,9 +413,6 @@ Label::Ptr DataStore::ranged_label(Frame_t frame, const pv::CompressedBlob& blob
     return DataStore::label(_ranged_label_unsafe(frame, blob.blob_id()));
 }
 int DataStore::_ranged_label_unsafe(Frame_t frame, pv::bid bdx) {
-    static const auto frame_rate = FAST_SETTINGS(frame_rate) * 10;
-    //const auto mi = frame.get() - frame_rate, ma = frame.get() + frame_rate;
-    
     auto eit = std::lower_bound(_ranged_labels.begin(), _ranged_labels.end(), frame);
     
     // returned first range which end()s after frame,

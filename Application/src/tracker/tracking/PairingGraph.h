@@ -64,7 +64,7 @@ namespace Match
     public:
         PairedProbabilities();
         
-        size_t add(row_t::value_type, const std::map<col_t::value_type, prob_t>&);
+        size_t add(row_t::value_type, const ska::bytell_hash_map<col_t::value_type, prob_t>&);
         void erase(row_t::value_type);
         void erase(col_t::value_type);
         

@@ -20,7 +20,7 @@ void Label::set_data(const std::string &text, const Bounds &source, const Vec2 &
     _center = center;
 }
 
-void Label::update(DrawStructure& base, Section* s, float alpha, bool disabled) {
+void Label::update(DrawStructure& base, float alpha, bool disabled) {
     alpha = max(0.5, alpha);
     
     Vec2 offset;

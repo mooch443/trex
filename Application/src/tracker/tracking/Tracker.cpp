@@ -320,7 +320,7 @@ void Tracker::analysis_state(AnalysisState pause) {
         };
         Settings::set_callback(Settings::track_ignore, track_list_update);
         Settings::set_callback(Settings::track_include, track_list_update);
-        Settings::set_callback(Settings::frame_rate, [this](auto&, auto&){
+        Settings::set_callback(Settings::frame_rate, [](auto&, auto&){
             std::unique_lock guard(_properties_mutex);
             _properties_cache.clear(); //! TODO: need to refill as well
         });
@@ -684,7 +684,6 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         
         auto &big_blobs = result->big_blobs;
         auto &filtered  = result->filtered;
-        auto &filtered_out = result->filtered_out;
 
         const auto track_include = FAST_SETTINGS(track_include);
         const auto track_ignore = FAST_SETTINGS(track_ignore);
@@ -891,6 +890,8 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         std::ostream* out,
         GenericThreadPool* pool)
     {
+        UNUSED(out);
+        
         std::vector<pv::BlobPtr> result;
         const int threshold = FAST_SETTINGS(track_threshold);
         const BlobSizeRange fish_size = FAST_SETTINGS(blob_size_ranges);
@@ -1017,9 +1018,6 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         TakeTiming take(timing);
 
         float tdelta;
-        
-        auto resolution = _average->bounds().size();
-        //ProximityGrid proximity(resolution);
         {
             Tracker::LockGuard guard("history_split#1");
             auto props = properties(frame.index() - 1_f);
@@ -1479,7 +1477,6 @@ const FrameProperties* Tracker::add_next_frame(const FrameProperties & props) {
         std::unique_lock guard(_properties_mutex);
         _properties_cache.clear();
         
-        Frame_t frame = end_frame();
         auto it = frames.rbegin();
         while(it != frames.rend() && !_properties_cache.full())
         {
@@ -1577,7 +1574,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             for(size_t i=from; i<to; i++) {
                 auto fish = unassigned_individuals[i];
                 //Match::prob_t max_p = 0;
-                std::map<Match::Blob_t, Match::prob_t> probs;
+                ska::bytell_hash_map<Match::Blob_t, Match::prob_t> probs;
                 
                 auto cache = frame.cached(fish->identity().ID());
                 if(!cache) {
@@ -2400,8 +2397,10 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 std::mutex thread_mutex;
                 std::condition_variable _variable;
                 size_t executed = 0;
-                
+
+#ifdef TREX_DEBUG_MATCHING
                 size_t index = 0;
+#endif
                 for(auto &clique : cliques) {
 #ifdef TREX_DEBUG_MATCHING
                     std::set<uint32_t> fishs, blobs;
@@ -2440,7 +2439,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                             
                             auto edges = paired_blobs.edges_for_row(fdi);
                             
-                            std::map<Match::Blob_t, prob_t> probs;
+                            ska::bytell_hash_map<Match::Blob_t, prob_t> probs;
                             for(auto &e : edges) {
                                 auto blob = paired_blobs.col(e.cdx);
                                 if(!blob_assigned.count(blob->get()) || !blob_assigned.at(blob->get()))
@@ -2485,7 +2484,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     if(fish_assigned.find(fish) == fish_assigned.end() || !fish_assigned.at(fish)) {
                         auto edges = paired_blobs.edges_for_row(paired_blobs.index(fish));
                         
-                        std::map<Match::Blob_t, Match::prob_t> probs;
+                        ska::bytell_hash_map<Match::Blob_t, Match::prob_t> probs;
                         for(auto &e : edges) {
                             auto blob = paired_blobs.col(e.cdx);
                             if(!frame.find_bdx((*blob)->blob_id())) {
@@ -2518,13 +2517,6 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             using namespace Match;
             PairingGraph graph(frameIndex, paired_blobs);
             
-            size_t nedges = 0;
-            size_t max_edges_per_fish = 0, max_edges_per_blob = 0;
-            double mean_edges_per_blob = 0, mean_edges_per_fish = 0;
-            size_t fish_with_one_edge = 0, fish_with_more_edges = 0;
-            double average_probability = 0;
-            
-            std::map<long_t, size_t> edges_per_blob;
             /*for(auto && [fish, edges] : graph.edges()) {
                 //double sum = 1 / double(edges.size()+1);
                 //average_probability += sum;
@@ -2580,7 +2572,18 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 }
             }*/
             
+            
+            
+            
 #if defined(PAIRING_PRINT_STATS)
+            size_t nedges = 0;
+            size_t max_edges_per_fish = 0, max_edges_per_blob = 0;
+            double mean_edges_per_blob = 0, mean_edges_per_fish = 0;
+            size_t fish_with_one_edge = 0, fish_with_more_edges = 0;
+            
+            std::map<long_t, size_t> edges_per_blob;
+            
+            double average_probability = 0;
             double one_edge_probability = double(fish_with_one_edge) / double(fish_with_one_edge + fish_with_more_edges);
             double blob_one_edge = double(blobs_with_one_edge) / double(blobs_with_one_edge + blobs_with_more_edges);
             double one_to_one = double(one_to_ones) / double(graph.edges().size());
@@ -2630,12 +2633,12 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     std::lock_guard<std::mutex> guard(_statistics_mutex);
                     _statistics[frameIndex].match_number_blob = paired_blobs.n_cols();
                     _statistics[frameIndex].match_number_fish = paired_blobs.n_rows();
-                    _statistics[frameIndex].match_number_edges = nedges;
+                    //_statistics[frameIndex].match_number_edges = nedges;
                     _statistics[frameIndex].match_stack_objects = optimal.objects_looked_at;
-                    _statistics[frameIndex].match_max_edges_per_blob = max_edges_per_blob;
+                    /*_statistics[frameIndex].match_max_edges_per_blob = max_edges_per_blob;
                     _statistics[frameIndex].match_max_edges_per_fish = max_edges_per_fish;
                     _statistics[frameIndex].match_mean_edges_per_blob = mean_edges_per_blob;
-                    _statistics[frameIndex].match_mean_edges_per_fish = mean_edges_per_fish;
+                    _statistics[frameIndex].match_mean_edges_per_fish = mean_edges_per_fish;*/
                     _statistics[frameIndex].match_improvements_made = optimal.improvements_made;
                     _statistics[frameIndex].match_leafs_visited = optimal.leafs_visited;
                     _statistics[frameIndex].method_used = (int)match_mode.value();
@@ -3629,7 +3632,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
 #ifdef TREX_DEBUG_IDENTITIES
         auto f = fopen(pv::DataLocation::parse("output", "identities.log").c_str(), "wb");
 #endif
-        distribute_vector([this, &count, &callback, &manual_identities](auto i, auto it, auto nex, auto step){
+        distribute_vector([this, &count, &callback, &manual_identities](auto, auto it, auto, auto){
             auto & [fdx, fish] = *it;
             
             if(manual_identities.empty() || manual_identities.find(fdx) != manual_identities.end()) {
@@ -4135,7 +4138,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
 #endif
     }
 
-pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid pid, const Bounds& bounds)
+pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid pid, const Bounds&)
 {
     auto blob = pp.find_bdx(bid);
     if(!blob) {
@@ -4201,7 +4204,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid pid
     return blob;
 }
 
-    void Tracker::check_save_tags(Frame_t frameIndex, const std::unordered_map<pv::bid, Individual*>& blob_fish_map, const std::vector<tags::blob_pixel> &tagged_fish, const std::vector<tags::blob_pixel> &noise, const file::Path & tags_path) {
+    void Tracker::check_save_tags(Frame_t frameIndex, const std::unordered_map<pv::bid, Individual*>& blob_fish_map, const std::vector<tags::blob_pixel> &tagged_fish, const std::vector<tags::blob_pixel> &noise, const file::Path &) {
         static Timing tag_timing("tags", 0.1);
         TakeTiming take(tag_timing);
         

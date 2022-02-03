@@ -387,12 +387,11 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     std::deque<TemporaryData> stuffs;
     std::atomic_bool stop = false;
     
-    std::thread worker([&mutex, &variable, &stuffs, &stop, fish, check_analysis_range, analysis_range, cache_ptr = cache]()
+    std::thread worker([&mutex, &variable, &stuffs, &stop, fish, cache_ptr = cache]()
     {
         cmn::set_thread_name("Output::ResultsFormat::worker");
         
         std::unique_lock<std::mutex> guard(mutex);
-        auto _no_cache = (const CacheHints*)0x1;
         
         while(!stop || !stuffs.empty()) {
             variable.wait_for(guard, std::chrono::milliseconds(250));
@@ -1478,7 +1477,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         
         if(Recognition::recognition_enabled()) {
             GUI::instance()->work().add_queue("", [](){
-                Tracker::instance()->check_segments_identities(false, [](float x) { },
+                Tracker::instance()->check_segments_identities(false, [](float ) { },
                 [](const std::string&t, const std::function<void()>& fn, const std::string&b)
                 {
                     if(GUI::instance())

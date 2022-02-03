@@ -7,8 +7,10 @@
 
 namespace track {
     
+#ifdef _DEBUG_MEMORY
     std::map<PhysicalProperties*, std::tuple<int, std::shared_ptr<void*>>> all_midlines;
     std::mutex all_mutex;
+#endif
     
     size_t PhysicalProperties::saved_midlines() {
 #ifdef _DEBUG_MEMORY

@@ -5,7 +5,7 @@
 
 namespace mem {
 
-uint64_t memory_selector(MemoryStats& stats, const Idx_t& obj, const std::string& name) {
+uint64_t memory_selector(MemoryStats& , const Idx_t& , const std::string& ) {
     return sizeof(Idx_t);
 }
 

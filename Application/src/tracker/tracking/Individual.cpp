@@ -183,6 +183,7 @@ bool Individual::has(Frame_t frame) const {
 }
 
 void Individual::SegmentInformation::add_basic_at(Frame_t frame, long_t gdx) {
+    UNUSED(frame);
     assert(end() == frame);
     basic_index.push_back(gdx);
 }
@@ -1676,7 +1677,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     
     if(cache.consistent_categories) {
         std::shared_lock guard(Categorize::DataStore::range_mutex());
-        iterate_frames(Range<Frame_t>(max(_startFrame, cache.previous_frame - Frame_t(FAST_SETTINGS(frame_rate) * 2)), cache.previous_frame), [&labels, &samples, &guard](auto frame, auto&, auto& basic, auto&) -> bool
+        iterate_frames(Range<Frame_t>(max(_startFrame, cache.previous_frame - Frame_t(FAST_SETTINGS(frame_rate) * 2)), cache.previous_frame), [&labels, &samples](auto frame, auto&, auto& basic, auto&) -> bool
         {
             auto ldx = Categorize::DataStore::_ranged_label_unsafe(frame, basic->blob.blob_id());
             if(ldx != -1) {
@@ -2910,7 +2911,6 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
         range = Range<Frame_t>(_startFrame, _endFrame);
     
     
-    //std::map<long_t, std::map<std::string, std::array<float, VisualField::field_resolution>>> values;
     std::vector<float> depth, body_part;
     std::vector<long_t> ids;
     std::vector<Vec2> fish_pos, eye_pos;
@@ -2919,7 +2919,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
     
     size_t len = 0;
 
-    iterate_frames(range, [&](Frame_t frame, const std::shared_ptr<SegmentInformation>& segment, const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture) -> bool
+    iterate_frames(range, [&](Frame_t, const std::shared_ptr<SegmentInformation>&, const std::shared_ptr<Individual::BasicStuff>&, const std::shared_ptr<Individual::PostureStuff>& posture) -> bool
     {
         if (!posture || !posture->head)
             return true;

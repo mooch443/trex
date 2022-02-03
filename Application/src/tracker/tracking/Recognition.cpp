@@ -743,7 +743,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
     }
 
     inline void log(const char* cmd, ...) {
-
+        UNUSED(cmd);
         #ifndef NDEBUG
         auto f = fopen("history_waiting.log", "wb");
         

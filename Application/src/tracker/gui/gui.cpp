@@ -3827,7 +3827,7 @@ void GUI::draw_raw_mode(DrawStructure &base, Frame_t frameIndex) {
                     base.wrap_object(*circ);
                     
                     if(d > 0 && real_size > 0) {
-                        label->update(base, static_cast<Section*>(ptr), d, !active);
+                        label->update(base, d, !active);
                         ++displayed;
                     }
                 };

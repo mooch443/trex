@@ -182,7 +182,7 @@ namespace track {
         }
     }
     
-std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(const Individual* fish, const std::shared_ptr<Individual::BasicStuff>& basic, const std::vector<Vec2>& opts, const Midline::Ptr& midline, float angle)
+std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(const std::shared_ptr<Individual::BasicStuff>& basic, const std::vector<Vec2>& opts, const Midline::Ptr& midline, float angle)
 {
     using namespace gui;
     std::array<eye, 2> _eyes;
@@ -295,7 +295,7 @@ std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(con
         auto opts = outline->uncompress();
         _fish_angle = angle;
         
-        auto&& [eyes, pos] = generate_eyes(fish, basic, opts, midline, angle);
+        auto&& [eyes, pos] = generate_eyes(basic, opts, midline, angle);
         _fish_pos = pos;
         _eyes = std::move(eyes);
         

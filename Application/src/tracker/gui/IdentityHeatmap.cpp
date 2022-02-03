@@ -258,7 +258,7 @@ void HeatmapController::sort_data_into_custom_grid() {
     {
         values.clear();
         
-        _grid.apply<Region>([this, &maximum, &values, stride = double(stride)](const Region &r) -> bool {
+        _grid.apply<Region>([this, &values, stride = double(stride)](const Region &r) -> bool {
             if(r.pixel_size() > uniform_grid_cell_size)
                 return true;
             

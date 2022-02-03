@@ -140,9 +140,11 @@ void PairedProbabilities::erase(col_t::value_type col) {
         _num_cols = _cols.size();
     }
     
+#ifndef NDEBUG
     for(auto o : _offsets) {
         assert(o <= _probabilities.size());
     }
+#endif
     
     for(size_t i=0; i<_rows.size();) {
         if(_degree.at(i) == 0) {
@@ -208,7 +210,7 @@ prob_t PairedProbabilities::probability(size_t rdx, size_t cdx) const {
 
 size_t PairedProbabilities::add(
       row_t::value_type row,
-      const std::map<col_t::value_type, prob_t>& edges)
+      const ska::bytell_hash_map<col_t::value_type, prob_t>& edges)
 {
     size_t rdx, offset;
     if(_row_index.count(row))
@@ -575,6 +577,8 @@ void PairingGraph::initialize_stack(Stack* ) {
 
 PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, const bool debug)
 {
+    UNUSED(debug);
+    
     const prob_t hierarchy_best_p = _ordered_max_probs.at(current.blobs.size());
     
     /*if(current.blobs.empty()) {
@@ -984,7 +988,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
             };
             
             static std::mutex mutex;
-            static std::map<matching_mode_t::Class, Benchmark_t> benchmarks;
+            static ska::bytell_hash_map<matching_mode_t::Class, Benchmark_t> benchmarks;
             
             if(match_mode == matching_mode_t::hungarian
                || match_mode == matching_mode_t::benchmark)
@@ -1248,7 +1252,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                     }
                 }
                 
-                std::map<matching_mode_t::Class, std::map<const Individual*, Blob_t>> assignments;
+                ska::bytell_hash_map<matching_mode_t::Class, ska::bytell_hash_map<const Individual*, Blob_t>> assignments;
                 for(auto &fish : _paired.rows()) {
                     for(auto && [key, values] : benchmarks)
                         assignments[key][fish] = nullptr;

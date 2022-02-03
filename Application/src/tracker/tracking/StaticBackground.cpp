@@ -76,7 +76,7 @@ namespace track {
                     count += ptr_safe_t(*ptr_image) - ptr_safe_t(*values) >= ptr_safe_t(*ptr_grid) * threshold;
             } else {
                 for (; values != end; ++ptr_image, ++values)
-                    count += ptr_safe_t(*ptr_image) - ptr_safe_t(*values) >= threshold;
+                    count += ptr_safe_t(*ptr_image) - ptr_safe_t(*values) >= ptr_safe_t(threshold);
             }
             
         } else {
@@ -85,7 +85,7 @@ namespace track {
                     count += cmn::abs(ptr_safe_t(*ptr_image) - ptr_safe_t(*values)) >= ptr_safe_t(*ptr_grid) * threshold;
             } else {
                 for (; values != end; ++ptr_image, ++values)
-                    count += cmn::abs(ptr_safe_t(*ptr_image) - ptr_safe_t(*values)) >= threshold;
+                    count += cmn::abs(ptr_safe_t(*ptr_image) - ptr_safe_t(*values)) >= ptr_safe_t(threshold);
             }
         }
         

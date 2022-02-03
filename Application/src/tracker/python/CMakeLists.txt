@@ -24,7 +24,7 @@ if(WIN32)
     )
     target_compile_options(tracker_python PRIVATE /D"TREX_EXPORTS")
 else()
-    target_link_libraries(tracker_python PRIVATE cnpy)
+    target_link_libraries(tracker_python PRIVATE cnpy commons)
 endif()
 
 if(NOT pybind11_external)
