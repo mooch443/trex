@@ -410,7 +410,8 @@ constexpr std::array<const char*, 8> ReasonsNames {
         std::shared_ptr<PostureStuff> posture_stuff(Frame_t frameIndex) const;
         std::tuple<std::shared_ptr<BasicStuff>, std::shared_ptr<PostureStuff>> all_stuff(Frame_t frameIndex) const;
         
-        struct Probability {
+        using Probability = Match::prob_t;
+        struct DetailProbability {
             Match::prob_t p, p_time, p_pos, p_angle;
         };
         

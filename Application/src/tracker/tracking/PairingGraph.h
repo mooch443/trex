@@ -54,10 +54,10 @@ namespace Match
         std::vector<prob_t> _row_max_probs;
         GETTER(std::vector<Edge>, probabilities) //! size is individuals + edges per individual
         
-        std::unordered_map<row_t::value_type, size_t> _row_index;
-        std::unordered_map<col_t::value_type, size_t> _col_index;
+        ska::bytell_hash_map<row_t::value_type, size_t> _row_index;
+        ska::bytell_hash_map<col_t::value_type, size_t> _col_index;
         
-        std::unordered_map<col_t::value_type, std::vector<size_t>> _col_edges;
+        ska::bytell_hash_map<col_t::value_type, std::vector<size_t>> _col_edges;
         //std::vector<std::vector<size_t>> _blob_edges_idx;
         //std::unordered_map<row_t::value_type, size_t> _fish_2_idx;
         

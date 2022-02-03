@@ -15,6 +15,7 @@ struct IndividualCache {
     Vec2 estimated_px;
     bool last_frame_manual;
     bool valid = false;
+    bool individual_empty;
     float tdelta;
     float local_tdelta;
     Frame_t previous_frame;

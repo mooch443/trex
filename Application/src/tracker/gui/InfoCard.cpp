@@ -313,8 +313,8 @@ void InfoCard::update() {
         for(auto &blob : cache.processed_frame.blobs()) {
             if(fprobs->count(blob->blob_id())) {
                 auto &probs = (*fprobs).at(blob->blob_id());
-                if(probs.p > max_prob) {
-                    max_prob = probs.p;
+                if(probs/*.p*/ > max_prob) {
+                    max_prob = probs/*.p*/;
                     bdx = blob->blob_id();
                 }
             }
@@ -330,9 +330,9 @@ void InfoCard::update() {
                 }
                 
                 auto &probs = (*fprobs).at(blob->blob_id());
-                auto probs_str = Meta::toStr(probs.p);
-                if(detail)
-                    probs_str += " (p:"+Meta::toStr(probs.p_pos)+" a:"+Meta::toStr(probs.p_angle)+" s:"+Meta::toStr(probs.p_pos / probs.p_angle)+" t:"+Meta::toStr(probs.p_time)+")";
+                auto probs_str = Meta::toStr(probs/*.p*/);
+                /*if(detail)
+                    probs_str += " (p:"+Meta::toStr(probs.p_pos)+" a:"+Meta::toStr(probs.p_angle)+" s:"+Meta::toStr(probs.p_pos / probs.p_angle)+" t:"+Meta::toStr(probs.p_time)+")";*/
                 
                 auto text = advance(new Text(Meta::toStr(blob->blob_id())+": ", Vec2(10, y), White, Font(0.8f)));
                 auto second = advance(new Text(probs_str, text->pos() + Vec2(text->width(), 0), color, Font(0.8f)));

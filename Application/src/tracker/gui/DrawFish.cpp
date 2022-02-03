@@ -97,7 +97,7 @@ CREATE_STRUCT(CachedGUIOptions,
 
             for (auto& image : p) {
 
-                auto t = tags::is_good_image(image, Tracker::instance()->background()->image());
+                auto t = tags::is_good_image(image);
                 if (t.image) {
                     cv::Mat local;
                     cv::equalizeHist(t.image->get(), local);
@@ -656,12 +656,14 @@ CREATE_STRUCT(CachedGUIOptions,
                             return;
                         if(y < 0 || y >= mat.rows)
                             return;
-                        
-                        auto p = _obj.probability(-1, *c, _idx, Vec2(x, y) + 1 * 0.5, 1);
-                        if(p.p < FAST_SETTINGS(matching_probability_threshold))
+                        if(_idx < _obj.start_frame())
                             return;
                         
-                        auto clr = DarkCyan.alpha(min(255, 255.f * p.p));//(1 - 1 / (1 + (exp(p.p * M_PI) - exp(0)) / norm))));
+                        auto p = _obj.probability(-1, *c, _idx, Vec2(x, y) + 1 * 0.5, 1);
+                        if(p/*.p*/ < FAST_SETTINGS(matching_probability_threshold))
+                            return;
+                        
+                        auto clr = DarkCyan.alpha(min(255, 255.f * p/*.p*/));//(1 - 1 / (1 + (exp(p.p * M_PI) - exp(0)) / norm))));
                         auto ptr = mat.ptr(y, x);
                         *(ptr + 0) = clr.r;
                         *(ptr + 1) = clr.g;
@@ -669,7 +671,7 @@ CREATE_STRUCT(CachedGUIOptions,
                         *(ptr + 3) = clr.a;
                         //cv::rectangle(mat, Vec2(x, y), Vec2(x, y) + 1, DarkCyan.alpha(255 * p.p * p.p), -1);
                         
-                        sum += p.p;
+                        sum += p/*.p*/;
                     };
                     
                     do {

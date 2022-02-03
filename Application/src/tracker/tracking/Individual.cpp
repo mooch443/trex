@@ -1005,12 +1005,17 @@ std::shared_ptr<Individual::BasicStuff> Individual::add(Frame_t frameIndex, cons
     //push_to_segments(frameIndex, prev_frame);
     
     auto cached = frame.cached(identity().ID());
-    auto p = current_prob != -1 || !cached
-            ? current_prob
-            : probability(cached->consistent_categories ? frame.label(blob) : -1,
-                          *cached,
-                          frameIndex,
-                          stuff->blob).p;
+    prob_t p{current_prob};
+    if(current_prob == -1 && cached) {
+        if(cached->individual_empty /* || frameIndex < start_frame() */)
+            p = 0;
+        else
+            p = probability(cached->consistent_categories ? frame.label(blob) : -1,
+                            *cached,
+                            frameIndex,
+                            stuff->blob);//.p;
+    }
+    
     auto segment = update_add_segment(frameIndex, current, prev_frame, &stuff->blob, p);
     
     // add BasicStuff index to segment
@@ -1498,8 +1503,12 @@ const FrameProperties* CacheHints::properties(Frame_t index) const {
 IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, const CacheHints* hints) const {
     IndividualCache cache;
     cache._idx = Idx_t(identity().ID());
-    if(empty())
+    if(empty()) {
+        cache.individual_empty = true;
         return cache;
+    }
+    
+    cache.individual_empty = false;
     
     if (frameIndex < _startFrame)
         U_EXCEPTION("Cant cache for frame before start frame");
@@ -1693,7 +1702,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     auto end = Tracker::instance()->frames().end();
     auto iterator = end;
     
-    iterate_frames(range, [&](Frame_t frame, const std::shared_ptr<SegmentInformation> &seg, const std::shared_ptr<Individual::BasicStuff> &basic, const std::shared_ptr<Individual::PostureStuff> &posture) -> bool
+    iterate_frames(range, [&](Frame_t frame, const std::shared_ptr<SegmentInformation> &, const std::shared_ptr<Individual::BasicStuff> &basic, const std::shared_ptr<Individual::PostureStuff> &) -> bool
     {
         if(is_manual_match(frame)) {
             cache.last_frame_manual = true;
@@ -1900,9 +1909,7 @@ std::tuple<prob_t, prob_t, prob_t> Individual::position_probability(const Indivi
     //! S_{i,b}(t) &= \left(1 + \frac{\norm{ (\mathbf{p}_b(\tau_i) - \dot{\mathbf{p}}_i(t)) / (\tau_i - t) }}{ D_{\mathrm{max}}}\right)^{-2}
     
     Vec2 velocity;
-    if(cache.local_tdelta == 0)
-        velocity = Vec2(0);
-    else
+    if(cache.local_tdelta != 0)
         velocity = (position - cache.estimated_px * cache.cm_per_pixel) / cache.local_tdelta;
     assert(!std::isnan(velocity.x) && !std::isnan(velocity.y));
     
@@ -1976,12 +1983,10 @@ Individual::Probability Individual::probability(int label, const IndividualCache
 }
 
 Individual::Probability Individual::probability(int label, const IndividualCache& cache, Frame_t frameIndex, const Vec2& position, size_t pixels) const {
-    if (frameIndex < _startFrame)
-        U_EXCEPTION("Cannot calculate probability for a frame thats previous to all known frames.");
-
-    if(empty() || frameIndex < _startFrame)
-        return {0,0,0,0};//FAST_SETTINGS(matching_probability_threshold);
-
+    assert(frameIndex >= _startFrame);
+    //if (frameIndex < _startFrame)
+    //    U_EXCEPTION("Cannot calculate probability for a frame thats previous to all known frames.");
+    assert(!cache.individual_empty);
 
     if (cache.consistent_categories && cache.current_category != -1) {
         //auto l = Categorize::DataStore::ranged_label(Frame_t(frameIndex), blob);
@@ -1991,14 +1996,13 @@ Individual::Probability Individual::probability(int label, const IndividualCache
             if (label != cache.current_category) {
                 //if(identity().ID() == 38)
                  //   Warning("Frame %ld: current category does not match for blob %d", frameIndex, blob.blob_id());
-                return Probability{ 0, 0, 0, 0 };
+                //return Probability{ 0, 0, 0, 0 };
+                return 0;
             }
         }
     }
 
     const Vec2 blob_pos = cache.cm_per_pixel * position;
-    const auto p_time = cache.time_probability;
-
     auto && [ p_position, p_speed, p_angle ] = position_probability(cache, frameIndex, pixels, blob_pos, position);
     
     /**
@@ -2006,12 +2010,12 @@ Individual::Probability Individual::probability(int label, const IndividualCache
             P_{i} \given[\big]{t,\tau_i | B_j } =  S_{i} \given*{t | B_j} * \left(1 - \omega_1 \left(1 + A_{i} \given*{t,\tau_i | B_j } \right) \right) * \left(1 - \omega_2 \left( 1 +  T_{i}(t,\tau_i) \right) \right)
          \end{equation}
      */
-    return {
-        (cache.last_frame_manual ? 1.0f : 1.0f) * p_position * p_time,
-        p_time,
-        p_position,
-        p_angle
-    };
+    //return {
+    return (cache.last_frame_manual ? 1.0f : 1.0f) * p_position * cache.time_probability;
+    //    cache.time_probability,
+    //    p_position,
+    //    p_angle
+    //};
 }
 
 std::shared_ptr<Individual::BasicStuff> Individual::find_frame(Frame_t frameIndex) const
@@ -2521,6 +2525,8 @@ void Individual::clear_recognition() {
 }
 
 void log(FILE* f, const char* cmd, ...) {
+    UNUSED(f);
+    UNUSED(cmd);
 #ifndef NDEBUG
     if(!f) return;
     

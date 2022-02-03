@@ -97,7 +97,7 @@ namespace track {
             return result;
         }
         
-        Tag is_good_image(const result_t& result, const Image& average) {
+        Tag is_good_image(const result_t& result) {
             using namespace gui;
             static Timing timing("is_good_image");
             TakeTiming take(timing);

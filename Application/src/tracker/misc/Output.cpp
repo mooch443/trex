@@ -412,7 +412,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                     
                     auto label = FAST_SETTINGS(track_consistent_categories)/* || !FAST_SETTINGS(track_only_categories).empty()*/ ? Categorize::DataStore::ranged_label(Frame_t(frameIndex), data.stuff->blob) : nullptr;
                     auto cache = fish->cache_for_frame(frameIndex, Tracker::properties(frameIndex, cache_ptr)->time, cache_ptr);
-                    auto p = fish->probability(label ? label->id : -1, cache, frameIndex, data.stuff->blob).p;
+                    auto p = fish->empty() || frameIndex < fish->start_frame() ? 0 : fish->probability(label ? label->id : -1, cache, frameIndex, data.stuff->blob);//.p;
                     
                     auto segment = fish->update_add_segment(
                         frameIndex,

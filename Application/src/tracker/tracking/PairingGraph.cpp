@@ -197,9 +197,7 @@ prob_t PairedProbabilities::probability(row_t::value_type row, col_t::value_type
 }
 
 prob_t PairedProbabilities::probability(size_t rdx, size_t cdx) const {
-    size_t offset = _offsets[rdx];
     size_t next = rdx + 1 < _num_rows ? _offsets[rdx+1] : _probabilities.size();
-    
     auto it = std::find(_probabilities.begin() + _offsets[rdx], _probabilities.begin() + next, cdx);
     if(it != _probabilities.end()) {
         return it->p;

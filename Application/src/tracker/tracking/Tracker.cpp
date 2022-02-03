@@ -1594,7 +1594,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                         U_EXCEPTION("Frame %d: Blob %u not found (in original=>%d).", frameIndex, bdx, it != frame.original_blobs().end());
                     }
 #endif*/
-                    auto p = fish->probability(label, *cache, frameIndex, *blob).p;//blob->center(), blob->num_pixels()).p;
+                    auto p = fish->probability(label, *cache, frameIndex, *blob);//.p;//blob->center(), blob->num_pixels()).p;
 
                     // discard elements with probabilities that are too low
                     if (p <= matching_probability_threshold)
@@ -3449,7 +3449,6 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
             std::unique_lock guard(_properties_mutex);
             _properties_cache.clear();
             
-            Frame_t frame = end_frame();
             auto it = _added_frames.rbegin();
             while(it != _added_frames.rend() && !_properties_cache.full())
             {
@@ -4210,7 +4209,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid pid
         
         auto result = tags::prettify_blobs(tagged_fish, noise, {}, *_average);
         for (auto &r : result) {
-            auto && [var, bid, ptr, f] = tags::is_good_image(r, *_average);
+            auto && [var, bid, ptr, f] = tags::is_good_image(r);
             if(ptr) {
                 auto it = blob_fish_map.find(r.blob->blob_id());
                 if(it != blob_fish_map.end())

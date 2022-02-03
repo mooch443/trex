@@ -525,8 +525,12 @@ namespace gui {
             auto c = processed_frame.cached(fdx);
             if(c) {
                 for(auto& blob : processed_frame.blobs()) {
-                    auto p = individuals.count(fdx) ? individuals.at(fdx)->probability(processed_frame.label(blob), *c, frame_idx, blob) : Individual::Probability{0,0,0,0};
-                    if(p.p >= FAST_SETTINGS(matching_probability_threshold))
+                    auto it = individuals.find(fdx);
+                    if(it == individuals.end() || it->second->empty() || frame_idx < it->second->start_frame())
+                        continue;
+                    
+                    auto p = individuals.at(fdx)->probability(processed_frame.label(blob), *c, frame_idx, blob);
+                    if(p/*.p*/ >= FAST_SETTINGS(matching_probability_threshold))
                         probabilities[c->_idx][blob->blob_id()] = p;
                 }
             }
