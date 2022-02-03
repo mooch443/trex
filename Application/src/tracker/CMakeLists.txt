@@ -77,6 +77,7 @@ target_link_libraries(${TREX_EXEC_NAME} PUBLIC
 	Commons::OpenCV
     Commons::FFMPEG
     imgui Commons::GLAD
+    Commons::LibZIP
 	#Commons::LibPNG
 	#Commons::LibZ
 	#${EXTRA_LIBS}
