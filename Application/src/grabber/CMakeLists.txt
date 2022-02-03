@@ -55,7 +55,7 @@ if(APPLE)
 ADD_CUSTOM_COMMAND(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
 COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:trex_check_python> $<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>)
 endif()
-add_dependencies(${TGRABS_EXEC_NAME} trex_check_python Commons::OpenCV)
+add_dependencies(${TGRABS_EXEC_NAME} trex_check_python commons) #Commons::OpenCV)
 
 add_executable(pvconvert pvconvert.cpp gif.h ${GIT_SOURCES})
 target_link_libraries(pvconvert PUBLIC
@@ -63,18 +63,47 @@ target_link_libraries(pvconvert PUBLIC
     pv
     commons
     Commons::GLFW
-    Commons::LibPNG
-    Commons::LibZ
+    #Commons::LibPNG
+    #Commons::LibZ
     Commons::OpenCV
-    ${EXTRA_LIBS}
+    #${EXTRA_LIBS}
 )
 
-add_dependencies(pvconvert Commons::OpenCV)
+add_dependencies(pvconvert commons)#Commons::OpenCV)
+
+option(WITH_PYLON "use pylon support" OFF)
+
+if(APPLE AND WITH_PYLON)
+    FIND_LIBRARY(PYLON_LIBRARIES Pylon)
+    if(PYLON_LIBRARIES STREQUAL "PYLON_LIBRARIES-NOTFOUND" OR NOT ${WITH_PYLON})
+        set(PYLON_FOUND false)
+        add_definitions(-DWITH_PYLON=false)
+    else()
+        set(PYLON_FOUND true)
+        add_definitions(-DWITH_PYLON=true)
+        message(STATUS "Pylon found. ${PYLON_LIBRARIES} lol")
+        include_directories(/Library/Frameworks/pylon.framework/Headers/GenICam)
+    endif()
+    
+elseif(WITH_PYLON)
+    find_package(BaslerPylon)
+    if(${PYLON_FOUND})
+        include_directories(${PYLON_INCLUDE_DIRS})
+        add_definitions(-DWITH_PYLON=true)
+        message(STATUS "Pylon found.")
+    else()
+        add_definitions(-DWITH_PYLON=false)
+    endif()
+endif()
+
+
 
 if(PYLON_FOUND AND WITH_PYLON)
     message(STATUS "linking with pylon")
     target_link_libraries( ${TGRABS_EXEC_NAME} PUBLIC ${PYLON_LIBRARIES} )
 endif()
+
+
 
 target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE
     framegrabber_misc
@@ -84,38 +113,43 @@ target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE
     tracker_python
 	pv
 	commons
+    Commons::IMGUI
+    Commons::GLAD
 	Commons::GLFW
-    Commons::LibPNG
-    Commons::LibZ
+    Commons::FFMPEG
+    cnpy
+    #Commons::LibPNG
+    #Commons::LibZ
 	Commons::OpenCV
-	${EXTRA_LIBS})
+	#${EXTRA_LIBS}
+)
 
 if(WITH_HTTPD)
     add_dependencies(${TGRABS_EXEC_NAME} LibMicroHttpd)
 endif()
-if(WITH_FFMPEG)
-    target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE Commons::FFMPEG)
-endif()
+#if(WITH_FFMPEG)
+#    target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE Commons::FFMPEG)
+#endif()
 
 add_executable(pvinfo pvinfo.cpp pvinfo_merge.cpp pvinfo_merge.h ${GIT_SOURCES})
 
 target_link_libraries(pvinfo PRIVATE
-	cnpy
 	tracker_tracking
     tracker_gui
     tracker_python
     tracker_misc
 	commons
-	Commons::LibPNG
-	Commons::GLFW
+    Commons::IMGUI
+	#Commons::LibPNG
+	#Commons::GLFW
 	Commons::OpenCV
-	${EXTRA_LIBS}
+	#${EXTRA_LIBS}
 	pv
 )
 
-add_dependencies(pvinfo Commons::OpenCV)
+add_dependencies(pvinfo commons) #Commons::OpenCV)
 
-get_target_property(OUT Commons::GLFW INTERFACE_LINK_LIBRARIES)
+get_target_property(OUT commons INTERFACE_LINK_LIBRARIES)
 message(STATUS "Commons::GLFW libraries: ${OUT}")
 
 set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES
@@ -223,13 +257,6 @@ if(WITH_FFMPEG)
     target_compile_definitions(${TGRABS_EXEC_NAME} PRIVATE WITH_FFMPEG=true)
 endif()
 
-if(WIN32)
-	if(TREX_BUILD_OPENCV)
-		install(
-			FILES
-			"${OpenCV_LIB_PATH}/../bin/opencv_videoio_ffmpeg${TREX_OPENCV_VERSION_NO_DOTS}_64.dll" DESTINATION bin)
-	endif()
-endif()
 
 install(TARGETS ${targets}
     EXPORT TGrabs

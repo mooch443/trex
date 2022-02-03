@@ -18,7 +18,7 @@ if(WIN32)
         commons
         cnpy
         Commons::OpenCV
-		Commons::LibPNG
+	    Commons::LibPNG
 		Commons::LibZIP
 		Commons::LibZ
     )
@@ -36,8 +36,7 @@ endif()
 
 add_executable(trex_check_python check_python.cpp)
 target_link_libraries(trex_check_python commons cnpy Commons::OpenCV Commons::LibZIP Commons::LibZ Commons::LibPNG)
-add_dependencies(trex_check_python Commons::LibZIP)
-add_dependencies(trex_check_python Commons::OpenCV)
+add_dependencies(trex_check_python commons Commons::LibZIP)
 
 if(NOT pybind11_external)
     target_link_libraries(trex_check_python pybind11::pybind11 pybind11::embed pybind11::module)

@@ -13,11 +13,12 @@ elseif(WIN32)
   add_library(tracker_gui STATIC ${SRCS} ${HDRS})
 endif()
 
-add_dependencies(tracker_gui tracker_misc Commons::OpenCV)
+add_dependencies(tracker_gui tracker_misc commons Commons::GLFW) #Commons::OpenCV)
 
 target_link_libraries(tracker_gui PRIVATE cnpy
     tracker_tracking
     tracker_misc
+    Commons::GLFW
 )
 
 if(APPLE)

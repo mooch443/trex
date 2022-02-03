@@ -51,16 +51,19 @@ if(NOT WIN32 AND TREX_WITH_TESTS)
         tracker_tracking
         commons
         cnpy
-        Commons::GLFW
-        ${OpenCV_LIBS}
-        ${EXTRA_LIBS}
+        #Commons::GLFW
+        #${OpenCV_LIBS}
+        #${EXTRA_LIBS}
     )
-    add_dependencies(test_imgui commons Commons::LibZIP Commons::GLFW Commons::OpenCV)
+    add_dependencies(test_imgui commons) #Commons::LibZIP Commons::GLFW Commons::OpenCV)
 endif()
 
 # add actual executable
 add_executable(${TREX_EXEC_NAME} ${SRCS})
-add_dependencies(${TREX_EXEC_NAME} Commons::GLFW Commons::OpenCV)
+add_dependencies(${TREX_EXEC_NAME} commons Commons::GLFW
+    Commons::OpenCV
+    Commons::FFMPEG)
+#Commons::GLFW Commons::OpenCV)
 
 # link all needed libraries to the target
 target_link_libraries(${TREX_EXEC_NAME} PUBLIC
@@ -72,9 +75,11 @@ target_link_libraries(${TREX_EXEC_NAME} PUBLIC
 	commons
 	Commons::GLFW
 	Commons::OpenCV
-	Commons::LibPNG
-	Commons::LibZ
-	${EXTRA_LIBS}
+    Commons::FFMPEG
+    imgui Commons::GLAD
+	#Commons::LibPNG
+	#Commons::LibZ
+	#${EXTRA_LIBS}
 )
 
 if(WITH_HTTPD)

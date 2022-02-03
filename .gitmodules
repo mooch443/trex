@@ -1,6 +1,6 @@
-[submodule "Application/src/cnpy"]
-	path = Application/src/cnpy
-	url = https://github.com/mooch443/cnpy.git
-[submodule "Application/src/imgui"]
-	path = Application/src/imgui
-	url = https://github.com/mooch443/imgui.git
+[submodule "Application/src/commons"]
+	path = Application/src/commons
+	url = https://github.com/mooch443/commons.git
+[submodule "Application/src/flat_hash_map"]
+	path = Application/src/flat_hash_map
+	url = https://github.com/mooch443/flat_hash_map.git
