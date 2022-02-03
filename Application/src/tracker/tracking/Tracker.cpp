@@ -692,7 +692,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         std::vector<pv::BlobPtr> ptrs;
         auto only_allowed = FAST_SETTINGS(track_only_categories);
         
-        auto check_blob = [&track_ignore, &track_include, &result, &cm_sqr](pv::BlobPtr& b){
+        auto check_blob = [&track_ignore, &track_include, &result, &cm_sqr](const pv::BlobPtr& b){
             if(b->pixels()->size() * cm_sqr > result->fish_size.max_range().end * 100)
                 b->force_set_recount(result->threshold);
             else
@@ -714,11 +714,11 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
             
             return true;
         };
-        
+
         for(; it != end; ++it) {
             ptrs.clear();
             
-            auto b = *it;
+            auto &b = *it;
             
             if(!check_blob(b))
                 continue;
@@ -731,7 +731,6 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
             //  as the threshold used here will reduce the number of available pixels for posture analysis
             //  or tracking respectively (pixels below used threshold will be removed).
             if(result->fish_size.close_to_minimum_of_one(recount, 0.5)) {
-                Timer timer;
                 auto pblobs = pixel::threshold_blob(b, result->threshold, result->background);
                 
                 // only use blobs that split at least into 2 new blobs

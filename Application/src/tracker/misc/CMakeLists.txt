@@ -14,10 +14,8 @@ elseif(WIN32)
 endif()
 
 target_link_libraries(tracker_misc PRIVATE
-#    commons
-#    pv
+    commons
     lzo
-#	${EXTRA_LIBS}
 	cnpy
 )
 

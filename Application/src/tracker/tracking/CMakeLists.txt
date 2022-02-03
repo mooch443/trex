@@ -11,7 +11,7 @@ elseif(WIN32)
 endif()
 
 target_link_libraries(tracker_tracking PRIVATE cnpy
-#	tracker_python
+    commons
 )
 
 

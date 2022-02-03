@@ -65,5 +65,5 @@ set_target_properties(pv
 )
 
 add_subdirectory(lzo)
-target_link_libraries(pv PRIVATE lzo cnpy)
+target_link_libraries(pv PUBLIC lzo cnpy commons)
 add_dependencies(pv commons)

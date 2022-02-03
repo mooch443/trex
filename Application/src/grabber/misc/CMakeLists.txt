@@ -14,7 +14,7 @@ elseif(WIN32)
 endif()
 
 target_link_libraries(framegrabber_misc
-	PRIVATE cnpy
+	PRIVATE cnpy commons
 )
 
 if(APPLE AND PYLON_FOUND AND WITH_PYLON)
