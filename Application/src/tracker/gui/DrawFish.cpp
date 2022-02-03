@@ -188,7 +188,7 @@ CREATE_STRUCT(CachedGUIOptions,
             _posture_stuff = _posture;
             
             if(frameIndex == _safe_idx && _basic) {
-                auto c = Categorize::DataStore::label_averaged(&_obj, Frame_t(frameIndex));
+                auto c = Categorize::DataStore::_label_averaged_unsafe(&_obj, Frame_t(frameIndex));
                 if(c)
                     _avg_cat = c->id;
             }

@@ -2009,6 +2009,8 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                 }
                 
                 {
+                    std::unique_lock guard(Categorize::DataStore::cache_mutex());
+                    
                     for (auto &fish : (source.empty() ? PD(cache).active : source)) {
                         if (fish->start_frame() > frameNr || fish->empty())
                             continue;
