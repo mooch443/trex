@@ -24,7 +24,7 @@ namespace gui {
         }
     }
     
-    std::unique_ptr<ExternalImage> SimpleBlob::convert() {
+    void SimpleBlob::convert() {
         //static Timing timing("simpleblob", 10);
         //TakeTiming take(timing);
         Vec2 image_pos;
@@ -52,7 +52,7 @@ namespace gui {
         ptr->add_custom_data("blob_id", (void*)(uint64_t)(uint32_t)blob->blob_id());
         if(ptr->name().empty())
             ptr->set_name("SimpleBlob_"+Meta::toStr(blob->blob_id()));
-        return std::move(ptr);
+        //return std::move(ptr);
     }
     
     GUICache::GUICache()
@@ -371,15 +371,9 @@ namespace gui {
                     }
                 }
                 
-                raw_blobs.clear();
-                display_blobs.clear();
-                
-                std::move(display_blobs_list.begin(), display_blobs_list.end(), std::back_inserter(available_blobs_list));
-                //std::reverse(available_blobs_list.begin(), available_blobs_list.end());
-                
-                //Debug("Size: %lu", available_blobs_list.size());
-                
-                display_blobs_list.clear();
+                /*display_blobs.clear();
+                std::move(raw_blobs.begin(), raw_blobs.end(), std::back_inserter(available_blobs_list));
+                raw_blobs.clear();*/
                 
                 probabilities.clear();
                 checked_probs.clear();
@@ -400,8 +394,23 @@ namespace gui {
             const bool nothing_to_zoom_on = !has_selection() || (inactive_estimates.empty() && selected_blobs.empty());
             
             _num_pixels = 0;
+            auto L = processed_frame.blobs().size() + processed_frame.noise().size();
             
-            for (size_t i=0; i<processed_frame.blobs().size(); i++) {
+            if(reload_blobs) {
+                display_blobs.clear();
+                if(L < raw_blobs.size()) {
+                    //Debug("Moving %lu blobs to available list...", raw_blobs.size() - L);
+                    std::move(raw_blobs.begin() + L, raw_blobs.end(), std::back_inserter(available_blobs_list));
+                    raw_blobs.erase(raw_blobs.begin() + L, raw_blobs.end());
+                    
+                } else if(L != raw_blobs.size()) {
+                    //Debug("Requiring %lu more...", L - raw_blobs.size());
+                    raw_blobs.reserve(L);
+                }
+            }
+            
+            size_t i = 0;
+            for (; i<processed_frame.blobs().size(); i++) {
                 auto& blob = processed_frame.blobs().at(i);
                 
                 if(nothing_to_zoom_on || selected_blobs.find(blob->blob_id()) != selected_blobs.end())
@@ -413,13 +422,24 @@ namespace gui {
                 _num_pixels += size_t(blob->bounds().width * blob->bounds().height);
                 
                 if(reload_blobs) {
-                    std::unique_ptr<gui::ExternalImage> ptr;
-                    if(!available_blobs_list.empty()) {
-                        ptr = std::move(available_blobs_list.back());
-                        available_blobs_list.pop_back();
+                    if(i < raw_blobs.size()) {
+                        auto &obj = raw_blobs[i];
+                        obj->blob = blob;
+                        obj->threshold = threshold;
+                        
+                    } else {
+                        std::unique_ptr<SimpleBlob> ptr;
+                        if(!available_blobs_list.empty()) {
+                            ptr = std::move(available_blobs_list.back());
+                            available_blobs_list.pop_back();
+                            
+                            ptr->blob = blob;
+                            ptr->threshold = threshold;
+                        } else
+                            ptr = std::make_unique<SimpleBlob>(std::make_unique<ExternalImage>(), blob, threshold);
+                        
+                        raw_blobs.emplace_back(std::move(ptr));
                     }
-                    
-                    raw_blobs.push_back(std::make_shared<SimpleBlob>(std::move(ptr), blob, threshold));
                 }
             }
             
@@ -434,14 +454,27 @@ namespace gui {
                 }
                 
                 if(reload_blobs) {
-                    std::unique_ptr<gui::ExternalImage> ptr;
-                    if(!available_blobs_list.empty()) {
-                        ptr = std::move(available_blobs_list.back());
-                        available_blobs_list.pop_back();
+                    if(i < raw_blobs.size()) {
+                        auto &obj = raw_blobs[i];
+                        obj->blob = blob;
+                        obj->threshold = threshold;
+                        
+                    } else {
+                        std::unique_ptr<SimpleBlob> ptr;
+                        if(!available_blobs_list.empty()) {
+                            ptr = std::move(available_blobs_list.back());
+                            available_blobs_list.pop_back();
+                            
+                            ptr->blob = blob;
+                            ptr->threshold = threshold;
+                        } else
+                            ptr = std::make_unique<SimpleBlob>(std::make_unique<ExternalImage>(), blob, threshold);
+                        
+                        raw_blobs.emplace_back(std::move(ptr));
                     }
-                    
-                    raw_blobs.push_back(std::make_shared<SimpleBlob>(std::move(ptr), blob, threshold));
                 }
+                
+                ++i;
             }
             
             if(reload_blobs) {
@@ -453,8 +486,7 @@ namespace gui {
                         _ranged_blob_labels[b->blob->blob_id()] = label->id;
                 }
                 
-                display_blobs.clear();
-                display_blobs_list.clear();
+                //display_blobs_list.clear();
                 
                 /*std::vector<std::set<uint32_t>> cliques;
                 for(auto &[bdx, clique] : processed_frame.blob_cliques) {
@@ -510,7 +542,7 @@ namespace gui {
         return probs(fdx) != nullptr;
     }
 
-    const std::map<pv::bid, Individual::Probability>* GUICache::probs(Idx_t fdx) {
+    const ska::bytell_hash_map<pv::bid, Individual::Probability>* GUICache::probs(Idx_t fdx) {
         if(checked_probs.find(fdx) != checked_probs.end()) {
             auto it = probabilities.find(fdx);
             if(it  != probabilities.end())

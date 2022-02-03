@@ -16,7 +16,7 @@ namespace gui {
         std::unique_ptr<ExternalImage> ptr;
         
         SimpleBlob(std::unique_ptr<ExternalImage>&& available, pv::BlobPtr b, int t);
-        std::unique_ptr<ExternalImage> convert();
+        void convert();
     };
     
     class Fish;
@@ -57,7 +57,7 @@ namespace gui {
         Range<Frame_t> tracked_frames;
         std::atomic_bool connectivity_reload;
         
-        std::unordered_map<Idx_t, Individual*> individuals;
+        ska::bytell_hash_map<Idx_t, Individual*> individuals;
         std::set<Idx_t> active_ids;
         std::set<Idx_t> inactive_ids;
         std::set<Idx_t> recognized_ids;
@@ -69,14 +69,13 @@ namespace gui {
         std::map<Idx_t, pv::bid> fish_selected_blobs;
         Tracker::set_of_individuals_t active;
         //std::vector<std::shared_ptr<gui::ExternalImage>> blob_images;
-        std::vector<std::shared_ptr<SimpleBlob>> raw_blobs;
-        std::unordered_map<pv::Blob*, gui::ExternalImage*> display_blobs;
-        std::vector<std::unique_ptr<gui::ExternalImage>> display_blobs_list;
-        std::vector<std::unique_ptr<gui::ExternalImage>> available_blobs_list;
+        std::vector<std::unique_ptr<SimpleBlob>> raw_blobs;
+        std::unordered_map<pv::Blob*, SimpleBlob*> display_blobs;
+        std::vector<std::unique_ptr<SimpleBlob>> available_blobs_list;
         std::vector<Vec2> inactive_estimates;
         
     protected:
-        std::map<Idx_t, std::map<pv::bid, Individual::Probability>> probabilities;
+        ska::bytell_hash_map<Idx_t, ska::bytell_hash_map<pv::bid, Individual::Probability>> probabilities;
         std::set<uint32_t> checked_probs;
         
     public:
@@ -104,7 +103,7 @@ namespace gui {
         void deselect(Idx_t id);
         void deselect_all_select(Idx_t id);
         
-        const std::map<pv::bid, Individual::Probability>* probs(Idx_t fdx);
+        const ska::bytell_hash_map<pv::bid, Individual::Probability>* probs(Idx_t fdx);
         bool has_probs(Idx_t fdx);
         
         void set_tracking_dirty();

@@ -1050,7 +1050,7 @@ namespace Output {
         return pack_size;
     }
     
-    void ResultsFormat::write_file(const std::vector<track::FrameProperties> &frames, const std::unordered_map<Frame_t, Tracker::set_of_individuals_t > &active_individuals_frame, const std::unordered_map<Idx_t, Individual *> &individuals, const std::vector<std::string>& exclude_settings)
+    void ResultsFormat::write_file(const std::vector<track::FrameProperties> &frames, const ska::bytell_hash_map<Frame_t, Tracker::set_of_individuals_t > &active_individuals_frame, const ska::bytell_hash_map<Idx_t, Individual *> &individuals, const std::vector<std::string>& exclude_settings)
     {
         estimated_size = sizeof(uint64_t)*3 + frames.size() * (sizeof(data_long_t)+sizeof(CompatibilityFrameProperties)) + active_individuals_frame.size() * (sizeof(data_long_t)+sizeof(uint64_t)+(active_individuals_frame.empty() ? individuals.size() : active_individuals_frame.begin()->second.size())*sizeof(data_long_t));
         
@@ -1183,7 +1183,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
     const track::FrameProperties* prev_props = nullptr;
     Frame_t prev_frame;
     
-    std::unordered_map<Idx_t, Individual::segment_map::const_iterator> iterator_map;
+    ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator> iterator_map;
     
     for(const auto &props : _tracker._added_frames) {
         prev_time = props.time;

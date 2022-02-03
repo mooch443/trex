@@ -412,7 +412,7 @@ public:
                 // generate blob items
                 std::map<pv::bid, std::shared_ptr<BlobID>> ordered;
                 std::vector<std::shared_ptr<BlobID>> blobs = {std::make_shared<BlobID>(-1)};
-                for(auto v : GUI::cache().raw_blobs)
+                for(auto &v : GUI::cache().raw_blobs)
                     ordered[v->blob->blob_id()] = std::make_shared<BlobID>(v->blob->blob_id());
                 
                 for(auto && [id, ptr] : ordered)

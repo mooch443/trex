@@ -5,6 +5,11 @@
 
 namespace mem {
 
+template<typename K, typename Y>
+uint64_t memory_selector(MemoryStats& , const ska::bytell_hash_map<K, Y>& map, const std::string& ) {
+    return (sizeof(K) + sizeof(Y)) + map.size();
+}
+
 uint64_t memory_selector(MemoryStats& , const Idx_t& , const std::string& ) {
     return sizeof(Idx_t);
 }

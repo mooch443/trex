@@ -7,8 +7,13 @@ namespace track {
 struct Idx_t {
     uint32_t _identity = cmn::infinity<uint32_t>();
     constexpr Idx_t() = default;
+    Idx_t(Idx_t const &ID) = default;
+    
     template<typename T>
-    explicit constexpr Idx_t(T ID) : _identity(cmn::narrow_cast<uint32_t>(ID)) {}
+        requires std::convertible_to<T, uint32_t>
+    explicit constexpr Idx_t(T ID) : _identity((uint32_t)ID) {}
+    
+    explicit constexpr Idx_t(uint32_t ID) : _identity(ID) {}
     constexpr operator uint32_t() const { return _identity; }
     constexpr bool valid() const { return _identity != cmn::infinity<uint32_t>(); }
     

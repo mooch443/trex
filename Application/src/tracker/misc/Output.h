@@ -154,7 +154,7 @@ namespace Output {
         uint64_t write_data(uint64_t num_bytes, const char* buffer) override;
         
         static uint64_t estimate_individual_size(const Individual& val);
-        void write_file(const std::vector<track::FrameProperties>& frames, const std::unordered_map<Frame_t, Tracker::set_of_individuals_t>& active_individuals_frame, const std::unordered_map<Idx_t, Individual*>& individuals, const std::vector<std::string>& exclude_settings);
+        void write_file(const std::vector<track::FrameProperties>& frames, const ska::bytell_hash_map<Frame_t, Tracker::set_of_individuals_t>& active_individuals_frame, const ska::bytell_hash_map<Idx_t, Individual*>& individuals, const std::vector<std::string>& exclude_settings);
         
         Individual* read_individual(Data& ref, const CacheHints* cache);
         Midline::Ptr read_midline(Data& ref);

@@ -134,7 +134,7 @@ CREATE_STRUCT(Settings,
         uint32_t _current_midline_errors, _overall_midline_errors;
         
         //! All the individuals that have been detected and are being maintained
-        std::unordered_map<Idx_t, Individual*> _individuals;
+        ska::bytell_hash_map<Idx_t, Individual*> _individuals;
         friend class Individual;
         
     public:
@@ -142,10 +142,10 @@ CREATE_STRUCT(Settings,
             std::unordered_set<uint32_t> bids;  // index of blob, not blob id
             std::unordered_set<uint32_t> fishs; // index of fish
         };
-        std::unordered_map<Frame_t, std::vector<Clique>> _cliques;
+        ska::bytell_hash_map<Frame_t, std::vector<Clique>> _cliques;
         
         set_of_individuals_t _active_individuals;
-        std::unordered_map<Frame_t, set_of_individuals_t> _active_individuals_frame;
+        ska::bytell_hash_map<Frame_t, set_of_individuals_t> _active_individuals_frame;
         
         std::atomic<Frame_t> _startFrame{ Frame_t() };
         std::atomic<Frame_t> _endFrame{ Frame_t() };
@@ -154,8 +154,8 @@ CREATE_STRUCT(Settings,
         GETTER_PTR(StaticBackground*, background)
         Recognition* _recognition;
         
-        std::unordered_map<Idx_t, Individual::segment_map::const_iterator> _individual_add_iterator_map;
-        std::unordered_map<Idx_t, size_t> _segment_map_known_capacity;
+        ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator> _individual_add_iterator_map;
+        ska::bytell_hash_map<Idx_t, size_t> _segment_map_known_capacity;
         std::vector<IndividualStatus> _warn_individual_status;
         
     public:
@@ -256,7 +256,7 @@ CREATE_STRUCT(Settings,
         static void preprocess_frame(PPFrame &frame, const std::unordered_set<Individual*>& active_individuals, GenericThreadPool* pool, std::ostream* = NULL, bool do_history_split = true);
         
         friend class VisualField;
-        static const std::unordered_map<Idx_t, Individual*>& individuals() {
+        static const ska::bytell_hash_map<Idx_t, Individual*>& individuals() {
             //LockGuard guard("individuals()");
             return instance()->_individuals;
         }
@@ -303,8 +303,8 @@ CREATE_STRUCT(Settings,
         static Match::PairedProbabilities calculate_paired_probabilities
                 (const PPFrame& frame,
                  const Tracker::set_of_individuals_t& active_individuals,
-                 const std::unordered_map<Individual*, bool>& fish_assigned,
-                 const std::unordered_map<pv::Blob*, bool>& blob_assigned,
+                 const ska::bytell_hash_map<Individual*, bool>& fish_assigned,
+                 const ska::bytell_hash_map<pv::Blob*, bool>& blob_assigned,
                  //std::unordered_map<pv::Blob*, pv::BlobPtr>& ptr2ptr,
                  GenericThreadPool* pool);
         static std::vector<Clique> generate_cliques(const Match::PairedProbabilities& paired);
@@ -323,7 +323,7 @@ CREATE_STRUCT(Settings,
         }
         
         void update_consecutive(const set_of_individuals_t& active, Frame_t frameIndex, bool update_dataset = false);
-        void update_warnings(Frame_t frameIndex, double time, long_t number_fish, long_t n_found, long_t n_prev, const FrameProperties *props, const FrameProperties *prev_props, const set_of_individuals_t& active_individuals, std::unordered_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators);
+        void update_warnings(Frame_t frameIndex, double time, long_t number_fish, long_t n_found, long_t n_prev, const FrameProperties *props, const FrameProperties *prev_props, const set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators);
         
     private:
         static void filter_blobs(PPFrame& frame, GenericThreadPool *pool);
@@ -348,7 +348,7 @@ CREATE_STRUCT(Settings,
         //static void changed_setting(const sprite::Map&, const std::string& key, const sprite::PropertyType& value);
         size_t found_individuals_frame(Frame_t frameIndex) const;
         void generate_pairdistances(Frame_t frameIndex);
-        void check_save_tags(Frame_t frameIndex, const std::unordered_map<pv::bid, Individual*>&, const std::vector<tags::blob_pixel>&, const std::vector<tags::blob_pixel>&, const file::Path&);
+        void check_save_tags(Frame_t frameIndex, const ska::bytell_hash_map<pv::bid, Individual*>&, const std::vector<tags::blob_pixel>&, const std::vector<tags::blob_pixel>&, const file::Path&);
         
         Individual* create_individual(Idx_t ID, set_of_individuals_t& active_individuals);
         
@@ -479,11 +479,11 @@ CREATE_STRUCT(Settings,
             }
         };
         
-        std::vector<pv::BlobPtr> split_big(const BlobReceiver&, const std::vector<std::shared_ptr<pv::Blob>>& big_blobs, const std::map<pv::BlobPtr, split_expectation> &expect, bool discard_small = false, std::ostream *out = NULL, GenericThreadPool* pool = nullptr);
+        std::vector<pv::BlobPtr> split_big(const BlobReceiver&, const std::vector<std::shared_ptr<pv::Blob>>& big_blobs, const ska::bytell_hash_map<pv::BlobPtr, split_expectation> &expect, bool discard_small = false, std::ostream *out = NULL, GenericThreadPool* pool = nullptr);
         
         static void prefilter(const std::shared_ptr<PrefilterBlobs>&, std::vector<pv::BlobPtr>::const_iterator it, std::vector<pv::BlobPtr>::const_iterator end);
         
-        void update_iterator_maps(Frame_t frame, const set_of_individuals_t& active_individuals, std::unordered_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators);
+        void update_iterator_maps(Frame_t frame, const set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators);
     };
 }
 

@@ -164,6 +164,7 @@ struct DataStore {
     static Label::Ptr label_interpolated(const Individual*, Frame_t);
     static Label::Ptr label_averaged(Idx_t, Frame_t);
     static Label::Ptr label_averaged(const Individual*, Frame_t);
+    static Label::Ptr _label_averaged_unsafe(const Individual*, Frame_t);
     static void set_label(Frame_t, const pv::CompressedBlob*, const Label::Ptr&);
     static void _set_label_unsafe(Frame_t, pv::bid bdx, int ldx);
     

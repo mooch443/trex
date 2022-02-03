@@ -456,7 +456,7 @@ void PythonIntegration::reinit() {
         _initialize_promise = std::make_unique<std::promise<bool>>();
         _initialize_future = _initialize_promise->get_future().share();
         
-        _network_update_thread = new std::thread([this]() -> void {
+        _network_update_thread = new std::thread([]() -> void {
             cmn::set_thread_name("PythonIntegration::update");
             std::unique_lock<std::mutex> lock(_data_mutex);
             _saved_id = std::this_thread::get_id();

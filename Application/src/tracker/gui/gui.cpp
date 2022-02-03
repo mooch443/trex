@@ -3156,35 +3156,39 @@ gui::mode_t::Class GUI::mode() const {
     return GUI_SETTINGS(gui_mode);
 }
 
-void GUI::update_display_blobs(bool draw_blobs, Section* fishbowl) {
+void GUI::update_display_blobs(bool draw_blobs, Section* ) {
     if((PD(cache).raw_blobs_dirty() || PD(cache).display_blobs.size() != PD(cache).raw_blobs.size()) && draw_blobs)
     {
         static std::mutex vector_mutex;
         auto screen_bounds = Bounds(Vec2(), screen_dimensions());
-        auto copy = PD(cache).display_blobs;
+        //auto copy = PD(cache).display_blobs;
         size_t gpixels = 0;
         double gaverage_pixels = 0, gsamples = 0;
         
         distribute_vector([&](auto, auto start, auto end, auto){
-            std::unordered_map<pv::Blob*, gui::ExternalImage*> map;
-            std::vector<std::unique_ptr<gui::ExternalImage>> vector;
+            std::unordered_map<pv::Blob*, SimpleBlob*> map;
+            //std::vector<std::unique_ptr<gui::ExternalImage>> vector;
             
             const bool gui_show_only_unassigned = SETTING(gui_show_only_unassigned).value<bool>();
             size_t pixels = 0;
             double average_pixels = 0, samples = 0;
             
             for(auto it = start; it != end; ++it) {
-                bool found = copy.count((*it)->blob.get());
-                if(!found) {
+                if(!*it)
+                    continue;
+                
+                //bool found = copy.count((*it)->blob.get());
+                //if(!found) {
                     //auto bds = bowl.transformRect((*it)->blob->bounds());
                     //if(bds.overlaps(screen_bounds))
-                    {
-                        if(!gui_show_only_unassigned || !contains(PD(cache).active_blobs, (*it)->blob->blob_id())) {
-                            vector.push_back((*it)->convert());
-                            map[(*it)->blob.get()] = vector.back().get();
-                        }
-                    }
+                    //{
+                if(!gui_show_only_unassigned || !contains(PD(cache).active_blobs, (*it)->blob->blob_id())) {
+                    (*it)->convert();
+                    //vector.push_back((*it)->convert());
+                    map[(*it)->blob.get()] = it->get();
                 }
+                    //}
+                //}
                 
                 pixels += (*it)->blob->num_pixels();
                 average_pixels += (*it)->blob->num_pixels();
@@ -3196,13 +3200,15 @@ void GUI::update_display_blobs(bool draw_blobs, Section* fishbowl) {
             gaverage_pixels += average_pixels;
             gsamples += samples;
             PD(cache).display_blobs.insert(map.begin(), map.end());
-            std::move(vector.begin(), vector.end(), std::back_inserter(PD(cache).display_blobs_list));
+            //std::move(vector.begin(), vector.end(), std::back_inserter(PD(cache).display_blobs_list));
             //PD(cache).display_blobs_list.insert(PD(cache).display_blobs_list.end(), vector.begin(), vector.end());
             
         }, _blob_thread_pool, PD(cache).raw_blobs.begin(), PD(cache).raw_blobs.end());
         
         PD(cache)._current_pixels = gpixels;
         PD(cache)._average_pixels = gsamples > 0 ? gaverage_pixels / gsamples : 0;
+        
+        //Debug("Displaying %lu blobs (list), %lu raw, %lu available", PD(cache).display_blobs.size(), PD(cache).raw_blobs.size(), PD(cache).available_blobs_list.size());
     }
 }
 
@@ -3302,12 +3308,12 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
                         }
 #endif
 #endif
-                        base.wrap_object(*ptr);
+                        base.wrap_object(*(ptr->ptr));
                     }
                 }
                 
             } else {
-                for(auto &e : PD(cache).display_blobs_list) {
+                for(auto &[b, ptr] : PD(cache).display_blobs) {
 #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
 #if defined(__APPLE__) && TREX_METAL_AVAILABLE
                     if(GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)
@@ -3316,7 +3322,7 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
                     }
 #endif
 #endif
-                    base.wrap_object(*e);
+                    base.wrap_object(*(ptr->ptr));
                 }
             }
             
@@ -3340,8 +3346,8 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
             distribute_vector([&mat](auto, auto start, auto end, auto){
                 for(auto it = start; it != end; ++it) {
                     auto& e = *it;
-                    auto input = e->source()->get();
-                    auto &bounds = e->bounds();
+                    auto input = e.second->ptr->source()->get();
+                    auto &bounds = e.second->ptr->bounds();
                     if(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width < mat.cols && bounds.y + bounds.height < mat.rows) {
                         assert(input.channels() == 2);
                         assert(mat.channels() == 4);
@@ -3357,7 +3363,7 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
                     }
                 }
                 
-            }, _blob_thread_pool, PD(cache).display_blobs_list.begin(), PD(cache).display_blobs_list.end());
+            }, _blob_thread_pool, PD(cache).display_blobs.begin(), PD(cache).display_blobs.end());
             
             collection->set_dirty();
         }
@@ -3901,7 +3907,7 @@ void GUI::draw_raw_mode(DrawStructure &base, Frame_t frameIndex) {
             
             Vec2 blob_pos(FLT_MAX);
             bool found = false;
-            for(auto blob : PD(cache).raw_blobs) {
+            for(auto &blob : PD(cache).raw_blobs) {
                 if(blob->blob->blob_id() == _clicked_blob_id.load()) {
                     blob_pos = blob->blob->bounds().pos() + blob->blob->bounds().size() * 0.5;
                     popup->set_pos(blob_pos.mul(ptr_scale) + ptr_pos);

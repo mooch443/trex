@@ -560,6 +560,83 @@ Label::Ptr DataStore::label_averaged(const Individual* fish, Frame_t frame) {
     return nullptr;
 }
 
+Label::Ptr DataStore::_label_averaged_unsafe(const Individual* fish, Frame_t frame) {
+    assert(fish);
+    
+    auto kit = fish->iterator_for(frame);
+    if(kit == fish->frame_segments().end()) {
+        //Warning("Individual %d, cannot find frame %d.", fish._identity, frame._frame);
+        return nullptr;
+    }
+    
+    if((*kit)->contains(frame)) {
+        auto idx = (*kit)->basic_stuff(frame);
+        if(idx != -1) {
+            {
+                auto ait = _averaged_probability_cache.find(fish->identity().ID());
+                if(_averaged_probability_cache.end() != ait) {
+                    auto it = ait->second.find(kit->get());
+                    if(ait->second.end() != it) {
+                        return it->second;
+                    }
+                }
+            }
+            
+            std::unordered_map<int, size_t> label_id_to_index;
+            std::unordered_map<size_t, Label::Ptr> index_to_label;
+            size_t N = 0;
+            
+            {
+                auto names = FAST_SETTINGS(categories_ordered);
+                for (size_t i=0; i<names.size(); ++i) {
+                    label_id_to_index[i] = i;
+                    index_to_label[i] = label(names[i].c_str());
+                }
+                
+                N = names.size();
+            }
+            
+            std::vector<size_t> counts(N);
+            
+            for(auto index : (*kit)->basic_index) {
+                assert(index > -1);
+                auto &basic = fish->basic_stuff().at(index);
+                auto l = _label_unsafe(Frame_t(basic->frame), basic->blob.blob_id());
+                //auto l = _label_unsafe(Frame_t(basic->frame), &basic->blob);
+                /*if(l != -1 && label_id_to_index.count(l) == 0) {
+                    auto str = Meta::toStr(label_id_to_index);
+                    Warning("Label not found: %s (%d) in map %S", l->name.c_str(), l->id, &str);
+                    continue;
+                }*/
+                
+                if(l != -1) {
+                    //auto index = label_id_to_index.at(l->id);
+                    if(size_t(l) < counts.size())
+                        ++counts[l];
+                    else
+                        Warning("Label index %lu > counts.size() = %lu", l, counts.size());
+                }
+            }
+            
+            auto mit = std::max_element(counts.begin(), counts.end());
+            if(mit != counts.end()) {
+                auto i = std::distance(counts.begin(), mit);
+                if(*mit == 0)
+                    return nullptr; // no samples
+                assert(i >= 0);
+                _averaged_probability_cache[fish->identity().ID()][kit->get()] = index_to_label.at(i);
+                return index_to_label.at(i);
+            }
+        }
+        
+    } else {
+        return nullptr;
+    }
+    
+    //Warning("Individual %d not found. Other reason?", fish->identity().ID());
+    return nullptr;
+}
+
 Label::Ptr DataStore::label_interpolated(Idx_t fish, Frame_t frame) {
     auto it = Tracker::individuals().find(fish);
     if(it == Tracker::individuals().end()) {
@@ -570,7 +647,7 @@ Label::Ptr DataStore::label_interpolated(Idx_t fish, Frame_t frame) {
     return label_interpolated(it->second, frame);;
 }
 
-void DataStore::reanalysed_from(Frame_t frame) {
+void DataStore::reanalysed_from(Frame_t /* keeping for future purposes */) {
     std::unique_lock g(cache_mutex());
     _interpolated_probability_cache.clear();
     _averaged_probability_cache.clear();

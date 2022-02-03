@@ -885,7 +885,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
     std::vector<pv::BlobPtr> Tracker::split_big(
         const BlobReceiver& filter_out,
         const std::vector<pv::BlobPtr> &big_blobs,
-        const std::map<pv::BlobPtr, split_expectation> &expect,
+        const ska::bytell_hash_map<pv::BlobPtr, split_expectation> &expect,
         bool discard_small,
         std::ostream* out,
         GenericThreadPool* pool)
@@ -1170,7 +1170,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         
         std::set<pv::bid> already_walked;
         std::vector<pv::BlobPtr> big_blobs;
-        std::map<pv::BlobPtr, split_expectation> expect;
+        ska::bytell_hash_map<pv::BlobPtr, split_expectation> expect;
         
         auto manual_splits = FAST_SETTINGS(manual_splits);
         auto manual_splits_frame = (manual_splits.empty() || manual_splits.count(frame.index().get()) == 0) ? decltype(manual_splits)::mapped_type() : manual_splits.at(frame.index().get());
@@ -1502,8 +1502,8 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
  (
     const PPFrame& frame,
     const Tracker::set_of_individuals_t& active_individuals,
-    const std::unordered_map<Individual*, bool>& fish_assigned,
-    const std::unordered_map<pv::Blob*, bool>& blob_assigned,
+    const ska::bytell_hash_map<Individual*, bool>& fish_assigned,
+    const ska::bytell_hash_map<pv::Blob*, bool>& blob_assigned,
     //std::unordered_map<pv::Blob*, pv::BlobPtr>& ptr2ptr,
     GenericThreadPool* pool
  )
@@ -1685,8 +1685,8 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         // ------------------------------------
         std::queue<std::tuple<Individual*, std::shared_ptr<Individual::BasicStuff>>> need_postures;
         
-        std::unordered_map<pv::Blob*, bool> blob_assigned;
-        std::unordered_map<Individual*, bool> fish_assigned;
+        ska::bytell_hash_map<pv::Blob*, bool> blob_assigned;
+        ska::bytell_hash_map<Individual*, bool> fish_assigned;
         
         const uint32_t number_fish = (uint32_t)FAST_SETTINGS(track_max_individuals);
         const BlobSizeRange minmax = FAST_SETTINGS(blob_size_ranges);
@@ -1694,7 +1694,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         size_t assigned_count = 0;
         
         std::vector<tags::blob_pixel> tagged_fish, noise;
-        std::unordered_map<pv::bid, Individual*> blob_fish_map;
+        ska::bytell_hash_map<pv::bid, Individual*> blob_fish_map;
 //#define TREX_DEBUG_MATCHING
 #ifdef TREX_DEBUG_MATCHING
         std::vector<std::pair<Individual*, Match::Blob_t>> pairs;
@@ -1820,9 +1820,9 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         
         // prepare active_individuals array and assign fixed matches for which
         // the individuals already exist
-        std::map<pv::bid, std::set<Idx_t>> cannot_find;
-        std::unordered_map<pv::bid, std::set<Idx_t>> double_find;
-        std::map<pv::bid, Idx_t> actually_assign;
+        ska::bytell_hash_map<pv::bid, std::set<Idx_t>> cannot_find;
+        ska::bytell_hash_map<pv::bid, std::set<Idx_t>> double_find;
+        ska::bytell_hash_map<pv::bid, Idx_t> actually_assign;
         
         for(auto && [fdx, bdx] : current_fixed_matches) {
             auto it = _individuals.find(fdx);
@@ -1860,7 +1860,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 } else if(fish_assigned[fish]) {
                     Error("Trying to assign fish %d twice in frame %d.", fish->identity().ID(), frameIndex);
                 } else {
-                    actually_assign[blob->blob_id()] = fdx;
+                    actually_assign[(uint32_t)blob->blob_id()] = fdx;
                     //active_individuals.push_back(fish);
                     //fish->add_manual_match(frameIndex);
                     //assign_blob_individual(frameIndex, frame, fish, blob);
@@ -1950,7 +1950,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             //auto str = prettify_array(Meta::toStr(assign_blobs));
             //Debug("replacing blobids / potentially splitting:\n%S", &str);
             
-            std::map<Idx_t, pv::bid> actual_assignments;
+            ska::bytell_hash_map<Idx_t, pv::bid> actual_assignments;
             
             for(auto && [bdx, clique] : assign_blobs) {
                 //if(clique.size() > 1)
@@ -1959,7 +1959,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     auto blob = frame.bdx_to_ptr(bdx);
                     
                     //std::vector<pv::BlobPtr> additional;
-                    std::map<pv::BlobPtr, split_expectation> expect;
+                    ska::bytell_hash_map<pv::BlobPtr, split_expectation> expect;
                     expect[blob] = split_expectation(clique.size() == 1 ? 2 : clique.size(), false);
                     
                     auto big_filtered = split_big(BlobReceiver(frame, BlobReceiver::noise),
@@ -3031,7 +3031,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         _statistics[frameIndex].posture_seconds = posture_seconds;
     }
 
-void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individuals_t& active_individuals, std::unordered_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators)
+void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators)
 {
     for(auto fish : active_individuals) {
         auto fit = individual_iterators.find(fish->identity().ID());
@@ -3066,7 +3066,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
     }
 }
             
-    void Tracker::update_warnings(Frame_t frameIndex, double time, long_t /*number_fish*/, long_t n_found, long_t n_prev, const FrameProperties *props, const FrameProperties *prev_props, const Tracker::set_of_individuals_t& active_individuals, std::unordered_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators) {
+    void Tracker::update_warnings(Frame_t frameIndex, double time, long_t /*number_fish*/, long_t n_found, long_t n_prev, const FrameProperties *props, const FrameProperties *prev_props, const Tracker::set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators) {
         std::map<std::string, std::set<FOI::fdx_t>> merge;
         
         if(n_found < n_prev-1) {
@@ -4203,7 +4203,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid pid
     return blob;
 }
 
-    void Tracker::check_save_tags(Frame_t frameIndex, const std::unordered_map<pv::bid, Individual*>& blob_fish_map, const std::vector<tags::blob_pixel> &tagged_fish, const std::vector<tags::blob_pixel> &noise, const file::Path &) {
+    void Tracker::check_save_tags(Frame_t frameIndex, const ska::bytell_hash_map<pv::bid, Individual*>& blob_fish_map, const std::vector<tags::blob_pixel> &tagged_fish, const std::vector<tags::blob_pixel> &noise, const file::Path &) {
         static Timing tag_timing("tags", 0.1);
         TakeTiming take(tag_timing);
         
