@@ -66,6 +66,7 @@ std::mutex _mutex;
 std::mutex _recv_mutex;
 std::condition_variable _variable, _recv_variable;
 std::queue<Sample::Ptr> _generated_samples;
+std::atomic<int> _number_labels{0};
 
 std::condition_variable _learning_variable;
 std::mutex _learning_mutex;
@@ -175,11 +176,13 @@ std::vector<std::string> DataStore::label_names() {
 }
 
 void init_labels() {
+    Work::_number_labels = 0;
     _labels.clear();
     auto cats = FAST_SETTINGS(categories_ordered);
     for(size_t i=0; i<cats.size(); ++i) {
         _labels[Label::Make(cats.at(i), i)] = {};
     }
+    Work::_number_labels = _labels.size();
 }
 
 Label::Ptr DataStore::label(const char* name) {
@@ -582,7 +585,7 @@ Label::Ptr DataStore::_label_averaged_unsafe(const Individual* fish, Frame_t fra
                 }
             }
             
-            std::unordered_map<int, size_t> label_id_to_index;
+            /*std::unordered_map<int, size_t> label_id_to_index;
             std::unordered_map<size_t, Label::Ptr> index_to_label;
             size_t N = 0;
             
@@ -594,9 +597,9 @@ Label::Ptr DataStore::_label_averaged_unsafe(const Individual* fish, Frame_t fra
                 }
                 
                 N = names.size();
-            }
+            }*/
             
-            std::vector<size_t> counts(N);
+            std::vector<size_t> counts(Work::_number_labels);
             
             for(auto index : (*kit)->basic_index) {
                 assert(index > -1);
@@ -624,8 +627,9 @@ Label::Ptr DataStore::_label_averaged_unsafe(const Individual* fish, Frame_t fra
                 if(*mit == 0)
                     return nullptr; // no samples
                 assert(i >= 0);
-                _averaged_probability_cache[fish->identity().ID()][kit->get()] = index_to_label.at(i);
-                return index_to_label.at(i);
+                auto l = label(FAST_SETTINGS(categories_ordered).at(i).c_str());
+                _averaged_probability_cache[fish->identity().ID()][kit->get()] = l;
+                return l;
             }
         }
         
@@ -1464,7 +1468,7 @@ struct NetworkApplicationState {
             }
             
             if(!task.result.empty()) {
-                std::vector<float> sums(FAST_SETTINGS(categories_ordered).size());
+                std::vector<float> sums(Work::_number_labels);
                 
                 {
                     static Timing timing("callback.set_labels_unsafe", 0.1);
@@ -2383,6 +2387,7 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
     
     {
         std::lock_guard guard(mutex());
+        Work::_number_labels = 0;
         _labels.clear();
         
         uint64_t N_labels;
@@ -2402,6 +2407,7 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
         }
         
         SETTING(categories_ordered) = labels;
+        Work::_number_labels = N_labels;
     }
     
     // read contents
@@ -3208,6 +3214,7 @@ Cell::Cell() :
                         {
                             std::lock_guard guard(DataStore::mutex());
                             _labels[_sample->_assigned_label].push_back(_sample);
+                            Work::_number_labels = _labels.size();
                         }
                         
                         Work::add_training_sample(_sample);
