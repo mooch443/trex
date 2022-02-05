@@ -99,7 +99,7 @@ namespace default_config {
         
         CONFIG("output_dir", Path(std::string(homedir)+"/Videos"), "Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.");
         CONFIG("output_prefix", std::string(), "A prefix that is added as a folder between `output_dir` and any subsequent filenames (`output_dir`/`output_prefix`/[filename]) or omitted if empty (default).", STARTUP);
-        CONFIG("video_source", std::string("basler"), "Where the video is recorded from. Can be the name of a file, or one of the keywords ['basler', 'webcam', 'test_image'].", STARTUP);
+        CONFIG("video_source", std::string("webcam"), "Where the video is recorded from. Can be the name of a file, or one of the keywords ['basler', 'webcam', 'test_image'].", STARTUP);
         CONFIG("test_image", std::string("checkerboard"), "Defines, which test image will be used if `video_source` is set to 'test_image'.", STARTUP);
         CONFIG("filename", Path(""), "The output filename.", STARTUP);
         CONFIG("settings_file", Path(), "The settings filename.", STARTUP);
@@ -128,9 +128,9 @@ namespace default_config {
         CONFIG("reset_average", false, "If set to true, the average will be regenerated using the live stream of images (video or camera).");
         
         CONFIG("video_size", Size2(-1,-1), "Is set to the dimensions of the resulting image.", SYSTEM);
-        CONFIG("cam_resolution", cv::Size(2048, 2048), "[BASLER] Defines the dimensions of the camera image.", STARTUP);
-        CONFIG("cam_framerate", int(30), "[BASLER] If set to anything else than 0, this will limit the basler camera framerate to the given fps value.", STARTUP);
-        CONFIG("cam_limit_exposure", int(5500), "[BASLER] Sets the cameras exposure time in micro seconds.");
+        CONFIG("cam_resolution", cv::Size(-1, -1), "Defines the dimensions of the camera image.", STARTUP);
+        CONFIG("cam_framerate", int(-1), "If set to anything else than 0, this will limit the basler camera framerate to the given fps value.", STARTUP);
+        CONFIG("cam_limit_exposure", int(5500), "Sets the cameras exposure time in micro seconds.");
         
         CONFIG("cam_circle_mask", false, "If set to true, a circle with a diameter of the width of the video image will mask the video. Anything outside that circle will be disregarded as background.");
         CONFIG("cam_undistort", false, "If set to true, the recorded video image will be undistorted using `cam_undistort_vector` (1x5) and `cam_matrix` (3x3).");

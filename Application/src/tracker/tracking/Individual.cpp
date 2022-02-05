@@ -1481,10 +1481,14 @@ bool CacheHints::full() const {
 }
 
 void CacheHints::clear(size_t size) {
-    _last_second.resize(size > 0 ? size : FAST_SETTINGS(frame_rate));
+    if (size == 0 && FAST_SETTINGS(frame_rate) < 0) {
+        Except("Size=%lu frame_rate=%d", size, FAST_SETTINGS(frame_rate));
+        _last_second.resize(0);
+    } else {
+        _last_second.resize(size > 0 ? size : FAST_SETTINGS(frame_rate));
+    }
     std::fill(_last_second.begin(), _last_second.end(), nullptr);
     current.invalidate();
-    
     //Debug("CacheHints::size = %lu", _last_second.size());
 }
 

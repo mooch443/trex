@@ -48,7 +48,8 @@ CREATE_STRUCT(GrabSettings,
   (float,        image_contrast_increase),
   (float,        image_brightness_increase),
   (bool,        enable_closed_loop),
-  (bool,        output_statistics)
+  (bool,        output_statistics),
+  (file::Path, filename)
 )
 
 #define GRAB_SETTINGS(NAME) GrabSettings::copy< GrabSettings:: NAME >()
@@ -118,6 +119,29 @@ ImageThreads::ImageThreads(const decltype(_fn_create)& create,
     _process_thread = new std::thread([this](){ processing();});
 }
 
+ImageThreads::~ImageThreads() {
+    terminate();
+
+    _load_thread->join();
+    _process_thread->join();
+
+    std::unique_lock<std::mutex> lock(_image_lock);
+
+    delete _load_thread;
+    delete _process_thread;
+
+    // clear cache
+    while (!_unused.empty())
+        _unused.pop_front();
+    while (!_used.empty())
+        _used.pop_front();
+}
+
+void ImageThreads::terminate() { 
+    _terminate = true; 
+    _condition.notify_all();
+}
+
 void FrameGrabber::apply_filters(gpuMat& gpu_buffer) {
     if(GRAB_SETTINGS(image_adjust)) {
         float alpha = GRAB_SETTINGS(image_contrast_increase) / 255.f;
@@ -146,36 +170,36 @@ void FrameGrabber::apply_filters(gpuMat& gpu_buffer) {
 void ImageThreads::loading() {
     long_t last_loaded = -1;
     cmn::set_thread_name("ImageThreads::loading");
+    std::unique_lock guard(_image_lock);
 
-    while(!_terminate) {
+    while (!_terminate) {
         // retrieve images from camera
-        _image_lock.lock();
-        if(_unused.empty()) {
+        if (_unused.empty()) {
             // skip this image. queue is full...
-            _image_lock.unlock();
+            guard.unlock();
             std::this_thread::sleep_for(std::chrono::microseconds(10));
-            
-        } else {
+            guard.lock();
+
+        }
+        else {
             auto current = std::move(_unused.front());
             _unused.pop_front();
-            _image_lock.unlock();
-            
-            _fn_prepare(last_loaded, *current);
-            last_loaded = current->index();
-            
-            if(_fn_load(*current)) {
-                // loading was successful, so push to processing
-                _image_lock.lock();
-                _used.push_front(std::move(current));
-                _image_lock.unlock();
-                
-                _condition.notify_one();
-                
-            } else {
-                _image_lock.lock();
-                _unused.push_front(std::move(current));
-                _image_lock.unlock();
+            guard.unlock();
+
+            if (_fn_prepare(last_loaded, *current)) {
+                last_loaded = current->index();
+
+                if (_fn_load(*current)) {
+                    // loading was successful, so push to processing
+                    guard.lock();
+                    _used.push_front(std::move(current));
+                    _condition.notify_one();
+                    continue;
+                }
             }
+
+            guard.lock();
+            _unused.push_front(std::move(current));
         }
     }
 }
@@ -185,11 +209,11 @@ void ImageThreads::processing() {
     ocl::init_ocl();
     cmn::set_thread_name("ImageThreads::processing");
     
-    while(!_terminate) {
+    while(!_terminate || !_used.empty()) {
         // process images and write to file
         _condition.wait(lock, [this](){ return !_used.empty() || _terminate; });
         
-        if(!_used.empty()) {
+        while(!_used.empty()) {
             auto current = std::move(_used.back());
             _used.pop_back();
             lock.unlock();
@@ -346,6 +370,17 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
         std::lock_guard<std::mutex> guard(_camera_lock);
         _camera = new fg::Webcam;
         _processed.set_resolution(_camera->size() * GRAB_SETTINGS(cam_scale));
+
+        if (((fg::Webcam*)_camera)->frame_rate() > 0 
+            && SETTING(cam_framerate).value<int>() == -1) 
+        {
+            SETTING(cam_framerate).value<int>() = ((fg::Webcam*)_camera)->frame_rate();
+        }
+
+        if (SETTING(frame_rate).value<int>() <= 0) {
+            Debug("Setting frame_rate from webcam (%d). If -1, it remains at -1.", SETTING(cam_framerate).value<int>());
+            SETTING(frame_rate) = SETTING(cam_framerate).value<int>() > 0 ? SETTING(cam_framerate).value<int>() : -1;
+        }
         
     } else if(utils::lowercase(source) == "test_image") {
         std::lock_guard<std::mutex> guard(_camera_lock);
@@ -584,49 +619,53 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
                   _reset_first_index = false;
                   prev = -1;
               }
-        
+
+              //! We either start where the conversion_range starts, or at 0 (for all things).
+              static const auto conversion_range_start = 
+                  (_video && GRAB_SETTINGS(video_conversion_range).first != -1) 
+                      ? min(_video->length(), (uint64_t)GRAB_SETTINGS(video_conversion_range).first)
+                      : 0;
+
+              //! We end for videos when the conversion range has been reached, or their length, and
+              //! otherwise (no video) never/until escape is pressed.
+              static const auto conversion_range_end = 
+                  _video 
+                      ? (GRAB_SETTINGS(video_conversion_range).second != -1
+                          ? GRAB_SETTINGS(video_conversion_range).second
+                          : _video->length()) 
+                      : -1;
+
+              if (_video && !_average_finished) {
+                  //! Special indexing for video averaging (skipping over frames)
+                  double step = _video->length() 
+                      / floor((double)min(
+                          _video->length()-1, 
+                          max(1u, GRAB_SETTINGS(average_samples))
+                      ));
+
+                  current.set_index(prev != -1 ? (prev + step) : 0);
+
+              } else
+                  current.set_index(prev != -1 ? prev + 1 : conversion_range_start);
+
+              if (conversion_range_end != -1 && current.index() > conversion_range_end) {
+                  if(!GRAB_SETTINGS(terminate))
+                    SETTING(terminate) = true;
+                  return false;
+              }
+
+              //! If its a video, we might have timestamps in separate files.
+              //! Otherwise we generate fake timestamps based on the set frame_rate.
               if(_video) {
-                  static const auto conversion_range_start = GRAB_SETTINGS(video_conversion_range).first != -1 ? GRAB_SETTINGS(video_conversion_range).first : 0;
-                  
-                  if(!_average_finished) {
-                      double step = _video->length() / floor((double)min(_video->length()-1, max(1u, GRAB_SETTINGS(average_samples))));
-                      current.set_index(prev != -1 ? (prev + step) : 0);
-                      if(current.index() >= long_t(_video->length())) {
-                          return false;
-                      }
-                      
-                  } else {
-                      current.set_index(prev != -1 ? prev + 1 : conversion_range_start);
-                      
-                      if(GRAB_SETTINGS(video_conversion_range).second != -1) {
-                          if(current.index() >= GRAB_SETTINGS(video_conversion_range).second) {
-                              //if(!GRAB_SETTINGS(terminate))
-                              //    SETTING(terminate) = true;
-                              return false;
-                          }
-                      } else {
-                          if(current.index() >= long_t(_video->length())) {
-                              //if(!GRAB_SETTINGS(terminate))
-                              //    SETTING(terminate) = true;
-                              return false;
-                          }
-                      }
-                  }
-                  
-                  if(!_video->has_timestamps()) {
-                      double percent = double(current.index()) / double(SETTING(frame_rate).value<int>()) * 1000.0;
-                      
+                  if (!_video->has_timestamps()) {
+                      double percent = double(current.index()) / double(GRAB_SETTINGS(frame_rate)) * 1000.0;
+
                       size_t fake_delta = size_t(percent * 1000.0);
                       current.set_timestamp(_start_timing + fake_delta);//std::chrono::microseconds(fake_delta));
-                  } else {
+                  }
+                  else {
                       current.set_timestamp(_video->timestamp(current.index()));
                   }
-                  
-                  if(GRAB_SETTINGS(terminate))
-                      return false;
-                  
-              } else {
-                  current.set_index(prev != -1 ? prev + 1 : 0);
               }
               
               return true;
@@ -661,11 +700,6 @@ FrameGrabber::~FrameGrabber() {
         if(_image_queue.empty())
             break;
     }
-    
-    /*for (auto t : _pool) {
-        t->join();
-        delete t;
-    }*/
     
     _terminate_tracker = true;
     _multi_variable.notify_all();
@@ -783,7 +817,7 @@ FrameGrabber::~FrameGrabber() {
 }
 
 file::Path FrameGrabber::average_name() const {
-    auto path = pv::DataLocation::parse("output", "average_" + (std::string)SETTING(filename).value<file::Path>().filename() + ".png");
+    auto path = pv::DataLocation::parse("output", "average_" + (std::string)GRAB_SETTINGS(filename).filename() + ".png");
     return path;
 }
 
@@ -957,10 +991,6 @@ bool FrameGrabber::load_image(Image_t& current) {
     
     if(add_image_to_average(current))
         return false;
-    
-    /*if(GRAB_SETTINGS(image_invert)) {
-        cv::subtract(cv::Scalar(255), current.get(), current.get());
-    }*/
     
     _loading_timing = _loading_timing * 0.75 + timer.elapsed() * 0.25;
     return true;
@@ -1366,13 +1396,21 @@ void FrameGrabber::write_fps(uint64_t index, uint64_t tdelta, uint64_t ts) {
         return;
     
     if(!file) {
-        file::Path path = pv::DataLocation::parse("output", std::string(SETTING(filename).value<file::Path>().filename())+"_conversion_timings.csv");
+        file::Path path = pv::DataLocation::parse("output", std::string(GRAB_SETTINGS(filename).filename())+"_conversion_timings.csv");
         file = fopen(path.c_str(), "wb");
-        std::string str = "index,tdelta,time\n";
+        if (file) {
+            std::string str = "index,tdelta,time\n";
+            fwrite(str.data(), sizeof(char), str.length(), file);
+        }
+        else {
+            Except("Cannot open file '%S' for writing.", &path.str());
+        }
+    }
+
+    if (file) {
+        std::string str = std::to_string(index) + "," + std::to_string(tdelta) + "," + std::to_string(ts) + "\r\n";
         fwrite(str.data(), sizeof(char), str.length(), file);
     }
-    std::string str = std::to_string(index)+","+std::to_string(tdelta) + "," + std::to_string(ts) + "\r\n";
-    fwrite(str.data(), sizeof(char), str.length(), file);
 }
 
 Queue::Code FrameGrabber::process_image(const Image_t& current) {
@@ -1385,6 +1423,15 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
     }
     
     ensure_average_is_ready();
+
+    static const auto conversion_range_end = (_video && GRAB_SETTINGS(video_conversion_range).second != -1) ? GRAB_SETTINGS(video_conversion_range).second : -1;
+    if (conversion_range_end != -1 && current.index() >= conversion_range_end) {
+        if (!GRAB_SETTINGS(terminate)) {
+            SETTING(terminate) = true;
+            Debug("Ending...");
+            return Queue::Code::ITEM_REMOVE;
+        }
+    }
     
     // make timestamp relative to _start_timing
     auto TS = current.timestamp();
@@ -1497,7 +1544,7 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
     static int64_t last_updated = -1;
     static double last_frame_s = -1;
     static Timer last_gui_update;
-    static const double frame_time = 1.0 / double(GRAB_SETTINGS(frame_rate));
+    static const double frame_time = GRAB_SETTINGS(frame_rate) > 0 ? 1.0 / double(GRAB_SETTINGS(frame_rate)) : 1.0/25.0;
     static std::mutex time_mutex;
     
     static const auto in_main_thread = [&](Task& task) -> std::tuple<int64_t, bool, double> {
@@ -1525,7 +1572,7 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
             std::unique_lock<std::mutex> guard(to_main_mutex);
             _last_task_peek = last_task_processed;
 
-            while(last_task_processed + 1 != task.current->index() && !_terminate_tracker) {
+            while(last_task_processed + 1 != task.current->index() /* && !_terminate_tracker*/) {
                 single_variable.wait(guard);
             }
         }
@@ -1534,11 +1581,13 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
         _waiting = timer.elapsed(); timer.reset();
 #endif
 
-        if(_terminate_tracker)
-            return { -1, false, 0.0 };
+        //if(_terminate_tracker)
+        //    return { -1, false, 0.0 };
         
         // write frame to file if recording (and if there's anything in the frame)
-        if(/*task.frame->n() > 0 &&*/ GRAB_SETTINGS(recording) && !GRAB_SETTINGS(quit_after_average)) {
+        static int64_t last_index = -1;
+        static uint64_t last_timestamp = 0;
+        if(/*task.frame->n() > 0 &&*/ (conversion_range_end == -1 || task.current->index() <= conversion_range_end) && GRAB_SETTINGS(recording) && !GRAB_SETTINGS(quit_after_average)) {
             if(!_processed.open()) {
                 // set (real time) timestamp for video start
                 // (just for the user to read out later)
@@ -1551,6 +1600,8 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
             
             used_index_here = Frame_t(_processed.length());
             _processed.add_individual(*task.frame, pack, compressed);
+            last_index = task.current->index();
+            last_timestamp = task.frame->timestamp();
             _saving_time = _saving_time * 0.75 + timer.elapsed() * 0.25;
             
             _paused = false;
@@ -1605,11 +1656,21 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
 #endif
 
         if (!_current_image) {
-            std::atomic_store(&_current_image, std::make_shared<Image>(*task.raw));
+            if(task.raw)
+                std::atomic_store(&_current_image, std::make_shared<Image>(*task.raw));
+            else if(task.current)
+                std::atomic_store(&_current_image, std::make_shared<Image>(*task.current));
         } 
         else if (transfer_to_gui) {
-            _current_image->set(index, task.raw->data());
+            if(task.raw)
+                _current_image->set(index, task.raw->data());
+            else if (task.current) {
+                _current_image->set(index, task.current->data());
+            }
+                
             _last_frame = std::move(task.frame);
+            if(_last_frame)
+                _last_frame->set_index(index);
 
             //if(false) 
             {
@@ -1618,7 +1679,7 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
 
                 if (!task.filtered_out.empty()) {
                     _noise = std::make_unique<pv::Frame>(task.current->timestamp(), task.filtered_out.size());
-                    for (auto b : task.filtered_out) {
+                    for (auto &b : task.filtered_out) {
                         _noise->add_object(b->lines(), b->pixels());
                     }
                 }
@@ -1651,11 +1712,11 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
             std::lock_guard<std::mutex> guard(to_main_mutex);
             last_task_processed = index; //! allow next task
             
-            if(_video) {
+            /*if (_video) {
                 static const auto conversion_range_end = GRAB_SETTINGS(video_conversion_range).second != -1 ? GRAB_SETTINGS(video_conversion_range).second : _video->length();
-                if((uint64_t)last_task_processed >= conversion_range_end-1)
+                if((uint64_t)last_task_processed+1 >= conversion_range_end)
                     SETTING(terminate) = true;
-            }
+            }*/
         }
 
         single_variable.notify_all();
@@ -1776,19 +1837,15 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
     
     std::call_once(flag, [&](){
         Debug("Creating queue...");
-        auto blob = std::make_shared<pv::Blob>();
         for (size_t i=0; i<8; ++i) {
             _multi_pool.push_back(std::make_unique<std::thread>([&](size_t i){
                 set_thread_name("MultiPool"+Meta::toStr(i));
                 
                 std::unique_lock<std::mutex> guard(to_pool_mutex);
-                Timer timer;
-                while(!_terminate_tracker) {
+                while(!_terminate_tracker || !for_the_pool.empty()) {
                     _multi_variable.wait_for(guard, std::chrono::milliseconds(1));
-                    
+
                     if(!for_the_pool.empty()) {
-                        timer.reset();
-                        
                         auto task = std::move(for_the_pool.front());
                         for_the_pool.erase(for_the_pool.begin());
                         
@@ -1807,14 +1864,12 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
                         _multi_variable.notify_one();
                         guard.lock();
                         
-                    } /*else if(timer.elapsed() > 1) {
-                        Debug("Still waiting to process anything.");
-                    }*/
+                    }
+
                 }
+
             }, i));
         }
-        Debug("Done. %d", blob->blob_id());
-        
         _multi_variable.notify_all();
     });
     
@@ -1904,7 +1959,7 @@ void FrameGrabber::safely_close() {
             _lock.lock();
         }
         
-        file::Path filename = SETTING(filename).value<file::Path>().add_extension("pv");
+        file::Path filename = GRAB_SETTINGS(filename).add_extension("pv");
         if(filename.exists()){
             pv::File file(filename);
             file.start_reading();

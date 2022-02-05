@@ -716,8 +716,9 @@ void GUI::run_loop(gui::LoopStatus status) {
         
         if(inc >= 1_f) {
             auto before = image_index;
-            if(PD(tracker).start_frame().valid())
+            if (PD(tracker).start_frame().valid()) {
                 image_index = max(0_f, PD(tracker).start_frame(), min(PD(tracker).end_frame(), image_index + inc));
+            }
             
             t = 0;
             if(before != image_index) {
@@ -751,6 +752,9 @@ void GUI::run_loop(gui::LoopStatus status) {
             image_index = PD(tracker).end_frame();
             GUI::stop_recording();
         }
+    }
+    else if(GUI::run() && image_index >= PD(tracker).end_frame()) {
+        GUI::run(false);
     }
     
     const bool changed = (base && (!GUI::gui().root().cached(base) || GUI::gui().root().cached(base)->changed())) || PD(cache).must_redraw() || status == LoopStatus::UPDATED;

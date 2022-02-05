@@ -3,19 +3,30 @@
 
 namespace fg {
     Webcam::Webcam() {
+        if (SETTING(cam_framerate).value<int>() > 0)
+            _capture.set(cv::CAP_PROP_FPS, SETTING(cam_framerate).value<int>());
+        if(SETTING(cam_resolution).value<cv::Size>().width != -1)
+            _capture.set(cv::CAP_PROP_FRAME_WIDTH, SETTING(cam_resolution).value<cv::Size>().width);
+        if(SETTING(cam_resolution).value<cv::Size>().height != -1)
+            _capture.set(cv::CAP_PROP_FRAME_HEIGHT, SETTING(cam_resolution).value<cv::Size>().height);
+
         if(!open())
             _capture.open(0);
 		if (!open())
 			U_EXCEPTION("Cannot open webcam.");
 
-		_capture.set(cv::CAP_PROP_FRAME_WIDTH, SETTING(cam_resolution).value<cv::Size>().width);
-		_capture.set(cv::CAP_PROP_FRAME_HEIGHT, SETTING(cam_resolution).value<cv::Size>().height);
 
         cv::Mat test;
         _capture >> test;
         _size = cv::Size(test.cols, test.rows);
     }
-    
+
+    int Webcam::frame_rate() {
+        if (!open())
+            return -1;
+        return _capture.get(cv::CAP_PROP_FPS);
+    }
+
     bool Webcam::next(cmn::Image &image) {
         cv::Mat tmp;
         _capture >> tmp;

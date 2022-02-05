@@ -699,7 +699,7 @@ int main(int argc, char** argv)
     SETTING(video_length) = uint64_t(video.length());
     SETTING(video_info) = std::string(video.get_info());
     
-    if(SETTING(frame_rate).value<int>() == 0) {
+    if(SETTING(frame_rate).value<int>() <= 0) {
         Warning("frame_rate == 0, calculating from frame tdeltas.");
         video.generate_average_tdelta();
         SETTING(frame_rate) = max(1, int(video.framerate()));

@@ -53,25 +53,9 @@ public:
                  const decltype(_fn_load)& load,
                  const decltype(_fn_process)& process);
     
-    ~ImageThreads() {
-        terminate();
-        
-        _load_thread->join();
-        _process_thread->join();
-        
-        std::unique_lock<std::mutex> lock(_image_lock);
-        
-        delete _load_thread;
-        delete _process_thread;
-        
-        // clear cache
-        while(!_unused.empty())
-            _unused.pop_front();
-        while(!_used.empty())
-            _used.pop_front();
-    }
+    ~ImageThreads();
     
-    void terminate() { _terminate = true; _condition.notify_all(); }
+    void terminate();
     
     const std::thread* loading_thread() const { return _load_thread; }
     const std::thread* analysis_thread() const { return _process_thread; }

@@ -793,8 +793,19 @@ int main(int argc, char** argv)
         return 1;
         
     } catch(const UtilsException& e) {
+#ifdef WIN32
+        if (!SETTING(nowindow)) {
+            auto str = std::string("An error occurred, forcing TGrabs to quit:\n") + e.what();
+            MessageBox(
+                NULL,
+                str.c_str(),
+                "Error",
+                MB_ICONERROR | MB_OK
+            );
+        }
+#endif
         Except("Utils exception: %s", e.what());
-        return 1;
+        exit(1);
     }
         
 #if WITH_PYLON
