@@ -448,7 +448,7 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
         
         if(SETTING(frame_rate).value<int>() == -1) {
             Debug("Setting frame rate to %d (from video).", frame_rate);
-            SETTING(frame_rate) = frame_rate;
+            SETTING(frame_rate) = (int)frame_rate;
         } else if(SETTING(frame_rate).value<int>() != frame_rate) {
             Warning("Overwriting default frame rate of %d with %d.", frame_rate, SETTING(frame_rate).value<int>());
         }

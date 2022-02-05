@@ -603,7 +603,7 @@ Label::Ptr DataStore::_label_averaged_unsafe(const Individual* fish, Frame_t fra
             
             for(auto index : (*kit)->basic_index) {
                 assert(index > -1);
-                auto &basic = fish->basic_stuff().at(index);
+                auto &basic = fish->basic_stuff()[index];
                 auto l = _label_unsafe(Frame_t(basic->frame), basic->blob.blob_id());
                 //auto l = _label_unsafe(Frame_t(basic->frame), &basic->blob);
                 /*if(l != -1 && label_id_to_index.count(l) == 0) {
