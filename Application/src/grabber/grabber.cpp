@@ -147,7 +147,7 @@ void FrameGrabber::apply_filters(gpuMat& gpu_buffer) {
         float alpha = GRAB_SETTINGS(image_contrast_increase) / 255.f;
         float beta = GRAB_SETTINGS(image_brightness_increase);
         
-        static gpuMat buffer;
+        gpuMat buffer;
         
         gpu_buffer.convertTo(buffer, CV_32FC1, alpha, beta);
         
@@ -659,12 +659,14 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
               if(_video) {
                   if (!_video->has_timestamps()) {
                       double percent = double(current.index()) / double(GRAB_SETTINGS(frame_rate)) * 1000.0;
-
+                      
                       size_t fake_delta = size_t(percent * 1000.0);
+                      //Debug("Image %d <- %lu", current.index(), fake_delta);
                       current.set_timestamp(_start_timing + fake_delta);//std::chrono::microseconds(fake_delta));
                   }
                   else {
                       current.set_timestamp(_video->timestamp(current.index()));
+                      //Debug("prepare:: Image %d <- %lu from video", current.index(), current.timestamp());
                   }
               }
               
@@ -931,7 +933,7 @@ bool FrameGrabber::add_image_to_average(const Image_t& current) {
         if(!_current_image)
             std::atomic_store(&_current_image, std::make_shared<Image>(current));
         else
-            _current_image->set(current.index(), current.data());
+            _current_image->create(current);
         
         return true;
     }
@@ -964,7 +966,7 @@ bool FrameGrabber::load_image(Image_t& current) {
                 assert(mask.channels() == 1);
                 
                 mask_ptr = new Image(mask.rows, mask.cols, 1);
-                mask_ptr->set(-1, mask);
+                mask_ptr->create(mask);
             }
             
             current.set_mask(mask_ptr);
@@ -991,7 +993,8 @@ bool FrameGrabber::load_image(Image_t& current) {
     
     if(add_image_to_average(current))
         return false;
-    
+
+    //Debug("loading:: Image %d has timestamp %lu", current.index(), current.timestamp());
     _loading_timing = _loading_timing * 0.75 + timer.elapsed() * 0.25;
     return true;
 }
@@ -1324,7 +1327,7 @@ void FrameGrabber::ensure_average_is_ready() {
 
 bool FrameGrabber::crop_and_scale(const gpuMat& gpu, gpuMat& output) {
     const gpuMat* input = &gpu;
-    static gpuMat scaled;
+    gpuMat scaled;
     
     if(GRAB_SETTINGS(cam_scale) != 1) {
         resize_image(gpu, scaled, GRAB_SETTINGS(cam_scale));
@@ -1332,7 +1335,7 @@ bool FrameGrabber::crop_and_scale(const gpuMat& gpu, gpuMat& output) {
     }
     
     if (GRAB_SETTINGS(cam_undistort)) {
-        static gpuMat undistorted;
+        gpuMat undistorted;
         _processed.undistort(*input, undistorted);
         undistorted(_crop_rect).copyTo(output);
         input = nullptr;
@@ -1454,62 +1457,7 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
     }
 
     Timer timer;
-    
-    auto image = current.get();
-    assert(image.type() == CV_8UC1);
-    
-    const bool use_corrected = GRAB_SETTINGS(correct_luminance);
-    static cv::Mat local, current_copy;
-    
-    if(!current.mask()) {
-        static RawProcessing raw(gpu_average, nullptr);
-        static gpuMat gpu_buffer, scaled_buffer;
-        gpuMat *input = &gpu_buffer;
-        
-        image.copyTo(*input);
-        
-        // if anything is scaled, switch to scaled buffer
-        if(crop_and_scale(*input, scaled_buffer))
-            input = &scaled_buffer;
-        
-        input->copyTo(current_copy);
-
-        if (processed().has_mask()) {
-            static gpuMat mask;
-            if (mask.empty())
-                processed().mask().copyTo(mask);
-            assert(processed().mask().cols == input->cols && processed().mask().rows == input->rows);
-            cv::multiply(*input, mask, *input);
-        }
-
-        if(use_corrected && _grid) {
-            _grid->correct_image(*input);
-        }
-        
-        apply_filters(*input);
-        raw.generate_binary(*input, local);
-        
-    } else {
-        static gpuMat gpu, mask, scaled;
-        static gpuMat *input = &gpu;
-        
-        image.copyTo(*input);
-        
-        if(current.rows != current.mask()->rows || current.cols != current.mask()->cols)
-            cv::resize(current.mask()->get(), mask, cv::Size(current.rows, current.cols), 0, 0, cv::INTER_LINEAR);
-        else
-            current.mask()->get().copyTo(mask);
-        
-        cv::threshold(mask, mask, 0, 1, cv::THRESH_BINARY);
-        cv::multiply(*input, mask, *input);
-        
-        if(crop_and_scale(*input, scaled))
-            input = &scaled;
-        apply_filters(*input);
-        
-        input->copyTo(local);
-        current_copy = local;
-    }
+    //Debug("loading:: Image %d has timestamp %lu", current.index(), current.timestamp());
     
     static size_t global_index = 1;
     /*cv::putText(current.get(), Meta::toStr(global_index)+" "+Meta::toStr(current.index()), Vec2(50), cv::FONT_HERSHEY_PLAIN, 2, gui::White);
@@ -1521,22 +1469,36 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
      * ==============
      */
     struct Task {
-        size_t index = 0;
+        std::unique_ptr<RawProcessing> process;
+        std::unique_ptr<gpuMat> gpu_buffer, scaled_buffer;
+        size_t index;
+        Image::UPtr mask;
         Image::UPtr current, raw;
         std::unique_ptr<pv::Frame> frame;
         Timer timer;
         std::vector<pv::BlobPtr> filtered, filtered_out;
         
-        Task() {}
+        Task() = default;
         Task(size_t index, Image::UPtr&& current, Image::UPtr&& raw, std::unique_ptr<pv::Frame>&& frame)
             : index(index), current(std::move(current)), raw(std::move(raw)), frame(std::move(frame))
         {
             
         }
+
+        void clear() {
+            if (frame)
+                frame->clear();
+            index = 0;
+            filtered.clear();
+            filtered_out.clear();
+            timer.reset();
+        }
     };
 //#define TGRABS_DEBUG_TIMING
     static std::mutex to_pool_mutex, to_main_mutex;
-    static std::vector<Task> for_the_pool;
+    static std::vector<std::unique_ptr<Task>> for_the_pool;
+    static std::vector<std::unique_ptr<Task>> inactive_tasks;
+    static std::mutex inactive_task_mutex;
     static std::once_flag flag;
     static std::vector<std::thread*> thread_pool;
     static std::condition_variable single_variable;
@@ -1547,7 +1509,7 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
     static const double frame_time = GRAB_SETTINGS(frame_rate) > 0 ? 1.0 / double(GRAB_SETTINGS(frame_rate)) : 1.0/25.0;
     static std::mutex time_mutex;
     
-    static const auto in_main_thread = [&](Task& task) -> std::tuple<int64_t, bool, double> {
+    static const auto in_main_thread = [&](std::unique_ptr<Task>&& task) -> std::tuple<int64_t, bool, double> {
         Frame_t used_index_here;
         bool added = false;
         
@@ -1556,12 +1518,11 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
         bool compressed;
         int64_t _last_task_peek;
 
-        double _serialize, _waiting, _writing, _gui, _rest;
-
 #ifdef TGRABS_DEBUG_TIMING
+        double _serialize, _waiting, _writing, _gui, _rest;
         Timer timer;
 #endif
-        task.frame->serialize(pack, compressed);
+        task->frame->serialize(pack, compressed);
 
 #ifdef TGRABS_DEBUG_TIMING
         _serialize = timer.elapsed(); timer.reset();
@@ -1572,7 +1533,7 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
             std::unique_lock<std::mutex> guard(to_main_mutex);
             _last_task_peek = last_task_processed;
 
-            while(last_task_processed + 1 != task.current->index() /* && !_terminate_tracker*/) {
+            while(last_task_processed + 1 != task->current->index() /* && !_terminate_tracker*/) {
                 single_variable.wait(guard);
             }
         }
@@ -1587,7 +1548,7 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
         // write frame to file if recording (and if there's anything in the frame)
         static int64_t last_index = -1;
         static uint64_t last_timestamp = 0;
-        if(/*task.frame->n() > 0 &&*/ (conversion_range_end == -1 || task.current->index() <= conversion_range_end) && GRAB_SETTINGS(recording) && !GRAB_SETTINGS(quit_after_average)) {
+        if(/*task->frame->n() > 0 &&*/ (conversion_range_end == -1 || task->current->index() <= conversion_range_end) && GRAB_SETTINGS(recording) && !GRAB_SETTINGS(quit_after_average)) {
             if(!_processed.open()) {
                 // set (real time) timestamp for video start
                 // (just for the user to read out later)
@@ -1599,9 +1560,9 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
             Timer timer;
             
             used_index_here = Frame_t(_processed.length());
-            _processed.add_individual(*task.frame, pack, compressed);
-            last_index = task.current->index();
-            last_timestamp = task.frame->timestamp();
+            _processed.add_individual(*task->frame, pack, compressed);
+            last_index = task->current->index();
+            last_timestamp = task->frame->timestamp();
             _saving_time = _saving_time * 0.75 + timer.elapsed() * 0.25;
             
             _paused = false;
@@ -1610,14 +1571,14 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
             _paused = true;
         }
 
-        auto stamp = task.current->timestamp();
-        auto index = task.current->index();
+        auto stamp = task->current->timestamp();
+        auto index = task->current->index();
 
         assert(index == _last_index + 1);
         _last_index = index;
 
         if (added && tracker) {
-            add_tracker_queue(*task.frame, used_index_here);
+            add_tracker_queue(*task->frame, used_index_here);
         }
 
         uint64_t tdelta, tdelta_camera, now;
@@ -1626,7 +1587,7 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
             std::lock_guard<std::mutex> guard(_frame_lock);
             //if (previous_time == 0) 
             {
-                tdelta_camera = _last_frame ? task.frame->timestamp() - _last_frame->timestamp() : 0;
+                tdelta_camera = _last_frame ? task->frame->timestamp() - _last_frame->timestamp() : 0;
 
                 now = std::chrono::steady_clock::now().time_since_epoch().count();
                 if (previous_time == 0)
@@ -1656,19 +1617,19 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
 #endif
 
         if (!_current_image) {
-            if(task.raw)
-                std::atomic_store(&_current_image, std::make_shared<Image>(*task.raw));
-            else if(task.current)
-                std::atomic_store(&_current_image, std::make_shared<Image>(*task.current));
+            if(task->raw)
+                std::atomic_store(&_current_image, std::make_shared<Image>(*task->raw));
+            else if(task->current)
+                std::atomic_store(&_current_image, std::make_shared<Image>(*task->current));
         } 
         else if (transfer_to_gui) {
-            if(task.raw)
-                _current_image->set(index, task.raw->data());
-            else if (task.current) {
-                _current_image->set(index, task.current->data());
+            if(task->raw)
+                _current_image->create(*task->raw, index);
+            else if (task->current) {
+                _current_image->create(*task->current, index);
             }
                 
-            _last_frame = std::move(task.frame);
+            _last_frame = std::move(task->frame);
             if(_last_frame)
                 _last_frame->set_index(index);
 
@@ -1677,9 +1638,9 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
                 std::lock_guard<std::mutex> guard(_frame_lock);
                 _noise = nullptr;
 
-                if (!task.filtered_out.empty()) {
-                    _noise = std::make_unique<pv::Frame>(task.current->timestamp(), task.filtered_out.size());
-                    for (auto &b : task.filtered_out) {
+                if (!task->filtered_out.empty()) {
+                    _noise = std::make_unique<pv::Frame>(task->current->timestamp(), task->filtered_out.size());
+                    for (auto &b : task->filtered_out) {
                         _noise->add_object(b->lines(), b->pixels());
                     }
                 }
@@ -1698,15 +1659,15 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
 
     #if WITH_FFMPEG
         if(mp4_queue && used_index_here.valid()) {
-            task.current->set_index(used_index_here.get());
-            mp4_queue->add(std::move(task.raw));
+            task->current->set_index(used_index_here.get());
+            mp4_queue->add(std::move(task->raw));
             
             // try and get images back
             //std::lock_guard<std::mutex> guard(process_image_mutex);
             //mp4_queue->refill_queue(_unused_process_images);
         } else
     #endif
-        _processing_timing = _processing_timing * 0.75 + task.timer.elapsed() * 0.25;
+        _processing_timing = _processing_timing * 0.75 + task->timer.elapsed() * 0.25;
         
         {
             std::lock_guard<std::mutex> guard(to_main_mutex);
@@ -1745,14 +1706,78 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
     static const Rangef min_max = GRAB_SETTINGS(blob_size_range);
     static const float cm_per_pixel = SQR(SETTING(cm_per_pixel).value<float>());
     
-    static const auto threadable_task = [in_main_thread = &in_main_thread](Task& task) {
+    static const auto threadable_task = [this, in_main_thread = &in_main_thread](std::unique_ptr<Task>&& task) {
 #ifdef TGRABS_DEBUG_TIMING
         Timer _sub_timer;
         double _raw_blobs, _filtering, _pv_frame, _main_thread;
 #endif
         Timer _overall;
 
-        auto rawblobs = CPULabeling::run(task.current->get(), true);
+        auto image = task->current->get();
+        assert(image.type() == CV_8UC1);
+
+        const bool use_corrected = GRAB_SETTINGS(correct_luminance);
+
+        if (!task->raw)
+            task->raw = Image::Make();
+
+        task->raw->create(*task->current);
+
+        if (!task->gpu_buffer)
+            task->gpu_buffer = std::make_unique<gpuMat>();
+        if (!task->scaled_buffer)
+            task->scaled_buffer = std::make_unique<gpuMat>();
+
+        if (!task->mask) {
+            if (!task->process)
+                task->process = std::make_unique<RawProcessing>(gpu_average, nullptr);
+
+            gpuMat* input = task->gpu_buffer.get();
+            image.copyTo(*input);
+
+            // if anything is scaled, switch to scaled buffer
+            if (crop_and_scale(*input, *task->scaled_buffer))
+                input = task->scaled_buffer.get();
+
+            if (processed().has_mask()) {
+                static gpuMat mask;
+                if (mask.empty())
+                    processed().mask().copyTo(mask);
+                assert(processed().mask().cols == input->cols && processed().mask().rows == input->rows);
+                cv::multiply(*input, mask, *input);
+            }
+
+            if (use_corrected && _grid) {
+                _grid->correct_image(*input);
+            }
+
+            apply_filters(*input);
+            task->process->generate_binary(*input, image);
+
+        }
+        else {
+            gpuMat* input = task->gpu_buffer.get();
+            gpuMat mask;
+
+            image.copyTo(*input);
+
+            if (task->current->rows != task->mask->rows || task->current->cols != task->mask->cols)
+                cv::resize(task->mask->get(), mask, cv::Size(task->current->rows, task->current->cols), 0, 0, cv::INTER_LINEAR);
+            else
+                task->mask->get().copyTo(mask);
+
+            cv::threshold(mask, mask, 0, 1, cv::THRESH_BINARY);
+            cv::multiply(*input, mask, *input);
+
+            if (crop_and_scale(*input, *task->scaled_buffer.get()))
+                input = task->scaled_buffer.get();
+            apply_filters(*input);
+
+            input->copyTo(image);
+            //current_copy = local;
+        }
+
+        auto rawblobs = CPULabeling::run(task->current->get(), true);
 #ifdef TGRABS_DEBUG_TIMING
         _raw_blobs = _sub_timer.elapsed();
         _sub_timer.reset();
@@ -1774,11 +1799,11 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
                && num_pixels * cm_per_pixel <= min_max.end)
             {
                 //b->calculate_moments();
-                task.filtered.push_back(std::make_shared<pv::Blob>(lines, pixels));
+                task->filtered.push_back(std::make_shared<pv::Blob>(lines, pixels));
                 
             }
             else {
-                task.filtered_out.push_back(std::make_shared<pv::Blob>(lines, pixels));
+                task->filtered_out.push_back(std::make_shared<pv::Blob>(lines, pixels));
             }
         }
 
@@ -1789,15 +1814,15 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
 
         // create pv::Frame object for this frame
         // (creating new object so it can be swapped with _last_frame)
-        task.frame = std::make_unique<pv::Frame>(task.current->timestamp(), task.filtered.size());
+        task->frame = std::make_unique<pv::Frame>(task->current->timestamp(), task->filtered.size());
         {
             static Timing timing("adding frame");
             TakeTiming take(timing);
             
-            for (auto &b: task.filtered) {
+            for (auto &b: task->filtered) {
                 if(b->hor_lines().size() < UINT16_MAX) {
                     if(b->hor_lines().size() < UINT16_MAX)
-                        task.frame->add_object(b->lines(), b->pixels());
+                        task->frame->add_object(b->lines(), b->pixels());
                     else
                         Warning("Lots of lines!");
                 }
@@ -1811,19 +1836,19 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
         _sub_timer.reset();
 #endif
         
-        auto [_last_task_peek, gui_updated, last_time] = (*in_main_thread)(task);
+        auto [_last_task_peek, gui_updated, last_time] = (*in_main_thread)(std::move(task));
 #ifdef TGRABS_DEBUG_TIMING
         _main_thread = _sub_timer.elapsed();
 
         if (gui_updated)
             Debug("[Timing] Frame:%ld raw_blobs:%fms filtering:%fms pv::Frame:%fms main:%fms => %fms (diff:%ld, %fs)",
-                task.index,
+                task->index,
                 _raw_blobs * 1000,
                 _filtering * 1000,
                 _pv_frame * 1000,
                 _main_thread * 1000,
                 (_raw_blobs + _filtering + _pv_frame + _main_thread) * 1000,
-                task.index - _last_task_peek,
+                task->index - _last_task_peek,
                 last_time);
 #endif
 
@@ -1853,7 +1878,7 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
                         _multi_variable.notify_one();
                         
                         try {
-                            threadable_task(task);
+                            threadable_task(std::move(task));
 
                         } catch(const std::exception& ex) {
                             Except("std::exception from threadable task: %s", ex.what());
@@ -1861,9 +1886,13 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
                             Except("Unknown exception from threadable task.");
                         }
                         
+                        {
+                            std::unique_lock g(inactive_task_mutex);
+                            inactive_tasks.push_back(std::move(task));
+                        }
+
                         _multi_variable.notify_one();
                         guard.lock();
-                        
                     }
 
                 }
@@ -1872,6 +1901,28 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
         }
         _multi_variable.notify_all();
     });
+
+    std::unique_ptr<Task> task;
+    {
+        std::unique_lock g(inactive_task_mutex);
+        if (!inactive_tasks.empty()) {
+            task = std::move(inactive_tasks.back());
+            inactive_tasks.pop_back();
+        }
+    }
+
+    if (!task)
+        task = std::make_unique<Task>();
+    
+    task->clear();
+    task->index = global_index++;
+
+    //Debug("Image %d Timestamp = %lu", current.index(), TS);
+    if (task->current)
+        task->current->create(current, current.index(), TS);
+    else
+        task->current = Image::Make(current, current.index(), TS);
+    //Debug("process(%d):: Image %d has timestamp %lu", current.index(), task->current->index(), task->current->timestamp());
     
     if(GRAB_SETTINGS(grabber_use_threads)) {
         {
@@ -1886,30 +1937,14 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
                 }
             }
             
-            if(!_terminate_tracker) {
-                for_the_pool.emplace_back(global_index++,
-                    Image::Make(local, current.index(), TS),
-#if WITH_FFMPEG
-                    /*mp4_queue ?*/ Image::Make(current_copy) /*: nullptr*/,
-#else
-                    nullptr,
-#endif
-                    nullptr);
-            }
+            //if(!_terminate_tracker)
+            for_the_pool.push_back(std::move(task));
         }
         
         _multi_variable.notify_one();
         
     } else {
-        Task task(global_index++,
-            Image::Make(local, current.index(), TS),
-#if WITH_FFMPEG
-            /*mp4_queue ?*/ Image::Make(current_copy) /*: nullptr*/,
-#else
-            nullptr,
-#endif
-            nullptr);
-        threadable_task(task);
+        threadable_task(std::move(task));
     }
     
     /**

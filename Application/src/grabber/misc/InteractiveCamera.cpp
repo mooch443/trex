@@ -142,7 +142,7 @@ bool InteractiveCamera::next(cmn::Image &image) {
         }
     }
     
-    image.set(image.index(), img);
+    image.create(img, image.index());
     timer.reset();
     
     return true;
