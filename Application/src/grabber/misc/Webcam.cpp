@@ -51,7 +51,7 @@ namespace fg {
             img = get_image();//array.at(SETTING(color_channel));
         assert((uint)img.cols == image.cols && (uint)img.rows == image.rows);
         
-        image.set(image.index(), img);
+        image.create(img, image.index());
         return true;
     }
 }

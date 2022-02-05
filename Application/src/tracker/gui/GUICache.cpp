@@ -13,7 +13,10 @@ namespace gui {
     SimpleBlob::SimpleBlob(std::unique_ptr<ExternalImage>&& available, pv::BlobPtr b, int t)
         : blob(b), threshold(t), ptr(std::move(available))
     {
-        
+        assert(ptr);
+        if (!ptr->source()) {
+            ptr->set_source(Image::Make());
+        }
     }
 
     GUICache::~GUICache() {
@@ -25,39 +28,22 @@ namespace gui {
     }
     
     void SimpleBlob::convert() {
-        //static Timing timing("simpleblob", 10);
-        //TakeTiming take(timing);
         Vec2 image_pos;
-        Image::UPtr image;
         
         auto &percentiles = GUI::cache().pixel_value_percentiles;
-        if(GUI::cache()._equalize_histograms && !percentiles.empty()) {
-            auto && [pos, img] = blob->equalized_luminance_alpha_image(*Tracker::instance()->background(), threshold, percentiles.front(), percentiles.back());
-            image_pos = pos;
-            image = std::move(img);
+        if (GUI::cache()._equalize_histograms && !percentiles.empty()) {
+            image_pos = blob->equalized_luminance_alpha_image(*Tracker::instance()->background(), threshold, percentiles.front(), percentiles.back(), ptr->unsafe_get_source());
         } else {
-            auto && [pos, img] = blob->luminance_alpha_image(*Tracker::instance()->background(), threshold);
-            image_pos = pos;
-            image = std::move(img);
+            image_pos = blob->luminance_alpha_image(*Tracker::instance()->background(), threshold, ptr->unsafe_get_source());
         }
-        
-        //e->update_with(*image);
-        if(!ptr)
-            ptr = std::make_unique<ExternalImage>(std::move(image), image_pos);
-        else {
-            ptr->update_with(*image);
-            ptr->set_pos(image_pos);
-        }
+
+        ptr->set_pos(image_pos);
+        ptr->updated_source();
         
         ptr->add_custom_data("blob_id", (void*)(uint64_t)(uint32_t)blob->blob_id());
         if(ptr->name().empty())
             ptr->set_name("SimpleBlob_"+Meta::toStr(blob->blob_id()));
-        //return std::move(ptr);
     }
-    
-    GUICache::GUICache()
-        : last_threshold(-1), _dirty(true), _equalize_histograms(true), _blobs_dirty(false), _raw_blobs_dirty(false), _mode(mode_t::tracking), _zoom_level(1),  _tracking_dirty(false), recognition_updated(false)
-    {}
     
     bool GUICache::has_selection() const {
         return !selected.empty() && individuals.count(selected.front()) != 0;

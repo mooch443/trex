@@ -19,7 +19,7 @@ namespace track {
         ~StaticBackground();
         
         int diff(coord_t x, coord_t y, int value) const override {
-            return (*_diff)(_image->data()[x + y * _image->cols], value);
+            return (*_diff)(_image->data()[ptr_safe_t(x) + ptr_safe_t(y) * ptr_safe_t(_image->cols)], value);
         }
         inline int (*_diff_ptr() const)(int, int) {
             return _diff;

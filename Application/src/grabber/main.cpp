@@ -101,6 +101,20 @@ static void signal_handler(int sig) {
             //std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 }
+#else
+BOOL WINAPI consoleHandler(DWORD signal_code) {
+    if (signal_code == CTRL_C_EVENT) {
+        if (!SETTING(terminate)) {
+            SETTING(terminate) = true;
+            Debug("Waiting for video to close.");
+            return TRUE;
+        }
+        else
+            Except("Pressing CTRL+C twice immediately stops the program in an undefined state.");
+    }
+
+    return FALSE;
+}
 #endif
 
 static void at_exit() {
@@ -149,6 +163,10 @@ void init_signals() {
     
     sigaddset(&sigact.sa_mask, SIGKILL);
     sigaction(SIGKILL, &sigact, (struct sigaction *)NULL);
+#else
+    if (!SetConsoleCtrlHandler(consoleHandler, TRUE)) {
+        printf("\nERROR: Could not set control handler");
+    }
 #endif
 }
 
@@ -328,7 +346,6 @@ int main(int argc, char** argv)
 #endif
     
     init_signals();
-
     Debug("Starting Application...");
     
     srand (time(NULL));

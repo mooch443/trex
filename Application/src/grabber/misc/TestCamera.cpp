@@ -190,7 +190,7 @@ namespace fg {
     }
     
     bool TestCamera::next(cmn::Image &image) {
-        image.set(image.index(), _image);
+        image.create(_image, image.index());
         return true;
     }
 }

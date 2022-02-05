@@ -25,34 +25,34 @@ namespace gui {
     
     class GUICache {
     public:
-        int last_threshold;
+        int last_threshold = -1;
         Frame_t last_frame;
         Bounds boundary;
         std::vector<Idx_t> previous_active_fish;
         std::set<pv::bid> previous_active_blobs, active_blobs, selected_blobs;
         Vec2 previous_mouse_position;
-        bool _dirty;
+        bool _dirty = true;
         FOIStatus _current_foi;
-        size_t _num_pixels;
+        size_t _num_pixels = 0;
 
         Frame_t frame_idx;
         
         std::vector<float> pixel_value_percentiles;
-        bool _equalize_histograms;
+        bool _equalize_histograms = true;
         
-        GETTER(bool, blobs_dirty)
-        GETTER(bool, raw_blobs_dirty)
-        GETTER(mode_t::Class, mode)
-        GETTER(double, gui_time)
-        GETTER_SETTER(float, zoom_level)
-        GETTER(float, dt)
-        std::atomic_bool _tracking_dirty;
+        GETTER_I(bool, blobs_dirty, false)
+        GETTER_I(bool, raw_blobs_dirty, false)
+        GETTER_I(mode_t::Class, mode, mode_t::tracking)
+        GETTER_I(double, gui_time, 0)
+        GETTER_SETTER_I(float, zoom_level, 1)
+        GETTER_I(float, dt, 0)
+        std::atomic_bool _tracking_dirty = false;
         
         std::map<Drawable*, Drawable::delete_function_handle_t> _delete_handles;
         std::set<Drawable*> _animators;
         
     public:
-        bool recognition_updated;
+        bool recognition_updated = false;
         
         Range<Frame_t> tracked_frames;
         std::atomic_bool connectivity_reload;
@@ -125,7 +125,6 @@ namespace gui {
         bool is_tracking_dirty() { return _tracking_dirty; }
         bool must_redraw() const;
     
-        GUICache();
         ~GUICache();
     };
 }

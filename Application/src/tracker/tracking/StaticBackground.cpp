@@ -65,27 +65,27 @@ namespace track {
             ? (_grid->thresholds().data() 
                 + ptr_safe_t(x0) + ptr_safe_t(y) * (ptr_safe_t)_grid->bounds().width) 
             : NULL;
-        auto ptr_image = _image->data() + x0 + y * _image->cols;
-        auto end = values + (ptr_safe_t(x1) - ptr_safe_t(x0) + 1);
+        auto ptr_image = _image->data() + ptr_safe_t(x0) + ptr_safe_t(y) * ptr_safe_t(_image->cols);
+        auto end = values + ptr_safe_t(x1) - ptr_safe_t(x0) + 1;
         ptr_safe_t count = 0;
         
         if(Tracker::instance() && !FAST_SETTINGS(enable_absolute_difference))
         {
             if(ptr_grid) {
                 for (; values != end; ++ptr_grid, ++ptr_image, ++values)
-                    count += ptr_safe_t(*ptr_image) - ptr_safe_t(*values) >= ptr_safe_t(*ptr_grid) * threshold;
+                    count += int32_t(*ptr_image) - int32_t(*values) >= int32_t(*ptr_grid) * threshold;
             } else {
                 for (; values != end; ++ptr_image, ++values)
-                    count += ptr_safe_t(*ptr_image) - ptr_safe_t(*values) >= ptr_safe_t(threshold);
+                    count += int32_t(*ptr_image) - int32_t(*values) >= int32_t(threshold);
             }
             
         } else {
             if(ptr_grid) {
                 for (; values != end; ++ptr_grid, ++ptr_image, ++values)
-                    count += cmn::abs(ptr_safe_t(*ptr_image) - ptr_safe_t(*values)) >= ptr_safe_t(*ptr_grid) * threshold;
+                    count += cmn::abs(int32_t(*ptr_image) - int32_t(*values)) >= int32_t(*ptr_grid) * threshold;
             } else {
                 for (; values != end; ++ptr_image, ++values)
-                    count += cmn::abs(ptr_safe_t(*ptr_image) - ptr_safe_t(*values)) >= ptr_safe_t(threshold);
+                    count += cmn::abs(int32_t(*ptr_image) - int32_t(*values)) >= int32_t(threshold);
             }
         }
         
