@@ -1508,7 +1508,10 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
     static Timer last_gui_update;
     static const double frame_time = GRAB_SETTINGS(frame_rate) > 0 ? 1.0 / double(GRAB_SETTINGS(frame_rate)) : 1.0/25.0;
     static std::mutex time_mutex;
-    
+
+    static int64_t last_index = -1;
+    static uint64_t last_timestamp = 0;
+
     static const auto in_main_thread = [&](std::unique_ptr<Task>&& task) -> std::tuple<int64_t, bool, double> {
         Frame_t used_index_here;
         bool added = false;
@@ -1544,10 +1547,7 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
 
         //if(_terminate_tracker)
         //    return { -1, false, 0.0 };
-        
         // write frame to file if recording (and if there's anything in the frame)
-        static int64_t last_index = -1;
-        static uint64_t last_timestamp = 0;
         if(/*task->frame->n() > 0 &&*/ (conversion_range_end == -1 || task->current->index() <= conversion_range_end) && GRAB_SETTINGS(recording) && !GRAB_SETTINGS(quit_after_average)) {
             if(!_processed.open()) {
                 // set (real time) timestamp for video start
@@ -1607,9 +1607,10 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
         {
             std::lock_guard g(time_mutex); 
             last_time = last_gui_update.elapsed();
-            transfer_to_gui = last_frame_s == -1
+            transfer_to_gui = 
+                last_frame_s == -1
                 || (last_frame_s <= 0.75 * frame_time && last_time >= frame_time * 0.9)
-                || (last_frame_s > 0.75 * frame_time && last_time >= frame_time * frame_time / last_frame_s);
+                || (last_frame_s >  0.75 * frame_time && last_time >= frame_time * frame_time / last_frame_s);
         }
 
 #ifdef TGRABS_DEBUG_TIMING

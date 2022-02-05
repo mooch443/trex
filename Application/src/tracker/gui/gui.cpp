@@ -2050,8 +2050,8 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                         }
                         
                         PD(cache)._fish_map[fish]->set_data(frameNr, props->time, PD(cache).processed_frame, empty_map);
-                        
-                        base.wrap_object(*PD(cache)._fish_map[fish]);
+                        PD(cache)._fish_map[fish]->update(base);
+                        //base.wrap_object(*PD(cache)._fish_map[fish]);
                         PD(cache)._fish_map[fish]->label(base);
                     }
                 }
@@ -2099,7 +2099,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                 }
                 
                 for(auto it = PD(cache)._fish_map.cbegin(); it != PD(cache)._fish_map.cend();) {
-                    if(!it->second->enabled()) {
+                    if(it->second->idx() != frameNr) {
                         it->first->unregister_delete_callback(it->second.get());
                         PD(cache)._fish_map.erase(it++);
                     } else

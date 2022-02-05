@@ -17,7 +17,12 @@ struct CompressedBlob;
 }
 
 namespace gui {
-    class Fish : public DrawableCollection {
+    class Label;
+
+    class Fish {
+        Entangled _view;
+        Label* _label { nullptr };
+
         track::Individual& _obj;
         const track::PPFrame* _frame;
         GETTER(Frame_t, idx)
@@ -69,15 +74,16 @@ namespace gui {
         
     public:
         Fish(track::Individual& obj);
-        void update(DrawStructure& d) override;
+        ~Fish();
+        void update(DrawStructure& d);
         //void draw_occlusion(DrawStructure& window);
         void set_data(Frame_t frameIndex, double time, const track::PPFrame& frame, const EventAnalysis::EventMap* events);
         
     private:
         //void paint(cv::Mat &target, int max_frames = 1000) const;
-        void paintPath(DrawStructure& window, const Vec2& offset, Frame_t to = {}, Frame_t from = {}, const Color& = Transparent);
+        void paintPath(const Vec2& offset, Frame_t to = {}, Frame_t from = {}, const Color& = Transparent);
         //void paintPixels() const;
-        void update_recognition_circle(DrawStructure&);
+        void update_recognition_circle();
     public:
         void label(DrawStructure&);
         void shadow(DrawStructure&);
