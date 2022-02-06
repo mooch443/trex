@@ -324,7 +324,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         ID = (uint32_t)sid;
     }
     
-    Individual *fish = new Individual(ID);
+    Individual *fish = new Individual(Idx_t{ID});
     
     if(_header.version <= Output::ResultsFormat::Versions::V_15) {
         ref.seek(ref.tell() + sizeof(data_long_t) * 2);
@@ -343,7 +343,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         std::string name;
         ref.read<std::string>(name);
         
-        Identity id(ID);
+        Identity id( Idx_t{ID} );
         if(name != id.raw_name() && !name.empty()) {
             auto map = FAST_SETTINGS(individual_names);
             map[ID] = name;
@@ -363,7 +363,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         }
     }
     
-    fish->identity().set_ID(ID);
+    fish->identity().set_ID(Idx_t(ID));
     
     //PhysicalProperties *prev = NULL;
     //PhysicalProperties *prev_weighted = NULL;
@@ -1050,7 +1050,7 @@ namespace Output {
         return pack_size;
     }
     
-    void ResultsFormat::write_file(const std::vector<track::FrameProperties> &frames, const ska::bytell_hash_map<Frame_t, Tracker::set_of_individuals_t > &active_individuals_frame, const ska::bytell_hash_map<Idx_t, Individual *> &individuals, const std::vector<std::string>& exclude_settings)
+    void ResultsFormat::write_file(const std::vector<track::FrameProperties> &frames, const Tracker::active_individuals_t &active_individuals_frame, const ska::bytell_hash_map<Idx_t, Individual *> &individuals, const std::vector<std::string>& exclude_settings)
     {
         estimated_size = sizeof(uint64_t)*3 + frames.size() * (sizeof(data_long_t)+sizeof(CompatibilityFrameProperties)) + active_individuals_frame.size() * (sizeof(data_long_t)+sizeof(uint64_t)+(active_individuals_frame.empty() ? individuals.size() : active_individuals_frame.begin()->second.size())*sizeof(data_long_t));
         
@@ -1106,7 +1106,8 @@ namespace Output {
             write<data_long_t>(p.first.get());
             write<uint64_t>(p.second.size());
             for(auto &fish : p.second) {
-                write<data_long_t>(fish->identity().ID());
+                data_long_t ID = fish->identity().ID();
+                write<data_long_t>(ID);
             }
         }
     }
@@ -1336,7 +1337,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             file._property_cache->push(prop.frame, &prop);
         
         // read the individuals
-        std::map<uint32_t, Individual*> map_id_ptr;
+        std::map<Idx_t, Individual*> map_id_ptr;
         std::vector<Individual*> fishes;
         
         file.read<uint64_t>(L);
@@ -1368,7 +1369,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             }
         }
         
-        track::Identity::set_running_id(biggest_id+1);
+        track::Identity::set_running_id(Idx_t(biggest_id+1));
         
         uint64_t n;
         data_long_t ID;
@@ -1388,10 +1389,16 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
                 if(check_analysis_range && (frame > analysis_range.end || frame < analysis_range.start))
                     continue;
                 
-                auto it = map_id_ptr.find(ID);
-                if (it == map_id_ptr.end())
+                auto it = map_id_ptr.find(Idx_t(ID));
+                if (it == map_id_ptr.end()) {
                     U_EXCEPTION("Cannot find individual with ID %ld in map.", ID);
-                active.insert(it->second);
+                } else if((*it).second->start_frame() > frame) {
+                    //Except("Individual %ld start frame = %d, not %ld", ID, map_id_ptr.at(Idx_t(ID))->start_frame(), frameIndex);
+                    continue;
+                }
+                auto r = active.insert(it->second);
+                if(!std::get<1>(r))
+                    U_EXCEPTION("Did not insert ID %ld for frame %ld.", ID, frameIndex);
             }
             
             if(check_analysis_range && (frame > analysis_range.end || frame < analysis_range.start))

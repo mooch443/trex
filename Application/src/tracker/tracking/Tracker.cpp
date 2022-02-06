@@ -1462,7 +1462,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         active_individuals.insert(fish);
         
         if(ID >= Identity::running_id()) {
-            Identity::set_running_id(ID + 1);
+            Identity::set_running_id(Idx_t(ID + 1));
         }
         
         return fish;
@@ -1602,7 +1602,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
 
                     //Debug("%d: %d -> %d: %f", frameIndex, fish->identity().ID(), blob->blob_id(), p);
                     
-                    probs[blob] = p;
+                    probs[std::get<0>(unassigned_blobs[i])] = p;
                     //max_p = max(max_p, p);
 
                     //blobs_used.insert(blob);
@@ -2083,7 +2083,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             
             for (auto m : manual_identities) {
                 if(_individuals.find(m) == _individuals.end()) {
-                    Individual *fish = new Individual((uint32_t)m);
+                    Individual *fish = new Individual(Idx_t(m));
                     //fish->identity().set_ID(m);
                     assert(fish->identity().ID() == m);
                     max_id = Idx_t(max((uint32_t)max_id, (uint32_t)m));
@@ -2094,7 +2094,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             }
             
             if(max_id.valid()) {
-                Identity::set_running_id(max_id + 1);
+                Identity::set_running_id(Idx_t(max_id + 1));
             }
         }
         
@@ -3431,7 +3431,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         }
         
         if(_individuals.empty())
-            Identity::set_running_id(0);
+            Identity::set_running_id(Idx_t(0));
         
         if(_recognition) {
             _recognition->clear_filter_cache();

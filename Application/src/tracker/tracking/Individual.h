@@ -86,9 +86,6 @@ constexpr std::array<const char*, 8> ReasonsNames {
     }
     
     class Identity {
-    public:
-        static constexpr auto InvalidID = infinity<uint32_t>();
-        
     protected:
         GETTER_SETTER(gui::Color, color)
         Idx_t _myID;
@@ -96,13 +93,13 @@ constexpr std::array<const char*, 8> ReasonsNames {
         GETTER_SETTER(bool, manual)
         
     public:
-        static void set_running_id(uint32_t value);
-        static uint32_t running_id();
-        Identity(uint32_t myID = InvalidID);
-        decltype(_myID) ID() const { return _myID; }
-        void set_ID(uint32_t val) {
+        static void set_running_id(Idx_t value);
+        static Idx_t running_id();
+        Identity(Idx_t myID = Idx_t());
+        Idx_t ID() const { return _myID; }
+        void set_ID(Idx_t val) {
             _color = ColorWheel(val).next();
-            _myID = Idx_t(val);
+            _myID = val;
             _name = Meta::toStr(_myID);
         }
         const std::string& raw_name();

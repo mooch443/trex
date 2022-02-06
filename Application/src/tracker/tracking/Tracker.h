@@ -145,7 +145,8 @@ CREATE_STRUCT(Settings,
         ska::bytell_hash_map<Frame_t, std::vector<Clique>> _cliques;
         
         set_of_individuals_t _active_individuals;
-        ska::bytell_hash_map<Frame_t, set_of_individuals_t> _active_individuals_frame;
+        using active_individuals_t = ska::bytell_hash_map<Frame_t, set_of_individuals_t>;
+        active_individuals_t _active_individuals_frame;
         
         std::atomic<Frame_t> _startFrame{ Frame_t() };
         std::atomic<Frame_t> _endFrame{ Frame_t() };

@@ -28,14 +28,14 @@ using prob_t = track::Match::prob_t;
 
 std::atomic<uint32_t> RUNNING_ID(0);
 
-void Identity::set_running_id(uint32_t value) { RUNNING_ID = value; }
-uint32_t Identity::running_id() { return RUNNING_ID; }
+void Identity::set_running_id(Idx_t value) { RUNNING_ID = value; }
+Idx_t Identity::running_id() { return Idx_t(RUNNING_ID.load()); }
 
-Identity::Identity(uint32_t myID)
-    : _color(myID != InvalidID ? ColorWheel(myID).next() : ColorWheel(RUNNING_ID).next()), _myID(myID != InvalidID ? myID : (RUNNING_ID++)), _name(Meta::toStr(_myID))
+Identity::Identity(Idx_t myID)
+    : _color(myID.valid() ? ColorWheel(myID).next() : ColorWheel(RUNNING_ID).next()), _myID(myID.valid() ? myID : Idx_t(RUNNING_ID++)), _name(Meta::toStr(_myID))
 {
-    if(myID != InvalidID && RUNNING_ID < myID) {
-        RUNNING_ID = myID + 1;
+    if(myID.valid() && RUNNING_ID < myID) {
+        RUNNING_ID = Idx_t(myID + 1);
     }
 }
 

@@ -4124,7 +4124,7 @@ void GUI::key_event(const gui::Event &event) {
     
     if(key.code >= Codes::Num0 && key.code <= Codes::Num9) {
         std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
-        Identity id(narrow_cast<uint32_t>(key.code - Codes::Num0));
+        Identity id(Idx_t(narrow_cast<uint32_t>(key.code - Codes::Num0)));
         PD(cache).deselect_all_select(id.ID());
         GUI::set_redraw();
         return;
@@ -5164,7 +5164,6 @@ void GUI::generate_training_data_faces(const file::Path& path) {
     DebugCallback("Generating training dataset [%d-%d] in folder '%S'.", range.start, range.end, &path.str());
     
     PPFrame frame;
-    using frame_t = long_t;
     
     std::vector<uchar> images;
     std::vector<float> heads;
