@@ -125,7 +125,7 @@ uint64_t MemoryStats::get_memory_size(pv::BlobPtr obj, const std::string& ) {
 template <>
 uint64_t MemoryStats::get_memory_size(pv::CompressedBlob obj, const std::string& ) {
     uint64_t bytes = 0;
-    bytes += obj.lines.capacity() * sizeof(decltype(pv::CompressedBlob::lines)::value_type);
+    bytes += obj.lines().capacity() * sizeof(pv::ShortHorizontalLine);
     return bytes;
 }
 

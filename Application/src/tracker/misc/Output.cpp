@@ -217,19 +217,20 @@ void Output::ResultsFormat::read_blob(Data& ref, pv::CompressedBlob& blob) const
     
     if(_header.version < Output::ResultsFormat::Versions::V_32) {
         std::vector<pv::LegacyShortHorizontalLine> legacy(len);
-        blob.lines.clear();
-        blob.lines.reserve(len);
+        blob._lines.clear();
+        blob._lines.reserve(len);
         
         ref.read_data(sizeof(pv::LegacyShortHorizontalLine) * len, (char*)legacy.data());
-        std::copy(legacy.begin(), legacy.end(), std::back_inserter(blob.lines));
+        std::copy(legacy.begin(), legacy.end(), std::back_inserter(blob._lines));
         
     } else {
-        blob.lines.resize(len);
-        ref.read_data(elem_size * len, (char*)blob.lines.data());
+        blob._lines.resize(len);
+        ref.read_data(elem_size * len, (char*)blob._lines.data());
     }
     
     blob.status_byte = byte;
     blob.start_y = start_y;
+    blob.reset_id();
     blob.parent_id = pv::bid(parent_id);
 }
 
@@ -1043,7 +1044,7 @@ namespace Output {
         const uint64_t pack_size =
         4 + sizeof(data_long_t)*2
         + sizeof(uchar)*3
-        + val._basic_stuff.size() * (sizeof(data_long_t)+physical_properties_size+sizeof(uint32_t)+(val._basic_stuff.empty() ? 100 : (*val._basic_stuff.begin())->blob.lines.size())*1.1*sizeof(pv::ShortHorizontalLine))
+        + val._basic_stuff.size() * (sizeof(data_long_t)+physical_properties_size+sizeof(uint32_t)+(val._basic_stuff.empty() ? 100 : (*val._basic_stuff.begin())->blob._lines.size())*1.1*sizeof(pv::ShortHorizontalLine))
         + val._posture_stuff.size() * (sizeof(data_long_t)+sizeof(uint64_t)+((val._posture_stuff.empty() || !val._posture_stuff.front()->cached_pp_midline ?SETTING(midline_resolution).value<uint32_t>() : (*val._posture_stuff.begin())->cached_pp_midline->size()) * sizeof(float) * 2 + sizeof(float) * 5 + sizeof(uint64_t))+physical_properties_size+((val._posture_stuff.empty() || !val._posture_stuff.front()->outline ? 0 : val._posture_stuff.front()->outline->size()*1.1)*sizeof(uint16_t) + sizeof(float)*2+sizeof(uint64_t)))
         + val._basic_stuff.size() * sizeof(decltype(Individual::BasicStuff::thresholded_size)) + sizeof(uint64_t);
         
