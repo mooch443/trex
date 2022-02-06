@@ -850,7 +850,6 @@ Fish::~Fish() {
         
         _prev_frame_range = Range<Frame_t>(_obj.start_frame(), _obj.end_frame());
         
-        vertices.clear();
         const float max_speed = FAST_SETTINGS(track_max_speed);
         const float thickness = GUIOPTION(gui_outline_thickness);
         
@@ -949,7 +948,9 @@ Fish::~Fish() {
         Color use = clr;
         
         const float max_distance = Individual::weird_distance() * 0.1 / FAST_SETTINGS(cm_per_pixel);
-        
+        size_t paths_index = 0;
+        _vertices.clear();
+
         auto prev = frame_vertices.empty() ? Frame_t() : frame_vertices.begin()->frame;
         Vec2 prev_pos = frame_vertices.empty() ? Vec2(-1) : frame_vertices.begin()->vertex.position();
         for(auto & fv : frame_vertices) {
@@ -958,14 +959,22 @@ Fish::~Fish() {
             
             if(fv.frame - prev > 1_f || (prev.valid() && euclidean_distance(prev_pos, fv.vertex.position()) >= max_distance)) {
                 use = inactive_clr;
-                if(vertices.size() > 1) {
-                    auto v = new Vertices(vertices, PrimitiveType::LineStrip, Vertices::TRANSPORT);
-                    v->set_thickness(thickness);
-                    _view.advance(v);
+                if(_vertices.size() > 1) {
+                    if (_paths.size() <= paths_index) {
+                        _paths.emplace_back(std::make_unique<Vertices>(_vertices, PrimitiveType::LineStrip, Vertices::TRANSPORT));
+                        _paths[paths_index]->set_thickness(thickness);
+                        _view.advance_wrap(*_paths[paths_index]);
+                    } else { 
+                        auto& v = _paths[paths_index];
+                        std::swap(v->change_points(), _vertices);
+                        v->confirm_points();
+                        _view.advance_wrap(*v);
+                    }
+
+                    ++paths_index;
                 }
-                    //window.vertices(vertices, PrimitiveType::LineStrip);
-                    //window.line(vertices, 2.0f);
-                vertices.clear();
+                    //window.vertivertices, 2.0f);
+                _vertices.clear();
                 
                 //window.circle(fv.vertex.position() + offset, 1, White.alpha(percent * 255));
             } else
@@ -973,17 +982,23 @@ Fish::~Fish() {
             prev = fv.frame;
             prev_pos = fv.vertex.position();
             
-            vertices.push_back(Vertex(fv.vertex.position() + offset, use.alpha(percent * 255)));
+            _vertices.push_back(Vertex(fv.vertex.position() + offset, use.alpha(percent * 255)));
         }
         
        // Debug("(%d) ending up with %d vertices", _obj.identity().ID(), vertices.size());
         
-        if(vertices.size() > 1) {
-            auto v = new Vertices(vertices, PrimitiveType::LineStrip, Vertices::TRANSPORT);
-            v->set_thickness(thickness);
-            _view.advance(v);
-            //window.vertices(vertices, PrimitiveType::LineStrip);
+        if (_paths.size() <= paths_index) {
+            _paths.emplace_back(std::make_unique<Vertices>(_vertices, PrimitiveType::LineStrip, Vertices::TRANSPORT));
+            _paths[paths_index]->set_thickness(thickness);
+            _view.advance_wrap(*_paths[paths_index]);
         }
+        else {
+            auto& v = _paths[paths_index];
+            std::swap(v->change_points(), _vertices);
+            v->confirm_points();
+            _view.advance_wrap(*v);
+        }
+
             //window.line(vertices, 2.0f);
         
         /*auto last = _obj.find_frame(to)->centroid->pos(Units::PX_AND_SECONDS) + offset;

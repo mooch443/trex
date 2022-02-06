@@ -885,7 +885,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
     std::vector<pv::BlobPtr> Tracker::split_big(
         const BlobReceiver& filter_out,
         const std::vector<pv::BlobPtr> &big_blobs,
-        const ska::bytell_hash_map<pv::BlobPtr, split_expectation> &expect,
+        const robin_hood::unordered_map<pv::BlobPtr, split_expectation> &expect,
         bool discard_small,
         std::ostream* out,
         GenericThreadPool* pool)
@@ -1035,9 +1035,9 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         }
         
         using namespace Match;
-        std::map<long_t, std::set<pv::bid>> fish_mappings;
-        std::map<pv::bid, std::set<long_t>> blob_mappings;
-        std::map<long_t, std::map<pv::bid, Match::prob_t>> paired;
+        robin_hood::unordered_map<long_t, std::set<pv::bid>> fish_mappings;
+        robin_hood::unordered_map<pv::bid, std::set<long_t>> blob_mappings;
+        robin_hood::unordered_map<long_t, robin_hood::unordered_map<pv::bid, Match::prob_t>> paired;
 
         const auto frame_limit = FAST_SETTINGS(frame_rate) * FAST_SETTINGS(track_max_reassign_time);
         
@@ -1170,7 +1170,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         
         std::set<pv::bid> already_walked;
         std::vector<pv::BlobPtr> big_blobs;
-        ska::bytell_hash_map<pv::BlobPtr, split_expectation> expect;
+        robin_hood::unordered_map<pv::BlobPtr, split_expectation> expect;
         
         auto manual_splits = FAST_SETTINGS(manual_splits);
         auto manual_splits_frame = (manual_splits.empty() || manual_splits.count(frame.index().get()) == 0) ? decltype(manual_splits)::mapped_type() : manual_splits.at(frame.index().get());
@@ -1269,9 +1269,9 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
             
             if(clique.size() > others.size()) {
                 using namespace Match;
-                std::map<pv::bid, std::pair<uint32_t, Match::prob_t>> assign_blob; // blob: individual
-                std::map<uint32_t, std::set<std::tuple<Match::prob_t, pv::bid>>> all_probs_per_fish;
-                std::map<uint32_t, std::set<std::tuple<Match::prob_t, pv::bid>>> probs_per_fish;
+                robin_hood::unordered_map<pv::bid, std::pair<uint32_t, Match::prob_t>> assign_blob; // blob: individual
+                robin_hood::unordered_map<uint32_t, std::set<std::tuple<Match::prob_t, pv::bid>>> all_probs_per_fish;
+                robin_hood::unordered_map<uint32_t, std::set<std::tuple<Match::prob_t, pv::bid>>> probs_per_fish;
                 
                 if(out) {
                     Log(out, "\t\tMismatch between blobs and number of fish assigned to them.");
@@ -1424,7 +1424,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
             ++e.number;
         
         if(!manual_splits_frame.empty()) {
-            for(auto bdx : manual_splits_frame) {
+            for(auto &bdx : manual_splits_frame) {
                 auto ptr = frame.find_bdx(bdx);
                 if(ptr) {
                     expect[ptr].allow_less_than = false;
@@ -1574,7 +1574,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             for(size_t i=from; i<to; i++) {
                 auto fish = unassigned_individuals[i];
                 //Match::prob_t max_p = 0;
-                ska::bytell_hash_map<Match::Blob_t, Match::prob_t> probs;
+                Match::pairing_map_t<Match::Blob_t, Match::prob_t> probs;
                 
                 auto cache = frame.cached(fish->identity().ID());
                 if(!cache) {
@@ -1950,16 +1950,16 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             //auto str = prettify_array(Meta::toStr(assign_blobs));
             //Debug("replacing blobids / potentially splitting:\n%S", &str);
             
-            ska::bytell_hash_map<Idx_t, pv::bid> actual_assignments;
+            robin_hood::unordered_map<Idx_t, pv::bid> actual_assignments;
             
             for(auto && [bdx, clique] : assign_blobs) {
                 //if(clique.size() > 1)
                 {
                     // have to split blob...
-                    auto blob = frame.bdx_to_ptr(bdx);
+                    auto &blob = frame.bdx_to_ptr(bdx);
                     
                     //std::vector<pv::BlobPtr> additional;
-                    ska::bytell_hash_map<pv::BlobPtr, split_expectation> expect;
+                    robin_hood::unordered_map<pv::BlobPtr, split_expectation> expect;
                     expect[blob] = split_expectation(clique.size() == 1 ? 2 : clique.size(), false);
                     
                     auto big_filtered = split_big(BlobReceiver(frame, BlobReceiver::noise),
@@ -2002,8 +2002,8 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                         frame.blobs.insert(frame.blobs.end(), big_filtered.begin(), big_filtered.end());*/
                         
                         size_t found_perfect = 0;
-                        for(auto && [fdx, pos, original_bdx] : clique) {
-                            for(auto b : big_filtered) {
+                        for(auto & [fdx, pos, original_bdx] : clique) {
+                            for(auto &b : big_filtered) {
                                 if(b->blob_id() == original_bdx) {
 #ifndef NDEBUG
                                     Debug("frame %d: Found perfect match for individual %d, bdx %d after splitting %d", frame.index(), fdx, b->blob_id(), b->parent_id());
@@ -2439,7 +2439,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                             
                             auto edges = paired_blobs.edges_for_row(fdi);
                             
-                            ska::bytell_hash_map<Match::Blob_t, prob_t> probs;
+                            Match::pairing_map_t<Match::Blob_t, prob_t> probs;
                             for(auto &e : edges) {
                                 auto blob = paired_blobs.col(e.cdx);
                                 if(!blob_assigned.count(blob->get()) || !blob_assigned.at(blob->get()))
@@ -2484,7 +2484,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     if(fish_assigned.find(fish) == fish_assigned.end() || !fish_assigned.at(fish)) {
                         auto edges = paired_blobs.edges_for_row(paired_blobs.index(fish));
                         
-                        ska::bytell_hash_map<Match::Blob_t, Match::prob_t> probs;
+                        Match::pairing_map_t<Match::Blob_t, Match::prob_t> probs;
                         for(auto &e : edges) {
                             auto blob = paired_blobs.col(e.cdx);
                             if(!frame.find_bdx((*blob)->blob_id())) {

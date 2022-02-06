@@ -480,7 +480,7 @@ CREATE_STRUCT(Settings,
             }
         };
         
-        std::vector<pv::BlobPtr> split_big(const BlobReceiver&, const std::vector<std::shared_ptr<pv::Blob>>& big_blobs, const ska::bytell_hash_map<pv::BlobPtr, split_expectation> &expect, bool discard_small = false, std::ostream *out = NULL, GenericThreadPool* pool = nullptr);
+        std::vector<pv::BlobPtr> split_big(const BlobReceiver&, const std::vector<std::shared_ptr<pv::Blob>>& big_blobs, const robin_hood::unordered_map<pv::BlobPtr, split_expectation> &expect, bool discard_small = false, std::ostream *out = NULL, GenericThreadPool* pool = nullptr);
         
         static void prefilter(const std::shared_ptr<PrefilterBlobs>&, std::vector<pv::BlobPtr>::const_iterator it, std::vector<pv::BlobPtr>::const_iterator end);
         

@@ -88,7 +88,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
     class Identity {
     protected:
         GETTER_SETTER(gui::Color, color)
-        Idx_t _myID;
+        Idx_t _myID = Idx_t(42);
         std::string _name;
         GETTER_SETTER(bool, manual)
         
@@ -234,13 +234,10 @@ constexpr std::array<const char*, 8> ReasonsNames {
 #if DEBUG_ORIENTATION
         std::map<long_t, OrientationProperties> _why_orientation;
 #endif
-        std::map<Frame_t, std::map<long_t, std::pair<void*, std::function<void(void*)>>>> _custom_data;
-        
-        //std::map<Frame_t, Image::Ptr> _training_data;
+        ska::bytell_hash_map<Frame_t, std::map<long_t, std::pair<void*, std::function<void(void*)>>>> _custom_data;
         
         //! A frame index is pushed here, if the previous frame was not the current frame - 1 (e.g. frames are missing)
     public:
-        //using segment_map = std::map<long_t, std::shared_ptr<SegmentInformation>>;
         using segment_map = std::vector<std::shared_ptr<SegmentInformation>>;
         segment_map::const_iterator find_segment_with_start(Frame_t frame) const;
         using small_segment_map = std::map<Frame_t, FrameRange>;
@@ -266,7 +263,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //  on a per-frame basis. They need to be regenerated when
         //  frames are removed.
         struct LocalCache {
-            std::unordered_map<Frame_t, Vec2> _current_velocities;
+            robin_hood::unordered_map<Frame_t, Vec2> _current_velocities;
             Vec2 _current_velocity;
             std::vector<Vec2> _v_samples;
             
@@ -418,7 +415,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         Probability probability(int label, const IndividualCache& estimated_px, Frame_t frameIndex, const Vec2& position, size_t pixels) const;
         Match::prob_t time_probability(const IndividualCache& cache, size_t recent_number_samples) const;
         //Match::PairingGraph::prob_t size_probability(const IndividualCache& cache, Frame_t frameIndex, size_t num_pixels) const;
-        std::tuple<Match::prob_t, Match::prob_t, Match::prob_t> position_probability(const IndividualCache& estimated_px, Frame_t frameIndex, size_t size, const Vec2& position, const Vec2& blob_center) const;
+        Match::prob_t position_probability(const IndividualCache& estimated_px, Frame_t frameIndex, size_t size, const Vec2& position, const Vec2& blob_center) const;
         
         std::shared_ptr<BasicStuff> find_frame(Frame_t frameIndex) const;
         bool evaluate_fitness() const;

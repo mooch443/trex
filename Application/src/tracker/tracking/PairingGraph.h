@@ -14,6 +14,8 @@ namespace Match
 {
     using prob_t = double;
     using Blob_t = const pv::BlobPtr*;
+    template<typename K, typename V>
+    using pairing_map_t = robin_hood::unordered_map<K, V>;
 
     class PairedProbabilities {
     public:
@@ -54,17 +56,17 @@ namespace Match
         std::vector<prob_t> _row_max_probs;
         GETTER(std::vector<Edge>, probabilities) //! size is individuals + edges per individual
         
-        ska::bytell_hash_map<row_t::value_type, size_t> _row_index;
-        ska::bytell_hash_map<col_t::value_type, size_t> _col_index;
+        pairing_map_t<row_t::value_type, size_t> _row_index;
+        pairing_map_t<col_t::value_type, size_t> _col_index;
         
-        ska::bytell_hash_map<col_t::value_type, std::vector<size_t>> _col_edges;
+        pairing_map_t<col_t::value_type, std::vector<size_t>> _col_edges;
         //std::vector<std::vector<size_t>> _blob_edges_idx;
         //std::unordered_map<row_t::value_type, size_t> _fish_2_idx;
         
     public:
         PairedProbabilities();
         
-        size_t add(row_t::value_type, const ska::bytell_hash_map<col_t::value_type, prob_t>&);
+        size_t add(row_t::value_type, const pairing_map_t<col_t::value_type, prob_t>&);
         void erase(row_t::value_type);
         void erase(col_t::value_type);
         

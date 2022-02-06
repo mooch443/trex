@@ -1902,7 +1902,7 @@ inline Float2_t adiffangle(const Vec2& A, const Vec2& B) {
     return -atan2(-B.y*A.x+B.x*A.y, B.x*A.x+B.y*A.y);
 }
 
-std::tuple<prob_t, prob_t, prob_t> Individual::position_probability(const IndividualCache& cache, Frame_t frameIndex, size_t, const Vec2& position, const Vec2& blob_center) const
+prob_t Individual::position_probability(const IndividualCache& cache, Frame_t frameIndex, size_t, const Vec2& position, const Vec2& blob_center) const
 {
     if (frameIndex < _startFrame + 1_f)
         U_EXCEPTION("Cannot calculate probability for a frame thats previous to all known frames.");
@@ -1963,11 +1963,11 @@ std::tuple<prob_t, prob_t, prob_t> Individual::position_probability(const Indivi
             a = abs(a / M_PI);
             a = 0.9 + SQR(1 - a) * 0.1;
             
-            return {speed * a, speed, a};
+            return speed * a;
         }
     }
     
-    return {speed, speed, 1};
+    return speed;
 }
 
 /*prob_t Individual::size_probability(const IndividualCache& cache, long_t, size_t num_pixels) const {
@@ -2007,7 +2007,8 @@ Individual::Probability Individual::probability(int label, const IndividualCache
     }
 
     const Vec2 blob_pos = cache.cm_per_pixel * position;
-    auto && [ p_position, p_speed, p_angle ] = position_probability(cache, frameIndex, pixels, blob_pos, position);
+    //auto && [ p_position, p_speed, p_angle ] = 
+    auto p_position =    position_probability(cache, frameIndex, pixels, blob_pos, position);
     
     /**
          \begin{equation} \label{eq:combined_prob}

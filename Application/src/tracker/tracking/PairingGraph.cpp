@@ -208,7 +208,7 @@ prob_t PairedProbabilities::probability(size_t rdx, size_t cdx) const {
 
 size_t PairedProbabilities::add(
       row_t::value_type row,
-      const ska::bytell_hash_map<col_t::value_type, prob_t>& edges)
+      const pairing_map_t<col_t::value_type, prob_t>& edges)
 {
     size_t rdx, offset;
     if(_row_index.count(row))

@@ -33,6 +33,9 @@ namespace gui {
         MinimalOutline::Ptr _cached_outline;
         GETTER(Vec2, fish_pos)
         Circle _circle;
+
+        std::vector<Vertex> _vertices;
+        std::vector<std::unique_ptr<Vertices>> _paths;
         //Image _image;
         //Image *_probabilities;
         const EventAnalysis::EventMap* _events;
@@ -54,7 +57,6 @@ namespace gui {
         };
         
         std::deque<FrameVertex> frame_vertices;
-        std::vector<Vertex> vertices;
         std::shared_ptr<Circle> _recognition_circle;
         std::vector<Vec2> points;
         
