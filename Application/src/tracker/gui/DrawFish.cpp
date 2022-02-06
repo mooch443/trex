@@ -216,7 +216,7 @@ Fish::~Fish() {
         window.image(blob_bounds.pos(), _image);
     }*/
     
-    void Fish::update(DrawStructure &base) {
+    void Fish::update(Entangled& parent, DrawStructure &base) {
         const int frame_rate = FAST_SETTINGS(frame_rate);
         //const float track_max_reassign_time = FAST_SETTINGS(track_max_reassign_time);
         const auto single_identity = GUIOPTION(gui_single_identity_color);
@@ -827,7 +827,7 @@ Fish::~Fish() {
 
         });
 
-        base.wrap_object(_view);
+        parent.advance_wrap(_view);
     }
     
     void Fish::paintPath(const Vec2& offset, Frame_t to, Frame_t from, const Color& base_color) {
@@ -1110,17 +1110,17 @@ Fish::~Fish() {
         }
     }
 
-void Fish::label(DrawStructure &base) {
+void Fish::label(Drawable* bowl, Entangled &base) {
     if(GUIOPTION(gui_highlight_categories)) {
         if(_avg_cat != -1) {
-            base.circle(_view.pos() + _view.size() * 0.5, _view.size().length(), Transparent, ColorWheel(_avg_cat).next().alpha(75));
+            base.advance(new Circle(_view.pos() + _view.size() * 0.5, _view.size().length(), Transparent, ColorWheel(_avg_cat).next().alpha(75)));
         } else {
-            base.circle(_view.pos() + _view.size() * 0.5, _view.size().length(), Transparent, Purple.alpha(15));
+            base.advance(new Circle(_view.pos() + _view.size() * 0.5, _view.size().length(), Transparent, Purple.alpha(15)));
         }
     }
     
     if(GUIOPTION(gui_show_match_modes)) {
-        base.circle(_view.pos() + _view.size() * 0.5, _view.size().length(), Transparent, ColorWheel(_match_mode).next().alpha(50));
+        base.advance(new Circle(_view.pos() + _view.size() * 0.5, _view.size().length(), Transparent, ColorWheel(_match_mode).next().alpha(50)));
     }
     
     //auto bdx = blob->blob_id();
@@ -1128,7 +1128,7 @@ void Fish::label(DrawStructure &base) {
         uint32_t i=0;
         for(auto &clique : GUI::cache()._cliques) {
             if(contains(clique.fishs, _obj.identity().ID())) {
-                base.circle(_view.pos() + _view.size() * 0.5, _view.size().length(), Transparent, ColorWheel(i).next().alpha(50));
+                base.advance(new Circle(_view.pos() + _view.size() * 0.5, _view.size().length(), Transparent, ColorWheel(i).next().alpha(50)));
                 break;
             }
             ++i;
@@ -1209,7 +1209,7 @@ void Fish::label(DrawStructure &base) {
     else
         _label->set_data(label_text, blob->calculate_bounds(), fish_pos());
 
-    _label->update(base, 1, blob == nullptr);
+    _label->update(bowl, base, 1, blob == nullptr);
 }
 
 void Fish::shadow(DrawStructure &window) {

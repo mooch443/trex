@@ -2013,47 +2013,58 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                 }
                 
                 {
-                    std::unique_lock guard(Categorize::DataStore::cache_mutex());
-                    
-                    for (auto &fish : (source.empty() ? PD(cache).active : source)) {
-                        if (fish->start_frame() > frameNr || fish->empty())
-                            continue;
-                        
-                        auto segment = fish->segment_for(frameNr);
-                        if(!GUI_SETTINGS(gui_show_inactive_individuals)
-                           && (!segment || (segment->end() != Tracker::end_frame()
-                           && segment->length() < (long_t)GUI_SETTINGS(output_min_frames))))
-                        {
-                            continue;
+
+                    static Entangled _bowl;
+                    _bowl.update([&](auto& e) {
+                        for (auto& fish : (source.empty() ? PD(cache).active : source)) {
+                            if (fish->start_frame() > frameNr || fish->empty())
+                                continue;
+
+                            auto segment = fish->segment_for(frameNr);
+                            if (!GUI_SETTINGS(gui_show_inactive_individuals)
+                                && (!segment || (segment->end() != Tracker::end_frame()
+                                    && segment->length() < (long_t)GUI_SETTINGS(output_min_frames))))
+                            {
+                                continue;
+                            }
+
+                            auto it = container->map().find(fish);
+                            if (it != container->map().end())
+                                empty_map = &it->second;
+                            else
+                                empty_map = NULL;
+
+                            if (PD(cache)._fish_map.find(fish) == PD(cache)._fish_map.end()) {
+                                PD(cache)._fish_map[fish] = std::make_unique<gui::Fish>(*fish);
+                                fish->register_delete_callback(PD(cache)._fish_map[fish].get(), [](Individual* f) {
+                                    //std::lock_guard<std::mutex> lock(_individuals_frame._mutex);
+                                    if (!GUI::instance())
+                                        return;
+
+                                    std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
+
+                                    auto it = PD(cache)._fish_map.find(f);
+                                    if (it != PD(cache)._fish_map.end()) {
+                                        PD(cache)._fish_map.erase(f);
+                                    }
+                                    });
+                            }
+
+                            PD(cache)._fish_map[fish]->set_data(frameNr, props->time, PD(cache).processed_frame, empty_map);
+
+                            {
+                                std::unique_lock guard(Categorize::DataStore::cache_mutex());
+                                PD(cache)._fish_map[fish]->update(e, base);
+                            }
+                            //base.wrap_object(*PD(cache)._fish_map[fish]);
+                            PD(cache)._fish_map[fish]->label(ptr, e);
                         }
-                        
-                        auto it = container->map().find(fish);
-                        if(it != container->map().end())
-                            empty_map = &it->second;
-                        else
-                            empty_map = NULL;
-                        
-                        if(PD(cache)._fish_map.find(fish) == PD(cache)._fish_map.end()) {
-                            PD(cache)._fish_map[fish] = std::make_unique<gui::Fish>(*fish);
-                            fish->register_delete_callback(PD(cache)._fish_map[fish].get(), [](Individual *f) {
-                                //std::lock_guard<std::mutex> lock(_individuals_frame._mutex);
-                                if(!GUI::instance())
-                                    return;
-                                
-                                std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
-                                
-                                auto it = PD(cache)._fish_map.find(f);
-                                if(it != PD(cache)._fish_map.end()) {
-                                    PD(cache)._fish_map.erase(f);
-                                }
-                            });
-                        }
-                        
-                        PD(cache)._fish_map[fish]->set_data(frameNr, props->time, PD(cache).processed_frame, empty_map);
-                        PD(cache)._fish_map[fish]->update(base);
-                        //base.wrap_object(*PD(cache)._fish_map[fish]);
-                        PD(cache)._fish_map[fish]->label(base);
-                    }
+                    });
+
+                    _bowl.set_bounds(average().bounds());
+                    //_bowl.set_scale(Vec2(1));
+                    //_bowl.set_pos(Vec2(0);
+                    base.wrap_object(_bowl);
                 }
                 
                 if(GUI_SETTINGS(gui_show_midline_histogram)) {
@@ -3750,7 +3761,7 @@ void GUI::draw_raw_mode(DrawStructure &base, Frame_t frameIndex) {
                 
                 auto cats = FAST_SETTINGS(categories_ordered);
                 
-                auto draw_blob = [&](const pv::BlobPtr& blob, float real_size, bool active){
+                auto draw_blob = [&](Entangled&e, const pv::BlobPtr& blob, float real_size, bool active){
                     if(displayed >= maximum_number_texts && !active)
                         return;
                     
@@ -3826,7 +3837,7 @@ void GUI::draw_raw_mode(DrawStructure &base, Frame_t frameIndex) {
                     }
                     
                     auto & [visited, circ, label] = it->second;
-                    circ->set_scale(sca);
+                    //e.set_scale(sca);
                     
                     if(circ->hovered())
                         circ->set_fill_clr(White.alpha(205 * d));
@@ -3835,19 +3846,27 @@ void GUI::draw_raw_mode(DrawStructure &base, Frame_t frameIndex) {
                     circ->set_line_clr(White.alpha(50));
                     circ->set_pos(blob->center());
                     
-                    base.rect(blob->bounds(), Transparent, White.alpha(100));
-                    base.wrap_object(*circ);
+                    e.advance(new Rect(blob->bounds(), Transparent, White.alpha(100)));
+                    e.advance_wrap(*circ);
                     
                     if(d > 0 && real_size > 0) {
-                        label->update(base, d, !active);
+                        label->update(ptr, e, d, !active);
                         ++displayed;
                     }
                 };
                 
-                displayed = 0;
-                for(auto && [d, blob, active] : draw_order) {
-                    draw_blob(blob, blob->recount(-1), active);
-                }
+                static Entangled _collection;
+                _collection.update([&](auto& e) {
+                    displayed = 0;
+                    for (auto&& [d, blob, active] : draw_order) {
+                        draw_blob(e, blob, blob->recount(-1), active);
+                    }
+                    });
+
+                _collection.set_bounds(average().bounds());
+                //_collection.set_scale(Vec2(1));
+                //_collection.set_pos(Vec2());
+                base.wrap_object(_collection);
                 
                 _unused_labels.clear();
             }

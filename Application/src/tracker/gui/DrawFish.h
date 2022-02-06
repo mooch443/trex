@@ -75,7 +75,7 @@ namespace gui {
     public:
         Fish(track::Individual& obj);
         ~Fish();
-        void update(DrawStructure& d);
+        void update(Entangled& p, DrawStructure& d);
         //void draw_occlusion(DrawStructure& window);
         void set_data(Frame_t frameIndex, double time, const track::PPFrame& frame, const EventAnalysis::EventMap* events);
         
@@ -85,7 +85,7 @@ namespace gui {
         //void paintPixels() const;
         void update_recognition_circle();
     public:
-        void label(DrawStructure&);
+        void label(Drawable* bowl, Entangled&);
         void shadow(DrawStructure&);
         void check_tags();
     };
