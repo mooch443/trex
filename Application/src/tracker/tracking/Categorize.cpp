@@ -487,7 +487,12 @@ Label::Ptr DataStore::label_averaged(Idx_t fish, Frame_t frame) {
 
 Label::Ptr DataStore::label_averaged(const Individual* fish, Frame_t frame) {
     assert(fish);
-    
+    {
+        std::shared_lock guard(cache_mutex());
+        if (_probability_cache.empty())
+            return nullptr;
+    }
+
     auto kit = fish->iterator_for(frame);
     if(kit == fish->frame_segments().end()) {
         //Warning("Individual %d, cannot find frame %d.", fish._identity, frame._frame);
@@ -565,6 +570,9 @@ Label::Ptr DataStore::label_averaged(const Individual* fish, Frame_t frame) {
 
 Label::Ptr DataStore::_label_averaged_unsafe(const Individual* fish, Frame_t frame) {
     assert(fish);
+
+    if (_probability_cache.empty())
+        return nullptr;
     
     auto kit = fish->iterator_for(frame);
     if(kit == fish->frame_segments().end()) {
@@ -584,36 +592,15 @@ Label::Ptr DataStore::_label_averaged_unsafe(const Individual* fish, Frame_t fra
                     }
                 }
             }
-            
-            /*std::unordered_map<int, size_t> label_id_to_index;
-            std::unordered_map<size_t, Label::Ptr> index_to_label;
-            size_t N = 0;
-            
-            {
-                auto names = FAST_SETTINGS(categories_ordered);
-                for (size_t i=0; i<names.size(); ++i) {
-                    label_id_to_index[i] = i;
-                    index_to_label[i] = label(names[i].c_str());
-                }
-                
-                N = names.size();
-            }*/
-            
+
             std::vector<size_t> counts(Work::_number_labels);
             
             for(auto index : (*kit)->basic_index) {
                 assert(index > -1);
                 auto &basic = fish->basic_stuff()[index];
                 auto l = _label_unsafe(Frame_t(basic->frame), basic->blob.blob_id());
-                //auto l = _label_unsafe(Frame_t(basic->frame), &basic->blob);
-                /*if(l != -1 && label_id_to_index.count(l) == 0) {
-                    auto str = Meta::toStr(label_id_to_index);
-                    Warning("Label not found: %s (%d) in map %S", l->name.c_str(), l->id, &str);
-                    continue;
-                }*/
-                
+
                 if(l != -1) {
-                    //auto index = label_id_to_index.at(l->id);
                     if(size_t(l) < counts.size())
                         ++counts[l];
                     else
