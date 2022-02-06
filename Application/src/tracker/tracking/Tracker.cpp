@@ -1602,7 +1602,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
 
                     //Debug("%d: %d -> %d: %f", frameIndex, fish->identity().ID(), blob->blob_id(), p);
                     
-                    probs[std::get<0>(unassigned_blobs[i])] = p;
+                    probs[blob] = p;
                     //max_p = max(max_p, p);
 
                     //blobs_used.insert(blob);

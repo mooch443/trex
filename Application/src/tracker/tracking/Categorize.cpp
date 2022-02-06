@@ -2766,7 +2766,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
         }
 
 #ifndef NDEBUG
-        log_event("Created", frame, -1);
+        log_event("Created", frame, Idx_t( - 1 ));
 #endif
     }
     else {
