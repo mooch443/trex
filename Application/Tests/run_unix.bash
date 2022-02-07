@@ -95,6 +95,7 @@ for MODE in ${MODES}; do
     fi
 
     rm -rf ${PWD}/corrected/data
+    rm -f ${PWD}/corrected/test.settings
 done
 
 exit ${exit_code}
