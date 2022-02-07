@@ -234,12 +234,12 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 if(!std::get<0>(tup) || !std::get<1>(tup))
                     return gui::Graph::invalid();
                 
-                return (1 - percent) * std::get<0>(tup)->pos(Units::CM_AND_SECONDS, smooth).x
-                     + percent       * std::get<1>(tup)->pos(Units::CM_AND_SECONDS, smooth).x
+                return (1 - percent) * std::get<0>(tup)->pos<Units::CM_AND_SECONDS>(smooth).x
+                     + percent       * std::get<1>(tup)->pos<Units::CM_AND_SECONDS>(smooth).x
                      - CENTER_X;
                 
             } else
-                return (props->pos(Units::CM_AND_SECONDS, smooth).x - CENTER_X);
+                return (props->pos<Units::CM_AND_SECONDS>(smooth).x - CENTER_X);
         });
         
         _cache_func[Functions::Y.name()] = LIBGLFNC( {
@@ -252,22 +252,22 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 if(!std::get<0>(tup) || !std::get<1>(tup))
                     return gui::Graph::invalid();
                 
-                return (1 - percent) * std::get<0>(tup)->pos(Units::CM_AND_SECONDS, smooth).y
-                     + percent       * std::get<1>(tup)->pos(Units::CM_AND_SECONDS, smooth).y
+                return (1 - percent) * std::get<0>(tup)->pos<Units::CM_AND_SECONDS>(smooth).y
+                     + percent       * std::get<1>(tup)->pos<Units::CM_AND_SECONDS>(smooth).y
                      - CENTER_Y;
                 
             } else
-                return (props->pos(Units::CM_AND_SECONDS, smooth).y - CENTER_Y);
+                return (props->pos<Units::CM_AND_SECONDS>(smooth).y - CENTER_Y);
         });
         
-        _cache_func[Functions::VX.name()] = LIBFNC ( return props->v(Units::CM_AND_SECONDS, smooth).x; );
-        _cache_func[Functions::VY.name()] = LIBFNC( return props->v(Units::CM_AND_SECONDS, smooth).y; );
-        _cache_func["AX"] = LIBFNC ( return props->a(Units::CM_AND_SECONDS, smooth).x; );
-        _cache_func["AY"] = LIBFNC( return props->a(Units::CM_AND_SECONDS, smooth).y; );
+        _cache_func[Functions::VX.name()] = LIBFNC ( return props->v<Units::CM_AND_SECONDS>(smooth).x; );
+        _cache_func[Functions::VY.name()] = LIBFNC( return props->v<Units::CM_AND_SECONDS>(smooth).y; );
+        _cache_func["AX"] = LIBFNC ( return props->a<Units::CM_AND_SECONDS>(smooth).x; );
+        _cache_func["AY"] = LIBFNC( return props->a<Units::CM_AND_SECONDS>(smooth).y; );
         
         _cache_func[Functions::ANGLE.name()] = LIBFNC( return props->angle(smooth); );
-        _cache_func[Functions::ANGULAR_V.name()] = LIBFNC( return props->angular_velocity(Units::DEFAULT, smooth); );
-        _cache_func[Functions::ANGULAR_A.name()] = LIBFNC( return props->angular_acceleration(Units::DEFAULT, smooth); );
+        _cache_func[Functions::ANGULAR_V.name()] = LIBFNC( return props->angular_velocity<Units::DEFAULT>(smooth); );
+        _cache_func[Functions::ANGULAR_A.name()] = LIBFNC( return props->angular_acceleration<Units::DEFAULT>(smooth); );
         
         _cache_func[Functions::SPEED.name()] = LIBGLFNC( {
             if(!props) {
@@ -279,14 +279,14 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 if(!std::get<0>(tup) || !std::get<1>(tup))
                     return gui::Graph::invalid();
                 
-                return (1 - percent) * std::get<0>(tup)->speed(Units::CM_AND_SECONDS, smooth)
-                     + percent       * std::get<1>(tup)->speed(Units::CM_AND_SECONDS, smooth);
+                return (1 - percent) * std::get<0>(tup)->speed<Units::CM_AND_SECONDS>(smooth)
+                     + percent       * std::get<1>(tup)->speed<Units::CM_AND_SECONDS>(smooth);
                 
             } else
-                return props->speed(Units::CM_AND_SECONDS, smooth);
+                return props->speed<Units::CM_AND_SECONDS>(smooth);
         });
         
-        _cache_func[Functions::ACCELERATION.name()] = LIBFNC( return props->acceleration(Units::CM_AND_SECONDS, smooth); );
+        _cache_func[Functions::ACCELERATION.name()] = LIBFNC( return props->acceleration<Units::CM_AND_SECONDS>(smooth); );
         
         _cache_func[Functions::MIDLINE_OFFSET.name()] = LIBFNC({
             Vec2 spt(0, 0);
@@ -410,7 +410,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 Vec2 center(CENTER_X, CENTER_Y);
                 const float radius = min(center.x, center.y);
                 
-                auto pos = props->pos(Units::CM_AND_SECONDS);
+                auto pos = props->pos<Units::CM_AND_SECONDS>();
                 float d = cmn::abs(sqrt(SQR(pos.x - center.x) + SQR(pos.y - center.y)) - radius);
                 
                 return d;
@@ -420,7 +420,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 Size2 size = SETTING(video_size);
                 cv::Rect2f r(0, 0, size.width * FAST_SETTINGS(cm_per_pixel), size.height * FAST_SETTINGS(cm_per_pixel));
                 
-                auto pt = props->pos(Units::CM_AND_SECONDS);
+                auto pt = props->pos<Units::CM_AND_SECONDS>();
                 float d0 = min(cmn::abs(r.x - pt.x), cmn::abs(r.y - pt.y));
                 float d1 = min(cmn::abs(r.width - pt.x), cmn::abs(r.height - pt.y));
                 
@@ -431,7 +431,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
         });
         
         _cache_func[Functions::NEIGHBOR_DISTANCE.name()] = LIBFNC({
-            const auto pos = props->pos(Units::CM_AND_SECONDS);
+            const auto pos = props->pos<Units::CM_AND_SECONDS>();
             const auto individuals = Tracker::active_individuals(frame);
             
             float d = 0.0;
@@ -440,7 +440,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             const PhysicalProperties *oc;
             for (auto other: individuals) {
                 if (other != fish && (oc = other->centroid(frame))) {
-                    auto opos = oc->pos(Units::CM_AND_SECONDS);
+                    auto opos = oc->pos<Units::CM_AND_SECONDS>();
                     d += euclidean_distance(pos, opos);
                     samples++;
                 }
@@ -487,7 +487,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
            auto head = fish->head(frame);
                                                   
            if(head) {
-               const auto a = fish->centroid_posture(frame)->pos(Units::CM_AND_SECONDS);
+               const auto a = fish->centroid_posture(frame)->pos<Units::CM_AND_SECONDS>();
                const auto individuals = Tracker::active_individuals(frame);
                
                auto angle = -head->angle();
@@ -506,7 +506,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                        
                        oangle += float(M_PI * 0.5);
                        
-                       auto v = oh->pos(Units::CM_AND_SECONDS);
+                       auto v = oh->pos<Units::CM_AND_SECONDS>();
                        if(length(v - a) > 100) {
                            continue;
                        }
@@ -530,7 +530,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
         _cache_func["RELATIVE_ANGLE"] = LIBFNC({
            const auto a0 = get(Functions::ANGLE.name(), info, frame);
            const auto individuals = Tracker::active_individuals(frame);
-           const auto h0 = props->pos(Units::CM_AND_SECONDS);
+           const auto h0 = props->pos<Units::CM_AND_SECONDS>();
            
            const PhysicalProperties *oc;
            for (auto other: individuals) {
@@ -538,7 +538,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                    info.fish = other;
                    
                    auto a1 = get(Functions::ANGLE.name(), info, frame);
-                   auto h1 = oc->pos(Units::CM_AND_SECONDS);
+                   auto h1 = oc->pos<Units::CM_AND_SECONDS>();
                    
                    Vec2 line;
                    if(other->identity().ID() > fish->identity().ID())
@@ -760,7 +760,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                         for(auto f = e.second.begin - 50_f; f <= e.second.begin; f += 2_f) {
                             auto p = fish->centroid_posture(f);
                             if(p) {
-                                before += p->v(Units::CM_AND_SECONDS);
+                                before += p->v<Units::CM_AND_SECONDS>();
                                 samples++;
                             }
                         }
@@ -771,7 +771,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                         for(auto f = e.second.end; f <= e.second.end + 50_f; f += 2_f) {
                             auto p = fish->centroid_posture(f);
                             if(p) {
-                                after += p->v(Units::CM_AND_SECONDS);
+                                after += p->v<Units::CM_AND_SECONDS>();
                                 samples++;
                             }
                         }
@@ -890,7 +890,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                         p = fish->head(frame);
                     
                     if(p) {
-                        average += p->pos(Units::PX_AND_SECONDS);
+                        average += p->pos<Units::PX_AND_SECONDS>();
                         ++samples;
                     }
                 }
@@ -922,7 +922,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                         p = fish->head(frame);
                     
                     if(p) {
-                        positions.push_back(p->pos(Units::PX_AND_SECONDS));
+                        positions.push_back(p->pos<Units::PX_AND_SECONDS>());
                         average += positions.back();
                         ++samples;
                     }
@@ -1349,10 +1349,10 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             
             auto prop = fish->centroid_posture(frame);
             if(prop) {
-                auto pos = prop->pos(Units::CM_AND_SECONDS);
+                auto pos = prop->pos<Units::CM_AND_SECONDS>();
                 float angle = prop->angle();
-                float lv = prop->v(Units::CM_AND_SECONDS).length();
-                float la = prop->a(Units::CM_AND_SECONDS).length();
+                float lv = prop->v<Units::CM_AND_SECONDS>().length();
+                float la = prop->a<Units::CM_AND_SECONDS>().length();
                 
                 row.add(frame);
                 row.add(pos.x).add(pos.y).add(angle).add(lv).add(la);
@@ -1363,12 +1363,12 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                     
                     if(nprop) {
                         float b = nprop->angle();
-                        auto npos = nprop->pos(Units::CM_AND_SECONDS);
+                        auto npos = nprop->pos<Units::CM_AND_SECONDS>();
                         row .add(npos.x - pos.x)
                             .add(npos.y - pos.y)
                             .add(atan2(sin(b-angle), cos(b-angle)))
-                            .add(nprop->v(Units::CM_AND_SECONDS).length() - lv)
-                            .add(nprop->a(Units::CM_AND_SECONDS).length() - la);
+                            .add(nprop->v<Units::CM_AND_SECONDS>().length() - lv)
+                            .add(nprop->a<Units::CM_AND_SECONDS>().length() - la);
                         
                     } else {
                         row.repeat("", nheader.size());

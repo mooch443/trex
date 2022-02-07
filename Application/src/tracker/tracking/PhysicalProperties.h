@@ -92,73 +92,105 @@ namespace track {
     class PhysicalProperties {
     public:
         static constexpr const size_t max_derivatives = 3;
-        typedef PropertyType Type;
         
         //! Basic properties
         template<typename T>
-        class Property;
-        
-        class PropertyBase {
-        protected:
+        class Property {
             PhysicalProperties* _mother;
-            GETTER(Type, type)
             
         public:
-            PropertyBase(PhysicalProperties* mother, const Type& type) : _mother(mother), _type(type) {}
-            virtual ~PropertyBase() {}
+            Property() = default;
+            constexpr Property(PhysicalProperties* mother) : _mother(mother) {}
             
-            template<typename T>
-            T value(const Units& units, size_t derivative = 0, bool smooth = false) const;
-            
-            template<typename T>
-            void value(const T& val, const Units& input_units = Units::DEFAULT, size_t derivative = 0, const track::CacheHints* hints = nullptr);
-            
-            template<typename T>
-            Property<T>* is_type() {
-                return dynamic_cast<Property<T>*>(this);
-            }
-            
-            template<typename T>
-            const Property<T>* is_type() const {
-                return dynamic_cast<const Property<T>*>(this);
-            }
-            
-            template<typename T>
-            static T convert(const T& val, const Units& from, const Units& to);
-            
-            static float cm_per_pixel();
-            virtual size_t memory_size() const {
-                return sizeof(PropertyBase);
-            }
-            
-        private:
-            template<typename T>
-            void calculate_derivative(Property<T> &property, size_t index, const CacheHints* hints);
-        };
-        
-        template<typename T>
-        class Property : public PropertyBase {
-        private:
-            std::array<T, PhysicalProperties::max_derivatives> _values;
-            //std::array<T, PhysicalProperties::max_derivatives> _smooth_values;
-            
-        public:
-            constexpr Property(PhysicalProperties* mother, const Type& type)
-                : PropertyBase(mother, type)
-            { }
-            
-            virtual ~Property() { }
-            
-            constexpr const T& value(size_t derivative) const {
+            constexpr const T& value(size_t derivative = 0) const {
                 return _values[derivative];
             }
             
-            T smooth_value(size_t derivative) const {
-                return update_smooth(derivative);
+            T value(size_t derivative, bool smooth) const
+            {
+                if(smooth)
+                    return value<Units::DEFAULT, Units::DEFAULT, true>(derivative);
+                else
+                    return value<Units::DEFAULT, Units::DEFAULT, false>(derivative);
             }
             
-            size_t memory_size() const override {
+            template<Units from, Units to>
+            T value(size_t derivative, bool smooth) const
+            {
+                if(smooth)
+                    return value<from, to, true>(derivative);
+                else
+                    return value<from, to, false>(derivative);
+            }
+            
+            template<Units to>
+            T value(size_t derivative, bool smooth) const
+            {
+                return value<Units::DEFAULT, to>(derivative, smooth);
+            }
+            
+            template<Units from, Units to, bool smooth>
+            T value(size_t derivative = 0) const
+            {
+                //if constexpr(smooth)
+                //    return convert<from, to>(smooth_value(derivative));
+                //else
+                    return convert<from, to>(value(derivative));
+            }
+            
+            template<Units from, Units to>
+            T value(size_t derivative = 0) const
+            {
+                return convert<from, to, false>(value(derivative));
+            }
+            
+            template<Units to>
+            T value(size_t derivative = 0) const
+            {
+                return value<Units::DEFAULT, to, false>(derivative);
+            }
+            
+            template<Units from>
+            void value(const PhysicalProperties* previous, const T& val, size_t derivative = 0, const CacheHints* hints = nullptr)
+            {
+                // save
+                set_value(derivative, convert<from, Units::DEFAULT>(val));
+                
+                // calculate the next higher derivative
+                for(size_t i=derivative+1; i<PhysicalProperties::max_derivatives; i++) {
+                    calculate_derivative(previous, i, hints);
+                }
+            }
+            
+            template<track::Units from, track::Units to>
+            static T convert(const T &val)
+            {
+                if constexpr(from == Units::PX_AND_SECONDS) {
+                    if constexpr(to == Units::CM_AND_SECONDS) {
+                        return val * PhysicalProperties::cm_per_pixel();
+                    }
+                    
+                } else {
+                    if constexpr(to == Units::PX_AND_SECONDS) {
+                        return val / PhysicalProperties::cm_per_pixel();
+                    }
+                }
+                
+                return val;
+            }
+            
+            size_t memory_size() const {
                 return sizeof(Property<T>);
+            }
+            
+        private:
+            void calculate_derivative(const PhysicalProperties* prev, size_t index, const CacheHints* hints);
+        private:
+            std::array<T, PhysicalProperties::max_derivatives> _values;
+            
+        public:
+            T smooth_value(size_t derivative) const {
+                return update_smooth(derivative);
             }
             
         protected:
@@ -179,97 +211,65 @@ namespace track {
         //GETTER(double, time)
         
         // contains either float or Point2f pointers
-        std::array<PropertyBase*, 2> _derivatives;
+        //std::array<PropertyBase*, 2> _derivatives;
+        Property<Vec2> _pos;
+        Property<float> _angle;
         //std::map<Type, PropertyBase*> _derivatives;
         
     public:
-        PhysicalProperties(Individual* fish, Frame_t frame, const Vec2& pos, float angle, const CacheHints* hints = nullptr);
-        ~PhysicalProperties();
+        PhysicalProperties() = default;
+        PhysicalProperties(const PhysicalProperties* previous, Individual* fish, Frame_t frame, const Vec2& pos, float angle, const CacheHints* hints = nullptr);
         
-        const decltype(_derivatives)& derivatives() const { return _derivatives; }
+        //const decltype(_derivatives)& derivatives() const { return _derivatives; }
         static size_t saved_midlines();
         
         //! Gets a properties value with given derivative depth,
         //  type is either float or Vec2
-        inline const PropertyBase& get(const Type& name) const {
+        /*inline const PropertyBase& get(const Type& name) const {
             return *_derivatives[(size_t)name];
         }
         inline PropertyBase& get(const Type& name) {
             return *_derivatives[(size_t)name];
-        }
+        }*/
+        
+        //template<> inline Property<Vec2>& get() { return _pos; }
+        //template<> inline Property<float>& get() { return _angle; }
         
         //void set_next(PhysicalProperties* ptr);
         
-        float speed(const Units& units, bool smooth = false) const { return length(v(units, smooth)); }
-        float acceleration(const Units& units, bool smooth = false) const { return length(a(units, smooth)); }
-        float angle(bool smooth = false) const { return get(PropertyType::ANGLE).value<float>(Units::DEFAULT, 0, smooth); };
-        float angular_velocity(const Units& units, bool smooth = false) const { return get(PropertyType::ANGLE).value<float>(units, 1, smooth); };
-        float angular_acceleration(const Units& units, bool smooth = false) const { return get(PropertyType::ANGLE).value<float>(units, 2, smooth); };
+        template<Units to> float speed(bool smooth) const { return v<to>(smooth).length(); }
+        template<Units to> float speed() const { return v<to>().length(); }
         
-        Vec2 pos(const Units& units, bool smooth = false) const { return get(PropertyType::POSITION).value<Vec2>(units, 0, smooth); }
-        Vec2 v(const Units& units, bool smooth = false) const { return get(PropertyType::POSITION).value<Vec2>(units, 1, smooth); }
-        Vec2 a(const Units& units, bool smooth = false) const { return get(PropertyType::POSITION).value<Vec2>(units, 2, smooth); }
+        template<Units to> float acceleration(bool smooth) const { return length(a<to>(smooth)); }
+        template<Units to> float acceleration() const { return length(a<to>()); }
+        
+        float angle(bool smooth) const { return _angle.value(0, smooth); };
+        float angle() const { return _angle.value(0); };
+        
+        template<Units to> float angular_velocity(bool smooth) const { return _angle.value<to>(1, smooth); };
+        template<Units to> float angular_velocity() const { return _angle.value<to>(1); };
+        
+        template<Units to> float angular_acceleration(bool smooth) const { return _angle.value<to>(2, smooth); };
+        template<Units to> float angular_acceleration() const { return _angle.value<to>(2); };
+        
+        template<Units to> Vec2 pos(bool smooth) const { return _pos.value<to>(0, smooth); }
+        template<Units to> Vec2 pos() const { return _pos.value<to>(0); }
+        
+        template<Units to> Vec2 v(bool smooth) const { return _pos.value<to>(1, smooth); }
+        template<Units to> Vec2 v() const { return _pos.value<to>(1); }
+        
+        template<Units to> Vec2 a(bool smooth) const { return _pos.value<to>(2, smooth); }
+        template<Units to> Vec2 a() const { return _pos.value<to>(2); }
         
         void flip();
         size_t memory_size() const;
         static Frame_t smooth_window();
+        static float cm_per_pixel();
         
     private:
         void update_derivatives();
     };
     
-    template<typename T>
-    T PhysicalProperties::PropertyBase::value(const Units& units, size_t derivative, bool smooth) const
-    {
-        assert(dynamic_cast<const Property<T>*>(this));
-        auto ptr = static_cast<const Property<T>*>(this);
-        //if(!ptr)
-        //    U_EXCEPTION("Wrong data type for property.");
-        return convert(smooth ? ptr->smooth_value(derivative) : ptr->value(derivative), Units::DEFAULT, units);
-    }
-    
-    template<typename T>
-    void PhysicalProperties::PropertyBase::value(const T& val, const Units& input_units, size_t derivative, const CacheHints* hints)
-    {
-        assert(dynamic_cast<Property<T>*>(this));
-        auto ptr = static_cast<Property<T>*>(this);
-        //if(!ptr)
-        //    U_EXCEPTION("Wrong data type for property.");
-        
-        // save
-        ptr->set_value(derivative, convert(val, input_units, Units::DEFAULT));
-        
-        // calculate the next higher derivative
-        for(size_t i=derivative+1; i<PhysicalProperties::max_derivatives; i++) {
-            calculate_derivative(*ptr, i, hints);
-        }
-    }
-    
-    template<typename T>
-    T PhysicalProperties::PropertyBase::convert(const T &val, const track::Units &from, const track::Units &to)
-    {
-        switch (from) {
-            case Units::PX_AND_SECONDS: {
-                if (to == Units::CM_AND_SECONDS) {
-                    return val * cm_per_pixel();
-                }
-                break;
-            }
-                
-            case Units::CM_AND_SECONDS: {
-                if (to == Units::PX_AND_SECONDS) {
-                    return val / cm_per_pixel();
-                }
-                break;
-            }
-                
-            default:
-                U_EXCEPTION("unknown conversion.");
-                break;
-        }
-        
-        return val;
-    }
 
 
 template<> Vec2 PhysicalProperties::Property<Vec2>::update_smooth(size_t derivative) const;

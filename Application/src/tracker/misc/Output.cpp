@@ -175,7 +175,7 @@ uint64_t Data::write(const PhysicalProperties& val) {
      * Derivates etc. can be calculated after loading.
      */
     
-    uint64_t p = write<Vec2>(val.pos(Units::PX_AND_SECONDS));
+    uint64_t p = write<Vec2>(val.pos<Units::PX_AND_SECONDS>());
     write<float>(val.angle());
     //write<double>(val.frame());
     
@@ -404,11 +404,16 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                 {
                     const auto& frameIndex = data.stuff->frame;
                     
+                    const PhysicalProperties *prev = nullptr;
                     if(!fish->_startFrame.valid())
                         fish->_startFrame = frameIndex;
+                    else
+                        prev = fish->basic_stuff().back()->centroid;
+                    
+                    assert(fish->_endFrame < frameIndex);
                     fish->_endFrame = frameIndex;
                     
-                    auto prop = new PhysicalProperties(fish, frameIndex, data.pos, data.angle, cache_ptr);
+                    auto prop = new PhysicalProperties(prev, fish, frameIndex, data.pos, data.angle, cache_ptr);
                     data.stuff->centroid = prop;
                     
                     auto label = FAST_SETTINGS(track_consistent_categories)/* || !FAST_SETTINGS(track_only_categories).empty()*/ ? Categorize::DataStore::ranged_label(Frame_t(frameIndex), data.stuff->blob) : nullptr;
@@ -533,6 +538,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         ref.read<uint64_t>(N);
         Frame_t frame;
         
+        PhysicalProperties *prev = nullptr;
         for (uint64_t i=0; i<N; i++) {
             ref.read<data_long_t>(frameIndex);
             frame = Frame_t( frameIndex );
@@ -553,14 +559,18 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                         ref.read_convert<float>(time);
                 }
                 
-                prop = new PhysicalProperties(fish, frame, pos, angle);
+                prop = new PhysicalProperties(prev, fish, frame, pos, angle);
             }
             
             auto midline = read_midline(ref);
             auto outline = read_outline(ref, midline);
         
-            if(check_analysis_range && (frame > analysis_range.end || frame < analysis_range.start))
+            if(check_analysis_range && (frame > analysis_range.end || frame < analysis_range.start)) {
+                if(prev)
+                    delete prev;
+                prev = prop;
                 continue;
+            }
             
             if(FAST_SETTINGS(calculate_posture)) {
                 // save values
@@ -575,9 +585,11 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                 if(!segment) U_EXCEPTION("(%d) Have to add basic stuff before adding posture stuff (frame %d).", fish->identity().ID(), frameIndex);
                 segment->add_posture_at(stuff, fish);
                 
-            } else {
-                delete prop;
             }
+            
+            if(prev)
+                delete prev;
+            prev = prop;
         }
         
     } else if(_header.version >= Versions::V_25) {

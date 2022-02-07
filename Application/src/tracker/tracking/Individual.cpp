@@ -912,12 +912,12 @@ Vec2 Individual::LocalCache::add(Frame_t frameIndex, const track::PhysicalProper
     // and we wouldnt know it. compare to velocity angle and see
     // if the difference is big. if so, flip it.
     auto v = _v_samples.empty()
-        ? current->v(Units::CM_AND_SECONDS)
+        ? current->v<Units::CM_AND_SECONDS>()
         : (_current_velocity / float(_v_samples.size()));
     
-    if(current->speed(Units::CM_AND_SECONDS) > 0.1f) {
-        _v_samples.push_back(current->v(Units::CM_AND_SECONDS));
-        _current_velocity += current->v(Units::CM_AND_SECONDS);
+    if(current->speed<Units::CM_AND_SECONDS>() > 0.1f) {
+        _v_samples.push_back(current->v<Units::CM_AND_SECONDS>());
+        _current_velocity += current->v<Units::CM_AND_SECONDS>();
     }
     
     if(_v_samples.size() >= maximum_samples) {
@@ -926,7 +926,7 @@ Vec2 Individual::LocalCache::add(Frame_t frameIndex, const track::PhysicalProper
     }
     
     _current_velocities[frameIndex] = _v_samples.empty()
-        ? current->v(Units::CM_AND_SECONDS)
+        ? current->v<Units::CM_AND_SECONDS>()
         : (_current_velocity / float(_v_samples.size()));
     
     return v;
@@ -962,16 +962,18 @@ std::shared_ptr<Individual::BasicStuff> Individual::add(Frame_t frameIndex, cons
     // find valid previous frame
     //!TODO: can probably use segment ptr here
     auto prev_frame = frameIndex - 1_f;
+    const PhysicalProperties* prev_prop = nullptr;
     if(!empty()) {
         if(frameIndex > _startFrame) {
             auto previous = find_frame(prev_frame);
             if(previous) {
                 prev_frame = previous->frame;
+                prev_prop = previous->centroid;
             }
         }
     }
     
-    PhysicalProperties *current = new PhysicalProperties(this, frame.index(), blob->center(), blob->orientation());
+    PhysicalProperties *current = new PhysicalProperties(prev_prop, this, frame.index(), blob->center(), blob->orientation());
     
     auto v = _local_cache.add(frameIndex, current);
     
@@ -1125,7 +1127,7 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(F
     error_code |= Reasons::TimestampTooDifferent * uint32_t(FAST_SETTINGS(huge_timestamp_ends_segment) && tdelta >= FAST_SETTINGS(huge_timestamp_seconds));
     error_code |= Reasons::ManualMatch           * uint32_t(is_manual_match(frameIndex));
     error_code |= Reasons::NoBlob                * uint32_t(!blob);
-    error_code |= Reasons::WeirdDistance         * uint32_t(FAST_SETTINGS(track_end_segment_for_speed) && current && current->speed(Units::CM_AND_SECONDS) >= weird_distance());
+    error_code |= Reasons::WeirdDistance         * uint32_t(FAST_SETTINGS(track_end_segment_for_speed) && current && current->speed<Units::CM_AND_SECONDS>() >= weird_distance());
     error_code |= Reasons::MaxSegmentLength      * uint32_t(FAST_SETTINGS(track_segment_max_length) > 0 && segment && segment->length() / float(FAST_SETTINGS(frame_rate)) >= FAST_SETTINGS(track_segment_max_length));
     
     if(frameIndex == _startFrame || error_code != 0) {
@@ -1322,7 +1324,21 @@ Midline::Ptr Individual::update_frame_with_posture(const std::shared_ptr<BasicSt
         pt = Vec2(x, y);
         pt += bounds.pos() + midline->offset();
         
-        posture->head = new PhysicalProperties(this, posture->frame, pt, midline->angle(), hints);
+        const PostureStuff* previous = nullptr;
+        auto it = posture_stuff().rbegin();
+        while(it != posture_stuff().rend()) {
+            if((*it)->frame < posture->frame) {
+                previous = (*it).get();
+                break;
+            }
+            ++it;
+        }
+        
+        if(previous && previous->frame < posture->frame - 1_f) {
+            Debug("More than 1! %d,%d", previous->frame.get(), posture->frame.get());
+        }
+        
+        posture->head = new PhysicalProperties(previous ? previous->head : nullptr, this, posture->frame, pt, midline->angle(), hints);
         
          //ptr//.outline().original_angle();
 #if DEBUG_ORIENTATION
@@ -1355,7 +1371,7 @@ Midline::Ptr Individual::update_frame_with_posture(const std::shared_ptr<BasicSt
         centroid_point /= float(points.size());
         centroid_point += bounds.pos();
         
-        posture->centroid_posture = new PhysicalProperties(this, posture->frame, centroid_point, midline->angle(), hints);
+        posture->centroid_posture = new PhysicalProperties(previous ? previous->centroid_posture : nullptr, this, posture->frame, centroid_point, midline->angle(), hints);
         posture->midline_angle = midline->angle();
         posture->midline_length = midline->len();
         
@@ -1554,13 +1570,13 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
         }
         
         if(bdx != -1)
-            cache.last_seen_px = _basic_stuff.at(bdx)->centroid->pos(Units::PX_AND_SECONDS);
+            cache.last_seen_px = _basic_stuff.at(bdx)->centroid->pos<Units::PX_AND_SECONDS>();
         
     } else if(!_frame_segments.empty()) {
         assert(frameIndex > (*_frame_segments.rbegin())->end());
         auto bdx = (*_frame_segments.rbegin())->basic_stuff((*_frame_segments.rbegin())->end());
         assert(bdx != -1);
-        cache.last_seen_px = _basic_stuff.at(bdx)->centroid->pos(Units::PX_AND_SECONDS);
+        cache.last_seen_px = _basic_stuff.at(bdx)->centroid->pos<Units::PX_AND_SECONDS>();
     }
     
 #ifndef NDEBUG
@@ -1744,7 +1760,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
                 return true;
             
             //! \mathbf{v}_i(t) = \mathbf{p}_i'(t) = \frac{\delta}{\delta t} \mathbf{p}_i(t)
-            auto v = (h->pos(Units::PX_AND_SECONDS) - previous_p->pos(Units::PX_AND_SECONDS)) / (c_props->time - previous_t);
+            auto v = (h->pos<Units::PX_AND_SECONDS>() - previous_p->pos<Units::PX_AND_SECONDS>()) / (c_props->time - previous_t);
             auto L = v.length();
             
             //! \hat{\mathbf{v}}_i(t) = \mathbf{v}_i(t) * \begin{cases} 1 & \mathrm{if} \norm{\mathbf{v}_i(t)} \le D_\mathrm{max} \\ D_\mathrm{max} / \norm{\mathbf{v}_i(t)} & \mathrm{otherwise} \end{cases}
@@ -1837,7 +1853,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     }
     
     if(c)
-        est += c->pos(Units::PX_AND_SECONDS);
+        est += c->pos<Units::PX_AND_SECONDS>();
     
     auto h = c;
     if(FAST_SETTINGS(calculate_posture)) {
@@ -1845,7 +1861,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
             h = pp_posture->centroid_posture;
     }
     
-    cache.speed = h ? h->speed(Units::CM_AND_SECONDS) : 0;
+    cache.speed = h ? h->speed<Units::CM_AND_SECONDS>() : 0;
     cache.h = h;
     cache.estimated_px = est;
     cache.time_probability = time_probability(cache, recent_number_samples);

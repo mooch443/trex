@@ -1080,7 +1080,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                     if (sit != fish->frame_segments().end() && (*sit)->contains(cache.previous_frame)) {
                         for (; sit != fish->frame_segments().end() && min((*sit)->end(), cache.previous_frame).get() >= time_limit && counter < frame_limit; ++counter)
                         {
-                            auto pos = fish->basic_stuff().at((*sit)->basic_stuff((*sit)->end()))->centroid->pos(Units::DEFAULT);
+                            auto pos = fish->basic_stuff().at((*sit)->basic_stuff((*sit)->end()))->centroid->pos<Units::DEFAULT>();
 
                             if ((*sit)->length() > FAST_SETTINGS(frame_rate) * FAST_SETTINGS(track_max_reassign_time) * 0.25)
                             {
@@ -1092,7 +1092,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                                 break;
                             }
 
-                            last_pos = fish->basic_stuff().at((*sit)->basic_stuff((*sit)->start()))->centroid->pos(Units::DEFAULT);
+                            last_pos = fish->basic_stuff().at((*sit)->basic_stuff((*sit)->start()))->centroid->pos<Units::DEFAULT>();
 
                             if (sit != fish->frame_segments().begin())
                                 --sit;
@@ -3150,7 +3150,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                 auto properties = _warn_individual_status.size() > (size_t)fish->identity().ID() ? &_warn_individual_status[fish->identity().ID()] : nullptr;
                 
                 if(properties && properties->current) {
-                    if(properties->current->speed(Units::CM_AND_SECONDS) >= Individual::weird_distance()) {
+                    if(properties->current->speed<Units::CM_AND_SECONDS>() >= Individual::weird_distance()) {
                         weird_distance.insert(FOI::fdx_t{fish->identity().ID()});
                     }
                 }
@@ -3314,7 +3314,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                 
                 d.set_fish0(frame_individuals.at(i));
                 d.set_fish1(frame_individuals.at(idx1));
-                d.set_d(euclidean_distance(frame_individuals.at(i)->centroid(frameIndex)->pos(Units::PX_AND_SECONDS), frame_individuals.at(idx1)->centroid(frameIndex)->pos(Units::PX_AND_SECONDS)));
+                d.set_d(euclidean_distance(frame_individuals.at(i)->centroid(frameIndex)->pos<Units::PX_AND_SECONDS>(), frame_individuals.at(idx1)->centroid(frameIndex)->pos<Units::PX_AND_SECONDS>()));
                 
                 distances.insert(d);
             }
@@ -3994,13 +3994,13 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                         auto blob_start = fish->centroid_weighted(segment.start());
                         auto blob_end = fish->centroid_weighted(segment.end());
                         if(blob_start)
-                            pos_start = blob_start->pos(Units::CM_AND_SECONDS);
+                            pos_start = blob_start->pos<Units::CM_AND_SECONDS>();
                         if(blob_end)
-                            pos_end = blob_end->pos(Units::CM_AND_SECONDS);
+                            pos_end = blob_end->pos<Units::CM_AND_SECONDS>();
                         
                         if(blob_start && blob_end) {
-                            auto dprev = euclidean_distance(prev_pos->pos(Units::CM_AND_SECONDS), pos_start) / Tracker::time_delta(blob_start->frame(), prev_pos->frame());
-                            auto dnext = euclidean_distance(next_pos->pos(Units::CM_AND_SECONDS), pos_end) / Tracker::time_delta(next_pos->frame(), blob_end->frame());
+                            auto dprev = euclidean_distance(prev_pos->pos<Units::CM_AND_SECONDS>(), pos_start) / Tracker::time_delta(blob_start->frame(), prev_pos->frame());
+                            auto dnext = euclidean_distance(next_pos->pos<Units::CM_AND_SECONDS>(), pos_end) / Tracker::time_delta(next_pos->frame(), blob_end->frame());
                             Idx_t chosen_id;
                             
                             if(dnext < dprev) {

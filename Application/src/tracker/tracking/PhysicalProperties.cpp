@@ -28,14 +28,11 @@ namespace track {
 #endif
     }
     
-    PhysicalProperties::PhysicalProperties(Individual* fish, Frame_t frame, const Vec2& pos, float angle, const CacheHints* hints) :
-    _fish(fish), _frame(frame)
+PhysicalProperties::PhysicalProperties(const PhysicalProperties* previous, Individual* fish, Frame_t frame, const Vec2& pos, float angle, const CacheHints* hints) :
+    _fish(fish), _frame(frame), _pos(this), _angle(this)
     {
-        _derivatives[(size_t)Type::POSITION] = (PropertyBase*)new Property<Vec2>(this, Type::POSITION);
-        _derivatives[(size_t)Type::ANGLE] = (PropertyBase*)new Property<float>(this, Type::ANGLE);
-        
-        _derivatives[(size_t)Type::POSITION]->value(pos, Units::PX_AND_SECONDS, 0, hints);
-        _derivatives[(size_t)Type::ANGLE]->value(angle, Units::DEFAULT, 0, hints);
+        _pos.value<Units::PX_AND_SECONDS>(previous, pos, 0, hints);
+        _angle.value<Units::DEFAULT>(previous, angle, 0, hints);
         
 #ifdef _DEBUG_MEMORY
         std::lock_guard<std::mutex> guard(all_mutex);
@@ -43,10 +40,7 @@ namespace track {
 #endif
     }
 
-    PhysicalProperties::~PhysicalProperties() {
-        for (auto d : _derivatives)
-            delete d;
-        
+    /*PhysicalProperties::~PhysicalProperties() {
 #ifdef _DEBUG_MEMORY
         std::lock_guard<std::mutex> guard(all_mutex);
         auto it = all_midlines.find(this);
@@ -55,12 +49,12 @@ namespace track {
         else
             all_midlines.erase(it);
 #endif
-    }
+    }*/
     
-    size_t PhysicalProperties::memory_size() const {
+    /*size_t PhysicalProperties::memory_size() const {
         return //sizeof(decltype(_prev))*2 +
         sizeof(Individual*) + sizeof(long_t) + _derivatives.size() * (sizeof(PropertyBase*) + sizeof(PropertyBase));
-    }
+    }*/
     
     //void PhysicalProperties::set_next(track::PhysicalProperties *ptr) {
     //    _next = ptr;
@@ -85,7 +79,7 @@ namespace track {
     //}
 
     void PhysicalProperties::flip() {
-        get(PropertyType::ANGLE).value(normalize_angle(angle() + float(M_PI)));
+        _angle.value(normalize_angle(angle() + float(M_PI)));
     }
     
     Frame_t PhysicalProperties::smooth_window() {
@@ -93,7 +87,7 @@ namespace track {
     }
     
     template<typename T>
-    void PhysicalProperties::PropertyBase::calculate_derivative(Property<T> &property, size_t index, const CacheHints* hints)
+void PhysicalProperties::Property<T>::calculate_derivative(const PhysicalProperties* previous, size_t index, const CacheHints* hints)
     {
         if(index >= PhysicalProperties::max_derivatives)
             return;
@@ -101,7 +95,15 @@ namespace track {
         assert(index > 0);
         
         const Property<T> *prev_property = NULL;
-        if(!_mother->fish()->empty()
+        if(previous) {
+            if constexpr(std::is_same_v<T, Vec2>)
+                prev_property = &previous->_pos;
+            else
+                prev_property = &previous->_angle;
+        }
+        
+        
+        /*if(!_mother->fish()->empty()
            && _mother->_frame - 1_f >= _mother->fish()->start_frame()
            && _mother->_frame - 1_f <= _mother->fish()->end_frame())
         {
@@ -110,25 +112,32 @@ namespace track {
                 auto index = (*it)->basic_stuff(_mother->_frame - 1_f);
                 if(index != -1) {
                     // valid frame
-                    prev_property = _mother->fish()->basic_stuff()[ index ]->centroid->get(type()).is_type<T>();
+                    if constexpr(std::is_same_v<T, Vec2>)
+                        prev_property = &_mother->fish()->basic_stuff()[ index ]->centroid->_pos;
+                    else
+                        prev_property = &_mother->fish()->basic_stuff()[ index ]->centroid->_angle;
+                    
                 } else {
                     // invalid frame
-                    prev_property = _mother->fish()->basic_stuff()[ (*it)->basic_index.back() ]->centroid->get(type()).is_type<T>();
+                    if constexpr(std::is_same_v<T, Vec2>)
+                        prev_property = &_mother->fish()->basic_stuff()[ (*it)->basic_index.back() ]->centroid->_pos;
+                    else
+                        prev_property = &_mother->fish()->basic_stuff()[ (*it)->basic_index.back() ]->centroid->_angle;
                 }
             }
-        }
+        }*/
         
         if(!prev_property) {
-            property.set_value(index, T(0));
+            set_value(index, T(0));
             return;
         }
         
         float tdelta = Tracker::time_delta(_mother->frame(), prev_property->_mother->frame(), hints);
-        const T& current_value = value<T>(Units::DEFAULT, index-1);
+        const T& current_value = value(index-1);
         const T& prev_value = prev_property->value(index-1);
         
         assert(tdelta > 0);
-        property.set_value(index, (current_value - prev_value) / tdelta);
+        set_value(index, (current_value - prev_value) / tdelta);
     }
     
     template<typename T>
@@ -157,7 +166,7 @@ namespace track {
         //update_smooth(derivative);
     }
     
-    float PhysicalProperties::PropertyBase::cm_per_pixel() {
+    float PhysicalProperties::cm_per_pixel() {
         return FAST_SETTINGS(cm_per_pixel);
     }
 
@@ -191,8 +200,8 @@ namespace track {
         prop->_mother->fish()->iterate_frames(Range<Frame_t>(prop->_mother->frame() - PhysicalProperties::smooth_window(), prop->_mother->frame() + PhysicalProperties::smooth_window()), [&smoothed, &derivative, &samples_prev, prop](auto, const std::shared_ptr<Individual::SegmentInformation> &, const std::shared_ptr<Individual::BasicStuff> & basic, const std::shared_ptr<Individual::PostureStuff> &) -> bool
         {
             if(basic && basic->frame != prop->_mother->frame()) {
-                auto property = static_cast<const PhysicalProperties::Property<T>*>(&basic->centroid->get(prop->type()));
-                smoothed += property->value(derivative);
+                //auto property = static_cast<const PhysicalProperties::Property<T>*>(&basic->centroid->get(prop->type()));
+                smoothed += prop->value(derivative);
                 ++samples_prev;
             }
             

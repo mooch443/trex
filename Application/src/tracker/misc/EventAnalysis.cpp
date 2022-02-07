@@ -166,7 +166,7 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
         }
         
         if(/*state.last_event_start != -1 &&*/ fish->centroid_posture(frame)) {
-            state.v_current += fish->centroid_posture(frame)->v(Units::CM_AND_SECONDS);
+            state.v_current += fish->centroid_posture(frame)->v<Units::CM_AND_SECONDS>();
             state.v_samples++;
         }
         

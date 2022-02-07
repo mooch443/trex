@@ -105,8 +105,8 @@ uint64_t MemoryStats::get_memory_size(PhysicalProperties* obj, const std::string
     uint64_t bytes = 0;
     if(obj) {
         bytes += sizeof(PhysicalProperties);
-        for(auto && v : obj->derivatives())
-            bytes += v->memory_size();
+        /*for(auto && v : obj->derivatives())
+            bytes += v->memory_size();*/
     }
     return bytes;
 }

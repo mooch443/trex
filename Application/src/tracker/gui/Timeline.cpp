@@ -445,6 +445,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                     Frame_t framemOver;
                     
                     if(_bar && _bar->hovered()) {
+                        std::lock_guard<std::mutex> guard(_proximity_bar.mutex);
                         //Vec2 pp(max_w / float(_frame_info->video_length) * idx.first, 50);
                         //float dis = abs(e.hover.x - pp.x);
                         static Timing timing("Scrubbing", 0.01);

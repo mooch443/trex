@@ -371,7 +371,7 @@ DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fis
     //! TODO: Use local_midline_length function instead
     auto constraints = Tracker::recognition()->local_midline_length(fish, consec.range, true);
     if(consec.start() > Tracker::start_frame() && fish->centroid_weighted(consec.start() - 1_f)) {
-        prev = fish->centroid_weighted(consec.start() - 1_f)->pos(Units::PX_AND_SECONDS);
+        prev = fish->centroid_weighted(consec.start() - 1_f)->pos<Units::PX_AND_SECONDS>();
     }
     
     fish->iterate_frames(consec.range, [&](Frame_t i, const auto&, const std::shared_ptr<Individual::BasicStuff> & basic, const std::shared_ptr<Individual::PostureStuff> & posture) -> bool
@@ -381,7 +381,7 @@ DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fis
         
         // go through all frames within the segment
         if(basic) {
-            auto pos = basic->centroid->pos(Units::PX_AND_SECONDS);
+            auto pos = basic->centroid->pos<Units::PX_AND_SECONDS>();
             auto grid = pos2grid(pos);
             
             ++access(grid);

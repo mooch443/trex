@@ -2146,7 +2146,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                             if(c)
                                 p0 = c->estimated_px;
                         } else
-                            p0 = fish0->centroid_weighted(frameIndex)->pos(Units::PX_AND_SECONDS);
+                            p0 = fish0->centroid_weighted(frameIndex)->pos<Units::PX_AND_SECONDS>();
                         
                         if(Graph::is_invalid(p0.x))
                             continue;
@@ -2165,7 +2165,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                                 if(c)
                                     p1 = c->estimated_px;
                             } else
-                                p1 = fish1->centroid_weighted(frameIndex)->pos(Units::PX_AND_SECONDS);
+                                p1 = fish1->centroid_weighted(frameIndex)->pos<Units::PX_AND_SECONDS>();
                             
                             if(Graph::is_invalid(p1.x))
                                 continue;
@@ -5268,11 +5268,11 @@ void GUI::generate_training_data_faces(const file::Path& path) {
                 if(found_head) {
                     images.insert(images.end(), padded.data, padded.data + padded.cols * padded.rows);
                     
-                    cv::circle(padded, found_head->pos(Units::PX_AND_SECONDS) - b.pos() + offset, 2, cv::Scalar(255));
+                    cv::circle(padded, found_head->pos<Units::PX_AND_SECONDS>() - b.pos() + offset, 2, cv::Scalar(255));
                     tf::imshow("padded", padded);
                     
-                    heads.push_back(found_head->pos(Units::PX_AND_SECONDS).x - b.x + offset.x);
-                    heads.push_back(found_head->pos(Units::PX_AND_SECONDS).y - b.y + offset.y);
+                    heads.push_back(found_head->pos<Units::PX_AND_SECONDS>().x - b.x + offset.x);
+                    heads.push_back(found_head->pos<Units::PX_AND_SECONDS>().y - b.y + offset.y);
                     ++num_images;
                 } else if(num_unassigned_blobs < 1000) {
                     tf::imshow("unlabelled", padded);

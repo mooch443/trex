@@ -462,7 +462,7 @@ file::Path conda_environment_path() {
             {"midline_y", {"RAW"}},
             {"segment_length", {"RAW"}},
             {"SPEED", {"RAW", "WCENTROID"}},
-            {"SPEED", {"SMOOTH", "WCENTROID"}},
+            //{"SPEED", {"SMOOTH", "WCENTROID"}},
             {"SPEED", {"RAW", "PCENTROID"}},
             //{"SPEED", {"SMOOTH", "PCENTROID"}},
             {"SPEED", {"RAW", "HEAD"}},
@@ -497,10 +497,10 @@ file::Path conda_environment_path() {
             {"L_V", {"/10"}},
             {"v_direction", {"/10"}},
             {"event_acceleration", {"/10"}},
-            {"SPEED", {"/10", "SMOOTH"}},
-            {"ANGULAR_V", {"/10", "SMOOTH", "CENTROID"}},
-            {"ANGULAR_A", {"/1000", "SMOOTH", "CENTROID"}},
-            {"ACCELERATION", {"/15", "SMOOTH", "CENTROID"}},
+            {"SPEED", {"/10"}},
+            {"ANGULAR_V", {"/10", "CENTROID"}},
+            {"ANGULAR_A", {"/1000", "CENTROID"}},
+            {"ACCELERATION", {"/15", "CENTROID"}},
             {"NEIGHBOR_VECTOR_T", {"/1"}},
             {"X", {"/100"}},
             {"Y", {"/100"}},
@@ -530,7 +530,7 @@ file::Path conda_environment_path() {
         CONFIG("tracklet_normalize_orientation", true, "If enabled, all exported tracklet images are normalized according to the calculated posture orientation, so that all heads are looking to the left and only the body moves.");
         CONFIG("tracklet_restore_split_blobs", true, "If enabled, all exported tracklet images are checked for missing pixels. When a blob is too close to another blob, parts of the other blob might be erased so the individuals can be told apart. If enabled, another mask will be saved, that contains only the blob in focus, without the rest-pixels.");
         CONFIG("output_image_per_tracklet", false, "If set to true, the program will output one median image per tracklet (time-series segment) and save it alongside the npz/csv files.");
-        CONFIG("output_csv_decimals", uint8_t(0), "Maximum number of decimal places that is written into CSV files (a text-based format for storing data). A value of 0 results in integer values.");
+        CONFIG("output_csv_decimals", uint8_t(2), "Maximum number of decimal places that is written into CSV files (a text-based format for storing data). A value of 0 results in integer values.");
         CONFIG("output_invalid_value", output_invalid_t::inf, "Determines, what is exported in cases where the individual was not found (or a certain value could not be calculated). For example, if an individual is found but posture could not successfully be generated, then all posture-based values (e.g. `midline_length`) default to the value specified here. By default (and for historic reasons), any invalid value is marked by 'inf'.");
         CONFIG("output_format", output_format_t::npz, "When pressing the S(ave) button or using `auto_quit`, this setting allows to switch between CSV and NPZ output. NPZ files are recommended and will be used by default - some functionality (such as visual fields, posture data, etc.) will remain in NPZ format due to technical constraints.");
         CONFIG("output_heatmaps", false, "When set to true, heatmaps are going to be saved to a separate file, or set of files '_p*' - with all the settings in heatmap_* applied.");

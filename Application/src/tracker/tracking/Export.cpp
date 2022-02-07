@@ -320,8 +320,8 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                                         
                                         auto centroid = fish->basic_stuff()[(size_t)idx]->centroid;
                                         
-                                        auto v = centroid->v(Units::PX_AND_SECONDS);
-                                        auto speed = centroid->speed(Units::PX_AND_SECONDS);
+                                        auto v = centroid->v<Units::PX_AND_SECONDS>();
+                                        auto speed = centroid->speed<Units::PX_AND_SECONDS>();
                                         vxy.push_back(frame.get());
                                         vxy.push_back(v.x);
                                         vxy.push_back(v.y);

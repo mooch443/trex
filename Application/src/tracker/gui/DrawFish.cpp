@@ -231,7 +231,7 @@ Fish::~Fish() {
         const auto centroid = _basic_stuff ? _basic_stuff->centroid : nullptr;
         const auto head = _posture_stuff ? _posture_stuff->head : nullptr;
         
-        _fish_pos = centroid ? centroid->pos(Units::PX_AND_SECONDS) : (_blob_bounds.pos() + _blob_bounds.size() * 0.5);
+        _fish_pos = centroid ? centroid->pos<Units::PX_AND_SECONDS>() : (_blob_bounds.pos() + _blob_bounds.size() * 0.5);
         
         const bool hovered = _view.hovered();
         const bool timeline_visible = GUI::instance() && GUI::instance()->timeline().visible();
@@ -442,7 +442,7 @@ Fish::~Fish() {
                 //window.vertices(line);
 
                 if (head) {
-                    window.advance(new Circle(head->pos(Units::PX_AND_SECONDS) + offset, 3, Red.alpha(max_color)));
+                    window.advance(new Circle(head->pos<Units::PX_AND_SECONDS>() + offset, 3, Red.alpha(max_color)));
                 }
             }
             });
@@ -464,7 +464,7 @@ Fish::~Fish() {
             _view.advance_wrap(_posture);
         
             // DISPLAY LABEL AND POSITION
-            auto c_pos = centroid->pos(Units::PX_AND_SECONDS) + offset;
+            auto c_pos = centroid->pos<Units::PX_AND_SECONDS>() + offset;
             if(c_pos.x > Tracker::average().cols || c_pos.y > Tracker::average().rows)
                 return;
         
@@ -885,7 +885,7 @@ Fish::~Fish() {
                     auto id = (*fit)->basic_stuff(i);
                     if(id != -1) {
                         auto &stuff = _obj.basic_stuff()[id];
-                        frame_vertices.push_front(FrameVertex{i, Vertex(stuff->centroid->pos(Units::PX_AND_SECONDS)), min(1, stuff->centroid->speed(Units::CM_AND_SECONDS) / max_speed)});
+                        frame_vertices.push_front(FrameVertex{i, Vertex(stuff->centroid->pos<Units::PX_AND_SECONDS>()), min(1, stuff->centroid->speed<Units::CM_AND_SECONDS>() / max_speed)});
                     }
                 }
             }
@@ -926,7 +926,7 @@ Fish::~Fish() {
                     auto id = (*fit)->basic_stuff(i);
                     if(id != -1) {
                         auto &stuff = _obj.basic_stuff()[id];
-                        frame_vertices.push_back(FrameVertex{i, Vertex(stuff->centroid->pos(Units::PX_AND_SECONDS)), min(1, stuff->centroid->speed(Units::CM_AND_SECONDS) / max_speed)});
+                        frame_vertices.push_back(FrameVertex{i, Vertex(stuff->centroid->pos<Units::PX_AND_SECONDS>()), min(1, stuff->centroid->speed<Units::CM_AND_SECONDS>() / max_speed)});
                     }
                 }
             }
