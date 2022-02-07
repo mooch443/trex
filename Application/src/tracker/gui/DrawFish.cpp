@@ -1142,7 +1142,7 @@ void Fish::label(Drawable* bowl, Entangled &base) {
     if(GUIOPTION(gui_show_cliques)) {
         uint32_t i=0;
         for(auto &clique : GUI::cache()._cliques) {
-            if(contains(clique.fishs, _obj.identity().ID())) {
+            if(clique.fishs.contains(_obj.identity().ID())) {
                 base.advance(new Circle(_view.pos() + _view.size() * 0.5, _view.size().length(), Transparent, ColorWheel(i).next().alpha(50)));
                 break;
             }

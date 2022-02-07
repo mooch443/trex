@@ -124,6 +124,12 @@ target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE
 	#${EXTRA_LIBS}
 )
 
+if(NOT pybind11_external)
+    target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE pybind11::pybind11 pybind11::embed pybind11::module)
+else()
+    target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE ${PYTHON_LIBRARIES})
+endif()
+
 if(WITH_HTTPD)
     add_dependencies(${TGRABS_EXEC_NAME} LibMicroHttpd)
 endif()

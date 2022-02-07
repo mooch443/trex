@@ -444,54 +444,70 @@ void GUI::draw(gui::DrawStructure &base) {
                     if (fish->has(tracker->end_frame())) {
                         auto stuff = fish->basic_stuff(tracker->end_frame());
 
-                        std::vector<Vec2> positions;
-                        fish->iterate_frames(Range<Frame_t>(tracker->end_frame() - 100_f, tracker->end_frame()), [&](Frame_t frame, const std::shared_ptr<Individual::SegmentInformation>& segment, const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture) -> bool
-                            {
-                                if (basic) {
-                                    auto bounds = basic->blob.calculate_bounds();
-                                    positions.push_back(bounds.pos() + bounds.size() * 0.5);
-                                    if (frame == tracker->end_frame()) {
-                                        base.circle(positions.back(), 10, fish->identity().color());
-                                        //auto cache = fish->cache_for_frame(frame, tracker->properties(frame)->time);
-                                        //base.text(Meta::toStr(fish->probability(cache, frame, basic->blob).p), positions.back() - Vec2(0, -100));
+                        std::vector<std::vector<Vec2>> positions{{}};
+                        Frame_t prev;
 
-                                        if (posture) {
-                                            std::vector<Vertex> oline;
-                                            auto _cached_outline = posture->outline;
-                                            auto _cached_midline = posture->cached_pp_midline;
-                                            auto clr = fish->identity().color();
-                                            auto max_color = 255;
-                                            auto points = _cached_outline->uncompress();
+                        fish->iterate_frames(Range<Frame_t>(tracker->end_frame() - 100_f, tracker->end_frame()), 
+                            [&](Frame_t frame, 
+                                const std::shared_ptr<Individual::SegmentInformation>& segment, 
+                                const std::shared_ptr<Individual::BasicStuff>& basic, 
+                                const std::shared_ptr<Individual::PostureStuff>& posture) 
+                            -> bool
+                        {
+                            if (basic) {
+                                auto bounds = basic->blob.calculate_bounds();
 
-                                            // check if we actually have a tail index
-                                            if (SETTING(gui_show_midline) && _cached_midline && _cached_midline->tail_index() != -1) {
-                                                base.circle(points.at(_cached_midline->tail_index()) + bounds.pos(), 5, Blue.alpha(max_color * 0.3));
-                                                if (_cached_midline->head_index() != -1)
-                                                    base.circle(points.at(_cached_midline->head_index()) + bounds.pos(), 5, Red.alpha(max_color * 0.3));
-                                            }
+                                if (prev.valid() && prev != frame - 1_f) {
+                                    positions.push_back({});
+                                }
+                                prev = frame;
 
-                                            //float right_side = outline->tail_index() + 1;
-                                            //float left_side = points.size() - outline->tail_index();
+                                auto p = bounds.pos() + bounds.size() * 0.5;
+                                positions.back().push_back(p);
 
-                                            for (size_t i = 0; i < points.size(); i++) {
-                                                auto pt = points[i] + bounds.pos();
-                                                Color c = clr.alpha(max_color);
-                                                /*if(outline->tail_index() != -1) {
-                                                    float d = cmn::abs(float(i) - float(outline->tail_index())) / ((long_t)i > outline->tail_index() ? left_side : right_side) * 0.4 + 0.5;
-                                                    c = Color(clr.r, clr.g, clr.b, max_color * d);
-                                                }*/
-                                                oline.push_back(Vertex(pt, c));
-                                            }
-                                            oline.push_back(Vertex(points.front() + bounds.pos(), clr.alpha(0.04 * max_color)));
-                                            //auto line =
-                                            base.add_object(new Line(oline, gui_outline_thickness));
+                                if (frame == tracker->end_frame()) {
+                                    base.circle(p, 10, fish->identity().color());
+                                    //auto cache = fish->cache_for_frame(frame, tracker->properties(frame)->time);
+                                    //base.text(Meta::toStr(fish->probability(cache, frame, basic->blob).p), positions.back() - Vec2(0, -100));
+
+                                    if (posture) {
+                                        std::vector<Vertex> oline;
+                                        auto &_cached_outline = posture->outline;
+                                        auto &_cached_midline = posture->cached_pp_midline;
+                                        auto &clr = fish->identity().color();
+                                        auto max_color = 255;
+                                        auto points = _cached_outline->uncompress();
+
+                                        // check if we actually have a tail index
+                                        if (SETTING(gui_show_midline) && _cached_midline && _cached_midline->tail_index() != -1) {
+                                            base.circle(points.at(_cached_midline->tail_index()) + bounds.pos(), 5, Blue.alpha(max_color * 0.3));
+                                            if (_cached_midline->head_index() != -1)
+                                                base.circle(points.at(_cached_midline->head_index()) + bounds.pos(), 5, Red.alpha(max_color * 0.3));
                                         }
+
+                                        //float right_side = outline->tail_index() + 1;
+                                        //float left_side = points.size() - outline->tail_index();
+
+                                        for (size_t i = 0; i < points.size(); i++) {
+                                            auto pt = points[i] + bounds.pos();
+                                            Color c = clr.alpha(max_color);
+                                            /*if(outline->tail_index() != -1) {
+                                                float d = cmn::abs(float(i) - float(outline->tail_index())) / ((long_t)i > outline->tail_index() ? left_side : right_side) * 0.4 + 0.5;
+                                                c = Color(clr.r, clr.g, clr.b, max_color * d);
+                                            }*/
+                                            oline.push_back(Vertex(pt, c));
+                                        }
+                                        oline.push_back(Vertex(points.front() + bounds.pos(), clr.alpha(0.04 * max_color)));
+                                        //auto line =
+                                        base.add_object(new Line(oline, gui_outline_thickness));
                                     }
                                 }
-                                return true;
-                            });
+                            }
+                            return true;
+                        });
 
-                        base.line(positions, 2, fish->identity().color());
+                        for(auto&v : positions)
+                            base.line(v, 2, fish->identity().color());
                     }
                 }
             });

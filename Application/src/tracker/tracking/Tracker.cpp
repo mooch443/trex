@@ -2265,7 +2265,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                             clique.bids.insert(col.cdx);
                             
                             for (auto it = cliques.begin(); it != cliques.end();) {
-                                if(contains(it->fishs, idx) || contains(it->bids, col.cdx)) {
+                                if(it->fishs.contains(idx) || it->bids.contains(col.cdx)) {
                                     clique.fishs.insert(it->fishs.begin(), it->fishs.end());
                                     clique.bids.insert(it->bids.begin(), it->bids.end());
                                     
@@ -2310,14 +2310,14 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                             Debug("\t\tExploring blob %u (aka %u) with edges %S", cdx, (*blob)->blob_id(), &str);
 #endif
                             for(auto fdi : bedges) {
-                                if(!contains(cliques[index].fishs, fdi) && !contains(added_individuals, fdi)) {
+                                if(!cliques[index].fishs.contains(fdi) && !added_individuals.contains(fdi)) {
                                     added_individuals.insert(fdi);
                                     
                                     for(size_t j=0; j<cliques.size(); ++j) {
                                         if(j == index)
                                             continue;
                                         
-                                        if(contains(cliques[j].bids, cdx) || contains(cliques[j].fishs, fdi))
+                                        if(cliques[j].bids.contains(cdx) || cliques[j].fishs.contains(fdi))
                                         {
 #ifdef TREX_DEBUG_MATCHING
                                             // merge cliques
@@ -2363,7 +2363,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                             Debug("\t\tExploring row %d (aka fish%d) with edges=%S", i, paired_blobs.row(i)->identity().ID(), &estr);
 #endif
                             for(auto &e : edges) {
-                                if(!contains(cliques[index].bids, e.cdx))
+                                if(!cliques[index].bids.contains(e.cdx))
                                     added_blobs.insert(e.cdx);
                             }
                         }
@@ -2433,7 +2433,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                         Match::PairedProbabilities paired;
                         for(auto fish : paired_blobs.rows()) {
                             auto fdi = paired_blobs.index(fish);
-                            if(!contains(clique.fishs, fdi)
+                            if(!clique.fishs.contains(fdi)
                                || (fish_assigned.count(fish) && fish_assigned.at(fish)))
                                 continue;
                             

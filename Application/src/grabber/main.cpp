@@ -53,6 +53,8 @@
 #include <python/GPURecognition.h>
 #include <opencv2/core/utils/logger.hpp>
 
+#include <tracking/Recognition.h>
+
 //-Functions-------------------------------------------------------------------
 
 ENUM_CLASS(Arguments,
@@ -600,6 +602,15 @@ int main(int argc, char** argv)
          * ignored previously.
          */
         cmd.load_settings();
+
+        if (SETTING(enable_closed_loop)) {
+            track::PythonIntegration::set_settings(GlobalSettings::instance());
+            track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
+
+            track::Recognition::fix_python();
+            track::PythonIntegration::instance();
+            track::PythonIntegration::ensure_started();
+        }
         
         SETTING(meta_source_path) = Path(SETTING(video_source).value<std::string>());
         std::vector<file::Path> filenames;

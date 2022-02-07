@@ -214,7 +214,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
     }
 
     void Recognition::fix_python() {
-        if(!FAST_SETTINGS(recognition_enable))
+        if(!FAST_SETTINGS(recognition_enable) && !SETTING(enable_closed_loop))
             return;
         
 #ifdef TREX_PYTHON_PATH

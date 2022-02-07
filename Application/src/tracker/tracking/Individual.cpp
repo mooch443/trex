@@ -1334,10 +1334,6 @@ Midline::Ptr Individual::update_frame_with_posture(const std::shared_ptr<BasicSt
             ++it;
         }
         
-        if(previous && previous->frame < posture->frame - 1_f) {
-            Debug("More than 1! %d,%d", previous->frame.get(), posture->frame.get());
-        }
-        
         posture->head = new PhysicalProperties(previous ? previous->head : nullptr, this, posture->frame, pt, midline->angle(), hints);
         
          //ptr//.outline().original_angle();
