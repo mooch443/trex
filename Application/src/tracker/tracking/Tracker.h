@@ -139,8 +139,8 @@ CREATE_STRUCT(Settings,
         
     public:
         struct Clique {
-            std::unordered_set<uint32_t> bids;  // index of blob, not blob id
-            std::unordered_set<uint32_t> fishs; // index of fish
+            UnorderedVectorSet<pv::bid> bids;  // index of blob, not blob id
+            UnorderedVectorSet<Idx_t> fishs; // index of fish
         };
         ska::bytell_hash_map<Frame_t, std::vector<Clique>> _cliques;
         

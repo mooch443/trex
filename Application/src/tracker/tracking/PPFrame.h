@@ -37,12 +37,12 @@ public:
     const IndividualCache* cached(Idx_t) const;
     
     //std::map<Idx_t, IndividualCache> cached_individuals;
-    std::map<pv::bid, std::set<uint32_t>> clique_for_blob;
-    std::map<pv::bid, std::set<pv::bid>> clique_second_order;
-    std::set<pv::bid> split_blobs;
+    ska::bytell_hash_map<pv::bid, UnorderedVectorSet<uint32_t>> clique_for_blob;
+    ska::bytell_hash_map<pv::bid, UnorderedVectorSet<pv::bid>> clique_second_order;
+    UnorderedVectorSet<pv::bid> split_blobs;
     
 protected:
-    std::unordered_map<pv::bid, pv::BlobPtr> _bdx_to_ptr;
+    ska::bytell_hash_map<pv::bid, pv::BlobPtr> _bdx_to_ptr;
     GETTER(grid::ProximityGrid, blob_grid)
     
 public:

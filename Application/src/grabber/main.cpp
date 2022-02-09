@@ -37,10 +37,6 @@
 #include <video/Video.h>
 #include "CropWindow.h"
 
-#if __linux__
-#include <X11/Xlib.h>
-#endif
-
 #include "default_config.h"
 #include <tracker/misc/default_config.h>
 #include <misc/default_settings.h>
@@ -54,6 +50,10 @@
 #include <opencv2/core/utils/logger.hpp>
 
 #include <tracking/Recognition.h>
+
+#if __linux__
+#include <X11/Xlib.h>
+#endif
 
 //-Functions-------------------------------------------------------------------
 

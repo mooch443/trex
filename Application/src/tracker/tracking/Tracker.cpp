@@ -1168,7 +1168,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
             }
         }
         
-        std::set<pv::bid> already_walked;
+        UnorderedVectorSet<pv::bid> already_walked;
         std::vector<pv::BlobPtr> big_blobs;
         robin_hood::unordered_map<pv::BlobPtr, split_expectation> expect;
         
@@ -1221,7 +1221,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         }
         
         for(auto && [bdx, set] : blob_mappings) {
-            if(already_walked.count(bdx)) {
+            if(already_walked.contains(bdx)) {
                 Log(out, "\tblob %d already walked", bdx);
                 continue;
             }
@@ -1231,8 +1231,8 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                 continue;
             Log(out, "\tFinding clique of this blob:");
             
-            std::set<uint32_t> clique;
-            std::set<pv::bid> others;
+            UnorderedVectorSet<uint32_t> clique;
+            UnorderedVectorSet<pv::bid> others;
             std::queue<pv::bid> q;
             q.push(bdx);
             
@@ -1245,8 +1245,8 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                     if(fdx < 0)
                         continue;
                     
-                    for(auto b : fish_mappings.at(fdx)) {
-                        if(!others.count(b)) {
+                    for(auto &b : fish_mappings.at(fdx)) {
+                        if(!others.contains(b)) {
                             q.push(b);
                             others.insert(b);
                             already_walked.insert(b);
@@ -2045,7 +2045,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             std::set<FOI::fdx_t> identities;
             
             for(auto && [fdx, bdx] : actual_assignments) {
-                auto blob = frame.bdx_to_ptr(bdx);
+                auto &blob = frame.bdx_to_ptr(bdx);
                 
                 Individual *fish = nullptr;
                 auto it = _individuals.find(fdx);
@@ -2145,7 +2145,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                                                            //ptr2ptr,
                                                            &_thread_pool);
         
-        if(!manual_identities.empty() && manual_identities.size() < paired_blobs.n_rows()) {
+        if(!manual_identities.empty() && manual_identities.size() < (Match::index_t)paired_blobs.n_rows()) {
             using namespace Match;
             
             for (auto r : paired_blobs.rows()) {
@@ -2157,7 +2157,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                         auto edges = paired_blobs.edges_for_row(idx);
                         
                         // only one possibility!
-                        auto blob = edges.front();
+                        auto &blob = edges.front();
                         Individual *other = NULL;
                         size_t count = 0;
                         
@@ -2215,9 +2215,8 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
 #endif
         
         if(match_mode == default_config::matching_mode_t::automatic) {
-            std::unordered_set<uint32_t> all_individuals;
-            std::vector<std::set<uint32_t>> blob_cliques;
-            std::vector<Clique> cliques;
+            //std::unordered_set<uint32_t> all_individuals;
+            //std::vector<std::set<uint32_t>> blob_cliques;
             
             /*for(auto &&[bdx, c] : frame.blob_cliques) {
                 if(!contains(blob_cliques, c)) {
@@ -2246,14 +2245,27 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 }
             }*/
             
-            Clique clique;
+            struct IndexClique {
+                UnorderedVectorSet<Match::blob_index_t> bids;
+                UnorderedVectorSet<Match::fish_index_t> fids;
+
+                void clear() {
+                    bids.clear();
+                    fids.clear();
+                }
+
+            } clique;
+
+            UnorderedVectorSet<Match::fish_index_t> all_individuals;
+            std::vector<IndexClique> cliques;
+
+            const auto p_threshold = FAST_SETTINGS(matching_probability_threshold);
             
             for(auto &row : paired_blobs.rows()) {
                 auto idx = paired_blobs.index(row);
                 if(paired_blobs.degree(idx) > 1) {
                     auto edges = paired_blobs.edges_for_row(idx);
-                    clique.bids.clear();
-                    clique.fishs.clear();
+                    clique.clear();
                     
                     for(auto &col : edges) {
                         if(!frame.find_bdx((*paired_blobs.col(col.cdx))->blob_id())) {
@@ -2261,12 +2273,12 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                             continue;
                         }
                         
-                        if(col.p >= FAST_SETTINGS(matching_probability_threshold)) {
+                        if(col.p >= p_threshold) {
                             clique.bids.insert(col.cdx);
                             
                             for (auto it = cliques.begin(); it != cliques.end();) {
-                                if(it->fishs.contains(idx) || it->bids.contains(col.cdx)) {
-                                    clique.fishs.insert(it->fishs.begin(), it->fishs.end());
+                                if(it->fids.contains(idx) || it->bids.contains(col.cdx)) {
+                                    clique.fids.insert(it->fids.begin(), it->fids.end());
                                     clique.bids.insert(it->bids.begin(), it->bids.end());
                                     
                                     it = cliques.erase(it);
@@ -2279,7 +2291,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     
                     if(!clique.bids.empty()) {
                         all_individuals.insert(idx);
-                        clique.fishs.insert(idx);
+                        clique.fids.insert(idx);
                         cliques.emplace_back(std::move(clique));
                     }
                 }
@@ -2290,15 +2302,17 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             } else {
                 // try to extend cliques as far as possible (and merge)
                 for(size_t index = 0; index < cliques.size(); ++index) {
-                    std::unordered_set<uint32_t> added_individuals;
-                    std::unordered_set<uint32_t> added_blobs(cliques[index].bids);
+                    IndexClique indexes;
+                    indexes.bids = cliques[index].bids;
+                    //UnorderedVectorSet<Match::fish_index_t> added_individuals;
+                    //UnorderedVectorSet<Match::blob_index_t> added_blobs(cliques[index].bids);
                     
                     do {
-                        added_individuals.clear();
+                        indexes.fids.clear();
                         
-                        for(auto cdx : added_blobs) {
+                        for(auto cdx : indexes.bids) {
                             auto blob = paired_blobs.col(cdx);
-                            auto bedges = paired_blobs.edges_for_col(cdx);
+                            auto &bedges = paired_blobs.edges_for_col(cdx);
                             
                             if(!frame.find_bdx((*blob)->blob_id())) {
                                 Debug("Frame %d: Cannot find blob %u in map.", frameIndex, (*blob)->blob_id());
@@ -2310,14 +2324,14 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                             Debug("\t\tExploring blob %u (aka %u) with edges %S", cdx, (*blob)->blob_id(), &str);
 #endif
                             for(auto fdi : bedges) {
-                                if(!cliques[index].fishs.contains(fdi) && !added_individuals.contains(fdi)) {
-                                    added_individuals.insert(fdi);
+                                if(!cliques[index].fids.contains(fdi) && !indexes.fids.contains(fdi)) {
+                                    indexes.fids.insert(fdi);
                                     
                                     for(size_t j=0; j<cliques.size(); ++j) {
                                         if(j == index)
                                             continue;
                                         
-                                        if(cliques[j].bids.contains(cdx) || cliques[j].fishs.contains(fdi))
+                                        if(cliques[j].bids.contains(cdx) || cliques[j].fids.contains(fdi))
                                         {
 #ifdef TREX_DEBUG_MATCHING
                                             // merge cliques
@@ -2328,7 +2342,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                                             auto str3 = Meta::toStr(cliques[j].bids);
 #endif
                                             
-                                            added_individuals.insert(cliques[j].fishs.begin(), cliques[j].fishs.end());
+                                            indexes.fids.insert(cliques[j].fids.begin(), cliques[j].fids.end());
                                             cliques[index].bids.insert(cliques[j].bids.begin(), cliques[j].bids.end());
                                             
 #ifdef TREX_DEBUG_MATCHING
@@ -2355,8 +2369,8 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                             }
                         }
                         
-                        added_blobs.clear();
-                        for(auto i : added_individuals) {
+                        indexes.bids.clear();
+                        for(auto i : indexes.fids) {
                             auto edges = paired_blobs.edges_for_row(i);
 #ifdef TREX_DEBUG_MATCHING
                             auto estr = Meta::toStr(edges);
@@ -2364,7 +2378,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
 #endif
                             for(auto &e : edges) {
                                 if(!cliques[index].bids.contains(e.cdx))
-                                    added_blobs.insert(e.cdx);
+                                    indexes.bids.insert(e.cdx);
                             }
                         }
                         
@@ -2374,9 +2388,9 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                             Debug("Adding %S to clique %lu", &str, index);
                         }
 #endif
-                        cliques[index].fishs.insert(added_individuals.begin(), added_individuals.end());
+                        cliques[index].fids.insert(indexes.fids.begin(), indexes.fids.end());
                         
-                    } while(!added_individuals.empty());
+                    } while(!indexes.fids.empty());
                 }
                 
                 Clique translated;
@@ -2387,9 +2401,9 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     translated.fishs.clear();
                     
                     for(auto bdi : clique.bids)
-                        translated.fishs.emplace((*paired_blobs.col(bdi))->blob_id());
-                    for(auto fdi : clique.fishs)
-                        translated.fishs.emplace(paired_blobs.row(fdi)->identity().ID());
+                        translated.bids.insert((*paired_blobs.col(bdi))->blob_id());
+                    for(auto fdi : clique.fids)
+                        translated.fishs.insert(paired_blobs.row(fdi)->identity().ID());
                     
                     _cliques[frameIndex].emplace_back(std::move(translated));
                 }
@@ -2422,18 +2436,14 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     }
 #endif
                     
-                    _thread_pool.enqueue([&paired_blobs, &blob_assigned, &fish_assigned, &frame, &assign_blob_individual, &thread_mutex, &active_individuals, &executed, &_variable
-#ifdef TREX_DEBUG_MATCHING
-                                          , &pairs
-#endif
-                                          ]
-                                         (const Clique& clique, Frame_t frameIndex)
+                    _thread_pool.enqueue([&paired_blobs, &blob_assigned, &fish_assigned, &frame, &assign_blob_individual, &thread_mutex, &active_individuals, &executed, &_variable]
+                                         (const IndexClique& clique, Frame_t frameIndex)
                     {
                         using namespace Match;
                         Match::PairedProbabilities paired;
                         for(auto fish : paired_blobs.rows()) {
                             auto fdi = paired_blobs.index(fish);
-                            if(!clique.fishs.contains(fdi)
+                            if(!clique.fids.contains(fdi)
                                || (fish_assigned.count(fish) && fish_assigned.at(fish)))
                                 continue;
                             
@@ -2473,13 +2483,12 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 
                 {
                     std::unique_lock g(thread_mutex);
-                    while(executed < cliques.size()) {
+                    while(executed < cliques.size())
                         _variable.wait(g);
-                    }
                 }
                 
                 Match::PairedProbabilities paired;
-                auto in_map = paired_blobs.rows();
+                auto &in_map = paired_blobs.rows();
                 for(auto fish : in_map) {
                     if(fish_assigned.find(fish) == fish_assigned.end() || !fish_assigned.at(fish)) {
                         auto edges = paired_blobs.edges_for_row(paired_blobs.index(fish));
@@ -2631,8 +2640,8 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 
                 if(!frame_uses_approximate) {
                     std::lock_guard<std::mutex> guard(_statistics_mutex);
-                    _statistics[frameIndex].match_number_blob = paired_blobs.n_cols();
-                    _statistics[frameIndex].match_number_fish = paired_blobs.n_rows();
+                    _statistics[frameIndex].match_number_blob = (Match::index_t)paired_blobs.n_cols();
+                    _statistics[frameIndex].match_number_fish = (Match::index_t)paired_blobs.n_rows();
                     //_statistics[frameIndex].match_number_edges = nedges;
                     _statistics[frameIndex].match_stack_objects = optimal.objects_looked_at;
                     /*_statistics[frameIndex].match_max_edges_per_blob = max_edges_per_blob;
