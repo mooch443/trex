@@ -520,6 +520,8 @@ void Individual::remove_frame(Frame_t frameIndex) {
     if (frameIndex > _endFrame)
         return;
     
+    _hints.remove_after(frameIndex);
+    
     {
         auto it = added_postures.begin();
         while (it != added_postures.end() && *it < frameIndex) {
@@ -1457,6 +1459,14 @@ struct CompareByFrame {
     }
 };
 
+void CacheHints::remove_after(Frame_t index) {
+    auto here = std::lower_bound(_last_second.begin(), _last_second.end(), index, CompareByFrame{});
+    if(here == _last_second.end())
+        return;
+    std::fill(here, _last_second.end(), nullptr);
+    std::rotate(_last_second.begin(), here, _last_second.end());
+}
+
 void CacheHints::push(Frame_t index, const FrameProperties* ptr) {
     auto here = std::upper_bound(_last_second.begin(), _last_second.end(), index, CompareByFrame{});
     if(_last_second.size() > 1) {
@@ -1465,10 +1475,13 @@ void CacheHints::push(Frame_t index, const FrameProperties* ptr) {
             here = std::rotate(_last_second.begin(), ++_last_second.begin(), _last_second.end());
             
         } else {
-            if(here == _last_second.begin() || *(here-1) != nullptr)
+            if(here == _last_second.begin()) {
+                if(*here != nullptr)
+                    return; // the vector is already full and this is older (so dont add it)
+            } else if(*(here-1) != nullptr) {
                 // rotate everything thats right of our element to the end
-                here = std::rotate(_last_second.begin(), ++_last_second.begin(), here);
-            else
+                here = std::rotate(_last_second.begin(), ++_last_second.begin(), here + 1);
+            } else
                 --here;
         }
         
