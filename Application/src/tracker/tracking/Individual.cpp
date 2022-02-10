@@ -1030,7 +1030,7 @@ std::shared_ptr<Individual::BasicStuff> Individual::add(const FrameProperties* p
     
     const auto video_length = Tracker::analysis_range().end;
     if(frameIndex >= video_length) {
-        update_midlines(nullptr);
+        update_midlines(&_hints);
     }
     
     return stuff;
@@ -1297,15 +1297,15 @@ Midline::Ptr Individual::calculate_midline_for(const std::shared_ptr<BasicStuff>
 }
 
 Midline::Ptr Individual::update_frame_with_posture(const std::shared_ptr<BasicStuff>& basic, const std::shared_ptr<PostureStuff>& posture, const CacheHints* hints) {
-    auto ptr = posture->cached_pp_midline;
-    auto blob = basic->blob;
+    auto &ptr = posture->cached_pp_midline;
+    auto &blob = basic->blob;
     basic->pixels = nullptr;
     
     Midline::Ptr midline;
     
     if(ptr) {
         midline = calculate_midline_for(basic, posture);
-        auto outline = posture->outline;
+        auto &outline = posture->outline;
         auto c = basic->centroid;
         
         if(!midline)
