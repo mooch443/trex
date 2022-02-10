@@ -1486,7 +1486,7 @@ TRex parameters
 
 .. function:: output_csv_decimals(uchar)
 
-	**default value:** 0
+	**default value:** 2
 
 
 	Maximum number of decimal places that is written into CSV files (a text-based format for storing data). A value of 0 results in integer values.
