@@ -69,6 +69,7 @@ namespace track {
         void clear(size_t size = 0);
         size_t size() const;
         bool full() const;
+        void remove_after(Frame_t);
         const FrameProperties* properties(Frame_t) const;
     };
 
