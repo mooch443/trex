@@ -45,10 +45,9 @@ namespace track {
         uint64_t org_timestamp;
         Frame_t frame;
         long_t active_individuals;
-        std::vector<PairDistance> _pair_distances;
         
-        FrameProperties(Frame_t frame, double t, uint64_t ot, std::vector<PairDistance> pair_distances = {})
-            : time(t), org_timestamp(ot), frame(frame), active_individuals(-1), _pair_distances(pair_distances)
+        FrameProperties(Frame_t frame, double t, uint64_t ot)
+            : time(t), org_timestamp(ot), frame(frame), active_individuals(-1)
         {}
         
         FrameProperties()
@@ -66,7 +65,7 @@ namespace track {
         
         CacheHints(size_t size = 0);
         void push(Frame_t index, const FrameProperties* ptr);
-        void push_front(Frame_t index, const FrameProperties* ptr);
+        //void push_front(Frame_t index, const FrameProperties* ptr);
         void clear(size_t size = 0);
         size_t size() const;
         bool full() const;

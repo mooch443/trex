@@ -123,9 +123,9 @@ CREATE_STRUCT(Settings,
         
         GETTER_NCONST(Border, border)
         
-        std::vector<FrameProperties> _added_frames;
+        std::vector<std::unique_ptr<FrameProperties>> _added_frames;
     public:
-        const std::vector<FrameProperties>& frames() const { return _added_frames; }
+        const std::vector<std::unique_ptr<FrameProperties>>& frames() const { return _added_frames; }
     protected:
         Image::Ptr _average;
         GETTER_SETTER(cv::Mat, mask)

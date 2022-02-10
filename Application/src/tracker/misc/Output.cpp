@@ -1063,7 +1063,7 @@ namespace Output {
         return pack_size;
     }
     
-    void ResultsFormat::write_file(const std::vector<track::FrameProperties> &frames, const Tracker::active_individuals_t &active_individuals_frame, const ska::bytell_hash_map<Idx_t, Individual *> &individuals, const std::vector<std::string>& exclude_settings)
+    void ResultsFormat::write_file(const std::vector<std::unique_ptr<track::FrameProperties>> &frames, const Tracker::active_individuals_t &active_individuals_frame, const ska::bytell_hash_map<Idx_t, Individual *> &individuals, const std::vector<std::string>& exclude_settings)
     {
         estimated_size = sizeof(uint64_t)*3 + frames.size() * (sizeof(data_long_t)+sizeof(CompatibilityFrameProperties)) + active_individuals_frame.size() * (sizeof(data_long_t)+sizeof(uint64_t)+(active_individuals_frame.empty() ? individuals.size() : active_individuals_frame.begin()->second.size())*sizeof(data_long_t));
         
@@ -1102,7 +1102,7 @@ namespace Output {
         if(!SETTING(quiet))
             Debug("Writing %ld frames", frames.size());
         for (auto &p : frames)
-            write<track::FrameProperties>(p);
+            write<track::FrameProperties>(*p);
         
         // write number of individuals
         write<uint64_t>(_expected_individuals);
@@ -1200,32 +1200,32 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
     ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator> iterator_map;
     
     for(const auto &props : _tracker._added_frames) {
-        prev_time = props.time;
+        prev_time = props->time;
         
         // number of individuals actually assigned in this frame
         /*n = 0;
         for(const auto &fish : it->second) {
             n += fish->has(props.frame) ? 1 : 0;
         }*/
-        n = props.active_individuals;
+        n = props->active_individuals;
         
         // update tracker with the numbers
         //assert(it->first == props.frame);
-        auto &active = _tracker._active_individuals_frame.at(props.frame);
-        if(prev_props && prev_frame - props.frame > 1_f)
+        auto &active = _tracker._active_individuals_frame.at(props->frame);
+        if(prev_props && prev_frame - props->frame > 1_f)
             prev_props = nullptr;
         
-        _tracker.update_consecutive(active, props.frame, false);
-        _tracker.update_warnings(props.frame, props.time, (long_t)number_fish, n, prev, &props, prev_props, active, iterator_map);
+        _tracker.update_consecutive(active, props->frame, false);
+        _tracker.update_warnings(props->frame, props->time, (long_t)number_fish, n, prev, props.get(), prev_props, active, iterator_map);
         
         prev = n;
-        prev_props = &props;
-        prev_frame = props.frame;
+        prev_props = props.get();
+        prev_frame = props->frame;
         
-        if(props.frame.get() % max(1u, uint64_t(_tracker._added_frames.size() / 10u)) == 0) {
-            update_progress("FOIs...", props.frame.get() / float(_tracker.end_frame().get()), Meta::toStr(props.frame)+" / "+Meta::toStr(_tracker.end_frame()));
+        if(props->frame.get() % max(1u, uint64_t(_tracker._added_frames.size() / 10u)) == 0) {
+            update_progress("FOIs...", props->frame.get() / float(_tracker.end_frame().get()), Meta::toStr(props->frame)+" / "+Meta::toStr(_tracker.end_frame()));
             if(!SETTING(quiet))
-                Debug("\tupdate_fois %d / %d\r", props.frame, _tracker.end_frame());
+                Debug("\tupdate_fois %d / %d\r", props->frame, _tracker.end_frame());
         }
     }
     
@@ -1347,7 +1347,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         }
         
         for(auto &prop : _tracker.frames())
-            file._property_cache->push(prop.frame, &prop);
+            file._property_cache->push(prop->frame, prop.get());
         
         // read the individuals
         std::map<Idx_t, Individual*> map_id_ptr;
@@ -1442,10 +1442,10 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             for(auto &props : _tracker._added_frames) {
                 // number of individuals actually assigned in this frame
                 n = 0;
-                for(const auto &fish : _tracker._active_individuals_frame.at(props.frame)) {
-                    n += fish->has(props.frame);
+                for(const auto &fish : _tracker._active_individuals_frame.at(props->frame)) {
+                    n += fish->has(props->frame);
                 }
-                props.active_individuals = n;
+                props->active_individuals = n;
             }
         }
         

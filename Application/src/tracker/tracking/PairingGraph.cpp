@@ -35,7 +35,7 @@ PairedProbabilities::col_t::value_type PairedProbabilities::col(blob_index_t cdx
 }
 
 size_t PairedProbabilities::degree(fish_index_t rdx) const {
-    assert(rdx < _degree.size());
+    assert((Match::index_t)rdx < _degree.size());
     return _degree[(index_t)rdx];
 }
 
@@ -601,7 +601,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
      */
         
 #ifndef NDEBUG
-    auto local_best_p = current.prob_it != current._probs->end() && (current.prob_it->cdx == -1 || !current.blobs_present[current.prob_it->cdx]) ? current.prob_it->p : 0;
+    auto local_best_p = current.prob_it != current._probs->end() && (!current.prob_it->cdx.valid() || !current.blobs_present[(Match::index_t)current.prob_it->cdx]) ? current.prob_it->p : 0;
     
     auto print_stack = [&]() {
         auto next = std::next(current.fish_it);
@@ -609,11 +609,11 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
         if(current.fish_it != _optimal_pairing->set.end()) {
             size_t degree = current.fish_it->degree;
             for(auto &e : *current._probs) {
-                if(e.cdx >= 0 && current.blobs_present[e.cdx]) {
+                if(e.cdx.valid() && current.blobs_present[(Match::index_t)e.cdx]) {
                     --degree;
                 }
             }
-            Debug("\tidentity:%d, blob:%d", current.fish_it->fish->identity().ID(), current.prob_it != current._probs->end() ? current.prob_it->cdx : -2);
+            Debug("\tidentity:%d, blob:%d", current.fish_it->fish->identity().ID(), current.prob_it != current._probs->end() ? (Match::index_t)current.prob_it->cdx : -2);
             Debug("\tdegree:%d/%d", degree, current.fish_it->degree);
             Debug("\tacc_p:%f/%f (%f, %f, %f)", current.acc_p + ((next != _optimal_pairing->set.end()) ? hierarchy_best_p : 0) + local_best_p, _optimal_pairing->p.load(), current.acc_p, hierarchy_best_p, local_best_p);
             if(_optimal_pairing->p.load() > 0 && current.acc_p + ((next != _optimal_pairing->set.end()) ? hierarchy_best_p : 0) + local_best_p > _optimal_pairing->p.load()) {
@@ -1033,11 +1033,11 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 
                 for(auto &&[row, i] : individual_index) {
                     for (auto &e : _paired.edges_for_row(i)) {
-                        assert(e.cdx != -1);
+                        assert(e.cdx.valid());
                         //auto blob_edges = _blob_edges.at(_blobs[b.blob_index]);
                         if(e.p >= FAST_SETTINGS(matching_probability_threshold)) {
-                            assert(i < n);
-                            assert(e.cdx < (index_t)_paired.n_cols());
+                            assert((Match::index_t)i < n);
+                            assert(e.cdx < _paired.n_cols());
                             dist_matrix[(index_t)i][(index_t)e.cdx] = Hungarian_t(-(scaling * e.p + 0.5)); //! + 0.5 to ensure proper rounding
                         }
                     }
@@ -1366,8 +1366,8 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
 #endif
     }
     
-PairingGraph::PairingGraph(Frame_t frame, const decltype(_paired)& paired)
-    : _frame(frame), _time(Tracker::properties(frame)->time), _paired(paired), _optimal_pairing(NULL)
+PairingGraph::PairingGraph(const FrameProperties& props, Frame_t frame, const decltype(_paired)& paired)
+    : _frame(frame), _time(props.time), _paired(paired), _optimal_pairing(NULL)
 {
 }
 

@@ -944,7 +944,7 @@ void Individual::LocalCache::add(const std::shared_ptr<PostureStuff>& stuff) {
     }
 }
 
-std::shared_ptr<Individual::BasicStuff> Individual::add(Frame_t frameIndex, const PPFrame& frame, const pv::BlobPtr& blob, prob_t current_prob, default_config::matching_mode_t::Class match_mode) {
+std::shared_ptr<Individual::BasicStuff> Individual::add(const FrameProperties* props, Frame_t frameIndex, const PPFrame& frame, const pv::BlobPtr& blob, prob_t current_prob, default_config::matching_mode_t::Class match_mode) {
     if (has(frameIndex))
         return nullptr;
     
@@ -973,7 +973,8 @@ std::shared_ptr<Individual::BasicStuff> Individual::add(Frame_t frameIndex, cons
         }
     }
     
-    PhysicalProperties *current = new PhysicalProperties(prev_prop, this, frame.index(), blob->center(), blob->orientation());
+    _hints.push(frameIndex, props);
+    PhysicalProperties *current = new PhysicalProperties(prev_prop, this, frame.index(), blob->center(), blob->orientation(), &_hints);
     
     auto v = _local_cache.add(frameIndex, current);
     
@@ -1439,8 +1440,43 @@ CacheHints::CacheHints(size_t size) {
     clear(size);
 }
 
+template<class T>
+auto insert_at(std::vector<T>& vector, T&& element) {
+    return vector.insert(std::upper_bound(vector.begin(), vector.end(), element), std::move(element));
+}
+
+struct CompareByFrame {
+    constexpr bool operator()(const FrameProperties* A, const FrameProperties* B) {
+        return (!A && B) || (A && B && A->frame < B->frame);
+    }
+    constexpr bool operator()(const FrameProperties* A, const Frame_t& B) {
+        return !A || A->frame < B;
+    }
+    constexpr bool operator()(const Frame_t& A, const FrameProperties* B) {
+        return B && A < B->frame;
+    }
+};
+
 void CacheHints::push(Frame_t index, const FrameProperties* ptr) {
-    assert(!current.valid() || current == index - 1_f);
+    auto here = std::upper_bound(_last_second.begin(), _last_second.end(), index, CompareByFrame{});
+    if(_last_second.size() > 1) {
+        if(here == _last_second.end() || !*here || (*here)->frame < index) {
+            // have to insert past the end -> rotate
+            here = std::rotate(_last_second.begin(), ++_last_second.begin(), _last_second.end());
+            
+        } else {
+            if(here == _last_second.begin() || *(here-1) != nullptr)
+                // rotate everything thats right of our element to the end
+                here = std::rotate(_last_second.begin(), ++_last_second.begin(), here);
+            else
+                --here;
+        }
+        
+        *here = ptr;
+    } else
+        _last_second.back() = ptr;
+    
+    /*assert(!current.valid() || current < index);
     assert(!ptr || ptr->frame == index);
     assert(!_last_second.empty());
     current = index;
@@ -1454,10 +1490,10 @@ void CacheHints::push(Frame_t index, const FrameProperties* ptr) {
     assert(tmp == _last_second.back());
 #endif
     
-    _last_second.back() = ptr;
+    _last_second.back() = ptr;*/
 }
 
-void CacheHints::push_front(Frame_t index, const FrameProperties* ptr) {
+/*void CacheHints::push_front(Frame_t index, const FrameProperties* ptr) {
     //assert(current == -1 || current - (long_t)_last_second.size() == index + 1);
     assert(!ptr || ptr->frame == index);
     assert(!_last_second.empty());
@@ -1482,7 +1518,7 @@ void CacheHints::push_front(Frame_t index, const FrameProperties* ptr) {
     if(_last_second.back())
         current = _last_second.back()->frame;
     else current.invalidate();
-}
+}*/
 
 size_t CacheHints::size() const {
     return _last_second.size();
@@ -1504,16 +1540,29 @@ void CacheHints::clear(size_t size) {
     //Debug("CacheHints::size = %lu", _last_second.size());
 }
 
+template<class T, class U>
+typename std::vector<T>::const_iterator find_in_sorted(const std::vector<T>& vector, const U& v) {
+    auto it = std::lower_bound(vector.begin(),
+                               vector.end(),
+                               v,
+                    [](auto& l, auto& r){ return !l || l->frame < r; });
+    return it == vector.end() || (*it)->frame == v ? it : vector.end();
+}
+
 const FrameProperties* CacheHints::properties(Frame_t index) const {
-    size_t idx;
-    if(!index.valid() || index > current || (idx = size_t((current - index).get())) >= size())
+    if(!index.valid() || _last_second.empty() || !_last_second.back() || index > _last_second.back()->frame) //|| (idx = size_t((current - index).get())) >= size())
         return nullptr;
     
-    auto ptr = _last_second.at(_last_second.size() - 1 - idx);
-    if(ptr) {
-        assert(ptr->frame == index);
-    }
-    return ptr;
+    if(_last_second.back()->frame == index)
+        return _last_second.back();
+    
+    auto it = find_in_sorted(_last_second, index);
+    if(it == _last_second.end())
+        return nullptr;
+    else if((*it)->frame == index)
+        return *it;
+    
+    return nullptr;
 }
 
 IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, const CacheHints* hints) const {
@@ -1623,13 +1672,13 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     if(!prev_props) {
         if(!Tracker::instance()->frames().empty()) {
             auto it = Tracker::instance()->frames().rbegin();
-            while(it != Tracker::instance()->frames().rend() && it->frame >= frameIndex)
+            while(it != Tracker::instance()->frames().rend() && (*it)->frame >= frameIndex)
             {
                 ++it;
             }
             
             if(it != Tracker::instance()->frames().rend())
-                prev_props = &(*it);
+                prev_props = (*it).get();
         }
     }
     
@@ -1726,12 +1775,12 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
         }
         
         const FrameProperties* c_props = nullptr;
-        if(iterator != end && ++iterator != end && iterator->frame == frame) {
-            c_props = &(*iterator);
+        if(iterator != end && ++iterator != end && (*iterator)->frame == frame) {
+            c_props = (*iterator).get();
         } else {
             iterator = Tracker::properties_iterator(frame/*, hints*/);
             if(iterator != end)
-                c_props = &(*iterator);
+                c_props = (*iterator).get();
         }
         
         const auto h = basic->centroid;
@@ -2035,7 +2084,7 @@ Individual::Probability Individual::probability(int label, const IndividualCache
     //};
 }
 
-std::shared_ptr<Individual::BasicStuff> Individual::find_frame(Frame_t frameIndex) const
+const std::shared_ptr<Individual::BasicStuff>& Individual::find_frame(Frame_t frameIndex) const
 {
     if(!empty()) {
         if(frameIndex <= _startFrame)
@@ -2043,18 +2092,20 @@ std::shared_ptr<Individual::BasicStuff> Individual::find_frame(Frame_t frameInde
         if(frameIndex >= _endFrame)
             return _basic_stuff.back();
         
-        auto it = std::lower_bound(_frame_segments.begin(), _frame_segments.end(), frameIndex, [](const auto& ptr, Frame_t frame){
+        auto end = _frame_segments.end();
+        auto it = std::lower_bound(_frame_segments.begin(), end, frameIndex, [](const auto& ptr, Frame_t frame){
             return ptr->start() < frame;
         });
-        if(it == _frame_segments.end()) // we are out of range, return last
-        {
-            if((*_frame_segments.rbegin())->contains(frameIndex))
-                it = --_frame_segments.end();
+        
+        if(it == end) { // we are out of range, return last
+            auto idx = _frame_segments.back()->basic_stuff(frameIndex);
+            if(idx != -1)
+                return _basic_stuff[ idx ];
             else
                 return _basic_stuff.back();
         }
         
-        long_t index = (long_t)_basic_stuff.size()-1;
+        int32_t index = (int32_t)_basic_stuff.size()-1;
         if((*it)->start() > frameIndex) {
             if(it != _frame_segments.begin()) {
                 // it is either in between segments (no frame)
@@ -2083,7 +2134,7 @@ std::shared_ptr<Individual::BasicStuff> Individual::find_frame(Frame_t frameInde
             }
         }
         
-        assert(index >= 0 && index < (long_t)_basic_stuff.size());
+        assert(index >= 0 && (uint64_t)index < _basic_stuff.size());
         return _basic_stuff[ index ];
     }
     
@@ -2154,7 +2205,8 @@ std::tuple<std::vector<std::tuple<float, float>>, std::vector<float>, size_t, Mo
     }
     
     if(frameIndex > start_frame()) {
-        auto cache = cache_for_frame(frameIndex, Tracker::properties(frameIndex)->time);
+        auto props = Tracker::properties(frameIndex);
+        auto cache = cache_for_frame(frameIndex, props->time);
         movement.position = cache.estimated_px;
         movement.velocity = Vec2(position_sum);
     }

@@ -304,6 +304,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         void add_tag_image(const tags::Tag& tag);
         const std::multiset<tags::Tag>* has_tag_images_for(Frame_t frameIndex) const;
         std::set<Frame_t> added_postures;
+        CacheHints _hints;
         
     public:
         Individual(Identity&& id = Identity());
@@ -338,7 +339,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         const decltype(_identity)& identity() const { return _identity; }
         decltype(_identity)& identity() { return _identity; }
         
-        std::shared_ptr<BasicStuff> add(Frame_t frameIndex, const PPFrame& frame, const pv::BlobPtr& blob, Match::prob_t current_prob, default_config::matching_mode_t::Class);
+        std::shared_ptr<BasicStuff> add(const FrameProperties*, Frame_t frameIndex, const PPFrame& frame, const pv::BlobPtr& blob, Match::prob_t current_prob, default_config::matching_mode_t::Class);
         void remove_frame(Frame_t frameIndex);
         void register_delete_callback(void* ptr, const std::function<void(Individual*)>& lambda);
         void unregister_delete_callback(void* ptr);
@@ -417,7 +418,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //Match::PairingGraph::prob_t size_probability(const IndividualCache& cache, Frame_t frameIndex, size_t num_pixels) const;
         Match::prob_t position_probability(const IndividualCache& estimated_px, Frame_t frameIndex, size_t size, const Vec2& position, const Vec2& blob_center) const;
         
-        std::shared_ptr<BasicStuff> find_frame(Frame_t frameIndex) const;
+        const std::shared_ptr<BasicStuff>& find_frame(Frame_t frameIndex) const;
         bool evaluate_fitness() const;
         
         //void recognition_segment(Frame_t frame, const std::tuple<size_t, std::map<long_t, float>>&);

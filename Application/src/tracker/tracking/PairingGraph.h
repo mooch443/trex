@@ -5,6 +5,7 @@
 #include <misc/PVBlob.h>
 #include <tracker/misc/default_config.h>
 #include <misc/ranges.h>
+#include <tracking/PhysicalProperties.h>
 
 //! Can transport Individual/Blob
 namespace track {
@@ -230,7 +231,7 @@ namespace Match
         //GETTER(EdgeMap, edges)
         
     public:
-        PairingGraph(Frame_t frame, const decltype(_paired)& paired);
+        PairingGraph(const FrameProperties& props, Frame_t frame, const decltype(_paired)& paired);
         ~PairingGraph();
         
         static void prepare_shutdown();

@@ -65,14 +65,18 @@ bool PPFrame::_add_to_map(const pv::BlobPtr &blob) {
 
 void PPFrame::_remove_from_map(pv::bid bdx) {
     _bdx_to_ptr.erase(bdx);
-    
+    /*size_t removals = 0;
     for(auto &g : _blob_grid.get_grid()) {
         if(!g.empty()) {
             auto it = std::find(g.begin(), g.end(), (int64_t)bdx);
-            if(it != g.end())
-                g.erase(it);
+            if(it != g.end()) {
+                removals++;
+            }
         }
     }
+    Debug("%lu removals", removals);*/
+    if(bdx.valid())
+        _blob_grid.erase((int64_t)bdx);
 }
 
 void PPFrame::_assume_not_finalized(const char* file, int line) {

@@ -187,20 +187,20 @@ const FrameProperties* Tracker::properties(Frame_t frameIndex, const CacheHints*
     
     auto &frames = instance()->frames();
     auto it = properties_iterator(frameIndex);
-    return it != frames.end() ? &(*it) : nullptr;
+    return it != frames.end() ? (*it).get() : nullptr;
 }
 
 decltype(Tracker::_added_frames)::const_iterator Tracker::properties_iterator(Frame_t frameIndex) {
     auto &frames = instance()->frames();
     
-    auto it = std::upper_bound(frames.begin(), frames.end(), frameIndex, [](Frame_t frame, const FrameProperties& prop) -> bool {
-        return frame < prop.frame;
+    auto it = std::upper_bound(frames.begin(), frames.end(), frameIndex, [](Frame_t frame, const auto& prop) -> bool {
+        return frame < prop->frame;
     });
     
     if((it == frames.end() && !frames.empty()) || (it != frames.begin())) {
         --it;
         
-        if(it->frame == frameIndex) {
+        if((*it)->frame == frameIndex) {
             return it;
         }
     }
@@ -479,15 +479,15 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
     template<typename T, typename Q>
     inline bool contains_sorted(const Q& v, T obj) {
         auto it = std::lower_bound(v.begin(), v.end(), obj, [](const auto& v, T number) -> bool {
-            return v < number;
+            return *v < number;
         });
         
         if(it != v.end()) {
             auto end = std::upper_bound(it, v.end(), obj, [](T number, const auto& v) -> bool {
-                return number < v;
+                return number < *v;
             });
             
-            if(end == v.end() || !((*end) < obj)) {
+            if(end == v.end() || !(*(*end) < obj)) {
                 return true;
             }
         }
@@ -1471,7 +1471,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
 const FrameProperties* Tracker::add_next_frame(const FrameProperties & props) {
     auto &frames = instance()->frames();
     auto capacity = frames.capacity();
-    instance()->_added_frames.push_back(props);
+    instance()->_added_frames.emplace_back(std::make_unique<FrameProperties>(props));
     
     if(frames.capacity() != capacity) {
         std::unique_lock guard(_properties_mutex);
@@ -1480,17 +1480,17 @@ const FrameProperties* Tracker::add_next_frame(const FrameProperties & props) {
         auto it = frames.rbegin();
         while(it != frames.rend() && !_properties_cache.full())
         {
-            _properties_cache.push_front(it->frame, &(*it));
+            _properties_cache.push((*it)->frame, (*it).get());
             ++it;
         }
-        assert((frames.empty() && !end_frame().valid()) || (end_frame().valid() && frames.rbegin()->frame == end_frame()));
+        assert((frames.empty() && !end_frame().valid()) || (end_frame().valid() && (*frames.rbegin())->frame == end_frame()));
         
     } else {
         std::unique_lock guard(_properties_mutex);
-        _properties_cache.push(props.frame, &frames.back());
+        _properties_cache.push(props.frame, frames.back().get());
     }
     
-    return &frames.back();
+    return frames.back().get();
 }
 
 void Tracker::clear_properties() {
@@ -1662,8 +1662,8 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             auto it = --_added_frames.end();
             if(it != _added_frames.begin()) {
                 --it;
-                if(it->frame == frame.index() - 1_f)
-                    prev_props = &(*it);
+                if((*it)->frame == frame.index() - 1_f)
+                    prev_props = (*it).get();
             }
         }
         
@@ -1701,7 +1701,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
 #endif
         
         //auto blob_to_pixels = filter_blobs(frame);
-        auto assign_blob_individual = [&tagged_fish, &blob_fish_map, &fish_assigned, &blob_assigned, &assigned_count, &do_posture, &need_postures, save_tags
+        auto assign_blob_individual = [props, &tagged_fish, &blob_fish_map, &fish_assigned, &blob_assigned, &assigned_count, &do_posture, &need_postures, save_tags
 #ifdef TREX_DEBUG_MATCHING
                                         ,&pairs
 #endif
@@ -1747,7 +1747,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             if(!blob->moments().ready) {
                 blob->calculate_moments();
             }
-            auto basic = fish->add(frameIndex, frame, blob, -1, match_mode);
+            auto basic = fish->add(props, frameIndex, frame, blob, -1, match_mode);
             if(!basic) {
                 Except("Was not able to assign individual %d with blob %u", fish->identity().ID(), blob->blob_id());
                 return;
@@ -2436,7 +2436,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     }
 #endif
                     
-                    _thread_pool.enqueue([&paired_blobs, &blob_assigned, &fish_assigned, &frame, &assign_blob_individual, &thread_mutex, &active_individuals, &executed, &_variable]
+                    _thread_pool.enqueue([props, &paired_blobs, &blob_assigned, &fish_assigned, &frame, &assign_blob_individual, &thread_mutex, &active_individuals, &executed, &_variable]
                                          (const IndexClique& clique, Frame_t frameIndex)
                     {
                         using namespace Match;
@@ -2460,7 +2460,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                                 paired.add(fish, probs);
                         }
                         
-                        PairingGraph graph(frameIndex, paired);
+                        PairingGraph graph(*props, frameIndex, paired);
                         
                         try {
                             auto &optimal = graph.get_optimal_pairing(false, matching_mode_t::hungarian);
@@ -2524,7 +2524,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             TakeTiming take(perm_timing);
             
             using namespace Match;
-            PairingGraph graph(frameIndex, paired_blobs);
+            PairingGraph graph(*props, frameIndex, paired_blobs);
             
             /*for(auto && [fish, edges] : graph.edges()) {
                 //double sum = 1 / double(edges.size()+1);
@@ -3004,7 +3004,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         
         _max_individuals = cmn::max(_max_individuals, assigned_count);
         _active_individuals_frame[frameIndex] = _active_individuals;
-        _added_frames.back().active_individuals = assigned_count;
+        _added_frames.back()->active_individuals = assigned_count;
         
         uint32_t n = 0;
         uint32_t prev = 0;
@@ -3330,7 +3330,6 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         }
 
         U_EXCEPTION("Pair distances need to implement the new properties.");
-        //std::copy(distances.begin(), distances.end(), std::back_inserter(properties(frameIndex)->_pair_distances));
     }
     
     void Tracker::_remove_frames(Frame_t frameIndex) {
@@ -3397,7 +3396,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         }
         
         while(!_added_frames.empty()) {
-            if((--_added_frames.end())->frame < frameIndex)
+            if((*(--_added_frames.end()))->frame < frameIndex)
                 break;
             _added_frames.erase(--_added_frames.end());
         }
@@ -3461,10 +3460,10 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
             auto it = _added_frames.rbegin();
             while(it != _added_frames.rend() && !_properties_cache.full())
             {
-                _properties_cache.push_front(it->frame, &(*it));
+                _properties_cache.push((*it)->frame, (*it).get());
                 ++it;
             }
-            assert((_added_frames.empty() && !end_frame().valid()) || (end_frame().valid() && _added_frames.rbegin()->frame == end_frame()));
+            assert((_added_frames.empty() && !end_frame().valid()) || (end_frame().valid() && (*_added_frames.rbegin())->frame == end_frame()));
         }
         
         FOI::remove_frames(frameIndex);
