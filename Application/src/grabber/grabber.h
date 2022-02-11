@@ -69,6 +69,8 @@ namespace track {
 class Tracker;
 }
 
+struct ProcessingTask;
+
 class FrameGrabber {
 public:
     //typedef ThreadedAnalysis<Image, 10> AnalysisType;
@@ -223,6 +225,9 @@ private:
     bool crop_and_scale(const gpuMat&, gpuMat& output);
     bool add_image_to_average(const Image_t&);
     void initialize(std::function<void(FrameGrabber&)>&& callback_before_starting);
+    
+    std::tuple<int64_t, bool, double> in_main_thread(std::unique_ptr<ProcessingTask>&& task);
+    void threadable_task(std::unique_ptr<ProcessingTask>&& task);
 };
 
 #endif
