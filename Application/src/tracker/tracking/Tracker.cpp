@@ -885,7 +885,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
     std::vector<pv::BlobPtr> Tracker::split_big(
         const BlobReceiver& filter_out,
         const std::vector<pv::BlobPtr> &big_blobs,
-        const robin_hood::unordered_map<pv::BlobPtr, split_expectation> &expect,
+        const robin_hood::unordered_map<pv::Blob*, split_expectation> &expect,
         bool discard_small,
         std::ostream* out,
         GenericThreadPool* pool)
@@ -929,8 +929,8 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                 }
                 
                 split_expectation ex(2, false);
-                if(!expect.empty() && expect.count(b))
-                    ex = expect.at(b);
+                if(!expect.empty() && expect.count(b.get()))
+                    ex = expect.at(b.get());
                 
                 auto rec = b->recount(threshold, *_background);
                 if(!fish_size.close_to_maximum_of_one(rec, 10 * ex.number)) {
@@ -1170,10 +1170,14 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         
         UnorderedVectorSet<pv::bid> already_walked;
         std::vector<pv::BlobPtr> big_blobs;
-        robin_hood::unordered_map<pv::BlobPtr, split_expectation> expect;
+        robin_hood::unordered_map<pv::Blob*, split_expectation> expect;
         
         auto manual_splits = FAST_SETTINGS(manual_splits);
-        auto manual_splits_frame = (manual_splits.empty() || manual_splits.count(frame.index().get()) == 0) ? decltype(manual_splits)::mapped_type() : manual_splits.at(frame.index().get());
+        auto manual_splits_frame =
+            (manual_splits.empty() || manual_splits.count(frame.index()) == 0)
+                ? decltype(manual_splits)::mapped_type()
+                : manual_splits.at(frame.index());
+        
         std::string manualstr = out ? Meta::toStr(manual_splits) : "";
         Log(out, "manual_splits = %S", &manualstr);
         
@@ -1196,8 +1200,8 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                 if(ptr) {
                     big_blobs.push_back(ptr);
                     
-                    expect[ptr].number = 2;
-                    expect[ptr].allow_less_than = false;
+                    expect[ptr.get()].number = 2;
+                    expect[ptr.get()].allow_less_than = false;
                     
                     already_walked.insert(bdx);
                 }
@@ -1391,20 +1395,20 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                                         }
                                     }
                                     
-                                    ++expect[ptr].number;
+                                    ++expect[ptr.get()].number;
                                     big_blobs.push_back(ptr);
                                 }
                                 else if((ptr = frame.find_bdx(max_id))) {
-                                    if(expect.count(ptr)) {
+                                    if(expect.contains(ptr.get())) {
                                         Log(out, "Increasing expect number for blob %d.", max_id);
-                                        ++expect[ptr].number;
+                                        ++expect[ptr.get()].number;
                                     }
                                     
                                     Log(out, "Would split blob %d, but its part of additional.", max_id);
                                 }
                                 
                                 if(allow_less_than)
-                                    expect[ptr].allow_less_than = allow_less_than;
+                                    expect[ptr.get()].allow_less_than = allow_less_than;
                             }
                         }
                     }
@@ -1427,8 +1431,8 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
             for(auto &bdx : manual_splits_frame) {
                 auto ptr = frame.find_bdx(bdx);
                 if(ptr) {
-                    expect[ptr].allow_less_than = false;
-                    expect[ptr].number = 2;
+                    expect[ptr.get()].allow_less_than = false;
+                    expect[ptr.get()].number = 2;
                 }
             }
         }
@@ -1813,7 +1817,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         Settings::manual_matches_t::mapped_type current_fixed_matches;
         {
             auto manual_matches = Settings::get<Settings::manual_matches>();
-            auto it = manual_matches->find(frameIndex.get());
+            auto it = manual_matches->find(frameIndex);
             if (it != manual_matches->end())
                 current_fixed_matches = it->second;
         }
@@ -1959,8 +1963,8 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     auto &blob = frame.bdx_to_ptr(bdx);
                     
                     //std::vector<pv::BlobPtr> additional;
-                    robin_hood::unordered_map<pv::BlobPtr, split_expectation> expect;
-                    expect[blob] = split_expectation(clique.size() == 1 ? 2 : clique.size(), false);
+                    robin_hood::unordered_map<pv::Blob*, split_expectation> expect;
+                    expect[blob.get()] = split_expectation(clique.size() == 1 ? 2 : clique.size(), false);
                     
                     auto big_filtered = split_big(BlobReceiver(frame, BlobReceiver::noise),
                                                   {blob}, expect);
@@ -3663,7 +3667,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
             std::map<Range<Frame_t>, Idx_t> track_ids;
         };
         
-        std::map<Frame_t, std::map<Idx_t, pv::bid>> automatic_matches;
+        Settings::manual_matches_t automatic_matches;
         std::map<fdx_t, VirtualFish> virtual_fish;
         
         // wrong fish -> set of unassigned ranges
@@ -3836,7 +3840,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                 if(blob) {
                     automatic_matches[segment.start()][fdx] = blob->blob_id();
                     if(blob->split() && blob->parent_id.valid())
-                        manual_splits[segment.start().get()].insert(blob->parent_id);
+                        manual_splits[segment.start()].insert(blob->parent_id);
                 }
             }
             
@@ -3860,7 +3864,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                 
                 auto blob = track->compressed_blob(segment.start());
                 if(blob && blob->split() && blob->parent_id.valid())
-                    manual_splits[segment.start().get()].insert(blob->parent_id);
+                    manual_splits[segment.start()].insert(blob->parent_id);
                 
                 std::vector<pv::bid> blob_ids;
                 for(Frame_t frame=segment.start(); frame<=segment.end(); ++frame) {
@@ -4094,7 +4098,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                                     
                                     auto blob = fish->blob(segment.start());
                                     if(blob && blob->split() && blob->parent_id().valid())
-                                        manual_splits[segment.start().get()].insert(blob->parent_id());
+                                        manual_splits[segment.start()].insert(blob->parent_id());
                                     
                                     assigned_ranges[fdx][segment.range] = chosen_id;
                                 }

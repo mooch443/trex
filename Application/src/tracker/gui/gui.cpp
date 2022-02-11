@@ -496,7 +496,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                     for(; itn != next.end() && ito != old.end(); ++itn, ++ito) {
                         if(itn->first != ito->first || itn->second != ito->second) {
                             auto frame = min(itn->first, ito->first);
-                            if(frame == this->frame().get()) {
+                            if(frame == this->frame()) {
                                 PD(cache).last_threshold = -1;
                                 PD(cache).set_tracking_dirty();
                             }
@@ -3890,8 +3890,8 @@ void GUI::draw_raw_mode(DrawStructure &base, Frame_t frameIndex) {
                     pv::bid clicked_blob_id { (uint32_t)int64_t(item.custom()) };
                     if(item.ID() == 0) /* SPLIT */ {
                         auto copy = FAST_SETTINGS(manual_splits);
-                        if(!contains(copy[frame().get()], clicked_blob_id)) {
-                            copy[frame().get()].insert(clicked_blob_id);
+                        if(!contains(copy[frame()], clicked_blob_id)) {
+                            copy[frame()].insert(clicked_blob_id);
                         }
                         work().add_queue("", [copy](){
                             SETTING(manual_splits) = copy;
@@ -5315,7 +5315,7 @@ void GUI::add_manual_match(Frame_t frameIndex, Idx_t fish_id, pv::bid blob_id) {
     Debug("Requesting change of fish %d to blob %u in frame %d", fish_id, blob_id, frameIndex);
     
     auto matches = FAST_SETTINGS(manual_matches);
-    auto &current = matches[frameinfo().frameIndex.load().get()];
+    auto &current = matches[frameinfo().frameIndex.load()];
     for(auto &it : current) {
         if(it.first != fish_id && it.second == blob_id) {
             current.erase(it.first);

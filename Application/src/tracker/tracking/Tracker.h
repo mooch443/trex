@@ -12,6 +12,7 @@
 #include <misc/BlobSizeRange.h>
 #include <misc/idx_t.h>
 #include <misc/create_struct.h>
+#include <tracker/misc/default_config.h>
 
 namespace Output {
     class TrackingResults;
@@ -34,8 +35,8 @@ namespace track {
         IndividualStatus() : prev(nullptr), current(nullptr) {}
     };
 
-using mmatches_t = std::map<long_t, std::map<Idx_t, pv::bid>>;
-using msplits_t = std::map<long_t, std::set<pv::bid>>;
+using mmatches_t = std::map<Frame_t, std::map<Idx_t, pv::bid>>;
+using msplits_t = std::map<Frame_t, std::set<pv::bid>>;
 using inames_t = std::map<uint32_t, std::string>;
 using mapproved_t = std::map<long_t,long_t>;
 using analrange_t = std::pair<long_t,long_t>;
@@ -480,7 +481,7 @@ CREATE_STRUCT(Settings,
             }
         };
         
-        std::vector<pv::BlobPtr> split_big(const BlobReceiver&, const std::vector<std::shared_ptr<pv::Blob>>& big_blobs, const robin_hood::unordered_map<pv::BlobPtr, split_expectation> &expect, bool discard_small = false, std::ostream *out = NULL, GenericThreadPool* pool = nullptr);
+        std::vector<pv::BlobPtr> split_big(const BlobReceiver&, const std::vector<std::shared_ptr<pv::Blob>>& big_blobs, const robin_hood::unordered_map<pv::Blob*, split_expectation> &expect, bool discard_small = false, std::ostream *out = NULL, GenericThreadPool* pool = nullptr);
         
         static void prefilter(const std::shared_ptr<PrefilterBlobs>&, std::vector<pv::BlobPtr>::const_iterator it, std::vector<pv::BlobPtr>::const_iterator end);
         

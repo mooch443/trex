@@ -1489,19 +1489,19 @@ int main(int argc, char** argv)
                                     for(auto frame : fish->manually_matched()) {
                                         auto blob = fish->blob(frame);
                                         if(blob) {
-                                            if(manual_matches[frame.get()].find(id) != manual_matches[frame.get()].end()
-                                               && manual_matches[frame.get()][id] != blob->blob_id())
+                                            if(manual_matches[frame].find(id) != manual_matches[frame].end()
+                                               && manual_matches[frame][id] != blob->blob_id())
                                             {
-                                                Debug("Other blob (%d != %d) was assigned fish %d in frame %d", manual_matches[frame.get()][id], blob->blob_id(), id, frame);
+                                                Debug("Other blob (%d != %d) was assigned fish %d in frame %d", manual_matches[frame][id], blob->blob_id(), id, frame);
                                             }
-                                            for(auto && [fdx, bdx] : manual_matches[frame.get()]) {
+                                            for(auto && [fdx, bdx] : manual_matches[frame]) {
                                                 if(fdx != id && bdx == blob->blob_id()) {
                                                     Debug("Other fish (%d != %d) was assigned blob %d in frame %d", fdx, id, bdx, frame);
                                                     break;
                                                 }
                                             }
                                             
-                                            manual_matches[frame.get()][id] = blob->blob_id();
+                                            manual_matches[frame][id] = blob->blob_id();
                                         }
                                     }
                                 }
