@@ -62,9 +62,9 @@ namespace pv {
 
 
     //! Initialize copy
-    Frame::Frame(const Frame& other) {
+    /*Frame::Frame(const Frame& other) {
         operator=(other);
-    }
+    }*/
 
     Frame::Frame(Frame&& other) {
         operator=(std::move(other));
@@ -87,15 +87,13 @@ namespace pv {
         
         _blobs.clear();
         
-        _mask = other._mask;
-        _pixels = other._pixels;
-        /*_mask.resize(other._mask.size());
-        _pixels.resize(other._pixels.size());
+        _mask.clear();
+        _pixels.clear();
         
-        for(uint64_t i=0; i<other._mask.size(); ++i)
-            _mask[i] = std::make_shared<decltype(_mask)::value_type::element_type>(*other._mask[i]);
-        for(uint64_t i=0; i<other._pixels.size(); ++i)
-            _pixels[i] = std::make_shared<decltype(_pixels)::value_type::element_type>(*other._pixels[i]);*/
+        for (size_t i=0; i<other.n(); ++i) {
+            _mask.push_back(std::make_unique<Blob::line_ptr_t::element_type>(*other._mask[i]));
+            _pixels.push_back(std::make_unique<Blob::pixel_ptr_t::element_type>(*other._pixels[i]));
+        }
     }
 
     Frame::Frame(const uint64_t& timestamp, decltype(_n) n)
@@ -122,7 +120,7 @@ namespace pv {
                 auto &mask = _mask[i];
                 auto &px = _pixels[i];
                 
-                _blobs.push_back(std::make_shared<pv::Blob>(mask, px));
+                _blobs.push_back(std::make_shared<pv::Blob>(*mask, *px));
             }
         }
         
@@ -261,7 +259,7 @@ namespace pv {
                 }
             }
             
-            _mask.push_back(uncompressed);
+            _mask.push_back(std::move(uncompressed));
             _pixels.push_back(decltype(_pixels)::value_type(
                     new std::vector<uchar>((uchar*)pixels.data(),
                                            (uchar*)pixels.data()+num_pixels)));
@@ -274,7 +272,7 @@ namespace pv {
             delete compressed;
     }
     
-    void Frame::add_object(std::shared_ptr<const std::vector<HorizontalLine>> mask, std::shared_ptr<const std::vector<uchar>> pixels) {
+    void Frame::add_object(Blob::line_ptr_t&& mask, Blob::pixel_ptr_t&& pixels) {
         assert(mask->size() < UINT16_MAX);
         
 #ifndef NDEBUG
@@ -289,17 +287,24 @@ namespace pv {
         }
 #endif
         
-        _mask.push_back(mask);
-        _pixels.push_back(pixels);
+        _mask.push_back(std::move(mask));
+        _pixels.push_back(std::move(pixels));
         
         _n++;
     }
+
+void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vector<uchar>& pixels) {
+    assert(mask->size() < UINT16_MAX);
+    _mask.push_back(std::make_unique<Blob::line_ptr_t::element_type>(mask));
+    _pixels.push_back(std::make_unique<Blob::pixel_ptr_t::element_type>(pixels));
+    _n++;
+}
     
     void Frame::add_object(const std::vector<HorizontalLine> &mask_, const cv::Mat &full_image) {
         assert(full_image.rows > 0 && full_image.cols > 0);
         assert(!mask_.empty());
         
-        auto mask = std::make_shared<std::vector<HorizontalLine>>(mask_);
+        auto mask = std::make_unique<std::vector<HorizontalLine>>(mask_);
         
         ptr_safe_t L = (ptr_safe_t)mask_.size();
         //uint64_t offset = 0;
@@ -332,7 +337,7 @@ namespace pv {
         }
         
         // copy grey values to pixels array
-        auto pixels = std::make_shared<std::vector<uchar>>();
+        auto pixels = std::make_unique<std::vector<uchar>>();
         pixels->resize(overall);
         //uchar *pixels = (uchar*)malloc(overall);
         
@@ -348,7 +353,7 @@ namespace pv {
             pixel_ptr += N;
         }
         
-        add_object(mask, pixels);
+        add_object(std::move(mask), std::move(pixels));
         //free(pixels);
     }
     
@@ -861,14 +866,14 @@ namespace pv {
         _last_frame = frame;
     }
 
-    void File::add_individual(const Frame& frame) {
+    void File::add_individual(Frame&& frame) {
         static std::mutex pack_mutex;
         static DataPackage pack;
 
         std::lock_guard g(pack_mutex);
         bool compressed;
         frame.serialize(pack, compressed);
-        add_individual(frame, pack, compressed);
+        add_individual(std::move(frame), pack, compressed);
     }
         
     void File::stop_writing() {
@@ -980,7 +985,7 @@ namespace pv {
                 frame.set_timestamp(last_reset + frame.timestamp());
             }
             
-            copy.add_individual(frame);
+            copy.add_individual(std::move(frame));
             
             if (idx % 1000 == 0) {
                 Debug("Frame %lu / %lu (%.2f%% compression ratio)...", idx, file.length(), copy.compression_ratio()*100);
@@ -1016,7 +1021,7 @@ namespace pv {
             read_frame(frame, i);
             frame.set_timestamp(header().timestamp + frame.timestamp());
             
-            copy.add_individual(frame);
+            copy.add_individual(std::move(frame));
             
             if (i % 1000 == 0) {
                 Debug("Frame %lu / %lu...", i, length());

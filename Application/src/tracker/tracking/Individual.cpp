@@ -1603,6 +1603,8 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     cache.cm_per_pixel = FAST_SETTINGS(cm_per_pixel);
     cache.consistent_categories = FAST_SETTINGS(track_consistent_categories);
     cache.track_max_speed = FAST_SETTINGS(track_max_speed);
+    const auto frame_rate = FAST_SETTINGS(frame_rate);
+    const auto track_max_reassign_time = FAST_SETTINGS(track_max_reassign_time);
     
     //auto segment = get_segment(frameIndex-1);
     if(it != _frame_segments.end()) {
@@ -1610,7 +1612,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
         
         if((*it)->contains(frameIndex - 1_f)) {
             // is a valid segment
-            if(is_manual_match((*it)->start()) && frameIndex - (*it)->start() < Frame_t(FAST_SETTINGS(frame_rate) * 0.05))
+            if(is_manual_match((*it)->start()) && frameIndex - (*it)->start() < Frame_t(frame_rate * 0.05))
                 manually_matched_segment = true;
             
             bdx = (*it)->basic_stuff(frameIndex - 1_f);
@@ -1700,9 +1702,9 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
         : Tracker::properties(pp ? pp->frame : (frameIndex - 1_f), hints);
     assert(!prev_props || prev_props->time != time);
     
-    float ptime = pp_props ? pp_props->time : (- (frameIndex - pp->frame).get() * 1 / double(FAST_SETTINGS(frame_rate)) + time);
-    if(time - ptime >= FAST_SETTINGS(track_max_reassign_time)) {
-        ptime = (- (frameIndex - pp->frame).get() * 1 / double(FAST_SETTINGS(frame_rate)) + time);
+    float ptime = pp_props ? pp_props->time : (- (frameIndex - pp->frame).get() * 1 / double(frame_rate) + time);
+    if(time - ptime >= track_max_reassign_time) {
+        ptime = (- (frameIndex - pp->frame).get() * 1 / double(frame_rate) + time);
     }
     //prev_props ? prev_props->time : ((frameIndex - (frameIndex - 1)) / double(FAST_SETTINGS(frame_rate)) + time);
     //Debug("%f (%d) -> %f (%d) (%lu) = %f", time, frameIndex, ptime, pp ? pp->frame : (frameIndex-1), pp_props, time - ptime);
@@ -1721,9 +1723,9 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     //! Collect recent number of valid samples within $t - \mathrm{fps} <= \dot{t} <= t$, where all distances between segments must not be reassigned ($\Delta t < fps * T_mathrm{max}$).
     size_t N = 0;
     if(it != _frame_segments.end()) {
-        const auto lower_limit = max(0_f, frameIndex - Frame_t(FAST_SETTINGS(frame_rate)));
+        const auto lower_limit = max(0_f, frameIndex - Frame_t(frame_rate));
         auto previous_frame = frameIndex;
-        const auto time_limit = Frame_t(FAST_SETTINGS(frame_rate) * FAST_SETTINGS(track_max_reassign_time));
+        const auto time_limit = Frame_t(frame_rate * track_max_reassign_time);
         
         while(true) {
             if((*it)->end() < lower_limit)
@@ -1764,7 +1766,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     
     if(cache.consistent_categories) {
         std::shared_lock guard(Categorize::DataStore::range_mutex());
-        iterate_frames(Range<Frame_t>(max(_startFrame, cache.previous_frame - Frame_t(FAST_SETTINGS(frame_rate) * 2)), cache.previous_frame), [&labels, &samples](auto frame, auto&, auto& basic, auto&) -> bool
+        iterate_frames(Range<Frame_t>(max(_startFrame, cache.previous_frame - Frame_t(frame_rate * 2)), cache.previous_frame), [&labels, &samples](auto frame, auto&, auto& basic, auto&) -> bool
         {
             auto ldx = Categorize::DataStore::_ranged_label_unsafe(frame, basic->blob.blob_id());
             if(ldx != -1) {

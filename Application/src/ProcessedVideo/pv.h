@@ -88,13 +88,13 @@ namespace pv {
         GETTER(uint16_t, n)
         GETTER_SETTER(float, loading_time)
         
-        GETTER(std::vector<std::shared_ptr<const std::vector<HorizontalLine>>>, mask)
-        GETTER(std::vector<std::shared_ptr<const std::vector<uchar>>>, pixels)
+        GETTER_NCONST(std::vector<std::unique_ptr<std::vector<HorizontalLine>>>, mask)
+        GETTER_NCONST(std::vector<std::unique_ptr<const std::vector<uchar>>>, pixels)
         GETTER(std::vector<std::shared_ptr<pv::Blob>>, blobs)
         
     public:
         //! Initialize copy
-        Frame(const Frame& other);
+        //Frame(const Frame& other);
         Frame(Frame&& other);
         void operator=(const Frame& other);
         void operator=(Frame&& other);
@@ -125,7 +125,8 @@ namespace pv {
          * Adds a new object to this frame.
          * ! takes ownership of both arrays
          **/
-        void add_object(std::shared_ptr<const std::vector<HorizontalLine>> mask, std::shared_ptr<const std::vector<uchar>> pixels);
+        void add_object(Blob::line_ptr_t&& mask, Blob::pixel_ptr_t&& pixels);
+        void add_object(const std::vector<HorizontalLine>& mask, const std::vector<uchar>& pixels);
 
         uint64_t size() const;
         void clear();
@@ -259,7 +260,7 @@ namespace pv {
             _header.offsets = offsets;
         }
         
-        void add_individual(const Frame& frame);
+        void add_individual(Frame&& frame);
         void add_individual(const Frame& frame, DataPackage& pack, bool compressed);
         
         void read_frame(Frame& frame, uint64_t frameIndex);

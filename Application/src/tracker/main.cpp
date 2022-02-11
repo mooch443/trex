@@ -891,7 +891,9 @@ int main(int argc, char** argv)
                     for (uint16_t k=0; k<frame.n(); ++k) {
                         if(frame.pixels().at(k)->size() > 30) {
                             // consider blob
-                            auto blob = std::make_shared<pv::Blob>(frame.mask().at(k), frame.pixels().at(k));
+                            auto &l = frame.mask().at(k);
+                            auto &p = frame.pixels().at(k);
+                            auto blob = std::make_shared<pv::Blob>(std::move(l), std::move(p));
                             auto blobs = pixel::threshold_blob(blob, narrow_cast<int>(threshold), Tracker::instance()->background());
                             float pixels = 0, samps = 0;
                             

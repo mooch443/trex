@@ -699,7 +699,7 @@ int main(int argc, char**argv) {
                         break;
                     }
 
-                    copy.add_individual(frame);
+                    copy.add_individual(std::move(frame));
 
                     if (idx % 1000 == 0) {
                         Debug("Frame %lu / %lu (%.2f%% compression ratio)...", idx, video.length(), copy.compression_ratio()*100);

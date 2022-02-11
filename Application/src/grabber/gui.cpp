@@ -291,7 +291,7 @@ void GUI::draw(gui::DrawStructure &base) {
                     if (m->empty())
                         continue;
 
-                    pv::Blob blob(m, _frame->pixels().at(i));
+                    pv::Blob blob(*m, *_frame->pixels().at(i));
                     auto pos = blob.bounds().pos();
                     base.rect(pos + offset, blob.bounds().size(), Transparent, Red);
                     

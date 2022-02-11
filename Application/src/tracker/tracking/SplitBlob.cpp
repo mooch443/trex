@@ -312,12 +312,13 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr)
     std::vector<pv::BlobPtr> result;
     if(best != INT_MIN) {
         result = { best_matches.at(best).blobs };
+        std::vector<uchar> grey;
         
         for (size_t idx = 0; idx < result.size(); idx++) {
             auto& blob = result.at(idx);
             
             if(!blob->pixels()) {
-                std::vector<uchar> grey;
+                grey.clear();
                 
                 for (auto h : blob->hor_lines()) {
                     for (int x=h.x0; x<=h.x1; x++) {
@@ -326,7 +327,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr)
                     }
                 }
                 
-                blob->set_pixels(std::make_shared<const std::vector<uchar>>(grey));
+                blob->set_pixels(std::make_unique<const std::vector<uchar>>(std::move(grey)));
                 //result.pixels.push_back(grey);
             }
         }

@@ -1053,6 +1053,10 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
 
             size_t count = 0;
             std::mutex mutex;
+            CacheHints hints;
+            if(frame.index().valid() && frame.index() > Tracker::start_frame())
+                hints.push(frame.index()-1_f, properties(frame.index()-1_f));
+            hints.push(frame.index(), properties(frame.index()));
 
             auto fn = [&](const Tracker::set_of_individuals_t& active_individuals,
                           size_t start,
@@ -1072,7 +1076,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
 
                     // IndividualCache is in the same position as the indexes here
                     //auto& obj = frame.cached_individuals.at(fish->identity().ID());
-                    cache = fish->cache_for_frame(frame.index(), frame.time);
+                    cache = fish->cache_for_frame(frame.index(), frame.time, &hints);
                     time_limit = cache.previous_frame.get() - frame_limit;
                         
                     size_t counter = 0;
@@ -1767,7 +1771,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                         blob_fish_map[blob->parent_id()] = fish;
                     
                     //pv::BlobPtr copy = std::make_shared<pv::Blob>((Blob*)blob.get(), std::make_shared<std::vector<uchar>>(*blob->pixels()));
-                    tagged_fish.push_back(std::make_shared<pv::Blob>(blob->lines(), blob->pixels()));
+                    tagged_fish.push_back(std::make_shared<pv::Blob>(*blob->lines(), *blob->pixels()));
                 }
             }
             
@@ -1782,7 +1786,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         if(save_tags) {
             for(auto &blob : frame.noise()) {
                 if(blob->recount(-1) <= minmax.max_range().start) {
-                    pv::BlobPtr copy = std::make_shared<pv::Blob>((Blob*)blob.get(), std::make_shared<std::vector<uchar>>(*blob->pixels()));
+                    pv::BlobPtr copy = std::make_shared<pv::Blob>(*blob);
                     noise.emplace_back(std::move(copy));
                 }
             }

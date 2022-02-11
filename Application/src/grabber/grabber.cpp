@@ -1585,8 +1585,9 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(std::unique_ptr<P
             if (!task->filtered_out.empty()) {
                 _noise = std::make_unique<pv::Frame>(task->current->timestamp(), task->filtered_out.size());
                 for (auto &b : task->filtered_out) {
-                    _noise->add_object(b->lines(), b->pixels());
+                    _noise->add_object(std::move(b->steal_lines()), std::move(b->pixels()));
                 }
+                task->filtered_out.clear();
             }
         }
 
@@ -1721,33 +1722,35 @@ void FrameGrabber::threadable_task(std::unique_ptr<ProcessingTask>&& task) {
         //current_copy = local;
     }
 
-    auto rawblobs = CPULabeling::run(task->current->get(), true);
+    {
+        auto rawblobs = CPULabeling::run(task->current->get(), true);
 #ifdef TGRABS_DEBUG_TIMING
-    _raw_blobs = _sub_timer.elapsed();
-    _sub_timer.reset();
+        _raw_blobs = _sub_timer.elapsed();
+        _sub_timer.reset();
 #endif
-
-    for(auto  && [lines, pixels] : rawblobs) {
-        //b->calculate_properties();
-        
-        ptr_safe_t num_pixels;
-        if(pixels)
-            num_pixels = pixels->size();
-        else {
-            num_pixels = 0;
-            for(auto &line : *lines) {
-                num_pixels += ptr_safe_t(line.x1) - ptr_safe_t(line.x0) + ptr_safe_t(1);
-            }
-        }
-        if(num_pixels * cm_per_pixel >= min_max.start
-           && num_pixels * cm_per_pixel <= min_max.end)
-        {
-            //b->calculate_moments();
-            task->filtered.push_back(std::make_shared<pv::Blob>(lines, pixels));
+        for(auto  && [lines, pixels] : rawblobs) {
+            //b->calculate_properties();
             
-        }
-        else {
-            task->filtered_out.push_back(std::make_shared<pv::Blob>(lines, pixels));
+            ptr_safe_t num_pixels;
+            if(pixels)
+                num_pixels = pixels->size();
+            else {
+                num_pixels = 0;
+                for(auto &line : *lines) {
+                    num_pixels += ptr_safe_t(line.x1) - ptr_safe_t(line.x0) + ptr_safe_t(1);
+                }
+            }
+            if(num_pixels * cm_per_pixel >= min_max.start
+               && num_pixels * cm_per_pixel <= min_max.end)
+            {
+                //b->calculate_moments();
+                assert(lines);
+                task->filtered.push_back(std::make_shared<pv::Blob>(std::move(lines), std::move(pixels)));
+            }
+            else {
+                assert(lines);
+                task->filtered_out.push_back(std::make_shared<pv::Blob>(std::move(lines), std::move(pixels)));
+            }
         }
     }
 
@@ -1766,13 +1769,15 @@ void FrameGrabber::threadable_task(std::unique_ptr<ProcessingTask>&& task) {
         for (auto &b: task->filtered) {
             if(b->hor_lines().size() < UINT16_MAX) {
                 if(b->hor_lines().size() < UINT16_MAX)
-                    task->frame->add_object(b->lines(), b->pixels());
+                    task->frame->add_object(std::move(b->steal_lines()), std::move(b->pixels()));
                 else
                     Warning("Lots of lines!");
             }
             else
                 Warning("Probably a lot of noise with %lu lines!", b->hor_lines().size());
         }
+        
+        task->filtered.clear();
     }
 
 #ifdef TGRABS_DEBUG_TIMING
