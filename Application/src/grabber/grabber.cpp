@@ -1424,7 +1424,12 @@ struct ProcessingTask {
     Image::UPtr current, raw;
     std::unique_ptr<pv::Frame> frame;
     Timer timer;
-    std::vector<pv::BlobPtr> filtered, filtered_out;
+    struct Pair {
+        pv::Blob::line_ptr_t lines;
+        pv::Blob::pixel_ptr_t pixels;
+    };
+    
+    std::vector<Pair> filtered, filtered_out;
     
     ProcessingTask() = default;
     ProcessingTask(size_t index, Image::UPtr&& current, Image::UPtr&& raw, std::unique_ptr<pv::Frame>&& frame)
@@ -1585,7 +1590,7 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(std::unique_ptr<P
             if (!task->filtered_out.empty()) {
                 _noise = std::make_unique<pv::Frame>(task->current->timestamp(), task->filtered_out.size());
                 for (auto &b : task->filtered_out) {
-                    _noise->add_object(std::move(b->steal_lines()), std::move(b->pixels()));
+                    _noise->add_object(std::move(b.lines), std::move(b.pixels));
                 }
                 task->filtered_out.clear();
             }
@@ -1728,6 +1733,9 @@ void FrameGrabber::threadable_task(std::unique_ptr<ProcessingTask>&& task) {
         _raw_blobs = _sub_timer.elapsed();
         _sub_timer.reset();
 #endif
+        task->filtered.reserve(rawblobs.size() / 2);
+        task->filtered_out.reserve(rawblobs.size() / 2);
+        
         for(auto  && [lines, pixels] : rawblobs) {
             //b->calculate_properties();
             
@@ -1745,11 +1753,11 @@ void FrameGrabber::threadable_task(std::unique_ptr<ProcessingTask>&& task) {
             {
                 //b->calculate_moments();
                 assert(lines);
-                task->filtered.push_back(std::make_shared<pv::Blob>(std::move(lines), std::move(pixels)));
+                task->filtered.push_back({std::move(lines), std::move(pixels)});
             }
             else {
                 assert(lines);
-                task->filtered_out.push_back(std::make_shared<pv::Blob>(std::move(lines), std::move(pixels)));
+                task->filtered_out.push_back({std::move(lines), std::move(pixels)});
             }
         }
     }
@@ -1767,14 +1775,14 @@ void FrameGrabber::threadable_task(std::unique_ptr<ProcessingTask>&& task) {
         TakeTiming take(timing);
         
         for (auto &b: task->filtered) {
-            if(b->hor_lines().size() < UINT16_MAX) {
-                if(b->hor_lines().size() < UINT16_MAX)
-                    task->frame->add_object(std::move(b->steal_lines()), std::move(b->pixels()));
+            if(b.lines->size() < UINT16_MAX) {
+                if(b.lines->size() < UINT16_MAX)
+                    task->frame->add_object(std::move(b.lines), std::move(b.pixels));
                 else
                     Warning("Lots of lines!");
             }
             else
-                Warning("Probably a lot of noise with %lu lines!", b->hor_lines().size());
+                Warning("Probably a lot of noise with %lu lines!", b.lines->size());
         }
         
         task->filtered.clear();
