@@ -233,6 +233,16 @@ endif()
 
 endif()
 
+if(APPLE)
+target_sources(${TREX_EXEC_NAME} PRIVATE gfx/TRexIcons.xcassets)
+set_source_files_properties(gfx/TRexIcons.xcassets PROPERTIES
+    MACOSX_PACKAGE_LOCATION Resources
+)
+set_target_properties(${TREX_EXEC_NAME} PROPERTIES
+    XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon")
+endif()
+
+
 install(TARGETS ${targets}
     EXPORT TRex
     LIBRARY DESTINATION lib

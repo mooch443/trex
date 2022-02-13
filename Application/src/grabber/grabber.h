@@ -181,14 +181,12 @@ public:
     
     std::unique_ptr<pv::Frame> last_frame() {
         std::lock_guard<std::mutex> guard(_frame_lock);
-        auto last_frame = std::move(_last_frame);
-        return last_frame;
+        return std::move(_last_frame);
     }
     
     std::unique_ptr<pv::Frame> noise() {
         std::lock_guard<std::mutex> guard(_frame_lock);
-        auto noise = std::move(_noise);
-        return noise;
+        return std::move(_noise);
     }
     
     void write_fps(uint64_t index, uint64_t tdelta, uint64_t ts);
@@ -226,8 +224,8 @@ private:
     bool add_image_to_average(const Image_t&);
     void initialize(std::function<void(FrameGrabber&)>&& callback_before_starting);
     
-    std::tuple<int64_t, bool, double> in_main_thread(std::unique_ptr<ProcessingTask>&& task);
-    void threadable_task(std::unique_ptr<ProcessingTask>&& task);
+    std::tuple<int64_t, bool, double> in_main_thread(const std::unique_ptr<ProcessingTask>& task);
+    void threadable_task(const std::unique_ptr<ProcessingTask>& task);
 };
 
 #endif

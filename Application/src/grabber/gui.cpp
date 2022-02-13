@@ -348,10 +348,7 @@ void GUI::draw(gui::DrawStructure &base) {
 
                 }
                 else {
-                    auto circle = new Circle(Vec2(12, 18).mul(scale), 5, Black.alpha(255 * alpha), Black.alpha(255 * alpha));
-                    circle->set_scale(scale);
-                    circle->set_origin(Vec2(0.5));
-                    base.add_object(circle);
+                    base.circle(Vec2(12, 18).mul(scale), 5, Black.alpha(255 * alpha), Black.alpha(255 * alpha), scale, Vec2(0.5));
                 }
             }
 

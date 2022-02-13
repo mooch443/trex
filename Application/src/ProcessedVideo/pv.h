@@ -89,7 +89,7 @@ namespace pv {
         GETTER_SETTER(float, loading_time)
         
         GETTER_NCONST(std::vector<std::unique_ptr<std::vector<HorizontalLine>>>, mask)
-        GETTER_NCONST(std::vector<std::unique_ptr<const std::vector<uchar>>>, pixels)
+        GETTER_NCONST(std::vector<std::unique_ptr<std::vector<uchar>>>, pixels)
         GETTER(std::vector<std::shared_ptr<pv::Blob>>, blobs)
         
     public:
@@ -125,7 +125,7 @@ namespace pv {
          * Adds a new object to this frame.
          * ! takes ownership of both arrays
          **/
-        void add_object(Blob::line_ptr_t&& mask, Blob::pixel_ptr_t&& pixels);
+        void add_object(blob::line_ptr_t&& mask, blob::pixel_ptr_t&& pixels);
         void add_object(const std::vector<HorizontalLine>& mask, const std::vector<uchar>& pixels);
 
         uint64_t size() const;

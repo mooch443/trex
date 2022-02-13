@@ -1026,7 +1026,8 @@ void VideoOpener::select_file(const file::Path &p) {
         _mini_bowl->set_scale(Vec2(scale.min()));
         
         _mini_bowl->update([&](Entangled& b){
-            _background = std::make_shared<ExternalImage>(std::move(Image::Make(video->average())));
+            std::shared_ptr<ExternalImage> image = std::make_shared<ExternalImage>(Image::Make(video->average()));
+            _background = image;
             b.advance_wrap(*_background);
             
             std::lock_guard guard(_blob_mutex);

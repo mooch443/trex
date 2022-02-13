@@ -91,8 +91,8 @@ namespace pv {
         _pixels.clear();
         
         for (size_t i=0; i<other.n(); ++i) {
-            _mask.push_back(std::make_unique<Blob::line_ptr_t::element_type>(*other._mask[i]));
-            _pixels.push_back(std::make_unique<Blob::pixel_ptr_t::element_type>(*other._pixels[i]));
+            _mask.push_back(std::make_unique<blob::line_ptr_t::element_type>(*other._mask[i]));
+            _pixels.push_back(std::make_unique<blob::pixel_ptr_t::element_type>(*other._pixels[i]));
         }
     }
 
@@ -272,7 +272,7 @@ namespace pv {
             delete compressed;
     }
     
-    void Frame::add_object(Blob::line_ptr_t&& mask, Blob::pixel_ptr_t&& pixels) {
+    void Frame::add_object(blob::line_ptr_t&& mask, blob::pixel_ptr_t&& pixels) {
         assert(mask->size() < UINT16_MAX);
         
 #ifndef NDEBUG
@@ -295,8 +295,8 @@ namespace pv {
 
 void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vector<uchar>& pixels) {
     assert(mask->size() < UINT16_MAX);
-    _mask.push_back(std::make_unique<Blob::line_ptr_t::element_type>(mask));
-    _pixels.push_back(std::make_unique<Blob::pixel_ptr_t::element_type>(pixels));
+    _mask.push_back(std::make_unique<blob::line_ptr_t::element_type>(mask));
+    _pixels.push_back(std::make_unique<blob::pixel_ptr_t::element_type>(pixels));
     _n++;
 }
     

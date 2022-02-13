@@ -327,7 +327,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr)
                     }
                 }
                 
-                blob->set_pixels(std::make_unique<const std::vector<uchar>>(std::move(grey)));
+                blob->set_pixels(std::make_unique<std::vector<uchar>>(std::move(grey)));
                 //result.pixels.push_back(grey);
             }
         }

@@ -1424,12 +1424,8 @@ struct ProcessingTask {
     Image::UPtr current, raw;
     std::unique_ptr<pv::Frame> frame;
     Timer timer;
-    struct Pair {
-        pv::Blob::line_ptr_t lines;
-        pv::Blob::pixel_ptr_t pixels;
-    };
     
-    std::vector<Pair> filtered, filtered_out;
+    std::vector<blob::Pair> filtered, filtered_out;
     
     ProcessingTask() = default;
     ProcessingTask(size_t index, Image::UPtr&& current, Image::UPtr&& raw, std::unique_ptr<pv::Frame>&& frame)
@@ -1442,8 +1438,8 @@ struct ProcessingTask {
         if (frame)
             frame->clear();
         index = 0;
-        filtered.clear();
-        filtered_out.clear();
+        //filtered.clear();
+        //filtered_out.clear();
         timer.reset();
     }
 };
@@ -1456,7 +1452,7 @@ static int64_t last_updated = -1;
 static double last_frame_s = -1;
 static Timer last_gui_update;
 
-std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(std::unique_ptr<ProcessingTask>&& task)
+std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique_ptr<ProcessingTask>& task)
 {
     static const auto conversion_range_end = (_video && GRAB_SETTINGS(video_conversion_range).second != -1) ? GRAB_SETTINGS(video_conversion_range).second : -1;
     static const double frame_time = GRAB_SETTINGS(frame_rate) > 0 ? 1.0 / double(GRAB_SETTINGS(frame_rate)) : 1.0/25.0;
@@ -1578,17 +1574,21 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(std::unique_ptr<P
             _current_image->create(*task->current, index);
         }
             
-        _last_frame = std::move(task->frame);
+        std::swap(_last_frame, task->frame);
         if(_last_frame)
             _last_frame->set_index(index);
 
         //if(false)
         {
             std::lock_guard<std::mutex> guard(_frame_lock);
-            _noise = nullptr;
-
             if (!task->filtered_out.empty()) {
-                _noise = std::make_unique<pv::Frame>(task->current->timestamp(), task->filtered_out.size());
+                if(!_noise)
+                    _noise = std::make_unique<pv::Frame>(task->current->timestamp(), task->filtered_out.size());
+                else {
+                    _noise->clear();
+                    _noise->set_timestamp(task->current->timestamp());
+                }
+                
                 for (auto &b : task->filtered_out) {
                     _noise->add_object(std::move(b.lines), std::move(b.pixels));
                 }
@@ -1653,7 +1653,7 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(std::unique_ptr<P
     return { _last_task_peek, transfer_to_gui, last_time };
 }
 
-void FrameGrabber::threadable_task(std::unique_ptr<ProcessingTask>&& task) {
+void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) {
     static const Rangef min_max = GRAB_SETTINGS(blob_size_range);
     static const float cm_per_pixel = SQR(SETTING(cm_per_pixel).value<float>());
     
@@ -1733,11 +1733,21 @@ void FrameGrabber::threadable_task(std::unique_ptr<ProcessingTask>&& task) {
         _raw_blobs = _sub_timer.elapsed();
         _sub_timer.reset();
 #endif
-        task->filtered.reserve(rawblobs.size() / 2);
-        task->filtered_out.reserve(rawblobs.size() / 2);
+        if(task->filtered.capacity() == 0) {
+            task->filtered.reserve(rawblobs.size() / 2);
+            task->filtered_out.reserve(rawblobs.size() / 2);
+        }
         
-        for(auto  && [lines, pixels] : rawblobs) {
+        size_t fidx = 0;
+        size_t fodx = 0;
+        
+        size_t Ni = task->filtered.size();
+        size_t No = task->filtered_out.size();
+        
+        for(auto  && pair : rawblobs) {
             //b->calculate_properties();
+            auto &pixels = pair.pixels;
+            auto &lines = pair.lines;
             
             ptr_safe_t num_pixels;
             if(pixels)
@@ -1753,13 +1763,38 @@ void FrameGrabber::threadable_task(std::unique_ptr<ProcessingTask>&& task) {
             {
                 //b->calculate_moments();
                 assert(lines);
-                task->filtered.push_back({std::move(lines), std::move(pixels)});
+                ++fidx;
+                if(Ni <= fidx) {
+                    task->filtered.emplace_back(std::move(pair));
+                    //task->filtered.push_back({std::move(lines), std::move(pixels)});
+                    ++Ni;
+                } else {
+//                    *task->filtered[fidx].lines = std::move(*lines);
+//                    *task->filtered[fidx].pixels = std::move(*pixels);
+                    //std::swap(task->filtered[fidx].lines, lines);
+                    //std::swap(task->filtered[fidx].pixels, pixels);
+                    task->filtered[fidx] = std::move(pair);
+                }
             }
             else {
                 assert(lines);
-                task->filtered_out.push_back({std::move(lines), std::move(pixels)});
+                ++fodx;
+                if(No <= fodx) {
+                    task->filtered_out.emplace_back(std::move(pair));
+                    //task->filtered_out.push_back({std::move(lines), std::move(pixels)});
+                    ++No;
+                } else {
+//                    *task->filtered_out[fodx].lines = std::move(*lines);
+//                    *task->filtered_out[fodx].pixels = std::move(*pixels);
+//                    std::swap(task->filtered_out[fodx].lines, lines);
+//                    std::swap(task->filtered_out[fodx].pixels, pixels);
+                    task->filtered_out[fodx] = std::move(pair);
+                }
             }
         }
+        
+        task->filtered.reserve(fidx);
+        task->filtered_out.reserve(fodx);
     }
 
 #ifdef TGRABS_DEBUG_TIMING
@@ -1769,7 +1804,13 @@ void FrameGrabber::threadable_task(std::unique_ptr<ProcessingTask>&& task) {
 
     // create pv::Frame object for this frame
     // (creating new object so it can be swapped with _last_frame)
-    task->frame = std::make_unique<pv::Frame>(task->current->timestamp(), task->filtered.size());
+    if(!task->frame)
+        task->frame = std::make_unique<pv::Frame>(task->current->timestamp(), task->filtered.size());
+    else {
+        task->frame->clear();
+        task->frame->set_timestamp(task->current->timestamp());
+    }
+    
     {
         static Timing timing("adding frame");
         TakeTiming take(timing);
@@ -1793,7 +1834,7 @@ void FrameGrabber::threadable_task(std::unique_ptr<ProcessingTask>&& task) {
     _sub_timer.reset();
 #endif
     
-    auto [_last_task_peek, gui_updated, last_time] = in_main_thread(std::move(task));
+    auto [_last_task_peek, gui_updated, last_time] = in_main_thread(task);
 #ifdef TGRABS_DEBUG_TIMING
     _main_thread = _sub_timer.elapsed();
 
@@ -1898,7 +1939,7 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
                         _multi_variable.notify_one();
                         
                         try {
-                            threadable_task(std::move(task));
+                            threadable_task(task);
 
                         } catch(const std::exception& ex) {
                             Except("std::exception from threadable task: %s", ex.what());
@@ -1933,8 +1974,8 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
 
     if (!task)
         task = std::make_unique<ProcessingTask>();
-    
-    task->clear();
+    else
+        task->clear();
     task->index = global_index++;
 
     //Debug("Image %d Timestamp = %lu", current.index(), TS);
