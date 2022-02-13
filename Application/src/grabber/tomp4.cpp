@@ -30,7 +30,9 @@ unsigned long long getTotalSystemMemory()
 }
 #else
 #include <unistd.h>
+#ifndef __linux__
 #include <sys/sysctl.h>
+#endif
 
 unsigned long long getTotalSystemMemory()
 {
