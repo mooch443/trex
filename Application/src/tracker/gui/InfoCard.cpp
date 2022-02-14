@@ -240,9 +240,9 @@ void InfoCard::update() {
         bool detail = SETTING(gui_show_detailed_probabilities);
         Bounds tmp(0, y - 10, 200, 0);
         
-        auto idx = index();
-        if(idx < children().size() && children().at(idx)->type() == Type::RECT)
-            tmp << children().at(idx)->size();
+        //auto idx = index();
+        //if(idx < children().size() && children().at(idx)->type() == Type::RECT)
+        //    tmp << children().at(idx)->size();
         
         float max_w = 200;
         auto rect = add<Rect>(tmp, bg.alpha(detail ? 50 : bg.a));
@@ -356,9 +356,9 @@ void InfoCard::update() {
         Bounds tmp(0, y-10, 200, 0);
         auto rect = add<Rect>(tmp, bg.alpha(bg.a));
         
-        auto idx = index();
-        if(idx < children().size() && children().at(idx)->type() == Type::RECT)
-            tmp << children().at(idx)->size();
+        //auto idx = index();
+        //if(idx < children().size() && children().at(idx)->type() == Type::RECT)
+        //    tmp << children().at(idx)->size();
         
         auto blob_id = _fish->compressed_blob(_frameNr)->blob_id();
         auto && [valid, segment] = _fish->has_processed_segment(_frameNr);

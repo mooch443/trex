@@ -968,6 +968,7 @@ Fish::~Fish() {
         const float max_distance = Individual::weird_distance() * 0.1 / FAST_SETTINGS(cm_per_pixel);
         size_t paths_index = 0;
         _vertices.clear();
+        _vertices.reserve(frame_vertices.size());
 
         auto prev = frame_vertices.empty() ? Frame_t() : frame_vertices.begin()->frame;
         Vec2 prev_pos = frame_vertices.empty() ? Vec2(-1) : frame_vertices.begin()->vertex.position();
