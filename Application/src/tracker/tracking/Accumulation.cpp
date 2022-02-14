@@ -1867,9 +1867,9 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
                     continue;
                 }
                 
-                e.advance(new Circle(offset, 5, color, color.alpha(50)));
-                auto text = e.advance(new Text(Meta::toStr(i), offset + Vec2(0, Base::default_line_spacing(font) + 2), White, font));
-                text = e.advance(new Text(Meta::toStr(int(d * 10000) / 100.0)+"%", offset + Vec2(0, Base::default_line_spacing(font) * 2 + 4), White, font));
+                e.add<Circle>(offset, 5, color, color.alpha(50));
+                auto text = e.add<Text>(Meta::toStr(i), offset + Vec2(0, Base::default_line_spacing(font) + 2), White, font);
+                text = e.add<Text>(Meta::toStr(int(d * 10000) / 100.0)+"%", offset + Vec2(0, Base::default_line_spacing(font) * 2 + 4), White, font);
                 offset += Vec2(max(12, text->width() + 10), 0);
                 
                 ++i;

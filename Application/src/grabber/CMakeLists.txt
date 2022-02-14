@@ -263,6 +263,15 @@ if(WITH_FFMPEG)
     target_compile_definitions(${TGRABS_EXEC_NAME} PRIVATE WITH_FFMPEG=true)
 endif()
 
+if(APPLE)
+target_sources(${TGRABS_EXEC_NAME} PRIVATE gfx/TGrabsIcons.xcassets)
+set_source_files_properties(gfx/TGrabsIcons.xcassets PROPERTIES
+    MACOSX_PACKAGE_LOCATION Resources
+)
+set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES
+    XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon")
+endif()
+
 
 install(TARGETS ${targets}
     EXPORT TGrabs

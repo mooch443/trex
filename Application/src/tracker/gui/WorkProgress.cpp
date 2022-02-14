@@ -297,7 +297,7 @@ void WorkProgress::update(gui::DrawStructure &base, gui::Section *section) {
     work_progress.update([&](Entangled& base){
         const float margin = 5;
         
-        auto text = base.advance(new Text(_item, offset, Color(0, 150, 225, 255), Font(0.8, Style::Bold), Vec2(1), Vec2(0.5, 0)));
+        auto text = base.add<Text>(_item, offset, Color(0, 150, 225, 255), Font(0.8, Style::Bold), Vec2(1), Vec2(0.5, 0));
         offset.y += text->height() + margin;
         width = max(width, text->width());
         
@@ -340,11 +340,8 @@ void WorkProgress::update(gui::DrawStructure &base, gui::Section *section) {
             //Vec2 bar_offset(- bar_size.x * 0.5, size.y - bar_size.y - 10 - size.y * 0.5);
             Size2 bar_size(width, 30);
             
-            auto bar_bg = new Rect(Bounds(Vec2(0, offset.y), bar_size), Color(255, 255, 255, 100), Black.alpha(255));
-            bar_bg->set_origin(Vec2(0.5, 0));
-            base.advance(bar_bg);
-            auto bar = base.advance(new Rect(Bounds(Vec2(1, 1 + offset.y), Size2(bar_size.width * _percent-2, bar_size.height-2)), Color(255, 255, 255, 180)));
-            bar->set_origin(Vec2(0.5, 0));
+            base.add<Rect>(Bounds(Vec2(0, offset.y), bar_size), White.alpha(100), Black, Vec2(1), Vec2(0.5, 0));
+            auto bar = base.add<Rect>(Bounds(Vec2(1, 1 + offset.y), Size2(bar_size.width * _percent-2, bar_size.height-2)), White.alpha(180), White, Vec2(1), Vec2(0.5, 0));
             offset += Vec2(0, bar->height() + margin);
             width = max(width, bar->width());
         }

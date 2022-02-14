@@ -513,7 +513,7 @@ public:
                         auto color = wheel.next();
                         float h = float((size - mi) / float(ma - mi)) * bars.height;
                         //Debug("%S: %f (%lu, %lu)", &name, h, size - mi, ma - mi);
-                        base.advance(new Rect(Bounds(x + margin, margin + bars.height - h, bars.width - margin * 2, h), color));
+                        base.add<Rect>(Bounds(x + margin, margin + bars.height - h, bars.width - margin * 2, h), color);
                         auto text = elements.at(i);
                         auto pos = Vec2(x + bars.width * 0.5f, margin + bars.height + margin);
                         if(!text) {
@@ -574,7 +574,7 @@ public:
                     }
                     
                     auto str = Meta::toStr(FileSize{overall.bytes});
-                    base.advance(new Text(str, Vec2(10, 10), White, Font(0.75)));
+                    base.add<Text>(str, Vec2(10, 10), White, Font(0.75));
                     
                 });
                 

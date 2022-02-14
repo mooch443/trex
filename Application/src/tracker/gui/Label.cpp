@@ -65,7 +65,7 @@ void Label::update(Drawable*ptr, Entangled& base, float alpha, bool disabled) {
     }
     
     _text->set_pos(text_pos);
-    base.advance(new Line(_center, text_pos, (disabled ? Gray : Cyan).alpha(255 * alpha), 1));
+    base.add<Line>(_center, text_pos, (disabled ? Gray : Cyan).alpha(255 * alpha), 1);
 }
 
 }

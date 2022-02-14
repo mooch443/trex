@@ -1544,7 +1544,7 @@ void GUI::draw_grid(gui::DrawStructure &base) {
             
             sign.update([custom, &font](Entangled& base){
                 std::string str = "grid"+Meta::toStr(*custom->_point);
-                base.advance(new Text(str, Vec2(5,5), White, font));
+                base.add<Text>(str, Vec2(5,5), White, font);
             });
             
             base.wrap_object(sign);
@@ -2054,10 +2054,10 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
 
                             {
                                 std::unique_lock guard(Categorize::DataStore::cache_mutex());
-                                PD(cache)._fish_map[fish]->update(e, base);
+                                PD(cache)._fish_map[fish]->update(ptr, e, base);
                             }
                             //base.wrap_object(*PD(cache)._fish_map[fish]);
-                            PD(cache)._fish_map[fish]->label(ptr, e);
+                            //PD(cache)._fish_map[fish]->label(ptr, e);
                         }
                     });
 
@@ -3846,7 +3846,7 @@ void GUI::draw_raw_mode(DrawStructure &base, Frame_t frameIndex) {
                     circ->set_line_clr(White.alpha(50));
                     circ->set_pos(blob->center());
                     
-                    e.advance(new Rect(blob->bounds(), Transparent, White.alpha(100)));
+                    e.add<Rect>(blob->bounds(), Transparent, White.alpha(100));
                     e.advance_wrap(*circ);
                     
                     if(d > 0 && real_size > 0) {

@@ -72,12 +72,12 @@ namespace gui {
         //ExternalImage _colored;
         
         Graph _graph;
-        Entangled _posture;
+        Entangled _posture, _label_parent;
         
     public:
         Fish(track::Individual& obj);
         ~Fish();
-        void update(Entangled& p, DrawStructure& d);
+        void update(Drawable* bowl, Entangled& p, DrawStructure& d);
         //void draw_occlusion(DrawStructure& window);
         void set_data(Frame_t frameIndex, double time, const track::PPFrame& frame, const EventAnalysis::EventMap* events);
         

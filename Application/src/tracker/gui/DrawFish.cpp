@@ -216,7 +216,7 @@ Fish::~Fish() {
         window.image(blob_bounds.pos(), _image);
     }*/
     
-    void Fish::update(Entangled& parent, DrawStructure &base) {
+    void Fish::update(Drawable* bowl, Entangled& parent, DrawStructure &base) {
         const int frame_rate = FAST_SETTINGS(frame_rate);
         //const float track_max_reassign_time = FAST_SETTINGS(track_max_reassign_time);
         const auto single_identity = GUIOPTION(gui_single_identity_color);
@@ -225,6 +225,7 @@ Fish::~Fish() {
         auto &cache = GUI::instance()->cache();
         
         _view.set_bounds(_blob_bounds);
+        _label_parent.set_bounds(Bounds(Vec2(0), parent.size()));
         
         const Vec2 offset = -_blob_bounds.pos();
         
@@ -392,7 +393,7 @@ Fish::~Fish() {
 
                 // check if we actually have a tail index
                 if (GUIOPTION(gui_show_midline) && _cached_midline && _cached_midline->tail_index() != -1)
-                    window.advance(new Circle(points.at(_cached_midline->tail_index()), 2, Blue.alpha(max_color * 0.3f)));
+                    window.add<Circle>(points.at(_cached_midline->tail_index()), 2, Blue.alpha(max_color * 0.3f));
 
                 //float right_side = outline->tail_index() + 1;
                 //float left_side = points.size() - outline->tail_index();
@@ -408,7 +409,7 @@ Fish::~Fish() {
                 }
                 oline.push_back(Vertex(points.front(), _color.alpha(0.04 * max_color)));
                 //auto line =
-                window.advance(new Line(oline, GUIOPTION(gui_outline_thickness)));
+                window.add<Line>(oline, GUIOPTION(gui_outline_thickness));
                 //if(line)
                 //    window.text(Meta::toStr(line->points().size()) + "/" + Meta::toStr(oline.size()), Vec2(), White);
                 //window.vertices(oline);
@@ -438,11 +439,11 @@ Fish::~Fish() {
                     line.push_back(Vertex(tf.transformPoint(segment.pos), _color));
                 }
 
-                window.advance(new Line(line, GUIOPTION(gui_outline_thickness)));
+                window.add<Line>(line, GUIOPTION(gui_outline_thickness));
                 //window.vertices(line);
 
                 if (head) {
-                    window.advance(new Circle(head->pos<Units::PX_AND_SECONDS>() + offset, 3, Red.alpha(max_color)));
+                    window.add<Circle>(head->pos<Units::PX_AND_SECONDS>() + offset, 3, Red.alpha(max_color));
                 }
             }
             });
@@ -456,7 +457,7 @@ Fish::~Fish() {
                 update_recognition_circle();
 
             if(panic_button) {
-                _view.advance(new Line(_posture.pos(), mp, White.alpha(50)));
+                _view.add<Line>(_posture.pos(), mp, White.alpha(50));
                 GUI::cache().set_animating(&_view, true);
             } else
                 GUI::cache().set_animating(&_view, false);
@@ -488,13 +489,13 @@ Fish::~Fish() {
                     _next_frame_cache = _obj.cache_for_frame(_idx + 1_f, next_time);
                 auto estimated = _next_frame_cache.estimated_px + offset;
             
-                _view.advance(new Circle(c_pos, 2, White.alpha(max_color)));
+                _view.add<Circle>(c_pos, 2, White.alpha(max_color));
                     //auto &fcache = cache.processed_frame.cached_individuals.at(_obj.identity().ID());
                     //auto estimated = cache.estimated_px + offset;
                     //float tdelta = next_time - current_time;
                     //float tdelta = fcache.local_tdelta;
-                _view.advance(new Line(c_pos, estimated, clr));
-                _view.advance(new Circle(estimated, 2, Transparent, clr));
+                _view.add<Line>(c_pos, estimated, clr);
+                _view.add<Circle>(estimated, 2, Transparent, clr);
                 
                     //const float max_d = FAST_SETTINGS(track_max_speed) * tdelta / FAST_SETTINGS(cm_per_pixel);
                     //window.circle(estimated, max_d * 0.5, Red.alpha(100));
@@ -572,11 +573,11 @@ Fish::~Fish() {
                 auto eye_scale = max(0.5, _obj.midline_length() / 90);
                 for(auto &eye : eyes) {
                     eye.pos += ph.direction;
-                    _view.advance(new Circle(eye.pos + offset, 5 * eye_scale, Black.alpha(200), White.alpha(125)));
-                    auto c = _view.advance(new Circle(eye.pos + Vec2(2.5).mul(d * eye_scale) + offset, 3 * eye_scale, Transparent, Black.alpha(200)));
+                    _view.add<Circle>(eye.pos + offset, 5 * eye_scale, Black.alpha(200), White.alpha(125));
+                    auto c = _view.add<Circle>(eye.pos + Vec2(2.5).mul(d * eye_scale) + offset, 3 * eye_scale, Transparent, Black.alpha(200));
                     c->set_scale(Vec2(1, ph.blinking ? h : 1));
                     c->set_rotation(atan2(ph.direction) + RADIANS(90));//posture->head->angle() + RADIANS(90));
-                    _view.advance(new Circle(eye.pos + Vec2(2.5).mul(d * eye_scale) + Vec2(2 * eye_scale).mul(sun_direction) + offset, sqrt(eye_scale), Transparent, White.alpha(200 * c->scale().min())));
+                    _view.add<Circle>(eye.pos + Vec2(2.5).mul(d * eye_scale) + Vec2(2 * eye_scale).mul(sun_direction) + offset, sqrt(eye_scale), Transparent, White.alpha(200 * c->scale().min()));
                 }
             }
         
@@ -612,7 +613,7 @@ Fish::~Fish() {
                                 *(ptr+3) = *m;
                             }
                         
-                            _view.advance(new ExternalImage(std::move(rgba), dpos + offset));
+                            _view.add<ExternalImage>(std::move(rgba), dpos + offset);
                         
                             break;
                         }
@@ -639,7 +640,7 @@ Fish::~Fish() {
                             rgba->set_channels(image->data(), {0, 1, 2});
                             rgba->set_channel(3, difference->data());
                         
-                            _view.advance(new ExternalImage(std::move(rgba), image_pos + offset, Vec2(1), clr));
+                            _view.add<ExternalImage>(std::move(rgba), image_pos + offset, Vec2(1), clr);
                         
                             break;
                         }
@@ -742,8 +743,8 @@ Fish::~Fish() {
                 Vec2 pos(cmn::cos(angle), -cmn::sin(angle));
                 pos = pos * radius + c_pos;
             
-                _view.advance(new Circle(pos, 3, circle_clr));
-                _view.advance(new Line(c_pos, pos, circle_clr));
+                _view.add<Circle>(pos, 3, circle_clr);
+                _view.add<Line>(c_pos, pos, circle_clr);
             
                 if(FAST_SETTINGS(posture_direction_smoothing)) {
                     std::map<Frame_t, float> angles;
@@ -824,10 +825,27 @@ Fish::~Fish() {
                     _view.advance_wrap(_graph);
                 }
             }
-
         });
 
+        
         parent.advance_wrap(_view);
+        
+        _label_parent.update([&](auto&){
+            label(bowl, _label_parent);
+        });
+        
+        parent.advance_wrap(_label_parent);
+        
+        //static auto change = parent.children();
+        /*if(parent.children().size() != change.size()) {
+            Debug("_view:");
+            for(auto c : parent.children()) {
+                auto name = c->toStr();
+                Debug("\t%S", &name);
+            }
+            Debug("--");
+            change = parent.children();
+        }*/
     }
     
     void Fish::paintPath(const Vec2& offset, Frame_t to, Frame_t from, const Color& base_color) {
@@ -1128,14 +1146,14 @@ Fish::~Fish() {
 void Fish::label(Drawable* bowl, Entangled &base) {
     if(GUIOPTION(gui_highlight_categories)) {
         if(_avg_cat != -1) {
-            base.advance(new Circle(_view.pos() + _view.size() * 0.5, _view.size().length(), Transparent, ColorWheel(_avg_cat).next().alpha(75)));
+            base.add<Circle>(_view.pos() + _view.size() * 0.5, _view.size().length(), Transparent, ColorWheel(_avg_cat).next().alpha(75));
         } else {
-            base.advance(new Circle(_view.pos() + _view.size() * 0.5, _view.size().length(), Transparent, Purple.alpha(15)));
+            base.add<Circle>(_view.pos() + _view.size() * 0.5, _view.size().length(), Transparent, Purple.alpha(15));
         }
     }
     
     if(GUIOPTION(gui_show_match_modes)) {
-        base.advance(new Circle(_view.pos() + _view.size() * 0.5, _view.size().length(), Transparent, ColorWheel(_match_mode).next().alpha(50)));
+        base.add<Circle>(_view.pos() + _view.size() * 0.5, _view.size().length(), Transparent, ColorWheel(_match_mode).next().alpha(50));
     }
     
     //auto bdx = blob->blob_id();
@@ -1143,7 +1161,7 @@ void Fish::label(Drawable* bowl, Entangled &base) {
         uint32_t i=0;
         for(auto &clique : GUI::cache()._cliques) {
             if(clique.fishs.contains(_obj.identity().ID())) {
-                base.advance(new Circle(_view.pos() + _view.size() * 0.5, _view.size().length(), Transparent, ColorWheel(i).next().alpha(50)));
+                base.add<Circle>(_view.pos() + _view.size() * 0.5, _view.size().length(), Transparent, ColorWheel(i).next().alpha(50));
                 break;
             }
             ++i;

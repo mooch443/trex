@@ -294,7 +294,7 @@ namespace pv {
     }
 
 void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vector<uchar>& pixels) {
-    assert(mask->size() < UINT16_MAX);
+    assert(mask.size() < UINT16_MAX);
     _mask.push_back(std::make_unique<blob::line_ptr_t::element_type>(mask));
     _pixels.push_back(std::make_unique<blob::pixel_ptr_t::element_type>(pixels));
     _n++;
