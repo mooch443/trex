@@ -558,6 +558,8 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                         ref.read<double>(time);
                     else
                         ref.read_convert<float>(time);
+                } else {
+                    time = Tracker::properties(frame)->time;
                 }
                 
                 prop = new PhysicalProperties(prev, frame, time, pos, angle);

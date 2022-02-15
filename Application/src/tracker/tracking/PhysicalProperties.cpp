@@ -39,7 +39,7 @@ PhysicalProperties::PhysicalProperties(const PhysicalProperties* previous, Frame
 #endif
 }
 
-template<typename T>
+/*template<typename T>
 void PhysicalProperties::calculate_derivative(const PhysicalProperties* prev, size_t index, const CacheHints* hints) {
     if (index >= PhysicalProperties::max_derivatives)
         return;
@@ -58,7 +58,7 @@ void PhysicalProperties::calculate_derivative(const PhysicalProperties* prev, si
 
     assert(tdelta > 0);
     set<T>(index, (current_value - prev_value) / tdelta);
-}
+}*/
 
 void PhysicalProperties::flip(const PhysicalProperties* previous, const CacheHints* hints) {
     value<Units::DEFAULT>(previous, normalize_angle(angle() + float(M_PI)), 0, hints);

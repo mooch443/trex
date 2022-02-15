@@ -236,7 +236,25 @@ private:
 
 private:
     template<typename T>
-    void calculate_derivative(const PhysicalProperties* prev, size_t index, const CacheHints* hints);
+    void calculate_derivative(const PhysicalProperties* prev, size_t index, const CacheHints* ) {
+        if (index >= PhysicalProperties::max_derivatives)
+            return;
+
+        assert(index > 0);
+
+        if (!prev) {
+            set<T>(index, T(0));
+            return;
+        }
+
+        //float tdelta = Tracker::time_delta(frame(), prev->frame(), hints);
+        float tdelta = abs(time() - prev->time());
+        const T& current_value = get<T>(index - 1);
+        const T& prev_value = prev->get<T>(index - 1);
+
+        assert(tdelta > 0);
+        set<T>(index, (current_value - prev_value) / tdelta);
+    }
 
 public:
     //T smooth_value(size_t derivative) const {
@@ -258,8 +276,6 @@ protected:
     //static T _update_smooth(const PhysicalProperties::Property<T>* prop, size_t derivative);
 };
 
-template void PhysicalProperties::calculate_derivative<Vec2>(const PhysicalProperties* prev, size_t index, const CacheHints* hints);
-template void PhysicalProperties::calculate_derivative<float>(const PhysicalProperties* prev, size_t index, const CacheHints* hints);
 //template<> Vec2 PhysicalProperties::Property<Vec2>::update_smooth(size_t derivative) const;
 //template<> float PhysicalProperties::Property<float>::update_smooth(size_t derivative) const;
 }
