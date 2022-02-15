@@ -909,16 +909,18 @@ float Individual::outline_size() const { return _local_cache._outline_samples ==
 Vec2 Individual::LocalCache::add(Frame_t frameIndex, const track::PhysicalProperties *current) {
     const size_t maximum_samples = max(3.f, FAST_SETTINGS(frame_rate)*0.1f);
     
+    auto raw_velocity = current->v<Units::CM_AND_SECONDS>();
+
     // use interpolated velocity if available to correct the detected body angle
     // angles that we get from blob.orientation() can be inverted
     // and we wouldnt know it. compare to velocity angle and see
     // if the difference is big. if so, flip it.
     auto v = _v_samples.empty()
-        ? current->v<Units::CM_AND_SECONDS>()
+        ? raw_velocity
         : (_current_velocity / float(_v_samples.size()));
     
-    if(current->speed<Units::CM_AND_SECONDS>() > 0.1f) {
-        _v_samples.push_back(current->v<Units::CM_AND_SECONDS>());
+    if(raw_velocity.length() > 0.1f) {
+        _v_samples.push_back(raw_velocity);
         _current_velocity += _v_samples.back();
     }
     
@@ -928,7 +930,7 @@ Vec2 Individual::LocalCache::add(Frame_t frameIndex, const track::PhysicalProper
     }
     
     _current_velocities[frameIndex] = _v_samples.empty()
-        ? current->v<Units::CM_AND_SECONDS>()
+        ? raw_velocity
         : (_current_velocity / float(_v_samples.size()));
     
     return v;
@@ -976,7 +978,7 @@ std::shared_ptr<Individual::BasicStuff> Individual::add(const FrameProperties* p
     }
     
     _hints.push(frameIndex, props);
-    PhysicalProperties *current = new PhysicalProperties(prev_prop, this, frame.index(), blob->center(), blob->orientation(), &_hints);
+    PhysicalProperties *current = new PhysicalProperties(prev_prop, frame.index(), frame.time, blob->center(), blob->orientation(), &_hints);
     
     auto v = _local_cache.add(frameIndex, current);
     
@@ -988,7 +990,7 @@ std::shared_ptr<Individual::BasicStuff> Individual::add(const FrameProperties* p
         //Debug("%d: Angle is %f|%f (diff %f, %f) (%d, %d) speed %f", frameIndex, DEGREE(current->angle()), DEGREE(angle), DEGREE(diff), DEGREE(diff2), _identity.ID(), frameIndex, length(v));
     
     if(diff >= diff2) {
-        current->flip();
+        current->flip(prev_prop, &_hints);
         //if(identity().ID() == Individual::currentID)
         //    Debug("Flipped to %f", DEGREE(current->angle()));
     }
@@ -1337,7 +1339,9 @@ Midline::Ptr Individual::update_frame_with_posture(const std::shared_ptr<BasicSt
             ++it;
         }
         
-        posture->head = new PhysicalProperties(previous ? previous->head : nullptr, this, posture->frame, pt, midline->angle(), hints);
+        auto prop = Tracker::properties(posture->frame, hints);
+        assert(prop);
+        posture->head = new PhysicalProperties(previous ? previous->head : nullptr, posture->frame, prop->time, pt, midline->angle(), hints);
         
          //ptr//.outline().original_angle();
 #if DEBUG_ORIENTATION
@@ -1356,7 +1360,7 @@ Midline::Ptr Individual::update_frame_with_posture(const std::shared_ptr<BasicSt
                                      Vec2(cos(midline->angle()), sin(midline->angle())))
                > RADIANS(60))
             {
-                c->flip();
+                c->flip(previous ? previous->head : nullptr, hints);
             }
         }
         
@@ -1370,7 +1374,7 @@ Midline::Ptr Individual::update_frame_with_posture(const std::shared_ptr<BasicSt
         centroid_point /= float(points.size());
         centroid_point += bounds.pos();
         
-        posture->centroid_posture = new PhysicalProperties(previous ? previous->centroid_posture : nullptr, this, posture->frame, centroid_point, midline->angle(), hints);
+        posture->centroid_posture = new PhysicalProperties(previous ? previous->centroid_posture : nullptr, posture->frame, prop->time, centroid_point, midline->angle(), hints);
         posture->midline_angle = midline->angle();
         posture->midline_length = midline->len();
         

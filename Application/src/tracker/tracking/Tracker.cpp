@@ -4015,8 +4015,10 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                             pos_end = blob_end->pos<Units::CM_AND_SECONDS>();
                         
                         if(blob_start && blob_end) {
-                            auto dprev = euclidean_distance(prev_pos->pos<Units::CM_AND_SECONDS>(), pos_start) / Tracker::time_delta(blob_start->frame(), prev_pos->frame());
-                            auto dnext = euclidean_distance(next_pos->pos<Units::CM_AND_SECONDS>(), pos_end) / Tracker::time_delta(next_pos->frame(), blob_end->frame());
+                            auto dprev = euclidean_distance(prev_pos->pos<Units::CM_AND_SECONDS>(), pos_start) 
+                                / abs(blob_start->time() - prev_pos->time());
+                            auto dnext = euclidean_distance(next_pos->pos<Units::CM_AND_SECONDS>(), pos_end) 
+                                / abs(next_pos->time() - blob_end->time());
                             Idx_t chosen_id;
                             
                             if(dnext < dprev) {

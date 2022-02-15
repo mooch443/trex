@@ -412,12 +412,13 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                     
                     assert(fish->_endFrame < frameIndex);
                     fish->_endFrame = frameIndex;
-                    
-                    auto prop = new PhysicalProperties(prev, fish, frameIndex, data.pos, data.angle, cache_ptr);
+
+                    auto time = Tracker::properties(frameIndex, cache_ptr)->time;
+                    auto prop = new PhysicalProperties(prev, frameIndex, time, data.pos, data.angle, cache_ptr);
                     data.stuff->centroid = prop;
                     
                     auto label = FAST_SETTINGS(track_consistent_categories)/* || !FAST_SETTINGS(track_only_categories).empty()*/ ? Categorize::DataStore::ranged_label(Frame_t(frameIndex), data.stuff->blob) : nullptr;
-                    auto cache = fish->cache_for_frame(frameIndex, Tracker::properties(frameIndex, cache_ptr)->time, cache_ptr);
+                    auto cache = fish->cache_for_frame(frameIndex, time, cache_ptr);
                     auto p = fish->empty() || frameIndex < fish->start_frame() ? 0 : fish->probability(label ? label->id : -1, cache, frameIndex, data.stuff->blob);//.p;
                     
                     auto segment = fish->update_add_segment(
@@ -559,7 +560,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                         ref.read_convert<float>(time);
                 }
                 
-                prop = new PhysicalProperties(prev, fish, frame, pos, angle);
+                prop = new PhysicalProperties(prev, frame, time, pos, angle);
             }
             
             auto midline = read_midline(ref);
