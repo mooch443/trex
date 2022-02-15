@@ -919,7 +919,7 @@ Vec2 Individual::LocalCache::add(Frame_t frameIndex, const track::PhysicalProper
     
     if(current->speed<Units::CM_AND_SECONDS>() > 0.1f) {
         _v_samples.push_back(current->v<Units::CM_AND_SECONDS>());
-        _current_velocity += current->v<Units::CM_AND_SECONDS>();
+        _current_velocity += _v_samples.back();
     }
     
     if(_v_samples.size() >= maximum_samples) {
