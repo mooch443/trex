@@ -151,8 +151,10 @@ private:
     constexpr T& get(size_t derivative = 0) {
         if constexpr (std::same_as<T, Vec2>)
             return _pos[derivative];
-        else
+        else if constexpr (std::is_same_v<T, float>)
             return _angle[derivative];
+        else
+            static_assert(std::same_as<T, float>);
     }
 
     template<typename T>
@@ -182,9 +184,6 @@ private:
     template<Units from, Units to, bool smooth, typename T>
     T value(size_t derivative = 0) const
     {
-        //if constexpr(smooth)
-        //    return convert<from, to>(smooth_value(derivative));
-        //else
         return convert<from, to>(get<T>(derivative));
     }
 
