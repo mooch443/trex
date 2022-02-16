@@ -1040,7 +1040,7 @@ Fish::~Fish() {
         if(max_frames != -1)
             max_frames = min(max_frames, max(1, to - from + 1));
         
-        PhysicalProperties* prev_centroid = NULL;
+        MotionRecord* prev_centroid = NULL;
         for (long_t i=to; i>=from; i--) {
             // draw lines between previous locations
             auto c = _obj.centroid_weighted(i);

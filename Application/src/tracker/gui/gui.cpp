@@ -5253,7 +5253,7 @@ void GUI::generate_training_data_faces(const file::Path& path) {
                 if(!padded.isContinuous())
                     U_EXCEPTION("Padded is not continous.");
                 
-                PhysicalProperties *found_head = NULL;
+                MotionRecord *found_head = NULL;
                 
                 for(auto fish : active) {
                     auto fish_blob = fish->blob(i);

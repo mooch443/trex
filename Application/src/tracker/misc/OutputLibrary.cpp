@@ -56,9 +56,9 @@ auto find_stuffs(const Library::LibInfo& info, Frame_t frame) {
     return std::make_pair(start, end);
 }
 
-std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(const Library::LibInfo& info, Frame_t frame, float& percent) {
-    const PhysicalProperties *ptr0 = nullptr;
-    const PhysicalProperties *ptr1 = nullptr;
+std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Library::LibInfo& info, Frame_t frame, float& percent) {
+    const MotionRecord *ptr0 = nullptr;
+    const MotionRecord *ptr1 = nullptr;
     
     if(info.modifiers.is(Modifiers::WEIGHTED_CENTROID) || info.modifiers.is(Modifiers::CENTROID)) {
         auto pair = find_stuffs(info, frame);
@@ -437,7 +437,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             float d = 0.0;
             float samples = 0;
             
-            const PhysicalProperties *oc;
+            const MotionRecord *oc;
             for (auto other: individuals) {
                 if (other != fish && (oc = other->centroid(frame))) {
                     auto opos = oc->pos<Units::CM_AND_SECONDS>();
@@ -532,7 +532,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
            const auto individuals = Tracker::active_individuals(frame);
            const auto h0 = props->pos<Units::CM_AND_SECONDS>();
            
-           const PhysicalProperties *oc;
+           const MotionRecord *oc;
            for (auto other: individuals) {
                if (other != fish && (oc = other->centroid(frame))) {
                    info.fish = other;
@@ -878,7 +878,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             
             for(auto fish : Tracker::instance()->active_individuals(frame)) {
                 if(fish->has(frame)) {
-                    PhysicalProperties *p = NULL;
+                    MotionRecord *p = NULL;
                     
                     if(info.modifiers.is(Modifiers::CENTROID))
                         p = fish->centroid(frame);
@@ -910,7 +910,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             
             for(auto fish : Tracker::instance()->active_individuals(frame)) {
                 if(fish->has(frame)) {
-                    PhysicalProperties *p = NULL;
+                    MotionRecord *p = NULL;
                     
                     if(info.modifiers.is(Modifiers::CENTROID))
                         p = fish->centroid(frame);

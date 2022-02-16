@@ -5,7 +5,7 @@
 #include <misc/PVBlob.h>
 #include <tracker/misc/default_config.h>
 #include <misc/ranges.h>
-#include <tracking/PhysicalProperties.h>
+#include <tracking/MotionRecord.h>
 
 //! Can transport Individual/Blob
 namespace track {

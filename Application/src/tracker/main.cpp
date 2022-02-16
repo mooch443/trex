@@ -1066,7 +1066,7 @@ int main(int argc, char** argv)
     
     cmn::Blob blob;
     auto copy = blob.properties();
-    Debug("%lu Individual:%lu Blob:%lu Physical:%lu Image::Ptr:%lu std::shared_ptr<std::vector<HorizontalLine>>:%lu Bounds:%lu bool:%lu cmn::Blob::properties:%lu", sizeof(Test), sizeof(track::Individual), sizeof(pv::Blob), sizeof(PhysicalProperties), sizeof(Image::Ptr), sizeof(std::shared_ptr<std::vector<HorizontalLine>>), sizeof(Bounds), sizeof(bool), sizeof(decltype(copy)));
+    Debug("%lu Individual:%lu Blob:%lu Physical:%lu Image::Ptr:%lu std::shared_ptr<std::vector<HorizontalLine>>:%lu Bounds:%lu bool:%lu cmn::Blob::properties:%lu", sizeof(Test), sizeof(track::Individual), sizeof(pv::Blob), sizeof(MotionRecord), sizeof(Image::Ptr), sizeof(std::shared_ptr<std::vector<HorizontalLine>>), sizeof(Bounds), sizeof(bool), sizeof(decltype(copy)));
     Debug("localcache:%lu identity:%lu std::map<long_t, Vec2>:%lu", sizeof(Individual::LocalCache), sizeof(Identity), sizeof(std::map<long_t, Vec2>));
     Debug("BasicStuff:%lu pv::Blob:%lu Compressed:%lu", sizeof(Individual::BasicStuff), sizeof(pv::Blob), sizeof(pv::CompressedBlob));
     Debug("Midline:%lu MinimalOutline:%lu", sizeof(Midline), sizeof(MinimalOutline));

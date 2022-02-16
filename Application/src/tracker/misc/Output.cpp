@@ -58,7 +58,7 @@ Output::ResultsFormat::ResultsFormat(const file::Path& filename, std::function<v
             centroid_point /= float(points.size());
             centroid_point += obj->_blobs.at(i)->bounds().pos();
 
-            auto enhanced = new PhysicalProperties(prev_enhanced, c->time(), centroid_point, midline->angle());
+            auto enhanced = new MotionRecord(prev_enhanced, c->time(), centroid_point, midline->angle());
             obj->_centroid_posture[i] = enhanced;
             prev_enhanced = enhanced;
         }*/
@@ -165,7 +165,7 @@ uint64_t Data::write(const track::MinimalOutline& val) {
 }
 
 template<>
-uint64_t Data::write(const PhysicalProperties& val) {
+uint64_t Data::write(const MotionRecord& val) {
     /**
      * Format of binary representation:
      *  - POSITION (2x4 bytes) in pixels
@@ -366,8 +366,8 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     
     fish->identity().set_ID(Idx_t(ID));
     
-    //PhysicalProperties *prev = NULL;
-    //PhysicalProperties *prev_weighted = NULL;
+    //MotionRecord *prev = NULL;
+    //MotionRecord *prev_weighted = NULL;
     std::future<void> last_future;
     
     uint64_t N;
@@ -404,7 +404,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                 {
                     const auto& frameIndex = data.stuff->frame;
                     
-                    const PhysicalProperties *prev = nullptr;
+                    const MotionRecord *prev = nullptr;
                     if(!fish->_startFrame.valid())
                         fish->_startFrame = frameIndex;
                     else
@@ -414,7 +414,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                     fish->_endFrame = frameIndex;
 
                     auto time = Tracker::properties(frameIndex, cache_ptr)->time;
-                    auto prop = new PhysicalProperties(prev, frameIndex, time, data.pos, data.angle, cache_ptr);
+                    auto prop = new MotionRecord(prev, frameIndex, time, data.pos, data.angle, cache_ptr);
                     data.stuff->centroid = prop;
                     
                     auto label = FAST_SETTINGS(track_consistent_categories)/* || !FAST_SETTINGS(track_only_categories).empty()*/ ? Categorize::DataStore::ranged_label(Frame_t(frameIndex), data.stuff->blob) : nullptr;
@@ -539,12 +539,12 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         ref.read<uint64_t>(N);
         Frame_t frame;
         
-        PhysicalProperties *prev = nullptr;
+        MotionRecord *prev = nullptr;
         for (uint64_t i=0; i<N; i++) {
             ref.read<data_long_t>(frameIndex);
             frame = Frame_t( frameIndex );
             
-            PhysicalProperties *prop;
+            MotionRecord *prop;
             {
                 Vec2 pos;
                 float angle;
@@ -562,7 +562,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                     time = Tracker::properties(frame)->time;
                 }
                 
-                prop = new PhysicalProperties(prev, frame, time, pos, angle);
+                prop = new MotionRecord(prev, frame, time, pos, angle);
             }
             
             auto midline = read_midline(ref);
@@ -763,12 +763,12 @@ uint64_t Data::write(const Individual& val) {
      *  4 bytes ID
      *
      *  N number of frames for centroid
-     *  (Nx (8 bytes frameIndex + 12 bytes)) PhysicalProperties for centroid
+     *  (Nx (8 bytes frameIndex + 12 bytes)) MotionRecord for centroid
      *  (Nx k bytes) Blob
      *  (Nx (8 bytes M + Mx 1 byte grey values))
      
      *  N number of frames for head
-     *  (Nx (8 bytes frameIndex + 12 bytes)) PhysicalProperties for head
+     *  (Nx (8 bytes frameIndex + 12 bytes)) MotionRecord for head
      *  (Nx Midline)
      *  (Nx Outline)
      */
@@ -817,8 +817,8 @@ uint64_t Data::write(const Individual& val) {
             // write frame number
             pack.write<data_long_t>(stuff->frame.get());
             
-            // write centroid PhysicalProperties
-            pack.write<PhysicalProperties>(*stuff->centroid);
+            // write centroid MotionRecord
+            pack.write<MotionRecord>(*stuff->centroid);
             
             // assume we have a blob and grey values as well
             pack.write<pv::BlobPtr>(stuff->blob.unpack());
@@ -842,7 +842,7 @@ uint64_t Data::write(const Individual& val) {
         // write frame number
         pack.write<data_long_t>(c.first);
         
-        // write head PhysicalProperties
+        // write head MotionRecord
         pack.write(*c.second);
     }*/
     

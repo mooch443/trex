@@ -101,10 +101,10 @@ uint64_t MemoryStats::get_memory_size(const Image::Ptr& obj, const std::string&)
 }
 
 template <>
-uint64_t MemoryStats::get_memory_size(const PhysicalProperties*const& obj, const std::string& ) {
+uint64_t MemoryStats::get_memory_size(const MotionRecord*const& obj, const std::string& ) {
     uint64_t bytes = 0;
     if(obj) {
-        bytes += sizeof(PhysicalProperties);
+        bytes += sizeof(MotionRecord);
         /*for(auto && v : obj->derivatives())
             bytes += v->memory_size();*/
     }

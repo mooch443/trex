@@ -353,42 +353,42 @@ long_t Individual::thresholded_size(Frame_t frameIndex) const {
     return ptr ? ptr->thresholded_size : -1;
 }
 
-const PhysicalProperties* Individual::centroid(Frame_t frameIndex) const {
+const MotionRecord* Individual::centroid(Frame_t frameIndex) const {
     auto ptr = basic_stuff(frameIndex);
     return ptr ? ptr->centroid : nullptr;
 }
 
-const PhysicalProperties* Individual::centroid_weighted(Frame_t frameIndex) const {
+const MotionRecord* Individual::centroid_weighted(Frame_t frameIndex) const {
     auto ptr = basic_stuff(frameIndex);
     return ptr ? ptr->centroid : nullptr;
 }
 
-const PhysicalProperties* Individual::head(Frame_t frameIndex) const {
+const MotionRecord* Individual::head(Frame_t frameIndex) const {
     auto ptr = posture_stuff(frameIndex);
     return ptr ? ptr->head : nullptr;
 }
 
-const PhysicalProperties* Individual::centroid_posture(Frame_t frameIndex) const {
+const MotionRecord* Individual::centroid_posture(Frame_t frameIndex) const {
     auto ptr = posture_stuff(frameIndex);
     return ptr ? ptr->centroid_posture : nullptr;
 }
 
-PhysicalProperties* Individual::centroid(Frame_t frameIndex) {
+MotionRecord* Individual::centroid(Frame_t frameIndex) {
     auto ptr = basic_stuff(frameIndex);
     return ptr ? ptr->centroid : nullptr;
 }
 
-PhysicalProperties* Individual::centroid_weighted(Frame_t frameIndex) {
+MotionRecord* Individual::centroid_weighted(Frame_t frameIndex) {
     auto ptr = basic_stuff(frameIndex);
     return ptr ? ptr->centroid : nullptr;
 }
 
-PhysicalProperties* Individual::head(Frame_t frameIndex) {
+MotionRecord* Individual::head(Frame_t frameIndex) {
     auto ptr = posture_stuff(frameIndex);
     return ptr ? ptr->head : nullptr;
 }
 
-PhysicalProperties* Individual::centroid_posture(Frame_t frameIndex) {
+MotionRecord* Individual::centroid_posture(Frame_t frameIndex) {
     auto ptr = posture_stuff(frameIndex);
     return ptr ? ptr->centroid_posture : nullptr;
 }
@@ -774,7 +774,7 @@ void Individual::remove_frame(Frame_t frameIndex) {
         if (_midlines.count(i))
             _midlines.erase(i);
         
-        PhysicalProperties* ptr;
+        MotionRecord* ptr;
         if((ptr = head(i))) {
             delete ptr;
             _head.erase(i);
@@ -906,7 +906,7 @@ float Individual::midline_length() const {
 size_t Individual::midline_samples() const { return _local_cache._midline_samples; }
 float Individual::outline_size() const { return _local_cache._outline_samples == 0 ? gui::Graph::invalid() : (_local_cache._outline_size / _local_cache._outline_samples); }
 
-Vec2 Individual::LocalCache::add(Frame_t frameIndex, const track::PhysicalProperties *current) {
+Vec2 Individual::LocalCache::add(Frame_t frameIndex, const track::MotionRecord *current) {
     const size_t maximum_samples = max(3.f, FAST_SETTINGS(frame_rate)*0.1f);
     
     auto raw_velocity = current->v<Units::CM_AND_SECONDS>();
@@ -966,7 +966,7 @@ std::shared_ptr<Individual::BasicStuff> Individual::add(const FrameProperties* p
     // find valid previous frame
     //!TODO: can probably use segment ptr here
     auto prev_frame = frameIndex - 1_f;
-    const PhysicalProperties* prev_prop = nullptr;
+    const MotionRecord* prev_prop = nullptr;
     if(!empty()) {
         if(frameIndex > _startFrame) {
             auto previous = find_frame(prev_frame);
@@ -978,7 +978,7 @@ std::shared_ptr<Individual::BasicStuff> Individual::add(const FrameProperties* p
     }
     
     _hints.push(frameIndex, props);
-    PhysicalProperties *current = new PhysicalProperties(prev_prop, frame.index(), frame.time, blob->center(), blob->orientation(), &_hints);
+    MotionRecord *current = new MotionRecord(prev_prop, frame.index(), frame.time, blob->center(), blob->orientation(), &_hints);
     
     auto v = _local_cache.add(frameIndex, current);
     
@@ -1008,7 +1008,7 @@ std::shared_ptr<Individual::BasicStuff> Individual::add(const FrameProperties* p
     //if(prev_props)
     //    prev_props = centroid_weighted(prev_frame);
     
-    //stuff->weighted_centroid = new PhysicalProperties(prev_props, time, centroid_point, current->angle());
+    //stuff->weighted_centroid = new MotionRecord(prev_props, time, centroid_point, current->angle());
     //push_to_segments(frameIndex, prev_frame);
     
     auto cached = frame.cached(identity().ID());
@@ -1109,7 +1109,7 @@ T& operator |=(T &lhs, Enum rhs)
 
 
 
-std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(Frame_t frameIndex, PhysicalProperties* current, Frame_t prev_frame, const pv::CompressedBlob* blob, prob_t current_prob)
+std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(Frame_t frameIndex, MotionRecord* current, Frame_t prev_frame, const pv::CompressedBlob* blob, prob_t current_prob)
 {
     //! find a segment this (potentially) belongs to
     std::shared_ptr<SegmentInformation> segment = nullptr;
@@ -1341,7 +1341,7 @@ Midline::Ptr Individual::update_frame_with_posture(const std::shared_ptr<BasicSt
         
         auto prop = Tracker::properties(posture->frame, hints);
         assert(prop);
-        posture->head = new PhysicalProperties(previous ? previous->head : nullptr, posture->frame, prop->time, pt, midline->angle(), hints);
+        posture->head = new MotionRecord(previous ? previous->head : nullptr, posture->frame, prop->time, pt, midline->angle(), hints);
         
          //ptr//.outline().original_angle();
 #if DEBUG_ORIENTATION
@@ -1374,7 +1374,7 @@ Midline::Ptr Individual::update_frame_with_posture(const std::shared_ptr<BasicSt
         centroid_point /= float(points.size());
         centroid_point += bounds.pos();
         
-        posture->centroid_posture = new PhysicalProperties(previous ? previous->centroid_posture : nullptr, posture->frame, prop->time, centroid_point, midline->angle(), hints);
+        posture->centroid_posture = new MotionRecord(previous ? previous->centroid_posture : nullptr, posture->frame, prop->time, centroid_point, midline->angle(), hints);
         posture->midline_angle = midline->angle();
         posture->midline_length = midline->len();
         
@@ -1761,7 +1761,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     
     //Median<prob_t> average_speed;
     Vec2 previous_v;
-    PhysicalProperties* previous_p = nullptr;
+    MotionRecord* previous_p = nullptr;
     double previous_t = 0;
     Frame_t previous_f;
     
@@ -1872,7 +1872,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     
     cache.current_category = int(mid);
     
-    const PhysicalProperties* c = pp ? pp->centroid : nullptr; //centroid_weighted(cache.previous_frame);
+    const MotionRecord* c = pp ? pp->centroid : nullptr; //centroid_weighted(cache.previous_frame);
     
     //! \mean{s}_{i}(t) = \underset{k \in [F(\tau)-5, F(t)]}{\median} \norm{\hat{\mathbf{v}}_i(\Tau(k))}
     prob_t aspeed = used_frames ? static_median(average_speed.begin(), average_speed.end()) : 0;

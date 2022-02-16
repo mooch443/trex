@@ -3484,7 +3484,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         
         Debug("After removing frames: %d", gui::CacheObject::memory());
         Debug("posture: %d", Midline::saved_midlines());
-        Debug("physical props: %d", PhysicalProperties::saved_midlines());
+        Debug("physical props: %d", MotionRecord::saved_midlines());
         Debug("all blobs: %d", Blob::all_blobs());
         Debug("Range: %d-%d", start_frame(), end_frame());
     }
@@ -3947,7 +3947,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                 
                 if(next != fish->recognition_segments().end() && /*previous.start() != -1 &&*/ next->second.start().valid()) {
                     Idx_t prev_id, next_id;
-                    PhysicalProperties *prev_pos = nullptr, *next_pos = nullptr;
+                    MotionRecord *prev_pos = nullptr, *next_pos = nullptr;
                     Frame_t prev_blob_frame;
                     
                     auto it = assigned_ranges.find(fdx);

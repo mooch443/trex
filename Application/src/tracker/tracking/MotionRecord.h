@@ -1,5 +1,4 @@
-#ifndef PHYSICAL_PROPERTIES_H
-#define PHYSICAL_PROPERTIES_H
+#pragma once
 
 #include <misc/defines.h>
 #include <misc/Blob.h>
@@ -80,16 +79,14 @@ enum class Units {
         
     DEFAULT = PX_AND_SECONDS
 };
-    
-enum class PropertyType { POSITION, ANGLE };
-    
+   
 /**
-    * This class describes the physical properties of a moving entity
-    * for a specific point in time.
-    * TODO: Make linked list where it knows its predecessor so that
-    * more complicated properties can be calculated and saved
-    */
-class PhysicalProperties {
+ * This class describes the motion-related properties with respect
+ * to a reference point (such as the head, centroid, or similar).
+ * Each record is therefore part of a trajectory (or chain) of records
+ * that describe how an individuals motion evolves over time.
+ */
+class MotionRecord {
 public:
     static constexpr const size_t max_derivatives = 3;
 
@@ -97,12 +94,12 @@ protected:
     friend class DataFormat;
     GETTER(double, time)
 
-    std::array<Vec2, PhysicalProperties::max_derivatives> _pos;
-    std::array<float, PhysicalProperties::max_derivatives> _angle;
+    std::array<Vec2, MotionRecord::max_derivatives> _pos;
+    std::array<float, MotionRecord::max_derivatives> _angle;
         
 public:
-    PhysicalProperties() = default;
-    PhysicalProperties(const PhysicalProperties* previous, Frame_t frame, double time, const Vec2& pos, float angle, const CacheHints* hints = nullptr);
+    MotionRecord() = default;
+    MotionRecord(const MotionRecord* previous, Frame_t frame, double time, const Vec2& pos, float angle, const CacheHints* hints = nullptr);
         
     static size_t saved_midlines();
         
@@ -130,7 +127,7 @@ public:
     template<Units to> Vec2 a(bool smooth) const { return value<to, Vec2>(2, smooth); }
     template<Units to> Vec2 a() const { return value<to, Vec2>(2); }
         
-    void flip(const PhysicalProperties* previous, const CacheHints* hints);
+    void flip(const MotionRecord* previous, const CacheHints* hints);
     //static Frame_t smooth_window();
     static float cm_per_pixel();
         
@@ -200,13 +197,13 @@ private:
     }
 
     template<Units from, typename T>
-    void value(const PhysicalProperties* previous, const T& val, size_t derivative = 0, const CacheHints* hints = nullptr)
+    void value(const MotionRecord* previous, const T& val, size_t derivative = 0, const CacheHints* hints = nullptr)
     {
         // save
         set<T>(derivative, convert<from, Units::DEFAULT>(val));
 
         // calculate the next higher derivative
-        for (size_t i = derivative + 1; i < PhysicalProperties::max_derivatives; i++) {
+        for (size_t i = derivative + 1; i < MotionRecord::max_derivatives; i++) {
             calculate_derivative<T>(previous, i, hints);
         }
     }
@@ -216,13 +213,13 @@ private:
     {
         if constexpr (from == Units::PX_AND_SECONDS) {
             if constexpr (to == Units::CM_AND_SECONDS) {
-                return val * PhysicalProperties::cm_per_pixel();
+                return val * MotionRecord::cm_per_pixel();
             }
 
         }
         else {
             if constexpr (to == Units::PX_AND_SECONDS) {
-                return val / PhysicalProperties::cm_per_pixel();
+                return val / MotionRecord::cm_per_pixel();
             }
         }
 
@@ -235,8 +232,8 @@ private:
 
 private:
     template<typename T>
-    void calculate_derivative(const PhysicalProperties* prev, size_t index, const CacheHints* ) {
-        if (index >= PhysicalProperties::max_derivatives)
+    void calculate_derivative(const MotionRecord* prev, size_t index, const CacheHints* ) {
+        if (index >= MotionRecord::max_derivatives)
             return;
 
         assert(index > 0);
@@ -246,8 +243,7 @@ private:
             return;
         }
 
-        //float tdelta = Tracker::time_delta(frame(), prev->frame(), hints);
-        float tdelta = abs(time() - prev->time());
+        float tdelta = /*abs*/(time() - prev->time());
         const T& current_value = get<T>(index - 1);
         const T& prev_value = prev->get<T>(index - 1);
 
@@ -255,28 +251,15 @@ private:
         set<T>(index, (current_value - prev_value) / tdelta);
     }
 
-public:
-    //T smooth_value(size_t derivative) const {
-    //    return update_smooth(derivative);
-    //}
-
 protected:
-    friend class PropertyBase;
-    friend class PhysicalProperties;
-
     template<typename T>
     void set(size_t derivative, const T& value) {
         assert(derivative < max_derivatives);
         assert(!cmn::isnan(value));
         get<T>(derivative) = value;
     }
-   // T update_smooth(size_t derivative) const;
-
-    //static T _update_smooth(const PhysicalProperties::Property<T>* prop, size_t derivative);
+    
 };
 
-//template<> Vec2 PhysicalProperties::Property<Vec2>::update_smooth(size_t derivative) const;
-//template<> float PhysicalProperties::Property<float>::update_smooth(size_t derivative) const;
 }
 
-#endif

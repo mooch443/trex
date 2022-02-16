@@ -29,8 +29,8 @@ namespace track {
     struct SplitData;
     
     struct IndividualStatus {
-        const PhysicalProperties* prev;
-        const PhysicalProperties* current;
+        const MotionRecord* prev;
+        const MotionRecord* current;
         
         IndividualStatus() : prev(nullptr), current(nullptr) {}
     };

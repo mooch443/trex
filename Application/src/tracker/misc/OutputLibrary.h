@@ -26,7 +26,7 @@ namespace Output {
             )
     
     // , const std::function<float(float)>& options
-#define LIBPARAM (Output::Library::LibInfo info, Frame_t frame, const track::PhysicalProperties* props, bool smooth)
+#define LIBPARAM (Output::Library::LibInfo info, Frame_t frame, const track::MotionRecord* props, bool smooth)
 #define _LIBFNC(CONTENT) LIBPARAM -> float \
 { Individual* fish = info.fish; UNUSED(smooth); UNUSED(fish); UNUSED(frame); if(!props) return gui::Graph::invalid(); CONTENT }
 #define LIBFNC(CONTENT) [] _LIBFNC(CONTENT)
@@ -135,7 +135,7 @@ namespace Output {
         
         Library() {}
         
-        static const track::PhysicalProperties* retrieve_props(const std::string&, 
+        static const track::MotionRecord* retrieve_props(const std::string&, 
             const Individual* fish, 
             Frame_t frame,
             const Options_t& modifiers)

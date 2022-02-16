@@ -5,7 +5,7 @@
 #include <file/DataFormat.h>
 #include <pv.h>
 #include <tracking/Individual.h>
-#include <tracking/PhysicalProperties.h>
+#include <tracking/MotionRecord.h>
 #include <tracking/Tracker.h>
 #include <misc/ThreadPool.h>
 #include <file/Path.h>
@@ -14,7 +14,7 @@ namespace cmn {
     template<> void Data::read(track::FrameProperties&);
     template<> uint64_t Data::write(const track::FrameProperties& val);
 
-    template<> uint64_t Data::write(const track::PhysicalProperties& val);
+    template<> uint64_t Data::write(const track::MotionRecord& val);
 
     template<> uint64_t Data::write(const pv::BlobPtr& val);
     template<> uint64_t Data::write(const track::Midline& val);
@@ -81,7 +81,7 @@ namespace Output {
             V_3,
             V_4, // reintroducing blob ids as part of blobs
             V_5, // fish ids uint32_t
-            V_6, // PhysicalProperties write floats/Vec2s
+            V_6, // MotionRecord write floats/Vec2s
             V_7, // Added _weighted_centroid and name per individual
             V_8, // time is a double
             V_9, // added outline tail/head indices
@@ -104,7 +104,7 @@ namespace Output {
             V_25, // separating midline and outline from head positions
             V_26, // parent_id != split()
             
-            V_27, // removed PhysicalProperties::time
+            V_27, // removed MotionRecord::time
             V_28, // added consecutive segments to results file header
             V_29, // removing Vec2 from individuals for centroid position
             V_30, // add analysis_range information to header
@@ -163,7 +163,7 @@ namespace Output {
         Midline::Ptr read_midline(Data& ref);
         MinimalOutline::Ptr read_outline(Data& ref, Midline::Ptr midline) const;
         void read_blob(Data& ref, pv::CompressedBlob&) const;
-        //PhysicalProperties* read_properties(Data& ref) const;
+        //MotionRecord* read_properties(Data& ref) const;
         
     protected:
         //virtual void _read_file() override;

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <misc/vec2.h>
-#include <tracking/PhysicalProperties.h>
+#include <tracking/MotionRecord.h>
 #include <tracking/PairingGraph.h>
 
 namespace track {
@@ -10,7 +10,7 @@ using prob_t = track::Match::prob_t;
 
 struct IndividualCache {
     Idx_t _idx;
-    const PhysicalProperties* h;
+    const MotionRecord* h;
     Vec2 last_seen_px;
     Vec2 estimated_px;
     bool last_frame_manual;

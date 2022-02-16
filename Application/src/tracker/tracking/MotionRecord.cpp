@@ -1,4 +1,4 @@
-#include "PhysicalProperties.h"
+#include "MotionRecord.h"
 //#include <cmath>
 //#include <misc/stacktrace.h>
 //#include <tracking/Individual.h>
@@ -7,11 +7,11 @@
 namespace track {
     
 #ifdef _DEBUG_MEMORY
-    std::map<PhysicalProperties*, std::tuple<int, std::shared_ptr<void*>>> all_midlines;
+    std::map<MotionRecord*, std::tuple<int, std::shared_ptr<void*>>> all_midlines;
     std::mutex all_mutex;
 #endif
     
-    size_t PhysicalProperties::saved_midlines() {
+    size_t MotionRecord::saved_midlines() {
 #ifdef _DEBUG_MEMORY
         std::lock_guard<std::mutex> guard(all_mutex);
         
@@ -27,7 +27,7 @@ namespace track {
 #endif
     }
     
-PhysicalProperties::PhysicalProperties(const PhysicalProperties* previous, Frame_t frame, double time, const Vec2& pos, float angle, const CacheHints* hints) 
+MotionRecord::MotionRecord(const MotionRecord* previous, Frame_t frame, double time, const Vec2& pos, float angle, const CacheHints* hints) 
     : _time(time)
 {
     value<Units::PX_AND_SECONDS>(previous, pos, 0, hints);
@@ -40,8 +40,8 @@ PhysicalProperties::PhysicalProperties(const PhysicalProperties* previous, Frame
 }
 
 /*template<typename T>
-void PhysicalProperties::calculate_derivative(const PhysicalProperties* prev, size_t index, const CacheHints* hints) {
-    if (index >= PhysicalProperties::max_derivatives)
+void MotionRecord::calculate_derivative(const MotionRecord* prev, size_t index, const CacheHints* hints) {
+    if (index >= MotionRecord::max_derivatives)
         return;
 
     assert(index > 0);
@@ -60,19 +60,19 @@ void PhysicalProperties::calculate_derivative(const PhysicalProperties* prev, si
     set<T>(index, (current_value - prev_value) / tdelta);
 }*/
 
-void PhysicalProperties::flip(const PhysicalProperties* previous, const CacheHints* hints) {
+void MotionRecord::flip(const MotionRecord* previous, const CacheHints* hints) {
     value<Units::DEFAULT>(previous, normalize_angle(angle() + float(M_PI)), 0, hints);
 }
     
-/*Frame_t PhysicalProperties::smooth_window() {
+/*Frame_t MotionRecord::smooth_window() {
     return Frame_t(FAST_SETTINGS(smooth_window));
 }*/
     
-float PhysicalProperties::cm_per_pixel() {
+float MotionRecord::cm_per_pixel() {
     static float cm_per_pixel = SETTING(cm_per_pixel).value<float>();
     static std::once_flag f;
     std::call_once(f, [&]() {
-        GlobalSettings::map().register_callback("PhysicalProperties", [](sprite::Map::Signal, sprite::Map&, const std::string& key, const sprite::PropertyType& value) {
+        GlobalSettings::map().register_callback("MotionRecord", [](sprite::Map::Signal, sprite::Map&, const std::string& key, const sprite::PropertyType& value) {
             if (key == "cm_per_pixel") {
                 cm_per_pixel = value.value<float>();
             }
@@ -82,7 +82,7 @@ float PhysicalProperties::cm_per_pixel() {
 }
 
 /*template<typename T>
-T PhysicalProperties::Property<T>::_update_smooth(const PhysicalProperties::Property<T> *prop, size_t derivative) {
+T MotionRecord::Property<T>::_update_smooth(const MotionRecord::Property<T> *prop, size_t derivative) {
     //! Regenerate smoothed values
     size_t samples_prev = 0, samples_after = 0;
 #if SMOOTH_RECURSIVELY
@@ -109,10 +109,10 @@ T PhysicalProperties::Property<T>::_update_smooth(const PhysicalProperties::Prop
 #endif
         
     
-    prop->_mother->fish()->iterate_frames(Range<Frame_t>(prop->_mother->frame() - PhysicalProperties::smooth_window(), prop->_mother->frame() + PhysicalProperties::smooth_window()), [&smoothed, &derivative, &samples_prev, prop](auto, const std::shared_ptr<Individual::SegmentInformation>&, const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>&) -> bool
+    prop->_mother->fish()->iterate_frames(Range<Frame_t>(prop->_mother->frame() - MotionRecord::smooth_window(), prop->_mother->frame() + MotionRecord::smooth_window()), [&smoothed, &derivative, &samples_prev, prop](auto, const std::shared_ptr<Individual::SegmentInformation>&, const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>&) -> bool
     {
         if(basic && basic->frame != prop->_mother->frame()) {
-            //auto property = static_cast<const PhysicalProperties::Property<T>*>(&basic->centroid->get(prop->type()));
+            //auto property = static_cast<const MotionRecord::Property<T>*>(&basic->centroid->get(prop->type()));
             smoothed += prop->value(derivative);
             ++samples_prev;
         }
@@ -125,10 +125,10 @@ T PhysicalProperties::Property<T>::_update_smooth(const PhysicalProperties::Prop
     return smoothed;
 }
 
-template<> Vec2 PhysicalProperties::Property<Vec2>::update_smooth(size_t derivative) const {
+template<> Vec2 MotionRecord::Property<Vec2>::update_smooth(size_t derivative) const {
     return _update_smooth(this, derivative);
 }
-template<> float PhysicalProperties::Property<float>::update_smooth(size_t derivative) const {
+template<> float MotionRecord::Property<float>::update_smooth(size_t derivative) const {
     return _update_smooth(this, derivative);
 }*/
 };

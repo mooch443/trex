@@ -6,7 +6,7 @@
 #include <gui/colors.h>
 #include <misc/Blob.h>
 #include "Posture.h"
-#include "PhysicalProperties.h"
+#include "MotionRecord.h"
 #include <misc/Median.h>
 #include <gui/types/Basic.h>
 #include <misc/Image.h>
@@ -146,8 +146,8 @@ constexpr std::array<const char*, 8> ReasonsNames {
         struct BasicStuff {
             Frame_t frame;
             
-            PhysicalProperties* centroid;
-            //PhysicalProperties* weighted_centroid;
+            MotionRecord* centroid;
+            //MotionRecord* weighted_centroid;
             uint64_t thresholded_size;
             pv::CompressedBlob blob;
             pv::BlobPtr pixels;
@@ -173,8 +173,8 @@ constexpr std::array<const char*, 8> ReasonsNames {
             static constexpr float infinity = cmn::infinity<float>();
             Frame_t frame;
             
-            PhysicalProperties* head;
-            PhysicalProperties* centroid_posture;
+            MotionRecord* head;
+            MotionRecord* centroid_posture;
             Midline::Ptr cached_pp_midline;
             MinimalOutline::Ptr outline;
             float posture_original_angle;
@@ -279,7 +279,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
             void clear();
             
         public:
-            Vec2 add(Frame_t frame, const PhysicalProperties*);
+            Vec2 add(Frame_t frame, const MotionRecord*);
             void add(const std::shared_ptr<PostureStuff>&);
             
             LocalCache()
@@ -366,17 +366,17 @@ constexpr std::array<const char*, 8> ReasonsNames {
         std::tuple<size_t, Idx_t, float> average_recognition_identity(Frame_t segment_start) const;
         
         //! Properties based on centroid:
-        const PhysicalProperties* centroid(Frame_t frameIndex) const;
-        PhysicalProperties* centroid(Frame_t frameIndex);
+        const MotionRecord* centroid(Frame_t frameIndex) const;
+        MotionRecord* centroid(Frame_t frameIndex);
         //! Properties based on posture / head position:
-        const PhysicalProperties* head(Frame_t frameIndex) const;
-        PhysicalProperties* head(Frame_t frameIndex);
+        const MotionRecord* head(Frame_t frameIndex) const;
+        MotionRecord* head(Frame_t frameIndex);
         
-        const PhysicalProperties* centroid_posture(Frame_t frameIndex) const;
-        PhysicalProperties* centroid_posture(Frame_t frameIndex);
+        const MotionRecord* centroid_posture(Frame_t frameIndex) const;
+        MotionRecord* centroid_posture(Frame_t frameIndex);
         
-        const PhysicalProperties* centroid_weighted(Frame_t frameIndex) const;
-        PhysicalProperties* centroid_weighted(Frame_t frameIndex);
+        const MotionRecord* centroid_weighted(Frame_t frameIndex) const;
+        MotionRecord* centroid_weighted(Frame_t frameIndex);
         
         //! Raw blobs
         pv::BlobPtr blob(Frame_t frameIndex) const;
@@ -470,9 +470,9 @@ constexpr std::array<const char*, 8> ReasonsNames {
     private:
         friend class gui::Fish;
         
-        std::shared_ptr<SegmentInformation> update_add_segment(Frame_t frameIndex, PhysicalProperties* current, Frame_t prev_frame, const pv::CompressedBlob* blob, Match::prob_t current_prob);
+        std::shared_ptr<SegmentInformation> update_add_segment(Frame_t frameIndex, MotionRecord* current, Frame_t prev_frame, const pv::CompressedBlob* blob, Match::prob_t current_prob);
         Midline::Ptr update_frame_with_posture(const std::shared_ptr<BasicStuff>& basic, const std::shared_ptr<PostureStuff>& posture_stuff, const CacheHints* hints);
-        //Vec2 add_current_velocity(Frame_t frameIndex, const PhysicalProperties* p);
+        //Vec2 add_current_velocity(Frame_t frameIndex, const MotionRecord* p);
     };
 }
 
