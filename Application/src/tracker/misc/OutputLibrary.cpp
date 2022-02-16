@@ -66,8 +66,8 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             // now we have start/end coordinates, interpolate
             percent = (float)(frame - pair.first->frame).get() / (float)(pair.second->frame - pair.first->frame).get();
             
-            ptr0 = pair.first->centroid;
-            ptr1 = pair.second->centroid;
+            ptr0 = &pair.first->centroid;
+            ptr1 = &pair.second->centroid;
         }
         
     } else {

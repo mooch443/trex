@@ -92,7 +92,7 @@ uint64_t MemoryStats::get_memory_size(const MinimalOutline::Ptr& obj, const std:
 }
 
 template <>
-uint64_t MemoryStats::get_memory_size(const track::FrameProperties& obj, const std::string& name) {
+uint64_t MemoryStats::get_memory_size(const track::FrameProperties&, const std::string&) {
     return sizeof(track::FrameProperties);
 }
 template <>

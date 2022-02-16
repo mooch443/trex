@@ -564,7 +564,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
                     auto bid = (*kit)->basic_stuff(frame);
                     if(bid != -1) {
                         auto &basic = fish->basic_stuff()[(uint32_t)bid];
-                        auto pos = basic->centroid->pos<Units::PX_AND_SECONDS>();
+                        auto pos = basic->centroid.pos<Units::PX_AND_SECONDS>();
                         //auto speed = basic->centroid->speed(Units::PX_AND_SECONDS);
                         
                         double v = 1;

@@ -307,11 +307,6 @@ std::shared_ptr<Individual::SegmentInformation> Individual::segment_for(Frame_t 
     return it == _frame_segments.end() || !(*it)->contains(frameIndex) ? nullptr : *it;
 }
 
-Individual::BasicStuff::~BasicStuff() {
-    if(centroid) delete centroid;
-    //if(weighted_centroid) delete weighted_centroid;
-}
-
 Individual::PostureStuff::~PostureStuff() {
     if(head) delete head;
     if(centroid_posture) delete centroid_posture;
@@ -355,12 +350,12 @@ long_t Individual::thresholded_size(Frame_t frameIndex) const {
 
 const MotionRecord* Individual::centroid(Frame_t frameIndex) const {
     auto ptr = basic_stuff(frameIndex);
-    return ptr ? ptr->centroid : nullptr;
+    return ptr ? &ptr->centroid : nullptr;
 }
 
 const MotionRecord* Individual::centroid_weighted(Frame_t frameIndex) const {
     auto ptr = basic_stuff(frameIndex);
-    return ptr ? ptr->centroid : nullptr;
+    return ptr ? &ptr->centroid : nullptr;
 }
 
 const MotionRecord* Individual::head(Frame_t frameIndex) const {
@@ -375,12 +370,12 @@ const MotionRecord* Individual::centroid_posture(Frame_t frameIndex) const {
 
 MotionRecord* Individual::centroid(Frame_t frameIndex) {
     auto ptr = basic_stuff(frameIndex);
-    return ptr ? ptr->centroid : nullptr;
+    return ptr ? &ptr->centroid : nullptr;
 }
 
 MotionRecord* Individual::centroid_weighted(Frame_t frameIndex) {
     auto ptr = basic_stuff(frameIndex);
-    return ptr ? ptr->centroid : nullptr;
+    return ptr ? &ptr->centroid : nullptr;
 }
 
 MotionRecord* Individual::head(Frame_t frameIndex) {
@@ -886,7 +881,7 @@ void Individual::LocalCache::regenerate(Individual* fish) {
     for(auto && basic : fish->_basic_stuff) {
         // make sure we dont get an infinite loop
         assert(!_current_velocities.empty() || basic->frame == fish->start_frame());
-        add(basic->frame, basic->centroid);
+        add(basic->frame, &basic->centroid);
     }
     
     for(auto && p : fish->_posture_stuff) {
@@ -972,32 +967,32 @@ std::shared_ptr<Individual::BasicStuff> Individual::add(const FrameProperties* p
             auto previous = find_frame(prev_frame);
             if(previous) {
                 prev_frame = previous->frame;
-                prev_prop = previous->centroid;
+                prev_prop = &previous->centroid;
             }
         }
     }
     
     _hints.push(frameIndex, props);
-    MotionRecord *current = new MotionRecord(prev_prop, frame.index(), frame.time, blob->center(), blob->orientation(), &_hints);
     
-    auto v = _local_cache.add(frameIndex, current);
+    auto stuff = std::make_shared<BasicStuff>();
+    stuff->centroid.init(prev_prop, frame.time, blob->center(), blob->orientation());
+    
+    auto v = _local_cache.add(frameIndex, &stuff->centroid);
     
     auto angle = normalize_angle(cmn::atan2(v.y, v.x));
-    auto diff = cmn::abs(angle_difference(angle, current->angle()));
-    auto diff2 = cmn::abs(angle_difference(angle, normalize_angle(current->angle() + (float)M_PI)));
+    auto diff = cmn::abs(angle_difference(angle, stuff->centroid.angle()));
+    auto diff2 = cmn::abs(angle_difference(angle, normalize_angle(stuff->centroid.angle() + (float)M_PI)));
     
     //if(identity().ID() == Individual::currentID)
         //Debug("%d: Angle is %f|%f (diff %f, %f) (%d, %d) speed %f", frameIndex, DEGREE(current->angle()), DEGREE(angle), DEGREE(diff), DEGREE(diff2), _identity.ID(), frameIndex, length(v));
     
     if(diff >= diff2) {
-        current->flip(prev_prop, &_hints);
+        stuff->centroid.flip(prev_prop);
         //if(identity().ID() == Individual::currentID)
         //    Debug("Flipped to %f", DEGREE(current->angle()));
     }
     
-    auto stuff = std::make_shared<BasicStuff>();
     stuff->frame = frameIndex;
-    stuff->centroid = current;
     stuff->blob = blob;
     stuff->pixels = blob;
     stuff->thresholded_size = blob->recount(FAST_SETTINGS(track_threshold), *Tracker::instance()->background()) / SQR(FAST_SETTINGS(cm_per_pixel));
@@ -1023,7 +1018,7 @@ std::shared_ptr<Individual::BasicStuff> Individual::add(const FrameProperties* p
                             stuff->blob);//.p;
     }
     
-    auto segment = update_add_segment(frameIndex, current, prev_frame, &stuff->blob, p);
+    auto segment = update_add_segment(frameIndex, stuff->centroid, prev_frame, &stuff->blob, p);
     
     // add BasicStuff index to segment
     segment->add_basic_at(frameIndex, _basic_stuff.size());
@@ -1109,7 +1104,7 @@ T& operator |=(T &lhs, Enum rhs)
 
 
 
-std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(Frame_t frameIndex, MotionRecord* current, Frame_t prev_frame, const pv::CompressedBlob* blob, prob_t current_prob)
+std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(Frame_t frameIndex, const MotionRecord& current, Frame_t prev_frame, const pv::CompressedBlob* blob, prob_t current_prob)
 {
     //! find a segment this (potentially) belongs to
     std::shared_ptr<SegmentInformation> segment = nullptr;
@@ -1132,7 +1127,7 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(F
     error_code |= Reasons::TimestampTooDifferent * uint32_t(FAST_SETTINGS(huge_timestamp_ends_segment) && tdelta >= FAST_SETTINGS(huge_timestamp_seconds));
     error_code |= Reasons::ManualMatch           * uint32_t(is_manual_match(frameIndex));
     error_code |= Reasons::NoBlob                * uint32_t(!blob);
-    error_code |= Reasons::WeirdDistance         * uint32_t(FAST_SETTINGS(track_end_segment_for_speed) && current && current->speed<Units::CM_AND_SECONDS>() >= weird_distance());
+    error_code |= Reasons::WeirdDistance         * uint32_t(FAST_SETTINGS(track_end_segment_for_speed) && current.speed<Units::CM_AND_SECONDS>() >= weird_distance());
     error_code |= Reasons::MaxSegmentLength      * uint32_t(FAST_SETTINGS(track_segment_max_length) > 0 && segment && segment->length() / float(FAST_SETTINGS(frame_rate)) >= FAST_SETTINGS(track_segment_max_length));
     
     if(frameIndex == _startFrame || error_code != 0) {
@@ -1310,7 +1305,7 @@ Midline::Ptr Individual::update_frame_with_posture(const std::shared_ptr<BasicSt
     if(ptr) {
         midline = calculate_midline_for(basic, posture);
         auto &outline = posture->outline;
-        auto c = basic->centroid;
+        auto &c = basic->centroid;
         
         if(!midline)
             return nullptr;
@@ -1341,7 +1336,8 @@ Midline::Ptr Individual::update_frame_with_posture(const std::shared_ptr<BasicSt
         
         auto prop = Tracker::properties(posture->frame, hints);
         assert(prop);
-        posture->head = new MotionRecord(previous ? previous->head : nullptr, posture->frame, prop->time, pt, midline->angle(), hints);
+        posture->head = new MotionRecord;
+        posture->head->init(previous ? previous->head : nullptr, prop->time, pt, midline->angle());
         
          //ptr//.outline().original_angle();
 #if DEBUG_ORIENTATION
@@ -1356,11 +1352,11 @@ Midline::Ptr Individual::update_frame_with_posture(const std::shared_ptr<BasicSt
         // we now see its actually flipped (image moments are only [0,2pi] without sign)
         // because the posture angle is more than 60 degrees off
         {
-            if(angle_between_vectors(Vec2(cos(c->angle()), sin(c->angle())),
+            if(angle_between_vectors(Vec2(cos(c.angle()), sin(c.angle())),
                                      Vec2(cos(midline->angle()), sin(midline->angle())))
                > RADIANS(60))
             {
-                c->flip(previous ? previous->head : nullptr, hints);
+                c.flip(previous ? previous->head : nullptr);
             }
         }
         
@@ -1374,7 +1370,8 @@ Midline::Ptr Individual::update_frame_with_posture(const std::shared_ptr<BasicSt
         centroid_point /= float(points.size());
         centroid_point += bounds.pos();
         
-        posture->centroid_posture = new MotionRecord(previous ? previous->centroid_posture : nullptr, posture->frame, prop->time, centroid_point, midline->angle(), hints);
+        posture->centroid_posture = new MotionRecord;
+        posture->centroid_posture->init(previous ? previous->centroid_posture : nullptr, prop->time, centroid_point, midline->angle());
         posture->midline_angle = midline->angle();
         posture->midline_length = midline->len();
         
@@ -1634,13 +1631,13 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
         }
         
         if(bdx != -1)
-            cache.last_seen_px = _basic_stuff.at(bdx)->centroid->pos<Units::PX_AND_SECONDS>();
+            cache.last_seen_px = _basic_stuff.at(bdx)->centroid.pos<Units::PX_AND_SECONDS>();
         
     } else if(!_frame_segments.empty()) {
         assert(frameIndex > (*_frame_segments.rbegin())->end());
         auto bdx = (*_frame_segments.rbegin())->basic_stuff((*_frame_segments.rbegin())->end());
         assert(bdx != -1);
-        cache.last_seen_px = _basic_stuff.at(bdx)->centroid->pos<Units::PX_AND_SECONDS>();
+        cache.last_seen_px = _basic_stuff.at(bdx)->centroid.pos<Units::PX_AND_SECONDS>();
     }
     
 #ifndef NDEBUG
@@ -1802,11 +1799,11 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
                 c_props = (*iterator).get();
         }
         
-        const auto h = basic->centroid;
+        auto &h = basic->centroid;
         if(!previous_p) {
             properties = c_props;
             
-            previous_p = h;
+            previous_p = &h;
             previous_t = c_props ? c_props->time : 0;
             previous_f = frame;
             return true;
@@ -1817,14 +1814,14 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
                         : Tracker::properties(frame - 1_f, hints);
         properties = c_props;
         
-        if (c_props && p_props && h && previous_p) {//(he || h)) {
+        if (c_props && p_props && previous_p) {//(he || h)) {
             double tdelta = c_props->time - p_props->time;
             
             if(tdelta > prob_t(1))
                 return true;
             
             //! \mathbf{v}_i(t) = \mathbf{p}_i'(t) = \frac{\delta}{\delta t} \mathbf{p}_i(t)
-            auto v = (h->pos<Units::PX_AND_SECONDS>() - previous_p->pos<Units::PX_AND_SECONDS>()) / (c_props->time - previous_t);
+            auto v = (h.pos<Units::PX_AND_SECONDS>() - previous_p->pos<Units::PX_AND_SECONDS>()) / (c_props->time - previous_t);
             auto L = v.length();
             
             //! \hat{\mathbf{v}}_i(t) = \mathbf{v}_i(t) * \begin{cases} 1 & \mathrm{if} \norm{\mathbf{v}_i(t)} \le D_\mathrm{max} \\ D_\mathrm{max} / \norm{\mathbf{v}_i(t)} & \mathrm{otherwise} \end{cases}
@@ -1843,7 +1840,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
                 raw_acc += (v - previous_v) / tdelta;
             
             previous_v = v;
-            previous_p = h;
+            previous_p = &h;
             previous_t = c_props->time;
             previous_f = frame;
             
@@ -1872,7 +1869,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     
     cache.current_category = int(mid);
     
-    const MotionRecord* c = pp ? pp->centroid : nullptr; //centroid_weighted(cache.previous_frame);
+    const MotionRecord* c = pp ? &pp->centroid : nullptr; //centroid_weighted(cache.previous_frame);
     
     //! \mean{s}_{i}(t) = \underset{k \in [F(\tau)-5, F(t)]}{\median} \norm{\hat{\mathbf{v}}_i(\Tau(k))}
     prob_t aspeed = used_frames ? static_median(average_speed.begin(), average_speed.end()) : 0;
@@ -2444,7 +2441,7 @@ std::tuple<Image::UPtr, Vec2> Individual::calculate_normalized_diff_image(const 
     
     if(!blob->pixels())
         throw std::invalid_argument("[Individual::calculate_normalized_diff_image] The blob has to contain pixels.");
-    auto r = imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, &Tracker::average(), 0);
+    imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, &Tracker::average(), 0);
     
     if(!output_size.empty())
         padded = cv::Mat::zeros(output_size.height, output_size.width, CV_8UC1);

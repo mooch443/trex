@@ -408,14 +408,13 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                     if(!fish->_startFrame.valid())
                         fish->_startFrame = frameIndex;
                     else
-                        prev = fish->basic_stuff().back()->centroid;
+                        prev = &fish->basic_stuff().back()->centroid;
                     
                     assert(fish->_endFrame < frameIndex);
                     fish->_endFrame = frameIndex;
 
                     auto time = Tracker::properties(frameIndex, cache_ptr)->time;
-                    auto prop = new MotionRecord(prev, frameIndex, time, data.pos, data.angle, cache_ptr);
-                    data.stuff->centroid = prop;
+                    data.stuff->centroid.init(prev, time, data.pos, data.angle);
                     
                     auto label = FAST_SETTINGS(track_consistent_categories)/* || !FAST_SETTINGS(track_only_categories).empty()*/ ? Categorize::DataStore::ranged_label(Frame_t(frameIndex), data.stuff->blob) : nullptr;
                     auto cache = fish->cache_for_frame(frameIndex, time, cache_ptr);
@@ -562,7 +561,8 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                     time = Tracker::properties(frame)->time;
                 }
                 
-                prop = new MotionRecord(prev, frame, time, pos, angle);
+                prop = new MotionRecord;
+                prop->init(prev, time, pos, angle);
             }
             
             auto midline = read_midline(ref);
@@ -818,7 +818,7 @@ uint64_t Data::write(const Individual& val) {
             pack.write<data_long_t>(stuff->frame.get());
             
             // write centroid MotionRecord
-            pack.write<MotionRecord>(*stuff->centroid);
+            pack.write<MotionRecord>(stuff->centroid);
             
             // assume we have a blob and grey values as well
             pack.write<pv::BlobPtr>(stuff->blob.unpack());

@@ -52,8 +52,8 @@ Fish::~Fish() {
     Fish::Fish(Individual& obj)
         :   _obj(obj),
             _idx(-1),
-            _graph(Bounds(0, 0, 300, 300), "Recent direction histogram"),
-            _info(&_obj, Output::Options_t{})
+            _info(&_obj, Output::Options_t{}),
+            _graph(Bounds(0, 0, 300, 300), "Recent direction histogram")
     {
         CachedGUIOptions::init();
         
@@ -229,7 +229,7 @@ Fish::~Fish() {
         
         const Vec2 offset = -_blob_bounds.pos();
         
-        const auto centroid = _basic_stuff ? _basic_stuff->centroid : nullptr;
+        const auto centroid = _basic_stuff ? &_basic_stuff->centroid : nullptr;
         const auto head = _posture_stuff ? _posture_stuff->head : nullptr;
         
         _fish_pos = centroid ? centroid->pos<Units::PX_AND_SECONDS>() : (_blob_bounds.pos() + _blob_bounds.size() * 0.5);
@@ -903,7 +903,7 @@ Fish::~Fish() {
                     auto id = (*fit)->basic_stuff(i);
                     if(id != -1) {
                         auto &stuff = _obj.basic_stuff()[id];
-                        frame_vertices.push_front(FrameVertex{i, Vertex(stuff->centroid->pos<Units::PX_AND_SECONDS>()), min(1, stuff->centroid->speed<Units::CM_AND_SECONDS>() / max_speed)});
+                        frame_vertices.push_front(FrameVertex{i, Vertex(stuff->centroid.pos<Units::PX_AND_SECONDS>()), min(1, stuff->centroid.speed<Units::CM_AND_SECONDS>() / max_speed)});
                     }
                 }
             }
@@ -944,7 +944,7 @@ Fish::~Fish() {
                     auto id = (*fit)->basic_stuff(i);
                     if(id != -1) {
                         auto &stuff = _obj.basic_stuff()[id];
-                        frame_vertices.push_back(FrameVertex{i, Vertex(stuff->centroid->pos<Units::PX_AND_SECONDS>()), min(1, stuff->centroid->speed<Units::CM_AND_SECONDS>() / max_speed)});
+                        frame_vertices.push_back(FrameVertex{i, Vertex(stuff->centroid.pos<Units::PX_AND_SECONDS>()), min(1, stuff->centroid.speed<Units::CM_AND_SECONDS>() / max_speed)});
                     }
                 }
             }

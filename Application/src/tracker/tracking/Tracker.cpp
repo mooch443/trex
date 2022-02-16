@@ -1084,7 +1084,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                     if (sit != fish->frame_segments().end() && (*sit)->contains(cache.previous_frame)) {
                         for (; sit != fish->frame_segments().end() && min((*sit)->end(), cache.previous_frame).get() >= time_limit && counter < frame_limit; ++counter)
                         {
-                            auto pos = fish->basic_stuff().at((*sit)->basic_stuff((*sit)->end()))->centroid->pos<Units::DEFAULT>();
+                            auto pos = fish->basic_stuff().at((*sit)->basic_stuff((*sit)->end()))->centroid.pos<Units::DEFAULT>();
 
                             if ((*sit)->length() > FAST_SETTINGS(frame_rate) * FAST_SETTINGS(track_max_reassign_time) * 0.25)
                             {
@@ -1096,7 +1096,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                                 break;
                             }
 
-                            last_pos = fish->basic_stuff().at((*sit)->basic_stuff((*sit)->start()))->centroid->pos<Units::DEFAULT>();
+                            last_pos = fish->basic_stuff().at((*sit)->basic_stuff((*sit)->start()))->centroid.pos<Units::DEFAULT>();
 
                             if (sit != fish->frame_segments().begin())
                                 --sit;
@@ -3126,11 +3126,11 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
             if(it != fish->frame_segments().end() && (*it)->contains(frameIndex - 1_f)) {
                 // prev
                 auto idx = (*it)->basic_stuff(frameIndex - 1_f);
-                property.prev = idx != -1 ? fish->basic_stuff()[uint32_t(idx)]->centroid : nullptr;
+                property.prev = idx != -1 ? &fish->basic_stuff()[uint32_t(idx)]->centroid : nullptr;
                 
                 // current
                 idx = (*it)->basic_stuff(frameIndex);
-                property.current = idx != -1 ? fish->basic_stuff()[uint32_t(idx)]->centroid : nullptr;
+                property.current = idx != -1 ? &fish->basic_stuff()[uint32_t(idx)]->centroid : nullptr;
                 
             } else
                 property.prev = property.current = nullptr;
@@ -3484,7 +3484,6 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         
         Debug("After removing frames: %d", gui::CacheObject::memory());
         Debug("posture: %d", Midline::saved_midlines());
-        Debug("physical props: %d", MotionRecord::saved_midlines());
         Debug("all blobs: %d", Blob::all_blobs());
         Debug("Range: %d-%d", start_frame(), end_frame());
     }

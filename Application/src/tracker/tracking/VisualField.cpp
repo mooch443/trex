@@ -484,7 +484,7 @@ std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(con
             auto ptr = (VisualField*)selected->custom_data(i, VisualField::custom_id);
             if(!ptr && selected->head(i)) {
                 ptr = new VisualField(selected->identity().ID(), i, selected->basic_stuff(i), selected->posture_stuff(i), true);
-                selected->add_custom_data(i, VisualField::custom_id, ptr, [&base](void* ptr) {
+                selected->add_custom_data(i, VisualField::custom_id, ptr, [](void* ptr) {
                     //if(GUI::instance()) {
                     //    std::lock_guard<std::recursive_mutex> lock(base.lock());
                     //    delete (VisualField*)ptr;

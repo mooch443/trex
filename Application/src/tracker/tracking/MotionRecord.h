@@ -5,9 +5,8 @@
 #include <misc/GlobalSettings.h>
 #include <misc/frame_t.h>
 
-#define SMOOTH_RECURSIVELY false
-
 namespace track {
+
 class Individual;
 
 class PairDistance {
@@ -98,10 +97,7 @@ protected:
     std::array<float, MotionRecord::max_derivatives> _angle;
         
 public:
-    MotionRecord() = default;
-    MotionRecord(const MotionRecord* previous, Frame_t frame, double time, const Vec2& pos, float angle, const CacheHints* hints = nullptr);
-        
-    static size_t saved_midlines();
+    void init(const MotionRecord* previous, double time, const Vec2& pos, float angle);
         
     template<Units to> float speed(bool smooth) const { return v<to>(smooth).length(); }
     template<Units to> float speed() const { return v<to>().length(); }
@@ -127,13 +123,10 @@ public:
     template<Units to> Vec2 a(bool smooth) const { return value<to, Vec2>(2, smooth); }
     template<Units to> Vec2 a() const { return value<to, Vec2>(2); }
         
-    void flip(const MotionRecord* previous, const CacheHints* hints);
-    //static Frame_t smooth_window();
+    void flip(const MotionRecord* previous);
     static float cm_per_pixel();
         
 private:
-    //void update_derivatives();
-
     template<typename T>
     const T& get(size_t derivative = 0) const {
         if constexpr (std::is_same_v<T, Vec2>)
@@ -197,14 +190,14 @@ private:
     }
 
     template<Units from, typename T>
-    void value(const MotionRecord* previous, const T& val, size_t derivative = 0, const CacheHints* hints = nullptr)
+    void value(const MotionRecord* previous, const T& val, size_t derivative = 0)
     {
         // save
         set<T>(derivative, convert<from, Units::DEFAULT>(val));
 
         // calculate the next higher derivative
         for (size_t i = derivative + 1; i < MotionRecord::max_derivatives; i++) {
-            calculate_derivative<T>(previous, i, hints);
+            calculate_derivative<T>(previous, i);
         }
     }
 
@@ -232,7 +225,7 @@ private:
 
 private:
     template<typename T>
-    void calculate_derivative(const MotionRecord* prev, size_t index, const CacheHints* ) {
+    void calculate_derivative(const MotionRecord* prev, size_t index) {
         if (index >= MotionRecord::max_derivatives)
             return;
 

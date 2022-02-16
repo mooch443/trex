@@ -127,7 +127,14 @@ void InfoCard::update() {
         
         for (; it != segments.end() && cmn::abs(std::distance(it0, it)) < 5; ++it, ++i)
         {
-            std::string str = range_of(it).start().toStr() + "-" + range_of(it).end().toStr();
+            std::string str;
+            auto range = range_of(it);
+            if(range.length() <= 1)
+                str = range.start().toStr();
+            else
+                str = range.start().toStr() + "-" + range.end().toStr();
+            
+            //!TODO: Need to collect width() beforehand
             auto p = Vec2(width() - 10 + offx, float(height() - 40) * 0.5f + ((i - 2) + 1) * (float)Base::default_line_spacing(Font(1.1f)));
             
             text = add<Text>(str, p, White.alpha(25 + 230 * (1 - cmn::abs(i-2) / 5.0f)), Font(0.8f), Vec2(1), Vec2(1, 0.5f));
@@ -163,7 +170,7 @@ void InfoCard::update() {
             if(range_of(*it).start() == current_segment) {
                 bool inside = range_of(*it).contains(_frameNr);
                 auto offy = - (inside ? 0.f : (Base::default_line_spacing(Font(1.1f))*0.5f));
-                add<Line>(Vec2(10+offx, p.y + offy), Vec2(text->pos().x - text->width() - 10, p.y + offy), inside ? White : White.alpha(125));
+                add<Line>(Vec2(10+offx, p.y + offy), Vec2(text->pos().x - (!inside ? 0 : text->width() + 10), p.y + offy), inside ? White : White.alpha(100));
             }
         }
     };
@@ -300,7 +307,7 @@ void InfoCard::update() {
     if(c)
         speed_str = Meta::toStr(c->speed) + "cm/s";
     else if(cache.individuals.count(fdx) && cache.individuals.at(fdx)->basic_stuff(_frameNr)) {
-        auto s = cache.individuals.at(fdx)->basic_stuff(_frameNr)->centroid->speed<Units::CM_AND_SECONDS>();
+        auto s = cache.individuals.at(fdx)->basic_stuff(_frameNr)->centroid.speed<Units::CM_AND_SECONDS>();
         speed_str = Meta::toStr(s)+"cm/s";
         
     }

@@ -381,7 +381,7 @@ DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fis
         
         // go through all frames within the segment
         if(basic) {
-            auto pos = basic->centroid->pos<Units::PX_AND_SECONDS>();
+            auto pos = basic->centroid.pos<Units::PX_AND_SECONDS>();
             auto grid = pos2grid(pos);
             
             ++access(grid);

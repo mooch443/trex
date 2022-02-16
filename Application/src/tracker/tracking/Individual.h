@@ -146,18 +146,17 @@ constexpr std::array<const char*, 8> ReasonsNames {
         struct BasicStuff {
             Frame_t frame;
             
-            MotionRecord* centroid;
+            MotionRecord centroid;
             //MotionRecord* weighted_centroid;
             uint64_t thresholded_size;
             pv::CompressedBlob blob;
             pv::BlobPtr pixels;
             
             BasicStuff()
-                : frame(-1), centroid(nullptr), //weighted_centroid(nullptr),
-            thresholded_size(0)
+                : frame(Frame_t::invalid),
+                  thresholded_size(0)
             {}
             
-            ~BasicStuff();
         };
 
     protected:
@@ -470,7 +469,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
     private:
         friend class gui::Fish;
         
-        std::shared_ptr<SegmentInformation> update_add_segment(Frame_t frameIndex, MotionRecord* current, Frame_t prev_frame, const pv::CompressedBlob* blob, Match::prob_t current_prob);
+        std::shared_ptr<SegmentInformation> update_add_segment(Frame_t frameIndex, const MotionRecord& current, Frame_t prev_frame, const pv::CompressedBlob* blob, Match::prob_t current_prob);
         Midline::Ptr update_frame_with_posture(const std::shared_ptr<BasicStuff>& basic, const std::shared_ptr<PostureStuff>& posture_stuff, const CacheHints* hints);
         //Vec2 add_current_velocity(Frame_t frameIndex, const MotionRecord* p);
     };

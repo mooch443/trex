@@ -33,6 +33,9 @@
 #include <processing/PadImage.h>
 #include <misc/Results.h>
 
+#include <gui/DrawBlobView.h>
+#include <gui/DrawTrackingView.h>
+
 #include <pv.h>
 
 #if WIN32
@@ -72,12 +75,6 @@ GUI* GUI::instance() {
 #endif
 using namespace gui;
 
-enum class SelectedSettingType {
-    ARRAY_OF_BOUNDS,
-    ARRAY_OF_VECTORS,
-    POINTS,
-    NONE
-};
 
 struct PrivateData {
     GUICache _cache;
@@ -117,6 +114,9 @@ struct PrivateData {
 
     gui::WorkProgress* _work_progress = nullptr;
     gui::DrawStructure _gui;
+    
+    Dropdown _settings_dropdown = Dropdown(Bounds(0, 0, 200, 33), GlobalSettings::map().keys());
+    Textfield _value_input = Textfield("", Bounds(0, 0, 300, 33));
 
     ConnectedTasks* _analysis = nullptr;
 
@@ -131,10 +131,6 @@ struct PrivateData {
     gui::Histogram<size_t, gui::Hist::Options::NORMED, std::vector<std::map<long_t, size_t>>> _length_histogram{ "Event length", Bounds(1, 800, 800, 300), Filter::FixedBins(0, 100, 50), Display::LimitY(0.45) };
 
     std::function<void(const Vec2&, bool, std::string)> _clicked_background;
-    std::vector<std::vector<Vec2>> _current_boundary;
-    std::string _selected_setting_name;
-    SelectedSettingType _selected_setting_type;
-
 };
 
 template<typename T>
@@ -196,27 +192,6 @@ public:
     }
     void update() override {
         set_selected(globals::Cache::get<M>());
-    }
-};
-
-class OuterBlobs {
-    Image::UPtr image;
-    Vec2 pos;
-    std::unique_ptr<gui::ExternalImage> ptr;
-    
-public:
-    OuterBlobs(Image::UPtr&& image = nullptr, std::unique_ptr<gui::ExternalImage>&& available = nullptr, const Vec2& pos = Vec2(), long_t id = -1) : image(std::move(image)), pos(pos), ptr(std::move(available)) {
-        
-    }
-    
-    std::unique_ptr<gui::ExternalImage> convert() {
-        if(!ptr)
-            ptr = std::make_unique<ExternalImage>(std::move(image), pos);
-        else
-            ptr->set_source(std::move(image));
-        
-        ptr->set_color(Red.alpha(255));
-        return std::move(ptr);
     }
 };
 
@@ -1103,8 +1078,6 @@ void GUI::redraw() {
         
         gui_background->add_event_handler(EventType::MBUTTON, [](Event e){
             if(e.mbutton.pressed) {
-                if(e.mbutton.button == 1)
-                    PD(current_boundary).clear();
                 PD(clicked_background)(Vec2(e.mbutton.x, e.mbutton.y).map<round>(), e.mbutton.button == 1, "");
             }
         });
@@ -1225,7 +1198,7 @@ void GUI::draw(DrawStructure &base) {
          */
         if(SETTING(gui_show_export_options))
             draw_export_options(base);
-        draw_menu(base);
+        draw_menu();
         
         if(FAST_SETTINGS(calculate_posture) && GUI_SETTINGS(gui_show_midline_histogram)) {
             PD(midline_histogram).set_scale(base.scale().reciprocal());
@@ -1283,7 +1256,7 @@ void GUI::draw(DrawStructure &base) {
     });
 }
 
-void GUI::draw_menu(gui::DrawStructure &base) {
+void GUI::draw_menu() {
     DrawMenu::draw();
 }
 
@@ -2700,11 +2673,9 @@ void GUI::draw_footer(DrawStructure& base) {
     });
 #undef SITEM
     
-    static Dropdown settings_dropdown(Bounds(0, 0, 200, 33), GlobalSettings::map().keys());
-    static Textfield textfield("", Bounds(0, 0, 300, settings_dropdown.height()));
-    static Tooltip tooltip(&settings_dropdown, 400);
+    static Tooltip tooltip(&PD(settings_dropdown), 400);
     
-    std::vector<Layout::Ptr> objects = { &options_dropdown, &settings_dropdown};
+    std::vector<Layout::Ptr> objects = { &options_dropdown, &PD(settings_dropdown)};
     static HorizontalLayout layout(objects, Vec2());
     
     auto h = screen_dimensions().height;
@@ -2712,11 +2683,11 @@ void GUI::draw_footer(DrawStructure& base) {
     layout.set_scale(1.1f * base.scale().reciprocal());
     
     auto layout_scale = layout.scale().x;
-    auto stretch_w = status_layout.global_bounds().pos().x - 20 - textfield.global_bounds().pos().x;
-    if(textfield.selected())
-        textfield.set_size(Size2(max(300, stretch_w / layout_scale), textfield.height()));
+    auto stretch_w = status_layout.global_bounds().pos().x - 20 - PD(value_input).global_bounds().pos().x;
+    if(PD(value_input).selected())
+        PD(value_input).set_size(Size2(max(300, stretch_w / layout_scale), PD(value_input).height()));
     else
-        textfield.set_size(Size2(300, textfield.height()));
+        PD(value_input).set_size(Size2(300, PD(value_input).height()));
     
 #ifndef NDEBUG
     static FlowMenu pie( min(_average_image.cols, _average_image.rows) * 0.25f, [](size_t , const std::string& item){
@@ -2734,176 +2705,15 @@ void GUI::draw_footer(DrawStructure& base) {
 #ifndef NDEBUG
             &pie,
 #endif
-            &textfield,
+            &PD(value_input),
             &options_dropdown,
             &layout,
-            &settings_dropdown,
+            &PD(settings_dropdown),
             &tooltip
         });
         
-        PD(clicked_background) = [&](const Vec2& pos, bool v, std::string key = "") {
-            const std::string chosen = settings_dropdown.selected_id() > -1 ? settings_dropdown.items().at(settings_dropdown.selected_id()).name() : "";
-            if (key.empty())
-                key = chosen;
-            _clicked_blob_id = -1;
-            
-            bool is_bounds = GlobalSettings::get(key).is_type<std::vector<Bounds>>();
-            bool is_vec_of_vec = GlobalSettings::get(key).is_type<std::vector< std::vector<Vec2> >>();
-            bool is_vectors = GlobalSettings::get(key).is_type<std::vector<Vec2>>();
-            
-            PD(selected_setting_type) = is_vectors 
-                    ? SelectedSettingType::POINTS 
-                        : (is_vec_of_vec ? SelectedSettingType::ARRAY_OF_VECTORS 
-                            : (is_bounds ? SelectedSettingType::ARRAY_OF_BOUNDS 
-                                : SelectedSettingType::NONE));
-            PD(selected_setting_name) = key;
-            
-            if(PD(selected_setting_type) == SelectedSettingType::NONE && v) {
-                if(PD(current_boundary).size() == 1 && PD(current_boundary).front().size() == 2) {
-                    static NumericTextfield<double> text(1.0, Bounds(0, 0, 200,30), arange<double>{0, infinity<double>()});
-                    text.set_postfix("cm");
-                    text.set_fill_color(DarkGray.alpha(50));
-                    text.set_text_color(White);
-                    
-                    derived_ptr<Entangled> e = std::make_shared<Entangled>();
-                    e->update([&](Entangled& e) {
-                        e.advance_wrap(text);
-                    });
-                    e->auto_size(Margin{0, 0});
-                    
-                    auto bound = PD(current_boundary).front();
-                    auto S = bound.front();
-                    auto E = bound.back();
-                    auto D = euclidean_distance(S, E);
-                    
-                    PD(gui).dialog([D](Dialog::Result r) {
-                        if(r == Dialog::OKAY) {
-                            try {
-                                auto value = Meta::fromStr<float>(text.text());
-                                Debug("Value is: %f", value);
-                                
-                                if(value > 0) {
-                                    SETTING(cm_per_pixel) = float(value / D);
-                                    
-                                    PD(gui).dialog("Successfully set <ref>cm_per_pixel</ref> to <nr>"+Meta::toStr(SETTING(cm_per_pixel).value<float>())+"</nr>.");
-                                    
-                                    return true;
-                                }
-                                
-                            } catch(const std::exception& e) { }
-                            
-                            return false;
-                        }
-                        
-                        return true;
-                        
-                    }, "Please enter the equivalent length in centimeters for the selected distance (<nr>"+Meta::toStr(D)+"</nr>px) below. <ref>cm_per_pixel</ref> will then be recalculated based on the given value, affecting parameters such as <ref>track_max_speed</ref>, and <ref>blob_size_ranges</ref>, and tracking results.", "Calibrate with known length", "Okay", "Abort")->set_custom_element(std::move(e));
-                }
-            }
-            
-            if(v) {
-                if(is_bounds) {
-                    if(!PD(current_boundary).empty() && PD(current_boundary).back().size() >= 3) {
-                        Bounds bds(FLT_MAX, FLT_MAX, 0, 0);
-                        for(auto &pt : PD(current_boundary).back()) {
-                            if(pt.x < bds.x) bds.x = pt.x;
-                            if(pt.y < bds.y) bds.y = pt.y;
-                            if(pt.x > bds.width) bds.width = pt.x;
-                            if(pt.y > bds.height) bds.height = pt.y;
-                        }
-                        bds << bds.size() - bds.pos();
-                        
-                        try {
-                            auto array = GlobalSettings::get(key).value<std::vector<Bounds>>();
-                            
-                            // if textfield text has been modified, use that one rather than the actual setting value
-                            auto tmp = Meta::toStr(array);
-                            if(key == chosen && tmp != textfield.text())
-                                array = Meta::fromStr<std::vector<Bounds>>(textfield.text());
-                            array.push_back(bds);
-                            if(key == chosen)
-                                textfield.set_text(Meta::toStr(array));
-                            GlobalSettings::get(key) = array;
-                            
-                        } catch(...) {}
-                    }
-                    
-                } else if(is_vec_of_vec) {
-                    if(!PD(current_boundary).empty() && PD(current_boundary).back().size() >= 3) {
-                        try {
-                            auto array = GlobalSettings::get(key).value<std::vector<std::vector<Vec2>>>();
-                            
-                            // if textfield text has been modified, use that one rather than the actual setting value
-                            auto tmp = Meta::toStr(array);
-                            if(key == chosen && tmp != textfield.text())
-                                array = Meta::fromStr< std::vector<std::vector<Vec2>>>(textfield.text());
-                            
-                            array.push_back(PD(current_boundary).back());
-                            if(key == chosen)
-                                textfield.set_text(Meta::toStr(array));
-                            GlobalSettings::get(key) = array;
-                            
-                        } catch(...) {}
-                        
-                    } else {
-                        Error("Cannot create a convex polygon from %d points.", PD(current_boundary).back().size());
-                    }
-                } else if(is_vectors) {
-                    try {
-                        auto array = GlobalSettings::get(key).value<std::vector<Vec2>>();
-                        
-                        // if textfield text has been modified, use that one rather than the actual setting value
-                        auto tmp = Meta::toStr(array);
-                        if(key == chosen && tmp != textfield.text())
-                            array = Meta::fromStr<std::vector<Vec2>>(textfield.text());
-                        
-                        for(auto &boundary : PD(current_boundary)) {
-                            for(auto &pt : boundary)
-                                array.push_back(pt);
-                        }
-                        if(key == chosen)
-                            textfield.set_text(Meta::toStr(array));
-                        GlobalSettings::get(key) = array;
-                        
-                    } catch(...) {}
-                    
-                } else {
-                    
-                }
-                
-                Debug("Selected boundary:");
-                for(auto & boundary : PD(current_boundary)) {
-                    auto str = Meta::toStr(boundary);
-                    Debug("\t%S", &str);
-                }
-                
-                PD(current_boundary).clear();
-                
-            } else {
-#ifdef __APPLE__
-                if(!PD(gui).is_key_pressed(Codes::LSystem)) {
-#else
-                if(!PD(gui).is_key_pressed(Codes::LControl)) {
-#endif
-                    if(PD(current_boundary).empty())
-                        PD(current_boundary) = {{pos}};
-                    else
-                        PD(current_boundary).clear();
-                    
-                } else {
-                    if(PD(current_boundary).empty())
-                        PD(current_boundary).push_back({});
-                    
-                    if(is_vectors)
-                        PD(current_boundary).push_back({pos});
-                    else
-                        PD(current_boundary).back().push_back(pos);
-                }
-            }
-            
-            PD(cache).set_tracking_dirty();
-            PD(cache).set_raw_blobs_dirty();
-            PD(cache).set_redraw();
+        PD(clicked_background) = [&](const Vec2& pos, bool v, std::string key) {
+            tracker::gui::clicked_background(PD(gui), PD(cache), pos, v, key, PD(settings_dropdown), PD(value_input));
         };
         
         options_dropdown.set_toggle(true);
@@ -2927,16 +2737,16 @@ void GUI::draw_footer(DrawStructure& base) {
         pie.link(load_idx, "back", base_idx);
 #endif
             
-        settings_dropdown.on_select([&](long_t index, const std::string& name) {
-            this->selected_setting(index, name, textfield, settings_dropdown, layout, base);
+        PD(settings_dropdown).on_select([&](long_t index, const std::string& name) {
+            this->selected_setting(index, name, PD(value_input), PD(settings_dropdown), layout, base);
         });
-        textfield.on_enter([&](){
+        PD(value_input).on_enter([&](){
             try {
-                auto key = settings_dropdown.items().at(settings_dropdown.selected_id()).name();
+                auto key = PD(settings_dropdown).items().at(PD(settings_dropdown).selected_id()).name();
                 if(GlobalSettings::access_level(key) == AccessLevelType::PUBLIC) {
-                    GlobalSettings::get(key).get().set_value_from_string(textfield.text());
+                    GlobalSettings::get(key).get().set_value_from_string(PD(value_input).text());
                     if(GlobalSettings::get(key).is_type<Color>())
-                        this->selected_setting(settings_dropdown.selected_id(), key, textfield, settings_dropdown, layout, base);
+                        this->selected_setting(PD(settings_dropdown).selected_id(), key, PD(value_input), PD(settings_dropdown), layout, base);
                     if((std::string)key == "auto_apply" || (std::string)key == "auto_train")
                     {
                         SETTING(auto_train_on_startup) = false;
@@ -2956,10 +2766,10 @@ void GUI::draw_footer(DrawStructure& base) {
     PD(gui).wrap_object(layout);
     PD(gui).wrap_object(status_layout);
     
-    if(settings_dropdown.hovered()) {
-        auto name = settings_dropdown.hovered_item().name();
+    if(PD(settings_dropdown).hovered()) {
+        auto name = PD(settings_dropdown).hovered_item().name();
         if(name.empty())
-            name = settings_dropdown.selected_item().name();
+            name = PD(settings_dropdown).selected_item().name();
         if(!name.empty()) {
             auto str = "<h3>"+name+"</h3>";
             auto access = GlobalSettings::access_level(name);
@@ -3396,207 +3206,17 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
         base.rect(Bounds(0, 0, 100, 100), Red);
     }
 #endif
-
-    static std::unique_ptr<Entangled> combine = std::make_unique<Entangled>();
-    static std::shared_ptr<Button> button = nullptr;
-    static std::shared_ptr<Dropdown> dropdown = nullptr;
     
-    base.section("boundary", [&](auto &base, Section*s) {
-        if(!PD(current_boundary).empty()) {
-            s->set_scale(fishbowl->scale());
-            s->set_pos(fishbowl->pos());
-            
-            const Font font(0.75);
-            Vec2 sca = base.scale().reciprocal().mul(s->scale().reciprocal());
-
-            Vec2 top_left(FLT_MAX, FLT_MAX);
-            Vec2 bottom_right(0, 0);
-            float a = 0;
-            
-            for(auto &boundary : PD(current_boundary)) {
-                if(boundary.size() > 2) {
-                    static gui::Polygon polygon(nullptr);
-                    
-                    //! need to force a convex hull here
-                    auto v = poly_convex_hull(&boundary);
-                    polygon.set_vertices(*v);
-                    polygon.set_border_clr(Cyan.alpha(125));
-                    polygon.set_fill_clr(Cyan.alpha(50));
-                    base.wrap_object(polygon);
-                    
-                } else if(boundary.size() == 2) {
-                    base.line(boundary[0], boundary[1], 1, Cyan.alpha(125));
-                    
-                    Vec2 v;
-                    if(boundary[1].x > boundary[0].x)
-                        v = boundary[1] - boundary[0];
-                    else
-                        v = boundary[0] - boundary[1];
-                    
-                    auto D = v.length();
-                    v = v.normalize();
-                    
-                    a = atan2(v);
-                    Text *text = new Text(Meta::toStr(D)+" px", Vec2(boundary[1] - boundary[0]) * 0.5 + boundary[0] + v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525), Cyan.alpha(200), font, sca);
-                    text->set_rotation(a);
-                    text->set_origin(Vec2(0.5));
-                    base.add_object(text);
-                    
-                    text = new Text(Meta::toStr(D * SETTING(cm_per_pixel).value<float>())+" cm", Vec2(boundary[1] - boundary[0]) * 0.5 + boundary[0] - v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525), Cyan.alpha(200), font, sca);
-                    text->set_rotation(a);
-                    text->set_origin(Vec2(0.5));
-                    base.add_object(text);
-                }
-                
-                Font f = font;
-                f.align = Align::Left;
-                for(auto &pt : boundary) {
-                    base.circle(pt, 5, Cyan.alpha(125))->set_scale(sca);
-                    //base.text(Meta::toStr(pt), pt + Vec2(7 * f.size, 0), White.alpha(200), f, sca);
-                    
-                    if(pt.x < top_left.x) top_left.x = pt.x;
-                    if(pt.y < top_left.y) top_left.y = pt.y;
-                    if(pt.x > bottom_right.x) bottom_right.x = pt.x;
-                    if(pt.y > bottom_right.y) bottom_right.y = pt.y;
-                }
-            }
-            
-            if(top_left.x != FLT_MAX) {
-                Bounds bds(Vec2((top_left + bottom_right) * 0.5) + Vec2(0, Base::default_line_spacing(Font(0.85)) + 10).mul(sca), Size2(0, 35));
-                std::string name = "";
-                
-                if(PD(selected_setting_type) == SelectedSettingType::NONE) {
-                    if(PD(current_boundary).size() == 1 && PD(current_boundary).front().size() == 2)
-                        name = "use known length to calibrate";
-                    else
-                        name = "print vectors";
-                    
-                } else {
-                    if(PD(selected_setting_type) == SelectedSettingType::ARRAY_OF_VECTORS) {
-                        if(PD(current_boundary).size() >= 1 && PD(current_boundary).back().size() >= 3)
-                            name = "append shape to "+PD(selected_setting_name);
-                        else
-                            name = "delete invalid shape";
-                        
-                    } else if(PD(selected_setting_type) == SelectedSettingType::ARRAY_OF_BOUNDS) {
-                        if(PD(current_boundary).size() >= 1 && PD(current_boundary).back().size() >= 2)
-                            name = "append bounds to "+PD(selected_setting_name);
-                        else
-                            name = "delete invalid bounds";
-                    } else
-                        name = "append points to "+PD(selected_setting_name);
-                }
-                
-                auto text_bounds = _base ? _base->text_bounds(name, NULL, Font(0.85)) : Base::default_text_bounds(name, NULL, Font(0.85));
-                bds.width = text_bounds.width + 10;
-                
-                if(!button) {
-                    button = std::make_shared<Button>(name, Bounds(Vec2(), bds.size()));
-                    button->on_click([](auto){
-                        PD(clicked_background)(Vec2(), true, "");
-                    });
-                    
-                } else {
-                    button->set_bounds(Bounds(Vec2(), bds.size()));
-                    button->set_txt(name);
-                }
-                
-                if(!dropdown) {
-                    dropdown = std::make_shared<Dropdown>(Bounds(Vec2(0, button->local_bounds().height), bds.size()), std::vector<std::string>{
-                        "track_ignore",
-                        "track_include",
-                        "recognition_shapes"
-                    });
-                    dropdown->on_select([](long_t, const Dropdown::TextItem & item){
-                        PD(clicked_background)(Vec2(), true, item.name());
-                    });
-                    dropdown->textfield()->set_placeholder("append to...");
-                    
-                } else
-                    dropdown->set_bounds(Bounds(Vec2(0, button->local_bounds().height), bds.size()));
-                
-                combine->update([&](auto&e) {
-                    if(PD(current_boundary).size() != 1 || PD(current_boundary).front().size() > 2)
-                        e.advance_wrap(*dropdown);
-                    e.advance_wrap(*button);
-                });
-                
-                combine->set_scale(sca);
-                combine->auto_size(Margin{0, 0});
-                combine->set_pos(Vec2(top_left.x, top_left.y + (bottom_right.y - top_left.y) * 0.5) - Vec2(20, 0).mul(sca));
-                combine->set_origin(Vec2(1, 0));
-                //combine->set_z_index(1);
-                
-                base.wrap_object(*combine);
-            }
-        }
-    });
+    tracker::gui::draw_boundary_selection(gui(), this->base(), PD(cache), fishbowl, PD(settings_dropdown), PD(value_input));
 }
-
-/*std::unique_ptr<ExternalImage> generate_outer(const pv::BlobPtr& blob) {
-    Vec2 offset;
-    Image::UPtr image, greyscale;
-    Vec2 image_pos;
-    
-    auto &percentiles = PD(cache).pixel_value_percentiles;
-    if(PD(cache)._equalize_histograms && !percentiles.empty()) {
-        auto && [pos, img] = blob->equalized_luminance_alpha_image(*Tracker::instance()->background(), FAST_SETTINGS(track_threshold), percentiles.front(), percentiles.back());
-        image_pos = pos;
-        greyscale = std::move(img);
-    } else {
-        auto && [pos, img] = blob->luminance_alpha_image(*Tracker::instance()->background(), FAST_SETTINGS(track_threshold));
-        image_pos = pos;
-        greyscale = std::move(img);
-    }
-    
-    if(PD(cache)._equalize_histograms && !percentiles.empty()) {
-        auto && [pos, img] = blob->equalized_luminance_alpha_image(*Tracker::instance()->background(), 0, percentiles.front(), percentiles.front());
-        offset = pos;
-        image = std::move(img);
-    } else {
-        auto && [pos, img] = blob->luminance_alpha_image(*Tracker::instance()->background(), 0);
-        offset = pos;
-        image = std::move(img);
-    }
-    
-    cv::Mat outer = image->get();
-    
-    cv::Mat inner;
-    if(greyscale->bounds().size() != image->bounds().size())
-        ::pad_image(greyscale->get(), inner, image->bounds().size());
-    else
-        greyscale->get().copyTo(inner);
-    
-    cv::Mat tmp = outer - inner;
-    
-    auto gimage = OuterBlobs(Image::Make(tmp), nullptr, offset, blob->blob_id()).convert();
-    gimage->add_custom_data("blob_id", (void*)(uint64_t)blob->blob_id());
-    return gimage;
-}*/
 
 void GUI::draw_raw_mode(DrawStructure &base, Frame_t frameIndex) {
     pv::File *file = PDP(video_source);
     if(file && file->length() > size_t(frameIndex.get())) {
-        struct Outer {
-            Image::UPtr image;
-            Vec2 off;
-            pv::BlobPtr blob;
-            
-            Outer(Image::UPtr&& image = nullptr, const Vec2& off = Vec2(), pv::BlobPtr blob = nullptr)
-            : image(std::move(image)), off(off), blob(blob)
-            {}
-        };
-        
-        //static std::vector<Outer> outers;
-        static std::vector<std::unique_ptr<ExternalImage>> outer_images;
         auto ptr = PD(gui).find("fishbowl");
         Vec2 ptr_scale(1), ptr_pos(0);
-        //Transform transform;
-        auto dim = screen_dimensions(); // / gui::interface_scale()
-        //auto dim = _base ? _base->window_dimensions().div(PD(gui).scale()) : Size2(_average_image);
+        auto dim = screen_dimensions();
         Transform transform;
-        
-        //PD(gui).rect(Bounds(Vec2(10), dim - 20), Transparent, Green);
         
         if(ptr) {
             assert(dynamic_cast<Section*>(ptr));
@@ -3605,415 +3225,15 @@ void GUI::draw_raw_mode(DrawStructure &base, Frame_t frameIndex) {
             transform = ptr->global_transform();
         }
         
-        static std::unordered_set<pv::bid> shown_ids;
-        std::unordered_set<pv::bid> to_show_ids;
-        
-        for(auto &blob : PD(cache).processed_frame.original_blobs()) {
-            auto bounds = transform.transformRect(blob->bounds());
-            
-            if(!Bounds(100, 100, dim.width-100, dim.height-100).overlaps(bounds))
-                continue;
-            
-            to_show_ids.insert(blob->blob_id());
-        }
-        
-        //PD(gui).text("Showing "+Meta::toStr(to_show_ids), Vec2(10, 100));
-        if(PD(cache).blobs_dirty()) {
-            shown_ids.clear();
-            outer_images.clear();
-        }
-        
-        if(shown_ids != to_show_ids) {
-            PD(cache).set_blobs_dirty();
-            //std::vector<Outer> outers;
-            std::mutex sync;
-            std::atomic<size_t> added_items = 0;
-            auto copy = shown_ids;
-            
-            distribute_vector([&added_items, &sync, &copy](auto, auto start, auto end, auto) {
-                std::unordered_set<pv::bid> added_ids;
-                
-                for(auto it = start; it != end; ++it) {
-                    if(copy.find(*it) == copy.end()) {
-                        //auto& blob = PD(cache).processed_frame.bdx_to_ptr(*it);
-                        //auto image = generate_outer(blob);
-                        //outer_images.emplace_back(std::move(image));
-                        added_ids.insert(*it);
-                    }
-                }
-                
-                added_items += added_ids.size();
-                
-                std::lock_guard guard(sync);
-                shown_ids.insert(added_ids.begin(), added_ids.end());
-                
-            }, _blob_thread_pool, shown_ids.begin(), shown_ids.end());
-            
-            std::set<pv::bid> deleted;
-            for(auto id : shown_ids) {
-                if(to_show_ids.find(id) == to_show_ids.end()) {
-                    deleted.insert(id);
-                    
-                    for(auto it = outer_images.begin(); it != outer_images.end(); ++it) {
-                        if((uint64_t)(*it)->custom_data("blob_id") == (uint64_t)id) {
-                            outer_images.erase(it);
-                            break;
-                        }
-                    }
-                }
-            }
-            
-            for(auto id : deleted)
-                shown_ids.erase(id);
-            
-            /*std::vector<std::shared_ptr<OuterBlobs>> outer_simple;
-            for(auto &o : outers) {
-                outer_simple.push_back(std::make_shared<OuterBlobs>(std::move(o.image), o.off, o.blob->blob_id()));
-            }*/
-            
-            //update_vector_elements(outer_images, outer_simple);
-        }
-        
-        base.section("blob_outers", [&](auto&base, auto s) {
-            if(ptr && (PD(cache).is_animating(ptr) || PD(cache).blobs_dirty())) {
-                s->set_scale(ptr_scale);
-                s->set_pos(ptr_pos);
-            }
-            
-            if(!PD(cache).blobs_dirty()) {
-                s->reuse_objects();
-                return;
-            }
-            
-            if(!SETTING(gui_show_pixel_grid)) {
-                PD(cache).updated_blobs(); // if show_pixel_grid is active, it will set the cache to "updated"
-            }
-            
-            //for(auto &image : outer_images)
-            //    base.wrap_object(*image);
-            
-            //if(_timeline.visible())
-            {
-                auto bowl = ptr ? ptr->global_transform() : gui::Transform();
-                auto screen_bounds = Bounds(Vec2(-50), screen_dimensions() + 100);
-                
-                constexpr size_t maximum_number_texts = 1000;
-                if(PD(cache).processed_frame.blobs().size() >= maximum_number_texts) {
-                    Vec2 pos(10, PD(timeline)->bar()->global_bounds().height + PD(timeline)->bar()->global_bounds().y + 10);
-                    auto text = "Hiding some blob texts because of too many blobs ("+Meta::toStr(PD(cache).processed_frame.blobs().size())+").";
-                    
-                    Rect *rect = new Rect(Bounds(pos, Base::text_dimensions(text, s, Font(0.5)) + Vec2(2, 2)), Black.alpha(125));
-                    rect->set_scale(base.scale().reciprocal());
-                    base.add_object(rect);
-                    
-                    Text *t = new Text(text, pos + Vec2(2, 2), White, Font(0.5));
-                    t->set_scale(base.scale().reciprocal());
-                    base.add_object(t);
-                }
-                
-                static std::unordered_map<pv::bid, std::tuple<bool, std::unique_ptr<Circle>, std::unique_ptr<Label>>> _blob_labels;
-                static std::vector<decltype(_blob_labels)::mapped_type> _unused_labels;
-                
-                for(auto & [id, tup] : _blob_labels)
-                    std::get<0>(tup) = false;
-                
-                std::map<pv::Blob*, float> distances;
-                std::set<std::tuple<float, pv::BlobPtr, bool>, std::greater<>> draw_order;
-                Transform section_transform = s->global_transform();
-                auto mp = section_transform.transformPoint(PD(gui).mouse_position());
-                
-                for (size_t i=0; i<PD(cache).processed_frame.noise().size(); i++) {
-                    //if(PD(cache).processed_frame.noise().at(i)->recount(FAST_SETTINGS(track_threshold), *Tracker::instance()->background()) < FAST_SETTINGS(blob_size_ranges).max_range().start * 0.01)
-                       // continue;
-                    
-                    auto id = PD(cache).processed_frame.noise().at(i)->blob_id();
-                    auto d = sqdistance(mp, PD(cache).processed_frame.noise().at(i)->bounds().pos());
-                    draw_order.insert({d, PD(cache).processed_frame.noise().at(i), false});
-                    
-                    if(_blob_labels.count(id))
-                        std::get<0>(_blob_labels.at(id)) = true;
-                }
-                
-                if(!SETTING(gui_draw_only_filtered_out)) {
-                    for (size_t i=0; i<PD(cache).processed_frame.blobs().size(); i++) {
-                        auto id = PD(cache).processed_frame.blobs().at(i)->blob_id();
-                        auto d = sqdistance(mp, PD(cache).processed_frame.blobs().at(i)->bounds().pos());
-                        draw_order.insert({d, PD(cache).processed_frame.blobs().at(i), true});
-                        
-                        if(_blob_labels.count(id))
-                            std::get<0>(_blob_labels.at(id)) = true;
-                    }
-                }
-                
-                Vec2 sca = base.scale().reciprocal().mul(s->scale().reciprocal());
-                auto mpos = (PD(gui).mouse_position() - ptr_pos).mul(ptr_scale.reciprocal());
-                const float max_distance = sqrtf(SQR((_average_image.cols * 0.25) / ptr_scale.x) + SQR((_average_image.rows * 0.25) / ptr_scale.y));
-                size_t displayed = 0;
-                
-                // move unused elements to unused list
-                for(auto it = _blob_labels.begin(); it != _blob_labels.end(); ) {
-                    if(!std::get<0>(it->second)) {
-                        _unused_labels.emplace_back(std::move(it->second));
-                        it = _blob_labels.erase(it);
-                    } else
-                        ++it;
-                }
-                
-                auto cats = FAST_SETTINGS(categories_ordered);
-                
-                auto draw_blob = [&](Entangled&e, const pv::BlobPtr& blob, float real_size, bool active){
-                    if(displayed >= maximum_number_texts && !active)
-                        return;
-                    
-                    if(!bowl.transformRect(blob->bounds()).overlaps(screen_bounds)) {
-                        return;
-                    }
-                    
-                    auto d = euclidean_distance(blob->bounds().pos() + blob->bounds().size() * 0.5, mpos);
-                    if(d <= max_distance * 2 && d > max_distance) {
-                        d = (d - max_distance) / max_distance;
-                        d = SQR(d);
-                    } else if(d <= max_distance * 0.5 && d > max_distance * 0.1) {
-                        d = (d - max_distance * 0.1) / (max_distance * 0.4);
-                        d = 1 - SQR(d);
-                    }
-                    else if(d > max_distance)
-                        d = 1;
-                    else if(d > max_distance * 0.5)
-                        d = 0;
-                    else d = 1;
-                    
-                    std::stringstream ss;
-                    if(!active)
-                        ss << "<ref>";
-                    ss << blob->name() << " ";
-                    if (active)
-                        ss << "<a>";
-                    ss << "size: " << real_size << (blob->split() ? " split" : "");
-                    if(blob->tried_to_split())
-                        ss << " tried";
-                    if (!active)
-                        ss << "</ref>";
-                    else
-                        ss << "</a>";
-                    
-                    {
-                        //auto label = Categorize::DataStore::ranged_label(Frame_t(PD(cache).frame_idx), blob->blob_id());
-                        auto it = PD(cache)._ranged_blob_labels.find(blob->blob_id());
-                        if(it != PD(cache)._ranged_blob_labels.end()) {
-                            ss << " <nr>" << cats.at(it->second) << "</nr>";
-                        }
-                        /*if(blob->parent_id().valid() && (label = Categorize::DataStore::ranged_label(Frame_t(PD(cache).frame_idx), blob->parent_id()))) {
-                            ss << " parent:<str>" << label->name << "</str>";
-                        }
-                         */
-                    }
-                    
-                    decltype(_blob_labels)::iterator it = _blob_labels.find(blob->blob_id());
-                    if(it == _blob_labels.end()) {
-                        if(!_unused_labels.empty()) {
-                            auto [k, success] = _blob_labels.try_emplace(blob->blob_id(), std::move(_unused_labels.back()));
-                            _unused_labels.resize(_unused_labels.size()-1);
-                            
-                            it = k;
-                            std::get<2>(it->second)->set_data(ss.str(), blob->bounds(), blob->center());
-                            
-                        } else {
-                            auto [k, success] = _blob_labels.insert_or_assign(blob->blob_id(), decltype(_blob_labels)::mapped_type{ true, std::make_unique<Circle>(), std::make_unique<Label>(ss.str(), blob->bounds(), blob->center()) });
-                            it = k;
-                        }
-                        
-                        //auto & [visited, circ, label] = _blob_labels[blob->blob_id()];
-                        auto circ = std::get<1>(it->second).get();
-                        circ->set_clickable(true);
-                        circ->set_radius(8);
-                        //circ->clear_event_handlers();
-                        circ->on_click([id = blob->blob_id()](auto) mutable {
-                            PD(current_boundary).clear();
-                            GUI::instance()->set_clicked_blob_id(id);
-                            GUI::instance()->set_clicked_blob_frame(GUI::frame());
-                            PD(cache).set_blobs_dirty();
-                        });
-                    }
-                    
-                    auto & [visited, circ, label] = it->second;
-                    //e.set_scale(sca);
-                    
-                    if(circ->hovered())
-                        circ->set_fill_clr(White.alpha(205 * d));
-                    else
-                        circ->set_fill_clr(White.alpha(150 * d));
-                    circ->set_line_clr(White.alpha(50));
-                    circ->set_pos(blob->center());
-                    
-                    e.add<Rect>(blob->bounds(), Transparent, White.alpha(100));
-                    e.advance_wrap(*circ);
-                    
-                    if(d > 0 && real_size > 0) {
-                        label->update(ptr, e, d, !active);
-                        ++displayed;
-                    }
-                };
-                
-                static Entangled _collection;
-                _collection.update([&](auto& e) {
-                    displayed = 0;
-                    for (auto&& [d, blob, active] : draw_order) {
-                        draw_blob(e, blob, blob->recount(-1), active);
-                    }
-                    });
-
-                _collection.set_bounds(average().bounds());
-                //_collection.set_scale(Vec2(1));
-                //_collection.set_pos(Vec2());
-                base.wrap_object(_collection);
-                
-                _unused_labels.clear();
-            }
+        tracker::gui::draw_blob_view({
+            .offset = ptr_pos,
+            .scale = ptr_scale,
+            .base = base,
+            .ptr = (Section*)ptr,
+            .cache = PD(cache),
+            .transform = transform,
+            .screen = dim
         });
-        
-        static pv::bid last_blob_id;
-        if(_clicked_blob_id.load().valid() && _clicked_blob_frame == frameIndex) {
-            static std::shared_ptr<Entangled> popup;
-            static std::shared_ptr<Dropdown> list;
-            if(popup == nullptr) {
-                popup = std::make_shared<Entangled>();
-                list = std::make_shared<Dropdown>(Bounds(0, 0, 200, 35));
-                list->on_open([this, list=list.get()](bool opened) {
-                    if(!opened) {
-                        //list->set_items({});
-                        _clicked_blob_id = -1;
-                        GUI::set_redraw();
-                    }
-                });
-                list->on_select([this](long_t, auto& item) {
-                    pv::bid clicked_blob_id { (uint32_t)int64_t(item.custom()) };
-                    if(item.ID() == 0) /* SPLIT */ {
-                        auto copy = FAST_SETTINGS(manual_splits);
-                        if(!contains(copy[frame()], clicked_blob_id)) {
-                            copy[frame()].insert(clicked_blob_id);
-                        }
-                        work().add_queue("", [copy](){
-                            SETTING(manual_splits) = copy;
-                        });
-                    } else {
-                        auto it = PD(cache).individuals.find(Idx_t(item.ID() - 1));
-                        if(it != PD(cache).individuals.end()) {
-                            auto fish = it->second;
-                            auto id = it->first;
-                            
-                            for(auto&& [fdx, bdx] : PD(cache).fish_selected_blobs) {
-                                if(bdx == clicked_blob_id) {
-                                    if(fdx != id) {
-                                        if(PD(cache).is_selected(fdx)) {
-                                            PD(cache).deselect(fdx);
-                                            PD(cache).do_select(id);
-                                        }
-                                        break;
-                                    }
-                                }
-                            }
-                            
-                            auto name = fish->identity().name();
-                            Debug("Assigning blob %d to fish %S", clicked_blob_id, &name);
-                            this->add_manual_match(this->frame(), id, clicked_blob_id);
-                            SETTING(gui_mode) = gui::mode_t::tracking;
-                        } else
-                            Warning("Cannot find individual with ID %d.", item.ID()-1);
-                    }
-                    
-                    _clicked_blob_id = pv::bid::invalid;
-                    GUI::set_redraw();
-                    PD(cache).set_raw_blobs_dirty();
-                });
-                //list->set_background(Black.alpha(125), Black.alpha(230));
-                //popup->set_size(Size2(200, 400));
-            }
-            
-            Vec2 blob_pos(FLT_MAX);
-            bool found = false;
-            for(auto &blob : PD(cache).raw_blobs) {
-                if(blob->blob->blob_id() == _clicked_blob_id.load()) {
-                    blob_pos = blob->blob->bounds().pos() + blob->blob->bounds().size() * 0.5;
-                    popup->set_pos(blob_pos.mul(ptr_scale) + ptr_pos);
-                    found = true;
-                    break;
-                }
-            }
-            
-            if(found) {
-                std::set<std::tuple<float, Dropdown::TextItem>> items;
-                for(auto id : FAST_SETTINGS(manual_identities)) {
-                    if(PD(cache).individuals.count(id) && (!PD(cache).fish_selected_blobs.count(id) ||PD(cache).fish_selected_blobs.at(id) != _clicked_blob_id)) {
-                        float d = FLT_MAX;
-                        auto c = PD(cache).processed_frame.cached(id);
-                        if(frameIndex > Tracker::start_frame() && c) {
-                            d = (c->estimated_px - blob_pos).length();
-                        }
-                        items.insert({d, Dropdown::TextItem(PD(cache).individuals.at(id)->identity().name() + (d != FLT_MAX ? (" ("+Meta::toStr(d * FAST_SETTINGS(cm_per_pixel))+"cm)") : ""), id + 1, PD(cache).individuals.at(id)->identity().name(), (void*)uint64_t(_clicked_blob_id.load()))});
-                    }
-                }
-                
-                std::vector<Dropdown::TextItem> sorted_items;
-                sorted_items.push_back(Dropdown::TextItem("Split", 0, "", (void*)uint64_t(_clicked_blob_id.load())));
-                for(auto && [d, item] : items)
-                    sorted_items.push_back(item);
-                
-                list->set_items(sorted_items);
-                list->set_clickable(true);
-                
-                if(_clicked_blob_id.load() != last_blob_id) {
-                    list->set_opened(true);
-                    list->select_textfield();
-                    list->clear_textfield();
-                }
-                
-                popup->set_scale(base.scale().reciprocal());
-                popup->auto_size(Margin{0, 0});
-                popup->update([&](Entangled &base){
-                    base.advance_wrap(*list);
-                });
-                
-                base.wrap_object(*popup);
-                
-            } else {
-                Warning("Cannot find clicked blob id %d.", _clicked_blob_id.load());
-                _clicked_blob_id = -1;
-            }
-            
-        } else if(_clicked_blob_id.load().valid())
-            _clicked_blob_id = pv::bid::invalid;
-        
-        last_blob_id = _clicked_blob_id;
-        
-        if(SETTING(gui_show_pixel_grid)) {
-            base.section("collision_model", [&](auto&, auto s) {
-                if(ptr && (PD(cache).is_animating(ptr) || PD(cache).blobs_dirty())) {
-                    s->set_scale(ptr_scale);
-                    s->set_pos(ptr_pos);
-                }
-                
-                if(!PD(cache).blobs_dirty()) {
-                    s->reuse_objects();
-                    return;
-                }
-                
-                PD(cache).updated_blobs();
-                
-                std::unordered_map<pv::bid, Color> colors;
-                ColorWheel wheel;
-                for(auto &b : PD(cache).processed_frame.original_blobs()) {
-                    colors[b->blob_id()] = wheel.next().alpha(200);
-                }
-                
-                auto &grid = PD(cache).processed_frame.blob_grid().get_grid();
-                for(auto &set : grid) {
-                    for(auto &pixel : set) {
-                        base.circle(Vec2(pixel.x, pixel.y), 1, Transparent, colors.find(pixel.v) != colors.end() ? colors.at(pixel.v) : Color(255, 0, 255, 255));
-                    }
-                }
-            });
-        }
     }
 }
 

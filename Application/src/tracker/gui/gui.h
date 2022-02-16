@@ -154,13 +154,6 @@ public:
 protected:    
     GETTER_SETTER(bool, info_visible)
     
-    GETTER(std::atomic<pv::bid>, clicked_blob_id)
-    GETTER(std::atomic<Frame_t>, clicked_blob_frame)
-    
-public:
-    void set_clicked_blob_id(pv::bid v) { _clicked_blob_id = v; }
-    void set_clicked_blob_frame(Frame_t v) { _clicked_blob_frame = v; }
-    
 public:
     GUI(pv::File &video_source, const Image& average, Tracker& tracker);
     ~GUI();
@@ -226,7 +219,7 @@ private:
     void draw(gui::DrawStructure& main_base);
     void draw_footer(gui::DrawStructure& base);
     void draw_posture(gui::DrawStructure &base, Individual* fish, Frame_t frameNr);
-    void draw_menu(gui::DrawStructure& base);
+    void draw_menu();
     void draw_export_options(gui::DrawStructure& base);
     void draw_grid(gui::DrawStructure& base);
     
