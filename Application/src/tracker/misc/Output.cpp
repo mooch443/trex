@@ -84,9 +84,14 @@ Output::ResultsFormat::ResultsFormat(const file::Path& filename, std::function<v
         
         set_thread_name(name);
         
-}, "Output::post_pool"), _generic_pool(cmn::hardware_concurrency(), [this](std::exception_ptr e) {
+}, "Output::post_pool"),
+_generic_pool(cmn::hardware_concurrency(), [this](std::exception_ptr e) {
     _exception_ptr = e; // send it to main thread
-}, "Output::GenericPool"), _expected_individuals(0), _N_written(0)
+}, "Output::GenericPool"),
+_load_pool(cmn::hardware_concurrency(), [this](std::exception_ptr e) {
+    _exception_ptr = e; // send it to main thread
+}, "Output::loadPool"),
+_expected_individuals(0), _N_written(0)
 {}
 
 Output::ResultsFormat::~ResultsFormat() {
@@ -385,7 +390,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     
     struct TemporaryData {
         std::shared_ptr<Individual::BasicStuff> stuff;
-        data_long_t prev_frame;
+        Frame_t prev_frame;
         Vec2 pos;
         float angle;
         size_t index;
@@ -395,24 +400,21 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     std::mutex mutex;
     std::condition_variable variable;
     std::deque<TemporaryData> stuffs;
-    std::atomic_bool stop = false;
+    std::atomic_bool stop{false};
     
-    auto process_frame = [cache_ptr = cache](Individual* fish, const auto& data){
+    //! processes a single data point
+    auto process_frame = [cache_ptr = cache](
+             Individual* fish,
+             const TemporaryData& data)
+    {
         const auto& frameIndex = data.stuff->frame;
-        
-        /*const MotionRecord *prev = nullptr;
-        if(!fish->_startFrame.valid()) {
-            assert(data.index == 0);
-            fish->_startFrame = frameIndex;
-        } else {
-            assert(data.index > 0);
-            prev = &fish->_basic_stuff[data.index - 1]->centroid;
-        }*/
-        
         
         const Match::prob_t p_threshold = FAST_SETTINGS(matching_probability_threshold);
         
-        auto label = FAST_SETTINGS(track_consistent_categories)/* || !FAST_SETTINGS(track_only_categories).empty()*/ ? Categorize::DataStore::ranged_label(Frame_t(frameIndex), data.stuff->blob) : nullptr;
+        auto label =
+            FAST_SETTINGS(track_consistent_categories)
+                ? Categorize::DataStore::ranged_label(frameIndex, data.stuff->blob)
+                : nullptr;
         
         Match::prob_t p = p_threshold;
         if(!fish->empty()) {
@@ -429,7 +431,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         auto segment = fish->update_add_segment(
             frameIndex,
             data.stuff->centroid,
-            Frame_t(data.prev_frame),
+            data.prev_frame,
             &data.stuff->blob,
             p
         );
@@ -438,8 +440,12 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         fish->_basic_stuff[data.index] = data.stuff;
     };
     
-    auto worker = [&mutex, &variable, &stuffs, &stop, fish, &process_frame]()
-    {
+    //! determine when the worker thread has ended
+    std::condition_variable finished;
+    std::atomic_bool ended{false};
+    
+    //! looping through all data points
+    auto worker = [&]() {
         auto thread_name = get_thread_name();
         set_thread_name("read_individual_"+fish->identity().name()+"_worker");
         
@@ -461,6 +467,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         }
         
         set_thread_name(thread_name);
+        finished.notify_all();
     };
     
     TemporaryData data;
@@ -477,8 +484,13 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     std::fill(fish->_matched_using.begin(), fish->_matched_using.end(), default_config::matching_mode_t::benchmark);
     
     const MotionRecord* prev = nullptr;
-    std::thread worker_thread(worker);
     
+    //! start worker that iterates the frames / fills in
+    //! additional info that was not read directly from the file
+    //! per frame.
+    _load_pool.enqueue(worker);
+    
+    //! read the actual frame data, pushing to worker thread each time
     for (uint64_t i=0; i<N; i++) {
         ref.read<data_long_t>(frameIndex);
         if(prev_frame == -1 && (!check_analysis_range || Frame_t(frameIndex) >= analysis_range.start))
@@ -500,7 +512,6 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         //fish->_blob_indices[frameIndex] = ref.read<uint32_t>();
         if(_header.version < Output::ResultsFormat::Versions::V_7)
             ref.seek(ref.tell() + sizeof(uint32_t)); // blob index no longer used
-            //ref.read<uint32_t>();
         
         data.time = time;
         data.stuff = std::make_shared<Individual::BasicStuff>();
@@ -520,14 +531,16 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             continue;
         }
         
-        data.prev_frame = prev_frame;
+        data.prev_frame =
+            prev_frame == -1
+                ? Frame_t{Frame_t::invalid}
+                : Frame_t(prev_frame);
         
         {
             std::unique_lock guard(mutex);
             stuffs.push_back(data);
         }
         variable.notify_one();
-        //process_frame(fish, data);
         
         prev_frame = frameIndex;
         ++data.index;
@@ -539,8 +552,10 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     stop = true;
     variable.notify_all();
     
-    worker_thread.join();
-    //worker();
+    std::unique_lock guard(mutex);
+    finished.wait(guard, [&ended](){
+        return ended.load();
+    });
     
     //!TODO: resize back to intended size
     if(data.index != fish->_basic_stuff.size()) {
@@ -549,12 +564,8 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     }
     
     assert(!fish->empty());
-    //worker();
-    
-    //Output::ResultsFormat::_blob_pool.enqueue(fish);
     
     // read pixel information
-    
     if(_header.version >= Versions::V_19) {
         ref.read<uint64_t>(N);
         

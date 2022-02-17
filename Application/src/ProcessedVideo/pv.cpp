@@ -260,9 +260,9 @@ namespace pv {
             }
             
             _mask.push_back(std::move(uncompressed));
-            _pixels.push_back(decltype(_pixels)::value_type(
-                    new std::vector<uchar>((uchar*)pixels.data(),
-                                           (uchar*)pixels.data()+num_pixels)));
+            auto v = std::make_unique<std::vector<uchar>>((uchar*)pixels.data(),
+                                                 (uchar*)pixels.data()+num_pixels);
+            _pixels.emplace_back(std::move(v));
         }
         
         _mask.shrink_to_fit();
