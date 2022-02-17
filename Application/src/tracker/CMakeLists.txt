@@ -58,6 +58,22 @@ if(NOT WIN32 AND TREX_WITH_TESTS)
     add_dependencies(test_imgui commons) #Commons::LibZIP Commons::GLFW Commons::OpenCV)
 endif()
 
+add_executable(properties properties.cpp
+    "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h)
+target_link_libraries(properties 
+    PUBLIC 
+        tracker_tracking
+        tracker_gui
+        tracker_python
+        tracker_misc
+        commons 
+        pv
+        Commons::GLFW
+        Commons::OpenCV
+        imgui
+        Commons::GLAD
+        Commons::LibZIP)
+
 # add actual executable
 add_executable(${TREX_EXEC_NAME} ${SRCS})
 add_dependencies(${TREX_EXEC_NAME} commons Commons::GLFW
