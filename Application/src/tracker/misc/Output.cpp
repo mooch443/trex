@@ -467,6 +467,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         }
         
         set_thread_name(thread_name);
+        ended = true;
         finished.notify_all();
     };
     
