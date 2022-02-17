@@ -76,7 +76,7 @@ namespace std
 template <>
 struct hash<track::Match::blob_index_t>
 {
-    constexpr size_t operator()(const track::Match::blob_index_t& k) const noexcept
+    size_t operator()(const track::Match::blob_index_t& k) const noexcept
     {
         return std::hash<track::Match::index_t>{}((track::Match::index_t)k);
     }
@@ -85,7 +85,7 @@ struct hash<track::Match::blob_index_t>
 template <>
 struct hash<track::Match::fish_index_t>
 {
-    constexpr size_t operator()(const track::Match::fish_index_t& k) const noexcept
+    size_t operator()(const track::Match::fish_index_t& k) const noexcept
     {
         return std::hash<track::Match::index_t>{}((track::Match::index_t)k);
     }
@@ -147,6 +147,7 @@ namespace Match {
         
     public:
         PairedProbabilities();
+        const decltype(_row_index)& row_indexes() const { return _row_index;  }
         
         fish_index_t add(row_t::value_type, const pairing_map_t<col_t::value_type, prob_t>&);
         void erase(row_t::value_type);

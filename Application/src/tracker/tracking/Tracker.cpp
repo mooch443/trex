@@ -253,8 +253,8 @@ void Tracker::analysis_state(AnalysisState pause) {
 }
 
     Tracker::Tracker()
-          : _thread_pool(cmn::hardware_concurrency(), nullptr, "Tracker::thread_pool"),
-            recognition_pool(cmn::hardware_concurrency(), nullptr, "RecognitionPool"),
+          : _thread_pool(max(1u, cmn::hardware_concurrency()), nullptr, "Tracker::thread_pool"),
+            recognition_pool(max(1u, cmn::hardware_concurrency()), nullptr, "RecognitionPool"),
             _midline_errors_frame(0), _overall_midline_errors(0),
             _max_individuals(0),
             _background(NULL), _recognition(NULL),
@@ -1036,11 +1036,12 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         
         using namespace Match;
         robin_hood::unordered_map<long_t, std::set<pv::bid>> fish_mappings;
-        robin_hood::unordered_map<pv::bid, std::set<long_t>> blob_mappings;
+        robin_hood::unordered_map<pv::bid, std::set<Idx_t>> blob_mappings;
         robin_hood::unordered_map<long_t, robin_hood::unordered_map<pv::bid, Match::prob_t>> paired;
 
         const auto frame_limit = FAST_SETTINGS(frame_rate) * FAST_SETTINGS(track_max_reassign_time);
-        
+        const auto N = active_individuals.size();
+
         {
             //static Timing just_splitting("caching", 0.1);
             //TakeTiming take_(just_splitting);
@@ -1144,15 +1145,15 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
             
             //pool = nullptr;
             frame.individual_cache().clear();
-            frame.individual_cache().resize(active_individuals.size());
+            frame.individual_cache().resize(N);
             
-            if(num_threads < 2 || !pool || active_individuals.size() < num_threads) {
+            if(num_threads < 2 || !pool || N < num_threads) {
                 Tracker::LockGuard guard("history_split#2");
-                fn(active_individuals, 0, active_individuals.size());
+                fn(active_individuals, 0, N);
                 
-            } else if(active_individuals.size()) {
-                size_t last = active_individuals.size() % num_threads;
-                size_t per_thread = (active_individuals.size() - last) / num_threads;
+            } else if(N) {
+                size_t last = N % num_threads;
+                size_t per_thread = (N - last) / num_threads;
                 size_t i = 0;
 
                 Tracker::LockGuard guard("history_split#2");
@@ -1192,10 +1193,10 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                 
                 auto it = blob_mappings.find(bdx);
                 if(it == blob_mappings.end()) {
-                    blob_mappings[bdx] = { -1 };
+                    blob_mappings[bdx] = { Idx_t() };
                     //Debug("%d: Inserting 2 additional matches for %d", frame.index(), bdx);
                 } else{
-                    it->second.insert(-1);
+                    it->second.insert(Idx_t());
                     //Debug("%d: Inserting additional match for %d", frame.index(), bdx);
                 }
                 
