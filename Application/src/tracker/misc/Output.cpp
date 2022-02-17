@@ -36,9 +36,11 @@ Output::ResultsFormat::ResultsFormat(const file::Path& filename, std::function<v
         Debug("Blobs took %fs", timer.elapsed());
 
     timer.reset();
+        auto name = get_thread_name();
+        set_thread_name(obj->identity().name()+"_post");
 
     //Debug("Generate midlines for %d...", obj->identity().ID());
-    obj->update_midlines(_property_cache.get());
+        obj->update_midlines(nullptr);
     //Debug("Done with midlines for %d.", obj->identity().ID());
 
     //data_long_t previous = obj->start_frame();
@@ -79,9 +81,12 @@ Output::ResultsFormat::ResultsFormat(const file::Path& filename, std::function<v
         if (!SETTING(quiet))
             Debug("%S post-processing took %S", &name, &str);
     }
-}), _generic_pool(min(4u, cmn::hardware_concurrency()), [this](std::exception_ptr e) {
+        
+        set_thread_name(name);
+        
+}, "Output::post_pool"), _generic_pool(cmn::hardware_concurrency(), [this](std::exception_ptr e) {
     _exception_ptr = e; // send it to main thread
-}), _expected_individuals(0), _N_written(0)
+}, "Output::GenericPool"), _expected_individuals(0), _N_written(0)
 {}
 
 Output::ResultsFormat::~ResultsFormat() {
@@ -326,6 +331,8 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     }
     
     Individual *fish = new Individual(Idx_t{ID});
+    auto thread_name = get_thread_name();
+    set_thread_name(fish->identity().name()+"_read");
     
     if(_header.version <= Output::ResultsFormat::Versions::V_15) {
         ref.seek(ref.tell() + sizeof(data_long_t) * 2);
@@ -381,6 +388,8 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         data_long_t prev_frame;
         Vec2 pos;
         float angle;
+        size_t index;
+        double time;
     };
     
     std::mutex mutex;
@@ -388,65 +397,87 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     std::deque<TemporaryData> stuffs;
     std::atomic_bool stop = false;
     
-    std::thread worker([&mutex, &variable, &stuffs, &stop, fish, cache_ptr = cache]()
+    auto process_frame = [cache_ptr = cache](Individual* fish, const auto& data){
+        const auto& frameIndex = data.stuff->frame;
+        
+        /*const MotionRecord *prev = nullptr;
+        if(!fish->_startFrame.valid()) {
+            assert(data.index == 0);
+            fish->_startFrame = frameIndex;
+        } else {
+            assert(data.index > 0);
+            prev = &fish->_basic_stuff[data.index - 1]->centroid;
+        }*/
+        
+        
+        const Match::prob_t p_threshold = FAST_SETTINGS(matching_probability_threshold);
+        
+        auto label = FAST_SETTINGS(track_consistent_categories)/* || !FAST_SETTINGS(track_only_categories).empty()*/ ? Categorize::DataStore::ranged_label(Frame_t(frameIndex), data.stuff->blob) : nullptr;
+        
+        Match::prob_t p = p_threshold;
+        if(!fish->empty()) {
+            auto cache = fish->cache_for_frame(frameIndex, data.time);
+            assert(frameIndex > fish->start_frame());
+            p = fish->probability(label ? label->id : -1, cache, frameIndex, data.stuff->blob);//.p;
+        }
+        
+        if(fish->empty())
+            fish->_startFrame = frameIndex;
+        assert(fish->_endFrame < frameIndex);
+        fish->_endFrame = frameIndex;
+        
+        auto segment = fish->update_add_segment(
+            frameIndex,
+            data.stuff->centroid,
+            Frame_t(data.prev_frame),
+            &data.stuff->blob,
+            p
+        );
+        
+        segment->add_basic_at(frameIndex, (long_t)data.index);
+        fish->_basic_stuff[data.index] = data.stuff;
+    };
+    
+    auto worker = [&mutex, &variable, &stuffs, &stop, fish, &process_frame]()
     {
-        cmn::set_thread_name("Output::ResultsFormat::worker");
+        auto thread_name = get_thread_name();
+        set_thread_name("read_individual_"+fish->identity().name()+"_worker");
         
         std::unique_lock<std::mutex> guard(mutex);
         
         while(!stop || !stuffs.empty()) {
-            variable.wait_for(guard, std::chrono::milliseconds(250));
+            variable.wait_for(guard, std::chrono::milliseconds(1));
             
             while(!stuffs.empty()) {
-                auto & data = stuffs.front();
+                auto data = std::move(stuffs.front());
+                stuffs.pop_front();
                 
                 guard.unlock();
                 {
-                    const auto& frameIndex = data.stuff->frame;
-                    
-                    const MotionRecord *prev = nullptr;
-                    if(!fish->_startFrame.valid())
-                        fish->_startFrame = frameIndex;
-                    else
-                        prev = &fish->basic_stuff().back()->centroid;
-                    
-                    assert(fish->_endFrame < frameIndex);
-                    fish->_endFrame = frameIndex;
-
-                    auto time = Tracker::properties(frameIndex, cache_ptr)->time;
-                    data.stuff->centroid.init(prev, time, data.pos, data.angle);
-                    
-                    auto label = FAST_SETTINGS(track_consistent_categories)/* || !FAST_SETTINGS(track_only_categories).empty()*/ ? Categorize::DataStore::ranged_label(Frame_t(frameIndex), data.stuff->blob) : nullptr;
-                    auto cache = fish->cache_for_frame(frameIndex, time, cache_ptr);
-                    auto p = fish->empty() || frameIndex < fish->start_frame() ? 0 : fish->probability(label ? label->id : -1, cache, frameIndex, data.stuff->blob);//.p;
-                    
-                    auto segment = fish->update_add_segment(
-                        frameIndex,
-                        data.stuff->centroid,
-                        Frame_t(data.prev_frame),
-                        &data.stuff->blob,
-                        p
-                    );
-                    
-                    segment->add_basic_at(frameIndex, (long_t)fish->_basic_stuff.size());
-                    fish->_basic_stuff.push_back(data.stuff);
-                    fish->_matched_using.push_back(default_config::matching_mode_t::benchmark);
+                    process_frame(fish, data);
                 }
                 guard.lock();
-                
-                stuffs.pop_front();
             }
         }
-    });
+        
+        set_thread_name(thread_name);
+    };
     
     TemporaryData data;
+    data.index = 0; // start with basic_stuff == zero
+    
     double time;
     
     data_long_t prev_frame = -1;
     data_long_t frameIndex;
     
-    fish->_basic_stuff.reserve(N);
-    fish->_matched_using.reserve(N);
+    //!TODO: too much resize.
+    fish->_basic_stuff.resize(N);
+    fish->_matched_using.resize(N);
+    std::fill(fish->_matched_using.begin(), fish->_matched_using.end(), default_config::matching_mode_t::benchmark);
+    
+    const MotionRecord* prev = nullptr;
+    std::thread worker_thread(worker);
     
     for (uint64_t i=0; i<N; i++) {
         ref.read<data_long_t>(frameIndex);
@@ -462,7 +493,8 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                     ref.read<double>(time);
                 else
                     ref.read_convert<float>(time);
-            }
+            } else
+                time = Tracker::properties(Frame_t(frameIndex))->time;
         }
         
         //fish->_blob_indices[frameIndex] = ref.read<uint32_t>();
@@ -470,9 +502,12 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             ref.seek(ref.tell() + sizeof(uint32_t)); // blob index no longer used
             //ref.read<uint32_t>();
         
+        data.time = time;
         data.stuff = std::make_shared<Individual::BasicStuff>();
         data.stuff->frame = Frame_t(frameIndex);
-        data.prev_frame = prev_frame;
+        data.stuff->centroid.init(prev, time, data.pos, data.angle);
+        prev = &data.stuff->centroid;
+        
         read_blob(ref, data.stuff->blob);
         
         if(_header.version >= Output::ResultsFormat::Versions::V_7 && _header.version < Output::ResultsFormat::Versions::V_29)
@@ -485,13 +520,17 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             continue;
         }
         
+        data.prev_frame = prev_frame;
+        
         {
-            std::lock_guard<std::mutex> guard(mutex);
+            std::unique_lock guard(mutex);
             stuffs.push_back(data);
         }
         variable.notify_one();
+        //process_frame(fish, data);
         
         prev_frame = frameIndex;
+        ++data.index;
         
         if(i%100000 == 0 && i)
             Debug("Blob %d/%d", i, N);
@@ -499,7 +538,18 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     
     stop = true;
     variable.notify_all();
-    worker.join();
+    
+    worker_thread.join();
+    //worker();
+    
+    //!TODO: resize back to intended size
+    if(data.index != fish->_basic_stuff.size()) {
+        fish->_basic_stuff.resize(data.index);
+        fish->_matched_using.resize(data.index);
+    }
+    
+    assert(!fish->empty());
+    //worker();
     
     //Output::ResultsFormat::_blob_pool.enqueue(fish);
     
@@ -673,7 +723,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     
     //if(N > 1000)
     //    Debug("Time for individual %d: %f", fish->identity().ID(), timer.elapsed());
-    
+    set_thread_name(thread_name);
     return fish;
 }
 

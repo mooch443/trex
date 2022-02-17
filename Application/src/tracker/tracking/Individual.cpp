@@ -884,7 +884,7 @@ void Individual::LocalCache::regenerate(Individual* fish) {
         add(basic->frame, &basic->centroid);
     }
     
-    for(auto && p : fish->_posture_stuff) {
+    for(auto & p : fish->_posture_stuff) {
         if(p->cached_pp_midline && !p->cached_pp_midline->empty()) {
             add(p);
         }
@@ -1698,19 +1698,19 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
         }
     }
     
+    cache.previous_frame = pp ? pp->frame : (frameIndex - 1_f);
     auto pp_props = pp && pp->frame == (frameIndex - 1_f) && prev_props
         ? prev_props
-        : Tracker::properties(pp ? pp->frame : (frameIndex - 1_f), hints);
+        : Tracker::properties(cache.previous_frame, hints);
     assert(!prev_props || prev_props->time != time);
     
-    float ptime = pp_props ? pp_props->time : (- (frameIndex - pp->frame).get() * 1 / double(frame_rate) + time);
+    float ptime = pp_props ? pp_props->time : (- (frameIndex - cache.previous_frame).get() * 1 / double(frame_rate) + time);
     if(time - ptime >= track_max_reassign_time) {
-        ptime = (- (frameIndex - pp->frame).get() * 1 / double(frame_rate) + time);
+        ptime = (- (frameIndex - cache.previous_frame).get() * 1 / double(frame_rate) + time);
     }
     //prev_props ? prev_props->time : ((frameIndex - (frameIndex - 1)) / double(FAST_SETTINGS(frame_rate)) + time);
     //Debug("%f (%d) -> %f (%d) (%lu) = %f", time, frameIndex, ptime, pp ? pp->frame : (frameIndex-1), pp_props, time - ptime);
     
-    cache.previous_frame = pp ? pp->frame : (frameIndex - 1_f);
     cache.tdelta = time - ptime;//pp.first < frameIndex ? (time - ptime) : time;
     cache.local_tdelta = prev_props ? time - prev_props->time : 0;
     

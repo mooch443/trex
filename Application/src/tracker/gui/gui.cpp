@@ -243,7 +243,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                 GUI::instance()->gui().dialog("An error occurred in the blob thread pool:\n<i>"+std::string(ex.what())+"</i>", "Error");
             }
         });
-    }),
+    }, "GUI::blob_thread_pool"),
     _properties_visible(false),
     _private_data(new PrivateData),
 #if WITH_MHD

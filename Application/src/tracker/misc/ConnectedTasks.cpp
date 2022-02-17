@@ -12,7 +12,8 @@ namespace cmn {
             _stages.at(i).samples = 0;
             
             _threads.push_back(new std::thread([this](size_t i) {
-                set_thread_name("ConnectedTasks::stage_"+Meta::toStr(i));
+                auto name = "ConnectedTasks::stage_"+Meta::toStr(i);
+                set_thread_name(name);
                 
                 const auto &task = _tasks.at(i);
                 auto &stage = _stages.at(i);
@@ -21,12 +22,18 @@ namespace cmn {
                 std::unique_lock<std::mutex> lock(stage.mutex);
                 
                 for(;;) {
+#ifdef DEBUG_THREAD_STATE
+                    set_thread_name(name+"::idle");
+#endif
                     stage.condition.wait_for(lock, std::chrono::seconds(1), [&](){ return (!_paused && !stage.queue.empty()) || _stop || stage.paused != _paused; });
                     
                     if(stage.paused != _paused)
                         stage.paused = _paused.load();
                     
                     if(!_paused && !stage.queue.empty()) {
+#ifdef DEBUG_THREAD_STATE
+                        set_thread_name(name);
+#endif
                         stage.timer.reset();
                         
                         auto obj = stage.queue.front();

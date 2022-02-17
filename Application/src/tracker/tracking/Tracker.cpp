@@ -253,8 +253,8 @@ void Tracker::analysis_state(AnalysisState pause) {
 }
 
     Tracker::Tracker()
-          : _thread_pool(max(1u, cmn::hardware_concurrency())),
-            recognition_pool(max(1u, cmn::hardware_concurrency())),
+          : _thread_pool(cmn::hardware_concurrency(), nullptr, "Tracker::thread_pool"),
+            recognition_pool(cmn::hardware_concurrency(), nullptr, "RecognitionPool"),
             _midline_errors_frame(0), _overall_midline_errors(0),
             _max_individuals(0),
             _background(NULL), _recognition(NULL),
