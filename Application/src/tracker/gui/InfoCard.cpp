@@ -136,8 +136,9 @@ void InfoCard::update() {
             
             //!TODO: Need to collect width() beforehand
             auto p = Vec2(width() - 10 + offx, float(height() - 40) * 0.5f + ((i - 2) + 1) * (float)Base::default_line_spacing(Font(1.1f)));
+            auto alpha = 25 + 230 * (1 - cmn::abs(i-2) / 5.0f);
             
-            text = add<Text>(str, p, White.alpha(25 + 230 * (1 - cmn::abs(i-2) / 5.0f)), Font(0.8f), Vec2(1), Vec2(1, 0.5f));
+            text = add<Text>(str, p, _frameNr != range.start() ? White.alpha(alpha) : Color(200,235,255).alpha(alpha), Font(0.8f), Vec2(1), Vec2(1, 0.5f));
             text->set_clickable(true);
             //text = advance(text);
             

@@ -2285,7 +2285,9 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                             clique.bids.insert(col.cdx);
                             
                             for (auto it = cliques.begin(); it != cliques.end();) {
-                                if(it->fids.contains(idx) || it->bids.contains(col.cdx)) {
+                                if(   contains(it->fids, idx)
+                                   || contains(it->bids, col.cdx))
+                                {
                                     clique.fids.insert(it->fids.begin(), it->fids.end());
                                     clique.bids.insert(it->bids.begin(), it->bids.end());
                                     
@@ -2332,14 +2334,17 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                             Debug("\t\tExploring blob %u (aka %u) with edges %S", cdx, (*blob)->blob_id(), &str);
 #endif
                             for(auto fdi : bedges) {
-                                if(!cliques[index].fids.contains(fdi) && !indexes.fids.contains(fdi)) {
+                                if(   !contains(cliques[index].fids, fdi)
+                                   && !contains(indexes.fids, fdi))
+                                {
                                     indexes.fids.insert(fdi);
                                     
                                     for(size_t j=0; j<cliques.size(); ++j) {
                                         if(j == index)
                                             continue;
                                         
-                                        if(cliques[j].bids.contains(cdx) || cliques[j].fids.contains(fdi))
+                                        if(   contains(cliques[j].bids, cdx)
+                                           || contains(cliques[j].fids, fdi))
                                         {
 #ifdef TREX_DEBUG_MATCHING
                                             // merge cliques
@@ -2385,7 +2390,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                             Debug("\t\tExploring row %d (aka fish%d) with edges=%S", i, paired_blobs.row(i)->identity().ID(), &estr);
 #endif
                             for(auto &e : edges) {
-                                if(!cliques[index].bids.contains(e.cdx))
+                                if(!contains(cliques[index].bids, e.cdx))
                                     indexes.bids.insert(e.cdx);
                             }
                         }
@@ -2451,7 +2456,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                         Match::PairedProbabilities paired;
                         for(auto fish : paired_blobs.rows()) {
                             auto fdi = paired_blobs.index(fish);
-                            if(!clique.fids.contains(fdi)
+                            if(!contains(clique.fids, fdi)
                                || (fish_assigned.count(fish) && fish_assigned.at(fish)))
                                 continue;
                             
@@ -2472,8 +2477,8 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                         
                         try {
                             auto &optimal = graph.get_optimal_pairing(false, matching_mode_t::hungarian);
+                            std::unique_lock g(thread_mutex);
                             for (auto &p: optimal.pairings) {
-                                std::unique_lock g(thread_mutex);
                                 assign_blob_individual(frameIndex, frame, p.first, *p.second, matching_mode_t::hungarian);
                                 active_individuals.insert(p.first);
                             }

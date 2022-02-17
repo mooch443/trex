@@ -1603,7 +1603,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     cache.current_category = -1;
     cache.cm_per_pixel = FAST_SETTINGS(cm_per_pixel);
     cache.consistent_categories = FAST_SETTINGS(track_consistent_categories);
-    cache.track_max_speed = FAST_SETTINGS(track_max_speed);
+    cache.track_max_speed_sq = SQR(FAST_SETTINGS(track_max_speed));
     const auto frame_rate = FAST_SETTINGS(frame_rate);
     const auto track_max_reassign_time = FAST_SETTINGS(track_max_reassign_time);
     
@@ -1778,7 +1778,9 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
         });
     }
     
-    const float max_speed = cache.track_max_speed / cache.cm_per_pixel;
+    // cm/s / (cm/px)
+    // (cm/s)^2 / (cm/px)^2 = (cm^2/s^2) / (cm^2/px^2) = 1 * px^2/s^2
+    const float max_speed_cm = cache.track_max_speed_sq / SQR(cache.cm_per_pixel);
     const FrameProperties *properties = nullptr;
     auto end = Tracker::instance()->frames().end();
     auto iterator = end;
@@ -1822,12 +1824,12 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
             
             //! \mathbf{v}_i(t) = \mathbf{p}_i'(t) = \frac{\delta}{\delta t} \mathbf{p}_i(t)
             auto v = (h.pos<Units::PX_AND_SECONDS>() - previous_p->pos<Units::PX_AND_SECONDS>()) / (c_props->time - previous_t);
-            auto L = v.length();
+            auto L = v.sqlength();
             
             //! \hat{\mathbf{v}}_i(t) = \mathbf{v}_i(t) * \begin{cases} 1 & \mathrm{if} \norm{\mathbf{v}_i(t)} \le D_\mathrm{max} \\ D_\mathrm{max} / \norm{\mathbf{v}_i(t)} & \mathrm{otherwise} \end{cases}
-            if(L >= max_speed) {
-                v = v / L * max_speed;
-                L = max_speed;
+            if(L >= max_speed_cm) {
+                v = v * max_speed_cm / L;
+                L = max_speed_cm;
             }
             
             assert(!std::isnan(v.x));
@@ -1872,8 +1874,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     const MotionRecord* c = pp ? &pp->centroid : nullptr; //centroid_weighted(cache.previous_frame);
     
     //! \mean{s}_{i}(t) = \underset{k \in [F(\tau)-5, F(t)]}{\median} \norm{\hat{\mathbf{v}}_i(\Tau(k))}
-    prob_t aspeed = used_frames ? static_median(average_speed.begin(), average_speed.end()) : 0;
-    prob_t speed = max(0.6f, aspeed); //max(0.6f, length(raw));
+    prob_t speed = max(0.6f, sqrt(used_frames ? static_median(average_speed.begin(), average_speed.end()) : 0));
     
     if(cache.tdelta == 0)
         U_EXCEPTION("No time difference between %d and %d in calculate_next_positions.", frameIndex, cache.previous_frame);
@@ -1981,8 +1982,10 @@ inline Float2_t adiffangle(const Vec2& A, const Vec2& B) {
 
 prob_t Individual::position_probability(const IndividualCache& cache, Frame_t frameIndex, size_t, const Vec2& position, const Vec2& blob_center) const
 {
+#ifndef NDEBUG
     if (frameIndex < _startFrame + 1_f)
         U_EXCEPTION("Cannot calculate probability for a frame thats previous to all known frames.");
+#endif
     
     // $\tau$ is the time (s) of the most recent frame assigned to individual $i$
     // $\dot{p}_i(t)$ is the projected position for individual $i$ in the current frame
@@ -1994,7 +1997,7 @@ prob_t Individual::position_probability(const IndividualCache& cache, Frame_t fr
         velocity = (position - cache.estimated_px * cache.cm_per_pixel) / cache.local_tdelta;
     assert(!std::isnan(velocity.x) && !std::isnan(velocity.y));
     
-    auto speed = length(velocity) / cache.track_max_speed;
+    auto speed = velocity.sqlength() / cache.track_max_speed_sq;
     speed = 1 / SQR(1 + speed);
     
     
