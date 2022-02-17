@@ -40,7 +40,7 @@ Output::ResultsFormat::ResultsFormat(const file::Path& filename, std::function<v
         set_thread_name(obj->identity().name()+"_post");
 
     //Debug("Generate midlines for %d...", obj->identity().ID());
-        obj->update_midlines(nullptr);
+        obj->update_midlines(_property_cache.get());
     //Debug("Done with midlines for %d.", obj->identity().ID());
 
     //data_long_t previous = obj->start_frame();
@@ -418,7 +418,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         
         Match::prob_t p = p_threshold;
         if(!fish->empty()) {
-            auto cache = fish->cache_for_frame(frameIndex, data.time);
+            auto cache = fish->cache_for_frame(frameIndex, data.time, cache_ptr);
             assert(frameIndex > fish->start_frame());
             p = fish->probability(label ? label->id : -1, cache, frameIndex, data.stuff->blob);//.p;
         }
