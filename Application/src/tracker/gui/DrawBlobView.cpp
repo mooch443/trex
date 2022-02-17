@@ -698,7 +698,7 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
             
             for(auto &boundary : _current_boundary) {
                 if(boundary.size() > 2) {
-                    static Polygon polygon(nullptr);
+                    static ::gui::Polygon polygon(nullptr);
                     
                     //! need to force a convex hull here
                     auto v = poly_convex_hull(&boundary);
