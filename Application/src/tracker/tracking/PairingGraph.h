@@ -68,7 +68,32 @@ namespace Match
         }
         constexpr bool valid() const { return index >= 0; }
     };
+}
+}
 
+namespace std
+{
+template <>
+struct hash<track::Match::blob_index_t>
+{
+    constexpr size_t operator()(const track::Match::blob_index_t& k) const noexcept
+    {
+        return std::hash<track::Match::index_t>{}((track::Match::index_t)k);
+    }
+};
+
+template <>
+struct hash<track::Match::fish_index_t>
+{
+    constexpr size_t operator()(const track::Match::fish_index_t& k) const noexcept
+    {
+        return std::hash<track::Match::index_t>{}((track::Match::index_t)k);
+    }
+};
+}
+
+namespace track {
+namespace Match {
     using prob_t = double;
     using Blob_t = const pv::BlobPtr*;
     template<typename K, typename V>

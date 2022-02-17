@@ -223,7 +223,7 @@ namespace gui {
                 _bar->set_pos(pos);
                 base.wrap_object(*_bar);
 
-                if (FAST_SETTINGS(recognition_enable)) {
+                {
                     _ptr->update_consecs(max_w, consec, other_consec, 1);
                     if (_ptr->_consecutives) {
                         _ptr->_consecutives->set_pos(pos - Vec2(0, 5));
