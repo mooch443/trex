@@ -867,7 +867,7 @@ int main(int argc, char** argv)
         float end_threshold = 230;
         float threshold_step = (end_threshold - 20 - start_threshold) / narrow_cast<float>(values.size());
         
-        GenericThreadPool pool(cmn::hardware_concurrency());
+        GenericThreadPool pool(cmn::hardware_concurrency(), nullptr, "evaluate_thresholds");
         std::mutex sync;
         
         size_t added_frames = 0, processed_frames = 0;
@@ -1102,9 +1102,7 @@ int main(int argc, char** argv)
         
     //std::mutex stage1_mutex;
     //double time_stage1 = 0, time_stage2 = 0, stage1_samples = 0, stage2_samples = 0;
-    GenericThreadPool pool(hardware_concurrency(), [](std::exception_ptr e) {
-        std::rethrow_exception(e);
-    }, "preprocess_main");
+    GenericThreadPool pool(cmn::hardware_concurrency(), nullptr, "preprocess_main");
     
     //! Stages
     std::vector<std::function<bool(ConnectedTasks::Type, const ConnectedTasks::Stage&)>> tasks =

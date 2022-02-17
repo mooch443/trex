@@ -380,7 +380,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //! Raw blobs
         pv::BlobPtr blob(Frame_t frameIndex) const;
         pv::CompressedBlob* compressed_blob(Frame_t frameIndex) const;
-        bool empty() const { return frame_count() == 0; }
+        bool empty() const { return !_startFrame.valid(); }
         
         //const decltype(_training_data)& training_data() const { return _training_data; }
         //decltype(_training_data)& training_data() { return _training_data; }
