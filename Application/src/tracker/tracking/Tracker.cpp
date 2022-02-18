@@ -2492,7 +2492,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 small.reserve(cliques.size());
                 
                 for(auto &clique : cliques) {
-                    if (clique.fids.size() < 20)
+                    if (clique.fids.size() < 3)
                         work_clique.operator()<false>(clique, frameIndex);
                     else
                         small.push_back(&clique);
