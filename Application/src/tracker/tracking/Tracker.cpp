@@ -2350,7 +2350,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     //! collect all cliques that contain this individual
                     //distribute_vector([&, idx = idx](auto i, auto start, auto end, auto){
                         
-                    /*for (size_t i = 0; i<N_cliques; ++i) {
+                    for (size_t i = 0; i<N_cliques; ++i) {
                         auto ct = cliques.data() + i;
                     //for(auto ct = start; ct != end; ++ct, ++i) {
                         if(contains(ct->fids, idx)) {
@@ -2363,9 +2363,9 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                             ++matches;
                         } else
                             to_merge[i] = false;
-                    }*/
+                    }
                     
-                    for(size_t i=0; i<N_cliques; ++i) {
+                    /*for (size_t i = 0; i<N_cliques; ++i) {
                         auto ct = cliques.data() + i;
                     //for(auto ct = start; ct != end; ++ct, ++i) {
                         if(contains(ct->fids, idx)) {
@@ -2383,7 +2383,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                         } else
                             to_merge[i] = false;
                     }
-                    //}, _thread_pool, cliques.begin(), cliques.end());
+                    //}, _thread_pool, cliques.begin(), cliques.end());*/
                     
                     for(auto &col : edges) {
                         if(col.p >= p_threshold) {
