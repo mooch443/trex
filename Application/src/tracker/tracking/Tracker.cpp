@@ -2308,24 +2308,98 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             auto N_cliques = cliques.size();
             std::vector<bool> to_merge(N_cliques);
             
+            /*distribute_vector([](auto, auto start, auto end, auto){
+                for(auto it = start; it != end; ++it) {
+                    if(paired_blobs.degree(idx) > 1) {
+                        auto edges = paired_blobs.edges_for_row(idx);
+                        clique.clear();
+                        
+                        size_t matches = 0;
+                        
+                        //! collect all cliques that contain this individual
+                        //distribute_vector([&, idx = idx](auto i, auto start, auto end, auto){
+                            
+                        for(size_t i=0; i<N_cliques; ++i) {
+                            auto ct = cliques.data() + i;
+                        //for(auto ct = start; ct != end; ++ct, ++i) {
+                            if(contains(ct->fids, idx)) {
+                                to_merge[i] = true;
+                                ++matches;
+                            } else if(std::any_of(edges.begin(), edges.end(), [&](const Match::PairedProbabilities::Edge& e){
+                                return e.p < p_threshold || ct->bids.contains(e.cdx);
+                            })) {
+                                to_merge[i] = true;
+                                ++matches;
+                            } else
+                                to_merge[i] = false;
+                        }
+                }
+                
+            }, _thread_pool, paired_blobs.row_indexes().begin(), paired_blobs.row_indexes().end());*/
+            
             for(auto &[row, idx] : paired_blobs.row_indexes()) {
                 if(paired_blobs.degree(idx) > 1) {
                     auto edges = paired_blobs.edges_for_row(idx);
                     clique.clear();
-                    std::fill(to_merge.begin(), to_merge.end(), false);
+                    //std::fill(to_merge.begin(), to_merge.end(), false);
                     
                     size_t matches = 0;
                     
                     //! collect all cliques that contain this individual
+                    //distribute_vector([&, idx = idx](auto i, auto start, auto end, auto){
+                        
                     for(size_t i=0; i<N_cliques; ++i) {
-                        if(contains(cliques[i].fids, idx)) {
+                        auto ct = cliques.data() + i;
+                    //for(auto ct = start; ct != end; ++ct, ++i) {
+                        if(contains(ct->fids, idx)) {
                             to_merge[i] = true;
                             ++matches;
+                        } else if(std::any_of(edges.begin(), edges.end(), [&](const Match::PairedProbabilities::Edge& e){
+                            return e.p < p_threshold || ct->bids.contains(e.cdx);
+                        })) {
+                            to_merge[i] = true;
+                            ++matches;
+                        } else
+                            to_merge[i] = false;
+                    }
+                    
+                    /*for(size_t i=0; i<N_cliques; ++i) {
+                        auto ct = cliques.data() + i;
+                    //for(auto ct = start; ct != end; ++ct, ++i) {
+                        if(contains(ct->fids, idx)) {
+                            to_merge[i] = true;
+                            ++matches;
+                        } else if(std::any_of(ct->bids.begin(), ct->bids.end(),
+                            [&](const auto& bid){
+                                return std::any_of(edges.begin(), edges.end(), [&](const Match::PairedProbabilities::Edge& e){
+                                    return e.cdx == bid && e.p >= p_threshold;
+                                });
+                            }))
+                        {
+                            to_merge[i] = true;
+                            ++matches;
+                        } else
+                            to_merge[i] = false;
+                    }*/
+                    //}, _thread_pool, cliques.begin(), cliques.end());
+                    
+                    for(auto &col : edges) {
+                        if(col.p >= p_threshold) {
+                            clique.bids.insert(col.cdx);
                         }
                     }
                     
                     //! collect all cliques that contain any of the blobs associated with this individual
-                    for(auto &col : edges) {
+                    //for (size_t i=0; i<N_cliques; ++i) {
+                    //    if(to_merge[i])
+                     //       continue;
+                        /*if(contains(cliques[i].bids, col.cdx)) {
+                            to_merge[i] = true;
+                            ++matches;
+                        }*/
+                    //}
+                    
+                    /*for(auto &col : edges) {
 #ifndef NDEBUG
                         if(!frame.find_bdx((*paired_blobs.col(col.cdx))->blob_id())) {
                             Debug("Frame %d: Cannot find blob %u in map.", frameIndex, (*paired_blobs.col(col.cdx))->blob_id());
@@ -2345,7 +2419,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                                 }
                             }
                         }
-                    }
+                    }*/
                     
                     if(!clique.bids.empty()) {
                         IndexClique* first = nullptr;
