@@ -526,10 +526,13 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         add(frame.index(), frame);
         
         //! Update recognition if enabled and end of video reached
-        if(Recognition::recognition_enabled()) {
+        //if(Recognition::recognition_enabled()) 
+        {
             const auto video_length = Tracker::analysis_range().end;
-            if(frame.index() >= video_length)
-                Recognition::notify();
+            if (frame.index() >= video_length) {
+                if(Recognition::recognition_enabled())
+                    Recognition::notify();
+            }
         }
         
         std::lock_guard<std::mutex> lguard(_statistics_mutex);
@@ -1615,11 +1618,12 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         const auto work = [&](size_t from, size_t to)
         {
             const auto matching_probability_threshold = FAST_SETTINGS(matching_probability_threshold);
+            std::vector< Match::pairing_map_t<Match::Blob_t, Match::prob_t> > _probs(to - from + 1);
 
             for(size_t i=from; i<to; i++) {
                 auto fish = unassigned_individuals[i];
                 //Match::prob_t max_p = 0;
-                Match::pairing_map_t<Match::Blob_t, Match::prob_t> probs;
+                auto& probs = _probs[i - from];
                 
                 auto cache = frame.cached(fish->identity().ID());
                 if(!cache) {
@@ -1653,16 +1657,14 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     //blobs_used.insert(blob);
                     //individuals_used.insert(fish);
                 }
-
-                if(!probs.empty()) {
-                    std::lock_guard<std::mutex> guard(paired_mutex);
-                    paired_blobs.add(fish, probs);
-                }
                 //local_paired[fish] = probs;
                 //local_max_probs[fish] = max_p;
             }
             
             std::lock_guard<std::mutex> guard(paired_mutex);
+            for (size_t i = from; i < to; ++i)
+                paired_blobs.add(unassigned_individuals[i], _probs[i - from]);
+
             ++processed;
             variable.notify_one();
 
@@ -2348,7 +2350,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     //! collect all cliques that contain this individual
                     //distribute_vector([&, idx = idx](auto i, auto start, auto end, auto){
                         
-                    for(size_t i=0; i<N_cliques; ++i) {
+                    /*for (size_t i = 0; i<N_cliques; ++i) {
                         auto ct = cliques.data() + i;
                     //for(auto ct = start; ct != end; ++ct, ++i) {
                         if(contains(ct->fids, idx)) {
@@ -2361,9 +2363,9 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                             ++matches;
                         } else
                             to_merge[i] = false;
-                    }
+                    }*/
                     
-                    /*for(size_t i=0; i<N_cliques; ++i) {
+                    for(size_t i=0; i<N_cliques; ++i) {
                         auto ct = cliques.data() + i;
                     //for(auto ct = start; ct != end; ++ct, ++i) {
                         if(contains(ct->fids, idx)) {
@@ -2380,7 +2382,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                             ++matches;
                         } else
                             to_merge[i] = false;
-                    }*/
+                    }
                     //}, _thread_pool, cliques.begin(), cliques.end());
                     
                     for(auto &col : edges) {
