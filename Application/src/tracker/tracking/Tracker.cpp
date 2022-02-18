@@ -1043,13 +1043,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         const auto N = active_individuals.size();
 
         {
-            //static Timing just_splitting("caching", 0.1);
-            //TakeTiming take_(just_splitting);
-            std::mutex thread_mutex;
-            const size_t num_threads = pool ? min(hardware_concurrency(), N / 500u) : 0;
-            if(frame.index().get() % 100 == 0)
-                Debug("%lu threads", num_threads);
-            //std::mutex thread_mutex;
+            const size_t num_threads = pool ? min(hardware_concurrency(), N / 200u) : 0;
             auto space_limit = Individual::weird_distance() * 0.5;
             std::condition_variable variable;
 
@@ -2435,7 +2429,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 std::condition_variable _variable;
                 size_t executed{ 0 };
 
-                auto work_clique = [&](const IndexClique& clique, Frame_t frameIndex, bool do_lock)
+                auto work_clique = [&] <bool do_lock> (const IndexClique& clique, Frame_t frameIndex)
                 {
                     using namespace Match;
                     Match::PairedProbabilities paired;
@@ -2463,70 +2457,64 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
 
                     PairingGraph graph(*props, frameIndex, paired);
 
-                    if (do_lock) {
-                        try {
-                            auto& optimal = graph.get_optimal_pairing(false, matching_mode_t::hungarian);
+                    try {
+                        auto& optimal = graph.get_optimal_pairing(false, matching_mode_t::hungarian);
 
+                        if constexpr (do_lock) {
                             std::unique_lock g(thread_mutex);
                             for (auto& p : optimal.pairings) {
                                 assign_blob_individual(frameIndex, frame, p.first, *p.second, matching_mode_t::hungarian);
                                 active_individuals.insert(p.first);
                             }
-
                         }
-                        catch (...) {
-                            Except("Failed to generate optimal solution (frame %d).", frameIndex);
-                        }
-
-                        std::unique_lock g(thread_mutex);   
-                        _variable.notify_one();
-                        ++executed;
-                    }
-                    else {
-                        try {
-                            auto& optimal = graph.get_optimal_pairing(false, matching_mode_t::hungarian);
+                        else {
                             for (auto& p : optimal.pairings) {
                                 assign_blob_individual(frameIndex, frame, p.first, *p.second, matching_mode_t::hungarian);
                                 active_individuals.insert(p.first);
                             }
-
-                        }
-                        catch (...) {
-                            Except("Failed to generate optimal solution (frame %d).", frameIndex);
                         }
 
-                        ++executed;
                     }
+                    catch (...) {
+                        Except("Failed to generate optimal solution (frame %d).", frameIndex);
+                    }
+
+                    if constexpr (do_lock) {
+                        std::unique_lock g(thread_mutex);
+                        _variable.notify_one();
+                        ++executed;
+                    } else
+                        ++executed;
                 };
                 
-                Clique translated;
-                _cliques[frameIndex].clear();
 
                 std::vector<IndexClique*> small;
                 small.reserve(cliques.size());
                 
                 for(auto &clique : cliques) {
-                    translated.bids.clear();
-                    translated.fishs.clear();
-                    
-                    for(auto bdi : clique.bids)
-                        translated.bids.insert((*paired_blobs.col(bdi))->blob_id());
-                    for(auto fdi : clique.fids)
-                        translated.fishs.insert(paired_blobs.row(fdi)->identity().ID());
-                    
-                    //Debug("Clique size = %lu", clique.fids.size());
                     if (clique.fids.size() < 20)
-                        //_thread_pool.enqueue(work_clique, clique, frameIndex);
-                    //else
-                        work_clique(clique, frameIndex, false);
+                        work_clique.operator()<false>(clique, frameIndex);
                     else
                         small.push_back(&clique);
-
-                    _cliques[frameIndex].emplace_back(std::move(translated));
                 }
 
                 for(auto c : small)
-                    _thread_pool.enqueue(work_clique, *c, frameIndex, true);
+                    _thread_pool.enqueue([&](const auto& clique, const auto& frameIndex) { work_clique.operator()<true>(clique, frameIndex); }, *c, frameIndex);
+
+                Clique translated;
+                _cliques[frameIndex].clear();
+
+                for (auto& clique : cliques) {
+                    translated.bids.clear();
+                    translated.fishs.clear();
+
+                    for (auto bdi : clique.bids)
+                        translated.bids.insert((*paired_blobs.col(bdi))->blob_id());
+                    for (auto fdi : clique.fids)
+                        translated.fishs.insert(paired_blobs.row(fdi)->identity().ID());
+
+                    _cliques[frameIndex].emplace_back(std::move(translated));
+                }
 
 #ifdef TREX_DEBUG_MATCHING
                 size_t index = 0;
