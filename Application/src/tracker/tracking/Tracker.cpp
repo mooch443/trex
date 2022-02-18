@@ -1640,10 +1640,126 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             
         };
         
-        if(pool)
+#if defined(TREX_THREADING_STATS)
+        static std::mutex mStats;
+        struct Bin {
+            size_t N;
+            double average_t, average_s;
+            double samples_t, samples_s;
+        };
+        
+        static std::vector<Bin> bins;
+        size_t max_elements = 2000u;
+        size_t step_size = 100u;
+        size_t step = max_elements / step_size;
+        
+        {
+            std::unique_lock guard(mStats);
+            if(bins.empty()) {
+                bins.resize(step);
+                
+                for(size_t i=0; i<bins.size(); ++i) {
+                    bins[i] = {
+                        .N = step_size * i,
+                        .average_t = 0, .average_s = 0,
+                        .samples_t = 0, .samples_s = 0
+                    };
+                }
+            }
+        }
+        
+        Timer timer;
+        //if(pool && N_fish > 100)
+            distribute_vector(work, *pool, unassigned_individuals.begin(), unassigned_individuals.end());
+        {
+            auto s = timer.elapsed();
+            
+            std::unique_lock guard(mStats);
+            for(auto &b : bins) {
+                if(b.N + step > N_fish) {
+                    b.average_t += s;
+                    ++b.samples_t;
+                    break;
+                }
+            }
+        }
+        
+        paired_blobs = Match::PairedProbabilities{};
+        
+        timer.reset();
+        work(0, unassigned_individuals.begin(), unassigned_individuals.end(), N_fish);
+        
+        {
+            auto s = timer.elapsed();
+            
+            std::unique_lock guard(mStats);
+            for(auto &b : bins) {
+                if(b.N + step > N_fish) {
+                    b.average_s += s;
+                    ++b.samples_s;
+                    break;
+                }
+            }
+        }
+        
+        if(frame.index().get() % 1000 == 0) {
+            std::unique_lock guard(mStats);
+            cv::Mat mat = cv::Mat::zeros(255, 1000, CV_8UC3);
+            using namespace gui;
+            float max_y = 0;
+            for(auto &b : bins) {
+                max_y = max(max_y, float(b.average_t / b.samples_t));
+                max_y = max(max_y, float(b.average_s / b.samples_s));
+            }
+            
+            {
+                Vec2 prev{0, 0};
+                for(auto &b : bins) {
+                    Vec2 pos{ float(b.N) / float(max_elements) * float(mat.cols), sqrt(float(b.average_t / b.samples_t) / max_y) * float(mat.rows) };
+                    cv::line(mat, prev, pos, White);
+                    prev = pos;
+                }
+            }
+            
+            {
+                Vec2 prev{0, 0};
+                for(auto &b : bins) {
+                    Vec2 pos{ float(b.N) / float(max_elements) * float(mat.cols), sqrt(float(b.average_s / b.samples_s) / max_y) * float(mat.rows) };
+                    cv::line(mat, prev, pos, Red);
+                    prev = pos;
+                }
+            }
+            
+            for(auto &b : bins) {
+                if(b.N % (2 * step_size) == 0)
+                    cv::putText(mat,Meta::toStr(b.N), Vec2(float(b.N) / float(max_elements) * float(mat.cols), float(mat.rows) - 10), cv::FONT_HERSHEY_PLAIN, 0.5, White);
+                cv::line(mat, Vec2(float(b.N) / float(max_elements) * float(mat.cols), float(mat.rows) - 11), Vec2(float(b.N) / float(max_elements) * float(mat.cols), 0), Gray);
+            }
+            
+            cv::cvtColor(mat, mat, cv::COLOR_BGR2RGB);
+            tf::imshow("stats", mat);
+            
+            std::vector<float> values;
+            for(auto &b : bins) {
+                values.push_back(b.N);
+                values.push_back(b.average_t / b.samples_t);
+                values.push_back(b.average_s / b.samples_s);
+            }
+            
+            try {
+                auto path = pv::DataLocation::parse("output", (std::string)SETTING(filename).value<file::Path>().filename()+"_threading_stats.npz").str();
+                npz_save(path, "values", values.data(), std::vector<size_t>{bins.size(), 3});
+                Debug("Saved threading stats at '%S'.", &path);
+            } catch(...) {
+                Warning("Error saving threading stats.");
+            }
+        }
+#else
+        if(pool && N_fish > 100)
             distribute_vector(work, *pool, unassigned_individuals.begin(), unassigned_individuals.end());
         else
             work(0, unassigned_individuals.begin(), unassigned_individuals.end(), N_fish);
+#endif
     }
     
     return paired_blobs;
