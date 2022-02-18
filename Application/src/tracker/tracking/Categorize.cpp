@@ -2735,7 +2735,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
         ptr = std::make_shared<PPFrame>();
         ++_create;
 
-        std::unordered_set<Individual*> active;
+        Tracker::set_of_individuals_t active;
         {
             Tracker::LockGuard guard("Categorize::sample");
             active = frame == Tracker::start_frame()

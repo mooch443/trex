@@ -37,7 +37,7 @@ public:
     const IndividualCache* cached(Idx_t) const;
     
     //std::map<Idx_t, IndividualCache> cached_individuals;
-    ska::bytell_hash_map<pv::bid, UnorderedVectorSet<uint32_t>> clique_for_blob;
+    ska::bytell_hash_map<pv::bid, UnorderedVectorSet<Idx_t>> clique_for_blob;
     ska::bytell_hash_map<pv::bid, UnorderedVectorSet<pv::bid>> clique_second_order;
     UnorderedVectorSet<pv::bid> split_blobs;
     

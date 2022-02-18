@@ -177,7 +177,7 @@ namespace Match {
         const decltype(_col_edges)::mapped_type& edges_for_col(blob_index_t) const;
         const decltype(_col_edges)& col_edges() const;
         
-        std::vector<Edge> edges_for_row(fish_index_t) const;
+        std::span<const Edge> edges_for_row(fish_index_t) const;
         
         size_t degree(fish_index_t) const;
         

@@ -1515,7 +1515,7 @@ bool Accumulation::start() {
                 for(auto && [frame, ids] : frames_collected) {
                     auto active =
                         frame == Tracker::start_frame()
-                            ? std::unordered_set<Individual*>()
+                            ? Tracker::set_of_individuals_t()
                             : Tracker::active_individuals(frame - 1_f);
                     
                     video_file.read_frame(video_frame.frame(), sign_cast<uint64_t>(frame.get()));

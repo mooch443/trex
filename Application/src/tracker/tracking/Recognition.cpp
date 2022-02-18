@@ -960,7 +960,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             
             {
                 Tracker::LockGuard guard("waiting_for_pixels");
-                std::unordered_set<Individual*> prev_active;
+                Tracker::set_of_individuals_t prev_active;
                 if(Tracker::properties( i - 1_f ))
                     prev_active = Tracker::active_individuals( i - 1_f );
                 

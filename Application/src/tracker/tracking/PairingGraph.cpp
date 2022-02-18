@@ -70,9 +70,13 @@ const decltype(PairedProbabilities::_col_edges)& PairedProbabilities::col_edges(
     return _col_edges;
 }
 
-std::vector<PairedProbabilities::Edge> PairedProbabilities::edges_for_row(fish_index_t rdx) const {
-    auto next = (index_t)rdx + 1 < _offsets.size() ? _offsets[(index_t)rdx+1] : _probabilities.size();
-    return std::vector<Edge>(_probabilities.begin() + _offsets[(index_t)rdx], _probabilities.begin() + next);
+std::span<const PairedProbabilities::Edge> PairedProbabilities::edges_for_row(fish_index_t rdx) const {
+    size_t current = _offsets[(index_t)rdx];
+    size_t next = (index_t)rdx + 1 < (index_t)_offsets.size()
+        ? _offsets[(index_t)rdx+1]
+        : _probabilities.size();
+    return std::span<const Edge>(_probabilities.data() + _offsets[(index_t)rdx], next - current);
+    //return std::vector<Edge>(_probabilities.begin() + _offsets[(index_t)rdx], _probabilities.begin() + next);
 }
 
 bool PairedProbabilities::empty() const {
@@ -1096,7 +1100,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 }
                 
                 Timer timer;
-                std::unordered_set<Individual*> used_blobs;
+                Tracker::set_of_individuals_t used_blobs;
                 
                 for(auto && [blob, edges] : _paired.col_edges()) {
                     prob_t max_p = 0;

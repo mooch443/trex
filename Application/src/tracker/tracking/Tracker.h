@@ -111,7 +111,7 @@ CREATE_STRUCT(Settings,
     class Tracker {
     public:
         static Tracker* instance();
-        using set_of_individuals_t = std::unordered_set<Individual*>;
+        using set_of_individuals_t = ska::bytell_hash_set<Individual*>;
 
         std::map<Idx_t, pv::bid> automatically_assigned(Frame_t frame);
         
@@ -255,18 +255,18 @@ CREATE_STRUCT(Settings,
         static bool blob_matches_shapes(const pv::BlobPtr&, const std::vector<std::vector<Vec2>>&);
         
         // filters a given frames blobs for size and splits them if necessary
-        static void preprocess_frame(PPFrame &frame, const std::unordered_set<Individual*>& active_individuals, GenericThreadPool* pool, std::ostream* = NULL, bool do_history_split = true);
+        static void preprocess_frame(PPFrame &frame, const Tracker::set_of_individuals_t& active_individuals, GenericThreadPool* pool, std::ostream* = NULL, bool do_history_split = true);
         
         friend class VisualField;
         static const ska::bytell_hash_map<Idx_t, Individual*>& individuals() {
             //LockGuard guard("individuals()");
             return instance()->_individuals;
         }
-        static const std::unordered_set<Individual*>& active_individuals() {
+        static const set_of_individuals_t& active_individuals() {
             //LockGuard guard("active_individuals()");
             return instance()->_active_individuals;
         }
-        static const std::unordered_set<Individual*>& active_individuals(Frame_t frame) {
+        static const set_of_individuals_t& active_individuals(Frame_t frame) {
             //LockGuard guard;
             
             if(instance()->_active_individuals_frame.count(frame))
@@ -329,7 +329,7 @@ CREATE_STRUCT(Settings,
         
     private:
         static void filter_blobs(PPFrame& frame, GenericThreadPool *pool);
-        void history_split(PPFrame& frame, const std::unordered_set<Individual*>& active_individuals, std::ostream* out = NULL, GenericThreadPool* pool = NULL);
+        void history_split(PPFrame& frame, const Tracker::set_of_individuals_t& active_individuals, std::ostream* out = NULL, GenericThreadPool* pool = NULL);
         
         struct split_expectation {
             size_t number;

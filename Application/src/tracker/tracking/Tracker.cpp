@@ -1013,7 +1013,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         return result;
     }
 
-    void Tracker::history_split(PPFrame &frame, const std::unordered_set<Individual *> &active_individuals, std::ostream* out, GenericThreadPool* pool) {
+    void Tracker::history_split(PPFrame &frame, const Tracker::set_of_individuals_t &active_individuals, std::ostream* out, GenericThreadPool* pool) {
         static Timing timing("history_split", 20);
         TakeTiming take(timing);
 
@@ -1037,7 +1037,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         using namespace Match;
         robin_hood::unordered_map<long_t, std::set<pv::bid>> fish_mappings;
         robin_hood::unordered_map<pv::bid, std::set<Idx_t>> blob_mappings;
-        robin_hood::unordered_map<long_t, robin_hood::unordered_map<pv::bid, Match::prob_t>> paired;
+        robin_hood::unordered_map<Idx_t, ska::bytell_hash_map<pv::bid, Match::prob_t>> paired;
 
         const auto frame_limit = FAST_SETTINGS(frame_rate) * FAST_SETTINGS(track_max_reassign_time);
         const auto N = active_individuals.size();
@@ -1258,7 +1258,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                 continue;
             Log(out, "\tFinding clique of this blob:");
             
-            UnorderedVectorSet<uint32_t> clique;
+            UnorderedVectorSet<Idx_t> clique;
             UnorderedVectorSet<pv::bid> others;
             std::queue<pv::bid> q;
             q.push(bdx);
@@ -1294,155 +1294,175 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                 Log(out, "\t\t%S %S", &str, &str1);
             }
             
-            if(clique.size() > others.size()) {
-                using namespace Match;
-                robin_hood::unordered_map<pv::bid, std::pair<uint32_t, Match::prob_t>> assign_blob; // blob: individual
-                robin_hood::unordered_map<uint32_t, std::set<std::tuple<Match::prob_t, pv::bid>>> all_probs_per_fish;
-                robin_hood::unordered_map<uint32_t, std::set<std::tuple<Match::prob_t, pv::bid>>> probs_per_fish;
-                
-                if(out) {
-                    Log(out, "\t\tMismatch between blobs and number of fish assigned to them.");
-                    if(clique.size() > others.size() + 1)
-                        Log(out, "\t\tSizes: %d != %d", clique.size(), others.size());
+            if(clique.size() <= others.size())
+                continue;
+            
+            using namespace Match;
+            robin_hood::unordered_map<pv::bid, std::pair<Idx_t, Match::prob_t>> assign_blob; // blob: individual
+            robin_hood::unordered_map<Idx_t, std::set<std::tuple<Match::prob_t, pv::bid>>> all_probs_per_fish;
+            robin_hood::unordered_map<Idx_t, std::set<std::tuple<Match::prob_t, pv::bid>>> probs_per_fish;
+            
+            if(out) {
+                Log(out, "\t\tMismatch between blobs and number of fish assigned to them.");
+                if(clique.size() > others.size() + 1)
+                    Log(out, "\t\tSizes: %d != %d", clique.size(), others.size());
+            }
+            
+            bool allow_less_than = false;
+            /*for(auto fdx : clique) {
+                if(_individuals.at(fdx)->recently_manually_matched(frame.index)) {
+                    allow_less_than = true;
+                    break;
                 }
-                
-                bool allow_less_than = false;
-                /*for(auto fdx : clique) {
-                    if(_individuals.at(fdx)->recently_manually_matched(frame.index)) {
-                        allow_less_than = true;
-                        break;
-                    }
-                }*/
-                
-                auto check_combinations = [&assign_blob, out](uint32_t c, decltype(probs_per_fish)::mapped_type& combinations, std::queue<uint32_t>& q) -> bool
-                {
-                    if(!combinations.empty()) {
-                        auto b = std::get<1>(*combinations.begin());
+            }*/
+            
+            auto check_combinations = [&assign_blob, out](Idx_t c, decltype(probs_per_fish)::mapped_type& combinations, std::queue<Idx_t>& q) -> bool
+            {
+                if(!combinations.empty()) {
+                    auto b = std::get<1>(*combinations.begin());
+                    
+                    if(assign_blob.count(b) == 0) {
+                        // great! this blob has not been assigned at all (yet)
+                        // so just assign it to this fish
+                        assign_blob[b] = {c, std::get<0>(*combinations.begin())};
+                        Log(out, "\t\t%d(%d): %f", b, c, std::get<0>(*combinations.begin()));
+                        return true;
                         
-                        if(assign_blob.count(b) == 0) {
-                            // great! this blob has not been assigned at all (yet)
-                            // so just assign it to this fish
-                            assign_blob[b] = {c, std::get<0>(*combinations.begin())};
-                            Log(out, "\t\t%d(%d): %f", b, c, std::get<0>(*combinations.begin()));
-                            return true;
-                            
-                        } else if(assign_blob[b].first != c) {
-                            // this blob has been assigned to a different fish!
-                            // check for validity (which one is closer)
-                            if(assign_blob[b].second <= std::get<0>(*combinations.begin())) {
-                                Log(out, "\t\tBlob %u is already assigned to individual %u (%u)...", b, assign_blob[b], c);
-                            } else {
-                                auto oid = assign_blob[b].first;
-                                if(out) {
-                                    Log(out, "\t\tBlob %d is already assigned to %d, but fish %d is closer (need to check combinations of fish %d again)", b, assign_blob[b], c, oid);
-                                    Log(out, "\t\t%d(%d): %f", b, c, std::get<0>(*combinations.begin()));
-                                }
-                                assign_blob[b] = {c, std::get<0>(*combinations.begin())};
-                                
-                                q.push(oid);
-                                return true;
-                            }
-                        }
-                        
-                        combinations.erase(combinations.begin());
-                    }
-                    
-                    return false;
-                };
-                
-                // 1. assign best matches (remove if better one is found)
-                // 2. assign 2. best matches... until nothing is free
-                std::queue<uint32_t> checks;
-                for(auto c : clique) {
-                    decltype(probs_per_fish)::mapped_type combinations;
-                    for(auto && [bdx, d] : paired.at(c)) {
-                        combinations.insert({Match::prob_t(d), bdx});
-                    }
-                    
-                    probs_per_fish[c] = combinations;
-                    all_probs_per_fish[c] = combinations;
-                    
-                    checks.push(c);
-                }
-                
-                while(!checks.empty()) {
-                    auto c = checks.front();
-                    checks.pop();
-                    
-                    auto &combinations = all_probs_per_fish.at(c);
-                    if(!combinations.empty() && !check_combinations(c, combinations, checks))
-                        checks.push(c);
-                }
-                
-                size_t counter = 0;
-                for(auto && [fdx, set] : all_probs_per_fish) {
-                    if(out) {
-                        auto str = Meta::toStr(set);
-                        Log(out, "Combinations %d: %S", fdx, &str);
-                    }
-                    
-                    if(set.empty()) {
-                        ++counter;
-                        Log(out, "No more alternatives for %d", fdx);
-                        
-                        if(!probs_per_fish.at(fdx).empty()) {
-                            //float max_s = 0;
-                            pv::bid max_id;
-                            /*for(auto && [d, bdx] : complete_combinations.at(fdx)) {
-                                if(bdx_to_ptr.at(bdx)->recount(-1) > max_s) {
-                                    max_s = bdx_to_ptr.at(bdx)->recount(-1);
-                                    max_id = bdx;
-                                }
-                            }*/
-                            
-                            //auto copy = complete_combinations.at(fdx);
+                    } else if(assign_blob[b].first != c) {
+                        // this blob has been assigned to a different fish!
+                        // check for validity (which one is closer)
+                        if(assign_blob[b].second <= std::get<0>(*combinations.begin())) {
+                            Log(out, "\t\tBlob %u is already assigned to individual %u (%u)...", b, assign_blob[b], c);
+                        } else {
+                            auto oid = assign_blob[b].first;
                             if(out) {
-                                for(auto && [d, bdx] : probs_per_fish.at(fdx)) {
-                                    Log(out, "\t%d: %f", bdx, d);
+                                Log(out, "\t\tBlob %d is already assigned to %d, but fish %d is closer (need to check combinations of fish %d again)", b, assign_blob[b], c, oid);
+                                Log(out, "\t\t%d(%d): %f", b, c, std::get<0>(*combinations.begin()));
+                            }
+                            assign_blob[b] = {c, std::get<0>(*combinations.begin())};
+                            
+                            q.push(oid);
+                            return true;
+                        }
+                    }
+                    
+                    combinations.erase(combinations.begin());
+                }
+                
+                return false;
+            };
+            
+            // 1. assign best matches (remove if better one is found)
+            // 2. assign 2. best matches... until nothing is free
+            std::queue<Idx_t> checks;
+            for(auto c : clique) {
+                decltype(probs_per_fish)::mapped_type combinations;
+                for(auto && [bdx, d] : paired.at(c)) {
+                    combinations.insert({Match::prob_t(d), bdx});
+                }
+                
+                probs_per_fish[c] = combinations;
+                all_probs_per_fish[c] = combinations;
+                
+                checks.push(c);
+            }
+            
+            while(!checks.empty()) {
+                auto c = checks.front();
+                checks.pop();
+                
+                auto &combinations = all_probs_per_fish.at(c);
+                if(!combinations.empty() && !check_combinations(c, combinations, checks))
+                    checks.push(c);
+            }
+            
+            UnorderedVectorSet<pv::bid> to_delete;
+            size_t counter = 0;
+            for(auto && [fdx, set] : all_probs_per_fish) {
+                if(out) {
+                    auto str = Meta::toStr(set);
+                    Log(out, "Combinations %d: %S", fdx, &str);
+                }
+                
+                if(set.empty()) {
+                    ++counter;
+                    Log(out, "No more alternatives for %d", fdx);
+                    
+                    if(!probs_per_fish.at(fdx).empty()) {
+                        pv::bid max_id;
+                        
+                        if(out) {
+                            for(auto && [d, bdx] : probs_per_fish.at(fdx)) {
+                                Log(out, "\t%d: %f", bdx, d);
+                            }
+                        }
+                        
+                        max_id = std::get<1>(*probs_per_fish.at(fdx).begin());
+                        if(max_id.valid()) {
+                            frame.split_blobs.insert(max_id);
+                            auto ptr = frame.erase_regular(max_id);
+                            
+                            if(ptr) {
+                                Log(out, "Splitting blob %d", max_id);
+                                to_delete.insert(max_id);
+                                
+                                /*for(auto && [ind, blobs] : paired) {
+                                    auto it = blobs.find(max_id);
+                                    if(it != blobs.end()) {
+                                        blobs.erase(it);
+                                        //Debug("Frame %d: Erasing blob %u from paired (ind=%d)", frame.index(), max_id, ind);
+                                    }
+                                }*/
+                                
+                                ++expect[ptr.get()].number;
+                                big_blobs.push_back(ptr);
+                            }
+                            else if((ptr = frame.find_bdx(max_id))) {
+                                if(expect.contains(ptr.get())) {
+                                    Log(out, "Increasing expect number for blob %d.", max_id);
+                                    ++expect[ptr.get()].number;
                                 }
+                                
+                                Log(out, "Would split blob %d, but its part of additional.", max_id);
                             }
                             
-                            max_id = std::get<1>(*probs_per_fish.at(fdx).begin());
-                            if(max_id.valid()) {
-                                frame.split_blobs.insert(max_id);
-                                auto ptr = frame.erase_regular(max_id);
-                                
-                                if(ptr) {
-                                    Log(out, "Splitting blob %d", max_id);
-                                    
-                                    for(auto && [ind, blobs] : paired) {
-                                        auto it = blobs.find(max_id);
-                                        if(it != blobs.end()) {
-                                            blobs.erase(it);
-                                            //Debug("Frame %d: Erasing blob %u from paired (ind=%d)", frame.index(), max_id, ind);
-                                        }
-                                    }
-                                    
-                                    ++expect[ptr.get()].number;
-                                    big_blobs.push_back(ptr);
-                                }
-                                else if((ptr = frame.find_bdx(max_id))) {
-                                    if(expect.contains(ptr.get())) {
-                                        Log(out, "Increasing expect number for blob %d.", max_id);
-                                        ++expect[ptr.get()].number;
-                                    }
-                                    
-                                    Log(out, "Would split blob %d, but its part of additional.", max_id);
-                                }
-                                
-                                if(allow_less_than)
-                                    expect[ptr.get()].allow_less_than = allow_less_than;
-                            }
+                            if(allow_less_than)
+                                expect[ptr.get()].allow_less_than = allow_less_than;
                         }
                     }
                 }
-                
-                if(out) {
-                    auto str = Meta::toStr(expect);
-                    Log(out, "expect: %S", &str);
-                    if(counter > 1) {
-                        Log(out, "Lost %d fish (%S)", counter, &str);
+            }
+            
+            distribute_vector([&](auto, auto start, auto end, auto){
+                for(auto k = start; k != end; ++k) {
+                    auto &blobs = k->second;
+                    auto it = blobs.begin();
+                    for(; it != blobs.end();) {
+                        if(contains(to_delete, it->first))
+                            it = blobs.erase(it);
+                        else
+                            ++it;
                     }
+                }
+            }, _thread_pool, paired.begin(), paired.end());
+            /*for(auto & [ind, blobs] : paired) {
+                std::remove_if(blobs.begin(), blobs.end(), [&to_delete](auto &v){
+                    return contains(to_delete, v.first);
+                });
+                auto it = blobs.begin();
+                for(; it != blobs.end();) {
+                    if(contains(to_delete, it->first))
+                        it = blobs.erase(it);
+                    else
+                        ++it;
+                }
+            }*/
+            
+            if(out) {
+                auto str = Meta::toStr(expect);
+                Log(out, "expect: %S", &str);
+                if(counter > 1) {
+                    Log(out, "Lost %d fish (%S)", counter, &str);
                 }
             }
         }
@@ -1594,8 +1614,6 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         
         const auto work = [&](size_t from, size_t to)
         {
-            //std::unordered_set<pv::BlobPtr> blobs_used;
-            //std::unordered_set<Individual*> individuals_used;
             const auto matching_probability_threshold = FAST_SETTINGS(matching_probability_threshold);
 
             for(size_t i=from; i<to; i++) {
@@ -2175,10 +2193,10 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         if(!manual_identities.empty() && manual_identities.size() < (Match::index_t)paired_blobs.n_rows()) {
             using namespace Match;
             
-            for (auto r : paired_blobs.rows()) {
+            for (auto &[r, idx] : paired_blobs.row_indexes()) {
                 if(r->identity().manual()) {
                     // this is an important fish, check
-                    auto idx = paired_blobs.index(r);
+                    //auto idx = paired_blobs.index(r);
                     
                     if(paired_blobs.degree(idx) == 1) {
                         auto edges = paired_blobs.edges_for_row(idx);
@@ -2188,11 +2206,11 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                         Individual *other = NULL;
                         size_t count = 0;
                         
-                        for (auto f : paired_blobs.rows()) {
+                        for (auto &[f, idx] : paired_blobs.row_indexes()) {
                             if(f == r)
                                 continue;
                             
-                            auto e = paired_blobs.edges_for_row(paired_blobs.index(f));
+                            auto e = paired_blobs.edges_for_row(idx);
                             if(contains(e, blob)) {
                                 // also contains the blob
                                 count++;
@@ -2287,41 +2305,88 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             std::vector<IndexClique> cliques;
 
             const auto p_threshold = FAST_SETTINGS(matching_probability_threshold);
+            auto N_cliques = cliques.size();
+            std::vector<bool> to_merge(N_cliques);
             
-            for(auto &row : paired_blobs.rows()) {
-                auto idx = paired_blobs.index(row);
+            for(auto &[row, idx] : paired_blobs.row_indexes()) {
                 if(paired_blobs.degree(idx) > 1) {
                     auto edges = paired_blobs.edges_for_row(idx);
                     clique.clear();
+                    std::fill(to_merge.begin(), to_merge.end(), false);
                     
+                    size_t matches = 0;
+                    
+                    //! collect all cliques that contain this individual
+                    for(size_t i=0; i<N_cliques; ++i) {
+                        if(contains(cliques[i].fids, idx)) {
+                            to_merge[i] = true;
+                            ++matches;
+                        }
+                    }
+                    
+                    //! collect all cliques that contain any of the blobs associated with this individual
                     for(auto &col : edges) {
+#ifndef NDEBUG
                         if(!frame.find_bdx((*paired_blobs.col(col.cdx))->blob_id())) {
                             Debug("Frame %d: Cannot find blob %u in map.", frameIndex, (*paired_blobs.col(col.cdx))->blob_id());
                             continue;
                         }
+#endif
                         
                         if(col.p >= p_threshold) {
                             clique.bids.insert(col.cdx);
                             
-                            for (auto it = cliques.begin(); it != cliques.end();) {
-                                if(   contains(it->fids, idx)
-                                   || contains(it->bids, col.cdx))
-                                {
-                                    clique.fids.insert(it->fids.begin(), it->fids.end());
-                                    clique.bids.insert(it->bids.begin(), it->bids.end());
-                                    
-                                    it = cliques.erase(it);
-                                    
-                                } else
-                                    ++it;
+                            for (size_t i=0; i<N_cliques; ++i) {
+                                if(to_merge[i])
+                                    continue;
+                                if(contains(cliques[i].bids, col.cdx)) {
+                                    to_merge[i] = true;
+                                    ++matches;
+                                }
                             }
                         }
                     }
                     
                     if(!clique.bids.empty()) {
-                        all_individuals.insert(idx);
+                        IndexClique* first = nullptr;
                         clique.fids.insert(idx);
-                        cliques.emplace_back(std::move(clique));
+                        
+                        if(matches > 0) {
+                            auto it = cliques.begin();
+                            
+                            for(size_t i=0; i<N_cliques; ++i) {
+                                if(!to_merge[i]) {
+                                    ++it;
+                                    continue;
+                                }
+                                
+                                if(!first) {
+                                    first = &(*it);
+                                    
+                                    first->fids.insert(clique.fids.begin(), clique.fids.end());
+                                    first->bids.insert(clique.bids.begin(), clique.bids.end());
+                                    
+                                    ++it;
+                                    continue;
+                                }
+                                
+                                {
+                                    // merge into current clique
+                                    const auto &c = *it;
+                                    first->fids.insert(c.fids.begin(), c.fids.end());
+                                    first->bids.insert(c.bids.begin(), c.bids.end());
+                                }
+                                
+                                it = cliques.erase(it);
+                            }
+                        }
+                        
+                        all_individuals.insert(idx);
+                        if(!first)
+                            cliques.emplace_back(std::move(clique));
+                        
+                        N_cliques = cliques.size();
+                        to_merge.resize(N_cliques);
                     }
                 }
             }
@@ -2330,8 +2395,8 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 match_mode = matching_mode_t::approximate;
             } else {
                 // try to extend cliques as far as possible (and merge)
+                IndexClique indexes;
                 for(size_t index = 0; index < cliques.size(); ++index) {
-                    IndexClique indexes;
                     indexes.bids = cliques[index].bids;
                     //UnorderedVectorSet<Match::fish_index_t> added_individuals;
                     //UnorderedVectorSet<Match::blob_index_t> added_blobs(cliques[index].bids);
@@ -2340,13 +2405,17 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                         indexes.fids.clear();
                         
                         for(auto cdx : indexes.bids) {
+#ifndef NDEBUG
                             auto blob = paired_blobs.col(cdx);
+#endif
                             auto &bedges = paired_blobs.edges_for_col(cdx);
                             
+#ifndef NDEBUG
                             if(!frame.find_bdx((*blob)->blob_id())) {
                                 Debug("Frame %d: Cannot find blob %u in map.", frameIndex, (*blob)->blob_id());
                                 continue;
                             }
+#endif
                             
 #ifdef TREX_DEBUG_MATCHING
                             auto str = Meta::toStr(bedges);
@@ -2429,8 +2498,9 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 std::condition_variable _variable;
                 size_t executed{ 0 };
 
-                auto work_clique = [&] <bool do_lock> (const IndexClique& clique, Frame_t frameIndex)
+                auto work_clique = [&] (const IndexClique& clique, Frame_t frameIndex)
                 {
+                    constexpr bool do_lock = true;
                     using namespace Match;
                     Match::PairedProbabilities paired;
 
@@ -2488,18 +2558,18 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 };
                 
 
-                std::vector<IndexClique*> small;
+                /*std::vector<IndexClique*> small;
                 small.reserve(cliques.size());
                 
                 for(auto &clique : cliques) {
                     if (clique.fids.size() < 3)
-                        work_clique.operator()<false>(clique, frameIndex);
+                        work_clique(clique, frameIndex, false);
                     else
                         small.push_back(&clique);
-                }
+                }*/
 
-                for(auto c : small)
-                    _thread_pool.enqueue([&](const auto& clique, const auto& frameIndex) { work_clique.operator()<true>(clique, frameIndex); }, *c, frameIndex);
+                for(auto &c : cliques)
+                    _thread_pool.enqueue(work_clique, c, frameIndex);
 
                 Clique translated;
                 _cliques[frameIndex].clear();
@@ -2549,18 +2619,20 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 }
                 
                 Match::PairedProbabilities paired;
-                auto &in_map = paired_blobs.rows();
-                for(auto fish : in_map) {
-                    if(fish_assigned.find(fish) == fish_assigned.end() || !fish_assigned.at(fish)) {
-                        auto edges = paired_blobs.edges_for_row(paired_blobs.index(fish));
+                for(auto &[fish, idx] : paired_blobs.row_indexes()) {
+                    auto fit = fish_assigned.find(fish);
+                    if(fit == fish_assigned.end() || !fit->second) {
+                        auto edges = paired_blobs.edges_for_row(idx);
                         
                         Match::pairing_map_t<Match::Blob_t, Match::prob_t> probs;
                         for(auto &e : edges) {
                             auto blob = paired_blobs.col(e.cdx);
+#ifndef NDEBUG
                             if(!frame.find_bdx((*blob)->blob_id())) {
                                 Debug("Frame %d: Cannot find blob %u in map.", frameIndex, (*blob)->blob_id());
                                 continue;
                             }
+#endif
                             auto it = blob_assigned.find(blob->get());
                             if(it == blob_assigned.end() || !it->second) {
                                 probs[blob] = e.p;
