@@ -1586,104 +1586,64 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         }
         
         // Create Individuals for unassigned blobs
-        std::vector<std::tuple<const pv::BlobPtr*, int>> unassigned_blobs;
+        std::vector<int> blob_labels(frame.blobs().size());
+        std::vector<size_t> unassigned_blobs;
         unassigned_blobs.reserve(frame.blobs().size());
+        //std::vector<std::tuple<const pv::BlobPtr*, int>> unassigned_blobs;
+        //unassigned_blobs.reserve(frame.blobs().size());
         
         const bool enable_labels = FAST_SETTINGS(track_consistent_categories) || !FAST_SETTINGS(track_only_categories).empty();
-        for(size_t i=0; i<frame.blobs().size(); ++i) {//auto &p : frame.blobs) {
-            if(!blob_assigned.at(frame.blobs()[i].get())) {
-                auto bdx = frame.blobs()[i]->blob_id();
-                auto label = enable_labels
-                    ? Categorize::DataStore::ranged_label(Frame_t(frameIndex), bdx)
-                    : nullptr;
-                auto ptr = &frame.bdx_to_ptr(bdx);
-                unassigned_blobs.push_back(std::make_tuple(ptr, label ? label->id : -1));
-                //ptr2ptr[p.get()] = p;
-            }
-        }
-        
-        size_t last = unassigned_individuals.size() % concurrentThreadsSupported;
-        size_t per_thread = (unassigned_individuals.size() - last) / concurrentThreadsSupported;
-        
-        size_t num_threads = max(1, min((float)concurrentThreadsSupported, floorf(unassigned_individuals.size() / SETTING(individuals_per_thread).value<float>())));
-        if(num_threads > 1) {
-            last = unassigned_individuals.size() % num_threads;
-            per_thread = (unassigned_individuals.size() - last) / num_threads;
-        } else
-            per_thread = 0;
-        
-        size_t processed = 0;
-        std::condition_variable variable;
-        
-        const auto work = [&](size_t from, size_t to)
-        {
-            const auto matching_probability_threshold = FAST_SETTINGS(matching_probability_threshold);
-            std::vector< Match::pairing_map_t<Match::Blob_t, Match::prob_t> > _probs(to - from + 1);
-
-            for(size_t i=from; i<to; i++) {
-                auto fish = unassigned_individuals[i];
-                //Match::prob_t max_p = 0;
-                auto& probs = _probs[i - from];
-                
-                auto cache = frame.cached(fish->identity().ID());
-                if(!cache) {
-                    Except("Fish %d not found in cache.", fish->identity().ID());
-                    continue;
+        if(enable_labels) {
+            for(size_t i=0; i<frame.blobs().size(); ++i) {//auto &p : frame.blobs) {
+                if(!blob_assigned.at(frame.blobs()[i].get())) {
+                    auto bdx = frame.blobs()[i]->blob_id();
+                    auto label = Categorize::DataStore::ranged_label(Frame_t(frameIndex), bdx);
+                    blob_labels[i] = label ? label->id : -1;
+                    unassigned_blobs.push_back(i);
+                } else {
+                    blob_labels[i] = -1;
                 }
-
-                for (auto &[blob, label]: unassigned_blobs) {
-/*#ifndef NDEBUG
-                    if(!frame.find_bdx(bdx)) {
-                        auto it = std::find_if(frame.original_blobs().begin(), frame.original_blobs().end(), [bdx=bdx](const pv::BlobPtr& b) {
-                            if(b->blob_id() == bdx) {
-                                return true;
-                            }
-                            return false;
-                        });
-                        U_EXCEPTION("Frame %d: Blob %u not found (in original=>%d).", frameIndex, bdx, it != frame.original_blobs().end());
-                    }
-#endif*/
-                    auto p = fish->probability(label, *cache, frameIndex, *blob);//.p;//blob->center(), blob->num_pixels()).p;
-
-                    // discard elements with probabilities that are too low
-                    if (p <= matching_probability_threshold)
-                        continue;
-
-                    //Debug("%d: %d -> %d: %f", frameIndex, fish->identity().ID(), blob->blob_id(), p);
-                    
-                    probs[blob] = p;
-                    //max_p = max(max_p, p);
-
-                    //blobs_used.insert(blob);
-                    //individuals_used.insert(fish);
-                }
-                //local_paired[fish] = probs;
-                //local_max_probs[fish] = max_p;
             }
-            
-            std::lock_guard<std::mutex> guard(paired_mutex);
-            for (size_t i = from; i < to; ++i)
-                paired_blobs.add(unassigned_individuals[i], _probs[i - from]);
-
-            ++processed;
-            variable.notify_one();
-
-            /*std::lock_guard<std::mutex> lock(guard);
-            relevant_individuals.insert(individuals_used.begin(), individuals_used.end());
-            relevant_blobs.insert(blobs_used.begin(), blobs_used.end());*/
-        };
-
-        if(num_threads <= 1 && pool) {
-            work(0, unassigned_individuals.size());
         } else {
-            for(size_t i=0; i<num_threads; i++) {
-                pool->enqueue(work, i*per_thread, (i+1)*per_thread + (i == num_threads-1 ? last : 0));
+            for(size_t i=0; i<frame.blobs().size(); ++i) {
+                if(!blob_assigned.at(frame.blobs()[i].get()))
+                    unassigned_blobs.push_back(i);
+            }
+        }
+        
+        const auto N_blobs = unassigned_blobs.size();
+        const auto N_fish  = unassigned_individuals.size();
+        const auto matching_probability_threshold = FAST_SETTINGS(matching_probability_threshold);
+        
+        auto work = [&](auto, auto start, auto end, auto N){
+            size_t pid = 0;
+            std::vector< Match::pairing_map_t<Match::Blob_t, Match::prob_t> > _probs(N);
+            
+            for (auto it = start; it != end; ++it, ++pid) {
+                auto fish = *it;
+                auto cache = frame.cached(fish->identity().ID());
+                auto &probs = _probs[pid];
+                
+                for (size_t i = 0; i < N_blobs; ++i) {
+                    auto &bdx = unassigned_blobs[i];
+                    auto &blob = frame.blobs()[bdx];
+                    auto p = fish->probability(blob_labels[bdx], *cache, frameIndex, blob);
+                    if (p > matching_probability_threshold)
+                        probs[&blob] = p;
+                }
             }
             
-            std::unique_lock g(paired_mutex);
-            while(processed < num_threads)
-                variable.wait(g);
-        }
+            pid = 0;
+            std::lock_guard<std::mutex> guard(paired_mutex);
+            for (auto it = start; it != end; ++it, ++pid)
+                paired_blobs.add(*it, std::move(_probs[pid]));
+            
+        };
+        
+        if(pool)
+            distribute_vector(work, *pool, unassigned_individuals.begin(), unassigned_individuals.end());
+        else
+            work(0, unassigned_individuals.begin(), unassigned_individuals.end(), N_fish);
     }
     
     return paired_blobs;
