@@ -2262,36 +2262,6 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
 #endif
         
         if(match_mode == default_config::matching_mode_t::automatic) {
-            //std::unordered_set<uint32_t> all_individuals;
-            //std::vector<std::set<uint32_t>> blob_cliques;
-            
-            /*for(auto &&[bdx, c] : frame.blob_cliques) {
-                if(!contains(blob_cliques, c)) {
-                    auto &fishies = frame.fish_cliques.at(bdx);
-                    blob_cliques.push_back(c);
-                    
-                    Clique clique;
-                    for(auto i : c) {
-                        if(contains(all_individuals, i)) {
-                            for(auto &sub : cliques) {
-                                if(contains(sub.fishs, i)) {
-                                    // merge cliques
-                                    auto str0 = Meta::toStr(c);
-                                    auto str1 = Meta::toStr(sub.fishs);
-                                    Debug("Frame %d: Should merge cliques %S and %S.", frameIndex, &str0, &str1);
-                                    break;
-                                }
-                            }
-                        } else
-                            all_individuals.insert(i);
-                    }
-                    
-                    clique.fishs.insert(c.begin(), c.end());
-                    clique.bids.insert(fishies.begin(), fishies.end());
-                    cliques.push_back(clique);
-                }
-            }*/
-            
             struct IndexClique {
                 UnorderedVectorSet<Match::blob_index_t> bids;
                 UnorderedVectorSet<Match::fish_index_t> fids;
@@ -2303,56 +2273,24 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
 
             } clique;
 
-            UnorderedVectorSet<Match::fish_index_t> all_individuals;
-            std::vector<IndexClique> cliques;
+            UnorderedVectorSet<Match::fish_index_t> all_individuals; // collect all relevant individuals
+            std::vector<IndexClique> cliques; // collect all cliques
 
             const auto p_threshold = FAST_SETTINGS(matching_probability_threshold);
             auto N_cliques = cliques.size();
             std::vector<bool> to_merge(N_cliques);
             
-            /*distribute_vector([](auto, auto start, auto end, auto){
-                for(auto it = start; it != end; ++it) {
-                    if(paired_blobs.degree(idx) > 1) {
-                        auto edges = paired_blobs.edges_for_row(idx);
-                        clique.clear();
-                        
-                        size_t matches = 0;
-                        
-                        //! collect all cliques that contain this individual
-                        //distribute_vector([&, idx = idx](auto i, auto start, auto end, auto){
-                            
-                        for(size_t i=0; i<N_cliques; ++i) {
-                            auto ct = cliques.data() + i;
-                        //for(auto ct = start; ct != end; ++ct, ++i) {
-                            if(contains(ct->fids, idx)) {
-                                to_merge[i] = true;
-                                ++matches;
-                            } else if(std::any_of(edges.begin(), edges.end(), [&](const Match::PairedProbabilities::Edge& e){
-                                return e.p < p_threshold || ct->bids.contains(e.cdx);
-                            })) {
-                                to_merge[i] = true;
-                                ++matches;
-                            } else
-                                to_merge[i] = false;
-                        }
-                }
-                
-            }, _thread_pool, paired_blobs.row_indexes().begin(), paired_blobs.row_indexes().end());*/
-            
             for(auto &[row, idx] : paired_blobs.row_indexes()) {
                 if(paired_blobs.degree(idx) > 1) {
                     auto edges = paired_blobs.edges_for_row(idx);
                     clique.clear();
-                    //std::fill(to_merge.begin(), to_merge.end(), false);
                     
                     size_t matches = 0;
                     
                     //! collect all cliques that contain this individual
-                    //distribute_vector([&, idx = idx](auto i, auto start, auto end, auto){
-                        
+                    //! or any of the blobs associated with this individual
                     for (size_t i = 0; i<N_cliques; ++i) {
                         auto ct = cliques.data() + i;
-                    //for(auto ct = start; ct != end; ++ct, ++i) {
                         if(contains(ct->fids, idx)) {
                             to_merge[i] = true;
                             ++matches;
@@ -2365,64 +2303,16 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                             to_merge[i] = false;
                     }
                     
-                    /*for (size_t i = 0; i<N_cliques; ++i) {
-                        auto ct = cliques.data() + i;
-                    //for(auto ct = start; ct != end; ++ct, ++i) {
-                        if(contains(ct->fids, idx)) {
-                            to_merge[i] = true;
-                            ++matches;
-                        } else if(std::any_of(ct->bids.begin(), ct->bids.end(),
-                            [&](const auto& bid){
-                                return std::any_of(edges.begin(), edges.end(), [&](const Match::PairedProbabilities::Edge& e){
-                                    return e.cdx == bid && e.p >= p_threshold;
-                                });
-                            }))
-                        {
-                            to_merge[i] = true;
-                            ++matches;
-                        } else
-                            to_merge[i] = false;
-                    }
-                    //}, _thread_pool, cliques.begin(), cliques.end());*/
-                    
+                    //! search edges to see if any of them
+                    //! have to be considered (>threshold)
                     for(auto &col : edges) {
                         if(col.p >= p_threshold) {
                             clique.bids.insert(col.cdx);
                         }
                     }
                     
-                    //! collect all cliques that contain any of the blobs associated with this individual
-                    //for (size_t i=0; i<N_cliques; ++i) {
-                    //    if(to_merge[i])
-                     //       continue;
-                        /*if(contains(cliques[i].bids, col.cdx)) {
-                            to_merge[i] = true;
-                            ++matches;
-                        }*/
-                    //}
-                    
-                    /*for(auto &col : edges) {
-#ifndef NDEBUG
-                        if(!frame.find_bdx((*paired_blobs.col(col.cdx))->blob_id())) {
-                            Debug("Frame %d: Cannot find blob %u in map.", frameIndex, (*paired_blobs.col(col.cdx))->blob_id());
-                            continue;
-                        }
-#endif
-                        
-                        if(col.p >= p_threshold) {
-                            clique.bids.insert(col.cdx);
-                            
-                            for (size_t i=0; i<N_cliques; ++i) {
-                                if(to_merge[i])
-                                    continue;
-                                if(contains(cliques[i].bids, col.cdx)) {
-                                    to_merge[i] = true;
-                                    ++matches;
-                                }
-                            }
-                        }
-                    }*/
-                    
+                    //! we have found blobs that are associated with this individual
+                    //! so we need to consider it
                     if(!clique.bids.empty()) {
                         IndexClique* first = nullptr;
                         clique.fids.insert(idx);
@@ -2436,6 +2326,8 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                                     continue;
                                 }
                                 
+                                //! this is the first to-be-merged element we have found
+                                //! which we will use from now on to add ids to
                                 if(!first) {
                                     first = &(*it);
                                     
@@ -2446,6 +2338,8 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                                     continue;
                                 }
                                 
+                                //! not the first element -> add to "first" clique
+                                //! and erase it.
                                 {
                                     // merge into current clique
                                     const auto &c = *it;
@@ -2457,10 +2351,17 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                             }
                         }
                         
+                        // this individual is connected with any blobs,
+                        // so it can be active
                         all_individuals.insert(idx);
+                        
+                        // no cliques have been merged, but we still want a clique
+                        // that only contains our individual and the associated blobs
+                        // (the clique is disconnected from everything else)
                         if(!first)
                             cliques.emplace_back(std::move(clique));
                         
+                        // adapt array sizes
                         N_cliques = cliques.size();
                         to_merge.resize(N_cliques);
                     }
