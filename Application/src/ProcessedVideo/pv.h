@@ -215,7 +215,7 @@ namespace pv {
 
     struct TaskSentinel;
     
-    class File : public Printable, public DataFormat, public GenericVideo {
+    class File : public DataFormat, public GenericVideo {
     protected:
         std::mutex _lock;
         Header _header;
@@ -329,7 +329,9 @@ namespace pv {
         virtual short framerate() const override;
         double generate_average_tdelta();
         
-        UTILS_TOSTRING("pv::File<V" << _header.version+1 << ", " << filesize() << ", '" << filename() << "', " << _header.resolution << ", " << _header.num_frames << " frames, "<< (_header.mask ? "with mask" : "no mask") << ">");
+        std::string summary() const {
+            return "pv::File<V" + Meta::toStr(_header.version+1) + ", " + Meta::toStr(filesize()) + ", '" + Meta::toStr(filename()) + "', " + Meta::toStr(_header.resolution) + ", " + Meta::toStr(_header.num_frames) + " frames, " + (_header.mask ? "with mask" : "no mask") + ">";
+        }
         
         std::string toStr() const;
         static std::string class_name() {

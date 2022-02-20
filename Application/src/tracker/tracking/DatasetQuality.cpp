@@ -63,12 +63,10 @@ void DatasetQuality::remove_frames(Frame_t start) {
 
 bool DatasetQuality::calculate_segment(const Range<Frame_t> &consec, const uint64_t video_length, const Tracker::LockGuard& guard) {
     if(consec.length().get() < 5) {
-        //Debug("Not calculating dataset segment [%d,%d] because its too short (%d)", consec.start, consec.end, consec.length());
         return true; // skipping range because its too short, but send "ok" signal
     }
     
     //auto str = Meta::toStr(consec);
-    //Debug("Adding new range%S of consecutive frames.", &str);
     
     float max_cells = 0, min_cells = infinity<float>();
     float average_samples = 0;
@@ -149,7 +147,6 @@ bool DatasetQuality::calculate_segment(const Range<Frame_t> &consec, const uint6
         _quality[consec] = Quality(consec, min_cells, average_samples);//(*values.begin()) * sum;
         _sorted.insert(_quality[consec]);
         
-        //Debug("Adding dataset quality for [%d-%d]", consec.start, consec.end);
     }
     
     return true;
@@ -312,7 +309,6 @@ DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fis
     }
     
     //if(debug && it != fish->frame_segments().end())
-    //    Debug("\t... %d -> moving back from it == %d-%d", fish->identity().ID(), it->second.range.start, it->second.range.end);
     
     while(it != fish->frame_segments().end()
           && it != fish->frame_segments().begin()
@@ -405,7 +401,6 @@ DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fis
         return true;
     });
     
-    //Debug("grid_cells (%d, sum: %d) -> %f", grid_cells.size(), sum, grid_cells.size() / float(sum));
     
     Single single(id);
     single.grid_cells_visited = grid_cells.size();

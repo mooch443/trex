@@ -435,11 +435,6 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                 static bool first_run = true;
                 static track::Settings::manual_matches_t compare;
                 
-                //auto str = Meta::toStr(matches);
-                //Debug("Starting matches thread: %S", &str);
-                //str = Meta::toStr(FAST_SETTINGS(manual_matches));
-                //Debug("Old: %S", &str);
-                
                 if(matches != compare || first_run) {
                     if(first_run)
                         first_run = false;
@@ -800,7 +795,6 @@ void GUI::run_loop(gui::LoopStatus status) {
             PD(last_frame_change).reset();
         }
         
-        //Debug("Timer/frame %f", timer.elapsed());
     }
     
     if(PD(recording))
@@ -1489,10 +1483,8 @@ void GUI::draw_grid(gui::DrawStructure &base) {
                 
                 circle->clear_event_handlers();
                 circle->on_click([](auto){
-                    //Debug("Clicked (%f,%f).", ((Vec2*)custom)->x, ((Vec2*)custom)->y);
                 });
                 circle->on_hover([circle](auto) {
-                    //Debug("Hover (%f,%f)", ((Vec2*)custom)->x, ((Vec2*)custom)->y);
                     circle->set_dirty();
                 });
             }
@@ -3035,7 +3027,6 @@ void GUI::update_display_blobs(bool draw_blobs, Section* ) {
         PD(cache)._current_pixels = gpixels;
         PD(cache)._average_pixels = gsamples > 0 ? gaverage_pixels / gsamples : 0;
         
-        //Debug("Displaying %lu blobs (list), %lu raw, %lu available", PD(cache).display_blobs.size(), PD(cache).raw_blobs.size(), PD(cache).available_blobs_list.size());
     }
 }
 
@@ -3054,7 +3045,6 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
 #endif
     bool redraw_blobs = PD(cache).raw_blobs_dirty();
     
-    //Debug("Coverage: %f (%d)", coverage, draw_blobs_separately);
     
     base.section("fishbowl", [&](auto &base, Section* section) {
         fishbowl = section;
@@ -3415,7 +3405,6 @@ void GUI::key_event(const gui::Event &event) {
                 
                 int inc = !direction_change() && PD(last_increase_timer).elapsed() < 0.15 ? ceil(PD(last_increase_timer).elapsed() * max(2, FAST_SETTINGS(frame_rate) * 4) * percent) : 1;
                 
-                //Debug("%d %f", inc, PD(last_increase_timer).elapsed());
                 
                 play_direction() = 1;
                 
@@ -3466,7 +3455,6 @@ void GUI::key_event(const gui::Event &event) {
                 
                 int inc = !direction_change() && PD(last_increase_timer).elapsed() < 0.15 ? ceil(PD(last_increase_timer).elapsed() * max(2, FAST_SETTINGS(frame_rate) * 4) * percent) : 1;
                 
-                //Debug("%d %f", inc, PD(last_increase_timer).elapsed());
                 
                 play_direction() = -1;
                 
@@ -4294,7 +4282,6 @@ void GUI::generate_training_data(GUI::GUIType type, bool force_load) {
     
     if(Recognition::network_weights_available()) {
         //auto acc = PD(tracker).recognition()->available_weights_accuracy(data);
-        //Debug("The prediction accuracy for the selected segment was: %.2f%%", acc * 100);
         
         //float full_random = 1 / FAST_SETTINGS(track_max_individuals);
         //if(acc <= full_random) {

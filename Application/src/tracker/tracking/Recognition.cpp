@@ -698,7 +698,6 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                                 Warning("%d: double %d %d / %d (%d-%d)", frame, data.blob.blob_id, data.fish->identity().ID(), waiting_for_pixels[frame].at(data.blob.blob_id).fish->identity().ID(), segment.start(), segment.end());
                                 continue;
                             } //else
-                            //Debug("%d: first %d %d (%d-%d)", frame, data.blob.blob_id, data.fish->identity().ID(), segment.start(), segment.end());
                             waiting_for_pixels[frame][data.blob.blob_id] = data;
                             ++waiting_images;
                             //++items_added;
@@ -820,7 +819,6 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         video_length = stop;
         
         if(!_last_frames.empty()) {
-            //Debug("First frame %d", _last_frames.begin()->first);
             frames.start = _last_frames.begin()->first;
         }
         
@@ -914,7 +912,6 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                     if(!elig_frames.empty())
                         _detail.max_pre_frame()[fish->identity().ID()] = *elig_frames.rbegin();
                     
-                    //Debug("Inserted new segment %d-%d for fish %S (%d frames)", segment.start(), segment.end(), &fish->identity().raw_name(), elig_frames.size());
                 }
             }
             
@@ -1069,7 +1066,6 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                 since_tick = 0;
                 timer.reset();
                 
-                //Debug("[GPU] Elements/frame: %.1f%% (%.1f/%d)", elements_per_frame / elements_samples / FAST_SETTINGS(number_fish) * 100, elements_per_frame / elements_samples, FAST_SETTINGS(number_fish));
             }
         }
         
@@ -1077,7 +1073,6 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             guard.lock();
         
         if(!waiting.empty()) {
-            //Debug("Inserting the last %d items...", waiting.size());
             insert_in_queue(waiting.begin(), waiting.end());
             waiting.clear();
         }
@@ -1085,7 +1080,6 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         if(!is_queue_full_enough() || !trained() || _running)
             return false;
         
-        //Debug("Over %d images (%d), trying to push to python...", min_elements_for_gpu, _data_queue.size());
         
         add_async_prediction();
         return false;
@@ -1353,7 +1347,6 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                         uploaded_frames[obj.frame].insert(obj.fdx);
                     }
 
-                    //Debug("Collected %d samples from %d.", images.size(), _data_queue.size());
                 }
 
                 auto && [indexes, values] = PythonIntegration::probabilities(images);
@@ -1553,14 +1546,12 @@ void Recognition::check_learning_module(bool force) {
                     Warning("No accumulation object set.");
             }, "learn_static");
             py::set_function("set_per_class_accuracy", [](std::vector<float> x) {
-                //Debug("set_per_class_accuracy with %d values", x.size());
                 if(Accumulation::current()) {
                     Accumulation::current()->set_per_class_accuracy(x);
                 } else
                     Warning("No accumulation object set.");
             }, "learn_static");
             py::set_function("set_uniqueness_history", [](std::vector<float> x) {
-                //Debug("set_uniqueness_history with %d values", x.size());
                 if(Accumulation::current()) {
                     Accumulation::current()->set_uniqueness_history(x);
                 } else

@@ -459,7 +459,6 @@ namespace track {
             float d;
             if(d0 > d1) {
                 d = d1;
-                //Debug("Reverse.");
                 std::reverse(entry_points[b].interp.begin(), entry_points[b].interp.end());
             } else
                 d = d0;
@@ -581,7 +580,6 @@ namespace track {
              * need to stitch together outlines potentially.
              */
             if(outlines.begin()->size() > unassigned.size()) {
-                //Debug("Stopping %d/%d", outlines.begin()->size(), unassigned.size());
                 break;
             }
         }
@@ -592,7 +590,6 @@ namespace track {
             return 1;
         }
         
-        //Debug("0 (unassigned: %d, assigned: %d)", unassigned.size(), _outline.size());
         _outline.clear();
         return 0;
     }
@@ -629,7 +626,6 @@ namespace track {
                 if((index <= L * 0.25 && abs(K) > 0.17) || (index > L * 0.25 && abs(K) > 0.4f)) {
                     Tracker::increase_midline_errors();
                     //if(FAST_SETTINGS(debug))
-                    //    Debug("Midline index %d failed with curvature: %f in frame %d", index, K, frameIndex);
                     //if(index <= L * 0.25)
                     //return 0;
                     //break;

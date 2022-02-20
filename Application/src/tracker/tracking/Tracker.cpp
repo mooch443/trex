@@ -425,12 +425,10 @@ void Tracker::analysis_state(AnalysisState pause) {
             first_run = false;
             //auto str = Meta::toStr(compare);
             //SETTING(manual_matches) = manual_matches;
-            //Debug("Manual matches have been updated %S.", &str);
             return {};
             
         } else {
             auto str0 = Meta::toStr(compare), str1 = Meta::toStr(manual_matches);
-            //Debug("Manual matches have been updated %S -> %S.", &str0, &str1);
             auto copy = manual_matches; // another copy
             auto next = copy;
             
@@ -453,7 +451,6 @@ void Tracker::analysis_state(AnalysisState pause) {
                     first_change = Frame_t(itn->first);
             }
             
-            //Debug("First changed frame is %d", first_change);
             if(first_change.valid() && first_change <= Tracker::end_frame()) {
                 //bool analysis_paused = SETTING(analysis_paused);
                 GUI::reanalyse_from(first_change, true);
@@ -464,7 +461,6 @@ void Tracker::analysis_state(AnalysisState pause) {
             //SETTING(manual_matches) = next;
             //FAST_SETTINGS(manual_matches) = next;
             //auto str = Meta::toStr(FAST_SETTINGS(manual_matches));
-            //Debug("Updating fast settings with %S", &str);
             compare = next;
             
             return first_change;
@@ -1215,10 +1211,8 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                 auto it = blob_mappings.find(bdx);
                 if(it == blob_mappings.end()) {
                     blob_mappings[bdx] = { Idx_t() };
-                    //Debug("%d: Inserting 2 additional matches for %d", frame.index(), bdx);
                 } else{
                     it->second.insert(Idx_t());
-                    //Debug("%d: Inserting additional match for %d", frame.index(), bdx);
                 }
                 
                 Log(out, "\t\tManually splitting %u", (uint32_t)bdx);
@@ -1413,7 +1407,6 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                                     auto it = blobs.find(max_id);
                                     if(it != blobs.end()) {
                                         blobs.erase(it);
-                                        //Debug("Frame %d: Erasing blob %u from paired (ind=%d)", frame.index(), max_id, ind);
                                     }
                                 }*/
                                 
@@ -1987,7 +1980,6 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     //active_individuals.push_back(fish);
                     //fish->add_manual_match(frameIndex);
                     //assign_blob_individual(frameIndex, frame, fish, blob);
-                    //Debug("Manually assigning %d -> %d", fish->identity().ID(), blob->blob_id());
                 }
                 
             } else {
@@ -2057,10 +2049,8 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             for(auto && [bdx, fdxs] : cannot_find) {
                 assert(bdx >= 0);
                 auto pos = bdx.calc_position();
-                //Debug("Trying to find blob for %d (-> fish %d) at %f,%f", bdx, fdx, pos.x, pos.y);
                 auto list = blob_grid.query(pos, max_speed_px);
                 //auto str = Meta::toStr(list);
-                //Debug("\t%S", &str);
                 
                 if(!list.empty()) {
                     // blob ids will not be < 0, as they have been inserted into the
@@ -2071,7 +2061,6 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             }
             
             //auto str = prettify_array(Meta::toStr(assign_blobs));
-            //Debug("replacing blobids / potentially splitting:\n%S", &str);
             
             robin_hood::unordered_map<Idx_t, pv::bid> actual_assignments;
             
@@ -2191,7 +2180,6 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     active_individuals.insert(fish);
                     
                     identities.insert(FOI::fdx_t(fdx));
-                    //Debug("Manually assigning %d -> %d", fish->identity().ID(), blob->blob_id());
                 }
             }
             
@@ -2307,7 +2295,6 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                             continue;
                         
                         // found another fish, and its the only possibility
-                        //Debug("Prioritizing %d over %d in frame %d for blob %d.", r->identity().ID(), other->identity().ID(), frameIndex, blob.blob->blob_id());
                         if(paired_blobs.has(other))
                             paired_blobs.erase(other);
                     }
@@ -2665,7 +2652,6 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     std::unique_lock g(thread_mutex);
                     const auto N_cliques = cliques.size();
                     //if(frameIndex >= 6600_f)
-                    //    Debug("%lu num cliques", N_cliques);
 
                     while(executed < N_cliques)
                         _variable.wait(g);
@@ -2702,7 +2688,6 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             }
         }
         
-        //Debug("Frame %d: %s", frameIndex, match_mode.name());
         
         {
             // calculate optimal permutation of blob assignments
@@ -2953,7 +2938,6 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                         //assert(_individuals[fish->identity().ID()] != fish);
                         //mark_to_delete.insert(_individuals[fish->identity().ID()]);
                     }
-                    //Debug("Creating new identity %d", fish->identity().ID());
                     _individuals[fish->identity().ID()] = fish;
                 }
                 assign_blob_individual(frameIndex, frame, fish, blob, default_config::matching_mode_t::benchmark);
@@ -3072,12 +3056,10 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                             
                             Individual *fish = r.idx();
                             
-                            //Debug("Best match for blob %d is %d in %d (%f)", r.bdx()->blob_id(), fish->identity().ID(), frameIndex, r.p());
                             
                             assign_blob_individual(frameIndex, frame, fish, r.bdx(), default_config::matching_mode_t::benchmark);
                             active_individuals.insert(fish);
                             
-                            //Debug("Assigning individual because its the most likely (fixed_count, %d-%d in frame %d, p:%f).", r.idx()->identity().ID(), r.bdx()->blob_id(), frameIndex, r.p());
                         }
                     }
                 }
@@ -3128,7 +3110,6 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 size_t per_thread = (need_postures.size() - last) / num_threads;
                 
                 //if(frameIndex % 100 == 0)
-                //    Debug("Posture in %d threads (%d per thread)", num_threads, per_thread);
                 
                 vector.reserve(num_threads+1);
                 
@@ -3706,7 +3687,6 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
             
             if(!manually_approved.empty()) {
                 auto str = Meta::toStr(manually_approved);
-                //Debug("Inserting %S", &str);
                 for(auto && [from, to] : manually_approved) {
                     ordered.insert(Range<Frame_t>(Frame_t(from), Frame_t(to)));
                 }
@@ -3903,8 +3883,6 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                                 ratio = 1 / ratio;
                             
                             if(ratio >= 0.6) {
-                                //Debug("Fish %d (%d-%d)", fdx, segment.start(), segment.end());
-                                //Debug("\ttwo largest probs %f and %f are too close (ratio %f)", sorted.begin()->second, (++sorted.begin())->second, ratio);
 #ifdef TREX_DEBUG_IDENTITIES
                                 log(f, "\ttwo largest probs %f and %f are too close (ratio %f)", sorted.begin()->second, (++sorted.begin())->second, ratio);
 #endif
@@ -4106,7 +4084,6 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                 if(after_frame.valid() && segment.range.end < after_frame)
                     continue;
                 //if(start == 741 && fish->identity().ID() == 1)
-                //    Debug("Here");
                 
                 if(current != fish->recognition_segments().end()) {
                     auto it = current;
@@ -4182,7 +4159,6 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                     }
                     
                     if(next_id.valid() && prev_id.valid() && next_id == prev_id && prev_pos && next_pos) {
-                        //Debug("Fish %d: virtual prev_id %d == virtual next_id %d, assigning...", fdx, prev_id, next_id);
                         Vec2 pos_start(FLT_MAX), pos_end(FLT_MAX);
                         auto blob_start = fish->centroid_weighted(segment.start());
                         auto blob_end = fish->centroid_weighted(segment.end());
@@ -4221,7 +4197,6 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                                             if(blob->split()) {
                                                 //if(blob->parent_id != pv::bid::invalid) {
                                                     //manual_splits[frame].insert(blob->parent_id());
-                                                    //Debug("Inserting manual split %d : %d (%d)", frame, blob->parent_id(), blob->blob_id());
                                                 //}
                                             } else
                                                 break;
@@ -4297,7 +4272,6 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         }
         
         //auto str = prettify_array(Meta::toStr(still_unassigned));
-        //Debug("still unassigned: %S", &str);
         Debug("auto_assign is %d", auto_correct ? 1 : 0);
         if(auto_correct) {
             add_to_queue("", [after_frame, automatic_matches, manual_splits, tmp_assigned_ranges](){
@@ -4513,7 +4487,6 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid pid
             //median_number = number_median.getValue();
             
             //if(!quiet)
-            //    Debug("Calculated blob_size_range as: %f-%f median %f %f-%f", values.empty() ? -1.f : *values.begin(), values.empty() ? *values.rbegin() : -1.f, blob_size.added() ? blob_size.getValue() : -1.f, ten * 0.75, it == values.end() ? -1.f : (*it * 1.25));
             
             if(median_number != number_fish) {
                 if(!quiet)

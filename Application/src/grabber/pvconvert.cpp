@@ -185,7 +185,6 @@ int main(int argc, char**argv) {
         
         if(SETTING(as_gif)) {
             cv::cvtColor(image, image, cv::COLOR_GRAY2RGBA);
-            //Debug("Delta %f", (current_frame.timestamp()-prev_time)/1000.0);
             GifWriteFrame(writer, image.data, image.cols, image.rows, 0);//(current_frame.timestamp()-prev_time)/1000.0);//;
             
         } else {

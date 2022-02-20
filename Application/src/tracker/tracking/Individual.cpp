@@ -154,7 +154,6 @@ const std::multiset<tags::Tag>* Individual::has_tag_images_for(Frame_t frameInde
     }
     
     if(image != nullptr) {
-        //Debug("%d: Found tag for frame %d is %d-%d at %d.", identity().ID(), frameIndex, start_point, end_segment, min_frame);
         //return true;
     }
     
@@ -890,7 +889,6 @@ void Individual::LocalCache::regenerate(Individual* fish) {
         }
     }
     
-    //Debug("Regenerated local cache in %.2fms", timer.elapsed() * 1000);
 }
 
 float Individual::midline_length() const {
@@ -984,12 +982,10 @@ std::shared_ptr<Individual::BasicStuff> Individual::add(const FrameProperties* p
     auto diff2 = cmn::abs(angle_difference(angle, normalize_angle(stuff->centroid.angle() + (float)M_PI)));
     
     //if(identity().ID() == Individual::currentID)
-        //Debug("%d: Angle is %f|%f (diff %f, %f) (%d, %d) speed %f", frameIndex, DEGREE(current->angle()), DEGREE(angle), DEGREE(diff), DEGREE(diff2), _identity.ID(), frameIndex, length(v));
     
     if(diff >= diff2) {
         stuff->centroid.flip(prev_prop);
         //if(identity().ID() == Individual::currentID)
-        //    Debug("Flipped to %f", DEGREE(current->angle()));
     }
     
     stuff->frame = frameIndex;
@@ -1218,7 +1214,6 @@ void Individual::update_midlines(const CacheHints* hints) {
             {
                 (*it)->posture_original_angle = (*it)->cached_pp_midline->original_angle();
                 update_frame_with_posture(basic_stuff((*it)->frame), *it, hints);
-                //Debug("(%d) Updating %d (last frame %d)", (*it)->frame, identity().ID(), last_frame);
             }
             
             if(it == _posture_stuff.rbegin())
@@ -1230,7 +1225,6 @@ void Individual::update_midlines(const CacheHints* hints) {
     if(!_posture_stuff.empty()) {
         last_frame = _posture_stuff.rbegin()->frame;
     }
-    //Debug("Updating midlines (last frame %d)", last_frame);
     
     
     auto it = _cached_pp_midlines.rbegin();
@@ -1251,7 +1245,6 @@ void Individual::update_midlines(const CacheHints* hints) {
         }
     }
     for (auto &frame: frames) {
-        //Debug("(%d) Updating %d (last frame %d)", frame, identity().ID(), last_frame);
         update_frame_with_posture(frame);
     }*/
 }
@@ -1270,7 +1263,6 @@ Midline::Ptr Individual::calculate_midline_for(const std::shared_ptr<BasicStuff>
     if(ptr) {
         //Timer timer;
         midline = std::make_shared<Midline>(*ptr);
-        //Debug("Generating midline for %d in frame %d", identity().ID(), frame);
         
         MovementInformation movement;
         //movement.position = blob->bounds().pos();
@@ -1289,7 +1281,6 @@ Midline::Ptr Individual::calculate_midline_for(const std::shared_ptr<BasicStuff>
 #endif
         }
         
-        //Debug("%fms", timer.elapsed() * 1000);
     }
     
     return midline;
@@ -1551,7 +1542,6 @@ void CacheHints::clear(size_t size) {
     }
     std::fill(_last_second.begin(), _last_second.end(), nullptr);
     current.invalidate();
-    //Debug("CacheHints::size = %lu", _last_second.size());
 }
 
 template<class T, class U>
@@ -1709,7 +1699,6 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
         ptime = (- (frameIndex - cache.previous_frame).get() * 1 / double(frame_rate) + time);
     }
     //prev_props ? prev_props->time : ((frameIndex - (frameIndex - 1)) / double(FAST_SETTINGS(frame_rate)) + time);
-    //Debug("%f (%d) -> %f (%d) (%lu) = %f", time, frameIndex, ptime, pp ? pp->frame : (frameIndex-1), pp_props, time - ptime);
     
     cache.tdelta = time - ptime;//pp.first < frameIndex ? (time - ptime) : time;
     cache.local_tdelta = prev_props ? time - prev_props->time : 0;
@@ -2199,7 +2188,6 @@ std::tuple<std::vector<std::tuple<float, float>>, std::vector<float>, size_t, Mo
             //all_head_positions.push_back(post->pos(PX_AND_SECONDS, true) - centroid(it->first)->pos(PX_AND_SECONDS, true));
             all_angles.push_back(posture->posture_original_angle);
             
-            //Debug("(%d,%d) Frame %d (%d %f)", frameIndex, identity().ID(), frame, i, min_samples);
             movement.directions.push_back(Vec2(cos(posture->posture_original_angle), sin(posture->posture_original_angle)).normalize());
             all_frames.push_back(basic->frame);
             
@@ -2210,11 +2198,9 @@ std::tuple<std::vector<std::tuple<float, float>>, std::vector<float>, size_t, Mo
         return true;
     });
     
-    //Debug("%d", movement.directions.size());
     position_sum /= position_samples;
     
     //auto str = Meta::toStr(all_head_positions);
-    //Debug("%S", &str);
     //for(size_t i=0; i<all_head_positions.size(); ++i) {
     //}
     
@@ -2232,7 +2218,6 @@ std::tuple<std::vector<std::tuple<float, float>>, std::vector<float>, size_t, Mo
     //movement.position = last_head;
     //movement.velocity = centroid(frameIndex)->v(PX_AND_SECONDS, true);
     
-    //Debug("%d, frame %d position %f,%f -> %f,%f", identity().ID(), frameIndex, movement.position.x, movement.position.y, movement.velocity.x, movement.velocity.y);
     
     for(size_t i=0; i<all_angles.size(); ++i) {
         auto angle = all_angles.at(i) + bin_size * 0.5;
@@ -2261,7 +2246,6 @@ std::tuple<std::vector<std::tuple<float, float>>, std::vector<float>, size_t, Mo
     Outline::smooth_array(tmp, hist);
     
     //auto str = Meta::toStr(all_angles);
-    //Debug("%d samples %S", all_angles.size(), &str);
     
     Vec2 previous_direction;
     
@@ -2344,7 +2328,6 @@ void Individual::save_posture(std::shared_ptr<BasicStuff> stuff, Frame_t frameIn
     //ptr.calculate_posture(frameIndex, greyscale->get(), previous_direction);
     
     if(ptr.outline_empty() /*|| !ptr.normalized_midline()*/) {
-        //Debug("No posture in %d for frame %d", identity().ID(), frameIndex);
         return;
     }
     
@@ -2355,7 +2338,6 @@ void Individual::save_posture(std::shared_ptr<BasicStuff> stuff, Frame_t frameIn
         auto mat = greyscale->get();
         
         Debug("Frame %d", frameIndex);
-        //Debug("previous:%f,%f", previous_direction.x, previous_direction.y);
         
         DebugDrawing draw(Vec2(), Vec2(), "draw_debug", int(max(1.f, 500.f/greyscale->cols)), greyscale->cols,greyscale->rows);
         draw.paint(ptr, mat);
@@ -2582,7 +2564,6 @@ std::tuple<Image::UPtr, Vec2> Individual::calculate_diff_image(pv::BlobPtr blob,
     if(!output_size.empty() && (padded.cols != output_size.width || padded.rows != output_size.height))
         U_EXCEPTION("Padded size differs from expected size (%dx%d != %dx%d)", padded.cols, padded.rows, output_size.width, output_size.height);
     
-    //Debug("Came in with %fx%f -> %fx%f", blob->bounds().pos().x, blob->bounds().pos().y, bounds.x, bounds.y);
     
     return { Image::Make(padded), bounds.pos() };
 }

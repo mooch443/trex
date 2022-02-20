@@ -54,11 +54,9 @@ namespace track {
             static std::mutex mutex;
             std::lock_guard guard(mutex);
             if (final_path != use_path) {
-                //Debug("Moving '%S' to '%S'...", &use_path.str(), &final_path.str());
                 if (!use_path.move_to(final_path)) {
                     U_EXCEPTION("Cannot move file '%S' to '%S'.", &use_path.str(), &final_path.str());
                 } //else
-                  //  Debug("  Moved '%S' to '%S'.", &use_path.str(), &final_path.str());
             }
 
         }
@@ -417,7 +415,6 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                                     auto step_size = frames.size() / tracklet_max_images;
                                     std::set<Frame_t> tmp;
                                     for(auto it = frames.begin(); it != frames.end();) {
-                                        //Debug("%d-%d adding %d (%d)", range.start(), range.end(), *it, step_size);
                                         tmp.insert(*it);
                                         // stride with step_size
                                         for(size_t j = 0; j < step_size && it != frames.end(); ++j) {
@@ -444,11 +441,9 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                                             pv::Frame pvf;
                                             GUI::instance()->video_source()->read_frame(pvf, (uint64_t)frame.get());
                                             auto bs = pvf.get_blobs();
-                                            //Debug("Blob %d in frame %d has been split (%d)", blob->blob_id(), frame, blob->parent_id());
                                             
                                             for(auto &b : bs) {
                                                 if(b->blob_id() == blob->parent_id()) {
-                                                    //Debug("Replacing blob %d with parent blob %d", blob->blob_id(), b->blob_id());
                                                     b->calculate_moments();
                                                     trans.translate(-(blob->bounds().pos() - b->bounds().pos()));
                                                     org_id = blob->blob_id();
@@ -506,7 +501,6 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                         }
                     }
                     
-                    //Debug("Saving recognition data to '%S'", &path.str());
                     file::Path final_path = fishdata / path;
                     temporary_save(fishdata / path, [&](file::Path use_path) {
                         cmn::npz_save(use_path.str(), "frames", recognition_frames);
@@ -521,7 +515,6 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                     if(range.empty())
                         fish_range = Range<Frame_t>(fish->start_frame(), fish->end_frame());
                     
-                    //Debug("Writing posture data to '%S' [%d-%d]...", &path.str(), fish_range.start, fish_range.end);
                     
                     std::vector<Vec2> midline_points, outline_points, midline_points_raw;
                     std::vector<Vec2> offsets;
@@ -811,7 +804,6 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                     {
                         for(auto b : obj.frame().blobs()) {
                             if(b->blob_id() == data.blob.blob_id) {
-                                //Debug("Frame %d: Found blob %d in original array, not in the parsed one.", frame, data.blob.blob_id);
                                 full.blob = b;
                                 break;
                             }

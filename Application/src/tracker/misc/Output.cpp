@@ -39,9 +39,7 @@ Output::ResultsFormat::ResultsFormat(const file::Path& filename, std::function<v
         auto name = get_thread_name();
         set_thread_name(obj->identity().name()+"_post");
 
-    //Debug("Generate midlines for %d...", obj->identity().ID());
         obj->update_midlines(_property_cache.get());
-    //Debug("Done with midlines for %d.", obj->identity().ID());
 
     //data_long_t previous = obj->start_frame();
     //for(auto && [i, c] : obj->_centroid) {
@@ -592,7 +590,6 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     }
     
     //uint64_t delta = this->tell() - pos_before;
-    //Debug("PSize %f", delta / double(1000*1000));
     //pos_before = this->tell();
     
     // number of head positions
@@ -734,7 +731,6 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     _post_pool.enqueue(fish);
     
     //if(N > 1000)
-    //    Debug("Time for individual %d: %f", fish->identity().ID(), timer.elapsed());
     set_thread_name(thread_name);
     return fish;
 }
@@ -774,7 +770,6 @@ template<> void Data::read(Individual*& out_ptr) {
         auto in = Meta::toStr(FileSize(size));
         auto out = Meta::toStr(FileSize(uncompressed_size));
         
-        //Debug("Reading compressed block of size %S.", &in, &out);
         
         std::vector<char>* cache = nullptr;
         auto ptr = read_data_fast(size);
@@ -895,7 +890,6 @@ uint64_t Data::write(const Individual& val) {
     }
     
     //auto str = Meta::toStr(FileSize(pack.size()));
-    //Debug("Individual %d is %S after centroid", val.identity().ID(), &str);
     
     // head based information
     /*pack.write<uint64_t>(val._head.size());
@@ -935,7 +929,6 @@ uint64_t Data::write(const Individual& val) {
     //auto estimate = Meta::toStr(FileSize(pack_size));
     //auto per_frame = Meta::toStr(FileSize(pack.size() / double(val.frame_count())));
     
-    //Debug("Individual %d is %S (estimated %S) thats %S / frame", val.identity().ID(), &str, &estimate, &per_frame);
     
     lzo_uint out_len = 0;
     assert(pack.size() < LZO_UINT_MAX);
@@ -1067,7 +1060,6 @@ namespace Output {
         
         if(_header.version >= ResultsFormat::V_14) {
             read<std::string>(_header.settings);
-            //Debug("Read settings map: %S", &_header.settings);
         }
         
         if(_header.version >= ResultsFormat::V_23) {

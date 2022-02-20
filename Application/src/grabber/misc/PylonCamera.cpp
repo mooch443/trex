@@ -109,11 +109,9 @@ namespace fg {
             //_camera->StartGrabbing(GrabStrategy_OneByOne, GrabLoop_ProvidedByUser);//GrabStrategy_LatestImageOnly);
             //_camera->OutputQueueSize = _analysis->cache() - 1;
             
-            //Debug("Waiting for TriggerReady.");
             if(_camera->GrabCameraEvents.GetValue() == true) {
                 if ( _camera->WaitForFrameTriggerReady( 1000, TimeoutHandling_ThrowException))
                 {
-                    //Debug("Executing trigger.");
                     _camera->ExecuteSoftwareTrigger();
                 }
             }
@@ -144,7 +142,6 @@ namespace fg {
                 }
                 auto t = ptrGrabResult->GetTimeStamp() / 1000;
                 //static uint64_t previous = 0;
-                //Debug("Tick %lu skipped:%ld", (t - previous), ptrGrabResult->GetNumberOfSkippedImages());
                 //previous = t;
                 
                 current.set_timestamp(t);

@@ -1469,7 +1469,6 @@ struct NetworkApplicationState {
                         //if (!l)
                             Warning("Label for frame %d blob %d is nullptr.", frame, bdx);
                         else {
-                            //Debug("Fish%d: Labelled frame %d (blob%ld) = '%s'", fish->identity().ID(), frame, bdx, l->name.c_str());
                             DataStore::_set_label_unsafe(Frame_t(frame), bdx, task.result[i]);
                             sums.at(task.result[i]) += 1;
 #ifndef NDEBUG
@@ -1605,7 +1604,6 @@ struct NetworkApplicationState {
             
             bool done = size_t(offset) >= segments.size();
             
-//            Debug("Individual Fish%d checking offset %d/%lu (%s)...", fish->identity().ID(), offset.load(), segments.size(), done ? "done" : "not done");
             
             if (done || it == segments.end())
                 break;
@@ -1620,7 +1618,6 @@ struct NetworkApplicationState {
                 if(!task.sample)
                     Debug("Skipping (failed) Fish%d: (%d-%d, len=%d)", fish->identity().ID(), segment->start(), segment->end(), segment->length());
                 //else
-                //    Debug("No-Skipping Fish%d: (%d-%d, len=%d)", fish->identity().ID(), segment->start(), segment->end(), segment->length());
 #endif
             }
 #ifndef NDEBUG
@@ -1649,7 +1646,6 @@ struct NetworkApplicationState {
             };
             _predict.reset();
             
-//           Debug("Fish%d: Inserting (%d-%d) with %lu images", fish->identity().ID(), task.segment->start(), task.segment->end(), task.sample->_images.size());
             Work::add_task(std::move(task));
             
         }
@@ -2677,7 +2673,6 @@ void paint_distributions(int64_t frame) {
 
                 //minimum_range = min((int64_t)*mit, minimum_range);
                 //maximum_range = max((int64_t)*mat, maximum_range);
-                //Debug("Frames range from %ld to %ld, with %f+-%f with median %f", minimum_range, maximum_range, mean, stdev, median);
             }
 
             distri_timer.reset();
@@ -2760,7 +2755,6 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
         std::unique_lock guard(_mutex);
         while(contains(_currently_processed, frame))
             _variable.wait_for(guard, std::chrono::seconds(1));
-        //Debug("Waited for %d", frame);
     }
 
     std::vector<int64_t> v;
@@ -2806,7 +2800,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
 
             //double sum = std::accumulate(v.begin(), v.end(), 0.0);
             //double mean = sum / v.size();
-            double median = CalcMHWScore(v);
+            //double median = CalcMHWScore(v);
             //int64_t center = median;//mean;//(minimum_range + (maximum_range - minimum_range) / 2.0);
 
             for (auto& [f, pp] : _frame_cache) {
@@ -2872,7 +2866,6 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
         auto kit = std::find(_currently_processed.begin(), _currently_processed.end(), frame);
         if (kit != _currently_processed.end()) {
             _currently_processed.erase(kit);
-            //Debug("Processed %d", frame);
         }
         else
             Warning("Cannot find currently processed %d!", frame);
@@ -2887,16 +2880,6 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
 #endif
         ptr = std::get<1>(*it);
         ++_reuse;
-    }
-
-    {
-        std::lock_guard guard(_mutex);
-        static Timer timer;
-        if (timer.elapsed() > 5) {
-            //auto str = Meta::toStr(_ever_created);
-            //Debug("Created frames: %S", &str);
-            timer.reset();
-        }
     }
     
     return ptr;

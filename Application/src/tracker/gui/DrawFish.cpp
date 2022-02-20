@@ -798,7 +798,6 @@ Fish::~Fish() {
                     for(auto && [frame, in] : interp) {
                         if(frame == _idx) {
                             _graph.set_title(Meta::toStr(ddangle.count(frame) ? ddangle.at(frame) : FLT_MAX) + " " +Meta::toStr(in));
-                            //Debug("%d: %f (%f)", frame, dangle.back(), ddangle.empty() ? FLT_MAX : ddangle.back());
                         }
                     }
                 
@@ -879,7 +878,6 @@ Fish::~Fish() {
                 ++it;
             
             //auto end = it != frame_vertices.begin() ? it-1 : it;
-            //Debug("(%d) #1 Erasing from %d to %d (%d-%d, %d-%d) %d-%d", _obj.identity().ID(), frame_vertices.begin()->frame, end->frame, from, to, first, last, startf, endf);
             
             frame_vertices.erase(frame_vertices.begin(), it);
             first = frame_vertices.empty() ? Frame_t() : frame_vertices.begin()->frame;
@@ -920,7 +918,6 @@ Fish::~Fish() {
             while(it->frame > to && it != frame_vertices.begin())
                 --it;
             
-            //Debug("(%d) #2 Erasing from %d to %d (%d-%d, %d-%d)", _obj.identity().ID(), it->frame, frame_vertices.rbegin()->frame, from, to, first, last);
             
             frame_vertices.erase(it, frame_vertices.end());
         }
@@ -928,7 +925,6 @@ Fish::~Fish() {
         last = frame_vertices.empty() ? Frame_t() : frame_vertices.rbegin()->frame;
         
         if(last < to) {
-            //Debug("(%d) searching from %d to %d", _obj.identity().ID(), max(from, last), to);
             auto i = max(from, last);
             auto fit = _obj.iterator_for(i);
             auto end = _obj.frame_segments().end();
@@ -1004,7 +1000,6 @@ Fish::~Fish() {
             _vertices.push_back(Vertex(fv.vertex.position() + offset, use.alpha(percent * 255)));
         }
         
-       // Debug("(%d) ending up with %d vertices", _obj.identity().ID(), vertices.size());
         
         if (_paths.size() <= paths_index) {
             _paths.emplace_back(std::make_unique<Vertices>(_vertices, PrimitiveType::LineStrip, Vertices::TRANSPORT));

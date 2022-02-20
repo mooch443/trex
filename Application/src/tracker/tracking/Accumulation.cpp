@@ -184,7 +184,6 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
             ++lengths[id];
     }*/
     //auto str = Meta::toStr(lengths);
-    //Debug("Extended range %d-%d (%d) to: \n%S", range.start, range.end, range.length(), &str);
     
     return individuals_per_frame;
 }
@@ -1891,7 +1890,6 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
     _layout_rows->auto_size(Margin{0,0});
     
     //_layout->set_background(Transparent, Red);
-    //Debug("%f,%f %fx%f", _layout->pos().x, _layout->pos().y, _layout->width(), _layout->height());
 }
 
 float Accumulation::best_uniqueness() const {

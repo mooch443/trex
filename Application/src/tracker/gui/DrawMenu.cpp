@@ -512,7 +512,6 @@ public:
                     for(auto && [name, size] : overall.sizes) {
                         auto color = wheel.next();
                         float h = float((size - mi) / float(ma - mi)) * bars.height;
-                        //Debug("%S: %f (%lu, %lu)", &name, h, size - mi, ma - mi);
                         base.add<Rect>(Bounds(x + margin, margin + bars.height - h, bars.width - margin * 2, h), color);
                         auto text = elements.at(i);
                         auto pos = Vec2(x + bars.width * 0.5f, margin + bars.height + margin);

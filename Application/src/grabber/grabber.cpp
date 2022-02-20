@@ -661,12 +661,10 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
                       double percent = double(current.index()) / double(GRAB_SETTINGS(frame_rate)) * 1000.0;
                       
                       size_t fake_delta = size_t(percent * 1000.0);
-                      //Debug("Image %d <- %lu", current.index(), fake_delta);
                       current.set_timestamp(_start_timing + fake_delta);//std::chrono::microseconds(fake_delta));
                   }
                   else {
                       current.set_timestamp(_video->timestamp(current.index()));
-                      //Debug("prepare:: Image %d <- %lu from video", current.index(), current.timestamp());
                   }
               }
               
@@ -994,7 +992,6 @@ bool FrameGrabber::load_image(Image_t& current) {
     if(add_image_to_average(current))
         return false;
 
-    //Debug("loading:: Image %d has timestamp %lu", current.index(), current.timestamp());
     _loading_timing = _loading_timing * 0.75 + timer.elapsed() * 0.25;
     return true;
 }
@@ -1899,7 +1896,6 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
     }
 
     Timer timer;
-    //Debug("loading:: Image %d has timestamp %lu", current.index(), current.timestamp());
     
     static size_t global_index = 1;
     /*cv::putText(current.get(), Meta::toStr(global_index)+" "+Meta::toStr(current.index()), Vec2(50), cv::FONT_HERSHEY_PLAIN, 2, gui::White);
@@ -1978,12 +1974,10 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
         task->clear();
     task->index = global_index++;
 
-    //Debug("Image %d Timestamp = %lu", current.index(), TS);
     if (task->current)
         task->current->create(current, current.index(), TS);
     else
         task->current = Image::Make(current, current.index(), TS);
-    //Debug("process(%d):: Image %d has timestamp %lu", current.index(), task->current->index(), task->current->timestamp());
     
     if(GRAB_SETTINGS(grabber_use_threads)) {
         {
@@ -1993,7 +1987,6 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
                 _multi_variable.wait_for(guard, std::chrono::milliseconds(1));
                 
                 if(timer.elapsed() > 1) {
-                    //Debug("Still waiting to push task %d", global_index);
                     timer.reset();
                 }
             }

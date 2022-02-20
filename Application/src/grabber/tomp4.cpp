@@ -268,7 +268,6 @@ void FFMPEGQueue::Package::unpack(cmn::Image &image, lzo_uint& new_len) const {
         return;
     }
     
-    //Debug("Uncompressing %lu bytes to %lu (real:%lu)", package->out_len, package->in_len, new_len);
     
     assert(new_len == image.size());
 }
@@ -306,7 +305,6 @@ void FFMPEGQueue::process_one_image(uint64_t stamp, const std::unique_ptr<cmn::I
             {
                 std::lock_guard<std::mutex> write_guard(_write_mutex);
                 packages.push_back(pack);
-                //Debug("Compressed %lu bytes to %lu", pack->in_len, pack->out_len);
             }
             
             _write_condition.notify_one();
@@ -560,7 +558,6 @@ void FFMPEGQueue::finalize_one_image(uint64_t stamp, const cmn::Image& image) {
     
     //sws_scale(ctx, input_frame->data, input_frame->linesize, 0, c->height, frame->data, frame->linesize);
     
-    //Debug("sws_scale#1: %f", timer.elapsed());
     
     /*timer.reset();
     

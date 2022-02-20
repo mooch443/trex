@@ -145,7 +145,6 @@ void TrainingData::add_frame(std::shared_ptr<TrainingData::DataRange> data, Fram
     }
     
     if(_data.find(data) == _data.end()) {
-        //Debug("Adding new DataRange to TrainingData.");
         _data.insert(data);
     }
     
@@ -156,7 +155,6 @@ void TrainingData::add_frame(std::shared_ptr<TrainingData::DataRange> data, Fram
         _included_segments[id] = {};
     if(_included_segments.at(id).find(from_range) == _included_segments.at(id).end()) {
         _included_segments.at(id).insert(from_range);
-        //Debug("\t[TrainingData] Inserting range %d-%d for individual %d", from_range.start(), from_range.end(), id);
     }
     
     obj.images.push_back(image);
@@ -564,7 +562,6 @@ std::tuple<std::vector<Image::Ptr>, std::vector<Idx_t>> TrainingData::join_array
         // ignore salt
         //if(d->salty)
         //    continue;
-        //Debug("\tadding range [%d-%d]...", r.start, r.end);
         images.insert(images.end(), d->images.begin(), d->images.end());
         ids.insert(ids.end(), d->ids.begin(), d->ids.end());
     }
@@ -807,7 +804,6 @@ std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::share
             N += range.length();
         }
         
-        //Debug("\tNumber of frames in global ranges = %d", N);
         
         size_t SR = 0;
         for(auto && [range, ptr, d, ID] : ranges)

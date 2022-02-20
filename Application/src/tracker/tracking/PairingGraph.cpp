@@ -446,8 +446,6 @@ long_t PairingGraph::Stack::idx(const multiset& fish_set, const multiset::const_
             if(current.prob_it != current.probs.end())
                 local_stack.push_front(&current);
             
-            //Debug("(global) add StackFrame %d -> %d (%f) (%d/%d) (%d)", current.fish_it->fish->identity().ID(), p->first.blob ? p->first.blob->blob_id() : -1, p->second, std::distance(current.probs.begin(), p), current.probs.size(), blobs.size());
-                
             // put new element (if found) into global queue
             if(current.ID > 1) {
                 std::lock_guard<std::mutex> lock(unused_mutex);
@@ -474,7 +472,6 @@ long_t PairingGraph::Stack::idx(const multiset& fish_set, const multiset::const_
             // back into local queue
             if(current.prob_it == current.probs.end()) {
                 //auto p = current.probs.begin();
-                //Debug("(local) add StackFrame %d -> %d (%f) (%d/%d) (%d)", current.fish_it->fish->identity().ID(), p->first.blob ? p->first.blob->blob_id() : -1, p->second, std::distance(current.probs.begin(), p), current.probs.size(), blobs.size());
                 
                 insert_locally(current, next, current.probs.begin());
             }
@@ -843,7 +840,6 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
             }
         }
         
-        //Debug("Maximal stack size: %lu", maximal_stack_size);
         
 #ifndef NDEBUG
         if(FAST_SETTINGS(debug)) {
@@ -860,7 +856,6 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
             file.close();
             Debug("(single) %d: %d steps in %fms => %fms/step", frame(), _optimal_pairing->objects_looked_at, elapsed*1000, elapsed*1000/ _optimal_pairing->objects_looked_at);
         } //else
-           // Debug("%d: %d steps in %fms (%d)", frame(), objects, timer.elapsed()*1000, stack.size());
 #endif
         
         return _optimal_pairing->objects_looked_at;
@@ -964,7 +959,6 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
             file.close();
             Debug("(multi) %d: %d steps in %fms => %fms/step", frame(), objects, elapsed*1000, elapsed*1000/objects);
         } //else
-           // Debug("%d: %d steps in %fms (%d)", frame(), objects, timer.elapsed()*1000, stack.size());
     }*/
     
     const PairingGraph::Result& PairingGraph::get_optimal_pairing(bool debug, default_config::matching_mode_t::Class match_mode) {
@@ -1052,7 +1046,6 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                     ssize_t** assignment = kuhn_match(dist_matrix, n, m);
                     //alg.Solve(dist_matrix, assignment);
                     //auto str = Meta::toStr(assignment);
-                    //Debug("Assignment: %S (%d vs. %d and %d)", &str, assignment.size(), _individuals.size(), _blobs.size());
                     
                     _optimal_pairing->path.clear();
                     //for(size_t i=0; i<assignment.size(); ++i) {

@@ -198,8 +198,8 @@ file::Path conda_environment_path() {
         std::map<std::string, std::string> found;
         
         for(auto &key : map.keys()) {
-            if(is_deprecated(key))
-                found.insert({key, map.operator[](key).toStdString()});
+            if(is_deprecated(key)) //!TODO: check what this does (toStr)
+                found.insert({key, map.operator[](key).toStr()});
         }
         
         warn_deprecated(source, found);

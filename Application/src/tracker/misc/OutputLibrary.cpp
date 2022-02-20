@@ -146,7 +146,6 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 _output_defaults = SETTING(output_default_options).value<Output::Library::default_options_type>();
                 _options_map.clear();
                 
-                //Debug("Recalculating options map...");
                 
                 std::vector<std::string> remove;
                 for (auto &c : _cache_func) {
@@ -655,7 +654,6 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 sum += SQR(v - average);
             sum /= float(all.size()-1);
             
-            //Debug("%f", sqrt(sum) / (average * 0.05));
             
             return sqrt(sum) / (average * 0.5f);
         });

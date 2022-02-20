@@ -189,6 +189,20 @@ void init_signals() {
 
 #include <gui/GLImpl.h>
 
+template<typename... Args>
+void FORMAT_WARNING(const char* path, int line, const Args & ...args) {
+    std::string str =
+        "["
+            + console_color<FormatColor::YELLOW, FormatterType::UNIX>(
+            "WARNING " + std::string(path) + ":" + Meta::toStr(line) + current_time_string())
+      + "]"
+      + format<FormatterType::UNIX>(args...);
+    
+    printf("%s\n", str.c_str());
+}
+
+#define FormatWarning(...) FORMAT_WARNING(__FILE_NO_PATH__, __LINE__, __VA_ARGS__)
+
 int main(int argc, char** argv)
 {
 #ifdef NDEBUG
@@ -217,7 +231,7 @@ int main(int argc, char** argv)
     init_signals();
     
 #if TRACKER_GLOBAL_THREADS
-    Warning("Using only %d threads (-DTRACKER_GLOBAL_THREADS).", TRACKER_GLOBAL_THREADS);
+    FormatWarning("Using only",TRACKER_GLOBAL_THREADS,"threads (-DTRACKER_GLOBAL_THREADS).");
 #endif
 #if __linux__
     XInitThreads();
@@ -273,7 +287,7 @@ int main(int argc, char** argv)
     if(!SearchPath( NULL, "ffmpeg", ".exe", MAX_PATH, filename, &lpFilePart))
     {
         auto conda_prefix = ::default_config::conda_environment_path().str();
-        Debug("Conda prefix: %S", &conda_prefix);
+        print("Conda prefix: ", conda_prefix);
         if(!conda_prefix.empty()) {
             std::set<file::Path> files;
             if (file::Path(conda_prefix + "/bin").exists()) {
@@ -284,7 +298,7 @@ int main(int argc, char** argv)
 
             for(auto file : files) {
                 if(file.filename() == "ffmpeg" || file.filename() == "ffmpeg.exe") {
-                    Debug("Found ffmpeg in '%S'", &file.str());
+                    print("Found ffmpeg in ",file);
                     SETTING(ffmpeg_path) = file;
                     break;
                 }
@@ -292,7 +306,7 @@ int main(int argc, char** argv)
         }
         
         if(SETTING(ffmpeg_path).value<file::Path>().empty())
-            Warning("Cannot find ffmpeg.exe in search paths.");
+            FormatWarning("Cannot find ffmpeg.exe in search paths.");
     } else
         SETTING(ffmpeg_path) = file::Path(std::string(filename));
 #else
@@ -310,7 +324,7 @@ int main(int argc, char** argv)
                     auto files = file::Path(part).find_files();
                     for(auto file : files) {
                         if(file.filename() == "ffmpeg") {
-                            Debug("Found ffmpeg in '%S'", &file.str());
+                            print("Found ffmpeg in ", file);
                             SETTING(ffmpeg_path) = file;
                             break;
                         }
@@ -341,7 +355,7 @@ int main(int argc, char** argv)
 #if __APPLE__
     std::string _wd = "../Resources/";
     if (!chdir(_wd.c_str()))
-        Debug("Changed directory to '%S'.", &_wd);
+        print("Changed directory to ", _wd);
     else
         Error("Cannot change directory to '%S'.", &_wd);
 #elif defined(TREX_CONDA_PACKAGE_INSTALL)
@@ -349,7 +363,6 @@ int main(int argc, char** argv)
     if(!conda_prefix.empty()) {
         file::Path _wd(conda_prefix);
         _wd = _wd / "usr" / "share" / "trex";
-        //Debug("change directory to conda environment resource folder: '%S'", &_wd.str());
         
         if(chdir(_wd.c_str()))
             Except("Cannot change directory to '%S'", &_wd.str());
@@ -397,7 +410,7 @@ int main(int argc, char** argv)
                         
                         auto parts = utils::split(option.value, '*');
                         Path folder = pv::DataLocation::parse("input", Path(option.value).remove_filename());
-                        Debug("Scanning pattern '%S' in folder '%S'...", &option.value, &folder.str());
+                        print("Scanning pattern ",option.value," in folder ",folder,"...");
                         
                         for(auto &file: folder.find_files("pv")) {
                             if(!file.is_regular())
@@ -435,15 +448,14 @@ int main(int argc, char** argv)
                             if(!path.exists())
                                 U_EXCEPTION("Cannot find video file '%S'. (%d)", &path.str(), path.exists());
                             
-                            Debug("Using file '%S'", &path.str());
+                            print("Using file ", path);
                             SETTING(filename) = path.remove_extension();
                             break;
                             
                         } else if(found.size() > 1) {
-                            auto str = Meta::toStr(found);
-                            Debug("Found too many files matching the pattern '%S': %S.", &option.value, &str);
+                            print("Found too many files matching the pattern ",option.value,": ",found,".");
                         } else
-                            Debug("No files found that match the pattern '%S'.", &option.value);
+                            print("No files found that match the pattern ",option.value,".");
                     }
                     
                     Path path = pv::DataLocation::parse("input", Path(option.value).add_extension("pv"));
@@ -457,7 +469,7 @@ int main(int argc, char** argv)
                 case Arguments::r:
                     load_results_from = Path(option.value);
                     load_results = true;
-                    Debug("Loading results from '%S'.", &load_results_from.str());
+                    print("Loading results from ",load_results_from,"...");
                     break;
 
                 case Arguments::s:
@@ -488,8 +500,7 @@ int main(int argc, char** argv)
                         fclose(f);
                         
                         //printf("%s\n", rst.c_str());
-                        Debug("Saved at '%S'.", &path.str());
-                        
+                        print("Saved at ",path,".");
                         exit(0);
                     }
                     else if(option.value == "settings") {
@@ -567,7 +578,7 @@ int main(int argc, char** argv)
                 }
                     
                 default:
-                    Warning("Unknown option '%S' with value '%S'", &option.name, &option.value);
+                    FormatWarning("Unknown option",option.name,"with value", option.value);
                     break;
             }
             
@@ -575,7 +586,7 @@ int main(int argc, char** argv)
             load_settings_from_results = Meta::fromStr<std::vector<std::string>>(option.value);
             
         } else {
-            Warning("Unknown option '%S' with value '%S'", &option.name, &option.value);
+            FormatWarning("Unknown option", option.name, "with value", option.value);
         }
     }
 
@@ -612,7 +623,7 @@ int main(int argc, char** argv)
             }
             else {
                 auto wd = SETTING(wd).value<file::Path>();
-                Debug("Opening a video file: '%S' (wd: '%S')", &opening_result.tab.name, &wd.str());
+                print("Opening a video file: ",opening_result.tab.name," (wd: ",wd,")");
 #if defined(__APPLE__)
                 wd = wd / ".." / ".." / ".." / "TGrabs.app" / "Contents" / "MacOS" / "TGrabs";
 #else
@@ -622,7 +633,7 @@ int main(int argc, char** argv)
                     wd = wd / "tgrabs";
 #endif
                 auto exec = wd.str() + " " + opening_result.cmd;
-                Debug("Executing '%S'", &exec);
+                print("Executing ", exec);
 
 #if defined(WIN32)
                 //file::exec(exec.c_str());                    
@@ -648,7 +659,7 @@ int main(int argc, char** argv)
             SETTING(filename) = file::Path();
         
         if(SETTING(filename).value<Path>().empty()) {
-            Debug("You can specify a file to be opened using ./tracker -i <filename>");
+            print("You can specify a file to be opened using ./tracker -i <filename>");
             return 0;
         }
     }
@@ -700,7 +711,7 @@ int main(int argc, char** argv)
     SETTING(video_info) = std::string(video.get_info());
     
     if(SETTING(frame_rate).value<int>() <= 0) {
-        Warning("frame_rate == 0, calculating from frame tdeltas.");
+        FormatWarning("frame_rate == 0, calculating from frame tdeltas.");
         video.generate_average_tdelta();
         SETTING(frame_rate) = max(1, int(video.framerate()));
     }
@@ -713,12 +724,12 @@ int main(int argc, char** argv)
             executed_a_settings = true;
         else {
             SETTING(settings_file) = file::Path();
-            Warning("Settings file '%S' does not exist.", &settings_file.str());
+            FormatWarning("Settings file",settings_file,"does not exist.");
         }
     }
     
     if(SETTING(meta_real_width).value<float>() == 0) {
-        Warning("This video does not set `meta_real_width`. Please set this value during conversion (see https://trex.run/docs/parameters_trex.html#meta_real_width for details).");
+        FormatWarning("This video does not set `meta_real_width`. Please set this value during conversion (see https://trex.run/docs/parameters_trex.html#meta_real_width for details).");
         SETTING(meta_real_width) = float(30.0);
     }
     
@@ -738,14 +749,14 @@ int main(int argc, char** argv)
             if(GUI::execute_settings(output_settings, AccessLevelType::STARTUP))
                 executed_a_settings = true;
             else if(!executed_a_settings)
-                Warning("Output settings '%S' does not exist.", &output_settings.str());
+                FormatWarning("Output settings",output_settings,"does not exist.");
         }
         
     } else {
         if(GUI::execute_settings(settings_file, AccessLevelType::STARTUP))
             executed_a_settings = true;
         else
-            Warning("Settings file '%S' does not exist.", &settings_file.str());
+            FormatWarning("Settings file",settings_file,"does not exist.");
     }
 
     Tracker tracker;
@@ -849,7 +860,7 @@ int main(int argc, char** argv)
         log_file = fopen(path.str().c_str(), "wb");
         log_mutex.unlock();
         
-        Debug("Logging to '%S'.", &path.str());
+        print("Logging to ", path,".");
     }
     
     if(SETTING(evaluate_thresholds)) {
@@ -928,7 +939,7 @@ int main(int argc, char** argv)
                 std::lock_guard<std::mutex> guard(sync);
                 ++processed_frames;
                 if(processed_frames % 100 == 0) {
-                    Debug("%d / %d (%.1f%%)", processed_frames, added_frames, processed_frames / float(added_frames) * 100);
+                    print(processed_frames,"/",added_frames," (",processed_frames / float(added_frames) * 100,"%)");
                 }
             
             }, i);
@@ -1053,7 +1064,7 @@ int main(int argc, char** argv)
     }
     
     if(!SETTING(auto_train_on_startup) && SETTING(auto_train_dont_apply)) {
-        Warning("auto_train_dont_apply was set without auto_train enabled. This may lead to confusing behavior. Overwriting auto_train_dont_apply = false.");
+        FormatWarning("auto_train_dont_apply was set without auto_train enabled. This may lead to confusing behavior. Overwriting auto_train_dont_apply = false.");
         SETTING(auto_train_dont_apply) = false;
     }
     
@@ -1062,20 +1073,19 @@ int main(int argc, char** argv)
     
     cmn::Blob blob;
     auto copy = blob.properties();
-    Debug("BasicStuff<%lu> PostureStuff<%lu> Individual<%lu> Blob<%lu> MotionRecord<%lu> Image::Ptr<%lu> std::shared_ptr<std::vector<HorizontalLine>>:%lu Bounds:%lu bool:%lu cmn::Blob::properties:%lu", 
-        sizeof(track::Individual::BasicStuff), 
-        sizeof(track::Individual::PostureStuff),
-        sizeof(track::Individual), 
-        sizeof(pv::Blob), 
-        sizeof(MotionRecord), 
-        sizeof(Image::Ptr), 
-        sizeof(std::shared_ptr<std::vector<HorizontalLine>>), 
-        sizeof(Bounds), 
-        sizeof(bool), 
-        sizeof(decltype(copy)));
-    Debug("localcache:%lu identity:%lu std::map<long_t, Vec2>:%lu", sizeof(Individual::LocalCache), sizeof(Identity), sizeof(std::map<long_t, Vec2>));
-    Debug("BasicStuff:%lu pv::Blob:%lu Compressed:%lu", sizeof(Individual::BasicStuff), sizeof(pv::Blob), sizeof(pv::CompressedBlob));
-    Debug("Midline:%lu MinimalOutline:%lu", sizeof(Midline), sizeof(MinimalOutline));
+    print("BasicStuff<",sizeof(track::Individual::BasicStuff),"> ",
+          "PostureStuff<",sizeof(track::Individual::PostureStuff),"> ",
+          "Individual<",sizeof(track::Individual),"> ",
+          "Blob<",sizeof(pv::Blob),"> ",
+          "MotionRecord<",sizeof(MotionRecord),"> ",
+          "Image<",sizeof(Image::Ptr),"> ",
+          "std::shared_ptr<std::vector<HorizontalLine>><",sizeof(std::shared_ptr<std::vector<HorizontalLine>>),"> "
+          "Bounds<",sizeof(Bounds),"> ",
+          "bool<",sizeof(bool),"> "
+          "cmn::Blob::properties<",sizeof(decltype(copy)),">");
+    print("localcache:",sizeof(Individual::LocalCache)," identity:",sizeof(Identity)," std::map<long_t, Vec2>:", sizeof(std::map<long_t, Vec2>));
+    print("BasicStuff:",sizeof(Individual::BasicStuff)," pv::Blob:",sizeof(pv::Blob)," Compressed:", sizeof(pv::CompressedBlob));
+    print("Midline:",sizeof(Midline)," MinimalOutline:",sizeof(MinimalOutline));
     
     GUI *tmp = new GUI(video, tracker.average(), tracker);
     std::unique_lock<std::recursive_mutex> gui_lock(tmp->gui().lock());
@@ -1209,7 +1219,6 @@ int main(int argc, char** argv)
                             Debug("%.2f%% %S", percent, &str);
                             print_timer.reset();
                         }
-                        //Debug("frame %lu/%lu (%.2fMB/s @ %.2ffps)", ptr->index(), video.length(), data_sec / 1024.0, frames_sec);
                     }
 
                     if(tmp)
@@ -1386,7 +1395,7 @@ int main(int argc, char** argv)
     if(SETTING(auto_train)) {
         if(!Recognition::recognition_enabled())
             U_EXCEPTION("auto_train switch cant be used without recognition_enable = true.");
-        Warning("The application is going to attempt to automatically train the network upon finding a suitable consecutive segment.");
+        FormatWarning("The application is going to attempt to automatically train the network upon finding a suitable consecutive segment.");
     }
     if(SETTING(auto_apply)) {
         if(SETTING(auto_train) || !Recognition::network_weights_available()) {
@@ -1398,7 +1407,7 @@ int main(int argc, char** argv)
             U_EXCEPTION("Cannot apply a network without network_weights available. (searching at '%S')", &path.str());
         }
         
-        Warning("The application is going to apply a trained network after finishing the analysis and auto_correct it afterwards.");
+        FormatWarning("The application is going to apply a trained network after finishing the analysis and auto_correct it afterwards.");
     }
     if(SETTING(auto_categorize)) {
         if(!Categorize::weights_available()) {
@@ -1409,10 +1418,10 @@ int main(int argc, char** argv)
             SETTING(terminate) = true;
             U_EXCEPTION("Make sure that a file called '%S_categories.npz' is located inside '%S'", &file, &output);
         }
-        Warning("The application is going to load a pretrained categories network and apply it after finishing the analysis (or loading).");
+        FormatWarning("The application is going to load a pretrained categories network and apply it after finishing the analysis (or loading).");
     }
     if(SETTING(auto_quit))
-        Warning("Application is going to quit after analysing and exporting data.");
+        FormatWarning("Application is going to quit after analysing and exporting data.");
     
     gui::IMGUIBase *imgui_base = nullptr;
     if((GlobalSettings::map().has("nowindow") ? SETTING(nowindow).value<bool>() : false) == false) {
@@ -1456,7 +1465,6 @@ int main(int argc, char** argv)
                 Debug("Please enter command below (type help for available commands):");
                 printf(">> ");
                 std::getline(std::cin, cmd);
-                //Debug("Entered '%S'", &str);
             }
             
             gui.work().add_queue("", [&before, &analysis, cmd, &gui](){
@@ -1590,7 +1598,9 @@ int main(int argc, char** argv)
                         
                     } else if(GlobalSettings::map().has(command)) {
                         Debug("Object '%S'", &command);
-                        GlobalSettings::get(command).print_object();
+                        auto str = GlobalSettings::get(command).toStr(),
+                            val = GlobalSettings::get(command).get().valueString();
+                        print(str.c_str(),"=",val.c_str());
                     }
                     else {
                         std::set<std::string> matches;

@@ -585,7 +585,6 @@ void PythonIntegration::reinit() {
                     auto task = std::move(*it);
                     tasks.erase(it);
                     
-                    //Debug("Starting python task from queue (elements left: %d)...", tasks.size());
                     lock.unlock();
                     try {
                         task._task();
@@ -667,7 +666,6 @@ void PythonIntegration::reinit() {
                 auto array = x.unchecked<2>();
                 auto idxes = idx.unchecked<1>();
                 
-                //Debug("Received array of size %dx%d", array.shape(0), array.shape(1));
                 Debug("Copying %d data", array.size());
                 auto ptr = array.data(0,0);
                 auto end = ptr + array.size();
@@ -692,7 +690,6 @@ void PythonIntegration::reinit() {
             //py::exec(str, py::globals(), *_locals);
             
             //(*_locals)["images"] = nullptr;
-            //Debug("---- (%f) images", float(values.size()) / float(FAST_SETTINGS(manual_identities).size()));
             
         } catch (py::error_already_set &e) {
             Debug("Runtime error: '%s'", e.what());

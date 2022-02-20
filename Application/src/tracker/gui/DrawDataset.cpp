@@ -309,7 +309,6 @@ namespace gui {
             auto bar_height = bar ? bar->global_bounds().y + bar->global_bounds().height + 10 : 10;
             if(pp.y < bds.height + bar_height)
                 pp.y = bds.height + bar_height + 10;
-            //Debug("%f,%f", pp.x, pp.y);
             set_pos(pp);
         }
     }

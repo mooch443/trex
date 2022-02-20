@@ -556,14 +556,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                 ++_proximity_bar.samples_per_pixel[uint32_t(x)];
                 if(_proximity_bar.samples_per_pixel[uint32_t(x)] > 1)
                     multiple_assignments.insert(uint32_t(x));
-                //auto it = _proximity_bar.changed_frames.find(c.frames().start);
-                //if(it == _proximity_bar.changed_frames.end()) {
-                    /*float x = max_w / float(_frame_info->video_length) * c.frames().start;
-                    float w = max(2, max_w / float(_frame_info->video_length) * c.frames().end - x);
-                    Vec2 pp(x, 0);
-                    cv::rectangle(img, pp, pp+Vec2(w,img.rows), _foi_state.color, -1);*/
                 
-                    //if(!_proximity_bar.changed) {
                 auto it = _proximity_bar.changed_frames.find(c.frames().start);
                 if(it == _proximity_bar.changed_frames.end() || it->second != c.fdx())
                 {
@@ -577,7 +570,6 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                 uint32_t N = 1;
                 if(multiple_assignments.size() >= _foi_state.changed_frames.size() * 0.1)
                 {
-                    //Debug("Too many multi-assignments (%d / %d). Normalizing colors.", multiple_assignments.size(), _foi_state.changed_frames.size());
                     uint32_t Nx = 0;
                     for(auto x : multiple_assignments) {
                         auto n = _proximity_bar.samples_per_pixel[x];

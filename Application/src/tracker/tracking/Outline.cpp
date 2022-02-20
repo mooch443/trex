@@ -148,7 +148,6 @@ void MinimalOutline::convert_from(const std::vector<Vec2>& array) {
         x = relative.x * factor;
         y = relative.y * factor;
         
-        //Debug("%f,%f", x, y);
         
         if(x >= float(CHAR_MAX) || y >= float(CHAR_MAX) || x <= float(CHAR_MIN) || y <= float(CHAR_MIN))
             U_EXCEPTION("Cannot compress %f,%f to char. This is an unresolvable error and is related to outline_resample. Contact the maintainer of this software and ask for advice (use outline_resample <= 5).", x, y);
@@ -168,7 +167,6 @@ void MinimalOutline::convert_from(const std::vector<Vec2>& array) {
     
     //size_t minimized = sizeof(Vec2) + _points.size() * sizeof(decltype(_points)::value_type) + sizeof(char);
     //size_t full = array.size() * sizeof(Vec2);
-    //Debug("%d / %d bytes for minimized (%f%%)", minimized, full, float(minimized) / float(full));
 }
 
 size_t Midline::memory_size() const {
@@ -657,7 +655,6 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
                 broadest_idx = peak.position.x;
             }
             
-            //Debug("Peak %.0f: %.0f-%.0f (%f)", peak.position.x, peak.range.start, peak.range.end, peak.range.length());
         }
         
         if(OUTLINE_SETTING(midline_start_with_head) && _head_index != -1) {
@@ -951,7 +948,6 @@ void Midline::post_process(const MovementInformation &movement, DebugInfo info) 
         if(acos(direction[1 - current_index].dot(movement.direction)) < acos(direction[current_index].dot(movement.direction))) {
         //if(euclidean_distance(next_position, dpos[1 - current_index]) < euclidean_distance(next_position, dpos[current_index])) {
             
-            //Debug("%f,%f (x) | %f,%f -> %f,%f", dpos[1 - current_index].x, dpos[1 - current_index].y, dpos[current_index].x, dpos[current_index].y, next_position.x, next_position.y);
             /*if(angle_between_vectors(direction[0], direction[1]) >= RADIANS(90)) {
              float adiff0 = angle_between_vectors(direction[1 - current_index], movement.direction);
              float adiff1 = angle_between_vectors(direction[current_index], movement.direction);
@@ -962,7 +958,6 @@ void Midline::post_process(const MovementInformation &movement, DebugInfo info) 
             std::swap(head_index(), tail_index());
             //}
         } else {
-            //Debug("%f,%f | %f,%f (x) -> %f,%f", dpos[1 - current_index].x, dpos[1 - current_index].y, dpos[current_index].x, dpos[current_index].y, next_position.x, next_position.y);
         }
     }
     
@@ -1192,7 +1187,6 @@ void Midline::fix_length(float len, std::vector<MidlineSegment>& pts, bool debug
         }
         
         if(md != FLT_MAX) {
-            //Debug("%d D %f %d (%f,%f)", i, euclidean_distance(seg.pos, mdv), j, seg.pos.x, seg.pos.y);
             seg.pos = mdv;
             travelled_len += step;
             
@@ -1324,7 +1318,6 @@ Midline::Ptr Midline::normalize(float fix_length, bool debug) const {
             if((long_t)index >= this->head_index() && head_index == -1)
                 head_index = reduced.size();*/
             
-            //Debug("Moving %f (%f, %d-%d) d since last: %f", local_d, distance, index, index+1, distance-last_pt_distance);
             index++;
         }
         
@@ -1352,8 +1345,6 @@ Midline::Ptr Midline::normalize(float fix_length, bool debug) const {
                 segment.height = s0.height * (percent) + s1.height * (1.0 - percent);
                 segment.l_length = max(s0.l_length, s1.l_length);
                 reduced.push_back(segment);
-                
-                //Debug("At %d i have moved %f / %f (step %f) thats an offset of %f (%d)", index, distance, len, step, off, reduced.size());
                 
                 last_pt_distance = distance - length(line * (1.0 - percent));
                 

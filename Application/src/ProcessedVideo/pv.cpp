@@ -180,7 +180,6 @@ namespace pv {
                 uint32_t uncompressed_size;
                 ref.read<uint32_t>(uncompressed_size);
                 
-                //Debug("Decompressing block of size %d to %d bytes", size, uncompressed_size);
                 
                 static DataPackage compressed_block, uncompressed_block;
                 compressed_block.resize(size, false);
@@ -462,7 +461,6 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         }
         
         location_funcs.insert({purpose, fn});
-        //Debug("Registered DataLocation with purpose '%S'.", &purpose);
     }
     
     file::Path DataLocation::parse(const std::string &purpose, file::Path path) {
@@ -551,7 +549,6 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
                 GlobalSettings::load_from_file({}, settings_file.str(), AccessLevelType::PUBLIC);
         }
         
-        //Debug("Version of file is %d ('%S')", (int)version, &version_str);
         
         ref.read<uchar>(channels);
         ref.read<cv::Size>(resolution);
@@ -599,12 +596,10 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
                 // does it use a mask?
                 mask = new Image((uint)this->resolution.height /*- (offsets.y + offsets.height)*/, (uint)this->resolution.width /*- (offsets.x + offsets.width)*/, channels);
                 
-                //Debug("Reading mask with %dx%d", mask->cols, mask->rows);
                 ref.read_data(mask->size(), (char*)mask->data());
                 
                 for(uint64_t i=0; i<mask->size(); i++)
                     if(mask->data()[i] > 1) {
-                        //Debug("Correcting mask values from %d to 1.", mask->data()[i]);
                         mask->get() /= mask->data()[i];
                         break;
                     }
@@ -766,7 +761,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     
     std::string File::get_info_rich_text(bool full) {
         std::stringstream ss;
-        ss << this->toString() << "\n";
+        ss << this->summary() << "\n";
         
         /**
          * Display time related information.
@@ -981,7 +976,6 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             raw_prev_timestamp = frame.timestamp();
             
             if(last_reset_idx) {
-            	//Debug("%lu -> %lu", frame.timestamp(), last_reset+frame.timestamp());
                 frame.set_timestamp(last_reset + frame.timestamp());
             }
             
@@ -1114,7 +1108,6 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         auto p = percentile(pixel_values, percent);
         Debug("Took %fs to calculate percentiles in %d frames.", timer.elapsed(), num_frames);
         //auto str = Meta::toStr(samples);
-        //Debug("%S", &str);
         return p;
     }
     

@@ -28,8 +28,8 @@ int main(int argc, char**argv) {
 #endif
     DEBUG::set_runtime_quiet();
     
-    auto OS_ACTIVITY_DT_MODE = getenv("OS_ACTIVITY_DT_MODE");
 #ifndef NDEBUG
+    auto OS_ACTIVITY_DT_MODE = getenv("OS_ACTIVITY_DT_MODE");
     if(OS_ACTIVITY_DT_MODE) {
         Debug("OS_ACTIVITY_DT_MODE: %s", OS_ACTIVITY_DT_MODE);
     }
@@ -83,7 +83,6 @@ int main(int argc, char**argv) {
         double average = 0;
         size_t counted = 0;
         grid.root()->apply([&counted, &average](auto& pt) -> bool {
-            //Debug("%f,%f = %f", pt.x, pt.y, pt.value);
             average += pt.value;
             ++counted;
             return true;
@@ -97,7 +96,6 @@ int main(int argc, char**argv) {
         
         timer.reset();
         grid.root()->apply([&counted, &average](auto& pt) -> bool {
-            //Debug("%f,%f = %f", pt.x, pt.y, pt.value);
             average += pt.value;
             ++counted;
             return true;
@@ -110,7 +108,6 @@ int main(int argc, char**argv) {
         
         timer.reset();
         grid.root()->apply([&counted, &average](auto& pt) -> bool {
-            //Debug("%f,%f = %f", pt.x, pt.y, pt.value);
             average += pt.value;
             ++counted;
             return true;
@@ -127,7 +124,6 @@ int main(int argc, char**argv) {
             for(uint32_t cy = 0; cy < resolution; ++cy) {
                 pool.enqueue([&counter, &range, step_size, &grid](uint32_t cx, uint32_t cy){
                     grid.root()->apply([&](auto& pt) -> bool {
-                        //Debug("%f,%f = %f", pt.x, pt.y, pt.value);
                         //average += pt.value;
                         ++counter;
                         return true;
@@ -152,7 +148,6 @@ int main(int argc, char**argv) {
         grid.fill(extra_points);
         Debug("Inserting %lu extra points took %fms (grid now has %lu points)", extra_points.size(), timer.elapsed() * 1000, grid.size());
         //auto str = Meta::toStr(cells);
-        //Debug("Cells: %S", &str);
         
         counted = 0;
         average = 0;
@@ -217,7 +212,6 @@ int main(int argc, char**argv) {
     if(!conda_prefix.empty()) {
         file::Path _wd(conda_prefix);
         _wd = _wd / "usr" / "share" / "trex";
-        //Debug("change directory to conda environment resource folder: '%S'", &_wd.str());
         
 #if defined(WIN32)
         if (!SetCurrentDirectoryA(_wd.c_str()))
@@ -434,7 +428,6 @@ int main(int argc, char**argv) {
                     if(GlobalSettings::map().has(command) && GlobalSettings::get(command).is_type<bool>() && (!value || std::string(value).empty())) {
                         value = "true";
                     }
-                    //Debug("Setting option '%s' to value '%s'", command, value);
                 
                     if(value)
                         sprite::parse_values(GlobalSettings::map(), "{'"+std::string(command)+"':"+std::string(value)+"}");
@@ -546,7 +539,6 @@ int main(int argc, char**argv) {
             
             long_t frame = track::Tracker::start_frame();
             for(; frame < track::Tracker::end_frame(); ++frame) {
-                //Debug("Showing %d", frame);
                 svenja.set_frame(frame);
             }
             
@@ -599,7 +591,6 @@ int main(int argc, char**argv) {
                     double blob_size = frame.pixels().at(i)->size();
                     max_pixels.addNumber(blob_size);
                     
-                    //Debug("%d", frame.pixels().at(i)->size());
                     //map(blob.bounds()) += 1;
                     for (auto &h : *frame.mask().at(i)) {
                         for (ushort x = h.x0; x<=h.x1; ++x) {

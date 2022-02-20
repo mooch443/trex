@@ -432,7 +432,6 @@ int main(int argc, char** argv)
         if(!conda_prefix.empty()) {
             file::Path _wd(conda_prefix);
             _wd = _wd / "usr" / "share" / "trex";
-            //Debug("change directory to conda environment resource folder: '%S'", &_wd.str());
             
 #if defined(WIN32)
             if (!SetCurrentDirectoryA(_wd.c_str()))

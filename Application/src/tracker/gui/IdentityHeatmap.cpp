@@ -46,7 +46,6 @@ inline std::string get_stats() {
         
         if(samples > 0)
             ss << "   " << name << ": " << sum / samples * 1000 << "ms" << std::endl;
-            //Debug("\t%S: %fms", &name, sum / samples * 1000);
     }
     
     return ss.str();
@@ -442,7 +441,6 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
     
     {
         auto d = abs(current_frame - _frame);
-        //Debug("Frame %d->%d: %d frames", _frame, current_frame, d);
         const auto frame_range = _frame_context >= 0_f ? _frame_context : Frame_t(narrow_cast<Frame_t::number_t>(FAST_SETTINGS(video_length)));
         
         if(!_frame.valid() || _grid.empty() || (_frame_context.valid() && d >= _frame_context)) {
@@ -451,7 +449,6 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
             _grid.clear();
             updated.add_range = Range<Frame_t>(current_frame - frame_range,
                                                current_frame + frame_range + 1_f);
-            //Debug("Clearing grid (%lu).", _grid.size());
             _iterators.clear();
             _capacities.clear();
             
@@ -501,7 +498,6 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
                 auto it = _iterators.find(fish);
                 if(it == _iterators.end()) {
                     kit = fish->iterator_for(frame);
-                    //Debug("Frame %d: fish%d, Reit", frame, fish->identity().ID());
                 } else {
                     if(_capacities[fish] != fish->frame_segments().capacity()) {
                         _capacities[fish] = fish->frame_segments().capacity();
@@ -513,12 +509,10 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
                 if(kit == fish->frame_segments().end() && range.end >= fish->start_frame())
                 {
                     kit = fish->iterator_for(fish->start_frame());
-                    //Debug("Frame %d: fish%d, Initialize to start (%d)", frame, fish->identity().ID(), fish->start_frame());
                 }
                 
                 if(kit != fish->frame_segments().end() && !(*kit)->contains(frame)) {
                     if((*kit)->end() < frame) {
-                        //Debug("Frame %d: fish%d, %d<%d", frame, fish->identity().ID(), (*kit)->end(), frame);
                         
                         // everything okay
                         do {
@@ -527,12 +521,10 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
                         
                     } else if(fish->has(frame)) {
                         kit = fish->iterator_for(frame);
-                        //Debug("Frame %d: fish%d, ReIt#2", frame, fish->identity().ID());
                     }
                 }
                 
 //                       if(kit == fish->frame_segments().end())
-//                            Debug("Cannot find segment for frame %d in fish %d", frame, fish->identity().ID());
                 Output::Library::LibInfo info(fish, _mods);
                 
                 for(; frame < min(Tracker::end_frame(), range.end); ++frame) {
@@ -544,7 +536,6 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
                     //    continue;
                     
                     while(kit != fish->frame_segments().end() && frame > (*kit)->end()) {
-                        //Debug("Frame %d: fish%d, %d > %d -> ++kit", frame, fish->identity().ID(), frame, (*kit)->end());
                         ++kit;
                         //if(kit == fish->frame_segments().end())
                         //    break; // no point in trying to find more data
@@ -613,7 +604,6 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
     }
     
     //auto str = Meta::toStr(data);
-    //Debug("%S", &str);
     _frame = current_frame;
     push_timing("Heatmap::update_data()", timer.elapsed());
     
@@ -781,7 +771,6 @@ inline Node::Ptr retrieve_region() {
         _cached_regions.pop();
     } else {
         ptr = new Region();//std::make_shared<Region>();
-        //Debug("Creating region");
     }
     
     return ptr;
@@ -798,7 +787,6 @@ inline Node::Ptr retrieve_leaf() {
         _cached_leafs.pop();
     } else {
         ptr = new Leaf();//std::make_shared<Leaf>();
-        //Debug("Creating leaf");
     }
     
     return ptr;
@@ -812,7 +800,6 @@ inline void push_region(Node::Ptr ptr) {
     _cached_regions.push(ptr);
     
     //if(_cached_regions.size() % 10000 == 0)
-    //    Debug("Pushing region (%lu)", _cached_regions.size());
 }
 
 inline void push_leaf(Node::Ptr ptr) {
@@ -823,7 +810,6 @@ inline void push_leaf(Node::Ptr ptr) {
     _cached_leafs.push(ptr);
     
     //if(_cached_leafs.size() % 10000 == 0)
-    //    Debug("Pushing leaf (%lu)", _cached_leafs.size());
 }
 
 void Node::init(const Grid* grid, Node::Ptr parent, const Range<uint32_t>& x, const Range<uint32_t>& y) {
@@ -1101,7 +1087,6 @@ Grid::~Grid() {
         delete _root;
     }
     
-    //Debug("Items: %lu", _cached_regions.size());
 }
 
 void Grid::prepare_data(std::vector<DataPoint> &data) {
@@ -1746,11 +1731,9 @@ Region::Region()
     : _pixel_size(0), _size(0)
 {
     std::fill(_regions.begin(), _regions.end(), nullptr);
-    //Debug("Creating a region of %u-%u, %u-%u and pixel size %u", _x.start, _x.end, _y.start, _y.end, _pixel_size);
 }
 
 Region::~Region() {
-    //Debug("Deleting region");
 }
 
 void Region::init(const Grid* grid, Node::Ptr parent, const Range<uint32_t>& x, const Range<uint32_t>& y, uint32_t pixel_size)
@@ -1763,7 +1746,6 @@ void Region::init(const Grid* grid, Node::Ptr parent, const Range<uint32_t>& x, 
 
 Leaf::Leaf()
 {
-    //Debug("Creating a leaf of %u-%u, %u-%u", _x.start, _x.end, _y.start, _y.end);
 }
 
 void Leaf::insert(std::vector<DataPoint>::iterator start, std::vector<DataPoint>::iterator end)

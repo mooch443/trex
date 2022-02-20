@@ -95,7 +95,6 @@ void DebugDrawing::paint(const Outline &outline, bool erase) {
              printf("\nCurvature: ");
             for (long i=0; i<L; i++) {
                 printf("%f, ", corrected[i]);
-                //Debug("Curvature: %f", corrected[i]);
                 max_curvature = max(abs(corrected[i]), max_curvature);
             }
             printf("\n");*/

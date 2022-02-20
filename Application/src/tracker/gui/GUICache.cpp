@@ -385,12 +385,10 @@ namespace gui {
             if(reload_blobs) {
                 display_blobs.clear();
                 if(L < raw_blobs.size()) {
-                    //Debug("Moving %lu blobs to available list...", raw_blobs.size() - L);
                     std::move(raw_blobs.begin() + L, raw_blobs.end(), std::back_inserter(available_blobs_list));
                     raw_blobs.erase(raw_blobs.begin() + L, raw_blobs.end());
                     
                 } else if(L != raw_blobs.size()) {
-                    //Debug("Requiring %lu more...", L - raw_blobs.size());
                     raw_blobs.reserve(L);
                 }
             }

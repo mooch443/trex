@@ -74,7 +74,6 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
             if(sit != states.end())
                 states.erase(sit);
             
-            //Debug("Fish has been deleted from EventAnalysis: %d", fish->identity().ID());
         }
     }
     
@@ -198,7 +197,6 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
                 
                 map.events[state.last_event_start] = Event(state.last_event_start, state.last_event_end, energy, angle_change, acceleration, length(state.v_before), length(velocity));
                 map.lengths[state.last_event_start.get()] = sign_cast<size_t>(len.get());
-                //Debug("%d: Adding event %d", fish->identity().ID(), state.last_event_start);
             }
             
             state.last_event_start.invalidate();
