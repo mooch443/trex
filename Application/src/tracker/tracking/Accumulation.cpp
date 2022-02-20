@@ -14,7 +14,7 @@
 #include <gui/types/StaticText.h>
 #include <misc/checked_casts.h>
 #include <gui/DrawBase.h>
-#include <tracking/WalkMan.h>
+//#include <tracking/WalkMan.h>
 
 namespace track {
 using namespace file;

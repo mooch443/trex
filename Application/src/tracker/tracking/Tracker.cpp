@@ -1633,7 +1633,6 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             
         };
         
-#define TREX_THREADING_STATS
 #if defined(TREX_THREADING_STATS)
         static std::mutex mStats;
         struct Bin {
