@@ -110,7 +110,7 @@ namespace track {
             const float sqcm = SQR(FAST_SETTINGS(cm_per_pixel));
             const float rescale = 1 - min(0.9, max(0, SETTING(recognition_border_size_rescale).value<float>()));
             
-            Debug("Reading video...");
+            print("Reading video...");
             pv::Frame frame;
             size_t step_size = max(1, video.length() * 0.0002);
             const size_t count_steps = video.length() / step_size;
@@ -143,7 +143,7 @@ namespace track {
                     Debug("[border] %d / %d", i/step_size, count_steps);
             }
             
-            Debug("Done.");
+            print("Done.");
         }
         
         std::multiset<uint32_t> counts;
@@ -193,7 +193,7 @@ namespace track {
         
         if(_vertices.empty()) {
             Timer timer;
-            Debug("Generating outline...");
+            print("Generating outline...");
             
             if((size_t)video.size().height > (size_t)USHRT_MAX)
                 U_EXCEPTION("Video is too big (max: %dx%d)", USHRT_MAX, USHRT_MAX);
@@ -419,7 +419,7 @@ namespace track {
                 } else
                     _vertices.clear();
                 
-                Debug("Generating mask...");
+                print("Generating mask...");
                 Timer timer;
                 _mask = Image::Make(video.size().height, video.size().width);
                 if(!_vertices.empty()) {

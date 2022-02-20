@@ -115,7 +115,7 @@ namespace cmn {
         
         std::lock_guard<std::mutex> lock(_finish_mutex);
         _finish_condition.notify_one();
-        Debug("Initialized %d stages", _stages.size());
+        print("Initialized ", _stages.size()," stages");
     }
 
     ConnectedTasks::~ConnectedTasks() {

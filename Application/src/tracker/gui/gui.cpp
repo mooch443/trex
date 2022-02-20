@@ -292,7 +292,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
             return;
         }
         if(name == "auto_train") {
-            Debug("Changing");
+            print("Changing");
         }
         if(!GUI::instance())
             return;
@@ -478,7 +478,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                     old = next;
                     
                 } else
-                    Debug("Nothing changed.");
+                    print("Nothing changed.");
             }
         });
     };
@@ -595,7 +595,7 @@ void GUI::run(bool r) {
 }
 
 void GUI::load_connectivity_matrix() {
-    Debug("Updating connectivity matrix...");
+    print("Updating connectivity matrix...");
     auto path = SETTING(gui_connectivity_matrix_file).value<file::Path>();
     path = pv::DataLocation::parse("input", path);
     
@@ -790,7 +790,7 @@ void GUI::run_loop(gui::LoopStatus status) {
         
         if(changed_objects) {
             /*auto str = Meta::toStr(changed_objects_str);
-            Debug("changed: %S", &str);
+            print("changed: ", str);
             Debug("%d changed objects", changed_objects);*/
             PD(last_frame_change).reset();
         }
@@ -889,7 +889,7 @@ void GUI::do_recording() {
             duration.timestamp = uint64_t(double(duration.timestamp) / double(playback_speed));
             str += " (real: "+Meta::toStr(duration)+")";
         }
-        Debug("[rec] %S", &str);
+        print("[rec] ", str);
         last_print.reset();
     }
 }
@@ -979,7 +979,7 @@ void GUI::start_recording() {
                     PD(recording) = false;
                     return;
                 } else
-                    Debug("Created folder '%S'.", &frames.str());
+                    print("Created folder ", frames.str(),".");
             }
         }
         
@@ -1011,7 +1011,7 @@ void GUI::stop_recording() {
                     GUI::work().add_queue("converting video...", [cmd=cmd, save_path=save_path](){
                         Debug("Running '%S'..", &cmd);
                         if(system(cmd.c_str()) == 0)
-                            Debug("Saved video at '%S'.", &save_path.str());
+                            print("Saved video at ", save_path.str(),".");
                         else
                             Error("Cannot save video at '%S'.", &save_path.str());
                     });
@@ -2337,10 +2337,10 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             }
             
             auto str = Meta::toStr(selected_option);
-            Debug("options: %S", &str);
+            print("options: ", str);
             
             _settings_choice = std::make_shared<List>(Bounds(0, PD(gui).height() / PD(gui).scale().y, 150, textfield.height()), "", items, [&textfield](List*, const List::Item& item){
-                Debug("Clicked on item %d", item.ID());
+                print("Clicked on item ", item.ID());
                 textfield.set_text(item);
                 textfield.enter();
                 _settings_choice->set_folded(true);
@@ -2418,7 +2418,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             Tracker::LockGuard guard("settings_dropdown.text() consecutive");
             auto consec = std::set<Range<Frame_t>>(Tracker::instance()->consecutive().begin(), Tracker::instance()->consecutive().end());
             auto str = Meta::toStr(consec);
-            Debug("consecutive frames: %S", &str);
+            print("consecutive frames: ", str);
             
         }
         else if(settings_dropdown.text() == "results info") {
@@ -2430,7 +2430,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                 file.start_reading();
                 
                 if(file.header().version >= ResultsFormat::V_14) {
-                    Debug("Settings:\n%S", &file.header().settings);
+                    print("Settings:\n", file.header().settings);
                 } else
                     Except("Cannot load settings from results file < V_14");
             } else
@@ -2449,7 +2449,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             Debug("All free fish in frame %d: %S", frame(), &str);
             
             str = Meta::toStr(inactive);
-            Debug("All inactive fish: %S", &str);
+            print("All inactive fish: ", str);
         }
         else if(settings_dropdown.text() == "print_uniqueness") {
             work().add_queue("discrimination", [](){
@@ -2525,7 +2525,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             
         } else if(settings_dropdown.text() == "pixels") {
             Tracker::LockGuard guard("settings_dropdown.text() pixels");
-            Debug("Calculating...");
+            print("Calculating...");
             
             std::map<std::string, size_t> average_pixels;
             std::map<std::string, size_t> samples;
@@ -2609,11 +2609,11 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             cvbase.paint(window);
             cvbase.display();
         } else if(settings_dropdown.text() == "blob_info") {
-            Debug("Preprocessed frame %d:", PD(cache).frame_idx);
+            print("Preprocessed frame ", PD(cache).frame_idx,":");
             auto str = Meta::toStr(PD(cache).processed_frame.noise());
-            Debug("Filtered out: %S", &str);
+            print("Filtered out: ", str);
             str = Meta::toStr(PD(cache).processed_frame.blobs());
-            Debug("Blobs: %S", &str);
+            print("Blobs: ", str);
         }
         
         layout.remove_child(&textfield);
@@ -2878,7 +2878,7 @@ void GUI::update_recognition_rect() {
         };
         
         {
-            Debug("Calculating border...");
+            print("Calculating border...");
             
             std::lock_guard<std::mutex> guard(blob_thread_pool_mutex());
             for(ushort x = 0; x < max_w; ++x) {
@@ -3302,7 +3302,7 @@ void GUI::update_backups() {
 
 void GUI::start_backup() {
     work().add_queue("", [](){
-        Debug("Writing backup of settings...");
+        print("Writing backup of settings...");
         GUI::write_config(true, TEXT, ".backup");
     });
 }
@@ -3860,14 +3860,14 @@ void GUI::auto_train() {
     auto rec = Tracker::recognition();
     if(rec) {
         rec->detail().register_finished_callback([&](){
-            Debug("Finished.");
+            print("Finished.");
             
             Tracker::recognition()->check_last_prediction_accuracy();
             
             std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
             instance()->auto_correct(GUI::GUIType::TEXT, true);
         });
-        Debug("Registering finished callback.");
+        print("Registering finished callback.");
     }
     
     std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
@@ -3882,7 +3882,7 @@ void GUI::auto_apply() {
     auto rec = Tracker::recognition();
     if(rec) {
         rec->detail().register_finished_callback([&](){
-            Debug("Finished.");
+            print("Finished.");
             
             Tracker::recognition()->check_last_prediction_accuracy();
             
@@ -4218,7 +4218,7 @@ void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void
 #endif
                 }
             } else
-                Debug("Initialization success.");
+                print("Initialization success.");
         });
         //PythonIntegration::instance();
         
@@ -4361,7 +4361,7 @@ void GUI::generate_training_data_faces(const file::Path& path) {
     
     if(!path.exists()) {
         if(path.create_folder())
-            Debug("Created folder '%S'.", &path.str());
+            print("Created folder ", path.str(),".");
         else {
             Except("Cannot create folder '%S'. Check permissions.", &path.str());
             return;
@@ -4502,11 +4502,11 @@ void GUI::generate_training_data_faces(const file::Path& path) {
     try {
         file::Path npz_path = path / "data.npz";
         cmn::npz_save(npz_path.str(), "range", std::vector<long_t>{ range.start.get(), range.end.get() });
-        Debug("Saving %d positions...", num_images);
+        print("Saving ", num_images," positions...");
         cmn::npz_save(npz_path.str(), "positions", heads.data(), {num_images, 2}, "a");
         cmn::npz_save(npz_path.str(), "images", images.data(), {num_images, (size_t)output_size.height, (size_t)output_size.width}, "a");
         /*if(num_unassigned_blobs > 0) {
-            Debug("Saving %d unsorted images...", num_unassigned_blobs);
+            print("Saving ", num_unassigned_blobs," unsorted images...");
             cmn::npz_save(npz_path.str(), "unsorted_images", unassigned_blobs.data(), {num_unassigned_blobs, (size_t)output_size.height, (size_t)output_size.width}, "a");
         }*/
         

@@ -550,12 +550,12 @@ int main(int argc, char** argv)
                     } else {
                         printf("\n");
                         DebugHeader("AVAILABLE OPTIONS");
-                        Debug("-i <filename>       Input video source (basler/webcam/video path)");
-                        Debug("-d <folder>         Set the default input/output folder");
-                        Debug("-s <filename>       Set the .settings file to be used (default is <input>.settings)");
-                        Debug("-load               Loads previously saved .results file (if it exists)");
-                        Debug("-h                  Prints this message");
-                        Debug("-h settings         Displays all default settings with description in the default browser");
+                        print("-i <filename>       Input video source (basler/webcam/video path)");
+                        print("-d <folder>         Set the default input/output folder");
+                        print("-s <filename>       Set the .settings file to be used (default is <input>.settings)");
+                        print("-load               Loads previously saved .results file (if it exists)");
+                        print("-h                  Prints this message");
+                        print("-h settings         Displays all default settings with description in the default browser");
                         exit(0);
                     }
                     
@@ -1299,16 +1299,16 @@ int main(int argc, char** argv)
             
             bool pause = value.value<bool>();
             if(analysis->paused() != pause) {
-                Debug("Adding to queue...");
+                print("Adding to queue...");
                 
                 gui.work().add_queue("pausing", [&analysis, pause](){
                     if(analysis->paused() != pause) {
                         analysis->set_paused(pause);
-                        Debug("Paused.");
+                        print("Paused.");
                     }
                 });
                 
-                Debug("Added.");
+                print("Added.");
             }
         }
     });
@@ -1461,8 +1461,8 @@ int main(int argc, char** argv)
                 
                 Tracker::LockGuard guard("pause_stuff");
             
-                Debug("Console opened.");
-                Debug("Please enter command below (type help for available commands):");
+                print("Console opened.");
+                print("Please enter command below (type help for available commands):");
                 printf(">> ");
                 std::getline(std::cin, cmd);
             }
@@ -1480,14 +1480,14 @@ int main(int argc, char** argv)
                         gui.load_state(GUI::GUIType::TEXT);
                     }
                     else if(command == "help") {
-                        Debug("You may type any of the following commands:");
-                        Debug("\tinfo\t\t\t\tPrints information about the current file");
+                        print("You may type any of the following commands:");
+                        print("\tinfo\t\t\t\tPrints information about the current file");
                         Debug("\tsave_results [force]\t\tSaves a .results file (if one already exists, force is required to overwrite).");
-                        Debug("\texport_data\t\tExports the tracked data to CSV/NPZ files according to settings.");
+                        print("\texport_data\t\tExports the tracked data to CSV/NPZ files according to settings.");
                         Debug("\tsave_config [force]\t\tSaves the current settings (if settings exist, force to overwrite).");
                         Debug("\tauto_correct [force]\t\tGenerates auto_corrected manual_matches. If force is set, applies them.");
                         Debug("\ttrain_network [load]\t\tStarts network training with currently selected segment. If load is set, loads weights and applies them.");
-                        Debug("\treanalyse\t\t\tReanalyses the whole video from frame 0.");
+                        print("\treanalyse\t\t\tReanalyses the whole video from frame 0.");
                     }
                     else if(command == "info") {
                         auto str = gui.info(false);
@@ -1550,7 +1550,7 @@ int main(int argc, char** argv)
                             try {
                                 PythonIntegration::execute(copy);
                             } catch(const SoftException& e) {
-                                Debug("Runtime error: '%s'", e.what());
+                                print("Runtime error: '", e.what(),"'");
                             }
                             return true;
                         });
@@ -1612,7 +1612,7 @@ int main(int argc, char** argv)
                         
                         if(!matches.empty()) {
                             auto str = prettify_array(Meta::toStr(matches));
-                            Debug("Did you mean any of these settings keys? %S", &str);
+                            print("Did you mean any of these settings keys? ", str);
                         }
                         
                         executed = false;
@@ -1723,7 +1723,7 @@ int main(int argc, char** argv)
         last_seconds = seconds;
     });
     
-    Debug("Preparing for shutdown...");
+    print("Preparing for shutdown...");
     CheckUpdates::cleanup();
     Categorize::terminate();
     Recognition::notify();

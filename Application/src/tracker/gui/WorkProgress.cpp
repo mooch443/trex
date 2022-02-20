@@ -232,7 +232,7 @@ void WorkProgress::set_progress(const std::string& title, float value, const std
     std::lock_guard<std::mutex> guard(_queue_lock);
     if(!title.empty()) {
         if(_item != title && !title.empty())
-            Debug("[WORK] %S", &title);
+            print("[WORK] ", title);
         _item = title;
     }
     if(!desc.empty())
@@ -371,7 +371,7 @@ void WorkProgress::update(gui::DrawStructure &base, gui::Section *section) {
             if(custom_handler == -1) {
                 custom_handler = 1;
                 custom_static_button.on_click([this](auto){
-                    Debug("Custom item triggered");
+                    print("Custom item triggered");
                     this->custom_item();
                 });
             }

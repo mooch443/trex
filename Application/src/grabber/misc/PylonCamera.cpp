@@ -30,7 +30,7 @@ namespace fg {
             U_EXCEPTION("Cannot find camera with serial number '%S'.", &serial_number);
         
         std::string name(_camera->GetDeviceInfo().GetFriendlyName());
-        Debug("Using camera '%S'.", &name);
+        print("Using camera ", name,".");
         
         _camera->RegisterConfiguration( new CAcquireContinuousConfiguration, RegistrationMode_ReplaceAll, Cleanup_Delete);
         //_camera->RegisterConfiguration( new CSoftwareTriggerConfiguration, RegistrationMode_ReplaceAll, Cleanup_Delete);
@@ -40,7 +40,7 @@ namespace fg {
         _camera->DeviceLinkSelector.SetValue(0);
         
         if(GenApi::IsWritable(_camera->DeviceLinkThroughputLimitMode)) {
-            Debug("Disabling USB throughput limit.");
+            print("Disabling USB throughput limit.");
             _camera->DeviceLinkThroughputLimitMode.SetValue(DeviceLinkThroughputLimitMode_Off);
         }
         

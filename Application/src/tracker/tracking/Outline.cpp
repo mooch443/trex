@@ -489,7 +489,7 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
         
         if(info.debug) {
             auto str = Meta::toStr(*_points);
-            Debug("Smoothed curvature: %S", &str);
+            print("Smoothed curvature: ", str);
         }
         
         auto mode = OUTLINE_SETTING(peak_mode) == default_config::peak_mode_t::broad ? PeakMode::FIND_BROAD : PeakMode::FIND_POINTY;
@@ -540,8 +540,7 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
         if(info.debug) {
            auto str = Meta::toStr(high_peaks);
         
-           Debug("");
-           Debug("%d(%d): Finding tail. %S", info.frameIndex, info.fdx, &str);
+           Debug("\n%d(%d): Finding tail. %S", info.frameIndex, info.fdx, &str);
             std::vector<Vec2> maximums, highmax;
             for(auto peak : *maxima_ptr) {
                 maximums.push_back(peak.position);
@@ -1047,7 +1046,7 @@ void Midline::post_process(const MovementInformation &movement, DebugInfo info) 
             Warning("%f%%", p);
         if(info.debug) {
             segments() = old_copy;
-            Debug("Old");
+            print("Old");
         }
         
         *for (size_t i=0; i<segments().size(); ++i) {

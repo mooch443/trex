@@ -154,7 +154,7 @@ VideoOpener::VideoOpener()
 #endif
                     ptr = nullptr;
 #ifndef NDEBUG
-                    Debug("Removed stale buffer '%S'.", &path.str());
+                    print("Removed stale buffer ", path.str(),".");
 #endif
                 } catch(const std::exception& e) {
                     Except("Exception while freeing stale buffer '%s'.", e.what());
@@ -166,12 +166,12 @@ VideoOpener::VideoOpener()
       
 #ifndef NDEBUG
             if(i)
-                Debug("Removed %d stale buffers", i);
+                print("Removed ", i," stale buffers");
 #endif
         }
         
 #ifndef NDEBUG
-        Debug("Quit stale thread.");
+        print("Quit stale thread.");
 #endif
     });
     
@@ -1034,13 +1034,13 @@ void VideoOpener::select_file(const file::Path &p) {
             _blob_images.clear();
             
 #ifndef NDEBUG
-            Debug("Mini bowl update (%f scale):", _mini_bowl->scale().x);
+            print("Mini bowl update (", _mini_bowl->scale().x," scale):");
 #endif
             
             _blob_image_index = 0;
             _blob_timer.reset();
 #ifndef NDEBUG
-            Debug("Done.");
+            print("Done.");
 #endif
         });
         
@@ -1111,7 +1111,7 @@ void VideoOpener::select_file(const file::Path &p) {
             
             _accumulate_frames_done = true;
 #ifndef NDEBUG
-            Debug("accumulate done");
+            print("accumulate done");
 #endif
         });
         

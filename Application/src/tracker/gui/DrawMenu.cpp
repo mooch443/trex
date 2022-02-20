@@ -264,7 +264,7 @@ public:
                 case CLEAR:
                     {
                         Tracker::instance()->clear_segments_identities();
-                        Debug("Cleared all averaged probabilities and automatic matches.");
+                        print("Cleared all averaged probabilities and automatic matches.");
                     }
                     break;
                     

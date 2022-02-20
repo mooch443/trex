@@ -337,7 +337,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
                 test << Size2(test.size() - test.pos());
                 
                 if(bounds != test)
-                    Debug("why");
+                    print("why");
                 
                 assert(!clique.empty());
                 

@@ -99,7 +99,7 @@ void DebugDrawing::paint(const Outline &outline, bool erase) {
             }
             printf("\n");*/
             
-            Debug("Maxmimum curvature: %f", max_curvature);
+            print("Maxmimum curvature: ", max_curvature);
             
             auto derivative = curves::derive(corrected);
             auto derivative2 = curves::derive(io);
@@ -132,7 +132,7 @@ void DebugDrawing::paint(const Outline &outline, bool erase) {
             }
             
             if(minima.empty())
-                Debug("minima empty.");
+                print("minima empty.");
             
             Graph graph(Bounds(Size2(800, 600)), "outline", Rangef(0, outline.size()+5), Rangef(-max_slope*1.5, max_slope*1.5));
             graph.set_zero(0);
@@ -342,7 +342,7 @@ void DebugDrawing::paint(const track::Posture &posture, const cv::Mat& greyscale
 }
 
 void DebugDrawing::paint(const Midline *midline) {
-    Debug("Midline curvature:");
+    print("Midline curvature:");
     auto &segments = midline->segments();
     long L = segments.size();
     long offset = 1;

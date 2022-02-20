@@ -14,6 +14,7 @@
 #include <gui/types/StaticText.h>
 #include <misc/checked_casts.h>
 #include <gui/DrawBase.h>
+#include <tracking/WalkMan.h>
 
 namespace track {
 using namespace file;
@@ -305,14 +306,14 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
     }
     
     if(unique_ids.size() == FAST_SETTINGS(manual_identities).size() - 1 && min_prob > pure_chance * FAST_SETTINGS(recognition_segment_add_factor)) {
-        Debug("\tOnly one missing id in predicted ids. Guessing solution...");
+        print("\tOnly one missing id in predicted ids. Guessing solution...");
         
         //! Searching for consecutive numbers, finding the gap
         Idx_t missing_predicted_id(0);
         for(auto id : unique_ids) {
             if(id != missing_predicted_id) {
                 // missing id i
-                Debug("\tMissing only id %d in predicted ids.", missing_predicted_id);
+                print("\tMissing only id ", missing_predicted_id," in predicted ids.");
                 break;
             }
             
@@ -369,7 +370,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
 }
 
 void Accumulation::confirm_weights() {
-    Debug("Confirming weights.");
+    print("Confirming weights.");
     auto path = Recognition::network_path();
     auto progress_path = file::Path(path.str() + "_progress.npz");
     path = path.add_extension("npz");
@@ -404,7 +405,7 @@ void Accumulation::update_coverage(const TrainingData &data) {
         _coverage_paths.push_back(image_path);
         cv::imwrite(image_path.str(), copy);
         //tf::imshow("coverage", copy);
-        Debug("Coverage written to '%S'.", &image_path.str());
+        print("Coverage written to ", image_path.str(),".");
     }
     
     {
@@ -432,7 +433,7 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Fram
             GUI::work().set_progress("generating images", 0);
         else U_EXCEPTION("No instance.");
         
-        Debug("Generating discrimination data.");
+        print("Generating discrimination data.");
         
         Range<Frame_t> analysis_range = Range<Frame_t>{
             Tracker::analysis_range().start,
@@ -663,7 +664,7 @@ bool Accumulation::start() {
             return false;
         }
         
-        Debug("[CONTINUE] Initializing network and loading available weights from previous run.");
+        print("[CONTINUE] Initializing network and loading available weights from previous run.");
         Accumulation::setup();
         Tracker::recognition()->reinitialize_network();
         Tracker::recognition()->load_weights();
@@ -671,6 +672,39 @@ bool Accumulation::start() {
         
     } else if(_mode == TrainingMode::Apply) {
         Accumulation::setup();
+        
+        /*using namespace walk;
+        WalkMan(WalkMan::Source{"tracking", [](Frame_t frame) -> Task {
+            std::vector<pv::BlobPtr> blobs;
+            std::vector<uint32_t> ids;
+            
+            {
+                Tracker::LockGuard guard("VI::discover");
+                auto active = Tracker::active_individuals(frame);
+                blobs.reserve(active.size());
+                ids.reserve(active.size());
+                
+                for(auto &fish : active) {
+                    blobs.emplace_back(std::move(fish->blob(frame)));
+                    ids.push_back(fish->identity().ID());
+                }
+            }
+            
+            return Task(frame, std::move(ids), std::move(blobs));
+            
+        }}, std::vector<Step>{
+            Step{"generate_images", [](Task& task) {
+                print("generate images in ", task.size());
+                task.set_step(task.current_step()+1);
+            }},
+            Step{"learn_static", [](Task& task) {
+                print("Executing learn_static on task of size ", task.size());
+                //task._images.clear();
+                task.set_step(task.current_step() + 1);
+            }
+        }});
+        
+        return true;*/
         
         auto data = std::make_shared<TrainingData>();
         auto manual = FAST_SETTINGS(manual_identities);
@@ -722,7 +756,7 @@ bool Accumulation::start() {
     _disc_images = disc_images;
     _disc_frame_map = disc_map;
     
-    Debug("Discrimination data is at %X.", _disc_images.front().get());
+    print("Discrimination data is at ", _disc_images.front().get(),".");
     
     if(!_discrimination_data) {
         if(SETTING(auto_train_on_startup)) {
@@ -742,7 +776,7 @@ bool Accumulation::start() {
             py::exec("import keras.backend as K\nimport numpy as np\nuniqueness_data = K.variable(np.array(uniqueness_data, copy=False))", py::globals(), *locals);
             py::exec("print(type(uniqueness_data))", py::globals(), *locals);
         } catch (py::error_already_set &e) {
-            Debug("Runtime error: '%s'", e.what());
+            print("Runtime error: '", e.what(),"'");
             e.restore();
         }
         
@@ -951,7 +985,7 @@ bool Accumulation::start() {
             }
             
             auto str = Meta::toStr(all_distances);
-            Debug("\t\tall_distances: %S", & str);
+            print("\t\tall_distances: ",  str);
         };
         
         float maximum_average_samples = 0;
@@ -979,7 +1013,7 @@ bool Accumulation::start() {
             sorted_by_quality[std::numeric_limits<Frame_t::number_t>::max()] = {};
             
             auto quadrants = Meta::toStr(sorted_by_quality);
-            Debug("! Sorted segments into quadrants: %S", &quadrants);
+            print("! Sorted segments into quadrants: ", quadrants);
             
             size_t inserted_elements = 0;
             
@@ -1127,7 +1161,7 @@ bool Accumulation::start() {
                             str = Meta::toStr(_uniquenesses);
                         }
                         
-                        Debug("\tUniquenesses after adding: %S", &str);
+                        print("\tUniquenesses after adding: ", str);
                         
                         //! only confirm the weights if uniqueness is actually better/equal
                         /// but still use / merge the data if it isnt
@@ -1180,7 +1214,7 @@ bool Accumulation::start() {
         };
         
         auto update_meta_start_acc = [&](std::string prefix, Range<Frame_t> next_range, DatasetQuality::Quality quality, double average_unique) {
-            Debug("");
+            print("");
             auto qual_str = Meta::toStr(quality);
             Debug("[Accumulation %d%S] %d ranges remaining for accumulation (%d cached that did not predict unique ids yet), range %d-%d (%S, %f unique weight).", steps, &prefix, sorted.size(), tried_ranges.size(), next_range.start, next_range.end, &qual_str, average_unique);
             
@@ -1195,7 +1229,7 @@ bool Accumulation::start() {
             
             if(!GUI::instance() || (GUI::work().item_aborted() || GUI::work().item_custom_triggered()))
             {
-                Debug("Work item has been aborted - skipping accumulation.");
+                print("Work item has been aborted - skipping accumulation.");
                 return GUI::instance() && GUI::work().item_custom_triggered(); // otherwise, stop iterating
             }
             
@@ -1243,7 +1277,7 @@ bool Accumulation::start() {
             }
             
             auto str_gaps = Meta::toStr(frame_gaps);
-            Debug("\tIndividuals frame gaps: %S", &str_gaps);
+            print("\tIndividuals frame gaps: ", str_gaps);
             Frame_t::number_t maximal_gaps(0);
             for(auto && [id, L] : frame_gaps) {
                 if(L > maximal_gaps)
@@ -1267,16 +1301,16 @@ bool Accumulation::start() {
             }
             
             if(!unqiuenesses.empty() && best_uniqueness() > good_uniqueness) {
-                Debug("---");
-                Debug("Uniqueness is %f. This should be enough.", unqiuenesses.back());
+                print("---");
+                print("Uniqueness is ", unqiuenesses.back(),". This should be enough.");
                 reason_to_stop = "Uniqueness is "+Meta::toStr(unqiuenesses.back())+".";
                 tried_ranges.clear(); // dont retry stuff
                 return false;
             }
             
             if(maximal_gaps < analysis_range.length().get() * 0.25) {
-                Debug("---");
-                Debug("Added enough frames for all individuals - stopping accumulation.");
+                print("---");
+                print("Added enough frames for all individuals - stopping accumulation.");
                 reason_to_stop = "Added "+Meta::toStr(frame_gaps)+" of frames from global segments with maximal gap of "+Meta::toStr(maximal_gaps)+" / "+Meta::toStr(analysis_range.length())+" frames ("+Meta::toStr(maximal_gaps / float(analysis_range.length().get()) * 100)+"%).";
                 tried_ranges.clear(); // dont retry stuff
                 
@@ -1296,7 +1330,7 @@ bool Accumulation::start() {
             // if sorted is not empty, but we have successfully trained on something, prioritize new ranges. If there are fewer new ranges available than old ranges that didnt predict unique ids yet, try those again.
             if(retry_ranges && !tried_ranges.empty() && sorted.size() <= tried_ranges.size())
             {
-                Debug("\tRetrying from %d ranges...", tried_ranges.size());
+                print("\tRetrying from ", tried_ranges.size()," ranges...");
                 
                 for(auto && [q, range, ptr] : tried_ranges) {
                     sorted.insert({-1, Frame_t(), q, ptr, range});
@@ -1347,7 +1381,7 @@ bool Accumulation::start() {
         
     } else {
         auto str = Meta::toStr(ranges);
-        Debug("Ranges remaining: %S", &str);
+        print("Ranges remaining: ", str);
     }
     
     if(!reason_to_stop.empty())
@@ -1408,7 +1442,7 @@ bool Accumulation::start() {
             }
         }
         
-        Debug("[Accumulation FINAL] Adding %d validation images to the training as well.", overall_images);
+        print("[Accumulation FINAL] Adding ", overall_images," validation images to the training as well.");
         
         const double number_classes = images_per_class.size();
         const double gpu_max_sample_mb = double(SETTING(gpu_max_sample_gb).value<float>()) * 1000;
@@ -1650,15 +1684,15 @@ bool Accumulation::start() {
     {
         std::lock_guard<std::mutex> guard(_current_uniqueness_lock);
         auto str = Meta::toStr(_uniquenesses);
-        Debug("Uniquenesses: %S", &str);
+        print("Uniquenesses: ", str);
         str = Meta::toStr(_coverage_paths);
-        Debug("All paths: %S", &str);
+        print("All paths: ", str);
     }
     
     try {
         auto path = pv::DataLocation::parse("output", Path(SETTING(filename).value<file::Path>().filename()+"_range_history.npz"));
         npz_save(path.str(), "tried_ranges", _checked_ranges_output.data(), {_checked_ranges_output.size() / 2, 2});
-        Debug("[Accumulation STOP] Saved range history to '%S'.", &path.str());
+        print("[Accumulation STOP] Saved range history to ", path.str(),".");
         
     } catch(...) {
         
@@ -1755,7 +1789,7 @@ void Accumulation::end_a_step(Result reason) {
                 return;
             _current_accumulation->update_display(e, text);
         });
-    Debug("[STEP] %S", &last);
+    print("[STEP] ", last);
 }
 
 void Accumulation::update_display(gui::Entangled &e, const std::string& text) {

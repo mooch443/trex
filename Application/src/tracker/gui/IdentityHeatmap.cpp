@@ -131,7 +131,7 @@ void HeatmapController::save() {
     //if (!be_quiet) 
     {
         auto str = FileSize{ expected * sizeof(double) }.to_string();
-        Debug("Likely memory size: %S", &str);
+        print("Likely memory size: ", str);
     }
 
     const uint64_t value_size = sizeof(decltype(per_frame)::value_type);
@@ -186,7 +186,7 @@ void HeatmapController::save() {
             }, "a");
         });
 
-        Debug("Saved to '%S'.", &path.str());
+        print("Saved to ", path.str(),".");
 
         per_frame.clear();
         frames.clear();
@@ -740,9 +740,9 @@ void HeatmapController::set_frame(Frame_t current_frame) {
             has_to_paint = true;
         
         if(_frame.get() % 50 == 0){
-            Debug("-------------------");
+            print("-------------------");
             Grid::print_stats("STATS (frame "+Meta::toStr(_frame)+", "+Meta::toStr(_grid.root()->IDs())+")");
-            Debug("");
+            print("");
         }
     }
     

@@ -98,7 +98,7 @@ static void signal_handler(int sig) {
             SETTING(terminate_error) = true;
         if(!SETTING(terminate)) {
             SETTING(terminate) = true;
-            Debug("Waiting for video to close.");
+            print("Waiting for video to close.");
         }
             //std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
@@ -108,7 +108,7 @@ BOOL WINAPI consoleHandler(DWORD signal_code) {
     if (signal_code == CTRL_C_EVENT) {
         if (!SETTING(terminate)) {
             SETTING(terminate) = true;
-            Debug("Waiting for video to close.");
+            print("Waiting for video to close.");
             return TRUE;
         }
         else
@@ -252,7 +252,7 @@ int main(int argc, char** argv)
     pv::DataLocation::register_path("settings", [](file::Path path) -> file::Path {
         auto settings_file = path.str().empty() ? SETTING(settings_file).value<Path>() : path;
         if(settings_file.empty()) {
-            Debug("The parameter settings_file (or -s) is empty. You can specify a settings file in the command-line by adding:\n\t-s path/to/file.settings");
+            print("The parameter settings_file (or -s) is empty. You can specify a settings file in the command-line by adding:\n\t-s path/to/file.settings");
             return settings_file;
         }
 		
@@ -334,7 +334,7 @@ int main(int argc, char** argv)
         throw std::exception();
     }
     
-    Debug("Initialized CuVid.");
+    print("Initialized CuVid.");
     
 #endif
 #endif
@@ -348,7 +348,7 @@ int main(int argc, char** argv)
 #endif
     
     init_signals();
-    Debug("Starting Application...");
+    print("Starting Application...");
     
     srand (time(NULL));
         
@@ -368,7 +368,7 @@ int main(int argc, char** argv)
         if(!SearchPath( NULL, "ffmpeg", ".exe", MAX_PATH, filename, &lpFilePart))
         {
             auto conda_prefix = ::default_config::conda_environment_path().str();
-            Debug("Conda prefix: %S", &conda_prefix);
+            print("Conda prefix: ", conda_prefix);
             if(!conda_prefix.empty()) {
                 auto files = file::Path(conda_prefix+"/bin").find_files();
                 for(auto file : files) {
@@ -423,7 +423,7 @@ int main(int argc, char** argv)
     #else
         if (!chdir(_wd.c_str()))
     #endif
-            Debug("Changed directory to '%S'.", &_wd);
+            print("Changed directory to ", _wd,".");
         else
             Error("Cannot change directory to '%S'.", &_wd);
         
@@ -519,7 +519,7 @@ int main(int argc, char** argv)
                             fclose(f);
                             
                             //printf("%s\n", rst.c_str());
-                            Debug("Saved at '%S'.", &path.str());
+                            print("Saved at ", path.str(),".");
                             
                             exit(0);
                         }
@@ -561,12 +561,12 @@ int main(int argc, char** argv)
                         } else {
                             printf("\n");
                             DebugHeader("AVAILABLE OPTIONS");
-                            Debug("-i <filename>       Input video source (basler/webcam/video path)");
-                            Debug("-d <folder>         Set the default input/output folder");
-                            Debug("-s <filename>       Set the .settings file to be used (default is <input>.settings)");
-                            Debug("-o                  Output filename");
-                            Debug("-h                  Prints this message");
-                            Debug("-h settings         Displays all default settings with description in the default browser");
+                            print("-i <filename>       Input video source (basler/webcam/video path)");
+                            print("-d <folder>         Set the default input/output folder");
+                            print("-s <filename>       Set the .settings file to be used (default is <input>.settings)");
+                            print("-o                  Output filename");
+                            print("-h                  Prints this message");
+                            print("-h settings         Displays all default settings with description in the default browser");
                             exit(0);
                         }
                         
@@ -625,7 +625,7 @@ int main(int argc, char** argv)
             try {
                 filenames = Meta::fromStr<std::vector<file::Path>>(video_source);
                 if(filenames.size() > 1) {
-                    Debug("Found an array of filenames.");
+                    print("Found an array of filenames.");
                 } else if(filenames.size() == 1) {
                     SETTING(video_source) = filenames.front();
                     filenames.clear();
@@ -704,7 +704,7 @@ int main(int argc, char** argv)
             log_file = fopen(path.str().c_str(), "wb");
             log_mutex.unlock();
             
-            Debug("Logging to '%S'.", &path.str());
+            print("Logging to ", path.str(),".");
         }
         
         if(SETTING(manual_identities).value<std::set<track::Idx_t>>().empty() && SETTING(track_max_individuals).value<uint32_t>() != 0)
@@ -719,7 +719,7 @@ int main(int argc, char** argv)
         std::shared_ptr<gui::IMGUIBase> imgui_base;
         
 #if WITH_PYLON
-        Debug("Starting with Basler Pylon support.");
+        print("Starting with Basler Pylon support.");
         
         // Before using any pylon methods, the pylon runtime must be initialized.
         Pylon::PylonAutoInitTerm term;
@@ -814,7 +814,7 @@ int main(int argc, char** argv)
             }
         }
         
-        Debug("Ending the program.");
+        print("Ending the program.");
         
     } catch(const DebugException& e) {
         printf("Debug exception: %s\n", e.what());

@@ -39,7 +39,7 @@ int main() {
 			next.speed<Units::CM_AND_SECONDS>());
 
 		auto manual = (p1 - p0).length() / (t1 - t0) * SETTING(cm_per_pixel).value<float>();
-		Debug("Manual: %fcm/s", manual);
+        print("Manual: ", manual,"cm/s");
 
 		auto epsilon = manual * 0.0001;
 		ASSERT(manual - next.speed<Units::CM_AND_SECONDS>() <= epsilon,

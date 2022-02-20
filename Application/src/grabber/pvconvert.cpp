@@ -148,7 +148,7 @@ int main(int argc, char**argv) {
     if(as_gif)
         Debug("Will export as gif from %ld to %ld (step %ld).", start_frame, end_frame, step);
     
-    Debug("Press ENTER to continue...");
+    print("Press ENTER to continue...");
     getc(stdin);
     
     CropOffsets tmp = SETTING(crop);
@@ -193,7 +193,7 @@ int main(int argc, char**argv) {
             
             if(!output_dir.exists()) {
                 if(output_dir.create_folder())
-                    Debug("Created folder '%S'.", &output_dir.str());
+                    print("Created folder ", output_dir.str(),".");
                 else
                     U_EXCEPTION("Cannot create folder '%S'. No write permissions?", &output_dir.str());
             }
@@ -222,7 +222,7 @@ int main(int argc, char**argv) {
         ss << output_dir << "frame";
         std::string file = ss.str();
         
-        Debug("For conversion using ffmpeg try this command:");
+        print("For conversion using ffmpeg try this command:");
         printf("\tffmpeg -framerate %d -start_number %d -i %s/frame%%07d.jpg -vcodec h264 -vf \"fps=60,format=yuv420p\" output.mp4\n", (int)framerate, start_frame, output_dir.str().c_str());
     }
 }

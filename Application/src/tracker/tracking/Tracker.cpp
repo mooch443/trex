@@ -272,7 +272,7 @@ void Tracker::analysis_state(AnalysisState pause) {
     {
         _instance = this;
         if(!SETTING(quiet))
-            Debug("Initialized with %ld threads.", _thread_pool.num_threads());
+            print("Initialized with ", _thread_pool.num_threads()," threads.");
         
         Settings::set_callback(Settings::outline_resample, [](auto&, auto&value){
             static_assert(std::is_same<Settings::outline_resample_t, float>::value, "outline_resample assumed to be float.");
@@ -335,7 +335,7 @@ void Tracker::analysis_state(AnalysisState pause) {
                     
                     for (auto && [id, fish] : Tracker::individuals()) {
                         Tracker::instance()->_thread_pool.enqueue([](long_t id, Individual *fish){
-                            Debug("\t%d", id);
+                            print("\t", id);
                             fish->clear_post_processing();
                             fish->update_midlines(nullptr);
                         }, id, fish);
@@ -383,10 +383,10 @@ void Tracker::analysis_state(AnalysisState pause) {
         
         _thread_pool.force_stop();
         if(!SETTING(quiet))
-            Debug("Waiting for recognition...");
+            print("Waiting for recognition...");
         recognition_pool.force_stop();
         if(!SETTING(quiet))
-            Debug("Done waiting.");
+            print("Done waiting.");
         
         _instance = NULL;
         
@@ -400,7 +400,7 @@ void Tracker::analysis_state(AnalysisState pause) {
     void Tracker::emergency_finish() {
         std::lock_guard<std::mutex> guard(log_mutex);
         if(history_log != nullptr && history_log->is_open()) {
-            Debug("Closing history log.");
+            print("Closing history log.");
             *history_log << "</body></html>";
             history_log->flush();
             history_log->close();
@@ -1633,6 +1633,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             
         };
         
+#define TREX_THREADING_STATS
 #if defined(TREX_THREADING_STATS)
         static std::mutex mStats;
         struct Bin {
@@ -1742,7 +1743,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             try {
                 auto path = pv::DataLocation::parse("output", (std::string)SETTING(filename).value<file::Path>().filename()+"_threading_stats.npz").str();
                 npz_save(path, "values", values.data(), std::vector<size_t>{bins.size(), 3});
-                Debug("Saved threading stats at '%S'.", &path);
+                print("Saved threading stats at ", path,".");
             } catch(...) {
                 Warning("Error saving threading stats.");
             }
@@ -2137,7 +2138,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                         
                         if(found_perfect == clique.size()) {
 #ifndef NDEBUG
-                            Debug("frame %d: All missing manual matches perfectly matched.", frame.index());
+                            print("frame ", frame.index(),": All missing manual matches perfectly matched.");
 #endif
                         } else {
                             auto str = Meta::toStr(clique);
@@ -2641,9 +2642,9 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     ++index;
                     
                     for(auto &cdx : clique.bids) {
-                        Debug("\tBlob %u edges:", (*paired_blobs.col(cdx))->blob_id());
+                        print("\tBlob ", (*paired_blobs.col(cdx))->blob_id()," edges:");
                         for(auto &e : paired_blobs.edges_for_col(cdx)) {
-                            Debug("\t\tFish%s", paired_blobs.row(e)->identity().raw_name().c_str());
+                            print("\t\tFish", paired_blobs.row(e)->identity().raw_name().c_str());
                         }
                     }
                 }
@@ -2794,9 +2795,9 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     Debug("g fish_has_one_edge * mean_edges_per_blob = %f * %f = %f", one_edge_probability, mean_edges_per_blob, one_edge_probability * (mean_edges_per_blob));
                     Debug("g blob_has_one_edge * mean_edges_per_fish = %f * %f = %f", blob_one_edge, mean_edges_per_fish, blob_one_edge * mean_edges_per_fish);
                     Debug("g blob_has_one_edge * mean_edges_per_blob = %f * %f = %f", blob_one_edge, mean_edges_per_blob, blob_one_edge * mean_edges_per_blob);
-                    Debug("g mean_edges_per_fish / mean_edges_per_blob = %f", mean_edges_per_fish / mean_edges_per_blob);
+                    print("g mean_edges_per_fish / mean_edges_per_blob = ", mean_edges_per_fish / mean_edges_per_blob);
                     Debug("g one_to_one = %f, one_to_one * mean_edges_per_fish = %f / blob: %f /// %f, %f", one_to_one, one_to_one * mean_edges_per_fish, one_to_one * mean_edges_per_blob, average_probability, average_probability * mean_edges_per_fish);
-                    Debug("g --");
+                    print("g --");
                     timer.reset();
                 }
             };
@@ -2865,8 +2866,8 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 Debug("gw blob_has_one_edge * mean_edges_per_fish = %f * %f = %f", blob_one_edge, mean_edges_per_fish, blob_one_edge * mean_edges_per_fish);
                 Debug("gw blob_has_one_edge * mean_edges_per_blob = %f * %f = %f", blob_one_edge, mean_edges_per_blob, blob_one_edge * mean_edges_per_blob);
                 Debug("gw one_to_one = %f, one_to_one * mean_edges_per_fish = %f / blob: %f /// %f, %f", one_to_one, one_to_one * mean_edges_per_fish, one_to_one * mean_edges_per_blob, average_probability, average_probability * mean_edges_per_fish);
-                Debug("gw mean_edges_per_fish / mean_edges_per_blob = %f", mean_edges_per_fish / mean_edges_per_blob);
-                Debug("gw ---");
+                print("gw mean_edges_per_fish / mean_edges_per_blob = ", mean_edges_per_fish / mean_edges_per_blob);
+                print("gw ---");
 #endif
                 
                 auto &optimal = graph.get_optimal_pairing(false, default_config::matching_mode_t::hungarian);
@@ -3512,7 +3513,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         if(_approximative_enabled_in_frame >= frameIndex)
             _approximative_enabled_in_frame.invalidate();
         
-        Debug("Removing frames after and including %ld", frameIndex);
+        print("Removing frames after and including ", frameIndex);
         
         if (end_frame() < frameIndex || start_frame() > frameIndex)
             return;
@@ -3530,7 +3531,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                 
                 _consecutive.erase(--_consecutive.end());
             }
-            Debug("Last remaining %d", _consecutive.size());
+            print("Last remaining ", _consecutive.size());
             if(!_consecutive.empty()) {
                 if(_consecutive.back().end >= frameIndex)
                     _consecutive.back().end = frameIndex - 1_f;
@@ -3637,13 +3638,13 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         global_segment_order_changed();
         
         auto str = Meta::toStr(_inactive_individuals);
-        Debug("Inactive individuals: %S", &str);
+        print("Inactive individuals: ", str);
         str = Meta::toStr(_active_individuals);
-        Debug("Active individuals: %S", &str);
+        print("Active individuals: ", str);
         
-        Debug("After removing frames: %d", gui::CacheObject::memory());
-        Debug("posture: %d", Midline::saved_midlines());
-        Debug("all blobs: %d", Blob::all_blobs());
+        print("After removing frames: ", gui::CacheObject::memory());
+        print("posture: ", Midline::saved_midlines());
+        print("all blobs: ", Blob::all_blobs());
         Debug("Range: %d-%d", start_frame(), end_frame());
     }
 
@@ -3783,15 +3784,15 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
     
     void Tracker::check_segments_identities(bool auto_correct, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue, Frame_t after_frame) {
         
-        Debug("Waiting for gui...");
+        print("Waiting for gui...");
         if(GUI::instance()) {
             std::lock_guard<decltype(GUI::instance()->gui().lock())> guard(GUI::instance()->gui().lock());
             GUI::work().set_item("updating with automatic ranges");
         }
         
-        Debug("Waiting for lock...");
+        print("Waiting for lock...");
         LockGuard guard("check_segments_identities");
-        Debug("Updating automatic ranges starting from %d", !after_frame.valid() ? Frame_t(0) : after_frame);
+        print("Updating automatic ranges starting from ", !after_frame.valid() ? Frame_t(0) : after_frame);
         
         const auto manual_identities = FAST_SETTINGS(manual_identities);
         size_t count=0;
@@ -4272,10 +4273,10 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         }
         
         //auto str = prettify_array(Meta::toStr(still_unassigned));
-        Debug("auto_assign is %d", auto_correct ? 1 : 0);
+        print("auto_assign is ", auto_correct ? 1 : 0);
         if(auto_correct) {
             add_to_queue("", [after_frame, automatic_matches, manual_splits, tmp_assigned_ranges](){
-                Debug("Assigning to queue from frame %d", after_frame);
+                print("Assigning to queue from frame ", after_frame);
                 
                 std::lock_guard<decltype(GUI::instance()->gui().lock())> guard(GUI::instance()->gui().lock());
                 
@@ -4286,7 +4287,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                         fish->clear_recognition();
                     }
                     
-                    Debug("automatically_assigned_ranges %d", tmp_assigned_ranges.size());
+                    print("automatically_assigned_ranges ", tmp_assigned_ranges.size());
                     automatically_assigned_ranges = tmp_assigned_ranges;
                 }
                 
@@ -4410,7 +4411,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid pid
             average.copyTo(local_average.get());
             
             if(!quiet)
-                Debug("Determining blob size in %d frames...", video.length());
+                print("Determining blob size in ", video.length()," frames...");
             
             Median<float> blob_size;
             pv::Frame frame;
@@ -4497,7 +4498,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid pid
                 
                 if(SETTING(auto_number_individuals).value<bool>()) {
                     if(!quiet)
-                        Debug("Setting number of individuals as %d.", median_number);
+                        print("Setting number of individuals as ", median_number,".");
                     SETTING(track_max_individuals) = uint32_t(median_number);
                 }
             }

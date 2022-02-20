@@ -732,7 +732,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         std::string ret = ss.str();
         if(ret.empty()) {
-            Debug("Metadata empty.");
+            print("Metadata empty.");
         } else {
             ret = "{"+ret+"}";
             Debug("Metadata: '%S'", &ret);
@@ -988,7 +988,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         copy.stop_writing();
         
-        Debug("Written fixed file.");
+        print("Written fixed file.");
     }
     
     void File::try_compress() {
@@ -1024,7 +1024,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         copy.stop_writing();
         
-        Debug("Written");
+        print("Written");
         
         {
             print_info();
@@ -1040,7 +1040,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         if(!_open_for_modifying)
             U_EXCEPTION("Must be open for writing.");
     
-        Debug("Updating metadata...");
+        print("Updating metadata...");
         auto metadata = _header.generate_metadata();
         write(metadata, _header.meta_offset());
     }

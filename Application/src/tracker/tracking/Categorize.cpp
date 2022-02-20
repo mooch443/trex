@@ -1329,7 +1329,7 @@ Sample::Ptr Work::retrieve() {
                    )
                 {
                     sample = Sample::Invalid();
-                    Debug("Invalidated sample for wrong dimensions.");
+                    print("Invalidated sample for wrong dimensions.");
                 }
             }
         }
@@ -1651,7 +1651,7 @@ struct NetworkApplicationState {
         }
 #ifndef NDEBUG
         else
-            Debug("No more tasks for fish %d", fish->identity().ID());
+            print("No more tasks for fish ", fish->identity().ID());
 #endif
     }
     
@@ -1686,7 +1686,7 @@ void start_applying() {
     Work::task_queue().push_back(Work::Task{
         Range<Frame_t>({},{}),Range<Frame_t>({},{}),
         [](){
-            Debug("## Initializing APPLY.");
+            print("## Initializing APPLY.");
             {
                 Tracker::LockGuard guard("Categorize::start_applying");
                 std::lock_guard g(NetworkApplicationState::current_mutex());
@@ -1697,7 +1697,7 @@ void start_applying() {
                     obj.fish = ptr;
                 }
 
-                Debug("## Created %lu objects", NetworkApplicationState::current().size());
+                print("## Created ", NetworkApplicationState::current().size()," objects");
             }
             
             Work::status() = "Applying "+Meta::toStr((NetworkApplicationState::percent() * 100))+"%...";
@@ -1727,7 +1727,7 @@ void start_applying() {
             }
             auto str = Meta::toStr(indexes);
             
-            Debug("Done adding initial samples %S", &str);
+            print("Done adding initial samples ", str);
         }
     });
         
@@ -1756,7 +1756,7 @@ void Work::start_learning() {
         py::check_module(module);
         
         auto reset_variables = [](){
-            Debug("Reset python functions and variables...");
+            print("Reset python functions and variables...");
             const auto dims = SETTING(recognition_image_size).value<Size2>();
             std::map<std::string, int> keys;
             auto cat = FAST_SETTINGS(categories_ordered);
@@ -1768,7 +1768,7 @@ void Work::start_learning() {
             py::set_variable("height", (int)dims.height, module);
             py::set_variable("output_file", output_location().str(), module);
             py::set_function("set_best_accuracy", [&](float v) {
-                Debug("Work::set_best_accuracy(%f);", v);
+                print("Work::set_best_accuracy(%f);", v);
                 Work::set_best_accuracy(v);
             }, module);
             
@@ -1829,7 +1829,7 @@ void Work::start_learning() {
             if(state() != State::APPLY)
                 return false;
             
-            static Timer print;
+            static Timer last_print;
             auto percent = NetworkApplicationState::percent();
             auto text = "Applying "+Meta::toStr((percent * 100))+"%...";
             if(!Work::visible()) {
@@ -1842,12 +1842,12 @@ void Work::start_learning() {
                     }
                     
                     return true;
-                } else if(int(print.elapsed()) % 2 == 0) {
+                } else if(int(last_print.elapsed()) % 2 == 0) {
                     GUI::set_status(text);
                     
-                    if(print.elapsed() >= 10) {
-                        Debug("[Categorize] %S", &text);
-                        print.reset();
+                    if(last_print.elapsed() >= 10) {
+                        print("[Categorize] ", text);
+                        last_print.reset();
                     }
                 }
                 
@@ -1877,7 +1877,7 @@ void Work::start_learning() {
                 if(py::check_module(module)) {
                     reset_variables();
                     if(best_accuracy() > 0) {
-                        Debug("[Categorize] The python file has been updated. Best accuracy was already %f, so will attempt to reload the weights.", best_accuracy().load());
+                        print("[Categorize] The python file has been updated. Best accuracy was already ", best_accuracy().load(),", so will attempt to reload the weights.");
                         
                         try {
                             py::run(module, "load");
@@ -1966,7 +1966,7 @@ void Work::start_learning() {
             if(queue().empty()) {
                 if(check_updates()) {
                     force_prediction = true;
-                    Debug("Forcing prediction (%lu)", prediction_images.size());
+                    print("Forcing prediction (", prediction_images.size(),")");
                 }
             }
 
@@ -2032,7 +2032,7 @@ void Work::start_learning() {
                 }
 
                 if (!training_images.empty() || force_training) {
-                    Debug("Training on %lu additional samples", training_images.size());
+                    print("Training on ", training_images.size()," additional samples");
                     try {
                         // train for a couple epochs
                         py::set_variable("epochs", int(10));
@@ -2061,7 +2061,7 @@ void Work::start_learning() {
                 
                 if(clear_probs) {
                     clear_probs = false;
-                    Debug("# Clearing calculated probabilities...");
+                    print("# Clearing calculated probabilities...");
                     guard.unlock();
                     {
                         std::lock_guard g(Work::_recv_mutex);
@@ -2094,8 +2094,8 @@ void Work::start_learning() {
         
         guard.unlock();
         
-        Debug("## Ending python blockade.");
-        Debug("Clearing DataStore.");
+        print("## Ending python blockade.");
+        print("Clearing DataStore.");
         DataStore::clear();
         
         return true;
@@ -2203,7 +2203,7 @@ Work::Task Work::_pick_front_thread() {
                     _values.push_back({std::get<0>(*it), item.real_range});
             }
             auto str = Meta::toStr(_values);
-            Debug("... end of task queue: %S", &str);
+            print("... end of task queue: ", str);
             print.reset();
         }
 #endif
@@ -2475,7 +2475,7 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
 void DataStore::clear() {
     {
         std::unique_lock guard(_cache_mutex);
-        Debug("[Categorize] Clearing frame cache (%lu).", _frame_cache.size());
+        print("[Categorize] Clearing frame cache (", _frame_cache.size(),").");
         _frame_cache.clear();
 #ifndef NDEBUG
         _current_cached_frames.clear();

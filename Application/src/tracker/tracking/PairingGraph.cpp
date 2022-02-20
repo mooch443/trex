@@ -112,7 +112,7 @@ void PairedProbabilities::erase(col_t::value_type col) {
                 if(oit != _offsets.end())
                     next = oit < _offsets.end() - 1 ? *(oit+1) : _probabilities.size();
                 else {
-                    Debug("Reached end of offsets.");
+                    print("Reached end of offsets.");
                 }
                 
                 if(oit != _offsets.end() && offset_offset > 0) {
@@ -621,7 +621,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 Warning("This is weird.");
             }
         } else
-            Debug("\tinvalid node");
+            print("\tinvalid node");
     };
 #endif
     
@@ -734,7 +734,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 
 #ifndef NDEBUG
         if(debug) {
-            Debug("[Graph::work] Stopping path of length %d", current.blobs.size());
+            print("[Graph::work] Stopping path of length ", current.blobs.size());
             print_stack();
         }
 #endif
@@ -808,7 +808,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                     continue;
                 }
                 
-                Debug("Too many combinations...");
+                print("Too many combinations...");
                 FILE *f = fopen("failures.txt", "a+b");
                 if(f) {
                     size_t counter = 0;
@@ -1175,7 +1175,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 
 #ifndef NDEBUG
                 if(debug)
-                    Debug("[Graph] Generating edge / probability set for %d nodes...", _optimal_pairing->set.size());
+                    print("[Graph] Generating edge / probability set for ", _optimal_pairing->set.size()," nodes...");
 #endif
                 
                 //! Ordered max probs is an array containing the maximum achievable probability after a given step (index). In this case, we can generate this array by accumulating the maximum probability for each individual (step by step) as an accum-sum. We start from the back (where the value added is 0) and walk towards the front.

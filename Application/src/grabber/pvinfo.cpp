@@ -31,7 +31,7 @@ int main(int argc, char**argv) {
 #ifndef NDEBUG
     auto OS_ACTIVITY_DT_MODE = getenv("OS_ACTIVITY_DT_MODE");
     if(OS_ACTIVITY_DT_MODE) {
-        Debug("OS_ACTIVITY_DT_MODE: %s", OS_ACTIVITY_DT_MODE);
+        print("OS_ACTIVITY_DT_MODE: ", OS_ACTIVITY_DT_MODE);
     }
 #endif
     //SETTING(quiet) = true;
@@ -68,7 +68,7 @@ int main(int argc, char**argv) {
         });
     }
     
-    Debug("Adding %lu data points.", points.size());
+    print("Adding ", points.size()," data points.");
     
     for(size_t k = 0; k < 1000; ++k) {
         DebugHeader("RUN %d", k);
@@ -76,7 +76,7 @@ int main(int argc, char**argv) {
         
         Timer timer;
         grid.fill(points);
-        Debug("Took %fms to fill.", timer.elapsed() * 1000);
+        print("Took ", timer.elapsed() * 1000,"ms to fill.");
         
         timer.reset();
         
@@ -245,10 +245,10 @@ int main(int argc, char**argv) {
                         if(str[i] == '\n') {
                             if(utils::contains(line, "FFMPEG:")) {
                                 if(utils::contains(line, "YES")) {
-                                    Debug("Has FFMPEG support.");
+                                    print("Has FFMPEG support.");
                                     return 0;
                                 } else {
-                                    Debug("Does not have FFMPEG support.");
+                                    print("Does not have FFMPEG support.");
                                 }
                             }
                             
@@ -270,10 +270,10 @@ int main(int argc, char**argv) {
                         if(str[i] == '\n') {
                             if(utils::contains(line, "OpenCL:")) {
                                 if(utils::contains(line, "YES")) {
-                                    Debug("Has OpenCL support.");
+                                    print("Has OpenCL support.");
                                     return 0;
                                 } else {
-                                    Debug("Does not have OpenCL support.");
+                                    print("Does not have OpenCL support.");
                                 }
                             }
                             
@@ -335,7 +335,7 @@ int main(int argc, char**argv) {
                             auto str = Meta::toStr(found);
                             Debug("Found too many files matching the pattern '%S': %S.", &option.value, &str);
                         } else
-                            Debug("No files found that match the pattern '%S'.", &option.value);
+                            print("No files found that match the pattern ", option.value,".");
                     }
                     
                     if(path.has_extension()) {
@@ -560,7 +560,7 @@ int main(int argc, char**argv) {
                 fclose(f);
                 
                 if(!be_quiet)
-                    Debug("Written settings file '%S'.", &filename.str());
+                    print("Written settings file ", filename.str(),".");
             } else {
                 if(!be_quiet)
                     Except("Dont have write permissions for file '%S'.", &filename.str());
@@ -607,7 +607,7 @@ int main(int argc, char**argv) {
             }
             
             auto mval = *std::max_element(grid.begin(), grid.end());
-            Debug("Max %f", mval);
+            print("Max ", mval);
             
             for (uint32_t x=0; x<width; x++) {
                 for (uint32_t y=0; y<width; y++) {
@@ -657,7 +657,7 @@ int main(int argc, char**argv) {
                 video.close();
                 video.start_reading();
                 
-                Debug("Written new average image.");
+                print("Written new average image.");
             }
         }
         
@@ -686,7 +686,7 @@ int main(int argc, char**argv) {
                     try {
                         frame.read_from(video, idx);
                     } catch(const UtilsException& e) {
-                        Debug("Breaking after %d frames.", idx);
+                        print("Breaking after ", idx," frames.");
                         break;
                     }
 
@@ -699,7 +699,7 @@ int main(int argc, char**argv) {
 
                 copy.stop_writing();
 
-                Debug("Written fixed video.");
+                print("Written fixed video.");
             }
         }
         
@@ -741,7 +741,7 @@ int main(int argc, char**argv) {
             //if(average.cols == video.size().width && average.rows == video.size().height)
             //    video.processImage(average, average);
         
-            Debug("Displaying average image...");
+            print("Displaying average image...");
             cv::imshow("average", average);
             cv::waitKey();
         }
@@ -774,7 +774,7 @@ int main(int argc, char**argv) {
             
             fclose(f);
             
-            Debug("Elapsed: %fs", timer.elapsed());
+            print("Elapsed: ", timer.elapsed(),"s");
         }
         
         if(SETTING(blob_detail)) {
@@ -807,7 +807,7 @@ int main(int argc, char**argv) {
                 }
             }
             
-            Debug("Finding blobs...");
+            print("Finding blobs...");
             Median<size_t> blobs_per_frame;
             size_t pixels_median_value = pixels_median.getValue();
             for (size_t i=0; i<video.length(); i++) {
@@ -829,7 +829,7 @@ int main(int argc, char**argv) {
             
             Debug("%lu bytes (%.2fMB) of blob data", overall, double(overall) / 1000.0 / 1000.0);
             Debug("Images average at %f px / blob and the range is [%d-%d] with a median of %d.", double(pixels_per_blob) / double(pixels_samples), min_pixels, max_pixels, pixels_median.getValue());
-            Debug("There are %d blobs in each frame (median).", blobs_per_frame.getValue());
+            print("There are ", blobs_per_frame.getValue()," blobs in each frame (median).");
         }
         
     } else {

@@ -460,7 +460,7 @@ Individual::~Individual() {
     if(Tracker::recognition())
         Tracker::recognition()->remove_individual(this);
 #ifndef NDEBUG
-    Debug("Deleting individual %d", identity().ID());
+    print("Deleting individual ", identity().ID());
 #endif
 }
 
@@ -659,7 +659,7 @@ void Individual::remove_frame(Frame_t frameIndex) {
             
         } else if(!shortened_posture_index) {
 #ifndef NDEBUG
-            Debug("Individual %d does not delete any frames.", identity().ID());
+            print("Individual ", identity().ID()," does not delete any frames.");
 #endif
         }
 //#ifndef NDEBUG
@@ -2337,7 +2337,7 @@ void Individual::save_posture(std::shared_ptr<BasicStuff> stuff, Frame_t frameIn
         auto && [pos, greyscale] = blob->difference_image(*Tracker::instance()->background(), 0);
         auto mat = greyscale->get();
         
-        Debug("Frame %d", frameIndex);
+        print("Frame ", frameIndex);
         
         DebugDrawing draw(Vec2(), Vec2(), "draw_debug", int(max(1.f, 500.f/greyscale->cols)), greyscale->cols,greyscale->rows);
         draw.paint(ptr, mat);
@@ -3065,7 +3065,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
         return true;
     });
     
-    Debug("Saving depth...");
+    print("Saving depth...");
     FileSize fileSize(depth.size() * sizeof(decltype(depth)::value_type)
                       + ids.size() * sizeof(decltype(ids)::value_type)
                       + body_part.size() * sizeof(decltype(body_part)::value_type));
@@ -3083,7 +3083,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
 
         FileSize per_second(double(depth.size() * sizeof(decltype(depth)::value_type)) / save_timer.elapsed());
         auto str = Meta::toStr(per_second) + "/s";
-        Debug("saved depth @ %S", &str);
+        print("saved depth @ ", str);
 
         update(1 / 3. * 0.5 + 0.5, "writing files (" + Meta::toStr(fileSize) + ") @ ~" + str);
 
@@ -3113,7 +3113,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
 
         FileSize per_second(double(depth.size() * sizeof(decltype(depth)::value_type)) / save_timer.elapsed());
         auto str = Meta::toStr(per_second) + "/s";
-        Debug("saved depth @ %S", &str);
+        print("saved depth @ ", str);
 
         update(1 / 3. * 0.5 + 0.5, "writing files (" + Meta::toStr(fileSize) + ") @ ~" + str);
 

@@ -592,7 +592,7 @@ void PythonIntegration::reinit() {
                         Except("Python runtime exception: %s", e.what());
                         e.restore();
                     } catch( ... ) {
-                        Debug("Caught one exception.");
+                        print("Caught one exception.");
                     }
                     lock.lock();
                 }
@@ -619,7 +619,7 @@ void PythonIntegration::reinit() {
                 }
 
             } catch(py::error_already_set &e) {
-                Debug("Python runtime error during clean-up: '%s'", e.what());
+                print("Python runtime error during clean-up: '", e.what(),"'");
                 e.restore();
             }
             
@@ -628,7 +628,7 @@ void PythonIntegration::reinit() {
                 Py_Finalize();
                 
             } catch(py::error_already_set &e) {
-                Debug("Python runtime error during clean-up: '%s'", e.what());
+                print("Python runtime error during clean-up: '", e.what(),"'");
                 e.restore();
             }
         });
@@ -666,7 +666,7 @@ void PythonIntegration::reinit() {
                 auto array = x.unchecked<2>();
                 auto idxes = idx.unchecked<1>();
                 
-                Debug("Copying %d data", array.size());
+                print("Copying ", array.size()," data");
                 auto ptr = array.data(0,0);
                 auto end = ptr + array.size();
                 temporary.insert(temporary.end(), ptr, end);
@@ -692,7 +692,7 @@ void PythonIntegration::reinit() {
             //(*_locals)["images"] = nullptr;
             
         } catch (py::error_already_set &e) {
-            Debug("Runtime error: '%s'", e.what());
+            print("Runtime error: '", e.what(),"'");
             e.restore();
         }
         

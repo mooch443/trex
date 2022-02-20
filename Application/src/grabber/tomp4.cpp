@@ -210,7 +210,7 @@ void FFMPEGQueue::loop() {
                 }
                 
                 if(_queue.size()%size_t(max(1, initial_size * 0.1)) == 0)
-                    Debug("Processing remaining queue (%d images)", _queue.size());
+                    print("Processing remaining queue (", _queue.size()," images)");
                 
             } else {
                 double samples, ms, compressed_size;
@@ -258,7 +258,7 @@ void FFMPEGQueue::loop() {
     if(_direct)
         close_video();
     
-    Debug("Closed conversion loop.");
+    print("Closed conversion loop.");
 }
 
 void FFMPEGQueue::Package::unpack(cmn::Image &image, lzo_uint& new_len) const {
@@ -361,7 +361,7 @@ void FFMPEGQueue::write_loop() {
                 }
                 
                 if(packages.size()%size_t(initial_size * 0.1) == 0)
-                    Debug("Processing remaining packages (%d packages)", packages.size());
+                    print("Processing remaining packages (", packages.size()," packages)");
             }
             
             update_statistics(frame_write_timer.elapsed(), pack->out_len + sizeof(Package));
@@ -372,7 +372,7 @@ void FFMPEGQueue::write_loop() {
     }
     
     close_video();
-    Debug("Quit write_loop");
+    print("Quit write_loop");
 }
 
 void FFMPEGQueue::update_statistics(double ms, double image_size) {
@@ -510,7 +510,7 @@ void FFMPEGQueue::close_video() {
     av_frame_free(&frame);
     av_packet_free(&pkt);
     
-    Debug("Closed video.");
+    print("Closed video.");
     
     cnpy::npy_save(_output_path.replace_extension("npy").str(), timestamps);
     cnpy::npy_save(_output_path.remove_extension().str()+"_indexes.npy", mp4_indexes);
@@ -565,7 +565,7 @@ void FFMPEGQueue::finalize_one_image(uint64_t stamp, const cmn::Image& image) {
     int inLinesize[1] = { 1*c->width }; // GRAY stride
     sws_scale(ctx, inData, inLinesize, 0, c->height, frame->data, frame->linesize);
     
-    Debug("sws_scale#2 %f", timer.elapsed());*/
+    print("sws_scale#2 ", timer.elapsed());*/
     
     pkt->stream_index = pts;
     frame->pts = pts++;

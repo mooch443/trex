@@ -837,12 +837,12 @@ Fish::~Fish() {
         
         //static auto change = parent.children();
         /*if(parent.children().size() != change.size()) {
-            Debug("_view:");
+            print("_view:");
             for(auto c : parent.children()) {
                 auto name = c->toStr();
-                Debug("\t%S", &name);
+                print("\t", name);
             }
-            Debug("--");
+            print("--");
             change = parent.children();
         }*/
     }

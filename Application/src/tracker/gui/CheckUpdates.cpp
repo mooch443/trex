@@ -54,7 +54,7 @@ void cleanup() {
         _terminate = true;
         _variable.notify_all();
         
-        Debug("Cleaning up...");
+        print("Cleaning up...");
         _thread->join();
         guard.lock();
         _thread = nullptr;
@@ -202,7 +202,7 @@ void update_loop() {
            || (!_last_check_success && dt >= short_update_time))
         {
             if(_last_check_success)
-                Debug("[CHECK_UPDATES] It has been a week. Let us check for updates...");
+                print("[CHECK_UPDATES] It has been a week. Let us check for updates...");
             else
                 Debug("[CHECK_UPDATES] Trying again after %S...", &str);
             

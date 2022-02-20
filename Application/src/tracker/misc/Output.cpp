@@ -33,7 +33,7 @@ Output::ResultsFormat::ResultsFormat(const file::Path& filename, std::function<v
     }*/
 
     if (timer.elapsed() > 1)
-        Debug("Blobs took %fs", timer.elapsed());
+        print("Blobs took ", timer.elapsed(),"s");
 
     timer.reset();
         auto name = get_thread_name();
@@ -1078,7 +1078,7 @@ namespace Output {
         write<std::string>(version_string);
         if(!SETTING(quiet)) {
             Debug("Writing version string '%S'", &version_string);
-            Debug("Writing frame %lu", _header.gui_frame);
+            print("Writing frame ", _header.gui_frame);
         }
         write<uint64_t>(_header.gui_frame);
         auto consecutive = Tracker::instance()->consecutive();
@@ -1157,7 +1157,7 @@ namespace Output {
         // write frame properties
         write<uint64_t>(frames.size());
         if(!SETTING(quiet))
-            Debug("Writing %ld frames", frames.size());
+            print("Writing ", frames.size()," frames");
         for (auto &p : frames)
             write<track::FrameProperties>(*p);
         

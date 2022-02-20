@@ -33,19 +33,19 @@ SplitBlob::SplitBlob(const Background& average, pv::BlobPtr blob)
             
             if(name == "blob_split_max_shrink") {
                 blob_split_max_shrink = value.value<float>();
-                Debug("blob_split_max_shrink = %f", blob_split_max_shrink);
+                print("blob_split_max_shrink = ", blob_split_max_shrink);
                 
             } else if(name == "blob_split_global_shrink_limit") {
                 blob_split_global_shrink_limit = value.value<float>();
-                Debug("blob_split_global_shrink_limit = %f", blob_split_global_shrink_limit);
+                print("blob_split_global_shrink_limit = ", blob_split_global_shrink_limit);
                 
             } else if(name == "cm_per_pixel") {
                 sqrcm = SQR(value.value<float>());
-                Debug("sqrcm = %f", sqrcm);
+                print("sqrcm = ", sqrcm);
                 
             } else if(name == "track_posture_threshold") {
                posture_threshold = value.value<int>();
-               Debug("track_posture_threshold = %d", posture_threshold);
+               print("track_posture_threshold = ", posture_threshold);
             }
             
             if(name == "blob_size_ranges" || name == "cm_per_pixel") {
@@ -53,7 +53,7 @@ SplitBlob::SplitBlob(const Background& average, pv::BlobPtr blob)
                 //fish_minmax.start /= FAST_SETTINGS(cm_per_pixel);
                 //fish_minmax.end /= FAST_SETTINGS(cm_per_pixel);
                 auto str = Meta::toStr(fish_minmax);
-                Debug("blob_size_ranges = %S", &str);
+                print("blob_size_ranges = ", str);
             }
         };
         GlobalSettings::map().register_callback(callback, fn);
@@ -66,7 +66,7 @@ SplitBlob::SplitBlob(const Background& average, pv::BlobPtr blob)
     }
     
 #if DEBUG_ME
-    Debug("SplitBlob(%d)", blob->blob_id());
+    print("SplitBlob(", blob->blob_id(),")");
 #endif
     
     imageFromLines(blob->hor_lines(), NULL, &_original_grey, &_original, blob->pixels().get(), posture_threshold, &average.image());
@@ -205,7 +205,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr)
         calculations++;
         
 #if DEBUG_ME
-        Debug("T:%d", threshold);
+        print("T:", threshold);
 #endif
         float max_size = apply_threshold(threshold, blobs) * sqrcm;
         
@@ -334,7 +334,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr)
         
         
 #if DEBUG_ME
-        Debug("Best result with threshold %d", best);
+        print("Best result with threshold ", best);
         display_match({best, best_matches.at(best).blobs});
 #endif
     } else {

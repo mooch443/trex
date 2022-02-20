@@ -137,7 +137,7 @@ void GUI::run_loop() {
         update_loop();
     }
     
-    Debug("GUI thread ended.");
+    print("GUI thread ended.");
 }
 
 void GUI::update_loop() {
@@ -249,7 +249,7 @@ void GUI::draw(gui::DrawStructure &base) {
                     else {
                         noise_image = new ExternalImage(Image::Make(_image->rows, _image->cols, 4), offset, Vec2(1 / scale));
                         background = new ExternalImage(std::move(_image), offset, Vec2(1 / scale));
-                        Debug("Creating images.");
+                        print("Creating images.");
                     }
                 }
                 else {
@@ -571,13 +571,13 @@ void GUI::key_event(const gui::Event &event) {
         auto code = key.code == Codes::RBracket ? Codes::Add : Codes::Subtract;
         
         SETTING(threshold) = SETTING(threshold).value<int>() + (code == Codes::Add ? 1 : -1);
-        Debug("Threshold %d", SETTING(threshold).value<int>());
+        print("Threshold ", SETTING(threshold).value<int>());
     }
     else if(key.code == Codes::R) {
         SETTING(recording) = !SETTING(recording);
     }
     else if(key.code == Codes::K) {
-        Debug("Killing...");
+        print("Killing...");
         CrashProgram::do_crash = true;
     }
     else if(key.code == Codes::F5) {

@@ -214,7 +214,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
     if(!range.empty())
         Debug("[exporting] Exporting range [%d-%d]", range.start, range.end);
     else
-        Debug("[exporting] Exporting all frames (%d)", tracker.number_frames());
+        print("[exporting] Exporting all frames (", tracker.number_frames(),")");
     auto individual_prefix = FAST_SETTINGS(individual_prefix);
     Debug("[exporting] Writing data from `output_graphs` to '%S/%S_%S*.%s'", &fishdata.str(), &filename, &individual_prefix, output_format.name());
     if(output_posture_data)
@@ -697,12 +697,12 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                 temporary_save(fishdata / path, [&](file::Path use_path) {
                     cmn::npz_save(use_path.str(), "stats", statistics.data(), { frame_numbers.size(), sizeof(track::Tracker::Statistics) / sizeof(float) }, "w");
                     cmn::npz_save(use_path.str(), "frames", frame_numbers, "a");
-                    Debug("Saved statistics at '%S'.", &fishdata.str());
+                    print("Saved statistics at ", fishdata.str(),".");
                 });
                 
                 if(!auto_no_memory_stats) {
                     temporary_save(fishdata / ((std::string)SETTING(filename).value<file::Path>().filename() + "_memory.npz"), [&](file::Path path) {
-                        Debug("Generating memory stats...");
+                        print("Generating memory stats...");
                         mem::IndividualMemoryStats overall;
                         std::map<track::Idx_t, mem::IndividualMemoryStats> indstats;
                         for(auto && [fdx, fish] : tracker.individuals()) {
@@ -1083,7 +1083,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                 }
                 
                 if(id % max(1, int(ceil(queues.size() * 0.01))) == 0)
-                    Debug("[tracklet_images] Fish %d...", id);
+                    print("[tracklet_images] Fish ", id,"...");
             }
             
             size_t samples = all_images.size() / (size_t)output_size.height / (size_t)output_size.width;

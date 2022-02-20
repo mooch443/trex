@@ -246,13 +246,13 @@ void FrameGrabber::prepare_average() {
         _average(_crop_rect).copyTo(_average);
     }
     
-    Debug("cam_scale = %f", GRAB_SETTINGS(cam_scale));
+    print("cam_scale = ", GRAB_SETTINGS(cam_scale));
     if(GRAB_SETTINGS(cam_scale) != 1)
         resize_image(_average, GRAB_SETTINGS(cam_scale));
     
     
     if(GRAB_SETTINGS(correct_luminance)) {
-        Debug("Calculating relative luminance...");
+        print("Calculating relative luminance...");
         if(_grid)
             delete _grid;
         cv::Mat tmp;
@@ -290,7 +290,7 @@ void FrameGrabber::prepare_average() {
         _video->processImage(_average, _average, false);
     }
     
-    Debug("--- done preparing");
+    print("--- done preparing");
 }
 
 template<typename F>
@@ -336,7 +336,7 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
         }
         
         auto path = average_name();
-        Debug("Saving average at or loading from '%S'.", &path.str());
+        print("Saving average at or loading from ", path.str(),".");
         
         if(path.exists()) {
             if(SETTING(reset_average)) {
@@ -378,7 +378,7 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
         }
 
         if (SETTING(frame_rate).value<int>() <= 0) {
-            Debug("Setting frame_rate from webcam (%d). If -1, it remains at -1.", SETTING(cam_framerate).value<int>());
+            print("Setting frame_rate from webcam (", SETTING(cam_framerate).value<int>(),"). If -1, it remains at -1.");
             SETTING(frame_rate) = SETTING(cam_framerate).value<int>() > 0 ? SETTING(cam_framerate).value<int>() : -1;
         }
         
@@ -410,7 +410,7 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
         try {
             filenames = Meta::fromStr<std::vector<file::Path>>(video_source);
             if(filenames.size() > 1) {
-                Debug("Found an array of filenames (%d).", filenames.size());
+                print("Found an array of filenames (", filenames.size(),").");
             } else if(filenames.size() == 1) {
                 SETTING(video_source) = filenames.front();
                 filenames.clear();
@@ -447,7 +447,7 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
         }
         
         if(SETTING(frame_rate).value<int>() == -1) {
-            Debug("Setting frame rate to %d (from video).", frame_rate);
+            print("Setting frame rate to ", frame_rate," (from video).");
             SETTING(frame_rate) = (int)frame_rate;
         } else if(SETTING(frame_rate).value<int>() != frame_rate) {
             Warning("Overwriting default frame rate of %d with %d.", frame_rate, SETTING(frame_rate).value<int>());
@@ -678,7 +678,7 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
 
 FrameGrabber::~FrameGrabber() {
     // stop processing
-    Debug("Terminating...");
+    print("Terminating...");
     if (GRAB_SETTINGS(enable_closed_loop)) {
         Output::PythonIntegration::quit();
     }
@@ -773,7 +773,7 @@ FrameGrabber::~FrameGrabber() {
             });
             
             auto add = Meta::toStr(additional_exclusions);
-            Debug("Excluding fields %S", &add);
+            print("Excluding fields ", add);
             
             auto filename = file::Path(pv::DataLocation::parse("output_settings").str());
             if(!filename.exists() || SETTING(grabber_force_settings)) {
@@ -784,7 +784,7 @@ FrameGrabber::~FrameGrabber() {
                     if(filename.exists())
                         Warning("Overwriting file '%S'.", &filename.str());
                     else
-                        Debug("Writing settings file '%S'.", &filename.str());
+                        print("Writing settings file ", filename.str(),".");
                     fwrite(text.data(), 1, text.length(), f);
                     fclose(f);
                 } else {
@@ -823,7 +823,7 @@ file::Path FrameGrabber::average_name() const {
 
 void FrameGrabber::initialize_video() {
     auto path = average_name();
-    Debug("Saving average at or loading from '%S'.", &path.str());
+    print("Saving average at or loading from ", path.str(),".");
     const bool reset_average = SETTING(reset_average);
     
     if(path.exists()) {
@@ -844,7 +844,7 @@ void FrameGrabber::initialize_video() {
     }
     
     if(_average.empty() || reset_average) {
-        Debug("Generating new average.");
+        print("Generating new average.");
         //_average_finished = false;
         //_average_samples = 0;
         //return;
@@ -857,7 +857,7 @@ void FrameGrabber::initialize_video() {
             cv::imwrite(path.str(), _average);
         
     } else {
-        Debug("Reusing previously generated average.");
+        print("Reusing previously generated average.");
     }
     
     if(SETTING(quit_after_average))
@@ -885,7 +885,7 @@ bool FrameGrabber::add_image_to_average(const Image_t& current) {
                 if(!fname.delete_file()) {
                     U_EXCEPTION("Cannot delete file '%S'.", &fname.str());
                 }
-                else Debug("Deleted file '%S'.", &fname.str());
+                else print("Deleted file ", fname.str(),".");
             }
             
             _last_frame = nullptr;
@@ -916,7 +916,7 @@ bool FrameGrabber::add_image_to_average(const Image_t& current) {
             if(!cv::imwrite(fname.str(), tmp))
                 Error("Cannot write '%S'.", &fname.str());
             else
-                Debug("Saved new average image at '%S'.", &fname.str());
+                print("Saved new average image at ", fname.str(),".");
             
             prepare_average();
             
@@ -1005,7 +1005,7 @@ void FrameGrabber::add_tracker_queue(const pv::Frame& frame, Frame_t index) {
         std::unique_lock<std::mutex> guard(ppframe_mutex);
         while (!GRAB_SETTINGS(enable_closed_loop) && video() && created_items > 100 && unused_pp.empty()) {
             if(print_timer.elapsed() > 5) {
-                Debug("Waiting (%d images cached) for tracking...", created_items);
+                print("Waiting (", created_items," images cached) for tracking...");
                 print_timer.reset();
             }
             guard.unlock();
@@ -1041,7 +1041,7 @@ void FrameGrabber::add_tracker_queue(const pv::Frame& frame, Frame_t index) {
 
 void FrameGrabber::update_tracker_queue() {
     set_thread_name("Tracker::Thread");
-    Debug("Starting tracker thread.");
+    print("Starting tracker thread.");
     _terminate_tracker = false;
     
     //pybind11::module closed_loop;
@@ -1060,7 +1060,7 @@ void FrameGrabber::update_tracker_queue() {
             if(CLFeature::has(a)) {
                 auto feature = CLFeature::get(a);
                 selected_features.insert(feature);
-                Debug("Feature '%s' will be sent to python.", feature.name());
+                print("Feature '", feature.name(),"' will be sent to python.");
             } else
                 Warning("CLFeature '%S' is unknown and will be ignored.", &a);
         }
@@ -1091,7 +1091,7 @@ void FrameGrabber::update_tracker_queue() {
         
         if(GRAB_SETTINGS(enable_closed_loop) && ppframe_queue.size() > 1) {
             if (print_quit_timer.elapsed() > 1) {
-                Debug("Skipping %d frames for tracking.", ppframe_queue.size() - 1);
+                print("Skipping ", ppframe_queue.size() - 1," frames for tracking.");
                 print_quit_timer.reset();
             }
             ppframe_queue.erase(ppframe_queue.begin(), ppframe_queue.begin() + ppframe_queue.size() - 1);
@@ -1100,7 +1100,7 @@ void FrameGrabber::update_tracker_queue() {
         while(!ppframe_queue.empty()) {
             if(_terminate_tracker && !GRAB_SETTINGS(enable_closed_loop) /* we cannot skip frames */) {
                 if(print_quit_timer.elapsed() > 5) {
-                    Debug("[Tracker] Adding remaining frames (%d)...", ppframe_queue.size());
+                    print("[Tracker] Adding remaining frames (", ppframe_queue.size(),")...");
                     print_quit_timer.reset();
                 }
             }
@@ -1124,7 +1124,7 @@ void FrameGrabber::update_tracker_queue() {
                 static Timer test_timer;
                 if (test_timer.elapsed() > 10) {
                     test_timer.reset();
-                    Debug("(tracker) %d individuals", tracker->individuals().size());
+                    print("(tracker) ", tracker->individuals().size()," individuals");
                 }
                 
 #define CL_HAS_FEATURE(NAME) (selected_features.find(CLFeature:: NAME) != selected_features.end())
@@ -1277,7 +1277,7 @@ void FrameGrabber::update_tracker_queue() {
         }
     }
     
-    Debug("Ending tracker thread.");
+    print("Ending tracker thread.");
 }
 
 void FrameGrabber::ensure_average_is_ready() {
@@ -1309,7 +1309,7 @@ void FrameGrabber::ensure_average_is_ready() {
                 _average.copyTo(tmp, _processed.mask());
                 
             } else {
-                Debug("Does not match dimensions.");
+                print("Does not match dimensions.");
                 _average.copyTo(tmp);
             }
             
@@ -1870,7 +1870,7 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
     if (conversion_range_end != -1 && current.index() >= conversion_range_end) {
         if (!GRAB_SETTINGS(terminate)) {
             SETTING(terminate) = true;
-            Debug("Ending...");
+            print("Ending...");
             return Queue::Code::ITEM_REMOVE;
         }
     }
@@ -1885,7 +1885,7 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
     double minutes = double(TS) / 1000.0 / 1000.0 / 60.0;
     if(GRAB_SETTINGS(stop_after_minutes) > 0 && minutes >= GRAB_SETTINGS(stop_after_minutes) && !GRAB_SETTINGS(terminate)) {
         SETTING(terminate) = true;
-        Debug("Terminating program because stop_after_minutes (%d) has been reached.", GRAB_SETTINGS(stop_after_minutes));
+        print("Terminating program because stop_after_minutes (", GRAB_SETTINGS(stop_after_minutes),") has been reached.");
         
     } else if(GRAB_SETTINGS(stop_after_minutes) > 0) {
         static double last_minutes = 0;
@@ -1918,7 +1918,7 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
     
     
     std::call_once(flag, [&](){
-        Debug("Creating queue...");
+        print("Creating queue...");
         for (size_t i=0; i<8; ++i) {
             _multi_pool.push_back(std::make_unique<std::thread>([&](size_t i){
                 set_thread_name("MultiPool"+Meta::toStr(i));

@@ -21,13 +21,13 @@ void TrainingData::print_pointer_stats() {
     });*/
 #ifndef NDEBUG
     std::lock_guard<std::mutex> guard(_data_pointer_mutex);
-    Debug("----");
-    Debug("Currently %d trainingdata are allocated.", _data_pointers.size());
+    print("----");
+    print("Currently ", _data_pointers.size()," trainingdata are allocated.");
     for(auto &ptr : _data_pointers) {
         auto str = Meta::toStr(*ptr);
-        Debug("\t%S", &str);
+        print("\t", str);
     }
-    Debug("----");
+    print("----");
 #endif
 }
 
@@ -51,7 +51,7 @@ void remove_pointer(TrainingData* data) {
         auto str = Meta::toStr(*data);
         if(_data_pointers.count(data) == 0)
             U_EXCEPTION("Cannot find pointer to %S", &str);
-        Debug("Removing %S", &str);
+        print("Removing ", str);
         _data_pointers.erase(data);
     }
     
@@ -757,7 +757,7 @@ std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::share
         if(!d->applied_mapping.empty()) {
             add_range->applied_mapping = d->applied_mapping;
             auto str = Meta::toStr(add_range->applied_mapping);
-            Debug("add_range->applied_mappig = %S", &str);
+            print("add_range->applied_mappig = ", str);
             break;
         }
     }
@@ -975,7 +975,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
     }
     
     auto str = Meta::toStr(lengths);
-    Debug("L: %S", &str);
+    print("L: ", str);
     
     auto data = std::make_shared<TrainingData::DataRange>();
     

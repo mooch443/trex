@@ -129,7 +129,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                 timer.reset();
             }
             
-            Debug("Quitting update_internal_training thread.");
+            print("Quitting update_internal_training thread.");
         });
         
         update_condition.notify_all();
@@ -180,7 +180,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                     // search conda
                     auto conda_prefix = getenv("CONDA_PREFIX");
                     if(conda_prefix) {
-                        Debug("Searching conda environment for trex_check_python... ('%s').", conda_prefix);
+                        print("Searching conda environment for trex_check_python... ('", conda_prefix,"').");
                         p = file::Path(conda_prefix) / "usr" / "share" / "trex" / CHECK_PYTHON_EXECUTABLE_NAME;
                         Debug("Full path: '%S'", &p.str());
                         if(p.exists()) {
@@ -947,7 +947,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         std::deque<ImageData> waiting;
         
         if(!waiting_for_pixels.empty())
-            Debug("[GPU] Queue processing of %d waiting_for_pixels", waiting_images);
+            print("[GPU] Queue processing of ", waiting_images," waiting_for_pixels");
         
         float elements_per_frame = 0, elements_samples = 0;
         
@@ -1035,7 +1035,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                         guard.unlock();
                         
                         while(queue_size > maximum_queue_elements) {
-                            Debug("Waiting for full queue... (%d)", queue_size);
+                            print("Waiting for full queue... (", queue_size,")");
                             std::this_thread::sleep_for(std::chrono::seconds(1));
                             if(guard.try_lock_for(std::chrono::milliseconds(100))) {
                                 queue_size = _data_queue.size();
@@ -1208,8 +1208,8 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             auto str = Meta::toStr(obj.max_pre_frame);
             auto str0 = Meta::toStr(obj.max_pst_frame);
             
-            Debug("pre:%S", &str);
-            Debug("pst:%S", &str0);
+            print("pre:", str);
+            print("pst:", str0);
             
             _last_percent = _percent;
         }
@@ -1333,7 +1333,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                     //! TODO: only exit if this is not the end of the video
                     std::unique_lock<decltype(_data_queue_mutex)> guard(_data_queue_mutex);
                     if(!is_queue_full_enough()) {
-                        Debug("Data queue is only %d elements big. Exiting prediction.", _data_queue.size());
+                        print("Data queue is only ", _data_queue.size()," elements big. Exiting prediction.");
                         this->stop_running();
                         return false;
                     }
@@ -1395,7 +1395,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         std::vector<std::vector<float>> probabilities;
         probabilities.resize(data.size());
         
-        Debug("[Recognition::predict] %d values", data.size());
+        print("[Recognition::predict] ", data.size()," values");
         
         auto result = PythonIntegration::async_python_function([this, &probabilities, &data]() -> bool
         {
@@ -1475,7 +1475,7 @@ bool Recognition::load_weights_internal(std::string postfix) {
     if(!postfix.empty())
         Debug("\tReloaded weights (%S).", &postfix);
     else
-        Debug("\tReloaded weights.");
+        print("\tReloaded weights.");
     
     return true;
 }
@@ -1758,13 +1758,13 @@ void Recognition::load_weights(std::string postfix) {
                 
                 // try doing everything in-memory without saving it
                 if(load_results == TrainingMode::Restart)
-                    Debug("Beginning training for %d images.", data->size());
+                    print("Beginning training for ", data->size()," images.");
                 else if(load_results == TrainingMode::Continue)
-                    Debug("Continuing training (%d images)", data->size());
+                    print("Continuing training (", data->size()," images)");
                 else if(load_results == TrainingMode::Apply)
-                    Debug("Just loading weights (%d images)", data->size());
+                    print("Just loading weights (", data->size()," images)");
                 else if(load_results == TrainingMode::Accumulate)
-                    Debug("Accumulating and training on more segments (%d images)", data->size());
+                    print("Accumulating and training on more segments (", data->size()," images)");
                 else
                     U_EXCEPTION("Unknown training mode %d in train_internally", load_results);
                 
@@ -1801,7 +1801,7 @@ void Recognition::load_weights(std::string postfix) {
                             }*/
                             //else
                             {
-                                Debug("Seems alright. Gonna merge now...");
+                                print("Seems alright. Gonna merge now...");
                                 data->merge_with(_last_training_data);
                             }
                         }
@@ -1812,7 +1812,7 @@ void Recognition::load_weights(std::string postfix) {
                 }
                 
                 if(!dont_save) {
-                    Debug("Saving last training data ptr...");
+                    print("Saving last training data ptr...");
                     _last_training_data = data;
                 }
             }
@@ -1845,7 +1845,7 @@ void Recognition::load_weights(std::string postfix) {
                     }
                     
                     if(load_results != TrainingMode::Accumulate) {
-                        Debug("Reinitializing network.");
+                        print("Reinitializing network.");
                         reinitialize_network_internal();
                         if(load_results != TrainingMode::Restart)
                             load_weights_internal();
@@ -1924,7 +1924,7 @@ void Recognition::load_weights(std::string postfix) {
                         best_accuracy_worst_class = py::get_variable<float>("best_accuracy_worst_class", "learn_static");
                         if(worst_accuracy_per_class)
                             *worst_accuracy_per_class = best_accuracy_worst_class;
-                        Debug("best_accuracy_worst_class = %f", best_accuracy_worst_class);
+                        print("best_accuracy_worst_class = ", best_accuracy_worst_class);
                         
                         if(!dont_save)
                             _trained = true;
@@ -2003,7 +2003,7 @@ void Recognition::load_weights(std::string postfix) {
                         }
                         
                     } catch(const SoftException& e) {
-                        Debug("Runtime error: '%s'", e.what());
+                        print("Runtime error: '", e.what(),"'");
                         return false;
                     }
                     
@@ -2019,9 +2019,9 @@ void Recognition::load_weights(std::string postfix) {
                     Error("Training the network failed (%f).", best_accuracy_worst_class);
                 
             } catch(const SoftException& e) {
-                Debug("Runtime error: '%s'", e.what());
+                print("Runtime error: '", e.what(),"'");
             } /*catch(...) {
-                Debug("Caught an exception.");
+                print("Caught an exception.");
             }*/
         }
         

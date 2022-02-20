@@ -553,7 +553,7 @@ void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, b
                 if(r == Dialog::OKAY) {
                     try {
                         auto value = Meta::fromStr<float>(text.text());
-                        Debug("Value is: %f", value);
+                        print("Value is: ", value);
                         
                         if(value > 0) {
                             SETTING(cm_per_pixel) = float(value / D);
@@ -644,10 +644,10 @@ void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, b
             
         }
         
-        Debug("Selected boundary:");
+        print("Selected boundary:");
         for(auto & boundary : _current_boundary) {
             auto str = Meta::toStr(boundary);
-            Debug("\t%S", &str);
+            print("\t", str);
         }
         
         _current_boundary.clear();

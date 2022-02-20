@@ -16,7 +16,7 @@ DatasetQuality::DatasetQuality()
 
 void DatasetQuality::print_info() const {
     auto str = Meta::toStr(_sorted);
-    Debug("DatasetQuality: %S", &str);
+    print("DatasetQuality: ", str);
 }
 
 DatasetQuality::Quality DatasetQuality::quality(const Range<Frame_t> &range) const {
@@ -284,7 +284,7 @@ DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fis
     /*if(debug && it != fish->frame_segments().end())
         Debug("\t... %d -> found before == %d-%d", fish->identity().ID(), it->second.range.start, it->second.range.end);
     else
-        Debug("\t... %d not found before first step", fish->identity().ID());*/
+        print("\t... ", fish->identity().ID()," not found before first step");*/
     
     if(it != fish->frame_segments().end()
        && it != fish->frame_segments().begin()
@@ -299,7 +299,7 @@ DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fis
     /*if(debug && it != fish->frame_segments().end())
         Debug("\t... %d -> found it == %d-%d", fish->identity().ID(), it->second.range.start, it->second.range.end);
     else
-        Debug("\t... %d not found in first step", fish->identity().ID());*/
+        print("\t... ", fish->identity().ID()," not found in first step");*/
     
     if(it == fish->frame_segments().end() && !fish->frame_segments().empty()
        && (*fish->frame_segments().rbegin())->overlaps(_consec))
