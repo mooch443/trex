@@ -488,8 +488,7 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
            
         
         if(info.debug) {
-            auto str = Meta::toStr(*_points);
-            print("Smoothed curvature: ", str);
+            print("Smoothed curvature: ", *_points);
         }
         
         auto mode = OUTLINE_SETTING(peak_mode) == default_config::peak_mode_t::broad ? PeakMode::FIND_BROAD : PeakMode::FIND_POINTY;

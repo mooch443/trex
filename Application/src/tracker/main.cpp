@@ -189,19 +189,6 @@ void init_signals() {
 
 #include <gui/GLImpl.h>
 
-template<typename... Args>
-void FORMAT_WARNING(const char* path, int line, const Args & ...args) {
-    std::string str =
-        "["
-            + console_color<FormatColor::YELLOW, FormatterType::UNIX>(
-            "WARNING " + std::string(path) + ":" + Meta::toStr(line) + current_time_string())
-      + "]"
-      + format<FormatterType::UNIX>(args...);
-    
-    printf("%s\n", str.c_str());
-}
-
-#define FormatWarning(...) FORMAT_WARNING(__FILE_NO_PATH__, __LINE__, __VA_ARGS__)
 
 int main(int argc, char** argv)
 {

@@ -3083,7 +3083,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
 
         FileSize per_second(double(depth.size() * sizeof(decltype(depth)::value_type)) / save_timer.elapsed());
         auto str = Meta::toStr(per_second) + "/s";
-        print("saved depth @ ", str);
+        print("saved depth @ ", str.c_str());
 
         update(1 / 3. * 0.5 + 0.5, "writing files (" + Meta::toStr(fileSize) + ") @ ~" + str);
 
@@ -3113,7 +3113,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
 
         FileSize per_second(double(depth.size() * sizeof(decltype(depth)::value_type)) / save_timer.elapsed());
         auto str = Meta::toStr(per_second) + "/s";
-        print("saved depth @ ", str);
+        print("saved depth @ ", str.c_str());
 
         update(1 / 3. * 0.5 + 0.5, "writing files (" + Meta::toStr(fileSize) + ") @ ~" + str);
 

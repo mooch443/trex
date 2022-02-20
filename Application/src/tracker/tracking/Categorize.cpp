@@ -1725,9 +1725,8 @@ void start_applying() {
             for(auto& t : Work::task_queue()) {
                 indexes.push_back(t.range);
             }
-            auto str = Meta::toStr(indexes);
             
-            print("Done adding initial samples ", str);
+            print("Done adding initial samples ", indexes);
         }
     });
         
@@ -2202,8 +2201,8 @@ Work::Task Work::_pick_front_thread() {
                 else
                     _values.push_back({std::get<0>(*it), item.real_range});
             }
-            auto str = Meta::toStr(_values);
-            print("... end of task queue: ", str);
+            
+            print("... end of task queue: ", _values);
             print.reset();
         }
 #endif

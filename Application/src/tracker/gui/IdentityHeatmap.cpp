@@ -130,8 +130,7 @@ void HeatmapController::save() {
     const bool be_quiet = SETTING(quiet);
     //if (!be_quiet) 
     {
-        auto str = FileSize{ expected * sizeof(double) }.to_string();
-        print("Likely memory size: ", str);
+        print("Likely memory size: ", FileSize{ expected * sizeof(double) });
     }
 
     const uint64_t value_size = sizeof(decltype(per_frame)::value_type);

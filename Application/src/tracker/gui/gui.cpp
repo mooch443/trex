@@ -789,9 +789,6 @@ void GUI::run_loop(gui::LoopStatus status) {
         }
         
         if(changed_objects) {
-            /*auto str = Meta::toStr(changed_objects_str);
-            print("changed: ", str);
-            Debug("%d changed objects", changed_objects);*/
             PD(last_frame_change).reset();
         }
         
@@ -2336,8 +2333,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                 items.back()->set_selected(i == index);
             }
             
-            auto str = Meta::toStr(selected_option);
-            print("options: ", str);
+            print("options: ", selected_option);
             
             _settings_choice = std::make_shared<List>(Bounds(0, PD(gui).height() / PD(gui).scale().y, 150, textfield.height()), "", items, [&textfield](List*, const List::Item& item){
                 print("Clicked on item ", item.ID());
@@ -2445,11 +2441,8 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                 if(PD(cache).active_ids.find(fdx) == PD(cache).active_ids.end())
                     inactive.insert(fdx);
             }
-            auto str = Meta::toStr(free_fish);
-            Debug("All free fish in frame %d: %S", frame(), &str);
-            
-            str = Meta::toStr(inactive);
-            print("All inactive fish: ", str);
+            print("All free fish in frame ", frame(),": ", free_fish);
+            print("All inactive fish: ", inactive);
         }
         else if(settings_dropdown.text() == "print_uniqueness") {
             work().add_queue("discrimination", [](){
@@ -2610,10 +2603,8 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             cvbase.display();
         } else if(settings_dropdown.text() == "blob_info") {
             print("Preprocessed frame ", PD(cache).frame_idx,":");
-            auto str = Meta::toStr(PD(cache).processed_frame.noise());
-            print("Filtered out: ", str);
-            str = Meta::toStr(PD(cache).processed_frame.blobs());
-            print("Blobs: ", str);
+            print("Filtered out: ", PD(cache).processed_frame.noise());
+            print("Blobs: ", PD(cache).processed_frame.blobs());
         }
         
         layout.remove_child(&textfield);

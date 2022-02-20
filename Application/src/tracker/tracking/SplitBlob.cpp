@@ -50,10 +50,7 @@ SplitBlob::SplitBlob(const Background& average, pv::BlobPtr blob)
             
             if(name == "blob_size_ranges" || name == "cm_per_pixel") {
                 fish_minmax = SETTING(blob_size_ranges).value<BlobSizeRange>();
-                //fish_minmax.start /= FAST_SETTINGS(cm_per_pixel);
-                //fish_minmax.end /= FAST_SETTINGS(cm_per_pixel);
-                auto str = Meta::toStr(fish_minmax);
-                print("blob_size_ranges = ", str);
+                print("blob_size_ranges = ", fish_minmax);
             }
         };
         GlobalSettings::map().register_callback(callback, fn);

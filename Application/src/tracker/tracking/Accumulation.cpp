@@ -1161,7 +1161,7 @@ bool Accumulation::start() {
                             str = Meta::toStr(_uniquenesses);
                         }
                         
-                        print("\tUniquenesses after adding: ", str);
+                        print("\tUniquenesses after adding: ", str.c_str());
                         
                         //! only confirm the weights if uniqueness is actually better/equal
                         /// but still use / merge the data if it isnt
@@ -1380,8 +1380,7 @@ bool Accumulation::start() {
             update_coverage(*_collected_data);
         
     } else {
-        auto str = Meta::toStr(ranges);
-        print("Ranges remaining: ", str);
+        print("Ranges remaining: ", ranges);
     }
     
     if(!reason_to_stop.empty())
@@ -1683,10 +1682,8 @@ bool Accumulation::start() {
     
     {
         std::lock_guard<std::mutex> guard(_current_uniqueness_lock);
-        auto str = Meta::toStr(_uniquenesses);
-        print("Uniquenesses: ", str);
-        str = Meta::toStr(_coverage_paths);
-        print("All paths: ", str);
+        print("Uniquenesses: ", _uniquenesses);
+        print("All paths: ", _coverage_paths);
     }
     
     try {

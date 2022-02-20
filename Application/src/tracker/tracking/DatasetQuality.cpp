@@ -15,8 +15,7 @@ DatasetQuality::DatasetQuality()
 }
 
 void DatasetQuality::print_info() const {
-    auto str = Meta::toStr(_sorted);
-    print("DatasetQuality: ", str);
+    print("DatasetQuality: ", _sorted);
 }
 
 DatasetQuality::Quality DatasetQuality::quality(const Range<Frame_t> &range) const {

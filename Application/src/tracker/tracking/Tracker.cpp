@@ -3636,10 +3636,8 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         FOI::remove_frames(frameIndex);
         global_segment_order_changed();
         
-        auto str = Meta::toStr(_inactive_individuals);
-        print("Inactive individuals: ", str);
-        str = Meta::toStr(_active_individuals);
-        print("Active individuals: ", str);
+        print("Inactive individuals: ", _inactive_individuals);
+        print("Active individuals: ", _active_individuals);
         
         print("After removing frames: ", gui::CacheObject::memory());
         print("posture: ", Midline::saved_midlines());

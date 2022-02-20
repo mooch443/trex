@@ -24,8 +24,7 @@ void TrainingData::print_pointer_stats() {
     print("----");
     print("Currently ", _data_pointers.size()," trainingdata are allocated.");
     for(auto &ptr : _data_pointers) {
-        auto str = Meta::toStr(*ptr);
-        print("\t", str);
+        print("\t", *ptr);
     }
     print("----");
 #endif
@@ -51,7 +50,7 @@ void remove_pointer(TrainingData* data) {
         auto str = Meta::toStr(*data);
         if(_data_pointers.count(data) == 0)
             U_EXCEPTION("Cannot find pointer to %S", &str);
-        print("Removing ", str);
+        print("Removing ", str.c_str());
         _data_pointers.erase(data);
     }
     
@@ -756,8 +755,7 @@ std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::share
     for(auto &d : data()) {
         if(!d->applied_mapping.empty()) {
             add_range->applied_mapping = d->applied_mapping;
-            auto str = Meta::toStr(add_range->applied_mapping);
-            print("add_range->applied_mappig = ", str);
+            print("add_range->applied_mappig = ", add_range->applied_mapping);
             break;
         }
     }
@@ -974,8 +972,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             ++lengths[id];
     }
     
-    auto str = Meta::toStr(lengths);
-    print("L: ", str);
+    print("L: ", lengths);
     
     auto data = std::make_shared<TrainingData::DataRange>();
     

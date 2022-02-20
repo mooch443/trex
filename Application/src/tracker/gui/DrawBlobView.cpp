@@ -646,8 +646,7 @@ void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, b
         
         print("Selected boundary:");
         for(auto & boundary : _current_boundary) {
-            auto str = Meta::toStr(boundary);
-            print("\t", str);
+            print("\t", boundary);
         }
         
         _current_boundary.clear();
