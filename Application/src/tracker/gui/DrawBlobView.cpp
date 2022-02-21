@@ -411,12 +411,11 @@ void draw_blob_view(const DisplayParameters& parm)
                             }
                         }
                         
-                        auto name = fish->identity().name();
-                        Debug("Assigning blob %d to fish %S", clicked_blob_id, &name);
+                        print("Assigning blob ", clicked_blob_id," to fish ",fish->identity().name(),"");
                         GUI::instance()->add_manual_match(GUI::frame(), id, clicked_blob_id);
                         SETTING(gui_mode) = ::gui::mode_t::tracking;
                     } else
-                        Warning("Cannot find individual with ID %d.", item.ID()-1);
+                        print("Cannot find individual with ID ",item.ID()-1,".");
                 }
                 
                 _clicked_blob_id = pv::bid::invalid;
@@ -474,7 +473,7 @@ void draw_blob_view(const DisplayParameters& parm)
             parm.base.wrap_object(*popup);
             
         } else {
-            Warning("Cannot find clicked blob id %d.", _clicked_blob_id.load());
+            print("Cannot find clicked blob id ",_clicked_blob_id.load(),".");
             _clicked_blob_id = -1;
         }
         
@@ -619,7 +618,7 @@ void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, b
                 } catch(...) {}
                 
             } else {
-                Error("Cannot create a convex polygon from %d points.", _current_boundary.back().size());
+                print("Cannot create a convex polygon from ",_current_boundary.back().size()," points.");
             }
         } else if(is_vectors) {
             try {

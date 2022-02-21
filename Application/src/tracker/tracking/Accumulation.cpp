@@ -42,7 +42,7 @@ struct AccumulationLock {
         } catch(const SoftException& ) {
             //! do nothing
 #ifndef NDEBUG
-            Warning("Caught SoftException in ~Accumulation.");
+            FormatWarning("Caught SoftException in ~Accumulation.");
 #endif
         }
         //PythonIntegration::async_python_function([]() {
@@ -95,7 +95,7 @@ void Accumulation::unsetup() {
             
         }).get();
     } catch(const std::future_error& e) {
-        SOFT_EXCEPTION("Failed to unsetup python ('%s').", e.what());
+        throw CustomException(cmn::type<SoftException>, "Failed to unsetup python ('", e.what(),"')'");
     }
 }
 
@@ -105,7 +105,7 @@ void Accumulation::setup() {
         Recognition::check_learning_module();
         
     } catch(const std::future_error& error) {
-        Except("Checking learning module failed '%s'.", error.what());
+        FormatExcept("Checking learning module failed '", error.what(),"'.");
 #if defined(__APPLE__) && defined(__aarch64__)
         SOFT_EXCEPTION("Checking the learning module failed. Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow). Since you are using an ARM Mac, you may need to install additional libraries. Python says: '%S'.", &PythonIntegration::python_init_error());
 #else
@@ -131,7 +131,7 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
     for(auto id : FAST_SETTINGS(manual_identities)) {
         auto it = Tracker::individuals().find(id);
         if(it == Tracker::individuals().end()) {
-            Warning("Individual %d not part of the training dataset.", id);
+            print("Individual ",id," not part of the training dataset.");
             continue;
         }
         
@@ -231,7 +231,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
         data.generate("acc"+Meta::toStr(_accumulation_step)+" "+Meta::toStr(range), *GUI::instance()->video_source(), coverage, [](float percent) { GUI::work().set_progress("", percent); }, _generated_data.get());
     } /*else {
         auto str = Meta::toStr(data);
-        Debug("Dont need to generate images for %S.", &str);
+        print("Dont need to generate images for ",str,".");
     }*/
     
     auto && [images, ids] = data.join_arrays();
@@ -260,9 +260,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
             not_added_ids.insert(ids[i]);
     }
     
-    auto str = Meta::toStr(added_ids);
-    auto str1 = Meta::toStr(not_added_ids);
-    Debug("\tCalculated assignments for range %d-%d based on previous training (ids %S / missing %S):", range.start, range.end, &str, &str1);
+    print("\tCalculated assignments for range ",range.start,"-",range.end," based on previous training (ids ",added_ids," / missing ",not_added_ids,"):");
     
     std::map<Idx_t, Idx_t> max_indexes;
     std::map<Idx_t, float> max_probs;
@@ -288,7 +286,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
         assert(max_index >= 0);
         
         auto str = Meta::toStr(values);
-        Debug("\t\t%d: %S (%f, %d = %f)", id, &str, samples, max_index, max_p);
+        print("\t\t",id,": ",&str," (",samples,", ",max_index," = ",max_p,")");
         max_indexes[id] = Idx_t((uint32_t)max_index);
         max_probs[id] = max_p;
         print_out[id] = {max_index, max_p};
@@ -335,34 +333,31 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
         }
         assert(original_id1.valid());
         
-        Debug("\tPossible choices are %d (%f) and %d (%f).", original_id0, max_probs.at(original_id0), original_id1, max_probs.at(original_id1));
+        print("\tPossible choices are ",original_id0," (",max_probs.at(original_id0),") and ",original_id1," (",max_probs.at(original_id1),").");
         
         if(max_probs.at(original_id0) > max_probs.at(original_id1)) {
-            Debug("\tReplacing %d with missing predicted id %d", original_id1, missing_predicted_id);
+            print("\tReplacing ", original_id1," with missing predicted id ",missing_predicted_id,"");
             max_indexes[original_id1] = missing_predicted_id;
         } else {
-            Debug("\tReplacing %d with missing predicted id %d", original_id0, missing_predicted_id);
+            print("\tReplacing ", original_id0," with missing predicted id ",missing_predicted_id,"");
             max_indexes[original_id0] = missing_predicted_id;
         }
         
         unique_ids.insert(missing_predicted_id);
     }
     
-    auto quality_str = Meta::toStr(quality);
     if(unique_ids.size() == FAST_SETTINGS(manual_identities).size() && min_prob > pure_chance * FAST_SETTINGS(recognition_segment_add_factor)) {
-        str = Meta::toStr(max_indexes);
-        
-        Debug("\t[+] Dataset range (%d-%d, %S) is acceptable for training with assignments: %S", range.start, range.end, &quality_str, &str);
+        print("\t[+] Dataset range (",range.start,"-",range.end,", ",quality,") is acceptable for training with assignments: ",max_indexes,"");
         
     } else if(unique_ids.size() != FAST_SETTINGS(manual_identities).size()) {
-        auto str = DEBUG::format("\t[-] Dataset range (%d-%d, %S) does not predict unique ids.", range.start, range.end, &quality_str, unique_ids.size());
+        auto str = format<FormatterType::NONE>("\t[-] Dataset range (", range,", ",quality,") does not predict unique ids.");
         end_a_step(Result(FrameRange(range), -1, AccumulationStatus::Cached, AccumulationReason::NoUniqueIDs, str));
-        Debug("%S", &str);
+        print(str.c_str());
         return {true, {}};
     } else if(min_prob <= pure_chance * FAST_SETTINGS(recognition_segment_add_factor)) {
-        auto str = DEBUG::format("\t[-] Dataset range (%d-%d, %S) minimal class-probability %f is lower than %f.", range.start, range.end, &quality_str, min_prob, pure_chance * FAST_SETTINGS(recognition_segment_add_factor));
+        auto str = format<FormatterType::NONE>("\t[-] Dataset range (", range,", ", quality,") minimal class-probability ", min_prob," is lower than ", pure_chance * FAST_SETTINGS(recognition_segment_add_factor),".");
         end_a_step(Result(FrameRange(range), -1, AccumulationStatus::Cached, AccumulationReason::ProbabilityTooLow, str));
-        Debug("%S", &str);
+        print(str.c_str());
         return {true, {}};
     }
     
@@ -376,12 +371,12 @@ void Accumulation::confirm_weights() {
     path = path.add_extension("npz");
     
     if(progress_path.exists()) {
-        Debug("Moving weights from '%S' to '%S'.", &progress_path.str(), &path.str());
+        print("Moving weights from ",progress_path.str()," to ",path.str(),".");
         if(!progress_path.move_to(path))
-            Except("Cannot move '%S' to '%S'. Are your file permissions in order?", &progress_path.str(), &path.str());
+            FormatExcept("Cannot move ",progress_path," to ",path,". Are your file permissions in order?");
         
     } else
-        Except("Cannot find weights! No successful training so far? :(");
+        FormatExcept("Cannot find weights! No successful training so far? :(");
 }
 
 void Accumulation::update_coverage(const TrainingData &data) {
@@ -431,7 +426,7 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Fram
         gui::WorkInstance generating_images("generating images");
         if (GUI::instance())
             GUI::work().set_progress("generating images", 0);
-        else U_EXCEPTION("No instance.");
+        else throw U_EXCEPTION("No instance.");
         
         print("Generating discrimination data.");
         
@@ -474,7 +469,7 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Fram
         
         if(!data->generate("generate_discrimination_data"+Meta::toStr((uint64_t)data.get()), *GUI::instance()->video_source(), disc_individuals_per_frame, [](float percent) { GUI::work().set_progress("", percent); }, source ? source.get() : nullptr))
         {
-            Warning("Couldnt generate proper training data (see previous warning messages).");
+            FormatWarning("Couldnt generate proper training data (see previous warning messages).");
             return {nullptr, {}, {}};
         }
         
@@ -525,7 +520,7 @@ std::tuple<float, std::map<Frame_t, float>, float> Accumulation::calculate_uniqu
     else predictions = Tracker::recognition()->predict_chunk(images);
     
     if(predictions.empty() || predictions.begin()->empty()) {
-        Except("Cannot predict %d images.", images.size());
+        FormatExcept("Cannot predict ", images.size()," images.");
     }
     
     size_t good_frames = 0;
@@ -660,7 +655,7 @@ bool Accumulation::start() {
         
     } else if(_mode == TrainingMode::Continue) {
         if(!Recognition::network_weights_available()) {
-            Except("Cannot continue training. Need to train on the first segment.");
+            FormatExcept("Cannot continue training. Need to train on the first segment.");
             return false;
         }
         
@@ -742,9 +737,9 @@ bool Accumulation::start() {
         
         if(!_collected_data->generate("initial_acc"+Meta::toStr(_accumulation_step)+" "+Meta::toStr(_initial_range), *GUI::instance()->video_source(), individuals_per_frame, [](float percent) { GUI::work().set_progress("", percent); }, NULL)) {
             if(SETTING(auto_train_on_startup)) {
-                U_EXCEPTION("Couldnt generate proper training data (see previous warning messages).");
+                throw U_EXCEPTION("Couldnt generate proper training data (see previous warning messages).");
             } else
-                Warning("Couldnt generate proper training data (see previous warning messages).");
+                FormatWarning("Couldnt generate proper training data (see previous warning messages).");
             return false;
         }
         
@@ -760,7 +755,7 @@ bool Accumulation::start() {
     
     if(!_discrimination_data) {
         if(SETTING(auto_train_on_startup)) {
-            U_EXCEPTION("Couldnt generate discrimination data (something wrong with the video?).");
+            throw U_EXCEPTION("Couldnt generate discrimination data (something wrong with the video?).");
         } else
             SOFT_EXCEPTION("Couldnt generate discrimination data (something wrong with the video?).");
     }
@@ -843,7 +838,7 @@ bool Accumulation::start() {
                 ids.insert(ids.end(), data.training_ids.begin(), data.training_ids.end());
                 
                 auto ss = size.to_string();
-                Debug("Images are %S big. Saving to '%S'.", &ss, &ranges_path.str());
+                print("Images are ",ss," big. Saving to '",ranges_path.str(),"'.");
                 
                 cmn::npz_save(ranges_path.str(), "ids", ids, "a");
                 cmn::npz_save(ranges_path.str(), "images", all_images.data(), { data.validation_images.size() + data.training_images.size(), (size_t)dims.height, (size_t)dims.width, 1 }, "a");
@@ -863,7 +858,7 @@ bool Accumulation::start() {
             end_a_step(Result(FrameRange(_initial_range), acc, AccumulationStatus::Failed, AccumulationReason::TrainingFailed, text));
             
             if(SETTING(auto_train_on_startup)) {
-                U_EXCEPTION(text.c_str());
+                throw U_EXCEPTION(text.c_str());
             } else
                 Except(text.c_str());
             return false;
@@ -971,7 +966,7 @@ bool Accumulation::start() {
             
             sorted.clear();
             
-            Debug("\t\tmin_d = %f, max_d = %f", min_distance, max_distance);
+            print("\t\tmin_d = ", min_distance,", max_d = ",max_distance,"");
             for(auto && [d, rd, q, cached, range, extended_range, samples] : copied_sorted) {
                 double distance = 100 - (max_distance > min_distance ? (((d - min_distance) / (max_distance - min_distance)) * 100) : 0);
                 distance = roundf(roundf(distance) * 2.0 / 10.0) / 2.0 * 10.0;
@@ -1030,7 +1025,7 @@ bool Accumulation::start() {
                 
                 if(!inserted) {
                     auto str = Meta::toStr(range);
-                    Error("Did not find a point to insert %S!", &str);
+                    print("Did not find a point to insert ",str,"!");
                 }
             }
             
@@ -1039,7 +1034,7 @@ bool Accumulation::start() {
             size_t retained = inserted_elements;
             
             if(inserted_elements > gpu_accumulation_max_segments) {
-                Debug("Reducing global segments array by %d elements (to reach gpu_accumulation_max_segments limit = %d).", inserted_elements - gpu_accumulation_max_segments, gpu_accumulation_max_segments);
+                print("Reducing global segments array by ", inserted_elements - gpu_accumulation_max_segments," elements (to reach gpu_accumulation_max_segments limit = ",gpu_accumulation_max_segments,").");
                 
                 retained = 0;
                 for(auto && [end, queue] : sorted_by_quality) {
@@ -1066,11 +1061,10 @@ bool Accumulation::start() {
                         sorted.insert({-1, Frame_t(), q, nullptr, range});
                 }
                 
-                Debug("Reduced global segments array by removing %d elements with a quality worse than %S (%S). %d elements remaining.", filtered_out.size(), &str, &str_filtered_out, sorted_by_quality.size());
+                print("Reduced global segments array by removing ",filtered_out.size()," elements with a quality worse than ",&str," (",&str_filtered_out,"). ",sorted_by_quality.size()," elements remaining.");
                 
             } else {
-                auto str = Meta::toStr(sorted);
-                Debug("Did not reduce global segments array. There are not too many of them (%S). %d elements in list.", &str, sorted.size());
+                print("Did not reduce global segments array. There are not too many of them (", sorted,"). ",sorted.size()," elements in list.");
             }
         }
         
@@ -1131,10 +1125,10 @@ bool Accumulation::start() {
                         if(uniquenesses.empty())
                             acceptance = uniqueness;
                         else if(!uniquenesses.empty() && uniqueness >= accepted_uniqueness(best_uniqueness)) {
-                            Debug("\tAccepting worst class accuracy of %f because uniqueness is %f > %f", acc, uniqueness, best_uniqueness);
+                            print("\tAccepting worst class accuracy of ", acc," because uniqueness is ", uniqueness," > ",best_uniqueness,"");
                             acceptance = uniqueness;
                         } /*else if(!uniquenesses.empty() && uniqueness >= best_uniqueness * 0.8 && acc >= SQR(best_accuracy_worst_class)*best_accuracy_worst_class) {
-                            Debug("\tAccepting worst class accuracy of %f because uniqueness is %f (vs. %f) and accuracy is better than %f", acc, uniqueness, best_uniqueness * 0.8, SQR(best_accuracy_worst_class)*best_accuracy_worst_class);
+                            print("\tAccepting worst class accuracy of ",acc," because uniqueness is ",uniqueness," (vs. ",best_uniqueness * 0.8,") and accuracy is better than ",SQR(best_accuracy_worst_class)*best_accuracy_worst_class,"");
                             acceptance = uniqueness;
                         }*/
                         //}
@@ -1192,7 +1186,7 @@ bool Accumulation::start() {
                 } else {
                     auto && [p, map, up] = calculate_uniqueness(false, _disc_images, _disc_frame_map);
                     auto str = DEBUG::format("Adding range %d-%d failed (uniqueness would have been %f vs. %f).", range.start, range.end, p, best_uniqueness);
-                    Warning("%S", &str);
+                    print(str);
                     
                     if(GUI::work().item_custom_triggered()) {
                         end_a_step(Result(FrameRange(range), acc, AccumulationStatus::Failed, AccumulationReason::Skipped, str));
@@ -1342,7 +1336,7 @@ bool Accumulation::start() {
             } else if(!sorted.empty()) {
                 auto ssss = Meta::toStr(sorted);
                 auto sss = Meta::toStr(overall_ranges);
-                Debug("sorted (%S): %S", &sss, &ssss);
+                print("sorted (",sss,"): ",ssss,"");
                 
                 auto [overlaps, rd, q, cached, range] = *sorted.begin();
                 auto keep_iterating = update_meta_start_acc(cached ? "(retry)" : "", range, q, overlaps);
@@ -1373,7 +1367,7 @@ bool Accumulation::start() {
         if(sorted.empty() && available_ranges > 0 && successful_ranges == 0) {
             const char* text = "Did not find enough consecutive segments to train on. This likely means that your tracking parameters are not properly adjusted - try changing parameters such as `blob_size_ranges` in coordination with `track_threshold` to get cleaner trajectories. Additionally, changing the waiting time until animals are reassigned to arbitrary blobs (`track_max_reassign_time`) can help. None predicted unique IDs. Have to start training from a different segment.";
             if(SETTING(auto_train_on_startup)) {
-                U_EXCEPTION(text);
+                throw U_EXCEPTION(text);
             } else
                 Except(text);
         } else
@@ -1417,7 +1411,7 @@ bool Accumulation::start() {
         ids.insert(ids.end(), data.training_ids.begin(), data.training_ids.end());
         
         auto ss = size.to_string();
-        Debug("Images are %S big. Saving to '%S'.", &ss, &ranges_path.str());
+        print("Images are ",ss," big. Saving to '",ranges_path.str(),"'.");
         
         cmn::npz_save(ranges_path.str(), "ids", ids, "a");
         cmn::npz_save(ranges_path.str(), "images", all_images.data(), { data.validation_images.size() + data.training_images.size(), (size_t)dims.height, (size_t)dims.width, 1 }, "a");
@@ -1509,14 +1503,10 @@ bool Accumulation::start() {
             
             size_str = Meta::toStr(FileSize{ uint64_t(mbytes * 1000) * 1000u });
             distribution = Meta::toStr(images_per_class);
-            Debug("\tNow cache size of: %S (%S)", &size_str, &distribution);
+            print("\tNow cache size of: ",size_str," (",distribution,")");
             
         } else {
-            auto distribution = Meta::toStr(images_per_class);
-            auto size_str = Meta::toStr(FileSize{ uint64_t(mbytes * 1000 * 1000) });
-            auto max_str = Meta::toStr(FileSize{ uint64_t(gpu_max_sample_mb * 1000 * 1000) });
-            
-            Debug("\tCache sizes are %S / %S (%S).", &size_str, &max_str, &distribution);
+            print("\tCache sizes are ",FileSize{ uint64_t(mbytes * 1000 * 1000) }," / ",FileSize{ uint64_t(gpu_max_sample_mb * 1000 * 1000) }," (",images_per_class,").");
         }
         
         if(SETTING(debug_recognition_output_all_methods)) {
@@ -1590,7 +1580,7 @@ bool Accumulation::start() {
                         /*auto iit = did_image_already_exist.find({id, frame});
                         if(iit != did_image_already_exist.end()) {
                             // this image was already created
-                            Warning("Creating a second instance of id %d in frame %d", id, frame);
+                            FormatWarning("Creating a second instance of id ", id," in frame ",frame,"");
                         }*/
                         
                         using namespace default_config;
@@ -1612,7 +1602,7 @@ bool Accumulation::start() {
                 
                 DebugHeader("Generated images for '%s'", method.name());
                 for(auto &&[id, img] : images) {
-                    Debug("\t%d: %d", id, img.size());
+                    print("\t", id,": ",img.size(),"");
                 }
                 
                 
@@ -1632,7 +1622,7 @@ bool Accumulation::start() {
                     
                     FileSize size(uint64_t(total_images * dims.width * dims.height));
                     auto ss = size.to_string();
-                    Debug("Images are %S big. Saving to '%S'.", &ss, &ranges_path.str());
+                    print("Images are ",ss," big. Saving to '",ranges_path.str(),"'.");
                     
                     std::vector<uchar> all_images;
                     all_images.resize(size.bytes);
@@ -1649,7 +1639,7 @@ bool Accumulation::start() {
                     cmn::npz_save(ranges_path.str(), "images", all_images.data(), { total_images, (size_t)dims.height, (size_t)dims.width, 1 }, "a");
                     
                 } catch(...) {
-                    Except("Failed saving '%s'", method.name());
+                    FormatExcept("Failed saving '", method.name(),"'");
                 }
                 //TrainingData training;
                 //training.set_normalized(method);
@@ -1674,7 +1664,7 @@ bool Accumulation::start() {
             confirm_weights();
         } else {
             auto str = DEBUG::format("Overfitting with uniqueness of %.2f did not improve score. Ignoring.", acc);
-            Warning("%S", &str);
+            print(str);
             end_a_step(Result(FrameRange(), acc, AccumulationStatus::Failed, AccumulationReason::UniquenessTooLow, str));
             Tracker::recognition()->load_weights("");
         }

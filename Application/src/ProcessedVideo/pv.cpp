@@ -110,7 +110,7 @@ namespace pv {
     
     const std::vector<pv::BlobPtr>& Frame::get_blobs() const {
         if(_blobs.size() != n())
-            U_EXCEPTION("Have to call the non-const variant of this function first at some point (%d != %d).", _blobs.size(), n());
+            throw U_EXCEPTION("Have to call the non-const variant of this function first at some point (%d != %d).", _blobs.size(), n());
         return _blobs;
     }
     
@@ -195,7 +195,7 @@ namespace pv {
                     ptr = compressed;
                     
                 } else {
-                    Error("Failed to decode frame %d from file %@", idx, this);
+                    FormatError("Failed to decode frame ", idx," from file ", *this);
                 }
             }
         }
@@ -325,7 +325,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             
             if(line_ptr->y >= full_image.rows || line_ptr->x0 >= full_image.cols || line_ptr->x1 < line_ptr->x0)
             {
-                U_EXCEPTION("x1 < x0 in %d-%d,%d %lu 0x%X", line_ptr->x1, line_ptr->x0, line_ptr->y, L, line_ptr);
+                throw U_EXCEPTION("x1 < x0 in ",line_ptr->x1,"-",line_ptr->x0,",",line_ptr->y," ",L,"u 0x",line_ptr,"");
                 //mask->erase(mask->begin()+i-offset);
                 //offset++;
                 continue;
@@ -445,7 +445,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
 
             }
             else {
-                Error("Compression of %d bytes failed.", pack.size());
+                print("Compression of ",pack.size()," bytes failed.");
             }
         }
     }
@@ -457,7 +457,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         std::lock_guard<std::mutex> guard(location_mutex);
         if(location_funcs.find(purpose) != location_funcs.end()) {
             auto str = Meta::toStr(extract_keys(location_funcs));
-            U_EXCEPTION("Purpose '%S' already found in map with keys %S. Cannot register twice.", &purpose, &str);
+            throw U_EXCEPTION("Purpose '%S' already found in map with keys %S. Cannot register twice.", &purpose, &str);
         }
         
         location_funcs.insert({purpose, fn});
@@ -470,7 +470,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             auto it = location_funcs.find(utils::trim(utils::lowercase(purpose)));
             if(it == location_funcs.end()) {
                 auto str = Meta::toStr(extract_keys(location_funcs));
-                U_EXCEPTION("Cannot find purpose '%S' in map with keys %S in order to modify path '%S'.", &purpose, &str, &path.str());
+                throw U_EXCEPTION("Cannot find purpose '%S' in map with keys %S in order to modify path '%S'.", &purpose, &str, &path.str());
             }
             
             fn = it->second;
@@ -538,12 +538,12 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         }
         
         if(version > Version::current)
-            U_EXCEPTION("Unknown version '%d'.", version);
+            throw U_EXCEPTION("Unknown version '",version,"'.");
         
         if(version == Version::V_2) {
             // must read settings from file before loading...
             if(!DataLocation::is_registered("settings"))
-                U_EXCEPTION("You have to register a DataLocation for 'settings' before using pv files (usually the same folder the video is in + exchange the .pv name with .settings).");
+                throw U_EXCEPTION("You have to register a DataLocation for 'settings' before using pv files (usually the same folder the video is in + exchange the .pv name with .settings).");
             auto settings_file = DataLocation::parse("settings");
             if (settings_file.exists())
                 GlobalSettings::load_from_file({}, settings_file.str(), AccessLevelType::PUBLIC);
@@ -573,10 +573,10 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         // check values for sanity
         if(channels != 1)
-            U_EXCEPTION("Only 1 channel currently supported (%d provided)", this->channels);
+            throw U_EXCEPTION("Only 1 channel currently supported (",this->channels," provided)");
         
         if(line_size != sizeof(line_type))
-            U_EXCEPTION("The used line format in this file (%ld bytes) differs from the expected %ld bytes.", line_size, sizeof(line_type));
+            throw U_EXCEPTION("The used line format in this file (%ld bytes) differs from the expected %ld bytes.", line_size, sizeof(line_type));
         
         if(average)
             delete average;
@@ -667,7 +667,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         ref.write(channels);
         
         if(!resolution.width && !resolution.height)
-            U_EXCEPTION("Resolution of the video has not been set.");
+            throw U_EXCEPTION("Resolution of the video has not been set.");
         ref.write(resolution);
         ref.write(offsets);
         
@@ -688,7 +688,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         if(mask) {
             ref.write(uint64_t(mask->size()));
             ref.write_data(mask->size(), (char*)mask->data());
-            Debug("Written mask with %dx%d", mask->cols, mask->rows);
+            print("Written mask with ", mask->cols,"x",mask->rows,"");
         }
         else {
             ref.write(uint64_t(0));
@@ -698,8 +698,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     void Header::update(DataFormat& ref) {
         // write index table
         index_offset = ref.current_offset();
-        auto str = Meta::toStr(FileSize(index_table.size() * sizeof(decltype(index_table)::value_type)));
-        Debug("Index table is %S big.", &str);
+        print("Index table is ",FileSize(index_table.size() * sizeof(decltype(index_table)::value_type))," big.");
         
         for (auto index : index_table) {
             ref.write<decltype(index_table)::value_type>(index);
@@ -708,7 +707,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         metadata = generate_metadata();
         _meta_offset = ref.write(metadata);
         
-        Debug("Updating number of frames with %ld, index offset %ld, timestamp %ld %ld", this->num_frames, this->index_offset, this->timestamp, _meta_offset);
+        print("Updating number of frames with ",this->num_frames,", index offset ",this->index_offset,", timestamp ",this->timestamp,", ", _meta_offset);
         ref.write(this->num_frames, _num_frames_offset);
         ref.write(this->index_offset, _index_offset);
         ref.write(this->timestamp, _timestamp_offset);
@@ -735,7 +734,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             print("Metadata empty.");
         } else {
             ret = "{"+ret+"}";
-            Debug("Metadata: '%S'", &ret);
+            print("Metadata: ",ret,"");
         }
         
         return ret;
@@ -840,7 +839,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         //    frame._timestamp -= _header.timestamp; // make timestamp relative to start of video
 
         if (_prev_frame_time && frame._timestamp <= _prev_frame_time) {
-            U_EXCEPTION("Should be dropping frame because %lu <= %lu.", frame._timestamp, _prev_frame_time);
+            throw U_EXCEPTION("Should be dropping frame because %lu <= %lu.", frame._timestamp, _prev_frame_time);
         }
 
         _header._running_average_tdelta += frame._timestamp - _prev_frame_time;
@@ -881,7 +880,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         std::unique_lock<std::mutex> guard(_lock);
         if(frameIndex >= _header.num_frames)
-            U_EXCEPTION("Frame index %ld out of range.", frameIndex);
+           throw U_EXCEPTION("Frame index ", frameIndex," out of range.");
         
         uint64_t pos = _header.index_table.at(frameIndex);
         uint64_t old = current_offset();
@@ -898,7 +897,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         std::unique_lock<std::mutex> guard(_lock);
         if(frame_to_read >= _header.num_frames)
-            U_EXCEPTION("Frame index %ld out of range.", frame_to_read);
+           throw U_EXCEPTION("Frame index ", frame_to_read," out of range.");
         
         frame.read_from(*this, (long_t)frame_to_read);
     }
@@ -936,7 +935,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     }
 
     void fix_file(File& file) {
-        Debug("Starting file copy and fix ('%S')...", &file.filename());
+        print("Starting file copy and fix (",file.filename(),")...");
         
         File copy(file.filename()+"_fix");
         copy.set_resolution(file.header().resolution);
@@ -968,7 +967,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
                 last_reset = raw_prev_timestamp + last_difference;
                 last_reset_idx = idx;
                 
-                Warning("Fixing frame %lu because timestamp %lu < %lu -> %lu", idx, frame.timestamp(), last_reset, last_reset + frame.timestamp());
+                FormatWarning("Fixing frame ",idx," because timestamp ",frame.timestamp(),"u < ",last_reset," -> ",last_reset + frame.timestamp(),"");
             } else {
             	last_difference = frame.timestamp() - raw_prev_timestamp;
             }
@@ -982,7 +981,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             copy.add_individual(std::move(frame));
             
             if (idx % 1000 == 0) {
-                Debug("Frame %lu / %lu (%.2f%% compression ratio)...", idx, file.length(), copy.compression_ratio()*100);
+                print("Frame ", idx," / ", file.length()," (",copy.compression_ratio() * 100,"% compression ratio)...");
             }
         }
         
@@ -1018,7 +1017,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             copy.add_individual(std::move(frame));
             
             if (i % 1000 == 0) {
-                Debug("Frame %lu / %lu...", i, length());
+                print("Frame ", i," / ",length(),"...");
             }
         }
         
@@ -1038,7 +1037,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     
     void File::update_metadata() {
         if(!_open_for_modifying)
-            U_EXCEPTION("Must be open for writing.");
+            throw U_EXCEPTION("Must be open for writing.");
     
         print("Updating metadata...");
         auto metadata = _header.generate_metadata();
@@ -1053,7 +1052,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
 
     std::vector<float> File::calculate_percentiles(const std::initializer_list<float> &percent) {
         if(_open_for_writing)
-            U_EXCEPTION("Cannot calculate percentiles when file is opened for writing.");
+            throw U_EXCEPTION("Cannot calculate percentiles when file is opened for writing.");
         Timer timer;
         TaskSentinel sentinel(this);
         
@@ -1106,7 +1105,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         std::sort(pixel_values.begin(), pixel_values.end());
         auto p = percentile(pixel_values, percent);
-        Debug("Took %fs to calculate percentiles in %d frames.", timer.elapsed(), num_frames);
+        print("Took ", timer.elapsed(),"s to calculate percentiles in ",num_frames," frames.");
         //auto str = Meta::toStr(samples);
         return p;
     }
@@ -1137,17 +1136,17 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     
     uint64_t File::timestamp(uint64_t frameIndex) const {
         if(_open_for_writing)
-            U_EXCEPTION("Cannot get timestamps for video while writing.");
+            throw U_EXCEPTION("Cannot get timestamps for video while writing.");
         
         if(frameIndex >= header().num_frames)
-            U_EXCEPTION("Access out of bounds %d/%d.", frameIndex, header().num_frames);
+            throw U_EXCEPTION("Access out of bounds %d/%d.", frameIndex, header().num_frames);
         
         return header().index_table[frameIndex];
     }
     
     uint64_t File::start_timestamp() const {
         if(_open_for_writing)
-            U_EXCEPTION("Cannot get timestamps for video while writing.");
+            throw U_EXCEPTION("Cannot get timestamps for video while writing.");
         
         return header().timestamp;
     }

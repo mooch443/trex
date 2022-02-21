@@ -79,14 +79,14 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         if(instance)
             instance->_notify();
         else
-            Except("Recognition::notify() without initializing an instance first.");
+            FormatExcept("Recognition::notify() without initializing an instance first.");
         
         update_condition.notify_all();
     }
     
     bool Recognition::train(std::shared_ptr<TrainingData> data, const FrameRange& global_range, TrainingMode::Class load_results, uchar gpu_max_epochs, bool dont_save, float *worst_accuracy_per_class, int accumulation_step) {
         if(!instance) {
-            Except("Calling Recognition::train without initializing a Recognition object first.");
+            FormatExcept("Calling Recognition::train without initializing a Recognition object first.");
             return false;
         }
         return instance->train_internally(data, global_range, load_results, gpu_max_epochs, dont_save, worst_accuracy_per_class, accumulation_step);
@@ -257,11 +257,11 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             setenv("PYTHONHOME", home.c_str(), 1);
 #endif
             if (!SETTING(quiet)) {
-                Debug("Set PATH='%S'", &set);
-                Debug("Set PYTHONHOME='%S'", &home);
+                print("Set PATH=",set,"");
+                print("Set PYTHONHOME=",home,"");
 
                 if (!can_initialize_python())
-                    Except("Please check your python environment variables, as it failed to initialize even after setting PYTHONHOME and PATH.");
+                    FormatExcept("Please check your python environment variables, as it failed to initialize even after setting PYTHONHOME and PATH.");
             }
         }
 #endif
@@ -672,7 +672,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                     if(!blob || ((normalize == default_config::recognition_normalization_t::posture || normalize == default_config::recognition_normalization_t::legacy) && !midline))
                     {
 #ifndef NDEBUG
-                        Warning("Blob or midline of fish %d is nullptr, which is not supposed to happen.", fdx);
+                        print("Blob or midline of fish ",fdx," is nullptr, which is not supposed to happen.");
 #endif
                         continue;
                     }
@@ -709,7 +709,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                             data.filters = std::make_shared<TrainingFilterConstraints>(filters);
                             data.image = std::get<0>(Recognition::calculate_diff_image_with_settings(normalize, blob, data, output_shape));
                         } catch(const std::invalid_argument& e) {
-                            Except("Caught %s", e.what());
+                            FormatExcept("Caught ", e.what());
                             continue;
                         }
                         
@@ -727,7 +727,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                     if(_data_queue.size() * image_megabytes > cache_capacity_megabytes
                        || waiting_images * image_megabytes > cache_capacity_megabytes) {
                         auto str = Meta::toStr(FileSize{ uint64_t(_data_queue.size() * image_megabytes * 1000 * 1000) });
-                        Debug("Breaking after %S to not break the RAM.", &str);
+                        print("Breaking after ",str," to not break the RAM.");
                         return waiting_images;
                     }
                 }
@@ -785,7 +785,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         
         if(!PythonIntegration::python_initialized())
         {
-            //Error("Python has not been initialized successfully upon startup.");
+            //FormatError("Python has not been initialized successfully upon startup.");
             return false;
         }
         
@@ -824,7 +824,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         
         if(_fish_last_frame.size() != identities.size()) {
             if(identities.empty())
-                U_EXCEPTION("Cannot run recognition without manual_identities.");
+                throw U_EXCEPTION("Cannot run recognition without manual_identities.");
             
             _fish_last_frame.clear();
             for(auto id : identities)
@@ -1000,7 +1000,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                 if(blob->num_pixels() != e.blob.num_pixels) {
                     static Timer printed;
                     if (printed.elapsed() >= 1) {
-                        Error("Recognition: Blob %d has varying numbers of pixels in storage (%d) / video-file (%d).", blob->blob_id(), blob->num_pixels(), e.blob.num_pixels);
+                        FormatError("Recognition: Blob ", blob->blob_id()," has varying numbers of pixels in storage (", blob->num_pixels(),") / video-file (",e.blob.num_pixels,").");
                         printed.reset();
                     }
                     
@@ -1024,7 +1024,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                 
                 if(waiting.size() >= SETTING(gpu_min_elements).value<uint32_t>() && !_running) {
                     if(guard.try_lock_for(std::chrono::milliseconds(1))) {
-                        Debug("Inserting %d items into prediction queue (%d)...", waiting.size(), _data_queue.size());
+                        print("Inserting ", waiting.size()," items into prediction queue (",_data_queue.size(),")...");
                         
                         const size_t maximum_queue_elements = SETTING(gpu_min_elements).value<uint32_t>() * 5;
                         auto queue_size = _data_queue.size();
@@ -1150,7 +1150,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             std::vector<Individual*> fishies;
             for (auto id : FAST_SETTINGS(manual_identities)) {
                 if(!Tracker::individuals().count(id))
-                    Warning("Tracking does not contain required id '%d' for recognition.", id);
+                    print("Tracking does not contain required id '",id,"' for recognition.");
                 else
                     fishies.push_back(Tracker::individuals().at(id));
             }
@@ -1300,7 +1300,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             
 #ifdef TT_DEBUG_ENABLED
             if(timer.elapsed() > 10) {
-                Warning("Possible deadlock with the Recognition::_running_mutex (%S)", &_running_reason);
+                print("Possible deadlock with the Recognition::_running_mutex (",_running_reason.c_str(),")");
                 timer.reset();
             }
 #endif
@@ -1313,7 +1313,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
     
     void Recognition::add_async_prediction() {
         if(!trained()) {
-            Except("Have not trained yet, but ran Recognition::add_async_prediction. This is weird.");
+            FormatExcept("Have not trained yet, but ran Recognition::add_async_prediction. This is weird.");
             return;
         }
         
@@ -1386,7 +1386,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
     Recognition::predict_chunk(const std::vector<Image::Ptr>& data)
     {
         /*if(!trained()) {
-            Except("Have not trained yet, but ran Recognition::add_async_prediction. This is weird.");
+            FormatExcept("Have not trained yet, but ran Recognition::add_async_prediction. This is weird.");
             return {};
         }*/
         
@@ -1406,7 +1406,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         });
         
         if(!result.get()) {
-            Error("Prediction wasnt successful.");
+            FormatError("Prediction wasnt successful.");
         } else {
             return probabilities;
         }
@@ -1473,7 +1473,7 @@ bool Recognition::load_weights_internal(std::string postfix) {
     "           layer.set_weights(m[i])\n";
     PythonIntegration::execute(program);
     if(!postfix.empty())
-        Debug("\tReloaded weights (%S).", &postfix);
+        print("\tReloaded weights (",postfix,").");
     else
         print("\tReloaded weights.");
     
@@ -1512,12 +1512,12 @@ void Recognition::check_learning_module(bool force) {
             try {
                 if(!filename.remove_filename().exists()) {
                     if(filename.remove_filename().create_folder())
-                        Debug("Created folder '%S'", &filename.remove_filename().str());
+                        print("Created folder ",filename.remove_filename().str(),"");
                     else
-                        Warning("Error creating folder for '%S'", &filename.str());
+                        print("Error creating folder for ",filename.str(),"");
                 }
             } catch(...) {
-                Warning("Error creating folder for '%S'", &filename.str());
+                print("Error creating folder for ",filename.str(),"");
             }
             
             py::set_variable("output_path", filename.str(), "learn_static");
@@ -1529,7 +1529,7 @@ void Recognition::check_learning_module(bool force) {
             py::set_function("estimate_uniqueness", (std::function<float(void)>)[](void) -> float {
                 if(Accumulation::current())
                     return Accumulation::current()->step_calculate_uniqueness();
-                Warning("There is currently no accumulation in progress.");
+                FormatWarning("There is currently no accumulation in progress.");
                 return 0;
                 
             }, "learn_static");
@@ -1543,19 +1543,19 @@ void Recognition::check_learning_module(bool force) {
                 if(Accumulation::current()) {
                     Accumulation::current()->set_last_stop_reason(x);
                 } else
-                    Warning("No accumulation object set.");
+                    FormatWarning("No accumulation object set.");
             }, "learn_static");
             py::set_function("set_per_class_accuracy", [](std::vector<float> x) {
                 if(Accumulation::current()) {
                     Accumulation::current()->set_per_class_accuracy(x);
                 } else
-                    Warning("No accumulation object set.");
+                    FormatWarning("No accumulation object set.");
             }, "learn_static");
             py::set_function("set_uniqueness_history", [](std::vector<float> x) {
                 if(Accumulation::current()) {
                     Accumulation::current()->set_uniqueness_history(x);
                 } else
-                    Warning("No accumulation object set.");
+                    FormatWarning("No accumulation object set.");
             }, "learn_static");
         }
         
@@ -1583,7 +1583,7 @@ void Recognition::load_weights(std::string postfix) {
         if(future.get()) {
             return;
         } else
-            U_EXCEPTION("load_weights_internal returned false.");
+            throw U_EXCEPTION("load_weights_internal returned false.");
         
     } catch(...) {
         try {
@@ -1714,7 +1714,7 @@ void Recognition::load_weights(std::string postfix) {
             if(future.get()) {
                 return;
             } else
-                U_EXCEPTION("Failed to reinitialize network because future was false (this cannot happen?).");
+                throw U_EXCEPTION("Failed to reinitialize network because future was false (this cannot happen?).");
             
         } catch(...) {
             reason = "<unknown reason>";
@@ -1766,14 +1766,14 @@ void Recognition::load_weights(std::string postfix) {
                 else if(load_results == TrainingMode::Accumulate)
                     print("Accumulating and training on more segments (", data->size()," images)");
                 else
-                    U_EXCEPTION("Unknown training mode %d in train_internally", load_results);
+                    throw U_EXCEPTION("Unknown training mode ",load_results," in train_internally");
                 
                 if(load_results == TrainingMode::Continue && _last_training_data != nullptr && !dont_save) {
                     // we already have previous training data, but now we want to continue
                     // see if they overlap. if they dont overlap, join the datasets
                     
                     if(_last_training_data->normalized() != data->normalized()) {
-                        Warning("Cannot combine normalized and unnormalized datasets.");
+                        FormatWarning("Cannot combine normalized and unnormalized datasets.");
                         
                     } else if(!_last_training_data->empty() && !data->empty()) {
                         // the range is not empty for both, so we can actually compare
@@ -1784,20 +1784,20 @@ void Recognition::load_weights(std::string postfix) {
                            || data->frames.contains_all(_last_training_data->frames)))
                         {
                             // they overlap
-                            Debug("Last training data (%S) overlaps with new training data (%S). Not joining, just replacing.", &strold, &strme);
+                            print("Last training data (",strold,") overlaps with new training data (",strme,"). Not joining, just replacing.");
                             
                         } else*/ {
                             
                             // TODO: only merge those that dont overlap with anything else
                             // they dont overlap -> join
-                            Debug("Last training data (%S) does not overlap with new training data (%S). Attempting to join them.", &strold, &strme);
+                            print("Last training data (",strold,") does not overlap with new training data (",strme,"). Attempting to join them.");
                             
                             // check the accuracy of the given segment
                             /*auto acc = available_weights_accuracy(data);
                             Debug("New training data scores %.2f%% with the old network weights.", acc * 100);
                             
                             if(acc <= 60) {
-                                Warning("This seems too dangerous. Proceeding without joining data.");
+                                FormatWarning("This seems too dangerous. Proceeding without joining data.");
                             }*/
                             //else
                             {
@@ -1807,7 +1807,7 @@ void Recognition::load_weights(std::string postfix) {
                         }
                         
                     } else {
-                        Warning("There were no ranges set for one of the TrainingDatas.");
+                        FormatWarning("There were no ranges set for one of the TrainingDatas.");
                     }
                 }
                 
@@ -1840,8 +1840,7 @@ void Recognition::load_weights(std::string postfix) {
                             if(std::find(classes.begin(), classes.end(), id) == classes.end())
                                 missing.insert(id);
                         }
-                        auto str = Meta::toStr(missing);
-                        Warning("Not all identities are represented in the training data (missing: %S).", &str);
+                        print("Not all identities are represented in the training data (missing: ",missing,").");
                     }
                     
                     if(load_results != TrainingMode::Accumulate) {
@@ -1856,14 +1855,14 @@ void Recognition::load_weights(std::string postfix) {
                     py::set_variable("Y", joined_data.training_ids, "learn_static");
                     
                     if(joined_data.training_images.size() != joined_data.training_ids.size()) {
-                        U_EXCEPTION("Training image array size %d != ids array size %d", joined_data.training_images.size(), joined_data.training_ids.size());
+                        throw U_EXCEPTION("Training image array size %d != ids array size %d", joined_data.training_images.size(), joined_data.training_ids.size());
                     }
 
                     py::set_variable("X_val", joined_data.validation_images, "learn_static");
                     py::set_variable("Y_val", joined_data.validation_ids, "learn_static");
                     
                     if(joined_data.validation_images.size() != joined_data.validation_ids.size()) {
-                        U_EXCEPTION("Validation image array size %d != ids array size %d", joined_data.validation_images.size(), joined_data.validation_ids.size());
+                        throw U_EXCEPTION("Validation image array size %d != ids array size %d", joined_data.validation_images.size(), joined_data.validation_ids.size());
                     }
                     
                     py::set_variable("global_segment", std::vector<long_t>{ global_range.start().get(), global_range.end().get() }, "learn_static");
@@ -1871,8 +1870,7 @@ void Recognition::load_weights(std::string postfix) {
                     py::set_variable("classes", classes, "learn_static");
                     py::set_variable("save_weights_after", load_results != TrainingMode::Accumulate, "learn_static");
                     
-                    auto mb = Meta::toStr(FileSize((joined_data.validation_images.size() + joined_data.training_images.size()) * image_size().width * image_size().height * 4));
-                    Debug("Pushing %d images (%S) to python...", (joined_data.validation_images.size() + joined_data.training_images.size()), &mb);
+                    print("Pushing ", (joined_data.validation_images.size() + joined_data.training_images.size())," images (",FileSize((joined_data.validation_images.size() + joined_data.training_images.size()) * image_size().width * image_size().height * 4),") to python...");
                     
                     uchar setting_max_epochs = int(SETTING(gpu_max_epochs).value<uchar>());
                     py::set_variable("max_epochs", gpu_max_epochs != 0 ? min(setting_max_epochs, gpu_max_epochs) : setting_max_epochs, "learn_static");
@@ -1883,12 +1881,12 @@ void Recognition::load_weights(std::string postfix) {
                     try {
                         if(!filename.remove_filename().exists()) {
                             if(filename.remove_filename().create_folder())
-                                Debug("Created folder '%S'", &filename.remove_filename().str());
+                                print("Created folder ",filename.remove_filename().str(),"");
                             else
-                                Warning("Error creating folder for '%S'", &filename.str());
+                                print("Error creating folder for ",filename.str(),"");
                         }
                     } catch(...) {
-                        Warning("Error creating folder for '%S'", &filename.str());
+                        print("Error creating folder for ",filename.str(),"");
                     }
                     
                     py::set_variable("run_training", 
@@ -1938,7 +1936,7 @@ void Recognition::load_weights(std::string postfix) {
                         std::unique_lock<decltype(_data_queue_mutex)> guard(_data_queue_mutex);
                         std::lock_guard<std::mutex> probs_guard(_mutex);
                         if(!probs.empty()) {
-                            Warning("Re-trained network, so we'll clear everything...");
+                            FormatWarning("Re-trained network, so we'll clear everything...");
                             //_last_frame_per_fish.clear();
                             _fish_last_frame.clear();
                             _last_frames.clear();
@@ -1993,7 +1991,7 @@ void Recognition::load_weights(std::string postfix) {
                         {
                             FileSize size(images.size());
                             auto ss = size.to_string();
-                            Debug("Images are %S big. Saving to '%S'.", &ss, &ranges_path.str());
+                            print("Images are ",ss," big. Saving to '",ranges_path.str(),"'.");
                             
                             cmn::npz_save(ranges_path.str(), "ranges", all_ranges.data(), { all_ranges.size() / 2, 2 }, "w");
                             cmn::npz_save(ranges_path.str(), "positions", positions.data(), {positions.size() / 2, 2}, "a");
@@ -2016,7 +2014,7 @@ void Recognition::load_weights(std::string postfix) {
                     DebugCallback("Success (train) with best_accuracy_worst_class = %f.", best_accuracy_worst_class);
                     success = true;
                 } else
-                    Error("Training the network failed (%f).", best_accuracy_worst_class);
+                    print("Training the network failed (",best_accuracy_worst_class,").");
                 
             } catch(const SoftException& e) {
                 print("Runtime error: '", e.what(),"'");

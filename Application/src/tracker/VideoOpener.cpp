@@ -150,14 +150,14 @@ VideoOpener::VideoOpener()
                 try {
                     auto path = ptr->_path;
 #ifndef NDEBUG
-                    Debug("Removing stale buffer '%S'...", &path.str());
+                    print("Removing stale buffer ",path.str(),"...");
 #endif
                     ptr = nullptr;
 #ifndef NDEBUG
                     print("Removed stale buffer ", path.str(),".");
 #endif
                 } catch(const std::exception& e) {
-                    Except("Exception while freeing stale buffer '%s'.", e.what());
+                    FormatExcept("Exception while freeing stale buffer '", e.what(),"'.");
                 }
                 guard.lock();
                 
@@ -298,13 +298,13 @@ VideoOpener::VideoOpener()
                             auto item = drop->selected_item();
                             if(item.ID() != -1) {
                                 auto name = item.search_name();
-                                Debug("Selected '%S' = %S", &key, &name);
+                                print("Selected ",key," = ",name);
                                 val = name;
                             } else
                                 val = drop->text();
                             
                         } else {
-                            Debug("Unknown type for field '%S'", &key);
+                            print("Unknown type for field ",key,"");
                         }
                     }
                     
@@ -574,7 +574,7 @@ VideoOpener::~VideoOpener() {
             while(!_accumulate_frames_done) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
                 if(timer.elapsed() >= 10) {
-                    Warning("Have been waiting for a long time on my accumulate_video_frames_thread. Terminating anyway now.");
+                    FormatWarning("Have been waiting for a long time on my accumulate_video_frames_thread. Terminating anyway now.");
                     return;
                 }
             }
@@ -679,7 +679,7 @@ void VideoOpener::BufferedVideo::restart_background() {
                 std::lock_guard guard(_frame_mutex);
                 _background_copy = std::move(image);
             } catch(...) {
-                Warning("Exception while trying to read video frame.");
+                FormatWarning("Exception while trying to read video frame.");
             }
         }
         
@@ -789,7 +789,7 @@ void VideoOpener::BufferedVideo::open(std::function<void(const bool)>&& callback
                     _cached_frame = Image::Make(local);
                     
                 } catch(const std::exception& e) {
-                    Except("Caught exception while updating '%s'", e.what());
+                    FormatExcept("Caught exception while updating '", e.what(),"'");
                 }
                 
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -836,7 +836,7 @@ void VideoOpener::select_file(const file::Path &p) {
                 // immediately move to stale
                 std::lock_guard gui_lock(_file_chooser->graph()->lock());
                 std::lock_guard guard(_video_mutex);
-                Except("Could not open file '%S'.", &p.str());
+                FormatExcept("Could not open file ",p.str(),".");
                 
                 cv::Mat img = cv::Mat::zeros((int)max_width, (int)max_width, CV_8UC1);
                 cv::putText(img, "Cannot open video.", Vec2(50, 220), cv::FONT_HERSHEY_PLAIN, 1, White);
@@ -849,8 +849,8 @@ void VideoOpener::select_file(const file::Path &p) {
         
         try {
             if(p.empty())
-                U_EXCEPTION("No file selected.");
-            Debug("Opening '%S'", &p.str());
+                throw U_EXCEPTION("No file selected.");
+            print("Opening ",p.str(),"");
             
             std::lock_guard guard(_video_mutex);
             {
@@ -878,13 +878,13 @@ void VideoOpener::select_file(const file::Path &p) {
                 _buffer->_threshold = TEMP_SETTING(threshold).value<int>();
                 
             } catch(const std::exception &e) {
-                Except("Converting number: '%s'", e.what());
+                FormatExcept("Converting number: '", e.what(),"'");
             }
             
             _buffer->open(callback);
             
         } catch(const std::exception& e) {
-            Except("Cannot open file '%S' (%s)", &p.str(), e.what());
+            FormatExcept("Cannot open file ",p.str()," (", e.what(),")");
             callback(false);
         }
         return;
@@ -921,7 +921,7 @@ void VideoOpener::select_file(const file::Path &p) {
                 AccessLevelType::STARTUP,
                 true);
         } catch(const cmn::illegal_syntax& e) {
-            Warning("File '%S' has illegal syntax: %s", &_selected.str(), e.what());
+            FormatWarning("File ", _selected.str()," has illegal syntax: ",e.what(),"");
         }
     }
     
@@ -1072,7 +1072,7 @@ void VideoOpener::select_file(const file::Path &p) {
             _end_frames_thread = true;
             if(!_accumulate_frames_done) {
 #ifndef NDEBUG
-                Warning("Have to wait for accumulate video frames thread...");
+                FormatWarning("Have to wait for accumulate video frames thread...");
 #endif
                 while(!_accumulate_frames_done) {
                     std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -1116,7 +1116,7 @@ void VideoOpener::select_file(const file::Path &p) {
         });
         
     } catch(...) {
-        Except("Caught an exception while reading info from '%S'.", &SETTING(filename).value<file::Path>().str());
+        FormatExcept("Caught an exception while reading info from ",SETTING(filename).value<file::Path>().str(),".");
     }
     
     _horizontal->auto_size(Margin{0, 0});

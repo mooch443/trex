@@ -27,13 +27,13 @@ namespace gui {
 WorkInstance::WorkInstance(const std::string& name)
     : _name(name), _previous(GUI::instance() ? GUI::work().item() : "")
 {
-    Debug("Setting work item to '%S'", &_name);
+    print("Setting work item to ",_name,"");
     if(GUI::instance())
         GUI::work().set_item(name);
 }
 
 WorkInstance::~WorkInstance() {
-    Debug("Resetting work item to '%S'", &_previous);
+    print("Resetting work item to ",_previous,"");
     if(GUI::instance())
         GUI::work().set_item(_previous);
 }
@@ -109,7 +109,7 @@ bool WorkProgress::is_this_in_queue() const {
 void WorkProgress::add_queue(const std::string& message, const std::function<void()>& fn, const std::string& descr, bool abortable)
 {
     if(!GUI::instance()) {
-        Error("Cannot add work item '%S' to queue if GUI doesnt exist.", &message);
+        FormatError("Cannot add work item ",message," to queue if GUI doesnt exist.");
         return;
     }
     
@@ -171,7 +171,7 @@ void WorkProgress::set_percent(float value) {
                     }
 
                 } else {
-                    Warning("ITaskbarList3 could not be created.");
+                    FormatWarning("ITaskbarList3 could not be created.");
                 }
             }
         }

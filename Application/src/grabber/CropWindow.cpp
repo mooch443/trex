@@ -94,7 +94,7 @@ namespace gui {
                 
                 okay.on_click([this, &grabber, &loop](auto){
                     Bounds crop_offsets(_rect->pos().div(Size2(grabber.original_average())), (Size2(grabber.original_average()) - (_rect->pos() + _rect->size())).div(Size2(grabber.original_average())));
-                    Debug("Click %f,%f %f,%f", crop_offsets.x, crop_offsets.y, crop_offsets.width, crop_offsets.height);
+                    print("Click ",crop_offsets.x,",",crop_offsets.y," ",crop_offsets.width,",",crop_offsets.height,"");
                     SETTING(crop_offsets) = CropOffsets(crop_offsets);
                     loop.set_please_end(true);
                 });

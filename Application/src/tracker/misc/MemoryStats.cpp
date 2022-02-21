@@ -351,10 +351,9 @@ void MemoryStats::print() const {
         vec.push_back({key, FileSize{sizes.at(key)}});
     
     auto str = prettify_array(Meta::toStr(vec));
-    auto overall = Meta::toStr(FileSize{bytes});
     auto id_str = id == Idx_t(std::numeric_limits<uint32_t>::max()-1) ? std::string("overall") : (!id.valid() ? "<empty>" : Meta::toStr(id));
     
-    Debug("%S: %S\n%S", &id_str, &overall, &str);
+    cmn::print(id_str.c_str(), ": ", FileSize{bytes},"\n", str.c_str());
 }
 
 }

@@ -41,13 +41,13 @@ size_t PairedProbabilities::degree(fish_index_t rdx) const {
 
 blob_index_t PairedProbabilities::index(col_t::value_type col) const {
     if(!_col_index.count(col))
-        U_EXCEPTION("Cannot find blob %u in map.", (*col)->blob_id());
+        throw U_EXCEPTION("Cannot find blob ",(*col)->blob_id()," in map.");
     return _col_index.at(col);
 }
 
 fish_index_t PairedProbabilities::index(row_t::value_type row) const {
     if(!_row_index.count(row))
-        U_EXCEPTION("Cannot find individual %d in map.", row->identity().ID());
+        throw U_EXCEPTION("Cannot find individual ",row->identity().ID()," in map.");
     return _row_index.at(row);
 }
 
@@ -88,7 +88,7 @@ prob_t PairedProbabilities::max_prob(fish_index_t rdx) const {
 }
 
 void PairedProbabilities::erase(col_t::value_type col) {
-    U_EXCEPTION("erase(col) not implemented");
+    throw U_EXCEPTION("erase(col) not implemented");
     if(!_col_index.count(col))
         return; //! not found
     
@@ -105,7 +105,7 @@ void PairedProbabilities::erase(col_t::value_type col) {
     if(it != _cols.end()) {
         for(auto pit = _probabilities.begin(); pit != _probabilities.end(); ++j) {
             if(next == j) {
-                Debug("Increasing offset since we reached %lu (for row %ld)", next, std::distance(_offsets.begin(), oit));
+                print("Increasing offset since we reached ", next," (for row ", std::distance(_offsets.begin(), oit),")");
                 ++oit;
                 ++ridx;
                 
@@ -116,14 +116,14 @@ void PairedProbabilities::erase(col_t::value_type col) {
                 }
                 
                 if(oit != _offsets.end() && offset_offset > 0) {
-                    Debug("\tSubtracting %lu from %d (%lu)", offset_offset, std::distance(_offsets.begin(), oit), *oit);
+                    print("\tSubtracting ", offset_offset," from ", std::distance(_offsets.begin(), oit)," (", *oit,")");
                     *oit -= offset_offset;
                 }
             }
             
             if(pit->cdx == index) {
                 auto cidx = std::distance(_offsets.begin(), oit);
-                Debug("Row %d/%d removing 1 degree (previously %lu)", cidx, ridx, _degree.at(ridx));
+                print("Row ", cidx,"/", ridx," removing 1 degree (previously ",_degree.at(ridx),")");
                 assert(_degree.at(ridx) > 0);
                 --_degree.at(ridx);
                 
@@ -217,7 +217,7 @@ fish_index_t PairedProbabilities::add(
     fish_index_t rdx;
     size_t offset;
     if(_row_index.count(row))
-        U_EXCEPTION("Already added individual %d to map.", row->identity().ID());
+        throw U_EXCEPTION("Already added individual ",row->identity().ID()," to map.");
     
     rdx = fish_index_t(_rows.size());
     _row_index[row] = rdx;
@@ -614,11 +614,11 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                     --degree;
                 }
             }
-            Debug("\tidentity:%d, blob:%d", current.fish_it->fish->identity().ID(), current.prob_it != current._probs->end() ? (Match::index_t)current.prob_it->cdx : -2);
-            Debug("\tdegree:%d/%d", degree, current.fish_it->degree);
-            Debug("\tacc_p:%f/%f (%f, %f, %f)", current.acc_p + ((next != _optimal_pairing->set.end()) ? hierarchy_best_p : 0) + local_best_p, _optimal_pairing->p.load(), current.acc_p, hierarchy_best_p, local_best_p);
+            print("\tidentity:", current.fish_it->fish->identity().ID(),", blob:",current.prob_it != current._probs->end() ? (Match::index_t)current.prob_it->cdx : -2,"");
+            print("\tdegree:", degree,"/",current.fish_it->degree,"");
+            print("\tacc_p:",current.acc_p + ((next != _optimal_pairing->set.end()) ? hierarchy_best_p : 0) + local_best_p,"/",_optimal_pairing->p.load()," (",current.acc_p,", ",hierarchy_best_p,", ",local_best_p,")");
             if(_optimal_pairing->p.load() > 0 && current.acc_p + ((next != _optimal_pairing->set.end()) ? hierarchy_best_p : 0) + local_best_p > _optimal_pairing->p.load()) {
-                Warning("This is weird.");
+                FormatWarning("This is weird.");
             }
         } else
             print("\tinvalid node");
@@ -830,12 +830,12 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                         auto str = "Too many combinations in frame %d (tdelta "+tdelta.to_string()+" and should be "+tdelta_soll.to_string()+").";
                         Warning(str.c_str(), frame());
                     } else {
-                        Warning("Too many combinations in frame %d.", frame());
+                        print("Too many combinations in frame ",frame(),".");
                     }
                 }*/
 #endif
                 
-                U_EXCEPTION("Too many combinations (%d, %lu).", frame(), _optimal_pairing->objects_looked_at);
+                throw U_EXCEPTION("Too many combinations (%d, %lu).", frame(), _optimal_pairing->objects_looked_at);
                 break;
             }
         }
@@ -854,7 +854,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
             }
             file << "],"<< _optimal_pairing->p <<"],\n";
             file.close();
-            Debug("(single) %d: %d steps in %fms => %fms/step", frame(), _optimal_pairing->objects_looked_at, elapsed*1000, elapsed*1000/ _optimal_pairing->objects_looked_at);
+            print("(single) ",frame(),": ",_optimal_pairing->objects_looked_at," steps in ",elapsed*1000,"ms => ",elapsed*1000/ _optimal_pairing->objects_looked_at,"ms/step");
         } //else
 #endif
         
@@ -957,7 +957,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
             }
             file << "],"<< _optimal_pairing->p <<"],\n";
             file.close();
-            Debug("(multi) %d: %d steps in %fms => %fms/step", frame(), objects, elapsed*1000, elapsed*1000/objects);
+            print("(multi) ",frame(),": ",objects," steps in ",elapsed*1000,"ms => ",elapsed*1000/objects,"ms/step");
         } //else
     }*/
     
@@ -1011,7 +1011,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 
 #ifndef NDEBUG
                 if(debug) {
-                    Debug("frame %d -- individuals: %d blobs: %d resulting in %dx%d", frame(), num, _paired.n_cols(), n, m);
+                    print("frame ",frame()," -- individuals: ",num," blobs: ",_paired.n_cols()," resulting in ",n,"x",m,"");
                 }
 #endif
                 
@@ -1142,7 +1142,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                     if(degree > 0)
                         _optimal_pairing->set.insert(Node{e.first, _paired.degree(_paired.index(e.first)), _paired.max_prob(e.first)});
                     else
-                        Warning("Individual %d is empty", e.first->identity().ID());
+                        print("Individual ",e.first->identity().ID()," is empty");
                 }*/
                 for(auto row : _paired.rows()) {
                     auto rdx = _paired.index(row);
@@ -1151,7 +1151,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                     if(degree > 0)
                         _optimal_pairing->set.insert(Node{row, degree, _paired.max_prob(rdx)});
                     else
-                        Warning("Individual %d is empty", row->identity().ID());
+                        print("Individual ",row->identity().ID()," is empty");
                 }
                 
                /* {
@@ -1274,9 +1274,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 }
                 
                 if(!different.empty() && ((agree.find(matching_mode_t::hungarian) != agree.end()) ^ (agree.find(matching_mode_t::tree) != agree.end()))) {
-                    auto str = Meta::toStr(different);
-                    auto str2 = Meta::toStr(agree);
-                    Warning("Assignments in frame %d are not identical (%S) these agree (%S):", frame(), &str, &str2);
+                    FormatWarning("Assignments in frame ", frame()," are not identical (", different,") these agree (",agree,"):");
                     for(auto fish : _paired.rows()) {
                         std::set<matching_mode_t::Class> printed;
                         if(!agree.empty()) {
@@ -1295,15 +1293,15 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                                 {
                                     auto p0 = _paired.probability(fish, assignments[key_0][fish]);
                                     auto p1 = _paired.probability(fish, assignments[key_1][fish]);
-                                    Warning("\tindividual %d: (%s)%d (%f) != (%s)%d (%f)", fish->identity().ID(),
-                                        key_0.name(),
+                                    FormatWarning("\tindividual ",fish->identity(),":",
+                                        "(", key_0.name(), ")",
                                         assignments[key_0][fish] ?
                                             (*assignments[key_0][fish])->blob_id() : pv::bid::invalid,
-                                        p0,
-                                        key_1.name(),
+                                        " (", p0, ") != "
+                                        "(", key_1.name(), ")",
                                         assignments[key_1][fish] ?
                                             (*assignments[key_1][fish])->blob_id() : pv::bid::invalid,
-                                        p1);
+                                        " (",p1,")");
                                 }
                             }
                         }
@@ -1345,7 +1343,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 ++it;
             }
             auto s = ss.str();
-            Debug("Best path is: %S (%f) (calculations: %lu, permutation elements: %lu)", &s, _optimal_pairing->p, _optimal_pairing->calculations, _optimal_pairing->permutation_elements);*/
+            print("Best path is: ",&s," (",_optimal_pairing->p,") (calculations: ",_optimal_pairing->calculations,", permutation elements: ",_optimal_pairing->permutation_elements,")");*/
         }
     }
     
@@ -1411,7 +1409,7 @@ PairingGraph::~PairingGraph() {
     
     /*void PairingGraph::add(Individual *o) {
         if(!_blobs.empty())
-            U_EXCEPTION("Blobs must be added after individuals.");
+            throw U_EXCEPTION("Blobs must be added after individuals.");
         _individuals.push_back(o);
     }
     

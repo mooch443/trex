@@ -123,7 +123,7 @@ namespace track {
             return it->second;
         }
         
-        U_EXCEPTION("Cannot find frames of interest with id %d.", id);
+        throw U_EXCEPTION("Cannot find frames of interest with id ",id,".");
     }
 
     FOI::foi_type FOI::all_fois() {
@@ -140,7 +140,7 @@ namespace track {
             auto name = _id_to_string.at(type);
             while(!set.empty() && set.rbegin()->frames().end >= frameIndex)
                 set.erase(--set.end());
-            Debug("Erased %d FOIs of type '%S' from Tracker.", before - set.size(), &name);
+            print("Erased ", before - set.size()," FOIs of type ",name," from Tracker.");
         }
         changed();
     }
@@ -155,7 +155,7 @@ namespace track {
                 auto name = _id_to_string.at(type);
                 while(!set.empty() && set.rbegin()->frames().end >= frameIndex)
                     set.erase(--set.end());
-                Debug("Erased %d FOIs of type '%S' from Tracker.", before - set.size(), &name);
+                print("Erased ", before - set.size()," FOIs of type ",name," from Tracker.");
             }
         }
         changed();
@@ -168,7 +168,7 @@ namespace track {
             return it->second;
         }
         
-        U_EXCEPTION("Cannot find name of FOI-id %d.", id);
+        throw U_EXCEPTION("Cannot find name of FOI-id ",id,".");
     }
     
     long_t FOI::to_id(const std::string& name) {

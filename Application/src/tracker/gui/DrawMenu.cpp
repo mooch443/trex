@@ -129,7 +129,7 @@ public:
                     
                 } else {
                     second_list->set_title("Blobs for "+(const std::string&)item);
-                    Debug("clicked '%S'", &(const std::string&)item);
+                    print("clicked ",(const std::string&)item,"");
                 }
             }
         );
@@ -212,7 +212,7 @@ public:
                                         default_config::warn_deprecated(path.str(), GlobalSettings::load_from_string(default_config::deprecations(), GlobalSettings::map(), header.settings, AccessLevelType::PUBLIC));
                                     } catch(const UtilsException& e) {
                                         GUI::instance()->gui().dialog([](Dialog::Result){}, "Cannot load settings from results file. Check out this error message:\n<i>"+std::string(e.what())+"</i>", "Error");
-                                        Except("Cannot load settings from results file. Skipping that step...");
+                                        FormatExcept("Cannot load settings from results file. Skipping that step...");
                                     }
                                 }
                                 
@@ -289,7 +289,7 @@ public:
                     break;
                 }
                 default:
-                    Warning("Unknown action '%S'.", &(const std::string&)item);
+                    print("Unknown action ",(const std::string&)item,".");
             }
             
             menu->set_folded(true);

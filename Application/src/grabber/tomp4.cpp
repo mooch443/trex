@@ -83,14 +83,14 @@ void encode(AVCodecContext *enc_ctx, AVFrame *frame, AVPacket *pkt,
     
     ret = avcodec_send_frame(enc_ctx, frame);
     if (ret < 0)
-        U_EXCEPTION("Error sending a frame for encoding (%d)", ret);
+        throw U_EXCEPTION("Error sending a frame for encoding (",ret,")");
     
     while (ret >= 0) {
         ret = avcodec_receive_packet(enc_ctx, pkt);
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
             return;
         else if (ret < 0) {
-            U_EXCEPTION("Error during encoding (receive) %d", ret);
+            throw U_EXCEPTION("Error during encoding (receive) ",ret,"");
             exit(1);
         }
         
@@ -147,7 +147,7 @@ void FFMPEGQueue::add(Image::UPtr&& ptr) {
         ptr = nullptr;
         
         if(stamp < _last_timestamp)
-            Except("Timestamp %lu < last timestamp %lu", stamp, _last_timestamp);
+            FormatExcept("Timestamp ", stamp," < last timestamp ", _last_timestamp);
         _last_timestamp = stamp;
     }
     
@@ -186,10 +186,7 @@ void FFMPEGQueue::loop() {
                     compressed_size = 0;
             }
             
-            auto compressed_str = Meta::toStr(FileSize{uint64_t(compressed_size)});
-            
-            Debug("[FFMPEG] so far we have written %d images to '%S' with %d still in queue (%fms and %S / frame)", pts, &_output_path.str(), _queue.size(), ms * 1000, &compressed_str);
-            
+            print("[FFMPEG] so far we have written ",pts," images to ",_output_path," with ", _queue.size(), " still in queue (", ms * 1000, "ms and ", FileSize{uint64_t(compressed_size)}," / frame)");
             last_printout.reset();
         }
     };
@@ -264,7 +261,7 @@ void FFMPEGQueue::loop() {
 void FFMPEGQueue::Package::unpack(cmn::Image &image, lzo_uint& new_len) const {
     if(lzo1x_decompress(memory,out_len,image.data(),&new_len,NULL) != LZO_E_OK)
     {
-        Except("Uncompression failed!");
+        FormatExcept("Uncompression failed!");
         return;
     }
     
@@ -310,7 +307,7 @@ void FFMPEGQueue::process_one_image(uint64_t stamp, const std::unique_ptr<cmn::I
             _write_condition.notify_one();
             
         } else {
-            Error("Compression of %d bytes failed.", pack->in_len);
+            print("Compression of ",pack->in_len," bytes failed.");
         }
     }
     
@@ -395,20 +392,20 @@ void FFMPEGQueue::open_video() {
     /* find the mpeg1video encoder */
     codec = avcodec_find_encoder_by_name(codec_name);
     if (!codec) {
-        Warning("Cannot record with '%s'. Searching for 'h264'.", codec_name);
+        print("Cannot record with '",codec_name,"'. Searching for 'h264'.");
         codec = avcodec_find_encoder_by_name("h264_videotoolbox");
     }
     
     if(!codec)
-        U_EXCEPTION("Codec '%s' not found, and 'h264_videotoolbox' could not be found either.", codec_name);
+        throw U_EXCEPTION("Codec '",codec_name,"' not found, and 'h264_videotoolbox' could not be found either.");
     
     c = avcodec_alloc_context3(codec);
     if (!c)
-        U_EXCEPTION("Could not allocate video codec context");
+        throw U_EXCEPTION("Could not allocate video codec context");
     
     pkt = av_packet_alloc();
     if (!pkt)
-        U_EXCEPTION("Cannot allocate pkt.");
+        throw U_EXCEPTION("Cannot allocate pkt.");
     
     /* put sample parameters */
     c->bit_rate = 0;//2600 * 1000;
@@ -420,7 +417,7 @@ void FFMPEGQueue::open_video() {
     av_opt_set(c, "crf", crf.c_str(), AV_OPT_SEARCH_CHILDREN);
     
     if(c->width % 2 || c->height % 2)
-        U_EXCEPTION("Dimensions must be a multiple of 2. (%dx%d)", c->width, c->height);
+        throw U_EXCEPTION("Dimensions must be a multiple of 2. (%dx%d)", c->width, c->height);
     
     /* frames per second */
     //int frame_rate = SETTING(frame_rate).value<int>();
@@ -444,23 +441,23 @@ void FFMPEGQueue::open_video() {
     ret = avcodec_open2(c, codec, NULL);
     if (ret < 0) {
         //auto str = av_err2str(ret);
-        U_EXCEPTION("Could not open codec '%s'.", codec_name);
+        throw U_EXCEPTION("Could not open codec '",codec_name,"'.");
     }
     
     f = _output_path.fopen("wb");
     if (!f)
-        U_EXCEPTION("Could not open '%S'.", &_output_path.str());
+        throw U_EXCEPTION("Could not open ",_output_path.str(),".");
     
     frame = av_frame_alloc();
     if (!frame)
-        U_EXCEPTION("Could not allocate video frame");
+        throw U_EXCEPTION("Could not allocate video frame");
     frame->format = c->pix_fmt;
     frame->width  = c->width;
     frame->height = c->height;
     
     ret = av_frame_get_buffer(frame, 0);
     if (ret < 0)
-        U_EXCEPTION("Could not allocate the video frame data");
+        throw U_EXCEPTION("Could not allocate the video frame data");
     
     input_frame = av_frame_alloc();
     input_frame->format = AV_PIX_FMT_GRAY8;
@@ -469,14 +466,14 @@ void FFMPEGQueue::open_video() {
     
     ret = av_frame_get_buffer(input_frame, 0);
     if (ret < 0)
-        U_EXCEPTION("Could not allocate the video frame data");
+        throw U_EXCEPTION("Could not allocate the video frame data");
     
     ctx = sws_getContext(c->width, c->height,
                          AV_PIX_FMT_GRAY8, c->width, c->height,
                          AV_PIX_FMT_YUV420P, 0, 0, 0, 0);
     
-    Debug("linesizes: %d, %d, %d, %d", frame->linesize[0], frame->linesize[1], frame->linesize[2], frame->linesize[3]);
-    Debug("frame: %dx%d (%dx%d)", c->width, c->height, frame->width, frame->height);
+    print("linesizes: ", frame->linesize[0], " ", frame->linesize[1], " ", frame->linesize[2], " ", frame->linesize[3]);
+    print("frame: ", c->width, "x", c->height, " (", frame->width, "x", frame->height, ")");
     
     /*for (int i=1; i<3; ++i) {
         if(frame->data[i] == NULL)
@@ -485,7 +482,7 @@ void FFMPEGQueue::open_video() {
         auto ptr = frame->data[i];
         auto end = ptr + frame->linesize[i] * frame->height;
         
-        Debug("Setting 128 from %X to %X (%u, %u)", ptr, end, c->width, frame->linesize[i]);
+        print("Setting 128 from ",ptr," to ",end," (",c->width,", ",frame->linesize[i],")");
         
         for (; ptr != end; ptr+=frame->linesize[i]) {
             memset(ptr, 128, frame->linesize[i]);
@@ -519,10 +516,10 @@ void FFMPEGQueue::close_video() {
     if(!ffmpeg.empty()) {
         file::Path save_path = _output_path.replace_extension("mp4");
         std::string cmd = ffmpeg.str()+" -fflags +genpts -i "+_output_path.str()+" -vcodec copy -y "+save_path.str();
-        Debug("Remuxing '%S' to '%S'...", &_output_path.str(), &save_path.str());
+        print("Remuxing ",_output_path.str()," to ",save_path.str(),"...");
         system(cmd.c_str());
     } else
-        Warning("Cannot do remuxing with empty ffmpeg path.");
+        FormatWarning("Cannot do remuxing with empty ffmpeg path.");
 }
 
 void FFMPEGQueue::finalize_one_image(uint64_t stamp, const cmn::Image& image) {
@@ -532,7 +529,7 @@ void FFMPEGQueue::finalize_one_image(uint64_t stamp, const cmn::Image& image) {
     /* make sure the frame data is writable */
     ret = av_frame_make_writable(frame);
     if (ret < 0)
-        U_EXCEPTION("Cannot make frame writable.");
+        throw U_EXCEPTION("Cannot make frame writable.");
     
     //Timer timer;
     
@@ -619,11 +616,11 @@ void FFMPEGQueue::update_cache_strategy(double needed_ms, double compressed_size
                     auto needed_str = Meta::toStr(FileSize{uint64_t(remaining * _size.width * _size.height)});
                     skip_step = (remaining-maximum_images) / approximate_ms;
                     
-                    Warning("We need to cap memory (%S in remaining images) to %S, that means losing %d images / second (%fms / frame, %S compressed)", &needed_str, &str, skip_step, needed_ms, &compressed_str);
+                    FormatWarning("We need to cap memory (%S in remaining images) to %S, that means losing %d images / second (%fms / frame, %S compressed)", &needed_str, &str, skip_step, needed_ms, &compressed_str);
                     
                 } else {
                     // we can keep all frames
-                    Debug("Cool, we dont need to skip any frames, we can keep it all in memory (%fms / frame, %S compressed).", needed_ms, &compressed_str);
+                    print("Cool, we dont need to skip any frames, we can keep it all in memory (", needed_ms,"s / frame, ",compressed_str," compressed).");
                 }
                 
                 last_call.reset();
@@ -639,7 +636,7 @@ void FFMPEGQueue::update_cache_strategy(double needed_ms, double compressed_size
                 
                 static Timer last_message_timer;
                 if(last_message_timer.elapsed() > 10) {
-                    Warning("Skipping frame (queue size = %d)", _queue.size());
+                    FormatWarning("Skipping frame (queue size = ", _queue.size(),")");
                     last_message_timer.reset();
                 }
             }

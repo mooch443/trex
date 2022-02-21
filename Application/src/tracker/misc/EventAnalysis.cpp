@@ -193,7 +193,7 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
                 
                 float energy = std::accumulate(state.current_energy.begin(), state.current_energy.begin() + len.get(), 0.f); // len;
                 if(std::isinf(energy) || std::isnan(energy))
-                    U_EXCEPTION("Energy is infinite.");
+                    throw U_EXCEPTION("Energy is infinite.");
                 
                 map.events[state.last_event_start] = Event(state.last_event_start, state.last_event_end, energy, angle_change, acceleration, length(state.v_before), length(velocity));
                 map.lengths[state.last_event_start.get()] = sign_cast<size_t>(len.get());
@@ -279,7 +279,7 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
             if(timer.elapsed() > 10) {
                 analysis_status = "processing ("+left_over.toStr()+" frames left)";
                 auto str = FileSize(mapCapacity(individual_maps) + mapCapacity(states)).to_string();
-                Debug("Time: %.2fms (%S)", timer.elapsed() * 1000, &str);
+                print("Time: ",timer.elapsed() * 1000,"ms (", str.c_str(), ")");
                 timer.reset();
             }
             
@@ -317,7 +317,7 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
             }
             
             for(auto &map : individual_maps) {
-                Debug("Erasing... %d(%d-%d): %d - %d", map.first->identity().ID(), map.first->start_frame(), map.first->end_frame(), map.second.start_frame, map.second.end_frame);
+                print("Erasing... ",map.first->identity().ID(),"(",map.first->start_frame(),"-",map.first->end_frame(),"): ",map.second.start_frame," - ",map.second.end_frame,"");
                 if(map.second.start_frame.valid() && map.second.end_frame >= after_frame) {
                     Frame_t count{0};
                     if(map.second.start_frame >= after_frame) {
@@ -349,7 +349,7 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
                         map.second.end_frame = map.first->end_frame();
                     state.offsets.clear();
                     
-                    Debug("Erasing from frame %ld (start_frame: %d) for fish %d.", state.frame, map.first->start_frame(), map.first->identity().ID());
+                    print("Erasing from frame ", state.frame," (start_frame: ", map.first->start_frame(),") for fish ",map.first->identity().ID(),".");
                     
                     if(map.first->start_frame() < after_frame) {
                         for(; state.frame < min(map.first->end_frame() + 1_f, after_frame);)
@@ -359,7 +359,7 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
                         map.second.start_frame.invalidate();
                     }
                     
-                    Debug("Erased %ld events for fish %d (%d-%d).", count, map.first->identity().ID(), map.second.start_frame,map.second.end_frame);
+                    print("Erased ", count," events for fish ", map.first->identity()," (", map.second,").");
                 }
             }
         }

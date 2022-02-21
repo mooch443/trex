@@ -218,7 +218,7 @@ void GUI::draw(gui::DrawStructure &base) {
 #ifndef NDEBUG
             static long last_index = -1;
             if (image && image->index() < last_index)
-                Warning("Last index = %d and current = %d", last_index, image->index());
+                FormatWarning("Last index = ", last_index," and current = ",image->index(),"");
 #endif
 
             if (frame)
@@ -585,7 +585,7 @@ void GUI::key_event(const gui::Event &event) {
     }
 #ifndef NDEBUG
     else if(key.code == Codes::Unknown)
-        Warning("Unknown key %d", key.code);
+        print("Unknown key ",key.code,"");
 #endif
     
     set_redraw();

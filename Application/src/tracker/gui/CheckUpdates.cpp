@@ -66,25 +66,25 @@ void init() {
     try {
         if (!file::Path("update_check").exists()) {
             if (!SETTING(quiet))
-                Debug("Initial start, no update_check file exists.");
+                print("Initial start, no update_check file exists.");
             return;
         }
         contents = utils::read_file("update_check");
         auto array = utils::split(contents, '\n');
         if (array.size() != 3) {
             file::Path("update_check").delete_file();
-            U_EXCEPTION("Array does not have the right amount of elements ('%S', %lu). Deleting file.", &contents, array.size());
+            throw U_EXCEPTION("Array does not have the right amount of elements ('%S', %lu). Deleting file.", &contents, array.size());
         }
         SETTING(app_last_update_check) = Meta::fromStr<uint64_t>(array.front());
         SETTING(app_check_for_updates) = Meta::fromStr<default_config::app_update_check_t::Class>(array.at(1));
         SETTING(app_last_update_version) = array.back();
         
     } catch(const UtilsException& ex) {
-        Except("Utils Exception: '%s'", ex.what());
+        FormatExcept("Utils Exception: '", ex.what(),"'");
     } catch(const std::exception& ex) {
-        Except("Exception: '%s'", ex.what());
+        FormatExcept("Exception: '", ex.what(),"'");
     } catch(...) {
-        Warning("Illegal content, or parsing failed for app_last_update_check: '%S'", &contents);
+        print("Illegal content, or parsing failed for app_last_update_check: ",contents,"");
     }
 }
 
@@ -133,7 +133,7 @@ bool automatically_check() {
 
 void display_update_dialog() {
     if(!GUI::instance() && !GUI_SETTINGS(nowindow)) {
-        Debug("Newer version (%S) available for download. Visit https://trex.run/docs/update.html for instructions on how to update.", &CheckUpdates::newest_version());
+        print("Newer version (",CheckUpdates::newest_version(),") available for download. Visit https://trex.run/docs/update.html for instructions on how to update.");
         return;
     }
     
@@ -176,7 +176,7 @@ void write_version_file() {
         fclose(f);
     }
     else
-        Except("Cannot open update_check file for writing to save the settings (maybe no permissions in app folder?).");
+        FormatExcept("Cannot open update_check file for writing to save the settings (maybe no permissions in app folder?).");
 }
 
 void update_loop() {
@@ -204,7 +204,7 @@ void update_loop() {
             if(_last_check_success)
                 print("[CHECK_UPDATES] It has been a week. Let us check for updates...");
             else
-                Debug("[CHECK_UPDATES] Trying again after %S...", &str);
+                print("[CHECK_UPDATES] Trying again after ",str,"...");
             
             SETTING(app_last_update_check) = (uint64_t)duration_cast<microseconds>( now.time_since_epoch() ).count();
             
@@ -216,19 +216,19 @@ void update_loop() {
                     _last_check_success = true;
                     
                     if(status == VersionStatus::NEWEST) {
-                        Debug("[CHECK_UPDATES] Already have the newest version (%S).", &newest_version());
+                        print("[CHECK_UPDATES] Already have the newest version (",newest_version(),").");
                     } else if(status == VersionStatus::ALREADY_ASKED) {
-                        Debug("[CHECK_UPDATES] There is a new version available (%S), but you have already acknowledged this. If you want to see instructions again, please go to the top-right menu -> check updates.");
+                        print("[CHECK_UPDATES] There is a new version available (",newest_version(),"), but you have already acknowledged this. If you want to see instructions again, please go to the top-right menu -> check updates.");
                     } else {
                         display_update_dialog();
                     }
                     
                 } else {
-                    U_EXCEPTION("Status suggested the check failed.");
+                    throw U_EXCEPTION("Status suggested the check failed.");
                 }
                 
             } catch(...) {
-                Error("There was an error checking for the newest version:\n\n%s\n\nPlease check your internet connection and try again. This also happens if you are checking for versions too often, or if GitHub changed their API (in which case you should probably update).", last_error().c_str());
+                print("There was an error checking for the newest version:\n\n",last_error().c_str(),"\n\nPlease check your internet connection and try again. This also happens if you are checking for versions too often, or if GitHub changed their API (in which case you should probably update).");
             }
         }
     }
@@ -303,7 +303,7 @@ std::future<VersionStatus> perform(bool manually_triggered) {
             
             _last_error = line;
             
-            Error("Failed to retrieve github status to determine what the current version is. Assuming current version is the most up-to-date one.");
+            FormatError("Failed to retrieve github status to determine what the current version is. Assuming current version is the most up-to-date one.");
             fn("");
         }
         

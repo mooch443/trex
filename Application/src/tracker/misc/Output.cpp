@@ -72,12 +72,8 @@ Output::ResultsFormat::ResultsFormat(const file::Path& filename, std::function<v
 
     if (timer.elapsed() >= 1) {
         auto us = timer.elapsed() * 1000 * 1000;
-
-        auto str = DurationUS{ (uint64_t)us }.to_string();
-        auto name = obj->identity().name();
-
         if (!SETTING(quiet))
-            Debug("%S post-processing took %S", &name, &str);
+            print(obj->identity()," post-processing took ", DurationUS{ (uint64_t)us });
     }
         
         set_thread_name(name);
@@ -545,7 +541,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         ++data.index;
         
         if(i%100000 == 0 && i)
-            Debug("Blob %d/%d", i, N);
+            print("Blob ", i,"/",N,"");
     }
     
     stop = true;
@@ -583,7 +579,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             
             auto stuff = fish->basic_stuff(frame);
             if(!stuff) {
-                Except("(%d) Cannot find basic_stuff for frame %d.", fish->identity().ID(), frame);
+                FormatExcept("(", fish->identity().ID(),") Cannot find basic_stuff for frame ", frame,".");
             } else
                 stuff->thresholded_size = value;
         }
@@ -644,7 +640,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                 stuff->outline = outline;
                 
                 auto segment = fish->segment_for(frame);
-                if(!segment) U_EXCEPTION("(%d) Have to add basic stuff before adding posture stuff (frame %d).", fish->identity().ID(), frameIndex);
+                if(!segment) throw U_EXCEPTION("(%d) Have to add basic stuff before adding posture stuff (frame %d).", fish->identity().ID(), frameIndex);
                 segment->add_posture_at(stuff, fish);
                 
             }
@@ -665,7 +661,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         for (uint64_t i=0; i<N; i++) {
             ref.read<data_long_t>(frameIndex);
             if(frameIndex < previous_frame) {
-                Warning("Unordered frames (%ld vs %d)", frameIndex, previous_frame);
+                FormatWarning("Unordered frames (", frameIndex," vs ",previous_frame,")");
                 return fish;
             }
             previous_frame = frameIndex;
@@ -684,7 +680,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                 stuff->cached_pp_midline = midline;
                 
                 auto segment = fish->segment_for(frame);
-                if(!segment) U_EXCEPTION("(%d) Have to add basic stuff before adding posture stuff (frame %d).", fish->identity().ID(), frameIndex);
+                if(!segment) throw U_EXCEPTION("(%d) Have to add basic stuff before adding posture stuff (frame %d).", fish->identity().ID(), frameIndex);
                 
                 sorted[stuff->frame] = stuff;
             }
@@ -721,7 +717,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         for(auto && [frame, stuff] : sorted) {
             if(!segment || !segment->contains(frame))
                 segment = fish->segment_for(frame);
-            if(!segment) U_EXCEPTION("(%d) Have to add basic stuff before adding posture stuff (frame %d).", fish->identity().ID(), frame);
+            if(!segment) throw U_EXCEPTION("(%d) Have to add basic stuff before adding posture stuff (frame %d).", fish->identity().ID(), frame);
             
             segment->add_posture_at(stuff, fish);
         }
@@ -743,7 +739,7 @@ template<> void Data::read(Individual*& out_ptr) {
             try {
                 _fn();
             } catch(const std::exception& e) {
-                Except("Caught an exception inside ~Callback(): %s",e.what());
+                FormatExcept("Caught an exception inside ~Callback(): ",e.what());
             }
         }
     };
@@ -756,7 +752,7 @@ template<> void Data::read(Individual*& out_ptr) {
             auto N = results->_expected_individuals.load();
             double N_written = results->_N_written.load();
             if(N <= 100 || results->_N_written % max(100u, uint64_t(N * 0.01)) == 0) {
-                Debug("Read individual %.0f/%lu (%.0f%%)...", N_written, N, N_written / float(N) * 100);
+                print("Read individual ", int64_t(N_written),"/", N," (",int64_t(N_written),"%)...");
                 results->_update_progress("", narrow_cast<float>(N_written / double(N)), results->filename().str()+"\n<ref>loading individual</ref> <number>"+Meta::toStr(results->_N_written)+"</number> <ref>of</ref> <number>"+Meta::toStr(N)+"</number>");
             }
         }
@@ -783,12 +779,12 @@ template<> void Data::read(Individual*& out_ptr) {
             if(lzo1x_decompress((uchar*)ptr,size,(uchar*)uncompressed_block.data(),&new_len,NULL) == LZO_E_OK)
             {
                 if(new_len != uncompressed_size)
-                    Warning("Uncompressed size %lu is different than expected %lu", new_len, uncompressed_size);
+                    FormatWarning("Uncompressed size ", new_len," is different than expected ",uncompressed_size,"");
                 ReadonlyMemoryWrapper compressed((uchar*)uncompressed_block.data(), new_len);
                 (*out_ptr) = results->read_individual(compressed, results->_property_cache.get());
                 
             } else {
-                U_EXCEPTION("Failed to decode individual from file %S", &results->filename());
+                throw U_EXCEPTION("Failed to decode individual from file ",results->filename());
             }
             
             if(cache)
@@ -800,7 +796,7 @@ template<> void Data::read(Individual*& out_ptr) {
     }
     
     if(!results)
-        U_EXCEPTION("This is not ResultsFormat.");
+        throw U_EXCEPTION("This is not ResultsFormat.");
     
     out_ptr = results->read_individual(*this, results->_property_cache.get());
     delete callback;
@@ -955,11 +951,11 @@ uint64_t Data::write(const Individual& val) {
             auto before = Meta::toStr(FileSize(in_len));
             auto after = Meta::toStr(FileSize(size));
             
-            Debug("Saved %.2f%%... (individual %d compressed from %S to %S).", double(ptr->_N_written.load() + 1) / double(ptr->_expected_individuals.load()) * 100, val.identity().ID(), &before, &after);
+            print("Saved ", double(ptr->_N_written.load() + 1) / double(ptr->_expected_individuals.load()) * 100,"%... (individual ", val.identity().ID()," compressed from ", before.c_str()," to ", after.c_str(),").");
         }
     
     } else {
-        U_EXCEPTION("Compression of %lu bytes failed (individual %d).", pack.size(), val.identity().ID());
+        throw U_EXCEPTION("Compression of %lu bytes failed (individual %d).", pack.size(), val.identity().ID());
     }
     
     return write(pack);
@@ -975,7 +971,7 @@ namespace Output {
         if(reading_timer.elapsed() >= 1) {
             if(samples > 0) {
                 speed = Meta::toStr(FileSize(uint64_t(bytes_per_second / samples / reading_timer.elapsed())));
-                Debug("Reading @ %S/s", &speed);
+                print("Reading @ ",speed,"/s");
             }
             reading_timer.reset();
             bytes_per_second = 0;
@@ -1007,7 +1003,7 @@ namespace Output {
         std::string version_string;
         read<std::string>(version_string);
         if(!utils::beginsWith(version_string, "TRACK"))
-            U_EXCEPTION("Illegal file format for tracking results.");
+            throw U_EXCEPTION("Illegal file format for tracking results.");
         
         if (version_string == "TRACK") {
             _header.version = Versions::V_1;
@@ -1068,8 +1064,8 @@ namespace Output {
         
         if(!SETTING(quiet)) {
             DebugHeader("READING PROGRAM STATE");
-            Debug("Read head of '%S' (version:V_%d gui_frame:%lu analysis_range:%ld-%ld)", &filename().str(), (int)_header.version+1, _header.gui_frame, _header.analysis_range.start, _header.analysis_range.end);
-            Debug("Generated with command-line: '%S'", &_header.cmd_line);
+            print("Read head of ",filename()," (version:V_",(int)_header.version+1," gui_frame:",_header.gui_frame,"u analysis_range:",_header.analysis_range.start,"d-",_header.analysis_range.end,"d)");
+            print("Generated with command-line: ",_header.cmd_line,"");
         }
     }
     
@@ -1077,7 +1073,7 @@ namespace Output {
         std::string version_string = "TRACK"+std::to_string((int)Versions::current);
         write<std::string>(version_string);
         if(!SETTING(quiet)) {
-            Debug("Writing version string '%S'", &version_string);
+            print("Writing version string ",version_string,"");
             print("Writing frame ", _header.gui_frame);
         }
         write<uint64_t>(_header.gui_frame);
@@ -1131,7 +1127,7 @@ namespace Output {
         
         if(!SETTING(quiet)) {
             auto str = Meta::toStr(FileSize(estimated_size));
-            Debug("Estimating %S for the whole file.", &str);
+            print("Estimating ",str," for the whole file.");
         }
         std::string text = default_config::generate_delta_config(true, exclude_settings);
         write<std::string>(text);
@@ -1210,11 +1206,11 @@ namespace Output {
         if(filename.move_to(filename.remove_extension())) {
             filename = filename.remove_extension();
             if(!SETTING(quiet)) {
-                DebugHeader("Finished writing '%S'.", &filename.str());
-                DebugCallback("Finished writing '%S'.", &filename.str());
+                DebugHeader("Finished writing ", filename, ".");
+                DebugCallback("Finished writing ", filename, ".");
             }
         } else
-            U_EXCEPTION("Cannot move '%S' to '%S' (but results have been saved, you just have to rename the file).", &filename.str(), &filename.remove_extension().str());
+            throw U_EXCEPTION("Cannot move '%S' to '%S' (but results have been saved, you just have to rename the file).", &filename.str(), &filename.remove_extension().str());
     }
     
     void TrackingResults::clean_up() {
@@ -1234,7 +1230,7 @@ namespace Output {
         bytes_per_second = samples = percent_read = 0;
         
         if(!SETTING(quiet))
-            Debug("Trying to open results '%S' (retrieve header only)", &filename.str());
+            print("Trying to open results ",filename.str()," (retrieve header only)");
         ResultsFormat file(filename.str(), [](const auto&, auto, const auto&){});
         file.start_reading();
         return file.header();
@@ -1248,7 +1244,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
     
     //auto it = _tracker._active_individuals_frame.begin();
     if(_tracker._active_individuals_frame.size() != _tracker._added_frames.size()) {
-        U_EXCEPTION("This is unexpected (%d != %d).", _tracker._active_individuals_frame.size(), _tracker._added_frames.size());
+        throw U_EXCEPTION("This is unexpected (%d != %d).", _tracker._active_individuals_frame.size(), _tracker._added_frames.size());
     }
     
     const track::FrameProperties* prev_props = nullptr;
@@ -1282,7 +1278,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         if(props->frame.get() % max(1u, uint64_t(_tracker._added_frames.size() / 10u)) == 0) {
             update_progress("FOIs...", props->frame.get() / float(_tracker.end_frame().get()), Meta::toStr(props->frame)+" / "+Meta::toStr(_tracker.end_frame()));
             if(!SETTING(quiet))
-                Debug("\tupdate_fois %d / %d\r", props->frame, _tracker.end_frame());
+                print("\tupdate_fois ", props->frame," / ",_tracker.end_frame(),"\r");
         }
     }
     
@@ -1298,7 +1294,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         if (filename.empty())
             filename = expected_filename();
         else if (!filename.exists())
-            Error("Cannot find '%S' as requested. Trying standard paths.", &filename.str());
+            FormatError("Cannot find ",filename.str()," as requested. Trying standard paths.");
 
         if(!filename.exists()) {
             file::Path file = SETTING(filename).value<Path>();
@@ -1307,16 +1303,16 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             
             //file = pv::DataLocation::parse("input", filename.filename());
             if(file.exists()) {
-                Warning("Not loading from the output folder, but from the input folder because '%S' could not be found, but '%S' could.", &filename.str(), &file.str());
+                FormatWarning("Not loading from the output folder, but from the input folder because ", filename," could not be found, but ",file," could.");
                 filename = file;
             } else
-                Warning("Searched at '%S', but also couldnt be found.", &file.str());
+                print("Searched at ",file.str(),", but also couldnt be found.");
         }
         
         bytes_per_second = samples = percent_read = 0;
         
         if(!SETTING(quiet))
-            Debug("Trying to open results '%S'", &filename.str());
+            print("Trying to open results ",filename.str(),"");
         ResultsFormat file(filename.str(), update_progress);
         file.start_reading();
         
@@ -1461,14 +1457,14 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
                 
                 auto it = map_id_ptr.find(Idx_t(ID));
                 if (it == map_id_ptr.end()) {
-                    U_EXCEPTION("Cannot find individual with ID %ld in map.", ID);
+                   throw U_EXCEPTION("Cannot find individual with ID ", ID," in map.");
                 } else if((*it).second->start_frame() > frame) {
-                    //Except("Individual %ld start frame = %d, not %ld", ID, map_id_ptr.at(Idx_t(ID))->start_frame(), frameIndex);
+                    //FormatExcept("Individual ", ID,"d start frame = ", map_id_ptr.at(Idx_t(ID))->start_frame(),", not ",frameIndex,"d");
                     continue;
                 }
                 auto r = active.insert(it->second);
                 if(!std::get<1>(r))
-                    U_EXCEPTION("Did not insert ID %ld for frame %ld.", ID, frameIndex);
+                    throw U_EXCEPTION("Did not insert ID %ld for frame %ld.", ID, frameIndex);
             }
             
             if(check_analysis_range && (frame > analysis_range.end || frame < analysis_range.start))
@@ -1531,7 +1527,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
                 default_config::load_string_with_deprecations(filename, file.header().settings, config, AccessLevelType::STARTUP, true);
                 
             } catch(const cmn::illegal_syntax& e) {
-                Error("Illegal syntax in .results settings (%s).", e.what());
+                print("Illegal syntax in .results settings (",e.what(),").");
             }
             
             std::vector<Idx_t> focus_group;
@@ -1577,11 +1573,10 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         }
         
         if(!SETTING(quiet)) {
-            Debug("Successfully read file '%S' (version:V_%d gui_frame:%lu start:%lu end:%lu)", &file.filename().str(), (int)file._header.version+1, file.header().gui_frame, Tracker::start_frame(), Tracker::end_frame());
+            print("Successfully read file ",file.filename()," (version:V_",(int)file._header.version+1," gui_frame:",file.header().gui_frame,"u start:",Tracker::start_frame(),"u end:",Tracker::end_frame(),"u)");
         
             DurationUS duration{uint64_t(loading_timer.elapsed() * 1000 * 1000)};
-            auto str = Meta::toStr(duration);
-            DebugHeader("FINISHED READING PROGRAM STATE IN %S", &str);
+            DebugHeader("FINISHED READING PROGRAM STATE IN ", duration);
         }
     }
 }

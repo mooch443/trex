@@ -116,18 +116,18 @@ public:
         
         void set(Idx_t ID, const TrainingFilterConstraints& filter) {
             if(has(ID))
-                Warning("[TrainingFilter] %d is already present. Replacing.", ID);
+                print("[TrainingFilter] ",ID," is already present. Replacing.");
             
             if(!filters[ID].empty())
-                U_EXCEPTION("[TrainingFilter] Cannot add both full-range filters, and range-specific filters at the same time.");
+                throw U_EXCEPTION("[TrainingFilter] Cannot add both full-range filters, and range-specific filters at the same time.");
             filters[ID][FrameRange()] = filter;
         }
         
         void set(Idx_t ID, const FrameRange& range, const TrainingFilterConstraints& filter) {
             if(has(ID, range))
-                Warning("[TrainingFilter] %d in range %d-%d is already present. Replacing.", ID, range.start(), range.end());
+                FormatWarning("[TrainingFilter] ", ID," in range ", range.start(), "-", range.end()," is already present. Replacing.");
             if(filters[ID].find(FrameRange()) != filters[ID].end())
-                U_EXCEPTION("[TrainingFilter] Cannot add both full-range filters, and range-specific filters at the same time.");
+                throw U_EXCEPTION("[TrainingFilter] Cannot add both full-range filters, and range-specific filters at the same time.");
             
             filters[ID][range] = filter;
         }
@@ -135,7 +135,7 @@ public:
         const TrainingFilterConstraints& get(Idx_t ID, Frame_t frame) const {
             auto fit = filters.find(ID);
             if(fit == filters.end())
-                U_EXCEPTION("Cannot find ID %d in TrainingFilterConstraints.", ID);
+                throw U_EXCEPTION("Cannot find ID ",ID," in TrainingFilterConstraints.");
             
             auto it = fit->second.find(FrameRange());
             if(it != fit->second.end())
@@ -146,7 +146,7 @@ public:
                     return f;
             }
             
-            U_EXCEPTION("Cannot find frame %d in TrainingFilterConstraints.", frame);
+            throw U_EXCEPTION("Cannot find frame ",frame," in TrainingFilterConstraints.");
         }
     };
     

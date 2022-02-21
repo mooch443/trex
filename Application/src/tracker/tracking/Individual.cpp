@@ -443,7 +443,7 @@ Individual::Individual(Identity&& id)
     if(FAST_SETTINGS(manual_identities).count(identity().ID()))
         identity().set_manual(true);
     //else
-    //    U_EXCEPTION("Hey");
+    //    throw U_EXCEPTION("Hey");
 }
 
 Individual::~Individual() {
@@ -531,9 +531,9 @@ void Individual::remove_frame(Frame_t frameIndex) {
             for(auto id : seg->posture_index) {
                 if(id != -1) {
                     if(it == _posture_stuff.end())
-                        U_EXCEPTION("Ended in %d-%d.", seg->range.start, seg->range.end);
+                        throw U_EXCEPTION("Ended in %d-%d.", seg->range.start, seg->range.end);
                     if((*it)->frame != seg->start() + offset) {
-                        U_EXCEPTION("Frame %d from posture is != %d", (*it)->frame, seg->start() + offset);
+                        throw U_EXCEPTION("Frame %d from posture is != %d", (*it)->frame, seg->start() + offset);
                     }
                     ++it;
                 }
@@ -574,7 +574,7 @@ void Individual::remove_frame(Frame_t frameIndex) {
             ++it;
         else if((*it)->range.start < frameIndex) {
 #ifndef NDEBUG
-            Debug("(%d) need to shorten segment %d-%d to fit frame %d", identity().ID(), (*it)->range.start, (*it)->range.end, frameIndex);
+            print("(",identity().ID(),") need to shorten segment ",(*it)->range.start,"-",(*it)->range.end," to fit frame ",frameIndex,"");
 #endif
             (*it)->range.end = frameIndex - 1_f;
             assert((*it)->range.start <= (*it)->range.end);
@@ -592,7 +592,7 @@ void Individual::remove_frame(Frame_t frameIndex) {
                     assert(*kit < (long long)_posture_stuff.size());
                     _posture_stuff.resize(*kit);
 #ifndef NDEBUG
-                    Debug("(%d)\tposture_stuff.back == %d (kit = %d)", identity().ID(), _posture_stuff.empty() ? Frame_t() : _posture_stuff.back()->frame, ff);
+                    print("(", identity().ID(),")\tposture_stuff.back == ", _posture_stuff.empty() ? Frame_t() : _posture_stuff.back()->frame," (kit = ",ff,")");
 #endif
                     
                     (*it)->posture_index.erase(kit, (*it)->posture_index.end());
@@ -615,13 +615,13 @@ void Individual::remove_frame(Frame_t frameIndex) {
             
 #ifndef NDEBUG
             if(!shortened_posture_index && it == _frame_segments.end())
-                Debug("Individual %d did not have any postures after %d", identity().ID(), frameIndex);
+                print("Individual ", identity().ID()," did not have any postures after ",frameIndex,"");
 #endif
         }
         
         if(it != _frame_segments.end()) {
 #ifndef NDEBUG
-            Debug("(%d) found that we need to delete everything after and including %d-%d", identity().ID(), (*it)->range.start, (*it)->range.end);
+            print("(", identity().ID(),") found that we need to delete everything after and including ", (*it)->range.start,"-",(*it)->range.end,"");
 #endif
             
             if(!shortened_basic_index && !(*it)->basic_index.empty()) {
@@ -637,7 +637,7 @@ void Individual::remove_frame(Frame_t frameIndex) {
                             assert(*kit < (long long)_posture_stuff.size());
                             _posture_stuff.resize(*kit);
 #ifndef NDEBUG
-                            Debug("(%d)\tposture_stuff.back == %d", identity().ID(), _posture_stuff.empty() ? Frame_t() : _posture_stuff.back()->frame);
+                            print("(", identity().ID(),")\tposture_stuff.back == ",_posture_stuff.empty() ? Frame_t() : _posture_stuff.back()->frame,"");
 #endif
                             shortened_posture_index = true;
                             break;
@@ -651,7 +651,7 @@ void Individual::remove_frame(Frame_t frameIndex) {
                 
 #ifndef NDEBUG
                 if(!shortened_posture_index)
-                    Debug("Individual %d did not have any postures after %d", identity().ID(), frameIndex);
+                    print("Individual ", identity().ID()," did not have any postures after ",frameIndex,"");
 #endif
             }
             
@@ -694,7 +694,7 @@ void Individual::remove_frame(Frame_t frameIndex) {
                     }
                 }
                 
-                Debug("#1 (%d) resizing posture_stuff %d -> %d", identity().ID(), _posture_stuff.size(), last_found_gdx);
+                print("#1 (", identity().ID(),") resizing posture_stuff ", _posture_stuff.size()," -> ",last_found_gdx,"");
                 
                 segment.posture_index.resize(current.length());
                 _posture_stuff.resize(last_found_gdx);
@@ -718,7 +718,7 @@ void Individual::remove_frame(Frame_t frameIndex) {
             }
         }
         
-        Debug("#2 (%d) resizing posture_stuff %d -> %d", identity().ID(), _posture_stuff.size(), last_found_gdx);
+        print("#2 (", identity().ID(),") resizing posture_stuff ", _posture_stuff.size()," -> ",last_found_gdx,"");
         _posture_stuff.resize(last_found_gdx);
         
         _frame_segments.erase(it);
@@ -1535,7 +1535,7 @@ bool CacheHints::full() const {
 
 void CacheHints::clear(size_t size) {
     if (size == 0 && FAST_SETTINGS(frame_rate) < 0) {
-        Except("Size=%lu frame_rate=%d", size, FAST_SETTINGS(frame_rate));
+        FormatExcept("Size=", size,"u frame_rate=", FAST_SETTINGS(frame_rate),"");
         _last_second.resize(0);
     } else {
         _last_second.resize(size > 0 ? size : FAST_SETTINGS(frame_rate));
@@ -1580,7 +1580,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     cache.individual_empty = false;
     
     if (frameIndex < _startFrame)
-        U_EXCEPTION("Cant cache for frame before start frame");
+        throw U_EXCEPTION("Cant cache for frame before start frame");
         //return cache;//centroid(_startFrame)->pos(PX_AND_SECONDS);
     
     // find the first frame thats set for the individual
@@ -1632,7 +1632,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     
 #ifndef NDEBUG
     if(cache.last_seen_px.x == -FLT_MAX)
-        Warning("No previous position for fish %d in frame %d.", identity().ID(), frameIndex);
+        FormatWarning("No previous position for fish ", identity().ID()," in frame ",frameIndex,".");
 #endif
     
     // find posture stuff and basic stuff for previous frame
@@ -1656,7 +1656,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
                 bdx = (*_frame_segments.rbegin())->basic_stuff(_endFrame);
                 pdx = (*_frame_segments.rbegin())->posture_stuff(_endFrame);
             } else
-                Warning("Nothing to be found for %d", frameIndex - 1_f);
+                print("Nothing to be found for ",frameIndex - 1_f,"");
         }
     }
     
@@ -1866,7 +1866,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     prob_t speed = max(0.6f, sqrt(used_frames ? static_median(average_speed.begin(), average_speed.end()) : 0));
     
     if(cache.tdelta == 0)
-        U_EXCEPTION("No time difference between %d and %d in calculate_next_positions.", frameIndex, cache.previous_frame);
+        throw U_EXCEPTION("No time difference between %d and %d in calculate_next_positions.", frameIndex, cache.previous_frame);
     
     //! \lambda
     const float lambda = SQR(SQR(max(0, min(1, FAST_SETTINGS(track_speed_decay)))));
@@ -1973,7 +1973,7 @@ prob_t Individual::position_probability(const IndividualCache& cache, Frame_t fr
 {
 #ifndef NDEBUG
     if (frameIndex < _startFrame + 1_f)
-        U_EXCEPTION("Cannot calculate probability for a frame thats previous to all known frames.");
+        throw U_EXCEPTION("Cannot calculate probability for a frame thats previous to all known frames.");
 #endif
     
     // $\tau$ is the time (s) of the most recent frame assigned to individual $i$
@@ -2058,17 +2058,17 @@ Individual::Probability Individual::probability(int label, const IndividualCache
 Individual::Probability Individual::probability(int label, const IndividualCache& cache, Frame_t frameIndex, const Vec2& position, size_t pixels) const {
     assert(frameIndex >= _startFrame);
     //if (frameIndex < _startFrame)
-    //    U_EXCEPTION("Cannot calculate probability for a frame thats previous to all known frames.");
+    //    throw U_EXCEPTION("Cannot calculate probability for a frame thats previous to all known frames.");
     assert(!cache.individual_empty);
 
     if (cache.consistent_categories && cache.current_category != -1) {
         //auto l = Categorize::DataStore::ranged_label(Frame_t(frameIndex), blob);
         //if(identity().ID() == 38)
-        //    Warning("Frame %ld: blob %lu -> %s (%d) and previous is %d", frameIndex, blob.blob_id(), l ? l->name.c_str() : "N/A", l ? l->id : -1, cache.current_category);
+        //    FormatWarning("Frame ",frameIndex,"d: blob ",blob.blob_id(),"u -> ",l ? l->name.c_str() : "N/A"," (",l ? l->id : -1,") and previous is ",cache.current_category,"");
         if (label != -1) {
             if (label != cache.current_category) {
                 //if(identity().ID() == 38)
-                 //   Warning("Frame %ld: current category does not match for blob %d", frameIndex, blob.blob_id());
+                 //   FormatWarning("Frame ", frameIndex,": current category does not match for blob ",blob.blob_id(),"");
                 //return Probability{ 0, 0, 0, 0 };
                 return 0;
             }
@@ -2130,7 +2130,7 @@ const std::shared_ptr<Individual::BasicStuff>& Individual::find_frame(Frame_t fr
                 // it is located before our first startFrame
                 // this should not happen
                 //index = it->second->basic_index.front();
-                U_EXCEPTION("(%d) frame %d: cannot find basic_stuff after finding segment %d-%d", identity().ID(), frameIndex, (*it)->start(), (*it)->end());
+                throw U_EXCEPTION("(",identity().ID(),") frame ",frameIndex,": cannot find basic_stuff after finding segment ",(*it)->start(),"-",(*it)->end(),"");
             }
             
         } else {
@@ -2146,7 +2146,7 @@ const std::shared_ptr<Individual::BasicStuff>& Individual::find_frame(Frame_t fr
         return _basic_stuff[ index ];
     }
     
-    U_EXCEPTION("Cannot find a frame for %d", frameIndex);
+    throw U_EXCEPTION("Cannot find a frame for ",frameIndex,"");
 }
 
 std::tuple<std::vector<std::tuple<float, float>>, std::vector<float>, size_t, MovementInformation> Individual::calculate_previous_vector(Frame_t frameIndex) const {
@@ -2355,9 +2355,9 @@ void Individual::save_posture(std::shared_ptr<BasicStuff> stuff, Frame_t frameIn
         
         auto segment = segment_for(frameIndex);
         if(!segment)
-            U_EXCEPTION("save_posture cannot find frame %d.", frameIndex);
+            throw U_EXCEPTION("save_posture cannot find frame ",frameIndex,".");
         if(!segment->contains(frameIndex))
-            U_EXCEPTION("save_posture found segment (%d-%d), but does not contain %d.", segment->start(), segment->end(), frameIndex);
+            throw U_EXCEPTION("save_posture found segment (%d-%d), but does not contain %d.", segment->start(), segment->end(), frameIndex);
         
         auto stuff = std::make_shared<PostureStuff>();
         stuff->frame = frameIndex;
@@ -2417,7 +2417,7 @@ std::tuple<Image::UPtr, Vec2> Individual::calculate_normalized_diff_image(const 
     if(midline_length < 0) {
         static Timer timer;
         if(timer.elapsed() > 1) { // dont spam messages
-            Warning("[Individual::calculate_normalized_diff_image] invalid midline_length");
+            FormatWarning("[Individual::calculate_normalized_diff_image] invalid midline_length");
             timer.reset();
         }
         return {nullptr, Vec2()};
@@ -2493,7 +2493,7 @@ std::tuple<Image::UPtr, Vec2> Individual::calculate_normalized_diff_image(const 
     }
     
     if(!output_size.empty() && (padded.cols != output_size.width || padded.rows != output_size.height))
-        U_EXCEPTION("Padded size differs from expected size (%dx%d != %dx%d)", padded.cols, padded.rows, output_size.width, output_size.height);
+        throw U_EXCEPTION("Padded size differs from expected size (",padded.cols,"x",padded.rows," != ",output_size.width,"x",output_size.height,")");
     
     auto i = tr.getInverse();
     auto pt = i.transformPoint(left, top);
@@ -2562,7 +2562,7 @@ std::tuple<Image::UPtr, Vec2> Individual::calculate_diff_image(pv::BlobPtr blob,
     }
     
     if(!output_size.empty() && (padded.cols != output_size.width || padded.rows != output_size.height))
-        U_EXCEPTION("Padded size differs from expected size (%dx%d != %dx%d)", padded.cols, padded.rows, output_size.width, output_size.height);
+        throw U_EXCEPTION("Padded size differs from expected size (",padded.cols,"x",padded.rows," != ",output_size.width,"x",output_size.height,")");
     
     
     return { Image::Make(padded), bounds.pos() };
@@ -2769,7 +2769,7 @@ void Individual::calculate_average_recognition() {
     std::string file = identity().name()+".log";
     FILE* f = fopen(file.c_str(), "wb");
     if(!f)
-        Error("Cannot open file '%S' for writing ('%S')", &file, &identity().raw_name());
+       FormatError("Cannot open file ", file," for writing ('",identity(),"')");
 #else
     FILE* f = nullptr;
 #endif
@@ -2809,7 +2809,7 @@ void Individual::calculate_average_recognition() {
     
     if(!splits.empty()) {
         auto str = Meta::toStr(splits);
-        Warning("Found frame segments for fish %d that have to be split:\n%S", identity().ID(), &str);
+        FormatWarning("Found frame segments for fish ", identity().ID()," that have to be split:\n",str,"");
     }
     
     _recognition_segments = processed_segments;
@@ -2848,7 +2848,7 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
         // average cannot be found for given segment. try to calculate it...
         auto sit = _recognition_segments.find(segment_start);
         if(sit == _recognition_segments.end())
-            U_EXCEPTION("Cannot find segment starting at %d for fish %S.", segment_start, &identity().raw_name());
+            throw U_EXCEPTION("Cannot find segment starting at %d for fish %S.", segment_start, &identity().raw_name());
         
         const auto &[ segment, usable] = sit->second;
         
@@ -2889,7 +2889,7 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
             if(s > 0.001)
                 average_processed_segment[segment_start] = {overall, average};
             else {
-                Debug("Not using fish %d segment %d-%d because sum is %f", identity().ID(), segment_start, segment.end, s);
+                print("Not using fish ",identity().ID()," segment ",segment_start,"-",segment.end," because sum is ",s,"");
                 return {0, {}};
             }
         } else
@@ -2913,7 +2913,7 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
         {
             //! found the segment
         } else
-            U_EXCEPTION("Cannot find segment starting at %d for fish %S.", segment_start, &identity().raw_name());
+            throw U_EXCEPTION("Cannot find segment starting at %d for fish %S.", segment_start, &identity().raw_name());
         
         const auto && [segment, usable] = (FrameRange)*sit->get();
         
@@ -2952,7 +2952,7 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
             if(s > 0.001)
                 average_recognition_segment[segment_start] = {overall, average};
             else {
-                Debug("Not using fish %d segment %d-%d because sum is %f", identity().ID(), segment_start, segment.end, s);
+                print("Not using fish ",identity().ID()," segment ",segment_start,"-",segment.end," because sum is ",s,"");
                 return {0, {}};
             }
         } else
@@ -3002,7 +3002,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
         return true;
     });
 
-    Debug("Saving to '%S' (%lu frames in range %d-%d)", &path.str(), len, range.start, range.end);
+    print("Saving to '",&path.str(),"' (",len,"u frames in range ",range.start,"-",range.end,")");
 
     size_t vres = VisualField::field_resolution * VisualField::layers;
     size_t eye_len = len * vres;
@@ -3168,9 +3168,9 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
         cmn::npz_save(meta_path.str(), "frames", frames.data(), { len }, "a");
         
         if(!use_npz)
-            Debug("Saved visual field metadata to '%S' and image data to '%S_*.npy'.", &meta_path.str(), &path.str());
+            print("Saved visual field metadata to ",meta_path.str()," and image data to '",path.c_str(),"_*.npy'.");
         else
-            Debug("Saved to '%S.npz'.", &path.str());
+            print("Saved to '",path.str(),".npz'.");
 
     } catch(...) {
         // there will be a utils exception, so its printed out already
@@ -3248,7 +3248,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
     
     auto fs = Meta::toStr(FileSize{overall});
     
-    Debug("Fish %d: %S (overall: %S + %ld custom objects)", identity().ID(), &str, &fs, objects);
+    print("Fish ",identity().ID(),": ",str," (overall: ",fs," + ",objects," custom objects)");
     
     return overall;
 }*/

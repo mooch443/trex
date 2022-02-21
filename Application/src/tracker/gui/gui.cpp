@@ -220,7 +220,7 @@ bool GUI::execute_settings(file::Path settings_file, AccessLevelType::Class acce
             default_config::load_string_with_deprecations(settings_file, content, GlobalSettings::map(), accessLevel);
             
         } catch(const cmn::illegal_syntax& e) {
-            Error("Illegal syntax in settings file.");
+            FormatError("Illegal syntax in settings file.");
             return false;
         }
         DebugHeader("LOADED '%S'", &settings_file.str());
@@ -585,7 +585,7 @@ gui::FrameInfo& GUI::frameinfo() {
 
 WorkProgress& GUI::work() {
     if (!instance())
-        U_EXCEPTION("No instance.");
+        throw U_EXCEPTION("No instance.");
     return PD(work_progress);
 }
 
@@ -600,7 +600,7 @@ void GUI::load_connectivity_matrix() {
     path = pv::DataLocation::parse("input", path);
     
     if(!path.exists())
-        U_EXCEPTION("Cannot find connectivity matrix file '%S'.", &path.str());
+        throw U_EXCEPTION("Cannot find connectivity matrix file ",path.str(),".");
     
     auto contents = utils::read_file(path.str());
     auto rows = utils::split(contents, '\n');
@@ -816,7 +816,7 @@ void GUI::do_recording() {
     
     auto& image = _base->current_frame_buffer();
     if(!image || image->empty() || !image->cols || !image->rows) {
-        Warning("Expected image, but there is none.");
+        FormatWarning("Expected image, but there is none.");
         return;
     }
     
@@ -851,7 +851,7 @@ void GUI::do_recording() {
             cv::Mat output;
             cv::cvtColor(mat, output, cv::COLOR_RGBA2RGB);
             if(!cv::imwrite(filename.str(), output, { cv::IMWRITE_JPEG_QUALITY, 100 })) {
-                Except("Cannot save to '%S'. Stopping recording.", &filename.str());
+                FormatExcept("Cannot save to ",filename.str(),". Stopping recording.");
                 PD(recording) = false;
             }
             
@@ -871,7 +871,7 @@ void GUI::do_recording() {
                 fwrite(binary.data(), sizeof(char), binary.size(), f);
                 fclose(f);
             } else {
-                Except("Cannot write to '%S'. Stopping recording.", &filename.str());
+                FormatExcept("Cannot write to ",filename.str(),". Stopping recording.");
                 PD(recording) = false;
             }
         }
@@ -905,7 +905,7 @@ void GUI::start_recording() {
         file::Path frames = GUI::frame_output_dir();
         if(!frames.exists()) {
             if(!frames.create_folder()) {
-                Error("Cannot create folder '%S'. Cannot record.", &frames.str());
+                FormatError("Cannot create folder ",frames.str(),". Cannot record.");
                 PD(recording) = false;
                 return;
             }
@@ -924,7 +924,7 @@ void GUI::start_recording() {
                             max_number = number;
                         
                     } catch(const std::exception& e) {
-                        Except("%S not a number ('%s').", &name, e.what());
+                        FormatExcept(name," not a number ('",e.what(),"').");
                     }
                 }
             }
@@ -932,10 +932,10 @@ void GUI::start_recording() {
             ++max_number;
             
         } catch(const UtilsException& ex) {
-            Warning("Cannot iterate on folder '%S'. Defaulting to index 0.", &frames.str());
+            print("Cannot iterate on folder ",frames.str(),". Defaulting to index 0.");
         }
         
-        Debug("Clip index is %d. Starting at frame %d.", max_number, frame());
+        print("Clip index is ", max_number,". Starting at frame ",frame(),".");
         
         frames = frames / ("clip" + Meta::toStr(max_number));
         cv::Size size(GUI::instance()->base() 
@@ -952,7 +952,7 @@ void GUI::start_recording() {
                 size.width -= size.width % 2;
             if(size.height % 2 > 0)
                 size.height -= size.height % 2;
-            Debug("Trying to record with size %dx%d instead of %fx%f @ %d", size.width, size.height, original_dims.width, original_dims.height, FAST_SETTINGS(frame_rate));
+            print("Trying to record with size ",size.width,"x",size.height," instead of ",original_dims.width,"x",original_dims.height," @ ",FAST_SETTINGS(frame_rate),"");
             
             frames = frames.add_extension("avi").str();
             PDP(recording_capture) = new cv::VideoWriter(frames.str(),
@@ -961,7 +961,7 @@ void GUI::start_recording() {
                                                      FAST_SETTINGS(frame_rate), size, true);
             
             if(!PD(recording_capture).isOpened()) {
-                Except("Cannot open video writer for path '%S'.", &frames.str());
+                FormatExcept("Cannot open video writer for path ",frames.str(),".");
                 PD(recording) = false;
                 delete PDP(recording_capture);
                 PDP(recording_capture) = NULL;
@@ -972,7 +972,7 @@ void GUI::start_recording() {
         } else if(format == gui_recording_format_t::jpg || format == gui_recording_format_t::png) {
             if(!frames.exists()) {
                 if(!frames.create_folder()) {
-                    Error("Cannot create folder '%S'. Cannot record.", &frames.str());
+                    FormatError("Cannot create folder ",frames.str(),". Cannot record.");
                     PD(recording) = false;
                     return;
                 } else
@@ -980,7 +980,7 @@ void GUI::start_recording() {
             }
         }
         
-        Debug("Recording to '%S'... (%s)", &frames.str(), format.name());
+        print("Recording to ", frames,"... (",format.name(),")");
         
         PD(recording_size) = size;
         PD(recording_path) = frames;
@@ -1006,11 +1006,11 @@ void GUI::stop_recording() {
             PD(gui).dialog([save_path, cmd](Dialog::Result result){
                 if(result == Dialog::OKAY) {
                     GUI::work().add_queue("converting video...", [cmd=cmd, save_path=save_path](){
-                        Debug("Running '%S'..", &cmd);
+                        print("Running ",cmd,"..");
                         if(system(cmd.c_str()) == 0)
                             print("Saved video at ", save_path.str(),".");
                         else
-                            Error("Cannot save video at '%S'.", &save_path.str());
+                            FormatError("Cannot save video at ",save_path.str(),".");
                     });
                 }
                 
@@ -1280,7 +1280,7 @@ void GUI::reanalyse_from(Frame_t frame, bool in_thread) {
                 PD(timeline)->reset_events(frame);
                 
             } else {
-                Except("The requested frame %d is not part of the video, and certainly beyond end_frame (%d).", frame, Tracker::end_frame());
+                FormatExcept("The requested frame ", frame," is not part of the video, and certainly beyond end_frame (", Tracker::end_frame(),".");
             }
         }
         
@@ -1355,7 +1355,7 @@ void GUI::draw_export_options(gui::DrawStructure &base) {
         export_options.on_select([&](auto idx, const std::string&) {
             auto graphs = SETTING(output_graphs).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
             auto& item = export_options.items().at(idx);
-            Debug("Removing '%S'", &item.value()._name);
+            print("Removing ",item.value()._name,"");
 
             for (auto it = graphs.begin(); it != graphs.end(); ++it) {
                 if (it->first == item.value()._name) {
@@ -1424,7 +1424,7 @@ void GUI::draw_export_options(gui::DrawStructure &base) {
         }
 
         export_options.set_items(items);
-        Debug("Filtering for: '%S'", &search.text());
+        print("Filtering for: ",search.text(),"");
     }
     
     static bool first = true;
@@ -1766,7 +1766,7 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
     Float2_t mh = _average_image.rows;
     if(target_pos.x / target_scale.x < -mw * 0.95) {
 #ifndef NDEBUG
-        Debug("target_pos.x = %f target_scale.x = %f", target_pos.x, target_scale.x);
+        print("target_pos.x = ", target_pos.x," target_scale.x = ",target_scale.x,"");
 #endif
         target_pos.x = -mw * target_scale.x * 0.95f;
     }
@@ -1775,7 +1775,7 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
     
     if(target_pos.x / target_scale.x > mw * 0.95f) {
 #ifndef NDEBUG
-        Debug("target_pos.x = %f target_scale.x = %f screen_center.x = %f screen_dimensions.x = %f window_dimensions.x = %f", target_pos.x, target_scale.x, screen_center.width, screen_dimensions.width, base()->window_dimensions().width);
+        print("target_pos.x = ",target_pos.x," target_scale.x = ",target_scale.x," screen_center.x = ",screen_center.width," screen_dimensions.x = ",screen_dimensions.width," window_dimensions.x = ",base()->window_dimensions().width,"");
 #endif
         target_pos.x = mw * target_scale.x * 0.95f;
     }
@@ -2096,7 +2096,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                     const auto number_fish = FAST_SETTINGS(track_max_individuals);
                     for (uint32_t i=0; i<number_fish; ++i) {
                         if(!PD(cache).individuals.count(Idx_t(i))) {
-                            Except("Individuals seem to be named differently than 0-%d. Cannot find %d.", FAST_SETTINGS(track_max_individuals), i);
+                            FormatExcept("Individuals seem to be named differently than 0-", FAST_SETTINGS(track_max_individuals),". Cannot find ", i,".");
                             continue;
                         }
                         
@@ -2115,7 +2115,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                         
                         for(uint32_t j=i+1; j<number_fish; ++j) {
                             if(!PD(cache).individuals.count(Idx_t(j))) {
-                                Except("Individuals seem to be named differently than 0-%d. Cannot find %d.", FAST_SETTINGS(track_max_individuals), j);
+                                FormatExcept("Individuals seem to be named differently than 0-", FAST_SETTINGS(track_max_individuals),". Cannot find ", j,".");
                                 continue;
                             }
                             
@@ -2317,7 +2317,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
 }
 
 void GUI::selected_setting(long_t index, const std::string& name, Textfield& textfield, Dropdown& settings_dropdown, Layout& layout, DrawStructure& base) {
-    Debug("choosing '%S'", &name);
+    print("choosing ",name,"");
     if(index != -1) {
         //auto name = settings_dropdown.items().at(index);
         auto val = GlobalSettings::get(name);
@@ -2386,14 +2386,14 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
         }
         else if(utils::beginsWith(settings_dropdown.text(), "$ ")) {
             auto code = settings_dropdown.text().substr(2);
-            Debug("Code: '%S'", &code);
+            print("Code: ",code,"");
             code = utils::find_replace(code, "\\n", "\n");
             code = utils::find_replace(code, "\\t", "\t");
             PythonIntegration::async_python_function([code]() -> bool {
                 try {
                     PythonIntegration::execute(code);
                 } catch(const SoftException& e) {
-                    Except("Python runtime exception: '%s'", e.what());
+                    FormatExcept("Python runtime exception: '", e.what(),"'");
                 }
                 return true;
             });
@@ -2420,7 +2420,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
         else if(settings_dropdown.text() == "results info") {
             using namespace Output;
             auto filename = TrackingResults::expected_filename();
-            Debug("Trying to open results '%S'", &filename.str());
+            print("Trying to open results ",filename.str(),"");
             if(file::Path(filename).exists()) {
                 ResultsFormat file(filename, NULL);
                 file.start_reading();
@@ -2428,9 +2428,9 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                 if(file.header().version >= ResultsFormat::V_14) {
                     print("Settings:\n", file.header().settings);
                 } else
-                    Except("Cannot load settings from results file < V_14");
+                    FormatExcept("Cannot load settings from results file < V_14");
             } else
-                Except("File '%S' does not exist.", &filename.str());
+                FormatExcept("File ",filename.str()," does not exist.");
         }
         else if(settings_dropdown.text() == "free_fish") {
             std::set<long_t> free_fish, inactive;
@@ -2452,7 +2452,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                 
                 auto path = pv::DataLocation::parse("output", "uniqueness"+(std::string)video_source()->filename().filename()+".png");
                 
-                Debug("Uniqueness: %f (output to '%S')", unique, &path.str());
+                print("Uniqueness: ", unique," (output to ",path.str(),")");
                 cv::imwrite(path.str(), coverage->get());
             });
         }
@@ -2559,8 +2559,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             }
             sum /= float(average_pixels.size());
             
-            auto str = Meta::toStr(average_pixels);
-            Debug("Average pixels:\n%S\n(overall: %f)", &str, sum);
+            print("Average pixels:\n", average_pixels,"\n(overall: ",sum,")");
             
         } else if(settings_dropdown.text() == "time_deltas") {
             Graph graph(Bounds(0, 0, 1024, 400), "time_deltas");
@@ -2736,11 +2735,11 @@ void GUI::draw_footer(DrawStructure& base) {
                     }
                     
                 } else
-                    Error("User cannot write setting '%S' (%s).", &key, GlobalSettings::access_level(key).name());
+                   FormatError("User cannot write setting ", key," (",GlobalSettings::access_level(key).name(),").");
             } catch(const std::logic_error&) {
-                //Except("Cannot set '%S' to value '%S' (invalid).", &settings_dropdown.items().at(settings_dropdown.selected_id()), &textfield.text());
+                //FormatExcept("Cannot set ",settings_dropdown.items().at(settings_dropdown.selected_id())," to value ",textfield.text()," (invalid).");
             } catch(const UtilsException&) {
-                //Except("Cannot set '%S' to value '%S' (invalid).", &settings_dropdown.items().at(settings_dropdown.selected_id()), &textfield.text());
+                //FormatExcept("Cannot set ",settings_dropdown.items().at(settings_dropdown.selected_id())," to value ",textfield.text()," (invalid).");
             }
         });
         
@@ -3300,7 +3299,7 @@ void GUI::start_backup() {
 
 void GUI::open_docs() {
     std::string filename("https://trex.run/docs");
-    Debug("Opening '%S' in browser...", &filename);
+    print("Opening ",filename," in browser...");
 #if __linux__
     auto pid = fork();
     if (pid == 0) {
@@ -3625,14 +3624,14 @@ void GUI::key_event(const gui::Event &event) {
                 
                 /*auto per_frame = Tracker::find_next_problem(*PD(video_source), frame());
                 if(per_frame.empty()) {
-                    Warning("per_frame is empty.");
+                    FormatWarning("per_frame is empty.");
                     return;
                 }
                 
                 try {
                     this->generate_training_data(GUIType::GRAPHICAL, false, per_frame);
                 } catch(const UtilsException& ex) {
-                    Warning("Aborting training data because an exception was thrown.");
+                    FormatWarning("Aborting training data because an exception was thrown.");
                 }*/
                 
                 Tracker::instance()->check_segments_identities(false, [](auto){}, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
@@ -3660,7 +3659,7 @@ void GUI::key_event(const gui::Event &event) {
                 
                 if(!fishdata.exists())
                     if(!fishdata.create_folder())
-                        U_EXCEPTION("Cannot create folder '%S' for saving fishdata.", &fishdata.str());
+                        throw U_EXCEPTION("Cannot create folder ",fishdata.str()," for saving fishdata.");
                 
                 try {
                     results.save_events((fishdata / SETTING(filename).value<file::Path>().filename()).str() + "_events", [](float percent) { work().set_percent(percent); });
@@ -3686,7 +3685,7 @@ void GUI::key_event(const gui::Event &event) {
         default:
 #ifndef NDEBUG
             if(key.code != -1)
-                Warning("Unknown key code %d.", key.code);
+                print("Unknown key code ",key.code,".");
 #endif
             break;
     }
@@ -3699,7 +3698,7 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
     if(!Tracker::instance())
         return;
     if(!Recognition::recognition_enabled()) {
-        Warning("No identity network loaded and training internally is disabled. Restart with -use_network true");
+        FormatWarning("No identity network loaded and training internally is disabled. Restart with -use_network true");
         return;
     }
     
@@ -3725,7 +3724,7 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
             PD(cache).set_tracking_dirty();
             
             if(!force_correct)
-                Debug("Automatic correct has not been performed (only averages have been calculated). In order to do so, add the keyword 'force' after the command.");
+                print("Automatic correct has not been performed (only averages have been calculated). In order to do so, add the keyword 'force' after the command.");
         });
     }
     //});
@@ -3754,7 +3753,7 @@ void GUI::save_state(GUI::GUIType type, bool force_overwrite) {
                 GUI::instance()->gui().dialog([](Dialog::Result){}, "Something went wrong saving the program state. Maybe no write permissions? Check out this message, too:\n<i>"+std::string(e.what())+"</i>", "Error");
             });
             
-            Except("Something went wrong saving program state. Maybe no write permissions?"); }
+            FormatExcept("Something went wrong saving program state. Maybe no write permissions?"); }
         
         if(!before)
             PD(analysis).set_paused(false).get();
@@ -3764,7 +3763,7 @@ void GUI::save_state(GUI::GUIType type, bool force_overwrite) {
     
     if(file->exists() && !force_overwrite) {
         if(type != GUIType::GRAPHICAL) {
-            Debug("The file '%S' already exists. To overwrite this setting, add the keyword 'force'.", &file->str());
+            print("The file ",file->str()," already exists. To overwrite this setting, add the keyword 'force'.");
             save_state_visible = false;
         } else {
             this->work().add_queue("", [file, fn, ptr = &save_state_visible](){
@@ -3787,7 +3786,7 @@ void GUI::save_state(GUI::GUIType type, bool force_overwrite) {
 //                          *file = expected;
 //                            work().add_queue("Saving backup...", fn);
                         } else {
-                            Except("Cannot rename '%S' to '%S'.", &expected.str(), &file->str());
+                            FormatExcept("Cannot rename ",expected," to ",*file,".");
                             *ptr = false;
                         }
                     } else
@@ -3802,7 +3801,7 @@ void GUI::save_state(GUI::GUIType type, bool force_overwrite) {
 }
 
 void GUI::auto_quit() {
-    Warning("Saving and quitting...");
+    FormatWarning("Saving and quitting...");
                         
     std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
     Tracker::LockGuard guard("saving and quitting");
@@ -3816,7 +3815,7 @@ void GUI::auto_quit() {
         file::Path path = Output::TrackingResults::expected_filename();
         path = path.add_extension("meta");
         
-        Debug("Writing '%S' meta file instead of .results", &path.str());
+        print("Writing ",path.str()," meta file instead of .results");
         
         auto f = fopen(path.str().c_str(), "wb");
         if(f) {
@@ -3824,7 +3823,7 @@ void GUI::auto_quit() {
             fwrite(str.data(), sizeof(uchar), str.length(), f);
             fclose(f);
         } else
-            Warning("Cannot write '%S' meta file.", &path.str());
+            print("Cannot write ",path.str()," meta file.");
     }
     
     try {
@@ -3912,7 +3911,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                 }
             }, from);
         } catch(const UtilsException& e) {
-            Except("Cannot load results. Crashed with exception: %s", e.what());
+            FormatExcept("Cannot load results. Crashed with exception: ", e.what());
             
             if(GUI::instance()) {
                 work().add_queue("", [e, from](){
@@ -3986,7 +3985,7 @@ void GUI::save_visual_fields() {
     auto fishdata = pv::DataLocation::parse("output", fishdata_dir);
     if(!fishdata.exists())
         if(!fishdata.create_folder())
-            U_EXCEPTION("Cannot create folder '%S' for saving fishdata.", &fishdata.str());
+            throw U_EXCEPTION("Cannot create folder ",fishdata.str()," for saving fishdata.");
     auto filename = (std::string)SETTING(filename).value<file::Path>().filename();
     
     if(selected) {
@@ -4128,17 +4127,17 @@ void GUI::write_config(bool overwrite, GUI::GUIType type, const std::string& suf
                     
                     FILE *f = fopen(filename.str().c_str(), "wb");
                     if(f) {
-                        Warning("Overwriting file '%S'.", &filename.str());
+                        print("Overwriting file ",filename.str(),".");
                         fwrite(str.data(), 1, str.length(), f);
                         fclose(f);
                     } else {
-                        Except("Dont have write permissions for file '%S'.", &filename.str());
+                        FormatExcept("Dont have write permissions for file ",filename.str(),".");
                     }
                 }
                 
             }, "Overwrite file <i>"+filename/*.filename()*/.str()+"</i> ?", "Write configuration", "Yes", "No");
         } else
-            Warning("Settings file '%S' already exists. To overwrite, please add the keyword 'force'.", &filename.str());
+            print("Settings file ",filename.str()," already exists. To overwrite, please add the keyword 'force'.");
         
     } else {
         if(!filename.remove_filename().exists())
@@ -4150,7 +4149,7 @@ void GUI::write_config(bool overwrite, GUI::GUIType type, const std::string& suf
             fclose(f);
             DebugCallback("Saved '%S'.", &filename.str());
         } else {
-            Except("Cannot write file '%S'.", &filename.str());
+            FormatExcept("Cannot write file ",filename.str(),".");
         }
     }
 }
@@ -4159,14 +4158,14 @@ void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void
     if(!Recognition::recognition_enabled() || !Recognition::python_available()) {
         auto message = Recognition::python_available() ? "Recognition is not enabled." : "Python is not available. Check your configuration.";
         if(SETTING(auto_train_on_startup))
-            U_EXCEPTION(message);
+            throw U_EXCEPTION(message);
         
         Warning(message);
         return;
     }
     
     if(FAST_SETTINGS(track_max_individuals) == 1) {
-        Warning("Are you sure you want to train on only one individual?");
+        FormatWarning("Are you sure you want to train on only one individual?");
         //callback();
         //return;
     }
@@ -4226,9 +4225,9 @@ void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void
             generate_training_data(type, force_load);
         } catch(const SoftException& ex) {
             if(SETTING(auto_train_on_startup)) {
-                U_EXCEPTION("Aborting training data because an exception was thrown ('%s').", ex.what());
+                throw U_EXCEPTION("Aborting training data because an exception was thrown ('",ex.what(),"').");
             } else
-                Warning("Aborting training data because an exception was thrown ('%s').", ex.what());
+                print("Aborting training data because an exception was thrown ('",ex.what(),"').");
         }
         
         if(!before)
@@ -4262,11 +4261,11 @@ void GUI::generate_training_data(GUI::GUIType type, bool force_load) {
             
         } catch(const SoftException& error) {
             if(SETTING(auto_train_on_startup))
-                U_EXCEPTION("The training process failed. Please check whether you are in the right python environment and check previous error messages.");
+                throw U_EXCEPTION("The training process failed. Please check whether you are in the right python environment and check previous error messages.");
             
             if(!SETTING(nowindow))
                 GUI::instance()->gui().dialog("The training process failed. Please check whether you are in the right python environment and check out this error message:\n\n<i>"+escape_html(error.what())+"</i>", "Error");
-            Error("The training process failed. Please check whether you are in the right python environment and check previous error messages.");
+            FormatError("The training process failed. Please check whether you are in the right python environment and check previous error messages.");
             return false;
         }
     };
@@ -4309,10 +4308,10 @@ void GUI::generate_training_data(GUI::GUIType type, bool force_load) {
                         
                     } catch(const SoftException& error) {
                         if(SETTING(auto_train_on_startup))
-                            U_EXCEPTION("Initialization of the training process failed. Please check whether you are in the right python environment and check previous error messages.");
+                            throw U_EXCEPTION("Initialization of the training process failed. Please check whether you are in the right python environment and check previous error messages.");
                         if(!SETTING(nowindow))
                             GUI::instance()->gui().dialog("Initialization of the training process failed. Please check whether you are in the right python environment and check out this error message:\n\n<i>"+escape_html(error.what())+"<i/>", "Error");
-                        Error("Initialization of the training process failed. Please check whether you are in the right python environment and check previous error messages.");
+                        FormatError("Initialization of the training process failed. Please check whether you are in the right python environment and check previous error messages.");
                     }
                 });
                 
@@ -4324,20 +4323,20 @@ void GUI::generate_training_data(GUI::GUIType type, bool force_load) {
                 mode = TrainingMode::Apply;
             if(!fn(mode)) {
                 if(SETTING(auto_train_on_startup))
-                    U_EXCEPTION("Using the network returned a bad code (false). See previous errors.");
+                    throw U_EXCEPTION("Using the network returned a bad code (false). See previous errors.");
             }
             if(!force_load)
-                Warning("Weights will not be loaded. In order to load weights add 'load' keyword after the command.");
+                FormatWarning("Weights will not be loaded. In order to load weights add 'load' keyword after the command.");
         }
         
     } else {
         if(force_load)
-            Warning("Cannot load weights, as no previous weights exist.");
+            FormatWarning("Cannot load weights, as no previous weights exist.");
         
         work().add_queue("training network", [fn](){
             if(!fn(TrainingMode::Restart)) {
                 if(SETTING(auto_train_on_startup))
-                    U_EXCEPTION("Using the network returned a bad code (false). See previous errors.");
+                    throw U_EXCEPTION("Using the network returned a bad code (false). See previous errors.");
             }
         });
     }
@@ -4354,7 +4353,7 @@ void GUI::generate_training_data_faces(const file::Path& path) {
         if(path.create_folder())
             print("Created folder ", path.str(),".");
         else {
-            Except("Cannot create folder '%S'. Check permissions.", &path.str());
+            FormatExcept("Cannot create folder ",path.str(),". Check permissions.");
             return;
         }
     }
@@ -4372,14 +4371,14 @@ void GUI::generate_training_data_faces(const file::Path& path) {
     Size2 output_size(200,200);
     
     if(!FAST_SETTINGS(calculate_posture))
-        Warning("Cannot normalize samples if no posture has been calculated.");
+        FormatWarning("Cannot normalize samples if no posture has been calculated.");
     
     size_t num_images = 0;
     
     for(auto i = range.start; i <= range.end; ++i)
     {
         if(!i.valid() || (size_t)i.get() >= PD(video_source).length()) {
-            Except("Frame %d out of range.", i);
+            FormatExcept("Frame ", i," out of range.");
             continue;
         }
         
@@ -4392,7 +4391,7 @@ void GUI::generate_training_data_faces(const file::Path& path) {
         cv::Mat image, padded, mask;
         for(auto &blob : frame.blobs()) {
             if(!PD(tracker).border().in_recognition_bounds(blob->bounds().pos() + blob->bounds().size() * 0.5)) {
-                Debug("Skipping %d@%d because its out of bounds.", blob->blob_id(), i);
+                print("Skipping ", blob->blob_id(),"@",i," because its out of bounds.");
                 continue;
             }
             
@@ -4449,7 +4448,7 @@ void GUI::generate_training_data_faces(const file::Path& path) {
                 ::pad_image(image, padded, output_size, -1, false, mask);
                 
                 if(!padded.isContinuous())
-                    U_EXCEPTION("Padded is not continous.");
+                    throw U_EXCEPTION("Padded is not continous.");
                 
                 MotionRecord *found_head = NULL;
                 
@@ -4501,16 +4500,16 @@ void GUI::generate_training_data_faces(const file::Path& path) {
             cmn::npz_save(npz_path.str(), "unsorted_images", unassigned_blobs.data(), {num_unassigned_blobs, (size_t)output_size.height, (size_t)output_size.width}, "a");
         }*/
         
-        Debug("Saved %d unsorted and %d sorted images to '%S'.", num_unassigned_blobs, num_images);
+        print("Saved %d unsorted and ", num_unassigned_blobs," sorted images to '",num_images,"'.");
     } catch(const std::runtime_error& e) {
-        Except("Runtime error while saving to '%S' (%s).", &path.str(), e.what());
+        FormatExcept("Runtime error while saving to ",path.str()," (", e.what(),").");
     } catch(...) {
-        U_EXCEPTION("Unknown error while saving to '%S'", &path.str());
+        throw U_EXCEPTION("Unknown error while saving to ",path.str());
     }
 }
 
 void GUI::add_manual_match(Frame_t frameIndex, Idx_t fish_id, pv::bid blob_id) {
-    Debug("Requesting change of fish %d to blob %u in frame %d", fish_id, blob_id, frameIndex);
+    print("Requesting change of fish ", fish_id," to blob ", blob_id," in frame ",frameIndex,"");
     
     auto matches = FAST_SETTINGS(manual_matches);
     auto &current = matches[frameinfo().frameIndex.load()];

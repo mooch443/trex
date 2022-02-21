@@ -2,18 +2,11 @@
 
 #include <common/commons.pc.h>
 
-class SoftException : public std::exception {
-public:
+namespace cmn {
 
-    SoftException(const std::string& str);
-    SoftException(const char*fmt, ...);
 
-    ~SoftException() throw();
 
-    virtual const char * what() const throw();
+//template<FormatterType formatter = FormatterType::UNIX, typename... Args>
+//SOFT_EXCEPTION(const Args& ...args) -> SoftException<formatter, Args...>;
 
-private:
-    std::string msg;
-};
-
-#define SOFT_EXCEPTION(...) { EXCEPTION_(__FILE_NO_PATH__, __LINE__, __VA_ARGS__); throw SoftException(__VA_ARGS__); }
+}

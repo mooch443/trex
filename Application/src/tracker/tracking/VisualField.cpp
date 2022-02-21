@@ -280,7 +280,7 @@ std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(con
         auto tracker = Tracker::instance();
         //if(!tracker->properties(_frame))
         if(!basic || !posture)
-            U_EXCEPTION("Does not have frame %d", _frame);
+            throw U_EXCEPTION("Does not have frame ",_frame,"");
         
         using namespace gui;
         
@@ -387,7 +387,7 @@ std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(con
         
         auto tracker = Tracker::instance();
         if(!tracker->properties(_frame))
-            U_EXCEPTION("Does not have frame %d", _frame);
+            throw U_EXCEPTION("Does not have frame ",_frame,"");
         
         auto fish = tracker->individuals().at(_fish_id);
         auto active = tracker->active_individuals(_frame);

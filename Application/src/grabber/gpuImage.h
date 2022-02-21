@@ -31,7 +31,7 @@ public:
         assert(_mat);
         if(_mat->data() != other.data) {
             if(_mat->cols != other.cols || _mat->rows != other.rows || _mat->dims != other.channels()) {
-                Debug("Creating %dx%d from %dx%d", other.rows, other.cols, _mat->rows, _mat->cols);
+                print("Creating ",other.rows,"x",other.cols," from ",_mat->rows,"x",_mat->cols,"");
                 _mat->create(other.rows, other.cols);
             }
             assert(_mat->cols == other.cols && _mat->rows == other.rows && _mat->dims == other.channels());

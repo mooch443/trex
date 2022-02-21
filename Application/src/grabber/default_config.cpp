@@ -42,9 +42,9 @@ namespace default_config {
         for(auto &key : map.keys()) {
             if(deprecated.find(utils::lowercase(key)) != deprecated.end()) {
                 if(deprecated.at(utils::lowercase(key)).empty()) {
-                    Warning("Setting '%S' has been removed from the tracker and will be ignored.", &key);
+                    print("Setting ",key," has been removed from the tracker and will be ignored.");
                 } else
-                    U_EXCEPTION("Setting '%S' is deprecated. Please use '%S' instead.", &key, &deprecated.at(utils::lowercase(key)));
+                    throw U_EXCEPTION("Setting '%S' is deprecated. Please use '%S' instead.", &key, &deprecated.at(utils::lowercase(key)));
             }
         }
     }

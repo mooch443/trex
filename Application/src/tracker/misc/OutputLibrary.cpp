@@ -178,7 +178,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                              
                              return abs_angle;
                          } else
-                             Warning("No midline.");
+                             FormatWarning("No midline.");
                          
                          return gui::Graph::invalid();
                     }));
@@ -191,7 +191,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                     auto &options = instance.second;
                     
                     if(_cache_func.count(fname) == 0) {
-                        Warning("There is no function called '%S'.", &fname);
+                        print("There is no function called ",fname,".");
                         continue;
                     }
                     
@@ -606,7 +606,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
               }
             }
 
-            Warning("NO OTHER FISH");
+            FormatWarning("NO OTHER FISH");
             return gui::Graph::invalid();
         });
         
@@ -1035,7 +1035,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             static std::string warning = "";
             if(warning != name) {
                 warning = name;
-                Warning("Cannot find output function '%S'.", &name);
+                print("Cannot find output function ",name,".");
             }
             return gui::Graph::invalid();
         }
@@ -1060,7 +1060,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
     
     void Library::add(const std::string& name, const FunctionType &func) {
         if (_cache_func.count(name)) {
-            Warning("Overwriting '%S' with new function.", &name);
+            print("Overwriting ",name," with new function.");
         }
         _cache_func[name] = func;
     }
@@ -1158,7 +1158,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 break;
                 
             default:
-                U_EXCEPTION("Unknown operator '%c'", operation);
+                throw U_EXCEPTION("Unknown operator '",operation,"'");
                 break;
         }
         

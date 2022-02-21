@@ -162,7 +162,7 @@ namespace track {
         {
             _points->insert(_points->begin() + index, begin, end);
             if(!_curvature.empty())
-                U_EXCEPTION("Cannot insert points after calculating curvature.");
+                throw U_EXCEPTION("Cannot insert points after calculating curvature.");
         }
         
         void insert(size_t index, const Vec2& pt);

@@ -316,7 +316,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         void add_custom_data(Frame_t frame, long_t id, void* ptr, std::function<void(void*)> fn_delete) {
             auto it = _custom_data[frame].find(id);
             if(it != _custom_data[frame].end()) {
-                Warning("Custom data with id %d already present in frame %d.", id, frame);
+                FormatWarning("Custom data with id ", id," already present in frame ",frame,".");
                 it->second.second(it->second.first);
             }
             _custom_data[frame][id] = { ptr, fn_delete };

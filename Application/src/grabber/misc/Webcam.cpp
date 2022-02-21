@@ -13,7 +13,7 @@ namespace fg {
         if(!open())
             _capture.open(0);
 		if (!open())
-			U_EXCEPTION("Cannot open webcam.");
+            throw U_EXCEPTION("Cannot open webcam.");
 
 
         cv::Mat test;

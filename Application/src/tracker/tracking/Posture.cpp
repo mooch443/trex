@@ -170,7 +170,7 @@ namespace track {
                             
                         } else if(chains.size()) {
                             // Shouldnt be possible
-                            U_EXCEPTION("Did not expect %d chains.", chains.size());
+                            throw U_EXCEPTION("Did not expect ",chains.size()," chains.");
                         }
                         
                     }
@@ -304,13 +304,14 @@ namespace track {
                         }
                         printf("])\n");
 
-                        Debug("Frame %d rendered with threshold %d+%d (%d -> %d points).", frameIndex, FAST_SETTINGS(track_posture_threshold), threshold - FAST_SETTINGS(track_posture_threshold), selected->size(), _outline.size());
+                        print("Frame ", frameIndex," rendered with threshold ", FAST_SETTINGS(track_posture_threshold),"+", threshold - FAST_SETTINGS(track_posture_threshold)," (", selected->size()," -> ", _outline.size()," points).");
                     }
                     
                     // found a good configuration! escape.
                     break;
+                    
                 } else if(FAST_SETTINGS(debug)) {
-                    Debug("Error in outline (threshold %d) @%d for %d %d", threshold, frameIndex, fishID, error);
+                    print("Error in outline (threshold ", threshold,") @",frameIndex," for ",fishID," ", error);
                 }
             }
             
@@ -319,7 +320,7 @@ namespace track {
             
             if(threshold >= initial_threshold + 50) {
                 if(FAST_SETTINGS(debug)) {
-                    Debug("Outline failed (threshold %d) @%d for %d", threshold, frameIndex, fishID);
+                    print("Outline failed (threshold ", threshold,") @", frameIndex," for ", fishID);
                 }
                 
                 break;
@@ -333,7 +334,7 @@ namespace track {
         
         std::pair<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
         if(gui_show_fish.first == blob->blob_id() && frame == gui_show_fish.second) {
-            Debug("%d %d: threshold %d", frame, blob->blob_id(), threshold);
+            print(frame, " ", blob->blob_id(),": threshold ", threshold);
             auto blob = thresholded_blob;
             auto && [pos, image] = blob->image();
             //tf::imshow("image", image->get());
@@ -345,10 +346,8 @@ namespace track {
             auto peak_mode = SETTING(peak_mode).value<default_config::peak_mode_t::Class>() == default_config::peak_mode_t::broad ? periodic::PeakMode::FIND_BROAD : periodic::PeakMode::FIND_POINTY;
             auto && [maxima_ptr, minima_ptr] = periodic::find_peaks(curv, 0, diffs, peak_mode);
             auto str = Meta::toStr(*maxima_ptr);
-            Debug("%d, %d: %S", frame, blob->blob_id(), &str);
-            
-            str = Meta::toStr(*outline_point);
-            Debug("%S", &str);
+            print(frame, ", ", blob->blob_id(),": ", str.c_str());
+            print(*outline_point);
             
             {
                 using namespace gui;
@@ -392,7 +391,7 @@ namespace track {
                     
                     cv::circle(colored, OFFSET(outline().front()), 5, Yellow, -1);
                     
-                    Debug("tail:%d head:%d", midline->tail_index(), midline->head_index());
+                    print("tail:", midline->tail_index()," head:",midline->head_index(),"");
                 }
                 
                 ColorWheel cwheel;

@@ -95,7 +95,7 @@ namespace cmn {
                             
                             ss << "(total: "<<total_time * 1000<<"ms)";
                             auto str = ss.str();
-                            Debug("%S", &str);
+                            print(str.c_str());
                             
                             timer.reset();
                             

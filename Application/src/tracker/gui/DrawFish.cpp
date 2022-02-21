@@ -1105,7 +1105,7 @@ Fish::~Fish() {
             else if(c->type() == Type::TEXT)
                 window.add_object((Text*)c);
             else
-                U_EXCEPTION("Unknown type.");
+                throw U_EXCEPTION("Unknown type.");
         }*/
     }
     

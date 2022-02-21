@@ -136,7 +136,7 @@ bool DatasetQuality::calculate_segment(const Range<Frame_t> &consec, const uint6
     _cache[consec] = map;
     
     if(map.empty()) {
-        Except("Values in DatasetQuality::calculate_segment is empty.");
+        FormatExcept("Values in DatasetQuality::calculate_segment is empty.");
     } else {
         // calculate quality by multiplying the overall number of
         // cells visited by all fish inthe segment by the minimum ratio.
@@ -180,7 +180,7 @@ void DatasetQuality::update(const Tracker::LockGuard& guard) {
     // remove all the ones that have been deleted in the manually_approved segments
     for(auto & segment : _previous_selected) {
         if(has(segment)) {
-            Debug("Removed previous manual segment %d-%d", segment.start, segment.end);
+            print("Removed previous manual segment ", segment.start,"-",segment.end,"");
             remove_segment(segment);
             changed = true;
         }
@@ -191,14 +191,14 @@ void DatasetQuality::update(const Tracker::LockGuard& guard) {
         auto range = Range<Frame_t>(Frame_t(start), Frame_t(end));
         if(!has(range) && end_frame >= Frame_t(end) && range.length().get() >= 5) {
             if(calculate_segment(range, video_length, guard)) {
-                Debug("Calculating manual segment %d-%d", start, end);
+                print("Calculating manual segment ", start,"-",end,"");
                 for(auto && [id, single] : _cache.at(range)) {
-                    Debug("\t%d: %d", id, single.number_frames);
+                    print("\t", id,": ",single.number_frames,"");
                 }
                 changed = true;
                 
             } else
-                Debug("Failed calculating %d-%d", start, end);
+                print("Failed calculating ", start,"-",end,"");
         }
         _previous_selected.insert(range);
     }
@@ -211,7 +211,7 @@ void DatasetQuality::update(const Tracker::LockGuard& guard) {
             if(calculate_segment(consec, video_length, guard)) {
                 //break; // if this fails, dont set last seen and try again next time
 #ifndef NDEBUG
-                Debug("Calculated segment %d-%d", consec.start, consec.end);
+                print("Calculated segment ", consec.start,"-",consec.end,"");
 #endif
                 changed = true;
             }
@@ -281,7 +281,7 @@ DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fis
         return ptr->start() < frame;
     });
     /*if(debug && it != fish->frame_segments().end())
-        Debug("\t... %d -> found before == %d-%d", fish->identity().ID(), it->second.range.start, it->second.range.end);
+        print("\t... ", fish->identity().ID()," -> found before == ", it->second.range.start,"-",it->second.range.end,"");
     else
         print("\t... ", fish->identity().ID()," not found before first step");*/
     
@@ -296,7 +296,7 @@ DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fis
     }
     
     /*if(debug && it != fish->frame_segments().end())
-        Debug("\t... %d -> found it == %d-%d", fish->identity().ID(), it->second.range.start, it->second.range.end);
+        print("\t... ", fish->identity().ID()," -> found it == ", it->second.range.start,"-",it->second.range.end,"");
     else
         print("\t... ", fish->identity().ID()," not found in first step");*/
     
@@ -323,7 +323,7 @@ DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fis
     }
     
     /*if(debug && it != fish->frame_segments().end())
-        Debug("\t... %d -> starting with it == %d-%d", fish->identity().ID(), it->second.range.start, it->second.range.end);*/
+        print("\t... ", fish->identity().ID()," -> starting with it == ", it->second.range.start,"-",it->second.range.end,"");*/
     
     // we found the segment where the start-frame is not smaller than _consec.start
     while(it != fish->frame_segments().end()
@@ -346,7 +346,7 @@ DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fis
         //auto it = fish->frame_segments().lower_bound(_consec.start);
         
         
-        Except("Cannot find frame %d for fish %d", _consec.start, fish->identity().ID());
+        FormatExcept("Cannot find frame ", _consec.start," for fish ", fish->identity().ID(),"");
         return Single(id);
     }
     
@@ -360,7 +360,7 @@ DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fis
         }
         str = ss.str();
         
-        Debug("\t... %d -> %d-%d (%S)", fish->identity().ID(), consec.range.start, consec.range.end, &str);
+        print("\t... ",fish->identity().ID()," -> ",consec.range.start,"-",consec.range.end," (",&str,")");
     }*/
         
     //! TODO: Use local_midline_length function instead

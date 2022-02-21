@@ -36,7 +36,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         if(!filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
             if(!SETTING(quiet))
-                Warning("Returning absolute path '%S'. We cannot be sure this is writable.", &filename.str());
+                print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
 #endif
             return filename;
         }
@@ -53,7 +53,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         if((name.has_extension() && name.extension() == "pv" && !name.exists())
            || !name.add_extension("pv").exists())
         { // approximation (this is not a true XOR)
-            U_EXCEPTION("File '%S' cannot be found.", &name.str());
+            throw U_EXCEPTION("File ",name.str()," cannot be found.");
         }
         
         if(!name.has_extension() || name.extension() != "pv")
@@ -74,7 +74,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         SETTING(filename) = name.remove_extension();
         auto settings_file = pv::DataLocation::parse("output_settings");
         if(settings_file.exists()) {
-            Debug("settings for '%S' found", &name.str());
+            print("settings for ",name.str()," found");
             auto config = std::make_shared<sprite::Map>();
             config->set_do_print(false);
             
@@ -93,7 +93,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             configs.push_back(config);
             
         } else {
-            U_EXCEPTION("Cant find settings for '%S' at '%S'", &name.str(), &settings_file.str());
+            throw U_EXCEPTION("Cant find settings for '%S' at '%S'", &name.str(), &settings_file.str());
         }
     }
     
@@ -191,7 +191,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     
     //auto start_time = output.header().timestamp;
     auto str = Meta::toStr(files);
-    Debug("Writing videos %S to '%S' [0,%lu] with resolution (%f,%f)", &str, &out_path.str(), min_length, resolution.width, resolution.height);
+    print("Writing videos ",&str," to '",&out_path.str(),"' [0,",min_length,"] with resolution (",resolution.width,",",resolution.height,")");
     using namespace track;
     GlobalSettings::map().dont_print("cm_per_pixel");
     const bool merge_overlapping_blobs = SETTING(merge_overlapping_blobs);
@@ -392,7 +392,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         output.add_individual(std::move(o));
         
         if(frame % size_t(min_length * 0.1) == 0) {
-            Debug("merging %d/%d", frame, min_length);
+            print("merging ", frame,"/",min_length,"");
         }
     }
     

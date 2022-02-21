@@ -236,7 +236,7 @@ CREATE_STRUCT(Settings,
             
             _background = new StaticBackground(_average, nullptr);
         }
-        static const Image& average() { if(!instance()->_average) U_EXCEPTION("Pointer to average image is nullptr."); return *instance()->_average; }
+        static const Image& average() { if(!instance()->_average) throw U_EXCEPTION("Pointer to average image is nullptr."); return *instance()->_average; }
         
         
         static decltype(_added_frames)::const_iterator properties_iterator(Frame_t frameIndex);
@@ -272,7 +272,7 @@ CREATE_STRUCT(Settings,
             if(instance()->_active_individuals_frame.count(frame))
                 return instance()->_active_individuals_frame.at(frame);
             
-            U_EXCEPTION("Frame out of bounds.");
+            throw U_EXCEPTION("Frame out of bounds.");
         }
         static uint32_t overall_midline_errors() { return instance()->_overall_midline_errors; }
         static Range<Frame_t> analysis_range() {

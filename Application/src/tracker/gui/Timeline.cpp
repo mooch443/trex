@@ -693,7 +693,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                             short_wait_time = std::chrono::seconds(30);
                             
                             if(!FAST_SETTINGS(analysis_paused))
-                                Warning("Throtteling some non-essential gui functions until analysis is over.");
+                                FormatWarning("Throtteling some non-essential gui functions until analysis is over.");
                         }
                         
                     } else {
@@ -734,7 +734,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                     float x0 = Tracker::average().cols / float(_frame_info->video_length) * after_frame.get();
                     float x1 = Tracker::average().cols;
                     
-                    Debug("Clearing from %f to %f", x0, x1 + pos.x);
+                    print("Clearing from ", x0," to ",x1 + pos.x,"");
                     DEBUG_CV(cv::rectangle(img, Vec2(x0, 0), Vec2(pos + Vec2(x1, img.rows)), Transparent, -1));
                 }
             }

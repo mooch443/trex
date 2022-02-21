@@ -127,9 +127,9 @@ bool ConfirmedCrossings::next(FOIStatus& foi) {
         if(!_wrong.empty() || !_confirmed.empty()) {
             DebugHeader("Review summary");
             double percent = double(_confirmed.size()) / double(_wrong.size() + _confirmed.size()) * 100;
-            Debug("%lu confirmed", _confirmed.size());
-            Debug("%lu wrong", _wrong.size());
-            Debug("%lu instances (%.2f%% confirmed)", _wrong.size() + _confirmed.size(), percent);
+            print(_confirmed.size(), " confirmed");
+            print(_wrong.size(), " wrong");
+            print(_wrong.size() + _confirmed.size(), " instances (", dec<2>(percent),"% confirmed)");
             DebugHeader("============== ");
             
             std::vector<Frame_t> rows;
@@ -160,7 +160,7 @@ bool ConfirmedCrossings::next(FOIStatus& foi) {
                 cmn::npz_save(path.str(), "data", rows.data(), shape);
                 DebugHeader("Saved to '%S'.", &path.str());
             } catch(...) {
-                Except("Exception while saving to '%S'.", &path.str());
+                FormatExcept("Exception while saving to ",path.str(),".");
             }
             
             _wrong.clear();

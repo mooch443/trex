@@ -6,6 +6,7 @@
 #include <misc/GlobalSettings.h>
 #include <gui/Graph.h>
 #include <misc/ranges.h>
+#include <misc/OptionsList.h>
 
 namespace Output {
     using namespace track;

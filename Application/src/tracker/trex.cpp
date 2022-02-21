@@ -79,7 +79,7 @@ int main(int argc, char** argv) {
 #if __APPLE__
     ss << "TRex.app/Contents/MacOS/TRex";
 #else
-    U_EXCEPTION("Only apple supported.");
+    throw U_EXCEPTION("Only apple supported.");
 #endif
 
     for(auto i=1; i<argc; ++i)

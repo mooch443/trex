@@ -236,13 +236,13 @@ file::Path FrameGrabber::make_filename() {
 }
 
 void FrameGrabber::prepare_average() {
-    Debug("Copying _original_average (%dx%d) back to _average and preparing...", _original_average.cols, _original_average.rows);
+    print("Copying _original_average (", _original_average.cols,"x",_original_average.rows,") back to _average and preparing...");
     _original_average.copyTo(_average);
     _processed.undistort(_average, _average);
     
     if(_crop_rect.width != _cam_size.width || _crop_rect.height != _cam_size.height)
     {
-        Debug("Cropping %dx%d", _average.cols, _average.rows);
+        print("Cropping ", _average.cols,"x",_average.rows,"");
         _average(_crop_rect).copyTo(_average);
     }
     
@@ -276,7 +276,7 @@ void FrameGrabber::prepare_average() {
     
     apply_filters(_average);
     
-    Debug("Copying _average %dx%d", _average.cols, _average.rows);
+    print("Copying _average ", _average.cols,"x",_average.rows,"");
     cv::Mat temp;
     _average.copyTo(temp);
     _processed.set_average(temp);
@@ -340,7 +340,7 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
         
         if(path.exists()) {
             if(SETTING(reset_average)) {
-                Warning("Average exists, but will not be used because 'reset_average' is set to true.");
+                FormatWarning("Average exists, but will not be used because 'reset_average' is set to true.");
                 SETTING(reset_average) = false;
             } else {
                 cv::Mat file = cv::imread(path.str());
@@ -349,10 +349,10 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
                     _average_finished = true;
                     _current_average_timestamp = 1337;
                 } else
-                    Warning("Loaded average has wrong dimensions (%dx%d), overwriting...", file.cols, file.rows);
+                    FormatWarning("Loaded average has wrong dimensions (", file.cols,"x",file.rows,"), overwriting...");
             }
         } else {
-            Debug("Average image at '%S' doesnt exist.", &path.str());
+            print("Average image at ",path.str()," doesnt exist.");
             if(SETTING(reset_average))
                 SETTING(reset_average) = false;
         }
@@ -361,7 +361,7 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
     else
 #else
     if (utils::lowercase(source) == "basler") {
-        U_EXCEPTION("Software was not compiled with basler API.");
+        throw U_EXCEPTION("Software was not compiled with basler API.");
 
     } else
 #endif
@@ -415,7 +415,7 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
                 SETTING(video_source) = filenames.front();
                 filenames.clear();
             } else
-                U_EXCEPTION("Empty input filename '%S'. Please specify an input name.", &video_source);
+                throw U_EXCEPTION("Empty input filename ",video_source,". Please specify an input name.");
             
         } catch(const illegal_syntax& e) {
             // ... do nothing
@@ -450,7 +450,7 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
             print("Setting frame rate to ", frame_rate," (from video).");
             SETTING(frame_rate) = (int)frame_rate;
         } else if(SETTING(frame_rate).value<int>() != frame_rate) {
-            Warning("Overwriting default frame rate of %d with %d.", frame_rate, SETTING(frame_rate).value<int>());
+            FormatWarning("Overwriting default frame rate of ", frame_rate," with ",SETTING(frame_rate).value<int>(),".");
         }
         
         if(!SETTING(mask_path).value<file::Path>().empty()) {
@@ -473,7 +473,7 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
         else
             path = path.add_extension("mov");
         mp4_queue = new FFMPEGQueue(true, Size2(_cam_size), path);
-        Debug("Encoding mp4 into '%S'...", &path.str());
+        print("Encoding mp4 into ",path.str(),"...");
         mp4_thread = new std::thread([this](){
             cmn::set_thread_name("mp4_thread");
             mp4_queue->loop();
@@ -486,7 +486,7 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
     }
 
     if(GRAB_SETTINGS(enable_closed_loop) && !SETTING(enable_live_tracking)) {
-        Warning("Forcing enable_live_tracking = true because closed loop has been enabled.");
+        FormatWarning("Forcing enable_live_tracking = true because closed loop has been enabled.");
         SETTING(enable_live_tracking) = true;
     }
     
@@ -589,7 +589,7 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
     GlobalSettings::get("cam_undistort2") = map2;
     
     if(GlobalSettings::map().has("meta_real_width") && GlobalSettings::map().has("cam_scale") && SETTING(cam_scale).value<float>() != 1) {
-        Warning("Scaling `meta_real_width` (%f) due to `cam_scale` (%f) being set.", SETTING(meta_real_width).value<float>(), SETTING(cam_scale).value<float>());
+        FormatWarning("Scaling `meta_real_width` (", SETTING(meta_real_width).value<float>(),") due to `cam_scale` (",SETTING(cam_scale).value<float>(),") being set.");
         //SETTING(meta_real_width) = SETTING(meta_real_width).value<float>() * SETTING(cam_scale).value<float>();
     }
     
@@ -673,7 +673,7 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
           [&](Image_t& current) -> bool { return load_image(current); },
           [&](const Image_t& current) -> Queue::Code { return process_image(current); });
     
-    Debug("ThreadedAnalysis started (%dx%d | %dx%d).", _cam_size.width, _cam_size.height, _cropped_size.width, _cropped_size.height);
+    print("ThreadedAnalysis started (",_cam_size.width,"x",_cam_size.height," | ",_cropped_size.width,"x",_cropped_size.height,").");
 }
 
 FrameGrabber::~FrameGrabber() {
@@ -782,13 +782,13 @@ FrameGrabber::~FrameGrabber() {
                 FILE *f = fopen(filename.str().c_str(), "wb");
                 if(f) {
                     if(filename.exists())
-                        Warning("Overwriting file '%S'.", &filename.str());
+                        print("Overwriting file ",filename.str(),".");
                     else
                         print("Writing settings file ", filename.str(),".");
                     fwrite(text.data(), 1, text.length(), f);
                     fclose(f);
                 } else {
-                    Except("Dont have write permissions for file '%S'.", &filename.str());
+                    FormatExcept("Dont have write permissions for file ",filename.str(),".");
                 }
             }
             
@@ -796,7 +796,7 @@ FrameGrabber::~FrameGrabber() {
                 try {
                     Output::TrackingResults results(*tracker);
                     results.save([](const std::string&, float, const std::string&){  }, Output::TrackingResults::expected_filename(), additional_exclusions);
-                } catch(const UtilsException&) { Except("Something went wrong saving program state. Maybe no write permissions?"); }
+                } catch(const UtilsException&) { FormatExcept("Something went wrong saving program state. Maybe no write permissions?"); }
             }
         }
         
@@ -812,7 +812,7 @@ FrameGrabber::~FrameGrabber() {
         file.start_reading();
         file.print_info();
     } else {
-        Error("No file has been written.");
+        FormatError("No file has been written.");
     }
 }
 
@@ -828,17 +828,17 @@ void FrameGrabber::initialize_video() {
     
     if(path.exists()) {
         if(reset_average) {
-            Warning("Average exists, but will not be used because 'reset_average' is set to true.");
+            FormatWarning("Average exists, but will not be used because 'reset_average' is set to true.");
             SETTING(reset_average) = false;
         } else {
             cv::Mat file = cv::imread(path.str());
             if(file.rows == _video->size().height && file.cols == _video->size().width) {
                 cv::cvtColor(file, _average, cv::COLOR_BGR2GRAY);
             } else
-                Warning("Loaded average has wrong dimensions (%dx%d), overwriting...", file.cols, file.rows);
+                FormatWarning("Loaded average has wrong dimensions (", file.cols,"x",file.rows,"), overwriting...");
         }
     } else {
-        Debug("Average image at '%S' doesnt exist.", &path.str());
+        print("Average image at ",path.str()," doesnt exist.");
         if(reset_average)
             SETTING(reset_average) = false;
     }
@@ -883,7 +883,7 @@ bool FrameGrabber::add_image_to_average(const Image_t& current) {
             _average_finished = false;
             if(fname.exists()) {
                 if(!fname.delete_file()) {
-                    U_EXCEPTION("Cannot delete file '%S'.", &fname.str());
+                    throw U_EXCEPTION("Cannot delete file ",fname.str(),".");
                 }
                 else print("Deleted file ", fname.str(),".");
             }
@@ -914,7 +914,7 @@ bool FrameGrabber::add_image_to_average(const Image_t& current) {
             _average.copyTo(tmp);
             
             if(!cv::imwrite(fname.str(), tmp))
-                Error("Cannot write '%S'.", &fname.str());
+                FormatError("Cannot write ",fname.str(),".");
             else
                 print("Saved new average image at ", fname.str(),".");
             
@@ -970,7 +970,7 @@ bool FrameGrabber::load_image(Image_t& current) {
             current.set_mask(mask_ptr);
             
         } catch(const UtilsException& e) {
-            Except("Skipping frame %d and ending conversion.", current.index());
+            FormatExcept("Skipping frame ", current.index()," and ending conversion.");
             if(!GRAB_SETTINGS(terminate)) {
                 SETTING(terminate) = true;
             }
@@ -1062,7 +1062,7 @@ void FrameGrabber::update_tracker_queue() {
                 selected_features.insert(feature);
                 print("Feature '", feature.name(),"' will be sent to python.");
             } else
-                Warning("CLFeature '%S' is unknown and will be ignored.", &a);
+                print("CLFeature ",a," is unknown and will be ignored.");
         }
     };
     
@@ -1112,7 +1112,7 @@ void FrameGrabber::update_tracker_queue() {
             guard.unlock();
             
             if(copy && !tracker) {
-                U_EXCEPTION("Cannot track frame %d since tracker has been deleted.", copy->index());
+                throw U_EXCEPTION("Cannot track frame ",copy->index()," since tracker has been deleted.");
             }
             
             if(copy && tracker) {
@@ -1255,7 +1255,7 @@ void FrameGrabber::update_tracker_queue() {
 
                             track::PythonIntegration::run("closed_loop", "update_tracking");
                         } catch(const SoftException& e) {
-                            Except("Python runtime exception: '%s'", e.what());
+                            FormatExcept("Python runtime exception: '", e.what(),"'");
                         }
                         
                         return true;
@@ -1292,7 +1292,7 @@ void FrameGrabber::ensure_average_is_ready() {
         last_average = _current_average_timestamp;
         
         assert(!_average.empty());
-        Warning("Copying average to GPU.");
+        FormatWarning("Copying average to GPU.");
         if(_pool)
             _pool->wait();
         ocl::init_ocl();
@@ -1403,7 +1403,7 @@ void FrameGrabber::write_fps(uint64_t index, uint64_t tdelta, uint64_t ts) {
             fwrite(str.data(), sizeof(char), str.length(), file);
         }
         else {
-            Except("Cannot open file '%S' for writing.", &path.str());
+            FormatExcept("Cannot open file ",path.str()," for writing.");
         }
     }
 
@@ -1817,10 +1817,10 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
                 if(b.lines->size() < UINT16_MAX)
                     task->frame->add_object(std::move(b.lines), std::move(b.pixels));
                 else
-                    Warning("Lots of lines!");
+                    FormatWarning("Lots of lines!");
             }
             else
-                Warning("Probably a lot of noise with %lu lines!", b.lines->size());
+                print("Probably a lot of noise with ",b.lines->size()," lines!");
         }
         
         task->filtered.clear();
@@ -1938,9 +1938,9 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
                             threadable_task(task);
 
                         } catch(const std::exception& ex) {
-                            Except("std::exception from threadable task: %s", ex.what());
+                            FormatExcept("std::exception from threadable task: ", ex.what());
                         } catch(...) {
-                            Except("Unknown exception from threadable task.");
+                            FormatExcept("Unknown exception from threadable task.");
                         }
                         
                         {

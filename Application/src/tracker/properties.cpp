@@ -4,7 +4,7 @@
 template<typename... Args>
 void ASSERT(bool condition, Args... args) {
 	if (!condition) {
-		U_EXCEPTION(std::forward<Args>(args)...);
+        throw U_EXCEPTION(std::forward<Args>(args)...);
 	}
 }
 
@@ -13,7 +13,7 @@ int main() {
 
 	FileSize size{ sizeof(MotionRecord) };
 	auto str = size.toStr();
-	Debug("Testing physical properties (%S)", &str);
+    print("Testing physical properties (",str,")");
 
 	for (int i = 1; i <= 10; ++i) {
 		SETTING(cm_per_pixel) = float(i);
@@ -81,7 +81,7 @@ int main() {
 	}
 
 	for (auto& v : vector) {
-		Debug("(%f,%f)", v.pos<Units::CM_AND_SECONDS>().x, v.pos<Units::CM_AND_SECONDS>().y);
+        print("(", v.pos<Units::CM_AND_SECONDS>().x,",",v.pos<Units::CM_AND_SECONDS>().y,")");
 	}
 
 	return 0;

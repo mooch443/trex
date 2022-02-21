@@ -62,7 +62,7 @@ namespace fg {
                 cv::Mat image = cv::Mat::ones(size.height, size.width, CV_8UC1) * 255;
                 // element_size determines size of playing field
                 const size_t number_of_fields = max(size.width, size.height) / (element_size*0.5) + 1;
-                Debug("Size: %dx%d, Nr: %d, width: %d", size.width, size.height, number_of_fields, element_size);
+                print("Size: ", size,", Nr: ", number_of_fields,", width: ", element_size);
                 
                 for(size_t i=0; i<number_of_fields; i++) {
                     for(size_t j=0; j<number_of_fields; j++) {

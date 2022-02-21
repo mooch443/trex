@@ -112,7 +112,7 @@ BOOL WINAPI consoleHandler(DWORD signal_code) {
             return TRUE;
         }
         else
-            Except("Pressing CTRL+C twice immediately stops the program in an undefined state.");
+            FormatExcept("Pressing CTRL+C twice immediately stops the program in an undefined state.");
     }
 
     return FALSE;
@@ -237,7 +237,7 @@ int main(int argc, char** argv)
         if(!filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
             if(!SETTING(quiet))
-                Warning("Returning absolute path '%S'. We cannot be sure this is writable.", &filename.str());
+                print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
 #endif
             return filename;
         }
@@ -270,7 +270,7 @@ int main(int argc, char** argv)
         if(!filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
             if(!SETTING(quiet))
-                Warning("Returning absolute path '%S'. We cannot be sure this is writable.", &filename.str());
+                print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
 #endif
             return filename;
         }
@@ -291,7 +291,7 @@ int main(int argc, char** argv)
     pv::DataLocation::register_path("output_settings", [](file::Path) -> file::Path {
         file::Path settings_file(SETTING(filename).value<Path>().filename());
         if(settings_file.empty())
-            U_EXCEPTION("settings_file (and like filename) is an empty string.");
+            throw U_EXCEPTION("settings_file (and like filename) is an empty string.");
         
         if(!settings_file.has_extension() || settings_file.extension() != "settings")
             settings_file = settings_file.add_extension("settings");
@@ -373,7 +373,7 @@ int main(int argc, char** argv)
                 auto files = file::Path(conda_prefix+"/bin").find_files();
                 for(auto file : files) {
                     if(file.filename() == "ffmpeg") {
-                        Debug("Found ffmpeg in '%S'", &file.str());
+                        print("Found ffmpeg in ",file.str(),"");
                         SETTING(ffmpeg_path) = file;
                         break;
                     }
@@ -381,7 +381,7 @@ int main(int argc, char** argv)
             }
             
             if(SETTING(ffmpeg_path).value<file::Path>().empty())
-                Warning("Cannot find ffmpeg.exe in search paths.");
+                FormatWarning("Cannot find ffmpeg.exe in search paths.");
         } else
             SETTING(ffmpeg_path) = file::Path(std::string(filename));
 #else
@@ -398,7 +398,7 @@ int main(int argc, char** argv)
                     auto files = file::Path(part).find_files();
                     for(auto file : files) {
                         if(file.filename() == "ffmpeg") {
-                            Debug("Found ffmpeg in '%S'", &file.str());
+                            print("Found ffmpeg in ",file.str(),"");
                             SETTING(ffmpeg_path) = file;
                             break;
                         }
@@ -425,7 +425,7 @@ int main(int argc, char** argv)
     #endif
             print("Changed directory to ", _wd,".");
         else
-            Error("Cannot change directory to '%S'.", &_wd);
+            FormatError("Cannot change directory to ",_wd,".");
         
 #elif defined(TREX_CONDA_PACKAGE_INSTALL)
         auto conda_prefix = ::default_config::conda_environment_path().str();
@@ -438,7 +438,7 @@ int main(int argc, char** argv)
 #else
             if (chdir(_wd.c_str()))
 #endif
-                Except("Cannot change directory to '%S'", &_wd.str());
+                FormatExcept("Cannot change directory to ",_wd.str(),"");
         }
 #endif
         
@@ -514,7 +514,7 @@ int main(int argc, char** argv)
                             file::Path path = pv::DataLocation::parse("output", "parameters_tgrabs.rst");
                             auto f = path.fopen("wb");
                             if(!f)
-                                U_EXCEPTION("Cannot open '%S'", &path.str());
+                                throw U_EXCEPTION("Cannot open ",path.str());
                             fwrite(rst.data(), sizeof(char), rst.length(), f);
                             fclose(f);
                             
@@ -542,7 +542,7 @@ int main(int argc, char** argv)
                                 fwrite(html.data(), sizeof(char), html.length(), f);
                                 fclose(f);
                                 
-                                Debug("Opening '%S' in browser...", &filename);
+                                print("Opening ",filename," in browser...");
 #if __linux__
                                 auto pid = fork();
                                 if (pid == 0) {
@@ -575,7 +575,7 @@ int main(int argc, char** argv)
                     }
                         
                     default:
-                        Warning("Unknown option '%S' with value '%S'", &option.name, &option.value);
+                        FormatWarning("Unknown option ", option.name," with value ",option.value,"");
                         break;
                 }
             }
@@ -589,12 +589,12 @@ int main(int argc, char** argv)
                 auto rejections = GlobalSettings::load_from_file(deprecations, settings_file.str(), AccessLevelType::STARTUP);
                 for(auto && [key, val] : rejections) {
                     if(deprecations.find(key) != deprecations.end())
-                        U_EXCEPTION("Parameter '%S' is deprecated. Please use '%S'.", &key, &deprecations.at(key));
+                        throw U_EXCEPTION("Parameter '%S' is deprecated. Please use '%S'.", &key, &deprecations.at(key));
                 }
                 DebugHeader("/LOADED '%S'", &settings_file.str());
             }
             else
-                Error("Cannot find settings file '%S'.", &settings_file.str());
+                FormatError("Cannot find settings file ",settings_file.str(),".");
         }
         
         /**
@@ -630,7 +630,7 @@ int main(int argc, char** argv)
                     SETTING(video_source) = filenames.front();
                     filenames.clear();
                 } else
-                    U_EXCEPTION("Empty input filename '%S'. Please specify an input name.", &video_source);
+                    throw U_EXCEPTION("Empty input filename ",video_source,". Please specify an input name.");
                 
             } catch(const illegal_syntax& e) {
                 // ... do nothing
@@ -657,14 +657,14 @@ int main(int argc, char** argv)
                 SETTING(filename) = file::Path(file::Path(filename).filename());
                 if(SETTING(filename).value<file::Path>().empty()) {
                     SETTING(filename) = file::Path("video");
-                    Warning("No output filename given. Defaulting to 'video'.");
+                    FormatWarning("No output filename given. Defaulting to 'video'.");
                 } else
-                    Warning("Given empty filename, the program will default to using input basename '%S'.", &SETTING(filename).value<file::Path>().str());
+                    print("Given empty filename, the program will default to using input basename ",SETTING(filename).value<file::Path>().str(),".");
             }
             
         } else if(SETTING(filename).value<file::Path>().empty()) {
             SETTING(filename) = file::Path("video");
-            Warning("No output filename given. Defaulting to 'video'.");
+            FormatWarning("No output filename given. Defaulting to 'video'.");
         }
         
         if(!SETTING(exec).value<file::Path>().empty()) {
@@ -675,12 +675,12 @@ int main(int argc, char** argv)
                 auto rejections = GlobalSettings::load_from_file(deprecations, exec_settings.str(), AccessLevelType::STARTUP);
                 for(auto && [key, val] : rejections) {
                     if(deprecations.find(key) != deprecations.end())
-                        U_EXCEPTION("Parameter '%S' is deprecated. Please use '%S'.", &key, &deprecations.at(key));
+                        throw U_EXCEPTION("Parameter '%S' is deprecated. Please use '%S'.", &key, &deprecations.at(key));
                 }
                 DebugHeader("/LOADED '%S'", &exec_settings.str());
             }
             else
-                Error("Cannot find settings file '%S'.", &exec_settings.str());
+                FormatError("Cannot find settings file ",exec_settings.str(),".");
             
             SETTING(exec) = file::Path();
         }
@@ -832,7 +832,7 @@ int main(int argc, char** argv)
             );
         }
 #endif
-        Except("Utils exception: %s", e.what());
+        FormatExcept("Utils exception: ", e.what());
         exit(1);
     }
         
@@ -840,7 +840,7 @@ int main(int argc, char** argv)
     }
     catch (const Pylon::GenericException &e)
     {
-        U_EXCEPTION("An exception occured: '%s'", e.GetDescription());
+        throw U_EXCEPTION("An exception occured: '",e.GetDescription(),"'");
         return 1;
     }
 #endif

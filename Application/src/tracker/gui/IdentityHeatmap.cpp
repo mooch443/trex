@@ -137,7 +137,7 @@ void HeatmapController::save() {
     const uint64_t maximum_package_size = uint64_t(4.0 * 1024.0 * 1024.0 * 1024.0 / double(value_size));
     bool enable_packages = expected >= maximum_package_size;
 
-    Debug("ValueSize=%lu MaximumPackageSize=%lu", value_size, maximum_package_size);
+    print("ValueSize=", value_size," MaximumPackageSize=",maximum_package_size,"");
 
     if (enable_packages) {
         per_frame.reserve(maximum_package_size);
@@ -151,7 +151,7 @@ void HeatmapController::save() {
     auto fishdata = pv::DataLocation::parse("output", fishdata_dir);
     if(!fishdata.exists())
         if(!fishdata.create_folder())
-            U_EXCEPTION("Cannot create folder '%S' for saving fishdata.", &fishdata.str());
+            throw U_EXCEPTION("Cannot create folder ",fishdata.str()," for saving fishdata.");
 
     auto save_package = [&]() {
         std::vector<size_t> shape = {
@@ -159,7 +159,7 @@ void HeatmapController::save() {
         };
 
         auto str = Meta::toStr(shape);
-        Debug("Done (%lu / %lu, shape %S).", expected, per_frame.size(), &str);
+        print("Done (", expected," / ", per_frame.size(),", shape ",str,").");
         auto source = _source;
         if(source.find('#') != std::string::npos)
             source = source.substr(0, source.find('#'));
@@ -211,7 +211,7 @@ void HeatmapController::save() {
         if (enable_packages && per_frame.size() >= maximum_package_size) {
             auto size0 = FileSize{ per_frame.size() * sizeof(decltype(per_frame)::value_type) }.to_string(), 
                  size1 = FileSize{ maximum_package_size * sizeof(decltype(per_frame)::value_type) }.to_string();
-            Debug("Splitting package at %S / %S.", &size0, &size1);
+            print("Splitting package at ",size0," / ",size1,".");
 
             save_package();
         }
@@ -587,9 +587,9 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
             
             if(_frame_context > 0) {
                 if(pt.frame < current_frame - _frame_context) {
-                    Debug("Encountered a wild %d < %d", pt.frame, current_frame - _frame_context);
+                    print("Encountered a wild ", pt.frame," < ",current_frame - _frame_context,"");
                 } else if(pt.frame > current_frame + _frame_context)
-                    Debug("Encountered a wild %d > %d", pt.frame, current_frame + _frame_context);
+                    print("Encountered a wild ", pt.frame," > ",current_frame + _frame_context,"");
             }
             
             if(range.start == -1 || range.start > pt.frame) range.start = pt.frame;
@@ -960,17 +960,17 @@ void Region::check_range() const {
         return true;
     });
     if(_frame_range != range)
-        Warning("Frame range %d-%d != %d-%d actual range", _frame_range.start, _frame_range.end, range.start, range.end);
+        FormatWarning("Frame range ",_frame_range.start,"-",_frame_range.end," != ",range.start,"-",range.end," actual range");
     if(count != _size)
-        Warning("Size (%lu) does not match reported size (%lu).", count, _size);
+        FormatWarning("Size (", count,"u) does not match reported size (",_size,"u).");
     if(!float_equals(sum, _value_sum))
-        Warning("Value sum (%f) does not match reported (%f).", sum, _value_sum);
+        FormatWarning("Value sum (", sum,") does not match reported (",_value_sum,").");
     if(vrange != _value_range)
-        Warning("Value range (%f-%f) does not match reported (%f-%f).", vrange.start, vrange.end, _value_range.start, _value_range.end);
+        FormatWarning("Value range (",vrange.start,"-",vrange.end,") does not match reported (",_value_range.start,"-",_value_range.end,").");
     /*if(ids != _IDs) {
         auto str0 = Meta::toStr(ids);
         auto str1 = Meta::toStr(_IDs);
-        Warning("IDs %S did not match reported IDs %S.", &str0, &str1);
+        FormatWarning("IDs ", str0," did not match reported IDs ",str1,".");
     }*/
 #endif
 }
@@ -1107,7 +1107,7 @@ void Grid::fill(const std::vector<DataPoint> &data)
     timer.reset();
     
     if(!_root)
-        U_EXCEPTION("Have to create a grid first.");
+        throw U_EXCEPTION("Have to create a grid first.");
     
     std::vector<DataPoint> copy = data;
     prepare_data(copy);
@@ -1488,7 +1488,7 @@ size_t Grid::keep_only(const Range<Frame_t> &frames) {
                 }
                 
             } else if(r) {
-                U_EXCEPTION("Shouldnt happen.");
+                throw U_EXCEPTION("Shouldnt happen.");
             }
         }
     }

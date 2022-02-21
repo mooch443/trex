@@ -30,7 +30,7 @@ namespace gui {
         
         if(!contains(_layers.at(from)._names, item)) {
             auto str = Meta::toStr(_layers.at(from)._names);
-            U_EXCEPTION("Unknown item '%S' for FlowMenu layer %d with items %S.", &item, from, &str);
+            throw U_EXCEPTION("Unknown item '%S' for FlowMenu layer %d with items %S.", &item, from, &str);
         }
         
         _layers.at(from)._links[item] = to;
@@ -41,7 +41,7 @@ namespace gui {
         
         if(!contains(_layers.at(layer)._names, item)) {
             auto str = Meta::toStr(_layers.at(layer)._names);
-            U_EXCEPTION("Unknown item '%S' for FlowMenu layer %d with items %S.", &item, layer, &str);
+            throw U_EXCEPTION("Unknown item '%S' for FlowMenu layer %d with items %S.", &item, layer, &str);
         }
         
         if(_layers.at(layer)._links.count(item))
@@ -66,21 +66,21 @@ namespace gui {
     
     void FlowMenu::check_layer_index(size_t idx) const {
         if(idx >= _layers.size())
-            U_EXCEPTION("Cannot access layer %d because only %d layers are currently registered.", idx, _layers.size());
+            throw U_EXCEPTION("Cannot access layer %d because only %d layers are currently registered.", idx, _layers.size());
     }
     
     void FlowMenu::clicked(size_t idx) {
         if(_current == -1) {
-            Warning("Clicked with no layer visible?");
+            FormatWarning("Clicked with no layer visible?");
             return;
         }
         
         if((size_t)_current > _layers.size())
-            U_EXCEPTION("Invalid layer index in _current %d.", _current);
+            throw U_EXCEPTION("Invalid layer index in _current ",_current,".");
         
         if(_layers.at(_current)._names.size() > idx) {
             auto &name = _layers.at(_current)._names.at(idx);
-            Debug("Clicked item '%S' in layer %d.", &name, _current);
+            print("Clicked item ", name," in layer ",_current,".");
             auto it = _layers.at(_current)._links.find(name);
             if(it == _layers.at(_current)._links.end()) {
                 _clicked_leaf(_current, name);

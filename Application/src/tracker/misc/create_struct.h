@@ -75,7 +75,7 @@ template<> struct NAM :: AccessEnum<NAM :: Variables:: EVERY_PLAIN_GET_B_NO_COMM
 #define EXPRESS_MEMBER_FUNCTIONS(NAM, TUPLE) IMPL_ACCESS_ENUM(NAM, TUPLE)
 
 #define EXPRESS_MEMBER_TYPES(NAM, TUPLE) using EVERY_PLAIN_GET_B_WITH_T TUPLE = EVERY_PLAIN_GET_A_NO_COMMA TUPLE;
-#define EXPRESS_MEMBER_GETTERS(NAM, TUPLE) []() -> auto& { if(!cmn::GlobalSettings::get( EVERY_PAIR_GET_B TUPLE ).is_type< EVERY_PLAIN_GET_A_NO_COMMA TUPLE >()) { auto type_name = cmn::GlobalSettings::get( EVERY_PAIR_GET_B TUPLE ).get().type_name(); U_EXCEPTION("Settings type '%S' is not '%s' for Variable '%s::%s'.", &type_name, EVERY_PAIR_GET_A TUPLE , #NAM, EVERY_PAIR_GET_B TUPLE); } return cmn::GlobalSettings::get( EVERY_PAIR_GET_B TUPLE ).get(); },
+#define EXPRESS_MEMBER_GETTERS(NAM, TUPLE) []() -> auto& { if(!cmn::GlobalSettings::get( EVERY_PAIR_GET_B TUPLE ).is_type< EVERY_PLAIN_GET_A_NO_COMMA TUPLE >()) { auto type_name = cmn::GlobalSettings::get( EVERY_PAIR_GET_B TUPLE ).get().type_name(); throw U_EXCEPTION("Settings type ",type_name," is not '", EVERY_PAIR_GET_A TUPLE ,"' for Variable '", #NAM ,"::", EVERY_PAIR_GET_B TUPLE ,"'."); } return cmn::GlobalSettings::get( EVERY_PAIR_GET_B TUPLE ).get(); },
 
 
 #define STRUCT_CONCATENATE(arg1, arg2)   STRUCT_CONCATENATE1(arg1, arg2)
@@ -746,7 +746,7 @@ template<> inline enum NAM :: Variables fromStr<enum NAM :: Variables>(const std
         ++index; \
     } \
     \
-    throw CustomException<std::invalid_argument>("Cannot find variable '%s::%s'.", #NAM, str.c_str()); \
+    throw CustomException(cmn::type<std::invalid_argument>, "Cannot find variable '", #NAM ,"::", str.c_str() ,"'."); \
 } \
 } \
 }

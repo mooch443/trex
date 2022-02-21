@@ -353,7 +353,7 @@ namespace gui {
                         Tracker::instance()->preprocess_frame(processed_frame, prev_active, &GUI::instance()->blob_thread_pool());
                         
                     } catch(const UtilsException&) {
-                        Except("Frame %d cannot be loaded from file.", frameIndex);
+                        FormatExcept("Frame ", frameIndex," cannot be loaded from file.");
                     }
                 }
                 
@@ -512,7 +512,7 @@ namespace gui {
                     obj->remove_delete_handler(handle);
                     
                 } else
-                    Error("Cannot find delete handler in GUICache. Something went wrong?");
+                    FormatError("Cannot find delete handler in GUICache. Something went wrong?");
                 _animators.erase(it);
             }
         }

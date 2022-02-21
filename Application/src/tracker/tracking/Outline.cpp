@@ -124,7 +124,7 @@ MinimalOutline::~MinimalOutline() {
     std::lock_guard<std::mutex> guard(all_mutex);
     auto it = all_objects.find(this);
     if(it == all_objects.end())
-        Error("Double delete?");
+        FormatError("Double delete?");
     else
         all_objects.erase(it);
 #endif
@@ -150,7 +150,7 @@ void MinimalOutline::convert_from(const std::vector<Vec2>& array) {
         
         
         if(x >= float(CHAR_MAX) || y >= float(CHAR_MAX) || x <= float(CHAR_MIN) || y <= float(CHAR_MIN))
-            U_EXCEPTION("Cannot compress %f,%f to char. This is an unresolvable error and is related to outline_resample. Contact the maintainer of this software and ask for advice (use outline_resample <= 5).", x, y);
+            throw U_EXCEPTION("Cannot compress %f,%f to char. This is an unresolvable error and is related to outline_resample. Contact the maintainer of this software and ask for advice (use outline_resample <= 5).", x, y);
         
         ux = x;
         uy = y;
@@ -190,7 +190,7 @@ Outline::~Outline() {
     std::lock_guard<std::mutex> guard(all_mutex);
     auto it = all_objects.find(this);
     if(it == all_objects.end())
-        Error("Double delete?");
+        FormatError("Double delete?");
     else
         all_objects.erase(it);
 #endif
@@ -258,7 +258,7 @@ float Outline::calculate_curvature(const int curvature_range, const std::vector<
     assert(L > 0 && index <= size_t(L)-1);
     
     if(L < 3)
-        U_EXCEPTION("Cannot calculate curvature with less than 3 values.");
+        throw U_EXCEPTION("Cannot calculate curvature with less than 3 values.");
     
     long_t offset = curvature_range * 2 * scale;
     if(L < offset)
@@ -539,7 +539,7 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
         if(info.debug) {
            auto str = Meta::toStr(high_peaks);
         
-           Debug("\n%d(%d): Finding tail. %S", info.frameIndex, info.fdx, &str);
+           print("\n", info.frameIndex,"(", info.fdx,"): Finding tail. ",str,"");
             std::vector<Vec2> maximums, highmax;
             for(auto peak : *maxima_ptr) {
                 maximums.push_back(peak.position);
@@ -620,7 +620,7 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
             }
             
             if(info.debug)
-                Debug("peak has range %f-%f (%f) - %f-%f", merged.start, merged.end, merged.length(), start, end);
+                print("peak has range ",merged.start,"-",merged.end," (",merged.length(),") - ",start,"-",end,"");
             idx = round(start + (end - start)*0.5);
             if(idx < 0)
                 idx += ptr->size();
@@ -790,7 +790,7 @@ void Outline::calculate_midline(Midline &midline, const DebugInfo& info) {
     midline.head_index() = _head_index;
     
     if(size() <= 1 || _confidence == 0) {
-        //Warning("Empty outline (%d).", frameIndex);
+        //print("Empty outline (",frameIndex,").");
         return;
     }
     
@@ -901,7 +901,7 @@ void Midline::post_process(const MovementInformation &movement, DebugInfo info) 
     if(segments().size() <= 2) {
         static bool printed_warning = false;
         if(!printed_warning) {
-            Warning("Fewer midline segments in %d@%d (%d). This means that your parameters might not be properly adjusted for this video, or this is not an individual. Check `track_posture_threshold` for example.", info.fdx, info.frameIndex, segments().size());
+            FormatWarning("Fewer midline segments in ", info.fdx,"@", info.frameIndex," (", segments().size(),"). This means that your parameters might not be properly adjusted for this video, or this is not an individual. Check `track_posture_threshold` for example.");
             printed_warning = true;
         }
         return;
@@ -1080,7 +1080,7 @@ Midline::~Midline() {
     std::lock_guard<std::mutex> guard(all_mutex);
     auto it = all_objects.find(this);
     if(it == all_objects.end())
-        Error("Double delete?");
+        FormatError("Double delete?");
     else
         all_objects.erase(it);
 #endif
@@ -1109,7 +1109,7 @@ size_t Midline::saved_midlines() {
         fwrite(str.data(), sizeof(char), str.length(), f);
         fclose(f);
     } else
-        Error("Cannot write 'posture.log'");
+        FormatError("Cannot write 'posture.log'");
     
     return all_objects.size();
 #else
@@ -1193,7 +1193,7 @@ void Midline::fix_length(float len, std::vector<MidlineSegment>& pts, bool debug
             
         } else if(j >= resolution) {
            if(debug)
-               Debug("Cannot find anything for %d, extrapolating %d (%f > %f)", i, i - last_real, travelled_len, original_len);
+               print("Cannot find anything for ",i,", extrapolating ",i - last_real," (",travelled_len," > ",original_len,")");
 
            if(pts.size()>=3) {
                 auto v1 = pts.back().pos;
@@ -1222,7 +1222,7 @@ void Midline::fix_length(float len, std::vector<MidlineSegment>& pts, bool debug
                     seg.height *= 0.5;
 
                     if(debug)
-                        Debug("Added %d/%d", midline_points.size(), resolution);
+                        print("Added ", midline_points.size(),"/",resolution,"");
 
                     midline_points.push_back(seg);
                     i++;
@@ -1264,7 +1264,7 @@ Midline::Ptr Midline::normalize(float fix_length, bool debug) const {
     assert(!std::isinf(fix_length));
     
     if(is_normalized())
-        Warning("Normalizing a normalized midline.");
+        FormatWarning("Normalizing a normalized midline.");
     
     if(empty() || size()<2)
         return nullptr;
@@ -1277,7 +1277,7 @@ Midline::Ptr Midline::normalize(float fix_length, bool debug) const {
     
     if(len == 0.0) {
         // Midline is empty
-        Warning("Midline is empty.");
+        FormatWarning("Midline is empty.");
         return nullptr;
     }
     
@@ -1286,7 +1286,7 @@ Midline::Ptr Midline::normalize(float fix_length, bool debug) const {
     const int max_segments = resolution - 1;
     double step = (double(len) / double(max_segments));
     if(step < 0)
-        U_EXCEPTION("Step length is negative (%f) with a length of %f and max_segments of %d.", step, len, max_segments);
+        throw U_EXCEPTION("Step length is negative (%f) with a length of %f and max_segments of %d.", step, len, max_segments);
     
     size_t index = 0;
     std::vector<MidlineSegment> reduced;
@@ -1485,7 +1485,7 @@ namespace Smaller {
         virtual ~Area() {}
         
         bool operator<(const Area&) const {
-            U_EXCEPTION("Calling wrong operator.");
+            throw U_EXCEPTION("Calling wrong operator.");
         }
     };
     

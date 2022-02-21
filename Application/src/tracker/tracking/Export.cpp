@@ -55,13 +55,13 @@ namespace track {
             std::lock_guard guard(mutex);
             if (final_path != use_path) {
                 if (!use_path.move_to(final_path)) {
-                    U_EXCEPTION("Cannot move file '%S' to '%S'.", &use_path.str(), &final_path.str());
+                    throw U_EXCEPTION("Cannot move file '%S' to '%S'.", &use_path.str(), &final_path.str());
                 } //else
             }
 
         }
         catch (const std::exception& ex) {
-            Except("Problem copying file '%S' to '%S': %s", &use_path.str(), &final_path.str(), ex.what());
+            FormatExcept("Problem copying file ",use_path.str()," to ",final_path.str(),": ",ex.what(),"");
             // there will be a utils exception, so its printed out already
         }
     }
@@ -192,7 +192,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
         normalize = default_config::recognition_normalization_t::moments;
     
     if(no_tracking_data) {
-        Warning("Not saving tracking data because of 'auto_no_tracking_data' flag being set.");
+        FormatWarning("Not saving tracking data because of 'auto_no_tracking_data' flag being set.");
     }
     //auto calculate_posture = SETTING(calculate_posture).value<bool>();
     
@@ -205,22 +205,22 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
     auto fishdata = pv::DataLocation::parse("output", fishdata_dir);
     if(!fishdata.exists())
         if(!fishdata.create_folder())
-            U_EXCEPTION("Cannot create folder '%S' for saving fishdata.", &fishdata.str());
+            throw U_EXCEPTION("Cannot create folder ",fishdata.str()," for saving fishdata.");
     
     auto filename = std::string(SETTING(filename).value<file::Path>().filename());
     auto posture_path = (fishdata / (filename + "_posture_*.npz")).str();
     auto recognition_path = (fishdata / (filename + "_recognition_*.npz")).str();
     
     if(!range.empty())
-        Debug("[exporting] Exporting range [%d-%d]", range.start, range.end);
+        print("[exporting] Exporting range [", range.start,"-",range.end,"]");
     else
         print("[exporting] Exporting all frames (", tracker.number_frames(),")");
     auto individual_prefix = FAST_SETTINGS(individual_prefix);
-    Debug("[exporting] Writing data from `output_graphs` to '%S/%S_%S*.%s'", &fishdata.str(), &filename, &individual_prefix, output_format.name());
+    print("[exporting] Writing data from `output_graphs` to '",&fishdata.str(),"/",&filename,"_",&individual_prefix,"*.",output_format.name(),"'");
     if(output_posture_data)
-        Debug("[exporting] Writing posture data to '%S'", &posture_path);
+        print("[exporting] Writing posture data to ",posture_path,"");
     if(recognition_enable)
-        Debug("[exporting] Writing recognition data to '%S'", &recognition_path);
+        print("[exporting] Writing recognition data to ",recognition_path,"");
     
     try {
         std::map<long_t, float> all_percents;
@@ -334,7 +334,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                             fish_graphs.at(thread_index)->graph().export_data(final_path.str(), &callback);
                         
                     } catch(const UtilsException&) {
-                        Except("Failed to save data for fish '%S' to location '%S'.", &fish->identity().raw_name(), &final_path.str());
+                        FormatExcept("Failed to save data for individual ",fish->identity()," to location ",final_path,".");
                     }
                 }
                 
@@ -370,16 +370,16 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                                 auto range = fish->get_segment(seg->end());
                                 
                                 if(!fish->has(range.start()))
-                                    U_EXCEPTION("Range starts at %d, but frame is not set for fish %d.", range.start(), fish->identity().ID());
+                                    throw U_EXCEPTION("Range starts at %d, but frame is not set for fish %d.", range.start(), fish->identity().ID());
                                 auto start_blob_id = fish->blob(range.start())->blob_id();
                                 
                                 file::Path path(tags_path / SETTING(filename).value<file::Path>().filename() / ("frame"+range.start().toStr()+"_blob"+Meta::toStr(start_blob_id)+".npz"));
                                 if(!path.remove_filename().exists()) {
                                     if(!path.remove_filename().create_folder())
-                                        U_EXCEPTION("Cannot create folder '%S' please check permissions.", &path.remove_filename().str());
+                                        throw U_EXCEPTION("Cannot create folder ",path.remove_filename().str()," please check permissions.");
                                 }
                                 
-                                Debug("Writing %d images '%S'", set->size(), &path.str());
+                                print("Writing ", set->size()," images ",path.str(),"");
                                 cmn::npz_save(path.str(), "images", arrays.data(), {set->size(), (uint)shape.width, (uint)shape.height});
                                 
                                 //path = path.remove_filename() / ("fdx_"+path.filename().to_string());
@@ -396,7 +396,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                  * TODO: need to check for size issues (>=4GB?) - shouldnt happen too often though
                  */
                 if(output_image_per_tracklet) {
-                    Debug("Generating tracklet images for fish '%S'...", &fish->identity().raw_name());
+                    print("Generating tracklet images for fish ",fish->identity().raw_name(),"...");
                     
                     for(auto &range : fish->frame_segments()) {
                         // only generate an image if the segment is long_t enough
@@ -649,7 +649,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                             mem::OutputLibraryMemoryStats stats(library_cache.at(index));
                             auto str = Meta::toStr(FileSize{stats.bytes});
                             std::lock_guard guard(lock);
-                            Debug("-- thread %d finished fish %d with %S of cache", index, fish->identity().ID(), &str);
+                            print("-- thread ", index," finished fish ", fish->identity().ID()," with ",str," of cache");
                         }*/
                         
                         auto it = library_cache.at(index)->_cache.find(fish);
@@ -735,7 +735,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                         }
                         
                         auto f = fishdata / (std::string)path.filename();
-                        Debug("Saved memory stats at '%S'", &f.str());
+                        print("Saved memory stats at ",f.str(),"");
                     });
                     
                     temporary_save(fishdata / ((std::string)SETTING(filename).value<file::Path>().filename() + "_global_memory.npz"), [&](file::Path path) {
@@ -760,7 +760,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                 
             } else {
                 path = fishdata / path;
-                Warning("Not writing statistics because _statistics array (%d) is != frames added (%d) and path '%S' exists.", Tracker::instance()->_statistics.size(), Tracker::number_frames(), &path.str());
+                FormatWarning("Not writing statistics because _statistics array (", Tracker::instance()->_statistics.size(),") is != frames added (", Tracker::number_frames(),") and path ",path," exists.");
             }
         }
         
@@ -811,14 +811,14 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                     }
                     
                     if(data.blob.org_id.valid() && full.blob == nullptr) {
-                        Except("Cannot find %d and %ld", data.blob.blob_id, data.blob.org_id);
-                        Debug("reduced: %d full: %d", reduced.blob ? reduced.blob->blob_id() : 0, full.blob ? full.blob->blob_id() : 0);
+                        FormatExcept("Cannot find ", data.blob.blob_id," and ", data.blob.org_id,"d");
+                        print("reduced: ", reduced.blob ? reduced.blob->blob_id() : 0," full: ",full.blob ? full.blob->blob_id() : 0,"");
                     }
                     
                     if(!reduced.blob && full.blob)
-                        Except("Frame %d, fish %d", frame, data.fish->identity().ID());
+                        FormatExcept("Frame ", frame,", fish ", data.fish->identity().ID(),"");
                     if(!reduced.blob && !full.blob)
-                        Except("Frame %d, fish %d nothing found", frame, data.fish->identity().ID());
+                        FormatExcept("Frame ", frame,", fish ", data.fish->identity().ID()," nothing found");
                     
                     if(!reduced.blob)
                         continue; // cannot find blob for given id
@@ -971,7 +971,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                     path = file::Path(path.str() + "_part"+Meta::toStr(part_counter)+".npz");
                     
                     size_t samples = single_frames.size();
-                    Debug("Saving single tracklet images to '%S'... (%d images)", &path.str(), samples);
+                    print("Saving single tracklet images to ", path,"... (",samples," images)");
                     
                     if(path.exists())
                         path.delete_file();
@@ -990,7 +990,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                     byte_counter = 0;
                     
                 } else {
-                    Warning("Called export_singles, but single_frames is empty.");
+                    FormatWarning("Called export_singles, but single_frames is empty.");
                 }
             };
             
@@ -1000,7 +1000,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
             
             if(!split_masks.empty()) {
                 auto path = single_path.str() + "_splits_part";
-                Debug("Saving split tracklet masks to '%S'... (%d images)", &path, split_frames.size());
+                print("Saving split tracklet masks to ", path,"... (",split_frames.size()," images)");
                 
                 int64_t bytes_per_image = (int64_t)output_size.height * (int64_t)output_size.width;
                 int64_t n_images = int64_t(1.5 *1000 * 1000 * 1000) / bytes_per_image;
@@ -1017,7 +1017,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                     auto sub_path = path + Meta::toStr(part) + ".npz";
                     ++part;
                     
-                    Debug("Saving to '%S' from %d-%d (%d)", &sub_path, offset, offset+L, split_frames.size());
+                    print("Saving to '",&sub_path,"' from ",offset,"-",offset+L," (",split_frames.size(),")");
                     
                     temporary_save(sub_path, [&](file::Path path) {
                         cmn::npz_save(path.str(), "images",
@@ -1029,14 +1029,6 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                     
                     offset += n_images;
                 }
-                
-                /*size_t nfiles = ceil(bytes / (1.5 *1000 * 1000 * 1000));
-                auto str = FileSize{bytes}.to_string();
-                Debug("Need %d files to accommodate %S", nfiles, &str);
-                
-                cmn::npz_save(path, "images", split_masks.data(), { split_frames.size(), (size_t)output_size.height, (size_t)output_size.width }, "w");
-                cmn::npz_save(path, "frames", split_frames, "a");
-                cmn::npz_save(path, "ids", split_ids, "a");*/
             }
             
             for(auto && [id, ranges] : queues) {
@@ -1087,7 +1079,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
             }
             
             size_t samples = all_images.size() / (size_t)output_size.height / (size_t)output_size.width;
-            Debug("Saving tracklet images to '%S'... (%d samples)", &path.str(), samples);
+            print("Saving tracklet images to ", path,"... (",samples," samples)");
             
             temporary_save(path, [&](file::Path path){
                 cmn::npz_save(path.str(), "images", all_images.data(), { samples, (size_t)output_size.height, (size_t)output_size.width }, "w");

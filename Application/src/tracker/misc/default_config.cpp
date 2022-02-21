@@ -157,7 +157,7 @@ file::Path conda_environment_path() {
     if(home == "CONDA_PREFIX" || home == "" || home == compiled_path) {
 #ifndef NDEBUG
         if(!SETTING(quiet))
-            Debug("Reset conda prefix '%S' / '%S'", &home, &compiled_path);
+            print("Reset conda prefix ",home," / ",compiled_path);
 #endif
         auto conda_prefix = getenv("CONDA_PREFIX");
         
@@ -185,7 +185,7 @@ file::Path conda_environment_path() {
     
 #ifndef NDEBUG
     if(!SETTING(quiet))
-        Debug("Set conda environment path = '%S'", &home);
+        print("Set conda environment path = ",home,"");
 #endif
     return home;
 }
@@ -213,14 +213,14 @@ file::Path conda_environment_path() {
                 
                 auto r = replacement(key);
                 if(r.empty()) {
-                    Warning("[%S] Setting '%S' has been removed from the tracker (with no replacement) and will be ignored.", &source, &key);
+                    FormatWarning("[",source.c_str(),"] Setting ",key," has been removed from the tracker (with no replacement) and will be ignored.");
                 } else
-                    Except("[%S] Setting '%S' is deprecated. Please use its replacement parameter '%S' instead.", &source, &key, &r);
+                    FormatExcept("[",source.c_str(),"] Setting ",key," is deprecated. Please use its replacement parameter ",r," instead.");
             }
         }
         
         if(found)
-            Warning("Found invalid settings in source '%S' (see above).", &source);
+            print("Found invalid settings in source ",source," (see above).");
     }
     
     bool is_deprecated(const std::string& key) {
@@ -229,7 +229,7 @@ file::Path conda_environment_path() {
     
     std::string replacement(const std::string& key) {
         if (!is_deprecated(key)) {
-            U_EXCEPTION("Key '%S' is not deprecated.", &key);
+            throw U_EXCEPTION("Key ",key," is not deprecated.");
         }
         
         return deprecated.at(utils::lowercase(key));
@@ -744,7 +744,7 @@ file::Path conda_environment_path() {
             
             auto settings_file = pv::DataLocation::parse("input", path);
             if(settings_file.empty())
-                U_EXCEPTION("settings_file is an empty string.");
+                throw U_EXCEPTION("settings_file is an empty string.");
             
             return settings_file;
         });
@@ -752,7 +752,7 @@ file::Path conda_environment_path() {
         pv::DataLocation::register_path("output_settings", [](file::Path) -> file::Path {
             file::Path settings_file = SETTING(filename).value<Path>().filename();
             if(settings_file.empty())
-                U_EXCEPTION("settings_file is an empty string.");
+                throw U_EXCEPTION("settings_file is an empty string.");
             
             if(!settings_file.has_extension() || settings_file.extension() != "settings")
                 settings_file = settings_file.add_extension("settings");
@@ -764,7 +764,7 @@ file::Path conda_environment_path() {
             if(!filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
                 if(!SETTING(quiet))
-                    Warning("Returning absolute path '%S'. We cannot be sure this is writable.", &filename.str());
+                    print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
 #endif
                 return filename;
             }
@@ -780,7 +780,7 @@ file::Path conda_environment_path() {
             if(!filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
                 if(!SETTING(quiet))
-                    Warning("Returning absolute path '%S'. We cannot be sure this is writable.", &filename.str());
+                    print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
 #endif
                 return filename;
             }
@@ -808,10 +808,10 @@ void load_string_with_deprecations(const file::Path& settings_file, const std::s
                 auto r = default_config::replacement(key);
                 if(r.empty()) {
                     if(!quiet)
-                        Warning("[%S] Deprecated setting '%S' = %S found. Ignoring, as there is no replacement.", &settings_file.str(), &key, &val);
+                        FormatWarning("[", settings_file.c_str(),"] Deprecated setting ", key," = ",val," found. Ignoring, as there is no replacement.");
                 } else {
                     if(!quiet)
-                        Warning("[%S] Deprecated setting '%S' = %S found. Replacing with '%S' = %S", &settings_file.str(), &key, &val, &r, &val);
+                        print("[",settings_file.c_str(),"] Deprecated setting ",key," = ",val," found. Replacing with ",r," = ",val,"");
                     if(key == "whitelist_rect" || key == "exclude_rect" || key == "recognition_rect") {
                         auto values = Meta::fromStr<std::vector<float>>(val);
                         if(values.size() == 4) {
@@ -820,7 +820,7 @@ void load_string_with_deprecations(const file::Path& settings_file, const std::s
                             };
                             
                         } else if(!quiet)
-                            Except("Invalid number of values while trying to correct '%S' deprecated parameter from '%S' to '%S'.", &val, &key, &r);
+                            FormatExcept("Invalid number of values while trying to correct ",val," deprecated parameter from ",key," to ",r,".");
                         
                     } else if(key == "whitelist_rects" || key == "exclude_rects") {
                         auto values = Meta::fromStr<std::vector<Bounds>>(val);

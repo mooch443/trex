@@ -81,7 +81,7 @@ void PPFrame::_remove_from_map(pv::bid bdx) {
 
 void PPFrame::_assume_not_finalized(const char* file, int line) {
     if(_finalized) {
-        U_EXCEPTION("PPFrame already finalized at [%s:%d].", file, line);
+        throw U_EXCEPTION("PPFrame already finalized at [%s:%d].", file, line);
     }
 }
 
@@ -146,7 +146,7 @@ void PPFrame::erase_anywhere(const pv::BlobPtr& blob) {
     }
 #ifndef NDEBUG
     else
-        U_EXCEPTION("Blob %u not found anywhere.", blob->blob_id());
+        throw U_EXCEPTION("Blob ",blob->blob_id()," not found anywhere.");
 #endif
 }
 
@@ -173,7 +173,7 @@ pv::BlobPtr PPFrame::erase_anywhere(pv::bid bdx) {
     }
 #ifndef NDEBUG
     else
-        Except("Blob %u not found anywhere.", bdx);
+        FormatExcept("Blob ", bdx," not found anywhere.");
 #endif
     return nullptr;
 }

@@ -132,6 +132,10 @@ namespace pv {
         void clear();
         void serialize(DataPackage&, bool& compressed) const;
         
+        std::string toStr() const {
+            return "pv::Frame<"+std::to_string(index())+">";
+        }
+        
     protected:
         friend class File;
         
@@ -250,7 +254,7 @@ namespace pv {
         std::vector<float> calculate_percentiles(const std::initializer_list<float>& percent);
         std::string get_info(bool full = true);
         std::string get_info_rich_text(bool full = true);
-        void print_info() { auto info = get_info(); Debug("%S", &info); }
+        void print_info() { print(get_info()); }
         
         virtual CropOffsets crop_offsets() const override {
             return _header.offsets;
@@ -271,7 +275,7 @@ namespace pv {
         void set_average(const cv::Mat& average) {
             if(average.type() != CV_8UC1) {
                 auto str = getImgType(average.type());
-                U_EXCEPTION("Average image is of type '%S' != 'CV_8UC1'.", &str);
+                throw U_EXCEPTION("Average image is of type ",str," != 'CV_8UC1'.");
             }
             
             if(!_header.resolution.width && !_header.resolution.height) {
@@ -279,7 +283,7 @@ namespace pv {
                 _header.resolution.height = average.rows;
             }
             else if(average.cols != _header.resolution.width || average.rows != _header.resolution.height) {
-                U_EXCEPTION("Average image is of size %dx%d but has to be %dx%d", average.cols, average.rows, _header.resolution.width, _header.resolution.height);
+                throw U_EXCEPTION("Average image is of size ",average.cols,"x",average.rows," but has to be ",_header.resolution.width,"x",_header.resolution.height,"");
             }
             
             if(_header.average)

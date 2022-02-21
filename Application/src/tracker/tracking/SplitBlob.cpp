@@ -115,7 +115,7 @@ size_t SplitBlob::apply_threshold(int threshold, std::vector<pv::BlobPtr> &outpu
             samples = 1;
         }
         
-        Debug("Samples: %lu, timer1: %fms timer2: %fms ratio: %f", size_t(samples), timer1 / samples * 1000, timer2 / samples * 1000, ratio / samples);
+        print("Samples: ",size_t(samples),"u, timer1: ",timer1 / samples * 1000,"ms timer2: ",timer2 / samples * 1000,"ms ratio: ",ratio / samples,"");
     }
     
         return max_size;*/
@@ -157,7 +157,7 @@ SplitBlob::Action SplitBlob::evaluate_result_multiple(size_t presumed_nr, float 
         float fsize = float(blobs.at(0 + offset)->num_pixels()) * sqrcm;
         if(fsize < min_size_threshold || (first_size != 0 && fsize / first_size < blob_split_max_shrink / presumed_nr)) { //)) {
 #if DEBUG_ME
-            Debug("\tbreaking because fsize %f / %f / %f", fsize, min_size_threshold, first_size);
+            print("\tbreaking because fsize ", fsize," / ", min_size_threshold," / ",first_size,"");
 #endif
             break;
         }
@@ -237,7 +237,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr)
         // found at least two blobs now
         if(action == KEEP || action == KEEP_ABORT) {
 #if DEBUG_ME
-            Debug("Found %d blobs at threshold %d (expected %d)", blobs.size(), threshold, presumed_nr);
+            print("Found ", blobs.size()," blobs at threshold ", threshold," (expected ",presumed_nr,")");
 #endif
             
             result.blobs = blobs;
@@ -293,7 +293,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr)
                     after_two = true;
             }
 #if DEBUG_ME
-            Debug("Match: %d with ratio %f, %d blobs, %f percent", p.first, p.second.ratio, p.second.blobs.size(), percent);
+            print("Match: ",p.first," with ratio ",p.second.ratio,", ",p.second.blobs.size()," blobs, ",percent," percent");
 #endif
             if(percent > bestp) {
                 best = p.first;
@@ -337,7 +337,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr)
     } else {
 #if DEBUG_ME
         auto str = Meta::toStr(best_matches);
-        Warning("Not found %d objects. %S", presumed_nr, &str);
+        FormatWarning("Not found ", presumed_nr," objects. ",str,"");
         tf::imshow("original", _original);
         
         /*cv::Mat tmp;

@@ -191,7 +191,7 @@ namespace track {
                             if (bounding.x >= o / 2) {
                                 bounding.x -= floor(o / 2.0);
                                 bounding.width += o;
-                                Debug("bounding: %f,%f", bounding.x, bounding.width);
+                                print("bounding: ", bounding.x,",",bounding.width,"");
                             }
                         }
                         if (bounding.height < normal_dimensions.height) {
@@ -199,7 +199,7 @@ namespace track {
                             if (bounding.y >= o / 2) {
                                 bounding.y -= floor(o / 2.0);
                                 bounding.height += o;
-                                Debug("bounding: %f,%f", bounding.y, bounding.height);
+                                print("bounding: ", bounding.y,",",bounding.height,"");
                             }
                         }
 

@@ -204,12 +204,12 @@ Label::Ptr DataStore::label(const char* name) {
                 }
             }
             
-            Except("Label '%s' should have been in the map already.", name);
+            FormatExcept("Label '", name,"' should have been in the map already.");
             break;
         }
     }
     
-    Warning("Label for '%s' not found.", name);
+    print("Label for '",name,"' not found.");
     return nullptr;
 }
 
@@ -222,7 +222,7 @@ Label::Ptr DataStore::label(int ID) {
         return label(names[ID].c_str());
     }
     
-    Warning("ID %d not found", ID);
+    print("ID ",ID," not found");
     return nullptr;
 }
 
@@ -398,7 +398,7 @@ void DataStore::_set_ranged_label_unsafe(RangedLabel&& r)
     /*m = -1;
     for(auto it = _ranged_labels.rbegin(); it != _ranged_labels.rend(); ++it) {
         if(it->_maximum_frame_after != m) {
-            Warning("ranged(%d-%d): maximum_frame_after = %d != %d", it->_range.start(), it->_range.end(), it->_maximum_frame_after, m);
+            FormatWarning("ranged(",it->_range.start(),"-",it->_range.end(),"): maximum_frame_after = ",it->_maximum_frame_after," != ",m,"");
             it->_maximum_frame_after = m;
         }
         if(it->_range.start() < m || m == -1) {
@@ -444,8 +444,7 @@ void DataStore::_set_label_unsafe(Frame_t idx, pv::bid bdx, int ldx) {
     auto cache = _insert_cache_for_frame(idx);
 #ifndef NDEBUG
     if (contains(*cache, BlobLabel{bdx, ldx})) {
-        auto str = Meta::toStr(*cache);
-        Warning("Cache already contains blob %d in frame %d.\n%S", bdx, (int)idx.get(), &str);
+        FormatWarning("Cache already contains blob ", bdx," in frame ", (int)idx.get(),".\n",*cache,"");
     }
 #endif
     insert_sorted(*cache, BlobLabel{bdx, ldx});
@@ -477,7 +476,7 @@ void DataStore::set_label(Frame_t idx, const pv::CompressedBlob* blob, const Lab
 Label::Ptr DataStore::label_averaged(Idx_t fish, Frame_t frame) {
     auto it = Tracker::individuals().find(fish);
     if(it == Tracker::individuals().end()) {
-        //Warning("Individual %d not found.", fish._identity);
+        //print("Individual ",fish._identity," not found.");
         return nullptr;
     }
     
@@ -495,7 +494,7 @@ Label::Ptr DataStore::label_averaged(const Individual* fish, Frame_t frame) {
 
     auto kit = fish->iterator_for(frame);
     if(kit == fish->frame_segments().end()) {
-        //Warning("Individual %d, cannot find frame %d.", fish._identity, frame._frame);
+        //FormatWarning("Individual ", fish._identity,", cannot find frame ",frame._frame,".");
         return nullptr;
     }
     
@@ -534,8 +533,7 @@ Label::Ptr DataStore::label_averaged(const Individual* fish, Frame_t frame) {
                 auto &basic = fish->basic_stuff().at(index);
                 auto l = label(Frame_t(basic->frame), &basic->blob);
                 if(l && label_id_to_index.count(l->id) == 0) {
-                    auto str = Meta::toStr(label_id_to_index);
-                    Warning("Label not found: %s (%d) in map %S", l->name.c_str(), l->id, &str);
+                    FormatWarning("Label not found: ", l->name.c_str()," (", l->id,") in map ",label_id_to_index,"");
                     continue;
                 }
                 
@@ -544,7 +542,7 @@ Label::Ptr DataStore::label_averaged(const Individual* fish, Frame_t frame) {
                     if(index < counts.size())
                         ++counts[index];
                     else
-                        Warning("Label index %lu > counts.size() = %lu", index, counts.size());
+                        FormatWarning("Label index ", index," > counts.size() = ",counts.size(),"");
                 }
             }
             
@@ -564,7 +562,7 @@ Label::Ptr DataStore::label_averaged(const Individual* fish, Frame_t frame) {
         return nullptr;
     }
     
-    //Warning("Individual %d not found. Other reason?", fish->identity().ID());
+    //print("Individual ",fish->identity().ID()," not found. Other reason?");
     return nullptr;
 }
 
@@ -576,7 +574,7 @@ Label::Ptr DataStore::_label_averaged_unsafe(const Individual* fish, Frame_t fra
     
     auto kit = fish->iterator_for(frame);
     if(kit == fish->frame_segments().end()) {
-        //Warning("Individual %d, cannot find frame %d.", fish._identity, frame._frame);
+        //FormatWarning("Individual ", fish._identity,", cannot find frame ",frame._frame,".");
         return nullptr;
     }
     
@@ -604,7 +602,7 @@ Label::Ptr DataStore::_label_averaged_unsafe(const Individual* fish, Frame_t fra
                     if(size_t(l) < counts.size())
                         ++counts[l];
                     else
-                        Warning("Label index %lu > counts.size() = %lu", l, counts.size());
+                        FormatWarning("Label index ", l," > counts.size() = ",counts.size(),"");
                 }
             }
             
@@ -624,14 +622,14 @@ Label::Ptr DataStore::_label_averaged_unsafe(const Individual* fish, Frame_t fra
         return nullptr;
     }
     
-    //Warning("Individual %d not found. Other reason?", fish->identity().ID());
+    //print("Individual ",fish->identity().ID()," not found. Other reason?");
     return nullptr;
 }
 
 Label::Ptr DataStore::label_interpolated(Idx_t fish, Frame_t frame) {
     auto it = Tracker::individuals().find(fish);
     if(it == Tracker::individuals().end()) {
-        Warning("Individual %d not found.", fish._identity);
+        print("Individual ",fish._identity," not found.");
         return nullptr;
     }
     
@@ -649,7 +647,7 @@ Label::Ptr DataStore::label_interpolated(const Individual* fish, Frame_t frame) 
     
     auto kit = fish->iterator_for(frame);
     if(kit == fish->frame_segments().end()) {
-        //Warning("Individual %d, cannot find frame %d.", fish._identity, frame._frame);
+        //FormatWarning("Individual ", fish._identity,", cannot find frame ",frame._frame,".");
         return nullptr;
     }
     
@@ -717,11 +715,11 @@ Label::Ptr DataStore::label_interpolated(const Individual* fish, Frame_t frame) 
         }
         
     } else {
-        //Warning("Individual %d does not contain frame %d.", fish._identity, frame._frame);
+        //FormatWarning("Individual ", fish._identity," does not contain frame ",frame._frame,".");
         return nullptr;
     }
     
-    //Warning("Individual %d not found. Other reason?", fish->identity().ID());
+    //print("Individual ",fish->identity().ID()," not found. Other reason?");
     return nullptr;
 }
 
@@ -846,7 +844,7 @@ public:
             task.sample->_probabilities[i] /= S;
 #ifndef NDEBUG
             if(task.sample->_probabilities[i] > 1) {
-                Warning("Probability > 1? %f for k '%s'", task.sample->_probabilities[i], cats[i].c_str());
+                FormatWarning("Probability > 1? ", task.sample->_probabilities[i]," for k '",cats[i].c_str(),"'");
             }
 #endif
         }
@@ -1143,7 +1141,7 @@ struct Interface {
                     Work::add_training_sample(nullptr);
                 }
                 else
-                    Warning("Not in selection mode. Can only train while samples are being selected, not during apply or inactive.");
+                    FormatWarning("Not in selection mode. Can only train while samples are being selected, not during apply or inactive.");
                 });
             shuffle->on_click([](auto) {
                 std::lock_guard gui_guard(GUI::instance()->gui().lock());
@@ -1446,7 +1444,7 @@ struct NetworkApplicationState {
                     auto frame = task.sample->_frames.at(i);
                     auto blob = fish->compressed_blob(frame);
                     if (!blob) {
-                        Except("Blob in frame %d not found", frame);
+                        FormatExcept("Blob in frame ", frame," not found");
                         blobs[i] = -1;
                         continue;
                     }
@@ -1467,14 +1465,14 @@ struct NetworkApplicationState {
                         if(task.result[i] == -1)
                         //auto l = DataStore::label(task.result[i]);
                         //if (!l)
-                            Warning("Label for frame %d blob %d is nullptr.", frame, bdx);
+                            FormatWarning("Label for frame ", frame," blob ",bdx," is nullptr.");
                         else {
                             DataStore::_set_label_unsafe(Frame_t(frame), bdx, task.result[i]);
                             sums.at(task.result[i]) += 1;
 #ifndef NDEBUG
                             auto L = DataStore::_label_unsafe(Frame_t(frame), bdx);
                             if (L != task.result[i]) {
-                                Warning("Fish%d: Labels do not match.", fish->identity().ID());
+                                print("Fish",fish->identity().ID(),": Labels do not match.");
                             }
 #endif
                         }
@@ -1512,11 +1510,11 @@ struct NetworkApplicationState {
                             auto &basic = fish->basic_stuff().at(task.segment->basic_stuff(f));
                             ranged._blobs.push_back(basic->blob.blob_id());
                         } //else
-                           // Warning("Segment does not contain %d", f);
+                           // print("Segment does not contain ",f,"");
                     }
 
 #ifndef NDEBUG
-                    Debug("Fish%d: Segment %d-%d done with %lu blobs", fish->identity().ID(), task.segment->start(), task.segment->end(), ranged._blobs.size());
+                    print("Fish",fish->identity().ID(),": Segment ",task.segment->start(),"-",task.segment->end()," done with ",ranged._blobs.size()," blobs");
 #endif
                     DataStore::set_ranged_label(std::move(ranged));
                 }
@@ -1536,7 +1534,7 @@ struct NetworkApplicationState {
                 
                 //! print every 25s
                 if(uint32_t(tps) % 2500 == 0) {
-                    Debug("TPS: %fs for each image, preparation: %fs, predict: %fs, %lu samples", tps / double(samples), tpre / double(samples), tpp / double(samples), samples);
+                    print("TPS: ",tps / double(samples),"s for each image, preparation: ",tpre / double(samples),"s, predict: ",tpp / double(samples),"s, ",samples," samples");
                 }
             }
         
@@ -1583,7 +1581,7 @@ struct NetworkApplicationState {
         initialized = true;
 
         if(size_t(offset) > segments.size()) {
-            Warning("Offset %ld larger than segments size %lu.", offset.load(), segments.size());
+            FormatWarning("Offset ", offset.load()," larger than segments size ",segments.size(),".");
             it = segments.end();
         } else
             std::advance(it, offset.load());
@@ -1616,13 +1614,13 @@ struct NetworkApplicationState {
                 
 #ifndef NDEBUG
                 if(!task.sample)
-                    Debug("Skipping (failed) Fish%d: (%d-%d, len=%d)", fish->identity().ID(), segment->start(), segment->end(), segment->length());
+                    print("Skipping (failed) Fish",fish->identity().ID(),": (",segment->start(),"-",segment->end(),", len=",segment->length(),")");
                 //else
 #endif
             }
 #ifndef NDEBUG
             else {
-                Debug("Skipping Fish%d (%d-%d, len=%d): %s", fish->identity().ID(), segment->start(), segment->end(), segment->length(), ptr ? ptr->name.c_str() : "none");
+                print("Skipping Fish",fish->identity().ID()," (",segment->start(),"-",segment->end(),", len=",segment->length(),"): ",ptr ? ptr->name.c_str() : "none","");
                 //++skipped;
             }
 #endif
@@ -1773,7 +1771,7 @@ void Work::start_learning() {
             
             //! TODO: is this actually used?
             /*py::set_function("recv_samples", [](std::vector<uchar> images, std::vector<std::string> labels) {
-                Debug("Received %lu images and %lu labels", images.size(), labels.size());
+                print("Received ", images.size()," images and ",labels.size()," labels");
                 
                 for (size_t i=0; i<labels.size(); ++i) {
                     size_t index = i * size_t(dims.width) * size_t(dims.height);
@@ -1808,7 +1806,7 @@ void Work::start_learning() {
         while(FAST_SETTINGS(categories_ordered).empty() && Work::_learning) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             if(timer.elapsed() >= 1) {
-                Warning("# Waiting for labels...");
+                FormatWarning("# Waiting for labels...");
                 timer.reset();
             }
         }
@@ -1893,7 +1891,7 @@ void Work::start_learning() {
 
                 guard.unlock();
                 /*if(py::check_module(module)) {
-                    Debug("Module '%S' changed, reset variables...", &module);
+                    print("Module ",module," changed, reset variables...");
                     reset_variables();
                 }*/
                 try {
@@ -1919,7 +1917,7 @@ void Work::start_learning() {
                             prediction_images.insert(prediction_images.end(), item.sample->_images.begin(), item.sample->_images.end());
                             prediction_tasks.emplace_back(std::move(item), idx);
                             if(item.segment)
-                                Debug("Emplacing Fish%d: %d-%d", item.idx, item.segment->start(), item.segment->end());
+                                print("Emplacing Fish", item.idx,": ", item.segment->start(),"-",item.segment->end(),"");
                             last_insert.reset();
                             break;
                         }
@@ -1976,7 +1974,7 @@ void Work::start_learning() {
 
                     /*auto str = FileSize(prediction_images.size() * dims.width * dims.height).to_string();
                     auto of = FileSize(gpu_max_sample_byte).to_string();
-                    Debug("Starting predictions / training (%S/%S).", &str, &of);
+                    print("Starting predictions / training (",str,"/",of,").");
                     for (auto& [item, offset] : prediction_tasks) {
                         if (item.type == LearningTask::Type::Prediction) {
                             item.result.clear();
@@ -2010,11 +2008,11 @@ void Work::start_learning() {
                                         by_callbacks += timer.elapsed();
                                     }
                                 } else
-                                    Warning("LearningTask type was not prediction?");
+                                    FormatWarning("LearningTask type was not prediction?");
                             }
                             
 #ifndef NDEBUG
-                            Debug("Receive: %fs Callbacks: %fs (%lu tasks, %lu images)", receive_timer.elapsed(), by_callbacks, prediction_tasks.size(), prediction_images.size());
+                            print("Receive: ",receive_timer.elapsed(),"s Callbacks: ",by_callbacks,"s (",prediction_tasks.size()," tasks, ",prediction_images.size()," images)");
 #endif
 
                         }, module);
@@ -2022,7 +2020,7 @@ void Work::start_learning() {
                         py::run(module, "predict");
                         
                     } catch(...) {
-                        Except("Prediction failed. See above for an error description.");
+                        FormatExcept("Prediction failed. See above for an error description.");
                     }
                     
                     Work::status() = "";
@@ -2052,7 +2050,7 @@ void Work::start_learning() {
                         Work::status() = "Training...";
                         py::run(module, "post_queue");
                     } catch(...) {
-                        Except("Training failed. See above for additional details.");
+                        FormatExcept("Training failed. See above for additional details.");
                     }
                     Work::status() = "";
                     guard.lock();
@@ -2219,7 +2217,7 @@ Work::Task Work::_pick_front_thread() {
     Work::task_queue().erase(it);
     
 #ifndef NDEBUG
-    Debug("Picking task for (%d) %d-%d (cached:%d, center is %ld)", task.range.start, task.real_range.start, task.real_range.end, task.is_cached, center);
+    print("Picking task for (",task.range.start,") ",task.real_range.start,"-",task.real_range.end," (cached:",task.is_cached,", center is ",center,"d)");
 #endif
     return task;
 }
@@ -2438,7 +2436,7 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
             
             data.read<int>(ranged._label);
             if(ranged._label == -1) {
-                Error("Ranged.label is nullptr for id %d", ranged._label);
+                print("Ranged.label is nullptr for id ",ranged._label,"");
             }
             
             // should probably check this always and fault gracefully on error since this is user input
@@ -2714,7 +2712,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
 #ifndef NDEBUG
             if (_ever_created.count(frame)) {
                 ++std::get<0>(_ever_created[frame]);
-                Warning("Frame %d is created %lu times", frame, std::get<0>(_ever_created[frame]));
+                FormatWarning("Frame ", frame," is created ",std::get<0>(_ever_created[frame])," times");
             }
             else
                 _ever_created[frame] = { 1, 0 };
@@ -2787,7 +2785,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
 #ifndef NDEBUG
         auto fit = _current_cached_frames.find(frame);
         if(fit != _current_cached_frames.end())
-            Warning("Cannot find frame %d in _frame_cache, but can find it in _current_cached_frames!", frame);
+            print("Cannot find frame ",frame," in _frame_cache, but can find it in _current_cached_frames!");
 #endif
 
         constexpr size_t maximum_cache_size = 1500u;
@@ -2867,7 +2865,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
             _currently_processed.erase(kit);
         }
         else
-            Warning("Cannot find currently processed %d!", frame);
+            print("Cannot find currently processed ",frame,"!");
 
         _variable.notify_all();
         
@@ -2875,7 +2873,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
 #ifndef NDEBUG
         auto fit = _current_cached_frames.find(frame);
         if (fit == _current_cached_frames.end())
-            Warning("Cannot find frame %d in _current_cached_frames, but can find it in _frame_cache!", frame);
+            print("Cannot find frame ",frame," in _current_cached_frames, but can find it in _frame_cache!");
 #endif
         ptr = std::get<1>(*it);
         ++_reuse;
@@ -2963,14 +2961,14 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     #ifndef NDEBUG
                     auto fit = _current_cached_frames.find(Frame_t(f));
                     if (fit == _current_cached_frames.end())
-                        Warning("Cannot find frame %d in _current_cached_frames, but can find it in _frame_cache!", f);
+                        print("Cannot find frame ",f," in _current_cached_frames, but can find it in _frame_cache!");
     #endif
                 }
     #ifndef NDEBUG
                 else {
                     auto fit = _current_cached_frames.find(Frame_t(f));
                     if (fit != _current_cached_frames.end())
-                        Warning("Cannot find frame %d in _frame_cache, but can find it in _current_cached_frames!", f);
+                        print("Cannot find frame ",f," in _frame_cache, but can find it in _current_cached_frames!");
                 }
     #endif
             }
@@ -2980,7 +2978,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         
         if(stuff_indexes.size() < min_samples) {
     #ifndef NDEBUG
-            Warning("#1 Below min_samples (%lu) Fish%d frames %d-%d", min_samples, fish->identity().ID(), segment->start(), segment->end());
+            FormatWarning("#1 Below min_samples (",min_samples,") Fish",fish->identity().ID()," frames ",segment->start(),"-",segment->end(),"");
     #endif
             return Sample::Invalid();
         }
@@ -3042,13 +3040,13 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         {
             std::lock_guard g(debug_mutex);
             if (debug_timer.elapsed() >= 10) {
-                Debug("RatioRegenerate: %f - Create:%lu Reuse:%lu Delete:%lu", double(_create.load()) / double(_reuse.load()), _create.load(), _reuse.load(), _delete.load());
+                print("RatioRegenerate: ",double(_create.load()) / double(_reuse.load())," - Create:",_create.load(),"u Reuse:",_reuse.load()," Delete:",_delete.load(),"");
                 debug_timer.reset();
             }
         }
         
         if(!ptr) {
-            Except("Failed to generate frame %d.", frame);
+            FormatExcept("Failed to generate frame ", frame,".");
             return Sample::Invalid();
         }
         
@@ -3066,7 +3064,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         }
         
         if(basic->frame != frame) {
-            U_EXCEPTION("frame %d != %d", basic->frame, frame);
+            throw U_EXCEPTION("frame %d != %d", basic->frame, frame);
         }
         
         auto blob = Tracker::find_blob_noisy(*ptr, basic->blob.blob_id(), basic->blob.parent_id, basic->blob.calculate_bounds());
@@ -3095,26 +3093,26 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
                 positions.emplace_back(pos);
                 blob_ids.emplace_back(image_data.blob.blob_id);
             } else
-                Warning("Image failed (Fish%d, frame %d)", image_data.fdx, image_data.frame);
+                FormatWarning("Image failed (Fish", image_data.fdx,", frame ",image_data.frame,")");
         }
         else {
 #ifndef NDEBUG
             // no blob!
-            Warning("No blob (Fish%d, frame %d) vs. %lu (parent:%d)", fish->identity().ID(), basic->frame, basic->blob.blob_id(), basic->blob.parent_id);
+            FormatWarning("No blob (Fish",fish->identity().ID(),", frame ",basic->frame,") vs. ",basic->blob.blob_id(),"u (parent:",basic->blob.parent_id,")");
 #endif
             ++non;
         }
     }
     
 #ifndef NDEBUG
-    Debug("Segment(%lu): Of %lu frames, %lu were found (replaced %lu, min_samples=%ld).", segment->basic_index.size(), stuff_indexes.size(), replaced, min_samples);
+    print("Segment(%lu): Of ",)," frames, ",)," were found (replaced ",replaced,", min_samples=",min_samples,").");
 #endif
     if(images.size() >= min_samples) {
         return Sample::Make(std::move(indexes), std::move(images), std::move(blob_ids), std::move(positions));
     }
 #ifndef NDEBUG
     else
-        Warning("Below min_samples (%lu) Fish%d frames %d-%d", min_samples, fish->identity().ID(), segment->start(), segment->end());
+        FormatWarning("Below min_samples (",min_samples,") Fish",fish->identity().ID()," frames ",segment->start(),"-",segment->end(),"");
 #endif
     
     return Sample::Invalid();

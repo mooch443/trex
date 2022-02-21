@@ -80,7 +80,7 @@ int main(int argc, char** argv) {
 #if __APPLE__
     ss << "TGrabs.app/Contents/MacOS/TGrabs";
 #else
-    U_EXCEPTION("Only Apple is supported.");
+    throw U_EXCEPTION("Only Apple is supported.");
 #endif
 
     for(auto i=1; i<argc; ++i)
