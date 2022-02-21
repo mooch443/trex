@@ -33,23 +33,19 @@ namespace track {
 
     std::shared_ptr<std::ofstream> history_log;
     std::mutex log_mutex;
-    inline void Log(std::ostream* out, const char* cmd, ...) {
+
+    template<typename... Args>
+    inline void Log(std::ostream* out, Args... args) {
         if(!out)
             return;
         
-        va_list args;
-        va_start(args, cmd);
-        
-        std::string str;
-        DEBUG::ParseFormatString(str, cmd, args);
+        std::string str = format<FormatterType::NONE>(args...);
         if(dynamic_cast<std::ofstream*>(out)) {
             str = settings::htmlify(str) + "</br>";
         }
         
         std::lock_guard<std::mutex> guard(log_mutex);
         *out << str << std::endl;
-        
-        va_end(args);
     }
     
     Tracker* _instance = NULL;
@@ -1025,11 +1021,10 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
 
         Log(out, "");
         Log(out, "------------------------");
-        Log(out, "HISTORY MATCHING for frame %d: (%f)", frame.index(), max_d);
+        Log(out, "HISTORY MATCHING for frame ", frame.index(), ": (", max_d, ")");
         
         if(out) {
-            auto str = Meta::toStr(active_individuals);
-            Log(out, "frame %d active: %S", frame.index(), &str);
+            Log(out, "frame ", frame.index()," active: ", active_individuals);
         }
         
         using namespace Match;
@@ -1112,15 +1107,11 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                     }
                     
                     if(last_frame.get() < time_limit) {
-                        Log(out, "\tNot processing fish %d because its last respected frame is %d, best segment length is %d and were in frame %d.", fish->identity().ID(), last_frame, last_L, frame.index());
+                        Log(out, "\tNot processing fish ", fish->identity()," because its last respected frame is ", last_frame,", best segment length is ", last_L," and were in frame ", frame.index(),".");
                         continue;
                     }
                     
                     auto set = frame.blob_grid().query(cache.estimated_px, max_d);
-                    
-                    std::string str = "";
-                    if(out)
-                        str = Meta::toStr(set);
                     
                     if(!set.empty()) {
                         auto fdx = fish->identity().ID();
@@ -1141,7 +1132,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                         }
                     }
                     
-                    Log(out, "\tFish %d (%f,%f) proximity: %S", fish->identity().ID(), cache.estimated_px.x, cache.estimated_px.y, &str);
+                    Log(out, "\tFish ", fish->identity()," (", cache.estimated_px.x, ",", cache.estimated_px.y, ") proximity: ", set);
                 }
 
                 std::unique_lock lock(mutex);
@@ -1199,8 +1190,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                 ? decltype(manual_splits)::mapped_type()
                 : manual_splits.at(frame.index());
         
-        std::string manualstr = out ? Meta::toStr(manual_splits) : "";
-        Log(out, "manual_splits = %S", &manualstr);
+        Log(out, "manual_splits = ", manual_splits);
         
         if(!manual_splits_frame.empty()) {
             for(auto bdx : manual_splits_frame) {
@@ -1214,7 +1204,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                     it->second.insert(Idx_t());
                 }
                 
-                Log(out, "\t\tManually splitting %u", (uint32_t)bdx);
+                Log(out, "\t\tManually splitting ", (uint32_t)bdx);
                 auto ptr = frame.erase_anywhere(bdx);
                 if(ptr) {
                     big_blobs.push_back(ptr);
@@ -1227,15 +1217,12 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
             }
             
         } else
-            Log(out, "\t\tNo manual splits for frame %d", frame.index());
+            Log(out, "\t\tNo manual splits for frame ", frame.index());
         
         if(out) {
-            std::string str = Meta::toStr(fish_mappings);
-            Log(out, "fish_mappings %S", &str);
-            str = Meta::toStr(blob_mappings);
-            Log(out, "blob_mappings %S", &str);
-            str = Meta::toStr(paired);
-            Log(out, "Paired %S", &str);
+            Log(out, "fish_mappings ", fish_mappings);
+            Log(out, "blob_mappings ", blob_mappings);
+            Log(out, "Paired ", paired);
         }
         
         if(!FAST_SETTINGS(track_do_history_split)) {
@@ -1245,10 +1232,10 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         
         for(auto && [bdx, set] : blob_mappings) {
             if(already_walked.contains(bdx)) {
-                Log(out, "\tblob %d already walked", bdx);
+                Log(out, "\tblob ", bdx," already walked");
                 continue;
             }
-            Log(out, "\tblob %d has %d fish mapped to it", bdx, set.size());
+            Log(out, "\tblob ", bdx," has ", set.size()," fish mapped to it");
             
             if(set.size() <= 1)
                 continue;
@@ -1285,9 +1272,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
             frame.clique_second_order[bdx] = others;
             
             if(out) {
-                auto str = Meta::toStr(clique);
-                auto str1 = Meta::toStr(others);
-                Log(out, "\t\t%S %S", &str, &str1);
+                Log(out, "\t\t", clique, " ", others);
             }
             
             if(clique.size() <= others.size())
@@ -1301,7 +1286,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
             if(out) {
                 Log(out, "\t\tMismatch between blobs and number of fish assigned to them.");
                 if(clique.size() > others.size() + 1)
-                    Log(out, "\t\tSizes: %d != %d", clique.size(), others.size());
+                    Log(out, "\t\tSizes: ", clique.size()," != ",others.size());
             }
             
             bool allow_less_than = false;
@@ -1321,19 +1306,19 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                         // great! this blob has not been assigned at all (yet)
                         // so just assign it to this fish
                         assign_blob[b] = {c, std::get<0>(*combinations.begin())};
-                        Log(out, "\t\t%d(%d): %f", b, c, std::get<0>(*combinations.begin()));
+                        Log(out, "\t\t",b,"(",c,"): ", std::get<0>(*combinations.begin()));
                         return true;
                         
                     } else if(assign_blob[b].first != c) {
                         // this blob has been assigned to a different fish!
                         // check for validity (which one is closer)
                         if(assign_blob[b].second <= std::get<0>(*combinations.begin())) {
-                            Log(out, "\t\tBlob %u is already assigned to individual %u (%u)...", b, assign_blob[b], c);
+                            Log(out, "\t\tBlob ", b," is already assigned to individual ", assign_blob[b], " (", c,")...");
                         } else {
                             auto oid = assign_blob[b].first;
                             if(out) {
-                                Log(out, "\t\tBlob %d is already assigned to %d, but fish %d is closer (need to check combinations of fish %d again)", b, assign_blob[b], c, oid);
-                                Log(out, "\t\t%d(%d): %f", b, c, std::get<0>(*combinations.begin()));
+                                Log(out, "\t\tBlob ", b," is already assigned to ", assign_blob[b],", but fish ", c," is closer (need to check combinations of fish ", oid," again)");
+                                Log(out, "\t\t", b,"(", c,"): ", std::get<0>(*combinations.begin()));
                             }
                             assign_blob[b] = {c, std::get<0>(*combinations.begin())};
                             
@@ -1376,20 +1361,19 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
             size_t counter = 0;
             for(auto && [fdx, set] : all_probs_per_fish) {
                 if(out) {
-                    auto str = Meta::toStr(set);
-                    Log(out, "Combinations %d: %S", fdx, &str);
+                    Log(out, "Combinations ", fdx,": ", set);
                 }
                 
                 if(set.empty()) {
                     ++counter;
-                    Log(out, "No more alternatives for %d", fdx);
+                    Log(out, "No more alternatives for ", fdx);
                     
                     if(!probs_per_fish.at(fdx).empty()) {
                         pv::bid max_id;
                         
                         if(out) {
                             for(auto && [d, bdx] : probs_per_fish.at(fdx)) {
-                                Log(out, "\t%d: %f", bdx, d);
+                                Log(out, "\t", bdx,": ", d);
                             }
                         }
                         
@@ -1399,7 +1383,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                             auto ptr = frame.erase_regular(max_id);
                             
                             if(ptr) {
-                                Log(out, "Splitting blob %d", max_id);
+                                Log(out, "Splitting blob ", max_id);
                                 to_delete.insert(max_id);
                                 
                                 /*for(auto && [ind, blobs] : paired) {
@@ -1414,11 +1398,11 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                             }
                             else if((ptr = frame.find_bdx(max_id))) {
                                 if(expect.contains(ptr.get())) {
-                                    Log(out, "Increasing expect number for blob %d.", max_id);
+                                    Log(out, "Increasing expect number for blob ", max_id);
                                     ++expect[ptr.get()].number;
                                 }
                                 
-                                Log(out, "Would split blob %d, but its part of additional.", max_id);
+                                Log(out, "Would split blob ", max_id,", but its part of additional.");
                             }
                             
                             if(allow_less_than)
@@ -1455,9 +1439,9 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
             
             if(out) {
                 auto str = Meta::toStr(expect);
-                Log(out, "expect: %S", &str);
+                Log(out, "expect: ", expect);
                 if(counter > 1) {
-                    Log(out, "Lost %d fish (%S)", counter, &str);
+                    Log(out, "Lost ", counter," fish (", expect, ")");
                 }
             }
         }

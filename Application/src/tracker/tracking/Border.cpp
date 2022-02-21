@@ -225,7 +225,6 @@ namespace track {
                     }
                 }
                 
-                auto str = Meta::toStr();
                 print("Collected ", collection.size()," blobs between sizes in ",FAST_SETTINGS(blob_size_ranges)," with scale 0.5");
                 
                 std::vector<std::multiset<ushort>> xs;

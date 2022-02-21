@@ -1596,7 +1596,7 @@ void Recognition::load_weights(std::string postfix) {
         }
     }
     
-    SOFT_EXCEPTION("Failed to load the network weights ('%S').", &reason);
+    throw CustomException(type<SoftException>, "Failed to load the network weights (", reason,").");
 }
 
     void Recognition::check_last_prediction_accuracy() {
@@ -1729,7 +1729,7 @@ void Recognition::load_weights(std::string postfix) {
             }
         }
         
-        SOFT_EXCEPTION("Failed to reinitialize the network ('%S').", &reason);
+        throw CustomException(type<SoftException>, "Failed to reinitialize the network (", &reason,").");
     }
     
     void Recognition::reinitialize_network_internal() {
@@ -1916,7 +1916,7 @@ void Recognition::load_weights(std::string postfix) {
                         PythonIntegration::run("learn_static", "start_learning");
                         
                         if(GUI::work().item_custom_triggered()) {
-                            SOFT_EXCEPTION("User skipped.");
+                            throw CustomException(type<SoftException>, "User skipped.");
                         }
                         
                         best_accuracy_worst_class = py::get_variable<float>("best_accuracy_worst_class", "learn_static");

@@ -470,7 +470,7 @@ void PythonIntegration::reinit() {
             auto fail = [](const auto& e, int line){
                 python_init_error() = e.what();
                 python_initializing() = false;
-                print("Python runtime error (", __FILE_NO_PATH__,":", line,"): '",e.what(),"'");
+                FormatExcept("Python runtime error (", line, ": '", e.what(), "'");
                 
                 python_initialized() = false;
                 python_initializing() = false;
@@ -658,7 +658,7 @@ void PythonIntegration::reinit() {
             {
                 std::lock_guard<std::mutex> guard(module_mutex);
                 if(!_modules.count("learn_static"))
-                    throw SoftException("Cannot find 'learn_static'.");
+                    throw CustomException(type<SoftException>, "Cannot find 'learn_static'.");
                 module = _modules.find("learn_static")->second;
             }
             
@@ -713,7 +713,7 @@ void PythonIntegration::reinit() {
             } catch (py::error_already_set &e) {
                 FormatExcept("Python runtime error: '", e.what(),"'");
                 e.restore();
-                throw SoftException(e.what());
+                throw CustomException(type<SoftException>, e.what());
             } catch(...) {
                 FormatExcept("Random exception");
             }
@@ -806,7 +806,7 @@ void PythonIntegration::run(const std::string& module_name, const std::string& f
         
         _modules.at(module_name).release();
         //_modules.at(module_name) = pybind11::none();
-        throw SoftException("Python runtime exception while running ", module_name.c_str(),".", function.c_str(),": '", e.what(),"'");
+        throw CustomException(type<SoftException>, "Python runtime exception while running ", module_name.c_str(),".", function.c_str(),": '", e.what(),"'");
     }
 }
 
@@ -826,7 +826,7 @@ std::string PythonIntegration::run_retrieve_str(const std::string& module_name, 
         e.restore();
 
         _modules.at(module_name).release();
-        throw SoftException("Python runtime exception while running ", module_name.c_str(),".", function.c_str(),": '", e.what(),"'");
+        throw CustomException(type<SoftException>, "Python runtime exception while running ", module_name.c_str(),".", function.c_str(),": '", e.what(),"'");
     }
     
     return "";
@@ -855,7 +855,7 @@ T get_variable_internal(const std::string& name, const std::string& m) {
         e.restore();
     }
     
-    throw SoftException("Cannot find variable ", name," in ", m,".");
+    throw CustomException(type<SoftException>, "Cannot find variable ", name," in ", m,".");
 }
 
 template<> TREX_EXPORT std::string PythonIntegration::get_variable(const std::string& name, const std::string& m) {
@@ -880,7 +880,7 @@ void set_function_internal(const char* name_, T f, const std::string& m) {
             }
         }
         
-        throw SoftException("Cannot define function '", name_,"' in ", m," because the module does not exist.");
+        throw CustomException(type<SoftException>, "Cannot define function '", name_,"' in ", m," because the module does not exist.");
     }
 }
 
@@ -1007,10 +1007,10 @@ void PythonIntegration::execute(const std::string& cmd)  {
     catch (pybind11::error_already_set & e) {
         e.restore();
         if (e.what()) {
-            throw SoftException(e.what());
+            throw CustomException(type<SoftException>, e.what());
         }
         else {
-            throw SoftException("Unknown error message from Python.");
+            throw CustomException(type<SoftException>, "Unknown error message from Python.");
         }
     }
 }
@@ -1027,7 +1027,7 @@ void PythonIntegration::import_module(const std::string& name) {
         e.restore();
 
         _modules[name].release();
-        throw SoftException(e.what());
+        throw CustomException(type<SoftException>, e.what());
     }
 }
 

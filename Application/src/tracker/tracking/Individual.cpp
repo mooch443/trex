@@ -207,34 +207,15 @@ void Individual::SegmentInformation::add_posture_at(const std::shared_ptr<Postur
     
     long_t gdx = fish->_posture_stuff.size();
     
-    /*f(!fish->_posture_stuff.empty()) {
-        auto it = --fish->_posture_stuff.end();
-        while((*it)->frame > stuff->frame) {
-            --it;
-        }
-        
-        ++it;
-        if(it != fish->_posture_stuff.end()) {
-            for (; it != fish->_posture_stuff.end(); ++it) {
-                (*it)->
-            }
-            
-            fish->_posture_stuff.insert(it, stuff);
-        } else
-            fish->_posture_stuff.push_back(stuff);
-        
-    } else*/
-    
     if(fish->added_postures.find(stuff->frame) == fish->added_postures.end()) {
         fish->added_postures.insert(stuff->frame);
     } else {
-        auto str = Meta::toStr(fish->added_postures);
-        Debug("%S", &str);
-        SOFT_EXCEPTION("(%d) Posture for frame %d already added.", fish->identity().ID(), stuff->frame);
+        print(fish->added_postures);
+        throw CustomException(type<SoftException>, "(", fish->identity(),") Posture for frame ",stuff->frame," already added.");
     }
     
     if(!fish->_posture_stuff.empty() && stuff->frame < fish->_posture_stuff.back()->frame)
-        SOFT_EXCEPTION("(%d) Adding frame %d after frame %d", fish->identity().ID(), stuff->frame, fish->_last_posture_added);
+        throw CustomException(type<SoftException>, "(", fish->identity().ID(),") Adding frame ", stuff->frame," after frame ", fish->_last_posture_added);
     
     fish->_posture_stuff.push_back(stuff);
     fish->_last_posture_added = stuff->frame;
@@ -1019,7 +1000,7 @@ std::shared_ptr<Individual::BasicStuff> Individual::add(const FrameProperties* p
     // add BasicStuff index to segment
     segment->add_basic_at(frameIndex, _basic_stuff.size());
     if(!_basic_stuff.empty() && stuff->frame < _basic_stuff.back()->frame)
-        SOFT_EXCEPTION("(%d) Added basic stuff for frame %d after frame %d.", identity().ID(), stuff->frame, _basic_stuff.back()->frame);
+        throw CustomException(type<SoftException>, "(", identity(),") Added basic stuff for frame ", stuff->frame, " after frame ", _basic_stuff.back()->frame,".");
     _basic_stuff.push_back(stuff);
     _matched_using.push_back(match_mode);
     

@@ -107,9 +107,9 @@ void Accumulation::setup() {
     } catch(const std::future_error& error) {
         FormatExcept("Checking learning module failed '", error.what(),"'.");
 #if defined(__APPLE__) && defined(__aarch64__)
-        SOFT_EXCEPTION("Checking the learning module failed. Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow). Since you are using an ARM Mac, you may need to install additional libraries. Python says: '%S'.", &PythonIntegration::python_init_error());
+        throw CustomException(type<SoftException>, "Checking the learning module failed. Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow). Since you are using an ARM Mac, you may need to install additional libraries. Python says: '%S'.", &PythonIntegration::python_init_error());
 #else
-        SOFT_EXCEPTION("Checking the learning module failed. Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow). Python says: '%S'.", &PythonIntegration::python_init_error());
+        throw CustomException(type<SoftException>, "Checking the learning module failed. Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow). Python says: '%S'.", &PythonIntegration::python_init_error());
 #endif
     }
 }
@@ -221,9 +221,9 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
             }
             
             if(min_size <= 5) {//min_size < max(50, max_size * 0.035)) {
-                auto str = DEBUG::format("Cannot add range, because individual %d has only %d images vs. another individual with %d.", min_id, min_size, max_size);
+                auto str = format<FormatterType::NONE>("Cannot add range, because individual ",min_id," has only ", min_size," images vs. another individual with ", max_size,".");
                 end_a_step(Result(FrameRange(range), -1, AccumulationStatus::Failed, AccumulationReason::NotEnoughImages, str));
-                Error("%S", &str);
+                FormatError(str.c_str());
                 return {false, {}};
             }
         }
@@ -292,8 +292,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
         print_out[id] = {max_index, max_p};
     }
     
-    str = Meta::toStr(print_out);
-    Debug("%S", &str);
+    print(print_out);
     
     std::set<Idx_t> unique_ids;
     float min_prob = infinity<float>();
@@ -605,7 +604,9 @@ std::tuple<float, std::map<Frame_t, float>, float> Accumulation::calculate_uniqu
         }
     }
     
-    Debug("Good: %d Bad: %d ratio: %f (%f / %f). Hoping for at least %f.", good_frames, bad_frames, float(good_frames) / float(good_frames + bad_frames), percentages / double(unique_percent.size()), rpercentages / double(unique_percent_raw.size()), SETTING(gpu_accepted_uniqueness).value<float>());
+    print("Good: ", good_frames," Bad: ", bad_frames," ratio: ", float(good_frames) / float(good_frames + bad_frames),
+        " (", percentages / double(unique_percent.size()), " / ", rpercentages / double(unique_percent_raw.size()), "). "
+        "Hoping for at least ", SETTING(gpu_accepted_uniqueness).value<float>(), ".");
     
     return {float(good_frames) / float(good_frames + bad_frames), unique_percent, percentages / double(unique_percent.size())};
 }
@@ -635,7 +636,7 @@ bool Accumulation::start() {
     
     auto ranges = track::Tracker::global_segment_order();
     if(ranges.empty()) {
-        SOFT_EXCEPTION("No global segments could be found.");
+        throw CustomException(type<SoftException>, "No global segments could be found.");
     }
     
     _initial_range = ranges.front();
@@ -757,7 +758,7 @@ bool Accumulation::start() {
         if(SETTING(auto_train_on_startup)) {
             throw U_EXCEPTION("Couldnt generate discrimination data (something wrong with the video?).");
         } else
-            SOFT_EXCEPTION("Couldnt generate discrimination data (something wrong with the video?).");
+            throw CustomException(type<SoftException>, "Couldnt generate discrimination data (something wrong with the video?).");
     }
     _generated_data->merge_with(_discrimination_data, true);
     
@@ -860,7 +861,7 @@ bool Accumulation::start() {
             if(SETTING(auto_train_on_startup)) {
                 throw U_EXCEPTION(text.c_str());
             } else
-                Except(text.c_str());
+                FormatExcept(text.c_str());
             return false;
         }
         
@@ -870,10 +871,8 @@ bool Accumulation::start() {
         }
         
         auto q = track::Tracker::recognition()->dataset_quality()->quality(_initial_range);
-        auto str = Meta::toStr(q);
-        auto name = Meta::toStr(*_collected_data);
-        str = DEBUG::format("Successfully added initial range (%S) %S", &str, &name);
-        Debug("%S", &str);
+        auto str = format<FormatterType::NONE>("Successfully added initial range (", q,") ", *_collected_data);
+        print(str.c_str());
         
         _added_ranges.push_back(_initial_range);
         end_a_step(Result(FrameRange(_initial_range), acc, AccumulationStatus::Added, AccumulationReason::None, str));
@@ -974,7 +973,7 @@ bool Accumulation::start() {
                 if(distance >= 0)
                     assigned_unique_averages[range] = {distance, extended_range};
                 
-                Debug("\t\t(%d-%d / %d-%d): %f (%f), %d with %f samples", range.start, range.end, extended_range.start(), extended_range.end(), distance, d, rd, samples);
+                print("\t\t(", range," / ", extended_range,") : ",distance,"(", d,"), ", rd," with ", samples," samples");
                 
                 sorted.insert({ distance, rd, q, cached, range });
             }
@@ -1137,9 +1136,9 @@ bool Accumulation::start() {
                     if(acceptance > 0) {
                         _added_ranges.push_back(range);
                         
-                        auto str = Meta::toStr(*second_data);
-                        str = DEBUG::format("Successfully added range %S (previous acc: %f, current: %f). %s", &str, best_uniqueness, acc, uniqueness >= best_uniqueness ? "Confirming due to better uniqueness." : "Not replacing weights due to worse uniqueness.");
-                        Debug("%S", &str);
+                        auto str = format<FormatterType::NONE>("Successfully added range ", *second_data," (previous acc: ", best_uniqueness,", current: ", acc,"). ", 
+                            uniqueness >= best_uniqueness ? "Confirming due to better uniqueness." : "Not replacing weights due to worse uniqueness.");
+                        print(str.c_str());
                         end_a_step(Result(FrameRange(range), acc, AccumulationStatus::Added, AccumulationReason::None, str));
                         
                         if(uniqueness == -1) {
@@ -1174,8 +1173,8 @@ bool Accumulation::start() {
                             uniqueness = p;
                         }
                         
-                        auto str = DEBUG::format("Adding range %d-%d failed after checking acc+uniqueness (uniqueness would have been %f vs. %f).", range.start, range.end, uniqueness, best_uniqueness);
-                        Debug("%S", &str);
+                        auto str = format<FormatterType::NONE>("Adding range ", range, " failed after checking acc+uniqueness (uniqueness would have been ", uniqueness, " vs. ", best_uniqueness, ").");
+                        print(str.c_str());
                         end_a_step(Result(FrameRange(range), acc, AccumulationStatus::Failed, AccumulationReason::UniquenessTooLow, str));
                         
                         Tracker::recognition()->load_weights("");
@@ -1185,8 +1184,8 @@ bool Accumulation::start() {
                     
                 } else {
                     auto && [p, map, up] = calculate_uniqueness(false, _disc_images, _disc_frame_map);
-                    auto str = DEBUG::format("Adding range %d-%d failed (uniqueness would have been %f vs. %f).", range.start, range.end, p, best_uniqueness);
-                    print(str);
+                    auto str = format<FormatterType::NONE>("Adding range ", range, " failed (uniqueness would have been ", p, " vs. ", best_uniqueness, ").");
+                    print(str.c_str());
                     
                     if(GUI::work().item_custom_triggered()) {
                         end_a_step(Result(FrameRange(range), acc, AccumulationStatus::Failed, AccumulationReason::Skipped, str));
@@ -1209,8 +1208,8 @@ bool Accumulation::start() {
         
         auto update_meta_start_acc = [&](std::string prefix, Range<Frame_t> next_range, DatasetQuality::Quality quality, double average_unique) {
             print("");
-            auto qual_str = Meta::toStr(quality);
-            Debug("[Accumulation %d%S] %d ranges remaining for accumulation (%d cached that did not predict unique ids yet), range %d-%d (%S, %f unique weight).", steps, &prefix, sorted.size(), tried_ranges.size(), next_range.start, next_range.end, &qual_str, average_unique);
+            print("[Accumulation ", steps, prefix.c_str(), "] ", sorted.size(), " ranges remaining for accumulation(", tried_ranges.size(), 
+                " cached that did not predict unique ids yet), range ", next_range, " (", quality, " ", average_unique, " unique weight).");
             
             _next_ranges.clear();
             for(auto && [_, rd, q, cached, range] : sorted) {
@@ -1369,7 +1368,7 @@ bool Accumulation::start() {
             if(SETTING(auto_train_on_startup)) {
                 throw U_EXCEPTION(text);
             } else
-                Except(text);
+                FormatExcept(text);
         } else
             update_coverage(*_collected_data);
         
@@ -1448,11 +1447,11 @@ bool Accumulation::start() {
         }
         
         if(mbytes > gpu_max_sample_mb) {
-            auto size_str = Meta::toStr(FileSize{ uint64_t(mbytes * 1000) * 1000u });
-            auto max_str = Meta::toStr(FileSize{ uint64_t(gpu_max_sample_mb * 1000) * 1000u });
             auto distribution = Meta::toStr(images_per_class);
             
-            Debug("\t! %S exceeds the maximum allowed cache size of %S (%S). Reducing to %.1f images/class...", &size_str, &max_str, &distribution, max_images_per_class);
+            print("\t! ", FileSize{ uint64_t(mbytes * 1000) * 1000u },
+                " exceeds the maximum allowed cache size of ", FileSize{ uint64_t(gpu_max_sample_mb * 1000) * 1000u }," (", images_per_class,"). "
+                "Reducing to ", dec<1>(max_images_per_class), " images/class...");
             
             for(auto && [id, n] : images_per_class) {
                 if(n > max_images_per_class) {
@@ -1501,9 +1500,7 @@ bool Accumulation::start() {
                 mbytes += double(n * output_size.width * output_size.height * 4) / 1000.0 / 1000.0; // double
             }
             
-            size_str = Meta::toStr(FileSize{ uint64_t(mbytes * 1000) * 1000u });
-            distribution = Meta::toStr(images_per_class);
-            print("\tNow cache size of: ",size_str," (",distribution,")");
+            print("\tNow cache size of: ", FileSize{ uint64_t(mbytes * 1000) * 1000u }, " (", images_per_class,")");
             
         } else {
             print("\tCache sizes are ",FileSize{ uint64_t(mbytes * 1000 * 1000) }," / ",FileSize{ uint64_t(gpu_max_sample_mb * 1000 * 1000) }," (",images_per_class,").");
@@ -1658,13 +1655,13 @@ bool Accumulation::start() {
                 _uniquenesses.push_back(acc);
             }
             
-            auto str = DEBUG::format("Successfully finished overfitting with uniqueness of %.2f. Confirming.", acc);
-            Debug("%S", &str);
+            auto str = format<FormatterType::NONE>("Successfully finished overfitting with uniqueness of ", dec<2>(acc), ". Confirming.");
+            print(str.c_str());
             end_a_step(Result(FrameRange(), acc, AccumulationStatus::Added, AccumulationReason::None, str));
             confirm_weights();
         } else {
-            auto str = DEBUG::format("Overfitting with uniqueness of %.2f did not improve score. Ignoring.", acc);
-            print(str);
+            auto str = format<FormatterType::NONE>("Overfitting with uniqueness of ", dec<2>(acc), " did not improve score. Ignoring.");
+            print(str.c_str());
             end_a_step(Result(FrameRange(), acc, AccumulationStatus::Failed, AccumulationReason::UniquenessTooLow, str));
             Tracker::recognition()->load_weights("");
         }
