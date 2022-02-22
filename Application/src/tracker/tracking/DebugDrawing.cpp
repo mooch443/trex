@@ -37,7 +37,7 @@ void DebugDrawing::reset_image() {
 void DebugDrawing::paint(const Outline &outline, bool erase) {
     //Tracker::LockGuard guard(*Tracker::instance());
     
-    print("First: ", outline.points().front().x,",",outline.points().front().y,"");
+    print("First: ", outline.points().front().x,",",outline.points().front().y);
     
     if(erase)
         reset_image();
@@ -128,7 +128,7 @@ void DebugDrawing::paint(const Outline &outline, bool erase) {
             auto &maxima = e.maxima;
             
             for(auto &a : areas) {
-                print("Area[", a.idx,"]: ",a.area,"");
+                print("Area[", a.idx,"]: ",a.area);
             }
             
             if(minima.empty())

@@ -73,7 +73,7 @@ void init() {
         auto array = utils::split(contents, '\n');
         if (array.size() != 3) {
             file::Path("update_check").delete_file();
-            throw U_EXCEPTION("Array does not have the right amount of elements ('%S', %lu). Deleting file.", &contents, array.size());
+            throw U_EXCEPTION("Array does not have the right amount of elements ('",contents,"', ",array.size(),"). Deleting file.");
         }
         SETTING(app_last_update_check) = Meta::fromStr<uint64_t>(array.front());
         SETTING(app_check_for_updates) = Meta::fromStr<default_config::app_update_check_t::Class>(array.at(1));
@@ -84,7 +84,7 @@ void init() {
     } catch(const std::exception& ex) {
         FormatExcept("Exception: '", ex.what(),"'");
     } catch(...) {
-        print("Illegal content, or parsing failed for app_last_update_check: ",contents,"");
+        print("Illegal content, or parsing failed for app_last_update_check: ",contents);
     }
 }
 
@@ -280,7 +280,7 @@ std::future<VersionStatus> perform(bool manually_triggered) {
         try {
             py::execute("import requests");
             py::execute("retrieve_version(sorted([o['name'].split(':')[0].split('v')[1] for o in requests.get('https://api.github.com/repos/mooch443/trex/releases', headers={'accept':'application/vnd.github.v3.full+json'}).json() if 'v' in o['name']])[-1])");
-        } catch(const SoftException& ex) {
+        } catch(const SoftExceptionImpl& ex) {
             std::string line = ex.what();
             auto array = utils::split(line, '\n');
             for(auto &l : array)

@@ -417,7 +417,7 @@ void FFMPEGQueue::open_video() {
     av_opt_set(c, "crf", crf.c_str(), AV_OPT_SEARCH_CHILDREN);
     
     if(c->width % 2 || c->height % 2)
-        throw U_EXCEPTION("Dimensions must be a multiple of 2. (%dx%d)", c->width, c->height);
+        throw U_EXCEPTION("Dimensions must be a multiple of 2. (",c->width,"x",c->height,")");
     
     /* frames per second */
     //int frame_rate = SETTING(frame_rate).value<int>();
@@ -616,7 +616,7 @@ void FFMPEGQueue::update_cache_strategy(double needed_ms, double compressed_size
                     auto needed_str = Meta::toStr(FileSize{uint64_t(remaining * _size.width * _size.height)});
                     skip_step = (remaining-maximum_images) / approximate_ms;
                     
-                    FormatWarning("We need to cap memory (%S in remaining images) to %S, that means losing %d images / second (%fms / frame, %S compressed)", &needed_str, &str, skip_step, needed_ms, &compressed_str);
+                    FormatWarning("We need to cap memory (",needed_str.c_str()," in remaining images) to ",str.c_str(),", that means losing ",skip_step," images / second (",needed_ms,"ms / frame, ",compressed_str.c_str()," compressed)");
                     
                 } else {
                     // we can keep all frames
@@ -645,7 +645,7 @@ void FFMPEGQueue::update_cache_strategy(double needed_ms, double compressed_size
             // default to strategy based on needms / frame and queue size skip every 2nd frame or so
             static Timer last_message_timer;
             if(last_message_timer.elapsed() > 10) {
-                Warning("Skipping frame (%f >= %f with queue size = %d)", needed_ms * _queue.size(), frame_ms * 5, _queue.size());
+                FormatWarning("Skipping frame (",needed_ms * _queue.size()," >= ",frame_ms * 5," with queue size = ",_queue.size(),")");
                 last_message_timer.reset();
             }
             auto image = std::move(_queue.back());

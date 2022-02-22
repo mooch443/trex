@@ -411,7 +411,7 @@ void draw_blob_view(const DisplayParameters& parm)
                             }
                         }
                         
-                        print("Assigning blob ", clicked_blob_id," to fish ",fish->identity().name(),"");
+                        print("Assigning blob ", clicked_blob_id," to fish ",fish->identity().name());
                         GUI::instance()->add_manual_match(GUI::frame(), id, clicked_blob_id);
                         SETTING(gui_mode) = ::gui::mode_t::tracking;
                     } else

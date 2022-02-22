@@ -64,7 +64,7 @@ struct Sample {
         }
         
         if(_assigned_label != nullptr)
-            throw U_EXCEPTION("Replacing label for sample (was already assigned '%s', but now also '%s').", _assigned_label->name.c_str(), label->name.c_str());
+            throw U_EXCEPTION("Replacing label for sample (was already assigned '",_assigned_label->name.c_str(),"', but now also '",label->name.c_str(),"').");
         _assigned_label = label;
     }
 };

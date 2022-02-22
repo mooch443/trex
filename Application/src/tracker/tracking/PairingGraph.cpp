@@ -520,14 +520,14 @@ template <typename Queue, typename Item>
 static
 auto private_push(Queue& queue, Item item) -> decltype(queue.push(item)) {
     //if(!queue.empty() && queue.top()->acc_p > item->acc_p)
-    //    Warning("%f > %f", queue.top()->acc_p, item->acc_p);
+    //    FormatWarning(queue.top()->acc_p," > ",item->acc_p);
     return queue.push(item);
 }
 template <typename Queue, typename Item>
 static
 auto private_push(Queue& queue, Item item) -> decltype(queue.push_front(item)) {
     //if(!queue.empty() && queue.front()->acc_p > item->acc_p)
-    //    Warning("%f > %f", queue.front()->acc_p, item->acc_p);
+    //    FormatWarning(queue.front()->acc_p," > ",item->acc_p);
     return queue.push_front(item);
 }
 
@@ -614,8 +614,8 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                     --degree;
                 }
             }
-            print("\tidentity:", current.fish_it->fish->identity().ID(),", blob:",current.prob_it != current._probs->end() ? (Match::index_t)current.prob_it->cdx : -2,"");
-            print("\tdegree:", degree,"/",current.fish_it->degree,"");
+            print("\tidentity:", current.fish_it->fish->identity().ID(),", blob:",current.prob_it != current._probs->end() ? (Match::index_t)current.prob_it->cdx : -2);
+            print("\tdegree:", degree,"/",current.fish_it->degree);
             print("\tacc_p:",current.acc_p + ((next != _optimal_pairing->set.end()) ? hierarchy_best_p : 0) + local_best_p,"/",_optimal_pairing->p.load()," (",current.acc_p,", ",hierarchy_best_p,", ",local_best_p,")");
             if(_optimal_pairing->p.load() > 0 && current.acc_p + ((next != _optimal_pairing->set.end()) ? hierarchy_best_p : 0) + local_best_p > _optimal_pairing->p.load()) {
                 FormatWarning("This is weird.");
@@ -835,7 +835,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 }*/
 #endif
                 
-                throw U_EXCEPTION("Too many combinations (%d, %lu).", frame(), _optimal_pairing->objects_looked_at);
+                throw U_EXCEPTION("Too many combinations (",frame(),", ",_optimal_pairing->objects_looked_at,").");
                 break;
             }
         }
@@ -1011,7 +1011,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 
 #ifndef NDEBUG
                 if(debug) {
-                    print("frame ",frame()," -- individuals: ",num," blobs: ",_paired.n_cols()," resulting in ",n,"x",m,"");
+                    print("frame ",frame()," -- individuals: ",num," blobs: ",_paired.n_cols()," resulting in ",n,"x",m);
                 }
 #endif
                 
@@ -1151,7 +1151,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                     if(degree > 0)
                         _optimal_pairing->set.insert(Node{row, degree, _paired.max_prob(rdx)});
                     else
-                        print("Individual ",row->identity().ID()," is empty");
+                        cmn::print("Individual ",row->identity().ID()," is empty");
                 }
                 
                /* {
@@ -1175,7 +1175,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 
 #ifndef NDEBUG
                 if(debug)
-                    print("[Graph] Generating edge / probability set for ", _optimal_pairing->set.size()," nodes...");
+                    cmn::print("[Graph] Generating edge / probability set for ", _optimal_pairing->set.size()," nodes...");
 #endif
                 
                 //! Ordered max probs is an array containing the maximum achievable probability after a given step (index). In this case, we can generate this array by accumulating the maximum probability for each individual (step by step) as an accum-sum. We start from the back (where the value added is 0) and walk towards the front.
@@ -1244,7 +1244,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                     previous_benchmarks = benchmarks;
                     
                     for(auto && [key, values] : benchmarks) {
-                        Debug("%s: %fms (%d samples)", key.name(), values.time_acc / double(values.samples) * 1000, values.samples);
+                        cmn::print(key.name(),": ",values.time_acc / double(values.samples) * 1000,"ms (",values.samples," samples)");
                     }
                 }
                 
@@ -1343,7 +1343,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 ++it;
             }
             auto s = ss.str();
-            print("Best path is: ",&s," (",_optimal_pairing->p,") (calculations: ",_optimal_pairing->calculations,", permutation elements: ",_optimal_pairing->permutation_elements,")");*/
+            print("Best path is: ",s.c_str()," (",_optimal_pairing->p,") (calculations: ",_optimal_pairing->calculations,", permutation elements: ",_optimal_pairing->permutation_elements,")");*/
         }
     }
     

@@ -140,7 +140,7 @@ namespace track {
                 }
                 
                 if((i / step_size) % size_t(count_steps * 0.1) == 0)
-                    print("[border] ", i/step_size," / ",count_steps,"");
+                    print("[border] ", i/step_size," / ",count_steps);
             }
             
             print("Done.");
@@ -196,7 +196,7 @@ namespace track {
             print("Generating outline...");
             
             if((size_t)video.size().height > (size_t)USHRT_MAX)
-                throw U_EXCEPTION("Video is too big (max: %dx%d)", USHRT_MAX, USHRT_MAX);
+                throw U_EXCEPTION("Video is too big (max: ",USHRT_MAX,"x",USHRT_MAX,")");
             
             if(x_valid.empty() && y_valid.empty()) {
                 // generate one line for every row
@@ -320,7 +320,7 @@ namespace track {
                     std::advance(rit, max_y.size() * 0.02);
                     assert(*it < y_valid.size());
                     
-                    print("Invalidate y from ", *it," to ",*rit,"");
+                    print("Invalidate y from ", *it," to ",*rit);
                     
                     for(ushort y=0; y<min(*it, *rit, y_valid.size()); ++y) {
                         y_valid[y] = false;
@@ -339,7 +339,7 @@ namespace track {
                     std::advance(rit, max_x.size() * 0.02);
                     assert(*rit < x_valid.size());
                     
-                    print("Invalidate x from ", *it," to ",*rit,"");
+                    print("Invalidate x from ", *it," to ",*rit);
                     
                     for(ushort x=0; x<min(*it, *rit, x_valid.size()); ++x) {
                         x_valid[x] = false;
@@ -508,7 +508,7 @@ namespace track {
                 break;
                 
             default:
-                print("Unknown border type ",_type,"");
+                print("Unknown border type ",_type);
         }
         
         update_polygons();

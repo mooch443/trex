@@ -257,8 +257,8 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             setenv("PYTHONHOME", home.c_str(), 1);
 #endif
             if (!SETTING(quiet)) {
-                print("Set PATH=",set,"");
-                print("Set PYTHONHOME=",home,"");
+                print("Set PATH=",set);
+                print("Set PYTHONHOME=",home);
 
                 if (!can_initialize_python())
                     FormatExcept("Please check your python environment variables, as it failed to initialize even after setting PYTHONHOME and PATH.");
@@ -695,7 +695,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                             // pixels arent set! divert adding the image to later, when we go through
                             // all the images for every frame without pixel data
                             if(waiting_for_pixels[frame].count(data.blob.blob_id)) {
-                                Warning("%d: double %d %d / %d (%d-%d)", frame, data.blob.blob_id, data.fish->identity().ID(), waiting_for_pixels[frame].at(data.blob.blob_id).fish->identity().ID(), segment.start(), segment.end());
+                                FormatWarning(frame,": double ",data.blob.blob_id," ",data.fish->identity().ID()," / ",waiting_for_pixels[frame].at(data.blob.blob_id).fish->identity().ID()," (",segment.start(),"-",segment.end(),")");
                                 continue;
                             } //else
                             waiting_for_pixels[frame][data.blob.blob_id] = data;
@@ -990,7 +990,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                     _detail.failed_frame(e.frame, e.fdx);
                     static size_t counter = 0;
                     if(++counter % 1000 == 0)
-                        Debug("%lu blobs could not be found.", counter);
+                        print(counter," blobs could not be found.");
                     continue;
                 }
                 
@@ -1181,7 +1181,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             for(auto && [id, frame] : obj.max_pre_frame) {
                 if(frame.valid())
                     per_fish += float(obj.max_pst_frame[id].get()) / float(frame.get());
-                Debug("per_fish %d: (%d vs %d vs %d)  %f (%f)", id, obj.max_pst_frame[id], obj.max_pre_frame[id], frame, float(obj.max_pst_frame[id].get()) / float(frame.get()), _percent);
+                print("per_fish ",id,": (",obj.max_pst_frame[id]," vs ",obj.max_pre_frame[id]," vs ",frame,")  ",float(obj.max_pst_frame[id].get()) / float(frame.get())," (",_percent,")");
             }
             
             per_fish /= float(obj.max_pre_frame.size());
@@ -1203,7 +1203,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         }
         
         if(abs(_percent - _last_percent) > 0.05 || obj.percent >= 1) {
-            Debug("processed:%d inproc:%d added:%d N:%d max:%d max_frame:%d last_frame:%d video_length:%d end_frame:%d (%f)", obj.processed, obj.inproc, obj.added, obj.N, added_frames, obj.max_frame, obj.last_frame, video_length, end_frame, obj.percent);
+            print("processed:",obj.processed," inproc:",obj.inproc," added:",obj.added," N:",obj.N," max:",added_frames," max_frame:",obj.max_frame," last_frame:",obj.last_frame," video_length:",video_length," end_frame:",end_frame," (",obj.percent,")");
             
             auto str = Meta::toStr(obj.max_pre_frame);
             auto str0 = Meta::toStr(obj.max_pst_frame);
@@ -1353,7 +1353,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                 //auto str = Meta::toStr(values);
                 
                 auto time = timer.elapsed();
-                Debug("[GPU] %.2f/%d values returned in %.2fms", values.size() / float(FAST_SETTINGS(track_max_individuals)), images.size(), time * 1000);
+                print("[GPU] ",dec<2>(values.size() / float(FAST_SETTINGS(track_max_individuals))),"/",images.size()," values returned in ",dec<2>(time * 1000),"ms");
 
                 this->stop_running();
                 
@@ -1435,7 +1435,7 @@ void Recognition::predict_chunk_internal(const std::vector<Image::Ptr> & data, s
         //auto str = Meta::toStr(values);
         
         auto time = timer.elapsed();
-        Debug("[GPU] %.2f/%d values returned in %.2fms", values.size() / float(FAST_SETTINGS(track_max_individuals)), images.size(), time * 1000);
+        print("[GPU] ",dec<2>(values.size() / float(FAST_SETTINGS(track_max_individuals))),"/",images.size()," values returned in ",dec<2>(time * 1000),"ms");
         
         {
             std::lock_guard<std::mutex> guard(_mutex);
@@ -1512,12 +1512,12 @@ void Recognition::check_learning_module(bool force) {
             try {
                 if(!filename.remove_filename().exists()) {
                     if(filename.remove_filename().create_folder())
-                        print("Created folder ",filename.remove_filename().str(),"");
+                        print("Created folder ",filename.remove_filename().str());
                     else
-                        print("Error creating folder for ",filename.str(),"");
+                        print("Error creating folder for ",filename.str());
                 }
             } catch(...) {
-                print("Error creating folder for ",filename.str(),"");
+                print("Error creating folder for ",filename.str());
             }
             
             py::set_variable("output_path", filename.str(), "learn_static");
@@ -1596,7 +1596,7 @@ void Recognition::load_weights(std::string postfix) {
         }
     }
     
-    throw CustomException(type<SoftException>, "Failed to load the network weights (", reason,").");
+    throw SoftException("Failed to load the network weights (", reason,").");
 }
 
     void Recognition::check_last_prediction_accuracy() {
@@ -1604,7 +1604,7 @@ void Recognition::load_weights(std::string postfix) {
         const float good_enough = min(1.f, random_chance * 2);
         auto acc = last_prediction_accuracy();
         if(acc < good_enough)
-            Warning("Prediction accuracy for the trained network was lower than it should be (%.2f%%, and random is %.2f%% for %d individuals). Proceed with caution.", acc * 100, random_chance * 100, FAST_SETTINGS(track_max_individuals));
+            FormatWarning("Prediction accuracy for the trained network was lower than it should be (",dec<2>(acc*100),"%, and random is ",dec<2>(random_chance * 100),"% for ",FAST_SETTINGS(track_max_individuals)," individuals). Proceed with caution.");
     }
     
     bool FrameRanges::contains(Frame_t frame) const {
@@ -1729,7 +1729,7 @@ void Recognition::load_weights(std::string postfix) {
             }
         }
         
-        throw CustomException(type<SoftException>, "Failed to reinitialize the network (", &reason,").");
+        throw SoftException("Failed to reinitialize the network (", &reason,").");
     }
     
     void Recognition::reinitialize_network_internal() {
@@ -1793,13 +1793,6 @@ void Recognition::load_weights(std::string postfix) {
                             print("Last training data (",strold,") does not overlap with new training data (",strme,"). Attempting to join them.");
                             
                             // check the accuracy of the given segment
-                            /*auto acc = available_weights_accuracy(data);
-                            Debug("New training data scores %.2f%% with the old network weights.", acc * 100);
-                            
-                            if(acc <= 60) {
-                                FormatWarning("This seems too dangerous. Proceeding without joining data.");
-                            }*/
-                            //else
                             {
                                 print("Seems alright. Gonna merge now...");
                                 data->merge_with(_last_training_data);
@@ -1855,14 +1848,14 @@ void Recognition::load_weights(std::string postfix) {
                     py::set_variable("Y", joined_data.training_ids, "learn_static");
                     
                     if(joined_data.training_images.size() != joined_data.training_ids.size()) {
-                        throw U_EXCEPTION("Training image array size %d != ids array size %d", joined_data.training_images.size(), joined_data.training_ids.size());
+                        throw U_EXCEPTION("Training image array size ",joined_data.training_images.size()," != ids array size ",joined_data.training_ids.size(),"");
                     }
 
                     py::set_variable("X_val", joined_data.validation_images, "learn_static");
                     py::set_variable("Y_val", joined_data.validation_ids, "learn_static");
                     
                     if(joined_data.validation_images.size() != joined_data.validation_ids.size()) {
-                        throw U_EXCEPTION("Validation image array size %d != ids array size %d", joined_data.validation_images.size(), joined_data.validation_ids.size());
+                        throw U_EXCEPTION("Validation image array size ",joined_data.validation_images.size()," != ids array size ",joined_data.validation_ids.size(),"");
                     }
                     
                     py::set_variable("global_segment", std::vector<long_t>{ global_range.start().get(), global_range.end().get() }, "learn_static");
@@ -1881,12 +1874,12 @@ void Recognition::load_weights(std::string postfix) {
                     try {
                         if(!filename.remove_filename().exists()) {
                             if(filename.remove_filename().create_folder())
-                                print("Created folder ",filename.remove_filename().str(),"");
+                                print("Created folder ",filename.remove_filename().str());
                             else
-                                print("Error creating folder for ",filename.str(),"");
+                                print("Error creating folder for ",filename.str());
                         }
                     } catch(...) {
-                        print("Error creating folder for ",filename.str(),"");
+                        print("Error creating folder for ",filename.str());
                     }
                     
                     py::set_variable("run_training", 
@@ -1916,7 +1909,7 @@ void Recognition::load_weights(std::string postfix) {
                         PythonIntegration::run("learn_static", "start_learning");
                         
                         if(GUI::work().item_custom_triggered()) {
-                            throw CustomException(type<SoftException>, "User skipped.");
+                            throw SoftException("User skipped.");
                         }
                         
                         best_accuracy_worst_class = py::get_variable<float>("best_accuracy_worst_class", "learn_static");
@@ -1973,7 +1966,7 @@ void Recognition::load_weights(std::string postfix) {
                                         } else if(fish.images.at(i)->cols != resolution.width
                                            || fish.images.at(i)->rows != resolution.height)
                                         {
-                                            Except("Image dimensions of %dx%d are different from the others (%dx%d) in training data for fish %d in range [%d,%d].", fish.images.at(i)->cols, fish.images.at(i)->rows, resolution.width, resolution.height, d->frames.start, d->frames.end);
+                                            FormatExcept("Image dimensions of ",fish.images.at(i)->cols,"x",fish.images.at(i)->rows," are different from the others (",resolution.width,"x",resolution.height,") in training data for fish ",d->frames.start," in range [",d->frames.end,",%d].");
                                             return false;
                                         }
                                         
@@ -2000,7 +1993,7 @@ void Recognition::load_weights(std::string postfix) {
                             cmn::npz_save(ranges_path.str(), "images", images.data(), { ids.size(), (size_t)resolution.height, (size_t)resolution.width }, "a");
                         }
                         
-                    } catch(const SoftException& e) {
+                    } catch(const SoftExceptionImpl& e) {
                         print("Runtime error: '", e.what(),"'");
                         return false;
                     }
@@ -2016,7 +2009,7 @@ void Recognition::load_weights(std::string postfix) {
                 } else
                     print("Training the network failed (",best_accuracy_worst_class,").");
                 
-            } catch(const SoftException& e) {
+            } catch(const SoftExceptionImpl& e) {
                 print("Runtime error: '", e.what(),"'");
             } /*catch(...) {
                 print("Caught an exception.");

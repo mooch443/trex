@@ -317,7 +317,7 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
             }
             
             for(auto &map : individual_maps) {
-                print("Erasing... ",map.first->identity().ID(),"(",map.first->start_frame(),"-",map.first->end_frame(),"): ",map.second.start_frame," - ",map.second.end_frame,"");
+                print("Erasing... ",map.first->identity().ID(),"(",map.first->start_frame(),"-",map.first->end_frame(),"): ",map.second.start_frame," - ",map.second.end_frame);
                 if(map.second.start_frame.valid() && map.second.end_frame >= after_frame) {
                     Frame_t count{0};
                     if(map.second.start_frame >= after_frame) {

@@ -304,7 +304,7 @@ VideoOpener::VideoOpener()
                                 val = drop->text();
                             
                         } else {
-                            print("Unknown type for field ",key,"");
+                            print("Unknown type for field ",key);
                         }
                     }
                     
@@ -313,7 +313,7 @@ VideoOpener::VideoOpener()
                 }
                 
                 if(start_values[key] != val) {
-                    Debug("%S = %d", &key, &val);
+                    print(key," = ",val);
                     
                     if(!first)
                         str += "\n";
@@ -850,7 +850,7 @@ void VideoOpener::select_file(const file::Path &p) {
         try {
             if(p.empty())
                 throw U_EXCEPTION("No file selected.");
-            print("Opening ",p.str(),"");
+            print("Opening ",p.str());
             
             std::lock_guard guard(_video_mutex);
             {
@@ -921,7 +921,7 @@ void VideoOpener::select_file(const file::Path &p) {
                 AccessLevelType::STARTUP,
                 true);
         } catch(const cmn::illegal_syntax& e) {
-            FormatWarning("File ", _selected.str()," has illegal syntax: ",e.what(),"");
+            FormatWarning("File ", _selected.str()," has illegal syntax: ",e.what());
         }
     }
     

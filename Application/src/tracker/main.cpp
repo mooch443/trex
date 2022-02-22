@@ -433,7 +433,7 @@ int main(int argc, char** argv)
                         if(found.size() == 1) {
                             Path path = pv::DataLocation::parse("input", *found.begin());
                             if(!path.exists())
-                                throw U_EXCEPTION("Cannot find video file '%S'. (%d)", &path.str(), path.exists());
+                                throw U_EXCEPTION("Cannot find video file '",path.str(),"'. (",path.exists(),")");
                             
                             print("Using file ", path);
                             SETTING(filename) = path.remove_extension();
@@ -447,7 +447,7 @@ int main(int argc, char** argv)
                     
                     Path path = pv::DataLocation::parse("input", Path(option.value).add_extension("pv"));
                     if(!path.exists())
-                        throw U_EXCEPTION("Cannot find video file '%S'. (%d)", &path.str(), path.exists());
+                        throw U_EXCEPTION("Cannot find video file '",path.str(),"'. (",path.exists(),")");
                     
                     SETTING(filename) = path.remove_extension();
                     break;
@@ -711,7 +711,7 @@ int main(int argc, char** argv)
             executed_a_settings = true;
         else {
             SETTING(settings_file) = file::Path();
-            FormatWarning("Settings file",settings_file,"does not exist.");
+            FormatWarning("Settings file ",settings_file," does not exist.");
         }
     }
     
@@ -736,14 +736,14 @@ int main(int argc, char** argv)
             if(GUI::execute_settings(output_settings, AccessLevelType::STARTUP))
                 executed_a_settings = true;
             else if(!executed_a_settings)
-                FormatWarning("Output settings",output_settings,"does not exist.");
+                FormatWarning("Output settings ",output_settings," does not exist.");
         }
         
     } else {
         if(GUI::execute_settings(settings_file, AccessLevelType::STARTUP))
             executed_a_settings = true;
         else
-            FormatWarning("Settings file",settings_file,"does not exist.");
+            FormatWarning("Settings file ",settings_file," does not exist.");
     }
 
     Tracker tracker;
@@ -847,7 +847,7 @@ int main(int argc, char** argv)
         log_file = fopen(path.str().c_str(), "wb");
         log_mutex.unlock();*/
         
-        throw CustomException(cmn::type<SoftException>, "Cannot initialize logs.");
+        throw SoftException("Cannot initialize logs.");
         
         print("Logging to ", path,".");
     }
@@ -1302,7 +1302,7 @@ int main(int argc, char** argv)
     });
     
     auto get_settings_from_results = [](const Path& filename) -> std::string {
-        print("Trying to open results ",filename.str(),"");
+        print("Trying to open results ",filename.str());
         ResultsFormat file(filename, NULL);
         file.start_reading();
         
@@ -1404,7 +1404,7 @@ int main(int argc, char** argv)
             
             SETTING(terminate_error) = true;
             SETTING(terminate) = true;
-            throw U_EXCEPTION("Make sure that a file called '%S_categories.npz' is located inside '%S'", &file, &output);
+            throw U_EXCEPTION("Make sure that a file called '",file,"_categories.npz' is located inside '",output,"'");
         }
         FormatWarning("The application is going to load a pretrained categories network and apply it after finishing the analysis (or loading).");
     }
@@ -1493,11 +1493,11 @@ int main(int argc, char** argv)
                                             if(manual_matches[frame].find(id) != manual_matches[frame].end()
                                                && manual_matches[frame][id] != blob->blob_id())
                                             {
-                                                print("Other blob (",manual_matches[frame][id]," != ",blob->blob_id(),") was assigned fish ",id," in frame ",frame,"");
+                                                print("Other blob (",manual_matches[frame][id]," != ",blob->blob_id(),") was assigned fish ",id," in frame ",frame);
                                             }
                                             for(auto && [fdx, bdx] : manual_matches[frame]) {
                                                 if(fdx != id && bdx == blob->blob_id()) {
-                                                    print("Other fish (",fdx," != ",id,") was assigned blob ",bdx," in frame ",frame,"");
+                                                    print("Other fish (",fdx," != ",id,") was assigned blob ",bdx," in frame ",frame);
                                                     break;
                                                 }
                                             }
@@ -1509,7 +1509,7 @@ int main(int argc, char** argv)
                             }
                             
                             auto str = prettify_array(Meta::toStr(manual_matches));
-                            Debug("%S", &str);
+                            print(str);
                             
                             SETTING(manual_matches) = manual_matches;
                         });
@@ -1533,10 +1533,10 @@ int main(int argc, char** argv)
                         copy = utils::find_replace(copy, "\\t", "\t");
                         PythonIntegration::async_python_function([copy]()->bool
                         {
-                            print("Executing ",copy,"");
+                            print("Executing ",copy);
                             try {
                                 PythonIntegration::execute(copy);
-                            } catch(const SoftException& e) {
+                            } catch(const SoftExceptionImpl& e) {
                                 print("Runtime error: '", e.what(),"'");
                             }
                             return true;
@@ -1584,7 +1584,7 @@ int main(int argc, char** argv)
                             SETTING(analysis_paused) = false;*/
                         
                     } else if(GlobalSettings::map().has(command)) {
-                        print("Object ",command,"");
+                        print("Object ",command);
                         auto str = GlobalSettings::get(command).toStr(),
                             val = GlobalSettings::get(command).get().valueString();
                         print(str.c_str(),"=",val.c_str());

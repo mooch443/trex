@@ -1,6 +1,8 @@
 #include "ConnectedTasks.h"
 #include <misc/SpriteMap.h>
 
+#define DEBUG_THREAD_STATE
+
 namespace cmn {
     ConnectedTasks::ConnectedTasks(const std::vector<std::function<bool(Type, const Stage&)>>& tasks)
         : _stop(false), _tasks(tasks), _stages(tasks.size()), _paused(false)

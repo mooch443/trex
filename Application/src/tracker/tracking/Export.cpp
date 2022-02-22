@@ -55,7 +55,7 @@ namespace track {
             std::lock_guard guard(mutex);
             if (final_path != use_path) {
                 if (!use_path.move_to(final_path)) {
-                    throw U_EXCEPTION("Cannot move file '%S' to '%S'.", &use_path.str(), &final_path.str());
+                    throw U_EXCEPTION("Cannot move file '",use_path.str(),"' to '",final_path.str(),"'.");
                 } //else
             }
 
@@ -216,11 +216,11 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
     else
         print("[exporting] Exporting all frames (", tracker.number_frames(),")");
     auto individual_prefix = FAST_SETTINGS(individual_prefix);
-    print("[exporting] Writing data from `output_graphs` to '",&fishdata.str(),"/",&filename,"_",&individual_prefix,"*.",output_format.name(),"'");
+    print("[exporting] Writing data from `output_graphs` to '",fishdata.c_str(),"/",filename.c_str(),"_",individual_prefix.c_str(),"*.",output_format.name(),"'");
     if(output_posture_data)
-        print("[exporting] Writing posture data to ",posture_path,"");
+        print("[exporting] Writing posture data to ",posture_path);
     if(recognition_enable)
-        print("[exporting] Writing recognition data to ",recognition_path,"");
+        print("[exporting] Writing recognition data to ",recognition_path);
     
     try {
         std::map<long_t, float> all_percents;
@@ -265,7 +265,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                 
                 {
                     // synchronize with debug messages
-                    std::lock_guard<std::mutex> lock(DEBUG::debug_mutex());
+                    //std::lock_guard<std::mutex> lock(DEBUG::debug_mutex());
                     if(cmn::abs(last_percent - overall_percent) >= 0.05) {
                         last_percent = overall_percent;
                         overall_percent *= 100;
@@ -370,7 +370,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                                 auto range = fish->get_segment(seg->end());
                                 
                                 if(!fish->has(range.start()))
-                                    throw U_EXCEPTION("Range starts at %d, but frame is not set for fish %d.", range.start(), fish->identity().ID());
+                                    throw U_EXCEPTION("Range starts at ",range.start(),", but frame is not set for fish ",fish->identity().ID(),".");
                                 auto start_blob_id = fish->blob(range.start())->blob_id();
                                 
                                 file::Path path(tags_path / SETTING(filename).value<file::Path>().filename() / ("frame"+range.start().toStr()+"_blob"+Meta::toStr(start_blob_id)+".npz"));
@@ -379,7 +379,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                                         throw U_EXCEPTION("Cannot create folder ",path.remove_filename().str()," please check permissions.");
                                 }
                                 
-                                print("Writing ", set->size()," images ",path.str(),"");
+                                print("Writing ", set->size()," images ",path.str());
                                 cmn::npz_save(path.str(), "images", arrays.data(), {set->size(), (uint)shape.width, (uint)shape.height});
                                 
                                 //path = path.remove_filename() / ("fdx_"+path.filename().to_string());
@@ -606,7 +606,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                 }
                 
             } else {
-                Warning("Not exporting individual %d because it only has %d/%d frames.", fish->identity().ID(), fish->frame_count(), SETTING(output_min_frames).value<uint16_t>());
+                FormatWarning("Not exporting individual ",fish->identity().ID()," because it only has ",fish->frame_count(),"/",SETTING(output_min_frames).value<uint16_t>()," frames.");
             }
         };
         
@@ -735,7 +735,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                         }
                         
                         auto f = fishdata / (std::string)path.filename();
-                        print("Saved memory stats at ",f.str(),"");
+                        print("Saved memory stats at ",f.str());
                     });
                     
                     temporary_save(fishdata / ((std::string)SETTING(filename).value<file::Path>().filename() + "_global_memory.npz"), [&](file::Path path) {
@@ -811,8 +811,8 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                     }
                     
                     if(data.blob.org_id.valid() && full.blob == nullptr) {
-                        FormatExcept("Cannot find ", data.blob.blob_id," and ", data.blob.org_id,"d");
-                        print("reduced: ", reduced.blob ? reduced.blob->blob_id() : 0," full: ",full.blob ? full.blob->blob_id() : 0,"");
+                        FormatExcept("Cannot find ", data.blob.blob_id," and ", data.blob.org_id);
+                        print("reduced: ", reduced.blob ? reduced.blob->blob_id() : 0," full: ",full.blob ? full.blob->blob_id() : 0);
                     }
                     
                     if(!reduced.blob && full.blob)
@@ -956,7 +956,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                 
                 auto step = size_t(waiting_pixels.size() * 0.1);
                 if(!waiting_pixels.empty() && step > 0 && index % step == 0) {
-                    Debug("[tracklet_images] Frame %d/%d... (%.2f%% identities / frame)", index, waiting_pixels.size(), FAST_SETTINGS(manual_identities).empty() ? float(vec.size()) : float(vec.size()) / float(FAST_SETTINGS(manual_identities).size() + 0.0001) * 100);
+                    print("[tracklet_images] Frame ",FAST_SETTINGS(manual_identities).empty() ? float(vec.size()) : float(vec.size()) / float(FAST_SETTINGS(manual_identities).size() + 0.0001) * 100,"/","% identities / frame)","... (", index, waiting_pixels.size());
                     if(GUI::instance())
                         GUI::instance()->work().set_percent(index / float(waiting_pixels.size()));
                 }
@@ -1005,7 +1005,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                 int64_t bytes_per_image = (int64_t)output_size.height * (int64_t)output_size.width;
                 int64_t n_images = int64_t(1.5 *1000 * 1000 * 1000) / bytes_per_image;
                 
-                Debug("%d/%d images fit in 1.5GB", n_images, split_frames.size());
+                print(n_images,"/",split_frames.size()," images fit in 1.5GB");
                 
                 int64_t offset = 0;
                 size_t part = 0;
@@ -1017,7 +1017,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                     auto sub_path = path + Meta::toStr(part) + ".npz";
                     ++part;
                     
-                    print("Saving to '",&sub_path,"' from ",offset,"-",offset+L," (",split_frames.size(),")");
+                    print("Saving to '",sub_path.c_str(),"' from ",offset,"-",offset+L," (",split_frames.size(),")");
                     
                     temporary_save(sub_path, [&](file::Path path) {
                         cmn::npz_save(path.str(), "images",

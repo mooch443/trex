@@ -630,7 +630,7 @@ void GUI::load_connectivity_matrix() {
                 max_frame = frame;
             
         } else {
-            Warning("Row %d doesnt have enough columns (%d / %d), skipping.", index, values.size(), expected_number);
+            FormatWarning("Row ",index," doesnt have enough columns (",values.size()," / ",expected_number,"), skipping.");
         }
     }
     
@@ -640,7 +640,7 @@ void GUI::load_connectivity_matrix() {
                 v /= maximum;
     }
     
-    Debug("%d frames read (%d-%d)", matrix.size(), min_frame, max_frame);
+    print(matrix.size()," frames read (",min_frame,"-",max_frame,")");
     SETTING(gui_connectivity_matrix) = matrix;
     
     SETTING(gui_frame) = Frame_t(min_frame);
@@ -952,7 +952,7 @@ void GUI::start_recording() {
                 size.width -= size.width % 2;
             if(size.height % 2 > 0)
                 size.height -= size.height % 2;
-            print("Trying to record with size ",size.width,"x",size.height," instead of ",original_dims.width,"x",original_dims.height," @ ",FAST_SETTINGS(frame_rate),"");
+            print("Trying to record with size ",size.width,"x",size.height," instead of ",original_dims.width,"x",original_dims.height," @ ",FAST_SETTINGS(frame_rate));
             
             frames = frames.add_extension("avi").str();
             PDP(recording_capture) = new cv::VideoWriter(frames.str(),
@@ -1119,7 +1119,6 @@ void GUI::redraw() {
     }
     
     instance()->draw(PD(gui));
-    //PD(gui).print(_base ? _base : &_http_gui->base());
 }
 
 void GUI::draw(DrawStructure &base) {
@@ -1355,7 +1354,7 @@ void GUI::draw_export_options(gui::DrawStructure &base) {
         export_options.on_select([&](auto idx, const std::string&) {
             auto graphs = SETTING(output_graphs).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
             auto& item = export_options.items().at(idx);
-            print("Removing ",item.value()._name,"");
+            print("Removing ",item.value()._name);
 
             for (auto it = graphs.begin(); it != graphs.end(); ++it) {
                 if (it->first == item.value()._name) {
@@ -1424,7 +1423,7 @@ void GUI::draw_export_options(gui::DrawStructure &base) {
         }
 
         export_options.set_items(items);
-        print("Filtering for: ",search.text(),"");
+        print("Filtering for: ",search.text());
     }
     
     static bool first = true;
@@ -1766,7 +1765,7 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
     Float2_t mh = _average_image.rows;
     if(target_pos.x / target_scale.x < -mw * 0.95) {
 #ifndef NDEBUG
-        print("target_pos.x = ", target_pos.x," target_scale.x = ",target_scale.x,"");
+        print("target_pos.x = ", target_pos.x," target_scale.x = ",target_scale.x);
 #endif
         target_pos.x = -mw * target_scale.x * 0.95f;
     }
@@ -1775,7 +1774,7 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
     
     if(target_pos.x / target_scale.x > mw * 0.95f) {
 #ifndef NDEBUG
-        print("target_pos.x = ",target_pos.x," target_scale.x = ",target_scale.x," screen_center.x = ",screen_center.width," screen_dimensions.x = ",screen_dimensions.width," window_dimensions.x = ",base()->window_dimensions().width,"");
+        print("target_pos.x = ",target_pos.x," target_scale.x = ",target_scale.x," screen_center.x = ",screen_center.width," screen_dimensions.x = ",screen_dimensions.width," window_dimensions.x = ",base()->window_dimensions().width);
 #endif
         target_pos.x = mw * target_scale.x * 0.95f;
     }
@@ -2049,7 +2048,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                                         lengths.push_back(stuff->midline_length * FAST_SETTINGS(cm_per_pixel));
                                 }
                                 all.push_back(lengths);
-                                Debug("%d midline samples for %S", lengths.size(), &fish->identity().raw_name());
+                                print(lengths.size()," midline samples for ",fish->identity().raw_name().c_str());
                             }
                         } else {
                             for(auto id : FAST_SETTINGS(manual_identities)) {
@@ -2062,7 +2061,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                                             lengths.push_back(stuff->midline_length * FAST_SETTINGS(cm_per_pixel));
                                     }
                                     all.push_back(lengths);
-                                    Debug("%d midline samples for %S", lengths.size(), &fish->identity().raw_name());
+                                    print(lengths.size()," midline samples for ",fish->identity().raw_name().c_str());
                                 }
                             }
                         }
@@ -2317,7 +2316,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
 }
 
 void GUI::selected_setting(long_t index, const std::string& name, Textfield& textfield, Dropdown& settings_dropdown, Layout& layout, DrawStructure& base) {
-    print("choosing ",name,"");
+    print("choosing ",name);
     if(index != -1) {
         //auto name = settings_dropdown.items().at(index);
         auto val = GlobalSettings::get(name);
@@ -2386,13 +2385,13 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
         }
         else if(utils::beginsWith(settings_dropdown.text(), "$ ")) {
             auto code = settings_dropdown.text().substr(2);
-            print("Code: ",code,"");
+            print("Code: ",code);
             code = utils::find_replace(code, "\\n", "\n");
             code = utils::find_replace(code, "\\t", "\t");
             PythonIntegration::async_python_function([code]() -> bool {
                 try {
                     PythonIntegration::execute(code);
-                } catch(const SoftException& e) {
+                } catch(const SoftExceptionImpl& e) {
                     FormatExcept("Python runtime exception: '", e.what(),"'");
                 }
                 return true;
@@ -2413,14 +2412,13 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
         else if(settings_dropdown.text() == "consecutive") {
             Tracker::LockGuard guard("settings_dropdown.text() consecutive");
             auto consec = std::set<Range<Frame_t>>(Tracker::instance()->consecutive().begin(), Tracker::instance()->consecutive().end());
-            auto str = Meta::toStr(consec);
-            print("consecutive frames: ", str);
+            print("consecutive frames: ", consec);
             
         }
         else if(settings_dropdown.text() == "results info") {
             using namespace Output;
             auto filename = TrackingResults::expected_filename();
-            print("Trying to open results ",filename.str(),"");
+            print("Trying to open results ",filename.str());
             if(file::Path(filename).exists()) {
                 ResultsFormat file(filename, NULL);
                 file.start_reading();
@@ -2581,7 +2579,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                 min_val = min(min_val, values[i-1]);
                 
                 if(i % int(PD(video_source).length() * 0.1) == 0) {
-                    Debug("%d/%d", i, PD(video_source).length());
+                    print(i,"/",PD(video_source).length());
                 }
             }
             
@@ -2591,7 +2589,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                 return gui::Graph::invalid();
             }, Red, "ms"));
             
-            Debug("%f-%f %d", min_val, max_val, values.size());
+            print(min_val,"-",max_val," ",values.size());
             graph.set_ranges(Rangef(0, values.size()-1), Rangef(min_val * 0.5, max_val * 1.5));
             
             cv::Mat bg = cv::Mat::zeros(graph.height(), graph.width(), CV_8UC4);
@@ -2806,7 +2804,7 @@ void GUI::draw_footer(DrawStructure& base) {
             static Timer print_timer;
             if (print_timer.elapsed() > 1) {
                 if (txt != gpu_status.txt())
-                    Debug("%S", &txt);
+                    print(txt);
                 print_timer.reset();
             }
             gpu_status.set_txt(txt);
@@ -4160,7 +4158,7 @@ void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void
         if(SETTING(auto_train_on_startup))
             throw U_EXCEPTION(message);
         
-        Warning(message);
+        FormatWarning{message};
         return;
     }
     
@@ -4187,7 +4185,7 @@ void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void
 #endif
                 
                 auto message = text + "Python says: '"+PythonIntegration::python_init_error()+"'.";
-                Except(message.c_str());
+                FormatExcept(message.c_str());
                 
                 if(!SETTING(nowindow)) {
 #if defined(__APPLE__) && defined(__aarch64__)
@@ -4223,7 +4221,7 @@ void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void
         
         try {
             generate_training_data(type, force_load);
-        } catch(const SoftException& ex) {
+        } catch(const SoftExceptionImpl& ex) {
             if(SETTING(auto_train_on_startup)) {
                 throw U_EXCEPTION("Aborting training data because an exception was thrown ('",ex.what(),"').");
             } else
@@ -4259,7 +4257,7 @@ void GUI::generate_training_data(GUI::GUIType type, bool force_load) {
             
             return ret;
             
-        } catch(const SoftException& error) {
+        } catch(const SoftExceptionImpl& error) {
             if(SETTING(auto_train_on_startup))
                 throw U_EXCEPTION("The training process failed. Please check whether you are in the right python environment and check previous error messages.");
             
@@ -4271,13 +4269,6 @@ void GUI::generate_training_data(GUI::GUIType type, bool force_load) {
     };
     
     if(Recognition::network_weights_available()) {
-        //auto acc = PD(tracker).recognition()->available_weights_accuracy(data);
-        
-        //float full_random = 1 / FAST_SETTINGS(track_max_individuals);
-        //if(acc <= full_random) {
-        //    Warning("Calculated accuracy is lower than or equal to completely random assignment (%.2f%%).", full_random * 100);
-        //}
-        
         if(type == GUIType::GRAPHICAL) {
             PD(gui).dialog([fn](Dialog::Result result){
                 work().add_queue("training network", [fn, result](){
@@ -4300,13 +4291,13 @@ void GUI::generate_training_data(GUI::GUIType type, bool force_load) {
                                 return;
                                 
                             default:
-                                SOFT_EXCEPTION("Unknown mode %d in generate_training_data.", (int)result);
+                                throw SoftException("Unknown mode %d in generate_training_data.", (int)result);
                                 return;
                         }
                         
                         fn(mode);
                         
-                    } catch(const SoftException& error) {
+                    } catch(const SoftExceptionImpl& error) {
                         if(SETTING(auto_train_on_startup))
                             throw U_EXCEPTION("Initialization of the training process failed. Please check whether you are in the right python environment and check previous error messages.");
                         if(!SETTING(nowindow))
@@ -4480,7 +4471,7 @@ void GUI::generate_training_data_faces(const file::Path& path) {
             } else {
                 auto prefix = SETTING(individual_prefix).value<std::string>();
                 tf::imshow("too big", image);
-                Warning("%S image too big (%dx%d)", &prefix, image.cols, image.rows);
+                FormatWarning(prefix.c_str()," image too big (",image.cols,"x",image.rows,")");
             }
         }
     }
@@ -4500,7 +4491,7 @@ void GUI::generate_training_data_faces(const file::Path& path) {
             cmn::npz_save(npz_path.str(), "unsorted_images", unassigned_blobs.data(), {num_unassigned_blobs, (size_t)output_size.height, (size_t)output_size.width}, "a");
         }*/
         
-        print("Saved %d unsorted and ", num_unassigned_blobs," sorted images to '",num_images,"'.");
+        print("Saved ",num_unassigned_blobs," unsorted and "," sorted images to '",num_images,"'.");
     } catch(const std::runtime_error& e) {
         FormatExcept("Runtime error while saving to ",path.str()," (", e.what(),").");
     } catch(...) {
@@ -4509,7 +4500,7 @@ void GUI::generate_training_data_faces(const file::Path& path) {
 }
 
 void GUI::add_manual_match(Frame_t frameIndex, Idx_t fish_id, pv::bid blob_id) {
-    print("Requesting change of fish ", fish_id," to blob ", blob_id," in frame ",frameIndex,"");
+    print("Requesting change of fish ", fish_id," to blob ", blob_id," in frame ",frameIndex);
     
     auto matches = FAST_SETTINGS(manual_matches);
     auto &current = matches[frameinfo().frameIndex.load()];

@@ -242,7 +242,7 @@ void FrameGrabber::prepare_average() {
     
     if(_crop_rect.width != _cam_size.width || _crop_rect.height != _cam_size.height)
     {
-        print("Cropping ", _average.cols,"x",_average.rows,"");
+        print("Cropping ", _average.cols,"x",_average.rows);
         _average(_crop_rect).copyTo(_average);
     }
     
@@ -276,7 +276,7 @@ void FrameGrabber::prepare_average() {
     
     apply_filters(_average);
     
-    print("Copying _average ", _average.cols,"x",_average.rows,"");
+    print("Copying _average ", _average.cols,"x",_average.rows);
     cv::Mat temp;
     _average.copyTo(temp);
     _processed.set_average(temp);
@@ -1380,9 +1380,9 @@ void FrameGrabber::update_fps(long_t index, uint64_t stamp, uint64_t tdelta, uin
             auto str = Meta::toStr(DurationUS{stamp});
             
             if(_video)
-                Debug("%d/%d (t+%S) @ %.1ffps (eta:%S load:%S proc:%S track:%S save:%S)", index, _video->length(), &str, _fps.load(), &ETA, &loading_str, &processing_str, &tracking_str, &saving_str);
+                print(index,"/",_video->length()," (t+",str.c_str(),") @ ", dec<1>(_fps.load()),"fps (eta:",ETA.c_str()," load:",loading_str.c_str()," proc:",processing_str.c_str()," track:",tracking_str.c_str()," save:",saving_str.c_str(),")");
             else
-                Debug("%d (t+%S) @ %.1ffps (load:%S proc:%S track:%S save:%S)", index, &str, _fps.load(), &loading_str, &processing_str, &tracking_str, &saving_str);
+                print(index," (t+",str,") @ ", dec<1>(_fps.load()),"fps (load:",loading_str.c_str()," proc:",processing_str.c_str()," track:",tracking_str.c_str()," save:",saving_str.c_str(),")");
         }
         
         if(GRAB_SETTINGS(output_statistics))
@@ -1836,7 +1836,7 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
     _main_thread = _sub_timer.elapsed();
 
     if (gui_updated)
-        Debug("[Timing] Frame:%ld raw_blobs:%fms filtering:%fms pv::Frame:%fms main:%fms => %fms (diff:%ld, %fs)",
+        print("[Timing] Frame:%d raw_blobs:%fms filtering:%fms pv::Frame:%fms main:%fms => %fms (diff:%d, %fs)",
             task->index,
             _raw_blobs * 1000,
             _filtering * 1000,
@@ -1890,7 +1890,7 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
     } else if(GRAB_SETTINGS(stop_after_minutes) > 0) {
         static double last_minutes = 0;
         if(minutes - last_minutes >= 0.1) {
-            Debug("%f / %d minutes", minutes, GRAB_SETTINGS(stop_after_minutes));
+            print(minutes," / ",GRAB_SETTINGS(stop_after_minutes)," minutes");
             last_minutes = minutes;
         }
     }

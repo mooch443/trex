@@ -79,7 +79,7 @@ CREATE_STRUCT(Cache,
     (bool, gui_auto_scale),
     (bool, gui_auto_scale_focus_one),
     (uint16_t, output_min_frames),
-    (Color, gui_background_color),
+    (gui::Color, gui_background_color),
     (bool, gui_equalize_blob_histograms),
     (float, gui_playback_speed),
     (int, frame_rate),
@@ -276,5 +276,7 @@ private:
     
     void update_display_blobs(bool draw_blobs, gui::Section*);
 };
+
+STRUCT_META_EXTENSIONS(Cache)
 
 #endif

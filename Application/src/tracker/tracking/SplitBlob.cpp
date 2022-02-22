@@ -115,7 +115,7 @@ size_t SplitBlob::apply_threshold(int threshold, std::vector<pv::BlobPtr> &outpu
             samples = 1;
         }
         
-        print("Samples: ",size_t(samples),"u, timer1: ",timer1 / samples * 1000,"ms timer2: ",timer2 / samples * 1000,"ms ratio: ",ratio / samples,"");
+        print("Samples: ",size_t(samples),"u, timer1: ",timer1 / samples * 1000,"ms timer2: ",timer2 / samples * 1000,"ms ratio: ",ratio / samples);
     }
     
         return max_size;*/
@@ -157,7 +157,7 @@ SplitBlob::Action SplitBlob::evaluate_result_multiple(size_t presumed_nr, float 
         float fsize = float(blobs.at(0 + offset)->num_pixels()) * sqrcm;
         if(fsize < min_size_threshold || (first_size != 0 && fsize / first_size < blob_split_max_shrink / presumed_nr)) { //)) {
 #if DEBUG_ME
-            print("\tbreaking because fsize ", fsize," / ", min_size_threshold," / ",first_size,"");
+            print("\tbreaking because fsize ", fsize," / ", min_size_threshold," / ",first_size);
 #endif
             break;
         }
@@ -303,7 +303,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr)
     }
     
 #if DEBUG_ME
-    Debug("%ld calculations in %.4fs", calculations, timer.elapsed());
+    print(calculations," calculations in ",dec<4>(timer.elapsed()),"s");
 #endif
     
     std::vector<pv::BlobPtr> result;
@@ -337,7 +337,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr)
     } else {
 #if DEBUG_ME
         auto str = Meta::toStr(best_matches);
-        FormatWarning("Not found ", presumed_nr," objects. ",str,"");
+        FormatWarning("Not found ", presumed_nr," objects. ",str);
         tf::imshow("original", _original);
         
         /*cv::Mat tmp;

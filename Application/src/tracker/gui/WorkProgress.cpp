@@ -27,13 +27,13 @@ namespace gui {
 WorkInstance::WorkInstance(const std::string& name)
     : _name(name), _previous(GUI::instance() ? GUI::work().item() : "")
 {
-    print("Setting work item to ",_name,"");
+    print("Setting work item to ",_name);
     if(GUI::instance())
         GUI::work().set_item(name);
 }
 
 WorkInstance::~WorkInstance() {
-    print("Resetting work item to ",_previous,"");
+    print("Resetting work item to ",_previous);
     if(GUI::instance())
         GUI::work().set_item(_previous);
 }

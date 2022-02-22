@@ -39,7 +39,7 @@ struct AccumulationLock {
         
         try {
             Accumulation::unsetup();
-        } catch(const SoftException& ) {
+        } catch(const SoftExceptionImpl& ) {
             //! do nothing
 #ifndef NDEBUG
             FormatWarning("Caught SoftException in ~Accumulation.");
@@ -95,7 +95,7 @@ void Accumulation::unsetup() {
             
         }).get();
     } catch(const std::future_error& e) {
-        throw CustomException(cmn::type<SoftException>, "Failed to unsetup python ('", e.what(),"')'");
+        throw SoftException("Failed to unsetup python ('", e.what(),"')'");
     }
 }
 
@@ -107,9 +107,9 @@ void Accumulation::setup() {
     } catch(const std::future_error& error) {
         FormatExcept("Checking learning module failed '", error.what(),"'.");
 #if defined(__APPLE__) && defined(__aarch64__)
-        throw CustomException(type<SoftException>, "Checking the learning module failed. Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow). Since you are using an ARM Mac, you may need to install additional libraries. Python says: '%S'.", &PythonIntegration::python_init_error());
+        throw SoftException("Checking the learning module failed. Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow). Since you are using an ARM Mac, you may need to install additional libraries. Python says: ",PythonIntegration::python_init_error(),".");
 #else
-        throw CustomException(type<SoftException>, "Checking the learning module failed. Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow). Python says: '%S'.", &PythonIntegration::python_init_error());
+        throw SoftException("Checking the learning module failed. Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow). Python says: '",PythonIntegration::python_init_error(),"'.");
 #endif
     }
 }
@@ -285,8 +285,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
         
         assert(max_index >= 0);
         
-        auto str = Meta::toStr(values);
-        print("\t\t",id,": ",&str," (",samples,", ",max_index," = ",max_p,")");
+        print("\t\t",id,": ",values," (",samples,", ",max_index," = ",max_p,")");
         max_indexes[id] = Idx_t((uint32_t)max_index);
         max_probs[id] = max_p;
         print_out[id] = {max_index, max_p};
@@ -335,10 +334,10 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
         print("\tPossible choices are ",original_id0," (",max_probs.at(original_id0),") and ",original_id1," (",max_probs.at(original_id1),").");
         
         if(max_probs.at(original_id0) > max_probs.at(original_id1)) {
-            print("\tReplacing ", original_id1," with missing predicted id ",missing_predicted_id,"");
+            print("\tReplacing ", original_id1," with missing predicted id ",missing_predicted_id);
             max_indexes[original_id1] = missing_predicted_id;
         } else {
-            print("\tReplacing ", original_id0," with missing predicted id ",missing_predicted_id,"");
+            print("\tReplacing ", original_id0," with missing predicted id ",missing_predicted_id);
             max_indexes[original_id0] = missing_predicted_id;
         }
         
@@ -346,7 +345,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
     }
     
     if(unique_ids.size() == FAST_SETTINGS(manual_identities).size() && min_prob > pure_chance * FAST_SETTINGS(recognition_segment_add_factor)) {
-        print("\t[+] Dataset range (",range.start,"-",range.end,", ",quality,") is acceptable for training with assignments: ",max_indexes,"");
+        print("\t[+] Dataset range (",range.start,"-",range.end,", ",quality,") is acceptable for training with assignments: ",max_indexes);
         
     } else if(unique_ids.size() != FAST_SETTINGS(manual_identities).size()) {
         auto str = format<FormatterType::NONE>("\t[-] Dataset range (", range,", ",quality,") does not predict unique ids.");
@@ -636,7 +635,7 @@ bool Accumulation::start() {
     
     auto ranges = track::Tracker::global_segment_order();
     if(ranges.empty()) {
-        throw CustomException(type<SoftException>, "No global segments could be found.");
+        throw SoftException("No global segments could be found.");
     }
     
     _initial_range = ranges.front();
@@ -758,7 +757,7 @@ bool Accumulation::start() {
         if(SETTING(auto_train_on_startup)) {
             throw U_EXCEPTION("Couldnt generate discrimination data (something wrong with the video?).");
         } else
-            throw CustomException(type<SoftException>, "Couldnt generate discrimination data (something wrong with the video?).");
+            throw SoftException("Couldnt generate discrimination data (something wrong with the video?).");
     }
     _generated_data->merge_with(_discrimination_data, true);
     
@@ -965,7 +964,7 @@ bool Accumulation::start() {
             
             sorted.clear();
             
-            print("\t\tmin_d = ", min_distance,", max_d = ",max_distance,"");
+            print("\t\tmin_d = ", min_distance,", max_d = ",max_distance);
             for(auto && [d, rd, q, cached, range, extended_range, samples] : copied_sorted) {
                 double distance = 100 - (max_distance > min_distance ? (((d - min_distance) / (max_distance - min_distance)) * 100) : 0);
                 distance = roundf(roundf(distance) * 2.0 / 10.0) / 2.0 * 10.0;
@@ -1060,7 +1059,7 @@ bool Accumulation::start() {
                         sorted.insert({-1, Frame_t(), q, nullptr, range});
                 }
                 
-                print("Reduced global segments array by removing ",filtered_out.size()," elements with a quality worse than ",&str," (",&str_filtered_out,"). ",sorted_by_quality.size()," elements remaining.");
+                print("Reduced global segments array by removing ",filtered_out.size()," elements with a quality worse than ",str.c_str()," (",str_filtered_out.c_str(),"). ",sorted_by_quality.size()," elements remaining.");
                 
             } else {
                 print("Did not reduce global segments array. There are not too many of them (", sorted,"). ",sorted.size()," elements in list.");
@@ -1124,10 +1123,10 @@ bool Accumulation::start() {
                         if(uniquenesses.empty())
                             acceptance = uniqueness;
                         else if(!uniquenesses.empty() && uniqueness >= accepted_uniqueness(best_uniqueness)) {
-                            print("\tAccepting worst class accuracy of ", acc," because uniqueness is ", uniqueness," > ",best_uniqueness,"");
+                            print("\tAccepting worst class accuracy of ", acc," because uniqueness is ", uniqueness," > ",best_uniqueness);
                             acceptance = uniqueness;
                         } /*else if(!uniquenesses.empty() && uniqueness >= best_uniqueness * 0.8 && acc >= SQR(best_accuracy_worst_class)*best_accuracy_worst_class) {
-                            print("\tAccepting worst class accuracy of ",acc," because uniqueness is ",uniqueness," (vs. ",best_uniqueness * 0.8,") and accuracy is better than ",SQR(best_accuracy_worst_class)*best_accuracy_worst_class,"");
+                            print("\tAccepting worst class accuracy of ",acc," because uniqueness is ",uniqueness," (vs. ",best_uniqueness * 0.8,") and accuracy is better than ",SQR(best_accuracy_worst_class)*best_accuracy_worst_class);
                             acceptance = uniqueness;
                         }*/
                         //}
@@ -1335,7 +1334,7 @@ bool Accumulation::start() {
             } else if(!sorted.empty()) {
                 auto ssss = Meta::toStr(sorted);
                 auto sss = Meta::toStr(overall_ranges);
-                print("sorted (",sss,"): ",ssss,"");
+                print("sorted (",sss,"): ",ssss);
                 
                 auto [overlaps, rd, q, cached, range] = *sorted.begin();
                 auto keep_iterating = update_meta_start_acc(cached ? "(retry)" : "", range, q, overlaps);
@@ -1368,7 +1367,7 @@ bool Accumulation::start() {
             if(SETTING(auto_train_on_startup)) {
                 throw U_EXCEPTION(text);
             } else
-                FormatExcept(text);
+                FormatExcept{text};
         } else
             update_coverage(*_collected_data);
         
@@ -1577,7 +1576,7 @@ bool Accumulation::start() {
                         /*auto iit = did_image_already_exist.find({id, frame});
                         if(iit != did_image_already_exist.end()) {
                             // this image was already created
-                            FormatWarning("Creating a second instance of id ", id," in frame ",frame,"");
+                            FormatWarning("Creating a second instance of id ", id," in frame ",frame);
                         }*/
                         
                         using namespace default_config;
@@ -1599,7 +1598,7 @@ bool Accumulation::start() {
                 
                 DebugHeader("Generated images for '%s'", method.name());
                 for(auto &&[id, img] : images) {
-                    print("\t", id,": ",img.size(),"");
+                    print("\t", id,": ",img.size());
                 }
                 
                 

@@ -180,7 +180,7 @@ void DatasetQuality::update(const Tracker::LockGuard& guard) {
     // remove all the ones that have been deleted in the manually_approved segments
     for(auto & segment : _previous_selected) {
         if(has(segment)) {
-            print("Removed previous manual segment ", segment.start,"-",segment.end,"");
+            print("Removed previous manual segment ", segment.start,"-",segment.end);
             remove_segment(segment);
             changed = true;
         }
@@ -191,14 +191,14 @@ void DatasetQuality::update(const Tracker::LockGuard& guard) {
         auto range = Range<Frame_t>(Frame_t(start), Frame_t(end));
         if(!has(range) && end_frame >= Frame_t(end) && range.length().get() >= 5) {
             if(calculate_segment(range, video_length, guard)) {
-                print("Calculating manual segment ", start,"-",end,"");
+                print("Calculating manual segment ", start,"-",end);
                 for(auto && [id, single] : _cache.at(range)) {
-                    print("\t", id,": ",single.number_frames,"");
+                    print("\t", id,": ",single.number_frames);
                 }
                 changed = true;
                 
             } else
-                print("Failed calculating ", start,"-",end,"");
+                print("Failed calculating ", start,"-",end);
         }
         _previous_selected.insert(range);
     }
@@ -211,7 +211,7 @@ void DatasetQuality::update(const Tracker::LockGuard& guard) {
             if(calculate_segment(consec, video_length, guard)) {
                 //break; // if this fails, dont set last seen and try again next time
 #ifndef NDEBUG
-                print("Calculated segment ", consec.start,"-",consec.end,"");
+                print("Calculated segment ", consec.start,"-",consec.end);
 #endif
                 changed = true;
             }
@@ -281,7 +281,7 @@ DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fis
         return ptr->start() < frame;
     });
     /*if(debug && it != fish->frame_segments().end())
-        print("\t... ", fish->identity().ID()," -> found before == ", it->second.range.start,"-",it->second.range.end,"");
+        print("\t... ", fish->identity().ID()," -> found before == ", it->second.range.start,"-",it->second.range.end);
     else
         print("\t... ", fish->identity().ID()," not found before first step");*/
     
@@ -296,7 +296,7 @@ DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fis
     }
     
     /*if(debug && it != fish->frame_segments().end())
-        print("\t... ", fish->identity().ID()," -> found it == ", it->second.range.start,"-",it->second.range.end,"");
+        print("\t... ", fish->identity().ID()," -> found it == ", it->second.range.start,"-",it->second.range.end);
     else
         print("\t... ", fish->identity().ID()," not found in first step");*/
     
@@ -323,7 +323,7 @@ DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fis
     }
     
     /*if(debug && it != fish->frame_segments().end())
-        print("\t... ", fish->identity().ID()," -> starting with it == ", it->second.range.start,"-",it->second.range.end,"");*/
+        print("\t... ", fish->identity().ID()," -> starting with it == ", it->second.range.start,"-",it->second.range.end);*/
     
     // we found the segment where the start-frame is not smaller than _consec.start
     while(it != fish->frame_segments().end()
@@ -338,10 +338,9 @@ DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fis
     }
     
     if(consec.empty()) {
-        auto str = Meta::toStr(fish->frame_segments());
-        Warning("consec:[%d-%d] _consec:[%d,%d] end()?%d segments:%S", consec.start(), consec.end(), _consec.start, _consec.end, it == fish->frame_segments().end() ? 1 : 0, &str);
+        FormatWarning("consec:[",consec.start(),"-",consec.end(),"] _consec:[",_consec.start,",",_consec.end,"] end()?",it == fish->frame_segments().end() ? 1 : 0," segments:", fish->frame_segments());
         if(it != fish->frame_segments().end()) {
-            Warning("\tit:[%d-%d] overlaps:%d", (*it)->start(), (*it)->end(), (*it)->overlaps(_consec) ? 1 : 0);
+            FormatWarning("\tit:[",(*it)->start(),"-",(*it)->end(),"] overlaps:",(*it)->overlaps(_consec) ? 1 : 0);
         }
         //auto it = fish->frame_segments().lower_bound(_consec.start);
         
@@ -360,7 +359,7 @@ DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fis
         }
         str = ss.str();
         
-        print("\t... ",fish->identity().ID()," -> ",consec.range.start,"-",consec.range.end," (",&str,")");
+        print("\t... ",fish->identity().ID()," -> ",consec.range.start,"-",consec.range.end," (",str.c_str(),")");
     }*/
         
     //! TODO: Use local_midline_length function instead

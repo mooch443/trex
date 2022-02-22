@@ -150,7 +150,7 @@ void MinimalOutline::convert_from(const std::vector<Vec2>& array) {
         
         
         if(x >= float(CHAR_MAX) || y >= float(CHAR_MAX) || x <= float(CHAR_MIN) || y <= float(CHAR_MIN))
-            throw U_EXCEPTION("Cannot compress %f,%f to char. This is an unresolvable error and is related to outline_resample. Contact the maintainer of this software and ask for advice (use outline_resample <= 5).", x, y);
+            throw U_EXCEPTION("Cannot compress ",x,",",y," to char. This is an unresolvable error and is related to outline_resample. Contact the maintainer of this software and ask for advice (use outline_resample <= 5).");
         
         ux = x;
         uy = y;
@@ -539,7 +539,7 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
         if(info.debug) {
            auto str = Meta::toStr(high_peaks);
         
-           print("\n", info.frameIndex,"(", info.fdx,"): Finding tail. ",str,"");
+           print("\n", info.frameIndex,"(", info.fdx,"): Finding tail. ",str);
             std::vector<Vec2> maximums, highmax;
             for(auto peak : *maxima_ptr) {
                 maximums.push_back(peak.position);
@@ -620,7 +620,7 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
             }
             
             if(info.debug)
-                print("peak has range ",merged.start,"-",merged.end," (",merged.length(),") - ",start,"-",end,"");
+                print("peak has range ",merged.start,"-",merged.end," (",merged.length(),") - ",start,"-",end);
             idx = round(start + (end - start)*0.5);
             if(idx < 0)
                 idx += ptr->size();
@@ -939,7 +939,7 @@ void Midline::post_process(const MovementInformation &movement, DebugInfo info) 
         }
         
         auto str = Meta::toStr(angles);
-        Debug("Array is %S, direction is %f;%f sums are [%f,%f] %d => %d", &str, atan2(direction[0]) * 180 / M_PI, atan2(direction[1]) * 180 / M_PI, sums[0], sums[1], current_index, sums[1 - current_index] < sums[current_index]);
+        print("Array is ",str,", direction is ",atan2(direction[0]) * 180 / M_PI,";",atan2(direction[1]) * 180 / M_PI," sums are [",sums[0],",",sums[1],"] ",current_index," => ",sums[1 - current_index] < sums[current_index]);
         
         if(sums[1 - current_index] < sums[current_index]) {*/
         
@@ -961,7 +961,7 @@ void Midline::post_process(const MovementInformation &movement, DebugInfo info) 
     
     if(_needs_invert) {
         if(info.debug)
-            Debug("%d(%d): inverting Tail: %d, Head: %d",info.frameIndex,info.fdx, tail_index(), head_index());
+            print(info.frameIndex,"(",info.fdx,"): inverting Tail: ",tail_index(),", Head: ",head_index());
         
         if(!OUTLINE_SETTING(midline_start_with_head))
             std::reverse(segments().begin(), segments().end());
@@ -1042,7 +1042,7 @@ void Midline::post_process(const MovementInformation &movement, DebugInfo info) 
         auto aa = old_code(old_copy);
         auto p = euclidean_distance(aa, axis) / max(aa.abs().max(), axis.abs().max()) * 100;
         if(p > 0)
-            Warning("%f%%", p);
+            FormatWarning(p,"%%");
         if(info.debug) {
             segments() = old_copy;
             print("Old");
@@ -1054,7 +1054,7 @@ void Midline::post_process(const MovementInformation &movement, DebugInfo info) 
             
             if(d > std::numeric_limits<Float2_t>::epsilon() * m)
             {
-                Warning("%lu: %f,%f != %f,%f by %f%%", i, old_copy[i].pos.x, old_copy[i].pos.y, segments()[i].pos.x, segments()[i].pos.y, d / m * 100);
+                FormatWarning(i,": ",old_copy[i].pos.x,",",old_copy[i].pos.y," != ",segments()[i].pos.x,",",segments()[i].pos.y," by ",d / m * 100,"%%");
                 //break;
             }
         }*/
@@ -1222,7 +1222,7 @@ void Midline::fix_length(float len, std::vector<MidlineSegment>& pts, bool debug
                     seg.height *= 0.5;
 
                     if(debug)
-                        print("Added ", midline_points.size(),"/",resolution,"");
+                        print("Added ", midline_points.size(),"/",resolution);
 
                     midline_points.push_back(seg);
                     i++;
@@ -1286,7 +1286,7 @@ Midline::Ptr Midline::normalize(float fix_length, bool debug) const {
     const int max_segments = resolution - 1;
     double step = (double(len) / double(max_segments));
     if(step < 0)
-        throw U_EXCEPTION("Step length is negative (%f) with a length of %f and max_segments of %d.", step, len, max_segments);
+        throw U_EXCEPTION("Step length is negative (",step,") with a length of ",len," and max_segments of ",max_segments,".");
     
     size_t index = 0;
     std::vector<MidlineSegment> reduced;

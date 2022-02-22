@@ -541,7 +541,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         ++data.index;
         
         if(i%100000 == 0 && i)
-            print("Blob ", i,"/",N,"");
+            print("Blob ", i,"/",N);
     }
     
     stop = true;
@@ -640,7 +640,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                 stuff->outline = outline;
                 
                 auto segment = fish->segment_for(frame);
-                if(!segment) throw U_EXCEPTION("(%d) Have to add basic stuff before adding posture stuff (frame %d).", fish->identity().ID(), frameIndex);
+                if(!segment) throw U_EXCEPTION("(",fish->identity().ID(),") Have to add basic stuff before adding posture stuff (frame ",frameIndex,").");
                 segment->add_posture_at(stuff, fish);
                 
             }
@@ -680,7 +680,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                 stuff->cached_pp_midline = midline;
                 
                 auto segment = fish->segment_for(frame);
-                if(!segment) throw U_EXCEPTION("(%d) Have to add basic stuff before adding posture stuff (frame %d).", fish->identity().ID(), frameIndex);
+                if(!segment) throw U_EXCEPTION("(",fish->identity().ID(),") Have to add basic stuff before adding posture stuff (frame ",frameIndex,").");
                 
                 sorted[stuff->frame] = stuff;
             }
@@ -717,7 +717,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         for(auto && [frame, stuff] : sorted) {
             if(!segment || !segment->contains(frame))
                 segment = fish->segment_for(frame);
-            if(!segment) throw U_EXCEPTION("(%d) Have to add basic stuff before adding posture stuff (frame %d).", fish->identity().ID(), frame);
+            if(!segment) throw U_EXCEPTION("(",fish->identity().ID(),") Have to add basic stuff before adding posture stuff (frame ",frame,").");
             
             segment->add_posture_at(stuff, fish);
         }
@@ -779,7 +779,7 @@ template<> void Data::read(Individual*& out_ptr) {
             if(lzo1x_decompress((uchar*)ptr,size,(uchar*)uncompressed_block.data(),&new_len,NULL) == LZO_E_OK)
             {
                 if(new_len != uncompressed_size)
-                    FormatWarning("Uncompressed size ", new_len," is different than expected ",uncompressed_size,"");
+                    FormatWarning("Uncompressed size ", new_len," is different than expected ",uncompressed_size);
                 ReadonlyMemoryWrapper compressed((uchar*)uncompressed_block.data(), new_len);
                 (*out_ptr) = results->read_individual(compressed, results->_property_cache.get());
                 
@@ -955,7 +955,7 @@ uint64_t Data::write(const Individual& val) {
         }
     
     } else {
-        throw U_EXCEPTION("Compression of %lu bytes failed (individual %d).", pack.size(), val.identity().ID());
+        throw U_EXCEPTION("Compression of ",pack.size()," bytes failed (individual ",val.identity().ID(),").");
     }
     
     return write(pack);
@@ -966,38 +966,6 @@ namespace Output {
     float bytes_per_second = 0, samples = 0;
     std::string speed = "";
     float percent_read;
-    
-    /*const char* ResultsFormat::read_data_fast(uint64_t num_bytes) {
-        if(reading_timer.elapsed() >= 1) {
-            if(samples > 0) {
-                speed = Meta::toStr(FileSize(uint64_t(bytes_per_second / samples / reading_timer.elapsed())));
-                print("Reading @ ",speed,"/s");
-            }
-            reading_timer.reset();
-            bytes_per_second = 0;
-            samples = 0;
-        }
-        
-        if(current_offset() - last_callback > read_size() * 0.01) {
-            last_callback = current_offset();
-            percent_read = float((current_offset() + num_bytes) / double(read_size()));
-            
-            //if(int(percent_read*100) % 10 == 0)
-            {
-                _update_progress("", percent_read, ""+filename().str()+"\n<ref>reading @ "+speed+"/s</ref>");
-                Debug("Reading %.0f%% (@ %S/s)", percent_read*100, &speed);
-            }
-        }
-        
-        Timer timer;
-        auto ptr = DataFormat::read_data_fast(num_bytes);
-        auto time = timer.elapsed();
-        
-        bytes_per_second += num_bytes / time;
-        ++samples;
-        
-        return ptr;
-    }*/
     
     void ResultsFormat::_read_header() {
         std::string version_string;
@@ -1065,7 +1033,7 @@ namespace Output {
         if(!SETTING(quiet)) {
             DebugHeader("READING PROGRAM STATE");
             print("Read head of ",filename()," (version:V_",(int)_header.version+1," gui_frame:",_header.gui_frame,"u analysis_range:",_header.analysis_range.start,"d-",_header.analysis_range.end,"d)");
-            print("Generated with command-line: ",_header.cmd_line,"");
+            print("Generated with command-line: ",_header.cmd_line);
         }
     }
     
@@ -1073,7 +1041,7 @@ namespace Output {
         std::string version_string = "TRACK"+std::to_string((int)Versions::current);
         write<std::string>(version_string);
         if(!SETTING(quiet)) {
-            print("Writing version string ",version_string,"");
+            print("Writing version string ",version_string);
             print("Writing frame ", _header.gui_frame);
         }
         write<uint64_t>(_header.gui_frame);
@@ -1210,7 +1178,7 @@ namespace Output {
                 DebugCallback("Finished writing ", filename, ".");
             }
         } else
-            throw U_EXCEPTION("Cannot move '%S' to '%S' (but results have been saved, you just have to rename the file).", &filename.str(), &filename.remove_extension().str());
+            throw U_EXCEPTION("Cannot move '",filename.str(),"' to '",filename.remove_extension().str(),"' (but results have been saved, you just have to rename the file).");
     }
     
     void TrackingResults::clean_up() {
@@ -1244,7 +1212,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
     
     //auto it = _tracker._active_individuals_frame.begin();
     if(_tracker._active_individuals_frame.size() != _tracker._added_frames.size()) {
-        throw U_EXCEPTION("This is unexpected (%d != %d).", _tracker._active_individuals_frame.size(), _tracker._added_frames.size());
+        throw U_EXCEPTION("This is unexpected (",_tracker._active_individuals_frame.size()," != ",_tracker._added_frames.size(),").");
     }
     
     const track::FrameProperties* prev_props = nullptr;
@@ -1312,7 +1280,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         bytes_per_second = samples = percent_read = 0;
         
         if(!SETTING(quiet))
-            print("Trying to open results ",filename.str(),"");
+            print("Trying to open results ",filename.str());
         ResultsFormat file(filename.str(), update_progress);
         file.start_reading();
         
@@ -1459,12 +1427,12 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
                 if (it == map_id_ptr.end()) {
                    throw U_EXCEPTION("Cannot find individual with ID ", ID," in map.");
                 } else if((*it).second->start_frame() > frame) {
-                    //FormatExcept("Individual ", ID,"d start frame = ", map_id_ptr.at(Idx_t(ID))->start_frame(),", not ",frameIndex,"d");
+                    //FormatExcept("Individual ", ID," start frame = ", map_id_ptr.at(Idx_t(ID))->start_frame(),", not ",frameIndex);
                     continue;
                 }
                 auto r = active.insert(it->second);
                 if(!std::get<1>(r))
-                    throw U_EXCEPTION("Did not insert ID %ld for frame %ld.", ID, frameIndex);
+                    throw U_EXCEPTION("Did not insert ID ",ID," for frame ",frameIndex,".");
             }
             
             if(check_analysis_range && (frame > analysis_range.end || frame < analysis_range.start))

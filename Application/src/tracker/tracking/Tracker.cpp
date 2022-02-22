@@ -140,7 +140,7 @@ Tracker::LockGuard::LockGuard(std::string purpose, uint32_t timeout_ms) : _purpo
             } else if(timer.elapsed() > 10 && print_timer.elapsed() > 10) {
                 auto name = _last_thread;
                 auto myname = get_thread_name();
-                Warning("(%S) Possible dead-lock with '%S' ('%S') thread holding the lock for %.2fs (waiting for %.2fs, current purpose is '%S')", &myname, &name, &_last_purpose, _thread_holding_lock_timer.elapsed(), timer.elapsed(), &_purpose);
+                FormatWarning("(",myname.c_str(),") Possible dead-lock with '",name.c_str(),"' ('",_last_purpose.c_str(),"') thread holding the lock for ",dec<2>(_thread_holding_lock_timer.elapsed()),"s (waiting for ",timer.elapsed(),"s, current purpose is '",_purpose.c_str(),"')");
                 print_timer.reset();
             }
         }
@@ -274,7 +274,7 @@ void Tracker::analysis_state(AnalysisState pause) {
             static_assert(std::is_same<Settings::outline_resample_t, float>::value, "outline_resample assumed to be float.");
             auto v = value.template value<float>();
             if(v <= 0) {
-                print("outline_resample defaulting to 1.0 instead of ",v,"");
+                print("outline_resample defaulting to 1.0 instead of ",v);
                 SETTING(outline_resample) = 1.f;
             }
         });
@@ -1751,7 +1751,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         
         if (!end_frame().valid() || end_frame() < frameIndex) {
             if(end_frame().valid() && end_frame() < start_frame())
-              FormatError("end frame is ", end_frame()," < ",start_frame(),"");
+              FormatError("end frame is ", end_frame()," < ",start_frame());
             _endFrame = frameIndex;
         }
         
@@ -1834,7 +1834,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             for(auto &[i, b] : pairs) {
                 if(i == fish) {
                     if(b != &blob) {
-                        FormatWarning("Frame ",frameIndex,": Assigning individual ",i->identity().ID()," to ",blob ? blob->blob_id() : 0," instead of ", b ? (*b)->blob_id() : 0,"");
+                        FormatWarning("Frame ",frameIndex,": Assigning individual ",i->identity().ID()," to ",blob ? blob->blob_id() : 0," instead of ", b ? (*b)->blob_id() : 0);
                     }
                     break;
                 }
@@ -1935,13 +1935,12 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 
                 auto blob = frame.find_bdx(bdx);
                 if(!blob) {
-                    FormatError("Blob number ", fm.second," out of range in frame ",frameIndex,"");
                     cannot_find[bdx].insert(fdx);
                     continue;
                 }
                 
                 if(actually_assign.count(bdx) > 0) {
-                    Error("(fixed matches) Trying to assign blob %d twice in frame %d (fish %d and %d).", (uint32_t)bdx, frameIndex, fdx, actually_assign.at(bdx));
+                    FormatError("(fixed matches) Trying to assign blob ",(uint32_t)bdx," twice in frame ",frameIndex," (fish ",fdx," and ",actually_assign.at(bdx),").");
                     double_find[bdx].insert(fdx);
                     
                 } else if(blob_assigned[blob.get()]) {
@@ -1977,7 +1976,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 }
                 
                 if(actually_assign.count((uint32_t)bdx) > 0) {
-                    Error("(fixed matches) Trying to assign blob %d twice in frame %d (fish %d and %d).", bdx, frameIndex, fdx, actually_assign.at(bdx));
+                    FormatError("(fixed matches) Trying to assign blob ",bdx," twice in frame ",frameIndex," (fish ",fdx," and ",actually_assign.at(bdx),").");
                     double_find[bdx].insert(fdx);
                 } else
                     actually_assign[bdx] = fdx;
@@ -2101,7 +2100,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                             for(auto &b : big_filtered) {
                                 if(b->blob_id() == original_bdx) {
 #ifndef NDEBUG
-                                    print("frame ",frame.index(),": Found perfect match for individual ",fdx,", bdx ",b->blob_id()," after splitting ",b->parent_id(),"");
+                                    print("frame ",frame.index(),": Found perfect match for individual ",fdx,", bdx ",b->blob_id()," after splitting ",b->parent_id());
 #endif
                                     actual_assignments[fdx] = original_bdx;
                                     //frame.blobs.insert(frame.blobs.end(), b);
@@ -2123,8 +2122,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                             print("frame ", frame.index(),": All missing manual matches perfectly matched.");
 #endif
                         } else {
-                            auto str = Meta::toStr(clique);
-                            Error("frame %d: Missing some matches (%d/%d) for blob %d (identities %S).", frame.index(), found_perfect, clique.size(), bdx, &str);
+                            FormatError("frame ",frame.index(),": Missing some matches (",found_perfect,"/",clique.size(),") for blob ",bdx," (identities ", clique,").");
                         }
                     }
                     
@@ -2134,7 +2132,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             
             if(!actual_assignments.empty()) {
                 auto str = prettify_array(Meta::toStr(actual_assignments));
-                print("frame ", frame.index(),": actually assigning:\n",str.c_str(),"");
+                print("frame ", frame.index(),": actually assigning:\n",str.c_str());
             }
             
             std::set<FOI::fdx_t> identities;
@@ -2210,7 +2208,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 
             } else {
 #ifndef NDEBUG
-                Error("frame %d: Automatic assignment cannot be executed with fdx %d(%s) and bdx %ld(%s)", frameIndex, fdx, fish ? (fish_assigned[fish] ? "assigned" : "unassigned") : "no fish", bdx, blob ? (blob_assigned[blob.get()] ? "assigned" : "unassigned") : "no blob");
+                FormatError("frame ",frameIndex,": Automatic assignment cannot be executed with fdx ",fdx,"(",fish ? (fish_assigned[fish] ? "assigned" : "unassigned") : "no fish",") and bdx ",bdx,"(",blob ? (blob_assigned[blob.get()] ? "assigned" : "unassigned") : "no blob",")");
 #endif
             }
         }
@@ -2442,7 +2440,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                             
 #ifdef TREX_DEBUG_MATCHING
                             auto str = Meta::toStr(bedges);
-                            print("\t\tExploring blob ", cdx," (aka ", (*blob)->blob_id(),") with edges ",str,"");
+                            print("\t\tExploring blob ", cdx," (aka ", (*blob)->blob_id(),") with edges ",str);
 #endif
                             for(auto fdi : bedges) {
                                 if(   !contains(cliques[index].fids, fdi)
@@ -2497,7 +2495,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                         for(auto i : indexes.fids) {
                             auto edges = paired_blobs.edges_for_row(i);
 #ifdef TREX_DEBUG_MATCHING
-                            print("\t\tExploring row ", i," (aka fish", paired_blobs.row(i)->identity().ID(),") with edges=",edges,"");
+                            print("\t\tExploring row ", i," (aka fish", paired_blobs.row(i)->identity().ID(),") with edges=",edges);
 #endif
                             for(auto &e : edges) {
                                 if(!contains(cliques[index].bids, e.cdx))
@@ -2508,7 +2506,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
 #ifdef TREX_DEBUG_MATCHING
                         if(!added_individuals.empty()) {
                             auto str = Meta::toStr(added_individuals);
-                            print("Adding ", str," to clique ",index,"");
+                            print("Adding ", str," to clique ",index);
                         }
 #endif
                         cliques[index].fids.insert(indexes.fids.begin(), indexes.fids.end());
@@ -2619,7 +2617,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     
                     auto str = Meta::toStr(fishs);
                     auto str1 = Meta::toStr(blobs);
-                    Debug("Frame %d: Clique %lu, Matching fishs %S and blobs %S together.", frameIndex,index, &str, &str1);
+                    print("Frame ",frameIndex,": Clique ",index,", Matching fishs ",str.c_str()," and blobs ",str1.c_str()," together.");
                     ++index;
                     
                     for(auto &cdx : clique.bids) {
@@ -2771,20 +2769,20 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 ++samples;
                 
                 if(size_t(samples) % 50 == 0 || force) {
-                    Debug("frame %d: %d of %d / %d objects. %.2f improvements on average, %.2f leafs visited on average, %.0f objects on average (%f mean edges per fish and %f mean edges per blob). On average we encounter %.2f bad probabilities below 0.5 (currently %d).", frameIndex, optimal.improvements_made, optimal.leafs_visited, optimal.objects_looked_at, average_improvements / samples, average_leafs / samples, average_objects / samples, mean_edges_per_fish, mean_edges_per_blob, average_bad_probabilities / samples, bad_probs);
-                    print("g fish_has_one_edge * mean_edges_per_fish = ", one_edge_probability," * ", mean_edges_per_fish," = ",one_edge_probability * (mean_edges_per_fish),"");
-                    print("g fish_has_one_edge * mean_edges_per_blob = ", one_edge_probability," * ", mean_edges_per_blob," = ",one_edge_probability * (mean_edges_per_blob),"");
-                    print("g blob_has_one_edge * mean_edges_per_fish = ", blob_one_edge," * ", mean_edges_per_fish," = ",blob_one_edge * mean_edges_per_fish,"");
-                    print("g blob_has_one_edge * mean_edges_per_blob = ", blob_one_edge," * ", mean_edges_per_blob," = ",blob_one_edge * mean_edges_per_blob,"");
+                    print("frame ",frameIndex,": ",optimal.improvements_made," of ",optimal.leafs_visited," / ",optimal.objects_looked_at," objects. ",average_improvements / samples," improvements on average, ",average_leafs / samples," leafs visited on average, ",average_objects / samples," objects on average (",mean_edges_per_fish," mean edges per fish and ",mean_edges_per_blob," mean edges per blob). On average we encounter ",average_bad_probabilities / samples," bad probabilities below 0.5 (currently ",bad_probs,").");
+                    print("g fish_has_one_edge * mean_edges_per_fish = ", one_edge_probability," * ", mean_edges_per_fish," = ",one_edge_probability * (mean_edges_per_fish));
+                    print("g fish_has_one_edge * mean_edges_per_blob = ", one_edge_probability," * ", mean_edges_per_blob," = ",one_edge_probability * (mean_edges_per_blob));
+                    print("g blob_has_one_edge * mean_edges_per_fish = ", blob_one_edge," * ", mean_edges_per_fish," = ",blob_one_edge * mean_edges_per_fish);
+                    print("g blob_has_one_edge * mean_edges_per_blob = ", blob_one_edge," * ", mean_edges_per_blob," = ",blob_one_edge * mean_edges_per_blob);
                     print("g mean_edges_per_fish / mean_edges_per_blob = ", mean_edges_per_fish / mean_edges_per_blob);
-                    print("g one_to_one = ",one_to_one,", one_to_one * mean_edges_per_fish = ",one_to_one * mean_edges_per_fish," / blob: ",one_to_one * mean_edges_per_blob," /// ",average_probability,", ",average_probability * mean_edges_per_fish,"");
+                    print("g one_to_one = ",one_to_one,", one_to_one * mean_edges_per_fish = ",one_to_one * mean_edges_per_fish," / blob: ",one_to_one * mean_edges_per_blob," /// ",average_probability,", ",average_probability * mean_edges_per_fish);
                     print("g --");
                     timer.reset();
                 }
             };
             
             if(average_probability * mean_edges_per_fish <= 1) {
-                FormatWarning("(", frameIndex,") Warning: ",average_probability * mean_edges_per_fish,"");
+                FormatWarning("(", frameIndex,") Warning: ",average_probability * mean_edges_per_fish);
             }
     #endif
             
@@ -2815,7 +2813,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     for(auto &[i, b] : pairs) {
                         if(i == p.first) {
                             if(b != p.second) {
-                                FormatWarning("Frame ",frameIndex,": Assigning individual ",i->identity().ID()," to ",p.second ? (*p.second)->blob_id() : 0," instead of ", b ? (*b)->blob_id() : 0,"");
+                                FormatWarning("Frame ",frameIndex,": Assigning individual ",i->identity().ID()," to ",p.second ? (*p.second)->blob_id() : 0," instead of ", b ? (*b)->blob_id() : 0);
                             }
                             break;
                         }
@@ -2839,14 +2837,14 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
 #if defined(PAIRING_PRINT_STATS)
                 // matching did not work
                 FormatWarning("Falling back to approximative matching in frame ",frameIndex,". (p=",one_edge_probability,",",mean_edges_per_fish,", ",one_edge_probability * (mean_edges_per_fish),", ",one_edge_probability * mean_edges_per_blob,")");
-                Warning("frame %d: (%f mean edges per fish and %f mean edges per blob).", frameIndex, mean_edges_per_fish, mean_edges_per_blob);
+                FormatWarning("frame ",frameIndex,": (",mean_edges_per_fish," mean edges per fish and ",mean_edges_per_blob," mean edges per blob).");
                 
-                print("gw Probabilities: fish_has_one_edge=", one_edge_probability," blob_has_one_edge=",blob_one_edge,"");
-                print("gw fish_has_one_edge * mean_edges_per_fish = ", one_edge_probability," * ", mean_edges_per_fish," = ",one_edge_probability * (mean_edges_per_fish),"");
-                print("gw fish_has_one_edge * mean_edges_per_blob = ", one_edge_probability," * ", mean_edges_per_blob," = ",one_edge_probability * (mean_edges_per_blob),"");
-                print("gw blob_has_one_edge * mean_edges_per_fish = ", blob_one_edge," * ", mean_edges_per_fish," = ",blob_one_edge * mean_edges_per_fish,"");
-                print("gw blob_has_one_edge * mean_edges_per_blob = ", blob_one_edge," * ", mean_edges_per_blob," = ",blob_one_edge * mean_edges_per_blob,"");
-                print("gw one_to_one = ",one_to_one,", one_to_one * mean_edges_per_fish = ",one_to_one * mean_edges_per_fish," / blob: ",one_to_one * mean_edges_per_blob," /// ",average_probability,", ",average_probability * mean_edges_per_fish,"");
+                print("gw Probabilities: fish_has_one_edge=", one_edge_probability," blob_has_one_edge=",blob_one_edge);
+                print("gw fish_has_one_edge * mean_edges_per_fish = ", one_edge_probability," * ", mean_edges_per_fish," = ",one_edge_probability * (mean_edges_per_fish));
+                print("gw fish_has_one_edge * mean_edges_per_blob = ", one_edge_probability," * ", mean_edges_per_blob," = ",one_edge_probability * (mean_edges_per_blob));
+                print("gw blob_has_one_edge * mean_edges_per_fish = ", blob_one_edge," * ", mean_edges_per_fish," = ",blob_one_edge * mean_edges_per_fish);
+                print("gw blob_has_one_edge * mean_edges_per_blob = ", blob_one_edge," * ", mean_edges_per_blob," = ",blob_one_edge * mean_edges_per_blob);
+                print("gw one_to_one = ",one_to_one,", one_to_one * mean_edges_per_fish = ",one_to_one * mean_edges_per_fish," / blob: ",one_to_one * mean_edges_per_blob," /// ",average_probability,", ",average_probability * mean_edges_per_fish);
                 print("gw mean_edges_per_fish / mean_edges_per_blob = ", mean_edges_per_fish / mean_edges_per_blob);
                 print("gw ---");
 #endif
@@ -2907,7 +2905,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 }
                 
                 if(number_fish)
-                    Warning("Frame %d: Creating new individual (%d) for blob %d.", frameIndex, Identity::running_id(), blob->blob_id());
+                    FormatWarning("Frame ",frameIndex,": Creating new individual (",Identity::running_id(),") for blob ",blob->blob_id(),".");
                 
                 Individual *fish = nullptr;
                 if(!_inactive_individuals.empty()) {
@@ -3331,7 +3329,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                     }
                     
                 } else if(!properties)
-                    print("No properties for fish ",fish->identity().ID(),"");
+                    print("No properties for fish ",fish->identity().ID());
             }
             
 #ifndef NDEBUG
@@ -3393,7 +3391,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                 if(fdx1 != fdx) {
                     auto str0 = Meta::toStr(fdx);
                     auto str1 = Meta::toStr(fdx1);
-                    throw U_EXCEPTION("%S != %S", &str0, &str1);
+                    throw U_EXCEPTION("",str0," != ",str1,"");
                 }
             }
 #endif
@@ -3516,7 +3514,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
             if(!_consecutive.empty()) {
                 if(_consecutive.back().end >= frameIndex)
                     _consecutive.back().end = frameIndex - 1_f;
-                Debug("%d-%d", _consecutive.back().start, _consecutive.back().end);
+                print(_consecutive.back().start,"-",_consecutive.back().end);
             }
         }
         
@@ -3624,7 +3622,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         print("After removing frames: ", gui::CacheObject::memory());
         print("posture: ", Midline::saved_midlines());
         print("all blobs: ", Blob::all_blobs());
-        print("Range: ", start_frame(),"-",end_frame(),"");
+        print("Range: ", start_frame(),"-",end_frame());
     }
 
     size_t Tracker::found_individuals_frame(Frame_t frameIndex) const {
@@ -3730,16 +3728,9 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
     }
     
     
-
-    void log(FILE* f, const char* cmd, ...) {
-        std::string output;
-        
-        va_list args;
-        va_start(args, cmd);
-        
-        DEBUG::ParseFormatString(output, cmd, args);
-        va_end(args);
-        
+    template<typename... Args>
+    void log(FILE* f, const Args&... args) {
+        std::string output = format<FormatterType::NONE>(args...);
         output += "\n";
         
         if(f)
@@ -3848,7 +3839,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                     
                     if(n >= n_lower_bound || (segment.start() == fish->start_frame() && n > 0)) {
 #ifdef TREX_DEBUG_IDENTITIES
-                        log(f, "fish %d: segment %d-%d has %d samples", fdx, segment.start(), segment.end(), n);
+                        log(f, "fish ",fdx,": segment ",segment.start(),"-",segment.end()," has ",n," samples");
 #endif
                         print("fish ",fdx,": segment ",segment.start(),"-",segment.end()," has ",n," samples");
                         
@@ -3864,7 +3855,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                             
                             if(ratio >= 0.6) {
 #ifdef TREX_DEBUG_IDENTITIES
-                                log(f, "\ttwo largest probs %f and %f are too close (ratio %f)", sorted.begin()->second, (++sorted.begin())->second, ratio);
+                                log(f, "\ttwo largest probs ",sorted.begin()->second," and ",(++sorted.begin())->second," are too close (ratio ",ratio,")");
 #endif
                                 continue;
                             }
@@ -3899,7 +3890,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                                 // because it starts earlier, cause thats the execution order)
                                 auto rit = matches.begin();
 #ifdef TREX_DEBUG_IDENTITIES
-                                log(f, "\t%d (as %d) Found range(s) %d-%d for search range %d-%d p:%f n:%d (self:%f,n:%d)", fdx, it->first, rit->start(), rit->end(), segment.start(), segment.end(), fit->second.probs.at(*rit), fit->second.samples.at(*rit), it->second, n);
+                                log(f, "\t",fdx," (as ",it->first,") Found range(s) ",*rit," for search range ",segment," p:",fit->second.probs.at(*rit)," n:",fit->second.samples.at(*rit)," (self:",it->second,",n:",n,")");
 #endif
                                 
                                 Match::prob_t n_me = n;//segment.end() - segment.start();
@@ -3913,7 +3904,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                                 Match::prob_t sum_he = sigmoid(fit->second.probs.at(*rit)) * sigmoid(n_he);
                                 
 #ifdef TREX_DEBUG_IDENTITIES
-                                log(f, "\tself:%d %f other:%d %f => %f / %f", segment.length(), it->second, rit->length(), fit->second.probs.at(*rit), sum_me, sum_he);
+                                log(f, "\tself:",segment.length()," ",it->second," other:",rit->length()," ",fit->second.probs.at(*rit)," => ",sum_me," / ", sum_he);
 #endif
                                 
                                 if(sum_me > sum_he) {
@@ -3934,7 +3925,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                         }
                         
 #ifdef TREX_DEBUG_IDENTITIES
-                        log(f, "\tassigning %d to %d with p %f for %d-%d", it->first, fdx, it->second, segment.start(), segment.end());
+                        log(f, "\tassigning ",it->first," to ",fdx," with p ",it->second," for ", segment.start(), segment.end());
 #endif
                         virtual_fish[it->first].segments.insert(segment);
                         virtual_fish[it->first].probs[segment] = it->second;
@@ -3954,16 +3945,16 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
 #endif
         for(auto && [fdx, fish] : virtual_fish) {
 #ifdef TREX_DEBUG_IDENTITIES
-            log(f, "\t%d:", fdx);
+            log(f, "\t", fdx,":");
 #endif
             // manual_match for first segment
             if(!fish.segments.empty()) {
                 auto segment = *fish.segments.begin();
                 
                 if(!fish.probs.count(segment))
-                    throw U_EXCEPTION("Cannot find %d-%d in fish.probs", segment.start(), segment.end());
+                    throw U_EXCEPTION("Cannot find ",segment.start(),"-",segment.end()," in fish.probs");
                 if(!fish.track_ids.count(segment.range))
-                    throw U_EXCEPTION("Cannot find %d-%d in track_ids", segment.start(), segment.end());
+                    throw U_EXCEPTION("Cannot find ",segment.start(),"-",segment.end()," in track_ids");
                 
                 auto track = _individuals.at(fish.track_ids.at(segment.range));
                 
@@ -3988,11 +3979,11 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                     continue;
                 
                 if(!fish.probs.count(segment))
-                    throw U_EXCEPTION("Cannot find %d-%d in fish.probs", segment.start(), segment.end());
+                    throw U_EXCEPTION("Cannot find ",segment.start(),"-",segment.end()," in fish.probs");
                 if(!fish.track_ids.count(segment.range))
-                    throw U_EXCEPTION("Cannot find %d-%d in track_ids", segment.start(), segment.end());
+                    throw U_EXCEPTION("Cannot find ",segment.start(),"-",segment.end()," in track_ids");
 #ifdef TREX_DEBUG_IDENTITIES
-                log(f, "\t\t%d-%d: %f (from %d)", segment.start(), segment.end(), fish.probs.at(segment), fish.track_ids.at(segment.range));
+                log(f, "\t\t",segment,": ",fish.probs.at(segment)," (from ", fish.track_ids.at(segment.range),")");
 #endif
                 auto track = _individuals.at(fish.track_ids.at(segment.range));
                 assert(track->compressed_blob(segment.start()));
@@ -4038,8 +4029,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                         for(auto range : remove_from)
                             tmp_assigned_ranges[fdx].erase(range);
                         
-                        auto str = Meta::toStr(remove_from);
-                        FormatWarning("While assigning ",frame,",",blob ? (int64_t)blob->blob_id() : -1," to ",fdx," -> same fish already assigned in ranges ",&str,"");
+                        FormatWarning("While assigning ",frame,",",blob ? (int64_t)blob->blob_id() : -1," to ",fdx," -> same fish already assigned in ranges ",remove_from);
                     }
                 }
                 
@@ -4163,7 +4153,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                             if(chosen_id.valid()) {
 #ifdef TREX_DEBUG_IDENTITIES
                                 if(segment.start() == 0) {
-                                    log(f, "Fish %d: chosen_id %d, assigning %d-%d (%f / %f)...", fdx, chosen_id, segment.start(), segment.end(), dprev, dnext);
+                                    log(f, "Fish ",fdx,": chosen_id ",chosen_id,", assigning ",segment," (",dprev," / ",dnext,")...");
                                 }
 #endif
                                 
@@ -4228,8 +4218,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                                     //for(auto range : remove_from)
                                     //    automatically_assigned_ranges[chosen_id].erase(range);
                                     
-                                    auto str = Meta::toStr(remove_from);
-                                    FormatWarning("[ignore] While assigning ",segment.range.start,"-",segment.range.end," to ",(uint32_t)chosen_id," -> same fish already assigned in ranges ",&str,"");
+                                    FormatWarning("[ignore] While assigning ",segment.range.start,"-",segment.range.end," to ",(uint32_t)chosen_id," -> same fish already assigned in ranges ",remove_from);
                                 } else {
                                     assert((int64_t)blob_ids.size() == (segment.range.end - segment.range.start + 1_f).get());
                                     tmp_assigned_ranges[chosen_id][segment.range] = blob_ids;
@@ -4299,7 +4288,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid pid
                 
                 for(auto & sub : blobs) {
                     if(sub->blob_id() == bid) {
-                        //print("Found perfect match for ", bid," in blob ",b->blob_id(),"");//blob_to_id[bid] = sub;
+                        //print("Found perfect match for ", bid," in blob ",b->blob_id());//blob_to_id[bid] = sub;
                         //sub->calculate_moments();
                         return sub;
                         //break;
@@ -4422,7 +4411,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid pid
                     /*if(*frame_values.rbegin() > 10) {
                         auto str = Meta::toStr(frame_values);
                         auto str0 = Meta::toStr(result);
-                        Debug("%d: %f %S", i / step, *frame_values.rbegin(), &str0);
+                        print(i / step,": ",*frame_values.rbegin()," ",str0.c_str());
                     }*/
                     
                     values.insert(result.begin(), result.end());

@@ -117,7 +117,7 @@ void TrainingData::add_frame(std::shared_ptr<TrainingData::DataRange> data, Fram
     if(it  == original_ids_check.end())
         original_ids_check[image.get()] = id;
     else if(it->second != id) {
-        Warning("Changed identity of %d from %d to %d without notice", image->index(), it->second, id);
+        FormatWarning("Changed identity of ",image->index()," from ",it->second," to ",id," without notice");
     }*/
     
     if(!image->custom_data() || static_cast<TrainingImageData*>(image->custom_data())->original_id != original_id) {
@@ -200,7 +200,7 @@ void TrainingData::apply_mapping(const std::map<Idx_t, Idx_t>& mapping) {
         
         if(!data->salty) {
             auto str = Meta::toStr(mapping);
-            print("Changed mapping with ", str," for ", data->frames.start,"-",data->frames.end,"");
+            print("Changed mapping with ", str," for ", data->frames.start,"-",data->frames.end);
         }
         
         std::map<Idx_t, DataRange::PerIndividual> map;
@@ -497,7 +497,7 @@ void TrainingData::merge_with(std::shared_ptr<TrainingData> other, bool unmap_ev
                     
                     if(range.empty()) {
                         auto str = Meta::toStr(per.frame_indexes);
-                        throw U_EXCEPTION("Cannot find a range that frame %d belongs to in %S", frame, &str);
+                        throw U_EXCEPTION("Cannot find a range that frame ",frame," belongs to in ",str,"");
                     }
                     
                     add_frame(new_ptr, frame, unmap_everything ? ID : id, ID, per.images[i], per.positions[i], per.num_pixels[i], range);
@@ -631,7 +631,7 @@ Idx_t TrainingData::DataRange::unmap(Idx_t id) const {
     if(applied_mapping.empty()) return id;
     for (auto && [original, mapped] : applied_mapping) {
         if(mapped == id) {
-            print("\treversing applied mapping ", mapped," -> ",original,"");
+            print("\treversing applied mapping ", mapped," -> ",original);
             return original;
         }
     }
@@ -646,7 +646,7 @@ void TrainingData::DataRange::reverse_mapping() {
         return;
     
     auto str = Meta::toStr(applied_mapping);
-    print("Reversing mapping with ", str," for ", frames.start,"-",frames.end,"");
+    print("Reversing mapping with ", str," for ", frames.start,"-",frames.end);
     
     std::map<Idx_t, DataRange::PerIndividual> map;
     for(auto && [to, from] : applied_mapping) {
@@ -738,7 +738,7 @@ std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::share
             N += range.length();
         }
         
-        print("\t(salt) ", id,": new salt N=",N,"");
+        print("\t(salt) ", id,": new salt N=",N);
     }
     
     size_t maximum_samples_per_individual = 0;
@@ -858,7 +858,7 @@ std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::share
     
     auto str = Meta::toStr(individual_added_salt);
     auto after = Meta::toStr(individual_samples_before_after);
-    print("Added salt (maximum_samples_per_individual = ",maximum_samples_per_individual,", Nmax = ",Nmax,"): ",&str," -> ",&after,"");
+    print("Added salt (maximum_samples_per_individual = ",maximum_samples_per_individual,", Nmax = ",Nmax,"): ",str.c_str()," -> ",after.c_str());
     
     return add_range;
 }
@@ -1014,7 +1014,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
     }
     
     for(auto && [id, sub] : available_images) {
-        print("\t",id,": ",sub.size()," available images between ",sub.empty() ? Frame_t() : sub.begin()->first," and ",sub.empty() ? Frame_t() : sub.rbegin()->first,"");
+        print("\t",id,": ",sub.size()," available images between ",sub.empty() ? Frame_t() : sub.begin()->first," and ",sub.empty() ? Frame_t() : sub.rbegin()->first);
     }
     
     size_t N_validation_images = 0, N_training_images = 0;
@@ -1163,7 +1163,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             /*auto iit = did_image_already_exist.find({id, frame});
             if(iit != did_image_already_exist.end()) {
                 // this image was already created
-                FormatWarning("Creating a second instance of id ", id," in frame ",frame,"");
+                FormatWarning("Creating a second instance of id ", id," in frame ",frame);
             }*/
             
             using namespace default_config;
@@ -1204,7 +1204,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
         callback(++i / float(frames.size()));
     }
     
-    print("Failed blobs: ", failed_blobs," Found blobs: ",found_blobs,"");
+    print("Failed blobs: ", failed_blobs," Found blobs: ",found_blobs);
     
     if(failed) {
         auto prefix = SETTING(individual_prefix).value<std::string>();

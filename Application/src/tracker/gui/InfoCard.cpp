@@ -284,7 +284,7 @@ void InfoCard::update() {
                     if(_fish) {
                         auto range = _fish->get_segment_safe(_frameNr);
                         if(!range.empty()) {
-                            print("Erasing automatic matches for fish ", _fish->identity().ID()," in range ", range.start(),"-",range.end(),"");
+                            print("Erasing automatic matches for fish ", _fish->identity().ID()," in range ", range.start(),"-",range.end());
                             Tracker::delete_automatic_assignments(_fish->identity().ID(), range);
                             GUI::reanalyse_from(_frameNr);
 

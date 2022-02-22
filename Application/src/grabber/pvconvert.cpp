@@ -178,7 +178,7 @@ int main(int argc, char**argv) {
                     break;
                     
                 default:
-                    FormatWarning("Unknown option ", option.name," with value ",option.value,"");
+                    FormatWarning("Unknown option ", option.name," with value ",option.value);
                     break;
             }
         }
@@ -199,8 +199,8 @@ int main(int argc, char**argv) {
     if(input.remove_filename().empty())
         input = output_dir/input;
     
-    print("Input: ",input,"");
-    print("Output to: ",output_dir,"");
+    print("Input: ",input);
+    print("Output to: ",output_dir);
     
     pv::File video(input);
     video.start_reading();
@@ -295,7 +295,7 @@ int main(int argc, char**argv) {
         if(frame_index%50 == 0) {
             //cv::imshow("preview", image);
             //cv::waitKey(1);
-            print("Frame ", frame_index,"/",end_frame,"");
+            print("Frame ", frame_index,"/",end_frame);
         }
         
         prev_time = current_frame.timestamp();

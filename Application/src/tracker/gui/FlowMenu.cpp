@@ -30,7 +30,7 @@ namespace gui {
         
         if(!contains(_layers.at(from)._names, item)) {
             auto str = Meta::toStr(_layers.at(from)._names);
-            throw U_EXCEPTION("Unknown item '%S' for FlowMenu layer %d with items %S.", &item, from, &str);
+            throw U_EXCEPTION("Unknown item '",item,"' for FlowMenu layer ",from," with items ",str,".");
         }
         
         _layers.at(from)._links[item] = to;
@@ -41,7 +41,7 @@ namespace gui {
         
         if(!contains(_layers.at(layer)._names, item)) {
             auto str = Meta::toStr(_layers.at(layer)._names);
-            throw U_EXCEPTION("Unknown item '%S' for FlowMenu layer %d with items %S.", &item, layer, &str);
+            throw U_EXCEPTION("Unknown item '",item,"' for FlowMenu layer ",layer," with items ",str,".");
         }
         
         if(_layers.at(layer)._links.count(item))
@@ -66,7 +66,7 @@ namespace gui {
     
     void FlowMenu::check_layer_index(size_t idx) const {
         if(idx >= _layers.size())
-            throw U_EXCEPTION("Cannot access layer %d because only %d layers are currently registered.", idx, _layers.size());
+            throw U_EXCEPTION("Cannot access layer ",idx," because only ",_layers.size()," layers are currently registered.");
     }
     
     void FlowMenu::clicked(size_t idx) {

@@ -44,7 +44,7 @@ namespace default_config {
                 if(deprecated.at(utils::lowercase(key)).empty()) {
                     print("Setting ",key," has been removed from the tracker and will be ignored.");
                 } else
-                    throw U_EXCEPTION("Setting '%S' is deprecated. Please use '%S' instead.", &key, &deprecated.at(utils::lowercase(key)));
+                    throw U_EXCEPTION("Setting '",key,"' is deprecated. Please use '",deprecated.at(utils::lowercase(key)),"' instead.");
             }
         }
     }

@@ -26,7 +26,8 @@ int main(int argc, char**argv) {
 #ifdef NDEBUG
     cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_ERROR);
 #endif
-    DEBUG::set_runtime_quiet();
+    //!TODO: Set runtime quiet
+    //DEBUG::set_runtime_quiet();
     
 #ifndef NDEBUG
     auto OS_ACTIVITY_DT_MODE = getenv("OS_ACTIVITY_DT_MODE");
@@ -45,7 +46,7 @@ int main(int argc, char**argv) {
     size_t step_x = (grid.root()->x().length()-1); // 1000;
     size_t step_y = (grid.root()->y().length()-1); // 1000;
     
-    print("Step: ", step_x," ",step_y,"");
+    print("Step: ", step_x," ",step_y);
     for(size_t i=0; i<1000000; ++i) {
         points.push_back({
             //long_t(float(rand())/float(RAND_MAX) * 20000),
@@ -88,7 +89,7 @@ int main(int argc, char**argv) {
             return true;
         });
         
-        print("Took ", timer.elapsed() * 1000,"ms to traverse (returned ", counted,"u datapoints, ",average / double(counted)," average).");
+        print("Took ", timer.elapsed() * 1000,"ms to traverse (returned ", counted," datapoints, ",average / double(counted)," average).");
         
         counted = 0;
         average = 0;
@@ -101,7 +102,7 @@ int main(int argc, char**argv) {
             return true;
         }, range, Range<uint32_t>(0, 150), Range<uint32_t>(150, 300));
         
-        print("Took ",timer.elapsed() * 1000,"ms to traverse ",counted,"u datapoints for frame range ",range.start,"-",range.end," and 150px ranges (average: ",average / double(counted),")");
+        print("Took ",timer.elapsed() * 1000,"ms to traverse ",counted," datapoints for frame range ",range.start,"-",range.end," and 150px ranges (average: ",average / double(counted),")");
         
         counted = 0;
         average = 0;
@@ -113,7 +114,7 @@ int main(int argc, char**argv) {
             return true;
         }, range);
         
-        print("Took ",timer.elapsed() * 1000,"ms to traverse ",counted,"u datapoints for frame range ",range.start,"-",range.end," (average: ",average / double(counted),")");
+        print("Took ",timer.elapsed() * 1000,"ms to traverse ",counted," datapoints for frame range ",range.start,"-",range.end," (average: ",average / double(counted),")");
         
         uint32_t resolution = 15;
         uint32_t step_size = uint32_t(double(grid.root()->x().length() + 0.5) / double(resolution));
@@ -138,15 +139,15 @@ int main(int argc, char**argv) {
         
         pool.wait();
         
-        print("Took ",timer.elapsed() * 1000,"ms to traverse ",counted,"u datapoints for frame range ",range.start,"-",range.end," (average: ",average / double(counted),") as cells");
+        print("Took ",timer.elapsed() * 1000,"ms to traverse ",counted," datapoints for frame range ",range.start,"-",range.end," (average: ",average / double(counted),") as cells");
         
         timer.reset();
         auto removed = grid.erase(Range<long_t>(100,125));
-        print("Removing ", removed,"u items took ", timer.elapsed() * 1000,"ms (grid now has ",grid.size(),"u points)");
+        print("Removing ", removed," items took ", timer.elapsed() * 1000,"ms (grid now has ",grid.size()," points)");
         
         timer.reset();
         grid.fill(extra_points);
-        print("Inserting ", extra_points.size(),"u extra points took ", timer.elapsed() * 1000,"ms (grid now has ",grid.size(),"u points)");
+        print("Inserting ", extra_points.size()," extra points took ", timer.elapsed() * 1000,"ms (grid now has ",grid.size()," points)");
         //auto str = Meta::toStr(cells);
         
         counted = 0;
@@ -159,10 +160,10 @@ int main(int argc, char**argv) {
             return true;
         }, Range<long_t>(20500,22000));
         
-        print("Took ", timer.elapsed() * 1000,"ms to traverse ", counted,"u datapoints for frame range 20500-22000 (average: ",average / double(counted),")");
+        print("Took ", timer.elapsed() * 1000,"ms to traverse ", counted," datapoints for frame range 20500-22000 (average: ",average / double(counted),")");
         
         removed = grid.erase(Range<long_t>(21000,21001));
-        print("Removing ", removed,"u items took ", timer.elapsed() * 1000,"ms (grid now has ",grid.size(),"u points)");
+        print("Removing ", removed," items took ", timer.elapsed() * 1000,"ms (grid now has ",grid.size()," points)");
     }
     
     exit(0);*/
@@ -239,7 +240,7 @@ int main(int argc, char**argv) {
                 case Arguments::opencv_ffmpeg_support: {
                     std::string str = cv::getBuildInformation();
                     std::string line = "";
-                    Debug("%S", &str);
+                    print(str);
                     
                     for(size_t i=0; i<str.length(); ++i) {
                         if(str[i] == '\n') {
@@ -264,7 +265,7 @@ int main(int argc, char**argv) {
                 case Arguments::opencv_opencl_support: {
                     std::string str = cv::getBuildInformation();
                     std::string line = "";
-                    Debug("%S", &str);
+                    print(str);
                     
                     for(size_t i=0; i<str.length(); ++i) {
                         if(str[i] == '\n') {
@@ -355,7 +356,7 @@ int main(int argc, char**argv) {
                         path = path.add_extension("pv");
                     
                     if(!path.exists())
-                        throw U_EXCEPTION("Cannot find video file '%S'. (%d)", &path.str(), path.exists());
+                        throw U_EXCEPTION("Cannot find video file '",path.str(),"'. (",path.exists(),")");
                     
                     SETTING(filename) = path.remove_extension();
                     break;
@@ -631,7 +632,7 @@ int main(int argc, char**argv) {
         if(save_background) {
             file::Path file = input.remove_filename() / "background.png";
             cv::imwrite(file.str(), video.average());
-            print("Saved average image to ",file,"");
+            print("Saved average image to ",file);
         }
         
         if(!SETTING(replace_background).value<file::Path>().empty()) {
@@ -693,7 +694,7 @@ int main(int argc, char**argv) {
                     copy.add_individual(std::move(frame));
 
                     if (idx % 1000 == 0) {
-                        Debug("Frame %lu / %lu (%.2f%% compression ratio)...", idx, video.length(), copy.compression_ratio()*100);
+                        print("Frame ",idx," / ",video.length()," (",dec<2>(copy.compression_ratio()*100),"% compression ratio)...");
                     }
                 }
 
@@ -768,7 +769,7 @@ int main(int argc, char**argv) {
                 prev_timestamp = frame.timestamp();
                 
                 if(i%1000 == 0) {
-                    print("Frame ", i,"/",video.length(),"");
+                    print("Frame ", i,"/",video.length());
                 }
             }
             
@@ -803,7 +804,7 @@ int main(int argc, char**argv) {
                 overall += bytes;
                 
                 if(i%size_t(video.length()*0.1) == 0) {
-                    print("Frame ", i,"/",video.length(),"");
+                    print("Frame ", i,"/",video.length());
                 }
             }
             
@@ -823,11 +824,11 @@ int main(int argc, char**argv) {
                 blobs_per_frame.addNumber(this_frame);
                 
                 if(i%size_t(video.length()*0.1) == 0) {
-                    print("Frame ", i,"/",video.length(),"");
+                    print("Frame ", i,"/",video.length());
                 }
             }
             
-            Debug("%lu bytes (%.2fMB) of blob data", overall, double(overall) / 1000.0 / 1000.0);
+            print(overall," bytes (",dec<2>(double(overall) / 1000.0 / 1000.0),"MB) of blob data");
             print("Images average at ",double(pixels_per_blob) / double(pixels_samples)," px / blob and the range is [",min_pixels,"-",max_pixels,"] with a median of ",pixels_median.getValue(),".");
             print("There are ", blobs_per_frame.getValue()," blobs in each frame (median).");
         }
@@ -914,12 +915,12 @@ int main(int argc, char**argv) {
                 printf("%s", str.c_str());
                 break;
             default:
-                U_EXCEPTION("Unimplemented parameter format '",format.name())
+                throw U_EXCEPTION("Unimplemented parameter format ",format.name());
         }
     }
     
     if(format == parameter_format_t::minimal && !print.empty())
-        printf("\n","'.");
+        printf("\n");
     
     if(!updated_settings.empty() || !remove_settings.empty()) {
         pv::File video(input);

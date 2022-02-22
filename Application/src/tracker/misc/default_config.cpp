@@ -185,7 +185,7 @@ file::Path conda_environment_path() {
     
 #ifndef NDEBUG
     if(!SETTING(quiet))
-        print("Set conda environment path = ",home,"");
+        print("Set conda environment path = ",home);
 #endif
     return home;
 }
@@ -811,7 +811,7 @@ void load_string_with_deprecations(const file::Path& settings_file, const std::s
                         FormatWarning("[", settings_file.c_str(),"] Deprecated setting ", key," = ",val," found. Ignoring, as there is no replacement.");
                 } else {
                     if(!quiet)
-                        print("[",settings_file.c_str(),"] Deprecated setting ",key," = ",val," found. Replacing with ",r," = ",val,"");
+                        print("[",settings_file.c_str(),"] Deprecated setting ",key," = ",val," found. Replacing with ",r," = ",val);
                     if(key == "whitelist_rect" || key == "exclude_rect" || key == "recognition_rect") {
                         auto values = Meta::fromStr<std::vector<float>>(val);
                         if(values.size() == 4) {

@@ -110,7 +110,7 @@ namespace pv {
     
     const std::vector<pv::BlobPtr>& Frame::get_blobs() const {
         if(_blobs.size() != n())
-            throw U_EXCEPTION("Have to call the non-const variant of this function first at some point (%d != %d).", _blobs.size(), n());
+            throw U_EXCEPTION("Have to call the non-const variant of this function first at some point (",_blobs.size()," != ",n(),").");
         return _blobs;
     }
     
@@ -280,7 +280,7 @@ namespace pv {
         uint64_t count = 0;
         for (auto &line : *mask) {
             if(!(prev == line) && !(prev < line))
-                Warning("Lines not properly ordered, or overlapping in x [%d-%d] < [%d-%d] (%d/%d).", prev.x0, prev.x1, line.x0, line.x1, prev.y, line.y);
+                FormatWarning("Lines not properly ordered, or overlapping in x [",prev.x0,"-",prev.x1,"] < [",line.x0,"-",line.x1,"] (",prev.y,"/",line.y,").");
             prev = line;
             ++count;
         }
@@ -457,7 +457,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         std::lock_guard<std::mutex> guard(location_mutex);
         if(location_funcs.find(purpose) != location_funcs.end()) {
             auto str = Meta::toStr(extract_keys(location_funcs));
-            throw U_EXCEPTION("Purpose '%S' already found in map with keys %S. Cannot register twice.", &purpose, &str);
+            throw U_EXCEPTION("Purpose '",purpose,"' already found in map with keys ",str,". Cannot register twice.");
         }
         
         location_funcs.insert({purpose, fn});
@@ -470,7 +470,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             auto it = location_funcs.find(utils::trim(utils::lowercase(purpose)));
             if(it == location_funcs.end()) {
                 auto str = Meta::toStr(extract_keys(location_funcs));
-                throw U_EXCEPTION("Cannot find purpose '%S' in map with keys %S in order to modify path '%S'.", &purpose, &str, &path.str());
+                throw U_EXCEPTION("Cannot find purpose '",purpose,"' in map with keys ",str," in order to modify path '",path.str(),"'.");
             }
             
             fn = it->second;
@@ -576,7 +576,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             throw U_EXCEPTION("Only 1 channel currently supported (",this->channels," provided)");
         
         if(line_size != sizeof(line_type))
-            throw U_EXCEPTION("The used line format in this file (%ld bytes) differs from the expected %ld bytes.", line_size, sizeof(line_type));
+            throw U_EXCEPTION("The used line format in this file (",line_size," bytes) differs from the expected ",sizeof(line_type)," bytes.");
         
         if(average)
             delete average;
@@ -688,7 +688,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         if(mask) {
             ref.write(uint64_t(mask->size()));
             ref.write_data(mask->size(), (char*)mask->data());
-            print("Written mask with ", mask->cols,"x",mask->rows,"");
+            print("Written mask with ", mask->cols,"x",mask->rows);
         }
         else {
             ref.write(uint64_t(0));
@@ -734,7 +734,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             print("Metadata empty.");
         } else {
             ret = "{"+ret+"}";
-            print("Metadata: ",ret,"");
+            print("Metadata: ",ret);
         }
         
         return ret;
@@ -839,7 +839,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         //    frame._timestamp -= _header.timestamp; // make timestamp relative to start of video
 
         if (_prev_frame_time && frame._timestamp <= _prev_frame_time) {
-            throw U_EXCEPTION("Should be dropping frame because %lu <= %lu.", frame._timestamp, _prev_frame_time);
+            throw U_EXCEPTION("Should be dropping frame because ",frame._timestamp," <= ",_prev_frame_time,".");
         }
 
         _header._running_average_tdelta += frame._timestamp - _prev_frame_time;
@@ -967,7 +967,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
                 last_reset = raw_prev_timestamp + last_difference;
                 last_reset_idx = idx;
                 
-                FormatWarning("Fixing frame ",idx," because timestamp ",frame.timestamp(),"u < ",last_reset," -> ",last_reset + frame.timestamp(),"");
+                FormatWarning("Fixing frame ",idx," because timestamp ",frame.timestamp()," < ",last_reset," -> ",last_reset + frame.timestamp());
             } else {
             	last_difference = frame.timestamp() - raw_prev_timestamp;
             }
@@ -1139,7 +1139,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             throw U_EXCEPTION("Cannot get timestamps for video while writing.");
         
         if(frameIndex >= header().num_frames)
-            throw U_EXCEPTION("Access out of bounds %d/%d.", frameIndex, header().num_frames);
+            throw U_EXCEPTION("Access out of bounds ",frameIndex,"/",header().num_frames,".");
         
         return header().index_table[frameIndex];
     }

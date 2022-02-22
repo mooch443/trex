@@ -129,7 +129,7 @@ public:
                     
                 } else {
                     second_list->set_title("Blobs for "+(const std::string&)item);
-                    print("clicked ",(const std::string&)item,"");
+                    print("clicked ",item);
                 }
             }
         );
@@ -146,7 +146,7 @@ public:
         
         second_list = std::make_shared<gui::List>(Bounds(GUI::average().cols - 581 - 110 - 10 - 80 * 2, 7, 200, 33), "blobs", std::vector<std::shared_ptr<List::Item>>{},
           [this](List*, const List::Item& item) {
-              Debug("%d %d", item.ID(), item.selected());
+              print(item.ID()," ",item.selected());
               if(!item.selected() && item.ID() >= 0) {
                   GUI::instance()->add_manual_match(GUI::instance()->frameinfo().frameIndex, _list->selected_item() >= 0 ? Idx_t(_list->selected_item()) : Idx_t(), item.ID());
               }
@@ -289,7 +289,7 @@ public:
                     break;
                 }
                 default:
-                    print("Unknown action ",(const std::string&)item,".");
+                    print("Unknown action ",item,".");
             }
             
             menu->set_folded(true);

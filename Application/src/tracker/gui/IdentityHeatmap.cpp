@@ -53,7 +53,7 @@ inline std::string get_stats() {
 
 void Grid::print_stats(const std::string& title) {
     auto str = get_stats();
-    Debug("%S\n%S", &title, &str);
+    print(title,"\n",str);
 }
 
 /**
@@ -137,7 +137,7 @@ void HeatmapController::save() {
     const uint64_t maximum_package_size = uint64_t(4.0 * 1024.0 * 1024.0 * 1024.0 / double(value_size));
     bool enable_packages = expected >= maximum_package_size;
 
-    print("ValueSize=", value_size," MaximumPackageSize=",maximum_package_size,"");
+    print("ValueSize=", value_size," MaximumPackageSize=",maximum_package_size);
 
     if (enable_packages) {
         per_frame.reserve(maximum_package_size);
@@ -202,7 +202,7 @@ void HeatmapController::save() {
         frames.push_back(frame.get());
         
         if(!be_quiet && count_frames % print_step == 0) {
-            Debug("Saving heatmap %.2f%% ... (frame %d / %d)", double(count_frames) / double(max_frames) * 100, frame, Tracker::end_frame());
+            print("Saving heatmap ",dec<2>(double(count_frames) / double(max_frames) * 100),"% ... (frame ",frame," / ",Tracker::end_frame(),")");
         }
 
         ++count_frames;
@@ -545,7 +545,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
                     auto is_end = kiterator == fish->frame_segments().end();
                     auto is_end_kit = kit == fish->frame_segments().end();
                     if(fish->has(frame) && kit != kiterator)
-                        Warning("Frame %d: fish%d, Iterator for frame %d != iterator_for (iterator_for: %d, starting at %d / vs. kit: %d, starting at %d)", frame, fish->identity().ID(), frame, is_end ? 1 : 0, !is_end ? kiterator->get()->start() : Frame_t(), is_end_kit, !is_end_kit ? kit->get()->start() : Frame_t());
+                        FormatWarning("Frame ",frame,": fish",fish->identity().ID(),", Iterator for frame ",frame," != iterator_for (iterator_for: ",is_end ? 1 : 0,", starting at ",!is_end ? kiterator->get()->start() : Frame_t()," / vs. kit: ",is_end_kit,", starting at ",!is_end_kit ? kit->get()->start() : Frame_t(),")");
 #endif
                     
                     if(kit == fish->frame_segments().end() || !(*kit)->contains(frame))
@@ -587,9 +587,9 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
             
             if(_frame_context > 0) {
                 if(pt.frame < current_frame - _frame_context) {
-                    print("Encountered a wild ", pt.frame," < ",current_frame - _frame_context,"");
+                    print("Encountered a wild ", pt.frame," < ",current_frame - _frame_context);
                 } else if(pt.frame > current_frame + _frame_context)
-                    print("Encountered a wild ", pt.frame," > ",current_frame + _frame_context,"");
+                    print("Encountered a wild ", pt.frame," > ",current_frame + _frame_context);
             }
             
             if(range.start == -1 || range.start > pt.frame) range.start = pt.frame;
@@ -599,7 +599,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
         assert(_grid.root()->frame_range() == range);
         
         //if(_frame % 50 == 0)
-        Debug("Frame %d: %lu elements (added %lu, (removed)%lu + (replaced)%lu, range %d-%d, reported %d-%d)", current_frame, data.size(), updated.added, updated.removed, 0, range.start, range.end, _grid.root()->frame_range().start, _grid.root()->frame_range().end);*/
+        print("Frame ",current_frame,": ",data.size()," elements (added ",updated.added,", (removed)",updated.removed," + (replaced)",0,", range ",range.start,"-",range.end,", reported ",_grid.root()->frame_range().start,"-",_grid.root()->frame_range().end,")");*/
     }
     
     //auto str = Meta::toStr(data);
@@ -843,7 +843,7 @@ void Leaf::clear() {
 void Grid::create(const Size2 &image_dimensions) {
     auto dim = sign_cast<uint32_t>(image_dimensions.max());
     dim = (uint32_t)next_pow2(dim); // ensure that it is always divisible by two
-    Debug("Creating a grid of size %ux%u (for image of size %.0fx%.0f)", dim, dim, image_dimensions.width, image_dimensions.height);
+    print("Creating a grid of size ",dim,"x",dim," (for image of size ",image_dimensions.width,"x",image_dimensions.height,")");
     
     if(_root) {
         _root->clear();
@@ -962,7 +962,7 @@ void Region::check_range() const {
     if(_frame_range != range)
         FormatWarning("Frame range ",_frame_range.start,"-",_frame_range.end," != ",range.start,"-",range.end," actual range");
     if(count != _size)
-        FormatWarning("Size (", count,"u) does not match reported size (",_size,"u).");
+        FormatWarning("Size (", count,") does not match reported size (",_size,").");
     if(!float_equals(sum, _value_sum))
         FormatWarning("Value sum (", sum,") does not match reported (",_value_sum,").");
     if(vrange != _value_range)

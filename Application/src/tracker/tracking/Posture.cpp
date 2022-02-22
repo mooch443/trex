@@ -391,7 +391,7 @@ namespace track {
                     
                     cv::circle(colored, OFFSET(outline().front()), 5, Yellow, -1);
                     
-                    print("tail:", midline->tail_index()," head:",midline->head_index(),"");
+                    print("tail:", midline->tail_index()," head:",midline->head_index());
                 }
                 
                 ColorWheel cwheel;

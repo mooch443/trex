@@ -16,7 +16,7 @@ namespace fg {
         for(size_t i=0; i<list.size(); i++) {
             auto &device = list[i];
             std::string name(device.GetFriendlyName());
-            print("[", i,"] Camera: ",name,"");
+            print("[", i,"] Camera: ",name);
             
             if(std::string(device.GetSerialNumber()) == serial_number) {
                 _camera = new Camera_t(CTlFactory::GetInstance().CreateDevice(device));

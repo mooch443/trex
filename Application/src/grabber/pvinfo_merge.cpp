@@ -93,7 +93,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             configs.push_back(config);
             
         } else {
-            throw U_EXCEPTION("Cant find settings for '%S' at '%S'", &name.str(), &settings_file.str());
+            throw U_EXCEPTION("Cant find settings for '",name.str(),"' at '",settings_file.str(),"'");
         }
     }
     
@@ -190,8 +190,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     output.start_writing(true);
     
     //auto start_time = output.header().timestamp;
-    auto str = Meta::toStr(files);
-    print("Writing videos ",&str," to '",&out_path.str(),"' [0,",min_length,"] with resolution (",resolution.width,",",resolution.height,")");
+    print("Writing videos ",files," to '",out_path.c_str(),"' [0,",min_length,"] with resolution (",resolution.width,",",resolution.height,")");
     using namespace track;
     GlobalSettings::map().dont_print("cm_per_pixel");
     const bool merge_overlapping_blobs = SETTING(merge_overlapping_blobs);
@@ -230,7 +229,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
      if(!new_background.bounds().contains(b->bounds()))
      {
      auto str = Meta::toStr(*b);
-     Warning("%S out of bounds for background %fx%f", &str, new_background.bounds().width, new_background.bounds().height);
+     FormatWarning(str.c_str()," out of bounds for background ",new_background.bounds().width,"x",new_background.bounds().height);
      
      } else {
      meta[frame][b->blob_id()] = Source{ vdx, frame, id };
@@ -284,7 +283,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
                 if(!new_background.bounds().contains(b->bounds()))
                 {
                     auto str = Meta::toStr(*b);
-                    Warning("%S out of bounds for background %fx%f", &str, new_background.bounds().width, new_background.bounds().height);
+                    FormatWarning(str.c_str()," out of bounds for background ",new_background.bounds().width,"x",new_background.bounds().height);
                     
                 } else {
                     meta[frame][b->blob_id()] = Source{ vdx, frame, id };
@@ -392,7 +391,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         output.add_individual(std::move(o));
         
         if(frame % size_t(min_length * 0.1) == 0) {
-            print("merging ", frame,"/",min_length,"");
+            print("merging ", frame,"/",min_length);
         }
     }
     

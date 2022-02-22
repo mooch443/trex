@@ -734,7 +734,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                     float x0 = Tracker::average().cols / float(_frame_info->video_length) * after_frame.get();
                     float x1 = Tracker::average().cols;
                     
-                    print("Clearing from ", x0," to ",x1 + pos.x,"");
+                    print("Clearing from ", x0," to ",x1 + pos.x);
                     DEBUG_CV(cv::rectangle(img, Vec2(x0, 0), Vec2(pos + Vec2(x1, img.rows)), Transparent, -1));
                 }
             }

@@ -74,14 +74,14 @@ void PPFrame::_remove_from_map(pv::bid bdx) {
             }
         }
     }
-    Debug("%lu removals", removals);*/
+    print(removals," removals");*/
     if(bdx.valid())
         _blob_grid.erase((int64_t)bdx);
 }
 
 void PPFrame::_assume_not_finalized(const char* file, int line) {
     if(_finalized) {
-        throw U_EXCEPTION("PPFrame already finalized at [%s:%d].", file, line);
+        throw U_EXCEPTION("PPFrame already finalized at [",file,":",line,"].");
     }
 }
 

@@ -301,7 +301,7 @@ int main(int argc, char** argv)
     
     GlobalSettings::map().set_do_print(true);
     
-    auto debug_callback = DEBUG::SetDebugCallback({
+    /*auto debug_callback = DEBUG::SetDebugCallback({
         DEBUG::DEBUG_TYPE::TYPE_ERROR,
         DEBUG::DEBUG_TYPE::TYPE_EXCEPTION,
         DEBUG::DEBUG_TYPE::TYPE_WARNING,
@@ -315,7 +315,9 @@ int main(int argc, char** argv)
             fflush(log_file);
         }
     });
+    */
     
+    //!TODO: Error log_file not implemented
     gui::init_errorlog();
     ocl::init_ocl();
     
@@ -373,7 +375,7 @@ int main(int argc, char** argv)
                 auto files = file::Path(conda_prefix+"/bin").find_files();
                 for(auto file : files) {
                     if(file.filename() == "ffmpeg") {
-                        print("Found ffmpeg in ",file.str(),"");
+                        print("Found ffmpeg in ",file.str());
                         SETTING(ffmpeg_path) = file;
                         break;
                     }
@@ -398,7 +400,7 @@ int main(int argc, char** argv)
                     auto files = file::Path(part).find_files();
                     for(auto file : files) {
                         if(file.filename() == "ffmpeg") {
-                            print("Found ffmpeg in ",file.str(),"");
+                            print("Found ffmpeg in ",file.str());
                             SETTING(ffmpeg_path) = file;
                             break;
                         }
@@ -575,7 +577,7 @@ int main(int argc, char** argv)
                     }
                         
                     default:
-                        FormatWarning("Unknown option ", option.name," with value ",option.value,"");
+                        FormatWarning("Unknown option ", option.name," with value ",option.value);
                         break;
                 }
             }
@@ -589,7 +591,7 @@ int main(int argc, char** argv)
                 auto rejections = GlobalSettings::load_from_file(deprecations, settings_file.str(), AccessLevelType::STARTUP);
                 for(auto && [key, val] : rejections) {
                     if(deprecations.find(key) != deprecations.end())
-                        throw U_EXCEPTION("Parameter '%S' is deprecated. Please use '%S'.", &key, &deprecations.at(key));
+                        throw U_EXCEPTION("Parameter '",key,"' is deprecated. Please use '",deprecations.at(key),"'.");
                 }
                 DebugHeader("/LOADED '%S'", &settings_file.str());
             }
@@ -675,7 +677,7 @@ int main(int argc, char** argv)
                 auto rejections = GlobalSettings::load_from_file(deprecations, exec_settings.str(), AccessLevelType::STARTUP);
                 for(auto && [key, val] : rejections) {
                     if(deprecations.find(key) != deprecations.end())
-                        throw U_EXCEPTION("Parameter '%S' is deprecated. Please use '%S'.", &key, &deprecations.at(key));
+                        throw U_EXCEPTION("Parameter '",key,"' is deprecated. Please use '",deprecations.at(key),"'.");
                 }
                 DebugHeader("/LOADED '%S'", &exec_settings.str());
             }
@@ -816,10 +818,6 @@ int main(int argc, char** argv)
         
         print("Ending the program.");
         
-    } catch(const DebugException& e) {
-        printf("Debug exception: %s\n", e.what());
-        return 1;
-        
     } catch(const UtilsException& e) {
 #ifdef WIN32
         if (!SETTING(nowindow)) {
@@ -845,7 +843,7 @@ int main(int argc, char** argv)
     }
 #endif
     
-    DEBUG::UnsetDebugCallback(debug_callback);
+    //DEBUG::UnsetDebugCallback(debug_callback);
     gui::deinit_errorlog();
     
     if(log_file)

@@ -4,7 +4,6 @@
 #include <sstream>
 
 #define LIBCNPY_H_
-#include <cpputils/cpputils.h>
 #include <file/Path.h>
 
 #if WIN32

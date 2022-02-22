@@ -211,11 +211,11 @@ void Individual::SegmentInformation::add_posture_at(const std::shared_ptr<Postur
         fish->added_postures.insert(stuff->frame);
     } else {
         print(fish->added_postures);
-        throw CustomException(type<SoftException>, "(", fish->identity(),") Posture for frame ",stuff->frame," already added.");
+        throw SoftException("(", fish->identity(),") Posture for frame ",stuff->frame," already added.");
     }
     
     if(!fish->_posture_stuff.empty() && stuff->frame < fish->_posture_stuff.back()->frame)
-        throw CustomException(type<SoftException>, "(", fish->identity().ID(),") Adding frame ", stuff->frame," after frame ", fish->_last_posture_added);
+        throw SoftException("(", fish->identity().ID(),") Adding frame ", stuff->frame," after frame ", fish->_last_posture_added);
     
     fish->_posture_stuff.push_back(stuff);
     fish->_last_posture_added = stuff->frame;
@@ -512,9 +512,9 @@ void Individual::remove_frame(Frame_t frameIndex) {
             for(auto id : seg->posture_index) {
                 if(id != -1) {
                     if(it == _posture_stuff.end())
-                        throw U_EXCEPTION("Ended in %d-%d.", seg->range.start, seg->range.end);
+                        throw U_EXCEPTION("Ended in ",seg->range.start,"-",seg->range.end,".");
                     if((*it)->frame != seg->start() + offset) {
-                        throw U_EXCEPTION("Frame %d from posture is != %d", (*it)->frame, seg->start() + offset);
+                        throw U_EXCEPTION("Frame ",(*it)->frame," from posture is != ",seg->start() + offset,"");
                     }
                     ++it;
                 }
@@ -555,7 +555,7 @@ void Individual::remove_frame(Frame_t frameIndex) {
             ++it;
         else if((*it)->range.start < frameIndex) {
 #ifndef NDEBUG
-            print("(",identity().ID(),") need to shorten segment ",(*it)->range.start,"-",(*it)->range.end," to fit frame ",frameIndex,"");
+            print("(",identity().ID(),") need to shorten segment ",(*it)->range.start,"-",(*it)->range.end," to fit frame ",frameIndex);
 #endif
             (*it)->range.end = frameIndex - 1_f;
             assert((*it)->range.start <= (*it)->range.end);
@@ -596,13 +596,13 @@ void Individual::remove_frame(Frame_t frameIndex) {
             
 #ifndef NDEBUG
             if(!shortened_posture_index && it == _frame_segments.end())
-                print("Individual ", identity().ID()," did not have any postures after ",frameIndex,"");
+                print("Individual ", identity().ID()," did not have any postures after ",frameIndex);
 #endif
         }
         
         if(it != _frame_segments.end()) {
 #ifndef NDEBUG
-            print("(", identity().ID(),") found that we need to delete everything after and including ", (*it)->range.start,"-",(*it)->range.end,"");
+            print("(", identity().ID(),") found that we need to delete everything after and including ", (*it)->range.start,"-",(*it)->range.end);
 #endif
             
             if(!shortened_basic_index && !(*it)->basic_index.empty()) {
@@ -618,7 +618,7 @@ void Individual::remove_frame(Frame_t frameIndex) {
                             assert(*kit < (long long)_posture_stuff.size());
                             _posture_stuff.resize(*kit);
 #ifndef NDEBUG
-                            print("(", identity().ID(),")\tposture_stuff.back == ",_posture_stuff.empty() ? Frame_t() : _posture_stuff.back()->frame,"");
+                            print("(", identity().ID(),")\tposture_stuff.back == ",_posture_stuff.empty() ? Frame_t() : _posture_stuff.back()->frame);
 #endif
                             shortened_posture_index = true;
                             break;
@@ -632,7 +632,7 @@ void Individual::remove_frame(Frame_t frameIndex) {
                 
 #ifndef NDEBUG
                 if(!shortened_posture_index)
-                    print("Individual ", identity().ID()," did not have any postures after ",frameIndex,"");
+                    print("Individual ", identity().ID()," did not have any postures after ",frameIndex);
 #endif
             }
             
@@ -675,7 +675,7 @@ void Individual::remove_frame(Frame_t frameIndex) {
                     }
                 }
                 
-                print("#1 (", identity().ID(),") resizing posture_stuff ", _posture_stuff.size()," -> ",last_found_gdx,"");
+                print("#1 (", identity().ID(),") resizing posture_stuff ", _posture_stuff.size()," -> ",last_found_gdx);
                 
                 segment.posture_index.resize(current.length());
                 _posture_stuff.resize(last_found_gdx);
@@ -699,7 +699,7 @@ void Individual::remove_frame(Frame_t frameIndex) {
             }
         }
         
-        print("#2 (", identity().ID(),") resizing posture_stuff ", _posture_stuff.size()," -> ",last_found_gdx,"");
+        print("#2 (", identity().ID(),") resizing posture_stuff ", _posture_stuff.size()," -> ",last_found_gdx);
         _posture_stuff.resize(last_found_gdx);
         
         _frame_segments.erase(it);
@@ -1000,7 +1000,7 @@ std::shared_ptr<Individual::BasicStuff> Individual::add(const FrameProperties* p
     // add BasicStuff index to segment
     segment->add_basic_at(frameIndex, _basic_stuff.size());
     if(!_basic_stuff.empty() && stuff->frame < _basic_stuff.back()->frame)
-        throw CustomException(type<SoftException>, "(", identity(),") Added basic stuff for frame ", stuff->frame, " after frame ", _basic_stuff.back()->frame,".");
+        throw SoftException("(", identity(),") Added basic stuff for frame ", stuff->frame, " after frame ", _basic_stuff.back()->frame,".");
     _basic_stuff.push_back(stuff);
     _matched_using.push_back(match_mode);
     
@@ -1120,7 +1120,7 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(F
         || !blob)
     {*/
         //if(FAST_SETTINGS(huge_timestamp_ends_segment) && current_prob != -1 && current_prob < 0.5)
-        //    Warning("Fish %d in frame %d has %f", identity().ID(), frameIndex, current_prob);
+        //    FormatWarning("Fish ",identity().ID()," in frame ",frameIndex," has ",current_prob);
         if(!_frame_segments.empty()) {
             _frame_segments.back()->error_code = error_code;
         }
@@ -1258,7 +1258,7 @@ Midline::Ptr Individual::calculate_midline_for(const std::shared_ptr<BasicStuff>
             midline = midline->normalize();
         else if(size_t(_warned_normalized_midline.elapsed())%5 == 0) {
 #ifndef NDEBUG
-            Warning("%d has a pre-normalized midline in frame %d. not normalizing it again.", identity().ID(), posture->frame);
+            FormatWarning(identity().ID()," has a pre-normalized midline in frame ",posture->frame,". not normalizing it again.");
 #endif
         }
         
@@ -1516,7 +1516,7 @@ bool CacheHints::full() const {
 
 void CacheHints::clear(size_t size) {
     if (size == 0 && FAST_SETTINGS(frame_rate) < 0) {
-        FormatExcept("Size=", size,"u frame_rate=", FAST_SETTINGS(frame_rate),"");
+        FormatExcept("Size=", size," frame_rate=", FAST_SETTINGS(frame_rate),"");
         _last_second.resize(0);
     } else {
         _last_second.resize(size > 0 ? size : FAST_SETTINGS(frame_rate));
@@ -1637,7 +1637,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
                 bdx = (*_frame_segments.rbegin())->basic_stuff(_endFrame);
                 pdx = (*_frame_segments.rbegin())->posture_stuff(_endFrame);
             } else
-                print("Nothing to be found for ",frameIndex - 1_f,"");
+                print("Nothing to be found for ",frameIndex - 1_f);
         }
     }
     
@@ -1646,7 +1646,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     
     /*auto _pp = find_frame(frameIndex-1);
     if(pp != _pp) {
-        Debug("Frame %d, individual %d: %d != %d", frameIndex, identity().ID(),_pp ? _pp->frame : -1, pp ? pp->frame : -1);
+        print("Frame ",frameIndex,", individual ",identity().ID(),": ",_pp ? _pp->frame : -1," != ",pp ? pp->frame : -1);
     }*/
     
     //auto pp = find_frame(frameIndex-1);
@@ -1847,7 +1847,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     prob_t speed = max(0.6f, sqrt(used_frames ? static_median(average_speed.begin(), average_speed.end()) : 0));
     
     if(cache.tdelta == 0)
-        throw U_EXCEPTION("No time difference between %d and %d in calculate_next_positions.", frameIndex, cache.previous_frame);
+        throw U_EXCEPTION("No time difference between ",frameIndex," and ",cache.previous_frame," in calculate_next_positions.");
     
     //! \lambda
     const float lambda = SQR(SQR(max(0, min(1, FAST_SETTINGS(track_speed_decay)))));
@@ -2045,11 +2045,11 @@ Individual::Probability Individual::probability(int label, const IndividualCache
     if (cache.consistent_categories && cache.current_category != -1) {
         //auto l = Categorize::DataStore::ranged_label(Frame_t(frameIndex), blob);
         //if(identity().ID() == 38)
-        //    FormatWarning("Frame ",frameIndex,"d: blob ",blob.blob_id(),"u -> ",l ? l->name.c_str() : "N/A"," (",l ? l->id : -1,") and previous is ",cache.current_category,"");
+        //    FormatWarning("Frame ",frameIndex,": blob ",blob.blob_id()," -> ",l ? l->name.c_str() : "N/A"," (",l ? l->id : -1,") and previous is ",cache.current_category);
         if (label != -1) {
             if (label != cache.current_category) {
                 //if(identity().ID() == 38)
-                 //   FormatWarning("Frame ", frameIndex,": current category does not match for blob ",blob.blob_id(),"");
+                 //   FormatWarning("Frame ", frameIndex,": current category does not match for blob ",blob.blob_id());
                 //return Probability{ 0, 0, 0, 0 };
                 return 0;
             }
@@ -2331,14 +2331,14 @@ void Individual::save_posture(std::shared_ptr<BasicStuff> stuff, Frame_t frameIn
 	if(!ptr.outline_empty()) {
         const auto midline = ptr.normalized_midline();
 		/*if(midline && midline->size() != FAST_SETTINGS(midline_resolution)) {
-			Warning("Posture error (%d segments) in %d at frame %d.", midline->size(), _identity.ID(), frameIndex);
+            FormatWarning("Posture error (",midline->size()," segments) in ",_identity.ID()," at frame ",frameIndex,".");
 		}*/
         
         auto segment = segment_for(frameIndex);
         if(!segment)
             throw U_EXCEPTION("save_posture cannot find frame ",frameIndex,".");
         if(!segment->contains(frameIndex))
-            throw U_EXCEPTION("save_posture found segment (%d-%d), but does not contain %d.", segment->start(), segment->end(), frameIndex);
+            throw U_EXCEPTION("save_posture found segment (",segment->start(),"-",segment->end(),"), but does not contain ",frameIndex,".");
         
         auto stuff = std::make_shared<PostureStuff>();
         stuff->frame = frameIndex;
@@ -2790,7 +2790,7 @@ void Individual::calculate_average_recognition() {
     
     if(!splits.empty()) {
         auto str = Meta::toStr(splits);
-        FormatWarning("Found frame segments for fish ", identity().ID()," that have to be split:\n",str,"");
+        FormatWarning("Found frame segments for fish ", identity().ID()," that have to be split:\n",str);
     }
     
     _recognition_segments = processed_segments;
@@ -2829,7 +2829,7 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
         // average cannot be found for given segment. try to calculate it...
         auto sit = _recognition_segments.find(segment_start);
         if(sit == _recognition_segments.end())
-            throw U_EXCEPTION("Cannot find segment starting at %d for fish %S.", segment_start, &identity().raw_name());
+            throw U_EXCEPTION("Cannot find segment starting at ",segment_start," for fish ",identity().raw_name(),".");
         
         const auto &[ segment, usable] = sit->second;
         
@@ -2870,7 +2870,7 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
             if(s > 0.001)
                 average_processed_segment[segment_start] = {overall, average};
             else {
-                print("Not using fish ",identity().ID()," segment ",segment_start,"-",segment.end," because sum is ",s,"");
+                print("Not using fish ",identity().ID()," segment ",segment_start,"-",segment.end," because sum is ",s);
                 return {0, {}};
             }
         } else
@@ -2894,7 +2894,7 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
         {
             //! found the segment
         } else
-            throw U_EXCEPTION("Cannot find segment starting at %d for fish %S.", segment_start, &identity().raw_name());
+            throw U_EXCEPTION("Cannot find segment starting at ",segment_start," for fish ",identity().raw_name(),".");
         
         const auto && [segment, usable] = (FrameRange)*sit->get();
         
@@ -2933,7 +2933,7 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
             if(s > 0.001)
                 average_recognition_segment[segment_start] = {overall, average};
             else {
-                print("Not using fish ",identity().ID()," segment ",segment_start,"-",segment.end," because sum is ",s,"");
+                print("Not using fish ",identity().ID()," segment ",segment_start,"-",segment.end," because sum is ",s);
                 return {0, {}};
             }
         } else
@@ -2983,7 +2983,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
         return true;
     });
 
-    print("Saving to '",&path.str(),"' (",len,"u frames in range ",range.start,"-",range.end,")");
+    print("Saving to '",path.c_str(),"' (",len," frames in range ",range.start,"-",range.end,")");
 
     size_t vres = VisualField::field_resolution * VisualField::layers;
     size_t eye_len = len * vres;
@@ -3040,7 +3040,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
         
         if(frame.get() % 1000 == 0) {
             update((frame - range.start).get() / (float)(range.end - range.start).get() * 0.5, "");
-            Debug("%d / %d", frame, range.end);
+            print(frame," / ",range.end);
         }
         
         return true;
