@@ -43,6 +43,7 @@ else()
     set(TGRABS_EXEC_NAME tgrabs)
 endif()
 add_executable(${TGRABS_EXEC_NAME} ${SRCS})
+target_precompile_headers(${TGRABS_EXEC_NAME} REUSE_FROM commons)
 
 if(WIN32)
 	set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES LINK_FLAGS_RELEASE "/DELAYLOAD:tracker_python.dll" )
@@ -70,6 +71,7 @@ target_link_libraries(pvconvert PUBLIC
 )
 
 add_dependencies(pvconvert commons)#Commons::OpenCV)
+target_precompile_headers(pvconvert REUSE_FROM commons)
 
 option(WITH_PYLON "use pylon support" OFF)
 
@@ -152,6 +154,8 @@ target_link_libraries(pvinfo PRIVATE
 	#${EXTRA_LIBS}
 	pv
 )
+
+target_precompile_headers(pvinfo REUSE_FROM commons)
 
 add_dependencies(pvinfo commons) #Commons::OpenCV)
 
@@ -257,6 +261,7 @@ if(APPLE)
     set_target_properties(tgrabs_starter PROPERTIES OUTPUT_NAME tgrabs)
     set(targets ${targets} tgrabs_starter)
     target_compile_definitions(tgrabs_starter PRIVATE TREX_PYTHON_PATH="${CONDA_PREFIX_VAR}")
+    target_precompile_headers(tgrabs_starter REUSE_FROM commons)
 endif()
 
 if(WITH_FFMPEG)

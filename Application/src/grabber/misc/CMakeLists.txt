@@ -12,6 +12,7 @@ if(UNIX)
 elseif(WIN32)
   add_library(framegrabber_misc STATIC ${SRCS} ${HDRS})
 endif()
+target_precompile_headers(framegrabber_misc REUSE_FROM commons)
 
 target_link_libraries(framegrabber_misc
 	PRIVATE cnpy commons

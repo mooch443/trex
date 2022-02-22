@@ -21,6 +21,7 @@ target_link_libraries(tracker_gui PRIVATE cnpy
     commons
     Commons::GLFW
 )
+target_precompile_headers(tracker_gui REUSE_FROM commons)
 
 if(APPLE)
   target_compile_options(tracker_gui PRIVATE "-DNS_FORMAT_ARGUMENT(A)=" "-D_Nullable_result=_Nullable")

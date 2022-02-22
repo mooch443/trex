@@ -67,3 +67,5 @@ set_target_properties(pv
 add_subdirectory(lzo)
 target_link_libraries(pv PUBLIC lzo cnpy commons)
 add_dependencies(pv commons)
+
+target_precompile_headers(pv REUSE_FROM commons)

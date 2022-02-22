@@ -44,6 +44,9 @@ else()
     target_link_libraries(trex_check_python ${PYTHON_LIBRARIES})
 endif()
 
+target_precompile_headers(trex_check_python REUSE_FROM commons)
+target_precompile_headers(tracker_python REUSE_FROM commons)
+
 add_dependencies(tracker_python trex_check_python )
 install(TARGETS trex_check_python
     EXPORT TRexCheckPython

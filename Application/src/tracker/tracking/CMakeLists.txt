@@ -34,3 +34,5 @@ else()
         TREX_PYTHON_PATH="${PYTHON_EXECUTABLE}"
     )
 endif()
+
+target_precompile_headers(tracker_tracking REUSE_FROM commons)
