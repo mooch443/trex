@@ -13,7 +13,7 @@ uint64_t memory_selector(MemoryStats& , const Idx_t& , const std::string& ) {
 template <typename T>
     requires is_map<T>::value
 uint64_t memory_selector(MemoryStats& stats, const T& map, const std::string& name) {
-    //using map_t = typename remove_cvref<decltype(map)>::type;
+    //using map_t = typename cmn::remove_cvref<decltype(map)>::type;
     uint64_t bytes = 0;//sizeof(map_t);
     
     for (auto && [key, value] : map) {
@@ -25,7 +25,7 @@ uint64_t memory_selector(MemoryStats& stats, const T& map, const std::string& na
 
 template <typename K, typename V>
 uint64_t memory_selector(MemoryStats& stats, const std::unordered_map<K, V>& map, const std::string& name) {
-    //using map_t = typename remove_cvref<decltype(map)>::type;
+    //using map_t = typename cmn::remove_cvref<decltype(map)>::type;
     uint64_t bytes = 0;//sizeof(map_t);
     
     for (auto && [key, value] : map) {

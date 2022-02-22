@@ -92,15 +92,15 @@ void InfoCard::update() {
 #endif
         
         auto range_of = [](const auto& rit) -> const FrameRange& {
-            using value_t = typename remove_cvref<decltype(rit)>::type;
+            using value_t = typename cmn::remove_cvref<decltype(rit)>::type;
             using SegPtr_t = std::shared_ptr<Individual::SegmentInformation>;
             
             if constexpr(std::is_same<value_t, FrameRange>::value)    return rit;
             else if constexpr(std::is_same<value_t, SegPtr_t>::value) return *rit;
             else if constexpr(is_pair<value_t>::value) return rit.second;
-            else if constexpr(is_pair<typename remove_cvref<decltype(*rit)>::type>::value) return (*rit).second;
+            else if constexpr(is_pair<typename cmn::remove_cvref<decltype(*rit)>::type>::value) return (*rit).second;
             else if constexpr(std::is_same<decltype((*rit)->range), FrameRange>::value) return (*rit)->range;
-            else if constexpr(std::is_same<typename remove_cvref<decltype(*rit)>::type, std::shared_ptr<track::Individual::SegmentInformation>>::value)
+            else if constexpr(std::is_same<typename cmn::remove_cvref<decltype(*rit)>::type, std::shared_ptr<track::Individual::SegmentInformation>>::value)
                 return *(*rit);
             else return *rit;
         };
