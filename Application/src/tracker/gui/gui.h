@@ -40,14 +40,6 @@ namespace cmn {
     class ConnectedTasks;
 }
 
-namespace gui {
-    class GUICache;
-    class Textfield;
-    class Dropdown;
-    class PropertiesGraph;
-
-namespace globals {
-
 CREATE_STRUCT(Cache,
     (bool, gui_run),
     (gui::mode_t::Class, gui_mode),
@@ -89,12 +81,22 @@ CREATE_STRUCT(Cache,
     (bool, gui_happy_mode),
     (bool, auto_categorize)
 )
+
+namespace gui {
+    class GUICache;
+    class Textfield;
+    class Dropdown;
+    class PropertiesGraph;
+
+namespace globals {
+
+
 //(bool, gui_blur_enabled)
 
 }
 }
 
-#define GUI_SETTINGS(NAME) gui::globals::Cache::copy< gui::globals::Cache:: NAME >()
+#define GUI_SETTINGS(NAME) Cache::copy< Cache:: NAME >()
 
 namespace pv {
     class Frame;

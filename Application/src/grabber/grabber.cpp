@@ -1073,7 +1073,7 @@ void FrameGrabber::update_tracker_queue() {
                 track::PythonIntegration::import_module("closed_loop");
                 request_features(track::PythonIntegration::run_retrieve_str("closed_loop", "request_features"));
             }
-            catch (const SoftException&) {
+            catch (const SoftExceptionImpl&) {
 
             }
             return true;
@@ -1254,7 +1254,7 @@ void FrameGrabber::update_tracker_queue() {
                                 std::vector<size_t>{ 2 * FAST_SETTINGS(midline_resolution) * sizeof(float), 2 * sizeof(float), sizeof(float) });
 
                             track::PythonIntegration::run("closed_loop", "update_tracking");
-                        } catch(const SoftException& e) {
+                        } catch(const SoftExceptionImpl& e) {
                             FormatExcept("Python runtime exception: '", e.what(),"'");
                         }
                         

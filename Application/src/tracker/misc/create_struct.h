@@ -733,11 +733,11 @@ public: \
 }; \
 STRUCT_FOR_EACH(NAM, EXPRESS_MEMBER_FUNCTIONS, __VA_ARGS__)
 
-#define STRUCT_META_EXTENSIONS(NAM) namespace cmn { \
-namespace Meta { \
-template<> inline std::string toStr<NAM :: Variables>(const NAM :: Variables& value, const NAM :: Variables* ) { return NAM :: names()[value]; } \
-template<> inline std::string name<enum NAM :: Variables>(const enum NAM :: Variables*) { return #NAM ; } \
-template<> inline enum NAM :: Variables fromStr<enum NAM :: Variables>(const std::string& str, const enum NAM :: Variables* ) { \
+#define STRUCT_META_EXTENSIONS(NAM) \
+ \
+template<> inline std::string cmn::Meta::toStr<NAM :: Variables>(const NAM :: Variables& value, const NAM :: Variables* ) { return NAM :: names()[value]; } \
+template<> inline std::string cmn::Meta::name<enum NAM :: Variables>(const enum NAM :: Variables*) { return #NAM ; } \
+template<> inline enum NAM :: Variables cmn::Meta::fromStr<enum NAM :: Variables>(const std::string& str, const enum NAM :: Variables* ) { \
     size_t index = 0; \
     for(auto &name : NAM :: names()) { \
         if(str == name) { \
@@ -747,6 +747,4 @@ template<> inline enum NAM :: Variables fromStr<enum NAM :: Variables>(const std
     } \
     \
     throw CustomException(cmn::type<std::invalid_argument>, "Cannot find variable '", #NAM ,"::", str.c_str() ,"'."); \
-} \
-} \
 }

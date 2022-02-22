@@ -2,9 +2,9 @@
 #include <tracking/MotionRecord.h>
 
 template<typename... Args>
-void ASSERT(bool condition, Args... args) {
+void ASSERT(bool condition, const Args&... args) {
 	if (!condition) {
-        throw U_EXCEPTION(std::forward<Args>(args)...);
+        throw cmn::U_EXCEPTION(args...);
 	}
 }
 
@@ -31,12 +31,7 @@ int main() {
 		start.init(nullptr, t0, p0, M_PI);
 		next .init(&start,  t1, p1, M_PI);
 
-		Debug("(%f,%f) -> (%f,%f) => %fcm/s",
-			start.pos<Units::CM_AND_SECONDS>().x,
-			start.pos<Units::CM_AND_SECONDS>().y,
-			next.pos<Units::CM_AND_SECONDS>().x,
-			next.pos<Units::CM_AND_SECONDS>().y,
-			next.speed<Units::CM_AND_SECONDS>());
+		print(start.pos<Units::CM_AND_SECONDS>(), " -> ", next.pos<Units::CM_AND_SECONDS>()," => ", next.speed<Units::CM_AND_SECONDS>(),"cm/s");
 
 		auto manual = (p1 - p0).length() / (t1 - t0) * SETTING(cm_per_pixel).value<float>();
         print("Manual: ", manual,"cm/s");
@@ -66,17 +61,12 @@ int main() {
 		vector.back().init(previous, time, pos, M_PI);
 		previous = &vector.back();
 
-		Debug("Position: (%f,%f) / (%f,%f) manual:%fcm/s automatic:%fcm/s (dt:%fs)", 
-			pos.x * SETTING(cm_per_pixel).value<float>(), pos.y * SETTING(cm_per_pixel).value<float>(),
-			previous->pos<Units::CM_AND_SECONDS>().x, previous->pos<Units::CM_AND_SECONDS>().y,
-			speed * SETTING(cm_per_pixel).value<float>(),
-			previous->speed<Units::CM_AND_SECONDS>(),
-			dt);
+		print("Position: ", pos * SETTING(cm_per_pixel).value<float>()," / ", previous->pos<Units::CM_AND_SECONDS>()," manual:", speed * SETTING(cm_per_pixel).value<float>(),"cm/s automatic:", previous->speed<Units::CM_AND_SECONDS>(),"cm/s (dt:",
+			dt, "s)");
 
 		auto epsilon = speed * SETTING(cm_per_pixel).value<float>() * 0.0001;
 		ASSERT(previous->speed<Units::CM_AND_SECONDS>() - speed * SETTING(cm_per_pixel).value<float>() <= epsilon,
-			"Speed was %f, but should have been %f", 
-			previous->speed<Units::CM_AND_SECONDS>(), 
+			"Speed was ", previous->speed<Units::CM_AND_SECONDS>(),", but should have been ",
 			speed * SETTING(cm_per_pixel).value<float>());
 	}
 

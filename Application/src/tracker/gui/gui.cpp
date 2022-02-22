@@ -159,7 +159,7 @@ const gui::Timeline& GUI::timeline() {
 
 using namespace Hist;
 
-template<globals::Cache::Variables M>
+template<Cache::Variables M>
 class DirectSettingsItem : public List::Item {
 protected:
     GETTER_SETTER(std::string, description)
@@ -171,10 +171,14 @@ public:
         else
             _description = description;
         
-        set_selected(globals::Cache::get<M>());
+        set_selected(Cache::get<M>());
     }
     
     operator const std::string&() const override {
+        return _description;
+    }
+    
+    std::string toStr() const {
         return _description;
     }
     
@@ -187,11 +191,11 @@ public:
     void set_selected(bool s) override {
         if(s != selected()) {
             List::Item::set_selected(s);
-            GlobalSettings::get(globals::Cache::name<M>()) = s;
+            GlobalSettings::get(Cache::name<M>()) = s;
         }
     }
     void update() override {
-        set_selected(globals::Cache::get<M>());
+        set_selected(Cache::get<M>());
     }
 };
 
@@ -258,7 +262,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
     PD(gui).set_size(Size2(average.cols, average.rows));
     PDP(video_source) = &video_source;
 
-    gui::globals::Cache::init();
+    Cache::init();
     
     PDP(timeline) = std::make_shared<Timeline>(*this, _frameinfo);
     PD(gui).root().insert_cache(_base, std::make_shared<CacheObject>());
@@ -2630,7 +2634,7 @@ void GUI::draw_footer(DrawStructure& base) {
     static Text additional_status("", Vec2(), White, Font(0.7));
     static Text mouse_status("", Vec2(), White.alpha(200), Font(0.7));
     
-#define SITEM(NAME) DirectSettingsItem<globals::Cache::Variables:: NAME>
+#define SITEM(NAME) DirectSettingsItem<Cache::Variables:: NAME>
     static List options_dropdown(Bounds(0, 0, 150, 33 + 2), "display", {
         std::make_shared<SITEM(gui_show_blobs)>("blobs"),
         std::make_shared<SITEM(gui_show_paths)>("paths"),
