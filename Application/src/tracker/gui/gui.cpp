@@ -218,7 +218,7 @@ void drawOptFlowMap (const cv::Mat& flow, cv::Mat& map) {
 
 bool GUI::execute_settings(file::Path settings_file, AccessLevelType::Class accessLevel) {
     if(settings_file.exists()) {
-        DebugHeader("LOADING '%S'", &settings_file.str());
+        DebugHeader("LOADING ", settings_file);
         try {
             auto content = utils::read_file(settings_file.str());
             default_config::load_string_with_deprecations(settings_file, content, GlobalSettings::map(), accessLevel);
@@ -227,7 +227,7 @@ bool GUI::execute_settings(file::Path settings_file, AccessLevelType::Class acce
             FormatError("Illegal syntax in settings file.");
             return false;
         }
-        DebugHeader("LOADED '%S'", &settings_file.str());
+        DebugHeader("LOADED ", settings_file);
         return true;
     }
     
@@ -1029,7 +1029,7 @@ void GUI::stop_recording() {
     PD(recording) = false;
     PD(last_recording_frame).invalidate();
     
-    DebugCallback("Stopped recording to '%S'.", &PD(recording_path).str());
+    DebugCallback("Stopped recording to ", PD(recording_path), ".");
 }
 
 void GUI::trigger_redraw() {
@@ -4149,9 +4149,9 @@ void GUI::write_config(bool overwrite, GUI::GUIType type, const std::string& suf
         if(f) {
             fwrite(text.data(), 1, text.length(), f);
             fclose(f);
-            DebugCallback("Saved '%S'.", &filename.str());
+            DebugCallback("Saved ", filename, ".");
         } else {
-            FormatExcept("Cannot write file ",filename.str(),".");
+            FormatExcept("Cannot write file ",filename,".");
         }
     }
 }
@@ -4353,7 +4353,7 @@ void GUI::generate_training_data_faces(const file::Path& path) {
         }
     }
     
-    DebugCallback("Generating training dataset [%d-%d] in folder '%S'.", range.start, range.end, &path.str());
+    DebugCallback("Generating training dataset ", range," in folder ", path, ".");
     
     PPFrame frame;
     

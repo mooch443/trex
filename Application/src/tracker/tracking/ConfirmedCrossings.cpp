@@ -158,9 +158,9 @@ bool ConfirmedCrossings::next(FOIStatus& foi) {
             file::Path path = pv::DataLocation::parse("output", SETTING(filename).value<file::Path>().str()+"_confirmations.npz");
             try {
                 cmn::npz_save(path.str(), "data", rows.data(), shape);
-                DebugHeader("Saved to '%S'.", &path.str());
+                DebugHeader("Saved to ", path, ".");
             } catch(...) {
-                FormatExcept("Exception while saving to ",path.str(),".");
+                FormatExcept("Exception while saving to ",path,".");
             }
             
             _wrong.clear();

@@ -569,8 +569,8 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
             auto path = SETTING(history_matching_log).value<file::Path>();
             if(!path.empty()) {
                 path = pv::DataLocation::parse("output", path);
-                DebugCallback("Opening history_log at '%S'...", &path.str());
-                
+                DebugCallback("Opening history_log at ", path, "...");
+                //!TODO: CHECK IF THIS WORKS
                 history_log->open(path.str(), std::ios_base::out | std::ios_base::binary);
                 if(history_log->is_open()) {
                     auto &ss = *history_log;

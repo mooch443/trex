@@ -1354,7 +1354,7 @@ int main(int argc, char** argv)
         default_config::get(defaults, docs, NULL);
         auto added = GlobalSettings::load_from_string(default_config::deprecations(), defaults, str, AccessLevelType::STARTUP, true);
         
-        DebugHeader("LOADING SETTINGS FROM '%S'", &path.str());
+        DebugHeader("LOADING SETTINGS FROM ", path);
         
         for(auto name : load_settings_from_results) {
             try {
@@ -1377,7 +1377,7 @@ int main(int argc, char** argv)
             }
         }
         
-        DebugHeader("/ LOADED SETTINGS FROM '%S'", &path.str());
+        DebugHeader("/ LOADED SETTINGS FROM ", path);
     }
     
     if(SETTING(auto_train)) {

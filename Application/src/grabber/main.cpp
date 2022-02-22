@@ -586,14 +586,14 @@ int main(int argc, char** argv)
         Path settings_file = pv::DataLocation::parse("settings");
         if(!settings_file.empty()) {
             if (settings_file.exists() && settings_file.is_regular()) {
-                DebugHeader("LOADING FROM '%S'",&settings_file.str());
+                DebugHeader("LOADING FROM ", settings_file);
                 std::map<std::string, std::string> deprecations {{"fish_minmax_size","blob_size_range"}};
                 auto rejections = GlobalSettings::load_from_file(deprecations, settings_file.str(), AccessLevelType::STARTUP);
                 for(auto && [key, val] : rejections) {
                     if(deprecations.find(key) != deprecations.end())
                         throw U_EXCEPTION("Parameter '",key,"' is deprecated. Please use '",deprecations.at(key),"'.");
                 }
-                DebugHeader("/LOADED '%S'", &settings_file.str());
+                DebugHeader("/LOADED ", settings_file);
             }
             else
                 FormatError("Cannot find settings file ",settings_file.str(),".");
@@ -672,14 +672,14 @@ int main(int argc, char** argv)
         if(!SETTING(exec).value<file::Path>().empty()) {
             Path exec_settings = pv::DataLocation::parse("settings", SETTING(exec).value<file::Path>());
             if (exec_settings.exists() && exec_settings.is_regular()) {
-                DebugHeader("LOADING FROM '%S'",&exec_settings.str());
+                DebugHeader("LOADING FROM ", exec_settings);
                 std::map<std::string, std::string> deprecations {{"fish_minmax_size","blob_size_range"}};
                 auto rejections = GlobalSettings::load_from_file(deprecations, exec_settings.str(), AccessLevelType::STARTUP);
                 for(auto && [key, val] : rejections) {
                     if(deprecations.find(key) != deprecations.end())
-                        throw U_EXCEPTION("Parameter '",key,"' is deprecated. Please use '",deprecations.at(key),"'.");
+                        throw U_EXCEPTION("Parameter ",key," is deprecated. Please use ",deprecations.at(key),".");
                 }
-                DebugHeader("/LOADED '%S'", &exec_settings.str());
+                DebugHeader("/LOADED ", exec_settings);
             }
             else
                 FormatError("Cannot find settings file ",exec_settings.str(),".");

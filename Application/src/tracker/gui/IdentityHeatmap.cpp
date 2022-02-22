@@ -173,7 +173,7 @@ void HeatmapController::save() {
                 + (source.empty() ? "" : ("_" + source))
                 + ".npz");
         
-        DebugHeader("Saving package %lu to '%S'...", package_index, &path.str());
+        DebugHeader("Saving package ", package_index," to ", path, "...");
         temporary_save(path, [&](file::Path use_path) {
             cmn::npz_save(use_path.str(), "heatmap", per_frame.data(), shape);
             cmn::npz_save(use_path.str(), "frames", frames, "a");

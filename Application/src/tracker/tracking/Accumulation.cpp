@@ -1376,7 +1376,7 @@ bool Accumulation::start() {
     }
     
     if(!reason_to_stop.empty())
-        DebugHeader("[Accumulation STOP] %S", &reason_to_stop);
+        DebugHeader("[Accumulation STOP] ", reason_to_stop.c_str());
     else
         DebugHeader("[Accumulation STOP] <unknown reason>");
     
