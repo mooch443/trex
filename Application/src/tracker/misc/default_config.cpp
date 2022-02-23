@@ -12,12 +12,21 @@
 #endif
 #include <misc/default_settings.h>
 
+const auto homedir = []() { 
 #ifndef WIN32
-struct passwd *pw = getpwuid(getuid());
-const char *homedir = pw->pw_dir;
+    struct passwd* pw = getpwuid(getuid());
+    const char* homedir = pw->pw_dir;
+    return std::string(homedir);
 #else
-const char *homedir = getenv("USERPROFILE");
+    char* home;
+    size_t size;
+    if (_dupenv_s(&home, &size, "USERPROFILE"))
+        return std::string();
+    auto str = std::string(home, size);
+    free(home);
+    return str;
 #endif
+};
 
 #include <tracking/Tracker.h>
 #include <misc/default_settings.h>
