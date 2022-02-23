@@ -26,7 +26,7 @@ const auto homedir = []() {
     free(home);
     return str;
 #endif
-};
+}();
 
 #include <tracking/Tracker.h>
 #include <misc/default_settings.h>
