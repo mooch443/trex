@@ -676,7 +676,8 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
                       current.set_timestamp(_video->timestamp(current.index()));
                   }
               }
-              
+
+              ++_frame_processing_ratio;
               return true;
           },
           [&](Image_t& current) -> bool { return load_image(current); },
@@ -954,11 +955,14 @@ bool FrameGrabber::add_image_to_average(const Image_t& current) {
 bool FrameGrabber::load_image(Image_t& current) {
     Timer timer;
     
-    if(GRAB_SETTINGS(terminate))
+    if (GRAB_SETTINGS(terminate)) {
+        --_frame_processing_ratio;
         return false;
+    }
     
     if(_video) {
         if(_average_finished && current.index() >= long_t(_video->length())) {
+            --_frame_processing_ratio;
             return false;
         }
         
@@ -986,7 +990,8 @@ bool FrameGrabber::load_image(Image_t& current) {
             if(!GRAB_SETTINGS(terminate)) {
                 SETTING(terminate) = true;
             }
-            
+
+            --_frame_processing_ratio;
             return false;
         }
         
@@ -995,14 +1000,17 @@ bool FrameGrabber::load_image(Image_t& current) {
         if(_camera) {
             //static Image_t image(_camera->size().height, _camera->size().width, 1);
             if(!_camera->next(current)) {
+                --_frame_processing_ratio;
                 return false;
             }
             //current.set(image);
         }
     }
     
-    if(add_image_to_average(current))
+    if (add_image_to_average(current)) {
+        --_frame_processing_ratio;
         return false;
+    }
 
     _loading_timing = _loading_timing * 0.75 + timer.elapsed() * 0.25;
     return true;
@@ -1049,6 +1057,8 @@ void FrameGrabber::add_tracker_queue(const pv::Frame& frame, Frame_t index) {
         ppframe_queue.emplace_back(std::move(ptr));
     }
     
+    print(_frame_processing_ratio.load());
+    --_frame_processing_ratio;
     ppvar.notify_one();
 }
 
@@ -1100,9 +1110,10 @@ void FrameGrabber::update_tracker_queue() {
     
     std::unique_lock<std::mutex> guard(ppqueue_mutex);
     static const auto range = processing_range();
-    while (!_terminate_tracker || (!GRAB_SETTINGS(enable_closed_loop) && (!ppframe_queue.empty() || (last_processed < range.end - 1_f)) /* we cannot skip frames */)) {
-        if(ppframe_queue.empty() && (last_processed < range.end - 1_f))
-            ppvar.wait(guard);
+    while (!_terminate_tracker || (!GRAB_SETTINGS(enable_closed_loop) && (!ppframe_queue.empty() || _frame_processing_ratio > 0) /* we cannot skip frames */)) {
+        print("tracker: ", _frame_processing_ratio.load());
+        if(ppframe_queue.empty())
+            ppvar.wait_for(guard, std::chrono::milliseconds(100));
         
         if(GRAB_SETTINGS(enable_closed_loop) && ppframe_queue.size() > 1) {
             if (print_quit_timer.elapsed() > 1) {
@@ -1889,6 +1900,7 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
         if (!GRAB_SETTINGS(terminate)) {
             SETTING(terminate) = true;
             print("Ending...");
+            --_frame_processing_ratio;
             return Queue::Code::ITEM_REMOVE;
         }
     }

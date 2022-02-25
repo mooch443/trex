@@ -825,8 +825,8 @@ int main(int argc, char** argv)
     tracker.set_average(Image::Make(local));
     
     if(!SETTING(log_file).value<file::Path>().empty()) {
-        auto path = pv::DataLocation::parse("output", SETTING(log_file).value<file::Path>());
-        
+        auto path = SETTING(log_file).value<file::Path>();//pv::DataLocation::parse("output", SETTING(log_file).value<file::Path>());
+        set_log_file(path.str());
         /*DEBUG::SetDebugCallback({
             DEBUG::DEBUG_TYPE::TYPE_ERROR,
             DEBUG::DEBUG_TYPE::TYPE_EXCEPTION,
@@ -847,7 +847,7 @@ int main(int argc, char** argv)
         log_file = fopen(path.str().c_str(), "wb");
         log_mutex.unlock();*/
         
-        throw SoftException("Cannot initialize logs.");
+        //throw SoftException("Cannot initialize logs.");
         
         print("Logging to ", path,".");
     }

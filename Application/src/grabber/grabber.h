@@ -97,6 +97,10 @@ protected:
     GETTER(cv::Size, cam_size)
     GETTER(cv::Size, cropped_size)
     GETTER(Bounds, crop_rect)
+
+    //! to ensure that all frames are processed, this will have to be zero in the end
+    //! (meaning all added frames have been removed)
+    std::atomic_int32_t _frame_processing_ratio; 
     
     std::unique_ptr<GenericThreadPool> _pool;
     
