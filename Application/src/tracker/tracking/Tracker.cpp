@@ -3521,7 +3521,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         auto manual_identities = FAST_SETTINGS(manual_identities);
         std::vector<Idx_t> to_delete;
         std::vector<Individual*> ptrs;
-        for(auto && [fdx, fish] : _individuals) {
+        for(auto & [fdx, fish] : _individuals) {
             fish->remove_frame(frameIndex);
             
             if(FAST_SETTINGS(track_max_individuals) == 0 || manual_identities.find(fdx) == manual_identities.end()) {
@@ -3575,7 +3575,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         
         _inactive_individuals.clear();
         //! assuming that most of the active / inactive individuals will stay the same, this should actually be more efficient
-        for(auto&& [id, fish] : _individuals) {
+        for(auto& [id, fish] : _individuals) {
             if(_active_individuals.find(fish) == _active_individuals.end())
                 _inactive_individuals.insert(id);
         }

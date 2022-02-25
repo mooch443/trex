@@ -178,7 +178,7 @@ void draw_blob_view(const DisplayParameters& parm)
         //update_vector_elements(outer_images, outer_simple);
     }
     
-    parm.base.section("blob_outers", [&](DrawStructure &base, auto s) {
+    parm.base.section("blob_outers", [&, parm=parm](DrawStructure &base, auto s) {
         if(parm.ptr && (parm.cache.is_animating(parm.ptr) || parm.cache.blobs_dirty())) {
             s->set_scale(parm.scale);
             s->set_pos(parm.offset);
@@ -257,7 +257,7 @@ void draw_blob_view(const DisplayParameters& parm)
             
             auto cats = FAST_SETTINGS(categories_ordered);
             
-            auto draw_blob = [&](Entangled&e, const pv::BlobPtr& blob, float real_size, bool active){
+            auto draw_blob = [&, parm = parm](Entangled&e, const pv::BlobPtr& blob, float real_size, bool active){
                 if(displayed >= maximum_number_texts && !active)
                     return;
                 
@@ -324,7 +324,8 @@ void draw_blob_view(const DisplayParameters& parm)
                     circ->set_clickable(true);
                     circ->set_radius(8);
                     //circ->clear_event_handlers();
-                    circ->on_click([id = blob->blob_id(), &parm](auto) mutable {
+                    circ->on_click([id = blob->blob_id(), parm = parm](auto) mutable {
+                        print("Clicked blob.");
                         _current_boundary.clear();
                         set_clicked_blob_id(id);
                         set_clicked_blob_frame(GUI::frame());

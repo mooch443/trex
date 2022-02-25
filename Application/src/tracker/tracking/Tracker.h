@@ -111,7 +111,8 @@ CREATE_STRUCT(Settings,
     class Tracker {
     public:
         static Tracker* instance();
-        using set_of_individuals_t = ska::bytell_hash_set<Individual*>;
+        //using set_of_individuals_t = ska::bytell_hash_set<Individual*>;
+        using set_of_individuals_t = std::unordered_set<Individual*>;
 
         std::map<Idx_t, pv::bid> automatically_assigned(Frame_t frame);
         
@@ -146,7 +147,8 @@ CREATE_STRUCT(Settings,
         ska::bytell_hash_map<Frame_t, std::vector<Clique>> _cliques;
         
         set_of_individuals_t _active_individuals;
-        using active_individuals_t = ska::bytell_hash_map<Frame_t, set_of_individuals_t>;
+        //using active_individuals_t = ska::bytell_hash_map<Frame_t, set_of_individuals_t>;
+        using active_individuals_t = std::unordered_map<Frame_t, set_of_individuals_t>;
         active_individuals_t _active_individuals_frame;
         
         std::atomic<Frame_t> _startFrame{ Frame_t() };
