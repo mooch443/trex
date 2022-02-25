@@ -689,9 +689,6 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
 FrameGrabber::~FrameGrabber() {
     // stop processing
     print("Terminating...");
-    if (GRAB_SETTINGS(enable_closed_loop)) {
-        Output::PythonIntegration::quit();
-    }
     
     if(_analysis) {
         delete _analysis;
@@ -744,6 +741,10 @@ FrameGrabber::~FrameGrabber() {
         ppvar.notify_all();
         _tracker_thread->join();
         delete _tracker_thread;
+        
+        if (GRAB_SETTINGS(enable_closed_loop)) {
+            Output::PythonIntegration::quit();
+        }
         
         SETTING(terminate) = false; // TODO: otherwise, stuff might not get exported
         
@@ -1115,21 +1116,22 @@ void FrameGrabber::update_tracker_queue() {
         if(ppframe_queue.empty())
             ppvar.wait_for(guard, std::chrono::milliseconds(100));
         
-        if(GRAB_SETTINGS(enable_closed_loop) && ppframe_queue.size() > 1) {
-            if (print_quit_timer.elapsed() > 1) {
-                print("Skipping ", ppframe_queue.size() - 1," frames for tracking.");
-                print_quit_timer.reset();
+            if(GRAB_SETTINGS(enable_closed_loop) && ppframe_queue.size() > 1) {
+                if (print_quit_timer.elapsed() > 1) {
+                    print("Skipping ", ppframe_queue.size() - 1," frames for tracking.");
+                    print_quit_timer.reset();
+                }
+                ppframe_queue.erase(ppframe_queue.begin(), ppframe_queue.begin() + ppframe_queue.size() - 1);
             }
-            ppframe_queue.erase(ppframe_queue.begin(), ppframe_queue.begin() + ppframe_queue.size() - 1);
-        }
         
-        while(!ppframe_queue.empty()) {
-            if(_terminate_tracker && !GRAB_SETTINGS(enable_closed_loop) /* we cannot skip frames */) {
+       if(!ppframe_queue.empty()) {
+           
+            /*if(_terminate_tracker && !GRAB_SETTINGS(enable_closed_loop)) {
                 if(print_quit_timer.elapsed() > 5) {
                     print("[Tracker] Adding remaining frames (", ppframe_queue.size(),")...");
                     print_quit_timer.reset();
                 }
-            }
+            }*/
             
             loop_timer.reset();
 
@@ -1301,8 +1303,8 @@ void FrameGrabber::update_tracker_queue() {
             guard.lock();
             _tracking_time = _tracking_time * 0.75 + loop_timer.elapsed() * 0.25;//uint64_t(loop_timer.elapsed() * 1000 * 1000);
             
-            if(GRAB_SETTINGS(enable_closed_loop))
-                break;
+            //if(GRAB_SETTINGS(enable_closed_loop))
+            //    break;
         }
     }
     
