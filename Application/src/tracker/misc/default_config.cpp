@@ -12,7 +12,7 @@
 #endif
 #include <misc/default_settings.h>
 
-const auto homedir = []() { 
+const auto homedir = []() {
 #ifndef WIN32
     struct passwd* pw = getpwuid(getuid());
     const char* homedir = pw->pw_dir;
@@ -22,7 +22,7 @@ const auto homedir = []() {
     size_t size;
     if (_dupenv_s(&home, &size, "USERPROFILE"))
         return std::string();
-    auto str = std::string(home, size);
+    auto str = std::string(home);
     free(home);
     return str;
 #endif

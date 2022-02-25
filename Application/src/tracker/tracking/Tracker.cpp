@@ -512,7 +512,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         }
         
         if(start_frame().valid() && frame.index() < end_frame() + 1_f)
-            throw new UtilsException("Cannot add intermediate frames out of order.");
+            throw UtilsException("Cannot add intermediate frames out of order.");
         
         history_split(frame, _active_individuals, history_log != nullptr && history_log->is_open() ? history_log.get() : nullptr, &_thread_pool);
         add(frame.index(), frame);

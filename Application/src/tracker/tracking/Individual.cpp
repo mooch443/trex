@@ -927,7 +927,7 @@ std::shared_ptr<Individual::BasicStuff> Individual::add(const FrameProperties* p
         return nullptr;
     
     if (frameIndex >= _startFrame && frameIndex <= _endFrame)
-        throw new UtilsException("Cannot add intermediate frames out of order.");
+        throw UtilsException("Cannot add intermediate frames out of order.");
     
     if (_startFrame > frameIndex || !_startFrame.valid()) {
         _startFrame = frameIndex;

@@ -30,7 +30,10 @@ void VideoOpener::CustomFileChooser::update_size() {
     FileChooser::update_size();
     
     float s = _graph->scale().x / gui::interface_scale();
-    auto column = Size2(_graph->width() * 0.5 - 50, _graph->height() * 0.5 * gui::interface_scale() - (_selected_text ? _selected_text->height() + _button->height() + 10 : 0)).div(s);
+    auto column = Size2(
+        _graph->width() * 0.4 - 150, 
+        _graph->height() * 0.4 * gui::interface_scale() - (_selected_text ? _selected_text->height() + _button->height() + 10 : 0))
+       .div(s);
     
     _update(column.width, column.height);
     
@@ -363,10 +366,11 @@ VideoOpener::VideoOpener()
         }
         if(_info_description) {
             _info_description->set_max_size(Size2(_screenshot_max_size.width, -1));
+            //_info_description->set_background(Transparent, Red);
         }
         
         for(auto &[key, ptr] : _text_fields) {
-            ptr.get()->representative()->set_size(Size2(_screenshot_max_size.width * 0.3, ptr->representative()->height()));
+            ptr.get()->representative()->set_size(Size2(_screenshot_max_size.width * 0.4, ptr->representative()->height()));
         }
         
         if(_background && _background->source()) {
@@ -414,7 +418,9 @@ VideoOpener::VideoOpener()
                     e.advance_wrap(*_background);
                     for(auto& i : _blob_images.at(_blob_image_index))
                         e.advance_wrap(*i);
+
                 });
+                //_mini_bowl->set_background(Transparent, Yellow);
                 _mini_bowl->auto_size(Margin{0, 0});
             }
             
@@ -463,6 +469,7 @@ VideoOpener::VideoOpener()
             _file_chooser->set_tooltip(0, found, str);
         } else
             _file_chooser->set_tooltip(0, nullptr, "");
+
         
         std::lock_guard guard(_video_mutex);
         if(_buffer) {
@@ -524,6 +531,8 @@ VideoOpener::VideoOpener()
             } else if(contains(_raw_info->children(), (Drawable*)_loading_text.get())) {
                 _raw_info->remove_child(_loading_text);
             }
+
+            //_raw_info->set_background(Transparent, Green);
         }
     });
     
@@ -920,8 +929,12 @@ void VideoOpener::select_file(const file::Path &p) {
                 utils::read_file(settings_file.str()),
                 AccessLevelType::STARTUP,
                 true);
-        } catch(const cmn::illegal_syntax& e) {
+        } 
+        catch(const cmn::illegal_syntax& e) {
             FormatWarning("File ", _selected.str()," has illegal syntax: ",e.what());
+        }
+        catch (const UtilsException& e) {
+            FormatWarning("File ", _selected.str(), " cannot load a property value: ", e.what());
         }
     }
     
@@ -1116,7 +1129,7 @@ void VideoOpener::select_file(const file::Path &p) {
         });
         
     } catch(...) {
-        FormatExcept("Caught an exception while reading info from ",SETTING(filename).value<file::Path>().str(),".");
+        FormatExcept{ "Caught an exception while reading info from ",SETTING(filename).value<file::Path>().str(),"." };
     }
     
     _horizontal->auto_size(Margin{0, 0});

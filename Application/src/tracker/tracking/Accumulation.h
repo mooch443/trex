@@ -110,7 +110,7 @@ private:
     float best_uniqueness() const;
     float accepted_uniqueness(float base = -1) const;
     float step_calculate_uniqueness();
-    
+
     friend class Recognition;
     void set_per_class_accuracy(const std::vector<float>& v);
     void set_uniqueness_history(const std::vector<float>& v);

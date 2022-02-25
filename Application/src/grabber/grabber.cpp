@@ -589,7 +589,7 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
     GlobalSettings::get("cam_undistort2") = map2;
     
     if(GlobalSettings::map().has("meta_real_width") && GlobalSettings::map().has("cam_scale") && SETTING(cam_scale).value<float>() != 1) {
-        FormatWarning("Scaling `meta_real_width` (", SETTING(meta_real_width).value<float>(),") due to `cam_scale` (",SETTING(cam_scale).value<float>(),") being set.");
+        FormatWarning{ "Scaling `meta_real_width` (", SETTING(meta_real_width).value<float>(),") due to `cam_scale` (",SETTING(cam_scale).value<float>(),") being set." };
         //SETTING(meta_real_width) = SETTING(meta_real_width).value<float>() * SETTING(cam_scale).value<float>();
     }
     

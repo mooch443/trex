@@ -252,7 +252,7 @@ int main(int argc, char** argv)
     pv::DataLocation::register_path("settings", [](file::Path path) -> file::Path {
         auto settings_file = path.str().empty() ? SETTING(settings_file).value<Path>() : path;
         if(settings_file.empty()) {
-            print("The parameter settings_file (or -s) is empty. You can specify a settings file in the command-line by adding:\n\t-s path/to/file.settings");
+            print("The parameter settings_file (or -s) is empty. You can specify a settings file in the command-line by adding:\n\t-s 'path/to/file.settings'");
             return settings_file;
         }
 		
