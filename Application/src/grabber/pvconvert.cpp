@@ -229,7 +229,7 @@ int main(int argc, char**argv) {
     float framerate;
     {
         video.read_frame(current_frame, frame_index+1);
-        framerate = 1000.f / ((current_frame.timestamp() - prev_time) / 1000.f);
+        framerate = 1000.f / (double(current_frame.timestamp() - prev_time) / 1000.f);
     }
     
     const bool as_gif = SETTING(as_gif);

@@ -40,11 +40,11 @@ public:
 
 struct FrameProperties {
     double time;
-    uint64_t org_timestamp;
+    timestamp_t org_timestamp;
     Frame_t frame;
     long_t active_individuals;
         
-    FrameProperties(Frame_t frame, double t, uint64_t ot)
+    FrameProperties(Frame_t frame, double t, timestamp_t ot)
         : time(t), org_timestamp(ot), frame(frame), active_individuals(-1)
     {}
         

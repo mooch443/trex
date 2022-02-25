@@ -3149,9 +3149,9 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
         cmn::npz_save(meta_path.str(), "frames", frames.data(), { len }, "a");
         
         if(!use_npz)
-            print("Saved visual field metadata to ",meta_path.str()," and image data to '",path.c_str(),"_*.npy'.");
+            print("Saved visual field metadata to ",meta_path.str()," and image data to ",path.str()+"_*.npy",".");
         else
-            print("Saved to '",path.str(),".npz'.");
+            print("Saved to ",path.str()+".npz",".");
 
     } catch(...) {
         // there will be a utils exception, so its printed out already

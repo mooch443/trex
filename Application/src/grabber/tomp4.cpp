@@ -269,7 +269,7 @@ void FFMPEGQueue::Package::unpack(cmn::Image &image, lzo_uint& new_len) const {
     assert(new_len == image.size());
 }
 
-void FFMPEGQueue::process_one_image(uint64_t stamp, const std::unique_ptr<cmn::Image>& image, bool direct) {
+void FFMPEGQueue::process_one_image(timestamp_t stamp, const std::unique_ptr<cmn::Image>& image, bool direct) {
     if(direct) {
         finalize_one_image(stamp, *image);
         
@@ -522,7 +522,7 @@ void FFMPEGQueue::close_video() {
         FormatWarning("Cannot do remuxing with empty ffmpeg path.");
 }
 
-void FFMPEGQueue::finalize_one_image(uint64_t stamp, const cmn::Image& image) {
+void FFMPEGQueue::finalize_one_image(timestamp_t stamp, const cmn::Image& image) {
     timestamps.push_back(stamp);
     mp4_indexes.push_back(image.index());
     

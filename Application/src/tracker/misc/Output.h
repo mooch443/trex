@@ -31,13 +31,13 @@ namespace Output {
     //! for compatibility to older versions < V_2
     struct CompatibilityFrameProperties {
         float time;
-        uint64_t timestamp;
+        timestamp_t timestamp;
     };
     
     //! Compatibility for float frame properties < V_8
     /*struct FloatFrameProperties {
         float time;
-        uint64_t timestamp;
+     timestamp_t timestamp;
         
         operator track::FrameProperties() const {
             return track::FrameProperties(-1, time, timestamp);
@@ -46,7 +46,7 @@ namespace Output {
     
     //! Compatibility for float frame properties < V_8
     struct ShortFrameProperties {
-        uint64_t timestamp;
+     timestamp_t timestamp;
         
         operator track::FrameProperties() const {
             return track::FrameProperties(-1, double(timestamp / double(1000 * 1000)), timestamp);

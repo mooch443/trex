@@ -16,7 +16,7 @@ public:
     double time;
     
     //! Original timestamp
-    uint64_t timestamp;
+    timestamp_t timestamp;
     
     //! Original frame index
     //long_t index;

@@ -100,7 +100,7 @@ protected:
 
     //! to ensure that all frames are processed, this will have to be zero in the end
     //! (meaning all added frames have been removed)
-    std::atomic_int32_t _frame_processing_ratio{0}; 
+    std::atomic_int32_t _frame_processing_ratio{0};
     
     std::unique_ptr<GenericThreadPool> _pool;
     
@@ -117,7 +117,7 @@ protected:
     GETTER(std::atomic_long, last_index)
     
     //std::chrono::time_point<Image::clock_> _start_timing;
-    uint64_t _start_timing;
+    timestamp_t _start_timing;
     std::chrono::time_point<std::chrono::system_clock> _real_timing;
 	
     GETTER_PTR(VideoSource*, video)
@@ -144,7 +144,7 @@ protected:
     std::unique_ptr<pv::Frame> _last_frame;
     std::unique_ptr<pv::Frame> _noise;
     
-    uint64_t previous_time = 0;
+    timestamp_t previous_time = 0;
     std::atomic<bool> _reset_first_index = false;
     
     std::atomic<double> _processing_timing;
@@ -195,7 +195,7 @@ public:
         return std::move(_noise);
     }
     
-    void write_fps(uint64_t index, uint64_t tdelta, uint64_t ts);
+    void write_fps(uint64_t index, timestamp_t tdelta, timestamp_t ts);
     
     cv::Mat average() {
         std::lock_guard<std::mutex> guard(_frame_lock);
@@ -223,7 +223,7 @@ private:
     
     void apply_filters(gpuMat&);
     void ensure_average_is_ready();
-    void update_fps(long_t index, uint64_t stamp, uint64_t tdelta, uint64_t now);
+    void update_fps(long_t index, timestamp_t stamp, timestamp_t tdelta, timestamp_t now);
     
     //! returns true if an action was performed. does cam_scale, crop and undistort
     bool crop_and_scale(const gpuMat&, gpuMat& output);

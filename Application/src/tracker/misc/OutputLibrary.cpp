@@ -462,7 +462,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             auto props = Tracker::properties(frame);
             if(!props)
                 return gui::Graph::invalid();
-            return props->org_timestamp;
+            return props->org_timestamp.get();
         });
         
         _cache_func["frame"] = LIBGLFNC({

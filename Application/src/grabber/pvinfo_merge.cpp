@@ -242,7 +242,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
      }
      }*/
     
-    uint64_t timestamp_offset = output.length() == 0 ? 0 : output.last_frame().timestamp();
+    auto timestamp_offset = output.length() == 0 ? timestamp_t(0) : output.last_frame().timestamp();
     merge_mode_t::Class merge_mode = SETTING(merge_mode);
     
     for (uint64_t frame=0; frame<min_length; ++frame) {
@@ -256,7 +256,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         for(size_t vdx = 0; vdx < files.size(); ++vdx) {
             auto &file = files.at(vdx);
             file->read_frame(f, frame);
-            if(!vdx) o.set_timestamp(timestamp_offset + f.timestamp());
+            if(!vdx) o.set_timestamp(timestamp_offset.get() + f.timestamp());
             //o.set_timestamp(start_time + f.timestamp() - file->start_timestamp());
             
             Vec2 offset = merge_mode == merge_mode_t::centered ? Vec2((Size2(average) - Size2(file->average())) * 0.5) : Vec2(0);

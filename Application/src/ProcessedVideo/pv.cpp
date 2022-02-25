@@ -1134,7 +1134,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         return _header.average_tdelta;
     }
     
-    uint64_t File::timestamp(uint64_t frameIndex) const {
+    timestamp_t File::timestamp(uint64_t frameIndex) const {
         if(_open_for_writing)
             throw U_EXCEPTION("Cannot get timestamps for video while writing.");
         
@@ -1144,7 +1144,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         return header().index_table[frameIndex];
     }
     
-    uint64_t File::start_timestamp() const {
+    timestamp_t File::start_timestamp() const {
         if(_open_for_writing)
             throw U_EXCEPTION("Cannot get timestamps for video while writing.");
         

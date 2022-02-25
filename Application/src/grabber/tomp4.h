@@ -1,6 +1,7 @@
 #pragma once
 #if WITH_FFMPEG
 
+#include <commons.pc.h>
 #include <types.h>
 #include <misc/Image.h>
 #include <file/Path.h>
@@ -19,7 +20,7 @@ class FFMPEGQueue {
     struct Package {
         uchar *memory;
         lzo_uint in_len, out_len;
-        uint64_t timestamp;
+        cmn::timestamp_t timestamp;
         
         Package() {}
         
@@ -30,9 +31,9 @@ class FFMPEGQueue {
         void unpack(cmn::Image& image, lzo_uint& new_len) const;
     };
     
-    uint64_t _last_timestamp;
+    cmn::timestamp_t _last_timestamp;
     GETTER_NCONST(std::atomic_bool, terminate)
-    std::vector<uint64_t> timestamps;
+    std::vector<cmn::timestamp_t> timestamps;
     std::vector<long> mp4_indexes;
     std::deque<std::shared_ptr<Package>> packages;
     
@@ -55,8 +56,8 @@ public:
     //void refill_queue(std::queue<std::unique_ptr<cmn::Image_t>>& queue);
     
 private:
-    void process_one_image(uint64_t stamp, const std::unique_ptr<cmn::Image>& ptr, bool direct);
-    void finalize_one_image(uint64_t stamp, const cmn::Image& image);
+    void process_one_image(cmn::timestamp_t stamp, const std::unique_ptr<cmn::Image>& ptr, bool direct);
+    void finalize_one_image(cmn::timestamp_t stamp, const cmn::Image& image);
     void update_cache_strategy(double frame_ms, double compressed_size);
     
     void open_video();

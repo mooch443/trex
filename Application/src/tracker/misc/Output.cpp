@@ -94,8 +94,10 @@ Output::ResultsFormat::~ResultsFormat() {
 }
 
 template<> void Data::read(track::FrameProperties& p) {
-    read<uint64_t>(p.org_timestamp);
-    p.time = p.org_timestamp / double(1000*1000);
+    uint64_t ts;
+    read<uint64_t>(ts);
+    p.org_timestamp = timestamp_t(ts);
+    p.time = double(p.org_timestamp.get()) / double(1000*1000);
     auto *ptr = static_cast<Output::ResultsFormat*>(this);
     if(ptr->header().version >= Output::ResultsFormat::V_31) {
         read_convert<data_long_t>(p.active_individuals);
@@ -106,7 +108,7 @@ template<> void Data::read(track::FrameProperties& p) {
 template<>
 uint64_t Data::write(const track::FrameProperties& val) {
     write<data_long_t>(val.frame.get());
-    write<uint64_t>(val.org_timestamp);
+    write<uint64_t>(val.org_timestamp.get());
     return write<data_long_t>(val.active_individuals);
 }
 

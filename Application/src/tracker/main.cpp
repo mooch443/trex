@@ -873,12 +873,13 @@ int main(int argc, char** argv)
         size_t added_frames = 0, processed_frames = 0;
         
         auto step = (video.length() - video.length()%500) / 500;
-        for (size_t i=0; i<video.length()-1; i+=step) {
-            ++added_frames;
-            
-            pool.enqueue([&](size_t i) {
-                pv::Frame frame;
-                video.read_frame(frame, i);
+        
+        auto range = arange<size_t>(0, video.length()-1);
+        distribute_vector([&](auto, auto start, auto end, auto){
+            pv::Frame frame;
+            for(auto it = start; it != end; ++it) {
+                frame.clear();
+                video.read_frame(frame, *it);
             //video.read_frame(next_frame, i+1);
             
                 size_t j = 0;
@@ -924,17 +925,15 @@ int main(int argc, char** argv)
                         medians.at(j).addNumber(narrow_cast<int>(number));
                     }
                 }
-                
-                std::lock_guard<std::mutex> guard(sync);
-                ++processed_frames;
-                if(processed_frames % 100 == 0) {
-                    print(processed_frames,"/",added_frames," (",processed_frames / float(added_frames) * 100,"%)");
-                }
+            }
             
-            }, i);
-        }
-        
-        pool.wait();
+            std::lock_guard<std::mutex> guard(sync);
+            processed_frames += *end - *start + 1;
+            if(processed_frames % 10000 == 0) {
+                print(processed_frames,"/",added_frames," (",processed_frames / float(added_frames) * 100,"%)");
+            }
+            
+        }, pool, range.begin(), range.end());
         
         float max_value = 0;
         

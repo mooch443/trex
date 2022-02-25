@@ -760,7 +760,7 @@ bool PythonIntegration::check_module(const std::string& name) {
                 mod = _main.import(name.c_str());
             }
             mod.reload();
-            print("Reloaded '",name,".py'.");
+            print("Reloaded ",name+".py",".");
             result = true;
         }
         catch (pybind11::error_already_set & e) {

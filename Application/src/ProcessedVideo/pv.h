@@ -328,8 +328,8 @@ namespace pv {
         virtual bool has_timestamps() const override {
             return true;
         }
-        virtual uint64_t timestamp(uint64_t) const override;
-        virtual uint64_t start_timestamp() const override;
+        virtual timestamp_t timestamp(uint64_t) const override;
+        virtual timestamp_t start_timestamp() const override;
         virtual short framerate() const override;
         double generate_average_tdelta();
         

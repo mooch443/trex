@@ -343,7 +343,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
         if(!_consecutives)
             _consecutives = std::make_unique<ExternalImage>(std::move(image), Vec2());
         else
-            _consecutives->update_with(*image);
+            _consecutives->update_with(std::move(*image));
     }
     
     std::fill(_consecutives->source()->data(), _consecutives->source()->data() + _consecutives->source()->size(), 0);

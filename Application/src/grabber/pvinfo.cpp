@@ -757,14 +757,14 @@ int main(int argc, char**argv) {
             
             Timer timer;
             
-            uint64_t prev_timestamp;
+            timestamp_t prev_timestamp;
             for (size_t i=0; i<video.length(); i++) {
                 video.read_frame(frame, i);
                 
                 if(i==0)
                     prev_timestamp = frame.timestamp();
                 
-                std::string str = ""+std::to_string(frame.timestamp())+","+std::to_string(frame.timestamp()-prev_timestamp)+"\n";
+                std::string str = ""+timestamp_t(frame.timestamp()).toStr()+","+(timestamp_t(frame.timestamp())-prev_timestamp).toStr()+"\n";
                 
                 fwrite(str.data(), 1, str.length(), f);
                 prev_timestamp = frame.timestamp();

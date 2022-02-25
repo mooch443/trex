@@ -1058,7 +1058,7 @@ void FrameGrabber::add_tracker_queue(const pv::Frame& frame, Frame_t index) {
         ppframe_queue.emplace_back(std::move(ptr));
     }
     
-    print(_frame_processing_ratio.load());
+    print("--",_frame_processing_ratio.load(), " frame:", index);
     --_frame_processing_ratio;
     ppvar.notify_one();
 }
@@ -1378,7 +1378,7 @@ bool FrameGrabber::crop_and_scale(const gpuMat& gpu, gpuMat& output) {
     return input == nullptr;
 }
 
-void FrameGrabber::update_fps(long_t index, uint64_t stamp, uint64_t tdelta, uint64_t now) {
+void FrameGrabber::update_fps(long_t index, timestamp_t stamp, timestamp_t tdelta, timestamp_t now) {
     {
         std::unique_lock<std::mutex> fps_lock(_fps_lock);
         _current_fps++;
@@ -1421,7 +1421,7 @@ void FrameGrabber::update_fps(long_t index, uint64_t stamp, uint64_t tdelta, uin
     }
 }
 
-void FrameGrabber::write_fps(uint64_t index, uint64_t tdelta, uint64_t ts) {
+void FrameGrabber::write_fps(uint64_t index, timestamp_t tdelta, timestamp_t ts) {
     std::unique_lock<std::mutex> guard(_log_lock);
     if(GRAB_SETTINGS(terminate))
         return;
@@ -1439,7 +1439,7 @@ void FrameGrabber::write_fps(uint64_t index, uint64_t tdelta, uint64_t ts) {
     }
 
     if (file) {
-        std::string str = std::to_string(index) + "," + std::to_string(tdelta) + "," + std::to_string(ts) + "\r\n";
+        std::string str = std::to_string(index) + "," + tdelta.toStr() + "," + ts.toStr() + "\r\n";
         fwrite(str.data(), sizeof(char), str.length(), file);
     }
 }
@@ -1525,7 +1525,7 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
             // set (real time) timestamp for video start
             // (just for the user to read out later)
             auto epoch = std::chrono::time_point<std::chrono::system_clock>();
-            _processed.set_start_time(!_video || !_video->has_timestamps() ? std::chrono::system_clock::now() : (epoch + std::chrono::microseconds(_video->start_timestamp())));
+            _processed.set_start_time(!_video || !_video->has_timestamps() ? std::chrono::system_clock::now() : (epoch + std::chrono::microseconds(_video->start_timestamp().get())));
             _processed.start_writing(true);
         }
         
@@ -1553,15 +1553,15 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
         add_tracker_queue(*task->frame, used_index_here);
     }
 
-    uint64_t tdelta, tdelta_camera, now;
+    timestamp_t tdelta, tdelta_camera, now;
     //static previous_time;
     {
         std::lock_guard<std::mutex> guard(_frame_lock);
         //if (previous_time == 0)
         {
-            tdelta_camera = _last_frame ? task->frame->timestamp() - _last_frame->timestamp() : 0;
+            tdelta_camera = _last_frame ? task->frame->timestamp() - _last_frame->timestamp() : timestamp_t(0);
 
-            now = std::chrono::steady_clock::now().time_since_epoch().count();
+            now = timestamp_t(std::chrono::steady_clock::now().time_since_epoch());
             if (previous_time == 0)
                 previous_time = now;
             tdelta = now - previous_time;
@@ -1611,10 +1611,10 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
             std::lock_guard<std::mutex> guard(_frame_lock);
             if (!task->filtered_out.empty()) {
                 if(!_noise)
-                    _noise = std::make_unique<pv::Frame>(task->current->timestamp(), task->filtered_out.size());
+                    _noise = std::make_unique<pv::Frame>(task->current->timestamp().get(), task->filtered_out.size());
                 else {
                     _noise->clear();
-                    _noise->set_timestamp(task->current->timestamp());
+                    _noise->set_timestamp(task->current->timestamp().get());
                 }
                 
                 for (auto &b : task->filtered_out) {
@@ -1833,10 +1833,10 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
     // create pv::Frame object for this frame
     // (creating new object so it can be swapped with _last_frame)
     if(!task->frame)
-        task->frame = std::make_unique<pv::Frame>(task->current->timestamp(), task->filtered.size());
+        task->frame = std::make_unique<pv::Frame>(task->current->timestamp().get(), task->filtered.size());
     else {
         task->frame->clear();
-        task->frame->set_timestamp(task->current->timestamp());
+        task->frame->set_timestamp(task->current->timestamp().get());
     }
     
     {
@@ -1867,15 +1867,12 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
     _main_thread = _sub_timer.elapsed();
 
     if (gui_updated)
-        print("[Timing] Frame:%d raw_blobs:%fms filtering:%fms pv::Frame:%fms main:%fms => %fms (diff:%d, %fs)",
-            task->index,
-            _raw_blobs * 1000,
-            _filtering * 1000,
-            _pv_frame * 1000,
-            _main_thread * 1000,
-            (_raw_blobs + _filtering + _pv_frame + _main_thread) * 1000,
-            task->index - _last_task_peek,
-            last_time);
+        print("[Timing] Frame:",task->index,
+              " raw_blobs:",_raw_blobs * 1000,"ms"
+              " filtering:",_filtering * 1000,"ms"
+              " pv::Frame:",_pv_frame * 1000,"ms"
+              " main:",_main_thread * 1000,"ms => ",(_raw_blobs + _filtering + _pv_frame + _main_thread) * 1000,"ms"
+              " (diff:",task->index - _last_task_peek,", ",last_time,"s)");
 #endif
 
     std::lock_guard g(time_mutex);

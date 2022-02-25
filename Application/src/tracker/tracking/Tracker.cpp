@@ -506,7 +506,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         }
         
         auto props = properties(frame.index() - 1_f);
-        if(props && frame.frame().timestamp() < props->org_timestamp) {
+        if(props && frame.frame().timestamp() < props->org_timestamp.get()) {
             FormatError("Cannot add frame with timestamp smaller than previous timestamp. Frames have to be in order. Skipping.");
             return;
         }
@@ -620,7 +620,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
     
     void Tracker::preprocess_frame(PPFrame& frame, const Tracker::set_of_individuals_t& active_individuals, GenericThreadPool* pool, std::ostream* out, bool do_history_split)
     {
-        double time = frame.frame().timestamp() / double(1000*1000);
+        double time = double(frame.frame().timestamp()) / double(1000*1000);
         
         //! Free old memory
         frame.clear();
@@ -1743,7 +1743,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
 
     void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
         static const unsigned concurrentThreadsSupported = cmn::hardware_concurrency();
-        double time = frame.frame().timestamp() / double(1000*1000);
+        double time = double(frame.frame().timestamp()) / double(1000*1000);
         
         if (!start_frame().valid() || start_frame() > frameIndex) {
             _startFrame = frameIndex;

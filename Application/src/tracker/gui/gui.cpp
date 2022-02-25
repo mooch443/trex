@@ -887,7 +887,7 @@ void GUI::do_recording() {
         auto str = ("frame "+Meta::toStr(PD(recording_frame))+"/"+Meta::toStr(PD(cache).tracked_frames.end)+" length: "+Meta::toStr(duration));
         auto playback_speed = GUI_SETTINGS(gui_playback_speed);
         if(playback_speed > 1) {
-            duration.timestamp = uint64_t(double(duration.timestamp) / double(playback_speed));
+            duration.timestamp = timestamp_t(double(duration.timestamp) / double(playback_speed));
             str += " (real: "+Meta::toStr(duration)+")";
         }
         print("[rec] ", str);
@@ -2571,11 +2571,11 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             PD(video_source).read_frame(frame, 0);
             
             std::vector<double> values {
-                frame.timestamp() / 1000.0 / 1000.0
+                double(frame.timestamp()) / 1000.0 / 1000.0
             };
             for(size_t i = 1; i<PD(video_source).length(); ++i) {
                 PD(video_source).read_frame(frame, i);
-                auto t = frame.timestamp() / 1000.0 / 1000.0;
+                auto t = double(frame.timestamp()) / 1000.0 / 1000.0;
                 values[i - 1] = t - values[i - 1];
                 values.push_back(t);
                 

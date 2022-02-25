@@ -232,7 +232,7 @@ void WorkProgress::set_progress(const std::string& title, float value, const std
     std::lock_guard<std::mutex> guard(_queue_lock);
     if(!title.empty()) {
         if(_item != title && !title.empty())
-            print("[WORK] ", title);
+            print("[WORK] ", title.c_str());
         _item = title;
     }
     if(!desc.empty())

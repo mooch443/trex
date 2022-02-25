@@ -1013,7 +1013,7 @@ struct Row {
                             return 255 - v;
                         });
                     
-                    cell._image->update_with(inverted);
+                    cell._image->update_with(std::move(inverted));
                     cell._block->auto_size(Margin{0, 0});
                 }
                 
