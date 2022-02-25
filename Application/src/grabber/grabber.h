@@ -2,6 +2,7 @@
 #define _GRABBER_H
 
 #include <types.h>
+#include <misc/ranges.h>
 #include <misc/ThreadedAnalysis.h>
 #include <misc/Median.h>
 
@@ -75,6 +76,7 @@ class FrameGrabber {
 public:
     //typedef ThreadedAnalysis<Image, 10> AnalysisType;
     typedef ImageThreads AnalysisType;
+    Range<Frame_t> processing_range() const;
     
     static track::Tracker* tracker_instance();
     struct Task {

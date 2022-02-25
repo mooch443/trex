@@ -15,9 +15,11 @@
 #include <tracker/misc/Output.h>
 #include <python/GPURecognition.h>
 #include <tracking/VisualField.h>
-#include <pybind11/numpy.h>
 #include <grabber/default_config.h>
+#if !defined(__EMSCRIPTEN__)
+#include <pybind11/numpy.h>
 #include <tracking/Recognition.h>
+#endif
 #include <misc/SpriteMap.h>
 #include <misc/create_struct.h>
 
@@ -304,6 +306,24 @@ auto async_deferred(F&& func) -> std::future<decltype(func())>
     return std::move(future);
 }
 
+Range<Frame_t> FrameGrabber::processing_range() const {
+    //! We either start where the conversion_range starts, or at 0 (for all things).
+    static const auto conversion_range_start =
+        (_video && GRAB_SETTINGS(video_conversion_range).first != -1)
+        ? min(_video->length(), (uint64_t)GRAB_SETTINGS(video_conversion_range).first)
+        : 0;
+
+    //! We end for videos when the conversion range has been reached, or their length, and
+    //! otherwise (no video) never/until escape is pressed.
+    static const auto conversion_range_end =
+        _video
+        ? (GRAB_SETTINGS(video_conversion_range).second != -1
+            ? GRAB_SETTINGS(video_conversion_range).second
+            : _video->length())
+        : -1;
+    return Range<Frame_t>{ Frame_t(conversion_range_start), Frame_t(conversion_range_end) };
+}
+
 FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_starting)
   : //_current_image(NULL),
     _current_average_timestamp(0),
@@ -548,6 +568,7 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
         Output::Library::Init();
     }
     
+#if !TREX_NO_PYTHON
     if (GRAB_SETTINGS(enable_closed_loop)) {
         track::PythonIntegration::set_settings(GlobalSettings::instance());
         track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
@@ -556,6 +577,7 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
         track::PythonIntegration::instance();
         track::PythonIntegration::ensure_started();
     }
+#endif
 
     if (tracker) {
         _tracker_thread = new std::thread([this]() {
@@ -620,20 +642,7 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
                   prev = -1;
               }
 
-              //! We either start where the conversion_range starts, or at 0 (for all things).
-              static const auto conversion_range_start = 
-                  (_video && GRAB_SETTINGS(video_conversion_range).first != -1) 
-                      ? min(_video->length(), (uint64_t)GRAB_SETTINGS(video_conversion_range).first)
-                      : 0;
-
-              //! We end for videos when the conversion range has been reached, or their length, and
-              //! otherwise (no video) never/until escape is pressed.
-              static const auto conversion_range_end = 
-                  _video 
-                      ? (GRAB_SETTINGS(video_conversion_range).second != -1
-                          ? GRAB_SETTINGS(video_conversion_range).second
-                          : _video->length()) 
-                      : -1;
+              static const auto conversion_range = processing_range();
 
               if (_video && !_average_finished) {
                   //! Special indexing for video averaging (skipping over frames)
@@ -646,9 +655,9 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
                   current.set_index(prev != -1 ? (prev + step) : 0);
 
               } else
-                  current.set_index(prev != -1 ? prev + 1 : conversion_range_start);
+                  current.set_index(prev != -1 ? prev + 1 : conversion_range.start.get());
 
-              if (conversion_range_end != -1 && current.index() > conversion_range_end) {
+              if (conversion_range.end.valid() && current.index() > conversion_range.end.get()) {
                   if(!GRAB_SETTINGS(terminate))
                     SETTING(terminate) = true;
                   return false;
@@ -710,10 +719,6 @@ FrameGrabber::~FrameGrabber() {
     
 	//delete _analysis;
     
-    if (_processed.open()) {
-        _processed.stop_writing();
-        _processed.close();
-    }
 	
     if(_video)
         delete _video;
@@ -805,7 +810,12 @@ FrameGrabber::~FrameGrabber() {
         SETTING(terminate) = true; // TODO: Otherwise stuff would not have been exported
         delete tracker;
     }
-    
+
+    if (_processed.open()) {
+        _processed.stop_writing();
+        _processed.close();
+    }
+
     FrameGrabber::instance = NULL;
     
     file::Path filename = make_filename().add_extension("pv");
@@ -1035,6 +1045,7 @@ void FrameGrabber::add_tracker_queue(const pv::Frame& frame, Frame_t index) {
     
     {
         std::lock_guard<std::mutex> guard(ppqueue_mutex);
+        //print("Adding frame ", index, " to queue.");
         ppframe_queue.emplace_back(std::move(ptr));
     }
     
@@ -1062,7 +1073,7 @@ void FrameGrabber::update_tracker_queue() {
             if(CLFeature::has(a)) {
                 auto feature = CLFeature::get(a);
                 selected_features.insert(feature);
-                print("Feature '", feature.name(),"' will be sent to python.");
+                print("Feature ", std::string(feature.name())," will be sent to python.");
             } else
                 print("CLFeature ",a," is unknown and will be ignored.");
         }
@@ -1085,10 +1096,12 @@ void FrameGrabber::update_tracker_queue() {
     
     static Timer print_quit_timer;
     static Timer loop_timer;
+    static Frame_t last_processed;
     
     std::unique_lock<std::mutex> guard(ppqueue_mutex);
-    while (!_terminate_tracker || (!GRAB_SETTINGS(enable_closed_loop) && !ppframe_queue.empty() /* we cannot skip frames */)) {
-        if(ppframe_queue.empty())
+    static const auto range = processing_range();
+    while (!_terminate_tracker || (!GRAB_SETTINGS(enable_closed_loop) && (!ppframe_queue.empty() || (last_processed < range.end - 1_f)) /* we cannot skip frames */)) {
+        if(ppframe_queue.empty() && (last_processed < range.end - 1_f))
             ppvar.wait(guard);
         
         if(GRAB_SETTINGS(enable_closed_loop) && ppframe_queue.size() > 1) {
@@ -1116,6 +1129,9 @@ void FrameGrabber::update_tracker_queue() {
             if(copy && !tracker) {
                 throw U_EXCEPTION("Cannot track frame ",copy->index()," since tracker has been deleted.");
             }
+
+            //print("Handling frame ", copy->index(), " -> ", tracker);
+            last_processed = copy->index();
             
             if(copy && tracker) {
                 track::Tracker::LockGuard guard("update_tracker_queue");
@@ -1365,7 +1381,7 @@ void FrameGrabber::update_fps(long_t index, uint64_t stamp, uint64_t tdelta, uin
                 auto duration = std::chrono::system_clock::now() - _real_timing;
                 auto ms = std::chrono::duration_cast<std::chrono::microseconds>(duration);
                 auto per_frame = ms / index;
-                auto L = GRAB_SETTINGS(video_conversion_range).second != -1 ? GRAB_SETTINGS(video_conversion_range).second : _video->length();
+                auto L = processing_range().end.get();
                 auto eta = per_frame * (uint64_t)max(0, int64_t(L) - int64_t(index));
                 ETA = Meta::toStr(DurationUS{eta.count()});
             }
@@ -1453,13 +1469,13 @@ static Timer last_gui_update;
 
 std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique_ptr<ProcessingTask>& task)
 {
-    static const auto conversion_range_end = (_video && GRAB_SETTINGS(video_conversion_range).second != -1) ? GRAB_SETTINGS(video_conversion_range).second : -1;
+    static const auto conversion_range = processing_range();
     static const double frame_time = GRAB_SETTINGS(frame_rate) > 0 ? 1.0 / double(GRAB_SETTINGS(frame_rate)) : 1.0/25.0;
     
     Frame_t used_index_here;
     bool added = false;
     
-    static int64_t last_task_processed = (GRAB_SETTINGS(video_conversion_range).first == -1 ? 0 : GRAB_SETTINGS(video_conversion_range).first) - 1;
+    static int64_t last_task_processed = conversion_range.start.get() - 1;
     DataPackage pack;
     bool compressed;
     int64_t _last_task_peek;
@@ -1491,7 +1507,7 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
     //if(_terminate_tracker)
     //    return { -1, false, 0.0 };
     // write frame to file if recording (and if there's anything in the frame)
-    if(/*task->frame->n() > 0 &&*/ (conversion_range_end == -1 || task->current->index() <= conversion_range_end) && GRAB_SETTINGS(recording) && !GRAB_SETTINGS(quit_after_average)) {
+    if(/*task->frame->n() > 0 &&*/ (!conversion_range.end.valid() || task->current->index() <= conversion_range.end.get()) && GRAB_SETTINGS(recording) && !GRAB_SETTINGS(quit_after_average)) {
         if(!_processed.open()) {
             // set (real time) timestamp for video start
             // (just for the user to read out later)
@@ -1868,8 +1884,8 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
     
     ensure_average_is_ready();
 
-    static const auto conversion_range_end = (_video && GRAB_SETTINGS(video_conversion_range).second != -1) ? GRAB_SETTINGS(video_conversion_range).second : -1;
-    if (conversion_range_end != -1 && current.index() >= conversion_range_end) {
+    static const auto conversion_range = processing_range();
+    if (conversion_range.end.valid() && current.index() >= conversion_range.end.get()) {
         if (!GRAB_SETTINGS(terminate)) {
             SETTING(terminate) = true;
             print("Ending...");
