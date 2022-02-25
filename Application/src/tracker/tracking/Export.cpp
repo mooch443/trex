@@ -260,13 +260,17 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                     if(GUI::instance()) {
                         GUI::instance()->work().set_percent(overall_percent / all_percents.size() * (output_posture_data ? 0.5f : 1.0f));
                         overall_percent = GUI::instance()->work().percent();
-                    }
+                    } else
+                        overall_percent = overall_percent / (float)all_percents.size() * (output_posture_data ? 0.5f : 1.0f);
                 }
                 
                 {
                     // synchronize with debug messages
                     //std::lock_guard<std::mutex> lock(DEBUG::debug_mutex());
                     if(cmn::abs(last_percent - overall_percent) >= 0.05) {
+                        static std::mutex _mutex;
+                        std::lock_guard guard(_mutex);
+                        
                         last_percent = overall_percent;
                         overall_percent *= 100;
                         
