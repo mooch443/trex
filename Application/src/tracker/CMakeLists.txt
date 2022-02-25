@@ -1,5 +1,7 @@
 add_subdirectory(gui)
-add_subdirectory(python)
+if(NOT COMMONS_NO_PYTHON)
+    add_subdirectory(python)
+endif()
 add_subdirectory(tracking)
 add_subdirectory(misc)
 
@@ -61,11 +63,11 @@ endif()
 
 add_executable(properties properties.cpp
     "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h)
+
 target_link_libraries(properties 
     PUBLIC 
         tracker_tracking
-        tracker_gui
-        tracker_python
+        #tracker_gui
         tracker_misc
         commons 
         pv
@@ -74,6 +76,11 @@ target_link_libraries(properties
         imgui
         Commons::GLAD
         Commons::LibZIP)
+
+if(NOT COMMONS_NO_PYTHON)
+    target_link_libraries(properties 
+        PUBLIC tracker_python)
+endif()
 
 # add actual executable
 add_executable(${TREX_EXEC_NAME} ${SRCS})
@@ -86,7 +93,6 @@ add_dependencies(${TREX_EXEC_NAME} commons Commons::GLFW
 target_link_libraries(${TREX_EXEC_NAME} PUBLIC
 	tracker_tracking
 	tracker_gui
-    tracker_python
     tracker_misc
 	pv
 	commons
@@ -100,11 +106,16 @@ target_link_libraries(${TREX_EXEC_NAME} PUBLIC
 	#${EXTRA_LIBS}
 )
 
+if(NOT COMMONS_NO_PYTHON)
+    target_link_libraries(${TREX_EXEC_NAME} 
+        PUBLIC tracker_python)
+endif()
+
 if(WITH_HTTPD)
     add_dependencies(${TREX_EXEC_NAME} LibMicroHttpd)
 endif()
 
-if(WIN32)
+if(WIN32 AND NOT COMMONS_NO_PYTHON)
 	set_target_properties(${TREX_EXEC_NAME} PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
 endif()
 
@@ -127,7 +138,9 @@ set(TRACKER_PATH "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>")
 message("TRACKER PATH ${TRACKER_PATH}")
 
 if(NOT APPLE)
-    set_target_properties(trex_check_python PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${TRACKER_PATH}")
+    if(NOT COMMONS_NO_PYTHON)
+        set_target_properties(trex_check_python PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${TRACKER_PATH}")
+    endif()
 
     if(TREX_WITH_TESTS)
         set_target_properties(test_imgui PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${TRACKER_PATH}")
@@ -214,7 +227,7 @@ else()
 endif()
 
 set(targets ${TREX_EXEC_NAME})
-if(WIN32)
+if(WIN32 AND NOT COMMONS_NO_PYTHON)
 set(targets ${targets} tracker_python)
 endif()
 

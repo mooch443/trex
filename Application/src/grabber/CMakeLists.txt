@@ -52,11 +52,15 @@ if(WIN32)
 	set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG}  /DELAYLOAD:tracker_python-d.dll")
 endif()
 
-if(APPLE)
-ADD_CUSTOM_COMMAND(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
-COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:trex_check_python> $<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>)
+if(NOT COMMONS_NO_PYTHON)
+    if(APPLE)
+        ADD_CUSTOM_COMMAND(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:trex_check_python> $<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>)
+    endif()
+    add_dependencies(${TGRABS_EXEC_NAME} trex_check_python ) #Commons::OpenCV)
 endif()
-add_dependencies(${TGRABS_EXEC_NAME} trex_check_python commons) #Commons::OpenCV)
+
+add_dependencies(${TGRABS_EXEC_NAME} commons)
 
 add_executable(pvconvert pvconvert.cpp gif.h ${GIT_SOURCES})
 target_link_libraries(pvconvert PUBLIC
@@ -112,7 +116,6 @@ target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE
     tracker_misc
 	tracker_tracking
 	tracker_gui
-    tracker_python
 	pv
 	commons
     Commons::IMGUI
@@ -126,10 +129,14 @@ target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE
 	#${EXTRA_LIBS}
 )
 
-if(NOT pybind11_external)
-    target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE pybind11::pybind11 pybind11::embed pybind11::module)
-else()
-    target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE ${PYTHON_LIBRARIES})
+if(NOT COMMONS_NO_PYTHON)
+    target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE tracker_python)
+
+    if(NOT pybind11_external)
+        target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE pybind11::pybind11 pybind11::embed pybind11::module)
+    else()
+        target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE ${PYTHON_LIBRARIES})
+    endif()
 endif()
 
 if(WITH_HTTPD)
@@ -144,7 +151,6 @@ add_executable(pvinfo pvinfo.cpp pvinfo_merge.cpp pvinfo_merge.h ${GIT_SOURCES})
 target_link_libraries(pvinfo PRIVATE
 	tracker_tracking
     tracker_gui
-    tracker_python
     tracker_misc
 	commons
     Commons::IMGUI
@@ -154,6 +160,10 @@ target_link_libraries(pvinfo PRIVATE
 	#${EXTRA_LIBS}
 	pv
 )
+
+if(NOT COMMONS_NO_PYTHON)
+    target_link_libraries(pvinfo PRIVATE tracker_python)
+endif()
 
 #target_precompile_headers(pvinfo REUSE_FROM commons)
 

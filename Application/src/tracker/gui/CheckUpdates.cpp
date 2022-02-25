@@ -152,7 +152,7 @@ void display_update_dialog() {
                 execl("/usr/bin/open", "open", website, (char *)0);
                 exit(0);
             }
-#elif defined(WIN32)
+#elif defined(WIN32) && !defined(__EMSCRIPTEN__)
             ShellExecute(
                 NULL,
                 "open",

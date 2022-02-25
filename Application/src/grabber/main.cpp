@@ -7,7 +7,7 @@
 //-Includes--------------------------------------------------------------------
 
 #include <types.h>
-#ifndef WIN32
+#if !defined(WIN32) && !defined(__EMSCRIPTEN__)
 #include <execinfo.h>
 #endif
 #include <signal.h>

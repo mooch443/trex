@@ -26,8 +26,7 @@ int main(int argc, char**argv) {
 #ifdef NDEBUG
     cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_ERROR);
 #endif
-    //!TODO: Set runtime quiet
-    //DEBUG::set_runtime_quiet();
+    set_runtime_quiet(true);
     
 #ifndef NDEBUG
     auto OS_ACTIVITY_DT_MODE = getenv("OS_ACTIVITY_DT_MODE");
@@ -742,9 +741,11 @@ int main(int argc, char**argv) {
             //if(average.cols == video.size().width && average.rows == video.size().height)
             //    video.processImage(average, average);
         
+#if !defined(__EMSCRIPTEN__)
             print("Displaying average image...");
             cv::imshow("average", average);
             cv::waitKey();
+#endif
         }
         
         if(GlobalSettings::map().has("output_fps")) {

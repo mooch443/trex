@@ -710,8 +710,10 @@ FrameGrabber::~FrameGrabber() {
     
 	//delete _analysis;
     
-    if(_processed.open())
+    if (_processed.open()) {
         _processed.stop_writing();
+        _processed.close();
+    }
 	
     if(_video)
         delete _video;

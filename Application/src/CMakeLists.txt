@@ -25,6 +25,15 @@ include_directories(.)
 add_subdirectory(ProcessedVideo)
 include_directories(ProcessedVideo)
 
+
+
+if(COMMONS_NO_PYTHON)
+    add_compile_options( -DTREX_NO_PYTHON=true)
+    message(STATUS "NO PYTHON=-DTREX_NO_PYTHON=${COMMONS_NO_PYTHON}")
+else()
+    add_compile_options(-DTREX_NO_PYTHON=false)
+endif()
+
 include_directories(tracker)
 include_directories(grabber)
 
