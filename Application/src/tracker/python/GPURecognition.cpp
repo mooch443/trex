@@ -178,11 +178,13 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
     });*/
 
     m.def("log", [](std::string text) {
-        cmn::print("[python] ", text.c_str());
-        });
+        using namespace cmn;
+        print(fmt::clr<FormatColor::DARK_BLUE>("[py] "), text.c_str());
+    });
     m.def("warn", [](std::string text) {
-        cmn::FormatWarning("[python] ",text.c_str());
-        });
+        using namespace cmn;
+        FormatWarning(fmt::clr<FormatColor::DARK_BLUE>("[py] "),text.c_str());
+    });
 
     /*m.def("show_work_image", [](std::string name, pybind11::buffer b) {
 #if CMN_WITH_IMGUI_INSTALLED

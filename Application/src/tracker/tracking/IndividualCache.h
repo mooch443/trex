@@ -21,7 +21,7 @@ struct IndividualCache {
     Frame_t previous_frame;
     int current_category;
     bool consistent_categories;
-    float cm_per_pixel, track_max_speed_sq;
+    float cm_per_pixel, track_max_speed_px;
     
     Match::prob_t speed;
     Match::prob_t time_probability;

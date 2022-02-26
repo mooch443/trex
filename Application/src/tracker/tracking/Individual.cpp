@@ -1574,7 +1574,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     cache.current_category = -1;
     cache.cm_per_pixel = FAST_SETTINGS(cm_per_pixel);
     cache.consistent_categories = FAST_SETTINGS(track_consistent_categories);
-    cache.track_max_speed_sq = SQR(FAST_SETTINGS(track_max_speed));
+    cache.track_max_speed_px = FAST_SETTINGS(track_max_speed) / cache.cm_per_pixel;
     const auto frame_rate = FAST_SETTINGS(frame_rate);
     const auto track_max_reassign_time = FAST_SETTINGS(track_max_reassign_time);
     
@@ -1720,6 +1720,9 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
         }
     }
     
+    
+    //! retrieve a number (6) of samples from previous frames in order
+    //! to predict the current direction etc.
     auto recent_number_samples = N;
     
     Range<Frame_t> range(max(_startFrame, cache.previous_frame - 6_f), cache.previous_frame);
@@ -1750,7 +1753,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     
     // cm/s / (cm/px)
     // (cm/s)^2 / (cm/px)^2 = (cm^2/s^2) / (cm^2/px^2) = 1 * px^2/s^2
-    const float max_speed_cm = cache.track_max_speed_sq / SQR(cache.cm_per_pixel);
+    const auto track_max_px_sq = SQR(cache.track_max_speed_px);
     const FrameProperties *properties = nullptr;
     auto end = Tracker::instance()->frames().end();
     auto iterator = end;
@@ -1794,18 +1797,22 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
             
             //! \mathbf{v}_i(t) = \mathbf{p}_i'(t) = \frac{\delta}{\delta t} \mathbf{p}_i(t)
             auto v = (h.pos<Units::PX_AND_SECONDS>() - previous_p->pos<Units::PX_AND_SECONDS>()) / (c_props->time - previous_t);
-            auto L = v.sqlength();
+            auto L_sq = v.sqlength();
             
-            //! \hat{\mathbf{v}}_i(t) = \mathbf{v}_i(t) * \begin{cases} 1 & \mathrm{if} \norm{\mathbf{v}_i(t)} \le D_\mathrm{max} \\ D_\mathrm{max} / \norm{\mathbf{v}_i(t)} & \mathrm{otherwise} \end{cases}
-            if(L >= max_speed_cm) {
-                v = v * max_speed_cm / L;
-                L = max_speed_cm;
+            //! \hat{\mathbf{v}}_i(t) =
+            //!     \mathbf{v}_i(t) *
+            //!     \begin{cases}
+            //!         1                                       & \mathrm{if} \norm{\mathbf{v}_i(t)} \le D_\mathrm{max} \\
+            //!         D_\mathrm{max} / \norm{\mathbf{v}_i(t)} & \mathrm{otherwise}
+            //!     \end{cases}
+            if(L_sq >= track_max_px_sq) {
+                v *= cache.track_max_speed_px / sqrt(L_sq);
+                L_sq = track_max_px_sq;
             }
             
             assert(!std::isnan(v.x));
             raw += v;
-            average_speed.push_back(L);
-            //average_speed.addNumber(L);
+            average_speed.push_back(L_sq);
             
             //! \mathbf{a}_i(t) = \frac{\delta}{\delta t} \hat{\mathbf{v}}_i(t)
             if(tdelta > 0 && (previous_v.x != 0 || previous_v.y != 0))
@@ -1952,6 +1959,7 @@ inline Float2_t adiffangle(const Vec2& A, const Vec2& B) {
 
 prob_t Individual::position_probability(const IndividualCache& cache, Frame_t frameIndex, size_t, const Vec2& position, const Vec2& blob_center) const
 {
+    UNUSED(frameIndex)
 #ifndef NDEBUG
     if (frameIndex < _startFrame + 1_f)
         throw U_EXCEPTION("Cannot calculate probability for a frame thats previous to all known frames.");
@@ -1967,9 +1975,8 @@ prob_t Individual::position_probability(const IndividualCache& cache, Frame_t fr
         velocity = (position - cache.estimated_px * cache.cm_per_pixel) / cache.local_tdelta;
     assert(!std::isnan(velocity.x) && !std::isnan(velocity.y));
     
-    auto speed = velocity.sqlength() / cache.track_max_speed_sq;
+    auto speed = velocity.length() / cache.track_max_speed_px;
     speed = 1 / SQR(1 + speed);
-    
     
     /*if((frameIndex >= 48181 && identity().ID() == 368) || frameIndex == 48182)
         Debug("Frame %d: Fish%d estimate:%f,%f pos:%f,%f velocity:%f,%f p:%f (raw %f)",
