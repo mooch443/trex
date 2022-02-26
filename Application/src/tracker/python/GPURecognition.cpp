@@ -711,7 +711,7 @@ void PythonIntegration::reinit() {
             try {
                 task._task();
             } catch (py::error_already_set &e) {
-                FormatExcept("Python runtime error: '", e.what(),"'");
+                FormatExcept("Python runtime error: ", std::string(e.what()));
                 e.restore();
                 throw SoftException(e.what());
             } catch(...) {

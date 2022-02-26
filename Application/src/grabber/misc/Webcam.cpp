@@ -37,18 +37,7 @@ namespace fg {
         std::vector<cv::Mat> array;
         cv::split(tmp, array);
         
-        cv::Mat img;
-        auto get_image = [&array](){
-            return cv::Mat(cv::max(array[2], cv::Mat(cv::max(array[0], array[1]))));
-            //cv::Mat out(k);
-            //return out;
-        };
-        
-        //if(_crop.x != 0 || _crop.y != 0 || _crop.width != 0 || _crop.height != 0)
-        //    img = get_image()(_crop);
-            //array.at(SETTING(color_channel))(_crop).copyTo(img);
-        //else
-            img = get_image();//array.at(SETTING(color_channel));
+        auto img = cv::Mat(cv::max(array[2], cv::Mat(cv::max(array[0], array[1]))));
         assert((uint)img.cols == image.cols && (uint)img.rows == image.rows);
         
         image.create(img, image.index());

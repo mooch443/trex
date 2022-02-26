@@ -43,7 +43,7 @@ requirements:
     - make                  # [unix]
     - sysroot_linux-64 ==2.17 # [linux]
     - python ==3.9.7 # [win]
-    - python ==3.9.9 # [arm64]
+    - python ==3.9.10 # [arm64]
     - python ==3.7.11 # [not win and not arm64]
     - {{ compiler('c') }}
     - {{ compiler('cxx') }}
@@ -79,7 +79,7 @@ requirements:
     - ffmpeg <=4.2.2 # [not arm64]
     - ffmpeg >=4 # [arm64]
     - python ==3.7.11 # [not win and not arm64]
-    - python ==3.9.9 # [osx and arm64]
+    - python ==3.9.10 # [osx and arm64]
     - python ==3.9.7 # [win]
     
   run:
@@ -90,13 +90,14 @@ requirements:
     - cudnn # [win]
     - scikit-learn # [not arm64]
     - scikit-learn ==1.0.2 # [arm64]
-    - grpcio # [osx and arm64]
+    - grpcio ==1.44.0 # [osx and arm64]
+    - wrapt >=1.11.0 # [arm64]
     - ffmpeg <=4.2.2 # [not arm64]
     - ffmpeg >=4 # [arm64]
     - numpy ==1.19.5 # [arm64]
     - numpy # [win]
     - python ==3.9.7 # [win]
-    - python ==3.9.9 # [arm64]
+    - python ==3.9.10 # [arm64]
     - python ==3.7.11 # [not win and not arm64]
     - h5py ==3.1.0 # [arm64]
     - hdf5 ==1.10.6 # [arm64]
