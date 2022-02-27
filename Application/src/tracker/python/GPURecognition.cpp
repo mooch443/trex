@@ -179,11 +179,11 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
 
     m.def("log", [](std::string text) {
         using namespace cmn;
-        print(fmt::clr<FormatColor::DARK_BLUE>("[py] "), text.c_str());
+        print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), text.c_str());
     });
     m.def("warn", [](std::string text) {
         using namespace cmn;
-        FormatWarning(fmt::clr<FormatColor::DARK_BLUE>("[py] "),text.c_str());
+        FormatWarning(fmt::clr<FormatColor::DARK_GRAY>("[py] "),text.c_str());
     });
 
     /*m.def("show_work_image", [](std::string name, pybind11::buffer b) {
@@ -766,7 +766,7 @@ bool PythonIntegration::check_module(const std::string& name) {
             result = true;
         }
         catch (pybind11::error_already_set & e) {
-            FormatExcept("Python runtime exception while reloading ",name,": '", e.what(),"'");
+            FormatExcept("Python runtime exception while reloading ",name,": ", e.what());
             e.restore();
             mod.release();
         }
@@ -808,7 +808,7 @@ void PythonIntegration::run(const std::string& module_name, const std::string& f
         
         _modules.at(module_name).release();
         //_modules.at(module_name) = pybind11::none();
-        throw SoftException("Python runtime exception while running ", module_name.c_str(),".", function.c_str(),": '", e.what(),"'");
+        throw SoftException("Python runtime exception while running ", module_name.c_str(),"::", function.c_str(),"(): ", e.what());
     }
 }
 
@@ -828,7 +828,7 @@ std::string PythonIntegration::run_retrieve_str(const std::string& module_name, 
         e.restore();
 
         _modules.at(module_name).release();
-        throw SoftException("Python runtime exception while running ", module_name.c_str(),".", function.c_str(),": '", e.what(),"'");
+        throw SoftException("Python runtime exception while running ", module_name.c_str(),"::", function.c_str(),"(): ", e.what());
     }
     
     return "";

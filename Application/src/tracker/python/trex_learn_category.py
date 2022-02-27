@@ -67,7 +67,7 @@ class Categorize:
         self.model.add(Dense(len(self.categories), activation='softmax'))
 
         self.model.compile(loss='categorical_crossentropy',
-            optimizer=tf.keras.optimizers.Adam(lr=0.001),
+            optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
             metrics=['accuracy'])
 
         self.model.summary(print_fn=TRex.log)
