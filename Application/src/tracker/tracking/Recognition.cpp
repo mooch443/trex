@@ -1729,7 +1729,7 @@ void Recognition::load_weights(std::string postfix) {
             }
         }
         
-        throw SoftException("Failed to reinitialize the network (", &reason,").");
+        throw SoftException("Failed to reinitialize the network (", reason,").");
     }
     
     void Recognition::reinitialize_network_internal() {
