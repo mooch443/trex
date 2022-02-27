@@ -106,6 +106,7 @@ requirements:
     - requests # [osx and not arm64]
     - six ==1.15.0 # [osx and not amd64]
     - wheel ==0.35.1 # [osx and not amd64]
+    - requests
 
 about:
   home: https://trex.run
