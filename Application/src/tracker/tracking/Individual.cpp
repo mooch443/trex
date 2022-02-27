@@ -1972,7 +1972,7 @@ prob_t Individual::position_probability(const IndividualCache& cache, Frame_t fr
     
     Vec2 velocity;
     if(cache.local_tdelta != 0)
-        velocity = (position - cache.estimated_px * cache.cm_per_pixel) / cache.local_tdelta;
+        velocity = (position - cache.estimated_px) / cache.local_tdelta;
     assert(!std::isnan(velocity.x) && !std::isnan(velocity.y));
     
     auto speed = velocity.length() / cache.track_max_speed_px;
@@ -2063,7 +2063,7 @@ Individual::Probability Individual::probability(int label, const IndividualCache
         }
     }
 
-    const Vec2 blob_pos = cache.cm_per_pixel * position;
+    const Vec2& blob_pos = position;
     //auto && [ p_position, p_speed, p_angle ] = 
     auto p_position =    position_probability(cache, frameIndex, pixels, blob_pos, position);
     

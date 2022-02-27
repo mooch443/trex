@@ -1058,7 +1058,6 @@ void FrameGrabber::add_tracker_queue(const pv::Frame& frame, Frame_t index) {
         ppframe_queue.emplace_back(std::move(ptr));
     }
     
-    print("--",_frame_processing_ratio.load(), " frame:", index);
     --_frame_processing_ratio;
     ppvar.notify_one();
 }
@@ -1112,7 +1111,6 @@ void FrameGrabber::update_tracker_queue() {
     std::unique_lock<std::mutex> guard(ppqueue_mutex);
     static const auto range = processing_range();
     while (!_terminate_tracker || (!GRAB_SETTINGS(enable_closed_loop) && (!ppframe_queue.empty() || _frame_processing_ratio > 0) /* we cannot skip frames */)) {
-        print("tracker: ", _frame_processing_ratio.load());
         if(ppframe_queue.empty())
             ppvar.wait_for(guard, std::chrono::milliseconds(100));
         

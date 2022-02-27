@@ -827,28 +827,6 @@ int main(int argc, char** argv)
     if(!SETTING(log_file).value<file::Path>().empty()) {
         auto path = SETTING(log_file).value<file::Path>();//pv::DataLocation::parse("output", SETTING(log_file).value<file::Path>());
         set_log_file(path.str());
-        /*DEBUG::SetDebugCallback({
-            DEBUG::DEBUG_TYPE::TYPE_ERROR,
-            DEBUG::DEBUG_TYPE::TYPE_EXCEPTION,
-            DEBUG::DEBUG_TYPE::TYPE_WARNING,
-            DEBUG::DEBUG_TYPE::TYPE_INFO
-        }, [&log_mutex, &log_file](auto, const std::string& msg)
-            {
-                std::lock_guard<std::mutex> guard(log_mutex);
-                if(log_file) {
-                    char nl = '\n';
-                    fwrite(msg.c_str(), 1, msg.length(), log_file);
-                    fwrite(&nl, 1, 1, log_file);
-                    fflush(log_file);
-                }
-            });
-        
-        log_mutex.lock();
-        log_file = fopen(path.str().c_str(), "wb");
-        log_mutex.unlock();*/
-        
-        //throw SoftException("Cannot initialize logs.");
-        
         print("Logging to ", path,".");
     }
     
