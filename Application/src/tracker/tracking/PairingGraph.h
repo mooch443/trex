@@ -43,6 +43,7 @@ namespace Match
             return *this;
         }
         constexpr bool valid() const { return index >= 0; }
+        std::string toStr() const { return std::to_string(index); }
     };
 
     struct blob_index_t {
@@ -67,6 +68,7 @@ namespace Match
             return *this;
         }
         constexpr bool valid() const { return index >= 0; }
+        std::string toStr() const { return std::to_string(index); }
     };
 }
 }

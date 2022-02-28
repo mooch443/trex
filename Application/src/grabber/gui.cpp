@@ -192,7 +192,6 @@ void GUI::update() {
 void GUI::draw(gui::DrawStructure &base) {
     using namespace gui;
     static Timer last_frame_time;
-    static ExternalImage *background = NULL, *noise_image = NULL;
     
     {
         gui::DrawStructure::SectionGuard guard(base, "draw()");
@@ -406,22 +405,8 @@ void GUI::draw(gui::DrawStructure &base) {
             }
         }
 
-        static Text text("Test", Vec2(), text_color, Font(0.75, Align::VerticalCenter)), 
-                    text_shadow("", Vec2(), Color(), Font(0.75, Align::VerticalCenter));
-        text.set_pos(Vec2(25, 17).mul(scale));
-        text.set_scale(scale);
-        text.set_txt(info_text());
-        text.set_color(text_color);
-
-        text_shadow.set_pos(Vec2(26, 18).mul(scale));
-        text_shadow.set_scale(scale);
-        text_shadow.set_txt(text.txt());
-        text_shadow.set_color(Black);
-        base.wrap_object(text_shadow);
-        base.wrap_object(text);
-        //base.text(info_text(), Vec2(150, 150), Red, Font(2));//, base.scale().reciprocal());
-
-        //base.draw_log_messages();
+        auto shadow = base.text(info_text(), Vec2(26, 18).mul(scale), Black, Font(0.75, Align::VerticalCenter), scale);
+        base.text(shadow->txt(), Vec2(25, 17).mul(scale), text_color, Font(0.75, Align::VerticalCenter), scale);
 
         if (_grabber.tracker_instance()) {
             base.section("tracking", [this](gui::DrawStructure& base, Section* section) {

@@ -222,7 +222,6 @@ private:
     void draw_footer(gui::DrawStructure& base);
     void draw_posture(gui::DrawStructure &base, Individual* fish, Frame_t frameNr);
     void draw_menu();
-    void draw_export_options(gui::DrawStructure& base);
     void draw_grid(gui::DrawStructure& base);
     
     void removed_frames(Frame_t including);
@@ -263,8 +262,6 @@ public:
     void save_state(GUIType type = GUIType::GRAPHICAL, bool force_overwrite = false);
     
     void auto_correct(GUIType type = GUIType::GRAPHICAL, bool force_correct = false);
-    
-    static file::Path frame_output_dir();
     
     void update_recognition_rect();
     static Size2 screen_dimensions();

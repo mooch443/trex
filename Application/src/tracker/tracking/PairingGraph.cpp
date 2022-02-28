@@ -614,14 +614,14 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                     --degree;
                 }
             }
-            print("\tidentity:", current.fish_it->fish->identity().ID(),", blob:",current.prob_it != current._probs->end() ? (Match::index_t)current.prob_it->cdx : -2);
-            print("\tdegree:", degree,"/",current.fish_it->degree);
-            print("\tacc_p:",current.acc_p + ((next != _optimal_pairing->set.end()) ? hierarchy_best_p : 0) + local_best_p,"/",_optimal_pairing->p.load()," (",current.acc_p,", ",hierarchy_best_p,", ",local_best_p,")");
+            cmn::print("\tidentity:", current.fish_it->fish->identity().ID(),", blob:",current.prob_it != current._probs->end() ? (Match::index_t)current.prob_it->cdx : -2);
+            cmn::print("\tdegree:", degree,"/",current.fish_it->degree);
+            cmn::print("\tacc_p:",current.acc_p + ((next != _optimal_pairing->set.end()) ? hierarchy_best_p : 0) + local_best_p,"/",_optimal_pairing->p.load()," (",current.acc_p,", ",hierarchy_best_p,", ",local_best_p,")");
             if(_optimal_pairing->p.load() > 0 && current.acc_p + ((next != _optimal_pairing->set.end()) ? hierarchy_best_p : 0) + local_best_p > _optimal_pairing->p.load()) {
                 FormatWarning("This is weird.");
             }
         } else
-            print("\tinvalid node");
+            cmn::print("\tinvalid node");
     };
 #endif
     
@@ -734,7 +734,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 
 #ifndef NDEBUG
         if(debug) {
-            print("[Graph::work] Stopping path of length ", current.blobs.size());
+            cmn::print("[Graph::work] Stopping path of length ", current.blobs.size());
             print_stack();
         }
 #endif
@@ -854,7 +854,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
             }
             file << "],"<< _optimal_pairing->p <<"],\n";
             file.close();
-            print("(single) ",frame(),": ",_optimal_pairing->objects_looked_at," steps in ",elapsed*1000,"ms => ",elapsed*1000/ _optimal_pairing->objects_looked_at,"ms/step");
+            cmn::print("(single) ",frame(),": ",_optimal_pairing->objects_looked_at," steps in ",elapsed*1000,"ms => ",elapsed*1000/ _optimal_pairing->objects_looked_at,"ms/step");
         } //else
 #endif
         
@@ -1011,7 +1011,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 
 #ifndef NDEBUG
                 if(debug) {
-                    print("frame ",frame()," -- individuals: ",num," blobs: ",_paired.n_cols()," resulting in ",n,"x",m);
+                    cmn::print("frame ",frame()," -- individuals: ",num," blobs: ",_paired.n_cols()," resulting in ",n,"x",m);
                 }
 #endif
                 

@@ -111,7 +111,7 @@ public:
 void draw_blob_view(const DisplayParameters& parm)
 {
     //static std::vector<Outer> outers;
-    static std::vector<std::unique_ptr<ExternalImage>> outer_images;
+    //static std::vector<std::unique_ptr<ExternalImage>> outer_images;
     
     
     static std::unordered_set<pv::bid> shown_ids;
@@ -128,7 +128,7 @@ void draw_blob_view(const DisplayParameters& parm)
     
     if(parm.cache.blobs_dirty()) {
         shown_ids.clear();
-        outer_images.clear();
+        //outer_images.clear();
     }
     
     if(shown_ids != to_show_ids) {
@@ -158,12 +158,12 @@ void draw_blob_view(const DisplayParameters& parm)
             if(to_show_ids.find(id) == to_show_ids.end()) {
                 deleted.insert(id);
                 
-                for(auto it = outer_images.begin(); it != outer_images.end(); ++it) {
+                /*for(auto it = outer_images.begin(); it != outer_images.end(); ++it) {
                     if((uint64_t)(*it)->custom_data("blob_id") == (uint64_t)id) {
                         outer_images.erase(it);
                         break;
                     }
-                }
+                }*/
             }
         }
         

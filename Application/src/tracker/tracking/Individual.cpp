@@ -2584,7 +2584,7 @@ void Individual::clear_recognition() {
 void log(FILE* f, const char* cmd, ...) {
     UNUSED(f);
     UNUSED(cmd);
-#ifndef NDEBUG
+#if !defined(NDEBUG) && false
     if(!f) return;
     
     std::string output;
