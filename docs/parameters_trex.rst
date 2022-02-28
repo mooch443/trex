@@ -217,7 +217,7 @@ TRex parameters
 
 .. function:: build_architecture(string)
 
-	**default value:** "AMD64"
+	**default value:** "arm64"
 
 
 	The architecture this executable was built for.
@@ -226,7 +226,7 @@ TRex parameters
 
 .. function:: build_cxx_options(string)
 
-	**default value:** " -fvisibility-inlines-hidden -fvisibility=hidden -Wno-c++98-compat-pedantic -O3 -DNDEBUG -O3 -Wno-nullability-extension"
+	**default value:** " -fvisibility-inlines-hidden -fvisibility=hidden -Wno-c++98-compat-pedantic -O3 -DNDEBUG -std=c++2a -O3 -Wno-nullability-extension"
 
 
 	The mode the application was built in.
@@ -498,12 +498,12 @@ TRex parameters
 
 
 
-.. function:: gpu_max_epochs(uint64)
+.. function:: gpu_max_epochs(uchar)
 
 	**default value:** 150
 
 
-	Maximum number of epochs for training a recognition network.
+	Maximum number of epochs for training a recognition network (0 means infinite).
 
 
 
@@ -516,7 +516,7 @@ TRex parameters
 
 
 
-.. function:: gpu_min_elements(uint64)
+.. function:: gpu_min_elements(uint)
 
 	**default value:** 25000
 
@@ -525,7 +525,7 @@ TRex parameters
 
 
 
-.. function:: gpu_min_iterations(uint64)
+.. function:: gpu_min_iterations(uchar)
 
 	**default value:** 100
 
@@ -676,7 +676,7 @@ TRex parameters
 
 
 
-.. function:: gui_frame(int)
+.. function:: gui_frame(frame)
 
 	**default value:** 0
 
@@ -731,7 +731,7 @@ TRex parameters
 
 
 
-.. function:: gui_outline_thickness(uint64)
+.. function:: gui_outline_thickness(uchar)
 
 	**default value:** 1
 
@@ -826,9 +826,9 @@ TRex parameters
 
 
 
-.. function:: gui_show_fish(pair<int64,int>)
+.. function:: gui_show_fish(pair<blob,frame>)
 
-	**default value:** [-1,-1]
+	**default value:** [4294967295,-1]
 
 
 	Show debug output for {blob_id, fish_id}.
@@ -1268,7 +1268,7 @@ TRex parameters
 
 
 
-.. function:: manual_matches(map<int,map<Idx_t,int64>>)
+.. function:: manual_matches(map<frame,map<Idx_t,blob>>)
 
 	**default value:** {}
 
@@ -1277,7 +1277,7 @@ TRex parameters
 
 
 
-.. function:: manual_splits(map<int,set<int64>>)
+.. function:: manual_splits(map<frame,set<blob>>)
 
 	**default value:** {}
 
@@ -1486,7 +1486,7 @@ TRex parameters
 
 .. function:: output_csv_decimals(uchar)
 
-	**default value:** 0
+	**default value:** 2
 
 
 	Maximum number of decimal places that is written into CSV files (a text-based format for storing data). A value of 0 results in integer values.
@@ -1495,7 +1495,7 @@ TRex parameters
 
 .. function:: output_default_options(map<string,array<string>>)
 
-	**default value:** {"v_direction":["/10"],"NEIGHBOR_DISTANCE":["/10"],"X":["/100"],"outline_size":["/100"],"ANGULAR_A":["/1000","SMOOTH","CENTROID"],"threshold_reached":["POINTS"],"DOT_V":["/10"],"L_V":["/10"],"ANGULAR_V":["/10","SMOOTH","CENTROID"],"event_acceleration":["/10"],"midline_length":["/15"],"SPEED":["/10","SMOOTH"],"ACCELERATION":["/15","SMOOTH","CENTROID"],"NEIGHBOR_VECTOR_T":["/1"],"Y":["/100"],"tailbeat_threshold":["pm"],"tailbeat_peak":["pm"],"amplitude":["/100"],"global":["/10"]}
+	**default value:** {"v_direction":["/10"],"NEIGHBOR_DISTANCE":["/10"],"X":["/100"],"outline_size":["/100"],"ANGULAR_A":["/1000","CENTROID"],"threshold_reached":["POINTS"],"DOT_V":["/10"],"L_V":["/10"],"ANGULAR_V":["/10","CENTROID"],"event_acceleration":["/10"],"midline_length":["/15"],"SPEED":["/10"],"ACCELERATION":["/15","CENTROID"],"NEIGHBOR_VECTOR_T":["/1"],"Y":["/100"],"tailbeat_threshold":["pm"],"tailbeat_peak":["pm"],"amplitude":["/100"],"global":["/10"]}
 
 
 	Default scaling and smoothing options for output functions, which are applied to functions in ``output_graphs`` during export.
@@ -1505,7 +1505,7 @@ TRex parameters
 
 .. function:: output_dir(path)
 
-	**default value:** "C:\\Users\\tristan\\Videos"
+	**default value:** "/Users/tristan/Videos"
 
 
 	Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.
@@ -1537,7 +1537,7 @@ TRex parameters
 
 .. function:: output_graphs(array<pair<string,array<string>>>)
 
-	**default value:** [["X",["RAW","WCENTROID"]],["Y",["RAW","WCENTROID"]],["X",["RAW","HEAD"]],["Y",["RAW","HEAD"]],["VX",["RAW","HEAD"]],["VY",["RAW","HEAD"]],["AX",["RAW","HEAD"]],["AY",["RAW","HEAD"]],["ANGLE",["RAW"]],["ANGULAR_V",["RAW"]],["ANGULAR_A",["RAW"]],["MIDLINE_OFFSET",["RAW"]],["normalized_midline",["RAW"]],["midline_length",["RAW"]],["midline_x",["RAW"]],["midline_y",["RAW"]],["segment_length",["RAW"]],["SPEED",["RAW","WCENTROID"]],["SPEED",["SMOOTH","WCENTROID"]],["SPEED",["RAW","PCENTROID"]],["SPEED",["RAW","HEAD"]],["BORDER_DISTANCE",["PCENTROID"]],["time",[]],["timestamp",[]],["frame",[]],["missing",[]],["num_pixels",[]],["ACCELERATION",["RAW","PCENTROID"]],["ACCELERATION",["RAW","WCENTROID"]]]
+	**default value:** [["X",["RAW","WCENTROID"]],["Y",["RAW","WCENTROID"]],["X",["RAW","HEAD"]],["Y",["RAW","HEAD"]],["VX",["RAW","HEAD"]],["VY",["RAW","HEAD"]],["AX",["RAW","HEAD"]],["AY",["RAW","HEAD"]],["ANGLE",["RAW"]],["ANGULAR_V",["RAW"]],["ANGULAR_A",["RAW"]],["MIDLINE_OFFSET",["RAW"]],["normalized_midline",["RAW"]],["midline_length",["RAW"]],["midline_x",["RAW"]],["midline_y",["RAW"]],["segment_length",["RAW"]],["SPEED",["RAW","WCENTROID"]],["SPEED",["RAW","PCENTROID"]],["SPEED",["RAW","HEAD"]],["BORDER_DISTANCE",["PCENTROID"]],["time",[]],["timestamp",[]],["frame",[]],["missing",[]],["num_pixels",[]],["ACCELERATION",["RAW","PCENTROID"]],["ACCELERATION",["RAW","WCENTROID"]]]
 
 
 	The functions that will be exported when saving to CSV, or shown in the graph. ``[['X',[option], ...]]``
@@ -1584,7 +1584,7 @@ TRex parameters
 
 
 
-.. function:: output_min_frames(uint64)
+.. function:: output_min_frames(uint16)
 
 	**default value:** 1
 
@@ -1665,15 +1665,6 @@ TRex parameters
 
 
 
-.. function:: pixel_grid_cells(uint64)
-
-	**default value:** 25
-
-
-	
-
-
-
 .. function:: posture_closing_size(uchar)
 
 	**default value:** 2
@@ -1693,7 +1684,7 @@ TRex parameters
 
 
 
-.. function:: posture_direction_smoothing(uint64)
+.. function:: posture_direction_smoothing(uint16)
 
 	**default value:** 0
 
@@ -1722,10 +1713,10 @@ TRex parameters
 
 .. function:: python_path(path)
 
-	**default value:** "C:\\Users\\tristan\\anaconda3\\envs\\trex\\python.EXE"
+	**default value:** "/Users/tristan/miniforge3/envs/trex/bin/python3"
 
 
-	Path to the python home folder (containing pythonXX.exe). If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.
+	Path to the python home folder. If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.
 
 
 
@@ -1766,13 +1757,14 @@ TRex parameters
 	.. seealso:: :func:`blob_size_ranges`, 
 
 
-.. function:: recognition_coeff(uint64)
+.. function:: recognition_coeff(uint16)
 
 	**default value:** 50
 
 
-	
+	If ``recognition_border`` is 'outline', this is the number of coefficients to use when smoothing the ``recognition_border``.
 
+	.. seealso:: :func:`recognition_border`, :func:`recognition_border`, 
 
 
 .. function:: recognition_enable(bool)
@@ -1854,13 +1846,14 @@ TRex parameters
 	.. seealso:: :func:`recognition_border`, 
 
 
-.. function:: recognition_smooth_amount(uint64)
+.. function:: recognition_smooth_amount(uint16)
 
 	**default value:** 200
 
 
-	
+	If ``recognition_border`` is 'outline', this is the amount that the ``recognition_border`` is smoothed (similar to ``outline_smooth_samples``), where larger numbers will smooth more.
 
+	.. seealso:: :func:`recognition_border`, :func:`recognition_border`, :func:`outline_smooth_samples`, 
 
 
 .. function:: settings_file(path)
@@ -1891,6 +1884,15 @@ TRex parameters
 
 
 
+.. function:: tags_image_size(size)
+
+	**default value:** [32,32]
+
+
+	The image size that tag images are normalized to.
+
+
+
 .. function:: tags_path(path)
 
 	**default value:** ""
@@ -1918,7 +1920,7 @@ TRex parameters
 
 
 
-.. function:: threshold_ratio_range(rangef)
+.. function:: threshold_ratio_range(range<float>)
 
 	**default value:** [0.5,1]
 
@@ -1974,7 +1976,7 @@ TRex parameters
 	.. seealso:: :func:`track_ignore`, 
 
 
-.. function:: track_intensity_range(rangel)
+.. function:: track_intensity_range(range<int>)
 
 	**default value:** [-1,-1]
 
@@ -2085,7 +2087,7 @@ TRex parameters
 
 
 
-.. function:: tracklet_max_images(uint64)
+.. function:: tracklet_max_images(uint16)
 
 	**default value:** 0
 
@@ -2124,7 +2126,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1.6-18-gf49b7f7"
+	**default value:** "v1.1.6-64-g0ff0215"
 
 
 	Current application version.

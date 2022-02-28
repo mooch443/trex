@@ -1,4 +1,7 @@
 #include "ConnectedTasks.h"
+#include <misc/SpriteMap.h>
+
+#define DEBUG_THREAD_STATE
 
 namespace cmn {
     ConnectedTasks::ConnectedTasks(const std::vector<std::function<bool(Type, const Stage&)>>& tasks)
@@ -11,7 +14,8 @@ namespace cmn {
             _stages.at(i).samples = 0;
             
             _threads.push_back(new std::thread([this](size_t i) {
-                set_thread_name("ConnectedTasks::stage_"+Meta::toStr(i));
+                auto name = "ConnectedTasks::stage_"+Meta::toStr(i);
+                set_thread_name(name);
                 
                 const auto &task = _tasks.at(i);
                 auto &stage = _stages.at(i);
@@ -20,12 +24,18 @@ namespace cmn {
                 std::unique_lock<std::mutex> lock(stage.mutex);
                 
                 for(;;) {
+#ifdef DEBUG_THREAD_STATE
+                    set_thread_name(name+"::idle");
+#endif
                     stage.condition.wait_for(lock, std::chrono::seconds(1), [&](){ return (!_paused && !stage.queue.empty()) || _stop || stage.paused != _paused; });
                     
                     if(stage.paused != _paused)
                         stage.paused = _paused.load();
                     
                     if(!_paused && !stage.queue.empty()) {
+#ifdef DEBUG_THREAD_STATE
+                        set_thread_name(name);
+#endif
                         stage.timer.reset();
                         
                         auto obj = stage.queue.front();
@@ -87,7 +97,7 @@ namespace cmn {
                             
                             ss << "(total: "<<total_time * 1000<<"ms)";
                             auto str = ss.str();
-                            Debug("%S", &str);
+                            print(str.c_str());
                             
                             timer.reset();
                             
@@ -107,23 +117,11 @@ namespace cmn {
         
         std::lock_guard<std::mutex> lock(_finish_mutex);
         _finish_condition.notify_one();
-        Debug("Initialized %d stages", _stages.size());
+        print("Initialized ", _stages.size()," stages");
     }
 
     ConnectedTasks::~ConnectedTasks() {
-        _stop = true;
-        
-        _finish_condition.notify_all();
-        _main_thread->join();
-        delete _main_thread;
-        
-        for(auto &t : _stages)
-            t.condition.notify_all();
-        
-        for(auto &t : _threads) {
-            t->join();
-            delete t;
-        }
+        terminate();
     }
     
     /*void ConnectedTasks::reset_cache()  {
@@ -139,10 +137,21 @@ namespace cmn {
     }*/
     
     void ConnectedTasks::terminate() {
-        _stop = true;
-        _finish_condition.notify_all();
-        for(auto &s : _stages)
-            s.condition.notify_all();
+        if(!_stop) {
+            _stop = true;
+            
+            _finish_condition.notify_all();
+            _main_thread->join();
+            delete _main_thread;
+            
+            for(auto &t : _stages)
+                t.condition.notify_all();
+            
+            for(auto &t : _threads) {
+                t->join();
+                delete t;
+            }
+        }
     }
     
     bool ConnectedTasks::is_paused() const {

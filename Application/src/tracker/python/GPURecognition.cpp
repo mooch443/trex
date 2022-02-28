@@ -19,6 +19,8 @@
 #include <misc/default_config.h>
 #include <misc/GlobalSettings.h>
 
+#include <misc/format.h>
+
 namespace py = pybind11;
 
 template<typename T>
@@ -35,7 +37,7 @@ namespace pybind11 {
             PYBIND11_TYPE_CASTER(cmn::Image::Ptr, _("Image::Ptr"));
 
             // Conversion part 1 (Python -> C++)
-            bool load(py::handle src, bool convert)
+            bool load(py::handle , bool )
             {
                 /*if ( !convert and !py::array_t<T>::check_(src) )
                   return false;
@@ -59,7 +61,7 @@ namespace pybind11 {
             }
 
             //Conversion part 2 (C++ -> Python)
-            static py::handle cast(const cmn::Image::Ptr& src, py::return_value_policy policy, py::handle parent)
+            static py::handle cast(const cmn::Image::Ptr& src, py::return_value_policy, py::handle)
             {
 
                 std::vector<size_t> shape{ src->rows, src->cols, src->dims };
@@ -85,7 +87,7 @@ namespace pybind11 {
                 return a.release();
             }
             
-            static py::handle cast(const cmn::Image::UPtr& src, py::return_value_policy policy, py::handle parent)
+            static py::handle cast(const cmn::Image::UPtr& src, py::return_value_policy , py::handle )
             {
 
                 std::vector<size_t> shape{ src->rows, src->cols, src->dims };
@@ -107,13 +109,13 @@ namespace pybind11 {
         PYBIND11_TYPE_CASTER(cmn::Image::UPtr, _("Image::UPtr"));
 
         // Conversion part 1 (Python -> C++)
-        bool load(py::handle src, bool convert)
+        bool load(py::handle, bool)
         {
             return false;
         }
 
         //Conversion part 2 (C++ -> Python)
-        static py::handle cast(const cmn::Image::UPtr& src, py::return_value_policy policy, py::handle parent)
+        static py::handle cast(const cmn::Image::UPtr& src, py::return_value_policy, py::handle)
         {
 
             std::vector<size_t> shape{ src->rows, src->cols, src->dims };
@@ -130,7 +132,7 @@ namespace pybind11 {
     }
 } // namespace pybind11::detail
 
-#ifdef MESSAGE_TYPE
+/*#ifdef MESSAGE_TYPE
     #undef MESSAGE_TYPE
 #endif
 #define MESSAGE_TYPE(NAME, TYPE, FORCE_CALLBACK, COLOR, PREFIX) \
@@ -150,7 +152,7 @@ void NAME(const char *cmd, ...) { \
 }
 
 MESSAGE_TYPE(PythonLog, TYPE_INFO, false, CYAN, "python");
-MESSAGE_TYPE(PythonWarn, TYPE_WARNING, false, YELLOW, "python");
+MESSAGE_TYPE(PythonWarn, TYPE_WARNING, false, YELLOW, "python");*/
 
 std::shared_ptr<cmn::GlobalSettings> _settings = nullptr;
 std::function<void(const std::string&, const cv::Mat&)> _mat_display = [](auto&, auto&) {
@@ -176,11 +178,13 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
     });*/
 
     m.def("log", [](std::string text) {
-        PythonLog("%S", &text);
-        });
+        using namespace cmn;
+        print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), text.c_str());
+    });
     m.def("warn", [](std::string text) {
-        PythonWarn("%S", &text);
-        });
+        using namespace cmn;
+        FormatWarning(fmt::clr<FormatColor::DARK_GRAY>("[py] "),text.c_str());
+    });
 
     /*m.def("show_work_image", [](std::string name, pybind11::buffer b) {
 #if CMN_WITH_IMGUI_INSTALLED
@@ -236,15 +240,15 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         try {
             constexpr auto accessLevel = default_config::AccessLevelType::PUBLIC;
             if(!_settings->has_access(name, accessLevel))
-                Error("User cannot write setting '%S' (AccessLevel::%s).", &name, _settings->access_level(name).name());
+               FormatError("User cannot write setting ", name," (AccessLevel::",_settings->access_level(name).name(),").");
             else {
                 if(_settings->has(name)) {
                     _settings->map().operator[](name).get().set_value_from_string(value);
                 } else
-                    Error("Setting '%S' unknown.", &name);
+                    FormatError("Setting ",name," unknown.");
             }
         } catch(...) {
-            Except("Failed to set setting '%S' to '%S'.", &name, &value);
+            FormatExcept("Failed to set setting ",name," to ",value,".");
         }
     });
 
@@ -407,7 +411,7 @@ void PythonIntegration::reinit() {
         python_initializing() = true;
         
         auto fail = [](const auto& e, int line){
-            Debug("Python runtime error (%s:%d): '%s'", __FILE_NO_PATH__, line, e.what());
+            FormatExcept("Python runtime error (", line, ": '",e.what(),"'");
             python_gpu_initialized() = false;
             python_initializing() = false;
         };
@@ -423,7 +427,7 @@ void PythonIntegration::reinit() {
                         python_initializing() = false;
                         
                     } catch(const UtilsException& ex) {
-                        Warning("Error while executing 'trex_init.py'. Content: %s", ex.what());
+                        print("Error while executing 'trex_init.py'. Content: ",ex.what());
                         fail(ex, __LINE__);
                         return false;
                         
@@ -456,7 +460,7 @@ void PythonIntegration::reinit() {
         _initialize_promise = std::make_unique<std::promise<bool>>();
         _initialize_future = _initialize_promise->get_future().share();
         
-        _network_update_thread = new std::thread([this]() -> void {
+        _network_update_thread = new std::thread([]() -> void {
             cmn::set_thread_name("PythonIntegration::update");
             std::unique_lock<std::mutex> lock(_data_mutex);
             _saved_id = std::this_thread::get_id();
@@ -468,7 +472,7 @@ void PythonIntegration::reinit() {
             auto fail = [](const auto& e, int line){
                 python_init_error() = e.what();
                 python_initializing() = false;
-                Debug("Python runtime error (%s:%d): '%s'", __FILE_NO_PATH__, line, e.what());
+                FormatExcept("Python runtime error (", line, ": '", e.what(), "'");
                 
                 python_initialized() = false;
                 python_initializing() = false;
@@ -485,7 +489,7 @@ void PythonIntegration::reinit() {
                     auto home2 = SETTING(python_path).value<file::Path>().str();
                     if(file::Path(home2).exists() && file::Path(home2).is_regular())
                         home2 = file::Path(home2).remove_filename().str();
-                    Debug("Setting home to '%S'", &home2);
+                    print("Setting home to ",home2);
 
                     if (!home2.empty()) {
                         home2 = utils::find_replace(home2, "/", sep);
@@ -507,7 +511,7 @@ void PythonIntegration::reinit() {
                 _main = py::module::import("__main__");
                 _main.def("set_version", [](std::string x, bool has_gpu, std::string physical_name) {
 #ifndef NDEBUG
-                    Debug("set_version called with '%S' and '%S' - %s", &x, &physical_name, has_gpu?"gpu":"no gpu");
+                    print("set_version called with ",x," and ",physical_name," - ",has_gpu?"gpu":"no gpu");
 #endif
                     auto array = utils::split(x, ' ');
                     if(array.size() > 0) {
@@ -532,7 +536,7 @@ void PythonIntegration::reinit() {
                 _initialize_promise->set_value(true);
                 
             } catch(const UtilsException& ex) {
-                Warning("Error while executing 'trex_init.py'. Content: %s", ex.what());
+                print("Error while executing 'trex_init.py'. Content: ",ex.what());
                 fail(ex, __LINE__);
                 return;
                 
@@ -545,7 +549,7 @@ void PythonIntegration::reinit() {
                 python_init_error() = "Cannot initialize interpreter.";
                 python_initializing() = false;
                 python_initialized() = false;
-                Except("Cannot initialize the python interpreter.");
+                FormatExcept("Cannot initialize the python interpreter.");
                 _initialize_promise->set_value(false);
                 return;
             }
@@ -566,7 +570,7 @@ void PythonIntegration::reinit() {
                         
                         if(it == tasks.end()) {
                             if(!printed) {
-                                Warning("Cannot run python tasks while python is not initialized.");
+                                FormatWarning("Cannot run python tasks while python is not initialized.");
                                 printed = true;
                             }
                             
@@ -585,15 +589,14 @@ void PythonIntegration::reinit() {
                     auto task = std::move(*it);
                     tasks.erase(it);
                     
-                    //Debug("Starting python task from queue (elements left: %d)...", tasks.size());
                     lock.unlock();
                     try {
                         task._task();
                     } catch(py::error_already_set& e) {
-                        Except("Python runtime exception: %s", e.what());
+                        FormatExcept("Python runtime exception: ", e.what());
                         e.restore();
                     } catch( ... ) {
-                        Debug("Caught one exception.");
+                        print("Caught one exception.");
                     }
                     lock.lock();
                 }
@@ -620,7 +623,7 @@ void PythonIntegration::reinit() {
                 }
 
             } catch(py::error_already_set &e) {
-                Debug("Python runtime error during clean-up: '%s'", e.what());
+                print("Python runtime error during clean-up: '", e.what(),"'");
                 e.restore();
             }
             
@@ -629,7 +632,7 @@ void PythonIntegration::reinit() {
                 Py_Finalize();
                 
             } catch(py::error_already_set &e) {
-                Debug("Python runtime error during clean-up: '%s'", e.what());
+                print("Python runtime error during clean-up: '", e.what(),"'");
                 e.restore();
             }
         });
@@ -657,7 +660,7 @@ void PythonIntegration::reinit() {
             {
                 std::lock_guard<std::mutex> guard(module_mutex);
                 if(!_modules.count("learn_static"))
-                    SOFT_EXCEPTION("Cannot find 'learn_static'.");
+                    throw SoftException("Cannot find 'learn_static'.");
                 module = _modules.find("learn_static")->second;
             }
             
@@ -667,8 +670,7 @@ void PythonIntegration::reinit() {
                 auto array = x.unchecked<2>();
                 auto idxes = idx.unchecked<1>();
                 
-                //Debug("Received array of size %dx%d", array.shape(0), array.shape(1));
-                Debug("Copying %d data", array.size());
+                print("Copying ", array.size()," data");
                 auto ptr = array.data(0,0);
                 auto end = ptr + array.size();
                 temporary.insert(temporary.end(), ptr, end);
@@ -692,10 +694,9 @@ void PythonIntegration::reinit() {
             //py::exec(str, py::globals(), *_locals);
             
             //(*_locals)["images"] = nullptr;
-            //Debug("---- (%f) images", float(values.size()) / float(FAST_SETTINGS(manual_identities).size()));
             
         } catch (py::error_already_set &e) {
-            Debug("Runtime error: '%s'", e.what());
+            print("Runtime error: '", e.what(),"'");
             e.restore();
         }
         
@@ -712,11 +713,11 @@ void PythonIntegration::reinit() {
             try {
                 task._task();
             } catch (py::error_already_set &e) {
-                Except("Python runtime error: '%s'", e.what());
+                FormatExcept("Python runtime error: ", std::string(e.what()));
                 e.restore();
-                SOFT_EXCEPTION(e.what());
+                throw SoftException(e.what());
             } catch(...) {
-                Except("Random exception");
+                FormatExcept("Random exception");
             }
         } else {
             std::unique_lock lock(_data_mutex);
@@ -739,7 +740,7 @@ std::shared_future<bool> PythonIntegration::ensure_started() {
         //async_python_function([]()->bool{return true;});
         
     } else if(!python_initialized()) {
-        Warning("Python not yet initialized. Waiting...");
+        FormatWarning("Python not yet initialized. Waiting...");
         PythonIntegration::instance();
     }
     
@@ -761,11 +762,11 @@ bool PythonIntegration::check_module(const std::string& name) {
                 mod = _main.import(name.c_str());
             }
             mod.reload();
-            Debug("Reloaded '%S.py'.", &name);
+            print("Reloaded ",name+".py",".");
             result = true;
         }
         catch (pybind11::error_already_set & e) {
-            Except("Python runtime exception while reloading %S: '%s'", &name, e.what());
+            FormatExcept("Python runtime exception while reloading ",name,": ", e.what());
             e.restore();
             mod.release();
         }
@@ -795,7 +796,7 @@ void PythonIntegration::run(const std::string& module_name, const std::string& f
             guard.unlock();
             module();
         } else
-            Except("Pointer of %S::%S is null.", &module_name, &function);
+            FormatExcept("Pointer of ",module_name,"::",function," is null.");
     }
     catch (pybind11::error_already_set & e) {
         e.restore();
@@ -807,7 +808,7 @@ void PythonIntegration::run(const std::string& module_name, const std::string& f
         
         _modules.at(module_name).release();
         //_modules.at(module_name) = pybind11::none();
-        SOFT_EXCEPTION("Python runtime exception while running %S.%S: '%s'", &module_name, &function, e.what());
+        throw SoftException("Python runtime exception while running ", module_name.c_str(),"::", function.c_str(),"(): ", e.what());
     }
 }
 
@@ -827,7 +828,7 @@ std::string PythonIntegration::run_retrieve_str(const std::string& module_name, 
         e.restore();
 
         _modules.at(module_name).release();
-        SOFT_EXCEPTION("Python runtime exception while running %S.%S: '%s'", &module_name, &function, e.what());
+        throw SoftException("Python runtime exception while running ", module_name.c_str(),"::", function.c_str(),"(): ", e.what());
     }
     
     return "";
@@ -852,11 +853,11 @@ T get_variable_internal(const std::string& name, const std::string& m) {
             }
         }
     } catch(py::error_already_set & e) {
-        Except("Python runtime error: '%s'", e.what());
+        FormatExcept("Python runtime error: '", e.what(),"'");
         e.restore();
     }
     
-    SOFT_EXCEPTION("Cannot find variable '%S' in '%S'.", &name, &m);
+    throw SoftException("Cannot find variable ", name," in ", m,".");
 }
 
 template<> TREX_EXPORT std::string PythonIntegration::get_variable(const std::string& name, const std::string& m) {
@@ -881,7 +882,7 @@ void set_function_internal(const char* name_, T f, const std::string& m) {
             }
         }
         
-        SOFT_EXCEPTION("Cannot define function '%s' in '%S' because the module does not exist.", name_, &m);
+        throw SoftException("Cannot define function '", name_,"' in ", m," because the module does not exist.");
     }
 }
 
@@ -915,7 +916,7 @@ void PythonIntegration::unset_function(const char *name_, const std::string &m) 
         if(!CHECK_NONE(_main.attr(name_))) {
             _main.attr(name_) = nullptr;
         } else
-            Warning("Cannot find '%s' in _main.", name_);
+            print("Cannot find '",name_,"' in _main.");
     } else {
         if(_modules.count(m)) {
             auto &mod = _modules[m];
@@ -995,7 +996,7 @@ void PythonIntegration::set_variable(const std::string & name, const std::vector
 void PythonIntegration::check_correct_thread_id() {
     if(std::this_thread::get_id() != _saved_id) {
         auto name = get_thread_name();
-        U_EXCEPTION("Executing python code in wrong thread ('%S').", &name);
+        throw U_EXCEPTION("Executing python code in wrong thread (",name,").");
     }
 }
 
@@ -1008,10 +1009,10 @@ void PythonIntegration::execute(const std::string& cmd)  {
     catch (pybind11::error_already_set & e) {
         e.restore();
         if (e.what()) {
-            SOFT_EXCEPTION(e.what());
+            throw SoftException(e.what());
         }
         else {
-            SOFT_EXCEPTION("Unknown error message from Python.");
+            throw SoftException("Unknown error message from Python.");
         }
     }
 }
@@ -1028,7 +1029,7 @@ void PythonIntegration::import_module(const std::string& name) {
         e.restore();
 
         _modules[name].release();
-        SOFT_EXCEPTION(e.what());
+        throw SoftException(e.what());
     }
 }
 

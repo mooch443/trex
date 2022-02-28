@@ -1,4 +1,4 @@
-{% set version = environ.get('GIT_DESCRIBE_TAG', 'failed')[1:] %}
+{% set version = environ.get('GIT_DESCRIBE_TAG', '-failed')[1:] %}
 {% set number = environ.get('GIT_DESCRIBE_NUMBER', '0') %}
 {% set hash = environ.get('GIT_DESCRIBE_HASH', '0') %}
 
@@ -18,7 +18,7 @@ source:
 build:
     script_env:
       - GITHUB_WORKFLOW
-    number: 25
+    number: 26
     string: "{{ hash }}_{{ number }}"
     run_exports:
         - {{ pin_compatible('ffmpeg', min_pin='x.x.x', max_pin='x.x.x') }}
@@ -41,9 +41,10 @@ requirements:
     - pkg-config            # [not win]
     - jom                   # [win]
     - make                  # [unix]
+    - sysroot_linux-64 ==2.17 # [linux]
     - python ==3.9.7 # [win]
-    - python ==3.7.11 # [osx and not arm64]
-    - python ==3.9.9 # [osx and arm64]
+    - python ==3.9.10 # [arm64]
+    - python ==3.7.11 # [not win and not arm64]
     - {{ compiler('c') }}
     - {{ compiler('cxx') }}
     - cmake >=3.14
@@ -75,39 +76,37 @@ requirements:
 
   host:
     - pthread-stubs  # [linux]
-    - ffmpeg
+    - ffmpeg <=4.2.2 # [not arm64]
+    - ffmpeg >=4 # [arm64]
     - python ==3.7.11 # [not win and not arm64]
-    - python ==3.9.9 # [osx and arm64]
+    - python ==3.9.10 # [osx and arm64]
     - python ==3.9.7 # [win]
-    #- nomkl # [osx]
     
   run:
-    - tensorflow-gpu =2.* # [linux]
-    - tensorflow-gpu =2.* # [win]
+    - tensorflow =2.6 # [not linux and not arm64 and not osx]
+    - tensorflow-gpu =2.4 # [linux]
+    - tensorflow =2   # [osx and not arm64]
     - cudatoolkit # [win]
     - cudnn # [win]
-    - tensorflow =2.* # [osx and not arm64]
-    #- tensorboard <2.5 # [win]
     - scikit-learn # [not arm64]
     - scikit-learn ==1.0.2 # [arm64]
-    - grpcio # [osx and arm64]
-    - ffmpeg # [not amd64]
-    - ffmpeg ==4.4.1 # [osx and arm64]
-    - numpy ==1.19.5 # [osx and arm64]
+    - grpcio ==1.44.0 # [osx and arm64]
+    - wrapt >=1.11.0 # [arm64]
+    - ffmpeg <=4.2.2 # [not arm64]
+    - ffmpeg >=4 # [arm64]
+    - numpy ==1.19.5 # [arm64]
     - numpy # [win]
+    - python ==3.9.7 # [win]
+    - python ==3.9.10 # [arm64]
     - python ==3.7.11 # [not win and not arm64]
-    - python ==3.9.9 # [osx and arm64]
-    - python ==3.9.7  # [win]
-    #- nomkl # [osx]
     - h5py ==3.1.0 # [arm64]
     - hdf5 ==1.10.6 # [arm64]
     - pip=21.3.1  # [arm64]
-    #- scipy # [not arm64]
-    #- scipy ==1.7.3  # [arm64]
     - keras-preprocessing # [arm64]
     - requests # [osx and not arm64]
     - six ==1.15.0 # [osx and not amd64]
     - wheel ==0.35.1 # [osx and not amd64]
+    - requests
 
 about:
   home: https://trex.run

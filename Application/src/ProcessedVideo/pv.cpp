@@ -5,6 +5,8 @@
 #include <misc/Timer.h>
 #include <misc/PVBlob.h>
 #include <misc/checked_casts.h>
+#include <misc/ranges.h>
+#include <misc/SpriteMap.h>
 
 /**
  * =============================
@@ -60,9 +62,9 @@ namespace pv {
 
 
     //! Initialize copy
-    Frame::Frame(const Frame& other) {
+    /*Frame::Frame(const Frame& other) {
         operator=(other);
-    }
+    }*/
 
     Frame::Frame(Frame&& other) {
         operator=(std::move(other));
@@ -85,15 +87,13 @@ namespace pv {
         
         _blobs.clear();
         
-        _mask = other._mask;
-        _pixels = other._pixels;
-        /*_mask.resize(other._mask.size());
-        _pixels.resize(other._pixels.size());
+        _mask.clear();
+        _pixels.clear();
         
-        for(uint64_t i=0; i<other._mask.size(); ++i)
-            _mask[i] = std::make_shared<decltype(_mask)::value_type::element_type>(*other._mask[i]);
-        for(uint64_t i=0; i<other._pixels.size(); ++i)
-            _pixels[i] = std::make_shared<decltype(_pixels)::value_type::element_type>(*other._pixels[i]);*/
+        for (size_t i=0; i<other.n(); ++i) {
+            _mask.push_back(std::make_unique<blob::line_ptr_t::element_type>(*other._mask[i]));
+            _pixels.push_back(std::make_unique<blob::pixel_ptr_t::element_type>(*other._pixels[i]));
+        }
     }
 
     Frame::Frame(const uint64_t& timestamp, decltype(_n) n)
@@ -110,7 +110,7 @@ namespace pv {
     
     const std::vector<pv::BlobPtr>& Frame::get_blobs() const {
         if(_blobs.size() != n())
-            U_EXCEPTION("Have to call the non-const variant of this function first at some point (%d != %d).", _blobs.size(), n());
+            throw U_EXCEPTION("Have to call the non-const variant of this function first at some point (",_blobs.size()," != ",n(),").");
         return _blobs;
     }
     
@@ -120,7 +120,7 @@ namespace pv {
                 auto &mask = _mask[i];
                 auto &px = _pixels[i];
                 
-                _blobs.push_back(std::make_shared<pv::Blob>(mask, px));
+                _blobs.push_back(std::make_shared<pv::Blob>(*mask, *px));
             }
         }
         
@@ -180,7 +180,6 @@ namespace pv {
                 uint32_t uncompressed_size;
                 ref.read<uint32_t>(uncompressed_size);
                 
-                //Debug("Decompressing block of size %d to %d bytes", size, uncompressed_size);
                 
                 static DataPackage compressed_block, uncompressed_block;
                 compressed_block.resize(size, false);
@@ -196,7 +195,7 @@ namespace pv {
                     ptr = compressed;
                     
                 } else {
-                    Error("Failed to decode frame %d from file %@", idx, this);
+                    FormatError("Failed to decode frame ", idx," from file ", *this);
                 }
             }
         }
@@ -259,10 +258,10 @@ namespace pv {
                 }
             }
             
-            _mask.push_back(uncompressed);
-            _pixels.push_back(decltype(_pixels)::value_type(
-                    new std::vector<uchar>((uchar*)pixels.data(),
-                                           (uchar*)pixels.data()+num_pixels)));
+            _mask.push_back(std::move(uncompressed));
+            auto v = std::make_unique<std::vector<uchar>>((uchar*)pixels.data(),
+                                                 (uchar*)pixels.data()+num_pixels);
+            _pixels.emplace_back(std::move(v));
         }
         
         _mask.shrink_to_fit();
@@ -272,7 +271,7 @@ namespace pv {
             delete compressed;
     }
     
-    void Frame::add_object(std::shared_ptr<const std::vector<HorizontalLine>> mask, std::shared_ptr<const std::vector<uchar>> pixels) {
+    void Frame::add_object(blob::line_ptr_t&& mask, blob::pixel_ptr_t&& pixels) {
         assert(mask->size() < UINT16_MAX);
         
 #ifndef NDEBUG
@@ -281,35 +280,42 @@ namespace pv {
         uint64_t count = 0;
         for (auto &line : *mask) {
             if(!(prev == line) && !(prev < line))
-                Warning("Lines not properly ordered, or overlapping in x [%d-%d] < [%d-%d] (%d/%d).", prev.x0, prev.x1, line.x0, line.x1, prev.y, line.y);
+                FormatWarning("Lines not properly ordered, or overlapping in x [",prev.x0,"-",prev.x1,"] < [",line.x0,"-",line.x1,"] (",prev.y,"/",line.y,").");
             prev = line;
             ++count;
         }
 #endif
         
-        _mask.push_back(mask);
-        _pixels.push_back(pixels);
+        _mask.push_back(std::move(mask));
+        _pixels.push_back(std::move(pixels));
         
         _n++;
     }
+
+void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vector<uchar>& pixels) {
+    assert(mask.size() < UINT16_MAX);
+    _mask.push_back(std::make_unique<blob::line_ptr_t::element_type>(mask));
+    _pixels.push_back(std::make_unique<blob::pixel_ptr_t::element_type>(pixels));
+    _n++;
+}
     
     void Frame::add_object(const std::vector<HorizontalLine> &mask_, const cv::Mat &full_image) {
         assert(full_image.rows > 0 && full_image.cols > 0);
         assert(!mask_.empty());
         
-        auto mask = std::make_shared<std::vector<HorizontalLine>>(mask_);
+        auto mask = std::make_unique<std::vector<HorizontalLine>>(mask_);
         
-        uint64_t L = mask_.size();
+        ptr_safe_t L = (ptr_safe_t)mask_.size();
         //uint64_t offset = 0;
         
         // calculate overall bytes
-        uint64_t overall = 0;
+        ptr_safe_t overall = 0;
         auto line_ptr = mask->data();
         
         assert(full_image.cols-1 < UINT16_MAX);
         assert(full_image.rows-1 < UINT16_MAX);
         
-        for(uint64_t i=0; i<L; i++) {
+        for(ptr_safe_t i=0; i<L; i++) {
             // restrict to image dimensions
             assert(line_ptr->x1 < full_image.cols);
             assert(line_ptr->y < full_image.rows && line_ptr->x0 < full_image.cols && line_ptr->x1 >= line_ptr->x0);
@@ -319,18 +325,18 @@ namespace pv {
             
             if(line_ptr->y >= full_image.rows || line_ptr->x0 >= full_image.cols || line_ptr->x1 < line_ptr->x0)
             {
-                U_EXCEPTION("x1 < x0 in %d-%d,%d %lu 0x%X", line_ptr->x1, line_ptr->x0, line_ptr->y, L, line_ptr);
+                throw U_EXCEPTION("x1 < x0 in ",line_ptr->x1,"-",line_ptr->x0,",",line_ptr->y," ",L,"u 0x",line_ptr,"");
                 //mask->erase(mask->begin()+i-offset);
                 //offset++;
                 continue;
             }*/
             
-            overall += line_ptr->x1 - line_ptr->x0 + 1;
+            overall += ptr_safe_t(line_ptr->x1) - ptr_safe_t(line_ptr->x0) + 1;
             line_ptr++;
         }
         
         // copy grey values to pixels array
-        auto pixels = std::make_shared<std::vector<uchar>>();
+        auto pixels = std::make_unique<std::vector<uchar>>();
         pixels->resize(overall);
         //uchar *pixels = (uchar*)malloc(overall);
         
@@ -338,15 +344,15 @@ namespace pv {
         line_ptr = mask->data(); // reset ptr
         L = mask->size();
         
-        for (uint64_t i=0; i<L; i++, line_ptr++) {
+        for (ptr_safe_t i=0; i<L; i++, line_ptr++) {
             auto ptr = full_image.ptr(line_ptr->y, line_ptr->x0);
             assert(line_ptr->x1 >= line_ptr->x0);
-            long_t N = long_t(line_ptr->x1) - long_t(line_ptr->x0) + 1;
+            auto N = ptr_safe_t(line_ptr->x1) - ptr_safe_t(line_ptr->x0) + ptr_safe_t(1);
             memcpy(pixel_ptr, ptr, sign_cast<size_t>(N));
             pixel_ptr += N;
         }
         
-        add_object(mask, pixels);
+        add_object(std::move(mask), std::move(pixels));
         //free(pixels);
     }
     
@@ -439,7 +445,7 @@ namespace pv {
 
             }
             else {
-                Error("Compression of %d bytes failed.", pack.size());
+                print("Compression of ",pack.size()," bytes failed.");
             }
         }
     }
@@ -451,11 +457,10 @@ namespace pv {
         std::lock_guard<std::mutex> guard(location_mutex);
         if(location_funcs.find(purpose) != location_funcs.end()) {
             auto str = Meta::toStr(extract_keys(location_funcs));
-            U_EXCEPTION("Purpose '%S' already found in map with keys %S. Cannot register twice.", &purpose, &str);
+            throw U_EXCEPTION("Purpose '",purpose,"' already found in map with keys ",str,". Cannot register twice.");
         }
         
         location_funcs.insert({purpose, fn});
-        //Debug("Registered DataLocation with purpose '%S'.", &purpose);
     }
     
     file::Path DataLocation::parse(const std::string &purpose, file::Path path) {
@@ -465,7 +470,7 @@ namespace pv {
             auto it = location_funcs.find(utils::trim(utils::lowercase(purpose)));
             if(it == location_funcs.end()) {
                 auto str = Meta::toStr(extract_keys(location_funcs));
-                U_EXCEPTION("Cannot find purpose '%S' in map with keys %S in order to modify path '%S'.", &purpose, &str, &path.str());
+                throw U_EXCEPTION("Cannot find purpose '",purpose,"' in map with keys ",str," in order to modify path '",path.str(),"'.");
             }
             
             fn = it->second;
@@ -533,18 +538,17 @@ namespace pv {
         }
         
         if(version > Version::current)
-            U_EXCEPTION("Unknown version '%d'.", version);
+            throw U_EXCEPTION("Unknown version '",version,"'.");
         
         if(version == Version::V_2) {
             // must read settings from file before loading...
             if(!DataLocation::is_registered("settings"))
-                U_EXCEPTION("You have to register a DataLocation for 'settings' before using pv files (usually the same folder the video is in + exchange the .pv name with .settings).");
+                throw U_EXCEPTION("You have to register a DataLocation for 'settings' before using pv files (usually the same folder the video is in + exchange the .pv name with .settings).");
             auto settings_file = DataLocation::parse("settings");
             if (settings_file.exists())
                 GlobalSettings::load_from_file({}, settings_file.str(), AccessLevelType::PUBLIC);
         }
         
-        //Debug("Version of file is %d ('%S')", (int)version, &version_str);
         
         ref.read<uchar>(channels);
         ref.read<cv::Size>(resolution);
@@ -569,10 +573,10 @@ namespace pv {
         
         // check values for sanity
         if(channels != 1)
-            U_EXCEPTION("Only 1 channel currently supported (%d provided)", this->channels);
+            throw U_EXCEPTION("Only 1 channel currently supported (",this->channels," provided)");
         
         if(line_size != sizeof(line_type))
-            U_EXCEPTION("The used line format in this file (%ld bytes) differs from the expected %ld bytes.", line_size, sizeof(line_type));
+            throw U_EXCEPTION("The used line format in this file (",line_size," bytes) differs from the expected ",sizeof(line_type)," bytes.");
         
         if(average)
             delete average;
@@ -592,12 +596,10 @@ namespace pv {
                 // does it use a mask?
                 mask = new Image((uint)this->resolution.height /*- (offsets.y + offsets.height)*/, (uint)this->resolution.width /*- (offsets.x + offsets.width)*/, channels);
                 
-                //Debug("Reading mask with %dx%d", mask->cols, mask->rows);
                 ref.read_data(mask->size(), (char*)mask->data());
                 
                 for(uint64_t i=0; i<mask->size(); i++)
                     if(mask->data()[i] > 1) {
-                        //Debug("Correcting mask values from %d to 1.", mask->data()[i]);
                         mask->get() /= mask->data()[i];
                         break;
                     }
@@ -665,7 +667,7 @@ namespace pv {
         ref.write(channels);
         
         if(!resolution.width && !resolution.height)
-            U_EXCEPTION("Resolution of the video has not been set.");
+            throw U_EXCEPTION("Resolution of the video has not been set.");
         ref.write(resolution);
         ref.write(offsets);
         
@@ -686,7 +688,7 @@ namespace pv {
         if(mask) {
             ref.write(uint64_t(mask->size()));
             ref.write_data(mask->size(), (char*)mask->data());
-            Debug("Written mask with %dx%d", mask->cols, mask->rows);
+            print("Written mask with ", mask->cols,"x",mask->rows);
         }
         else {
             ref.write(uint64_t(0));
@@ -696,8 +698,7 @@ namespace pv {
     void Header::update(DataFormat& ref) {
         // write index table
         index_offset = ref.current_offset();
-        auto str = Meta::toStr(FileSize(index_table.size() * sizeof(decltype(index_table)::value_type)));
-        Debug("Index table is %S big.", &str);
+        print("Index table is ",FileSize(index_table.size() * sizeof(decltype(index_table)::value_type))," big.");
         
         for (auto index : index_table) {
             ref.write<decltype(index_table)::value_type>(index);
@@ -706,7 +707,7 @@ namespace pv {
         metadata = generate_metadata();
         _meta_offset = ref.write(metadata);
         
-        Debug("Updating number of frames with %ld, index offset %ld, timestamp %ld %ld", this->num_frames, this->index_offset, this->timestamp, _meta_offset);
+        print("Updating number of frames with ",this->num_frames,", index offset ",this->index_offset,", timestamp ",this->timestamp,", ", _meta_offset);
         ref.write(this->num_frames, _num_frames_offset);
         ref.write(this->index_offset, _index_offset);
         ref.write(this->timestamp, _timestamp_offset);
@@ -730,10 +731,10 @@ namespace pv {
         
         std::string ret = ss.str();
         if(ret.empty()) {
-            Debug("Metadata empty.");
+            print("Metadata empty.");
         } else {
             ret = "{"+ret+"}";
-            Debug("Metadata: '%S'", &ret);
+            print("Metadata: ",ret);
         }
         
         return ret;
@@ -759,7 +760,7 @@ namespace pv {
     
     std::string File::get_info_rich_text(bool full) {
         std::stringstream ss;
-        ss << this->toString() << "\n";
+        ss << this->summary() << "\n";
         
         /**
          * Display time related information.
@@ -838,7 +839,7 @@ namespace pv {
         //    frame._timestamp -= _header.timestamp; // make timestamp relative to start of video
 
         if (_prev_frame_time && frame._timestamp <= _prev_frame_time) {
-            U_EXCEPTION("Should be dropping frame because %lu <= %lu.", frame._timestamp, _prev_frame_time);
+            throw U_EXCEPTION("Should be dropping frame because ",frame._timestamp," <= ",_prev_frame_time,".");
         }
 
         _header._running_average_tdelta += frame._timestamp - _prev_frame_time;
@@ -859,14 +860,14 @@ namespace pv {
         _last_frame = frame;
     }
 
-    void File::add_individual(const Frame& frame) {
+    void File::add_individual(Frame&& frame) {
         static std::mutex pack_mutex;
         static DataPackage pack;
 
         std::lock_guard g(pack_mutex);
         bool compressed;
         frame.serialize(pack, compressed);
-        add_individual(frame, pack, compressed);
+        add_individual(std::move(frame), pack, compressed);
     }
         
     void File::stop_writing() {
@@ -879,7 +880,7 @@ namespace pv {
         
         std::unique_lock<std::mutex> guard(_lock);
         if(frameIndex >= _header.num_frames)
-            U_EXCEPTION("Frame index %ld out of range.", frameIndex);
+           throw U_EXCEPTION("Frame index ", frameIndex," out of range.");
         
         uint64_t pos = _header.index_table.at(frameIndex);
         uint64_t old = current_offset();
@@ -896,7 +897,7 @@ namespace pv {
         
         std::unique_lock<std::mutex> guard(_lock);
         if(frame_to_read >= _header.num_frames)
-            U_EXCEPTION("Frame index %ld out of range.", frame_to_read);
+           throw U_EXCEPTION("Frame index ", frame_to_read," out of range.");
         
         frame.read_from(*this, (long_t)frame_to_read);
     }
@@ -934,7 +935,7 @@ namespace pv {
     }
 
     void fix_file(File& file) {
-        Debug("Starting file copy and fix ('%S')...", &file.filename());
+        print("Starting file copy and fix (",file.filename(),")...");
         
         File copy(file.filename()+"_fix");
         copy.set_resolution(file.header().resolution);
@@ -966,7 +967,7 @@ namespace pv {
                 last_reset = raw_prev_timestamp + last_difference;
                 last_reset_idx = idx;
                 
-                Warning("Fixing frame %lu because timestamp %lu < %lu -> %lu", idx, frame.timestamp(), last_reset, last_reset + frame.timestamp());
+                FormatWarning("Fixing frame ",idx," because timestamp ",frame.timestamp()," < ",last_reset," -> ",last_reset + frame.timestamp());
             } else {
             	last_difference = frame.timestamp() - raw_prev_timestamp;
             }
@@ -974,20 +975,19 @@ namespace pv {
             raw_prev_timestamp = frame.timestamp();
             
             if(last_reset_idx) {
-            	//Debug("%lu -> %lu", frame.timestamp(), last_reset+frame.timestamp());
                 frame.set_timestamp(last_reset + frame.timestamp());
             }
             
-            copy.add_individual(frame);
+            copy.add_individual(std::move(frame));
             
             if (idx % 1000 == 0) {
-                Debug("Frame %lu / %lu (%.2f%% compression ratio)...", idx, file.length(), copy.compression_ratio()*100);
+                print("Frame ", idx," / ", file.length()," (",copy.compression_ratio() * 100,"% compression ratio)...");
             }
         }
         
         copy.stop_writing();
         
-        Debug("Written fixed file.");
+        print("Written fixed file.");
     }
     
     void File::try_compress() {
@@ -1014,16 +1014,16 @@ namespace pv {
             read_frame(frame, i);
             frame.set_timestamp(header().timestamp + frame.timestamp());
             
-            copy.add_individual(frame);
+            copy.add_individual(std::move(frame));
             
             if (i % 1000 == 0) {
-                Debug("Frame %lu / %lu...", i, length());
+                print("Frame ", i," / ",length(),"...");
             }
         }
         
         copy.stop_writing();
         
-        Debug("Written");
+        print("Written");
         
         {
             print_info();
@@ -1037,9 +1037,9 @@ namespace pv {
     
     void File::update_metadata() {
         if(!_open_for_modifying)
-            U_EXCEPTION("Must be open for writing.");
+            throw U_EXCEPTION("Must be open for writing.");
     
-        Debug("Updating metadata...");
+        print("Updating metadata...");
         auto metadata = _header.generate_metadata();
         write(metadata, _header.meta_offset());
     }
@@ -1052,7 +1052,7 @@ namespace pv {
 
     std::vector<float> File::calculate_percentiles(const std::initializer_list<float> &percent) {
         if(_open_for_writing)
-            U_EXCEPTION("Cannot calculate percentiles when file is opened for writing.");
+            throw U_EXCEPTION("Cannot calculate percentiles when file is opened for writing.");
         Timer timer;
         TaskSentinel sentinel(this);
         
@@ -1105,9 +1105,8 @@ namespace pv {
         
         std::sort(pixel_values.begin(), pixel_values.end());
         auto p = percentile(pixel_values, percent);
-        Debug("Took %fs to calculate percentiles in %d frames.", timer.elapsed(), num_frames);
+        print("Took ", timer.elapsed(),"s to calculate percentiles in ",num_frames," frames.");
         //auto str = Meta::toStr(samples);
-        //Debug("%S", &str);
         return p;
     }
     
@@ -1135,24 +1134,24 @@ namespace pv {
         return _header.average_tdelta;
     }
     
-    uint64_t File::timestamp(uint64_t frameIndex) const {
+    timestamp_t File::timestamp(uint64_t frameIndex) const {
         if(_open_for_writing)
-            U_EXCEPTION("Cannot get timestamps for video while writing.");
+            throw U_EXCEPTION("Cannot get timestamps for video while writing.");
         
         if(frameIndex >= header().num_frames)
-            U_EXCEPTION("Access out of bounds %d/%d.", frameIndex, header().num_frames);
+            throw U_EXCEPTION("Access out of bounds ",frameIndex,"/",header().num_frames,".");
         
         return header().index_table[frameIndex];
     }
     
-    uint64_t File::start_timestamp() const {
+    timestamp_t File::start_timestamp() const {
         if(_open_for_writing)
-            U_EXCEPTION("Cannot get timestamps for video while writing.");
+            throw U_EXCEPTION("Cannot get timestamps for video while writing.");
         
         return header().timestamp;
     }
     
-    File::operator MetaObject() const {
-        return MetaObject("pv::File<"+filename().str()+">", "pv::File");
+    std::string File::toStr() const {
+        return "pv::File<"+filename().str()+">";
     }
 }

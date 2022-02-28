@@ -8,6 +8,7 @@
 #include <gui/WorkProgress.h>
 #include <misc/checked_casts.h>
 #include <tracking/Categorize.h>
+#include <misc/frame_t.h>
 
 using namespace track;
 typedef int64_t data_long_t;
@@ -32,13 +33,13 @@ Output::ResultsFormat::ResultsFormat(const file::Path& filename, std::function<v
     }*/
 
     if (timer.elapsed() > 1)
-        Debug("Blobs took %fs", timer.elapsed());
+        print("Blobs took ", timer.elapsed(),"s");
 
     timer.reset();
+        auto name = get_thread_name();
+        set_thread_name(obj->identity().name()+"_post");
 
-    //Debug("Generate midlines for %d...", obj->identity().ID());
-    obj->update_midlines(_property_cache.get());
-    //Debug("Done with midlines for %d.", obj->identity().ID());
+        obj->update_midlines(_property_cache.get());
 
     //data_long_t previous = obj->start_frame();
     //for(auto && [i, c] : obj->_centroid) {
@@ -57,7 +58,7 @@ Output::ResultsFormat::ResultsFormat(const file::Path& filename, std::function<v
             centroid_point /= float(points.size());
             centroid_point += obj->_blobs.at(i)->bounds().pos();
 
-            auto enhanced = new PhysicalProperties(prev_enhanced, c->time(), centroid_point, midline->angle());
+            auto enhanced = new MotionRecord(prev_enhanced, c->time(), centroid_point, midline->angle());
             obj->_centroid_posture[i] = enhanced;
             prev_enhanced = enhanced;
         }*/
@@ -71,16 +72,20 @@ Output::ResultsFormat::ResultsFormat(const file::Path& filename, std::function<v
 
     if (timer.elapsed() >= 1) {
         auto us = timer.elapsed() * 1000 * 1000;
-
-        auto str = DurationUS{ (uint64_t)us }.to_string();
-        auto name = obj->identity().name();
-
         if (!SETTING(quiet))
-            Debug("%S post-processing took %S", &name, &str);
+            print(obj->identity()," post-processing took ", DurationUS{ (uint64_t)us });
     }
-}), _generic_pool(min(4u, cmn::hardware_concurrency()), [this](std::exception_ptr e) {
+        
+        set_thread_name(name);
+        
+}, "Output::post_pool"),
+_generic_pool(cmn::hardware_concurrency(), [this](std::exception_ptr e) {
     _exception_ptr = e; // send it to main thread
-}), _expected_individuals(0), _N_written(0)
+}, "Output::GenericPool"),
+_load_pool(cmn::hardware_concurrency(), [this](std::exception_ptr e) {
+    _exception_ptr = e; // send it to main thread
+}, "Output::loadPool"),
+_expected_individuals(0), _N_written(0)
 {}
 
 Output::ResultsFormat::~ResultsFormat() {
@@ -89,8 +94,10 @@ Output::ResultsFormat::~ResultsFormat() {
 }
 
 template<> void Data::read(track::FrameProperties& p) {
-    read<uint64_t>(p.org_timestamp);
-    p.time = p.org_timestamp / double(1000*1000);
+    uint64_t ts;
+    read<uint64_t>(ts);
+    p.org_timestamp = timestamp_t(ts);
+    p.time = double(p.org_timestamp.get()) / double(1000*1000);
     auto *ptr = static_cast<Output::ResultsFormat*>(this);
     if(ptr->header().version >= Output::ResultsFormat::V_31) {
         read_convert<data_long_t>(p.active_individuals);
@@ -100,8 +107,8 @@ template<> void Data::read(track::FrameProperties& p) {
 
 template<>
 uint64_t Data::write(const track::FrameProperties& val) {
-    write<data_long_t>(val.frame);
-    write<uint64_t>(val.org_timestamp);
+    write<data_long_t>(val.frame.get());
+    write<uint64_t>(val.org_timestamp.get());
     return write<data_long_t>(val.active_individuals);
 }
 
@@ -164,7 +171,7 @@ uint64_t Data::write(const track::MinimalOutline& val) {
 }
 
 template<>
-uint64_t Data::write(const PhysicalProperties& val) {
+uint64_t Data::write(const MotionRecord& val) {
     /**
      * Format of binary representation:
      *  - POSITION (2x4 bytes) in pixels
@@ -174,7 +181,7 @@ uint64_t Data::write(const PhysicalProperties& val) {
      * Derivates etc. can be calculated after loading.
      */
     
-    uint64_t p = write<Vec2>(val.pos(Units::PX_AND_SECONDS));
+    uint64_t p = write<Vec2>(val.pos<Units::PX_AND_SECONDS>());
     write<float>(val.angle());
     //write<double>(val.frame());
     
@@ -216,20 +223,21 @@ void Output::ResultsFormat::read_blob(Data& ref, pv::CompressedBlob& blob) const
     
     if(_header.version < Output::ResultsFormat::Versions::V_32) {
         std::vector<pv::LegacyShortHorizontalLine> legacy(len);
-        blob.lines.clear();
-        blob.lines.reserve(len);
+        blob._lines.clear();
+        blob._lines.reserve(len);
         
         ref.read_data(sizeof(pv::LegacyShortHorizontalLine) * len, (char*)legacy.data());
-        std::copy(legacy.begin(), legacy.end(), std::back_inserter(blob.lines));
+        std::copy(legacy.begin(), legacy.end(), std::back_inserter(blob._lines));
         
     } else {
-        blob.lines.resize(len);
-        ref.read_data(elem_size * len, (char*)blob.lines.data());
+        blob._lines.resize(len);
+        ref.read_data(elem_size * len, (char*)blob._lines.data());
     }
     
     blob.status_byte = byte;
     blob.start_y = start_y;
-    blob.parent_id = (long_t)parent_id;
+    blob.reset_id();
+    blob.parent_id = pv::bid(parent_id);
 }
 
 template<>
@@ -240,12 +248,12 @@ uint64_t Data::write(const pv::BlobPtr& val) {
     const uint64_t elem_size = sizeof(pv::ShortHorizontalLine);
     
     // this will turn
-    uint8_t byte = (val->parent_id() != -1 ? 0x2 : 0x0)
+    uint8_t byte = (val->parent_id().valid() ? 0x2 : 0x0)
                    | uint8_t(val->split() ? 0x1 : 0)
                    | uint8_t(val->tried_to_split() ? 0x4 : 0x0);
     uint64_t p = write<uint8_t>(byte);
-    if(val->parent_id() != -1)
-        write<data_long_t>(val->parent_id());
+    if(val->parent_id().valid())
+        write<data_long_t>((int64_t)val->parent_id());
     write<uint16_t>(uint16_t(mask.empty() ? 0 : mask.front().y));
     write<uint16_t>(uint16_t(compressed.size()));
     write_data(compressed.size() * elem_size, (char*)compressed.data());
@@ -323,7 +331,9 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         ID = (uint32_t)sid;
     }
     
-    Individual *fish = new Individual(ID);
+    Individual *fish = new Individual(Idx_t{ID});
+    auto thread_name = get_thread_name();
+    set_thread_name(fish->identity().name()+"_read");
     
     if(_header.version <= Output::ResultsFormat::Versions::V_15) {
         ref.seek(ref.tell() + sizeof(data_long_t) * 2);
@@ -342,7 +352,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         std::string name;
         ref.read<std::string>(name);
         
-        Identity id(ID);
+        Identity id( Idx_t{ID} );
         if(name != id.raw_name() && !name.empty()) {
             auto map = FAST_SETTINGS(individual_names);
             map[ID] = name;
@@ -358,94 +368,129 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         
         for (uint64_t i=0; i<N; ++i) {
             ref.read<data_long_t>(tmp);
-            fish->_manually_matched.insert((long_t)tmp);
+            fish->_manually_matched.insert(Frame_t(tmp));
         }
     }
     
-    fish->identity().set_ID(ID);
+    fish->identity().set_ID(Idx_t(ID));
     
-    //PhysicalProperties *prev = NULL;
-    //PhysicalProperties *prev_weighted = NULL;
+    //MotionRecord *prev = NULL;
+    //MotionRecord *prev_weighted = NULL;
     std::future<void> last_future;
     
     uint64_t N;
     ref.read<uint64_t>(N);
-    //double psize = 0;
-    //uint64_t pos_before = this->tell();
-    data_long_t prev_frame = -1;
-    data_long_t frameIndex;
     
     auto analysis_range = Tracker::analysis_range();
     bool check_analysis_range = SETTING(analysis_range).value<std::pair<long_t, long_t>>().first != -1 || SETTING(analysis_range).value<std::pair<long_t, long_t>>().second != -1;
     
     struct TemporaryData {
         std::shared_ptr<Individual::BasicStuff> stuff;
-        data_long_t prev_frame;
+        Frame_t prev_frame;
         Vec2 pos;
         float angle;
+        size_t index;
+        double time;
     };
     
     std::mutex mutex;
     std::condition_variable variable;
     std::deque<TemporaryData> stuffs;
-    std::atomic_bool stop = false;
+    std::atomic_bool stop{false};
     
-    std::thread worker([&mutex, &variable, &stuffs, &stop, fish, check_analysis_range, analysis_range, cache_ptr = cache]()
+    //! processes a single data point
+    auto process_frame = [cache_ptr = cache](
+             Individual* fish,
+             const TemporaryData& data)
     {
-        cmn::set_thread_name("Output::ResultsFormat::worker");
+        const auto& frameIndex = data.stuff->frame;
+        
+        const Match::prob_t p_threshold = FAST_SETTINGS(matching_probability_threshold);
+        
+        auto label =
+            FAST_SETTINGS(track_consistent_categories)
+                ? Categorize::DataStore::ranged_label(frameIndex, data.stuff->blob)
+                : nullptr;
+        
+        Match::prob_t p = p_threshold;
+        if(!fish->empty()) {
+            auto cache = fish->cache_for_frame(frameIndex, data.time, cache_ptr);
+            assert(frameIndex > fish->start_frame());
+            p = fish->probability(label ? label->id : -1, cache, frameIndex, data.stuff->blob);//.p;
+        }
+        
+        if(fish->empty())
+            fish->_startFrame = frameIndex;
+        assert(fish->_endFrame < frameIndex);
+        fish->_endFrame = frameIndex;
+        
+        auto segment = fish->update_add_segment(
+            frameIndex,
+            data.stuff->centroid,
+            data.prev_frame,
+            &data.stuff->blob,
+            p
+        );
+        
+        segment->add_basic_at(frameIndex, (long_t)data.index);
+        fish->_basic_stuff[data.index] = data.stuff;
+    };
+    
+    //! determine when the worker thread has ended
+    std::condition_variable finished;
+    std::atomic_bool ended{false};
+    
+    //! looping through all data points
+    auto worker = [&]() {
+        auto thread_name = get_thread_name();
+        set_thread_name("read_individual_"+fish->identity().name()+"_worker");
         
         std::unique_lock<std::mutex> guard(mutex);
-        auto _no_cache = (const CacheHints*)0x1;
         
         while(!stop || !stuffs.empty()) {
-            variable.wait_for(guard, std::chrono::milliseconds(250));
+            variable.wait_for(guard, std::chrono::milliseconds(1));
             
             while(!stuffs.empty()) {
-                auto & data = stuffs.front();
+                auto data = std::move(stuffs.front());
+                stuffs.pop_front();
                 
                 guard.unlock();
                 {
-                    const long_t& frameIndex = data.stuff->frame;
-                    
-                    if(fish->_startFrame == -1)
-                        fish->_startFrame = frameIndex;
-                    fish->_endFrame = frameIndex;
-                    
-                    auto prop = new PhysicalProperties(fish, frameIndex, data.pos, data.angle, cache_ptr);
-                    data.stuff->centroid = prop;
-                    
-                    auto label = FAST_SETTINGS(track_consistent_categories)/* || !FAST_SETTINGS(track_only_categories).empty()*/ ? Categorize::DataStore::ranged_label(Frame_t(frameIndex), data.stuff->blob) : nullptr;
-                    auto cache = fish->cache_for_frame(frameIndex, Tracker::properties(frameIndex, cache_ptr)->time, cache_ptr);
-                    auto p = fish->probability(label ? label->id : -1, cache, frameIndex, data.stuff->blob).p;
-                    
-                    auto segment = fish->update_add_segment(
-                        frameIndex,
-                        data.stuff->centroid,
-                        (long_t)data.prev_frame,
-                        &data.stuff->blob,
-                        p
-                    );
-                    
-                    segment->add_basic_at(frameIndex, (long_t)fish->_basic_stuff.size());
-                    fish->_basic_stuff.push_back(data.stuff);
-                    fish->_matched_using.push_back(default_config::matching_mode_t::benchmark);
+                    process_frame(fish, data);
                 }
                 guard.lock();
-                
-                stuffs.pop_front();
             }
         }
-    });
+        
+        set_thread_name(thread_name);
+        ended = true;
+        finished.notify_all();
+    };
     
     TemporaryData data;
+    data.index = 0; // start with basic_stuff == zero
+    
     double time;
     
-    fish->_basic_stuff.reserve(N);
-    fish->_matched_using.reserve(N);
+    data_long_t prev_frame = -1;
+    data_long_t frameIndex;
     
+    //!TODO: too much resize.
+    fish->_basic_stuff.resize(N);
+    fish->_matched_using.resize(N);
+    std::fill(fish->_matched_using.begin(), fish->_matched_using.end(), default_config::matching_mode_t::benchmark);
+    
+    const MotionRecord* prev = nullptr;
+    
+    //! start worker that iterates the frames / fills in
+    //! additional info that was not read directly from the file
+    //! per frame.
+    _load_pool.enqueue(worker);
+    
+    //! read the actual frame data, pushing to worker thread each time
     for (uint64_t i=0; i<N; i++) {
         ref.read<data_long_t>(frameIndex);
-        if(prev_frame == -1 && (!check_analysis_range || frameIndex >= analysis_range.start))
+        if(prev_frame == -1 && (!check_analysis_range || Frame_t(frameIndex) >= analysis_range.start))
             prev_frame = frameIndex;
         
         {
@@ -457,17 +502,20 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                     ref.read<double>(time);
                 else
                     ref.read_convert<float>(time);
-            }
+            } else
+                time = Tracker::properties(Frame_t(frameIndex))->time;
         }
         
         //fish->_blob_indices[frameIndex] = ref.read<uint32_t>();
         if(_header.version < Output::ResultsFormat::Versions::V_7)
             ref.seek(ref.tell() + sizeof(uint32_t)); // blob index no longer used
-            //ref.read<uint32_t>();
         
+        data.time = time;
         data.stuff = std::make_shared<Individual::BasicStuff>();
-        data.stuff->frame = (long_t)frameIndex;
-        data.prev_frame = prev_frame;
+        data.stuff->frame = Frame_t(frameIndex);
+        data.stuff->centroid.init(prev, time, data.pos, data.angle);
+        prev = &data.stuff->centroid;
+        
         read_blob(ref, data.stuff->blob);
         
         if(_header.version >= Output::ResultsFormat::Versions::V_7 && _header.version < Output::ResultsFormat::Versions::V_29)
@@ -476,62 +524,83 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             ref.read<Vec2>(tmp);
         }
         
-        if(check_analysis_range && (frameIndex > analysis_range.end || frameIndex < analysis_range.start)) {
+        if(check_analysis_range && (Frame_t(frameIndex) > analysis_range.end || Frame_t(frameIndex) < analysis_range.start)) {
             continue;
         }
         
+        data.prev_frame =
+            prev_frame == -1
+                ? Frame_t{Frame_t::invalid}
+                : Frame_t(prev_frame);
+        
         {
-            std::lock_guard<std::mutex> guard(mutex);
+            std::unique_lock guard(mutex);
             stuffs.push_back(data);
         }
         variable.notify_one();
         
         prev_frame = frameIndex;
+        ++data.index;
         
         if(i%100000 == 0 && i)
-            Debug("Blob %d/%d", i, N);
+            print("Blob ", i,"/",N);
     }
     
     stop = true;
     variable.notify_all();
-    worker.join();
     
-    //Output::ResultsFormat::_blob_pool.enqueue(fish);
+    std::unique_lock guard(mutex);
+    finished.wait(guard, [&ended](){
+        return ended.load();
+    });
+    
+    //!TODO: resize back to intended size
+    if(data.index != fish->_basic_stuff.size()) {
+        fish->_basic_stuff.resize(data.index);
+        fish->_matched_using.resize(data.index);
+    }
+    
+    assert(!fish->empty());
     
     // read pixel information
-    
     if(_header.version >= Versions::V_19) {
         ref.read<uint64_t>(N);
-        data_long_t frame;
+        
+        data_long_t frameIndex;
         uint64_t value;
+        Frame_t frame;
         
         for(uint64_t i=0; i<N; ++i) {
-            ref.read<data_long_t>(frame);
+            ref.read<data_long_t>(frameIndex);
             ref.read<uint64_t>(value);
+            
+            frame = Frame_t( frameIndex );
             
             if(check_analysis_range && (frame > analysis_range.end || frame < analysis_range.start))
                 continue;
             
-            auto stuff = fish->basic_stuff((long_t)frame);
+            auto stuff = fish->basic_stuff(frame);
             if(!stuff) {
-                Except("(%d) Cannot find basic_stuff for frame %d.", fish->identity().ID(), frame);
+                FormatExcept("(", fish->identity().ID(),") Cannot find basic_stuff for frame ", frame,".");
             } else
                 stuff->thresholded_size = value;
         }
     }
     
     //uint64_t delta = this->tell() - pos_before;
-    //Debug("PSize %f", delta / double(1000*1000));
     //pos_before = this->tell();
     
     // number of head positions
     if(_header.version <= Versions::V_24) {
         ref.read<uint64_t>(N);
+        Frame_t frame;
         
+        MotionRecord *prev = nullptr;
         for (uint64_t i=0; i<N; i++) {
             ref.read<data_long_t>(frameIndex);
+            frame = Frame_t( frameIndex );
             
-            PhysicalProperties *prop;
+            MotionRecord *prop;
             {
                 Vec2 pos;
                 float angle;
@@ -545,64 +614,75 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                         ref.read<double>(time);
                     else
                         ref.read_convert<float>(time);
+                } else {
+                    time = Tracker::properties(frame)->time;
                 }
                 
-                prop = new PhysicalProperties(fish, frameIndex, pos, angle);
+                prop = new MotionRecord;
+                prop->init(prev, time, pos, angle);
             }
             
             auto midline = read_midline(ref);
             auto outline = read_outline(ref, midline);
         
-            if(check_analysis_range && (frameIndex > analysis_range.end || frameIndex < analysis_range.start))
+            if(check_analysis_range && (frame > analysis_range.end || frame < analysis_range.start)) {
+                if(prev)
+                    delete prev;
+                prev = prop;
                 continue;
+            }
             
             if(FAST_SETTINGS(calculate_posture)) {
                 // save values
                 auto stuff = std::make_shared<Individual::PostureStuff>();
                 
-                stuff->frame = (long_t)frameIndex;
+                stuff->frame = frame;
                 stuff->cached_pp_midline = midline;
                 stuff->head = prop;
                 stuff->outline = outline;
                 
-                auto segment = fish->segment_for((long_t)frameIndex);
-                if(!segment) U_EXCEPTION("(%d) Have to add basic stuff before adding posture stuff (frame %d).", fish->identity().ID(), frameIndex);
+                auto segment = fish->segment_for(frame);
+                if(!segment) throw U_EXCEPTION("(",fish->identity().ID(),") Have to add basic stuff before adding posture stuff (frame ",frameIndex,").");
                 segment->add_posture_at(stuff, fish);
                 
-            } else {
-                delete prop;
             }
+            
+            if(prev)
+                delete prev;
+            prev = prop;
         }
         
     } else if(_header.version >= Versions::V_25) {
         // now read outlines and midlines
         ref.read<uint64_t>(N);
         
-        std::map<long_t, std::shared_ptr<Individual::PostureStuff>> sorted;
+        std::map<Frame_t, std::shared_ptr<Individual::PostureStuff>> sorted;
         data_long_t previous_frame = -1;
+        Frame_t frame;
         
         for (uint64_t i=0; i<N; i++) {
             ref.read<data_long_t>(frameIndex);
             if(frameIndex < previous_frame) {
-                Warning("Unordered frames (%ld vs %d)", frameIndex, previous_frame);
+                FormatWarning("Unordered frames (", frameIndex," vs ",previous_frame,")");
                 return fish;
             }
             previous_frame = frameIndex;
+            frame = Frame_t( frameIndex );
             
             auto midline = read_midline(ref);
             
-            if(check_analysis_range && (frameIndex > analysis_range.end || frameIndex < analysis_range.start))
+            if(check_analysis_range && (frame > analysis_range.end || frame < analysis_range.start))
                 continue;
             
             if(FAST_SETTINGS(calculate_posture)) {
                 // save values
                 auto stuff = std::make_shared<Individual::PostureStuff>();
                 
-                stuff->frame = (long_t)frameIndex;
+                stuff->frame = frame;
                 stuff->cached_pp_midline = midline;
                 
-                auto segment = fish->segment_for((long_t)frameIndex);
-                if(!segment) U_EXCEPTION("(%d) Have to add basic stuff before adding posture stuff (frame %d).", fish->identity().ID(), frameIndex);
+                auto segment = fish->segment_for(frame);
+                if(!segment) throw U_EXCEPTION("(",fish->identity().ID(),") Have to add basic stuff before adding posture stuff (frame ",frameIndex,").");
                 
                 sorted[stuff->frame] = stuff;
             }
@@ -612,22 +692,20 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         for (uint64_t i=0; i<N; i++) {
             ref.read<data_long_t>(frameIndex);
             auto outline = read_outline(ref, nullptr);
+            frame = Frame_t(frameIndex);
             
-            if(check_analysis_range && (frameIndex > analysis_range.end || frameIndex < analysis_range.start))
+            if(check_analysis_range && (frame > analysis_range.end || frame < analysis_range.start))
                 continue;
             
             if(FAST_SETTINGS(calculate_posture)) {
                 //fish->posture_stuff(frameIndex);
                 std::shared_ptr<Individual::PostureStuff> stuff;
-                auto it = sorted.find((long_t)frameIndex);
+                auto it = sorted.find(frame);
                 
                 if(it == sorted.end()) {
                     stuff = std::make_shared<Individual::PostureStuff>();
-                    stuff->frame = (long_t)frameIndex;
-                    
-                    //
-                    //fish->_posture_stuff.push_back(stuff);
-                    sorted[(long_t)frameIndex] = stuff;
+                    stuff->frame = frame;
+                    sorted[frame] = stuff;
                     
                 } else
                     stuff = it->second;
@@ -641,7 +719,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         for(auto && [frame, stuff] : sorted) {
             if(!segment || !segment->contains(frame))
                 segment = fish->segment_for(frame);
-            if(!segment) U_EXCEPTION("(%d) Have to add basic stuff before adding posture stuff (frame %d).", fish->identity().ID(), frame);
+            if(!segment) throw U_EXCEPTION("(",fish->identity().ID(),") Have to add basic stuff before adding posture stuff (frame ",frame,").");
             
             segment->add_posture_at(stuff, fish);
         }
@@ -651,8 +729,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     _post_pool.enqueue(fish);
     
     //if(N > 1000)
-    //    Debug("Time for individual %d: %f", fish->identity().ID(), timer.elapsed());
-    
+    set_thread_name(thread_name);
     return fish;
 }
 
@@ -664,7 +741,7 @@ template<> void Data::read(Individual*& out_ptr) {
             try {
                 _fn();
             } catch(const std::exception& e) {
-                Except("Caught an exception inside ~Callback(): %s",e.what());
+                FormatExcept("Caught an exception inside ~Callback(): ",e.what());
             }
         }
     };
@@ -677,7 +754,7 @@ template<> void Data::read(Individual*& out_ptr) {
             auto N = results->_expected_individuals.load();
             double N_written = results->_N_written.load();
             if(N <= 100 || results->_N_written % max(100u, uint64_t(N * 0.01)) == 0) {
-                Debug("Read individual %.0f/%lu (%.0f%%)...", N_written, N, N_written / float(N) * 100);
+                print("Read individual ", int64_t(N_written),"/", N," (",int64_t(N_written),"%)...");
                 results->_update_progress("", narrow_cast<float>(N_written / double(N)), results->filename().str()+"\n<ref>loading individual</ref> <number>"+Meta::toStr(results->_N_written)+"</number> <ref>of</ref> <number>"+Meta::toStr(N)+"</number>");
             }
         }
@@ -691,7 +768,6 @@ template<> void Data::read(Individual*& out_ptr) {
         auto in = Meta::toStr(FileSize(size));
         auto out = Meta::toStr(FileSize(uncompressed_size));
         
-        //Debug("Reading compressed block of size %S.", &in, &out);
         
         std::vector<char>* cache = nullptr;
         auto ptr = read_data_fast(size);
@@ -705,12 +781,12 @@ template<> void Data::read(Individual*& out_ptr) {
             if(lzo1x_decompress((uchar*)ptr,size,(uchar*)uncompressed_block.data(),&new_len,NULL) == LZO_E_OK)
             {
                 if(new_len != uncompressed_size)
-                    Warning("Uncompressed size %lu is different than expected %lu", new_len, uncompressed_size);
+                    FormatWarning("Uncompressed size ", new_len," is different than expected ",uncompressed_size);
                 ReadonlyMemoryWrapper compressed((uchar*)uncompressed_block.data(), new_len);
                 (*out_ptr) = results->read_individual(compressed, results->_property_cache.get());
                 
             } else {
-                U_EXCEPTION("Failed to decode individual from file %S", &results->filename());
+                throw U_EXCEPTION("Failed to decode individual from file ",results->filename());
             }
             
             if(cache)
@@ -722,7 +798,7 @@ template<> void Data::read(Individual*& out_ptr) {
     }
     
     if(!results)
-        U_EXCEPTION("This is not ResultsFormat.");
+        throw U_EXCEPTION("This is not ResultsFormat.");
     
     out_ptr = results->read_individual(*this, results->_property_cache.get());
     delete callback;
@@ -742,12 +818,12 @@ uint64_t Data::write(const Individual& val) {
      *  4 bytes ID
      *
      *  N number of frames for centroid
-     *  (Nx (8 bytes frameIndex + 12 bytes)) PhysicalProperties for centroid
+     *  (Nx (8 bytes frameIndex + 12 bytes)) MotionRecord for centroid
      *  (Nx k bytes) Blob
      *  (Nx (8 bytes M + Mx 1 byte grey values))
      
      *  N number of frames for head
-     *  (Nx (8 bytes frameIndex + 12 bytes)) PhysicalProperties for head
+     *  (Nx (8 bytes frameIndex + 12 bytes)) MotionRecord for head
      *  (Nx Midline)
      *  (Nx Outline)
      */
@@ -773,38 +849,45 @@ uint64_t Data::write(const Individual& val) {
     
     pack.write<uint64_t>(val._manually_matched.size());
     for (auto m : val._manually_matched)
-        pack.write<data_long_t>(m);
+        pack.write<data_long_t>(m.get());
     
     // centroid based information
     pack.write<uint64_t>(val._basic_stuff.size());
     
-    std::set<std::tuple<long_t, const Individual::BasicStuff*>> sorted;
-    for(auto& stuff : val._basic_stuff) {
-        sorted.insert({stuff->frame, stuff.get()});
-    }
+    {
+        // sorting by frame index std::less style (0 < N)
+        static constexpr auto compare = [](const auto& A, const auto& B) -> bool {
+            return A->frame.get() < B->frame.get();
+        };
+        
+        // construct sorted set
+        std::set<std::shared_ptr<Individual::BasicStuff>, decltype(compare)> sorted{
+            val._basic_stuff.begin(),
+            val._basic_stuff.end(),
+            compare
+        };
     
-    for(auto&& [frame, stuff] : sorted) {
-        // write frame number
-        pack.write<data_long_t>(stuff->frame);
-        
-        // write centroid PhysicalProperties
-        pack.write<PhysicalProperties>(*stuff->centroid);
-        
-        // assume we have a blob and grey values as well
-        pack.write<pv::BlobPtr>(stuff->blob.unpack());
-        
-        //pack.write<Vec2>(stuff->centroid->pos(Units::PX_AND_SECONDS));
+        // write it to file
+        for(auto &stuff : sorted) {
+            // write frame number
+            pack.write<data_long_t>(stuff->frame.get());
+            
+            // write centroid MotionRecord
+            pack.write<MotionRecord>(stuff->centroid);
+            
+            // assume we have a blob and grey values as well
+            pack.write<pv::BlobPtr>(stuff->blob.unpack());
+        }
     }
     
     // write pixel size information
     pack.write<uint64_t>(val._basic_stuff.size());
     for(auto & stuff : val._basic_stuff) {
-        pack.write<data_long_t>(stuff->frame);
+        pack.write<data_long_t>(stuff->frame.get());
         pack.write<uint64_t>(stuff->thresholded_size);
     }
     
     //auto str = Meta::toStr(FileSize(pack.size()));
-    //Debug("Individual %d is %S after centroid", val.identity().ID(), &str);
     
     // head based information
     /*pack.write<uint64_t>(val._head.size());
@@ -813,7 +896,7 @@ uint64_t Data::write(const Individual& val) {
         // write frame number
         pack.write<data_long_t>(c.first);
         
-        // write head PhysicalProperties
+        // write head MotionRecord
         pack.write(*c.second);
     }*/
     
@@ -822,9 +905,9 @@ uint64_t Data::write(const Individual& val) {
     std::map<data_long_t, MinimalOutline::Ptr> outlines;
     for(auto& stuff : val._posture_stuff) {
         if(stuff->cached_pp_midline)
-            cached_pp_midlines[stuff->frame] = stuff->cached_pp_midline;
+            cached_pp_midlines[stuff->frame.get()] = stuff->cached_pp_midline;
         if(stuff->outline)
-            outlines[stuff->frame] = stuff->outline;
+            outlines[stuff->frame.get()] = stuff->outline;
     }
     
     pack.write<uint64_t>(cached_pp_midlines.size());
@@ -844,7 +927,6 @@ uint64_t Data::write(const Individual& val) {
     //auto estimate = Meta::toStr(FileSize(pack_size));
     //auto per_frame = Meta::toStr(FileSize(pack.size() / double(val.frame_count())));
     
-    //Debug("Individual %d is %S (estimated %S) thats %S / frame", val.identity().ID(), &str, &estimate, &per_frame);
     
     lzo_uint out_len = 0;
     assert(pack.size() < LZO_UINT_MAX);
@@ -871,11 +953,11 @@ uint64_t Data::write(const Individual& val) {
             auto before = Meta::toStr(FileSize(in_len));
             auto after = Meta::toStr(FileSize(size));
             
-            Debug("Saved %.2f%%... (individual %d compressed from %S to %S).", double(ptr->_N_written.load() + 1) / double(ptr->_expected_individuals.load()) * 100, val.identity().ID(), &before, &after);
+            print("Saved ", double(ptr->_N_written.load() + 1) / double(ptr->_expected_individuals.load()) * 100,"%... (individual ", val.identity().ID()," compressed from ", before.c_str()," to ", after.c_str(),").");
         }
     
     } else {
-        U_EXCEPTION("Compression of %lu bytes failed (individual %d).", pack.size(), val.identity().ID());
+        throw U_EXCEPTION("Compression of ",pack.size()," bytes failed (individual ",val.identity().ID(),").");
     }
     
     return write(pack);
@@ -887,43 +969,11 @@ namespace Output {
     std::string speed = "";
     float percent_read;
     
-    /*const char* ResultsFormat::read_data_fast(uint64_t num_bytes) {
-        if(reading_timer.elapsed() >= 1) {
-            if(samples > 0) {
-                speed = Meta::toStr(FileSize(uint64_t(bytes_per_second / samples / reading_timer.elapsed())));
-                Debug("Reading @ %S/s", &speed);
-            }
-            reading_timer.reset();
-            bytes_per_second = 0;
-            samples = 0;
-        }
-        
-        if(current_offset() - last_callback > read_size() * 0.01) {
-            last_callback = current_offset();
-            percent_read = float((current_offset() + num_bytes) / double(read_size()));
-            
-            //if(int(percent_read*100) % 10 == 0)
-            {
-                _update_progress("", percent_read, ""+filename().str()+"\n<ref>reading @ "+speed+"/s</ref>");
-                Debug("Reading %.0f%% (@ %S/s)", percent_read*100, &speed);
-            }
-        }
-        
-        Timer timer;
-        auto ptr = DataFormat::read_data_fast(num_bytes);
-        auto time = timer.elapsed();
-        
-        bytes_per_second += num_bytes / time;
-        ++samples;
-        
-        return ptr;
-    }*/
-    
     void ResultsFormat::_read_header() {
         std::string version_string;
         read<std::string>(version_string);
         if(!utils::beginsWith(version_string, "TRACK"))
-            U_EXCEPTION("Illegal file format for tracking results.");
+            throw U_EXCEPTION("Illegal file format for tracking results.");
         
         if (version_string == "TRACK") {
             _header.version = Versions::V_1;
@@ -955,7 +1005,10 @@ namespace Output {
                 read<uint32_t>(start);
                 read<uint32_t>(end);
                 
-                _header.consecutive_segments.push_back(Rangel(narrow_cast<long_t>(start), narrow_cast<long_t>(end)));
+                _header.consecutive_segments.push_back(Range<Frame_t>{
+                    Frame_t(narrow_cast<Frame_t::number_t>(start)),
+                    Frame_t(narrow_cast<Frame_t::number_t>(end))
+                });
             }
             
             read<Size2>(_header.video_resolution);
@@ -973,7 +1026,6 @@ namespace Output {
         
         if(_header.version >= ResultsFormat::V_14) {
             read<std::string>(_header.settings);
-            //Debug("Read settings map: %S", &_header.settings);
         }
         
         if(_header.version >= ResultsFormat::V_23) {
@@ -982,8 +1034,8 @@ namespace Output {
         
         if(!SETTING(quiet)) {
             DebugHeader("READING PROGRAM STATE");
-            Debug("Read head of '%S' (version:V_%d gui_frame:%lu analysis_range:%ld-%ld)", &filename().str(), (int)_header.version+1, _header.gui_frame, _header.analysis_range.start, _header.analysis_range.end);
-            Debug("Generated with command-line: '%S'", &_header.cmd_line);
+            print("Read head of ",filename()," (version:V_",(int)_header.version+1," gui_frame:",_header.gui_frame,"u analysis_range:",_header.analysis_range.start,"d-",_header.analysis_range.end,"d)");
+            print("Generated with command-line: ",_header.cmd_line);
         }
     }
     
@@ -991,15 +1043,15 @@ namespace Output {
         std::string version_string = "TRACK"+std::to_string((int)Versions::current);
         write<std::string>(version_string);
         if(!SETTING(quiet)) {
-            Debug("Writing version string '%S'", &version_string);
-            Debug("Writing frame %lu", _header.gui_frame);
+            print("Writing version string ",version_string);
+            print("Writing frame ", _header.gui_frame);
         }
         write<uint64_t>(_header.gui_frame);
         auto consecutive = Tracker::instance()->consecutive();
         write<uint32_t>((uint32_t)consecutive.size());
         for (auto &c : consecutive) {
-            write<uint32_t>(sign_cast<uint32_t>(c.start));
-            write<uint32_t>(sign_cast<uint32_t>(c.end));
+            write<uint32_t>(sign_cast<uint32_t>(c.start.get()));
+            write<uint32_t>(sign_cast<uint32_t>(c.end.get()));
         }
         
         write<Size2>(Tracker::average().bounds().size());
@@ -1027,14 +1079,14 @@ namespace Output {
         const uint64_t pack_size =
         4 + sizeof(data_long_t)*2
         + sizeof(uchar)*3
-        + val._basic_stuff.size() * (sizeof(data_long_t)+physical_properties_size+sizeof(uint32_t)+(val._basic_stuff.empty() ? 100 : (*val._basic_stuff.begin())->blob.lines.size())*1.1*sizeof(pv::ShortHorizontalLine))
+        + val._basic_stuff.size() * (sizeof(data_long_t)+physical_properties_size+sizeof(uint32_t)+(val._basic_stuff.empty() ? 100 : (*val._basic_stuff.begin())->blob._lines.size())*1.1*sizeof(pv::ShortHorizontalLine))
         + val._posture_stuff.size() * (sizeof(data_long_t)+sizeof(uint64_t)+((val._posture_stuff.empty() || !val._posture_stuff.front()->cached_pp_midline ?SETTING(midline_resolution).value<uint32_t>() : (*val._posture_stuff.begin())->cached_pp_midline->size()) * sizeof(float) * 2 + sizeof(float) * 5 + sizeof(uint64_t))+physical_properties_size+((val._posture_stuff.empty() || !val._posture_stuff.front()->outline ? 0 : val._posture_stuff.front()->outline->size()*1.1)*sizeof(uint16_t) + sizeof(float)*2+sizeof(uint64_t)))
         + val._basic_stuff.size() * sizeof(decltype(Individual::BasicStuff::thresholded_size)) + sizeof(uint64_t);
         
         return pack_size;
     }
     
-    void ResultsFormat::write_file(const std::vector<track::FrameProperties> &frames, const std::unordered_map<long_t, Tracker::set_of_individuals_t > &active_individuals_frame, const std::unordered_map<Idx_t, Individual *> &individuals, const std::vector<std::string>& exclude_settings)
+    void ResultsFormat::write_file(const std::vector<std::unique_ptr<track::FrameProperties>> &frames, const Tracker::active_individuals_t &active_individuals_frame, const ska::bytell_hash_map<Idx_t, Individual *> &individuals, const std::vector<std::string>& exclude_settings)
     {
         estimated_size = sizeof(uint64_t)*3 + frames.size() * (sizeof(data_long_t)+sizeof(CompatibilityFrameProperties)) + active_individuals_frame.size() * (sizeof(data_long_t)+sizeof(uint64_t)+(active_individuals_frame.empty() ? individuals.size() : active_individuals_frame.begin()->second.size())*sizeof(data_long_t));
         
@@ -1045,7 +1097,7 @@ namespace Output {
         
         if(!SETTING(quiet)) {
             auto str = Meta::toStr(FileSize(estimated_size));
-            Debug("Estimating %S for the whole file.", &str);
+            print("Estimating ",str," for the whole file.");
         }
         std::string text = default_config::generate_delta_config(true, exclude_settings);
         write<std::string>(text);
@@ -1055,11 +1107,11 @@ namespace Output {
         const auto &recognition = *Tracker::recognition();
         write<uint64_t>(recognition.data().size());
         for(auto && [frame, map] : recognition.data()) {
-            write<data_long_t>(frame);
+            write<data_long_t>(frame.get());
             write<uint64_t>(map.size());
             
             for(auto && [bid, vector] : map) {
-                write<uint32_t>(bid);
+                write<uint32_t>((uint32_t)bid);
                 write<uint64_t>(vector.size());
                 write_data(sizeof(float) * vector.size(), (const char*)vector.data());
             }
@@ -1071,9 +1123,9 @@ namespace Output {
         // write frame properties
         write<uint64_t>(frames.size());
         if(!SETTING(quiet))
-            Debug("Writing %ld frames", frames.size());
+            print("Writing ", frames.size()," frames");
         for (auto &p : frames)
-            write<track::FrameProperties>(p);
+            write<track::FrameProperties>(*p);
         
         // write number of individuals
         write<uint64_t>(_expected_individuals);
@@ -1087,10 +1139,11 @@ namespace Output {
         // write active individuals per frame
         write<uint64_t>(active_individuals_frame.size());
         for (auto &p : active_individuals_frame) {
-            write<data_long_t>(p.first);
+            write<data_long_t>(p.first.get());
             write<uint64_t>(p.second.size());
             for(auto &fish : p.second) {
-                write<data_long_t>(fish->identity().ID());
+                data_long_t ID = fish->identity().ID();
+                write<data_long_t>(ID);
             }
         }
     }
@@ -1114,7 +1167,7 @@ namespace Output {
         filename = filename.add_extension("tmp01");
         
         ResultsFormat file(filename.str(), update_progress);
-        file.header().gui_frame = sign_cast<uint64_t>(SETTING(gui_frame).value<long_t>());
+        file.header().gui_frame = sign_cast<uint64_t>(SETTING(gui_frame).value<Frame_t>().get());
         file.start_writing(true);
         file.write_file(_tracker._added_frames, _tracker._active_individuals_frame, _tracker._individuals, exclude_settings);
         file.close();
@@ -1123,11 +1176,11 @@ namespace Output {
         if(filename.move_to(filename.remove_extension())) {
             filename = filename.remove_extension();
             if(!SETTING(quiet)) {
-                DebugHeader("Finished writing '%S'.", &filename.str());
-                DebugCallback("Finished writing '%S'.", &filename.str());
+                DebugHeader("Finished writing ", filename, ".");
+                DebugCallback("Finished writing ", filename, ".");
             }
         } else
-            U_EXCEPTION("Cannot move '%S' to '%S' (but results have been saved, you just have to rename the file).", &filename.str(), &filename.remove_extension().str());
+            throw U_EXCEPTION("Cannot move '",filename.str(),"' to '",filename.remove_extension().str(),"' (but results have been saved, you just have to rename the file).");
     }
     
     void TrackingResults::clean_up() {
@@ -1136,8 +1189,8 @@ namespace Output {
         _tracker.clear_properties();
         _tracker._active_individuals.clear();
         _tracker._active_individuals_frame.clear();
-        _tracker._startFrame = -1;
-        _tracker._endFrame = -1;
+        _tracker._startFrame = Frame_t();
+        _tracker._endFrame = Frame_t();
         _tracker._max_individuals = 0;
         _tracker._consecutive.clear();
         FOI::clear();
@@ -1147,7 +1200,7 @@ namespace Output {
         bytes_per_second = samples = percent_read = 0;
         
         if(!SETTING(quiet))
-            Debug("Trying to open results '%S' (retrieve header only)", &filename.str());
+            print("Trying to open results ",filename.str()," (retrieve header only)");
         ResultsFormat file(filename.str(), [](const auto&, auto, const auto&){});
         file.start_reading();
         return file.header();
@@ -1157,45 +1210,45 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
     const auto number_fish = FAST_SETTINGS(track_max_individuals);
     data_long_t prev = 0;
     data_long_t n = 0;
-    double prev_time = _tracker.start_frame() == -1 ? 0:  _tracker.properties(_tracker.start_frame())->time;
+    double prev_time = !_tracker.start_frame().valid() ? 0 : _tracker.properties(_tracker.start_frame())->time;
     
     //auto it = _tracker._active_individuals_frame.begin();
     if(_tracker._active_individuals_frame.size() != _tracker._added_frames.size()) {
-        U_EXCEPTION("This is unexpected (%d != %d).", _tracker._active_individuals_frame.size(), _tracker._added_frames.size());
+        throw U_EXCEPTION("This is unexpected (",_tracker._active_individuals_frame.size()," != ",_tracker._added_frames.size(),").");
     }
     
     const track::FrameProperties* prev_props = nullptr;
-    data_long_t prev_frame = -1;
+    Frame_t prev_frame;
     
-    std::unordered_map<Idx_t, Individual::segment_map::const_iterator> iterator_map;
+    ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator> iterator_map;
     
     for(const auto &props : _tracker._added_frames) {
-        prev_time = props.time;
+        prev_time = props->time;
         
         // number of individuals actually assigned in this frame
         /*n = 0;
         for(const auto &fish : it->second) {
             n += fish->has(props.frame) ? 1 : 0;
         }*/
-        n = props.active_individuals;
+        n = props->active_individuals;
         
         // update tracker with the numbers
         //assert(it->first == props.frame);
-        auto &active = _tracker._active_individuals_frame.at(props.frame);
-        if(prev_props && prev_frame - props.frame > 1)
+        auto &active = _tracker._active_individuals_frame.at(props->frame);
+        if(prev_props && prev_frame - props->frame > 1_f)
             prev_props = nullptr;
         
-        _tracker.update_consecutive(active, props.frame, false);
-        _tracker.update_warnings(props.frame, props.time, (long_t)number_fish, n, prev, &props, prev_props, active, iterator_map);
+        _tracker.update_consecutive(active, props->frame, false);
+        _tracker.update_warnings(props->frame, props->time, (long_t)number_fish, n, prev, props.get(), prev_props, active, iterator_map);
         
         prev = n;
-        prev_props = &props;
-        prev_frame = props.frame;
+        prev_props = props.get();
+        prev_frame = props->frame;
         
-        if((uint)props.frame % max(1u, uint64_t(_tracker._added_frames.size() / 10u)) == 0) {
-            update_progress("FOIs...", props.frame / float(_tracker.end_frame()), Meta::toStr(props.frame)+" / "+Meta::toStr(_tracker.end_frame()));
+        if(props->frame.get() % max(1u, uint64_t(_tracker._added_frames.size() / 10u)) == 0) {
+            update_progress("FOIs...", props->frame.get() / float(_tracker.end_frame().get()), Meta::toStr(props->frame)+" / "+Meta::toStr(_tracker.end_frame()));
             if(!SETTING(quiet))
-                Debug("\tupdate_fois %d / %d\r", props.frame, _tracker.end_frame());
+                print("\tupdate_fois ", props->frame," / ",_tracker.end_frame(),"\r");
         }
     }
     
@@ -1211,7 +1264,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         if (filename.empty())
             filename = expected_filename();
         else if (!filename.exists())
-            Error("Cannot find '%S' as requested. Trying standard paths.", &filename.str());
+            FormatError("Cannot find ",filename.str()," as requested. Trying standard paths.");
 
         if(!filename.exists()) {
             file::Path file = SETTING(filename).value<Path>();
@@ -1220,16 +1273,16 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             
             //file = pv::DataLocation::parse("input", filename.filename());
             if(file.exists()) {
-                Warning("Not loading from the output folder, but from the input folder because '%S' could not be found, but '%S' could.", &filename.str(), &file.str());
+                FormatWarning("Not loading from the output folder, but from the input folder because ", filename," could not be found, but ",file," could.");
                 filename = file;
             } else
-                Warning("Searched at '%S', but also couldnt be found.", &file.str());
+                print("Searched at ",file.str(),", but also couldnt be found.");
         }
         
         bytes_per_second = samples = percent_read = 0;
         
         if(!SETTING(quiet))
-            Debug("Trying to open results '%S'", &filename.str());
+            print("Trying to open results ",filename.str());
         ResultsFormat file(filename.str(), update_progress);
         file.start_reading();
         
@@ -1270,7 +1323,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
                     tmp.resize(vsize);
                     file.read_data(vsize * sizeof(float), (char*)tmp.data());
                     
-                    recognition.data()[(long_t)frame][bid] = tmp;
+                    recognition.data()[Frame_t(frame)][pv::bid(bid)] = tmp;
                 }
             }
         }
@@ -1304,23 +1357,23 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
                 props.time = comp.time;
             }
             
-            props.frame = frameIndex;
+            props.frame = Frame_t(frameIndex);
             
-            if(check_analysis_range && (frameIndex > analysis_range.end || frameIndex < analysis_range.start))
+            if(check_analysis_range && (props.frame > analysis_range.end || props.frame < analysis_range.start))
                 continue;
             
-            if(_tracker._startFrame == -1)
-                _tracker._startFrame = frameIndex;
-            _tracker._endFrame = frameIndex;
+            if(!_tracker._startFrame.load().valid())
+                _tracker._startFrame = props.frame;
+            _tracker._endFrame = props.frame;
             
             _tracker.add_next_frame(props);
         }
         
         for(auto &prop : _tracker.frames())
-            file._property_cache->push(prop.frame, &prop);
+            file._property_cache->push(prop->frame, prop.get());
         
         // read the individuals
-        std::map<uint32_t, Individual*> map_id_ptr;
+        std::map<Idx_t, Individual*> map_id_ptr;
         std::vector<Individual*> fishes;
         
         file.read<uint64_t>(L);
@@ -1352,10 +1405,11 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             }
         }
         
-        track::Identity::set_running_id(biggest_id+1);
+        track::Identity::set_running_id(Idx_t(biggest_id+1));
         
         uint64_t n;
         data_long_t ID;
+        Frame_t frame;
         file.read<uint64_t>(L);
         for (uint64_t i=0; i<L; i++) {
             Tracker::set_of_individuals_t active;
@@ -1363,22 +1417,30 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             file.read<data_long_t>(frameIndex);
             file.read<uint64_t>(n);
             
+            frame = Frame_t(frameIndex);
+            
             for (uint64_t j=0; j<n; j++) {
                 file.read<data_long_t>(ID);
                 
-                if(check_analysis_range && (frameIndex > analysis_range.end || frameIndex < analysis_range.start))
+                if(check_analysis_range && (frame > analysis_range.end || frame < analysis_range.start))
                     continue;
                 
-                auto it = map_id_ptr.find(ID);
-                if (it == map_id_ptr.end())
-                    U_EXCEPTION("Cannot find individual with ID %ld in map.", ID);
-                active.insert(it->second);
+                auto it = map_id_ptr.find(Idx_t(ID));
+                if (it == map_id_ptr.end()) {
+                   throw U_EXCEPTION("Cannot find individual with ID ", ID," in map.");
+                } else if((*it).second->start_frame() > frame) {
+                    //FormatExcept("Individual ", ID," start frame = ", map_id_ptr.at(Idx_t(ID))->start_frame(),", not ",frameIndex);
+                    continue;
+                }
+                auto r = active.insert(it->second);
+                if(!std::get<1>(r))
+                    throw U_EXCEPTION("Did not insert ID ",ID," for frame ",frameIndex,".");
             }
             
-            if(check_analysis_range && (frameIndex > analysis_range.end || frameIndex < analysis_range.start))
+            if(check_analysis_range && (frame > analysis_range.end || frame < analysis_range.start))
                 continue;
             
-            _tracker._active_individuals_frame[(long_t)frameIndex] = active;
+            _tracker._active_individuals_frame[frame] = active;
             _tracker._active_individuals = active;
             
             _tracker._max_individuals = max(_tracker._max_individuals, active.size());
@@ -1403,10 +1465,10 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             for(auto &props : _tracker._added_frames) {
                 // number of individuals actually assigned in this frame
                 n = 0;
-                for(const auto &fish : _tracker._active_individuals_frame.at(props.frame)) {
-                    n += fish->has(props.frame);
+                for(const auto &fish : _tracker._active_individuals_frame.at(props->frame)) {
+                    n += fish->has(props->frame);
                 }
-                props.active_individuals = n;
+                props->active_individuals = n;
             }
         }
         
@@ -1435,7 +1497,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
                 default_config::load_string_with_deprecations(filename, file.header().settings, config, AccessLevelType::STARTUP, true);
                 
             } catch(const cmn::illegal_syntax& e) {
-                Error("Illegal syntax in .results settings.");
+                print("Illegal syntax in .results settings (",e.what(),").");
             }
             
             std::vector<Idx_t> focus_group;
@@ -1443,7 +1505,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
                 focus_group = config["gui_focus_group"].value<std::vector<Idx_t>>();
             
             if(GUI::instance()) {
-                GUI::work().add_queue("", [f = (long_t)file.header().gui_frame, focus_group](){
+                GUI::work().add_queue("", [f = Frame_t(file.header().gui_frame), focus_group](){
                     SETTING(gui_frame) = f;
                     SETTING(gui_focus_group) = focus_group;
                 });
@@ -1458,7 +1520,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         
         if(Recognition::recognition_enabled()) {
             GUI::instance()->work().add_queue("", [](){
-                Tracker::instance()->check_segments_identities(false, [](float x) { },
+                Tracker::instance()->check_segments_identities(false, [](float ) { },
                 [](const std::string&t, const std::function<void()>& fn, const std::string&b)
                 {
                     if(GUI::instance())
@@ -1481,11 +1543,10 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         }
         
         if(!SETTING(quiet)) {
-            Debug("Successfully read file '%S' (version:V_%d gui_frame:%lu start:%lu end:%lu)", &file.filename().str(), (int)file._header.version+1, file.header().gui_frame, Tracker::start_frame(), Tracker::end_frame());
+            print("Successfully read file ",file.filename()," (version:V_",(int)file._header.version+1," gui_frame:",file.header().gui_frame,"u start:",Tracker::start_frame(),"u end:",Tracker::end_frame(),"u)");
         
             DurationUS duration{uint64_t(loading_timer.elapsed() * 1000 * 1000)};
-            auto str = Meta::toStr(duration);
-            DebugHeader("FINISHED READING PROGRAM STATE IN %S", &str);
+            DebugHeader("FINISHED READING PROGRAM STATE IN ", duration);
         }
     }
 }

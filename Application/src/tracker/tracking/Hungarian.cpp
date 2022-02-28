@@ -50,7 +50,7 @@ void kuhn_reduceRows(cell** t, size_t n, size_t m);
 byte** kuhn_mark(cell** t, size_t n, size_t m);
 boolean kuhn_isDone(byte** marks, boolean* colCovered, size_t n, size_t m);
 size_t* kuhn_findPrime(cell** t, byte** marks, boolean* rowCovered, boolean* colCovered, size_t n, size_t m);
-void kuhn_altMarks(byte** marks, size_t* altRow, size_t* altCol, ssize_t* colMarks, ssize_t* rowPrimes, size_t* prime, size_t n, size_t m);
+void kuhn_altMarks(byte** marks, ssize_t* altRow, ssize_t* altCol, ssize_t* colMarks, ssize_t* rowPrimes, size_t* prime, size_t n, size_t m);
 void kuhn_addAndSubtract(cell** t, boolean* rowCovered, boolean* colCovered, size_t n, size_t m);
 ssize_t** kuhn_assign(byte** marks, size_t n, size_t m);
 
@@ -194,6 +194,7 @@ namespace track {
 ssize_t** kuhn_match(cell** table, size_t n, size_t m)
 {
     size_t i;
+    assert(n > 0 && m > 0);
     
     /* not copying table since it will only be used once */
     
@@ -210,8 +211,8 @@ ssize_t** kuhn_match(cell** table, size_t n, size_t m)
     for (i = n; i < m; i++)
         *(colCovered + i) = false;
     
-    size_t* altRow = (size_t*)malloc(n * m * sizeof(ssize_t));
-    size_t* altCol = (size_t*)malloc(n * m * sizeof(ssize_t));
+    ssize_t* altRow = (ssize_t*)malloc(n * m * sizeof(ssize_t));
+    ssize_t* altCol = (ssize_t*)malloc(n * m * sizeof(ssize_t));
     
     ssize_t* rowPrimes = (ssize_t*)malloc(n * sizeof(ssize_t));
     ssize_t* colMarks  = (ssize_t*)malloc(m * sizeof(ssize_t));
@@ -472,7 +473,7 @@ size_t* kuhn_findPrime(cell** t, byte** marks, boolean* rowCovered, boolean* col
  * @param  n          The table's height
  * @param  m          The table's width
  */
-void kuhn_altMarks(byte** marks, size_t* altRow, size_t* altCol, ssize_t* colMarks, ssize_t* rowPrimes, size_t* prime, size_t n, size_t m)
+void kuhn_altMarks(byte** marks, ssize_t* altRow, ssize_t* altCol, ssize_t* colMarks, ssize_t* rowPrimes, size_t* prime, size_t n, size_t m)
 {
     size_t index = 0, i, j;
     *altRow = *prime;

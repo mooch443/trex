@@ -1,118 +1,81 @@
 #ifndef _TIMELINE_H
 #define _TIMELINE_H
 
-#include <types.h>
-#include <gui/DrawObject.h>
-#include <tracking/Tracker.h>
-#include <gui/DrawCVBase.h>
-#include <misc/Results.h>
-#include <misc/EventAnalysis.h>
-#include <gui/types/Layout.h>
-#include <gui/types/Button.h>
+#include <misc/defines.h>
+#include <misc/ranges.h>
+#include <misc/idx_t.h>
+#include <misc/vec2.h>
 
 class GUI;
 
 namespace gui {
-    
+    using namespace cmn;
+
+    class DrawStructure;
+    class ExternalImage;
     
     struct FrameInfo {
-        std::atomic_int current_fps;
-        long_t video_length;
-        std::atomic_long frameIndex;
+        std::atomic_int current_fps{0};
+        uint64_t video_length{0};
+        std::atomic<Frame_t> frameIndex{Frame_t()};
         
-        std::set<Rangel> training_ranges;
-        Rangel analysis_range;
+        std::set<Range<Frame_t>> training_ranges;
+        Range<Frame_t> analysis_range;
         
-        float mx, my;
+        float mx{0}, my{0};
         
-        size_t small_count;
-        uint32_t current_count;
-        size_t big_count;
-        size_t up_to_this_frame;
+        size_t small_count{0};
+        uint32_t current_count{0};
+        size_t big_count{0};
+        size_t up_to_this_frame{0};
         
-        size_t tdelta_gui;
-        float tdelta;
+        size_t tdelta_gui{0};
+        float tdelta{0};
         
-        std::vector<Range<long_t>> global_segment_order;
-        std::deque<Range<long_t>> consecutive;
-        
-        FrameInfo() : current_fps(0), video_length(0), frameIndex(0), mx(0), my(0), small_count(0), current_count(0), big_count(0), up_to_this_frame(0), tdelta_gui(0), tdelta(0) {}
+        std::vector<Range<Frame_t>> global_segment_order;
+        std::deque<Range<Frame_t>> consecutive;
     };
     
     using namespace track;
     
-    class Timeline : Object {
-        Vec2 pos;
+    class Timeline {
         //Size2 size;
         
         GETTER(std::unique_ptr<ExternalImage>, bar)
         GETTER(std::unique_ptr<ExternalImage>, consecutives)
         
-        std::atomic<long_t> tracker_endframe, tracker_startframe;
         float tdelta;
         
-        GUI& _gui;
-        Tracker& _tracker;
-        FrameInfo& _frame_info;
-        
         bool _visible;
-        GETTER(long_t, mOverFrame)
+        GETTER(Frame_t, mOverFrame)
         
         GETTER(std::atomic_bool, update_thread_updated_once)
         
-        std::string _thread_status;
-        std::atomic_bool _terminate;
-        
-        HorizontalLayout _title_layout;
-        Text _status_text, _status_text2, _status_text3;
-        Text _raw_text, _auto_text;
-        Button _pause;
-        
-        std::shared_ptr<std::thread> _update_events_thread;
-        
-        struct {
-            uint64_t last_change;
-            FOI::foi_type::mapped_type changed_frames;
-            std::string name;
-            Color color;
-        } _foi_state;
         
         
     protected:
-        //! NeighborDistances drawn out
-        struct ProximityBar {
-            Size2 _dimensions;
-            long_t start, end;
-            std::map<long_t, std::set<FOI::fdx_t>> changed_frames;
-            std::vector<uint32_t> samples_per_pixel;
-            std::mutex mutex;
-            
-            ProximityBar() : start(-1), end(-1) {}
-        } _proximity_bar;
         
         //Image _border_distance;
         
     public:
         Timeline(GUI& gui, FrameInfo& info);
-        ~Timeline() {
-            _terminate = true;
-            _update_events_thread->join();
-        }
-        void draw(DrawStructure& window) override;
+        ~Timeline();
+        void draw(DrawStructure& window);
         
         bool visible() const { return _visible; }
         void set_visible(bool v);
         
         void update_thread();
-        void reset_events(long_t after_frame = -1);
+        void reset_events(Frame_t after_frame = {});
         //void update_border();
         void next_poi(Idx_t fdx = Idx_t());
         void prev_poi(Idx_t fdx = Idx_t());
         static std::tuple<Vec2, float> timeline_offsets();
         
     private:
+        friend struct Interface;
         void update_fois();
-        void update_consecs(float max_w, const Range<long_t>&, const std::vector<Rangel>&, float scale);
+        void update_consecs(float max_w, const Range<Frame_t>&, const std::vector<Range<Frame_t>>&, float scale);
         //void update_recognition_rect();
     };
 }

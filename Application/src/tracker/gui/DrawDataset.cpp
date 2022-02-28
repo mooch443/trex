@@ -3,12 +3,13 @@
 #include <gui/gui.h>
 #include <tracking/Recognition.h>
 #include <gui/Timeline.h>
+#include <gui/types/StaticText.h>
 
 namespace gui {
     using namespace track;
     
     DrawDataset::DrawDataset()
-        : _last_frame(-1), _last_consecutive_frames(-1, -1), _initial_pos_set(false)
+        : _last_frame(-1), _last_consecutive_frames({}, {}), _initial_pos_set(false)
     {
         set_background(Black.alpha(150));
         set_origin(Vec2(1));
@@ -24,12 +25,12 @@ namespace gui {
     
     void DrawDataset::clear_cache() {
         _cache.clear();
-        _last_consecutive_frames = Rangel(-1, -1);
-        _last_frame = -1;
+        _last_consecutive_frames = Range<Frame_t>({}, {});
+        _last_frame.invalidate();
         _meta.clear();
         _current_quality = DatasetQuality::Quality();
         _meta_current.clear();
-        _last_current_frames = Rangel(-1, -1);
+        _last_current_frames = Range<Frame_t>({}, {});
     }
     
     void DrawDataset::update() {
@@ -38,10 +39,12 @@ namespace gui {
                 set_scale(parent()->stage()->scale().reciprocal());
         }
         
-        long_t frame = GUI::instance()->frameinfo().frameIndex;
-        auto consec = GUI::instance()->frameinfo().global_segment_order.empty() ? Rangel(-1,-1) : GUI::instance()->frameinfo().global_segment_order.front();
+        auto frame = GUI::instance()->frameinfo().frameIndex.load();
+        auto consec = GUI::instance()->frameinfo().global_segment_order.empty()
+            ? Range<Frame_t>({},{})
+            : GUI::instance()->frameinfo().global_segment_order.front();
         
-        Rangel current_consec(-1, -1);
+        Range<Frame_t> current_consec({}, {});
         
         if(!consec.contains(frame)) {
             for(auto & range : GUI::instance()->frameinfo().consecutive) {
@@ -100,7 +103,7 @@ namespace gui {
             
             // the frame we're currently in is not in the range we selected as "best"
             // so we want to display information about the other one too
-            if(current_consec != consec && current_consec.start != -1 && _last_current_frames != current_consec)
+            if(current_consec != consec && current_consec.start.valid() && _last_current_frames != current_consec)
             {
                 if(dataset) {
                     _meta_current = dataset->per_fish(current_consec);
@@ -113,7 +116,7 @@ namespace gui {
                 _last_current_frames = current_consec;
             }
             
-            if(current_consec.start == -1) {
+            if(!current_consec.start.valid()) {
                 _meta_current.clear();
                 _last_current_frames = current_consec;
             }
@@ -178,11 +181,11 @@ namespace gui {
         float y = 10, max_w = 0;
         Font font(0.75);
         
-        y += advance(new Text("Identities", Vec2(10, y), White, Font(0.8f, Style::Bold)))->height();
+        y += add<Text>("Identities", Vec2(10, y), White, Font(0.8f, Style::Bold))->height();
         y += 10;
         
         for(auto && [id, tup] : _cache) {
-            auto text = advance(new Text(_names.at(id)+": ", Vec2(10, y), White, Font(font.size, Style::Bold)));
+            auto text = add<Text>(_names.at(id)+": ", Vec2(10, y), White, Font(font.size, Style::Bold));
             auto && [samples, max_id, max_p] = max_identity.at(id);
             
             Color color = White.alpha(200);
@@ -193,9 +196,9 @@ namespace gui {
             
             Drawable *secondary;
             if(max_id.valid())
-                secondary = advance(new Text(Meta::toStr(max_id)+" ("+Meta::toStr(max_p)+", "+Meta::toStr(samples)+" samples)", text->pos() + Vec2(text->width(), 0), color, font));
+                secondary = add<Text>(Meta::toStr(max_id)+" ("+Meta::toStr(max_p)+", "+Meta::toStr(samples)+" samples)", text->pos() + Vec2(text->width(), 0), color, font);
             else
-                secondary = advance(new Text("N/A ("+Meta::toStr(samples)+" samples)", text->pos() + Vec2(text->width(), 0), DarkCyan.exposureHSL(1.5).alpha(200), font));
+                secondary = add<Text>("N/A ("+Meta::toStr(samples)+" samples)", text->pos() + Vec2(text->width(), 0), DarkCyan.exposureHSL(1.5).alpha(200), font);
             
             fish_offset[id] = { y, text->height() };
             
@@ -247,15 +250,15 @@ namespace gui {
             }
             
             // draw line afterwards, so max_w is already set
-            advance(new Line(Vec2(10, 10 + offset_y + h + 5), Vec2(10 + max_w, 10 + offset_y + h + 5), White.alpha(150)));
+            add<Line>(Vec2(10, 10 + offset_y + h + 5), Vec2(10 + max_w, 10 + offset_y + h + 5), White.alpha(150));
         };
         
-        if(_last_current_frames.start != -1 && !_meta_current.empty()) {
-            h = advance(new Text("Current segment "+Meta::toStr(_last_current_frames)+" ("+Meta::toStr(_current_quality)+")", Vec2(x, 10), White, Font(0.8f, Style::Bold)))->height();
+        if(_last_current_frames.start.valid() && !_meta_current.empty()) {
+            h = add<Text>("Current segment "+Meta::toStr(_last_current_frames)+" ("+Meta::toStr(_current_quality)+")", Vec2(x, 10), White, Font(0.8f, Style::Bold))->height();
             display_dataset(_meta_current, 0);
             
             if(!_meta.empty()) {
-                h = advance(new Text("Best segment "+Meta::toStr(_last_consecutive_frames)+" ("+Meta::toStr(_quality)+")", Vec2(x, 10 + y + 5), White, Font(0.8f, Style::Bold)))->height();
+                h = add<Text>("Best segment "+Meta::toStr(_last_consecutive_frames)+" ("+Meta::toStr(_quality)+")", Vec2(x, 10 + y + 5), White, Font(0.8f, Style::Bold))->height();
             
                 float cy = y + 5 + 10 + 10 + h;
                 
@@ -264,19 +267,19 @@ namespace gui {
                 
                 for(auto && [id, offsets] : fish_offset) {
                     //auto [offy, h] = offsets;
-                    cy += advance(new Text(_names.at(id), Vec2(x - 20, cy), White, Font(font.size, Style::Bold, Align::Right)))->height();
+                    cy += add<Text>(_names.at(id), Vec2(x - 20, cy), White, Font(font.size, Style::Bold, Align::Right))->height();
                 }
             
                 display_dataset(_meta, y + 5);
             }
             
         } else if(!_meta.empty()) {
-            h = advance(new Text("Best segment "+Meta::toStr(_last_consecutive_frames)+" ("+Meta::toStr(_quality)+")", Vec2(x, 10), White, Font(0.8f, Style::Bold)))->height();
+            h = add<Text>("Best segment "+Meta::toStr(_last_consecutive_frames)+" ("+Meta::toStr(_quality)+")", Vec2(x, 10), White, Font(0.8f, Style::Bold))->height();
             display_dataset(_meta, 0);
         }
         
         // vertical line between columns
-        advance(new Line(Vec2(x - 10, 5), Vec2(x - 10, y + 5), White.alpha(150)));
+        add<Line>(Vec2(x - 10, 5), Vec2(x - 10, y + 5), White.alpha(150));
         
         if(index < _texts.size())
             _texts.erase(_texts.begin() + (int64_t)index, _texts.end());
@@ -306,7 +309,6 @@ namespace gui {
             auto bar_height = bar ? bar->global_bounds().y + bar->global_bounds().height + 10 : 10;
             if(pp.y < bds.height + bar_height)
                 pp.y = bds.height + bar_height + 10;
-            //Debug("%f,%f", pp.x, pp.y);
             set_pos(pp);
         }
     }

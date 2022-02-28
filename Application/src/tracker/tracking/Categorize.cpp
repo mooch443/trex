@@ -9,6 +9,8 @@
 #include <random>
 #include <misc/default_settings.h>
 #include <tracking/StaticBackground.h>
+#include <gui/types/Button.h>
+#include <gui/types/Textfield.h>
 
 namespace track {
 namespace Categorize {
@@ -64,17 +66,18 @@ std::mutex _mutex;
 std::mutex _recv_mutex;
 std::condition_variable _variable, _recv_variable;
 std::queue<Sample::Ptr> _generated_samples;
+std::atomic<int> _number_labels{0};
 
 std::condition_variable _learning_variable;
 std::mutex _learning_mutex;
 
 std::unique_ptr<std::thread> thread;
 
-std::vector<std::tuple<std::thread::id, Rangel>> _currently_processed_segments;
+std::vector<std::tuple<std::thread::id, Range<Frame_t>>> _currently_processed_segments;
 
 struct Task {
-    Rangel range;
-    Rangel real_range;
+    Range<Frame_t> range;
+    Range<Frame_t> real_range;
     std::function<void()> func;
     bool is_cached = false;
 };
@@ -156,9 +159,9 @@ auto& task_queue() {
 
 };
 
-Sample::Sample(std::vector<long_t>&& frames,
+Sample::Sample(std::vector<Frame_t>&& frames,
                const std::vector<Image::Ptr>& images,
-               const std::vector<uint32_t>& blob_ids,
+               const std::vector<pv::bid>& blob_ids,
                std::vector<Vec2>&& positions)
     :   _frames(std::move(frames)),
         _images(images),
@@ -173,11 +176,13 @@ std::vector<std::string> DataStore::label_names() {
 }
 
 void init_labels() {
+    Work::_number_labels = 0;
     _labels.clear();
     auto cats = FAST_SETTINGS(categories_ordered);
     for(size_t i=0; i<cats.size(); ++i) {
         _labels[Label::Make(cats.at(i), i)] = {};
     }
+    Work::_number_labels = _labels.size();
 }
 
 Label::Ptr DataStore::label(const char* name) {
@@ -199,12 +204,12 @@ Label::Ptr DataStore::label(const char* name) {
                 }
             }
             
-            Except("Label '%s' should have been in the map already.", name);
+            FormatExcept("Label '", name,"' should have been in the map already.");
             break;
         }
     }
     
-    Warning("Label for '%s' not found.", name);
+    print("Label for '",name,"' not found.");
     return nullptr;
 }
 
@@ -217,7 +222,7 @@ Label::Ptr DataStore::label(int ID) {
         return label(names[ID].c_str());
     }
     
-    Warning("ID %d not found", ID);
+    print("ID ",ID," not found");
     return nullptr;
 }
 
@@ -287,7 +292,7 @@ bool DataStore::Composition::empty() const {
 }
 
 struct BlobLabel {
-    uint32_t bdx;
+    pv::bid bdx;
     int ldx;
     
     Label::Ptr label() const {
@@ -311,12 +316,12 @@ struct BlobLabel {
 std::vector<std::vector<BlobLabel>> _probability_cache; // frame - start_frame => index in this array
 
 auto& tracker_start_frame() {
-    static int64_t start_frame = FAST_SETTINGS(analysis_range).first == -1 ? 0 : FAST_SETTINGS(analysis_range).first;
+    static Frame_t start_frame = FAST_SETTINGS(analysis_range).first == -1 ? Frame_t(0) : Frame_t(FAST_SETTINGS(analysis_range).first);
     return start_frame;
 }
 
 inline size_t cache_frame_index(Frame_t frame) {
-    return sign_cast<size_t>(frame - tracker_start_frame());
+    return sign_cast<size_t>((frame - tracker_start_frame()).get());
 }
 
 inline std::vector<BlobLabel>* _cache_for_frame(Frame_t frame) {
@@ -357,22 +362,22 @@ void DataStore::_set_ranged_label_unsafe(RangedLabel&& r)
 {
     assert(r._label != -1);
     assert(size_t(r._range.length()) == r._blobs.size());
-    int32_t m = -1; // initialize with start of inserted range
+    Frame_t m; // initialize with start of inserted range
     auto it = insert_sorted(_ranged_labels, std::move(r)); // iterator pointing to inserted value
     assert(!_ranged_labels.empty());
     assert(it != _ranged_labels.end());
     
     if(it + 1 != _ranged_labels.end()) {
-        if((it + 1)->_maximum_frame_after != -1) {
+        if((it + 1)->_maximum_frame_after.valid()) {
             m = min((it + 1)->_maximum_frame_after, (it + 1)->_range.start());
         } else {
             m = (it + 1)->_range.start();
         }
     } else
-        m = -1;
+        m = Frame_t();
     
     for(;;) {
-        if(it->_maximum_frame_after != -1
+        if(it->_maximum_frame_after.valid()
            && it->_maximum_frame_after <= m)
         {
             break;
@@ -381,7 +386,7 @@ void DataStore::_set_ranged_label_unsafe(RangedLabel&& r)
         it->_maximum_frame_after = m;
         
         if(it != _ranged_labels.begin()) {
-            if(m == -1 || it->_range.start() < m)
+            if(!m.valid() || it->_range.start() < m)
                 m = it->_range.start();
             
             --it;
@@ -393,7 +398,7 @@ void DataStore::_set_ranged_label_unsafe(RangedLabel&& r)
     /*m = -1;
     for(auto it = _ranged_labels.rbegin(); it != _ranged_labels.rend(); ++it) {
         if(it->_maximum_frame_after != m) {
-            Warning("ranged(%d-%d): maximum_frame_after = %d != %d", it->_range.start(), it->_range.end(), it->_maximum_frame_after, m);
+            FormatWarning("ranged(",it->_range.start(),"-",it->_range.end(),"): maximum_frame_after = ",it->_maximum_frame_after," != ",m);
             it->_maximum_frame_after = m;
         }
         if(it->_range.start() < m || m == -1) {
@@ -402,7 +407,7 @@ void DataStore::_set_ranged_label_unsafe(RangedLabel&& r)
     } */
 }
 
-Label::Ptr DataStore::ranged_label(Frame_t frame, uint32_t bdx) {
+Label::Ptr DataStore::ranged_label(Frame_t frame, pv::bid bdx) {
     std::shared_lock guard(range_mutex());
     return DataStore::label(_ranged_label_unsafe(frame, bdx));
 }
@@ -410,10 +415,7 @@ Label::Ptr DataStore::ranged_label(Frame_t frame, const pv::CompressedBlob& blob
     std::shared_lock guard(range_mutex());
     return DataStore::label(_ranged_label_unsafe(frame, blob.blob_id()));
 }
-int DataStore::_ranged_label_unsafe(Frame_t frame, uint32_t bdx) {
-    static const auto frame_rate = FAST_SETTINGS(frame_rate) * 10;
-    const auto mi = frame - frame_rate, ma = frame + frame_rate;
-    
+int DataStore::_ranged_label_unsafe(Frame_t frame, pv::bid bdx) {
     auto eit = std::lower_bound(_ranged_labels.begin(), _ranged_labels.end(), frame);
     
     // returned first range which end()s after frame,
@@ -424,7 +426,7 @@ int DataStore::_ranged_label_unsafe(Frame_t frame, uint32_t bdx) {
         
         // and see if it is in fact contained
         if(eit->_range.contains(frame)) {
-            if(eit->_blobs.at(frame - eit->_range.start()) == bdx) {
+            if(eit->_blobs.at((frame - eit->_range.start()).get()) == bdx) {
                 return eit->_label;
             }
         }
@@ -433,17 +435,16 @@ int DataStore::_ranged_label_unsafe(Frame_t frame, uint32_t bdx) {
     return -1;
 }
 
-void DataStore::set_label(Frame_t idx, uint32_t bdx, const Label::Ptr& label) {
+void DataStore::set_label(Frame_t idx, pv::bid bdx, const Label::Ptr& label) {
     std::unique_lock guard(cache_mutex());
     _set_label_unsafe(idx, bdx, label? label->id : -1);
 }
 
-void DataStore::_set_label_unsafe(Frame_t idx, uint32_t bdx, int ldx) {
+void DataStore::_set_label_unsafe(Frame_t idx, pv::bid bdx, int ldx) {
     auto cache = _insert_cache_for_frame(idx);
 #ifndef NDEBUG
     if (contains(*cache, BlobLabel{bdx, ldx})) {
-        auto str = Meta::toStr(*cache);
-        Warning("Cache already contains blob %d in frame %d.\n%S", bdx, (int)idx, &str);
+        FormatWarning("Cache already contains blob ", bdx," in frame ", (int)idx.get(),".\n",*cache);
     }
 #endif
     insert_sorted(*cache, BlobLabel{bdx, ldx});
@@ -457,17 +458,17 @@ void DataStore::_set_label_unsafe(Frame_t idx, uint32_t bdx, int ldx) {
             N += values.size();
         }
 
-        Debug("[CAT] %lu frames in cache, with %lu labels (%.1f labels / frame)", _probability_cache.size(), N, double(N) / double(_probability_cache.size()));
+        print("[CAT] ",dec<1>(double(N) / double(_probability_cache.size()))," frames in cache, with "," labels / frame)"," labels (", _probability_cache.size(), N);
         timer.reset();
     }
 }
 
 void DataStore::set_label(Frame_t idx, const pv::CompressedBlob* blob, const Label::Ptr& label) {
-    uint32_t bdx;
+    auto bdx =
     /*if(blob->parent_id != -1)
         bdx = uint32_t(blob->parent_id);
     else*/
-        bdx = blob->blob_id();
+         blob->blob_id();
     
     set_label(idx, bdx, label);
 }
@@ -475,7 +476,7 @@ void DataStore::set_label(Frame_t idx, const pv::CompressedBlob* blob, const Lab
 Label::Ptr DataStore::label_averaged(Idx_t fish, Frame_t frame) {
     auto it = Tracker::individuals().find(fish);
     if(it == Tracker::individuals().end()) {
-        //Warning("Individual %d not found.", fish._identity);
+        //print("Individual ",fish._identity," not found.");
         return nullptr;
     }
     
@@ -485,10 +486,15 @@ Label::Ptr DataStore::label_averaged(Idx_t fish, Frame_t frame) {
 
 Label::Ptr DataStore::label_averaged(const Individual* fish, Frame_t frame) {
     assert(fish);
-    
+    {
+        std::shared_lock guard(cache_mutex());
+        if (_probability_cache.empty())
+            return nullptr;
+    }
+
     auto kit = fish->iterator_for(frame);
     if(kit == fish->frame_segments().end()) {
-        //Warning("Individual %d, cannot find frame %d.", fish._identity, frame._frame);
+        //FormatWarning("Individual ", fish._identity,", cannot find frame ",frame._frame,".");
         return nullptr;
     }
     
@@ -527,8 +533,7 @@ Label::Ptr DataStore::label_averaged(const Individual* fish, Frame_t frame) {
                 auto &basic = fish->basic_stuff().at(index);
                 auto l = label(Frame_t(basic->frame), &basic->blob);
                 if(l && label_id_to_index.count(l->id) == 0) {
-                    auto str = Meta::toStr(label_id_to_index);
-                    Warning("Label not found: %s (%d) in map %S", l->name.c_str(), l->id, &str);
+                    FormatWarning("Label not found: ", l->name.c_str()," (", l->id,") in map ",label_id_to_index);
                     continue;
                 }
                 
@@ -537,7 +542,7 @@ Label::Ptr DataStore::label_averaged(const Individual* fish, Frame_t frame) {
                     if(index < counts.size())
                         ++counts[index];
                     else
-                        Warning("Label index %lu > counts.size() = %lu", index, counts.size());
+                        FormatWarning("Label index ", index," > counts.size() = ",counts.size());
                 }
             }
             
@@ -557,21 +562,81 @@ Label::Ptr DataStore::label_averaged(const Individual* fish, Frame_t frame) {
         return nullptr;
     }
     
-    //Warning("Individual %d not found. Other reason?", fish->identity().ID());
+    //print("Individual ",fish->identity().ID()," not found. Other reason?");
+    return nullptr;
+}
+
+Label::Ptr DataStore::_label_averaged_unsafe(const Individual* fish, Frame_t frame) {
+    assert(fish);
+
+    if (_probability_cache.empty())
+        return nullptr;
+    
+    auto kit = fish->iterator_for(frame);
+    if(kit == fish->frame_segments().end()) {
+        //FormatWarning("Individual ", fish._identity,", cannot find frame ",frame._frame,".");
+        return nullptr;
+    }
+    
+    if((*kit)->contains(frame)) {
+        auto idx = (*kit)->basic_stuff(frame);
+        if(idx != -1) {
+            {
+                auto ait = _averaged_probability_cache.find(fish->identity().ID());
+                if(_averaged_probability_cache.end() != ait) {
+                    auto it = ait->second.find(kit->get());
+                    if(ait->second.end() != it) {
+                        return it->second;
+                    }
+                }
+            }
+
+            std::vector<size_t> counts(Work::_number_labels);
+            
+            for(auto index : (*kit)->basic_index) {
+                assert(index > -1);
+                auto &basic = fish->basic_stuff()[index];
+                auto l = _label_unsafe(Frame_t(basic->frame), basic->blob.blob_id());
+
+                if(l != -1) {
+                    if(size_t(l) < counts.size())
+                        ++counts[l];
+                    else
+                        FormatWarning("Label index ", l," > counts.size() = ",counts.size());
+                }
+            }
+            
+            auto mit = std::max_element(counts.begin(), counts.end());
+            if(mit != counts.end()) {
+                auto i = std::distance(counts.begin(), mit);
+                if(*mit == 0)
+                    return nullptr; // no samples
+                assert(i >= 0);
+                auto l = label(FAST_SETTINGS(categories_ordered).at(i).c_str());
+                _averaged_probability_cache[fish->identity().ID()][kit->get()] = l;
+                return l;
+            }
+        }
+        
+    } else {
+        return nullptr;
+    }
+    
+    //print("Individual ",fish->identity().ID()," not found. Other reason?");
     return nullptr;
 }
 
 Label::Ptr DataStore::label_interpolated(Idx_t fish, Frame_t frame) {
     auto it = Tracker::individuals().find(fish);
     if(it == Tracker::individuals().end()) {
-        Warning("Individual %d not found.", fish._identity);
+        print("Individual ",fish._identity," not found.");
         return nullptr;
     }
     
     return label_interpolated(it->second, frame);;
 }
 
-void DataStore::reanalysed_from(Frame_t frame) {
+void DataStore::reanalysed_from(Frame_t /* keeping for future purposes */) {
     std::unique_lock g(cache_mutex());
     _interpolated_probability_cache.clear();
     _averaged_probability_cache.clear();
@@ -582,7 +647,7 @@ Label::Ptr DataStore::label_interpolated(const Individual* fish, Frame_t frame) 
     
     auto kit = fish->iterator_for(frame);
     if(kit == fish->frame_segments().end()) {
-        //Warning("Individual %d, cannot find frame %d.", fish._identity, frame._frame);
+        //FormatWarning("Individual ", fish._identity,", cannot find frame ",frame._frame,".");
         return nullptr;
     }
     
@@ -650,15 +715,15 @@ Label::Ptr DataStore::label_interpolated(const Individual* fish, Frame_t frame) 
         }
         
     } else {
-        //Warning("Individual %d does not contain frame %d.", fish._identity, frame._frame);
+        //FormatWarning("Individual ", fish._identity," does not contain frame ",frame._frame,".");
         return nullptr;
     }
     
-    //Warning("Individual %d not found. Other reason?", fish->identity().ID());
+    //print("Individual ",fish->identity().ID()," not found. Other reason?");
     return nullptr;
 }
 
-Label::Ptr DataStore::label(Frame_t idx, uint32_t bdx) {
+Label::Ptr DataStore::label(Frame_t idx, pv::bid bdx) {
     std::shared_lock guard(cache_mutex());
     return DataStore::label(_label_unsafe(idx, bdx));
 }
@@ -667,7 +732,7 @@ Label::Ptr DataStore::label(Frame_t idx, const pv::CompressedBlob* blob) {
     return label(idx, /*blob->parent_id != -1 ? uint32_t(blob->parent_id) :*/ blob->blob_id());
 }
 
-int DataStore::_label_unsafe(Frame_t idx, uint32_t bdx) {
+int DataStore::_label_unsafe(Frame_t idx, pv::bid bdx) {
     auto cache = _cache_for_frame(idx);
     if(cache) {
         auto sit = find_keyed_tuple(*cache, bdx);
@@ -733,11 +798,11 @@ struct Cell {
 private:
     std::vector<Layout::Ptr> _buttons;
     GETTER(std::shared_ptr<HorizontalLayout>, button_layout)
-    GETTER_SETTER(bool, selected)
+    GETTER_SETTER_I(bool, selected, false)
     
 public:
-    Row *_row;
-    size_t _index;
+    Row *_row = nullptr;
+    size_t _index = 0;
     Sample::Ptr _sample;
     double _animation_time = 0;
     size_t _animation_index = 0;
@@ -779,14 +844,14 @@ public:
             task.sample->_probabilities[i] /= S;
 #ifndef NDEBUG
             if(task.sample->_probabilities[i] > 1) {
-                Warning("Probability > 1? %f for k '%s'", task.sample->_probabilities[i], cats[i].c_str());
+                FormatWarning("Probability > 1? ", task.sample->_probabilities[i]," for k '",cats[i].c_str(),"'");
             }
 #endif
         }
         
 #ifndef NDEBUG
         auto str1 = Meta::toStr(task.sample->_probabilities);
-        Debug("%lu: %S -> %S", task.result.size(), &str0, &str1);
+        print(task.result.size(),": ",str0.c_str()," -> ",str1.c_str());
 #endif
     }
     
@@ -948,7 +1013,7 @@ struct Row {
                             return 255 - v;
                         });
                     
-                    cell._image->update_with(inverted);
+                    cell._image->update_with(std::move(inverted));
                     cell._block->auto_size(Margin{0, 0});
                 }
                 
@@ -1001,9 +1066,247 @@ void Cell::set_sample(const Sample::Ptr &sample) {
     }
 }
 
-static VerticalLayout layout;
-static auto desc_text = Layout::Make<StaticText>();
-static std::array<Row, 2> rows { Row(0), Row(1) };
+struct Interface {
+    VerticalLayout layout;
+    Layout::Ptr desc_text = Layout::Make<StaticText>();
+    std::array<Row, 2> rows{ Row(0), Row(1) };
+
+    Tooltip tooltip{ nullptr, 200 };
+    Layout::Ptr stext = nullptr;
+    Entangled* selected = nullptr;
+    Layout::Ptr apply = Layout::Make<Button>("Apply", Bounds(0, 0, 100, 33));
+    Layout::Ptr load = Layout::Make<Button>("Load", Bounds(0, 0, 100, 33));
+    Layout::Ptr close = Layout::Make<Button>("Hide", Bounds(0, 0, 100, 33));
+    Layout::Ptr restart = Layout::Make<Button>("Restart", Bounds(0, 0, 100, 33));
+    Layout::Ptr train = Layout::Make<Button>("Train", Bounds(0, 0, 100, 33));
+    Layout::Ptr shuffle = Layout::Make<Button>("Shuffle", Bounds(0, 0, 100, 33));
+    Layout::Ptr buttons = Layout::Make<HorizontalLayout>(std::vector<Layout::Ptr>{});
+
+    static Interface& get() {
+        static std::unique_ptr<Interface> obj;
+        if (!obj) {
+            obj = std::make_unique<Interface>();
+        }
+        return *obj;
+    }
+
+    void init(DrawStructure& base) {
+        static double R = 0, elap = 0;
+        static Timer timer;
+        //R += RADIANS(100) * timer.elapsed();
+        elap += timer.elapsed();
+
+        static bool initialized = false;
+        if (!initialized) {
+            //PythonIntegration::ensure_started();
+            //PythonIntegration::async_python_function([]()->bool{return true;});
+            //Work::start_learning();
+
+            elap = 0;
+            initialized = true;
+
+            layout.set_policy(gui::VerticalLayout::CENTER);
+            layout.set_origin(Vec2(0.5));
+            layout.set_pos(Size2(base.width(), base.height()) * 0.5);
+
+            stext = Layout::Make<StaticText>(
+                "<h2>Categorizing types of individuals</h2>"
+                "Below, an assortment of randomly chosen clips is shown. They are compiled automatically to (hopefully) only contain samples belonging to the same category. Choose clips that best represent the categories you have defined before (<str>" + Meta::toStr(DataStore::label_names()) + "</str>) and assign them by clicking the respective button. But be careful - with them being automatically collected, some of the clips may contain images from multiple categories. It is recommended to <b>Skip</b> these clips, lest risking to confuse the poor network. Regularly, when enough new samples have been collected (and for all categories), they are sent to said network for a training step. Each training step, depending on clip quality, should improve the prediction accuracy (see below).",
+                Vec2(),
+                Vec2(base.width() * 0.5 * base.scale().x, -1), Font(0.7)
+                );
+
+            layout.add_child(stext);
+            //layout.add_child(Layout::Make<Text>("Categorizing types of individuals", Vec2(), Cyan, Font(0.75, Style::Bold)));
+
+            apply->on_click([](auto) {
+                Work::set_state(Work::State::APPLY);
+                });
+            close->on_click([](auto) {
+                Work::set_state(Work::State::NONE);
+                });
+            load->on_click([](auto) {
+                Work::set_state(Work::State::LOAD);
+                });
+            restart->on_click([](auto) {
+                Work::_learning = false;
+                Work::_learning_variable.notify_all();
+                DataStore::clear();
+                //PythonIntegration::quit();
+
+                Work::set_state(Work::State::SELECTION);
+                });
+            train->on_click([](auto) {
+                if (Work::state() == Work::State::SELECTION) {
+                    Work::add_training_sample(nullptr);
+                }
+                else
+                    FormatWarning("Not in selection mode. Can only train while samples are being selected, not during apply or inactive.");
+                });
+            shuffle->on_click([](auto) {
+                std::lock_guard gui_guard(GUI::instance()->gui().lock());
+                for (auto& row : Interface::get().rows) {
+                    for (size_t i = 0; i < row._cells.size(); ++i) {
+                        row.update(i, Work::retrieve());
+                    }
+                }
+                });
+
+            apply.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Green.exposure(0.15)));
+            close.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Red.exposure(0.2)));
+            load.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Yellow.exposure(0.2)));
+            shuffle.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Yellow.exposure(0.5)));
+
+            tooltip.set_scale(base.scale().reciprocal());
+            tooltip.text().set_default_font(Font(0.5));
+
+            for (auto& row : rows) {
+                /**
+                 * If the row is empty, that means that the whole grid has not been initialized yet.
+                 * Create images and put them into a per_row^2 grid, and add them to the layout.
+                 */
+                if (row.empty()) {
+                    row.init(per_row);
+                    layout.add_child(Layout::Ptr(row.layout));
+                }
+
+                /**
+                 * After ensuring we do have rows, fill them with new samples:
+                 */
+                for (size_t i = 0; i < row.length(); ++i) {
+                    auto sample = Work::retrieve();
+                    row.update(i, sample);
+                }
+            }
+
+            if (!layout.empty() && layout.children().back() != buttons.get()) {
+                desc_text.to<StaticText>()->set_default_font(Font(0.6));
+                desc_text.to<StaticText>()->set_max_size(stext.to<StaticText>()->max_size());
+
+                layout.add_child(desc_text);
+                layout.add_child(buttons);
+            }
+
+            layout.auto_size(Margin{ 0,0 });
+            layout.set_z_index(1);
+            Work::_variable.notify_one();
+        }
+
+        timer.reset();
+    }
+
+    void draw(DrawStructure& base) {
+        {
+            std::lock_guard guard(DataStore::mutex());
+            /*if(_labels.empty()) {
+                _labels.insert({Label::Make("W"), {}});
+                _labels.insert({Label::Make("S"), {}});
+                //DataStore::_labels.insert({Label::Make("X"), {}});
+            }*/
+
+            if (FAST_SETTINGS(categories_ordered).empty()) {
+                static bool asked = false;
+                if (!asked) {
+                    asked = true;
+
+                    using namespace gui;
+                    static Layout::Ptr textfield;
+
+                    auto d = base.dialog([](Dialog::Result r) {
+                        if (r == Dialog::OKAY) {
+                            std::vector<std::string> categories;
+                            for (auto text : utils::split(textfield.to<Textfield>()->text(), ',')) {
+                                text = utils::trim(text);
+                                if (!text.empty())
+                                    categories.push_back(text);
+                            }
+                            SETTING(categories_ordered) = categories;
+
+                            for (auto& cat : categories)
+                                DataStore::label(cat.c_str()); // create labels
+                        }
+
+                        }, "Please enter the categories (comma-separated), e.g.:\n<i>W,S</i> for categories <str>W</str> and <str>S</str>.", "Categorize", "Okay", "Cancel");
+
+                    textfield = Layout::Make<Textfield>("W,S", Bounds(Size2(d->layout().width() * 0.75, 33)));
+                    textfield->set_size(Size2(d->layout().width() * 0.75, 33));
+                    d->set_custom_element(textfield);
+                    d->layout().Layout::update_layout();
+                }
+                return;
+            }
+        }
+
+        using namespace gui;
+        static Rect rect(Bounds(0, 0, 0, 0), Black.alpha(125));
+
+        auto window = (GUI::instance() && GUI::instance()->base() ? (GUI::instance()->base()->window_dimensions().div(base.scale())) : Size2(base.width(), base.height())) * gui::interface_scale();
+        auto center = window * 0.5;
+        layout.set_pos(center);
+
+        rect.set_z_index(1);
+        rect.set_size(window);
+
+        base.wrap_object(rect);
+
+        init(base);
+
+        layout.auto_size(Margin{ 0,0 });
+        base.wrap_object(layout);
+
+        static Timer timer;
+
+        float max_w = 0;
+        for (auto& row : rows) {
+            for (auto& cell : row._cells) {
+                if (!cell._sample)
+                    row.update(cell._index, Work::retrieve());
+
+                cell._block->auto_size(Margin{ 0,0 });
+                max_w = max(max_w, cell._block->width());
+            }
+            row.update(base, timer.elapsed());
+        }
+
+        max_w = per_row * (max_w + 10);
+
+        if (Work::initialized()) {
+            auto all_options = std::vector<Layout::Ptr>{ restart, load, train, shuffle, close };
+            if (Work::best_accuracy() >= Work::good_enough() * 0.5) {
+                all_options.insert(all_options.begin(), apply);
+            }
+
+            if (buttons.to<HorizontalLayout>()->children().size() != all_options.size())
+                buttons.to<HorizontalLayout>()->set_children(all_options);
+        }
+        else {
+            auto no_network = std::vector<Layout::Ptr>{
+                shuffle, close
+            };
+
+            if (buttons.to<HorizontalLayout>()->children().size() != no_network.size())
+                buttons.to<HorizontalLayout>()->set_children(no_network);
+        }
+
+        if (buttons) buttons->set_scale(base.scale().reciprocal());
+        if (desc_text) desc_text->set_scale(base.scale().reciprocal());
+
+        if (stext) {
+            stext->set_scale(base.scale().reciprocal());
+            stext.to<StaticText>()->set_max_size(Size2(max_w * 1.5 * base.scale().x, -1));
+            if (desc_text)
+                desc_text.to<StaticText>()->set_max_size(stext.to<StaticText>()->max_size());
+        }
+
+        timer.reset();
+
+        auto txt = settings::htmlify(Meta::toStr(DataStore::composition()));
+        if (Work::best_accuracy() < Work::good_enough()) {
+            txt = "<i>Predictions for all visible tiles will be displayed as soon as the network becomes confident enough.</i>\n" + txt;
+        }
+        desc_text.to<StaticText>()->set_txt(txt);
+    }
+};
 
 Sample::Ptr Work::retrieve() {
     _variable.notify_one();
@@ -1024,7 +1327,7 @@ Sample::Ptr Work::retrieve() {
                    )
                 {
                     sample = Sample::Invalid();
-                    Debug("Invalidated sample for wrong dimensions.");
+                    print("Invalidated sample for wrong dimensions.");
                 }
             }
         }
@@ -1037,7 +1340,7 @@ Sample::Ptr Work::retrieve() {
              * to any of the cells.
              */
             std::lock_guard gui_guard(GUI::instance()->gui().lock());
-            for(auto &row : rows) {
+            for(auto &row : Interface::get().rows) {
                 for(auto &c : row._cells) {
                     if(c._sample == sample) {
                         sample = Sample::Invalid();
@@ -1100,7 +1403,7 @@ struct NetworkApplicationState {
     Timer _timer, _predict;
     double _prepare;
     
-    Rangel peek() {
+    Range<Frame_t> peek() {
         static Timing timing("NetworkApplicationState::peek", 0.1);
         TakeTiming take(timing);
 
@@ -1111,23 +1414,23 @@ struct NetworkApplicationState {
         }
         
         if (size_t(offset) == segments.size()) {
-            return Rangel(-1,-1); // no more segments
+            return Range<Frame_t>({},{}); // no more segments
         }
         else if (size_t(offset) > segments.size()) {
-            return Rangel(-1,-1); // probably something changed and we are now behind
+            return Range<Frame_t>({},{}); // probably something changed and we are now behind
         }
 
         auto it = segments.begin() + offset.load();
         if(it != segments.end())
             return (*it)->range;
         
-        return Rangel(-1,-1);
+        return Range<Frame_t>({},{});
     }
     
     void receive_samples(const LearningTask& task) {
         static Timing timing("receive_samples", 0.1);
         TakeTiming take(timing);
-        Rangel f;
+        Range<Frame_t> f;
         
         {
             {
@@ -1141,7 +1444,7 @@ struct NetworkApplicationState {
                     auto frame = task.sample->_frames.at(i);
                     auto blob = fish->compressed_blob(frame);
                     if (!blob) {
-                        Except("Blob in frame %d not found", frame);
+                        FormatExcept("Blob in frame ", frame," not found");
                         blobs[i] = -1;
                         continue;
                     }
@@ -1150,7 +1453,7 @@ struct NetworkApplicationState {
             }
             
             if(!task.result.empty()) {
-                std::vector<float> sums(FAST_SETTINGS(categories_ordered).size());
+                std::vector<float> sums(Work::_number_labels);
                 
                 {
                     static Timing timing("callback.set_labels_unsafe", 0.1);
@@ -1162,15 +1465,14 @@ struct NetworkApplicationState {
                         if(task.result[i] == -1)
                         //auto l = DataStore::label(task.result[i]);
                         //if (!l)
-                            Warning("Label for frame %d blob %d is nullptr.", frame, bdx);
+                            FormatWarning("Label for frame ", frame," blob ",bdx," is nullptr.");
                         else {
-                            //Debug("Fish%d: Labelled frame %d (blob%ld) = '%s'", fish->identity().ID(), frame, bdx, l->name.c_str());
-                            DataStore::_set_label_unsafe(Frame_t(frame), (uint32_t)bdx, task.result[i]);
+                            DataStore::_set_label_unsafe(Frame_t(frame), bdx, task.result[i]);
                             sums.at(task.result[i]) += 1;
 #ifndef NDEBUG
-                            auto L = DataStore::_label_unsafe(Frame_t(frame), (uint32_t)bdx);
+                            auto L = DataStore::_label_unsafe(Frame_t(frame), bdx);
                             if (L != task.result[i]) {
-                                Warning("Fish%d: Labels do not match.", fish->identity().ID());
+                                print("Fish",fish->identity().ID(),": Labels do not match.");
                             }
 #endif
                         }
@@ -1202,17 +1504,17 @@ struct NetworkApplicationState {
                     ranged._blobs.reserve(task.segment->length());
                     
                     //Tracker::LockGuard guard("task.callback.set_ranged_label");
-                    for(auto f = task.segment->start(); f <= task.segment->end(); ++f) {
+                    for(auto f = task.segment->start(); f <= task.segment->end(); f += 1_f) {
                         assert(task.segment->contains(f));
                         {
                             auto &basic = fish->basic_stuff().at(task.segment->basic_stuff(f));
                             ranged._blobs.push_back(basic->blob.blob_id());
                         } //else
-                           // Warning("Segment does not contain %d", f);
+                           // print("Segment does not contain ",f);
                     }
 
 #ifndef NDEBUG
-                    Debug("Fish%d: Segment %d-%d done with %lu blobs", fish->identity().ID(), task.segment->start(), task.segment->end(), ranged._blobs.size());
+                    print("Fish",fish->identity().ID(),": Segment ",task.segment->start(),"-",task.segment->end()," done with ",ranged._blobs.size()," blobs");
 #endif
                     DataStore::set_ranged_label(std::move(ranged));
                 }
@@ -1232,7 +1534,7 @@ struct NetworkApplicationState {
                 
                 //! print every 25s
                 if(uint32_t(tps) % 2500 == 0) {
-                    Debug("TPS: %fs for each image, preparation: %fs, predict: %fs, %lu samples", tps / double(samples), tpre / double(samples), tpp / double(samples), samples);
+                    print("TPS: ",tps / double(samples),"s for each image, preparation: ",tpre / double(samples),"s, predict: ",tpp / double(samples),"s, ",samples," samples");
                 }
             }
         
@@ -1279,7 +1581,7 @@ struct NetworkApplicationState {
         initialized = true;
 
         if(size_t(offset) > segments.size()) {
-            Warning("Offset %ld larger than segments size %lu.", offset.load(), segments.size());
+            FormatWarning("Offset ", offset.load()," larger than segments size ",segments.size(),".");
             it = segments.end();
         } else
             std::advance(it, offset.load());
@@ -1300,7 +1602,6 @@ struct NetworkApplicationState {
             
             bool done = size_t(offset) >= segments.size();
             
-//            Debug("Individual Fish%d checking offset %d/%lu (%s)...", fish->identity().ID(), offset.load(), segments.size(), done ? "done" : "not done");
             
             if (done || it == segments.end())
                 break;
@@ -1313,14 +1614,13 @@ struct NetworkApplicationState {
                 
 #ifndef NDEBUG
                 if(!task.sample)
-                    Debug("Skipping (failed) Fish%d: (%d-%d, len=%d)", fish->identity().ID(), segment->start(), segment->end(), segment->length());
+                    print("Skipping (failed) Fish",fish->identity().ID(),": (",segment->start(),"-",segment->end(),", len=",segment->length(),")");
                 //else
-                //    Debug("No-Skipping Fish%d: (%d-%d, len=%d)", fish->identity().ID(), segment->start(), segment->end(), segment->length());
 #endif
             }
 #ifndef NDEBUG
             else {
-                Debug("Skipping Fish%d (%d-%d, len=%d): %s", fish->identity().ID(), segment->start(), segment->end(), segment->length(), ptr ? ptr->name.c_str() : "none");
+                print("Skipping Fish",fish->identity().ID()," (",segment->start(),"-",segment->end(),", len=",segment->length(),"): ",ptr ? ptr->name.c_str() : "none");
                 //++skipped;
             }
 #endif
@@ -1344,13 +1644,12 @@ struct NetworkApplicationState {
             };
             _predict.reset();
             
-//           Debug("Fish%d: Inserting (%d-%d) with %lu images", fish->identity().ID(), task.segment->start(), task.segment->end(), task.sample->_images.size());
             Work::add_task(std::move(task));
             
         }
 #ifndef NDEBUG
         else
-            Debug("No more tasks for fish %d", fish->identity().ID());
+            print("No more tasks for fish ", fish->identity().ID());
 #endif
     }
     
@@ -1383,9 +1682,9 @@ void start_applying() {
     
     std::lock_guard guard(Work::_mutex);
     Work::task_queue().push_back(Work::Task{
-        Rangel(-1,-1),Rangel(-1,-1),
+        Range<Frame_t>({},{}),Range<Frame_t>({},{}),
         [](){
-            Debug("## Initializing APPLY.");
+            print("## Initializing APPLY.");
             {
                 Tracker::LockGuard guard("Categorize::start_applying");
                 std::lock_guard g(NetworkApplicationState::current_mutex());
@@ -1396,7 +1695,7 @@ void start_applying() {
                     obj.fish = ptr;
                 }
 
-                Debug("## Created %lu objects", NetworkApplicationState::current().size());
+                print("## Created ", NetworkApplicationState::current().size()," objects");
             }
             
             Work::status() = "Applying "+Meta::toStr((NetworkApplicationState::percent() * 100))+"%...";
@@ -1408,7 +1707,7 @@ void start_applying() {
                     
                     std::lock_guard guard(Work::_mutex);
                     Work::task_queue().push_back(Work::Task{
-                        Rangel(-1,-1),f,
+                        Range<Frame_t>({},{}),f,
                         [k=k](){
                             NetworkApplicationState::current().at(k).next();
                             // start first task
@@ -1420,13 +1719,12 @@ void start_applying() {
                 }
             }
             
-            std::vector<Rangel> indexes;
+            std::vector<Range<Frame_t>> indexes;
             for(auto& t : Work::task_queue()) {
                 indexes.push_back(t.range);
             }
-            auto str = Meta::toStr(indexes);
             
-            Debug("Done adding initial samples %S", &str);
+            print("Done adding initial samples ", indexes);
         }
     });
         
@@ -1455,7 +1753,7 @@ void Work::start_learning() {
         py::check_module(module);
         
         auto reset_variables = [](){
-            Debug("Reset python functions and variables...");
+            print("Reset python functions and variables...");
             const auto dims = SETTING(recognition_image_size).value<Size2>();
             std::map<std::string, int> keys;
             auto cat = FAST_SETTINGS(categories_ordered);
@@ -1467,18 +1765,20 @@ void Work::start_learning() {
             py::set_variable("height", (int)dims.height, module);
             py::set_variable("output_file", output_location().str(), module);
             py::set_function("set_best_accuracy", [&](float v) {
-                Debug("Work::set_best_accuracy(%f);", v);
+                print("Work::set_best_accuracy(",v,");");
                 Work::set_best_accuracy(v);
             }, module);
-            py::set_function("recv_samples", [dims](std::vector<uchar> images, std::vector<std::string> labels) {
-                Debug("Received %lu images and %lu labels", images.size(), labels.size());
+            
+            //! TODO: is this actually used?
+            /*py::set_function("recv_samples", [](std::vector<uchar> images, std::vector<std::string> labels) {
+                print("Received ", images.size()," images and ",labels.size()," labels");
                 
-                /*for (size_t i=0; i<labels.size(); ++i) {
+                for (size_t i=0; i<labels.size(); ++i) {
                     size_t index = i * size_t(dims.width) * size_t(dims.height);
                     Sample::Make(Image::Make(dims.height, dims.width, 1, images.data() + index), );
-                }*/
+                }
                 
-            }, module);
+            }, module);*/
             
             py::run(module, "start");
             Work::initialized() = true;
@@ -1506,7 +1806,7 @@ void Work::start_learning() {
         while(FAST_SETTINGS(categories_ordered).empty() && Work::_learning) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             if(timer.elapsed() >= 1) {
-                Warning("# Waiting for labels...");
+                FormatWarning("# Waiting for labels...");
                 timer.reset();
             }
         }
@@ -1526,7 +1826,7 @@ void Work::start_learning() {
             if(state() != State::APPLY)
                 return false;
             
-            static Timer print;
+            static Timer last_print;
             auto percent = NetworkApplicationState::percent();
             auto text = "Applying "+Meta::toStr((percent * 100))+"%...";
             if(!Work::visible()) {
@@ -1539,12 +1839,12 @@ void Work::start_learning() {
                     }
                     
                     return true;
-                } else if(int(print.elapsed()) % 2 == 0) {
+                } else if(int(last_print.elapsed()) % 2 == 0) {
                     GUI::set_status(text);
                     
-                    if(print.elapsed() >= 10) {
-                        Debug("[Categorize] %S", &text);
-                        print.reset();
+                    if(last_print.elapsed() >= 10) {
+                        print("[Categorize] ", text);
+                        last_print.reset();
                     }
                 }
                 
@@ -1574,7 +1874,7 @@ void Work::start_learning() {
                 if(py::check_module(module)) {
                     reset_variables();
                     if(best_accuracy() > 0) {
-                        Debug("[Categorize] The python file has been updated. Best accuracy was already %f, so will attempt to reload the weights.", best_accuracy().load());
+                        print("[Categorize] The python file has been updated. Best accuracy was already ", best_accuracy().load(),", so will attempt to reload the weights.");
                         
                         try {
                             py::run(module, "load");
@@ -1591,7 +1891,7 @@ void Work::start_learning() {
 
                 guard.unlock();
                 /*if(py::check_module(module)) {
-                    Debug("Module '%S' changed, reset variables...", &module);
+                    print("Module ",module," changed, reset variables...");
                     reset_variables();
                 }*/
                 try {
@@ -1617,7 +1917,7 @@ void Work::start_learning() {
                             prediction_images.insert(prediction_images.end(), item.sample->_images.begin(), item.sample->_images.end());
                             prediction_tasks.emplace_back(std::move(item), idx);
                             if(item.segment)
-                                Debug("Emplacing Fish%d: %d-%d", item.idx, item.segment->start(), item.segment->end());
+                                print("Emplacing Fish", item.idx,": ", item.segment->start(),"-",item.segment->end());
                             last_insert.reset();
                             break;
                         }
@@ -1645,7 +1945,7 @@ void Work::start_learning() {
                             break;
                     }
                     
-                } catch(const SoftException& e) {
+                } catch(const SoftExceptionImpl&) {
                     // pass
                 }
                 
@@ -1663,7 +1963,7 @@ void Work::start_learning() {
             if(queue().empty()) {
                 if(check_updates()) {
                     force_prediction = true;
-                    Debug("Forcing prediction (%lu)", prediction_images.size());
+                    print("Forcing prediction (", prediction_images.size(),")");
                 }
             }
 
@@ -1674,7 +1974,7 @@ void Work::start_learning() {
 
                     /*auto str = FileSize(prediction_images.size() * dims.width * dims.height).to_string();
                     auto of = FileSize(gpu_max_sample_byte).to_string();
-                    Debug("Starting predictions / training (%S/%S).", &str, &of);
+                    print("Starting predictions / training (",str,"/",of,").");
                     for (auto& [item, offset] : prediction_tasks) {
                         if (item.type == LearningTask::Type::Prediction) {
                             item.result.clear();
@@ -1708,11 +2008,11 @@ void Work::start_learning() {
                                         by_callbacks += timer.elapsed();
                                     }
                                 } else
-                                    Warning("LearningTask type was not prediction?");
+                                    FormatWarning("LearningTask type was not prediction?");
                             }
                             
 #ifndef NDEBUG
-                            Debug("Receive: %fs Callbacks: %fs (%lu tasks, %lu images)", receive_timer.elapsed(), by_callbacks, prediction_tasks.size(), prediction_images.size());
+                            print("Receive: ",receive_timer.elapsed(),"s Callbacks: ",by_callbacks,"s (",prediction_tasks.size()," tasks, ",prediction_images.size()," images)");
 #endif
 
                         }, module);
@@ -1720,7 +2020,7 @@ void Work::start_learning() {
                         py::run(module, "predict");
                         
                     } catch(...) {
-                        Except("Prediction failed. See above for an error description.");
+                        FormatExcept("Prediction failed. See above for an error description.");
                     }
                     
                     Work::status() = "";
@@ -1729,7 +2029,7 @@ void Work::start_learning() {
                 }
 
                 if (!training_images.empty() || force_training) {
-                    Debug("Training on %lu additional samples", training_images.size());
+                    print("Training on ", training_images.size()," additional samples");
                     try {
                         // train for a couple epochs
                         py::set_variable("epochs", int(10));
@@ -1750,7 +2050,7 @@ void Work::start_learning() {
                         Work::status() = "Training...";
                         py::run(module, "post_queue");
                     } catch(...) {
-                        Except("Training failed. See above for additional details.");
+                        FormatExcept("Training failed. See above for additional details.");
                     }
                     Work::status() = "";
                     guard.lock();
@@ -1758,11 +2058,11 @@ void Work::start_learning() {
                 
                 if(clear_probs) {
                     clear_probs = false;
-                    Debug("# Clearing calculated probabilities...");
+                    print("# Clearing calculated probabilities...");
                     guard.unlock();
                     {
                         std::lock_guard g(Work::_recv_mutex);
-                        for(auto &row : rows) {
+                        for(auto &row : Interface::get().rows) {
                             for(auto &cell : row._cells) {
                                 if(cell._sample) {
                                     cell._sample->_probabilities.clear();
@@ -1791,8 +2091,8 @@ void Work::start_learning() {
         
         guard.unlock();
         
-        Debug("## Ending python blockade.");
-        Debug("Clearing DataStore.");
+        print("## Ending python blockade.");
+        print("Clearing DataStore.");
         DataStore::clear();
         
         return true;
@@ -1819,7 +2119,7 @@ T CalcMHWScore(std::vector<T> hWScores) {
 }
 
 Work::Task Work::_pick_front_thread() {
-    int64_t center;
+    Frame_t center;
     
     std::vector<std::tuple<bool, int64_t, int64_t, size_t>> sorted;
     
@@ -1852,7 +2152,7 @@ Work::Task Work::_pick_front_thread() {
         if(!vector.empty())
             mean /= double(vector.size());
 
-        center = mean;//minimum_range;//minimum_range + (maximum_range - minimum_range) * 0.5;
+        center = Frame_t(mean);//minimum_range;//minimum_range + (maximum_range - minimum_range) * 0.5;
         
         sorted.clear();
         sorted.reserve(Work::task_queue().size());
@@ -1869,14 +2169,14 @@ Work::Task Work::_pick_front_thread() {
                     }
                     
                     min_distance = min(min_distance,
-                                       abs(r.start + r.length() * 0.5 - (task.real_range.start + task.real_range.length() * 0.5)));
+                                       abs(r.start.get() + r.length().get() * 0.5 - (task.real_range.start.get() + task.real_range.length().get() * 0.5)));
                                        //abs(r.start - task.real_range.end),
                                        //abs(r.end - task.real_range.start));
                 }
             }
             
-            int64_t d = abs(int64_t(task.real_range.start + task.real_range.length() * 0.5)) / max(10, (Tracker::end_frame() - Tracker::start_frame()) * 0.08);
-            sorted.push_back({ task.range.start != -1, d, min_distance, i });
+            int64_t d = abs(int64_t(task.real_range.start.get() + task.real_range.length().get() * 0.5)) / max(10, (Tracker::end_frame() - Tracker::start_frame()).get() * 0.08);
+            sorted.push_back({ task.range.start.valid(), d, min_distance, i });
         }
         
         std::sort(sorted.begin(), sorted.end(), std::greater<>());
@@ -1887,20 +2187,20 @@ Work::Task Work::_pick_front_thread() {
         
         std::lock_guard g(mutex);
         if (print.elapsed() >= 1 && sorted.size() > 20) {
-            std::vector<std::tuple<bool, Rangel>> _values;
+            std::vector<std::tuple<bool, Range<Frame_t>>> _values;
             for (auto it = sorted.end() - 20; it != sorted.end(); ++it) {
                 auto& item = Work::task_queue().at(std::get<3>(*it));
-                if (item.range.start != -1)
+                if (item.range.start.valid())
                     _values.push_back({
                         std::get<0>(*it),
-                        Rangel(item.real_range.start - center,
-                               item.real_range.end - center)
+                        Range<Frame_t>(item.real_range.start - center,
+                                       item.real_range.end - center)
                     });
                 else
                     _values.push_back({std::get<0>(*it), item.real_range});
             }
-            auto str = Meta::toStr(_values);
-            Debug("... end of task queue: %S", &str);
+            
+            print("... end of task queue: ", _values);
             print.reset();
         }
 #endif
@@ -1917,7 +2217,7 @@ Work::Task Work::_pick_front_thread() {
     Work::task_queue().erase(it);
     
 #ifndef NDEBUG
-    Debug("Picking task for (%d) %d-%d (cached:%d, center is %ld)", task.range.start, task.real_range.start, task.real_range.end, task.is_cached, center);
+    print("Picking task for (",task.range.start,") ",task.real_range.start,"-",task.real_range.end," (cached:",task.is_cached,", center is ",center,"d)");
 #endif
     return task;
 }
@@ -2020,14 +2320,14 @@ void DataStore::write(file::DataFormat& data, int /*version*/) {
         std::shared_lock guard(cache_mutex());
         data.write<uint64_t>(_probability_cache.size()); // write number of frames
         
-        int64_t k = tracker_start_frame();
+        int64_t k = tracker_start_frame().get();
         for(auto &v : _probability_cache) {
             data.write<uint32_t>(k); // frame index
             data.write<uint32_t>(narrow_cast<uint32_t>(v.size())); // number of blobs assigned
             
             for(auto &[bdx, label] : v) {
                 assert(label);
-                data.write<uint32_t>(bdx); // blob id
+                data.write<uint32_t>((uint32_t)bdx); // blob id
                 data.write<int32_t>(label); // label id
             }
             ++k;
@@ -2039,15 +2339,17 @@ void DataStore::write(file::DataFormat& data, int /*version*/) {
         data.write<uint64_t>(_ranged_labels.size());
         
         for(auto &ranged : _ranged_labels) {
-            data.write<uint32_t>(ranged._range.start());
-            data.write<uint32_t>(ranged._range.end());
+            assert(ranged._range.start().valid() && ranged._range.end().valid());
+            
+            data.write<uint32_t>(ranged._range.start().get());
+            data.write<uint32_t>(ranged._range.end().get());
             
             assert(ranged._label);
             data.write<int>(ranged._label);
             
             assert(size_t(ranged._range.length()) == ranged._blobs.size());
             for(auto &bdx : ranged._blobs)
-                data.write<uint32_t>(bdx);
+                data.write<uint32_t>((uint32_t)bdx);
         }
     }
 }
@@ -2065,6 +2367,7 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
     
     {
         std::lock_guard guard(mutex());
+        Work::_number_labels = 0;
         _labels.clear();
         
         uint64_t N_labels;
@@ -2084,6 +2387,7 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
         }
         
         SETTING(categories_ordered) = labels;
+        Work::_number_labels = N_labels;
     }
     
     // read contents
@@ -2108,8 +2412,8 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
                 data.read(bdx);
                 data.read(lid);
                 
-                if(frame >= start_frame)
-                    DataStore::_set_label_unsafe(Frame_t(frame), bdx, lid);
+                if(frame >= (uint32_t)start_frame.get())
+                    DataStore::_set_label_unsafe(Frame_t(frame), pv::bid(bdx), lid);
             }
         }
     }
@@ -2128,11 +2432,11 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
             data.read(start);
             data.read(end);
             
-            ranged._range = FrameRange(Rangel(start, end));
+            ranged._range = FrameRange(Range<Frame_t>(Frame_t(start), Frame_t(end)));
             
             data.read<int>(ranged._label);
             if(ranged._label == -1) {
-                Error("Ranged.label is nullptr for id %d", ranged._label);
+                print("Ranged.label is nullptr for id ",ranged._label);
             }
             
             // should probably check this always and fault gracefully on error since this is user input
@@ -2168,7 +2472,7 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
 void DataStore::clear() {
     {
         std::unique_lock guard(_cache_mutex);
-        Debug("[Categorize] Clearing frame cache (%lu).", _frame_cache.size());
+        print("[Categorize] Clearing frame cache (", _frame_cache.size(),").");
         _frame_cache.clear();
 #ifndef NDEBUG
         _current_cached_frames.clear();
@@ -2187,11 +2491,11 @@ void DataStore::clear() {
     
     if(GUI::instance()) {
         std::lock_guard guard(GUI::instance()->gui().lock());
-        for(auto &row : rows) {
+        for(auto &row : Interface::get().rows) {
             row.clear();
         }
     } else {
-        for(auto &row : rows) {
+        for(auto &row : Interface::get().rows) {
             row.clear();
         }
     }
@@ -2256,24 +2560,24 @@ void paint_distributions(int64_t frame) {
             {
                 std::lock_guard g(Work::_mutex);
                 for (auto& t : Work::task_queue()) {
-                    if (t.range.start == -1)
+                    if (!t.range.start.valid())
                         continue;
-                    v.insert(v.end(), { int64_t(t.range.start), int64_t(t.range.end) });
-                    minimum_range = min(t.range.start, minimum_range);
-                    maximum_range = max(t.range.end, maximum_range);
+                    v.insert(v.end(), { int64_t(t.range.start.get()), int64_t(t.range.end.get()) });
+                    minimum_range = min(t.range.start.get(), minimum_range);
+                    maximum_range = max(t.range.end.get(), maximum_range);
                 }
                 
                 for(auto& [id, range] : Work::_currently_processed_segments) {
-                    v.insert(v.end(), { int64_t(range.start), int64_t(range.end) });
-                    current.insert(current.end(), { int64_t(range.start), int64_t(range.end) });
-                    minimum_range = min(range.start, minimum_range);
-                    maximum_range = max(range.end, maximum_range);
+                    v.insert(v.end(), { int64_t(range.start.get()), int64_t(range.end.get()) });
+                    current.insert(current.end(), { int64_t(range.start.get()), int64_t(range.end.get()) });
+                    minimum_range = min(range.start.get(), minimum_range);
+                    maximum_range = max(range.end.get(), maximum_range);
                 }
             }
 
             //if (!v.empty())
             {
-                float scale = (Tracker::end_frame() != Tracker::start_frame()) ? 1024.0 / float(Tracker::end_frame() - Tracker::start_frame()) : 1;
+                float scale = (Tracker::end_frame() != Tracker::start_frame()) ? 1024.0 / float(Tracker::end_frame().get() - Tracker::start_frame().get()) : 1;
                 Image task_queue_images(300, 1024, 4);
                 auto mat = task_queue_images.get();
                 std::fill(task_queue_images.data(), task_queue_images.data() + task_queue_images.size(), 0);
@@ -2286,55 +2590,72 @@ void paint_distributions(int64_t frame) {
                 double median = CalcMHWScore(v);
                 
                 for (size_t i = 0; i < v.size(); i+=2) {
-                    cv::rectangle(mat, Vec2(v[i] - Tracker::start_frame(), 0) * scale, Vec2(v[i+1] - Tracker::start_frame(), 100 / scale) * scale, Red, cv::FILLED);
+                    cv::rectangle(mat, Vec2(v[i] - Tracker::start_frame().get(), 0) * scale, Vec2(v[i+1] - Tracker::start_frame().get(), 100 / scale) * scale, Red, cv::FILLED);
                 }
                 
                 for (size_t i = 0; i < current.size(); i+=2) {
-                    cv::rectangle(mat, Vec2(current[i] - Tracker::start_frame(), 0) * scale, Vec2(current[i+1] - Tracker::start_frame(), 100 / scale) * scale, Cyan, cv::FILLED);
+                    cv::rectangle(mat,
+                                  Vec2(current[i] - Tracker::start_frame().get(), 0) * scale,
+                                  Vec2(current[i+1] - Tracker::start_frame().get(), 100 / scale) * scale,
+                                  Cyan, cv::FILLED);
                 }
 
-                cv::line(mat, Vec2(mean - Tracker::start_frame(), 0) * scale, Vec2(mean - Tracker::start_frame(), 100 / scale) * scale, Green, 2);
-                cv::line(mat, Vec2(median - Tracker::start_frame(), 0) * scale, Vec2(median - Tracker::start_frame(), 100 / scale) * scale, Blue, 2);
+                cv::line(mat,
+                         Vec2(mean - Tracker::start_frame().get(), 0) * scale,
+                         Vec2(mean - Tracker::start_frame().get(), 100 / scale) * scale,
+                         Green, 2);
+                cv::line(mat,
+                         Vec2(median - Tracker::start_frame().get(), 0) * scale,
+                         Vec2(median - Tracker::start_frame().get(), 100 / scale) * scale,
+                         Blue, 2);
 
                 {
                     std::unique_lock guard(_cache_mutex);
                     sum = 0;
                     for (auto& [c, pp] : _frame_cache) {
-                        cv::line(mat, Vec2(c._frame - Tracker::start_frame(), 100 / scale) * scale, Vec2(c._frame - Tracker::start_frame(), 200 / scale) * scale, Yellow);
-                        sum += c;
+                        cv::line(mat,
+                                 Vec2(c._frame - Tracker::start_frame().get(), 100 / scale) * scale,
+                                 Vec2(c._frame - Tracker::start_frame().get(), 200 / scale) * scale,
+                                 Yellow);
+                        sum += c.get();
                     }
                     if (_frame_cache.size() > 0)
                         mean = sum / double(_frame_cache.size());
                 }
 
-                cv::line(mat, Vec2(mean - Tracker::start_frame(), 100 / scale) * scale, Vec2(mean - Tracker::start_frame(), 200 / scale) * scale, Purple, 2);
+                cv::line(mat,
+                         Vec2(mean - Tracker::start_frame().get(), 100 / scale) * scale,
+                         Vec2(mean - Tracker::start_frame().get(), 200 / scale) * scale,
+                         Purple, 2);
                 
                 {
                     std::unique_lock guard(distri_mutex);
                     for(size_t i=0; i<recent_frames.size(); ++i) {
                         cv::line(mat,
-                                 Vec2(recent_frames[i] - Tracker::start_frame(), 0) * scale,
-                                 Vec2(recent_frames[i] - Tracker::start_frame(), 300 / scale) * scale,
+                                 Vec2(recent_frames[i] - Tracker::start_frame().get(), 0) * scale,
+                                 Vec2(recent_frames[i] - Tracker::start_frame().get(), 300 / scale) * scale,
                                  White.exposure(0.1 + 0.9 * (recent_frames[i] / double(recent_frames.size()))), 1);
                     }
                 }
 
-                cv::line(mat, Vec2(frame - Tracker::start_frame(), 0) * scale, Vec2(frame - Tracker::start_frame(), 300 / scale) * scale, White, 2);
+                cv::line(mat, Vec2(frame - Tracker::start_frame().get(), 0) * scale, Vec2(frame - Tracker::start_frame().get(), 300 / scale) * scale, White, 2);
 
                 {
                     std::unique_lock guard(DataStore::cache_mutex());
                     size_t max_per_frame = 0;
-                    size_t frame = tracker_start_frame();
+                    size_t frame = tracker_start_frame().get();
                     for (auto& blobs : _probability_cache) {
                         if (blobs.size() > max_per_frame)
                             max_per_frame = blobs.size();
                         ++frame;
                     }
 
-                    frame = tracker_start_frame();
+                    frame = tracker_start_frame().get();
                     for (auto& blobs : _probability_cache) {
-                        cv::line(mat, Vec2(frame - Tracker::start_frame(), 200 / scale) * scale, Vec2(frame - Tracker::start_frame(), 300 / scale) * scale,
-                            Green.exposure(0.1 + 0.9 * (max_per_frame > 0 ? blobs.size() / float(max_per_frame) : 0)), 2);
+                        cv::line(mat,
+                                 Vec2(frame - Tracker::start_frame().get(), 200 / scale) * scale,
+                                 Vec2(frame - Tracker::start_frame().get(), 300 / scale) * scale,
+                                 Green.exposure(0.1 + 0.9 * (max_per_frame > 0 ? blobs.size() / float(max_per_frame) : 0)), 2);
                         ++frame;
                     }
                 }
@@ -2349,7 +2670,6 @@ void paint_distributions(int64_t frame) {
 
                 //minimum_range = min((int64_t)*mit, minimum_range);
                 //maximum_range = max((int64_t)*mat, maximum_range);
-                //Debug("Frames range from %ld to %ld, with %f+-%f with median %f", minimum_range, maximum_range, mean, stdev, median);
             }
 
             distri_timer.reset();
@@ -2392,7 +2712,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
 #ifndef NDEBUG
             if (_ever_created.count(frame)) {
                 ++std::get<0>(_ever_created[frame]);
-                Warning("Frame %d is created %lu times", frame, std::get<0>(_ever_created[frame]));
+                FormatWarning("Frame ", frame," is created ",std::get<0>(_ever_created[frame])," times");
             }
             else
                 _ever_created[frame] = { 1, 0 };
@@ -2407,17 +2727,17 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
         ptr = std::make_shared<PPFrame>();
         ++_create;
 
-        std::unordered_set<Individual*> active;
+        Tracker::set_of_individuals_t active;
         {
             Tracker::LockGuard guard("Categorize::sample");
             active = frame == Tracker::start_frame()
                 ? decltype(active)()
-                : Tracker::active_individuals(frame - 1);
+                : Tracker::active_individuals(frame - 1_f);
         }
 
         if(GUI::instance()) {
             auto& video_file = *GUI::instance()->video_source();
-            video_file.read_frame(ptr->frame(), sign_cast<uint64_t>(frame));
+            video_file.read_frame(ptr->frame(), sign_cast<uint64_t>(frame.get()));
 
             Tracker::instance()->preprocess_frame(*ptr, active, NULL);
             for (auto& b : ptr->blobs())
@@ -2425,37 +2745,36 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
         }
 
 #ifndef NDEBUG
-        log_event("Created", frame, -1);
+        log_event("Created", frame, Idx_t( - 1 ));
 #endif
     }
     else {
         std::unique_lock guard(_mutex);
         while(contains(_currently_processed, frame))
             _variable.wait_for(guard, std::chrono::seconds(1));
-        //Debug("Waited for %d", frame);
     }
 
     std::vector<int64_t> v;
-    std::vector<Rangel> ranges, secondary;
+    std::vector<Range<Frame_t>> ranges, secondary;
     int64_t minimum_range = std::numeric_limits<int64_t>::max(), maximum_range = 0;
     
     {
         std::lock_guard g(Work::_mutex);
         for (auto& t : Work::task_queue()) {
-            if (t.range.start == -1)
+            if (!t.range.start.valid())
                 continue;
 
-            v.insert(v.end(), { int64_t(t.range.start), int64_t(t.range.end) });
-            minimum_range = min(t.range.start, minimum_range);
-            maximum_range = max(t.range.end, maximum_range);
+            v.insert(v.end(), { int64_t(t.range.start.get()), int64_t(t.range.end.get()) });
+            minimum_range = min(t.range.start.get(), minimum_range);
+            maximum_range = max(t.range.end.get(), maximum_range);
             //ranges.push_back(t.range);
             secondary.push_back(t.range);
         }
         
         for(auto& [id, range] : Work::_currently_processed_segments) {
-            v.insert(v.end(), { int64_t(range.start), int64_t(range.end) });
-            minimum_range = min(range.start, minimum_range);
-            maximum_range = max(range.end, maximum_range);
+            v.insert(v.end(), { int64_t(range.start.get()), int64_t(range.end.get()) });
+            minimum_range = min(range.start.get(), minimum_range);
+            maximum_range = max(range.end.get(), maximum_range);
             ranges.push_back(range);
         }
     }
@@ -2466,7 +2785,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
 #ifndef NDEBUG
         auto fit = _current_cached_frames.find(frame);
         if(fit != _current_cached_frames.end())
-            Warning("Cannot find frame %d in _frame_cache, but can find it in _current_cached_frames!", frame);
+            print("Cannot find frame ",frame," in _frame_cache, but can find it in _current_cached_frames!");
 #endif
 
         constexpr size_t maximum_cache_size = 1500u;
@@ -2476,16 +2795,16 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
             frames_in_cache.reserve(_frame_cache.size());
             size_t i = 0;
 
-            double sum = std::accumulate(v.begin(), v.end(), 0.0);
-            double mean = sum / v.size();
-            double median = CalcMHWScore(v);
-            int64_t center = median;//mean;//(minimum_range + (maximum_range - minimum_range) / 2.0);
+            //double sum = std::accumulate(v.begin(), v.end(), 0.0);
+            //double mean = sum / v.size();
+            //double median = CalcMHWScore(v);
+            //int64_t center = median;//mean;//(minimum_range + (maximum_range - minimum_range) / 2.0);
 
             for (auto& [f, pp] : _frame_cache) {
                 //bool found = false;
                 int64_t min_distance = std::numeric_limits<int64_t>::max();
                 int64_t secondary_distance = min_distance;
-                int64_t center_distance = abs(int64_t(f) - center);
+                //int64_t center_distance = abs(int64_t(f.get()) - center);
                 
                 if(!ranges.empty()) {
                     for(auto &r : ranges) {
@@ -2494,7 +2813,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
                             break;
                         }
                         
-                        min_distance = min(min_distance, abs(r.start - f), abs(f - r.end));
+                        min_distance = min(min_distance, abs(r.start.get() - f.get()), abs(f.get() - r.end.get()));
                     }
                 }
                 
@@ -2505,7 +2824,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
                             break;
                         }
                         
-                        secondary_distance = min(min_distance, abs(r.start - f), abs(f - r.end));
+                        secondary_distance = min(min_distance, abs(r.start.get() - f.get()), abs(f.get() - r.end.get()));
                     }
                 }
                 
@@ -2525,7 +2844,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
             }
 
 #ifndef NDEBUG
-            Debug("Deleting %ld items from frame cache, which are farther away than %ld from the mean of %f (%lu size) and median %f", std::distance(start, end), end != frames_in_cache.end() ? std::get<0>(*end) : -1, (minimum_range + (maximum_range - minimum_range) / 2.0), _frame_cache.size(), median);
+            print("Deleting ",std::distance(start, end)," items from frame cache, which are farther away than ",end != frames_in_cache.end() ? std::get<0>(*end) : -1," from the mean of ",(minimum_range + (maximum_range - minimum_range) / 2.0)," (",_frame_cache.size()," size) and median ",median);
 #endif
             _frame_cache = erase_indices(_frame_cache, indices);
             _delete += indices.size();
@@ -2544,10 +2863,9 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
         auto kit = std::find(_currently_processed.begin(), _currently_processed.end(), frame);
         if (kit != _currently_processed.end()) {
             _currently_processed.erase(kit);
-            //Debug("Processed %d", frame);
         }
         else
-            Warning("Cannot find currently processed %d!", frame);
+            print("Cannot find currently processed ",frame,"!");
 
         _variable.notify_all();
         
@@ -2555,20 +2873,10 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
 #ifndef NDEBUG
         auto fit = _current_cached_frames.find(frame);
         if (fit == _current_cached_frames.end())
-            Warning("Cannot find frame %d in _current_cached_frames, but can find it in _frame_cache!", frame);
+            print("Cannot find frame ",frame," in _current_cached_frames, but can find it in _frame_cache!");
 #endif
         ptr = std::get<1>(*it);
         ++_reuse;
-    }
-
-    {
-        std::lock_guard guard(_mutex);
-        static Timer timer;
-        if (timer.elapsed() > 5) {
-            //auto str = Meta::toStr(_ever_created);
-            //Debug("Created frames: %S", &str);
-            timer.reset();
-        }
     }
     
     return ptr;
@@ -2605,13 +2913,13 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     std::vector<IndexedFrame> stuff_indexes;
     
     std::vector<Image::Ptr> images;
-    std::vector<long_t> indexes;
+    std::vector<Frame_t> indexes;
     std::vector<Vec2> positions;
-    std::vector<uint32_t> blob_ids;
+    std::vector<pv::bid> blob_ids;
     
     std::vector<long_t> basic_index;
-    std::vector<long_t> frames;
-    Rangel range;
+    std::vector<Frame_t> frames;
+    Range<Frame_t> range;
     
     {
         {
@@ -2632,7 +2940,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         // this helps to find more matches when randomly sampling around:
         long_t start_offset = 0;
         if(basic_index.size() >= 15u) {
-            start_offset = frames.front();
+            start_offset = frames.front().get();
             start_offset = 5 - start_offset % 5;
         }
         
@@ -2653,14 +2961,14 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     #ifndef NDEBUG
                     auto fit = _current_cached_frames.find(Frame_t(f));
                     if (fit == _current_cached_frames.end())
-                        Warning("Cannot find frame %d in _current_cached_frames, but can find it in _frame_cache!", f);
+                        print("Cannot find frame ",f," in _current_cached_frames, but can find it in _frame_cache!");
     #endif
                 }
     #ifndef NDEBUG
                 else {
                     auto fit = _current_cached_frames.find(Frame_t(f));
                     if (fit != _current_cached_frames.end())
-                        Warning("Cannot find frame %d in _frame_cache, but can find it in _current_cached_frames!", f);
+                        print("Cannot find frame ",f," in _frame_cache, but can find it in _current_cached_frames!");
                 }
     #endif
             }
@@ -2670,7 +2978,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         
         if(stuff_indexes.size() < min_samples) {
     #ifndef NDEBUG
-            Warning("#1 Below min_samples (%lu) Fish%d frames %d-%d", min_samples, fish->identity().ID(), segment->start(), segment->end());
+            FormatWarning("#1 Below min_samples (",min_samples,") Fish",fish->identity().ID()," frames ",segment->start(),"-",segment->end());
     #endif
             return Sample::Invalid();
         }
@@ -2710,7 +3018,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     auto normalize = SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>();
     if (normalize == default_config::recognition_normalization_t::posture && !FAST_SETTINGS(calculate_posture))
         normalize = default_config::recognition_normalization_t::moments;
-    const auto scale = FAST_SETTINGS(recognition_image_scale);
+    //const auto scale = FAST_SETTINGS(recognition_image_scale);
     const auto dims = SETTING(recognition_image_size).value<Size2>();
 
     for(auto &[index, frame, ptr] : stuff_indexes) {
@@ -2732,13 +3040,13 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         {
             std::lock_guard g(debug_mutex);
             if (debug_timer.elapsed() >= 10) {
-                Debug("RatioRegenerate: %f - Create:%lu Reuse:%lu Delete:%lu", double(_create.load()) / double(_reuse.load()), _create.load(), _reuse.load(), _delete.load());
+                print("RatioRegenerate: ",double(_create.load()) / double(_reuse.load())," - Create:",_create.load(),"u Reuse:",_reuse.load()," Delete:",_delete.load());
                 debug_timer.reset();
             }
         }
         
         if(!ptr) {
-            Except("Failed to generate frame %d.", frame);
+            FormatExcept("Failed to generate frame ", frame,".");
             return Sample::Invalid();
         }
         
@@ -2756,7 +3064,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         }
         
         if(basic->frame != frame) {
-            U_EXCEPTION("frame %d != %d", basic->frame, frame);
+            throw U_EXCEPTION("frame ",basic->frame," != ",frame,"");
         }
         
         auto blob = Tracker::find_blob_noisy(*ptr, basic->blob.blob_id(), basic->blob.parent_id, basic->blob.calculate_bounds());
@@ -2768,7 +3076,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
                 Recognition::ImageData::Blob{
                     blob->num_pixels(),
                     blob->blob_id(),
-                    -1,
+                    pv::bid::invalid,
                     blob->parent_id(),
                     blob->bounds()
                 },
@@ -2785,26 +3093,26 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
                 positions.emplace_back(pos);
                 blob_ids.emplace_back(image_data.blob.blob_id);
             } else
-                Warning("Image failed (Fish%d, frame %d)", image_data.fdx, image_data.frame);
+                FormatWarning("Image failed (Fish", image_data.fdx,", frame ",image_data.frame,")");
         }
         else {
 #ifndef NDEBUG
             // no blob!
-            Warning("No blob (Fish%d, frame %d) vs. %lu (parent:%d)", fish->identity().ID(), basic->frame, basic->blob.blob_id(), basic->blob.parent_id);
+            FormatWarning("No blob (Fish",fish->identity().ID(),", frame ",basic->frame,") vs. ",basic->blob.blob_id()," (parent:",basic->blob.parent_id,")");
 #endif
             ++non;
         }
     }
     
 #ifndef NDEBUG
-    Debug("Segment(%lu): Of %lu frames, %lu were found (replaced %lu, min_samples=%ld).", segment->basic_index.size(), stuff_indexes.size(), replaced, min_samples);
+    print("Segment(",segment->basic_index.size(),"): Of ",stuff_indexes.size()," frames, ",replaced," were found (replaced %lu, min_samples=",min_samples,").");
 #endif
     if(images.size() >= min_samples) {
         return Sample::Make(std::move(indexes), std::move(images), std::move(blob_ids), std::move(positions));
     }
 #ifndef NDEBUG
     else
-        Warning("Below min_samples (%lu) Fish%d frames %d-%d", min_samples, fish->identity().ID(), segment->start(), segment->end());
+        FormatWarning("Below min_samples (",min_samples,") Fish",fish->identity().ID()," frames ",segment->start(),"-",segment->end());
 #endif
     
     return Sample::Invalid();
@@ -2840,119 +3148,8 @@ std::string DataStore::Composition::toStr() const {
         + (Work::status().empty() ? "" : " "+Work::status());
 }
 
-static Tooltip tooltip(nullptr, 200);
-static Layout::Ptr stext = nullptr;
-static Entangled* selected = nullptr;
-static Layout::Ptr apply(Layout::Make<Button>("Apply", Bounds(0, 0, 100, 33)));
-static Layout::Ptr load(Layout::Make<Button>("Load", Bounds(0, 0, 100, 33)));
-static Layout::Ptr close(Layout::Make<Button>("Hide", Bounds(0, 0, 100, 33)));
-static Layout::Ptr restart(Layout::Make<Button>("Restart", Bounds(0, 0, 100, 33)));
-static Layout::Ptr train(Layout::Make<Button>("Train", Bounds(0, 0, 100, 33)));
-static Layout::Ptr shuffle(Layout::Make<Button>("Shuffle", Bounds(0, 0, 100, 33)));
-static Layout::Ptr buttons(Layout::Make<HorizontalLayout>(std::vector<Layout::Ptr>{}));
-
 void initialize(DrawStructure& base) {
-    static double R = 0, elap = 0;
-    static Timer timer;
-    //R += RADIANS(100) * timer.elapsed();
-    elap += timer.elapsed();
-    
-    static bool initialized = false;
-    if(!initialized) {
-        //PythonIntegration::ensure_started();
-        //PythonIntegration::async_python_function([]()->bool{return true;});
-        //Work::start_learning();
-        
-        elap = 0;
-        initialized = true;
-        
-        layout.set_policy(gui::VerticalLayout::CENTER);
-        layout.set_origin(Vec2(0.5));
-        layout.set_pos(Size2(base.width(), base.height()) * 0.5);
-        
-        stext = Layout::Make<StaticText>(
-          "<h2>Categorizing types of individuals</h2>"
-          "Below, an assortment of randomly chosen clips is shown. They are compiled automatically to (hopefully) only contain samples belonging to the same category. Choose clips that best represent the categories you have defined before (<str>"+Meta::toStr(DataStore::label_names())+"</str>) and assign them by clicking the respective button. But be careful - with them being automatically collected, some of the clips may contain images from multiple categories. It is recommended to <b>Skip</b> these clips, lest risking to confuse the poor network. Regularly, when enough new samples have been collected (and for all categories), they are sent to said network for a training step. Each training step, depending on clip quality, should improve the prediction accuracy (see below).",
-          Vec2(),
-          Vec2(base.width() * 0.5 * base.scale().x, -1), Font(0.7)
-        );
-        
-        layout.add_child(stext);
-        //layout.add_child(Layout::Make<Text>("Categorizing types of individuals", Vec2(), Cyan, Font(0.75, Style::Bold)));
-        
-        apply->on_click([](auto) {
-            Work::set_state(Work::State::APPLY);
-        });
-        close->on_click([](auto) {
-            Work::set_state(Work::State::NONE);
-        });
-        load->on_click([](auto) {
-            Work::set_state(Work::State::LOAD);
-        });
-        restart->on_click([](auto) {
-            Work::_learning = false;
-            Work::_learning_variable.notify_all();
-            DataStore::clear();
-            //PythonIntegration::quit();
-            
-            Work::set_state(Work::State::SELECTION);
-        });
-        train->on_click([](auto){
-            if(Work::state() == Work::State::SELECTION) {
-                Work::add_training_sample(nullptr);
-            } else
-                Warning("Not in selection mode. Can only train while samples are being selected, not during apply or inactive.");
-        });
-        shuffle->on_click([](auto){
-            std::lock_guard gui_guard(GUI::instance()->gui().lock());
-            for(auto &row : rows) {
-                for (size_t i=0; i<row._cells.size(); ++i) {
-                    row.update(i, Work::retrieve());
-                }
-            }
-        });
-        
-        apply.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Green.exposure(0.15)));
-        close.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Red.exposure(0.2)));
-        load.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Yellow.exposure(0.2)));
-        shuffle.to<Button>()->set_fill_clr(Color::blend(DarkCyan.exposure(0.5).alpha(110), Yellow.exposure(0.5)));
-        
-        tooltip.set_scale(base.scale().reciprocal());
-        tooltip.text().set_default_font(Font(0.5));
-        
-        for (auto& row : rows) {
-            /**
-             * If the row is empty, that means that the whole grid has not been initialized yet.
-             * Create images and put them into a per_row^2 grid, and add them to the layout.
-             */
-            if(row.empty()) {
-                row.init(per_row);
-                layout.add_child(Layout::Ptr(row.layout));
-            }
-            
-            /**
-             * After ensuring we do have rows, fill them with new samples:
-             */
-            for(size_t i=0; i<row.length(); ++i) {
-                auto sample = Work::retrieve();
-                row.update(i, sample);
-            }
-        }
-        
-        if(!layout.empty() && layout.children().back() != buttons.get()) {
-            desc_text.to<StaticText>()->set_default_font(Font(0.6));
-            desc_text.to<StaticText>()->set_max_size(stext.to<StaticText>()->max_size());
-            
-            layout.add_child(desc_text);
-            layout.add_child(buttons);
-        }
-        
-        layout.auto_size(Margin{0,0});
-        layout.set_z_index(1);
-        Work::_variable.notify_one();
-    }
-    
-    timer.reset();
+    Interface::get().init(base);
 }
 
 Cell::Cell() :
@@ -2984,6 +3181,7 @@ Cell::Cell() :
                         {
                             std::lock_guard guard(DataStore::mutex());
                             _labels[_sample->_assigned_label].push_back(_sample);
+                            Work::_number_labels = _labels.size();
                         }
                         
                         Work::add_training_sample(_sample);
@@ -3020,9 +3218,9 @@ Cell::Cell() :
     /**
      * Handle clicks on cells
      */
+    static Cell* _selected = nullptr;
+
     _image->on_click([this](Event e) {
-        static Cell* _selected = nullptr;
-        
         if(e.mbutton.button == 0 && _image.get() == _image->parent()->stage()->hovered_object()) {
             if(_sample) {
                 if(_selected == this) {
@@ -3086,7 +3284,7 @@ void Work::set_state(State state) {
             hide();
             {
                 std::lock_guard g(Work::_recv_mutex);
-                for(auto &row : rows) {
+                for(auto &row : Interface::get().rows) {
                     for(auto &cell : row._cells) {
                         if(cell._sample) {
                             cell._sample->_probabilities.clear();
@@ -3145,114 +3343,7 @@ void draw(gui::DrawStructure& base) {
     if(!Work::visible())
         return;
     
-    {
-        std::lock_guard guard(DataStore::mutex());
-        /*if(_labels.empty()) {
-            _labels.insert({Label::Make("W"), {}});
-            _labels.insert({Label::Make("S"), {}});
-            //DataStore::_labels.insert({Label::Make("X"), {}});
-        }*/
-        
-        if(FAST_SETTINGS(categories_ordered).empty()) {
-            static bool asked = false;
-            if(!asked) {
-                asked = true;
-                
-                using namespace gui;
-                static Layout::Ptr textfield;
-                
-                auto d = base.dialog([](Dialog::Result r){
-                    if(r == Dialog::OKAY) {
-                        std::vector<std::string> categories;
-                        for(auto text : utils::split(textfield.to<Textfield>()->text(), ',')) {
-                            text = utils::trim(text);
-                            if(!text.empty())
-                                categories.push_back(text);
-                        }
-                        SETTING(categories_ordered) = categories;
-                        
-                        for(auto &cat : categories)
-                            DataStore::label(cat.c_str()); // create labels
-                    }
-                    
-                }, "Please enter the categories (comma-separated), e.g.:\n<i>W,S</i> for categories <str>W</str> and <str>S</str>.", "Categorize", "Okay", "Cancel");
-                
-                textfield = Layout::Make<Textfield>("W,S", Bounds(Size2(d->layout().width() * 0.75,33)));
-                textfield->set_size(Size2(d->layout().width() * 0.75, 33));
-                d->set_custom_element(textfield);
-                d->layout().Layout::update_layout();
-            }
-            return;
-        }
-    }
-    
-    using namespace gui;
-    static Rect rect(Bounds(0, 0, 0, 0), Black.alpha(125));
-    
-    auto window = (GUI::instance() && GUI::instance()->base() ? (GUI::instance()->base()->window_dimensions().div(base.scale())) : Size2(base.width(), base.height())) * gui::interface_scale();
-    auto center = window * 0.5;
-    layout.set_pos(center);
-    
-    rect.set_z_index(1);
-    rect.set_size(window);
-    
-    base.wrap_object(rect);
-    
-    initialize(base);
-    
-    layout.auto_size(Margin{0,0});
-    base.wrap_object(layout);
-    
-    static Timer timer;
-    
-    float max_w = 0;
-    for(auto &row : rows) {
-        for(auto &cell: row._cells) {
-            if(!cell._sample)
-                row.update(cell._index, Work::retrieve());
-            
-            cell._block->auto_size(Margin{0,0});
-            max_w = max(max_w, cell._block->width());
-        }
-        row.update(base, timer.elapsed());
-    }
-    
-    max_w = per_row * (max_w + 10);
-    
-    if(Work::initialized()) {
-        auto all_options = std::vector<Layout::Ptr>{restart, load, train, shuffle, close};
-        if(Work::best_accuracy() >= Work::good_enough() * 0.5) {
-            all_options.insert(all_options.begin(), apply);
-        }
-        
-        if(buttons.to<HorizontalLayout>()->children().size() != all_options.size())
-            buttons.to<HorizontalLayout>()->set_children(all_options);
-    } else {
-        auto no_network = std::vector<Layout::Ptr>{
-            shuffle, close
-        };
-        
-        if(buttons.to<HorizontalLayout>()->children().size() != no_network.size())
-            buttons.to<HorizontalLayout>()->set_children(no_network);
-    }
-    
-    if(buttons) buttons->set_scale(base.scale().reciprocal());
-    if(desc_text) desc_text->set_scale(base.scale().reciprocal());
-    
-    if(stext) {
-        stext->set_scale(base.scale().reciprocal());
-        stext.to<StaticText>()->set_max_size(Size2(max_w * 1.5 * base.scale().x, -1));
-        if(desc_text)
-            desc_text.to<StaticText>()->set_max_size(stext.to<StaticText>()->max_size());
-    }
-    
-    timer.reset();
-    
-    auto txt = settings::htmlify(Meta::toStr(DataStore::composition()));
-    if(Work::best_accuracy() < Work::good_enough()) {
-        txt = "<i>Predictions for all visible tiles will be displayed as soon as the network becomes confident enough.</i>\n"+txt;
-    }
-    desc_text.to<StaticText>()->set_txt(txt);
+    Interface::get().draw(base);
 }
 
 void clear_labels() {

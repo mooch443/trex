@@ -23,7 +23,7 @@ bool Results::save_events(const Path &filename, std::function<void(float)> set_p
             continue;
         
         std::string f = filename.str() + pair.first->identity().raw_name() + ".csv";
-        Debug("Exporting fish %d ('%S') events ('%S')...", pair.first->identity().ID(), &pair.first->identity().raw_name(), &f);
+        print("Exporting fish ", pair.first->identity()," ('",pair.first->identity(),"') events ('",f,"')...");
         
         Table table(header);
         
@@ -83,7 +83,7 @@ bool Results::save(const Path &filename) const {
 		}
 
 		Table table(header);
-		for (long_t i = fish->start_frame(); i <= fish->end_frame(); i++) {
+		for (auto i = fish->start_frame(); i <= fish->end_frame(); ++i) {
 			Row row;
 			row.add(i);
 

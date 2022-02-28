@@ -43,6 +43,7 @@ else()
     set(TGRABS_EXEC_NAME tgrabs)
 endif()
 add_executable(${TGRABS_EXEC_NAME} ${SRCS})
+#target_precompile_headers(${TGRABS_EXEC_NAME} REUSE_FROM commons)
 
 if(WIN32)
 	set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES LINK_FLAGS_RELEASE "/DELAYLOAD:tracker_python.dll" )
@@ -51,72 +52,125 @@ if(WIN32)
 	set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG}  /DELAYLOAD:tracker_python-d.dll")
 endif()
 
-if(APPLE)
-ADD_CUSTOM_COMMAND(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
-COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:trex_check_python> $<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>)
+if(NOT COMMONS_NO_PYTHON)
+    if(APPLE)
+        ADD_CUSTOM_COMMAND(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:trex_check_python> $<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>)
+    endif()
+    add_dependencies(${TGRABS_EXEC_NAME} trex_check_python ) #Commons::OpenCV)
 endif()
-add_dependencies(${TGRABS_EXEC_NAME} trex_check_python TRex::OpenCV)
+
+add_dependencies(${TGRABS_EXEC_NAME} commons)
 
 add_executable(pvconvert pvconvert.cpp gif.h ${GIT_SOURCES})
 target_link_libraries(pvconvert PUBLIC
     tracker_gui
     pv
     commons
-    TRex::GLFW
-    TRex::LibPNG
-    TRex::LibZ
-    TRex::OpenCV
-    ${EXTRA_LIBS}
+    Commons::GLFW
+    #Commons::LibPNG
+    #Commons::LibZ
+    Commons::OpenCV
+    #${EXTRA_LIBS}
 )
 
-add_dependencies(pvconvert TRex::OpenCV)
+add_dependencies(pvconvert commons)#Commons::OpenCV)
+#target_precompile_headers(pvconvert REUSE_FROM commons)
+
+option(WITH_PYLON "use pylon support" OFF)
+
+if(APPLE AND WITH_PYLON)
+    FIND_LIBRARY(PYLON_LIBRARIES Pylon)
+    if(PYLON_LIBRARIES STREQUAL "PYLON_LIBRARIES-NOTFOUND" OR NOT ${WITH_PYLON})
+        set(PYLON_FOUND false)
+        add_definitions(-DWITH_PYLON=false)
+    else()
+        set(PYLON_FOUND true)
+        add_definitions(-DWITH_PYLON=true)
+        message(STATUS "Pylon found. ${PYLON_LIBRARIES} lol")
+        include_directories(/Library/Frameworks/pylon.framework/Headers/GenICam)
+    endif()
+    
+elseif(WITH_PYLON)
+    find_package(BaslerPylon)
+    if(${PYLON_FOUND})
+        include_directories(${PYLON_INCLUDE_DIRS})
+        add_definitions(-DWITH_PYLON=true)
+        message(STATUS "Pylon found.")
+    else()
+        add_definitions(-DWITH_PYLON=false)
+    endif()
+endif()
+
+
 
 if(PYLON_FOUND AND WITH_PYLON)
     message(STATUS "linking with pylon")
     target_link_libraries( ${TGRABS_EXEC_NAME} PUBLIC ${PYLON_LIBRARIES} )
 endif()
 
+
+
 target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE
     framegrabber_misc
     tracker_misc
 	tracker_tracking
 	tracker_gui
-    tracker_python
 	pv
 	commons
-	TRex::GLFW
-    TRex::LibPNG
-    TRex::LibZ
-	TRex::OpenCV
-	${EXTRA_LIBS})
+    Commons::IMGUI
+    Commons::GLAD
+	Commons::GLFW
+    Commons::FFMPEG
+    cnpy
+    #Commons::LibPNG
+    #Commons::LibZ
+	Commons::OpenCV
+	#${EXTRA_LIBS}
+)
+
+if(NOT COMMONS_NO_PYTHON)
+    target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE tracker_python)
+
+    if(NOT pybind11_external)
+        target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE pybind11::pybind11 pybind11::embed pybind11::module)
+    else()
+        target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE ${PYTHON_LIBRARIES})
+    endif()
+endif()
 
 if(WITH_HTTPD)
     add_dependencies(${TGRABS_EXEC_NAME} LibMicroHttpd)
 endif()
-if(WITH_FFMPEG)
-    target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE TRex::FFMPEG)
-endif()
+#if(WITH_FFMPEG)
+#    target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE Commons::FFMPEG)
+#endif()
 
 add_executable(pvinfo pvinfo.cpp pvinfo_merge.cpp pvinfo_merge.h ${GIT_SOURCES})
 
 target_link_libraries(pvinfo PRIVATE
-	cnpy
 	tracker_tracking
     tracker_gui
-    tracker_python
     tracker_misc
 	commons
-	TRex::LibPNG
-	TRex::GLFW
-	TRex::OpenCV
-	${EXTRA_LIBS}
+    Commons::IMGUI
+	#Commons::LibPNG
+	#Commons::GLFW
+	Commons::OpenCV
+	#${EXTRA_LIBS}
 	pv
 )
 
-add_dependencies(pvinfo TRex::OpenCV)
+if(NOT COMMONS_NO_PYTHON)
+    target_link_libraries(pvinfo PRIVATE tracker_python)
+endif()
 
-get_target_property(OUT TRex::GLFW INTERFACE_LINK_LIBRARIES)
-message(STATUS "TRex::GLFW libraries: ${OUT}")
+#target_precompile_headers(pvinfo REUSE_FROM commons)
+
+add_dependencies(pvinfo commons) #Commons::OpenCV)
+
+get_target_property(OUT commons INTERFACE_LINK_LIBRARIES)
+message(STATUS "Commons::GLFW libraries: ${OUT}")
 
 set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES
   MACOSX_BUNDLE TRUE
@@ -217,19 +271,22 @@ if(APPLE)
     set_target_properties(tgrabs_starter PROPERTIES OUTPUT_NAME tgrabs)
     set(targets ${targets} tgrabs_starter)
     target_compile_definitions(tgrabs_starter PRIVATE TREX_PYTHON_PATH="${CONDA_PREFIX_VAR}")
+    #target_precompile_headers(tgrabs_starter REUSE_FROM commons)
 endif()
 
 if(WITH_FFMPEG)
     target_compile_definitions(${TGRABS_EXEC_NAME} PRIVATE WITH_FFMPEG=true)
 endif()
 
-if(WIN32)
-	if(TREX_BUILD_OPENCV)
-		install(
-			FILES
-			"${OpenCV_LIB_PATH}/../bin/opencv_videoio_ffmpeg${TREX_OPENCV_VERSION_NO_DOTS}_64.dll" DESTINATION bin)
-	endif()
+if(APPLE)
+target_sources(${TGRABS_EXEC_NAME} PRIVATE gfx/TGrabsIcons.xcassets)
+set_source_files_properties(gfx/TGrabsIcons.xcassets PROPERTIES
+    MACOSX_PACKAGE_LOCATION Resources
+)
+set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES
+    XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon")
 endif()
+
 
 install(TARGETS ${targets}
     EXPORT TGrabs

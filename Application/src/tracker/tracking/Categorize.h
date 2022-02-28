@@ -36,8 +36,8 @@ struct Sample {
         return std::make_shared<Sample>(std::forward<Args>(args)...);
     }
     
-    std::vector<long_t> _frames;
-    std::vector<uint32_t> _blob_ids;
+    std::vector<Frame_t> _frames;
+    std::vector<pv::bid> _blob_ids;
     std::vector<Image::Ptr> _images;
     std::vector<Vec2> _positions;
     
@@ -46,9 +46,9 @@ struct Sample {
     //std::map<Label::Ptr, float> _probabilities;
     bool _requested = false;
     
-    Sample(std::vector<long_t>&& frames,
+    Sample(std::vector<Frame_t>&& frames,
            const std::vector<Image::Ptr>& images,
-           const std::vector<uint32_t>& blob_ids,
+           const std::vector<pv::bid>& blob_ids,
            std::vector<Vec2>&& positions);
     
     static const Sample::Ptr& Invalid() {
@@ -64,7 +64,7 @@ struct Sample {
         }
         
         if(_assigned_label != nullptr)
-            U_EXCEPTION("Replacing label for sample (was already assigned '%s', but now also '%s').", _assigned_label->name.c_str(), label->name.c_str());
+            throw U_EXCEPTION("Replacing label for sample (was already assigned '",_assigned_label->name.c_str(),"', but now also '",label->name.c_str(),"').");
         _assigned_label = label;
     }
 };
@@ -80,14 +80,14 @@ struct Probabilities {
 struct RangedLabel {
     FrameRange _range;
     int _label = -1;
-    std::vector<uint32_t> _blobs;
-    int32_t _maximum_frame_after = -1;
+    std::vector<pv::bid> _blobs;
+    Frame_t _maximum_frame_after;
     
     bool operator<(const Frame_t& other) const {
-        return _range.end() < other._frame;
+        return _range.end() < other;
     }
     bool operator>(const Frame_t& other) const {
-        return _range.end() > other._frame;
+        return _range.end() > other;
     }
     bool operator<(const RangedLabel& other) const {
         return _range.end() < other._range.end() || (_range.end() == other._range.end() && _range.start() < other._range.start());
@@ -148,24 +148,25 @@ struct DataStore {
     
     static Composition composition();
     static void clear();
-    static Label::Ptr label(Frame_t, uint32_t);
+    static Label::Ptr label(Frame_t, pv::bid);
     //! does not lock the mutex (assumes it is locked)
-    static int _label_unsafe(Frame_t, uint32_t);
+    static int _label_unsafe(Frame_t, pv::bid);
     static Label::Ptr label(Frame_t, const pv::CompressedBlob*);
     //! does not lock the mutex (assumes it is locked)
     static Label::Ptr _label_unsafe(Frame_t, const pv::CompressedBlob*);
-    static void set_label(Frame_t idx, uint32_t bdx, const Label::Ptr& label);
+    static void set_label(Frame_t idx, pv::bid bdx, const Label::Ptr& label);
     static void _set_ranged_label_unsafe(RangedLabel&&);
     static void set_ranged_label(RangedLabel&&);
-    static Label::Ptr ranged_label(Frame_t, uint32_t);
+    static Label::Ptr ranged_label(Frame_t, pv::bid);
     static Label::Ptr ranged_label(Frame_t, const pv::CompressedBlob&);
-    static int _ranged_label_unsafe(Frame_t, uint32_t);
+    static int _ranged_label_unsafe(Frame_t, pv::bid);
     static Label::Ptr label_interpolated(Idx_t, Frame_t);
     static Label::Ptr label_interpolated(const Individual*, Frame_t);
     static Label::Ptr label_averaged(Idx_t, Frame_t);
     static Label::Ptr label_averaged(const Individual*, Frame_t);
+    static Label::Ptr _label_averaged_unsafe(const Individual*, Frame_t);
     static void set_label(Frame_t, const pv::CompressedBlob*, const Label::Ptr&);
-    static void _set_label_unsafe(Frame_t, uint32_t bdx, int ldx);
+    static void _set_label_unsafe(Frame_t, pv::bid bdx, int ldx);
     
     static void reanalysed_from(Frame_t);
 };

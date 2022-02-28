@@ -37,7 +37,7 @@ void DebugDrawing::reset_image() {
 void DebugDrawing::paint(const Outline &outline, bool erase) {
     //Tracker::LockGuard guard(*Tracker::instance());
     
-    Debug("First: %f,%f", outline.points().front().x, outline.points().front().y);
+    print("First: ", outline.points().front().x,",",outline.points().front().y);
     
     if(erase)
         reset_image();
@@ -95,12 +95,11 @@ void DebugDrawing::paint(const Outline &outline, bool erase) {
              printf("\nCurvature: ");
             for (long i=0; i<L; i++) {
                 printf("%f, ", corrected[i]);
-                //Debug("Curvature: %f", corrected[i]);
                 max_curvature = max(abs(corrected[i]), max_curvature);
             }
             printf("\n");*/
             
-            Debug("Maxmimum curvature: %f", max_curvature);
+            print("Maxmimum curvature: ", max_curvature);
             
             auto derivative = curves::derive(corrected);
             auto derivative2 = curves::derive(io);
@@ -129,13 +128,13 @@ void DebugDrawing::paint(const Outline &outline, bool erase) {
             auto &maxima = e.maxima;
             
             for(auto &a : areas) {
-                Debug("Area[%f]: %f", a.idx, a.area);
+                print("Area[", a.idx,"]: ",a.area);
             }
             
             if(minima.empty())
-                Debug("minima empty.");
+                print("minima empty.");
             
-            Graph graph(Size2(800, 600), "outline", Rangef(0, outline.size()+5), Rangef(-max_slope*1.5, max_slope*1.5));
+            Graph graph(Bounds(Size2(800, 600)), "outline", Rangef(0, outline.size()+5), Rangef(-max_slope*1.5, max_slope*1.5));
             graph.set_zero(0);
             
             /*graph.add_function(Graph::Function("derivative", Graph::Type::DISCRETE, [&](float x) {
@@ -214,7 +213,7 @@ void DebugDrawing::paint(const Outline &outline, bool erase) {
             base.display();
             
         } else {
-            Warning("Smoothed curvature is empty.");
+            FormatWarning("Smoothed curvature is empty.");
         }
     }
     
@@ -343,7 +342,7 @@ void DebugDrawing::paint(const track::Posture &posture, const cv::Mat& greyscale
 }
 
 void DebugDrawing::paint(const Midline *midline) {
-    Debug("Midline curvature:");
+    print("Midline curvature:");
     auto &segments = midline->segments();
     long L = segments.size();
     long offset = 1;

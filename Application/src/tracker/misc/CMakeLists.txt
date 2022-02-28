@@ -14,14 +14,13 @@ elseif(WIN32)
 endif()
 
 target_link_libraries(tracker_misc PRIVATE
-#    commons
-#    pv
+    commons
     lzo
-#	${EXTRA_LIBS}
 	cnpy
 )
 
-add_dependencies(tracker_misc TRex::OpenCV)
+add_dependencies(tracker_misc commons) #Commons::OpenCV)
+#target_precompile_headers(tracker_misc REUSE_FROM commons)
 
 if(TREX_CONDA_PACKAGE_INSTALL)
 	if(WIN32)

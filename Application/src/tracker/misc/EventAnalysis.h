@@ -1,15 +1,17 @@
 #pragma once
 
-#include <types.h>
-#include <tracking/Individual.h>
+#include <misc/defines.h>
+#include <misc/frame_t.h>
 
 namespace track {
+    class Individual;
+
     namespace EventAnalysis {
         using namespace cmn;
         
         struct Event {
-            long_t begin;
-            long_t end;
+            Frame_t begin;
+            Frame_t end;
             
             //! Kinetic-energy-like measure with SUM start-end(1/2 * 1 * (midline_v)^2)
             float energy;
@@ -19,7 +21,7 @@ namespace track {
             float speed_before;
             float speed_after;
             
-            Event(long_t start = -1, long_t end = -1, float energy = 0, float dir_change = 0, float acc = 0, float speed_b = 0, float speed_a = 0)
+            Event(Frame_t start = {}, Frame_t end = {}, float energy = 0, float dir_change = 0, float acc = 0, float speed_b = 0, float speed_a = 0)
                 :   begin(start),
                     end(end),
                     energy(energy),
@@ -31,14 +33,14 @@ namespace track {
         };
         
         struct EventMap {
-            std::map<long_t, Event> events;
+            std::map<Frame_t, Event> events;
             std::map<long_t, size_t> lengths;
             
-            long_t start_frame;
-            long_t end_frame;
+            Frame_t start_frame;
+            Frame_t end_frame;
             
-            EventMap() : start_frame(-1), end_frame(-1) {}
-            void clear() { start_frame = end_frame = -1; events.clear(); lengths.clear(); }
+            std::string toStr() const { return Meta::toStr(start_frame)+"-",Meta::toStr(end_frame); }
+            void clear() { start_frame.invalidate(); end_frame.invalidate(); events.clear(); lengths.clear(); }
             size_t memory_size() const {
                 return sizeof(EventMap)
                      + sizeof(decltype(events)::value_type) * events.size()
@@ -61,10 +63,10 @@ namespace track {
         std::string status();
         EventsContainer* events();
         
-        bool threshold_reached(Individual *fish, long_t frame);
-        void reset_events(long_t after_frame = -1);
-        bool update_events(const std::set< Individual*>& individuals);
-        float midline_offset(Individual *fish, long_t frame);
+        bool threshold_reached(Individual *fish, Frame_t frame);
+        void reset_events(Frame_t after_frame = {});
+        bool update_events(const std::set< Individual* >& individuals);
+        float midline_offset(Individual *fish, Frame_t frame);
         void fish_deleted(Individual *fish);
     }
 }

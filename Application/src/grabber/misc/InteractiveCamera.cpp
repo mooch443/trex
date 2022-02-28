@@ -2,6 +2,7 @@
 #include <misc/GlobalSettings.h>
 #include <grabber/gui.h>
 #include <misc/GlobalSettings.h>
+#include <misc/SpriteMap.h>
 
 namespace fg {
 constexpr bool use_dynamic = true;
@@ -141,7 +142,7 @@ bool InteractiveCamera::next(cmn::Image &image) {
         }
     }
     
-    image.set(image.index(), img);
+    image.create(img, image.index());
     timer.reset();
     
     return true;

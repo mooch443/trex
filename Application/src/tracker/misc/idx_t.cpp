@@ -8,7 +8,7 @@ namespace track {
 }*/
 
 Idx_t Idx_t::fromStr(const std::string& str) {
-    return Idx_t(Meta::fromStr<uint32_t>(str));
+    return Idx_t(cmn::Meta::fromStr<uint32_t>(str));
 }
 
 }

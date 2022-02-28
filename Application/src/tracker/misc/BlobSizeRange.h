@@ -2,6 +2,7 @@
 
 #include <misc/vec2.h>
 #include <misc/metastring.h>
+#include <misc/ranges.h>
 
 namespace cmn {
 
@@ -16,7 +17,6 @@ public:
     bool close_to_maximum_of_one(float cmsq, float scale_factor) const;
     void add(const Rangef&);
     
-    operator MetaObject() const;
     inline bool operator==(const BlobSizeRange& other) const {
         return _ranges == other._ranges;
     }
@@ -24,6 +24,7 @@ public:
         return _ranges != other._ranges;
     }
     
+    std::string toStr() const { return Meta::toStr(_ranges); }
     static std::string class_name() { return "BlobSizeRange"; }
     static BlobSizeRange fromStr(const std::string& str);
 };

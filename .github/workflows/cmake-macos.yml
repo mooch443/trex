@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ["macos-latest"]
+        os: ["macos-11"]
         python-version: ["3.7.9"]
     steps:
     - uses: actions/checkout@v2

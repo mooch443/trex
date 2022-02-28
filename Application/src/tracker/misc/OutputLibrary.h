@@ -5,6 +5,8 @@
 #include <tracking/Individual.h>
 #include <misc/GlobalSettings.h>
 #include <gui/Graph.h>
+#include <misc/ranges.h>
+#include <misc/OptionsList.h>
 
 namespace Output {
     using namespace track;
@@ -25,9 +27,9 @@ namespace Output {
             )
     
     // , const std::function<float(float)>& options
-#define LIBPARAM (Output::Library::LibInfo info, long_t frame, const track::PhysicalProperties* props, bool smooth)
+#define LIBPARAM (Output::Library::LibInfo info, Frame_t frame, const track::MotionRecord* props, bool smooth)
 #define _LIBFNC(CONTENT) LIBPARAM -> float \
-{ Individual* fish = info.fish; assert(true || frame || smooth); if(!props) return gui::Graph::invalid(); CONTENT }
+{ Individual* fish = info.fish; UNUSED(smooth); UNUSED(fish); UNUSED(frame); if(!props) return gui::Graph::invalid(); CONTENT }
 #define LIBFNC(CONTENT) [] _LIBFNC(CONTENT)
     
 #define _LIBGLFNC(CONTENT) LIBPARAM -> double \
@@ -71,21 +73,23 @@ namespace Output {
         }
     };
     
-    enum Modifiers {
+    ENUM_CLASS( Modifiers,
         SMOOTH,
         CENTROID,
         POSTURE_CENTROID,
         WEIGHTED_CENTROID,
         POINTS,
         PLUSMINUS
-    };
+    );
+
+    using Options_t = OptionsList<Output::Modifiers::Class>;
     
     class Library;
     struct LibraryCache {
         typedef std::shared_ptr<LibraryCache> Ptr;
         
         std::recursive_mutex _cache_mutex;
-        std::map<const Individual*, std::map<long_t, std::map<std::string, std::map<OptionsList<Modifiers>, double>>>> _cache;
+        std::map<const Individual*, std::map<Frame_t, std::map<std::string, std::map<Options_t, double>>>> _cache;
         
         void clear();
         static LibraryCache::Ptr default_cache();
@@ -101,10 +105,10 @@ namespace Output {
         struct LibInfo {
             size_t rec_depth;
             Individual* fish;
-            const OptionsList<Modifiers> modifiers;
+            const Options_t modifiers;
             LibraryCache::Ptr _cache;
             
-            LibInfo(Individual* fish, const OptionsList<Modifiers> &modifiers, LibraryCache::Ptr cache = nullptr) : rec_depth(0), fish(fish), modifiers(modifiers), _cache(cache)
+            LibInfo(Individual* fish, const Options_t &modifiers, LibraryCache::Ptr cache = nullptr) : rec_depth(0), fish(fish), modifiers(modifiers), _cache(cache)
             {}
         };
         
@@ -116,10 +120,10 @@ namespace Output {
         static void InitVariables();
         
         static void clear_cache();
-        static void frame_changed(long_t frameIndex, LibraryCache::Ptr cache = nullptr);
+        static void frame_changed(Frame_t frameIndex, LibraryCache::Ptr cache = nullptr);
         
-        static double get(const std::string& name, LibInfo info, long_t frame);
-        static double get_with_modifiers(const std::string& name, LibInfo info, long_t frame);
+        static double get(const std::string& name, LibInfo info, Frame_t frame);
+        static double get_with_modifiers(const std::string& name, LibInfo info, Frame_t frame);
         static void add(const std::string& name, const FunctionType& func);
         static void init_graph(gui::Graph &graph, Individual *fish, LibraryCache::Ptr cache = nullptr);
         static bool has(const std::string& name);
@@ -132,18 +136,24 @@ namespace Output {
         
         Library() {}
         
-        static const track::PhysicalProperties* retrieve_props(const std::string&, const Individual* fish, long_t frame, const OptionsList<Modifiers>& modifiers)
+        static const track::MotionRecord* retrieve_props(const std::string&, 
+            const Individual* fish, 
+            Frame_t frame,
+            const Options_t& modifiers)
         {
             auto c = fish->centroid(frame);
             if(!c)
                 return NULL;
             
-            if(modifiers.is(CENTROID)) {
+            if (modifiers.is(Modifiers::CENTROID)) {
                 return c;
-            } else if(modifiers.is(POSTURE_CENTROID)) {
+
+            } else if(modifiers.is(Modifiers::POSTURE_CENTROID)) {
                 return fish->centroid_posture(frame);
-            } else if(modifiers.is(WEIGHTED_CENTROID)) {
+
+            } else if(modifiers.is(Modifiers::WEIGHTED_CENTROID)) {
                 return fish->centroid_weighted(frame);
+
             } else if(fish->head(frame)) {
                 return fish->head(frame);
             }
@@ -153,24 +163,24 @@ namespace Output {
         
     public:
         static const Calculation parse_calculation(const std::string& calculation);
-        static bool parse_modifiers(const std::string& str, OptionsList<Modifiers>& modifiers);
+        static bool parse_modifiers(const std::string& str, Options_t& modifiers);
         
     private:
-        static float tailbeats(long_t frame, LibInfo info);
+        static float tailbeats(Frame_t frame, LibInfo info);
     };
 }
 
 namespace std
 {
-    template<> struct less<OptionsList<Output::Modifiers>>
+    template<> struct less<Output::Options_t>
     {
-        bool operator() (const OptionsList<Output::Modifiers>& lhs, const OptionsList<Output::Modifiers>& rhs) const
+        bool operator() (const Output::Options_t& lhs, const Output::Options_t& rhs) const
         {
-			size_t s0 = 0, s1 = 0;
+            uint32_t s0 = 0, s1 = 0;
 			for (auto k : lhs.values())
-				s0 += (size_t)k;
+				s0 += (uint32_t)k;
 			for (auto k : rhs.values())
-				s1 += (size_t)k;
+				s1 += (uint32_t)k;
 			return s0 < s1;
         }
     };

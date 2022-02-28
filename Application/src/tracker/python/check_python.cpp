@@ -11,7 +11,7 @@ namespace py = pybind11;
 
 #include <cstdio>
 
-int main(int argc, char**argv) {
+int main(int , char**) {
 #ifndef NDEBUG
     printf("trex_check_python\n");
 #endif

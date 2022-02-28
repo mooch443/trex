@@ -17,14 +17,14 @@ if(WIN32)
         tracker_misc
         commons
         cnpy
-        TRex::OpenCV
-		TRex::LibPNG
-		TRex::LibZIP
-		TRex::LibZ
+        Commons::OpenCV
+	    Commons::LibPNG
+		Commons::LibZIP
+		Commons::LibZ
     )
     target_compile_options(tracker_python PRIVATE /D"TREX_EXPORTS")
 else()
-    target_link_libraries(tracker_python PRIVATE cnpy)
+    target_link_libraries(tracker_python PRIVATE cnpy commons)
 endif()
 
 if(NOT pybind11_external)
@@ -35,15 +35,17 @@ else()
 endif()
 
 add_executable(trex_check_python check_python.cpp)
-target_link_libraries(trex_check_python commons cnpy TRex::OpenCV TRex::LibZIP TRex::LibZ TRex::LibPNG)
-add_dependencies(trex_check_python TRex::LibZIP)
-add_dependencies(trex_check_python TRex::OpenCV)
+target_link_libraries(trex_check_python commons cnpy Commons::OpenCV Commons::LibZIP Commons::LibZ Commons::LibPNG)
+add_dependencies(trex_check_python commons cnpy Commons::OpenCV Commons::LibZIP)
 
 if(NOT pybind11_external)
     target_link_libraries(trex_check_python pybind11::pybind11 pybind11::embed pybind11::module)
 else()
     target_link_libraries(trex_check_python ${PYTHON_LIBRARIES})
 endif()
+
+#target_precompile_headers(trex_check_python REUSE_FROM commons)
+#target_precompile_headers(tracker_python REUSE_FROM commons)
 
 add_dependencies(tracker_python trex_check_python )
 install(TARGETS trex_check_python

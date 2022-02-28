@@ -2,7 +2,7 @@
 
 namespace cmn {
 
-BlobSizeRange BlobSizeRange::fromStr(const std::string &str) {
+BlobSizeRange BlobSizeRange::fromStr(const std::string& str) {
     if (str[0] == '[' && str[1] != '[') {
         return BlobSizeRange({Meta::fromStr<Rangef>(str)});
     }
@@ -14,10 +14,6 @@ BlobSizeRange::BlobSizeRange(const std::vector<Rangef>& ranges)
 {
     for (auto &range : ranges)
         add(range);
-}
-
-BlobSizeRange::operator MetaObject() const {
-    return MetaObject(Meta::toStr(_ranges), "BlobSizeRange");
 }
 
 void BlobSizeRange::add(const Rangef &range) {

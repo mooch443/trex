@@ -4,6 +4,8 @@
 #include <tracking/Recognition.h>
 #include <gui/Timeline.h>
 #include <gui/types/Tooltip.h>
+#include <gui/GUICache.h>
+#include <gui/DrawBase.h>
 
 namespace gui {
     InfoCard::InfoCard()
@@ -63,11 +65,11 @@ void InfoCard::update() {
     else if(clr.b < 80) clr = clr + clr * ((80 - clr.b) / 80.f);
     
     //auto layout = std::make_shared<VerticalLayout>(Vec2(10, 10));
-    advance(new Text(_fish->identity().name(), Vec2(11,11), White.alpha(clr.a * 0.7f), Font(0.9f, Style::Bold)));
-    auto text = advance(new Text(_fish->identity().name(), Vec2(10, 10), clr, Font(0.9f, Style::Bold)));
+    add<Text>(_fish->identity().name(), Vec2(11,11), White.alpha(clr.a * 0.7f), Font(0.9f, Style::Bold));
+    auto text = add<Text>(_fish->identity().name(), Vec2(10, 10), clr, Font(0.9f, Style::Bold));
     
     if(!_fish->has(_frameNr)) {
-        advance(new Text(" (inactive)", text->pos() + Vec2(text->width(), 0), Gray.alpha(clr.a), Font(0.9f, Style::Bold)));
+        add<Text>(" (inactive)", text->pos() + Vec2(text->width(), 0), Gray.alpha(clr.a), Font(0.9f, Style::Bold));
     }
     
     auto segments = _fish->frame_segments();
@@ -78,7 +80,7 @@ void InfoCard::update() {
                          ,fish
 #endif
                          ](const auto& segments, float offx) {
-        auto text = advance(new Text(Meta::toStr(segments.size())+" segments", txt->pos() + Vec2(offx, Base::default_line_spacing(txt->font())), White, Font(0.8f)));
+        auto text = add<Text>(Meta::toStr(segments.size())+" segments", txt->pos() + Vec2(offx, Base::default_line_spacing(txt->font())), White, Font(0.8f));
         
 #if DEBUG_ORIENTATION
         auto reason = fish->why_orientation(frameNr);
@@ -90,22 +92,22 @@ void InfoCard::update() {
 #endif
         
         auto range_of = [](const auto& rit) -> const FrameRange& {
-            using value_t = typename remove_cvref<decltype(rit)>::type;
+            using value_t = typename cmn::remove_cvref<decltype(rit)>::type;
             using SegPtr_t = std::shared_ptr<Individual::SegmentInformation>;
             
             if constexpr(std::is_same<value_t, FrameRange>::value)    return rit;
             else if constexpr(std::is_same<value_t, SegPtr_t>::value) return *rit;
             else if constexpr(is_pair<value_t>::value) return rit.second;
-            else if constexpr(is_pair<typename remove_cvref<decltype(*rit)>::type>::value) return (*rit).second;
+            else if constexpr(is_pair<typename cmn::remove_cvref<decltype(*rit)>::type>::value) return (*rit).second;
             else if constexpr(std::is_same<decltype((*rit)->range), FrameRange>::value) return (*rit)->range;
-            else if constexpr(std::is_same<typename remove_cvref<decltype(*rit)>::type, std::shared_ptr<track::Individual::SegmentInformation>>::value)
+            else if constexpr(std::is_same<typename cmn::remove_cvref<decltype(*rit)>::type, std::shared_ptr<track::Individual::SegmentInformation>>::value)
                 return *(*rit);
             else return *rit;
         };
         
         // draw segment list
         auto rit = segments.rbegin();
-        long_t current_segment = -1;
+        Frame_t current_segment;
         for(; rit != segments.rend(); ++rit) {
             if(range_of(*rit).end() < _frameNr)
                 break;
@@ -125,12 +127,20 @@ void InfoCard::update() {
         
         for (; it != segments.end() && cmn::abs(std::distance(it0, it)) < 5; ++it, ++i)
         {
-            std::string str = std::to_string(range_of(it).start())+"-"+std::to_string(range_of(it).end());
-            auto p = Vec2(width() - 10 + offx, float(height() - 40) * 0.5f + ((i - 2) + 1) * (float)Base::default_line_spacing(Font(1.1f)));
+            std::string str;
+            auto range = range_of(it);
+            if(range.length() <= 1)
+                str = range.start().toStr();
+            else
+                str = range.start().toStr() + "-" + range.end().toStr();
             
-            text = new Text(str, p, White.alpha(25 + 230 * (1 - cmn::abs(i-2) / 5.0f)), Font(0.8f), Vec2(1), Vec2(1, 0.5f));
+            //!TODO: Need to collect width() beforehand
+            auto p = Vec2(width() - 10 + offx, float(height() - 40) * 0.5f + ((i - 2) + 1) * (float)Base::default_line_spacing(Font(1.1f)));
+            auto alpha = 25 + 230 * (1 - cmn::abs(i-2) / 5.0f);
+            
+            text = add<Text>(str, p, _frameNr != range.start() ? White.alpha(alpha) : Color(200,235,255).alpha(alpha), Font(0.8f), Vec2(1), Vec2(1, 0.5f));
             text->set_clickable(true);
-            text = advance(text);
+            //text = advance(text);
             
             std::string tt;
             if constexpr(std::is_same<typename decltype(it)::value_type, std::shared_ptr<Individual::SegmentInformation>>::value)
@@ -161,7 +171,7 @@ void InfoCard::update() {
             if(range_of(*it).start() == current_segment) {
                 bool inside = range_of(*it).contains(_frameNr);
                 auto offy = - (inside ? 0.f : (Base::default_line_spacing(Font(1.1f))*0.5f));
-                advance(new Line(Vec2(10+offx, p.y + offy), Vec2(text->pos().x - text->width() - 10, p.y + offy), inside ? White : White.alpha(125)));
+                add<Line>(Vec2(10+offx, p.y + offy), Vec2(text->pos().x - (!inside ? 0 : text->width() + 10), p.y + offy), inside ? White : White.alpha(100));
             }
         }
     };
@@ -180,16 +190,16 @@ void InfoCard::update() {
                 auto segment = cache.primary_selection()->get_segment(next_frame);
                 
                 if(next_frame == segment.start())
-                    next_frame = cache.primary_selection()->get_segment(segment.start()-1).start();
+                    next_frame = cache.primary_selection()->get_segment(segment.start() - 1_f).start();
                 else
                     next_frame = segment.start();
             }
             
-            if(next_frame == -1)
+            if(!next_frame.valid())
                 return;
             
             if(GUI::frame() != next_frame)
-                SETTING(gui_frame) = next_frame;
+                SETTING(gui_frame) = Frame_t(next_frame);
         });
         
         next->on_click([](auto) {
@@ -198,20 +208,20 @@ void InfoCard::update() {
             if(cache.has_selection()) {
                 Tracker::LockGuard guard("InfoCard::update->next->on_click");
                 auto segment = cache.primary_selection()->get_segment(next_frame);
-                if(segment.start() != -1) {
+                if(segment.start().valid()) {
                     auto it = cache.primary_selection()->find_segment_with_start(segment.start());
                     ++it;
                     if(it == cache.primary_selection()->frame_segments().end()) {
-                        next_frame = -1;
+                        next_frame.invalidate();
                     } else {
                         next_frame = (*it)->start();
                     }
                     
                 } else
-                    next_frame = -1;
+                    next_frame.invalidate();
             }
             
-            if(next_frame == -1)
+            if(!next_frame.valid())
                 return;
             
             if(GUI::frame() != next_frame)
@@ -238,13 +248,13 @@ void InfoCard::update() {
         bool detail = SETTING(gui_show_detailed_probabilities);
         Bounds tmp(0, y - 10, 200, 0);
         
-        auto idx = index();
-        if(idx < children().size() && children().at(idx)->type() == Type::RECT)
-            tmp.size() = children().at(idx)->size();
+        //auto idx = index();
+        //if(idx < children().size() && children().at(idx)->type() == Type::RECT)
+        //    tmp << children().at(idx)->size();
         
         float max_w = 200;
-        auto rect = advance(new Rect(tmp, bg.alpha(detail ? 50 : bg.a)));
-        text = advance(new Text("matching", Vec2(10, y), White, Font(0.8f, Style::Bold)));
+        auto rect = add<Rect>(tmp, bg.alpha(detail ? 50 : bg.a));
+        text = add<Text>("matching", Vec2(10, y), White, Font(0.8f, Style::Bold));
         
         if(!detail_button->parent()) {
             detail_button->set_toggleable(true);
@@ -264,7 +274,7 @@ void InfoCard::update() {
         
         if(_fish->is_automatic_match(_frameNr)) {
             y += text->height();
-            text = advance(new Text("(automatic match)", Vec2(10, y), White.alpha(150), Font(0.8f, Style::Italic)));
+            text = add<Text>("(automatic match)", Vec2(10, y), White.alpha(150), Font(0.8f, Style::Italic));
             y += text->height();
             
             if(!automatic_button) {
@@ -274,7 +284,7 @@ void InfoCard::update() {
                     if(_fish) {
                         auto range = _fish->get_segment_safe(_frameNr);
                         if(!range.empty()) {
-                            Debug("Erasing automatic matches for fish %d in range %d-%d", _fish->identity().ID(), range.start(), range.end());
+                            print("Erasing automatic matches for fish ", _fish->identity().ID()," in range ", range.start(),"-",range.end());
                             Tracker::delete_automatic_assignments(_fish->identity().ID(), range);
                             GUI::reanalyse_from(_frameNr);
 
@@ -298,22 +308,22 @@ void InfoCard::update() {
     if(c)
         speed_str = Meta::toStr(c->speed) + "cm/s";
     else if(cache.individuals.count(fdx) && cache.individuals.at(fdx)->basic_stuff(_frameNr)) {
-        auto s = cache.individuals.at(fdx)->basic_stuff(_frameNr)->centroid->speed(Units::CM_AND_SECONDS);
+        auto s = cache.individuals.at(fdx)->basic_stuff(_frameNr)->centroid.speed<Units::CM_AND_SECONDS>();
         speed_str = Meta::toStr(s)+"cm/s";
         
     }
     
-    y += advance(new Text(speed_str, Vec2(10, y), White.alpha(125), Font(0.8f)))->height();
+    y += add<Text>(speed_str, Vec2(10, y), White.alpha(125), Font(0.8f))->height();
         
     if(fprobs) {
         track::Match::prob_t max_prob = 0;
-        int64_t bdx = -1;
+        pv::bid bdx;
         for(auto &blob : cache.processed_frame.blobs()) {
             if(fprobs->count(blob->blob_id())) {
                 auto &probs = (*fprobs).at(blob->blob_id());
-                if(probs.p > max_prob) {
-                    max_prob = probs.p;
-                    bdx = (int64_t)blob->blob_id();
+                if(probs/*.p*/ > max_prob) {
+                    max_prob = probs/*.p*/;
+                    bdx = blob->blob_id();
                 }
             }
         }
@@ -321,19 +331,19 @@ void InfoCard::update() {
         for(auto &blob : cache.processed_frame.blobs()) {
             if(fprobs->count(blob->blob_id())) {
                 auto color = Color(200, 200, 200, 255);
-                if(cache.fish_selected_blobs.find(fdx) != cache.fish_selected_blobs.end() && (long_t)blob->blob_id() == cache.fish_selected_blobs.at(fdx)) {
+                if(cache.fish_selected_blobs.find(fdx) != cache.fish_selected_blobs.end() && blob->blob_id() == cache.fish_selected_blobs.at(fdx)) {
                     color = Green;
                 } else if(blob->blob_id() == bdx) {
                     color = Yellow;
                 }
                 
                 auto &probs = (*fprobs).at(blob->blob_id());
-                auto probs_str = Meta::toStr(probs.p);
-                if(detail)
-                    probs_str += " (p:"+Meta::toStr(probs.p_pos)+" a:"+Meta::toStr(probs.p_angle)+" s:"+Meta::toStr(probs.p_pos / probs.p_angle)+" t:"+Meta::toStr(probs.p_time)+")";
+                auto probs_str = Meta::toStr(probs/*.p*/);
+                /*if(detail)
+                    probs_str += " (p:"+Meta::toStr(probs.p_pos)+" a:"+Meta::toStr(probs.p_angle)+" s:"+Meta::toStr(probs.p_pos / probs.p_angle)+" t:"+Meta::toStr(probs.p_time)+")";*/
                 
-                auto text = advance(new Text(Meta::toStr(blob->blob_id())+": ", Vec2(10, y), White, Font(0.8f)));
-                auto second = advance(new Text(probs_str, text->pos() + Vec2(text->width(), 0), color, Font(0.8f)));
+                auto text = add<Text>(Meta::toStr(blob->blob_id())+": ", Vec2(10, y), White, Font(0.8f));
+                auto second = add<Text>(probs_str, text->pos() + Vec2(text->width(), 0), color, Font(0.8f));
                 y += text->height();
                 
                 auto w = second->pos().x + second->width() + 10;
@@ -352,11 +362,11 @@ void InfoCard::update() {
     
     if(Recognition::recognition_enabled() && fish_has_frame) {
         Bounds tmp(0, y-10, 200, 0);
-        auto rect = advance(new Rect(tmp, bg.alpha(bg.a)));
+        auto rect = add<Rect>(tmp, bg.alpha(bg.a));
         
-        auto idx = index();
-        if(idx < children().size() && children().at(idx)->type() == Type::RECT)
-            tmp.size() = children().at(idx)->size();
+        //auto idx = index();
+        //if(idx < children().size() && children().at(idx)->type() == Type::RECT)
+        //    tmp << children().at(idx)->size();
         
         auto blob_id = _fish->compressed_blob(_frameNr)->blob_id();
         auto && [valid, segment] = _fish->has_processed_segment(_frameNr);
@@ -377,11 +387,11 @@ void InfoCard::update() {
             p_sum = max(p_sum, value);
         
         float max_w = 200;
-        auto text = advance(new Text(title, Vec2(10, y), White, Font(0.8f, Style::Bold)));
+        auto text = add<Text>(title, Vec2(10, y), White, Font(0.8f, Style::Bold));
         y += text->height();
         max_w = max(max_w, 10 + text->width() + text->pos().x);
         
-        text = advance(new Text(Meta::toStr(segment), Vec2(10, y), Color(220,220,220,255), Font(0.8f, Style::Italic)));
+        text = add<Text>(Meta::toStr(segment), Vec2(10, y), Color(220,220,220,255), Font(0.8f, Style::Italic));
         y += text->height();
         max_w = max(max_w, 10 + text->width() + text->pos().x);
         
@@ -410,7 +420,7 @@ void InfoCard::update() {
             std::string str = Meta::toStr(fdx) + ": " + Meta::toStr(p);
             
             Color color = White * (1 - p/p_sum) + Red * (p / p_sum);
-            auto text = advance(new Text(str, current_pos, color, Font(0.8f)));
+            auto text = add<Text>(str, current_pos, color, Font(0.8f));
             
             auto w = text->pos().x + text->width() + 10;
             if(w > max_w)
@@ -447,7 +457,7 @@ void InfoCard::update() {
     set_background(bg);
 }
     
-    void InfoCard::update(gui::DrawStructure &base, long_t frameNr) {
+    void InfoCard::update(gui::DrawStructure &base, Frame_t frameNr) {
         auto fish = GUI::cache().primary_selection();
         
         if(_fish != fish) {
@@ -463,7 +473,7 @@ void InfoCard::update() {
                     return;
                 std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
                 _fish = nullptr;
-                _frameNr = -1;
+                _frameNr.invalidate();
                 set_content_changed(true);
             });
         }

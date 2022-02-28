@@ -16,7 +16,7 @@ namespace fg {
         for(size_t i=0; i<list.size(); i++) {
             auto &device = list[i];
             std::string name(device.GetFriendlyName());
-            Debug("[%d] Camera: '%S'", i, &name);
+            print("[", i,"] Camera: ",name);
             
             if(std::string(device.GetSerialNumber()) == serial_number) {
                 _camera = new Camera_t(CTlFactory::GetInstance().CreateDevice(device));
@@ -27,10 +27,10 @@ namespace fg {
             _camera = new Camera_t(CTlFactory::GetInstance().CreateFirstDevice());
         
         if(_camera == NULL)
-            U_EXCEPTION("Cannot find camera with serial number '%S'.", &serial_number);
+            throw U_EXCEPTION("Cannot find camera with serial number ",serial_number,".");
         
         std::string name(_camera->GetDeviceInfo().GetFriendlyName());
-        Debug("Using camera '%S'.", &name);
+        print("Using camera ", name,".");
         
         _camera->RegisterConfiguration( new CAcquireContinuousConfiguration, RegistrationMode_ReplaceAll, Cleanup_Delete);
         //_camera->RegisterConfiguration( new CSoftwareTriggerConfiguration, RegistrationMode_ReplaceAll, Cleanup_Delete);
@@ -40,7 +40,7 @@ namespace fg {
         _camera->DeviceLinkSelector.SetValue(0);
         
         if(GenApi::IsWritable(_camera->DeviceLinkThroughputLimitMode)) {
-            Debug("Disabling USB throughput limit.");
+            print("Disabling USB throughput limit.");
             _camera->DeviceLinkThroughputLimitMode.SetValue(DeviceLinkThroughputLimitMode_Off);
         }
         
@@ -54,7 +54,7 @@ namespace fg {
         cv::Size target_res = SETTING(cam_resolution);
         const int64_t offx = (_camera->WidthMax.GetValue() - target_res.width) * 0.5,
         offy = (_camera->HeightMax.GetValue() - target_res.height) * 0.5;
-        Debug("Setting dimensions to %dx%d (offsets %d,%d)", target_res.width, target_res.height, offx, offy);
+        print("Setting dimensions to ",target_res.width,"x",target_res.height," (offsets ",offx,",",offy,")");
         
         _camera->CenterX.SetValue(true);
         _camera->CenterY.SetValue(true);
@@ -85,7 +85,7 @@ namespace fg {
                 break;
                 
             } else
-                U_EXCEPTION("Could not grab frame for determining the resolution.");
+                throw U_EXCEPTION("Could not grab frame for determining the resolution.");
         }
         
         if(_camera->IsGrabbing())
@@ -109,11 +109,9 @@ namespace fg {
             //_camera->StartGrabbing(GrabStrategy_OneByOne, GrabLoop_ProvidedByUser);//GrabStrategy_LatestImageOnly);
             //_camera->OutputQueueSize = _analysis->cache() - 1;
             
-            //Debug("Waiting for TriggerReady.");
             if(_camera->GrabCameraEvents.GetValue() == true) {
                 if ( _camera->WaitForFrameTriggerReady( 1000, TimeoutHandling_ThrowException))
                 {
-                    //Debug("Executing trigger.");
                     _camera->ExecuteSoftwareTrigger();
                 }
             }
@@ -144,7 +142,6 @@ namespace fg {
                 }
                 auto t = ptrGrabResult->GetTimeStamp() / 1000;
                 //static uint64_t previous = 0;
-                //Debug("Tick %lu skipped:%ld", (t - previous), ptrGrabResult->GetNumberOfSkippedImages());
                 //previous = t;
                 
                 current.set_timestamp(t);
@@ -153,11 +150,11 @@ namespace fg {
                 return true;
                 
             } else {
-                Error("Grabbing failed with %d: '%s'", ptrGrabResult->GetErrorCode(), ptrGrabResult->GetErrorDescription().c_str());
+               FormatError("Grabbing failed with ", ptrGrabResult->GetErrorCode(),": '",ptrGrabResult->GetErrorDescription().c_str(),"'");
             }
             
         } catch(const GenericException& g) {
-            Error("An exception occurred '%s'", g.GetDescription());
+            print("An exception occurred '",g.GetDescription(),"'");
         }
         
         return false;

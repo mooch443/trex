@@ -110,7 +110,7 @@ namespace track {
             const float sqcm = SQR(FAST_SETTINGS(cm_per_pixel));
             const float rescale = 1 - min(0.9, max(0, SETTING(recognition_border_size_rescale).value<float>()));
             
-            Debug("Reading video...");
+            print("Reading video...");
             pv::Frame frame;
             size_t step_size = max(1, video.length() * 0.0002);
             const size_t count_steps = video.length() / step_size;
@@ -140,10 +140,10 @@ namespace track {
                 }
                 
                 if((i / step_size) % size_t(count_steps * 0.1) == 0)
-                    Debug("[border] %d / %d", i/step_size, count_steps);
+                    print("[border] ", i/step_size," / ",count_steps);
             }
             
-            Debug("Done.");
+            print("Done.");
         }
         
         std::multiset<uint32_t> counts;
@@ -193,10 +193,10 @@ namespace track {
         
         if(_vertices.empty()) {
             Timer timer;
-            Debug("Generating outline...");
+            print("Generating outline...");
             
             if((size_t)video.size().height > (size_t)USHRT_MAX)
-                U_EXCEPTION("Video is too big (max: %dx%d)", USHRT_MAX, USHRT_MAX);
+                throw U_EXCEPTION("Video is too big (max: ",USHRT_MAX,"x",USHRT_MAX,")");
             
             if(x_valid.empty() && y_valid.empty()) {
                 // generate one line for every row
@@ -225,8 +225,7 @@ namespace track {
                     }
                 }
                 
-                auto str = Meta::toStr(FAST_SETTINGS(blob_size_ranges));
-                Debug("Collected %d blobs between sizes in %S with scale 0.5", collection.size(), &str);
+                print("Collected ", collection.size()," blobs between sizes in ",FAST_SETTINGS(blob_size_ranges)," with scale 0.5");
                 
                 std::vector<std::multiset<ushort>> xs;
                 std::vector<std::multiset<ushort>> ys;
@@ -321,7 +320,7 @@ namespace track {
                     std::advance(rit, max_y.size() * 0.02);
                     assert(*it < y_valid.size());
                     
-                    Debug("Invalidate y from %f to %f", *it, *rit);
+                    print("Invalidate y from ", *it," to ",*rit);
                     
                     for(ushort y=0; y<min(*it, *rit, y_valid.size()); ++y) {
                         y_valid[y] = false;
@@ -340,7 +339,7 @@ namespace track {
                     std::advance(rit, max_x.size() * 0.02);
                     assert(*rit < x_valid.size());
                     
-                    Debug("Invalidate x from %f to %f", *it, *rit);
+                    print("Invalidate x from ", *it," to ",*rit);
                     
                     for(ushort x=0; x<min(*it, *rit, x_valid.size()); ++x) {
                         x_valid[x] = false;
@@ -386,10 +385,10 @@ namespace track {
                 _vertices.front().push_back(pt);
             }
             
-            size_t coeff = SETTING(recognition_coeff);
+            uint16_t coeff = SETTING(recognition_coeff);
             if(coeff > 0) {
                 auto ptr = std::make_shared<std::vector<Vec2>>(_vertices.front());
-                ptr = smooth_outline(ptr, SETTING(recognition_smooth_amount).value<size_t>(), 1);
+                ptr = smooth_outline(ptr, SETTING(recognition_smooth_amount).value<uint16_t>(), 1);
                 
                 Vec2 middle;
                 float samples = 0;
@@ -419,7 +418,7 @@ namespace track {
                 } else
                     _vertices.clear();
                 
-                Debug("Generating mask...");
+                print("Generating mask...");
                 Timer timer;
                 _mask = Image::Make(video.size().height, video.size().width);
                 if(!_vertices.empty()) {
@@ -436,14 +435,13 @@ namespace track {
                 
                 auto sec = timer.elapsed() / _mask->size() * 1000 * 1000;
                 auto str = Meta::toStr(DurationUS{uint64_t(sec)});
-                Debug("Mask took %S/pixel", &str);
+                print("Mask took ",str,"/pixel");
                 poly_set = true;
                 
             } else
                 poly_set = false;
             
-            auto str = Meta::toStr(DurationUS{uint64_t(timer.elapsed() * 1000 * 1000)});
-            Debug("This took %S (%d points)", &str, _vertices.size());
+            print("This took ", DurationUS{uint64_t(timer.elapsed() * 1000 * 1000)}," (",_vertices.size()," points)");
         }
     }
     
@@ -461,7 +459,7 @@ namespace track {
             case Type::grid: {
                 auto grid_points = SETTING(grid_points).value<Settings::grid_points_t>();
                 if(grid_points.size() < 2) {
-                    Error("Cannot calculate average intra-grid for just one grid point.");
+                    FormatError("Cannot calculate average intra-grid for just one grid point.");
                 }
                 
                 // if this is a grid, we need to calculate the distances between grid centers.
@@ -510,7 +508,7 @@ namespace track {
                 break;
                 
             default:
-                Error("Unknown border type %d", _type);
+                print("Unknown border type ",_type);
         }
         
         update_polygons();
@@ -546,7 +544,7 @@ namespace track {
             return euclidean_distance(pt, Vec2(Tracker::average().bounds().size() * 0.5));
         }
         
-        U_EXCEPTION("Unknown border type (%d).", _type);
+        throw U_EXCEPTION("Unknown border type (",_type,").");
     }
     
     bool Border::in_recognition_bounds(const cmn::Vec2 &pt) const {

@@ -3,6 +3,7 @@
 #include <gui/GuiTypes.h>
 #include <gui/types/StaticText.h>
 #include <gui/types/Entangled.h>
+#include <gui/types/Button.h>
 #include <gui/gui.h>
 #ifdef WIN32
 #include <ShObjIdl_core.h>
@@ -26,13 +27,13 @@ namespace gui {
 WorkInstance::WorkInstance(const std::string& name)
     : _name(name), _previous(GUI::instance() ? GUI::work().item() : "")
 {
-    Debug("Setting work item to '%S'", &_name);
+    print("Setting work item to ",_name);
     if(GUI::instance())
         GUI::work().set_item(name);
 }
 
 WorkInstance::~WorkInstance() {
-    Debug("Resetting work item to '%S'", &_previous);
+    print("Resetting work item to ",_previous);
     if(GUI::instance())
         GUI::work().set_item(_previous);
 }
@@ -108,7 +109,7 @@ bool WorkProgress::is_this_in_queue() const {
 void WorkProgress::add_queue(const std::string& message, const std::function<void()>& fn, const std::string& descr, bool abortable)
 {
     if(!GUI::instance()) {
-        Error("Cannot add work item '%S' to queue if GUI doesnt exist.", &message);
+        FormatError("Cannot add work item ",message," to queue if GUI doesnt exist.");
         return;
     }
     
@@ -170,7 +171,7 @@ void WorkProgress::set_percent(float value) {
                     }
 
                 } else {
-                    Warning("ITaskbarList3 could not be created.");
+                    FormatWarning("ITaskbarList3 could not be created.");
                 }
             }
         }
@@ -231,7 +232,7 @@ void WorkProgress::set_progress(const std::string& title, float value, const std
     std::lock_guard<std::mutex> guard(_queue_lock);
     if(!title.empty()) {
         if(_item != title && !title.empty())
-            Debug("[WORK] %S", &title);
+            print("[WORK] ", title.c_str());
         _item = title;
     }
     if(!desc.empty())
@@ -296,7 +297,7 @@ void WorkProgress::update(gui::DrawStructure &base, gui::Section *section) {
     work_progress.update([&](Entangled& base){
         const float margin = 5;
         
-        auto text = base.advance(new Text(_item, offset, Color(0, 150, 225, 255), Font(0.8, Style::Bold), Vec2(1), Vec2(0.5, 0)));
+        auto text = base.add<Text>(_item, offset, Color(0, 150, 225, 255), Font(0.8, Style::Bold), Vec2(1), Vec2(0.5, 0));
         offset.y += text->height() + margin;
         width = max(width, text->width());
         
@@ -339,11 +340,8 @@ void WorkProgress::update(gui::DrawStructure &base, gui::Section *section) {
             //Vec2 bar_offset(- bar_size.x * 0.5, size.y - bar_size.y - 10 - size.y * 0.5);
             Size2 bar_size(width, 30);
             
-            auto bar_bg = new Rect(Bounds(Vec2(0, offset.y), bar_size), Color(255, 255, 255, 100), Black.alpha(255));
-            bar_bg->set_origin(Vec2(0.5, 0));
-            base.advance(bar_bg);
-            auto bar = base.advance(new Rect(Bounds(Vec2(1, 1 + offset.y), Size2(bar_size.width * _percent-2, bar_size.height-2)), Color(255, 255, 255, 180)));
-            bar->set_origin(Vec2(0.5, 0));
+            base.add<Rect>(Bounds(Vec2(0, offset.y), bar_size), White.alpha(100), Black, Vec2(1), Vec2(0.5, 0));
+            auto bar = base.add<Rect>(Bounds(Vec2(1, 1 + offset.y), Size2(bar_size.width * _percent-2, bar_size.height-2)), White.alpha(180), White, Vec2(1), Vec2(0.5, 0));
             offset += Vec2(0, bar->height() + margin);
             width = max(width, bar->width());
         }
@@ -373,7 +371,7 @@ void WorkProgress::update(gui::DrawStructure &base, gui::Section *section) {
             if(custom_handler == -1) {
                 custom_handler = 1;
                 custom_static_button.on_click([this](auto){
-                    Debug("Custom item triggered");
+                    print("Custom item triggered");
                     this->custom_item();
                 });
             }

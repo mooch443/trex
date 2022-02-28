@@ -33,27 +33,24 @@ SplitBlob::SplitBlob(const Background& average, pv::BlobPtr blob)
             
             if(name == "blob_split_max_shrink") {
                 blob_split_max_shrink = value.value<float>();
-                Debug("blob_split_max_shrink = %f", blob_split_max_shrink);
+                print("blob_split_max_shrink = ", blob_split_max_shrink);
                 
             } else if(name == "blob_split_global_shrink_limit") {
                 blob_split_global_shrink_limit = value.value<float>();
-                Debug("blob_split_global_shrink_limit = %f", blob_split_global_shrink_limit);
+                print("blob_split_global_shrink_limit = ", blob_split_global_shrink_limit);
                 
             } else if(name == "cm_per_pixel") {
                 sqrcm = SQR(value.value<float>());
-                Debug("sqrcm = %f", sqrcm);
+                print("sqrcm = ", sqrcm);
                 
             } else if(name == "track_posture_threshold") {
                posture_threshold = value.value<int>();
-               Debug("track_posture_threshold = %d", posture_threshold);
+               print("track_posture_threshold = ", posture_threshold);
             }
             
             if(name == "blob_size_ranges" || name == "cm_per_pixel") {
                 fish_minmax = SETTING(blob_size_ranges).value<BlobSizeRange>();
-                //fish_minmax.start /= FAST_SETTINGS(cm_per_pixel);
-                //fish_minmax.end /= FAST_SETTINGS(cm_per_pixel);
-                auto str = Meta::toStr(fish_minmax);
-                Debug("blob_size_ranges = %S", &str);
+                print("blob_size_ranges = ", fish_minmax);
             }
         };
         GlobalSettings::map().register_callback(callback, fn);
@@ -66,7 +63,7 @@ SplitBlob::SplitBlob(const Background& average, pv::BlobPtr blob)
     }
     
 #if DEBUG_ME
-    Debug("SplitBlob(%d)", blob->blob_id());
+    print("SplitBlob(", blob->blob_id(),")");
 #endif
     
     imageFromLines(blob->hor_lines(), NULL, &_original_grey, &_original, blob->pixels().get(), posture_threshold, &average.image());
@@ -118,7 +115,7 @@ size_t SplitBlob::apply_threshold(int threshold, std::vector<pv::BlobPtr> &outpu
             samples = 1;
         }
         
-        Debug("Samples: %lu, timer1: %fms timer2: %fms ratio: %f", size_t(samples), timer1 / samples * 1000, timer2 / samples * 1000, ratio / samples);
+        print("Samples: ",size_t(samples),"u, timer1: ",timer1 / samples * 1000,"ms timer2: ",timer2 / samples * 1000,"ms ratio: ",ratio / samples);
     }
     
         return max_size;*/
@@ -160,7 +157,7 @@ SplitBlob::Action SplitBlob::evaluate_result_multiple(size_t presumed_nr, float 
         float fsize = float(blobs.at(0 + offset)->num_pixels()) * sqrcm;
         if(fsize < min_size_threshold || (first_size != 0 && fsize / first_size < blob_split_max_shrink / presumed_nr)) { //)) {
 #if DEBUG_ME
-            Debug("\tbreaking because fsize %f / %f / %f", fsize, min_size_threshold, first_size);
+            print("\tbreaking because fsize ", fsize," / ", min_size_threshold," / ",first_size);
 #endif
             break;
         }
@@ -205,7 +202,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr)
         calculations++;
         
 #if DEBUG_ME
-        Debug("T:%d", threshold);
+        print("T:", threshold);
 #endif
         float max_size = apply_threshold(threshold, blobs) * sqrcm;
         
@@ -240,7 +237,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr)
         // found at least two blobs now
         if(action == KEEP || action == KEEP_ABORT) {
 #if DEBUG_ME
-            Debug("Found %d blobs at threshold %d (expected %d)", blobs.size(), threshold, presumed_nr);
+            print("Found ", blobs.size()," blobs at threshold ", threshold," (expected ",presumed_nr,")");
 #endif
             
             result.blobs = blobs;
@@ -296,7 +293,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr)
                     after_two = true;
             }
 #if DEBUG_ME
-            Debug("Match: %d with ratio %f, %d blobs, %f percent", p.first, p.second.ratio, p.second.blobs.size(), percent);
+            print("Match: ",p.first," with ratio ",p.second.ratio,", ",p.second.blobs.size()," blobs, ",percent," percent");
 #endif
             if(percent > bestp) {
                 best = p.first;
@@ -306,18 +303,19 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr)
     }
     
 #if DEBUG_ME
-    Debug("%ld calculations in %.4fs", calculations, timer.elapsed());
+    print(calculations," calculations in ",dec<4>(timer.elapsed()),"s");
 #endif
     
     std::vector<pv::BlobPtr> result;
     if(best != INT_MIN) {
         result = { best_matches.at(best).blobs };
+        std::vector<uchar> grey;
         
         for (size_t idx = 0; idx < result.size(); idx++) {
             auto& blob = result.at(idx);
             
             if(!blob->pixels()) {
-                std::vector<uchar> grey;
+                grey.clear();
                 
                 for (auto h : blob->hor_lines()) {
                     for (int x=h.x0; x<=h.x1; x++) {
@@ -326,20 +324,20 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr)
                     }
                 }
                 
-                blob->set_pixels(std::make_shared<const std::vector<uchar>>(grey));
+                blob->set_pixels(std::make_unique<std::vector<uchar>>(std::move(grey)));
                 //result.pixels.push_back(grey);
             }
         }
         
         
 #if DEBUG_ME
-        Debug("Best result with threshold %d", best);
+        print("Best result with threshold ", best);
         display_match({best, best_matches.at(best).blobs});
 #endif
     } else {
 #if DEBUG_ME
         auto str = Meta::toStr(best_matches);
-        Warning("Not found %d objects. %S", presumed_nr, &str);
+        FormatWarning("Not found ", presumed_nr," objects. ",str);
         tf::imshow("original", _original);
         
         /*cv::Mat tmp;

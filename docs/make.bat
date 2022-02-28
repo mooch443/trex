@@ -4,11 +4,23 @@ pushd %~dp0
 
 REM Command file for Sphinx documentation
 
+set BUILD_TYPE=%1
+set SPHINX_PATH=%2
+set DOCS_PATH=%3
+set TREX_PATH=%4
+set TGRABS_PATH=%5
+
 if "%SPHINXBUILD%" == "" (
-	set SPHINXBUILD=%2/sphinx-build
+	set SPHINXBUILD=%SPHINX_PATH%/sphinx-build
 )
 set SOURCEDIR=.
 set BUILDDIR=_build
+
+echo "exec %TREX_PATH% -d %DOCS_PATH% -h rst"
+echo "exec %TGRABS_PATH% -d %DOCS_PATH% -h rst"
+
+"%TREX_PATH%" -d "%DOCS_PATH%" -h rst
+"%TGRABS_PATH%" -d "%DOCS_PATH%" -h rst
 
 if "%1" == "" goto help
 
@@ -25,7 +37,7 @@ if errorlevel 9009 (
 	exit /b 1
 )
 
-%SPHINXBUILD% -M %1 %SOURCEDIR% %BUILDDIR% %SPHINXOPTS% %O%
+%SPHINXBUILD% -M %BUILD_TYPE% %SOURCEDIR% %BUILDDIR% %SPHINXOPTS% %O%
 goto end
 
 :help

@@ -5,7 +5,7 @@ project(ProcessedVideo)
 if(APPLE)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
   set(CMAKE_XCODE_ATTRIBUTE_GCC_VERSION "com.apple.compilers.llvm.clang.1_0")
-  set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LANGUAGE_STANDARD "c++17")
+  set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LANGUAGE_STANDARD "c++20")
   set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LIBRARY "libc++")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -Wall")
 
@@ -59,11 +59,13 @@ endif()
 
 set_target_properties(pv
     PROPERTIES
-        CXX_STANDARD 17
+        CXX_STANDARD 20
         CXX_STANDARD_REQUIRED YES
         CXX_EXTENSIONS NO
 )
 
 add_subdirectory(lzo)
-target_link_libraries(pv PRIVATE lzo cnpy)
-add_dependencies(pv TRex::OpenCV)
+target_link_libraries(pv PUBLIC lzo cnpy commons)
+add_dependencies(pv commons)
+
+#target_precompile_headers(pv REUSE_FROM commons)

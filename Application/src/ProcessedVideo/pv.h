@@ -88,13 +88,13 @@ namespace pv {
         GETTER(uint16_t, n)
         GETTER_SETTER(float, loading_time)
         
-        GETTER(std::vector<std::shared_ptr<const std::vector<HorizontalLine>>>, mask)
-        GETTER(std::vector<std::shared_ptr<const std::vector<uchar>>>, pixels)
+        GETTER_NCONST(std::vector<std::unique_ptr<std::vector<HorizontalLine>>>, mask)
+        GETTER_NCONST(std::vector<std::unique_ptr<std::vector<uchar>>>, pixels)
         GETTER(std::vector<std::shared_ptr<pv::Blob>>, blobs)
         
     public:
         //! Initialize copy
-        Frame(const Frame& other);
+        //Frame(const Frame& other);
         Frame(Frame&& other);
         void operator=(const Frame& other);
         void operator=(Frame&& other);
@@ -125,11 +125,16 @@ namespace pv {
          * Adds a new object to this frame.
          * ! takes ownership of both arrays
          **/
-        void add_object(std::shared_ptr<const std::vector<HorizontalLine>> mask, std::shared_ptr<const std::vector<uchar>> pixels);
+        void add_object(blob::line_ptr_t&& mask, blob::pixel_ptr_t&& pixels);
+        void add_object(const std::vector<HorizontalLine>& mask, const std::vector<uchar>& pixels);
 
         uint64_t size() const;
         void clear();
         void serialize(DataPackage&, bool& compressed) const;
+        
+        std::string toStr() const {
+            return "pv::Frame<"+std::to_string(index())+">";
+        }
         
     protected:
         friend class File;
@@ -214,7 +219,7 @@ namespace pv {
 
     struct TaskSentinel;
     
-    class File : public Printable, public DataFormat, public GenericVideo {
+    class File : public DataFormat, public GenericVideo {
     protected:
         std::mutex _lock;
         Header _header;
@@ -249,7 +254,7 @@ namespace pv {
         std::vector<float> calculate_percentiles(const std::initializer_list<float>& percent);
         std::string get_info(bool full = true);
         std::string get_info_rich_text(bool full = true);
-        void print_info() { auto info = get_info(); Debug("%S", &info); }
+        void print_info() { print(get_info()); }
         
         virtual CropOffsets crop_offsets() const override {
             return _header.offsets;
@@ -259,7 +264,7 @@ namespace pv {
             _header.offsets = offsets;
         }
         
-        void add_individual(const Frame& frame);
+        void add_individual(Frame&& frame);
         void add_individual(const Frame& frame, DataPackage& pack, bool compressed);
         
         void read_frame(Frame& frame, uint64_t frameIndex);
@@ -270,7 +275,7 @@ namespace pv {
         void set_average(const cv::Mat& average) {
             if(average.type() != CV_8UC1) {
                 auto str = getImgType(average.type());
-                U_EXCEPTION("Average image is of type '%S' != 'CV_8UC1'.", &str);
+                throw U_EXCEPTION("Average image is of type ",str," != 'CV_8UC1'.");
             }
             
             if(!_header.resolution.width && !_header.resolution.height) {
@@ -278,7 +283,7 @@ namespace pv {
                 _header.resolution.height = average.rows;
             }
             else if(average.cols != _header.resolution.width || average.rows != _header.resolution.height) {
-                U_EXCEPTION("Average image is of size %dx%d but has to be %dx%d", average.cols, average.rows, _header.resolution.width, _header.resolution.height);
+                throw U_EXCEPTION("Average image is of size ",average.cols,"x",average.rows," but has to be ",_header.resolution.width,"x",_header.resolution.height,"");
             }
             
             if(_header.average)
@@ -323,14 +328,16 @@ namespace pv {
         virtual bool has_timestamps() const override {
             return true;
         }
-        virtual uint64_t timestamp(uint64_t) const override;
-        virtual uint64_t start_timestamp() const override;
+        virtual timestamp_t timestamp(uint64_t) const override;
+        virtual timestamp_t start_timestamp() const override;
         virtual short framerate() const override;
         double generate_average_tdelta();
         
-        UTILS_TOSTRING("pv::File<V" << _header.version+1 << ", " << filesize() << ", '" << filename() << "', " << _header.resolution << ", " << _header.num_frames << " frames, "<< (_header.mask ? "with mask" : "no mask") << ">");
+        std::string summary() const {
+            return "pv::File<V" + Meta::toStr(_header.version+1) + ", " + Meta::toStr(filesize()) + ", '" + Meta::toStr(filename()) + "', " + Meta::toStr(_header.resolution) + ", " + Meta::toStr(_header.num_frames) + " frames, " + (_header.mask ? "with mask" : "no mask") + ">";
+        }
         
-        operator cmn::MetaObject() const;
+        std::string toStr() const;
         static std::string class_name() {
             return "pv::File";
         }

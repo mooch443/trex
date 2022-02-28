@@ -115,7 +115,7 @@ Httpd::Response HttpGui::page(const std::string &url) {
         GUI::background_image().get().copyTo(image);
         
     } /*else {
-        Error("URL does not exist '%S'", &url);
+        FormatError("URL does not exist ",url);
         std::string str = "URL does not exist.";
         std::vector<uchar> bytes(str.begin(), str.end());
         return Httpd::Response(bytes, "text/html");

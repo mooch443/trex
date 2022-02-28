@@ -12,12 +12,11 @@ elif [[ "$OSTYPE" == "darwin"* ]]; then
     echo "MacOS";
 else 
     echo "Windows: ${WPWD}"
-    if ! which wslpath; then
+    if ! [ -f ./wslpath ]; then
         echo "Cannot find wslpath. Downloading..."
-        chmod u+x wslpath
-        WPWD=$(./wslpath -w ${WPWD})
+        WPWD=$(python wslpath -w ${WPWD})
     else
-        WPWD=$(wslpath -w ${WPWD})
+        WPWD=$(python wslpath -w ${WPWD})
     fi
 fi
 
@@ -95,6 +94,7 @@ for MODE in ${MODES}; do
     fi
 
     rm -rf ${PWD}/corrected/data
+    rm -f ${PWD}/corrected/test.settings
 done
 
 exit ${exit_code}

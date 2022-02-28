@@ -13,7 +13,10 @@ namespace gui {
     SimpleBlob::SimpleBlob(std::unique_ptr<ExternalImage>&& available, pv::BlobPtr b, int t)
         : blob(b), threshold(t), ptr(std::move(available))
     {
-        
+        assert(ptr);
+        if (!ptr->source()) {
+            ptr->set_source(Image::Make());
+        }
     }
 
     GUICache::~GUICache() {
@@ -24,40 +27,23 @@ namespace gui {
         }
     }
     
-    std::unique_ptr<ExternalImage> SimpleBlob::convert() {
-        //static Timing timing("simpleblob", 10);
-        //TakeTiming take(timing);
+    void SimpleBlob::convert() {
         Vec2 image_pos;
-        Image::UPtr image;
         
         auto &percentiles = GUI::cache().pixel_value_percentiles;
-        if(GUI::cache()._equalize_histograms && !percentiles.empty()) {
-            auto && [pos, img] = blob->equalized_luminance_alpha_image(*Tracker::instance()->background(), threshold, percentiles.front(), percentiles.back());
-            image_pos = pos;
-            image = std::move(img);
+        if (GUI::cache()._equalize_histograms && !percentiles.empty()) {
+            image_pos = blob->equalized_luminance_alpha_image(*Tracker::instance()->background(), threshold, percentiles.front(), percentiles.back(), ptr->unsafe_get_source());
         } else {
-            auto && [pos, img] = blob->luminance_alpha_image(*Tracker::instance()->background(), threshold);
-            image_pos = pos;
-            image = std::move(img);
+            image_pos = blob->luminance_alpha_image(*Tracker::instance()->background(), threshold, ptr->unsafe_get_source());
         }
+
+        ptr->set_pos(image_pos);
+        ptr->updated_source();
         
-        //e->update_with(*image);
-        if(!ptr)
-            ptr = std::make_unique<ExternalImage>(std::move(image), image_pos);
-        else {
-            ptr->update_with(*image);
-            ptr->set_pos(image_pos);
-        }
-        
-        ptr->add_custom_data("blob_id", (void*)(uint64_t)blob->blob_id());
+        ptr->add_custom_data("blob_id", (void*)(uint64_t)(uint32_t)blob->blob_id());
         if(ptr->name().empty())
             ptr->set_name("SimpleBlob_"+Meta::toStr(blob->blob_id()));
-        return std::move(ptr);
     }
-    
-    GUICache::GUICache()
-        : last_threshold(-1), last_frame(-1), _dirty(true), _equalize_histograms(true), _blobs_dirty(false), _raw_blobs_dirty(false), _mode(mode_t::tracking), _zoom_level(1),  _tracking_dirty(false), recognition_updated(false)
-    {}
     
     bool GUICache::has_selection() const {
         return !selected.empty() && individuals.count(selected.front()) != 0;
@@ -165,7 +151,7 @@ namespace gui {
         return false;
     }
     
-    void GUICache::update_data(long_t frameIndex) {
+    void GUICache::update_data(Frame_t frameIndex) {
         const auto threshold = FAST_SETTINGS(track_threshold);
         auto& _tracker = *Tracker::instance();
         auto& _gui = GUI::instance()->gui();
@@ -220,7 +206,7 @@ namespace gui {
             active_ids.clear();
             fish_selected_blobs.clear();
             inactive_estimates.clear();
-            tracked_frames = Rangel(_tracker.start_frame(), _tracker.end_frame());
+            tracked_frames = Range<Frame_t>(_tracker.start_frame(), _tracker.end_frame());
             
             auto delete_callback = [this](Individual* fish) {
                 if(!GUI::instance())
@@ -270,8 +256,8 @@ namespace gui {
             }
             
             auto connectivity_map = SETTING(gui_connectivity_matrix).value<std::map<long_t, std::vector<float>>>();
-            if(connectivity_map.count(frameIndex))
-                connectivity_matrix = connectivity_map.at(frameIndex);
+            if(connectivity_map.count(frameIndex.get()))
+                connectivity_matrix = connectivity_map.at(frameIndex.get());
             else
                 connectivity_matrix.clear();
             
@@ -293,7 +279,7 @@ namespace gui {
                     active_blobs.clear();
                     active_ids.clear();
                     inactive_ids.clear();
-                    last_frame = -1;
+                    last_frame.invalidate();
                     selected.clear();
                 });
             }
@@ -349,42 +335,31 @@ namespace gui {
             if(something_important_changed && mode() == mode_t::tracking)
                 set_tracking_dirty();
             
-            //if(something_important_changed)
-            //    set_raw_blobs_dirty();
-            //set_blobs_dirty();
-            //automatic_assignments = Tracker::blob_automatically_assigned(frameIndex);
-            
             bool reload_blobs = frameIndex != last_frame || last_threshold != threshold;
             if(reload_blobs) {
                 processed_frame.frame().clear();
                 processed_frame.clear();
                 
-                if(frameIndex >= 0) {
+                if(frameIndex.valid()) {
                     Tracker::set_of_individuals_t prev_active;
-                    if(_tracker.properties(frameIndex-1))
-                        prev_active = _tracker.active_individuals(frameIndex-1);
+                    if(_tracker.properties(frameIndex - 1_f))
+                        prev_active = _tracker.active_individuals(frameIndex - 1_f);
                     
                     try {
                         auto file = static_cast<pv::File*>(GUI::instance()->video_source());
-                        file->read_frame(processed_frame.frame(), (size_t)frameIndex);
+                        file->read_frame(processed_frame.frame(), frameIndex.get());
                         
                         std::lock_guard<std::mutex> guard(GUI::instance()->blob_thread_pool_mutex());
                         Tracker::instance()->preprocess_frame(processed_frame, prev_active, &GUI::instance()->blob_thread_pool());
                         
-                    } catch(const UtilsException& e) {
-                        Except("Frame %d cannot be loaded from file.", frameIndex);
+                    } catch(const UtilsException&) {
+                        FormatExcept("Frame ", frameIndex," cannot be loaded from file.");
                     }
                 }
                 
-                raw_blobs.clear();
-                display_blobs.clear();
-                
-                std::move(display_blobs_list.begin(), display_blobs_list.end(), std::back_inserter(available_blobs_list));
-                //std::reverse(available_blobs_list.begin(), available_blobs_list.end());
-                
-                //Debug("Size: %lu", available_blobs_list.size());
-                
-                display_blobs_list.clear();
+                /*display_blobs.clear();
+                std::move(raw_blobs.begin(), raw_blobs.end(), std::back_inserter(available_blobs_list));
+                raw_blobs.clear();*/
                 
                 probabilities.clear();
                 checked_probs.clear();
@@ -405,8 +380,21 @@ namespace gui {
             const bool nothing_to_zoom_on = !has_selection() || (inactive_estimates.empty() && selected_blobs.empty());
             
             _num_pixels = 0;
+            auto L = processed_frame.blobs().size() + processed_frame.noise().size();
             
-            for (size_t i=0; i<processed_frame.blobs().size(); i++) {
+            if(reload_blobs) {
+                display_blobs.clear();
+                if(L < raw_blobs.size()) {
+                    std::move(raw_blobs.begin() + L, raw_blobs.end(), std::back_inserter(available_blobs_list));
+                    raw_blobs.erase(raw_blobs.begin() + L, raw_blobs.end());
+                    
+                } else if(L != raw_blobs.size()) {
+                    raw_blobs.reserve(L);
+                }
+            }
+            
+            size_t i = 0;
+            for (; i<processed_frame.blobs().size(); i++) {
                 auto& blob = processed_frame.blobs().at(i);
                 
                 if(nothing_to_zoom_on || selected_blobs.find(blob->blob_id()) != selected_blobs.end())
@@ -418,13 +406,24 @@ namespace gui {
                 _num_pixels += size_t(blob->bounds().width * blob->bounds().height);
                 
                 if(reload_blobs) {
-                    std::unique_ptr<gui::ExternalImage> ptr;
-                    if(!available_blobs_list.empty()) {
-                        ptr = std::move(available_blobs_list.back());
-                        available_blobs_list.pop_back();
+                    if(i < raw_blobs.size()) {
+                        auto &obj = raw_blobs[i];
+                        obj->blob = blob;
+                        obj->threshold = threshold;
+                        
+                    } else {
+                        std::unique_ptr<SimpleBlob> ptr;
+                        if(!available_blobs_list.empty()) {
+                            ptr = std::move(available_blobs_list.back());
+                            available_blobs_list.pop_back();
+                            
+                            ptr->blob = blob;
+                            ptr->threshold = threshold;
+                        } else
+                            ptr = std::make_unique<SimpleBlob>(std::make_unique<ExternalImage>(), blob, threshold);
+                        
+                        raw_blobs.emplace_back(std::move(ptr));
                     }
-                    
-                    raw_blobs.push_back(std::make_shared<SimpleBlob>(std::move(ptr), blob, threshold));
                 }
             }
             
@@ -439,14 +438,27 @@ namespace gui {
                 }
                 
                 if(reload_blobs) {
-                    std::unique_ptr<gui::ExternalImage> ptr;
-                    if(!available_blobs_list.empty()) {
-                        ptr = std::move(available_blobs_list.back());
-                        available_blobs_list.pop_back();
+                    if(i < raw_blobs.size()) {
+                        auto &obj = raw_blobs[i];
+                        obj->blob = blob;
+                        obj->threshold = threshold;
+                        
+                    } else {
+                        std::unique_ptr<SimpleBlob> ptr;
+                        if(!available_blobs_list.empty()) {
+                            ptr = std::move(available_blobs_list.back());
+                            available_blobs_list.pop_back();
+                            
+                            ptr->blob = blob;
+                            ptr->threshold = threshold;
+                        } else
+                            ptr = std::make_unique<SimpleBlob>(std::make_unique<ExternalImage>(), blob, threshold);
+                        
+                        raw_blobs.emplace_back(std::move(ptr));
                     }
-                    
-                    raw_blobs.push_back(std::make_shared<SimpleBlob>(std::move(ptr), blob, threshold));
                 }
+                
+                ++i;
             }
             
             if(reload_blobs) {
@@ -458,8 +470,7 @@ namespace gui {
                         _ranged_blob_labels[b->blob->blob_id()] = label->id;
                 }
                 
-                display_blobs.clear();
-                display_blobs_list.clear();
+                //display_blobs_list.clear();
                 
                 /*std::vector<std::set<uint32_t>> cliques;
                 for(auto &[bdx, clique] : processed_frame.blob_cliques) {
@@ -501,7 +512,7 @@ namespace gui {
                     obj->remove_delete_handler(handle);
                     
                 } else
-                    Error("Cannot find delete handler in GUICache. Something went wrong?");
+                    FormatError("Cannot find delete handler in GUICache. Something went wrong?");
                 _animators.erase(it);
             }
         }
@@ -515,7 +526,7 @@ namespace gui {
         return probs(fdx) != nullptr;
     }
 
-    const std::map<uint32_t, Individual::Probability>* GUICache::probs(Idx_t fdx) {
+    const ska::bytell_hash_map<pv::bid, Individual::Probability>* GUICache::probs(Idx_t fdx) {
         if(checked_probs.find(fdx) != checked_probs.end()) {
             auto it = probabilities.find(fdx);
             if(it  != probabilities.end())
@@ -530,8 +541,12 @@ namespace gui {
             auto c = processed_frame.cached(fdx);
             if(c) {
                 for(auto& blob : processed_frame.blobs()) {
-                    auto p = individuals.count(fdx) ? individuals.at(fdx)->probability(processed_frame.label(blob), *c, frame_idx, blob) : Individual::Probability{0,0,0,0};
-                    if(p.p >= FAST_SETTINGS(matching_probability_threshold))
+                    auto it = individuals.find(fdx);
+                    if(it == individuals.end() || it->second->empty() || frame_idx < it->second->start_frame())
+                        continue;
+                    
+                    auto p = individuals.at(fdx)->probability(processed_frame.label(blob), *c, frame_idx, blob);
+                    if(p/*.p*/ >= FAST_SETTINGS(matching_probability_threshold))
                         probabilities[c->_idx][blob->blob_id()] = p;
                 }
             }

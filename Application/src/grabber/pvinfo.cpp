@@ -26,12 +26,12 @@ int main(int argc, char**argv) {
 #ifdef NDEBUG
     cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_ERROR);
 #endif
-    DEBUG::set_runtime_quiet();
+    set_runtime_quiet(true);
     
-    auto OS_ACTIVITY_DT_MODE = getenv("OS_ACTIVITY_DT_MODE");
 #ifndef NDEBUG
+    auto OS_ACTIVITY_DT_MODE = getenv("OS_ACTIVITY_DT_MODE");
     if(OS_ACTIVITY_DT_MODE) {
-        Debug("OS_ACTIVITY_DT_MODE: %s", OS_ACTIVITY_DT_MODE);
+        print("OS_ACTIVITY_DT_MODE: ", OS_ACTIVITY_DT_MODE);
     }
 #endif
     //SETTING(quiet) = true;
@@ -45,7 +45,7 @@ int main(int argc, char**argv) {
     size_t step_x = (grid.root()->x().length()-1); // 1000;
     size_t step_y = (grid.root()->y().length()-1); // 1000;
     
-    Debug("Step: %lu %lu", step_x, step_y);
+    print("Step: ", step_x," ",step_y);
     for(size_t i=0; i<1000000; ++i) {
         points.push_back({
             //long_t(float(rand())/float(RAND_MAX) * 20000),
@@ -68,7 +68,7 @@ int main(int argc, char**argv) {
         });
     }
     
-    Debug("Adding %lu data points.", points.size());
+    print("Adding ", points.size()," data points.");
     
     for(size_t k = 0; k < 1000; ++k) {
         DebugHeader("RUN %d", k);
@@ -76,20 +76,19 @@ int main(int argc, char**argv) {
         
         Timer timer;
         grid.fill(points);
-        Debug("Took %fms to fill.", timer.elapsed() * 1000);
+        print("Took ", timer.elapsed() * 1000,"ms to fill.");
         
         timer.reset();
         
         double average = 0;
         size_t counted = 0;
         grid.root()->apply([&counted, &average](auto& pt) -> bool {
-            //Debug("%f,%f = %f", pt.x, pt.y, pt.value);
             average += pt.value;
             ++counted;
             return true;
         });
         
-        Debug("Took %fms to traverse (returned %lu datapoints, %f average).", timer.elapsed() * 1000, counted, average / double(counted));
+        print("Took ", timer.elapsed() * 1000,"ms to traverse (returned ", counted," datapoints, ",average / double(counted)," average).");
         
         counted = 0;
         average = 0;
@@ -97,26 +96,24 @@ int main(int argc, char**argv) {
         
         timer.reset();
         grid.root()->apply([&counted, &average](auto& pt) -> bool {
-            //Debug("%f,%f = %f", pt.x, pt.y, pt.value);
             average += pt.value;
             ++counted;
             return true;
         }, range, Range<uint32_t>(0, 150), Range<uint32_t>(150, 300));
         
-        Debug("Took %fms to traverse %lu datapoints for frame range %d-%d and 150px ranges (average: %f)", timer.elapsed() * 1000, counted, range.start, range.end, average / double(counted));
+        print("Took ",timer.elapsed() * 1000,"ms to traverse ",counted," datapoints for frame range ",range.start,"-",range.end," and 150px ranges (average: ",average / double(counted),")");
         
         counted = 0;
         average = 0;
         
         timer.reset();
         grid.root()->apply([&counted, &average](auto& pt) -> bool {
-            //Debug("%f,%f = %f", pt.x, pt.y, pt.value);
             average += pt.value;
             ++counted;
             return true;
         }, range);
         
-        Debug("Took %fms to traverse %lu datapoints for frame range %d-%d (average: %f)", timer.elapsed() * 1000, counted, range.start, range.end, average / double(counted));
+        print("Took ",timer.elapsed() * 1000,"ms to traverse ",counted," datapoints for frame range ",range.start,"-",range.end," (average: ",average / double(counted),")");
         
         uint32_t resolution = 15;
         uint32_t step_size = uint32_t(double(grid.root()->x().length() + 0.5) / double(resolution));
@@ -127,7 +124,6 @@ int main(int argc, char**argv) {
             for(uint32_t cy = 0; cy < resolution; ++cy) {
                 pool.enqueue([&counter, &range, step_size, &grid](uint32_t cx, uint32_t cy){
                     grid.root()->apply([&](auto& pt) -> bool {
-                        //Debug("%f,%f = %f", pt.x, pt.y, pt.value);
                         //average += pt.value;
                         ++counter;
                         return true;
@@ -142,17 +138,16 @@ int main(int argc, char**argv) {
         
         pool.wait();
         
-        Debug("Took %fms to traverse %lu datapoints for frame range %d-%d (average: %f) as cells", timer.elapsed() * 1000, counted, range.start, range.end, average / double(counted));
+        print("Took ",timer.elapsed() * 1000,"ms to traverse ",counted," datapoints for frame range ",range.start,"-",range.end," (average: ",average / double(counted),") as cells");
         
         timer.reset();
         auto removed = grid.erase(Range<long_t>(100,125));
-        Debug("Removing %lu items took %fms (grid now has %lu points)", removed, timer.elapsed() * 1000, grid.size());
+        print("Removing ", removed," items took ", timer.elapsed() * 1000,"ms (grid now has ",grid.size()," points)");
         
         timer.reset();
         grid.fill(extra_points);
-        Debug("Inserting %lu extra points took %fms (grid now has %lu points)", extra_points.size(), timer.elapsed() * 1000, grid.size());
+        print("Inserting ", extra_points.size()," extra points took ", timer.elapsed() * 1000,"ms (grid now has ",grid.size()," points)");
         //auto str = Meta::toStr(cells);
-        //Debug("Cells: %S", &str);
         
         counted = 0;
         average = 0;
@@ -164,16 +159,16 @@ int main(int argc, char**argv) {
             return true;
         }, Range<long_t>(20500,22000));
         
-        Debug("Took %fms to traverse %lu datapoints for frame range 20500-22000 (average: %f)", timer.elapsed() * 1000, counted, average / double(counted));
+        print("Took ", timer.elapsed() * 1000,"ms to traverse ", counted," datapoints for frame range 20500-22000 (average: ",average / double(counted),")");
         
         removed = grid.erase(Range<long_t>(21000,21001));
-        Debug("Removing %lu items took %fms (grid now has %lu points)", removed, timer.elapsed() * 1000, grid.size());
+        print("Removing ", removed," items took ", timer.elapsed() * 1000,"ms (grid now has ",grid.size()," points)");
     }
     
     exit(0);*/
     
     if(argc < 2)
-        U_EXCEPTION("Please specify a filename.");
+        throw U_EXCEPTION("Please specify a filename.");
     
     //SETTING(filename) = std::string(argv[argc-1]);
     SETTING(crop_offsets) = CropOffsets();
@@ -217,14 +212,13 @@ int main(int argc, char**argv) {
     if(!conda_prefix.empty()) {
         file::Path _wd(conda_prefix);
         _wd = _wd / "usr" / "share" / "trex";
-        //Debug("change directory to conda environment resource folder: '%S'", &_wd.str());
         
 #if defined(WIN32)
         if (!SetCurrentDirectoryA(_wd.c_str()))
 #else
         if (chdir(_wd.c_str()))
 #endif
-            Except("Cannot change directory to '%S'", &_wd.str());
+            FormatExcept("Cannot change directory to ",_wd.str(),"");
     }
 #endif
     
@@ -245,16 +239,16 @@ int main(int argc, char**argv) {
                 case Arguments::opencv_ffmpeg_support: {
                     std::string str = cv::getBuildInformation();
                     std::string line = "";
-                    Debug("%S", &str);
+                    print(str);
                     
                     for(size_t i=0; i<str.length(); ++i) {
                         if(str[i] == '\n') {
                             if(utils::contains(line, "FFMPEG:")) {
                                 if(utils::contains(line, "YES")) {
-                                    Debug("Has FFMPEG support.");
+                                    print("Has FFMPEG support.");
                                     return 0;
                                 } else {
-                                    Debug("Does not have FFMPEG support.");
+                                    print("Does not have FFMPEG support.");
                                 }
                             }
                             
@@ -270,16 +264,16 @@ int main(int argc, char**argv) {
                 case Arguments::opencv_opencl_support: {
                     std::string str = cv::getBuildInformation();
                     std::string line = "";
-                    Debug("%S", &str);
+                    print(str);
                     
                     for(size_t i=0; i<str.length(); ++i) {
                         if(str[i] == '\n') {
                             if(utils::contains(line, "OpenCL:")) {
                                 if(utils::contains(line, "YES")) {
-                                    Debug("Has OpenCL support.");
+                                    print("Has OpenCL support.");
                                     return 0;
                                 } else {
-                                    Debug("Does not have OpenCL support.");
+                                    print("Does not have OpenCL support.");
                                 }
                             }
                             
@@ -301,7 +295,7 @@ int main(int argc, char**argv) {
                         
                         auto parts = utils::split(option.value, '*');
                         file::Path folder = pv::DataLocation::parse("input", file::Path(option.value).remove_filename());
-                        Debug("Scanning pattern '%S' in folder '%S'...", &option.value, &folder.str());
+                        print("Scanning pattern ",option.value," in folder ",folder.str(),"...");
                         
                         for(auto &file: folder.find_files("pv")) {
                             if(!file.is_regular())
@@ -339,9 +333,9 @@ int main(int argc, char**argv) {
                             
                         } else if(found.size() > 1) {
                             auto str = Meta::toStr(found);
-                            Debug("Found too many files matching the pattern '%S': %S.", &option.value, &str);
+                            print("Found too many files matching the pattern ",option.value,": ",str,".");
                         } else
-                            Debug("No files found that match the pattern '%S'.", &option.value);
+                            print("No files found that match the pattern ", option.value,".");
                     }
                     
                     if(path.has_extension()) {
@@ -353,7 +347,7 @@ int main(int argc, char**argv) {
                                 SETTING(filename) = path.remove_extension();
                                 break;
                             } else
-                                U_EXCEPTION("Cannot find results file '%S'. (%d)", &path.str());
+                                throw U_EXCEPTION("Cannot find results file ",path.str(),". (%d)");
                         }
                     }
                     
@@ -361,7 +355,7 @@ int main(int argc, char**argv) {
                         path = path.add_extension("pv");
                     
                     if(!path.exists())
-                        U_EXCEPTION("Cannot find video file '%S'. (%d)", &path.str(), path.exists());
+                        throw U_EXCEPTION("Cannot find video file '",path.str(),"'. (",path.exists(),")");
                     
                     SETTING(filename) = path.remove_extension();
                     break;
@@ -419,7 +413,7 @@ int main(int argc, char**argv) {
                     break;
                     
                 default:
-                    Warning("Unknown option '%s' with value '%s'", option.name.c_str(), !option.value.empty() ? option.value.c_str() : "");
+                    FormatWarning("Unknown option '", option.name.c_str(),"' with value '",!option.value.empty() ? option.value.c_str() : "","'");
                     break;
             }
             
@@ -434,7 +428,6 @@ int main(int argc, char**argv) {
                     if(GlobalSettings::map().has(command) && GlobalSettings::get(command).is_type<bool>() && (!value || std::string(value).empty())) {
                         value = "true";
                     }
-                    //Debug("Setting option '%s' to value '%s'", command, value);
                 
                     if(value)
                         sprite::parse_values(GlobalSettings::map(), "{'"+std::string(command)+"':"+std::string(value)+"}");
@@ -460,7 +453,7 @@ int main(int argc, char**argv) {
     
     file::Path input = SETTING(filename).value<file::Path>();
     //if(!input.exists())
-    //    U_EXCEPTION("Cannot find file '%S'.", &input.str());
+    //    throw U_EXCEPTION("Cannot find file ",input.str(),".");
     
     if(SETTING(is_video)) {
         pv::File video(input);
@@ -504,7 +497,7 @@ int main(int argc, char**argv) {
         
         SETTING(video_size) = Size2(average.cols, average.rows);
         SETTING(video_mask) = video.has_mask();
-        SETTING(video_length) = size_t(video.length());
+        SETTING(video_length) = uint64_t(video.length());
         
         auto output_settings = pv::DataLocation::parse("output_settings");
         if(output_settings.exists() && output_settings != settings_file) {
@@ -525,7 +518,7 @@ int main(int argc, char**argv) {
         
         if(SETTING(frame_rate).value<int>() == 0) {
             if(!SETTING(quiet))
-                Warning("frame_rate == 0, calculating from frame tdeltas.");
+                FormatWarning("frame_rate == 0, calculating from frame tdeltas.");
             video.generate_average_tdelta();
             SETTING(frame_rate) = max(1, int(video.framerate()));
         }
@@ -538,7 +531,7 @@ int main(int argc, char**argv) {
             results.load([be_quiet](const std::string& title, float percent, const std::string& text){
                 if(!text.empty() && (int)round(percent * 100) % 10 == 0) {
                     if(!be_quiet)
-                        Debug("[%S] %S", &title, &text);
+                        print("[",title,"] ",text);
                 }
             });
             
@@ -546,7 +539,6 @@ int main(int argc, char**argv) {
             
             long_t frame = track::Tracker::start_frame();
             for(; frame < track::Tracker::end_frame(); ++frame) {
-                //Debug("Showing %d", frame);
                 svenja.set_frame(frame);
             }
             
@@ -560,7 +552,7 @@ int main(int argc, char**argv) {
             auto filename = file::Path(pv::DataLocation::parse("output_settings").str() + ".auto");
             
             if(filename.exists() && !be_quiet)
-                Warning("Overwriting file '%S'.", &filename.str());
+                print("Overwriting file ",filename.str(),".");
             
             FILE *f = fopen(filename.str().c_str(), "wb");
             if(f) {
@@ -568,10 +560,10 @@ int main(int argc, char**argv) {
                 fclose(f);
                 
                 if(!be_quiet)
-                    Debug("Written settings file '%S'.", &filename.str());
+                    print("Written settings file ", filename.str(),".");
             } else {
                 if(!be_quiet)
-                    Except("Dont have write permissions for file '%S'.", &filename.str());
+                    FormatExcept("Dont have write permissions for file ",filename.str(),".");
             }
         }
         
@@ -599,7 +591,6 @@ int main(int argc, char**argv) {
                     double blob_size = frame.pixels().at(i)->size();
                     max_pixels.addNumber(blob_size);
                     
-                    //Debug("%d", frame.pixels().at(i)->size());
                     //map(blob.bounds()) += 1;
                     for (auto &h : *frame.mask().at(i)) {
                         for (ushort x = h.x0; x<=h.x1; ++x) {
@@ -611,12 +602,12 @@ int main(int argc, char**argv) {
                 }
                 
                 if (idx % 1000 == 0) {
-                    Debug("Frame %lu / %lu...", idx, video.length());
+                    print("Frame ", idx," / ",video.length(),"...");
                 }
             }
             
             auto mval = *std::max_element(grid.begin(), grid.end());
-            Debug("Max %f", mval);
+            print("Max ", mval);
             
             for (uint32_t x=0; x<width; x++) {
                 for (uint32_t y=0; y<width; y++) {
@@ -640,7 +631,7 @@ int main(int argc, char**argv) {
         if(save_background) {
             file::Path file = input.remove_filename() / "background.png";
             cv::imwrite(file.str(), video.average());
-            Debug("Saved average image to '%S'", &file);
+            print("Saved average image to ",file);
         }
         
         if(!SETTING(replace_background).value<file::Path>().empty()) {
@@ -656,7 +647,7 @@ int main(int argc, char**argv) {
             if(mat.cols != video.header().resolution.width
                || mat.rows != video.header().resolution.height)
             {
-                U_EXCEPTION("Image at '%S' is not of compatible resolution (%dx%d / %dx%d)", &SETTING(replace_background).value<file::Path>(), mat.cols, mat.rows, video.header().resolution.width, video.header().resolution.height);
+                throw U_EXCEPTION("Image at ",SETTING(replace_background).value<file::Path>()," is not of compatible resolution (",mat.cols,"x",mat.rows," / ",video.header().resolution.width,"x",video.header().resolution.height,")");
             } else {
                 using namespace pv;
                 video.close();
@@ -666,7 +657,7 @@ int main(int argc, char**argv) {
                 video.close();
                 video.start_reading();
                 
-                Debug("Written new average image.");
+                print("Written new average image.");
             }
         }
         
@@ -674,9 +665,9 @@ int main(int argc, char**argv) {
             using namespace pv;
 
             if(video.length() != 0) {
-                Error("The videos index cannot be repaired because it doesnt seem to be broken.");
+                FormatError("The videos index cannot be repaired because it doesnt seem to be broken.");
             } else {
-                Debug("Starting file copy and fix ('%S')...", &video.filename());
+                print("Starting file copy and fix (",video.filename(),")...");
 
                 File copy(video.filename().remove_extension().str()+"_fix.pv");
                 copy.set_resolution(video.header().resolution);
@@ -695,20 +686,20 @@ int main(int argc, char**argv) {
                     try {
                         frame.read_from(video, idx);
                     } catch(const UtilsException& e) {
-                        Debug("Breaking after %d frames.", idx);
+                        print("Breaking after ", idx," frames.");
                         break;
                     }
 
-                    copy.add_individual(frame);
+                    copy.add_individual(std::move(frame));
 
                     if (idx % 1000 == 0) {
-                        Debug("Frame %lu / %lu (%.2f%% compression ratio)...", idx, video.length(), copy.compression_ratio()*100);
+                        print("Frame ",idx," / ",video.length()," (",dec<2>(copy.compression_ratio()*100),"% compression ratio)...");
                     }
                 }
 
                 copy.stop_writing();
 
-                Debug("Written fixed video.");
+                print("Written fixed video.");
             }
         }
         
@@ -750,9 +741,11 @@ int main(int argc, char**argv) {
             //if(average.cols == video.size().width && average.rows == video.size().height)
             //    video.processImage(average, average);
         
-            Debug("Displaying average image...");
+#if !defined(__EMSCRIPTEN__)
+            print("Displaying average image...");
             cv::imshow("average", average);
             cv::waitKey();
+#endif
         }
         
         if(GlobalSettings::map().has("output_fps")) {
@@ -764,26 +757,26 @@ int main(int argc, char**argv) {
             
             Timer timer;
             
-            uint64_t prev_timestamp;
+            timestamp_t prev_timestamp;
             for (size_t i=0; i<video.length(); i++) {
                 video.read_frame(frame, i);
                 
                 if(i==0)
                     prev_timestamp = frame.timestamp();
                 
-                std::string str = ""+std::to_string(frame.timestamp())+","+std::to_string(frame.timestamp()-prev_timestamp)+"\n";
+                std::string str = ""+timestamp_t(frame.timestamp()).toStr()+","+(timestamp_t(frame.timestamp())-prev_timestamp).toStr()+"\n";
                 
                 fwrite(str.data(), 1, str.length(), f);
                 prev_timestamp = frame.timestamp();
                 
                 if(i%1000 == 0) {
-                    Debug("Frame %lu/%lu", i, video.length());
+                    print("Frame ", i,"/",video.length());
                 }
             }
             
             fclose(f);
             
-            Debug("Elapsed: %fs", timer.elapsed());
+            print("Elapsed: ", timer.elapsed(),"s");
         }
         
         if(SETTING(blob_detail)) {
@@ -812,11 +805,11 @@ int main(int argc, char**argv) {
                 overall += bytes;
                 
                 if(i%size_t(video.length()*0.1) == 0) {
-                    Debug("Frame %lu/%lu", i, video.length());
+                    print("Frame ", i,"/",video.length());
                 }
             }
             
-            Debug("Finding blobs...");
+            print("Finding blobs...");
             Median<size_t> blobs_per_frame;
             size_t pixels_median_value = pixels_median.getValue();
             for (size_t i=0; i<video.length(); i++) {
@@ -832,13 +825,13 @@ int main(int argc, char**argv) {
                 blobs_per_frame.addNumber(this_frame);
                 
                 if(i%size_t(video.length()*0.1) == 0) {
-                    Debug("Frame %lu/%lu", i, video.length());
+                    print("Frame ", i,"/",video.length());
                 }
             }
             
-            Debug("%lu bytes (%.2fMB) of blob data", overall, double(overall) / 1000.0 / 1000.0);
-            Debug("Images average at %f px / blob and the range is [%d-%d] with a median of %d.", double(pixels_per_blob) / double(pixels_samples), min_pixels, max_pixels, pixels_median.getValue());
-            Debug("There are %d blobs in each frame (median).", blobs_per_frame.getValue());
+            print(overall," bytes (",dec<2>(double(overall) / 1000.0 / 1000.0),"MB) of blob data");
+            print("Images average at ",double(pixels_per_blob) / double(pixels_samples)," px / blob and the range is [",min_pixels,"-",max_pixels,"] with a median of ",pixels_median.getValue(),".");
+            print("There are ", blobs_per_frame.getValue()," blobs in each frame (median).");
         }
         
     } else {
@@ -849,10 +842,10 @@ int main(int argc, char**argv) {
         if(header.version >= Output::ResultsFormat::Versions::V_28) {
             header.average.get().copyTo(average);
             SETTING(video_size) = Size2(average.cols, average.rows);
-            SETTING(video_length) = size_t(header.video_length);
+            SETTING(video_length) = uint64_t(header.video_length);
             SETTING(analysis_range) = std::pair<long_t, long_t>(header.analysis_range.start, header.analysis_range.end);
             auto consec = header.consecutive_segments;
-            std::vector<Rangel> vec(consec.begin(), consec.end());
+            std::vector<Range<Frame_t>> vec(consec.begin(), consec.end());
             SETTING(consecutive) = vec;
         }
         
@@ -866,7 +859,7 @@ int main(int argc, char**argv) {
             
             SETTING(video_size) = Size2(average.cols, average.rows);
             SETTING(video_mask) = video.has_mask();
-            SETTING(video_length) = size_t(video.length());
+            SETTING(video_length) = uint64_t(video.length());
         }
         
         if(SETTING(meta_real_width).value<float>() == 0)
@@ -903,7 +896,7 @@ int main(int argc, char**argv) {
             Output::TrackingResults results(tracker);
             results.load([](auto, auto, auto){}, path);
             auto consec = tracker.consecutive();
-            std::vector<Rangel> vec(consec.begin(), consec.end());
+            std::vector<Range<Frame_t>> vec(consec.begin(), consec.end());
             SETTING(consecutive) = vec;
         }
     }
@@ -923,7 +916,7 @@ int main(int argc, char**argv) {
                 printf("%s", str.c_str());
                 break;
             default:
-                U_EXCEPTION("Unimplemented parameter format '%s'.", format.name())
+                throw U_EXCEPTION("Unimplemented parameter format ",format.name());
         }
     }
     

@@ -36,19 +36,19 @@ class Accumulation {
         {
             
         }
-        operator MetaObject() const;
+        std::string toStr() const;
         static std::string class_name() { return "Accumulation::Result"; }
     };
     
     TrainingMode::Class _mode;
-    std::vector<Rangel> _trained;
+    std::vector<Range<Frame_t>> _trained;
     std::shared_ptr<TrainingData> _collected_data, _generated_data;
     std::shared_ptr<TrainingData> _discrimination_data;
     std::vector<Image::Ptr> _disc_images;
     std::map<Frame_t, Range<size_t>> _disc_frame_map;
-    std::vector<long_t> _checked_ranges_output;
+    std::vector<Frame_t> _checked_ranges_output;
     std::map<Frame_t, float> unique_map, temp_unique;
-    std::map<Rangel, std::tuple<double, FrameRange>> assigned_unique_averages;
+    std::map<Range<Frame_t>, std::tuple<double, FrameRange>> assigned_unique_averages;
     size_t _accumulation_step;
     size_t _counted_steps, _last_step;
     std::vector<file::Path> _coverage_paths;
@@ -84,8 +84,8 @@ public:
     bool start();
     
     static float good_uniqueness();
-    std::map<Frame_t, std::set<Idx_t>> generate_individuals_per_frame(const Rangel& range, TrainingData* data, std::map<Idx_t, std::set<std::shared_ptr<Individual::SegmentInformation>>>*);
-    std::tuple<bool, std::map<Idx_t, Idx_t>> check_additional_range(const Rangel& range, TrainingData& data, bool check_length, DatasetQuality::Quality);
+    std::map<Frame_t, std::set<Idx_t>> generate_individuals_per_frame(const Range<Frame_t>& range, TrainingData* data, std::map<Idx_t, std::set<std::shared_ptr<Individual::SegmentInformation>>>*);
+    std::tuple<bool, std::map<Idx_t, Idx_t>> check_additional_range(const Range<Frame_t>& range, TrainingData& data, bool check_length, DatasetQuality::Quality);
     void confirm_weights();
     void update_coverage(const TrainingData& data);
     
@@ -97,11 +97,11 @@ public:
     
 private:
     
-    Rangel _initial_range;
+    Range<Frame_t> _initial_range;
     std::map<Frame_t, std::set<Idx_t>> individuals_per_frame;
     //std::map<long_t, std::set<std::shared_ptr<Individual::SegmentInformation>>> overall_coverage;
-    std::vector<Rangel> _added_ranges;
-    std::vector<Rangel> _next_ranges;
+    std::vector<Range<Frame_t>> _added_ranges;
+    std::vector<Range<Frame_t>> _next_ranges;
     float current_best;
     
     std::shared_ptr<TrainingData::DataRange> current_salt;
@@ -110,7 +110,7 @@ private:
     float best_uniqueness() const;
     float accepted_uniqueness(float base = -1) const;
     float step_calculate_uniqueness();
-    
+
     friend class Recognition;
     void set_per_class_accuracy(const std::vector<float>& v);
     void set_uniqueness_history(const std::vector<float>& v);

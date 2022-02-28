@@ -8,3 +8,12 @@ CONDA_BUILD_SYSROOT:
 
 MACOSX_DEPLOYMENT_TARGET:
   - 10.13 # [osx and not arm64]
+
+c_compiler:
+- vs2019 # [win]
+cxx_compiler:
+- vs2019 # [win]
+cxx_compiler_version:
+  - 10 # [linux]
+c_compiler_version:
+  - 10 # [linux]

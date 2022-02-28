@@ -18,16 +18,16 @@ namespace track {
         StaticBackground(const Image::Ptr& image, LuminanceGrid* grid);
         ~StaticBackground();
         
-        int diff(ushort x, ushort y, int value) const override {
-            return (*_diff)(_image->data()[x + y * _image->cols], value);
+        int diff(coord_t x, coord_t y, int value) const override {
+            return (*_diff)(_image->data()[ptr_safe_t(x) + ptr_safe_t(y) * ptr_safe_t(_image->cols)], value);
         }
         inline int (*_diff_ptr() const)(int, int) {
             return _diff;
         }
-        bool is_different(ushort x, ushort y, int value, int threshold) const override;
-        bool is_value_different(ushort x, ushort y, int value, int threshold) const override;
-        ushort count_above_threshold(ushort x0, ushort x1, ushort y, const uchar* values, int threshold) const override;
-        int color(ushort x, ushort y) const override;
+        bool is_different(coord_t x, coord_t y, int value, int threshold) const override;
+        bool is_value_different(coord_t x, coord_t y, int value, int threshold) const override;
+        coord_t count_above_threshold(coord_t x0, coord_t x1, coord_t y, const uchar* values, int threshold) const override;
+        int color(coord_t x, coord_t y) const override;
         const Image& image() const override;
         const Bounds& bounds() const override;
         const LuminanceGrid* grid() const override {

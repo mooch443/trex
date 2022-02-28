@@ -11,12 +11,100 @@ ENUM_CLASS(Arguments,
            h,
            i,input,o,output,d,dir, s,settings, start, end, as_gif, step, scale, disable_background)
 
+struct bid {
+    static constexpr uint32_t invalid = std::numeric_limits<uint32_t>::max();
+    uint32_t _id;
+    bid() = default;
+    constexpr bid(uint32_t v) : _id(v) {}
+    
+    explicit constexpr operator uint32_t() const {
+        return _id;
+    }
+    explicit constexpr operator int64_t() const { return static_cast<int64_t>(_id); }
+    explicit constexpr operator uint64_t() const { return static_cast<uint64_t>(_id); }
+    constexpr bool operator==(const bid& other) const {
+        return other._id == _id;
+    }
+    constexpr bool operator!=(const bid& other) const {
+        return other._id != _id;
+    }
+    //constexpr bid(uint32_t b) : _id(b) {}
+    constexpr bool valid() const { return _id != invalid; }
+    
+    constexpr bool operator<(const bid& other) const {
+        return _id < other._id;
+    }
+    constexpr bool operator>(const bid& other) const {
+        return _id > other._id;
+    }
+    
+    constexpr bool operator<=(const bid& other) const {
+        return _id <= other._id;
+    }
+    constexpr bool operator>=(const bid& other) const {
+        return _id >= other._id;
+    }
+    
+    std::string toStr() const {
+        return cmn::Meta::toStr<uint32_t>(_id);
+    }
+    static std::string class_name() { return "pv::bid"; }
+    static bid fromStr(const std::string& str) {
+        return bid(cmn::Meta::fromStr<uint32_t>(str));
+    }
+
+    static constexpr uint32_t from_data(ushort x0, ushort x1, ushort y0, uint8_t N) {
+        assert((uint32_t)x0 < (uint32_t)4096u);
+        assert((uint32_t)x1 < (uint32_t)4096u);
+        assert((uint32_t)y0 < (uint32_t)4096u);
+        
+        return (uint32_t(x0 + (x1 - x0) / 2) << 20)
+                | ((uint32_t(y0) & 0x00000FFF) << 8)
+                |  (uint32_t(N)  & 0x000000FF);
+    }
+    
+    constexpr cmn::Vec2 calc_position() const {
+        auto x = (_id >> 20) & 0x00000FFF;
+        auto y = (_id >> 8) & 0x00000FFF;
+        //auto N = id & 0x000000FF;
+        return cmn::Vec2(x, y);
+    }
+    //static uint32_t id_from_position(const cmn::Vec2&);
+    static bid from_blob(const pv::Blob& blob);
+    static bid from_blob(const pv::CompressedBlob& blob);
+};
+                         
+ bid bid::from_blob(const pv::Blob& blob) {
+     if(!blob.lines() || blob.lines()->empty())
+         return bid::invalid;
+     
+     return from_data(blob.lines()->front().x0,
+                      blob.lines()->front().x1,
+                      blob.lines()->front().y,
+                      blob.lines()->size());
+     //return bid::invalid;
+ }
+ bid bid::from_blob(const pv::CompressedBlob& blob) {
+     if(blob.lines().empty())
+         return bid::invalid;
+     
+     return from_data(blob.lines().front().x0(),
+                      blob.lines().front().x1(),
+                      blob.start_y,
+                      blob.lines().size());
+     //return bid::invalid;
+ }
+
 int main(int argc, char**argv) {
+    static_assert(std::is_trivial<bid>::value, "pv::bid has to be trivial.");
+    //static_assert(std::is_trivial<pv::bid>::value, "pv::bid has to be trivial.");
+    static_assert(std::is_standard_layout<pv::bid>::value, "pv::bid has to be standard layout.");
+    
     pv::DataLocation::register_path("settings", [](file::Path path) -> file::Path {
         using namespace file;
         auto settings_file = path.str().empty() ? SETTING(settings_file).value<Path>() : path;
         if(settings_file.empty())
-            U_EXCEPTION("settings_file is an empty string.");
+            throw U_EXCEPTION("settings_file is an empty string.");
         
         if(!settings_file.is_absolute()) {
             settings_file = SETTING(output_dir).value<file::Path>() / settings_file;
@@ -90,7 +178,7 @@ int main(int argc, char**argv) {
                     break;
                     
                 default:
-                    Warning("Unknown option '%S' with value '%S'", &option.name, &option.value);
+                    FormatWarning("Unknown option ", option.name," with value ",option.value);
                     break;
             }
         }
@@ -100,7 +188,7 @@ int main(int argc, char**argv) {
         if(SETTING(settings_file).value<Path>().exists()) {
             GlobalSettings::load_from_file({}, SETTING(settings_file), AccessLevelType::STARTUP);
         } else
-            U_EXCEPTION("Cannot find settings file '%S'", &SETTING(settings_file).value<Path>().str());
+            throw U_EXCEPTION("Cannot find settings file ",SETTING(settings_file).value<Path>().str());
     }
     
     Path output_dir = SETTING(output_dir);
@@ -111,8 +199,8 @@ int main(int argc, char**argv) {
     if(input.remove_filename().empty())
         input = output_dir/input;
     
-    Debug("Input: '%S'", &input);
-    Debug("Output to: '%S'", &output_dir);
+    print("Input: ",input);
+    print("Output to: ",output_dir);
     
     pv::File video(input);
     video.start_reading();
@@ -141,14 +229,14 @@ int main(int argc, char**argv) {
     float framerate;
     {
         video.read_frame(current_frame, frame_index+1);
-        framerate = 1000.f / ((current_frame.timestamp() - prev_time) / 1000.f);
+        framerate = 1000.f / (double(current_frame.timestamp() - prev_time) / 1000.f);
     }
     
     const bool as_gif = SETTING(as_gif);
     if(as_gif)
-        Debug("Will export as gif from %ld to %ld (step %ld).", start_frame, end_frame, step);
+        print("Will export as gif from ", start_frame," to ", end_frame," (step ",step,").");
     
-    Debug("Press ENTER to continue...");
+    print("Press ENTER to continue...");
     getc(stdin);
     
     CropOffsets tmp = SETTING(crop);
@@ -185,7 +273,6 @@ int main(int argc, char**argv) {
         
         if(SETTING(as_gif)) {
             cv::cvtColor(image, image, cv::COLOR_GRAY2RGBA);
-            //Debug("Delta %f", (current_frame.timestamp()-prev_time)/1000.0);
             GifWriteFrame(writer, image.data, image.cols, image.rows, 0);//(current_frame.timestamp()-prev_time)/1000.0);//;
             
         } else {
@@ -194,21 +281,21 @@ int main(int argc, char**argv) {
             
             if(!output_dir.exists()) {
                 if(output_dir.create_folder())
-                    Debug("Created folder '%S'.", &output_dir.str());
+                    print("Created folder ", output_dir.str(),".");
                 else
-                    U_EXCEPTION("Cannot create folder '%S'. No write permissions?", &output_dir.str());
+                    throw U_EXCEPTION("Cannot create folder ",output_dir.str(),". No write permissions?");
             }
 
             
             file::Path path = output_dir / ss.str();
             if(!cv::imwrite(path.str(), image, { cv::IMWRITE_JPEG_QUALITY, 100 } ))
-                U_EXCEPTION("Cannot write to '%S'. No write permissions?", &path.str());
+                throw U_EXCEPTION("Cannot write to ",path.str(),". No write permissions?");
         }
         
         if(frame_index%50 == 0) {
             //cv::imshow("preview", image);
             //cv::waitKey(1);
-            Debug("Frame %d/%d", frame_index, end_frame);
+            print("Frame ", frame_index,"/",end_frame);
         }
         
         prev_time = current_frame.timestamp();
@@ -223,7 +310,7 @@ int main(int argc, char**argv) {
         ss << output_dir << "frame";
         std::string file = ss.str();
         
-        Debug("For conversion using ffmpeg try this command:");
+        print("For conversion using ffmpeg try this command:");
         printf("\tffmpeg -framerate %d -start_number %d -i %s/frame%%07d.jpg -vcodec h264 -vf \"fps=60,format=yuv420p\" output.mp4\n", (int)framerate, start_frame, output_dir.str().c_str());
     }
 }

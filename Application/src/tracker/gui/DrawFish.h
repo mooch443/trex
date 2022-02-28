@@ -17,17 +17,25 @@ struct CompressedBlob;
 }
 
 namespace gui {
-    class Fish : public DrawableCollection {
+    class Label;
+
+    class Fish {
+        Entangled _view;
+        Label* _label { nullptr };
+
         track::Individual& _obj;
         const track::PPFrame* _frame;
-        GETTER(long_t, idx)
-        long_t _safe_idx;
+        GETTER(Frame_t, idx)
+        Frame_t _safe_idx;
         double _time;
         std::unique_ptr<ExternalImage> _image;
         Midline::Ptr _cached_midline;
         MinimalOutline::Ptr _cached_outline;
         GETTER(Vec2, fish_pos)
         Circle _circle;
+
+        std::vector<Vertex> _vertices;
+        std::vector<std::unique_ptr<Vertices>> _paths;
         //Image _image;
         //Image *_probabilities;
         const EventAnalysis::EventMap* _events;
@@ -40,16 +48,15 @@ namespace gui {
         std::shared_ptr<std::vector<Vec2>> _polygon_points;
         std::shared_ptr<Polygon> _polygon;
         
-        Rangel _prev_frame_range;
+        Range<Frame_t> _prev_frame_range;
         
         struct FrameVertex {
-            long_t frame;
+            Frame_t frame;
             Vertex vertex;
             float speed_percentage;
         };
         
         std::deque<FrameVertex> frame_vertices;
-        std::vector<Vertex> vertices;
         std::shared_ptr<Circle> _recognition_circle;
         std::vector<Vec2> points;
         
@@ -65,22 +72,24 @@ namespace gui {
         //ExternalImage _colored;
         
         Graph _graph;
-        Entangled _posture;
+        Entangled _posture, _label_parent;
         
     public:
         Fish(track::Individual& obj);
-        void update(DrawStructure& d) override;
+        ~Fish();
+        void update(Drawable* bowl, Entangled& p, DrawStructure& d);
         //void draw_occlusion(DrawStructure& window);
-        void set_data(long_t frameIndex, double time, const track::PPFrame& frame, const EventAnalysis::EventMap* events);
+        void set_data(Frame_t frameIndex, double time, const track::PPFrame& frame, const EventAnalysis::EventMap* events);
         
     private:
         //void paint(cv::Mat &target, int max_frames = 1000) const;
-        void paintPath(DrawStructure& window, const Vec2& offset, long_t to = -1, long_t from = -1, const Color& = Transparent);
+        void paintPath(const Vec2& offset, Frame_t to = {}, Frame_t from = {}, const Color& = Transparent);
         //void paintPixels() const;
-        void update_recognition_circle(DrawStructure&);
+        void update_recognition_circle();
     public:
-        void label(DrawStructure&);
+        void label(Drawable* bowl, Entangled&);
         void shadow(DrawStructure&);
+        void check_tags();
     };
 }
 

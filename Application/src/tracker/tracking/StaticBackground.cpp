@@ -37,7 +37,7 @@ namespace track {
     void StaticBackground::update_callback() {
 #ifndef NDEBUG
         if(!SETTING(quiet))
-            Debug("Updating static background difference method.");
+            print("Updating static background difference method.");
 #endif
         if(!Tracker::instance() || FAST_SETTINGS(enable_absolute_difference)) {
             _diff = &absolute_diff;
@@ -46,43 +46,46 @@ namespace track {
         }
     }
     
-    int StaticBackground::color(ushort x, ushort y) const {
+    int StaticBackground::color(coord_t x, coord_t y) const {
         return _image->data()[x + y * _image->cols];
     }
     
-    bool StaticBackground::is_different(ushort x, ushort y, int value, int threshold) const {
+    bool StaticBackground::is_different(coord_t x, coord_t y, int value, int threshold) const {
         return is_value_different(x, y, diff(x, y, value), threshold);
     }
     
-    bool StaticBackground::is_value_different(ushort x, ushort y, int value, int threshold) const {
+    bool StaticBackground::is_value_different(coord_t x, coord_t y, int value, int threshold) const {
         assert(x < _image->cols && y < _image->rows);
         return value >= (_grid ? _grid->relative_threshold(x, y) : 1) * threshold;
     }
     
-    ushort StaticBackground::count_above_threshold(ushort x0, ushort x1, ushort y, const uchar* values, int threshold) const
+    coord_t StaticBackground::count_above_threshold(coord_t x0, coord_t x1, coord_t y, const uchar* values, int threshold) const
     {
-        auto ptr_grid = _grid ? (_grid->thresholds().data() + x0 + y * (size_t)_grid->bounds().width) : NULL;
-        auto ptr_image = _image->data() + x0 + y * _image->cols;
-        auto end = values + (x1 - x0 + 1);
-        ushort count = 0;
+        auto ptr_grid = _grid 
+            ? (_grid->thresholds().data() 
+                + ptr_safe_t(x0) + ptr_safe_t(y) * (ptr_safe_t)_grid->bounds().width) 
+            : NULL;
+        auto ptr_image = _image->data() + ptr_safe_t(x0) + ptr_safe_t(y) * ptr_safe_t(_image->cols);
+        auto end = values + ptr_safe_t(x1) - ptr_safe_t(x0) + 1;
+        ptr_safe_t count = 0;
         
         if(Tracker::instance() && !FAST_SETTINGS(enable_absolute_difference))
         {
             if(ptr_grid) {
                 for (; values != end; ++ptr_grid, ++ptr_image, ++values)
-                    count += int((int(*ptr_image) - int(*values)) >= (*ptr_grid) * threshold);
+                    count += int32_t(*ptr_image) - int32_t(*values) >= int32_t(*ptr_grid) * threshold;
             } else {
                 for (; values != end; ++ptr_image, ++values)
-                    count += int((int(*ptr_image) - int(*values)) >= threshold);
+                    count += int32_t(*ptr_image) - int32_t(*values) >= int32_t(threshold);
             }
             
         } else {
             if(ptr_grid) {
                 for (; values != end; ++ptr_grid, ++ptr_image, ++values)
-                    count += int(cmn::abs(int(*ptr_image) - int(*values)) >= (*ptr_grid) * threshold);
+                    count += cmn::abs(int32_t(*ptr_image) - int32_t(*values)) >= int32_t(*ptr_grid) * threshold;
             } else {
                 for (; values != end; ++ptr_image, ++values)
-                    count += int(cmn::abs(int(*ptr_image) - int(*values)) >= threshold);
+                    count += cmn::abs(int32_t(*ptr_image) - int32_t(*values)) >= int32_t(threshold);
             }
         }
         

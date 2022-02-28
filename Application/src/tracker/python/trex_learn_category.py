@@ -67,16 +67,16 @@ class Categorize:
         self.model.add(Dense(len(self.categories), activation='softmax'))
 
         self.model.compile(loss='categorical_crossentropy',
-            optimizer=keras.optimizers.Adam(lr=0.001),
+            optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
             metrics=['accuracy'])
 
         self.model.summary(print_fn=TRex.log)
 
     def send_samples(self):
-        global recv_samples
+        #global recv_samples
 
         TRex.log("# sending "+str(len(self.samples))+" samples")
-        recv_samples(np.array(self.samples).astype(np.uint8).flatten(), self.labels)
+        #recv_samples(np.array(self.samples).astype(np.uint8).flatten(), self.labels)
 
     def add_images(self, images, labels, force_training):
         # length before adding images

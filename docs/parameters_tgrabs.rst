@@ -51,7 +51,7 @@ TGrabs parameters
 
 
 
-.. function:: blob_size_range(rangef)
+.. function:: blob_size_range(range<float>)
 
 	**default value:** [0.01,500000]
 
@@ -62,10 +62,10 @@ TGrabs parameters
 
 .. function:: cam_framerate(int)
 
-	**default value:** 30
+	**default value:** -1
 
 
-	[BASLER] If set to anything else than 0, this will limit the basler camera framerate to the given fps value.
+	If set to anything else than 0, this will limit the basler camera framerate to the given fps value.
 
 
 
@@ -74,16 +74,16 @@ TGrabs parameters
 	**default value:** 5500
 
 
-	[BASLER] Sets the cameras exposure time in micro seconds.
+	Sets the cameras exposure time in micro seconds.
 
 
 
 .. function:: cam_resolution(size<int>)
 
-	**default value:** [2048,2048]
+	**default value:** [-1,-1]
 
 
-	[BASLER] Defines the dimensions of the camera image.
+	Defines the dimensions of the camera image.
 
 
 
@@ -97,7 +97,7 @@ TGrabs parameters
 	.. seealso:: :func:`use_closing`, 
 
 
-.. function:: color_channel(uint64)
+.. function:: color_channel(uchar)
 
 	**default value:** 1
 
@@ -328,6 +328,15 @@ TGrabs parameters
 
 
 
+.. function:: nowindow(bool)
+
+	**default value:** false
+
+
+	Start without a window enabled (for terminal-only use).
+
+
+
 .. function:: quit_after_average(bool)
 
 	**default value:** false
@@ -450,7 +459,7 @@ TGrabs parameters
 
 .. function:: video_source(string)
 
-	**default value:** "basler"
+	**default value:** "webcam"
 
 
 	Where the video is recorded from. Can be the name of a file, or one of the keywords ['basler', 'webcam', 'test_image'].

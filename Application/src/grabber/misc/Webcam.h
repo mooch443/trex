@@ -20,6 +20,7 @@ namespace fg {
         virtual bool next(Image& image) override;
         virtual bool open() override { return _capture.isOpened(); }
         virtual void close() override { _capture.release(); }
+        int frame_rate();
     };
 }
 

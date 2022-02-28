@@ -22,7 +22,7 @@ namespace track {
         Vec2(-1,0)
     };
     
-    Posture::Posture(long_t frameIndex, uint32_t fishID)
+    Posture::Posture(Frame_t frameIndex, uint32_t fishID)
         : _outline_points(std::make_shared<std::vector<Vec2>>()), frameIndex(frameIndex), fishID(fishID), _outline(_outline_points, frameIndex), _normalized_midline(NULL)
     { }
 
@@ -170,7 +170,7 @@ namespace track {
                             
                         } else if(chains.size()) {
                             // Shouldnt be possible
-                            U_EXCEPTION("Did not expect %d chains.", chains.size());
+                            throw U_EXCEPTION("Did not expect ",chains.size()," chains.");
                         }
                         
                     }
@@ -223,7 +223,7 @@ namespace track {
         return eps;
     }
 
-    void Posture::calculate_posture(long_t frame, pv::BlobPtr blob)
+    void Posture::calculate_posture(Frame_t frame, pv::BlobPtr blob)
     {
         const int initial_threshold = FAST_SETTINGS(track_posture_threshold);
         int threshold = initial_threshold;
@@ -278,8 +278,8 @@ namespace track {
                         _outline.resample(FAST_SETTINGS(outline_resample));
                 }
                 
-                std::pair<int64_t, long_t> gui_show_fish = SETTING(gui_show_fish);
-                auto debug = gui_show_fish.first == (int64_t)blob->blob_id() && frame == gui_show_fish.second;
+                std::pair<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
+                auto debug = gui_show_fish.first == blob->blob_id() && frame == gui_show_fish.second;
                 float confidence = calculate_midline(debug);
                 bool error = !_normalized_midline || (_normalized_midline->size() != FAST_SETTINGS(midline_resolution));
                 error = !_normalized_midline;
@@ -304,13 +304,14 @@ namespace track {
                         }
                         printf("])\n");
 
-                        Debug("Frame %d rendered with threshold %d+%d (%d -> %d points).", frameIndex, FAST_SETTINGS(track_posture_threshold), threshold - FAST_SETTINGS(track_posture_threshold), selected->size(), _outline.size());
+                        print("Frame ", frameIndex," rendered with threshold ", FAST_SETTINGS(track_posture_threshold),"+", threshold - FAST_SETTINGS(track_posture_threshold)," (", selected->size()," -> ", _outline.size()," points).");
                     }
                     
                     // found a good configuration! escape.
                     break;
+                    
                 } else if(FAST_SETTINGS(debug)) {
-                    Debug("Error in outline (threshold %d) @%d for %d %d", threshold, frameIndex, fishID, error);
+                    print("Error in outline (threshold ", threshold,") @",frameIndex," for ",fishID," ", error);
                 }
             }
             
@@ -319,7 +320,7 @@ namespace track {
             
             if(threshold >= initial_threshold + 50) {
                 if(FAST_SETTINGS(debug)) {
-                    Debug("Outline failed (threshold %d) @%d for %d", threshold, frameIndex, fishID);
+                    print("Outline failed (threshold ", threshold,") @", frameIndex," for ", fishID);
                 }
                 
                 break;
@@ -331,11 +332,9 @@ namespace track {
         
         timing.conclude_measure();
         
-        std::pair<int64_t, long_t> gui_show_fish = SETTING(gui_show_fish);
-        if(gui_show_fish.first == (int64_t)blob->blob_id() && frame == gui_show_fish.second) {
-        
-        //if(frame == 532 && blob->blob_id() == 6357990) {
-            Debug("%d %d: threshold %d", frame, blob->blob_id(), threshold);
+        std::pair<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
+        if(gui_show_fish.first == blob->blob_id() && frame == gui_show_fish.second) {
+            print(frame, " ", blob->blob_id(),": threshold ", threshold);
             auto blob = thresholded_blob;
             auto && [pos, image] = blob->image();
             //tf::imshow("image", image->get());
@@ -347,10 +346,8 @@ namespace track {
             auto peak_mode = SETTING(peak_mode).value<default_config::peak_mode_t::Class>() == default_config::peak_mode_t::broad ? periodic::PeakMode::FIND_BROAD : periodic::PeakMode::FIND_POINTY;
             auto && [maxima_ptr, minima_ptr] = periodic::find_peaks(curv, 0, diffs, peak_mode);
             auto str = Meta::toStr(*maxima_ptr);
-            Debug("%d, %d: %S", frame, blob->blob_id(), &str);
-            
-            str = Meta::toStr(*outline_point);
-            Debug("%S", &str);
+            print(frame, ", ", blob->blob_id(),": ", str.c_str());
+            print(*outline_point);
             
             {
                 using namespace gui;
@@ -394,7 +391,7 @@ namespace track {
                     
                     cv::circle(colored, OFFSET(outline().front()), 5, Yellow, -1);
                     
-                    Debug("tail:%d head:%d", midline->tail_index(), midline->head_index());
+                    print("tail:", midline->tail_index()," head:",midline->head_index());
                 }
                 
                 ColorWheel cwheel;
@@ -461,7 +458,6 @@ namespace track {
             float d;
             if(d0 > d1) {
                 d = d1;
-                //Debug("Reverse.");
                 std::reverse(entry_points[b].interp.begin(), entry_points[b].interp.end());
             } else
                 d = d0;
@@ -583,7 +579,6 @@ namespace track {
              * need to stitch together outlines potentially.
              */
             if(outlines.begin()->size() > unassigned.size()) {
-                //Debug("Stopping %d/%d", outlines.begin()->size(), unassigned.size());
                 break;
             }
         }
@@ -594,7 +589,6 @@ namespace track {
             return 1;
         }
         
-        //Debug("0 (unassigned: %d, assigned: %d)", unassigned.size(), _outline.size());
         _outline.clear();
         return 0;
     }
@@ -631,7 +625,6 @@ namespace track {
                 if((index <= L * 0.25 && abs(K) > 0.17) || (index > L * 0.25 && abs(K) > 0.4f)) {
                     Tracker::increase_midline_errors();
                     //if(FAST_SETTINGS(debug))
-                    //    Debug("Midline index %d failed with curvature: %f in frame %d", index, K, frameIndex);
                     //if(index <= L * 0.25)
                     //return 0;
                     //break;

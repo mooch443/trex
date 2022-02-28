@@ -17,8 +17,8 @@ struct MemoryStats {
     std::map<std::string, std::map<std::string, uint64_t>> details;
     
     template <typename T>
-    uint64_t get_memory_size(T, const std::string&) {
-        return sizeof(typename remove_cvref<T>::type);
+    uint64_t get_memory_size(const T&, const std::string&) {
+        return sizeof(typename cmn::remove_cvref<T>::type);
     }
     
     void operator +=(const MemoryStats& other) {

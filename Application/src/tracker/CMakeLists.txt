@@ -1,5 +1,7 @@
 add_subdirectory(gui)
-add_subdirectory(python)
+if(NOT COMMONS_NO_PYTHON)
+    add_subdirectory(python)
+endif()
 add_subdirectory(tracking)
 add_subdirectory(misc)
 
@@ -51,37 +53,69 @@ if(NOT WIN32 AND TREX_WITH_TESTS)
         tracker_tracking
         commons
         cnpy
-        TRex::GLFW
-        ${OpenCV_LIBS}
-        ${EXTRA_LIBS}
+        #Commons::GLFW
+        #${OpenCV_LIBS}
+        #${EXTRA_LIBS}
     )
-    add_dependencies(test_imgui commons TRex::LibZIP TRex::GLFW TRex::OpenCV)
+    #target_precompile_headers(test_imgui REUSE_FROM commons)
+    add_dependencies(test_imgui commons) #Commons::LibZIP Commons::GLFW Commons::OpenCV)
+endif()
+
+add_executable(properties properties.cpp
+    "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h)
+
+target_link_libraries(properties 
+    PUBLIC 
+        tracker_tracking
+        #tracker_gui
+        tracker_misc
+        commons 
+        pv
+        Commons::GLFW
+        Commons::OpenCV
+        imgui
+        Commons::GLAD
+        Commons::LibZIP)
+
+if(NOT COMMONS_NO_PYTHON)
+    target_link_libraries(properties 
+        PUBLIC tracker_python)
 endif()
 
 # add actual executable
 add_executable(${TREX_EXEC_NAME} ${SRCS})
-add_dependencies(${TREX_EXEC_NAME} TRex::GLFW TRex::OpenCV)
+add_dependencies(${TREX_EXEC_NAME} commons Commons::GLFW
+    Commons::OpenCV
+    Commons::FFMPEG)
+#Commons::GLFW Commons::OpenCV)
 
 # link all needed libraries to the target
 target_link_libraries(${TREX_EXEC_NAME} PUBLIC
 	tracker_tracking
 	tracker_gui
-    tracker_python
     tracker_misc
 	pv
 	commons
-	TRex::GLFW
-	TRex::OpenCV
-	TRex::LibPNG
-	TRex::LibZ
-	${EXTRA_LIBS}
+	Commons::GLFW
+	Commons::OpenCV
+    Commons::FFMPEG
+    imgui Commons::GLAD
+    Commons::LibZIP
+	#Commons::LibPNG
+	#Commons::LibZ
+	#${EXTRA_LIBS}
 )
+
+if(NOT COMMONS_NO_PYTHON)
+    target_link_libraries(${TREX_EXEC_NAME} 
+        PUBLIC tracker_python)
+endif()
 
 if(WITH_HTTPD)
     add_dependencies(${TREX_EXEC_NAME} LibMicroHttpd)
 endif()
 
-if(WIN32)
+if(WIN32 AND NOT COMMONS_NO_PYTHON)
 	set_target_properties(${TREX_EXEC_NAME} PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
 endif()
 
@@ -104,7 +138,9 @@ set(TRACKER_PATH "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>")
 message("TRACKER PATH ${TRACKER_PATH}")
 
 if(NOT APPLE)
-    set_target_properties(trex_check_python PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${TRACKER_PATH}")
+    if(NOT COMMONS_NO_PYTHON)
+        set_target_properties(trex_check_python PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${TRACKER_PATH}")
+    endif()
 
     if(TREX_WITH_TESTS)
         set_target_properties(test_imgui PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${TRACKER_PATH}")
@@ -191,7 +227,7 @@ else()
 endif()
 
 set(targets ${TREX_EXEC_NAME})
-if(WIN32)
+if(WIN32 AND NOT COMMONS_NO_PYTHON)
 set(targets ${targets} tracker_python)
 endif()
 
@@ -200,13 +236,15 @@ add_executable(trex_starter trex.cpp)
 target_link_libraries(trex_starter PRIVATE
     commons
     cnpy
-    TRex::GLFW
-    TRex::LibPNG
-    TRex::LibZ
-    TRex::OpenCV
+    Commons::GLFW
+    Commons::LibPNG
+    Commons::LibZ
+    Commons::OpenCV
     ${EXTRA_LIBS})
 set_target_properties(trex_starter PROPERTIES OUTPUT_NAME trex)
 set(targets ${targets} trex_starter)
+
+#target_precompile_headers(trex_starter REUSE_FROM commons)
 
 if(TREX_CONDA_PACKAGE_INSTALL)
     if(WIN32)
@@ -226,6 +264,18 @@ else()
 endif()
 
 endif()
+
+if(APPLE)
+target_sources(${TREX_EXEC_NAME} PRIVATE gfx/TRexIcons.xcassets)
+set_source_files_properties(gfx/TRexIcons.xcassets PROPERTIES
+    MACOSX_PACKAGE_LOCATION Resources
+)
+set_target_properties(${TREX_EXEC_NAME} PROPERTIES
+    XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon")
+endif()
+
+#target_precompile_headers(properties REUSE_FROM commons)
+#target_precompile_headers(${TREX_EXEC_NAME} REUSE_FROM commons)
 
 install(TARGETS ${targets}
     EXPORT TRex

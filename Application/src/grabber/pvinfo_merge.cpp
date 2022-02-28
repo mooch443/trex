@@ -6,6 +6,7 @@
 #include <misc/default_config.h>
 #include <misc/PVBlob.h>
 #include <processing/CPULabeling.h>
+#include <misc/ranges.h>
 
 using namespace cmn;
 
@@ -35,7 +36,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         if(!filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
             if(!SETTING(quiet))
-                Warning("Returning absolute path '%S'. We cannot be sure this is writable.", &filename.str());
+                print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
 #endif
             return filename;
         }
@@ -52,7 +53,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         if((name.has_extension() && name.extension() == "pv" && !name.exists())
            || !name.add_extension("pv").exists())
         { // approximation (this is not a true XOR)
-            U_EXCEPTION("File '%S' cannot be found.", &name.str());
+            throw U_EXCEPTION("File ",name.str()," cannot be found.");
         }
         
         if(!name.has_extension() || name.extension() != "pv")
@@ -73,7 +74,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         SETTING(filename) = name.remove_extension();
         auto settings_file = pv::DataLocation::parse("output_settings");
         if(settings_file.exists()) {
-            Debug("settings for '%S' found", &name.str());
+            print("settings for ",name.str()," found");
             auto config = std::make_shared<sprite::Map>();
             config->set_do_print(false);
             
@@ -92,7 +93,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             configs.push_back(config);
             
         } else {
-            U_EXCEPTION("Cant find settings for '%S' at '%S'", &name.str(), &settings_file.str());
+            throw U_EXCEPTION("Cant find settings for '",name.str(),"' at '",settings_file.str(),"'");
         }
     }
     
@@ -152,7 +153,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     struct Source {
         size_t video_index;
         size_t frame_index;
-        uint32_t blob_id;
+        pv::bid blob_id;
     };
     
     SETTING(meta_write_these) = std::vector<std::string>{
@@ -175,7 +176,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     SETTING(meta_number_merged_videos) = size_t(files.size());
     
     // frame: {blob : source}
-    std::map<long_t, std::map<uint32_t, Source>> meta;
+    std::map<long_t, std::map<pv::bid, Source>> meta;
     if(SETTING(merge_output_path).value<file::Path>().empty())
         SETTING(merge_output_path) = file::Path("merged");
     
@@ -189,8 +190,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     output.start_writing(true);
     
     //auto start_time = output.header().timestamp;
-    auto str = Meta::toStr(files);
-    Debug("Writing videos %S to '%S' [0,%lu] with resolution (%f,%f)", &str, &out_path.str(), min_length, resolution.width, resolution.height);
+    print("Writing videos ",files," to '",out_path.c_str(),"' [0,",min_length,"] with resolution (",resolution.width,",",resolution.height,")");
     using namespace track;
     GlobalSettings::map().dont_print("cm_per_pixel");
     const bool merge_overlapping_blobs = SETTING(merge_overlapping_blobs);
@@ -229,7 +229,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
      if(!new_background.bounds().contains(b->bounds()))
      {
      auto str = Meta::toStr(*b);
-     Warning("%S out of bounds for background %fx%f", &str, new_background.bounds().width, new_background.bounds().height);
+     FormatWarning(str.c_str()," out of bounds for background ",new_background.bounds().width,"x",new_background.bounds().height);
      
      } else {
      meta[frame][b->blob_id()] = Source{ vdx, frame, id };
@@ -242,7 +242,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
      }
      }*/
     
-    uint64_t timestamp_offset = output.length() == 0 ? 0 : output.last_frame().timestamp();
+    auto timestamp_offset = output.length() == 0 ? timestamp_t(0) : output.last_frame().timestamp();
     merge_mode_t::Class merge_mode = SETTING(merge_mode);
     
     for (uint64_t frame=0; frame<min_length; ++frame) {
@@ -256,7 +256,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         for(size_t vdx = 0; vdx < files.size(); ++vdx) {
             auto &file = files.at(vdx);
             file->read_frame(f, frame);
-            if(!vdx) o.set_timestamp(timestamp_offset + f.timestamp());
+            if(!vdx) o.set_timestamp(timestamp_offset.get() + f.timestamp());
             //o.set_timestamp(start_time + f.timestamp() - file->start_timestamp());
             
             Vec2 offset = merge_mode == merge_mode_t::centered ? Vec2((Size2(average) - Size2(file->average())) * 0.5) : Vec2(0);
@@ -266,7 +266,9 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             SETTING(cm_per_pixel) = cms_per_pixel[file.get()];
             
             for(size_t i=0; i<f.n(); ++i) {
-                auto b = std::make_shared<pv::Blob>(f.mask().at(i), f.pixels().at(i));
+                auto b = std::make_shared<pv::Blob>(
+                    std::move(f.mask().at(i)),
+                    std::move(f.pixels().at(i)));
                 auto recount = b->recount(track_threshold, *backgrounds.at(vdx));
                 
                 if(recount < blob_size_range.start * 0.1 || recount > blob_size_range.end * 5)
@@ -281,7 +283,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
                 if(!new_background.bounds().contains(b->bounds()))
                 {
                     auto str = Meta::toStr(*b);
-                    Warning("%S out of bounds for background %fx%f", &str, new_background.bounds().width, new_background.bounds().height);
+                    FormatWarning(str.c_str()," out of bounds for background ",new_background.bounds().width,"x",new_background.bounds().height);
                     
                 } else {
                     meta[frame][b->blob_id()] = Source{ vdx, frame, id };
@@ -320,7 +322,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         for(auto &clique : cliques) {
             if(clique.size() == 1 || !merge_overlapping_blobs) {
                 for(auto &b : clique) {
-                    o.add_object(b->lines(), b->pixels());
+                    o.add_object(std::move(b->steal_lines()), std::move(b->pixels()));
                 }
                 
             } else {
@@ -328,13 +330,13 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
                 Bounds test(FLT_MAX, FLT_MAX, 0, 0);
                 for(auto &b : clique) {
                     bounds.combine(b->bounds());
-                    test.pos() = min(test.pos(), b->bounds().pos());
-                    test.size() = max(test.size(), b->bounds().pos() + b->bounds().size());
+                    test << (Vec2) min(test.pos(), b->bounds().pos());
+                    test << (Size2)max(test.size(), b->bounds().pos() + b->bounds().size());
                 }
-                test.size() -= test.pos();
+                test << Size2(test.size() - test.pos());
                 
                 if(bounds != test)
-                    Debug("why");
+                    print("why");
                 
                 assert(!clique.empty());
                 
@@ -372,7 +374,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
                         line.x1 += bounds.pos().x;
                         line.y += bounds.pos().y;
                     }
-                    o.add_object(lines, pixels);
+                    o.add_object(std::move(lines), std::move(pixels));
                     //std::make_shared<pv::Blob>(lines, pixels);
                 }
                 //cv::imshow("blended", mat);
@@ -386,10 +388,10 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         }
 #endif
         
-        output.add_individual(o);
+        output.add_individual(std::move(o));
         
         if(frame % size_t(min_length * 0.1) == 0) {
-            Debug("merging %d/%d", frame, min_length);
+            print("merging ", frame,"/",min_length);
         }
     }
     

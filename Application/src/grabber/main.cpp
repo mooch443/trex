@@ -7,7 +7,7 @@
 //-Includes--------------------------------------------------------------------
 
 #include <types.h>
-#ifndef WIN32
+#if !defined(WIN32) && !defined(__EMSCRIPTEN__)
 #include <execinfo.h>
 #endif
 #include <signal.h>
@@ -37,10 +37,6 @@
 #include <video/Video.h>
 #include "CropWindow.h"
 
-#if __linux__
-#include <X11/Xlib.h>
-#endif
-
 #include "default_config.h"
 #include <tracker/misc/default_config.h>
 #include <misc/default_settings.h>
@@ -52,6 +48,12 @@
 #include <gui/IMGUIBase.h>
 #include <python/GPURecognition.h>
 #include <opencv2/core/utils/logger.hpp>
+
+#include <tracking/Recognition.h>
+
+#if __linux__
+#include <X11/Xlib.h>
+#endif
 
 //-Functions-------------------------------------------------------------------
 
@@ -96,10 +98,24 @@ static void signal_handler(int sig) {
             SETTING(terminate_error) = true;
         if(!SETTING(terminate)) {
             SETTING(terminate) = true;
-            Debug("Waiting for video to close.");
+            print("Waiting for video to close.");
         }
             //std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
+}
+#else
+BOOL WINAPI consoleHandler(DWORD signal_code) {
+    if (signal_code == CTRL_C_EVENT) {
+        if (!SETTING(terminate)) {
+            SETTING(terminate) = true;
+            print("Waiting for video to close.");
+            return TRUE;
+        }
+        else
+            FormatExcept("Pressing CTRL+C twice immediately stops the program in an undefined state.");
+    }
+
+    return FALSE;
 }
 #endif
 
@@ -149,6 +165,10 @@ void init_signals() {
     
     sigaddset(&sigact.sa_mask, SIGKILL);
     sigaction(SIGKILL, &sigact, (struct sigaction *)NULL);
+#else
+    if (!SetConsoleCtrlHandler(consoleHandler, TRUE)) {
+        printf("\nERROR: Could not set control handler");
+    }
 #endif
 }
 
@@ -217,7 +237,7 @@ int main(int argc, char** argv)
         if(!filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
             if(!SETTING(quiet))
-                Warning("Returning absolute path '%S'. We cannot be sure this is writable.", &filename.str());
+                print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
 #endif
             return filename;
         }
@@ -232,7 +252,7 @@ int main(int argc, char** argv)
     pv::DataLocation::register_path("settings", [](file::Path path) -> file::Path {
         auto settings_file = path.str().empty() ? SETTING(settings_file).value<Path>() : path;
         if(settings_file.empty()) {
-            Debug("The parameter settings_file (or -s) is empty. You can specify a settings file in the command-line by adding:\n\t-s path/to/file.settings");
+            print("The parameter settings_file (or -s) is empty. You can specify a settings file in the command-line by adding:\n\t-s 'path/to/file.settings'");
             return settings_file;
         }
 		
@@ -250,7 +270,7 @@ int main(int argc, char** argv)
         if(!filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
             if(!SETTING(quiet))
-                Warning("Returning absolute path '%S'. We cannot be sure this is writable.", &filename.str());
+                print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
 #endif
             return filename;
         }
@@ -271,7 +291,7 @@ int main(int argc, char** argv)
     pv::DataLocation::register_path("output_settings", [](file::Path) -> file::Path {
         file::Path settings_file(SETTING(filename).value<Path>().filename());
         if(settings_file.empty())
-            U_EXCEPTION("settings_file (and like filename) is an empty string.");
+            throw U_EXCEPTION("settings_file (and like filename) is an empty string.");
         
         if(!settings_file.has_extension() || settings_file.extension() != "settings")
             settings_file = settings_file.add_extension("settings");
@@ -281,7 +301,7 @@ int main(int argc, char** argv)
     
     GlobalSettings::map().set_do_print(true);
     
-    auto debug_callback = DEBUG::SetDebugCallback({
+    /*auto debug_callback = DEBUG::SetDebugCallback({
         DEBUG::DEBUG_TYPE::TYPE_ERROR,
         DEBUG::DEBUG_TYPE::TYPE_EXCEPTION,
         DEBUG::DEBUG_TYPE::TYPE_WARNING,
@@ -295,7 +315,9 @@ int main(int argc, char** argv)
             fflush(log_file);
         }
     });
+    */
     
+    //!TODO: Error log_file not implemented
     gui::init_errorlog();
     ocl::init_ocl();
     
@@ -314,7 +336,7 @@ int main(int argc, char** argv)
         throw std::exception();
     }
     
-    Debug("Initialized CuVid.");
+    print("Initialized CuVid.");
     
 #endif
 #endif
@@ -328,8 +350,7 @@ int main(int argc, char** argv)
 #endif
     
     init_signals();
-
-    Debug("Starting Application...");
+    print("Starting Application...");
     
     srand (time(NULL));
         
@@ -349,12 +370,12 @@ int main(int argc, char** argv)
         if(!SearchPath( NULL, "ffmpeg", ".exe", MAX_PATH, filename, &lpFilePart))
         {
             auto conda_prefix = ::default_config::conda_environment_path().str();
-            Debug("Conda prefix: %S", &conda_prefix);
+            print("Conda prefix: ", conda_prefix);
             if(!conda_prefix.empty()) {
                 auto files = file::Path(conda_prefix+"/bin").find_files();
                 for(auto file : files) {
                     if(file.filename() == "ffmpeg") {
-                        Debug("Found ffmpeg in '%S'", &file.str());
+                        print("Found ffmpeg in ",file.str());
                         SETTING(ffmpeg_path) = file;
                         break;
                     }
@@ -362,7 +383,7 @@ int main(int argc, char** argv)
             }
             
             if(SETTING(ffmpeg_path).value<file::Path>().empty())
-                Warning("Cannot find ffmpeg.exe in search paths.");
+                FormatWarning("Cannot find ffmpeg.exe in search paths.");
         } else
             SETTING(ffmpeg_path) = file::Path(std::string(filename));
 #else
@@ -379,7 +400,7 @@ int main(int argc, char** argv)
                     auto files = file::Path(part).find_files();
                     for(auto file : files) {
                         if(file.filename() == "ffmpeg") {
-                            Debug("Found ffmpeg in '%S'", &file.str());
+                            print("Found ffmpeg in ",file.str());
                             SETTING(ffmpeg_path) = file;
                             break;
                         }
@@ -404,23 +425,22 @@ int main(int argc, char** argv)
     #else
         if (!chdir(_wd.c_str()))
     #endif
-            Debug("Changed directory to '%S'.", &_wd);
+            print("Changed directory to ", _wd,".");
         else
-            Error("Cannot change directory to '%S'.", &_wd);
+            FormatError("Cannot change directory to ",_wd,".");
         
 #elif defined(TREX_CONDA_PACKAGE_INSTALL)
         auto conda_prefix = ::default_config::conda_environment_path().str();
         if(!conda_prefix.empty()) {
             file::Path _wd(conda_prefix);
             _wd = _wd / "usr" / "share" / "trex";
-            //Debug("change directory to conda environment resource folder: '%S'", &_wd.str());
             
 #if defined(WIN32)
             if (!SetCurrentDirectoryA(_wd.c_str()))
 #else
             if (chdir(_wd.c_str()))
 #endif
-                Except("Cannot change directory to '%S'", &_wd.str());
+                FormatExcept("Cannot change directory to ",_wd.str(),"");
         }
 #endif
         
@@ -487,7 +507,8 @@ int main(int argc, char** argv)
                             ::default_config::get(tracking_settings, tracking_docs, nullptr);
                             
                             for(auto &key : tracking_settings.keys()) {
-                                ss << key << ";";
+                                if(key != "nowindow")
+                                    ss << key << ";";
                             }
                             
                             auto rst = cmn::settings::help_restructured_text("TGrabs parameters", GlobalSettings::defaults(), GlobalSettings::docs(), GlobalSettings::access_levels(), "", ss.str(), ".. include:: names.rst\n\n.. NOTE::\n\t|grabs| has a live-tracking feature, allowing users to extract positions and postures of individuals while recording/converting. For this process, all parameters relevant for tracking are available in |grabs| as well -- for a reference of those, please refer to :doc:`parameters_trex`.\n");
@@ -495,12 +516,12 @@ int main(int argc, char** argv)
                             file::Path path = pv::DataLocation::parse("output", "parameters_tgrabs.rst");
                             auto f = path.fopen("wb");
                             if(!f)
-                                U_EXCEPTION("Cannot open '%S'", &path.str());
+                                throw U_EXCEPTION("Cannot open ",path.str());
                             fwrite(rst.data(), sizeof(char), rst.length(), f);
                             fclose(f);
                             
                             //printf("%s\n", rst.c_str());
-                            Debug("Saved at '%S'.", &path.str());
+                            print("Saved at ", path.str(),".");
                             
                             exit(0);
                         }
@@ -523,7 +544,7 @@ int main(int argc, char** argv)
                                 fwrite(html.data(), sizeof(char), html.length(), f);
                                 fclose(f);
                                 
-                                Debug("Opening '%S' in browser...", &filename);
+                                print("Opening ",filename," in browser...");
 #if __linux__
                                 auto pid = fork();
                                 if (pid == 0) {
@@ -542,12 +563,12 @@ int main(int argc, char** argv)
                         } else {
                             printf("\n");
                             DebugHeader("AVAILABLE OPTIONS");
-                            Debug("-i <filename>       Input video source (basler/webcam/video path)");
-                            Debug("-d <folder>         Set the default input/output folder");
-                            Debug("-s <filename>       Set the .settings file to be used (default is <input>.settings)");
-                            Debug("-o                  Output filename");
-                            Debug("-h                  Prints this message");
-                            Debug("-h settings         Displays all default settings with description in the default browser");
+                            print("-i <filename>       Input video source (basler/webcam/video path)");
+                            print("-d <folder>         Set the default input/output folder");
+                            print("-s <filename>       Set the .settings file to be used (default is <input>.settings)");
+                            print("-o                  Output filename");
+                            print("-h                  Prints this message");
+                            print("-h settings         Displays all default settings with description in the default browser");
                             exit(0);
                         }
                         
@@ -556,7 +577,7 @@ int main(int argc, char** argv)
                     }
                         
                     default:
-                        Warning("Unknown option '%S' with value '%S'", &option.name, &option.value);
+                        FormatWarning("Unknown option ", option.name," with value ",option.value);
                         break;
                 }
             }
@@ -565,17 +586,17 @@ int main(int argc, char** argv)
         Path settings_file = pv::DataLocation::parse("settings");
         if(!settings_file.empty()) {
             if (settings_file.exists() && settings_file.is_regular()) {
-                DebugHeader("LOADING FROM '%S'",&settings_file.str());
+                DebugHeader("LOADING FROM ", settings_file);
                 std::map<std::string, std::string> deprecations {{"fish_minmax_size","blob_size_range"}};
                 auto rejections = GlobalSettings::load_from_file(deprecations, settings_file.str(), AccessLevelType::STARTUP);
                 for(auto && [key, val] : rejections) {
                     if(deprecations.find(key) != deprecations.end())
-                        U_EXCEPTION("Parameter '%S' is deprecated. Please use '%S'.", &key, &deprecations.at(key));
+                        throw U_EXCEPTION("Parameter '",key,"' is deprecated. Please use '",deprecations.at(key),"'.");
                 }
-                DebugHeader("/LOADED '%S'", &settings_file.str());
+                DebugHeader("/LOADED ", settings_file);
             }
             else
-                Error("Cannot find settings file '%S'.", &settings_file.str());
+                FormatError("Cannot find settings file ",settings_file.str(),".");
         }
         
         /**
@@ -583,6 +604,15 @@ int main(int argc, char** argv)
          * ignored previously.
          */
         cmd.load_settings();
+
+        if (SETTING(enable_closed_loop)) {
+            track::PythonIntegration::set_settings(GlobalSettings::instance());
+            track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
+
+            track::Recognition::fix_python();
+            track::PythonIntegration::instance();
+            track::PythonIntegration::ensure_started();
+        }
         
         SETTING(meta_source_path) = Path(SETTING(video_source).value<std::string>());
         std::vector<file::Path> filenames;
@@ -597,12 +627,12 @@ int main(int argc, char** argv)
             try {
                 filenames = Meta::fromStr<std::vector<file::Path>>(video_source);
                 if(filenames.size() > 1) {
-                    Debug("Found an array of filenames.");
+                    print("Found an array of filenames.");
                 } else if(filenames.size() == 1) {
                     SETTING(video_source) = filenames.front();
                     filenames.clear();
                 } else
-                    U_EXCEPTION("Empty input filename '%S'. Please specify an input name.", &video_source);
+                    throw U_EXCEPTION("Empty input filename ",video_source,". Please specify an input name.");
                 
             } catch(const illegal_syntax& e) {
                 // ... do nothing
@@ -629,30 +659,30 @@ int main(int argc, char** argv)
                 SETTING(filename) = file::Path(file::Path(filename).filename());
                 if(SETTING(filename).value<file::Path>().empty()) {
                     SETTING(filename) = file::Path("video");
-                    Warning("No output filename given. Defaulting to 'video'.");
+                    FormatWarning("No output filename given. Defaulting to 'video'.");
                 } else
-                    Warning("Given empty filename, the program will default to using input basename '%S'.", &SETTING(filename).value<file::Path>().str());
+                    print("Given empty filename, the program will default to using input basename ",SETTING(filename).value<file::Path>().str(),".");
             }
             
         } else if(SETTING(filename).value<file::Path>().empty()) {
             SETTING(filename) = file::Path("video");
-            Warning("No output filename given. Defaulting to 'video'.");
+            FormatWarning("No output filename given. Defaulting to 'video'.");
         }
         
         if(!SETTING(exec).value<file::Path>().empty()) {
             Path exec_settings = pv::DataLocation::parse("settings", SETTING(exec).value<file::Path>());
             if (exec_settings.exists() && exec_settings.is_regular()) {
-                DebugHeader("LOADING FROM '%S'",&exec_settings.str());
+                DebugHeader("LOADING FROM ", exec_settings);
                 std::map<std::string, std::string> deprecations {{"fish_minmax_size","blob_size_range"}};
                 auto rejections = GlobalSettings::load_from_file(deprecations, exec_settings.str(), AccessLevelType::STARTUP);
                 for(auto && [key, val] : rejections) {
                     if(deprecations.find(key) != deprecations.end())
-                        U_EXCEPTION("Parameter '%S' is deprecated. Please use '%S'.", &key, &deprecations.at(key));
+                        throw U_EXCEPTION("Parameter ",key," is deprecated. Please use ",deprecations.at(key),".");
                 }
-                DebugHeader("/LOADED '%S'", &exec_settings.str());
+                DebugHeader("/LOADED ", exec_settings);
             }
             else
-                Error("Cannot find settings file '%S'.", &exec_settings.str());
+                FormatError("Cannot find settings file ",exec_settings.str(),".");
             
             SETTING(exec) = file::Path();
         }
@@ -676,7 +706,7 @@ int main(int argc, char** argv)
             log_file = fopen(path.str().c_str(), "wb");
             log_mutex.unlock();
             
-            Debug("Logging to '%S'.", &path.str());
+            print("Logging to ", path.str(),".");
         }
         
         if(SETTING(manual_identities).value<std::set<track::Idx_t>>().empty() && SETTING(track_max_individuals).value<uint32_t>() != 0)
@@ -691,7 +721,7 @@ int main(int argc, char** argv)
         std::shared_ptr<gui::IMGUIBase> imgui_base;
         
 #if WITH_PYLON
-        Debug("Starting with Basler Pylon support.");
+        print("Starting with Basler Pylon support.");
         
         // Before using any pylon methods, the pylon runtime must be initialized.
         Pylon::PylonAutoInitTerm term;
@@ -786,27 +816,34 @@ int main(int argc, char** argv)
             }
         }
         
-        Debug("Ending the program.");
-        
-    } catch(const DebugException& e) {
-        printf("Debug exception: %s\n", e.what());
-        return 1;
+        print("Ending the program.");
         
     } catch(const UtilsException& e) {
-        Except("Utils exception: %s", e.what());
-        return 1;
+#ifdef WIN32
+        if (!SETTING(nowindow)) {
+            auto str = std::string("An error occurred, forcing TGrabs to quit:\n") + e.what();
+            MessageBox(
+                NULL,
+                str.c_str(),
+                "Error",
+                MB_ICONERROR | MB_OK
+            );
+        }
+#endif
+        FormatExcept("Utils exception: ", e.what());
+        exit(1);
     }
         
 #if WITH_PYLON
     }
     catch (const Pylon::GenericException &e)
     {
-        U_EXCEPTION("An exception occured: '%s'", e.GetDescription());
+        throw U_EXCEPTION("An exception occured: '",e.GetDescription(),"'");
         return 1;
     }
 #endif
     
-    DEBUG::UnsetDebugCallback(debug_callback);
+    //DEBUG::UnsetDebugCallback(debug_callback);
     gui::deinit_errorlog();
     
     if(log_file)

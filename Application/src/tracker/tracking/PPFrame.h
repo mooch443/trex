@@ -8,14 +8,15 @@
 
 namespace track {
 
-class PPFrame : public IndexedDataTransport {
+class PPFrame {
     GETTER_NCONST(pv::Frame, frame)
+    GETTER_SETTER(Frame_t, index)
 public:
     //! Time in seconds
     double time;
     
     //! Original timestamp
-    uint64_t timestamp;
+    timestamp_t timestamp;
     
     //! Original frame index
     //long_t index;
@@ -36,11 +37,12 @@ public:
     const IndividualCache* cached(Idx_t) const;
     
     //std::map<Idx_t, IndividualCache> cached_individuals;
-    std::map<uint32_t, std::set<uint32_t>> blob_cliques, fish_cliques;
-    std::set<uint32_t> split_blobs;
+    ska::bytell_hash_map<pv::bid, UnorderedVectorSet<Idx_t>> clique_for_blob;
+    ska::bytell_hash_map<pv::bid, UnorderedVectorSet<pv::bid>> clique_second_order;
+    UnorderedVectorSet<pv::bid> split_blobs;
     
 protected:
-    std::unordered_map<uint32_t, pv::BlobPtr> _bdx_to_ptr;
+    ska::bytell_hash_map<pv::bid, pv::BlobPtr> _bdx_to_ptr;
     GETTER(grid::ProximityGrid, blob_grid)
     
 public:
@@ -66,19 +68,19 @@ public:
     
     //! Tries to find the given blob in any of the arrays and removes it.
     void erase_anywhere(const pv::BlobPtr& blob);
-    pv::BlobPtr erase_anywhere(uint32_t bdx);
+    pv::BlobPtr erase_anywhere(pv::bid bdx);
     
     //! If the bdx can be found, this removes it from the _blobs array
     /// and returns a pv::BlobPtr. Otherwise nullptr is returned.
-    pv::BlobPtr erase_regular(uint32_t bdx);
+    pv::BlobPtr erase_regular(pv::bid bdx);
     
     //! If the bdx can be found in any of the arrays, this will return
     /// something != nullptr.
-    pv::BlobPtr find_bdx(uint32_t bdx) const;
+    pv::BlobPtr find_bdx(pv::bid bdx) const;
     
     //! Will return the pv::BlobPtr assigned with the given bdx.
     /// If the bdx cannot be found, this will throw!
-    const pv::BlobPtr& bdx_to_ptr(uint32_t bdx) const;
+    const pv::BlobPtr& bdx_to_ptr(pv::bid bdx) const;
     
     //! Only remove blobs and update pixels arrays.
     void clear_blobs();
@@ -98,7 +100,7 @@ public:
 private:
     void _assume_not_finalized(const char*, int);
     bool _add_to_map(const pv::BlobPtr&);
-    void _remove_from_map(uint32_t);
+    void _remove_from_map(pv::bid);
 };
 
 }
