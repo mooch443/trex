@@ -102,7 +102,7 @@ Tracker::LockGuard::~LockGuard() {
                 auto name = get_thread_name();
                 if(_last_printed_purpose.find(_purpose) == _last_printed_purpose.end() || _last_printed_purpose[_purpose].elapsed() >= 10) {
                     auto str = Meta::toStr(DurationUS{uint64_t(_timer.elapsed() * 1000 * 1000)});
-                    print("thread ",name," held the lock for ",str.c_str()," with purpose ",_purpose);
+                    print("thread ",name," held the lock for ",str.c_str()," with purpose ",_purpose.c_str());
                     _last_printed_purpose[_purpose].reset();
                 }
             }

@@ -53,7 +53,7 @@ inline std::string get_stats() {
 
 void Grid::print_stats(const std::string& title) {
     auto str = get_stats();
-    print(title,"\n",str);
+    print(title.c_str(),"\n",str.c_str());
 }
 
 /**

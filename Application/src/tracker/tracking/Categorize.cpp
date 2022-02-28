@@ -458,7 +458,7 @@ void DataStore::_set_label_unsafe(Frame_t idx, pv::bid bdx, int ldx) {
             N += values.size();
         }
 
-        print("[CAT] ",dec<1>(double(N) / double(_probability_cache.size()))," frames in cache, with "," labels / frame)"," labels (", _probability_cache.size(), N);
+        print("[CAT] ",_probability_cache.size()," frames in cache, with ",N," labels (", dec<1>(double(N) / double(_probability_cache.size()))," labels / frame)");
         timer.reset();
     }
 }
@@ -1698,7 +1698,7 @@ void start_applying() {
                 print("## Created ", NetworkApplicationState::current().size()," objects");
             }
             
-            Work::status() = "Applying "+Meta::toStr((NetworkApplicationState::percent() * 100))+"%...";
+            Work::status() = "Applying "+dec<2>(NetworkApplicationState::percent() * 100).toStr()+"%...";
             
             {
                 std::lock_guard guard(NetworkApplicationState::current_mutex());
@@ -1843,7 +1843,7 @@ void Work::start_learning() {
                     GUI::set_status(text);
                     
                     if(last_print.elapsed() >= 10) {
-                        print("[Categorize] ", text);
+                        print("[Categorize] ", text.c_str());
                         last_print.reset();
                     }
                 }

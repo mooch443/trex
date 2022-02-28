@@ -1208,8 +1208,8 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             auto str = Meta::toStr(obj.max_pre_frame);
             auto str0 = Meta::toStr(obj.max_pst_frame);
             
-            print("pre:", str);
-            print("pst:", str0);
+            print("pre:", str.c_str());
+            print("pst:", str0.c_str());
             
             _last_percent = _percent;
         }
