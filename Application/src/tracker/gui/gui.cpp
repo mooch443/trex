@@ -265,7 +265,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
     Cache::init();
     
     PDP(timeline) = std::make_shared<Timeline>(*this, _frameinfo);
-    PD(gui).root().insert_cache(_base, std::make_shared<CacheObject>());
+    PD(gui).root().insert_cache(_base, std::make_unique<CacheObject>());
     
     PD(info).set_pos(Vec2(_average_image.cols * 0.5, _average_image.rows * 0.5));
     PD(info).set_max_size(Size2(min(_average_image.cols * 0.75, 700), min(_average_image.rows * 0.75, 700)));
@@ -736,10 +736,9 @@ void GUI::run_loop(gui::LoopStatus status) {
     
     if(changed || PD(last_frame_change).elapsed() < 0.5) {
         if(changed) {
-            CacheObject::Ptr ptr = PD(gui).root().cached(base);
+            auto ptr = PD(gui).root().cached(base);
             if(base && !ptr) {
-                ptr = std::make_shared<CacheObject>();
-                PD(gui).root().insert_cache(base, ptr);
+                ptr = PD(gui).root().insert_cache(base, std::make_unique<CacheObject>()).get();
             }
             if(ptr)
                 ptr->set_changed(false);
