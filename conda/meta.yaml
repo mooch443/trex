@@ -77,7 +77,7 @@ requirements:
   host:
     - pthread-stubs  # [linux]
     - ffmpeg <=4.2.2 # [not arm64]
-    - ffmpeg >=4 # [arm64]
+    - ffmpeg =4 # [arm64]
     - python ==3.7.11 # [not win and not arm64]
     - python ==3.9.10 # [osx and arm64]
     - python ==3.9.7 # [win]
@@ -93,7 +93,7 @@ requirements:
     - grpcio ==1.44.0 # [osx and arm64]
     - wrapt >=1.11.0 # [arm64]
     - ffmpeg <=4.2.2 # [not arm64]
-    - ffmpeg >=4 # [arm64]
+    - ffmpeg =4 # [arm64]
     - numpy ==1.19.5 # [arm64]
     - numpy # [win]
     - python ==3.9.7 # [win]

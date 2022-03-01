@@ -294,9 +294,6 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
     PD(info).set_origin(Vec2(0.5, 0.5));
     PD(info).set_background(Color(50, 50, 50, 150), Black.alpha(150));
 
-    PD(tracking)._histogram.set_bounds(Bounds(_average_image.cols * 0.5, 450, 800, 300));
-    PD(tracking)._midline_histogram.set_bounds(Bounds(_average_image.cols * 0.5, _average_image.rows * 0.5, 800, 300));
-    PD(tracking)._length_histogram.set_bounds(Bounds(_average_image.cols * 0.5, 800, 800, 300));
 
     PD(tracking)._histogram.set_origin(Vec2(0.5, 0.5));
     PD(tracking)._midline_histogram.set_origin(Vec2(0.5, 0.5));
@@ -981,6 +978,7 @@ void GUI::draw(DrawStructure &base) {
         
         auto& tracking = PD(tracking);
         if(FAST_SETTINGS(calculate_posture) && GUI_SETTINGS(gui_show_midline_histogram)) {
+            PD(tracking)._midline_histogram.set_bounds(Bounds(_average_image.cols * 0.5, _average_image.rows * 0.5, 800, 300));
             tracking._midline_histogram.set_scale(base.scale().reciprocal());
             base.wrap_object(tracking._midline_histogram);
         }
@@ -988,6 +986,9 @@ void GUI::draw(DrawStructure &base) {
         if(FAST_SETTINGS(calculate_posture) && GUI_SETTINGS(gui_show_histograms)) {
             tracking._histogram.set_scale(base.scale().reciprocal());
             tracking._length_histogram.set_scale(base.scale().reciprocal());
+            
+            PD(tracking)._histogram.set_bounds(Bounds(_average_image.cols * 0.5, 450, 800, 300));
+            PD(tracking)._length_histogram.set_bounds(Bounds(_average_image.cols * 0.5, 800, 800, 300));
             
             Size2 window_size(_average_image.cols, _average_image.rows);
             Vec2 pos = window_size * 0.5 - Vec2(0, (tracking._histogram.global_bounds().height + tracking._length_histogram.global_bounds().height + 10) * 0.5);
