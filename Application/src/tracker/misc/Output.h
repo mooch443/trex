@@ -182,7 +182,7 @@ namespace Output {
         static Path expected_filename();
         
         void save(std::function<void(const std::string&, float, const std::string&)> = [](auto&, float, auto&){}, Path filename = Path(), const std::vector<std::string>& exclude_settings = {}) const;
-        void load(std::function<void(const std::string&, float, const std::string&)> = [](auto&, float, auto&){}, Path filename = Path());
+        ResultsFormat::Header load(std::function<void(const std::string&, float, const std::string&)> = [](auto&, float, auto&){}, Path filename = Path());
         static ResultsFormat::Header load_header(const file::Path& path);
         
     private:

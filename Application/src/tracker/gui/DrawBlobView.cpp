@@ -257,7 +257,7 @@ void draw_blob_view(const DisplayParameters& parm)
             
             auto cats = FAST_SETTINGS(categories_ordered);
             
-            auto draw_blob = [&, parm = parm](Entangled&e, const pv::BlobPtr& blob, float real_size, bool active){
+            auto draw_blob = [&](Entangled&e, const pv::BlobPtr& blob, float real_size, bool active){
                 if(displayed >= maximum_number_texts && !active)
                     return;
                 
@@ -322,7 +322,7 @@ void draw_blob_view(const DisplayParameters& parm)
                     //auto & [visited, circ, label] = _blob_labels[blob->blob_id()];
                     auto circ = std::get<1>(it->second).get();
                     circ->set_clickable(true);
-                    circ->set_radius(8);
+                    circ->set_radius(5 * float(GUI::average().cols) / 1000);
                     //circ->clear_event_handlers();
                     circ->on_click([id = blob->blob_id(), parm = parm](auto) mutable {
                         print("Clicked blob.");
@@ -727,7 +727,7 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                 Font f = font;
                 f.align = Align::Left;
                 for(auto &pt : boundary) {
-                    base.circle(pt, 5, Cyan.alpha(125))->set_scale(sca);
+                    base.circle(pt, 5, Cyan.alpha(125), Transparent, sca);
                     //base.text(Meta::toStr(pt), pt + Vec2(7 * f.size, 0), White.alpha(200), f, sca);
                     
                     if(pt.x < top_left.x) top_left.x = pt.x;

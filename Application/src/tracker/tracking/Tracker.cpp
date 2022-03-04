@@ -17,11 +17,11 @@
 #include <python/GPURecognition.h>
 #include <misc/pretty.h>
 #include <tracking/DatasetQuality.h>
-#include <gui/gui.h>
+//#include <gui/gui.h>
 #include <misc/PixelTree.h>
 #include <misc/CircularGraph.h>
 #include <misc/MemoryStats.h>
-#include <gui/WorkProgress.h>
+//#include <gui/WorkProgress.h>
 #include <tracking/Categorize.h>
 
 #ifndef NDEBUG
@@ -301,17 +301,11 @@ void Tracker::analysis_state(AnalysisState pause) {
                     }
                 }
                 
-                if(changed && GUI::instance()) {
-                    std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
-                    GlobalSettings::get(key) = tmp;
-                } else if(changed) {
+                if(changed) {
                     GlobalSettings::get(key) = tmp;
                 }
             };
             
-            if(GUI::instance()) {
-                GUI::work().add_queue("", update);
-            } else
                 update();
         };
         Settings::set_callback(Settings::track_ignore, track_list_update);
@@ -344,9 +338,9 @@ void Tracker::analysis_state(AnalysisState pause) {
                     }
                 };
                 
-                if(GUI::instance()) {
+                /*if(GUI::instance()) {
                     GUI::work().add_queue("updating midlines / head positions...", worker);
-                } else
+                } else*/
                     worker();
             }
         });
@@ -424,7 +418,7 @@ void Tracker::analysis_state(AnalysisState pause) {
             return {};
             
         } else {
-            auto str0 = Meta::toStr(compare), str1 = Meta::toStr(manual_matches);
+            //auto str0 = Meta::toStr(compare), str1 = Meta::toStr(manual_matches);
             auto copy = manual_matches; // another copy
             auto next = copy;
             
@@ -449,7 +443,7 @@ void Tracker::analysis_state(AnalysisState pause) {
             
             if(first_change.valid() && first_change <= Tracker::end_frame()) {
                 //bool analysis_paused = SETTING(analysis_paused);
-                GUI::reanalyse_from(first_change, true);
+                //GUI::reanalyse_from(first_change, true);
                 //if(!analysis_paused)
                 Tracker::analysis_state(Tracker::AnalysisState::UNPAUSED);
             }
@@ -3754,12 +3748,6 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
     
     void Tracker::check_segments_identities(bool auto_correct, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue, Frame_t after_frame) {
         
-        print("Waiting for gui...");
-        if(GUI::instance()) {
-            std::lock_guard<decltype(GUI::instance()->gui().lock())> guard(GUI::instance()->gui().lock());
-            GUI::work().set_item("updating with automatic ranges");
-        }
-        
         print("Waiting for lock...");
         LockGuard guard("check_segments_identities");
         print("Updating automatic ranges starting from ", !after_frame.valid() ? Frame_t(0) : after_frame);
@@ -4246,7 +4234,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
             add_to_queue("", [after_frame, automatic_matches, manual_splits, tmp_assigned_ranges](){
                 print("Assigning to queue from frame ", after_frame);
                 
-                std::lock_guard<decltype(GUI::instance()->gui().lock())> guard(GUI::instance()->gui().lock());
+                //std::lock_guard<decltype(GUI::instance()->gui().lock())> guard(GUI::instance()->gui().lock());
                 
                 {
                     Tracker::LockGuard guard("check_segments_identities::auto_correct");

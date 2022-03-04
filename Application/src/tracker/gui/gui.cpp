@@ -466,6 +466,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                     this->work().add_queue("updating with new manual matches...", [matches](){
                         //Tracker::LockGuard tracker_lock;
                         auto first_change = Tracker::instance()->update_with_manual_matches(matches);
+                        reanalyse_from(first_change, true);
                         
                         std::lock_guard<std::recursive_mutex> guard(PD(gui).lock());
                         if(first_change.valid())
@@ -2669,7 +2670,7 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
     bool redraw_blobs = PD(cache).raw_blobs_dirty();
     
     
-    base.section("fishbowl", [&](auto &base, Section* section) {
+    base.section("fishbowl", [&](DrawStructure &base, Section* section) {
         fishbowl = section;
         bool shift = PD(gui).is_key_pressed(gui::LShift) && (!PD(gui).selected_object() || !dynamic_cast<Textfield*>(PD(gui).selected_object()));
         gui_scale_with_boundary(PD(cache).boundary, section, !shift && (GUI_SETTINGS(gui_auto_scale) || (GUI_SETTINGS(gui_auto_scale_focus_one) && PD(cache).has_selection())));
@@ -2698,8 +2699,7 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
                 
                 if(ptr->hovered()) {
                     const Font font(0.85 / (1 - ((1 - PD(cache).zoom_level()) * 0.5)), Align::VerticalCenter);
-                    
-                    base.add_object(new Text("allowing "+Meta::toStr(rect), ptr->pos() + Vec2(5, Base::default_line_spacing(font) + 5), White, font, PD(gui).scale().reciprocal()));
+                    base.text("allowing "+Meta::toStr(rect), ptr->pos() + Vec2(5, Base::default_line_spacing(font) + 5), White, font, PD(gui).scale().reciprocal());
                 }
             }
             
@@ -2708,8 +2708,7 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
                 
                 if(ptr->hovered()) {
                     const Font font(0.85 / (1 - ((1 - PD(cache).zoom_level()) * 0.5)), Align::VerticalCenter);
-                    
-                    base.add_object(new Text("excluding "+Meta::toStr(rect), ptr->pos() + Vec2(5, Base::default_line_spacing(font) + 5), White, font, PD(gui).scale().reciprocal()));
+                    base.text("excluding "+Meta::toStr(rect), ptr->pos() + Vec2(5, Base::default_line_spacing(font) + 5), White, font, PD(gui).scale().reciprocal());
                 }
             }
         }
@@ -3537,12 +3536,68 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
         //PD(analysis).clear();
         
         try {
-            results.load([](const std::string& title, float value, const std::string& desc) {
+            auto header = results.load([](const std::string& title, float value, const std::string& desc) {
                 if(GUI::instance()) {
                     work().set_progress(title, value, desc);
                     //work().set_item_abortable(true);
                 }
             }, from);
+            
+            {
+                sprite::Map config;
+                GlobalSettings::docs_map_t docs;
+                config.set_do_print(false);
+                
+                default_config::get(config, docs, NULL);
+                try {
+                    default_config::load_string_with_deprecations(from.str(), header.settings, config, AccessLevelType::STARTUP, true);
+                    
+                } catch(const cmn::illegal_syntax& e) {
+                    print("Illegal syntax in .results settings (",e.what(),").");
+                }
+                
+                std::vector<Idx_t> focus_group;
+                if(config.has("gui_focus_group"))
+                    focus_group = config["gui_focus_group"].value<std::vector<Idx_t>>();
+                
+                if(GUI::instance()) {
+                    GUI::work().add_queue("", [f = Frame_t(header.gui_frame), focus_group](){
+                        SETTING(gui_frame) = f;
+                        SETTING(gui_focus_group) = focus_group;
+                    });
+                }
+                
+            }
+            
+            if((header.analysis_range.start != -1 || header.analysis_range.end != -1) && SETTING(analysis_range).value<std::pair<long_t, long_t>>() == std::pair<long_t,long_t>{-1,-1})
+            {
+                SETTING(analysis_range) = std::pair<long_t, long_t>(header.analysis_range.start, header.analysis_range.end);
+            }
+            
+            if(Recognition::recognition_enabled()) {
+                GUI::instance()->work().add_queue("", [](){
+                    Tracker::instance()->check_segments_identities(false, [](float ) { },
+                    [](const std::string&t, const std::function<void()>& fn, const std::string&b)
+                    {
+                        if(GUI::instance())
+                            GUI::instance()->work().add_queue(t, fn, b);
+                    });
+                });
+                
+                if(GUI::instance()) {
+                    /*update_progress("apply network...", -1, "");
+                    
+                    Tracker::instance()->check_segments_identities(false, [](float){}, [](const std::string&t, const std::function<void()>& fn, const std::string&b) {
+                        if(GUI::instance())
+                            GUI::work().add_queue(t, fn, b);
+                    });
+                    
+                    Tracker::instance()->thread_pool().enqueue([](){
+                        Tracker::recognition()->update_dataset_quality();
+                    });*/
+                }
+            }
+            
         } catch(const UtilsException& e) {
             FormatExcept("Cannot load results. Crashed with exception: ", e.what());
             

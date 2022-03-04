@@ -4,8 +4,6 @@
 #include <misc/default_config.h>
 #include <tracking/Recognition.h>
 #include <lzo/minilzo.h>
-#include <gui/gui.h>
-#include <gui/WorkProgress.h>
 #include <misc/checked_casts.h>
 #include <tracking/Categorize.h>
 #include <misc/frame_t.h>
@@ -1258,7 +1256,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
     }
 }
     
-    void TrackingResults::load(std::function<void(const std::string&, float, const std::string&)> update_progress, Path filename) {
+    ResultsFormat::Header TrackingResults::load(std::function<void(const std::string&, float, const std::string&)> update_progress, Path filename) {
         Timer loading_timer;
         
         if (filename.empty())
@@ -1388,7 +1386,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             
             if(SETTING(terminate)) {
                 clean_up();
-                return;
+                return {};
             }
         }
         
@@ -1487,60 +1485,6 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             //_tracker.generate_pairdistances(i);
         }*/
         
-        {
-            sprite::Map config;
-            GlobalSettings::docs_map_t docs;
-            config.set_do_print(false);
-            
-            default_config::get(config, docs, NULL);
-            try {
-                default_config::load_string_with_deprecations(filename, file.header().settings, config, AccessLevelType::STARTUP, true);
-                
-            } catch(const cmn::illegal_syntax& e) {
-                print("Illegal syntax in .results settings (",e.what(),").");
-            }
-            
-            std::vector<Idx_t> focus_group;
-            if(config.has("gui_focus_group"))
-                focus_group = config["gui_focus_group"].value<std::vector<Idx_t>>();
-            
-            if(GUI::instance()) {
-                GUI::work().add_queue("", [f = Frame_t(file.header().gui_frame), focus_group](){
-                    SETTING(gui_frame) = f;
-                    SETTING(gui_focus_group) = focus_group;
-                });
-            }
-            
-        }
-        
-        if((file.header().analysis_range.start != -1 || file.header().analysis_range.end != -1) && SETTING(analysis_range).value<std::pair<long_t, long_t>>() == std::pair<long_t,long_t>{-1,-1})
-        {
-            SETTING(analysis_range) = std::pair<long_t, long_t>(file.header().analysis_range.start, file.header().analysis_range.end);
-        }
-        
-        if(Recognition::recognition_enabled()) {
-            GUI::instance()->work().add_queue("", [](){
-                Tracker::instance()->check_segments_identities(false, [](float ) { },
-                [](const std::string&t, const std::function<void()>& fn, const std::string&b)
-                {
-                    if(GUI::instance())
-                        GUI::instance()->work().add_queue(t, fn, b);
-                });
-            });
-            
-            if(GUI::instance()) {
-                /*update_progress("apply network...", -1, "");
-                
-                Tracker::instance()->check_segments_identities(false, [](float){}, [](const std::string&t, const std::function<void()>& fn, const std::string&b) {
-                    if(GUI::instance())
-                        GUI::work().add_queue(t, fn, b);
-                });
-                
-                Tracker::instance()->thread_pool().enqueue([](){
-                    Tracker::recognition()->update_dataset_quality();
-                });*/
-            }
-        }
         
         if(!SETTING(quiet)) {
             print("Successfully read file ",file.filename()," (version:V_",(int)file._header.version+1," gui_frame:",file.header().gui_frame,"u start:",Tracker::start_frame(),"u end:",Tracker::end_frame(),"u)");
@@ -1548,5 +1492,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             DurationUS duration{uint64_t(loading_timer.elapsed() * 1000 * 1000)};
             DebugHeader("FINISHED READING PROGRAM STATE IN ", duration);
         }
+        
+        return file._header;
     }
 }
