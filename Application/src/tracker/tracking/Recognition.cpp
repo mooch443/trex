@@ -178,16 +178,16 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                     exec = p.str()+" 2> /dev/null";
                 } else {
                     // search conda
-                    auto conda_prefix = getenv("CONDA_PREFIX");
+                    auto conda_prefix = (const char*)getenv("CONDA_PREFIX");
                     if(conda_prefix) {
-                        print("Searching conda environment for trex_check_python... ('", conda_prefix,"').");
+                        print("Searching conda environment for trex_check_python... (", std::string(conda_prefix),").");
                         p = file::Path(conda_prefix) / "usr" / "share" / "trex" / CHECK_PYTHON_EXECUTABLE_NAME;
                         print("Full path: ", p);
                         if(p.exists()) {
-                            print("Found in conda environment ",conda_prefix," at ",p);
+                            print("Found in conda environment ",std::string(conda_prefix)," at ",p);
                             exec = p.str()+" 2> /dev/null";
                         } else {
-                            FormatWarning("Not found in conda environment ",conda_prefix," at '",p,"'.");
+                            FormatWarning("Not found in conda environment ",std::string(conda_prefix)," at ",p,".");
                         }
                     } else
                         FormatWarning("No conda prefix.");
