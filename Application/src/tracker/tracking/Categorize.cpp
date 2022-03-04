@@ -824,6 +824,7 @@ public:
     }
     
     void set_sample(const Sample::Ptr& sample);
+    void update_scale();
     
     static void receive_prediction_results(const LearningTask& task) {
         std::lock_guard guard(Work::_recv_mutex);
@@ -1014,6 +1015,7 @@ struct Row {
                         });
                     
                     cell._image->update_with(std::move(inverted));
+                    cell.update_scale();
                     cell._block->auto_size(Margin{0, 0});
                 }
                 
@@ -1022,8 +1024,8 @@ struct Row {
             }
             
             auto s = min(1, cell._block->scale().x / 1.5);
-            s = SQR(s) * SQR(s);
-            s = SQR(s) * SQR(s);
+            //s = SQR(s) * SQR(s);
+            //s = SQR(s) * SQR(s);
             
             cell.update(s);
         }
@@ -1041,6 +1043,21 @@ struct Row {
     }
 };
 
+void Cell::update_scale() {
+    double s = 1 / double(_row->_cells.size());
+    auto base = button_layout()->stage();
+
+    if (base) {
+        Size2 bsize(base->width() * 0.75, base->height() * 0.75);
+        //bsize = bsize.mul(base->scale());
+
+        if (base->width() < base->height())
+            _image->set_scale(Vec2(bsize.width * s / _image->width()).div(base->scale()));
+        else
+            _image->set_scale(Vec2(bsize.height * s / _image->height()).div(base->scale()));
+    }
+}
+
 void Cell::set_sample(const Sample::Ptr &sample) {
     if(sample != _sample)
         _max_id = -1;
@@ -1055,15 +1072,8 @@ void Cell::set_sample(const Sample::Ptr &sample) {
         _animation_time = 0;
         _animation_index = 0;
     }
-    
-    double s = 0.5 / double(_row->_cells.size());
-    auto base = button_layout()->stage();
-    if(base) {
-        if(base->width() < base->height())
-            _image->set_scale(Vec2(base->width() * base->scale().x * s / _image->width()).div(base->scale()));
-        else
-            _image->set_scale(Vec2(base->height() * base->scale().y * s / _image->height()).div(base->scale()));
-    }
+
+    update_scale();
 }
 
 struct Interface {
@@ -1263,12 +1273,29 @@ struct Interface {
                     row.update(cell._index, Work::retrieve());
 
                 cell._block->auto_size(Margin{ 0,0 });
-                max_w = max(max_w, cell._block->width());
+                max_w = max(max_w, cell._block->global_bounds().width);
             }
             row.update(base, timer.elapsed());
         }
 
         max_w = per_row * (max_w + 10);
+        max_w = min(base.width() * 0.9, max_w * 1.25 * base.scale().x);
+
+        static bool redrawing = true;
+        static float previous_max = 100;
+        static Timer draw_timer;
+        if (abs(max_w - previous_max) > previous_max * 0.2) {
+            if (redrawing) {
+                previous_max += (max_w - previous_max) * 0.5 * draw_timer.elapsed() * 10;
+                draw_timer.reset();
+            }
+            else if (draw_timer.elapsed() > 1) {
+                redrawing = true;
+                draw_timer.reset();
+            }
+        }
+        else
+            redrawing = false;
 
         if (Work::initialized()) {
             auto all_options = std::vector<Layout::Ptr>{ restart, load, train, shuffle, close };
@@ -1293,7 +1320,7 @@ struct Interface {
 
         if (stext) {
             stext->set_scale(base.scale().reciprocal());
-            stext.to<StaticText>()->set_max_size(Size2(max_w * 1.5 * base.scale().x, -1));
+            stext.to<StaticText>()->set_max_size(Size2(int(previous_max), -1));
             if (desc_text)
                 desc_text.to<StaticText>()->set_max_size(stext.to<StaticText>()->max_size());
         }

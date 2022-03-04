@@ -257,7 +257,7 @@ void draw_blob_view(const DisplayParameters& parm)
             
             auto cats = FAST_SETTINGS(categories_ordered);
             
-            auto draw_blob = [&](Entangled&e, const pv::BlobPtr& blob, float real_size, bool active){
+            auto draw_blob = [&, &parm=parm](Entangled&e, const pv::BlobPtr& blob, float real_size, bool active){
                 if(displayed >= maximum_number_texts && !active)
                     return;
                 

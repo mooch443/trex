@@ -1044,7 +1044,7 @@ void GUI::removed_frames(Frame_t including) {
 }
 
 void GUI::reanalyse_from(Frame_t frame, bool in_thread) {
-    if(!instance())
+    if(!instance() || !GUI::analysis())
         return;
     
     auto fn = [gui = instance(), frame](){
