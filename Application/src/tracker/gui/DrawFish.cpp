@@ -232,7 +232,7 @@ Fish::~Fish() {
                         return;
                     if (y < 0 || y >= mat.rows)
                         return;
-                    if (_idx < _obj.start_frame())
+                    if (_idx <= _obj.start_frame())
                         return;
 
                     auto p = _obj.probability(-1, *c, _idx, Vec2(x, y) + 1 * 0.5, 1);

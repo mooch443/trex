@@ -1961,7 +1961,7 @@ prob_t Individual::position_probability(const IndividualCache& cache, Frame_t fr
 {
     UNUSED(frameIndex)
 #ifndef NDEBUG
-    if (frameIndex < _startFrame + 1_f)
+    if (frameIndex <= _startFrame)
         throw U_EXCEPTION("Cannot calculate probability for a frame thats previous to all known frames.");
 #endif
     
