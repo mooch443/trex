@@ -479,7 +479,7 @@ VideoOpener::VideoOpener()
                 
                 auto max_scale = 1.0f;
                 auto max_size = _screenshot_max_size.mul(max_scale);
-                auto scree_size = _screenshot->source()->bounds().size();
+                auto scree_size = max_size;//_screenshot->source()->bounds().size();
                 
                 if(_raw_description->max_size() != max_size) {
                     _raw_description->set_max_size(max_size);
@@ -798,7 +798,7 @@ void VideoOpener::BufferedVideo::open(std::function<void(const bool)>&& callback
                     _cached_frame = Image::Make(local);
                     
                 } catch(const std::exception& e) {
-                    FormatExcept("Caught exception while updating '", e.what(),"'");
+                    FormatExcept("Caught exception while updating: ", e.what());
                 }
                 
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
