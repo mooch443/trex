@@ -60,7 +60,7 @@ void Grid::print_stats(const std::string& title) {
  * GUI interface functions
  */
 
-HeatmapController::HeatmapController() : _frame(-1), uniform_grid_cell_size(0), stride(0), N(0), _frame_context(-1), smooth_heatmap_factor(0) {
+HeatmapController::HeatmapController() : uniform_grid_cell_size(0), stride(0), N(0), smooth_heatmap_factor(0) {
     
 }
 
@@ -440,7 +440,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
     
     {
         auto d = abs(current_frame - _frame);
-        const auto frame_range = _frame_context >= 0_f ? _frame_context : Frame_t(narrow_cast<Frame_t::number_t>(FAST_SETTINGS(video_length)));
+        const auto frame_range = _frame_context.valid() ? _frame_context : Frame_t(narrow_cast<Frame_t::number_t>(FAST_SETTINGS(video_length)));
         
         if(!_frame.valid() || _grid.empty() || (_frame_context.valid() && d >= _frame_context)) {
             // we cant use any frames from before

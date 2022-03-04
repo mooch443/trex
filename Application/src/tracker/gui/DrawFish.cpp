@@ -149,7 +149,6 @@ Fish::~Fish() {
             _library_y = Graph::invalid();
             _avg_cat = -1;
             _next_frame_cache.valid = false;
-            _image = nullptr;
             points.clear();
             
             auto seg = _obj.segment_for(_idx);
@@ -205,6 +204,74 @@ Fish::~Fish() {
                     if(color_source == "X") _library_y /= float(Tracker::average().cols) * FAST_SETTINGS(cm_per_pixel);
                     else if(color_source == "Y") _library_y /= float(Tracker::average().rows) * FAST_SETTINGS(cm_per_pixel);
                 }
+            }
+
+            auto& cache = GUI::instance()->cache();
+            auto c = cache.processed_frame.cached(_obj.identity().ID());
+
+            if (c) {
+                auto &mat = _image.unsafe_get_source();
+                mat.create(Tracker::average().rows, Tracker::average().cols, 4);
+                if(_probability_radius < 10 || _probability_center.empty())
+                    mat.set_to(0);
+                else {
+                    for (int y = max(0, _probability_center.y - _probability_radius - 1); y < min((float)mat.rows - 1, _probability_center.y + _probability_radius); ++y) {
+                        auto ptr = mat.ptr(y, max(0, _probability_center.x - _probability_radius - 1));
+                        auto end = mat.ptr(y, min((float)mat.cols - 1, _probability_center.x + _probability_radius + 1));
+                        if (end > mat.data() + mat.size())
+                            throw U_EXCEPTION("Mat end ", mat.size(), " end: ", uint64_t(end - mat.data()));
+                        std::fill(ptr, end, 0);
+                    }
+                }
+                
+                _probability_center = c->estimated_px;
+                float sum;
+
+                auto plot = [&](int x, int y) {
+                    if (x < 0 || x >= mat.cols)
+                        return;
+                    if (y < 0 || y >= mat.rows)
+                        return;
+                    if (_idx < _obj.start_frame())
+                        return;
+
+                    auto p = _obj.probability(-1, *c, _idx, Vec2(x, y) + 1 * 0.5, 1);
+                    if (p/*.p*/ < FAST_SETTINGS(matching_probability_threshold))
+                        return;
+
+                    auto clr = Viridis::value(p).alpha(uint8_t(min(255, 255.f * p))); //DarkCyan.alpha(min(255, 255.f * p/*.p*/));//(1 - 1 / (1 + (exp(p.p * M_PI) - exp(0)) / norm))));
+                    auto ptr = mat.ptr(y, x);
+                    *(ptr + 0) = clr.r;
+                    *(ptr + 1) = clr.g;
+                    *(ptr + 2) = clr.b;
+                    *(ptr + 3) = clr.a;
+                    //cv::rectangle(mat, Vec2(x, y), Vec2(x, y) + 1, DarkCyan.alpha(255 * p.p * p.p), -1);
+
+                    sum += p/*.p*/;
+                };
+
+                _probability_radius = 0;
+
+                do {
+                    sum = 0;
+                    int sx = _probability_center.x - _probability_radius;
+                    int sy = _probability_center.y - _probability_radius;
+
+                    for (int x = sx; x <= sx + _probability_radius * 2 && x < mat.cols; ++x) {
+                        plot(x, sy);
+                        plot(x, sy + _probability_radius * 2);
+                    }
+
+                    for (int y = sy + 1; y <= sy + _probability_radius * 2 - 1 && y < mat.rows; ++y) {
+                        plot(sx, y);
+                        plot(sx + _probability_radius * 2, y);
+                    }
+
+                    ++_probability_radius;
+
+                } while (sum > 0 || _probability_radius < 10);
+
+                _image.updated_source();
             }
         }
         
@@ -649,78 +716,8 @@ Fish::~Fish() {
         
             
             if(is_selected && GUIOPTION(gui_show_probabilities)) {
-                if(!_image) {
-                    auto probability = Image::Make(Tracker::average().rows, Tracker::average().cols, 4);
-                
-                    auto mat = probability->get();
-                    mat.setTo(0);
-                    auto c = cache.processed_frame.cached(_obj.identity().ID());
-                    if(c) {
-                        Vec2 start = c->estimated_px;
-                        int32_t radius = 0;
-                        float sum;
-                        //const float norm = exp(M_PI) - exp(0);
-                    
-                        auto plot = [&](int x, int y){
-                            if(x < 0 || x >= mat.cols)
-                                return;
-                            if(y < 0 || y >= mat.rows)
-                                return;
-                            if(_idx < _obj.start_frame())
-                                return;
-                        
-                            auto p = _obj.probability(-1, *c, _idx, Vec2(x, y) + 1 * 0.5, 1);
-                            if(p/*.p*/ < FAST_SETTINGS(matching_probability_threshold))
-                                return;
-                        
-                            auto clr = DarkCyan.alpha(min(255, 255.f * p/*.p*/));//(1 - 1 / (1 + (exp(p.p * M_PI) - exp(0)) / norm))));
-                            auto ptr = mat.ptr(y, x);
-                            *(ptr + 0) = clr.r;
-                            *(ptr + 1) = clr.g;
-                            *(ptr + 2) = clr.b;
-                            *(ptr + 3) = clr.a;
-                            //cv::rectangle(mat, Vec2(x, y), Vec2(x, y) + 1, DarkCyan.alpha(255 * p.p * p.p), -1);
-                        
-                            sum += p/*.p*/;
-                        };
-                    
-                        do {
-                            sum = 0;
-                            int sx = start.x - radius;
-                            int sy = start.y - radius;
-                        
-                            for (int x=sx; x <= sx+radius*2 && x<(int)probability->cols; ++x) {
-                                plot(x, sy);
-                                plot(x, sy + radius * 2);
-                            }
-                        
-                            for (int y=sy + 1; y <= sy+radius*2 - 1 && y<(int)probability->rows; ++y) {
-                                plot(sx, y);
-                                plot(sx + radius * 2, y);
-                            }
-                        
-                            ++radius;
-                        
-                        } while(sum > 0 || radius < 10);
-                    
-                        /*for (int x=0; x<_probability.cols; x+=5) {
-                            for (int y=0; y<_probability.rows; y+=5) {
-                                //auto ptr = mat.ptr(y, x);
-                                auto p = _obj.probability(it->second, _idx, Vec2(x, y) + 5 * 0.5, 1);
-                                cv::rectangle(mat, Vec2(x, y), Vec2(x, y) + 5, DarkCyan.alpha(255 * p.p), -1);
-                            
-                                *(ptr + 0) = p.p * 255;
-                                *(ptr + 1) = 0;
-                                *(ptr + 2) = p.p * 255;
-                                *(ptr + 3) = p.p * 255;
-                            }
-                        }*/
-                    }
-                
-                    _image = std::make_unique<ExternalImage>(std::move(probability), offset);
-                }
-            
-                _view.advance_wrap(*_image);
+                _image.set_pos(offset);
+                _view.advance_wrap(_image);
             }
         
             if ((hovered || is_selected) && GUIOPTION(gui_show_selections)) {

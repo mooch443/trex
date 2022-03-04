@@ -28,7 +28,9 @@ namespace gui {
         GETTER(Frame_t, idx)
         Frame_t _safe_idx;
         double _time;
-        std::unique_ptr<ExternalImage> _image;
+        ExternalImage _image;
+        int32_t _probability_radius = 0;
+        Vec2 _probability_center;
         Midline::Ptr _cached_midline;
         MinimalOutline::Ptr _cached_outline;
         GETTER(Vec2, fish_pos)
