@@ -314,6 +314,10 @@ public:
         std::vector<Layout::Ptr> tmp {foi_list, reanalyse, menu};
         layout->set_children(tmp);
     }
+
+    ~DrawMenuPrivate() {
+    }
+
     void matching_gui() {
         /**
          * -----------------------------
@@ -624,13 +628,10 @@ public:
         
         if(_individual_items.size() < 100) {
             if(!contains(layout->children(), _list.get())) {
-                //auto tmp = layout.children();
-                //tmp.insert(tmp.begin(), &_list);
-                layout->add_child(0, _list.get());
-                //layout.set_children(tmp);
+                layout->add_child(0, _list);
             }
         } else
-            layout->remove_child(_list.get());
+            layout->remove_child(_list);
         
         if(SETTING(gui_show_memory_stats)) {
             memory_stats();
