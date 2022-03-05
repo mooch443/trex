@@ -565,7 +565,7 @@ int main(int argc, char** argv)
                 }
                     
                 default:
-                    FormatWarning("Unknown option",option.name,"with value", option.value);
+                    FormatWarning("Unknown option ",option.name," with value ", option.value);
                     break;
             }
             
@@ -573,7 +573,7 @@ int main(int argc, char** argv)
             load_settings_from_results = Meta::fromStr<std::vector<std::string>>(option.value);
             
         } else {
-            FormatWarning("Unknown option", option.name, "with value", option.value);
+            FormatWarning("Unknown option ", option.name, " with value ", option.value);
         }
     }
 

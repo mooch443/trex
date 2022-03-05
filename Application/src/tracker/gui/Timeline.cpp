@@ -81,7 +81,7 @@ namespace gui {
             _status_text2.set_clickable(true);
 
             _pause.on_click([](auto) {
-                Tracker::analysis_state((Tracker::AnalysisState)!SETTING(analysis_paused));
+                Tracker::analysis_state(SETTING(analysis_paused).value<bool>() ? Tracker::AnalysisState::UNPAUSED : Tracker::AnalysisState::PAUSED);
             });
         }
 

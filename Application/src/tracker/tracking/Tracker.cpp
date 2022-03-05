@@ -442,9 +442,6 @@ void Tracker::analysis_state(AnalysisState pause) {
             }
             
             if(first_change.valid() && first_change <= Tracker::end_frame()) {
-                //bool analysis_paused = SETTING(analysis_paused);
-                //GUI::reanalyse_from(first_change, true);
-                //if(!analysis_paused)
                 Tracker::analysis_state(Tracker::AnalysisState::UNPAUSED);
             }
             

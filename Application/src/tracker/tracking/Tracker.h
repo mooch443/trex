@@ -314,7 +314,7 @@ CREATE_STRUCT(Settings,
         static std::vector<Clique> generate_cliques(const Match::PairedProbabilities& paired);
         
         enum class AnalysisState {
-            PAUSED,
+            PAUSED = 0,
             UNPAUSED
         };
         static void analysis_state(AnalysisState);
