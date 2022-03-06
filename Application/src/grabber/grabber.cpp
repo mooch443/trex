@@ -74,6 +74,7 @@ ENUM_CLASS(CLFeature,
 
 IMPLEMENT(FrameGrabber::instance) = NULL;
 IMPLEMENT(FrameGrabber::gpu_average);
+IMPLEMENT(FrameGrabber::gpu_float_average);
 IMPLEMENT(FrameGrabber::gpu_average_original);
 
 bool FrameGrabber::is_recording() const {
@@ -1385,6 +1386,7 @@ void FrameGrabber::ensure_average_is_ready() {
         
         tmp.copyTo(gpu_average_original);
         tmp.copyTo(gpu_average);
+        tmp.convertTo(gpu_float_average, CV_32FC1, 1.0 / 255.0);
     }
 }
 
@@ -1754,7 +1756,7 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
 
     if (!task->mask) {
         if (!task->process)
-            task->process = std::make_unique<RawProcessing>(gpu_average, nullptr);
+            task->process = std::make_unique<RawProcessing>(gpu_average, &gpu_float_average, nullptr);
 
         gpuMat* input = task->gpu_buffer.get();
         image.copyTo(*input);

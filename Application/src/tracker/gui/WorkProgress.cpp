@@ -20,7 +20,9 @@
 #define GLFW_EXPOSE_NATIVE_X11
 #endif
 #include <GLFW/glfw3.h>
+#if !defined(__EMSCRIPTEN__)
 #include <GLFW/glfw3native.h>
+#endif
 
 namespace gui {
 
@@ -176,6 +178,7 @@ void WorkProgress::set_percent(float value) {
             }
         }
 
+#if !defined(__EMSCRIPTEN__)
         // only if it works... display Taskbar progress on Windows
         if (ptbl) {
             const ULONGLONG percent = (ULONGLONG)max(1.0, double(value) * 100.0);
@@ -192,6 +195,7 @@ void WorkProgress::set_percent(float value) {
                 ptbl->SetProgressValue(hwnd, 100ul, 100ul);
             }
         }
+#endif
     }
 #elif defined(__APPLE__)
     MacProgressBar::set_percent(value);

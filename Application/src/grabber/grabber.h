@@ -165,7 +165,7 @@ protected:
     
 public:
     static FrameGrabber* instance;
-    static gpuMat gpu_average, gpu_average_original;
+    static gpuMat gpu_average, gpu_float_average, gpu_average_original;
     
 public:
     FrameGrabber(std::function<void(FrameGrabber&)> callback_before_starting);

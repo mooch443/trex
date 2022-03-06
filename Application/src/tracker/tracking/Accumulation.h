@@ -1,5 +1,6 @@
 #pragma once
 
+#if !TREX_NO_PYTHON
 #include <tracking/Tracker.h>
 #include <tracking/Recognition.h>
 #include <tracking/DatasetQuality.h>
@@ -120,3 +121,5 @@ private:
 };
 
 }
+#endif
+

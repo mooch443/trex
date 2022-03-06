@@ -2944,7 +2944,7 @@ void GUI::open_docs() {
         execl("/usr/bin/open", "open", filename.c_str(), (char *)0);
         exit(0);
     }
-#else
+#elif !defined(__EMSCRIPTEN__)
     ShellExecute(0, 0, filename.c_str(), 0, 0 , SW_SHOW );
 #endif
 }

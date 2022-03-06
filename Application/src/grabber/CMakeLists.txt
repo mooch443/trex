@@ -298,6 +298,7 @@ install(TARGETS ${targets}
     CONFIGURATIONS Release
 )
 
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/gfx DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
 install(FILES ${CMAKE_SOURCE_DIR}/closed_loop.py DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
 
 if(APPLE)

@@ -1,4 +1,6 @@
 #include "Accumulation.h"
+
+#if !TREX_NO_PYTHON
 #include <gui/gui.h>
 #include <tracking/DatasetQuality.h>
 #include <tracking/TrainingData.h>
@@ -1916,3 +1918,6 @@ float Accumulation::best_uniqueness() const {
 }
 
 }
+
+#endif
+
