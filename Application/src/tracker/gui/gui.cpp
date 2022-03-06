@@ -2441,7 +2441,7 @@ void GUI::draw_footer(DrawStructure& base) {
             static Timer print_timer;
             if (print_timer.elapsed() > 1) {
                 if (txt != gpu_status.txt())
-                    print(txt);
+                    print(txt.c_str());
                 print_timer.reset();
             }
             gpu_status.set_txt(txt);

@@ -111,7 +111,7 @@ struct ScreenRecorder::Data {
                 duration.timestamp = timestamp_t(double(duration.timestamp) / double(playback_speed));
                 str += " (real: "+Meta::toStr(duration)+")";
             }
-            print("[rec] ", str);
+            print("[rec] ", str.c_str());
             last_print.reset();
         }
     }
