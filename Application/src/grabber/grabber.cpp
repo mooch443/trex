@@ -256,7 +256,8 @@ void FrameGrabber::prepare_average() {
     
     print("cam_scale = ", GRAB_SETTINGS(cam_scale));
     if(GRAB_SETTINGS(cam_scale) != 1)
-        resize_image(_average, GRAB_SETTINGS(cam_scale));
+        cv::resize(_average, _average, _cropped_size);
+        //resize_image(_average, GRAB_SETTINGS(cam_scale));
     
     
     if(GRAB_SETTINGS(correct_luminance)) {
@@ -640,7 +641,7 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
     
     _analysis = new std::decay<decltype(*_analysis)>::type(
           [&]() -> ImagePtr { // create object
-              return ImageMake(_cam_size.height, _cam_size.width);
+              return ImageMake(_cropped_size.height, _cropped_size.width);
           },
           [&](long_t prev, Image_t& current) -> bool { // prepare object
               if(_reset_first_index) {
@@ -888,7 +889,7 @@ void FrameGrabber::initialize_video() {
     _average_finished = true;
 }
 
-bool FrameGrabber::add_image_to_average(const Image_t& current) {
+bool FrameGrabber::add_image_to_average(const cv::Mat& current) {
     // Create average image, whenever average_finished is not set
     if(!_average_finished || GRAB_SETTINGS(reset_average)) {
         file::Path fname;
@@ -915,7 +916,7 @@ bool FrameGrabber::add_image_to_average(const Image_t& current) {
         
         if(!_accumulator)
             _accumulator = std::make_unique<AveragingAccumulator>();
-        _accumulator->add(current.get());
+        _accumulator->add(current);
         
         _average_samples++;
         
@@ -969,6 +970,12 @@ bool FrameGrabber::load_image(Image_t& current) {
         return false;
     }
     
+    static auto size = _cam_size;
+    static Image image(size.height, size.width, 1);
+    static gpuMat m(size.height, size.width, CV_8UC1);
+    static gpuMat scaled;
+    static const bool does_change_size = _cam_size != _cropped_size || GRAB_SETTINGS(cam_scale) != 1;
+    
     if(_video) {
         if(_average_finished && current.index() >= long_t(_video->length())) {
             --_frame_processing_ratio;
@@ -977,11 +984,13 @@ bool FrameGrabber::load_image(Image_t& current) {
         }
         
         assert(!current.empty());
-        
-        cv::Mat m = current.get();
+        cv::Mat c = current.get();
         
         try {
-            _video->frame(current.index(), m);
+            if(does_change_size)
+                _video->frame(current.index(), m);
+            else
+                _video->frame(current.index(), c);
             
             Image *mask_ptr = NULL;
             if(_video_mask) {
@@ -1010,16 +1019,31 @@ bool FrameGrabber::load_image(Image_t& current) {
         std::lock_guard<std::mutex> guard(_camera_lock);
         if(_camera) {
             //static Image_t image(_camera->size().height, _camera->size().width, 1);
-            if(!_camera->next(current)) {
+            if(!_camera->next(does_change_size ? image : current)) {
                 //print("_camera ", _frame_processing_ratio.load(), " by ", current.index());
                 --_frame_processing_ratio;
                 return false;
             }
-            //current.set(image);
+            
+            if(does_change_size)
+                image.get().copyTo(m);
         }
     }
     
-    if (add_image_to_average(current)) {
+    if(does_change_size) {
+        // if anything is scaled, switch to scaled buffer
+        if (crop_and_scale(m, scaled))
+            scaled.copyTo(current.get());
+        else
+            m.copyTo(current.get());
+        
+        // if this is from a camera, the image is already saved
+        // in "image". otherwise, copy it there
+        if(_video)
+            m.copyTo(image.get());
+    }
+    
+    if (add_image_to_average(does_change_size ? image.get() : current.get())) {
         //print("add to average ", _frame_processing_ratio.load(), " by ", current.index());
         --_frame_processing_ratio;
         return false;
@@ -1365,28 +1389,36 @@ void FrameGrabber::ensure_average_is_ready() {
 }
 
 bool FrameGrabber::crop_and_scale(const gpuMat& gpu, gpuMat& output) {
-    const gpuMat* input = &gpu;
-    gpuMat scaled;
+    static std::remove_cvref_t<decltype(gpu)> scaled;
+    static decltype(scaled) undistorted;
+    auto input = &gpu;  // input from gpu
+    auto out = &output; // by default, directly save to output
     
-    if(GRAB_SETTINGS(cam_scale) != 1) {
-        resize_image(gpu, scaled, GRAB_SETTINGS(cam_scale));
-        input = &scaled;
-    }
+    if(GRAB_SETTINGS(cam_scale) != 1)
+        out = &scaled; // send everything to "scaled" instead of "output"
+                       // since the unscaled img might not fit in "output"
     
     if (GRAB_SETTINGS(cam_undistort)) {
-        gpuMat undistorted;
         _processed.undistort(*input, undistorted);
-        undistorted(_crop_rect).copyTo(output);
-        input = nullptr;
+        undistorted(_crop_rect).copyTo(*out);
+        input = out; // now the current image is in "out"
         
     } else {
         if(_crop_rect.width != _cam_size.width || _crop_rect.height != _cam_size.height) {
-            (*input)(_crop_rect).copyTo(output);
-            input = nullptr;
+            (*input)(_crop_rect).copyTo(*out);
+            input = out; // image is now in "out"
         }
     }
     
-    return input == nullptr;
+    // check if we need scaling
+    if(out == &scaled /* => GRAB_SETTINGS(cam_scale) is != 1 */) {
+        // read either from "scaled" or "input" and
+        // write directly to output
+        cv::resize(*input, output, _cropped_size);
+        return true;
+    }
+    
+    return input == &output;
 }
 
 void FrameGrabber::update_fps(long_t index, timestamp_t stamp, timestamp_t tdelta, timestamp_t now) {
@@ -1727,10 +1759,6 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
         gpuMat* input = task->gpu_buffer.get();
         image.copyTo(*input);
 
-        // if anything is scaled, switch to scaled buffer
-        if (crop_and_scale(*input, *task->scaled_buffer))
-            input = task->scaled_buffer.get();
-
         if (processed().has_mask()) {
             static gpuMat mask;
             if (mask.empty())
@@ -1761,8 +1789,6 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
         cv::threshold(mask, mask, 0, 1, cv::THRESH_BINARY);
         cv::multiply(*input, mask, *input);
 
-        if (crop_and_scale(*input, *task->scaled_buffer.get()))
-            input = task->scaled_buffer.get();
         apply_filters(*input);
 
         input->copyTo(image);
@@ -1977,14 +2003,14 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
                         guard.unlock();
                         _multi_variable.notify_one();
                         
-                        try {
+                        //try {
                             threadable_task(task);
 
-                        } catch(const std::exception& ex) {
+                        /*} catch(const std::exception& ex) {
                             FormatExcept("std::exception from threadable task: ", ex.what());
                         } catch(...) {
                             FormatExcept("Unknown exception from threadable task.");
-                        }
+                        }*/
                         
                         {
                             std::unique_lock g(inactive_task_mutex);

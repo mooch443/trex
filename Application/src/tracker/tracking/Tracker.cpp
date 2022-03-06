@@ -3067,7 +3067,6 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             });
         }
         
-        std::vector<std::vector<std::tuple<Individual*, std::shared_ptr<Individual::BasicStuff>>>> vector;
         Timer posture_timer;
         
         {
@@ -3075,44 +3074,36 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             TakeTiming take(timing);
             
             if(do_posture && !need_postures.empty()) {
-                size_t num_threads = max(1, min((float)concurrentThreadsSupported, need_postures.size() / SETTING(postures_per_thread).value<float>()));
-            
-                size_t last = need_postures.size() % num_threads;
-                size_t per_thread = (need_postures.size() - last) / num_threads;
+                static std::vector<std::tuple<Individual*, std::shared_ptr<Individual::BasicStuff>>> all;
                 
-                //if(frameIndex % 100 == 0)
-                
-                vector.reserve(num_threads+1);
-                
-                for(size_t i=0; i<=num_threads; ++i) {
-                    const size_t elements = i == num_threads ? last : per_thread;
-                    if(!elements)
-                        break;
-                    
-                    decltype(vector)::value_type v;
-                    v.reserve(elements);
-                    
-                    while(!need_postures.empty() && v.size() < elements) {
-                        v.push_back(need_postures.front());
-                        need_postures.pop();
-                    }
-                    
-                    vector.push_back(v);
-                    
-                    if(i) {
-                        _thread_pool.enqueue(analyse_posture_pack, frameIndex, vector.back());
-                    }
+                while(!need_postures.empty()) {
+                    all.emplace_back(std::move(need_postures.front()));
+                    need_postures.pop();
                 }
                 
-                if(!vector.empty())
-                    analyse_posture_pack(frameIndex, vector.front());
+                distribute_vector([frameIndex](auto, auto start, auto end, auto){
+                    Timer t;
+                    double collected = 0;
+                    
+                    for(auto it = start; it != end; ++it) {
+                        t.reset();
+                        std::get<0>(*it)->save_posture(std::get<1>(*it), frameIndex);
+                        collected += t.elapsed();
+                    }
+                    
+                    std::lock_guard<std::mutex> guard(Tracker::instance()->_statistics_mutex);
+                    Tracker::instance()->_statistics[frameIndex].combined_posture_seconds += narrow_cast<float>(collected);
+                    
+                }, _thread_pool, all.begin(), all.end());
+                
+                all.clear();
                 assert(need_postures.empty());
             }
             
             //if(assigned_count < 5)
             //    generate_pairdistances(frameIndex);
             
-            _thread_pool.wait();
+            //_thread_pool.wait();
         }
         
         /*for(auto && [fish, assigned] : fish_assigned) {
@@ -3172,6 +3163,9 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         }
         
         update_warnings(frameIndex, frame.time, number_fish, n, prev, props, prev_props, _active_individuals, _individual_add_iterator_map);
+        
+        if(save_tags)
+            _thread_pool.wait();
         
         std::lock_guard<std::mutex> guard(_statistics_mutex);
         _statistics[frameIndex].number_fish = assigned_count;

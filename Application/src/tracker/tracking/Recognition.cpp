@@ -854,7 +854,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             for (auto it = fish->frame_segments().begin(); it != fish->frame_segments().end(); ++it) {
                 auto& segment = *it->get();
                 
-                if(segment.end() >= fish->end_frame() && !(uint64_t(fish->end_frame().get()) >= video_length || fish->end_frame() < frames.end))
+                if(segment.end() > fish->end_frame() && !(uint64_t(fish->end_frame().get()) > video_length || fish->end_frame() <= frames.end))
                 {
                     // dont process the last segment of this fish, unless
                     // it is the end of the video

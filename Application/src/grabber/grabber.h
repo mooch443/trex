@@ -227,7 +227,7 @@ private:
     
     //! returns true if an action was performed. does cam_scale, crop and undistort
     bool crop_and_scale(const gpuMat&, gpuMat& output);
-    bool add_image_to_average(const Image_t&);
+    bool add_image_to_average(const cv::Mat&);
     void initialize(std::function<void(FrameGrabber&)>&& callback_before_starting);
     
     std::tuple<int64_t, bool, double> in_main_thread(const std::unique_ptr<ProcessingTask>& task);

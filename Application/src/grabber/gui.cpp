@@ -292,7 +292,8 @@ void GUI::draw(gui::DrawStructure &base) {
 
                     pv::Blob blob(*m, *_frame->pixels().at(i));
                     auto pos = blob.bounds().pos();
-                    base.rect(pos + offset, blob.bounds().size(), Transparent, Red);
+                    auto clr = wheel.next();
+                    base.rect(pos + offset, blob.bounds().size(), Transparent, clr.alpha(150));
                     
                     //! only display images if there arent too many of them.
                     if(_frame->mask().size() < 100) {
@@ -311,7 +312,7 @@ void GUI::draw(gui::DrawStructure &base) {
                                 (*it)[3] = 0;
                         }*/
 
-                        base.image(pos + offset, std::move(image), Vec2(1.0), wheel.next().alpha(150));
+                        base.image(pos + offset, std::move(image), Vec2(1.0), clr.alpha(150));
                     }
                     
                     base.text(Meta::toStr(i), pos + offset, Yellow, 0.5, scale);

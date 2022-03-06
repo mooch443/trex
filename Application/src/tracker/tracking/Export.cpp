@@ -216,7 +216,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
     else
         print("[exporting] Exporting all frames (", tracker.number_frames(),")");
     auto individual_prefix = FAST_SETTINGS(individual_prefix);
-    print("[exporting] Writing data from `output_graphs` to ",fishdata+"/"+filename+"_"+individual_prefix+"*."+output_format.name());
+    print("[exporting] Writing data from `output_graphs` to ",fishdata / (filename+"_"+individual_prefix+"*."+output_format.name()));
     if(output_posture_data)
         print("[exporting] Writing posture data to ",posture_path);
     if(recognition_enable)
