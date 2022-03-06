@@ -226,7 +226,7 @@ TRex parameters
 
 .. function:: build_cxx_options(string)
 
-	**default value:** " -fvisibility-inlines-hidden -fvisibility=hidden -Wno-c++98-compat-pedantic -O3 -DNDEBUG -std=c++2a -O3 -Wno-nullability-extension"
+	**default value:** " -fvisibility-inlines-hidden -fvisibility=hidden -Wno-c++98-compat-pedantic -Wall -Wextra -pedantic -O3 -DNDEBUG -std=c++2a -O3 -Wno-nullability-extension"
 
 
 	The mode the application was built in.
@@ -1495,7 +1495,7 @@ TRex parameters
 
 .. function:: output_default_options(map<string,array<string>>)
 
-	**default value:** {"v_direction":["/10"],"NEIGHBOR_DISTANCE":["/10"],"X":["/100"],"outline_size":["/100"],"ANGULAR_A":["/1000","CENTROID"],"threshold_reached":["POINTS"],"DOT_V":["/10"],"L_V":["/10"],"ANGULAR_V":["/10","CENTROID"],"event_acceleration":["/10"],"midline_length":["/15"],"SPEED":["/10"],"ACCELERATION":["/15","CENTROID"],"NEIGHBOR_VECTOR_T":["/1"],"Y":["/100"],"tailbeat_threshold":["pm"],"tailbeat_peak":["pm"],"amplitude":["/100"],"global":["/10"]}
+	**default value:** {"event_acceleration":["/10"],"ACCELERATION":["/15","CENTROID"],"L_V":["/10"],"v_direction":["/10"],"DOT_V":["/10"],"ANGULAR_V":["/10","CENTROID"],"ANGULAR_A":["/1000","CENTROID"],"NEIGHBOR_VECTOR_T":["/1"],"SPEED":["/10"],"NEIGHBOR_DISTANCE":["/10"],"X":["/100"],"Y":["/100"],"tailbeat_threshold":["pm"],"tailbeat_peak":["pm"],"threshold_reached":["POINTS"],"midline_length":["/15"],"amplitude":["/100"],"outline_size":["/100"],"global":["/10"]}
 
 
 	Default scaling and smoothing options for output functions, which are applied to functions in ``output_graphs`` during export.
@@ -2126,7 +2126,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1.6-64-g0ff0215"
+	**default value:** "v1.1.6-202-gb5559ce"
 
 
 	Current application version.

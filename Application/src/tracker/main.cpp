@@ -801,6 +801,8 @@ int main(int argc, char** argv)
                                     CV_32FC1,
                                     map1, map2);
         
+        GlobalSettings::map().dont_print("cam_undistort1");
+        GlobalSettings::map().dont_print("cam_undistort2");
         GlobalSettings::get("cam_undistort1") = map1;
         GlobalSettings::get("cam_undistort2") = map2;
     }
@@ -1111,7 +1113,7 @@ int main(int argc, char** argv)
             static Timing all_processing("Analysis::process()", 50);
             TakeTiming all(all_processing);
 
-            Tracker::LockGuard guard("Analaysis::process()");
+            Tracker::LockGuard guard("Analysis::process()");
             if(GUI_SETTINGS(terminate))
                 return false;
             
