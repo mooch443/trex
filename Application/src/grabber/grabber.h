@@ -38,7 +38,7 @@ class ImageThreads {
     std::function<bool(Image_t&)> _fn_load;
     std::function<Queue::Code(const Image_t&)> _fn_process;
     
-    std::atomic_bool _terminate;
+    std::atomic_bool _terminate{false}, _loading_terminated{false};
     std::mutex _image_lock;
     std::condition_variable _condition;
     

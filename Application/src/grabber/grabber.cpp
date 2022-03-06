@@ -204,6 +204,9 @@ void ImageThreads::loading() {
             _unused.push_front(std::move(current));
         }
     }
+    
+    _loading_terminated = true;
+    print("[load] loading terminated.");
 }
 
 void ImageThreads::processing() {
@@ -211,15 +214,16 @@ void ImageThreads::processing() {
     ocl::init_ocl();
     cmn::set_thread_name("ImageThreads::processing");
     
-    while(!_terminate || !_used.empty()) {
+    while(!_loading_terminated || !_used.empty()) {
         // process images and write to file
-        _condition.wait(lock, [this](){ return !_used.empty() || _terminate; });
+        _condition.wait_for(lock, std::chrono::milliseconds(1));
         
         while(!_used.empty()) {
             auto current = std::move(_used.back());
             _used.pop_back();
             lock.unlock();
             
+            //print("[proc] processing ", current->index());
             _fn_process(*current);
             
             lock.lock();
@@ -227,6 +231,8 @@ void ImageThreads::processing() {
             _unused.push_back(std::move(current));
         }
     }
+    
+    print("[proc] processing terminated.");
 }
 
 file::Path FrameGrabber::make_filename() {
@@ -678,6 +684,7 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
               }
 
               ++_frame_processing_ratio;
+              //print("increase to ", _frame_processing_ratio.load()," by ",current.index());
               return true;
           },
           [&](Image_t& current) -> bool { return load_image(current); },
@@ -958,12 +965,14 @@ bool FrameGrabber::load_image(Image_t& current) {
     
     if (GRAB_SETTINGS(terminate)) {
         --_frame_processing_ratio;
+        //print("terminate ", _frame_processing_ratio.load(), " by ", current.index());
         return false;
     }
     
     if(_video) {
         if(_average_finished && current.index() >= long_t(_video->length())) {
             --_frame_processing_ratio;
+            //print("average finished ", _frame_processing_ratio.load(), " by ", current.index());
             return false;
         }
         
@@ -992,6 +1001,7 @@ bool FrameGrabber::load_image(Image_t& current) {
                 SETTING(terminate) = true;
             }
 
+            //print("exception ", _frame_processing_ratio.load(), " by ", current.index());
             --_frame_processing_ratio;
             return false;
         }
@@ -1001,6 +1011,7 @@ bool FrameGrabber::load_image(Image_t& current) {
         if(_camera) {
             //static Image_t image(_camera->size().height, _camera->size().width, 1);
             if(!_camera->next(current)) {
+                //print("_camera ", _frame_processing_ratio.load(), " by ", current.index());
                 --_frame_processing_ratio;
                 return false;
             }
@@ -1009,6 +1020,7 @@ bool FrameGrabber::load_image(Image_t& current) {
     }
     
     if (add_image_to_average(current)) {
+        //print("add to average ", _frame_processing_ratio.load(), " by ", current.index());
         --_frame_processing_ratio;
         return false;
     }
@@ -1058,7 +1070,6 @@ void FrameGrabber::add_tracker_queue(const pv::Frame& frame, Frame_t index) {
         ppframe_queue.emplace_back(std::move(ptr));
     }
     
-    --_frame_processing_ratio;
     ppvar.notify_one();
 }
 
@@ -1109,18 +1120,20 @@ void FrameGrabber::update_tracker_queue() {
     static Frame_t last_processed;
     
     std::unique_lock<std::mutex> guard(ppqueue_mutex);
-    static const auto range = processing_range();
+    //static const auto range = processing_range();
     while (!_terminate_tracker || (!GRAB_SETTINGS(enable_closed_loop) && (!ppframe_queue.empty() || _frame_processing_ratio > 0) /* we cannot skip frames */)) {
+        //print("terminate?",_terminate_tracker.load(), " empty?", ppframe_queue.empty(), " closed loop?", GRAB_SETTINGS(enable_closed_loop), " frame_ratio?", _frame_processing_ratio.load());
+        
         if(ppframe_queue.empty())
             ppvar.wait_for(guard, std::chrono::milliseconds(100));
         
-            if(GRAB_SETTINGS(enable_closed_loop) && ppframe_queue.size() > 1) {
-                if (print_quit_timer.elapsed() > 1) {
-                    print("Skipping ", ppframe_queue.size() - 1," frames for tracking.");
-                    print_quit_timer.reset();
-                }
-                ppframe_queue.erase(ppframe_queue.begin(), ppframe_queue.begin() + ppframe_queue.size() - 1);
+        if(GRAB_SETTINGS(enable_closed_loop) && ppframe_queue.size() > 1) {
+            if (print_quit_timer.elapsed() > 1) {
+                print("Skipping ", ppframe_queue.size() - 1," frames for tracking.");
+                print_quit_timer.reset();
             }
+            ppframe_queue.erase(ppframe_queue.begin(), ppframe_queue.begin() + ppframe_queue.size() - 1);
+        }
         
        if(!ppframe_queue.empty()) {
            
@@ -1531,7 +1544,7 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
         
         used_index_here = Frame_t(_processed.length());
         _processed.add_individual(*task->frame, pack, compressed);
-        _last_index = task->current->index();
+        //_last_index = task->current->index();
         //_last_timestamp = task->frame->timestamp();
         _saving_time = _saving_time * 0.75 + timer.elapsed() * 0.25;
         
@@ -1544,7 +1557,7 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
     auto stamp = task->current->timestamp();
     auto index = task->current->index();
 
-    assert(index == _last_index + 1);
+    assert(index == 0 || index == _last_index + 1);
     _last_index = index;
 
     if (added && tracker) {
@@ -1675,7 +1688,10 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
             last_time);
     }
 #endif
-
+    
+    //print("tracked all ", _frame_processing_ratio.load(), " by ", used_index_here);
+    --_frame_processing_ratio;
+    ppvar.notify_all();
     return { _last_task_peek, transfer_to_gui, last_time };
 }
 
@@ -1895,9 +1911,9 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
     static const auto conversion_range = processing_range();
     if (conversion_range.end.valid() && current.index() >= conversion_range.end.get()) {
         if (!GRAB_SETTINGS(terminate)) {
-            SETTING(terminate) = true;
-            print("Ending...");
             --_frame_processing_ratio;
+            SETTING(terminate) = true;
+            print("Ending... ", current.index(), " count:", _frame_processing_ratio.load());
             return Queue::Code::ITEM_REMOVE;
         }
     }
