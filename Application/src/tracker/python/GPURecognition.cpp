@@ -154,7 +154,7 @@ void NAME(const char *cmd, ...) { \
 MESSAGE_TYPE(PythonLog, TYPE_INFO, false, CYAN, "python");
 MESSAGE_TYPE(PythonWarn, TYPE_WARNING, false, YELLOW, "python");*/
 
-std::shared_ptr<cmn::GlobalSettings> _settings = nullptr;
+cmn::GlobalSettings* _settings{ nullptr };
 std::function<void(const std::string&, const cv::Mat&)> _mat_display = [](auto&, auto&) {
 
 };
@@ -321,7 +321,7 @@ namespace track {
     std::unique_ptr<std::promise<bool>> _initialize_promise;
     std::shared_future<bool> _initialize_future;
 
-    void PythonIntegration::set_settings(std::shared_ptr<GlobalSettings> obj) {
+    void PythonIntegration::set_settings(GlobalSettings* obj) {
         GlobalSettings::set_instance(obj);
         _settings = obj;
     }

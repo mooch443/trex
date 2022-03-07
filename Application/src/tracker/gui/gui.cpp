@@ -145,6 +145,7 @@ struct PrivateData {
         Textfield _value_input = Textfield("", Bounds(0, 0, 300, 33));
     } _footer;
 
+    std::mutex _analyis_mutex;
     ConnectedTasks* _analysis = nullptr;
 
     Timer _last_frame_change;
@@ -3758,10 +3759,12 @@ void GUI::export_tracks(const file::Path& , long_t fdx, Range<Frame_t> range) {
 }
 
 ConnectedTasks* GUI::analysis() {
+    std::unique_lock guard(PD(analyis_mutex));
     return PDP(analysis);
 }
 
 void GUI::set_analysis(ConnectedTasks* ptr) {
+    std::unique_lock guard(PD(analyis_mutex));
     PDP(analysis) = ptr;
 }
 
