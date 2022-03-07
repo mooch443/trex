@@ -1442,25 +1442,31 @@ void CacheHints::remove_after(Frame_t index) {
 
 void CacheHints::push(Frame_t index, const FrameProperties* ptr) {
     auto here = std::upper_bound(_last_second.begin(), _last_second.end(), index, CompareByFrame{});
-    if(_last_second.size() > 1) {
-        if(here == _last_second.end() || !*here || (*here)->frame < index) {
+    if (_last_second.size() > 1) {
+        if (here == _last_second.end() || !*here || (*here)->frame < index) {
             // have to insert past the end -> rotate
             here = std::rotate(_last_second.begin(), ++_last_second.begin(), _last_second.end());
-            
-        } else {
-            if(here == _last_second.begin()) {
-                if(*here != nullptr)
+
+        }
+        else {
+            if (here == _last_second.begin()) {
+                if (*here != nullptr)
                     return; // the vector is already full and this is older (so dont add it)
-            } else if(*(here-1) != nullptr) {
+            }
+            else if (*(here - 1) != nullptr) {
                 // rotate everything thats right of our element to the end
                 here = std::rotate(_last_second.begin(), ++_last_second.begin(), here + 1);
-            } else
+            }
+            else
                 --here;
         }
-        
+
         *here = ptr;
-    } else
+    }
+    else if (!_last_second.empty())
         _last_second.back() = ptr;
+    else
+        _last_second.push_back(ptr);
     
     /*assert(!current.valid() || current < index);
     assert(!ptr || ptr->frame == index);

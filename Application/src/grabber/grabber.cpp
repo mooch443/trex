@@ -406,8 +406,8 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
         }
 
         if (SETTING(frame_rate).value<int>() <= 0) {
-            print("Setting frame_rate from webcam (", SETTING(cam_framerate).value<int>(),"). If -1, it remains at -1.");
-            SETTING(frame_rate) = SETTING(cam_framerate).value<int>() > 0 ? SETTING(cam_framerate).value<int>() : -1;
+            print("Setting frame_rate from webcam (", SETTING(cam_framerate).value<int>(),"). If -1, assume 25.");
+            SETTING(frame_rate) = SETTING(cam_framerate).value<int>() > 0 ? SETTING(cam_framerate).value<int>() : 25;
         }
         
     } else if(utils::lowercase(source) == "test_image") {
