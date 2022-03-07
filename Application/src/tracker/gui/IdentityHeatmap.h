@@ -24,7 +24,7 @@ enum Direction {
 };
 
 struct DataPoint {
-    long_t frame;
+    Frame_t frame;
     uint32_t x,y;
     uint32_t ID, IDindex;
     
@@ -32,9 +32,9 @@ struct DataPoint {
     Data value;
     Direction _d;
     
-    operator MetaObject() const;
+    std::string toStr() const;
     operator double() const { return value; }
-    bool operator<(long_t frame) const {
+    bool operator<(Frame_t frame) const {
         return this->frame < frame;
     }
 };
@@ -48,7 +48,7 @@ public:
 protected:
     GETTER(Range<uint32_t>, x)
     GETTER(Range<uint32_t>, y)
-    Range<long_t> _frame_range;
+    Range<Frame_t> _frame_range;
     GETTER(Ptr, parent)
     const Grid* _grid;
     GETTER(double, value_sum)
@@ -66,12 +66,12 @@ public:
     virtual bool is_leaf() const = 0;
     virtual bool empty() const = 0;
     virtual size_t size() const = 0;
-    virtual const Range<long_t>& frame_range() const;
+    virtual const Range<Frame_t>& frame_range() const;
     
     void init(const Grid* grid, Node::Ptr parent, const Range<uint32_t>& x, const Range<uint32_t>& y);
     virtual void clear();
-    virtual size_t erase(const Range<long_t>& frames) = 0;
-    virtual size_t keep_only(const Range<long_t>& frames) = 0;
+    virtual size_t erase(const Range<Frame_t>& frames) = 0;
+    virtual size_t keep_only(const Range<Frame_t>& frames) = 0;
     virtual void insert(std::vector<DataPoint>::iterator start, std::vector<DataPoint>::iterator end) = 0;
 };
 
@@ -94,15 +94,15 @@ public:
     //! aggregates are not leafs
     bool is_leaf() const override { return false; }
     
-    bool apply(const std::function<bool(const DataPoint&)>& fn, const Range<long_t>& frames, const Range<uint32_t>& xs = Range<uint32_t>(0, std::numeric_limits<uint32_t>::max()), const Range<uint32_t>& ys = Range<uint32_t>(0, std::numeric_limits<uint32_t>::max())) const;
+    bool apply(const std::function<bool(const DataPoint&)>& fn, const Range<Frame_t>& frames, const Range<uint32_t>& xs = Range<uint32_t>(0, std::numeric_limits<uint32_t>::max()), const Range<uint32_t>& ys = Range<uint32_t>(0, std::numeric_limits<uint32_t>::max())) const;
     bool apply(const std::function<bool(const DataPoint&)>& fn) const;
     
     //! insert a number of data points and automatically push them down if possible
     void insert(std::vector<DataPoint>& data);
     void insert(std::vector<DataPoint>::iterator A, std::vector<DataPoint>::iterator B) override;
     
-    size_t erase(const Range<long_t>& frames) override;
-    size_t keep_only(const Range<long_t>& frames) override;
+    size_t erase(const Range<Frame_t>& frames) override;
+    size_t keep_only(const Range<Frame_t>& frames) override;
     
     virtual void clear() override;
     bool empty() const override { return _size == 0; }
@@ -119,8 +119,8 @@ class Leaf : public Node {
 public:
     Leaf();
     
-    long_t min_frame() const;
-    long_t max_frame() const;
+    Frame_t min_frame() const;
+    Frame_t max_frame() const;
     
     void insert(std::vector<DataPoint>::iterator start, std::vector<DataPoint>::iterator end) override;
     bool is_leaf() const override { return true; }
@@ -131,8 +131,8 @@ public:
     size_t size() const override { return _data.size(); }
     bool empty() const override { return _data.empty(); }
     
-    size_t erase(const Range<long_t>& frames) override;
-    size_t keep_only(const Range<long_t>& frames) override;
+    size_t erase(const Range<Frame_t>& frames) override;
+    size_t keep_only(const Range<Frame_t>& frames) override;
 private:
     void update_ranges();
 };
@@ -161,12 +161,12 @@ public:
     void fill(const std::vector<DataPoint>& data);
     
     //! remove all data points belonging to a given frame
-    size_t erase(Range<long_t> frames);
-    size_t keep_only(const Range<long_t>& frames);
+    size_t erase(Range<Frame_t> frames);
+    size_t keep_only(const Range<Frame_t>& frames);
     
     //! apply with filters
     template<typename T>
-    bool apply(const std::function<bool(const T&)>& fn, const Range<long_t>& frames, const Range<uint32_t>& xs = Range<uint32_t>(0, std::numeric_limits<uint32_t>::max()), const Range<uint32_t>& ys = Range<uint32_t>(0, std::numeric_limits<uint32_t>::max())) const;
+    bool apply(const std::function<bool(const T&)>& fn, const Range<Frame_t>& frames, const Range<uint32_t>& xs = Range<uint32_t>(0, std::numeric_limits<uint32_t>::max()), const Range<uint32_t>& ys = Range<uint32_t>(0, std::numeric_limits<uint32_t>::max())) const;
     
     //! apply without filters
     template<typename T>
@@ -231,7 +231,7 @@ bool Grid::apply(const std::function<bool(const T&)>& fn) const {
 }
 
 template<typename T>
-bool Grid::apply(const std::function<bool(const T&)>& fn, const Range<long_t>& frames, const Range<uint32_t>& xs, const Range<uint32_t>& ys) const
+bool Grid::apply(const std::function<bool(const T&)>& fn, const Range<Frame_t>& frames, const Range<uint32_t>& xs, const Range<uint32_t>& ys) const
 {
     static_assert(std::is_base_of<Node, T>::value || std::is_base_of<DataPoint, T>::value, "Class passed to Grid::apply is not derived from Node or DataPoint."); // could more strictly be limited to leaf/region and data points
     
@@ -306,18 +306,18 @@ class HeatmapController : public Entangled {
 protected:
     normalization_t::Class _normalization;
     Grid _grid;
-    long_t _frame;
+    Frame_t _frame;
     
     uint32_t uniform_grid_cell_size;
     uint32_t stride, N;
     Range<double> custom_heatmap_value_range;
-    long_t _frame_context;
+    Frame_t _frame_context;
     std::vector<uint32_t> _ids;
     double smooth_heatmap_factor;
     
     Image::UPtr grid_image;
     std::string _original_source, _source;
-    OptionsList<Output::Modifiers> _mods;
+    Output::Options_t _mods;
     std::shared_ptr<ExternalImage> _image;
     
     std::vector<double> _array_grid, _array_sqsum, _array_samples;
@@ -329,21 +329,21 @@ protected:
 public:
         HeatmapController();
     
-    void set_frame(long_t frame);
+    void set_frame(Frame_t frame);
     void update() override;
     void paint_heatmap();
     void save();
-    void frames_deleted_from(long_t frame);
+    void frames_deleted_from(Frame_t frame);
     
 private:
     struct UpdatedStats {
         size_t added;
         size_t removed;
-        Range<long_t> add_range, remove_range;
+        Range<Frame_t> add_range, remove_range;
         
-        UpdatedStats() : added(0), removed(0), add_range(-1, -1), remove_range(-1, -1) {}
+        UpdatedStats() : added(0), removed(0), add_range({}, {}), remove_range({}, {}) {}
     };
-    UpdatedStats update_data(long_t frame);
+    UpdatedStats update_data(Frame_t frame);
     void sort_data_into_custom_grid();
     bool update_variables();
 };

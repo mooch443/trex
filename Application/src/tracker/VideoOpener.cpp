@@ -30,7 +30,10 @@ void VideoOpener::CustomFileChooser::update_size() {
     FileChooser::update_size();
     
     float s = _graph->scale().x / gui::interface_scale();
-    auto column = Size2(_graph->width() * 0.5 - 50, _graph->height() * 0.5 * gui::interface_scale() - (_selected_text ? _selected_text->height() + _button->height() + 10 : 0)).div(s);
+    auto column = Size2(
+        _graph->width() * 0.4 - 150, 
+        _graph->height() * 0.4 * gui::interface_scale() - (_selected_text ? _selected_text->height() + _button->height() + 10 : 0))
+       .div(s);
     
     _update(column.width, column.height);
     
@@ -150,14 +153,14 @@ VideoOpener::VideoOpener()
                 try {
                     auto path = ptr->_path;
 #ifndef NDEBUG
-                    Debug("Removing stale buffer '%S'...", &path.str());
+                    print("Removing stale buffer ",path.str(),"...");
 #endif
                     ptr = nullptr;
 #ifndef NDEBUG
-                    Debug("Removed stale buffer '%S'.", &path.str());
+                    print("Removed stale buffer ", path.str(),".");
 #endif
                 } catch(const std::exception& e) {
-                    Except("Exception while freeing stale buffer '%s'.", e.what());
+                    FormatExcept("Exception while freeing stale buffer '", e.what(),"'.");
                 }
                 guard.lock();
                 
@@ -166,12 +169,12 @@ VideoOpener::VideoOpener()
       
 #ifndef NDEBUG
             if(i)
-                Debug("Removed %d stale buffers", i);
+                print("Removed ", i," stale buffers");
 #endif
         }
         
 #ifndef NDEBUG
-        Debug("Quit stale thread.");
+        print("Quit stale thread.");
 #endif
     });
     
@@ -186,6 +189,7 @@ VideoOpener::VideoOpener()
     _horizontal->set_children({_infos, _extra});
     
     TEMP_SETTING(output_name) = file::Path("video");
+    TEMP_SETTING(output_dir) = SETTING(output_dir).value<file::Path>();
     gui::temp_docs["output_name"] = "Basename of the converted video in PV-format.";
     TEMP_SETTING(cmd_parameters) = std::string("-reset_average");
     gui::temp_docs["cmd_parameters"] = "Additional command-line parameters for TGrabs.";
@@ -271,7 +275,7 @@ VideoOpener::VideoOpener()
     _file_chooser = std::make_shared<CustomFileChooser>(
         SETTING(output_dir).value<file::Path>(),
         "pv",
-        [this](const file::Path& path, std::string tab) mutable
+        [this](const file::Path& path, std::string) mutable
     {
         if(!path.empty()) {
             auto tmp = path;
@@ -297,13 +301,13 @@ VideoOpener::VideoOpener()
                             auto item = drop->selected_item();
                             if(item.ID() != -1) {
                                 auto name = item.search_name();
-                                Debug("Selected '%S' = %S", &key, &name);
+                                print("Selected ",key," = ",name);
                                 val = name;
                             } else
                                 val = drop->text();
                             
                         } else {
-                            Debug("Unknown type for field '%S'", &key);
+                            print("Unknown type for field ",key);
                         }
                     }
                     
@@ -312,7 +316,7 @@ VideoOpener::VideoOpener()
                 }
                 
                 if(start_values[key] != val) {
-                    Debug("%S = %d", &key, &val);
+                    print(key," = ",val);
                     
                     if(!first)
                         str += "\n";
@@ -332,8 +336,10 @@ VideoOpener::VideoOpener()
                 // PV file, no need to add cmd
             } else if(!_result.selected_file.empty()) {
                 auto add = TEMP_SETTING(cmd_parameters).value<std::string>();
-                _result.cmd = "-i \"" + path.str() + "\""
-                    + " -o \""+TEMP_SETTING(output_name).value<file::Path>().str()+"\""
+                _result.cmd = std::string()
+                    + "-d \""+TEMP_SETTING(output_dir).value<file::Path>().str()+"\""
+                    +" -i \"" + path.str() + "\""
+                    +" -o \""+TEMP_SETTING(output_name).value<file::Path>().str()+"\""
                     +" -threshold "+TEMP_SETTING(threshold).get().valueString()
                     +" -average_samples "+TEMP_SETTING(average_samples).get().valueString()
                     +" -averaging_method "+TEMP_SETTING(averaging_method).get().valueString()
@@ -348,7 +354,7 @@ VideoOpener::VideoOpener()
             
         }
         
-    }, [this](auto& path, std::string tab) {
+    }, [this](auto& path, std::string) {
         select_file(path);
     });
     
@@ -360,10 +366,11 @@ VideoOpener::VideoOpener()
         }
         if(_info_description) {
             _info_description->set_max_size(Size2(_screenshot_max_size.width, -1));
+            //_info_description->set_background(Transparent, Red);
         }
         
         for(auto &[key, ptr] : _text_fields) {
-            ptr.get()->representative()->set_size(Size2(_screenshot_max_size.width * 0.3, ptr->representative()->height()));
+            ptr.get()->representative()->set_size(Size2(_screenshot_max_size.width * 0.4, ptr->representative()->height()));
         }
         
         if(_background && _background->source()) {
@@ -411,7 +418,9 @@ VideoOpener::VideoOpener()
                     e.advance_wrap(*_background);
                     for(auto& i : _blob_images.at(_blob_image_index))
                         e.advance_wrap(*i);
+
                 });
+                //_mini_bowl->set_background(Transparent, Yellow);
                 _mini_bowl->auto_size(Margin{0, 0});
             }
             
@@ -460,6 +469,7 @@ VideoOpener::VideoOpener()
             _file_chooser->set_tooltip(0, found, str);
         } else
             _file_chooser->set_tooltip(0, nullptr, "");
+
         
         std::lock_guard guard(_video_mutex);
         if(_buffer) {
@@ -469,8 +479,7 @@ VideoOpener::VideoOpener()
                 
                 auto max_scale = 1.0f;
                 auto max_size = _screenshot_max_size.mul(max_scale);
-                auto scree_size = _screenshot->source()->bounds().size();
-                auto size = max_size;
+                auto scree_size = max_size;//_screenshot->source()->bounds().size();
                 
                 if(_raw_description->max_size() != max_size) {
                     _raw_description->set_max_size(max_size);
@@ -522,6 +531,8 @@ VideoOpener::VideoOpener()
             } else if(contains(_raw_info->children(), (Drawable*)_loading_text.get())) {
                 _raw_info->remove_child(_loading_text);
             }
+
+            //_raw_info->set_background(Transparent, Green);
         }
     });
     
@@ -572,7 +583,7 @@ VideoOpener::~VideoOpener() {
             while(!_accumulate_frames_done) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
                 if(timer.elapsed() >= 10) {
-                    Warning("Have been waiting for a long time on my accumulate_video_frames_thread. Terminating anyway now.");
+                    FormatWarning("Have been waiting for a long time on my accumulate_video_frames_thread. Terminating anyway now.");
                     return;
                 }
             }
@@ -677,7 +688,7 @@ void VideoOpener::BufferedVideo::restart_background() {
                 std::lock_guard guard(_frame_mutex);
                 _background_copy = std::move(image);
             } catch(...) {
-                Warning("Exception while trying to read video frame.");
+                FormatWarning("Exception while trying to read video frame.");
             }
         }
         
@@ -787,7 +798,7 @@ void VideoOpener::BufferedVideo::open(std::function<void(const bool)>&& callback
                     _cached_frame = Image::Make(local);
                     
                 } catch(const std::exception& e) {
-                    Except("Caught exception while updating '%s'", e.what());
+                    FormatExcept("Caught exception while updating: ", e.what());
                 }
                 
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -834,7 +845,7 @@ void VideoOpener::select_file(const file::Path &p) {
                 // immediately move to stale
                 std::lock_guard gui_lock(_file_chooser->graph()->lock());
                 std::lock_guard guard(_video_mutex);
-                Except("Could not open file '%S'.", &p.str());
+                FormatExcept("Could not open file ",p.str(),".");
                 
                 cv::Mat img = cv::Mat::zeros((int)max_width, (int)max_width, CV_8UC1);
                 cv::putText(img, "Cannot open video.", Vec2(50, 220), cv::FONT_HERSHEY_PLAIN, 1, White);
@@ -847,8 +858,8 @@ void VideoOpener::select_file(const file::Path &p) {
         
         try {
             if(p.empty())
-                U_EXCEPTION("No file selected.");
-            Debug("Opening '%S'", &p.str());
+                throw U_EXCEPTION("No file selected.");
+            print("Opening ",p.str());
             
             std::lock_guard guard(_video_mutex);
             {
@@ -876,13 +887,13 @@ void VideoOpener::select_file(const file::Path &p) {
                 _buffer->_threshold = TEMP_SETTING(threshold).value<int>();
                 
             } catch(const std::exception &e) {
-                Except("Converting number: '%s'", e.what());
+                FormatExcept("Converting number: '", e.what(),"'");
             }
             
             _buffer->open(callback);
             
         } catch(const std::exception& e) {
-            Except("Cannot open file '%S' (%s)", &p.str(), e.what());
+            FormatExcept("Cannot open file ",p.str()," (", e.what(),")");
             callback(false);
         }
         return;
@@ -918,8 +929,12 @@ void VideoOpener::select_file(const file::Path &p) {
                 utils::read_file(settings_file.str()),
                 AccessLevelType::STARTUP,
                 true);
-        } catch(const cmn::illegal_syntax& e) {
-            Warning("File '%S' has illegal syntax: %s", &_selected.str(), e.what());
+        } 
+        catch(const cmn::illegal_syntax& e) {
+            FormatWarning("File ", _selected.str()," has illegal syntax: ",e.what());
+        }
+        catch (const UtilsException& e) {
+            FormatWarning("File ", _selected.str(), " cannot load a property value: ", e.what());
         }
     }
     
@@ -1024,20 +1039,21 @@ void VideoOpener::select_file(const file::Path &p) {
         _mini_bowl->set_scale(Vec2(scale.min()));
         
         _mini_bowl->update([&](Entangled& b){
-            _background = std::make_shared<ExternalImage>(std::move(Image::Make(video->average())));
+            std::shared_ptr<ExternalImage> image = std::make_shared<ExternalImage>(Image::Make(video->average()));
+            _background = image;
             b.advance_wrap(*_background);
             
             std::lock_guard guard(_blob_mutex);
             _blob_images.clear();
             
 #ifndef NDEBUG
-            Debug("Mini bowl update (%f scale):", _mini_bowl->scale().x);
+            print("Mini bowl update (", _mini_bowl->scale().x," scale):");
 #endif
             
             _blob_image_index = 0;
             _blob_timer.reset();
 #ifndef NDEBUG
-            Debug("Done.");
+            print("Done.");
 #endif
         });
         
@@ -1069,7 +1085,7 @@ void VideoOpener::select_file(const file::Path &p) {
             _end_frames_thread = true;
             if(!_accumulate_frames_done) {
 #ifndef NDEBUG
-                Warning("Have to wait for accumulate video frames thread...");
+                FormatWarning("Have to wait for accumulate video frames thread...");
 #endif
                 while(!_accumulate_frames_done) {
                     std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -1108,12 +1124,12 @@ void VideoOpener::select_file(const file::Path &p) {
             
             _accumulate_frames_done = true;
 #ifndef NDEBUG
-            Debug("accumulate done");
+            print("accumulate done");
 #endif
         });
         
     } catch(...) {
-        Except("Caught an exception while reading info from '%S'.", &SETTING(filename).value<file::Path>().str());
+        FormatExcept{ "Caught an exception while reading info from ",SETTING(filename).value<file::Path>().str(),"." };
     }
     
     _horizontal->auto_size(Margin{0, 0});

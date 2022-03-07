@@ -11,9 +11,10 @@ elseif(WIN32)
 endif()
 
 target_link_libraries(tracker_tracking PRIVATE cnpy
-#	tracker_python
+    commons
 )
-add_dependencies(tracker_tracking TRex::OpenCV)
+
+add_dependencies(tracker_tracking tracker_misc commons)#Commons::OpenCV)
 
 if(WITH_HTTPD)
     add_dependencies(tracker_tracking LibMicroHttpd)
@@ -32,3 +33,5 @@ else()
         TREX_PYTHON_PATH="${PYTHON_EXECUTABLE}"
     )
 endif()
+
+#target_precompile_headers(tracker_tracking REUSE_FROM commons)

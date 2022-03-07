@@ -161,11 +161,11 @@ def reinitialize_network():
         model.compile(loss=#'categorical_crossentropy',
             #SigmoidFocalCrossEntropy(),
             categorical_focal_loss(gamma=2., alpha=.25),
-            optimizer=tf.keras.optimizers.Adam(lr=learning_rate),
+            optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
             metrics=['accuracy'])
     else:
         model.compile(loss='categorical_crossentropy',
-            optimizer=tf.keras.optimizers.Adam(lr=learning_rate),
+            optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
             metrics=['accuracy'])
     model.summary(print_fn=TRex.log)
 
@@ -576,7 +576,7 @@ def start_learning():
                                  )
     cvalues = np.array(cvalues)
 
-    TRex.log("# [init] weights per class "+str(per_class))
+    TRex.log("# [init] weights per class "+str(per_class))
     TRex.log("# [training] data shapes: train "+str(X_train.shape)+" "+str(Y_train.shape)+" test "+str(Y_test.shape)+" "+str(classes))
     TRex.log("# [values] X:"+str(tf.reduce_max(X_train).numpy())+" - "+str(tf.reduce_min(X_train).numpy()))
     TRex.log("# [values] Y:"+str(tf.reduce_max(Y_train).numpy())+" - "+str(tf.reduce_min(Y_train).numpy()))

@@ -13,6 +13,7 @@ namespace gui {
     }
     
     void Posture::update() {
+        zero = Vec2{ width() * 0.1f, height() * 0.5f };
         // --------------
         // Draw the fish posture with circles
         // --------------
@@ -118,44 +119,44 @@ namespace gui {
             
             // DRAW MIDLINE / SEGMENTS
             
-            advance(new Circle(zero, 3, Green));
-            advance(new Line(zero, Vec2(zero.x + midline->len(), zero.y), White));
+            add<Circle>(zero, 3, Green);
+            add<Line>(zero, Vec2(zero.x + midline->len(), zero.y), White);
             
             std::vector<Vertex> midline_vertices;
             for (size_t i=0; i<midline_points.size(); i++) {
                 auto &pt = midline_points.at(i);
                 auto current = Vec2(pt.pos) * fish_scale + zero;
                 
-                advance(new Circle(current, 2, Color(0, 255, 255, 255)));
+                add<Circle>(current, 2, Color(0, 255, 255, 255));
                 
                 if(pt.height && i > 0)
-                    advance(new Circle(current, pt.height * fish_scale * 0.5, Color(0, 255, 255, 255)));
+                    add<Circle>(current, pt.height * fish_scale * 0.5, Color(0, 255, 255, 255));
                 midline_vertices.push_back(Vertex(current, Color(0, 125, 225, 255)));
             }
-            advance(new Vertices(midline_vertices, LineStrip, Vertices::TRANSPORT));
+            add<Vertices>(midline_vertices, PrimitiveType::LineStrip);
             
             midline_vertices.clear();
             for (size_t i=0; i<midline->segments().size(); i++) {
                 auto pt = midline->segments().at(i);
                 auto current = Vec2(pt.pos) * fish_scale + zero;
                 
-                advance(new Circle(current, 1, White));
+                add<Circle>(current, 1, White);
                 midline_vertices.push_back(Vertex(current, Color(225, 125, 0, 255)));
             }
-            advance(new Vertices(midline_vertices, LineStrip, Vertices::TRANSPORT));
+            add<Vertices>(midline_vertices, PrimitiveType::LineStrip);
             
             auto A = Vec2(midline_points.back().pos.x, 0) * fish_scale + Vec2(zero.x, zero.y);
             auto B = Vec2(midline_points.back().pos.x, midline_points.back().pos.y) * fish_scale + Vec2(zero.x, zero.y);
-            advance(new Line(zero, Vec2(zero.x + midline->len() * fish_scale, zero.y), Color(255, 0, 255, 255)));
-            advance(new Line(A, B, Color(255, 100, 0, 255)));
+            add<Line>(zero, Vec2(zero.x + midline->len() * fish_scale, zero.y), Color(255, 0, 255, 255));
+            add<Line>(A, B, Color(255, 100, 0, 255));
             
             if(midline->tail_index() != -1) {
                 if((size_t)midline->tail_index() < outline.size())
-                    advance(new Circle(do_rotate(outline.at(midline->tail_index()), angle), 10, Blue));
+                    add<Circle>(do_rotate(outline.at(midline->tail_index()), angle), 10, Blue);
             }
             if(midline->head_index() != -1) {
                 if((size_t)midline->head_index() < outline.size())
-                    advance(new Circle(do_rotate(outline.at(midline->head_index()), angle), 10, Red));
+                    add<Circle>(do_rotate(outline.at(midline->head_index()), angle), 10, Red);
             }
         }
         
@@ -211,14 +212,14 @@ namespace gui {
             clr =  negative_clr * (1.f - percent) + positive_clr * percent;
             
             if(i == 0)
-                advance(new Circle(pt, 5, Red, Cyan));
+                add<Circle>(pt, 5, Red, Cyan);
             else
-                advance(new Circle(pt, 2, clr.alpha(0.8 * 255), clr.alpha(0.6 * 255)));
+                add<Circle>(pt, 2, clr.alpha(0.8 * 255), clr.alpha(0.6 * 255));
         }
         
         auto pt = do_rotate(outline.front(), angle);
         outline_vertices.push_back(Vertex(pt, outline_clr));
-        advance(new Vertices(outline_vertices, LineStrip, Vertices::TRANSPORT));
+        add<Vertices>(outline_vertices, PrimitiveType::LineStrip);
         
         if(hovered()) {
             std::stringstream ss;
@@ -229,8 +230,8 @@ namespace gui {
                 ss << "no midline";
             
             //midline_points.back().pos.y; //"segments: " << midline->segments().size();
-            advance(new Text(ss.str(), Vec2(10, 10) + topleft, gui::Color(0, 255, 255, 255), 0.75));
-            advance(new Text(Meta::toStr(_fish->blob(_frameIndex)->bounds().size()), Vec2(10,30) + topleft, DarkCyan, Font(0.75)));
+            add<Text>(ss.str(), Vec2(10, 10) + topleft, gui::Color(0, 255, 255, 255), 0.75);
+            add<Text>(Meta::toStr(_fish->blob(_frameIndex)->bounds().size()), Vec2(10,30) + topleft, DarkCyan, Font(0.75));
         }
         
         end();

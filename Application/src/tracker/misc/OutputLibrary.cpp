@@ -14,7 +14,7 @@ namespace Output {
     
     LibraryCache::Ptr _default_cache = std::make_shared<LibraryCache>();
     std::map<std::string, Library::FunctionType> _cache_func;
-    std::map<std::string, std::vector<std::pair<OptionsList<Modifiers>, Calculation>>> _options_map;
+    std::map<std::string, std::vector<std::pair<Options_t, Calculation>>> _options_map;
     Output::Library::default_options_type _output_defaults;
     std::mutex _output_variables_lock;
 
@@ -23,7 +23,7 @@ namespace Output {
     }
 
 template<typename T = Individual::BasicStuff>
-auto find_stuffs(const Library::LibInfo& info, long_t frame) {
+auto find_stuffs(const Library::LibInfo& info, Frame_t frame) {
     std::shared_ptr<T> start = nullptr, end = nullptr;
     
     auto it = info.fish->iterator_for(frame);
@@ -56,27 +56,27 @@ auto find_stuffs(const Library::LibInfo& info, long_t frame) {
     return std::make_pair(start, end);
 }
 
-std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(const Library::LibInfo& info, long_t frame, float& percent) {
-    const PhysicalProperties *ptr0 = nullptr;
-    const PhysicalProperties *ptr1 = nullptr;
+std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Library::LibInfo& info, Frame_t frame, float& percent) {
+    const MotionRecord *ptr0 = nullptr;
+    const MotionRecord *ptr1 = nullptr;
     
-    if(info.modifiers.is(WEIGHTED_CENTROID) || info.modifiers.is(CENTROID)) {
+    if(info.modifiers.is(Modifiers::WEIGHTED_CENTROID) || info.modifiers.is(Modifiers::CENTROID)) {
         auto pair = find_stuffs(info, frame);
         if(pair.first && pair.second) {
             // now we have start/end coordinates, interpolate
-            percent = float(frame - pair.first->frame) / float(pair.second->frame - pair.first->frame);
+            percent = (float)(frame - pair.first->frame).get() / (float)(pair.second->frame - pair.first->frame).get();
             
-            ptr0 = pair.first->centroid;
-            ptr1 = pair.second->centroid;
+            ptr0 = &pair.first->centroid;
+            ptr1 = &pair.second->centroid;
         }
         
     } else {
         auto pair = find_stuffs<Individual::PostureStuff>(info, frame);
         if(pair.first && pair.second) {
             // now we have start/end coordinates, interpolate
-            percent = float(frame - pair.first->frame) / float(pair.second->frame - pair.first->frame);
+            percent = (float)(frame - pair.first->frame).get() / (float)(pair.second->frame - pair.first->frame).get();
             
-            if(info.modifiers.is(POSTURE_CENTROID)) {
+            if(info.modifiers.is(Modifiers::POSTURE_CENTROID)) {
                 ptr0 = pair.first->centroid_posture;
                 ptr1 = pair.second->centroid_posture;
             } else
@@ -146,7 +146,6 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 _output_defaults = SETTING(output_default_options).value<Output::Library::default_options_type>();
                 _options_map.clear();
                 
-                //Debug("Recalculating options map...");
                 
                 std::vector<std::string> remove;
                 for (auto &c : _cache_func) {
@@ -179,7 +178,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                              
                              return abs_angle;
                          } else
-                             Warning("No midline.");
+                             FormatWarning("No midline.");
                          
                          return gui::Graph::invalid();
                     }));
@@ -192,11 +191,11 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                     auto &options = instance.second;
                     
                     if(_cache_func.count(fname) == 0) {
-                        Warning("There is no function called '%S'.", &fname);
+                        print("There is no function called ",fname,".");
                         continue;
                     }
                     
-                    OptionsList<Modifiers> modifiers;
+                    Options_t modifiers;
                     Calculation func;
                     
                     if(_output_defaults.count(fname)) {
@@ -234,12 +233,12 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 if(!std::get<0>(tup) || !std::get<1>(tup))
                     return gui::Graph::invalid();
                 
-                return (1 - percent) * std::get<0>(tup)->pos(Units::CM_AND_SECONDS, smooth).x
-                     + percent       * std::get<1>(tup)->pos(Units::CM_AND_SECONDS, smooth).x
+                return (1 - percent) * std::get<0>(tup)->pos<Units::CM_AND_SECONDS>(smooth).x
+                     + percent       * std::get<1>(tup)->pos<Units::CM_AND_SECONDS>(smooth).x
                      - CENTER_X;
                 
             } else
-                return (props->pos(Units::CM_AND_SECONDS, smooth).x - CENTER_X);
+                return (props->pos<Units::CM_AND_SECONDS>(smooth).x - CENTER_X);
         });
         
         _cache_func[Functions::Y.name()] = LIBGLFNC( {
@@ -252,22 +251,22 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 if(!std::get<0>(tup) || !std::get<1>(tup))
                     return gui::Graph::invalid();
                 
-                return (1 - percent) * std::get<0>(tup)->pos(Units::CM_AND_SECONDS, smooth).y
-                     + percent       * std::get<1>(tup)->pos(Units::CM_AND_SECONDS, smooth).y
+                return (1 - percent) * std::get<0>(tup)->pos<Units::CM_AND_SECONDS>(smooth).y
+                     + percent       * std::get<1>(tup)->pos<Units::CM_AND_SECONDS>(smooth).y
                      - CENTER_Y;
                 
             } else
-                return (props->pos(Units::CM_AND_SECONDS, smooth).y - CENTER_Y);
+                return (props->pos<Units::CM_AND_SECONDS>(smooth).y - CENTER_Y);
         });
         
-        _cache_func[Functions::VX.name()] = LIBFNC ( return props->v(Units::CM_AND_SECONDS, smooth).x; );
-        _cache_func[Functions::VY.name()] = LIBFNC( return props->v(Units::CM_AND_SECONDS, smooth).y; );
-        _cache_func["AX"] = LIBFNC ( return props->a(Units::CM_AND_SECONDS, smooth).x; );
-        _cache_func["AY"] = LIBFNC( return props->a(Units::CM_AND_SECONDS, smooth).y; );
+        _cache_func[Functions::VX.name()] = LIBFNC ( return props->v<Units::CM_AND_SECONDS>(smooth).x; );
+        _cache_func[Functions::VY.name()] = LIBFNC( return props->v<Units::CM_AND_SECONDS>(smooth).y; );
+        _cache_func["AX"] = LIBFNC ( return props->a<Units::CM_AND_SECONDS>(smooth).x; );
+        _cache_func["AY"] = LIBFNC( return props->a<Units::CM_AND_SECONDS>(smooth).y; );
         
         _cache_func[Functions::ANGLE.name()] = LIBFNC( return props->angle(smooth); );
-        _cache_func[Functions::ANGULAR_V.name()] = LIBFNC( return props->angular_velocity(Units::DEFAULT, smooth); );
-        _cache_func[Functions::ANGULAR_A.name()] = LIBFNC( return props->angular_acceleration(Units::DEFAULT, smooth); );
+        _cache_func[Functions::ANGULAR_V.name()] = LIBFNC( return props->angular_velocity<Units::DEFAULT>(smooth); );
+        _cache_func[Functions::ANGULAR_A.name()] = LIBFNC( return props->angular_acceleration<Units::DEFAULT>(smooth); );
         
         _cache_func[Functions::SPEED.name()] = LIBGLFNC( {
             if(!props) {
@@ -279,14 +278,14 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 if(!std::get<0>(tup) || !std::get<1>(tup))
                     return gui::Graph::invalid();
                 
-                return (1 - percent) * std::get<0>(tup)->speed(Units::CM_AND_SECONDS, smooth)
-                     + percent       * std::get<1>(tup)->speed(Units::CM_AND_SECONDS, smooth);
+                return (1 - percent) * std::get<0>(tup)->speed<Units::CM_AND_SECONDS>(smooth)
+                     + percent       * std::get<1>(tup)->speed<Units::CM_AND_SECONDS>(smooth);
                 
             } else
-                return props->speed(Units::CM_AND_SECONDS, smooth);
+                return props->speed<Units::CM_AND_SECONDS>(smooth);
         });
         
-        _cache_func[Functions::ACCELERATION.name()] = LIBFNC( return props->acceleration(Units::CM_AND_SECONDS, smooth); );
+        _cache_func[Functions::ACCELERATION.name()] = LIBFNC( return props->acceleration<Units::CM_AND_SECONDS>(smooth); );
         
         _cache_func[Functions::MIDLINE_OFFSET.name()] = LIBFNC({
             Vec2 spt(0, 0);
@@ -294,7 +293,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             
             const bool normalize = SETTING(output_normalize_midline_data);
             
-            for(long_t f = frame-long_t(smooth?FAST_SETTINGS(smooth_window):0); f<=frame+long_t(smooth?FAST_SETTINGS(smooth_window):0); f++)
+            for(auto f = frame - Frame_t(smooth?FAST_SETTINGS(smooth_window):0); f<=frame+Frame_t(smooth?FAST_SETTINGS(smooth_window):0); ++f)
             {
                 auto midline = normalize ? fish->fixed_midline(frame) : fish->midline(frame);
                 if (!midline)
@@ -319,8 +318,8 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             float samples = 0;
             std::vector<float> all;
             
-            const long_t offset = 100;//FAST_SETTINGS(frame_rate)*0.5;
-            for(long_t i=frame - offset; i<=frame + offset; i++)
+            const Frame_t offset{100};//FAST_SETTINGS(frame_rate)*0.5;
+            for(auto i=frame - offset; i<=frame + offset; ++i)
             {
                 auto midline = fish->midline(i);
                 if(midline) {
@@ -364,7 +363,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             
             long_t samples = 1;
             
-            for(long_t f = frame-long_t(smooth?FAST_SETTINGS(smooth_window):0); f<=frame+long_t(smooth?FAST_SETTINGS(smooth_window):0); f++)
+            for(auto f = frame-Frame_t(smooth?FAST_SETTINGS(smooth_window):0); f<=frame+Frame_t(smooth?FAST_SETTINGS(smooth_window):0); ++f)
             {
                 if(f != frame) {
                     float sample = EventAnalysis::midline_offset(info.fish, f);
@@ -380,7 +379,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
         
         _cache_func[Functions::MIDLINE_DERIV.name()] = LIBFNC({
             auto current = get("normalized_midline", info, frame);
-            auto previous = get("normalized_midline", info, frame-1);
+            auto previous = get("normalized_midline", info, frame - 1_f);
             
             if(gui::Graph::is_invalid(previous))
                 previous = 0;
@@ -391,11 +390,11 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
         });
         
         _cache_func[Functions::BINARY.name()] = LIBFNC({
-            if(frame >= fish->start_frame()+1 && frame <= fish->end_frame()-1)
+            if(frame >= fish->start_frame() + 1_f && frame <= fish->end_frame() - 1_f)
             {
                 //Vec2 p0(x-1, cache_access(fish, Cache::MIDLINE, x-1));
-                Vec2 p1(frame, (Float2_t)get(Functions::MIDLINE_OFFSET.name(), info, frame));
-                Vec2 p2(frame+1, (Float2_t)get(Functions::MIDLINE_OFFSET.name(), info, frame+1));
+                Vec2 p1(frame.get(), (Float2_t)get(Functions::MIDLINE_OFFSET.name(), info, frame));
+                Vec2 p2(frame.get()+1, (Float2_t)get(Functions::MIDLINE_OFFSET.name(), info, frame+1_f));
                 
                 int c = crosses_abs_height(p1, p2, SETTING(limit).value<float>());
                 return c == 0 ? gui::Graph::invalid() : c;
@@ -410,7 +409,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 Vec2 center(CENTER_X, CENTER_Y);
                 const float radius = min(center.x, center.y);
                 
-                auto pos = props->pos(Units::CM_AND_SECONDS);
+                auto pos = props->pos<Units::CM_AND_SECONDS>();
                 float d = cmn::abs(sqrt(SQR(pos.x - center.x) + SQR(pos.y - center.y)) - radius);
                 
                 return d;
@@ -420,7 +419,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 Size2 size = SETTING(video_size);
                 cv::Rect2f r(0, 0, size.width * FAST_SETTINGS(cm_per_pixel), size.height * FAST_SETTINGS(cm_per_pixel));
                 
-                auto pt = props->pos(Units::CM_AND_SECONDS);
+                auto pt = props->pos<Units::CM_AND_SECONDS>();
                 float d0 = min(cmn::abs(r.x - pt.x), cmn::abs(r.y - pt.y));
                 float d1 = min(cmn::abs(r.width - pt.x), cmn::abs(r.height - pt.y));
                 
@@ -431,16 +430,16 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
         });
         
         _cache_func[Functions::NEIGHBOR_DISTANCE.name()] = LIBFNC({
-            const auto pos = props->pos(Units::CM_AND_SECONDS);
+            const auto pos = props->pos<Units::CM_AND_SECONDS>();
             const auto individuals = Tracker::active_individuals(frame);
             
             float d = 0.0;
             float samples = 0;
             
-            const PhysicalProperties *oc;
+            const MotionRecord *oc;
             for (auto other: individuals) {
                 if (other != fish && (oc = other->centroid(frame))) {
-                    auto opos = oc->pos(Units::CM_AND_SECONDS);
+                    auto opos = oc->pos<Units::CM_AND_SECONDS>();
                     d += euclidean_distance(pos, opos);
                     samples++;
                 }
@@ -463,7 +462,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             auto props = Tracker::properties(frame);
             if(!props)
                 return gui::Graph::invalid();
-            return props->org_timestamp;
+            return props->org_timestamp.get();
         });
         
         _cache_func["frame"] = LIBGLFNC({
@@ -472,7 +471,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             auto props = Tracker::properties(frame);
             if(!props)
                 return gui::Graph::invalid();
-            return frame;
+            return frame.get();
         });
         
         _cache_func["missing"] = LIBGLFNC({
@@ -487,7 +486,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
            auto head = fish->head(frame);
                                                   
            if(head) {
-               const auto a = fish->centroid_posture(frame)->pos(Units::CM_AND_SECONDS);
+               const auto a = fish->centroid_posture(frame)->pos<Units::CM_AND_SECONDS>();
                const auto individuals = Tracker::active_individuals(frame);
                
                auto angle = -head->angle();
@@ -506,7 +505,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                        
                        oangle += float(M_PI * 0.5);
                        
-                       auto v = oh->pos(Units::CM_AND_SECONDS);
+                       auto v = oh->pos<Units::CM_AND_SECONDS>();
                        if(length(v - a) > 100) {
                            continue;
                        }
@@ -530,15 +529,15 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
         _cache_func["RELATIVE_ANGLE"] = LIBFNC({
            const auto a0 = get(Functions::ANGLE.name(), info, frame);
            const auto individuals = Tracker::active_individuals(frame);
-           const auto h0 = props->pos(Units::CM_AND_SECONDS);
+           const auto h0 = props->pos<Units::CM_AND_SECONDS>();
            
-           const PhysicalProperties *oc;
+           const MotionRecord *oc;
            for (auto other: individuals) {
                if (other != fish && (oc = other->centroid(frame))) {
                    info.fish = other;
                    
                    auto a1 = get(Functions::ANGLE.name(), info, frame);
-                   auto h1 = oc->pos(Units::CM_AND_SECONDS);
+                   auto h1 = oc->pos<Units::CM_AND_SECONDS>();
                    
                    Vec2 line;
                    if(other->identity().ID() > fish->identity().ID())
@@ -607,7 +606,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
               }
             }
 
-            Warning("NO OTHER FISH");
+            FormatWarning("NO OTHER FISH");
             return gui::Graph::invalid();
         });
         
@@ -634,7 +633,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             std::vector<float> all;
             float average = 0;
             
-            for (long_t i=frame-5; i<=frame+5; i++) {
+            for (auto i=frame - 5_f; i<=frame + 5_f; ++i) {
                 auto o = fish->outline(i);
                 if(o) {
                     all.push_back(o->size());
@@ -655,7 +654,6 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 sum += SQR(v - average);
             sum /= float(all.size()-1);
             
-            //Debug("%f", sqrt(sum) / (average * 0.05));
             
             return sqrt(sum) / (average * 0.5f);
         });
@@ -757,10 +755,10 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                         Vec2 after(0, 0);
                         float samples = 0;
                         
-                        for(long_t f=e.second.begin - 50; f<=e.second.begin; f+=2) {
+                        for(auto f = e.second.begin - 50_f; f <= e.second.begin; f += 2_f) {
                             auto p = fish->centroid_posture(f);
                             if(p) {
-                                before += p->v(Units::CM_AND_SECONDS);
+                                before += p->v<Units::CM_AND_SECONDS>();
                                 samples++;
                             }
                         }
@@ -768,10 +766,10 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                         before /= samples;
                         samples = 0;
                         
-                        for(long_t f=e.second.end; f<=e.second.end+50; f+=2) {
+                        for(auto f = e.second.end; f <= e.second.end + 50_f; f += 2_f) {
                             auto p = fish->centroid_posture(f);
                             if(p) {
-                                after += p->v(Units::CM_AND_SECONDS);
+                                after += p->v<Units::CM_AND_SECONDS>();
                                 samples++;
                             }
                         }
@@ -824,7 +822,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             auto blob = fish->compressed_blob(frame);
             
             if (blob) {
-                return blob->blob_id();
+                return (uint32_t)blob->blob_id();
             }
             
             return gui::Graph::invalid();
@@ -878,7 +876,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             
             for(auto fish : Tracker::instance()->active_individuals(frame)) {
                 if(fish->has(frame)) {
-                    PhysicalProperties *p = NULL;
+                    MotionRecord *p = NULL;
                     
                     if(info.modifiers.is(Modifiers::CENTROID))
                         p = fish->centroid(frame);
@@ -890,7 +888,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                         p = fish->head(frame);
                     
                     if(p) {
-                        average += p->pos(Units::PX_AND_SECONDS);
+                        average += p->pos<Units::PX_AND_SECONDS>();
                         ++samples;
                     }
                 }
@@ -910,7 +908,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             
             for(auto fish : Tracker::instance()->active_individuals(frame)) {
                 if(fish->has(frame)) {
-                    PhysicalProperties *p = NULL;
+                    MotionRecord *p = NULL;
                     
                     if(info.modifiers.is(Modifiers::CENTROID))
                         p = fish->centroid(frame);
@@ -922,7 +920,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                         p = fish->head(frame);
                     
                     if(p) {
-                        positions.push_back(p->pos(Units::PX_AND_SECONDS));
+                        positions.push_back(p->pos<Units::PX_AND_SECONDS>());
                         average += positions.back();
                         ++samples;
                     }
@@ -973,7 +971,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
         
     }
     
-    void Library::frame_changed(long_t frame, LibraryCache::Ptr cache) {
+    void Library::frame_changed(Frame_t frame, LibraryCache::Ptr cache) {
         if(cache == nullptr)
             cache = _default_cache;
         
@@ -985,7 +983,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
         }
     }
     
-    double Library::get(const std::string &name, LibInfo info, long_t frame) {
+    double Library::get(const std::string &name, LibInfo info, Frame_t frame) {
         auto _cache = info._cache;
         if(!_cache)
             _cache = _default_cache;
@@ -1000,9 +998,9 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
         
         auto &cache = _cache->_cache[info.fish];
         cache_size = cache.size();
-        if(!info.rec_depth && cache_size & 1 && cache.size() >= 50) {
+        if(!info.rec_depth && (cache_size & 1) && cache.size() >= 50) {
             for(auto it=cache.begin(), ite=cache.end(); it!=ite;) {
-                if(it->first < frame-25 || it->first > frame+25)
+                if(it->first < frame - 25_f || it->first > frame+25_f)
                     it = cache.erase(it);
                 else
                     ++it;
@@ -1019,7 +1017,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             
         } else {
             info.rec_depth++;
-            const bool smooth = info.modifiers.is(SMOOTH);
+            const bool smooth = info.modifiers.is(Modifiers::SMOOTH);
             
             auto value = _cache_func.at(name)(info, frame, info.fish ? retrieve_props(name, info.fish, frame, info.modifiers) : NULL, smooth);
             map[info.modifiers] = value;
@@ -1027,7 +1025,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
         }
     };
     
-    double Library::get_with_modifiers(const std::string &name, LibInfo info, long_t frame) {
+    double Library::get_with_modifiers(const std::string &name, LibInfo info, Frame_t frame) {
         auto cache = info._cache;
         if(!cache)
             cache = _default_cache;
@@ -1037,12 +1035,12 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             static std::string warning = "";
             if(warning != name) {
                 warning = name;
-                Warning("Cannot find output function '%S'.", &name);
+                print("Cannot find output function ",name,".");
             }
             return gui::Graph::invalid();
         }
         
-        OptionsList<Modifiers> modifiers = info.modifiers;
+        Options_t modifiers = info.modifiers;
         Calculation func;
         
         {
@@ -1062,7 +1060,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
     
     void Library::add(const std::string& name, const FunctionType &func) {
         if (_cache_func.count(name)) {
-            Warning("Overwriting '%S' with new function.", &name);
+            print("Overwriting ",name," with new function.");
         }
         _cache_func[name] = func;
     }
@@ -1088,29 +1086,29 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 LibInfo info(fish, e.first, cache);
                 auto mod_name = fname;
                 
-                if (info.modifiers.is(SMOOTH))
+                if (info.modifiers.is(Modifiers::SMOOTH))
                     mod_name += "#smooth";
-                if(info.modifiers.is(CENTROID))
+                if(info.modifiers.is(Modifiers::CENTROID))
                     mod_name += "#centroid";
-                else if(info.modifiers.is(POSTURE_CENTROID))
+                else if(info.modifiers.is(Modifiers::POSTURE_CENTROID))
                     mod_name += "#pcentroid";
-                else if(info.modifiers.is(WEIGHTED_CENTROID))
+                else if(info.modifiers.is(Modifiers::WEIGHTED_CENTROID))
                     mod_name += "#wcentroid";
                 
                 auto func = Graph::Function(mod_name,
-                    info.modifiers.is(POINTS) ? Graph::POINTS : Graph::DISCRETE,
+                    info.modifiers.is(Modifiers::POINTS) ? Graph::POINTS : Graph::DISCRETE,
                     [fname, mod_name, info, e](int x) {
-                        return e.second.apply(Library::get(fname, info, x));
+                        return e.second.apply(Library::get(fname, info, Frame_t(x)));
                         
                     }, gui::Color(), units);
                 
                 graph.add_function(func);
                 
-                if(info.modifiers.is(PLUSMINUS)) {
+                if(info.modifiers.is(Modifiers::PLUSMINUS)) {
                     graph.add_function(Graph::Function(mod_name,
-                       info.modifiers.is(POINTS) ? Graph::POINTS : Graph::DISCRETE,
+                       info.modifiers.is(Modifiers::POINTS) ? Graph::POINTS : Graph::DISCRETE,
                        [fname, mod_name, info, e](int x) {
-                           return -e.second.apply(Library::get(fname, info, x));
+                           return -e.second.apply(Library::get(fname, info, Frame_t(x)));
                            
                        }, func._color, units));
                 }
@@ -1160,14 +1158,14 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 break;
                 
             default:
-                U_EXCEPTION("Unknown operator '%c'", operation);
+                throw U_EXCEPTION("Unknown operator '",operation,"'");
                 break;
         }
         
         return func;
     }
     
-    bool Library::parse_modifiers(const std::string& e, OptionsList<Modifiers>& modifiers) {
+    bool Library::parse_modifiers(const std::string& e, Options_t& modifiers) {
         if (utils::lowercase(e) == "smooth") {
             modifiers.push(Modifiers::SMOOTH);
             
@@ -1214,7 +1212,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
         auto previous_graphs = graphs;
         
         default_options_type modified;
-        OptionsList<Modifiers> modifiers; // temp object
+        Options_t modifiers; // temp object
         
         for (auto &p : previous) {
             auto &fname = p.first;
@@ -1251,7 +1249,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
         SETTING(output_graphs) = modified_graphs;
     }
     
-    float Library::tailbeats(long_t frame, Output::Library::LibInfo info) {
+    float Library::tailbeats(Frame_t frame, Output::Library::LibInfo info) {
         auto fish = info.fish;
         
         double right = 0;
@@ -1259,7 +1257,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
         double mx = -FLT_MAX;
         double mi = FLT_MAX;
         
-        for (long_t offset=0; offset<100 && frame-offset >= fish->start_frame() && frame+offset <= fish->end_frame(); offset++)
+        for (auto offset=0_f; offset<100_f && frame-offset >= fish->start_frame() && frame+offset <= fish->end_frame(); ++offset)
         {
             auto f_l = frame-offset;
             auto f_r = frame+offset;
@@ -1281,7 +1279,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                 }
             }
             
-            if(right == 0 && offset) {
+            if(right == 0 && offset != 0_f) {
                 auto v_r = Library::get(Functions::BINARY.name(), info, f_r);
                 if(!gui::Graph::is_invalid(v_r)) {
                     right = v_r;
@@ -1337,7 +1335,7 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
         Table table(header);
         Row row;
         
-        for (long_t frame=Tracker::start_frame(); frame<=Tracker::end_frame(); frame++) {
+        for (auto frame=Tracker::start_frame(); frame<=Tracker::end_frame(); ++frame) {
             row.clear();
             
             cv::Mat data = cv::Mat::zeros(1, 100, CV_32FC1);
@@ -1349,10 +1347,10 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
             
             auto prop = fish->centroid_posture(frame);
             if(prop) {
-                auto pos = prop->pos(Units::CM_AND_SECONDS);
+                auto pos = prop->pos<Units::CM_AND_SECONDS>();
                 float angle = prop->angle();
-                float lv = prop->v(Units::CM_AND_SECONDS).length();
-                float la = prop->a(Units::CM_AND_SECONDS).length();
+                float lv = prop->v<Units::CM_AND_SECONDS>().length();
+                float la = prop->a<Units::CM_AND_SECONDS>().length();
                 
                 row.add(frame);
                 row.add(pos.x).add(pos.y).add(angle).add(lv).add(la);
@@ -1363,12 +1361,12 @@ std::tuple<const PhysicalProperties*, const PhysicalProperties*> interpolate_1d(
                     
                     if(nprop) {
                         float b = nprop->angle();
-                        auto npos = nprop->pos(Units::CM_AND_SECONDS);
+                        auto npos = nprop->pos<Units::CM_AND_SECONDS>();
                         row .add(npos.x - pos.x)
                             .add(npos.y - pos.y)
                             .add(atan2(sin(b-angle), cos(b-angle)))
-                            .add(nprop->v(Units::CM_AND_SECONDS).length() - lv)
-                            .add(nprop->a(Units::CM_AND_SECONDS).length() - la);
+                            .add(nprop->v<Units::CM_AND_SECONDS>().length() - lv)
+                            .add(nprop->a<Units::CM_AND_SECONDS>().length() - la);
                         
                     } else {
                         row.repeat("", nheader.size());

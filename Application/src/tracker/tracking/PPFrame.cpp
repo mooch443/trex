@@ -6,16 +6,16 @@ namespace track {
 
 #define ASSUME_NOT_FINALIZED _assume_not_finalized( __FILE__ , __LINE__ )
 
-inline void insert_line(grid::ProximityGrid& grid, const HorizontalLine* ptr, uint32_t blob_id, size_t step_size)
+inline void insert_line(grid::ProximityGrid& grid, const HorizontalLine* ptr, pv::bid blob_id, ptr_safe_t step_size)
 {
-    auto d = ptr->x1 - ptr->x0;
-    grid.insert(ptr->x0, ptr->y, blob_id);
-    grid.insert(ptr->x1, ptr->y, blob_id);
-    grid.insert(ptr->x0 + d * 0.5, ptr->y, blob_id);
+    auto d = ptr_safe_t(ptr->x1) - ptr_safe_t(ptr->x0);
+    grid.insert(ptr->x0, ptr->y, (int64_t)blob_id);
+    grid.insert(ptr->x1, ptr->y, (int64_t)blob_id);
+    grid.insert(ptr->x0 + d * 0.5, ptr->y, (int64_t)blob_id);
 
-    if(d >= (short)step_size * 2 && step_size >= 5) {
-        for(auto x = ptr->x0 + step_size; x <= ptr->x1 - step_size; x += step_size) {
-            grid.insert(x, ptr->y, blob_id);
+    if(d >= step_size * 2 && step_size >= 5) {
+        for(auto x = ptr_safe_t(ptr->x0) + step_size; x <= ptr_safe_t(ptr->x1) - step_size; x += step_size) {
+            grid.insert(x, ptr->y, (int64_t)blob_id);
         }
     }
 }
@@ -37,22 +37,22 @@ bool PPFrame::_add_to_map(const pv::BlobPtr &blob) {
 #ifndef NDEBUG
         auto blob1 = _bdx_to_ptr.at(blob->blob_id());
         
-        Debug("Blob0 %u << 24 = %u (mask %u, max=%u)",
+        print("Blob0 %u << 24 = %u (mask %u, max=%u)",
               uint32_t(blob->bounds().x) & 0x00000FFF,
               (uint32_t(blob->bounds().x) & 0x00000FFF) << 20,
               (uint32_t(blob->lines()->front().y) & 0x00000FFF) << 8,
               std::numeric_limits<uint32_t>::max());
         
-        Debug("Blob1 %u << 24 = %u (mask %u, max=%u)",
+        print("Blob1 %u << 24 = %u (mask %u, max=%u)",
               uint32_t(blob1->bounds().x) & 0x00000FFF,
               (uint32_t(blob1->bounds().x) & 0x00000FFF) << 20,
               (uint32_t(blob1->lines()->front().y) & 0x00000FFF) << 8,
               std::numeric_limits<uint32_t>::max());
         
-        uint32_t bid0 = pv::Blob::id_from_blob(blob);
-        uint32_t bid1 = pv::Blob::id_from_blob(_bdx_to_ptr.at(blob->blob_id()));
+        auto bid0 = pv::bid::from_blob(blob);
+        auto bid1 = pv::bid::from_blob(_bdx_to_ptr.at(blob->blob_id()));
         
-        Except("Frame %d: Blob %u already in map (%d), at %f,%f bid=%u vs. %f,%f bid=%u", _index, blob->blob_id(), blob == _bdx_to_ptr.at(blob->blob_id()),
+        FormatExcept("Frame %d: Blob %u already in map (%d), at %f,%f bid=%u vs. %f,%f bid=%u", _index, blob->blob_id(), blob == _bdx_to_ptr.at(blob->blob_id()),
                blob->bounds().x, blob->bounds().y, bid0,
                _bdx_to_ptr.at(blob->blob_id())->bounds().x, _bdx_to_ptr.at(blob->blob_id())->bounds().y, bid1);
 #endif
@@ -63,21 +63,25 @@ bool PPFrame::_add_to_map(const pv::BlobPtr &blob) {
     return true;
 }
 
-void PPFrame::_remove_from_map(uint32_t bdx) {
+void PPFrame::_remove_from_map(pv::bid bdx) {
     _bdx_to_ptr.erase(bdx);
-    
+    /*size_t removals = 0;
     for(auto &g : _blob_grid.get_grid()) {
         if(!g.empty()) {
-            auto it = std::find(g.begin(), g.end(), bdx);
-            if(it != g.end())
-                g.erase(it);
+            auto it = std::find(g.begin(), g.end(), (int64_t)bdx);
+            if(it != g.end()) {
+                removals++;
+            }
         }
     }
+    print(removals," removals");*/
+    if(bdx.valid())
+        _blob_grid.erase((int64_t)bdx);
 }
 
 void PPFrame::_assume_not_finalized(const char* file, int line) {
     if(_finalized) {
-        U_EXCEPTION("PPFrame already finalized at [%s:%d].", file, line);
+        throw U_EXCEPTION("PPFrame already finalized at [",file,":",line,"].");
     }
 }
 
@@ -142,11 +146,11 @@ void PPFrame::erase_anywhere(const pv::BlobPtr& blob) {
     }
 #ifndef NDEBUG
     else
-        U_EXCEPTION("Blob %u not found anywhere.", blob->blob_id());
+        throw U_EXCEPTION("Blob ",blob->blob_id()," not found anywhere.");
 #endif
 }
 
-pv::BlobPtr PPFrame::erase_anywhere(uint32_t bdx) {
+pv::BlobPtr PPFrame::erase_anywhere(pv::bid bdx) {
     ASSUME_NOT_FINALIZED;
     
     auto find = [bdx](const auto& blob){ return blob->blob_id() == bdx; };
@@ -169,7 +173,7 @@ pv::BlobPtr PPFrame::erase_anywhere(uint32_t bdx) {
     }
 #ifndef NDEBUG
     else
-        Except("Blob %u not found anywhere.", bdx);
+        FormatExcept("Blob ", bdx," not found anywhere.");
 #endif
     return nullptr;
 }
@@ -200,7 +204,7 @@ void PPFrame::add_regular(std::vector<pv::BlobPtr>&& v) {
     _blobs.insert(_blobs.end(), std::make_move_iterator( v.begin() ), std::make_move_iterator( v.end() ));
 }
 
-pv::BlobPtr PPFrame::erase_regular(uint32_t bdx) {
+pv::BlobPtr PPFrame::erase_regular(pv::bid bdx) {
     ASSUME_NOT_FINALIZED;
     
     auto it = _bdx_to_ptr.find(bdx);
@@ -221,7 +225,7 @@ pv::BlobPtr PPFrame::erase_regular(uint32_t bdx) {
     return nullptr;
 }
 
-pv::BlobPtr PPFrame::find_bdx(uint32_t bdx) const {
+pv::BlobPtr PPFrame::find_bdx(pv::bid bdx) const {
     auto it = _bdx_to_ptr.find(bdx);
     if(it != _bdx_to_ptr.end()) {
         return it->second;
@@ -229,7 +233,7 @@ pv::BlobPtr PPFrame::find_bdx(uint32_t bdx) const {
     return nullptr;
 }
 
-const pv::BlobPtr& PPFrame::bdx_to_ptr(uint32_t bdx) const {
+const pv::BlobPtr& PPFrame::bdx_to_ptr(pv::bid bdx) const {
     return _bdx_to_ptr.at(bdx);
 }
 
@@ -292,8 +296,8 @@ void PPFrame::clear() {
     _individual_cache.clear();
     _blob_grid.clear();
     _original_blobs.clear();
-    blob_cliques.clear();
-    fish_cliques.clear();
+    clique_for_blob.clear();
+    clique_second_order.clear();
     split_blobs.clear();
     _bdx_to_ptr.clear();
     _num_pixels = 0;
@@ -309,9 +313,8 @@ void PPFrame::fill_proximity_grid() {
         auto ptr = b->hor_lines().data();
         const auto end = ptr + N;
         
-        auto &size = b->bounds().size();
-        const size_t step_size = 2;
-        const size_t step_size_x = (size_t)max(1, size.width * 0.1);
+        const ptr_safe_t step_size = 2;
+        const ptr_safe_t step_size_x = (ptr_safe_t)max(1, b->bounds().width * 0.1);
         
         if(N >= step_size * 2) {
             insert_line(_blob_grid, ptr, b->blob_id(), step_size_x);

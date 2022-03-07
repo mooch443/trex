@@ -75,7 +75,7 @@ template<> struct NAM :: AccessEnum<NAM :: Variables:: EVERY_PLAIN_GET_B_NO_COMM
 #define EXPRESS_MEMBER_FUNCTIONS(NAM, TUPLE) IMPL_ACCESS_ENUM(NAM, TUPLE)
 
 #define EXPRESS_MEMBER_TYPES(NAM, TUPLE) using EVERY_PLAIN_GET_B_WITH_T TUPLE = EVERY_PLAIN_GET_A_NO_COMMA TUPLE;
-#define EXPRESS_MEMBER_GETTERS(NAM, TUPLE) []() -> auto& { if(!cmn::GlobalSettings::get( EVERY_PAIR_GET_B TUPLE ).is_type< EVERY_PLAIN_GET_A_NO_COMMA TUPLE >()) { auto type_name = cmn::GlobalSettings::get( EVERY_PAIR_GET_B TUPLE ).get().type_name(); U_EXCEPTION("Settings type '%S' is not '%s' for Variable '%s::%s'.", &type_name, EVERY_PAIR_GET_A TUPLE , #NAM, EVERY_PAIR_GET_B TUPLE); } return cmn::GlobalSettings::get( EVERY_PAIR_GET_B TUPLE ).get(); },
+#define EXPRESS_MEMBER_GETTERS(NAM, TUPLE) []() -> auto& { if(!cmn::GlobalSettings::get( EVERY_PAIR_GET_B TUPLE ).is_type< EVERY_PLAIN_GET_A_NO_COMMA TUPLE >()) { auto type_name = cmn::GlobalSettings::get( EVERY_PAIR_GET_B TUPLE ).get().type_name(); throw U_EXCEPTION("Settings type ",type_name," is not '", EVERY_PAIR_GET_A TUPLE ,"' for Variable '", #NAM ,"::", EVERY_PAIR_GET_B TUPLE ,"'."); } return cmn::GlobalSettings::get( EVERY_PAIR_GET_B TUPLE ).get(); },
 
 
 #define STRUCT_CONCATENATE(arg1, arg2)   STRUCT_CONCATENATE1(arg1, arg2)
@@ -612,16 +612,17 @@ void update() {
     printf("%s\n", VariableName[v]);
 }*/
 
-inline void member_destruct(const char*name) {
 #ifndef NDEBUG
+inline void member_destruct(const char*name) {
     printf("Destruction members '%s'\n", name);
-#endif
 }
 inline void member_construct(const char*name) {
-#ifndef NDEBUG
     printf("Construction members '%s'\n", name);
-#endif
 }
+#else
+inline void member_destruct(const char*) {}
+inline void member_construct(const char*) {}
+#endif
 
 template<typename Variables, typename callback_fn_t>
 struct CallbackHolder {
@@ -714,7 +715,7 @@ public: \
     static void set_callback(Variables v, callback_fn_t f) { callbacks()[v] = f; } \
     static void clear_callbacks() { callbacks().clear(); } \
     static std::vector<std::string> names() { return std::vector<std::string>{ STRUCT_FOR_EACH(NAM, STRINGIZE_MEMBERS, __VA_ARGS__) }; } \
-    static void variable_changed (sprite::Map::Signal signal, sprite::Map & map, const std::string &key, const sprite::PropertyType& value) { \
+    static void variable_changed (sprite::Map::Signal signal, sprite::Map &, const std::string &key, const sprite::PropertyType& value) { \
         if(signal == sprite::Map::Signal::EXIT) { \
             cmn::GlobalSettings::map().unregister_callback(#NAM); \
             return; \
@@ -732,11 +733,11 @@ public: \
 }; \
 STRUCT_FOR_EACH(NAM, EXPRESS_MEMBER_FUNCTIONS, __VA_ARGS__)
 
-#define STRUCT_META_EXTENSIONS(NAM) namespace cmn { \
-namespace Meta { \
-template<> inline std::string toStr<NAM :: Variables>(const NAM :: Variables& value, const NAM :: Variables* ) { return NAM :: names()[value]; } \
-template<> inline std::string name<enum NAM :: Variables>(const enum NAM :: Variables*) { return #NAM ; } \
-template<> inline enum NAM :: Variables fromStr<enum NAM :: Variables>(const std::string& str, const enum NAM :: Variables* ) { \
+#define STRUCT_META_EXTENSIONS(NAM) \
+ \
+template<> inline std::string cmn::Meta::toStr<NAM :: Variables>(const NAM :: Variables& value, const NAM :: Variables* ) { return NAM :: names()[value]; } \
+template<> inline std::string cmn::Meta::name<enum NAM :: Variables>(const enum NAM :: Variables*) { return #NAM ; } \
+template<> inline enum NAM :: Variables cmn::Meta::fromStr<enum NAM :: Variables>(const std::string& str, const enum NAM :: Variables* ) { \
     size_t index = 0; \
     for(auto &name : NAM :: names()) { \
         if(str == name) { \
@@ -745,7 +746,5 @@ template<> inline enum NAM :: Variables fromStr<enum NAM :: Variables>(const std
         ++index; \
     } \
     \
-    throw CustomException<std::invalid_argument>("Cannot find variable '%s::%s'.", #NAM, str.c_str()); \
-} \
-} \
+    throw CustomException(cmn::type<std::invalid_argument>, "Cannot find variable '", #NAM ,"::", str.c_str() ,"'."); \
 }

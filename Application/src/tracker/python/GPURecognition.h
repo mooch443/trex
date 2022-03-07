@@ -19,7 +19,7 @@ namespace track {
         PythonIntegration();
         ~PythonIntegration();
         
-        static void set_settings(std::shared_ptr<GlobalSettings>);
+        static void set_settings(GlobalSettings*);
         static void set_display_function(std::function<void(const std::string&, const cv::Mat&)>);
         
         static PythonIntegration*& instance(bool check = false);

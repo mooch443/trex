@@ -16,7 +16,7 @@ namespace gui {
         std::unique_ptr<ExternalImage> ptr;
         
         SimpleBlob(std::unique_ptr<ExternalImage>&& available, pv::BlobPtr b, int t);
-        std::unique_ptr<ExternalImage> convert();
+        void convert();
     };
     
     class Fish;
@@ -25,41 +25,39 @@ namespace gui {
     
     class GUICache {
     public:
-        int last_threshold;
-        long_t last_frame;
+        int last_threshold = -1;
+        Frame_t last_frame;
         Bounds boundary;
         std::vector<Idx_t> previous_active_fish;
-        std::set<uint32_t> previous_active_blobs, active_blobs, selected_blobs;
+        std::set<pv::bid> previous_active_blobs, active_blobs, selected_blobs;
         Vec2 previous_mouse_position;
-        bool _dirty;
+        bool _dirty = true;
         FOIStatus _current_foi;
-        size_t _num_pixels;
+        size_t _num_pixels = 0;
 
-        long_t frame_idx;
+        Frame_t frame_idx;
         
         std::vector<float> pixel_value_percentiles;
-        bool _equalize_histograms;
+        bool _equalize_histograms = true;
         
-        GETTER(bool, blobs_dirty)
-        GETTER(bool, raw_blobs_dirty)
-        GETTER(mode_t::Class, mode)
-        GETTER(double, gui_time)
-        GETTER_SETTER(float, zoom_level)
-        GETTER(float, dt)
-        std::atomic_bool _tracking_dirty;
+        GETTER_I(bool, blobs_dirty, false)
+        GETTER_I(bool, raw_blobs_dirty, false)
+        GETTER_I(mode_t::Class, mode, mode_t::tracking)
+        GETTER_I(double, gui_time, 0)
+        GETTER_SETTER_I(float, zoom_level, 1)
+        GETTER_I(float, dt, 0)
+        std::atomic_bool _tracking_dirty = false;
         
         std::map<Drawable*, Drawable::delete_function_handle_t> _delete_handles;
         std::set<Drawable*> _animators;
         
     public:
-        bool recognition_updated;
+        bool recognition_updated = false;
         
-        Rangel tracked_frames;
+        Range<Frame_t> tracked_frames;
         std::atomic_bool connectivity_reload;
         
-        std::map<uint32_t, long_t> automatic_assignments;
-        
-        std::unordered_map<Idx_t, Individual*> individuals;
+        ska::bytell_hash_map<Idx_t, Individual*> individuals;
         std::set<Idx_t> active_ids;
         std::set<Idx_t> inactive_ids;
         std::set<Idx_t> recognized_ids;
@@ -68,27 +66,26 @@ namespace gui {
         
         Tracker::set_of_individuals_t _registered_callback;
         
-        std::map<Idx_t, int64_t> fish_selected_blobs;
+        std::map<Idx_t, pv::bid> fish_selected_blobs;
         Tracker::set_of_individuals_t active;
         //std::vector<std::shared_ptr<gui::ExternalImage>> blob_images;
-        std::vector<std::shared_ptr<SimpleBlob>> raw_blobs;
-        std::unordered_map<pv::Blob*, gui::ExternalImage*> display_blobs;
-        std::vector<std::unique_ptr<gui::ExternalImage>> display_blobs_list;
-        std::vector<std::unique_ptr<gui::ExternalImage>> available_blobs_list;
+        std::vector<std::unique_ptr<SimpleBlob>> raw_blobs;
+        std::unordered_map<pv::Blob*, SimpleBlob*> display_blobs;
+        std::vector<std::unique_ptr<SimpleBlob>> available_blobs_list;
         std::vector<Vec2> inactive_estimates;
         
     protected:
-        std::map<Idx_t, std::map<uint32_t, Individual::Probability>> probabilities;
+        ska::bytell_hash_map<Idx_t, ska::bytell_hash_map<pv::bid, Individual::Probability>> probabilities;
         std::set<uint32_t> checked_probs;
         
     public:
-        std::map<Individual*, std::unique_ptr<gui::Fish>> _fish_map;
-        std::map<long_t, track::Tracker::Statistics> _statistics;
-        std::unordered_map<uint32_t, int> _ranged_blob_labels;
+        ska::bytell_hash_map<Individual*, std::unique_ptr<gui::Fish>> _fish_map;
+        std::map<Frame_t, track::Tracker::Statistics> _statistics;
+        std::unordered_map<pv::bid, int> _ranged_blob_labels;
         
         std::vector<Tracker::Clique> _cliques;
         
-        long_t connectivity_last_frame;
+        Frame_t connectivity_last_frame;
         std::vector<float> connectivity_matrix;
         
         PPFrame processed_frame;
@@ -106,7 +103,7 @@ namespace gui {
         void deselect(Idx_t id);
         void deselect_all_select(Idx_t id);
         
-        const std::map<uint32_t, Individual::Probability>* probs(Idx_t fdx);
+        const ska::bytell_hash_map<pv::bid, Individual::Probability>* probs(Idx_t fdx);
         bool has_probs(Idx_t fdx);
         
         void set_tracking_dirty();
@@ -123,12 +120,11 @@ namespace gui {
         void updated_blobs() { _blobs_dirty = false; }
         void updated_raw_blobs() { _raw_blobs_dirty = false; }
         void on_redraw() { _dirty = false; }
-        void update_data(long_t frameIndex);
+        void update_data(Frame_t frameIndex);
         
         bool is_tracking_dirty() { return _tracking_dirty; }
         bool must_redraw() const;
     
-        GUICache();
         ~GUICache();
     };
 }

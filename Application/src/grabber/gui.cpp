@@ -137,7 +137,7 @@ void GUI::run_loop() {
         update_loop();
     }
     
-    Debug("GUI thread ended.");
+    print("GUI thread ended.");
 }
 
 void GUI::update_loop() {
@@ -192,7 +192,6 @@ void GUI::update() {
 void GUI::draw(gui::DrawStructure &base) {
     using namespace gui;
     static Timer last_frame_time;
-    static ExternalImage *background = NULL, *noise_image = NULL;
     
     {
         gui::DrawStructure::SectionGuard guard(base, "draw()");
@@ -218,7 +217,7 @@ void GUI::draw(gui::DrawStructure &base) {
 #ifndef NDEBUG
             static long last_index = -1;
             if (image && image->index() < last_index)
-                Warning("Last index = %d and current = %d", last_index, image->index());
+                FormatWarning("Last index = ", last_index," and current = ",image->index());
 #endif
 
             if (frame)
@@ -249,7 +248,7 @@ void GUI::draw(gui::DrawStructure &base) {
                     else {
                         noise_image = new ExternalImage(Image::Make(_image->rows, _image->cols, 4), offset, Vec2(1 / scale));
                         background = new ExternalImage(std::move(_image), offset, Vec2(1 / scale));
-                        Debug("Creating images.");
+                        print("Creating images.");
                     }
                 }
                 else {
@@ -258,10 +257,11 @@ void GUI::draw(gui::DrawStructure &base) {
                 }
 
                 if (noise_image) {
+                    auto N = _noise ? _noise->n() : 0u;
                     std::fill(noise_image->source()->data(), noise_image->source()->data() + noise_image->source()->size(), 0);
 
                     auto mat = noise_image->source()->get();
-                    for (int i = 0; i < _noise->n(); i++) {
+                    for (size_t i = 0; i < N; i++) {
                         auto& m = _noise->mask().at(i);
 
                         for (auto& line : *m) {
@@ -290,9 +290,10 @@ void GUI::draw(gui::DrawStructure &base) {
                     if (m->empty())
                         continue;
 
-                    pv::Blob blob(m, _frame->pixels().at(i));
+                    pv::Blob blob(*m, *_frame->pixels().at(i));
                     auto pos = blob.bounds().pos();
-                    base.rect(pos + offset, blob.bounds().size(), Transparent, Red);
+                    auto clr = wheel.next();
+                    base.rect(pos + offset, blob.bounds().size(), Transparent, clr.alpha(150));
                     
                     //! only display images if there arent too many of them.
                     if(_frame->mask().size() < 100) {
@@ -311,7 +312,7 @@ void GUI::draw(gui::DrawStructure &base) {
                                 (*it)[3] = 0;
                         }*/
 
-                        base.image(pos + offset, std::move(image), Vec2(1.0), wheel.next().alpha(150));
+                        base.image(pos + offset, std::move(image), Vec2(1.0), clr.alpha(150));
                     }
                     
                     base.text(Meta::toStr(i), pos + offset, Yellow, 0.5, scale);
@@ -347,10 +348,7 @@ void GUI::draw(gui::DrawStructure &base) {
 
                 }
                 else {
-                    auto circle = new Circle(Vec2(12, 18).mul(scale), 5, Black.alpha(255 * alpha), Black.alpha(255 * alpha));
-                    circle->set_scale(scale);
-                    circle->set_origin(Vec2(0.5));
-                    base.add_object(circle);
+                    base.circle(Vec2(12, 18).mul(scale), 5, Black.alpha(255 * alpha), Black.alpha(255 * alpha), scale, Vec2(0.5));
                 }
             }
 
@@ -408,22 +406,8 @@ void GUI::draw(gui::DrawStructure &base) {
             }
         }
 
-        static Text text("Test", Vec2(), text_color, Font(0.75, Align::VerticalCenter)), 
-                    text_shadow("", Vec2(), Color(), Font(0.75, Align::VerticalCenter));
-        text.set_pos(Vec2(25, 17).mul(scale));
-        text.set_scale(scale);
-        text.set_txt(info_text());
-        text.set_color(text_color);
-
-        text_shadow.set_pos(Vec2(26, 18).mul(scale));
-        text_shadow.set_scale(scale);
-        text_shadow.set_txt(text.txt());
-        text_shadow.set_color(Black);
-        base.wrap_object(text_shadow);
-        base.wrap_object(text);
-        //base.text(info_text(), Vec2(150, 150), Red, Font(2));//, base.scale().reciprocal());
-
-        //base.draw_log_messages();
+        auto shadow = base.text(info_text(), Vec2(26, 18).mul(scale), Black, Font(0.75, Align::VerticalCenter), scale);
+        base.text(shadow->txt(), Vec2(25, 17).mul(scale), text_color, Font(0.75, Align::VerticalCenter), scale);
 
         if (_grabber.tracker_instance()) {
             base.section("tracking", [this](gui::DrawStructure& base, Section* section) {
@@ -434,60 +418,79 @@ void GUI::draw(gui::DrawStructure &base) {
                 }
 
                 using namespace track;
+                const auto gui_outline_thickness = SETTING(gui_outline_thickness).value<uint8_t>();
+                
                 auto tracker = _grabber.tracker_instance();
                 auto individuals = tracker->active_individuals();
+                
                 for (auto& fish : individuals) {
                     if (fish->has(tracker->end_frame())) {
                         auto stuff = fish->basic_stuff(tracker->end_frame());
 
-                        std::vector<Vec2> positions;
-                        fish->iterate_frames(Rangel(tracker->end_frame() - 100, tracker->end_frame()), [&](long_t frame, const std::shared_ptr<Individual::SegmentInformation>& segment, const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture) -> bool
-                            {
-                                if (basic) {
-                                    auto bounds = basic->blob.calculate_bounds();
-                                    positions.push_back(bounds.pos() + bounds.size() * 0.5);
-                                    if (frame == tracker->end_frame()) {
-                                        base.circle(positions.back(), 10, fish->identity().color());
-                                        //auto cache = fish->cache_for_frame(frame, tracker->properties(frame)->time);
-                                        //base.text(Meta::toStr(fish->probability(cache, frame, basic->blob).p), positions.back() - Vec2(0, -100));
+                        std::vector<std::vector<Vec2>> positions{{}};
+                        Frame_t prev;
 
-                                        if (posture) {
-                                            std::vector<Vertex> oline;
-                                            auto _cached_outline = posture->outline;
-                                            auto _cached_midline = posture->cached_pp_midline;
-                                            auto clr = fish->identity().color();
-                                            auto max_color = 255;
-                                            auto points = _cached_outline->uncompress();
+                        fish->iterate_frames(Range<Frame_t>(tracker->end_frame() - 100_f, tracker->end_frame()), 
+                            [&](Frame_t frame, 
+                                const std::shared_ptr<Individual::SegmentInformation>& segment, 
+                                const std::shared_ptr<Individual::BasicStuff>& basic, 
+                                const std::shared_ptr<Individual::PostureStuff>& posture) 
+                            -> bool
+                        {
+                            if (basic) {
+                                auto bounds = basic->blob.calculate_bounds();
 
-                                            // check if we actually have a tail index
-                                            if (SETTING(gui_show_midline) && _cached_midline && _cached_midline->tail_index() != -1) {
-                                                base.circle(points.at(_cached_midline->tail_index()) + bounds.pos(), 5, Blue.alpha(max_color * 0.3));
-                                                if (_cached_midline->head_index() != -1)
-                                                    base.circle(points.at(_cached_midline->head_index()) + bounds.pos(), 5, Red.alpha(max_color * 0.3));
-                                            }
+                                if (prev.valid() && prev != frame - 1_f) {
+                                    positions.push_back({});
+                                }
+                                prev = frame;
 
-                                            //float right_side = outline->tail_index() + 1;
-                                            //float left_side = points.size() - outline->tail_index();
+                                auto p = bounds.pos() + bounds.size() * 0.5;
+                                positions.back().push_back(p);
 
-                                            for (size_t i = 0; i < points.size(); i++) {
-                                                auto pt = points[i] + bounds.pos();
-                                                Color c = clr.alpha(max_color);
-                                                /*if(outline->tail_index() != -1) {
-                                                    float d = cmn::abs(float(i) - float(outline->tail_index())) / ((long_t)i > outline->tail_index() ? left_side : right_side) * 0.4 + 0.5;
-                                                    c = Color(clr.r, clr.g, clr.b, max_color * d);
-                                                }*/
-                                                oline.push_back(Vertex(pt, c));
-                                            }
-                                            oline.push_back(Vertex(points.front() + bounds.pos(), clr.alpha(0.04 * max_color)));
-                                            //auto line =
-                                            base.add_object(new Line(oline, SETTING(gui_outline_thickness).value<size_t>()));
+                                if (frame == tracker->end_frame()) {
+                                    base.circle(p, 10, fish->identity().color());
+                                    //auto cache = fish->cache_for_frame(frame, tracker->properties(frame)->time);
+                                    //base.text(Meta::toStr(fish->probability(cache, frame, basic->blob).p), positions.back() - Vec2(0, -100));
+
+                                    if (posture) {
+                                        std::vector<Vertex> oline;
+                                        auto &_cached_outline = posture->outline;
+                                        auto &_cached_midline = posture->cached_pp_midline;
+                                        auto &clr = fish->identity().color();
+                                        auto max_color = 255;
+                                        auto points = _cached_outline->uncompress();
+
+                                        // check if we actually have a tail index
+                                        if (SETTING(gui_show_midline) && _cached_midline && _cached_midline->tail_index() != -1) {
+                                            base.circle(points.at(_cached_midline->tail_index()) + bounds.pos(), 5, Blue.alpha(max_color * 0.3));
+                                            if (_cached_midline->head_index() != -1)
+                                                base.circle(points.at(_cached_midline->head_index()) + bounds.pos(), 5, Red.alpha(max_color * 0.3));
                                         }
+
+                                        //float right_side = outline->tail_index() + 1;
+                                        //float left_side = points.size() - outline->tail_index();
+
+                                        for (size_t i = 0; i < points.size(); i++) {
+                                            auto pt = points[i] + bounds.pos();
+                                            Color c = clr.alpha(max_color);
+                                            /*if(outline->tail_index() != -1) {
+                                                float d = cmn::abs(float(i) - float(outline->tail_index())) / ((long_t)i > outline->tail_index() ? left_side : right_side) * 0.4 + 0.5;
+                                                c = Color(clr.r, clr.g, clr.b, max_color * d);
+                                            }*/
+                                            oline.push_back(Vertex(pt, c));
+                                        }
+                                        oline.push_back(Vertex(points.front() + bounds.pos(), clr.alpha(0.04 * max_color)));
+                                        //auto line =
+                                        base.add_object(new Line(oline, gui_outline_thickness));
                                     }
                                 }
-                                return true;
-                            });
+                            }
+                            return true;
+                        });
 
-                        base.line(positions, 2, fish->identity().color());
+                        for(auto&v : positions)
+                            base.line(v, 2, fish->identity().color());
                     }
                 }
             });
@@ -554,13 +557,13 @@ void GUI::key_event(const gui::Event &event) {
         auto code = key.code == Codes::RBracket ? Codes::Add : Codes::Subtract;
         
         SETTING(threshold) = SETTING(threshold).value<int>() + (code == Codes::Add ? 1 : -1);
-        Debug("Threshold %d", SETTING(threshold).value<int>());
+        print("Threshold ", SETTING(threshold).value<int>());
     }
     else if(key.code == Codes::R) {
         SETTING(recording) = !SETTING(recording);
     }
     else if(key.code == Codes::K) {
-        Debug("Killing...");
+        print("Killing...");
         CrashProgram::do_crash = true;
     }
     else if(key.code == Codes::F5) {
@@ -568,7 +571,7 @@ void GUI::key_event(const gui::Event &event) {
     }
 #ifndef NDEBUG
     else if(key.code == Codes::Unknown)
-        Warning("Unknown key %d", key.code);
+        print("Unknown key ",key.code);
 #endif
     
     set_redraw();

@@ -12,16 +12,25 @@
 #endif
 #include <misc/default_settings.h>
 
+const auto homedir = []() {
 #ifndef WIN32
-struct passwd *pw = getpwuid(getuid());
-const char *homedir = pw->pw_dir;
+    struct passwd* pw = getpwuid(getuid());
+    const char* homedir = pw->pw_dir;
+    return std::string(homedir);
 #else
-const char *homedir = getenv("USERPROFILE");
+    char* home;
+    size_t size;
+    if (_dupenv_s(&home, &size, "USERPROFILE"))
+        return std::string();
+    auto str = std::string(home);
+    free(home);
+    return str;
 #endif
+}();
 
 #include <tracking/Tracker.h>
 #include <misc/default_settings.h>
-#include <gui/gui.h>
+#include <misc/OutputLibrary.h>
 
 using namespace file;
 #define CONFIG adding.add
@@ -157,7 +166,7 @@ file::Path conda_environment_path() {
     if(home == "CONDA_PREFIX" || home == "" || home == compiled_path) {
 #ifndef NDEBUG
         if(!SETTING(quiet))
-            Debug("Reset conda prefix '%S' / '%S'", &home, &compiled_path);
+            print("Reset conda prefix ",home," / ",compiled_path);
 #endif
         auto conda_prefix = getenv("CONDA_PREFIX");
         
@@ -185,7 +194,7 @@ file::Path conda_environment_path() {
     
 #ifndef NDEBUG
     if(!SETTING(quiet))
-        Debug("Set conda environment path = '%S'", &home);
+        print("Set conda environment path = ",home);
 #endif
     return home;
 }
@@ -198,8 +207,8 @@ file::Path conda_environment_path() {
         std::map<std::string, std::string> found;
         
         for(auto &key : map.keys()) {
-            if(is_deprecated(key))
-                found.insert({key, map.operator[](key).toStdString()});
+            if(is_deprecated(key)) //!TODO: check what this does (toStr)
+                found.insert({key, map.operator[](key).toStr()});
         }
         
         warn_deprecated(source, found);
@@ -213,14 +222,14 @@ file::Path conda_environment_path() {
                 
                 auto r = replacement(key);
                 if(r.empty()) {
-                    Warning("[%S] Setting '%S' has been removed from the tracker (with no replacement) and will be ignored.", &source, &key);
+                    FormatWarning("[",source.c_str(),"] Setting ",key," has been removed from the tracker (with no replacement) and will be ignored.");
                 } else
-                    Except("[%S] Setting '%S' is deprecated. Please use its replacement parameter '%S' instead.", &source, &key, &r);
+                    FormatExcept("[",source.c_str(),"] Setting ",key," is deprecated. Please use its replacement parameter ",r," instead.");
             }
         }
         
         if(found)
-            Warning("Found invalid settings in source '%S' (see above).", &source);
+            print("Found invalid settings in source ",source," (see above).");
     }
     
     bool is_deprecated(const std::string& key) {
@@ -229,7 +238,7 @@ file::Path conda_environment_path() {
     
     std::string replacement(const std::string& key) {
         if (!is_deprecated(key)) {
-            U_EXCEPTION("Key '%S' is not deprecated.", &key);
+            throw U_EXCEPTION("Key ",key," is not deprecated.");
         }
         
         return deprecated.at(utils::lowercase(key));
@@ -288,7 +297,7 @@ file::Path conda_environment_path() {
         CONFIG("meta_source_path", Path(""), "Path of the original video file for conversions (saved as debug info).", STARTUP);
         CONFIG("meta_real_width", float(0), "Used to calculate the `cm_per_pixel` conversion factor, relevant for e.g. converting the speed of individuals from px/s to cm/s (to compare to `track_max_speed` which is given in cm/s). By default set to 30 if no other values are available (e.g. via command-line). This variable should reflect actual width (in cm) of what is seen in the video image. For example, if the video shows a tank that is 50cm in X-direction and 30cm in Y-direction, and the image is cropped exactly to the size of the tank, then this variable should be set to 50.", STARTUP);
         CONFIG("cm_per_pixel", float(0), "The ratio of `meta_real_width / video_width` that is used to convert pixels to centimeters. Will be automatically calculated based on a meta-parameter saved inside the video file (`meta_real_width`) and does not need to be set manually.", STARTUP);
-        CONFIG("video_length", size_t(0), "The length of the video in frames", STARTUP);
+        CONFIG("video_length", uint64_t(0), "The length of the video in frames", STARTUP);
         CONFIG("video_size", Size2(-1), "The dimensions of the currently loaded video.", SYSTEM);
         CONFIG("video_info", std::string(), "Information on the current video as provided by PV.", SYSTEM);
         
@@ -321,8 +330,8 @@ file::Path conda_environment_path() {
         CONFIG("gui_max_path_time", float(3), "Length (in time) of the trails shown in GUI.");
         
         CONFIG("gui_draw_only_filtered_out", false, "Only show filtered out blob texts.");
-        CONFIG<std::pair<int64_t, long_t>>("gui_show_fish", {-1, -1}, "Show debug output for {blob_id, fish_id}.");
-        CONFIG("gui_frame", long_t(0), "The currently visible frame.");
+        CONFIG<std::pair<pv::bid, Frame_t>>("gui_show_fish", {pv::bid::invalid, Frame_t()}, "Show debug output for {blob_id, fish_id}.");
+        CONFIG("gui_frame", Frame_t(0), "The currently visible frame.");
 #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
         CONFIG("gui_blur_enabled", false, "MacOS supports a blur filter that can be applied to make unselected individuals look interesting.");
 #endif
@@ -346,7 +355,7 @@ file::Path conda_environment_path() {
         CONFIG("gui_show_outline", true, "Showing or hiding individual outlines in tracking view.");
         CONFIG("gui_show_midline", true, "Showing or hiding individual midlines in tracking view.");
         CONFIG("gui_show_shadows", true, "Showing or hiding individual shadows in tracking view.");
-        CONFIG("gui_outline_thickness", size_t(1), "The thickness of outline / midlines in the GUI.");
+        CONFIG("gui_outline_thickness", uint8_t(1), "The thickness of outline / midlines in the GUI.");
         CONFIG("gui_show_texts", true, "Showing or hiding individual identity (and related) texts in tracking view.");
         CONFIG("gui_show_blobs", true, "Showing or hiding individual raw blobs in tracking view (are always shown in RAW mode).");
         CONFIG("gui_show_paths", true, "Equivalent to the checkbox visible in GUI on the bottom-left.");
@@ -398,8 +407,8 @@ file::Path conda_environment_path() {
         CONFIG("midline_start_with_head", false, "If enabled, the midline is going to be estimated starting at the head instead of the tail.");
         CONFIG("midline_invert", false, "If enabled, all midlines will be inverted (tail/head swapped).");
         CONFIG("peak_mode", peak_mode_t::pointy, "This determines whether the tail of an individual should be expected to be pointy or broad.");
-        CONFIG("manual_matches", std::map<long_t, std::map<track::Idx_t, int64_t>>{ }, "A map of manually defined matches (also updated by GUI menu for assigning manual identities). `{{frame: {fish0: blob2, fish1: blob0}}, ...}`");
-        CONFIG("manual_splits", std::map<long_t, std::set<int64_t>>{}, "This map contains `{frame: [blobid1,blobid2,...]}` where frame and blobid are integers. When this is read during tracking for a frame, the tracker will attempt to force-split the given blob ids.");
+        CONFIG("manual_matches", std::map<Frame_t, std::map<track::Idx_t, pv::bid>>{ }, "A map of manually defined matches (also updated by GUI menu for assigning manual identities). `{{frame: {fish0: blob2, fish1: blob0}}, ...}`");
+        CONFIG("manual_splits", std::map<Frame_t, std::set<pv::bid>>{}, "This map contains `{frame: [blobid1,blobid2,...]}` where frame and blobid are integers. When this is read during tracking for a frame, the tracker will attempt to force-split the given blob ids.");
         CONFIG("match_mode", matching_mode_t::automatic, "Changes the default algorithm to be used for matching blobs in one frame with blobs in the next frame. The accurate algorithm performs best, but also scales less well for more individuals than the approximate one. However, if it is too slow (temporarily) in a few frames, the program falls back to using the approximate one that doesnt slow down.");
         CONFIG("matching_probability_threshold", float(0.1), "The probability below which a possible connection between blob and identity is considered too low. The probability depends largely upon settings like `track_max_speed`.");
         CONFIG("track_do_history_split", true, "If disabled, blobs will not be split automatically in order to separate overlapping individuals. This usually happens based on their history.");
@@ -418,7 +427,7 @@ file::Path conda_environment_path() {
         
         CONFIG("track_speed_decay", float(0.7), "The amount the expected speed is reduced over time when an individual is lost. When individuals collide, depending on the expected behavior for the given species, one should choose different values for this variable. If the individuals usually stop when they collide, this should be set to 1. If the individuals are expected to move over one another, the value should be set to `0.7 > value > 0`.");
         CONFIG("track_max_speed", float(10), "The maximum speed an individual can have (=> the maximum distance an individual can travel within one second) in cm/s. Uses and is influenced by `meta_real_width` and `cm_per_pixel` as follows: `speed(px/s) * cm_per_pixel(cm/px) -> cm/s`.");
-        CONFIG("posture_direction_smoothing", size_t(0), "Enables or disables smoothing of the posture orientation based on previous frames (not good for fast turns).");
+        CONFIG("posture_direction_smoothing", uint16_t(0), "Enables or disables smoothing of the posture orientation based on previous frames (not good for fast turns).");
         CONFIG("speed_extrapolation", float(3), "Used for matching when estimating the next position of an individual. Smaller values are appropriate for lower frame rates. The higher this value is, the more previous frames will have significant weight in estimating the next position (with an exponential decay).");
         CONFIG("track_intensity_range", Rangel(-1, -1), "When set to valid values, objects will be filtered to have an average pixel intensity within the given range.");
         CONFIG("track_threshold", int(15), "Constant used in background subtraction. Pixels with grey values above this threshold will be interpreted as potential individuals, while pixels below this threshold will be ignored.");
@@ -429,7 +438,6 @@ file::Path conda_environment_path() {
         CONFIG("track_time_probability_enabled", bool(true), "");
         CONFIG("track_max_reassign_time", float(0.5), "Distance in time (seconds) where the matcher will stop trying to reassign an individual based on previous position. After this time runs out, depending on the settings, the tracker will try to find it based on other criteria, or generate a new individual.");
         CONFIG("manual_identities", std::set<track::Idx_t>{}, "", SYSTEM);
-        CONFIG("pixel_grid_cells", size_t(25), "");
         
         CONFIG("gui_highlight_categories", false, "If enabled, categories (if applied in the video) will be highlighted in the tracking view.");
         CONFIG("categories_ordered", std::vector<std::string>{}, "Ordered list of names of categories that are used in categorization (classification of types of individuals).");
@@ -463,7 +471,7 @@ file::Path conda_environment_path() {
             {"midline_y", {"RAW"}},
             {"segment_length", {"RAW"}},
             {"SPEED", {"RAW", "WCENTROID"}},
-            {"SPEED", {"SMOOTH", "WCENTROID"}},
+            //{"SPEED", {"SMOOTH", "WCENTROID"}},
             {"SPEED", {"RAW", "PCENTROID"}},
             //{"SPEED", {"SMOOTH", "PCENTROID"}},
             {"SPEED", {"RAW", "HEAD"}},
@@ -498,10 +506,10 @@ file::Path conda_environment_path() {
             {"L_V", {"/10"}},
             {"v_direction", {"/10"}},
             {"event_acceleration", {"/10"}},
-            {"SPEED", {"/10", "SMOOTH"}},
-            {"ANGULAR_V", {"/10", "SMOOTH", "CENTROID"}},
-            {"ANGULAR_A", {"/1000", "SMOOTH", "CENTROID"}},
-            {"ACCELERATION", {"/15", "SMOOTH", "CENTROID"}},
+            {"SPEED", {"/10"}},
+            {"ANGULAR_V", {"/10", "CENTROID"}},
+            {"ANGULAR_A", {"/1000", "CENTROID"}},
+            {"ACCELERATION", {"/15", "CENTROID"}},
             {"NEIGHBOR_VECTOR_T", {"/1"}},
             {"X", {"/100"}},
             {"Y", {"/100"}},
@@ -523,15 +531,15 @@ file::Path conda_environment_path() {
         CONFIG("auto_train", false, "If set to true (and `recognition_enable` is also set to true), the application will automatically train the recognition network with the best track segment and apply it to the video.");
         CONFIG("auto_train_on_startup", false, "This is a parameter that is used by the system to determine whether `auto_train` was set on startup, and thus also whether a failure of `auto_train` should result in a crash (return code != 0).", SYSTEM);
         CONFIG("analysis_range", std::pair<long_t,long_t>(-1, -1), "Sets start and end of the analysed frames.");
-        CONFIG("output_min_frames", size_t(1), "Filters all individual with less than N frames when exporting. Individuals with fewer than N frames will also be hidden in the GUI unless `gui_show_inactive_individuals` is enabled (default).");
+        CONFIG("output_min_frames", uint16_t(1), "Filters all individual with less than N frames when exporting. Individuals with fewer than N frames will also be hidden in the GUI unless `gui_show_inactive_individuals` is enabled (default).");
         CONFIG("output_interpolate_positions", bool(false), "If turned on this function will linearly interpolate X/Y, and SPEED values, for all frames in which an individual is missing.");
         CONFIG("output_prefix", std::string(), "A prefix that is prepended to all output files (csv/npz).");
         CONFIG("output_graphs", output_graphs, "The functions that will be exported when saving to CSV, or shown in the graph. `[['X',[option], ...]]`");
-        CONFIG("tracklet_max_images", size_t(0), "Maximum number of images that are being output per tracklet given that `output_image_per_tracklet` is true. If the number is 0, then every image will be exported that has been recognized as an individual.");
+        CONFIG("tracklet_max_images", uint16_t(0), "Maximum number of images that are being output per tracklet given that `output_image_per_tracklet` is true. If the number is 0, then every image will be exported that has been recognized as an individual.");
         CONFIG("tracklet_normalize_orientation", true, "If enabled, all exported tracklet images are normalized according to the calculated posture orientation, so that all heads are looking to the left and only the body moves.");
         CONFIG("tracklet_restore_split_blobs", true, "If enabled, all exported tracklet images are checked for missing pixels. When a blob is too close to another blob, parts of the other blob might be erased so the individuals can be told apart. If enabled, another mask will be saved, that contains only the blob in focus, without the rest-pixels.");
         CONFIG("output_image_per_tracklet", false, "If set to true, the program will output one median image per tracklet (time-series segment) and save it alongside the npz/csv files.");
-        CONFIG("output_csv_decimals", uint8_t(0), "Maximum number of decimal places that is written into CSV files (a text-based format for storing data). A value of 0 results in integer values.");
+        CONFIG("output_csv_decimals", uint8_t(2), "Maximum number of decimal places that is written into CSV files (a text-based format for storing data). A value of 0 results in integer values.");
         CONFIG("output_invalid_value", output_invalid_t::inf, "Determines, what is exported in cases where the individual was not found (or a certain value could not be calculated). For example, if an individual is found but posture could not successfully be generated, then all posture-based values (e.g. `midline_length`) default to the value specified here. By default (and for historic reasons), any invalid value is marked by 'inf'.");
         CONFIG("output_format", output_format_t::npz, "When pressing the S(ave) button or using `auto_quit`, this setting allows to switch between CSV and NPZ output. NPZ files are recommended and will be used by default - some functionality (such as visual fields, posture data, etc.) will remain in NPZ format due to technical constraints.");
         CONFIG("output_heatmaps", false, "When set to true, heatmaps are going to be saved to a separate file, or set of files '_p*' - with all the settings in heatmap_* applied.");
@@ -546,7 +554,7 @@ file::Path conda_environment_path() {
         CONFIG("smooth_window", uint32_t(2), "Smoothing window used for exported data with the #smooth tag.");
         
         CONFIG("tags_path", file::Path(""), "If this path is set, the program will try to find tags and save them at the specified location.");
-        
+        CONFIG("tags_image_size", Size2(32, 32), "The image size that tag images are normalized to.");
         //CONFIG("correct_luminance", true, "", STARTUP);
         
         CONFIG("grid_points", std::vector<Vec2>{}, "Whenever there is an identification network loaded and this array contains more than one point `[[x0,y0],[x1,y1],...]`, then the network will only be applied to blobs within circles around these points. The size of these circles is half of the average distance between the points.");
@@ -559,8 +567,8 @@ file::Path conda_environment_path() {
         CONFIG("debug_recognition_output_all_methods", false, "If set to true, a complete training will attempt to output all images for each identity with all available normalization methods.");
         CONFIG("recognition_border_shrink_percent", float(0.3), "The amount by which the recognition border is shrunk after generating it (roughly and depends on the method).");
         CONFIG("recognition_border_size_rescale", float(0.5), "The amount that blob sizes for calculating the heatmap are allowed to go below or above values specified in `blob_size_ranges` (e.g. 0.5 means that the sizes can range between `blob_size_ranges.min * (1 - 0.5)` and `blob_size_ranges.max * (1 + 0.5)`).");
-        CONFIG("recognition_smooth_amount", size_t(200), "");
-        CONFIG("recognition_coeff", size_t(50), "");
+        CONFIG("recognition_smooth_amount", uint16_t(200), "If `recognition_border` is 'outline', this is the amount that the `recognition_border` is smoothed (similar to `outline_smooth_samples`), where larger numbers will smooth more.");
+        CONFIG("recognition_coeff", uint16_t(50), "If `recognition_border` is 'outline', this is the number of coefficients to use when smoothing the `recognition_border`.");
         CONFIG("recognition_enable", true, "This enables internal training. Requires Python3 and Keras to be available.", STARTUP);
         CONFIG("recognition_normalization", recognition_normalization_t::posture, "This enables or disable normalizing the images before training. If set to `none`, the images will be sent to the GPU raw - they will only be cropped out. Otherwise they will be normalized based on head orientation (posture) or the main axis calculated using `image moments`.");
         CONFIG("recognition_image_size", Size2(80, 80), "Size of each image generated for network training.");
@@ -571,17 +579,17 @@ file::Path conda_environment_path() {
         CONFIG("auto_train_dont_apply", false, "If set to true, setting `auto_train` will only train and not apply the trained network.");
         CONFIG("gpu_accumulation_enable_final_step", true, "If enabled, the network will be trained on all the validation + training data accumulated, as a last step of the accumulation protocol cascade. This is intentional overfitting.");
         CONFIG("gpu_learning_rate", float(0.0005), "Learning rate for training a recognition network.");
-        CONFIG("gpu_max_epochs", size_t(150), "Maximum number of epochs for training a recognition network.");
+        CONFIG("gpu_max_epochs", uchar(150), "Maximum number of epochs for training a recognition network (0 means infinite).");
         CONFIG("gpu_verbosity", gpu_verbosity_t::full, "Determines the nature of the output on the command-line during training. This does not change any behaviour in the graphical interface.");
-        CONFIG("gpu_min_iterations", size_t(100), "Minimum number of iterations per epoch for training a recognition network.");
+        CONFIG("gpu_min_iterations", uchar(100), "Minimum number of iterations per epoch for training a recognition network.");
         CONFIG("gpu_max_cache", float(2), "Size of the image cache (transferring to GPU) in GigaBytes when applying the network.");
         CONFIG("gpu_max_sample_gb", float(2), "Maximum size of per-individual sample images in GigaBytes. If the collected images are too many, they will be sub-sampled in regular intervals.");
-        CONFIG("gpu_min_elements", size_t(25000), "Minimum number of images being collected, before sending them to the GPU.");
+        CONFIG("gpu_min_elements", uint32_t(25000), "Minimum number of images being collected, before sending them to the GPU.");
         CONFIG("gpu_accumulation_max_segments", uint32_t(15), "If there are more than `gpu_accumulation_max_segments` global segments to be trained on, they will be filtered according to their quality until said limit is reached.");
         CONFIG("terminate_training", bool(false), "Setting this to true aborts the training in progress.");
         
         CONFIG("manually_approved", std::map<long_t,long_t>(), "A list of ranges of manually approved frames that may be used for generating training datasets, e.g. `{232:233,5555:5560}` where each of the numbers is a frame number. Meaning that frames 232-233 and 5555-5560 are manually set to be manually checked for any identity switches, and individual identities can be assumed to be consistent throughout these frames.");
-        CONFIG("gui_focus_group", std::vector<Idx_t>(), "Focus on this group of individuals.");
+        CONFIG("gui_focus_group", std::vector<track::Idx_t>(), "Focus on this group of individuals.");
         
         CONFIG("track_ignore", std::vector<std::vector<Vec2>>(), "If this is not empty, objects within the given rectangles or polygons (>= 3 points) `[[x0,y0],[x1,y1](, ...)], ...]` will be ignored during tracking.");
         CONFIG("track_include", std::vector<std::vector<Vec2>>(), "If this is not empty, objects within the given rectangles or polygons (>= 3 points) `[[x0,y0],[x1,y1](, ...)], ...]` will be the only objects being tracked. (overwrites `track_ignore`)");
@@ -698,8 +706,8 @@ file::Path conda_environment_path() {
             exclude_fields.push_back("cm_per_pixel");
         }
         
-        if(GUI::instance() && SETTING(frame_rate).value<int>() == GUI::instance()->video_source()->framerate())
-            exclude_fields.push_back("frame_rate");
+        //if(GUI::instance() && SETTING(frame_rate).value<int>() == GUI::instance()->video_source()->framerate())
+        //    exclude_fields.push_back("frame_rate");
         
         if((uint32_t)FAST_SETTINGS(manual_identities).size() == FAST_SETTINGS(track_max_individuals))
             exclude_fields.push_back("manual_identities");
@@ -745,7 +753,7 @@ file::Path conda_environment_path() {
             
             auto settings_file = pv::DataLocation::parse("input", path);
             if(settings_file.empty())
-                U_EXCEPTION("settings_file is an empty string.");
+                throw U_EXCEPTION("settings_file is an empty string.");
             
             return settings_file;
         });
@@ -753,7 +761,7 @@ file::Path conda_environment_path() {
         pv::DataLocation::register_path("output_settings", [](file::Path) -> file::Path {
             file::Path settings_file = SETTING(filename).value<Path>().filename();
             if(settings_file.empty())
-                U_EXCEPTION("settings_file is an empty string.");
+                throw U_EXCEPTION("settings_file is an empty string.");
             
             if(!settings_file.has_extension() || settings_file.extension() != "settings")
                 settings_file = settings_file.add_extension("settings");
@@ -765,7 +773,7 @@ file::Path conda_environment_path() {
             if(!filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
                 if(!SETTING(quiet))
-                    Warning("Returning absolute path '%S'. We cannot be sure this is writable.", &filename.str());
+                    print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
 #endif
                 return filename;
             }
@@ -781,7 +789,7 @@ file::Path conda_environment_path() {
             if(!filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
                 if(!SETTING(quiet))
-                    Warning("Returning absolute path '%S'. We cannot be sure this is writable.", &filename.str());
+                    print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
 #endif
                 return filename;
             }
@@ -809,10 +817,10 @@ void load_string_with_deprecations(const file::Path& settings_file, const std::s
                 auto r = default_config::replacement(key);
                 if(r.empty()) {
                     if(!quiet)
-                        Warning("[%S] Deprecated setting '%S' = %S found. Ignoring, as there is no replacement.", &settings_file.str(), &key, &val);
+                        FormatWarning("[", settings_file.c_str(),"] Deprecated setting ", key," = ",val," found. Ignoring, as there is no replacement.");
                 } else {
                     if(!quiet)
-                        Warning("[%S] Deprecated setting '%S' = %S found. Replacing with '%S' = %S", &settings_file.str(), &key, &val, &r, &val);
+                        print("[",settings_file.c_str(),"] Deprecated setting ",key," = ",val," found. Replacing with ",r," = ",val);
                     if(key == "whitelist_rect" || key == "exclude_rect" || key == "recognition_rect") {
                         auto values = Meta::fromStr<std::vector<float>>(val);
                         if(values.size() == 4) {
@@ -821,7 +829,7 @@ void load_string_with_deprecations(const file::Path& settings_file, const std::s
                             };
                             
                         } else if(!quiet)
-                            Except("Invalid number of values while trying to correct '%S' deprecated parameter from '%S' to '%S'.", &val, &key, &r);
+                            FormatExcept("Invalid number of values while trying to correct ",val," deprecated parameter from ",key," to ",r,".");
                         
                     } else if(key == "whitelist_rects" || key == "exclude_rects") {
                         auto values = Meta::fromStr<std::vector<Bounds>>(val);

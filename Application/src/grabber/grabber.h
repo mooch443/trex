@@ -2,6 +2,7 @@
 #define _GRABBER_H
 
 #include <types.h>
+#include <misc/ranges.h>
 #include <misc/ThreadedAnalysis.h>
 #include <misc/Median.h>
 
@@ -16,6 +17,7 @@
 
 #include <misc/ThreadPool.h>
 #include <processing/LuminanceGrid.h>
+#include <misc/frame_t.h>
 
 #if CV_MAJOR_VERSION >= 3
 #include <opencv2/core/ocl.hpp>
@@ -36,7 +38,7 @@ class ImageThreads {
     std::function<bool(Image_t&)> _fn_load;
     std::function<Queue::Code(const Image_t&)> _fn_process;
     
-    std::atomic_bool _terminate;
+    std::atomic_bool _terminate{false}, _loading_terminated{false};
     std::mutex _image_lock;
     std::condition_variable _condition;
     
@@ -52,25 +54,9 @@ public:
                  const decltype(_fn_load)& load,
                  const decltype(_fn_process)& process);
     
-    ~ImageThreads() {
-        terminate();
-        
-        _load_thread->join();
-        _process_thread->join();
-        
-        std::unique_lock<std::mutex> lock(_image_lock);
-        
-        delete _load_thread;
-        delete _process_thread;
-        
-        // clear cache
-        while(!_unused.empty())
-            _unused.pop_front();
-        while(!_used.empty())
-            _used.pop_front();
-    }
+    ~ImageThreads();
     
-    void terminate() { _terminate = true; _condition.notify_all(); }
+    void terminate();
     
     const std::thread* loading_thread() const { return _load_thread; }
     const std::thread* analysis_thread() const { return _process_thread; }
@@ -84,10 +70,13 @@ namespace track {
 class Tracker;
 }
 
+struct ProcessingTask;
+
 class FrameGrabber {
 public:
     //typedef ThreadedAnalysis<Image, 10> AnalysisType;
     typedef ImageThreads AnalysisType;
+    Range<Frame_t> processing_range() const;
     
     static track::Tracker* tracker_instance();
     struct Task {
@@ -108,6 +97,10 @@ protected:
     GETTER(cv::Size, cam_size)
     GETTER(cv::Size, cropped_size)
     GETTER(Bounds, crop_rect)
+
+    //! to ensure that all frames are processed, this will have to be zero in the end
+    //! (meaning all added frames have been removed)
+    std::atomic_int32_t _frame_processing_ratio{0};
     
     std::unique_ptr<GenericThreadPool> _pool;
     
@@ -124,7 +117,7 @@ protected:
     GETTER(std::atomic_long, last_index)
     
     //std::chrono::time_point<Image::clock_> _start_timing;
-    uint64_t _start_timing;
+    timestamp_t _start_timing;
     std::chrono::time_point<std::chrono::system_clock> _real_timing;
 	
     GETTER_PTR(VideoSource*, video)
@@ -151,7 +144,7 @@ protected:
     std::unique_ptr<pv::Frame> _last_frame;
     std::unique_ptr<pv::Frame> _noise;
     
-    uint64_t previous_time = 0;
+    timestamp_t previous_time = 0;
     std::atomic<bool> _reset_first_index = false;
     
     std::atomic<double> _processing_timing;
@@ -172,7 +165,7 @@ protected:
     
 public:
     static FrameGrabber* instance;
-    static gpuMat gpu_average, gpu_average_original;
+    static gpuMat gpu_average, gpu_float_average, gpu_average_original;
     
 public:
     FrameGrabber(std::function<void(FrameGrabber&)> callback_before_starting);
@@ -182,9 +175,7 @@ public:
     
     static file::Path make_filename();
     
-    bool is_recording() const {
-        return GlobalSettings::map().has("recording") && SETTING(recording);
-    }
+    bool is_recording() const;
     bool is_paused() const {
         if(!is_recording())
             return false;
@@ -196,17 +187,15 @@ public:
     
     std::unique_ptr<pv::Frame> last_frame() {
         std::lock_guard<std::mutex> guard(_frame_lock);
-        auto last_frame = std::move(_last_frame);
-        return last_frame;
+        return std::move(_last_frame);
     }
     
     std::unique_ptr<pv::Frame> noise() {
         std::lock_guard<std::mutex> guard(_frame_lock);
-        auto noise = std::move(_noise);
-        return noise;
+        return std::move(_noise);
     }
     
-    void write_fps(uint64_t index, uint64_t tdelta, uint64_t ts);
+    void write_fps(uint64_t index, timestamp_t tdelta, timestamp_t ts);
     
     cv::Mat average() {
         std::lock_guard<std::mutex> guard(_frame_lock);
@@ -221,7 +210,7 @@ public:
     file::Path average_name() const;
     
     void safely_close();
-    void add_tracker_queue(const pv::Frame&, long_t);
+    void add_tracker_queue(const pv::Frame&, Frame_t);
     void update_tracker_queue();
     
     std::atomic_bool _terminate_tracker;
@@ -234,12 +223,15 @@ private:
     
     void apply_filters(gpuMat&);
     void ensure_average_is_ready();
-    void update_fps(long_t index, uint64_t stamp, uint64_t tdelta, uint64_t now);
+    void update_fps(long_t index, timestamp_t stamp, timestamp_t tdelta, timestamp_t now);
     
     //! returns true if an action was performed. does cam_scale, crop and undistort
     bool crop_and_scale(const gpuMat&, gpuMat& output);
-    bool add_image_to_average(const Image_t&);
+    bool add_image_to_average(const cv::Mat&);
     void initialize(std::function<void(FrameGrabber&)>&& callback_before_starting);
+    
+    std::tuple<int64_t, bool, double> in_main_thread(const std::unique_ptr<ProcessingTask>& task);
+    void threadable_task(const std::unique_ptr<ProcessingTask>& task);
 };
 
 #endif

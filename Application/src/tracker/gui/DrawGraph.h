@@ -14,7 +14,7 @@ namespace gui {
     class PropertiesGraph {
         class Graph : public gui::Graph {
         public:
-            Graph(const Size2& dim, const std::string& name) : gui::Graph(dim, name, Rangef(), Rangef())
+            Graph(const Size2& dim, const std::string& name) : gui::Graph(Bounds(dim), name, Rangef(), Rangef())
             {
                 
             }

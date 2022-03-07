@@ -5,7 +5,7 @@
 #include <file/DataFormat.h>
 #include <pv.h>
 #include <tracking/Individual.h>
-#include <tracking/PhysicalProperties.h>
+#include <tracking/MotionRecord.h>
 #include <tracking/Tracker.h>
 #include <misc/ThreadPool.h>
 #include <file/Path.h>
@@ -14,7 +14,7 @@ namespace cmn {
     template<> void Data::read(track::FrameProperties&);
     template<> uint64_t Data::write(const track::FrameProperties& val);
 
-    template<> uint64_t Data::write(const track::PhysicalProperties& val);
+    template<> uint64_t Data::write(const track::MotionRecord& val);
 
     template<> uint64_t Data::write(const pv::BlobPtr& val);
     template<> uint64_t Data::write(const track::Midline& val);
@@ -31,13 +31,13 @@ namespace Output {
     //! for compatibility to older versions < V_2
     struct CompatibilityFrameProperties {
         float time;
-        uint64_t timestamp;
+        timestamp_t timestamp;
     };
     
     //! Compatibility for float frame properties < V_8
     /*struct FloatFrameProperties {
         float time;
-        uint64_t timestamp;
+     timestamp_t timestamp;
         
         operator track::FrameProperties() const {
             return track::FrameProperties(-1, time, timestamp);
@@ -46,7 +46,7 @@ namespace Output {
     
     //! Compatibility for float frame properties < V_8
     struct ShortFrameProperties {
-        uint64_t timestamp;
+     timestamp_t timestamp;
         
         operator track::FrameProperties() const {
             return track::FrameProperties(-1, double(timestamp / double(1000 * 1000)), timestamp);
@@ -81,7 +81,7 @@ namespace Output {
             V_3,
             V_4, // reintroducing blob ids as part of blobs
             V_5, // fish ids uint32_t
-            V_6, // PhysicalProperties write floats/Vec2s
+            V_6, // MotionRecord write floats/Vec2s
             V_7, // Added _weighted_centroid and name per individual
             V_8, // time is a double
             V_9, // added outline tail/head indices
@@ -104,7 +104,7 @@ namespace Output {
             V_25, // separating midline and outline from head positions
             V_26, // parent_id != split()
             
-            V_27, // removed PhysicalProperties::time
+            V_27, // removed MotionRecord::time
             V_28, // added consecutive segments to results file header
             V_29, // removing Vec2 from individuals for centroid position
             V_30, // add analysis_range information to header
@@ -129,7 +129,7 @@ namespace Output {
             uint64_t gui_frame = 0;
             std::string settings;
             std::string cmd_line;
-            std::vector<Rangel> consecutive_segments;
+            std::vector<Range<Frame_t>> consecutive_segments;
             Size2 video_resolution;
             uint64_t video_length = 0;
             Image average;
@@ -141,7 +141,7 @@ namespace Output {
         
         //static QueueThreadPool<Individual*> _blob_pool;
         QueueThreadPool<Individual*> _post_pool;
-        GenericThreadPool _generic_pool;
+        GenericThreadPool _generic_pool, _load_pool;
         std::shared_ptr<CacheHints> _property_cache;
         
         std::atomic<uint64_t> _expected_individuals, _N_written;
@@ -154,13 +154,16 @@ namespace Output {
         uint64_t write_data(uint64_t num_bytes, const char* buffer) override;
         
         static uint64_t estimate_individual_size(const Individual& val);
-        void write_file(const std::vector<track::FrameProperties>& frames, const std::unordered_map<long_t, Tracker::set_of_individuals_t>& active_individuals_frame, const std::unordered_map<Idx_t, Individual*>& individuals, const std::vector<std::string>& exclude_settings);
+        void write_file(const std::vector<std::unique_ptr<track::FrameProperties>>& frames,
+                        const Tracker::active_individuals_t& active_individuals_frame,
+                        const ska::bytell_hash_map<Idx_t, Individual*>& individuals,
+                        const std::vector<std::string>& exclude_settings);
         
         Individual* read_individual(Data& ref, const CacheHints* cache);
         Midline::Ptr read_midline(Data& ref);
         MinimalOutline::Ptr read_outline(Data& ref, Midline::Ptr midline) const;
         void read_blob(Data& ref, pv::CompressedBlob&) const;
-        //PhysicalProperties* read_properties(Data& ref) const;
+        //MotionRecord* read_properties(Data& ref) const;
         
     protected:
         //virtual void _read_file() override;
@@ -179,7 +182,7 @@ namespace Output {
         static Path expected_filename();
         
         void save(std::function<void(const std::string&, float, const std::string&)> = [](auto&, float, auto&){}, Path filename = Path(), const std::vector<std::string>& exclude_settings = {}) const;
-        void load(std::function<void(const std::string&, float, const std::string&)> = [](auto&, float, auto&){}, Path filename = Path());
+        ResultsFormat::Header load(std::function<void(const std::string&, float, const std::string&)> = [](auto&, float, auto&){}, Path filename = Path());
         static ResultsFormat::Header load_header(const file::Path& path);
         
     private:

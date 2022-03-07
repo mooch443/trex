@@ -4,10 +4,11 @@
 #include <tracking/Tracker.h>
 #include <misc/Timer.h>
 #include <processing/PadImage.h>
+#include <opencv2/features2d.hpp>
 
 namespace track {
     namespace tags {
-        std::vector<result_t> prettify_blobs(const std::vector<blob_pixel>& fish, const std::vector<blob_pixel>& noise, const Image& average)
+        std::vector<result_t> prettify_blobs(const std::vector<blob_pixel>& fish, const std::vector<blob_pixel>& noise, const std::vector<blob_pixel>& original, const Image& average)
         {
             std::vector<result_t> result;
             std::vector<result_t> noise_images;
@@ -15,20 +16,35 @@ namespace track {
             //cv::Mat correct;
             //Tracker::instance()->grid()->relative_brightness().copyTo(correct);
             
-            for(auto blob : noise) {
+            for(auto &blob : noise) {
                 cv::Mat greyscale, bin;
-                imageFromLines(blob->hor_lines(), &bin, &greyscale, NULL, blob->pixels().get(), 0, &average);
+                imageFromLines(blob->hor_lines(), &bin, &greyscale, NULL, blob->pixels().get(), 0);//, &average);
                 
                 noise_images.push_back({ blob, Image::Make(greyscale), Image::Make(bin) });
             }
             
             //! for all fish, try to correct their images by adding smaller noise images
             //  to the overall image
-            for(auto blob : fish) {
+            for(auto &blob : fish) {
                 cv::Mat mgrey, mmask;
-                imageFromLines(blob->hor_lines(), &mmask, &mgrey, NULL, blob->pixels().get(), 0, &average);
-                
-                for(auto && [nb, grey, mask] : noise_images) {
+                Vec2 offset(0);
+
+                pv::Blob* parent = nullptr;
+                if (blob->parent_id().valid()) {
+                    for (auto& p : original) {
+                        if (p->blob_id() == blob->parent_id()) {
+                            parent = p.get();
+                            offset = parent->bounds().pos() - blob->bounds().pos();
+                            break;
+                        }
+                    }
+                }
+
+                if (parent)
+                    imageFromLines(parent->hor_lines(), &mmask, &mgrey, NULL, parent->pixels().get(), 0);//, &average);
+                else
+                        imageFromLines(blob->hor_lines(), &mmask, &mgrey, NULL, blob->pixels().get(), 0);//, &average);
+                /*for (auto&& [nb, grey, mask] : noise_images) {
                     if(blob->bounds().contains(nb->bounds())) {
                         Bounds bounds(nb->bounds().pos() - blob->bounds().pos(), grey->bounds().size());
                         bounds.restrict_to(Bounds(mgrey));
@@ -39,10 +55,34 @@ namespace track {
                             m(Bounds(bounds.size())).copyTo(mmask(bounds), m(Bounds(bounds.size())));
                         }
                     }
+                }*/
+
+                Size2 normal_dimensions = SETTING(tags_image_size).value<Size2>();
+                cv::Mat padded;
+                Vec2 crop_offset(0);
+                if (normal_dimensions.width > mgrey.cols || normal_dimensions.height > mgrey.rows) {
+                    auto size = Size2(max(normal_dimensions.width, mgrey.cols), max(normal_dimensions.height, mgrey.rows));
+                    crop_offset += size - Size2(mgrey);
+                    pad_image(mgrey, padded, size);
+                    cv::Mat t;
+                    pad_image(mmask, t, size);
+                    t.copyTo(mmask);
                 }
+                else
+                    padded = mgrey;
+
+                cv::Mat local;
+                resize_image(mgrey, local, 5);
+                tf::imshow("mgrey", local);
+
+                resize_image(padded, local, 5);
+                tf::imshow("padded", local);
+                mgrey = padded;
                 
+                cv::equalizeHist(mgrey, mgrey);
+
                 cv::Mat tmp2;
-                cv::Rect outrect = Bounds(blob->bounds().pos(), Size2(mgrey));
+                cv::Rect outrect = Bounds((parent ? parent->bounds().pos() : blob->bounds().pos()) - crop_offset, Size2(mgrey));
                 average.get()(outrect).copyTo(tmp2);
                 mgrey.copyTo(tmp2, mmask);
                 
@@ -57,12 +97,10 @@ namespace track {
             return result;
         }
         
-        Tag is_good_image(const result_t& result, const Image& average) {
+        Tag is_good_image(const result_t& result) {
             using namespace gui;
             static Timing timing("is_good_image");
             TakeTiming take(timing);
-            
-            Bounds bounds(average.bounds());
             
             auto && [blob, grey, mask] = result;
             
@@ -120,9 +158,57 @@ namespace track {
                         if(area > 0.4)
                             continue; // rectangles that are almost the size of the image are too big for a tag inside a blob
                         
-                        cv::Mat tmp, hist;
-                        grey->get()(bounding).copyTo(tmp);
+                        cv::Mat qr = cv::Mat::zeros(tmp3.rows, tmp3.cols, CV_8UC3);
+                        tmp3.copyTo(qr);
+                        cv::cvtColor(qr, qr, cv::COLOR_GRAY2BGR);
+                        for (int i=0; i<shape.rows; i++) {
+                            Vec2 next = shape.at<cv::Point>(i < shape.rows-1 ? i+1 : 0);
+                            Vec2 current = shape.at<cv::Point>(i, 0);
+                            cv::line(qr, current, next, Red);
+                        }
                         
+                        cv::cvtColor(qr, qr, cv::COLOR_BGR2RGB);
+                        cv::resize(qr, qr, (cv::Size)Size2(1024, float(qr.rows) / float(qr.cols) * 1024));
+                        tf::imshow("qr", qr);
+                        
+                        cv::Mat tmp, hist;
+                        const Size2 normal_dimensions = SETTING(tags_image_size).value<Size2>();
+                        const Vec2 offset(normal_dimensions);
+
+
+                        if (bounding.width > normal_dimensions.width) {
+                            auto o = bounding.width - normal_dimensions.width;
+                            bounding.x += o * 0.5;
+                            bounding.width -= o;
+                        }
+                        if (bounding.height > normal_dimensions.height) {
+                            auto o = bounding.height - normal_dimensions.height;
+                            bounding.y += o * 0.5;
+                            bounding.height -= o;
+                        }
+                        if (bounding.width < normal_dimensions.width) {
+                            auto o = normal_dimensions.width - bounding.width;
+                            if (bounding.x >= o / 2) {
+                                bounding.x -= floor(o / 2.0);
+                                bounding.width += o;
+                                print("bounding: ", bounding.x,",",bounding.width);
+                            }
+                        }
+                        if (bounding.height < normal_dimensions.height) {
+                            auto o = normal_dimensions.height - bounding.height;
+                            if (bounding.y >= o / 2) {
+                                bounding.y -= floor(o / 2.0);
+                                bounding.height += o;
+                                print("bounding: ", bounding.y,",",bounding.height);
+                            }
+                        }
+
+                        bounding.restrict_to(Bounds(grey->get()));
+
+                        grey->get()(bounding).copyTo(tmp);
+
+                        auto ret = Image::Make(tmp);
+
                         cv::Mat laplace, mean, stdv;
                         cv::Laplacian(tmp, laplace, CV_32F);
                         cv::meanStdDev(laplace, mean, stdv);
@@ -155,21 +241,8 @@ namespace track {
                             return {0.f, std::numeric_limits<decltype(Tag::blob_id)>::max(), nullptr};
                         }
                         
-                        static constexpr Size2 normal_dimensions(128, 128);
-                        static constexpr Vec2 offset(128, 128);
-                        bounding.pos() -= offset;
-                        bounding.size() += offset * 2;
-                        
-                        if(bounding.width > normal_dimensions.width) {
-                            auto o = bounding.width - normal_dimensions.width;
-                            bounding.x += o * 0.5;
-                            bounding.width -= o;
-                        }
-                        if(bounding.height > normal_dimensions.height) {
-                            auto o = bounding.height - normal_dimensions.height;
-                            bounding.y += o * 0.5;
-                            bounding.height -= o;
-                        }
+                        //bounding.pos() -= offset;
+                        //bounding.size() += offset * 2;
                         
                         bounding.restrict_to(grey->bounds());
                         
@@ -177,14 +250,14 @@ namespace track {
                         grey->get()(bounding).copyTo(tmp);
                         
                         assert(tmp.cols <= normal_dimensions.width && tmp.rows <= normal_dimensions.height);
-                        pad_image(tmp, padded, normal_dimensions);
+                        //pad_image(tmp, padded, normal_dimensions);
                         
                         //tf::imshow("crop", padded);
                         
                         //tf::imshow("tmp3", inverted);
                         
                         float var = stdv.at<double>(0, 0);
-                        return {var, blob->blob_id(), Image::Make(padded)};
+                        return {var, blob->blob_id(), Image::Make(tmp) };
                     }
                 }
             }

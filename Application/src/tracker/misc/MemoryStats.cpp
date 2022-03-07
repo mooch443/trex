@@ -5,13 +5,15 @@
 
 namespace mem {
 
-uint64_t memory_selector(MemoryStats& stats, const Idx_t& obj, const std::string& name) {
+
+uint64_t memory_selector(MemoryStats& , const Idx_t& , const std::string& ) {
     return sizeof(Idx_t);
 }
 
-template <typename K, typename V>
-uint64_t memory_selector(MemoryStats& stats, const std::map<K, V>& map, const std::string& name) {
-    //using map_t = typename remove_cvref<decltype(map)>::type;
+template <typename T>
+    requires is_map<T>::value
+uint64_t memory_selector(MemoryStats& stats, const T& map, const std::string& name) {
+    //using map_t = typename cmn::remove_cvref<decltype(map)>::type;
     uint64_t bytes = 0;//sizeof(map_t);
     
     for (auto && [key, value] : map) {
@@ -23,7 +25,7 @@ uint64_t memory_selector(MemoryStats& stats, const std::map<K, V>& map, const st
 
 template <typename K, typename V>
 uint64_t memory_selector(MemoryStats& stats, const std::unordered_map<K, V>& map, const std::string& name) {
-    //using map_t = typename remove_cvref<decltype(map)>::type;
+    //using map_t = typename cmn::remove_cvref<decltype(map)>::type;
     uint64_t bytes = 0;//sizeof(map_t);
     
     for (auto && [key, value] : map) {
@@ -44,6 +46,15 @@ uint64_t memory_selector(MemoryStats& stats, const std::set<T, Q>& obj, const st
 
 template <typename T, typename Q = std::less<T>>
 uint64_t memory_selector(MemoryStats& stats, const std::unordered_set<T, Q>& obj, const std::string& name) {
+    uint64_t bytes = 0;//sizeof(std::set<T>);
+    for(auto && v : obj) {
+        bytes += stats.get_memory_size(v, name);
+    }
+    return bytes;
+}
+
+template <typename T>
+uint64_t memory_selector(MemoryStats& stats, const ska::bytell_hash_set<T>& obj, const std::string& name) {
     uint64_t bytes = 0;//sizeof(std::set<T>);
     for(auto && v : obj) {
         bytes += stats.get_memory_size(v, name);
@@ -80,37 +91,37 @@ uint64_t memory_selector(MemoryStats& stats, const Individual::LocalCache& obj, 
 }
 
 template <>
-uint64_t MemoryStats::get_memory_size(std::string obj, const std::string&) {
+uint64_t MemoryStats::get_memory_size(const std::string& obj, const std::string&) {
     return obj.capacity() + sizeof(std::string);
 }
 
 template <>
-uint64_t MemoryStats::get_memory_size(MinimalOutline::Ptr obj, const std::string&) {
+uint64_t MemoryStats::get_memory_size(const MinimalOutline::Ptr& obj, const std::string&) {
     return (obj ? obj->memory_size() : 0);
 }
 
 template <>
-uint64_t MemoryStats::get_memory_size(track::FrameProperties obj, const std::string& name) {
-    return memory_selector(*this, obj._pair_distances, name) + sizeof(track::FrameProperties);
+uint64_t MemoryStats::get_memory_size(const track::FrameProperties&, const std::string&) {
+    return sizeof(track::FrameProperties);
 }
 template <>
-uint64_t MemoryStats::get_memory_size(Image::Ptr obj, const std::string&) {
+uint64_t MemoryStats::get_memory_size(const Image::Ptr& obj, const std::string&) {
     return (obj ? obj->size() : 0) + sizeof(Image) + sizeof(Image::Ptr);
 }
 
 template <>
-uint64_t MemoryStats::get_memory_size(PhysicalProperties* obj, const std::string& ) {
+uint64_t MemoryStats::get_memory_size(const MotionRecord*const& obj, const std::string& ) {
     uint64_t bytes = 0;
     if(obj) {
-        bytes += sizeof(PhysicalProperties);
-        for(auto && v : obj->derivatives())
-            bytes += v->memory_size();
+        bytes += sizeof(MotionRecord);
+        /*for(auto && v : obj->derivatives())
+            bytes += v->memory_size();*/
     }
     return bytes;
 }
 
 template <>
-uint64_t MemoryStats::get_memory_size(pv::BlobPtr obj, const std::string& ) {
+uint64_t MemoryStats::get_memory_size(const pv::BlobPtr& obj, const std::string& ) {
     uint64_t bytes = 0;
     if(obj) {
         bytes += sizeof(pv::Blob);
@@ -121,14 +132,14 @@ uint64_t MemoryStats::get_memory_size(pv::BlobPtr obj, const std::string& ) {
 }
 
 template <>
-uint64_t MemoryStats::get_memory_size(pv::CompressedBlob obj, const std::string& ) {
+uint64_t MemoryStats::get_memory_size(const pv::CompressedBlob& obj, const std::string& ) {
     uint64_t bytes = 0;
-    bytes += obj.lines.capacity() * sizeof(decltype(pv::CompressedBlob::lines)::value_type);
+    bytes += obj.lines().capacity() * sizeof(pv::ShortHorizontalLine);
     return bytes;
 }
 
 template <>
-uint64_t MemoryStats::get_memory_size(Midline::Ptr obj, const std::string& name) {
+uint64_t MemoryStats::get_memory_size(const Midline::Ptr& obj, const std::string& name) {
     uint64_t bytes = 0;
     if(obj) {
         bytes += sizeof(Midline);
@@ -142,7 +153,7 @@ uint64_t MemoryStats::get_memory_size(Midline::Ptr obj, const std::string& name)
 #define _ADD_DETAIL(NAME) { auto by = get_memory_size(obj-> NAME, name); details[name][ #NAME ] += by; bytes += by; }
 
 template <>
-uint64_t MemoryStats::get_memory_size(std::shared_ptr<Individual::BasicStuff> obj, const std::string& name) {
+uint64_t MemoryStats::get_memory_size(const std::shared_ptr<Individual::BasicStuff>& obj, const std::string& name) {
     uint64_t bytes = sizeof(obj)
                    + sizeof(Individual::BasicStuff);
     
@@ -157,7 +168,7 @@ uint64_t MemoryStats::get_memory_size(std::shared_ptr<Individual::BasicStuff> ob
 }
 
 template <>
-uint64_t MemoryStats::get_memory_size(std::shared_ptr<Individual::PostureStuff> obj, const std::string& name) {
+uint64_t MemoryStats::get_memory_size(const std::shared_ptr<Individual::PostureStuff>& obj, const std::string& name) {
     uint64_t bytes = sizeof(obj)
                    + sizeof(Individual::PostureStuff);
     
@@ -170,7 +181,7 @@ uint64_t MemoryStats::get_memory_size(std::shared_ptr<Individual::PostureStuff> 
 }
 
 template <>
-uint64_t MemoryStats::get_memory_size(std::shared_ptr<Individual::SegmentInformation> obj, const std::string& name) {
+uint64_t MemoryStats::get_memory_size(const std::shared_ptr<Individual::SegmentInformation>& obj, const std::string& name) {
     uint64_t bytes = sizeof(obj)
         + sizeof(Individual::SegmentInformation)
         + memory_selector(*this, obj->basic_index, name)
@@ -179,22 +190,22 @@ uint64_t MemoryStats::get_memory_size(std::shared_ptr<Individual::SegmentInforma
 }
 
 template <>
-uint64_t MemoryStats::get_memory_size(std::vector<Individual*> obj, const std::string& name) {
+uint64_t MemoryStats::get_memory_size(const std::vector<Individual*>& obj, const std::string& name) {
     return memory_selector(*this, obj, name);
 }
 
 template <>
-uint64_t MemoryStats::get_memory_size(FOI foi, const std::string& ) {
+uint64_t MemoryStats::get_memory_size(const FOI& foi, const std::string& ) {
     return sizeof(foi) + foi.description().capacity();
 }
 
 template <>
-uint64_t MemoryStats::get_memory_size(std::map<long_t, std::pair<void*, std::function<void(void*)>>> obj, const std::string& name) {
+uint64_t MemoryStats::get_memory_size(const std::map<long_t, std::pair<void*, std::function<void(void*)>>>& obj, const std::string& name) {
     for(auto && [key, value] : obj) {
-        details[name][Meta::toStr(key)] += sizeof(decltype(obj)::value_type);
+        details[name][Meta::toStr(key)] += sizeof(remove_cvref_t<decltype(obj)>::value_type);
     }
     
-    return sizeof(decltype(obj)::value_type) * obj.size();
+    return sizeof(remove_cvref_t<decltype(obj)>::value_type) * obj.size();
 }
 
 MemoryStats::MemoryStats() : id(uint32_t(-1)), bytes(0) {
@@ -272,7 +283,7 @@ IndividualMemoryStats::IndividualMemoryStats(Individual *fish) {
     //IND_BYTE_SIZE(_outlines);
     
     // recognition stuff
-    IND_BYTE_SIZE(_training_data);
+    //IND_BYTE_SIZE(_training_data);
     IND_BYTE_SIZE(_recognition_segments);
     //IND_BYTE_SIZE(average_recognition_segment);
     //IND_BYTE_SIZE(average_processed_segment);
@@ -337,13 +348,12 @@ void MemoryStats::print() const {
         sorted.insert(key);
     std::vector<std::tuple<std::string, FileSize>> vec;
     for(auto &key : sorted)
-        vec.push_back({key, FileSize{sizes.at(key)}});
+        vec.push_back({key, FileSize{size_t(sizes.at(key))}});
     
     auto str = prettify_array(Meta::toStr(vec));
-    auto overall = Meta::toStr(FileSize{bytes});
     auto id_str = id == Idx_t(std::numeric_limits<uint32_t>::max()-1) ? std::string("overall") : (!id.valid() ? "<empty>" : Meta::toStr(id));
     
-    Debug("%S: %S\n%S", &id_str, &overall, &str);
+    cmn::print(id_str.c_str(), ": ", FileSize{size_t(bytes)},"\n", str.c_str());
 }
 
 }

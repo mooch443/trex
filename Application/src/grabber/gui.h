@@ -9,6 +9,10 @@
 #include <gui/DrawHTMLBase.h>
 #include <gui/DrawSFBase.h>
 
+namespace gui {
+class ExternalImage;
+}
+
 namespace grab {
 class GUI {
 public:
@@ -41,6 +45,7 @@ protected:
     gui::Base* _sf_base = nullptr;
     std::unique_ptr<pv::Frame> _frame, _noise;
     Image::UPtr _image;
+    gui::ExternalImage *background = nullptr, *noise_image = nullptr;
 
     gui::HTMLBase _html_base;
     

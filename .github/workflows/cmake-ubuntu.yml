@@ -17,8 +17,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubuntu-latest"]
-        python-version: ["3.7"]
+        os: ["ubuntu-20.04"]
+        python-version: ["3.8.2"]
     steps:
     - uses: actions/checkout@v2
     - name: Cache conda
@@ -53,11 +53,11 @@ jobs:
         cat meta.yaml
         echo "::endgroup::"
         echo "::group::Build"
-        conda build .
+        conda build -c defaults -c conda-forge .
         echo "::endgroup::"
         echo "::group::Test"
         echo $CONDA_PREFIX
-        conda create -y -n test -c $CONDA_PREFIX/conda-bld/ trex
+        conda create -y -n test -c defaults -c conda-forge -c $CONDA_PREFIX/conda-bld/ trex
         conda activate test
         pvinfo -opencv_ffmpeg_support
         pvinfo -opencv_opencl_support

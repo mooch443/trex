@@ -5,13 +5,16 @@
 #include <misc/Output.h>
 #include <gui/gui.h>
 #include <gui/WorkProgress.h>
-#include <tracking/Tracker.h>
 #include <gui/types/StaticText.h>
 #include <gui/types/Tooltip.h>
 #include <tracking/Individual.h>
 #include <misc/MemoryStats.h>
-#include <misc/CheckUpdates.h>
+#include <gui/CheckUpdates.h>
 #include <tracking/Categorize.h>
+#include <gui/GUICache.h>
+#include <gui/types/Button.h>
+
+#include <tracking/Tracker.h>
 
 namespace gui {
 
@@ -43,13 +46,13 @@ class ItemIndividual : public gui::List::Item {
 protected:
     GETTER_SETTER(std::string, name)
     GETTER_SETTER(Idx_t, ptr)
-    GETTER_SETTER(long_t, selected_blob_id)
+    GETTER_SETTER(pv::bid, selected_blob_id)
     
 public:
-    ItemIndividual(Idx_t fish = Idx_t(), long_t blob = -1)
-    : gui::List::Item(fish),
-    _ptr(fish),
-    _selected_blob_id(blob)
+    ItemIndividual(Idx_t fish = Idx_t(), pv::bid blob = pv::bid::invalid)
+        : gui::List::Item(fish),
+        _ptr(fish),
+        _selected_blob_id(blob)
     {
         if(fish.valid()) {
             Identity id(_ptr);
@@ -119,14 +122,14 @@ public:
         layout = std::make_shared<HorizontalLayout>(std::vector<Layout::Ptr>{}, Vec2(), Bounds(5, 5));
             
         _list = std::make_shared<gui::List>(
-            Bounds(Tracker::average().cols - 300 - 110 - 10 - 80 * 3, 7, 150, 33),
+            Bounds(GUI::average().cols - 300 - 110 - 10 - 80 * 3, 7, 150, 33),
             "match", std::vector<std::shared_ptr<List::Item>>{},
             [this](gui::List*, const List::Item& item){
                 if(item == _list->selected_item()) {
                     
                 } else {
                     second_list->set_title("Blobs for "+(const std::string&)item);
-                    Debug("clicked '%S'", &(const std::string&)item);
+                    print("clicked ",item);
                 }
             }
         );
@@ -141,9 +144,9 @@ public:
         });
         
         
-        second_list = std::make_shared<gui::List>(Bounds(Tracker::average().cols - 581 - 110 - 10 - 80 * 2, 7, 200, 33), "blobs", std::vector<std::shared_ptr<List::Item>>{},
+        second_list = std::make_shared<gui::List>(Bounds(GUI::average().cols - 581 - 110 - 10 - 80 * 2, 7, 200, 33), "blobs", std::vector<std::shared_ptr<List::Item>>{},
           [this](List*, const List::Item& item) {
-              Debug("%d %d", item.ID(), item.selected());
+              print(item.ID()," ",item.selected());
               if(!item.selected() && item.ID() >= 0) {
                   GUI::instance()->add_manual_match(GUI::instance()->frameinfo().frameIndex, _list->selected_item() >= 0 ? Idx_t(_list->selected_item()) : Idx_t(), item.ID());
               }
@@ -209,7 +212,7 @@ public:
                                         default_config::warn_deprecated(path.str(), GlobalSettings::load_from_string(default_config::deprecations(), GlobalSettings::map(), header.settings, AccessLevelType::PUBLIC));
                                     } catch(const UtilsException& e) {
                                         GUI::instance()->gui().dialog([](Dialog::Result){}, "Cannot load settings from results file. Check out this error message:\n<i>"+std::string(e.what())+"</i>", "Error");
-                                        Except("Cannot load settings from results file. Skipping that step...");
+                                        FormatExcept("Cannot load settings from results file. Skipping that step...");
                                     }
                                 }
                                 
@@ -261,7 +264,7 @@ public:
                 case CLEAR:
                     {
                         Tracker::instance()->clear_segments_identities();
-                        Debug("Cleared all averaged probabilities and automatic matches.");
+                        print("Cleared all averaged probabilities and automatic matches.");
                     }
                     break;
                     
@@ -270,7 +273,7 @@ public:
                         auto it = GUI::cache().fish_selected_blobs.find(GUI::cache().selected.front());
                         if(it != GUI::cache().fish_selected_blobs.end())
                         {
-                            SETTING(gui_show_fish) = std::pair<int64_t, long_t>(it->second, GUI::frame());
+                            SETTING(gui_show_fish) = std::pair<pv::bid, Frame_t>(it->second, GUI::frame());
                             GUI::reanalyse_from(GUI::frame());
                             SETTING(analysis_paused) = false;
                         }
@@ -286,7 +289,7 @@ public:
                     break;
                 }
                 default:
-                    Warning("Unknown action '%S'.", &(const std::string&)item);
+                    print("Unknown action ",item,".");
             }
             
             menu->set_folded(true);
@@ -294,12 +297,12 @@ public:
         
         menu->set_folded(true);
         
-        foi_list = std::make_shared<gui::List>(Size2(150, 33), "foi type", std::vector<std::shared_ptr<List::Item>>{}, [&](auto, const List::Item& item) {
+        foi_list = std::make_shared<gui::List>(Bounds(0, 0, 150, 33), "foi type", std::vector<std::shared_ptr<List::Item>>{}, [&](auto, const List::Item& item) {
             SETTING(gui_foi_name) = ((TextItem)item).text();
             foi_list->set_folded(true);
         });
         
-        reanalyse = std::make_shared<Button>("reanalyse", Size2(100, 33));
+        reanalyse = std::make_shared<Button>("reanalyse", Bounds(0, 0, 100, 33));
         reanalyse->on_click([&](auto){
             GUI::reanalyse_from(GUI::frame());
             SETTING(analysis_paused) = false;
@@ -311,6 +314,10 @@ public:
         std::vector<Layout::Ptr> tmp {foi_list, reanalyse, menu};
         layout->set_children(tmp);
     }
+
+    ~DrawMenuPrivate() {
+    }
+
     void matching_gui() {
         /**
          * -----------------------------
@@ -323,9 +330,9 @@ public:
              */
             struct FishAndBlob {
                 Idx_t fish;
-                long_t blob;
+                pv::bid blob;
                 
-                FishAndBlob(Idx_t fish = Idx_t(), long_t blob = -1) : fish(fish), blob(blob)
+                FishAndBlob(Idx_t fish = Idx_t(), pv::bid blob = pv::bid::invalid) : fish(fish), blob(blob)
                 {}
                 
                 void convert(std::shared_ptr<List::Item> ptr) {
@@ -369,16 +376,16 @@ public:
                  * Try and match the last displayed blob items to the currently relevant ones
                  */
                 struct BlobID {
-                    long_t id;
-                    BlobID(long_t id = -1) : id(id) {}
+                    pv::bid id;
+                    BlobID(pv::bid id = pv::bid::invalid) : id(id) {}
                     
                     void convert(std::shared_ptr<List::Item> ptr) {
                         auto item = static_cast<BlobItem*>(ptr.get());
                         
-                        if(item->ID() != id || (id == -1 && item->name() != "none")) {
-                            item->set_ID(id);
+                        if(item->ID() != (uint32_t)id || (!id.valid() && item->name() != "none")) {
+                            item->set_ID((uint32_t)id);
                             
-                            if(id != -1) {
+                            if(id.valid()) {
                                 std::string fish;
                                 for(auto && [fdx, bdx] : GUI::instance()->cache().fish_selected_blobs) {
                                     if(bdx == id) {
@@ -387,7 +394,7 @@ public:
                                     }
                                 }
                                 
-                                item->set_name(fish.empty() ? "blob"+std::to_string(id) : fish+" ("+Meta::toStr(id)+")");
+                                item->set_name(fish.empty() ? "blob"+Meta::toStr(id) : fish+" ("+Meta::toStr(id)+")");
                             }
                             else
                                 item->set_name("none");
@@ -397,7 +404,7 @@ public:
                 
                 // find currently selected individual
                 long_t selected_individual = _list->selected_item();
-                long_t selected = -1;
+                pv::bid selected;
                 
                 for(auto x : _individual_items) {
                     if(x->ID() == selected_individual) {
@@ -407,9 +414,9 @@ public:
                 }
                 
                 // generate blob items
-                std::map<uint32_t, std::shared_ptr<BlobID>> ordered;
+                std::map<pv::bid, std::shared_ptr<BlobID>> ordered;
                 std::vector<std::shared_ptr<BlobID>> blobs = {std::make_shared<BlobID>(-1)};
-                for(auto v : GUI::cache().raw_blobs)
+                for(auto &v : GUI::cache().raw_blobs)
                     ordered[v->blob->blob_id()] = std::make_shared<BlobID>(v->blob->blob_id());
                 
                 for(auto && [id, ptr] : ordered)
@@ -419,7 +426,7 @@ public:
                 
                 // set items and display
                 second_list->set_items(_blob_items);
-                second_list->select_item(selected);
+                second_list->select_item((uint32_t)selected);
                 
                 GUI::instance()->gui().wrap_object(*second_list);
             }
@@ -429,17 +436,18 @@ public:
     Timer memory_timer;
     mem::IndividualMemoryStats overall;
     gui::derived_ptr<Entangled> stats;
-    long_t last_end_frame;
+    Frame_t last_end_frame;
     
     void memory_stats() {
         if(!stats) {
             stats = std::make_shared<Entangled>();
-            last_end_frame = -1;
+            last_end_frame.invalidate();
         }
         
         auto &base = GUI::instance()->gui();
+        
         stats->set_scale(base.scale().reciprocal());
-        Size2 ddsize = /*_base ? _base->window_dimensions() :*/ Size2(base.width(), base.height());
+        Size2 ddsize = Size2(base.width(), base.height());
         
         static Tooltip* tooltip = nullptr;
         if(!tooltip) {
@@ -477,8 +485,7 @@ public:
                 for(auto key : to_delete)
                     overall.sizes.erase(key);
                 
-                stats->set_origin(Vec2(0.5f));
-                Size2 intended_size(ddsize.width * base.scale().x * 0.85f, ddsize.height * base.scale().y * 0.3f);
+                Size2 intended_size(ddsize.width * 0.85f, ddsize.height * 0.3f);
                 float margin = intended_size.width * 0.005f;
                 
                 stats->update([&](Entangled& base) {
@@ -509,8 +516,7 @@ public:
                     for(auto && [name, size] : overall.sizes) {
                         auto color = wheel.next();
                         float h = float((size - mi) / float(ma - mi)) * bars.height;
-                        //Debug("%S: %f (%lu, %lu)", &name, h, size - mi, ma - mi);
-                        base.advance(new Rect(Bounds(x + margin, margin + bars.height - h, bars.width - margin * 2, h), color));
+                        base.add<Rect>(Bounds(x + margin, margin + bars.height - h, bars.width - margin * 2, h), color);
                         auto text = elements.at(i);
                         auto pos = Vec2(x + bars.width * 0.5f, margin + bars.height + margin);
                         if(!text) {
@@ -571,7 +577,7 @@ public:
                     }
                     
                     auto str = Meta::toStr(FileSize{overall.bytes});
-                    base.advance(new Text(str, Vec2(10, 10), White, Font(0.75)));
+                    base.add<Text>(str, Vec2(10, 10), White, Font(0.75));
                     
                 });
                 
@@ -585,6 +591,7 @@ public:
         }
         
         stats->set_pos(ddsize * 0.5);
+        //stats->set_origin(Vec2(0.5f));
         base.wrap_object(*stats);
         
         if(tooltip->other()) {
@@ -622,13 +629,10 @@ public:
         
         if(_individual_items.size() < 100) {
             if(!contains(layout->children(), _list.get())) {
-                //auto tmp = layout.children();
-                //tmp.insert(tmp.begin(), &_list);
-                layout->add_child(0, _list.get());
-                //layout.set_children(tmp);
+                layout->add_child(0, _list);
             }
         } else
-            layout->remove_child(_list.get());
+            layout->remove_child(_list);
         
         if(SETTING(gui_show_memory_stats)) {
             memory_stats();

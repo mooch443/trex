@@ -53,7 +53,7 @@ namespace gui {
         update_rectangle();
         
         SFLoop loop(*_graph, _base.get(),
-        [this, &grabber, &scale, &okay](SFLoop& loop, LoopStatus status){
+        [this, &grabber, &scale, &okay](SFLoop& loop, LoopStatus){
             std::unique_lock<std::recursive_mutex> guard(_graph->lock());
             auto desktop = _base->window_dimensions();
             auto size = _video_size;
@@ -94,7 +94,7 @@ namespace gui {
                 
                 okay.on_click([this, &grabber, &loop](auto){
                     Bounds crop_offsets(_rect->pos().div(Size2(grabber.original_average())), (Size2(grabber.original_average()) - (_rect->pos() + _rect->size())).div(Size2(grabber.original_average())));
-                    Debug("Click %f,%f %f,%f", crop_offsets.x, crop_offsets.y, crop_offsets.width, crop_offsets.height);
+                    print("Click ",crop_offsets.x,",",crop_offsets.y," ",crop_offsets.width,",",crop_offsets.height);
                     SETTING(crop_offsets) = CropOffsets(crop_offsets);
                     loop.set_please_end(true);
                 });
@@ -145,7 +145,7 @@ namespace gui {
         if(bounds.width > _video_size.width) bounds.width = _video_size.width;
         if(bounds.height > _video_size.height) bounds.height = _video_size.height;
         
-        bounds.size() -= bounds.pos();
+        bounds << Size2(bounds.size() - bounds.pos());
         _rect->set_bounds(bounds);
     }
 }

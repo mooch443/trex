@@ -1,12 +1,14 @@
 #pragma once
 
-#include <types.h>
+#include <misc/defines.h>
 #include <gui/DrawStructure.h>
 #include <tracking/Individual.h>
 
-namespace track {
-    class Individual;
-    
+namespace gui {
+    class DrawStructure;
+}
+
+namespace track {    
     class VisualField {
     public:
         static constexpr uint8_t layers = 2;
@@ -44,18 +46,18 @@ namespace track {
         GETTER(double, fish_angle)
         
         GETTER(Idx_t, fish_id)
-        GETTER(long_t, frame)
+        GETTER(Frame_t, frame)
         
     public:
-        VisualField(Idx_t fish_id, long_t frame,const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture, bool blocking);
+        VisualField(Idx_t fish_id, Frame_t frame,const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture, bool blocking);
         
         const decltype(_eyes)& eyes() const { return _eyes; }
         void calculate(const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture, bool blocking = true);
         void show(gui::DrawStructure &graph);
-        static void show_ts(gui::DrawStructure &graph, long_t frameNr, Individual* selected);
+        static void show_ts(gui::DrawStructure &graph, Frame_t frameNr, Individual* selected);
         void plot_projected_line(eye& e, std::tuple<float, float>& tuple, double d, const Vec2& point, Idx_t id, float hd);
         
-        static std::tuple<std::array<eye, 2>, Vec2> generate_eyes(const Individual* fish, const std::shared_ptr<Individual::BasicStuff>& basic, const std::vector<Vec2>& outline, const Midline::Ptr& midline, float angle);
+        static std::tuple<std::array<eye, 2>, Vec2> generate_eyes(const std::shared_ptr<Individual::BasicStuff>& basic, const std::vector<Vec2>& outline, const Midline::Ptr& midline, float angle);
     };
 }
 

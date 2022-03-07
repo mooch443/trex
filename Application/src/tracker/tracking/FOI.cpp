@@ -12,49 +12,49 @@ namespace track {
     
     static FOI::time_point_t last_change_time;
 
-    FOI::operator MetaObject() const {
+    std::string FOI::toStr() const {
         if(!_props)
-            return MetaObject("FOI<invalid>", "FOI");
-        return MetaObject("FOI<'"+name(id())+"' "+Meta::toStr(_frames)+""+(_ids.empty() ? "" : (" ids:" + Meta::toStr(_ids)))+">", "FOI");
+            return "FOI<invalid>";
+        return "FOI<'"+name(id())+"' "+Meta::toStr(_frames)+""+(_ids.empty() ? "" : (" ids:" + Meta::toStr(_ids)))+">";
     }
 
-bool FOI::operator==(const FOI& other) const {
-    return _frames == other._frames && _fdx == other._fdx && _bdx == other._bdx && _description == other._description && _ids == other._ids;
-}
-    
-    FOI::fdx_t::operator MetaObject() const {
-        return MetaObject(Meta::toStr(id), "fdx_t");
+    bool FOI::operator==(const FOI& other) const {
+        return _frames == other._frames && _fdx == other._fdx && _bdx == other._bdx && _description == other._description && _ids == other._ids;
     }
     
-    FOI::bdx_t::operator MetaObject() const {
-        return MetaObject(Meta::toStr(id), "bdx_t");
+    std::string FOI::fdx_t::toStr() const {
+        return Meta::toStr(id);
     }
     
-    FOI::FOI(long_t frame, std::set<fdx_t> fdx, const std::string& reason, const std::string& description)
-        : FOI(Rangel(frame, frame), fdx, reason, description)
+    std::string FOI::bdx_t::toStr() const {
+        return Meta::toStr(id);
+    }
+    
+    FOI::FOI(Frame_t frame, std::set<fdx_t> fdx, const std::string& reason, const std::string& description)
+        : FOI(Range<Frame_t>(frame, frame), fdx, reason, description)
     {}
     
-    FOI::FOI(long_t frame, std::set<bdx_t> bdx, const std::string& reason, const std::string& description)
-        : FOI(Rangel(frame, frame), bdx, reason, description)
+    FOI::FOI(Frame_t frame, std::set<bdx_t> bdx, const std::string& reason, const std::string& description)
+        : FOI(Range<Frame_t>(frame, frame), bdx, reason, description)
     {}
     
-    FOI::FOI(const Rangel& frames, std::set<fdx_t> fdx, const std::string& reason, const std::string& description)
+    FOI::FOI(const Range<Frame_t>& frames, std::set<fdx_t> fdx, const std::string& reason, const std::string& description)
         : FOI(frames, reason, description)
     {
         _fdx.insert(fdx.begin(), fdx.end());
     }
     
-    FOI::FOI(const Rangel& frames, std::set<bdx_t> bdx, const std::string& reason, const std::string& description)
+    FOI::FOI(const Range<Frame_t>& frames, std::set<bdx_t> bdx, const std::string& reason, const std::string& description)
         : FOI(frames, reason, description)
     {
         _bdx.insert(bdx.begin(), bdx.end());
     }
     
-    FOI::FOI(long_t frame, const std::string& reason, const std::string& description)
-        : FOI(Rangel(frame, frame), reason, description)
+    FOI::FOI(Frame_t frame, const std::string& reason, const std::string& description)
+        : FOI(Range<Frame_t>(frame, frame), reason, description)
     {}
     
-    FOI::FOI(const Rangel& frames, const std::string& reason, const std::string& description)
+    FOI::FOI(const Range<Frame_t>& frames, const std::string& reason, const std::string& description)
         : _frames(frames), _description(description)
     {
         std::vector<std::string> all_ids;
@@ -123,7 +123,7 @@ bool FOI::operator==(const FOI& other) const {
             return it->second;
         }
         
-        U_EXCEPTION("Cannot find frames of interest with id %d.", id);
+        throw U_EXCEPTION("Cannot find frames of interest with id ",id,".");
     }
 
     FOI::foi_type FOI::all_fois() {
@@ -131,7 +131,7 @@ bool FOI::operator==(const FOI& other) const {
         return _frames_of_interest;
     }
         
-    void FOI::remove_frames(long_t frameIndex) {
+    void FOI::remove_frames(Frame_t frameIndex) {
         ConfirmedCrossings::remove_frames(frameIndex);
 
         std::lock_guard<std::recursive_mutex> guard(_mutex);
@@ -140,12 +140,12 @@ bool FOI::operator==(const FOI& other) const {
             auto name = _id_to_string.at(type);
             while(!set.empty() && set.rbegin()->frames().end >= frameIndex)
                 set.erase(--set.end());
-            Debug("Erased %d FOIs of type '%S' from Tracker.", before - set.size(), &name);
+            print("Erased ", before - set.size()," FOIs of type ",name," from Tracker.");
         }
         changed();
     }
     
-    void FOI::remove_frames(long_t frameIndex, long_t id) {
+    void FOI::remove_frames(Frame_t frameIndex, long_t id) {
         ConfirmedCrossings::remove_frames(frameIndex, id);
 
         std::lock_guard<std::recursive_mutex> guard(_mutex);
@@ -155,7 +155,7 @@ bool FOI::operator==(const FOI& other) const {
                 auto name = _id_to_string.at(type);
                 while(!set.empty() && set.rbegin()->frames().end >= frameIndex)
                     set.erase(--set.end());
-                Debug("Erased %d FOIs of type '%S' from Tracker.", before - set.size(), &name);
+                print("Erased ", before - set.size()," FOIs of type ",name," from Tracker.");
             }
         }
         changed();
@@ -168,7 +168,7 @@ bool FOI::operator==(const FOI& other) const {
             return it->second;
         }
         
-        U_EXCEPTION("Cannot find name of FOI-id %d.", id);
+        throw U_EXCEPTION("Cannot find name of FOI-id ",id,".");
     }
     
     long_t FOI::to_id(const std::string& name) {
@@ -182,7 +182,7 @@ bool FOI::operator==(const FOI& other) const {
     }
     
     void FOI::clear() {
-        remove_frames(0);
+        remove_frames(Frame_t(0));
     }
     
     uint64_t FOI::last_change() {

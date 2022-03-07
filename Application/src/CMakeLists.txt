@@ -18,20 +18,24 @@ else()
 endif()
 
 #add_subdirectory(frugally)
-add_subdirectory(cnpy)
+#add_subdirectory(cnpy)
 
-include_directories(commons/cpputils/src)
-add_subdirectory(commons)
-include_directories(commons/common)
+include_directories(.)
 
 add_subdirectory(ProcessedVideo)
 include_directories(ProcessedVideo)
 
+
+
+if(COMMONS_NO_PYTHON)
+    add_compile_options( -DTREX_NO_PYTHON=true)
+    message(STATUS "NO PYTHON=-DTREX_NO_PYTHON=${COMMONS_NO_PYTHON}")
+else()
+    add_compile_options(-DTREX_NO_PYTHON=false)
+endif()
+
 include_directories(tracker)
 include_directories(grabber)
-
-# to include generated moc headers, since they are generated in binary dir
-set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 add_subdirectory(grabber)
 add_subdirectory(tracker)

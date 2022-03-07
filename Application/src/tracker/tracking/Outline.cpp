@@ -124,7 +124,7 @@ MinimalOutline::~MinimalOutline() {
     std::lock_guard<std::mutex> guard(all_mutex);
     auto it = all_objects.find(this);
     if(it == all_objects.end())
-        Error("Double delete?");
+        FormatError("Double delete?");
     else
         all_objects.erase(it);
 #endif
@@ -148,10 +148,9 @@ void MinimalOutline::convert_from(const std::vector<Vec2>& array) {
         x = relative.x * factor;
         y = relative.y * factor;
         
-        //Debug("%f,%f", x, y);
         
         if(x >= float(CHAR_MAX) || y >= float(CHAR_MAX) || x <= float(CHAR_MIN) || y <= float(CHAR_MIN))
-            U_EXCEPTION("Cannot compress %f,%f to char. This is an unresolvable error and is related to outline_resample. Contact the maintainer of this software and ask for advice (use outline_resample <= 5).", x, y);
+            throw U_EXCEPTION("Cannot compress ",x,",",y," to char. This is an unresolvable error and is related to outline_resample. Contact the maintainer of this software and ask for advice (use outline_resample <= 5).");
         
         ux = x;
         uy = y;
@@ -168,16 +167,15 @@ void MinimalOutline::convert_from(const std::vector<Vec2>& array) {
     
     //size_t minimized = sizeof(Vec2) + _points.size() * sizeof(decltype(_points)::value_type) + sizeof(char);
     //size_t full = array.size() * sizeof(Vec2);
-    //Debug("%d / %d bytes for minimized (%f%%)", minimized, full, float(minimized) / float(full));
 }
 
 size_t Midline::memory_size() const {
     return sizeof(Midline) + sizeof(decltype(_segments)::value_type) * _segments.size();
 }
 
-Outline::Outline(std::shared_ptr<std::vector<Vec2>> points, long_t f)
-: frameIndex(f), _points(points), _confidence(1.f), _original_angle(0),
-_concluded(false)//, _needs_invert(false)
+Outline::Outline(std::shared_ptr<std::vector<Vec2>> points, Frame_t f)
+    : frameIndex(f), _points(points), _confidence(1.f), _original_angle(0),
+      _concluded(false)//, _needs_invert(false)
 {
     check_constants();
     
@@ -192,7 +190,7 @@ Outline::~Outline() {
     std::lock_guard<std::mutex> guard(all_mutex);
     auto it = all_objects.find(this);
     if(it == all_objects.end())
-        Error("Double delete?");
+        FormatError("Double delete?");
     else
         all_objects.erase(it);
 #endif
@@ -260,7 +258,7 @@ float Outline::calculate_curvature(const int curvature_range, const std::vector<
     assert(L > 0 && index <= size_t(L)-1);
     
     if(L < 3)
-        U_EXCEPTION("Cannot calculate curvature with less than 3 values.");
+        throw U_EXCEPTION("Cannot calculate curvature with less than 3 values.");
     
     long_t offset = curvature_range * 2 * scale;
     if(L < offset)
@@ -490,8 +488,7 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
            
         
         if(info.debug) {
-            auto str = Meta::toStr(*_points);
-            Debug("Smoothed curvature: %S", &str);
+            print("Smoothed curvature: ", *_points);
         }
         
         auto mode = OUTLINE_SETTING(peak_mode) == default_config::peak_mode_t::broad ? PeakMode::FIND_BROAD : PeakMode::FIND_POINTY;
@@ -542,8 +539,7 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
         if(info.debug) {
            auto str = Meta::toStr(high_peaks);
         
-           Debug("");
-           Debug("%d(%d): Finding tail. %S", info.frameIndex, info.fdx, &str);
+           print("\n", info.frameIndex,"(", info.fdx,"): Finding tail. ",str);
             std::vector<Vec2> maximums, highmax;
             for(auto peak : *maxima_ptr) {
                 maximums.push_back(peak.position);
@@ -624,7 +620,7 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
             }
             
             if(info.debug)
-                Debug("peak has range %f-%f (%f) - %f-%f", merged.start, merged.end, merged.length(), start, end);
+                print("peak has range ",merged.start,"-",merged.end," (",merged.length(),") - ",start,"-",end);
             idx = round(start + (end - start)*0.5);
             if(idx < 0)
                 idx += ptr->size();
@@ -657,7 +653,6 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
                 broadest_idx = peak.position.x;
             }
             
-            //Debug("Peak %.0f: %.0f-%.0f (%f)", peak.position.x, peak.range.start, peak.range.end, peak.range.length());
         }
         
         if(OUTLINE_SETTING(midline_start_with_head) && _head_index != -1) {
@@ -795,7 +790,7 @@ void Outline::calculate_midline(Midline &midline, const DebugInfo& info) {
     midline.head_index() = _head_index;
     
     if(size() <= 1 || _confidence == 0) {
-        //Warning("Empty outline (%d).", frameIndex);
+        //print("Empty outline (",frameIndex,").");
         return;
     }
     
@@ -906,7 +901,7 @@ void Midline::post_process(const MovementInformation &movement, DebugInfo info) 
     if(segments().size() <= 2) {
         static bool printed_warning = false;
         if(!printed_warning) {
-            Warning("Fewer midline segments in %d@%d (%d). This means that your parameters might not be properly adjusted for this video, or this is not an individual. Check `track_posture_threshold` for example.", info.fdx, info.frameIndex, segments().size());
+            FormatWarning("Fewer midline segments in ", info.fdx,"@", info.frameIndex," (", segments().size(),"). This means that your parameters might not be properly adjusted for this video, or this is not an individual. Check `track_posture_threshold` for example.");
             printed_warning = true;
         }
         return;
@@ -944,14 +939,13 @@ void Midline::post_process(const MovementInformation &movement, DebugInfo info) 
         }
         
         auto str = Meta::toStr(angles);
-        Debug("Array is %S, direction is %f;%f sums are [%f,%f] %d => %d", &str, atan2(direction[0]) * 180 / M_PI, atan2(direction[1]) * 180 / M_PI, sums[0], sums[1], current_index, sums[1 - current_index] < sums[current_index]);
+        print("Array is ",str,", direction is ",atan2(direction[0]) * 180 / M_PI,";",atan2(direction[1]) * 180 / M_PI," sums are [",sums[0],",",sums[1],"] ",current_index," => ",sums[1 - current_index] < sums[current_index]);
         
         if(sums[1 - current_index] < sums[current_index]) {*/
         
         if(acos(direction[1 - current_index].dot(movement.direction)) < acos(direction[current_index].dot(movement.direction))) {
         //if(euclidean_distance(next_position, dpos[1 - current_index]) < euclidean_distance(next_position, dpos[current_index])) {
             
-            //Debug("%f,%f (x) | %f,%f -> %f,%f", dpos[1 - current_index].x, dpos[1 - current_index].y, dpos[current_index].x, dpos[current_index].y, next_position.x, next_position.y);
             /*if(angle_between_vectors(direction[0], direction[1]) >= RADIANS(90)) {
              float adiff0 = angle_between_vectors(direction[1 - current_index], movement.direction);
              float adiff1 = angle_between_vectors(direction[current_index], movement.direction);
@@ -962,13 +956,12 @@ void Midline::post_process(const MovementInformation &movement, DebugInfo info) 
             std::swap(head_index(), tail_index());
             //}
         } else {
-            //Debug("%f,%f | %f,%f (x) -> %f,%f", dpos[1 - current_index].x, dpos[1 - current_index].y, dpos[current_index].x, dpos[current_index].y, next_position.x, next_position.y);
         }
     }
     
     if(_needs_invert) {
         if(info.debug)
-            Debug("%d(%d): inverting Tail: %d, Head: %d",info.frameIndex,info.fdx, tail_index(), head_index());
+            print(info.frameIndex,"(",info.fdx,"): inverting Tail: ",tail_index(),", Head: ",head_index());
         
         if(!OUTLINE_SETTING(midline_start_with_head))
             std::reverse(segments().begin(), segments().end());
@@ -1049,10 +1042,10 @@ void Midline::post_process(const MovementInformation &movement, DebugInfo info) 
         auto aa = old_code(old_copy);
         auto p = euclidean_distance(aa, axis) / max(aa.abs().max(), axis.abs().max()) * 100;
         if(p > 0)
-            Warning("%f%%", p);
+            FormatWarning(p,"%%");
         if(info.debug) {
             segments() = old_copy;
-            Debug("Old");
+            print("Old");
         }
         
         *for (size_t i=0; i<segments().size(); ++i) {
@@ -1061,7 +1054,7 @@ void Midline::post_process(const MovementInformation &movement, DebugInfo info) 
             
             if(d > std::numeric_limits<Float2_t>::epsilon() * m)
             {
-                Warning("%lu: %f,%f != %f,%f by %f%%", i, old_copy[i].pos.x, old_copy[i].pos.y, segments()[i].pos.x, segments()[i].pos.y, d / m * 100);
+                FormatWarning(i,": ",old_copy[i].pos.x,",",old_copy[i].pos.y," != ",segments()[i].pos.x,",",segments()[i].pos.y," by ",d / m * 100,"%%");
                 //break;
             }
         }*/
@@ -1087,7 +1080,7 @@ Midline::~Midline() {
     std::lock_guard<std::mutex> guard(all_mutex);
     auto it = all_objects.find(this);
     if(it == all_objects.end())
-        Error("Double delete?");
+        FormatError("Double delete?");
     else
         all_objects.erase(it);
 #endif
@@ -1116,7 +1109,7 @@ size_t Midline::saved_midlines() {
         fwrite(str.data(), sizeof(char), str.length(), f);
         fclose(f);
     } else
-        Error("Cannot write 'posture.log'");
+        FormatError("Cannot write 'posture.log'");
     
     return all_objects.size();
 #else
@@ -1192,7 +1185,6 @@ void Midline::fix_length(float len, std::vector<MidlineSegment>& pts, bool debug
         }
         
         if(md != FLT_MAX) {
-            //Debug("%d D %f %d (%f,%f)", i, euclidean_distance(seg.pos, mdv), j, seg.pos.x, seg.pos.y);
             seg.pos = mdv;
             travelled_len += step;
             
@@ -1201,7 +1193,7 @@ void Midline::fix_length(float len, std::vector<MidlineSegment>& pts, bool debug
             
         } else if(j >= resolution) {
            if(debug)
-               Debug("Cannot find anything for %d, extrapolating %d (%f > %f)", i, i - last_real, travelled_len, original_len);
+               print("Cannot find anything for ",i,", extrapolating ",i - last_real," (",travelled_len," > ",original_len,")");
 
            if(pts.size()>=3) {
                 auto v1 = pts.back().pos;
@@ -1230,7 +1222,7 @@ void Midline::fix_length(float len, std::vector<MidlineSegment>& pts, bool debug
                     seg.height *= 0.5;
 
                     if(debug)
-                        Debug("Added %d/%d", midline_points.size(), resolution);
+                        print("Added ", midline_points.size(),"/",resolution);
 
                     midline_points.push_back(seg);
                     i++;
@@ -1272,7 +1264,7 @@ Midline::Ptr Midline::normalize(float fix_length, bool debug) const {
     assert(!std::isinf(fix_length));
     
     if(is_normalized())
-        Warning("Normalizing a normalized midline.");
+        FormatWarning("Normalizing a normalized midline.");
     
     if(empty() || size()<2)
         return nullptr;
@@ -1285,7 +1277,7 @@ Midline::Ptr Midline::normalize(float fix_length, bool debug) const {
     
     if(len == 0.0) {
         // Midline is empty
-        Warning("Midline is empty.");
+        FormatWarning("Midline is empty.");
         return nullptr;
     }
     
@@ -1294,7 +1286,7 @@ Midline::Ptr Midline::normalize(float fix_length, bool debug) const {
     const int max_segments = resolution - 1;
     double step = (double(len) / double(max_segments));
     if(step < 0)
-        U_EXCEPTION("Step length is negative (%f) with a length of %f and max_segments of %d.", step, len, max_segments);
+        throw U_EXCEPTION("Step length is negative (",step,") with a length of ",len," and max_segments of ",max_segments,".");
     
     size_t index = 0;
     std::vector<MidlineSegment> reduced;
@@ -1324,7 +1316,6 @@ Midline::Ptr Midline::normalize(float fix_length, bool debug) const {
             if((long_t)index >= this->head_index() && head_index == -1)
                 head_index = reduced.size();*/
             
-            //Debug("Moving %f (%f, %d-%d) d since last: %f", local_d, distance, index, index+1, distance-last_pt_distance);
             index++;
         }
         
@@ -1352,8 +1343,6 @@ Midline::Ptr Midline::normalize(float fix_length, bool debug) const {
                 segment.height = s0.height * (percent) + s1.height * (1.0 - percent);
                 segment.l_length = max(s0.l_length, s1.l_length);
                 reduced.push_back(segment);
-                
-                //Debug("At %d i have moved %f / %f (step %f) thats an offset of %f (%d)", index, distance, len, step, off, reduced.size());
                 
                 last_pt_distance = distance - length(line * (1.0 - percent));
                 
@@ -1496,7 +1485,7 @@ namespace Smaller {
         virtual ~Area() {}
         
         bool operator<(const Area&) const {
-            U_EXCEPTION("Calling wrong operator.");
+            throw U_EXCEPTION("Calling wrong operator.");
         }
     };
     

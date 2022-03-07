@@ -30,7 +30,7 @@ namespace gui {
         
         if(!contains(_layers.at(from)._names, item)) {
             auto str = Meta::toStr(_layers.at(from)._names);
-            U_EXCEPTION("Unknown item '%S' for FlowMenu layer %d with items %S.", &item, from, &str);
+            throw U_EXCEPTION("Unknown item '",item,"' for FlowMenu layer ",from," with items ",str,".");
         }
         
         _layers.at(from)._links[item] = to;
@@ -41,7 +41,7 @@ namespace gui {
         
         if(!contains(_layers.at(layer)._names, item)) {
             auto str = Meta::toStr(_layers.at(layer)._names);
-            U_EXCEPTION("Unknown item '%S' for FlowMenu layer %d with items %S.", &item, layer, &str);
+            throw U_EXCEPTION("Unknown item '",item,"' for FlowMenu layer ",layer," with items ",str,".");
         }
         
         if(_layers.at(layer)._links.count(item))
@@ -66,21 +66,21 @@ namespace gui {
     
     void FlowMenu::check_layer_index(size_t idx) const {
         if(idx >= _layers.size())
-            U_EXCEPTION("Cannot access layer %d because only %d layers are currently registered.", idx, _layers.size());
+            throw U_EXCEPTION("Cannot access layer ",idx," because only ",_layers.size()," layers are currently registered.");
     }
     
     void FlowMenu::clicked(size_t idx) {
         if(_current == -1) {
-            Warning("Clicked with no layer visible?");
+            FormatWarning("Clicked with no layer visible?");
             return;
         }
         
         if((size_t)_current > _layers.size())
-            U_EXCEPTION("Invalid layer index in _current %d.", _current);
+            throw U_EXCEPTION("Invalid layer index in _current ",_current,".");
         
         if(_layers.at(_current)._names.size() > idx) {
             auto &name = _layers.at(_current)._names.at(idx);
-            Debug("Clicked item '%S' in layer %d.", &name, _current);
+            print("Clicked item ", name," in layer ",_current,".");
             auto it = _layers.at(_current)._links.find(name);
             if(it == _layers.at(_current)._links.end()) {
                 _clicked_leaf(_current, name);
@@ -106,10 +106,12 @@ namespace gui {
         if(_current != -1) {
             check_layer_index(_current);
             auto clr = ColorWheel(_current >= 0 ? _current : 0).next().alpha(200).saturation(0.2).exposure(0.2);
-            auto rect = new Rect(Bounds(Vec2(width() * 0.5, height() * 0.05), Size2(width() * 0.33, Base::default_line_spacing(Font(0.5, Style::Bold)) + 25)), clr, White.alpha(200));
-            rect->set_origin(Vec2(0.5, 0));
-            rect = advance(rect);
-            advance(new Text(_layers.at(_current)._title, rect->pos() + Vec2(0, rect->height() * 0.5), White, Font(0.5, Style::Bold, Align::Center)));
+            auto rect = add<Rect>(Bounds(Vec2(width() * 0.5, height() * 0.05), Size2(width() * 0.33, Base::default_line_spacing(Font(0.5, Style::Bold)) + 25)), clr, White.alpha(200), Vec2(0.5, 0));
+            //auto rect = new Rect(Bounds(Vec2(width() * 0.5, height() * 0.05), Size2(width() * 0.33, Base::default_line_spacing(Font(0.5, Style::Bold)) + 25)), clr, White.alpha(200));
+            //rect->set_origin(Vec2(0.5, 0));
+            //rect = advance(rect);
+            add<Text>(_layers.at(_current)._title, rect->pos() + Vec2(0, rect->height() * 0.5), White, Font(0.5, Style::Bold, Align::Center));
+            //advance(new Text(_layers.at(_current)._title, rect->pos() + Vec2(0, rect->height() * 0.5), White, Font(0.5, Style::Bold, Align::Center)));
         }
         
         end();
