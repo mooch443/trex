@@ -445,8 +445,9 @@ public:
         }
         
         auto &base = GUI::instance()->gui();
+        
         stats->set_scale(base.scale().reciprocal());
-        Size2 ddsize = /*_base ? _base->window_dimensions() :*/ Size2(base.width(), base.height());
+        Size2 ddsize = Size2(base.width(), base.height());
         
         static Tooltip* tooltip = nullptr;
         if(!tooltip) {
@@ -484,8 +485,7 @@ public:
                 for(auto key : to_delete)
                     overall.sizes.erase(key);
                 
-                stats->set_origin(Vec2(0.5f));
-                Size2 intended_size(ddsize.width * base.scale().x * 0.85f, ddsize.height * base.scale().y * 0.3f);
+                Size2 intended_size(ddsize.width * 0.85f, ddsize.height * 0.3f);
                 float margin = intended_size.width * 0.005f;
                 
                 stats->update([&](Entangled& base) {
@@ -591,6 +591,7 @@ public:
         }
         
         stats->set_pos(ddsize * 0.5);
+        //stats->set_origin(Vec2(0.5f));
         base.wrap_object(*stats);
         
         if(tooltip->other()) {

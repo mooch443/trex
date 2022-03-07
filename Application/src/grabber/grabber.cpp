@@ -406,8 +406,8 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
         }
 
         if (SETTING(frame_rate).value<int>() <= 0) {
-            print("Setting frame_rate from webcam (", SETTING(cam_framerate).value<int>(),"). If -1, it remains at -1.");
-            SETTING(frame_rate) = SETTING(cam_framerate).value<int>() > 0 ? SETTING(cam_framerate).value<int>() : -1;
+            print("Setting frame_rate from webcam (", SETTING(cam_framerate).value<int>(),"). If -1, assume 25.");
+            SETTING(frame_rate) = SETTING(cam_framerate).value<int>() > 0 ? SETTING(cam_framerate).value<int>() : 25;
         }
         
     } else if(utils::lowercase(source) == "test_image") {
@@ -1458,7 +1458,7 @@ void FrameGrabber::update_fps(long_t index, timestamp_t stamp, timestamp_t tdelt
             if(_video)
                 print(index,"/",_video->length()," (t+",str.c_str(),") @ ", dec<1>(_fps.load()),"fps (eta:",ETA.c_str()," load:",loading_str.c_str()," proc:",processing_str.c_str()," track:",tracking_str.c_str()," save:",saving_str.c_str(),")");
             else
-                print(index," (t+",str,") @ ", dec<1>(_fps.load()),"fps (load:",loading_str.c_str()," proc:",processing_str.c_str()," track:",tracking_str.c_str()," save:",saving_str.c_str(),")");
+                print(index," (t+",str.c_str(),") @ ", dec<1>(_fps.load()),"fps (load:",loading_str.c_str()," proc:",processing_str.c_str()," track:",tracking_str.c_str()," save:",saving_str.c_str(),")");
         }
         
         if(GRAB_SETTINGS(output_statistics))
