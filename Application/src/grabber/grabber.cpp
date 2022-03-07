@@ -535,12 +535,11 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
         initialize_video();
     
     if(!SETTING(enable_difference)) {
-        auto size = SETTING(video_size).value<Size2>();
+        auto size = _cam_size;
         _average = gpuMat::zeros(size.height, size.width, CV_8UC1);
-        _average.setTo(0);
+        _average.setTo(SETTING(solid_background_color).value<uchar>());
         _average_finished = true;
         _average_samples = 1;
-        
     }
     
     _average.copyTo(_original_average);
@@ -630,7 +629,7 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
     _average.copyTo(_original_average);
     //callback_before_starting(*this);
     
-    if(_video && _average_finished) {
+    if((_video && _average_finished) || !SETTING(enable_difference)) {
         _average.copyTo(_original_average);
         prepare_average();
         _current_average_timestamp = 42;

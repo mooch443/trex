@@ -101,6 +101,17 @@ else
     make -j$(( $(sysctl -n hw.ncpu) - 1 )) CustomOpenCV
 fi
 
+if [ "$(uname)" == "Linux" ]; then
+    make -j$(( $(nproc) - 1 )) gladex
+fi
+
+
+if [ "$(uname)" == "Linux" ]; then
+    make -j$(( $(nproc) - 1 )) imgui
+else
+    make -j$(( $(sysctl -n hw.ncpu) - 1 )) imgui
+fi
+
 cmake ..
 
 if [ "$(uname)" == "Linux" ]; then
