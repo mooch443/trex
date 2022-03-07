@@ -1516,7 +1516,9 @@ bool CacheHints::full() const {
 
 void CacheHints::clear(size_t size) {
     if (size == 0 && FAST_SETTINGS(frame_rate) < 0) {
+#ifndef NDEBUG
         FormatExcept("Size=", size," frame_rate=", FAST_SETTINGS(frame_rate),"");
+#endif
         _last_second.resize(0);
     } else {
         _last_second.resize(size > 0 ? size : FAST_SETTINGS(frame_rate));

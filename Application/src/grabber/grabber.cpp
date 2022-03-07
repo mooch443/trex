@@ -1458,7 +1458,7 @@ void FrameGrabber::update_fps(long_t index, timestamp_t stamp, timestamp_t tdelt
             if(_video)
                 print(index,"/",_video->length()," (t+",str.c_str(),") @ ", dec<1>(_fps.load()),"fps (eta:",ETA.c_str()," load:",loading_str.c_str()," proc:",processing_str.c_str()," track:",tracking_str.c_str()," save:",saving_str.c_str(),")");
             else
-                print(index," (t+",str,") @ ", dec<1>(_fps.load()),"fps (load:",loading_str.c_str()," proc:",processing_str.c_str()," track:",tracking_str.c_str()," save:",saving_str.c_str(),")");
+                print(index," (t+",str.c_str(),") @ ", dec<1>(_fps.load()),"fps (load:",loading_str.c_str()," proc:",processing_str.c_str()," track:",tracking_str.c_str()," save:",saving_str.c_str(),")");
         }
         
         if(GRAB_SETTINGS(output_statistics))
