@@ -1,6 +1,6 @@
-<p align="center"><img src="https://github.com/mooch443/trex/blob/master/images/Icon1024.png" width="160px"></p>
+<p align="center"><img src="https://github.com/mooch443/trex/blob/main/images/Icon1024.png" width="160px"></p>
 
-[![CondaBuildLinux](https://github.com/mooch443/trex/actions/workflows/cmake-ubuntu.yml/badge.svg?branch=master)](https://github.com/mooch443/trex/actions/workflows/cmake-ubuntu.yml) [![CondaBuildMacOS](https://github.com/mooch443/trex/actions/workflows/cmake-macos.yml/badge.svg?branch=master)](https://github.com/mooch443/trex/actions/workflows/cmake-macos.yml) [![CondaBuildWindows](https://github.com/mooch443/trex/actions/workflows/cmake-windows.yml/badge.svg?branch=master)](https://github.com/mooch443/trex/actions/workflows/cmake-windows.yml)
+[![CondaBuildLinux](https://github.com/mooch443/trex/actions/workflows/cmake-ubuntu.yml/badge.svg?branch=main)](https://github.com/mooch443/trex/actions/workflows/cmake-ubuntu.yml) [![CondaBuildMacOS](https://github.com/mooch443/trex/actions/workflows/cmake-macos.yml/badge.svg?branch=main)](https://github.com/mooch443/trex/actions/workflows/cmake-macos.yml) [![CondaBuildWindows](https://github.com/mooch443/trex/actions/workflows/cmake-windows.yml/badge.svg?branch=main)](https://github.com/mooch443/trex/actions/workflows/cmake-windows.yml)
 
 *Now with native [Apple Silicone (M1)](https://www.apple.com/mac/m1/) and ML Compute support. [How to install TRex (arm64)](https://trex.run/docs/install.html#install-m1).*
 
@@ -68,7 +68,7 @@ If you experience problems with [Tensorflow](https://tensorflow.org), such as in
 
 # License
 
-Released under the GPLv3 License (see [LICENSE](https://github.com/mooch443/trex/blob/master/LICENSE)).
+Released under the GPLv3 License (see [LICENSE](https://github.com/mooch443/trex/blob/main/LICENSE)).
 
 # Reference
 
