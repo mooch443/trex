@@ -90,6 +90,12 @@ else
 fi
 
 if [ "$(uname)" == "Linux" ]; then
+    make -j$(( $(nproc) - 1 )) libzip
+else
+    make -j$(( $(sysctl -n hw.ncpu) - 1 )) libzip
+fi  
+
+if [ "$(uname)" == "Linux" ]; then
     make -j$(( $(nproc) - 1 )) CustomOpenCV
 else
     make -j$(( $(sysctl -n hw.ncpu) - 1 )) CustomOpenCV

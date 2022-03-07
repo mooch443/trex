@@ -49,7 +49,7 @@ jobs:
         echo "::group::Fix Meta"
         cd $GITHUB_WORKSPACE/conda
         p=${GITHUB_REF##*/}
-        sed -i -e 's+master+'$p'+g' meta.yaml
+        sed -i -e 's+main+'$p'+g' meta.yaml
         cat meta.yaml
         echo "::endgroup::"
         echo "::group::Build"
