@@ -83,7 +83,7 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
 
     if (my_bounds.contains(pos)) {
         //print("adding tag at ", tag->bounds(), " to individual ", _identity, " at ", my_bounds, " for segment ",*seg);
-        auto &&[pos, image] = tag->image();
+        auto &&[pos, image] = tag->image(nullptr, Bounds(-1, -1, -1, -1), 0);
         _qrcodes[seg->start()].emplace_back( frame, std::move(tag) );
         //tf::imshow(_identity.name(), image->get());
         return true;
