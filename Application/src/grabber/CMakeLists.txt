@@ -130,13 +130,16 @@ target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE
 )
 
 if(NOT COMMONS_NO_PYTHON)
-    target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE tracker_python)
-
-    if(NOT pybind11_external)
-        target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE pybind11::pybind11 pybind11::embed pybind11::module)
-    else()
-        target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE ${PYTHON_LIBRARIES})
+    if(WIN32)
+        target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE tracker_python)
+        set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
     endif()
+
+    #if(NOT pybind11_external)
+    #    target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE pybind11::pybind11 pybind11::embed pybind11::module)
+    #else()
+    #    target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE ${PYTHON_LIBRARIES})
+    #endif()
 endif()
 
 if(WITH_HTTPD)
@@ -205,6 +208,7 @@ set(RESOURCE_COPY_FILES
 set(RESOURCE_COPY_SINGLE_FILES
     ${CMAKE_SOURCE_DIR}/default.settings
     ${CMAKE_SOURCE_DIR}/closed_loop.py
+    ${CMAKE_SOURCE_DIR}/pretrained_tagwork.py
     ${CMAKE_CURRENT_SOURCE_DIR}/../tracker/python/trex_init.py
 )
 

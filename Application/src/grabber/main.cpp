@@ -606,13 +606,13 @@ int main(int argc, char** argv)
         cmd.load_settings();
 
 #if !TREX_NO_PYTHON
-        if (SETTING(enable_closed_loop)) {
+        if (SETTING(enable_closed_loop) || SETTING(tags_enable)) {
             track::PythonIntegration::set_settings(GlobalSettings::instance());
             track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
 
             track::Recognition::fix_python();
             track::PythonIntegration::instance();
-            track::PythonIntegration::ensure_started();
+            track::PythonIntegration::ensure_started().get();
         }
 #endif
         

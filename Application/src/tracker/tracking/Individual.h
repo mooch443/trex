@@ -287,6 +287,11 @@ constexpr std::array<const char*, 8> ReasonsNames {
             {}
             
         };
+
+        struct QRCode {
+            Frame_t frame;
+            pv::BlobPtr _blob;
+        };
         
     protected:
         LocalCache _local_cache;
@@ -294,12 +299,20 @@ constexpr std::array<const char*, 8> ReasonsNames {
         
         //! Segment start to Tag
         std::map<Frame_t, std::multiset<tags::Tag>> _best_images;
+        ska::bytell_hash_map<Frame_t, std::vector<QRCode>> _qrcodes;
+        mutable std::mutex _qrcode_mutex;
+        ska::bytell_hash_map<Frame_t, std::tuple<int64_t, float>> _qrcode_identities;
+        Frame_t _last_requested_qrcode;
         
     public:
+        std::tuple<int64_t, float> qrcode_at(Frame_t segment_start) const;
+        ska::bytell_hash_map<Frame_t, std::tuple<int64_t, float>> qrcodes() const;
+
         float midline_length() const;
         size_t midline_samples() const;
         float outline_size() const;
         
+        bool add_qrcode(Frame_t frameIndex, pv::BlobPtr&&);
         void add_tag_image(const tags::Tag& tag);
         const std::multiset<tags::Tag>* has_tag_images_for(Frame_t frameIndex) const;
         std::set<Frame_t> added_postures;

@@ -722,6 +722,24 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             segment->add_posture_at(stuff, fish);
         }
     }
+
+    if (_header.version >= Versions::V_34) {
+        uint64_t N;
+        ref.read<uint64_t>(N);
+
+        for (uint64_t i = 0; i < N; ++i) {
+            data_long_t frame;
+            ref.read<data_long_t>(frame);
+
+            int32_t id;
+            ref.read<int32_t>(id);
+
+            float prob;
+            ref.read<float>(prob);
+
+            fish->_qrcode_identities[Frame_t(frame)] = { id, prob };
+        }
+    }
     
     //delta = this->tell() - pos_before;
     _post_pool.enqueue(fish);
@@ -915,10 +933,18 @@ uint64_t Data::write(const Individual& val) {
     }
     
     pack.write<uint64_t>(outlines.size());
-    
     for(auto && [frame, outline] : outlines) {
         pack.write<data_long_t>(frame);
         pack.write<MinimalOutline>(*outline);
+    }
+
+    pack.write<uint64_t>(val._qrcode_identities.size());
+    for (auto& [frame, match] : val._qrcode_identities) {
+        pack.write<data_long_t>(frame.get());
+
+        auto& [id, prob] = match;
+        pack.write<int32_t>(id);
+        pack.write<float>(prob);
     }
     
     //str = Meta::toStr(FileSize(pack.size()));

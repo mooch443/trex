@@ -528,6 +528,7 @@ void PythonIntegration::reinit() {
                 
                 TRex = _main.import("TRex");
                 _locals = new pybind11::dict("model"_a="None");
+                print("# imported TRex module");
                 
                 PythonIntegration::execute("import sys\nset_version(sys.version, False, '')");
                 
@@ -623,7 +624,7 @@ void PythonIntegration::reinit() {
                 }
 
             } catch(py::error_already_set &e) {
-                print("Python runtime error during clean-up: '", e.what(),"'");
+                print("Python runtime error during clean-up: ", e.what());
                 e.restore();
             }
             
@@ -632,7 +633,7 @@ void PythonIntegration::reinit() {
                 Py_Finalize();
                 
             } catch(py::error_already_set &e) {
-                print("Python runtime error during clean-up: '", e.what(),"'");
+                print("Python runtime error during clean-up: ", e.what());
                 e.restore();
             }
         });
@@ -713,7 +714,7 @@ void PythonIntegration::reinit() {
             try {
                 task._task();
             } catch (py::error_already_set &e) {
-                FormatExcept("Python runtime error: ", std::string(e.what()));
+                FormatExcept{ "Python runtime error: ", e.what() };
                 e.restore();
                 throw SoftException(e.what());
             } catch(...) {
@@ -973,6 +974,7 @@ bool PythonIntegration::is_none(const std::string& name, const std::string &m) {
     } \
 }
 IMPL_VARIABLE(const std::vector<Image::Ptr>&)
+IMPL_VARIABLE(const std::vector<Image::UPtr>&)
 IMPL_VARIABLE_SHAPE(long_t)
 IMPL_VARIABLE_SHAPE(float)
 IMPL_VARIABLE(float)

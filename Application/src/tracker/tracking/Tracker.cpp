@@ -3164,8 +3164,64 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         
         update_warnings(frameIndex, frame.time, number_fish, n, prev, props, prev_props, _active_individuals, _individual_add_iterator_map);
         
-        if(save_tags)
+        if (save_tags || !frame.tags().empty()) {
+            // find match between tags and individuals
+            Match::PairedProbabilities paired;
+            const Match::prob_t p_threshold = FAST_SETTINGS(matching_probability_threshold);
+
+            for (auto fish : active_individuals) {
+                Match::pairing_map_t<Match::Blob_t, prob_t> probs;
+                
+                auto cache = frame.cached(fish->identity().ID());
+                if (!cache)
+                    continue;
+
+                for (const auto &blob : frame.tags()) {
+                    auto p = fish->probability(-1, *cache, frameIndex, blob);
+                    if (p >= p_threshold)
+                        probs[&blob] = p;
+                }
+
+                if(!probs.empty())
+                    paired.add(fish, probs);
+            }
+
+            /*for (auto& [fish, fdi] : paired_blobs.row_indexes()) {
+                if (!clique.fids.contains(fdi))
+                    continue;
+
+                auto assigned = fish_assigned.find(fish);
+                if (assigned != fish_assigned.end() && assigned->second)
+                    continue;
+
+                auto edges = paired_blobs.edges_for_row(fdi);
+
+                Match::pairing_map_t<Match::Blob_t, prob_t> probs;
+                for (auto& e : edges) {
+                    auto blob = paired_blobs.col(e.cdx);
+                    if (!blob_assigned.count(blob->get()) || !blob_assigned.at(blob->get()))
+                        probs[blob] = e.p;
+                }
+
+                if (!probs.empty())
+                    paired.add(fish, probs);
+            }*/
+
+            Match::PairingGraph graph(*props, frameIndex, paired);
+            try {
+                auto& optimal = graph.get_optimal_pairing(false, matching_mode_t::hungarian);
+                for (auto& [fish, blob] : optimal.pairings) {
+                    if (!fish->add_qrcode(frameIndex, std::move(*const_cast<pv::BlobPtr*>(blob)))) {
+                        //FormatWarning("Fish ", fish->identity(), " rejected tag at ", (*blob)->bounds());
+                    }
+                }
+            }
+            catch (...) {
+                FormatExcept("Exception during tags to individuals matching.");
+            }
+            frame.tags().clear(); // is invalidated now
             _thread_pool.wait();
+        }
         
         std::lock_guard<std::mutex> guard(_statistics_mutex);
         _statistics[frameIndex].number_fish = assigned_count;
