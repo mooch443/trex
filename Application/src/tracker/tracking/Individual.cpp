@@ -87,7 +87,7 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
         if (image->cols != 32 || image->rows != 32)
             FormatWarning("Image dimensions are wrong ", image->bounds());
         else
-            _qrcodes[seg->start()].emplace_back( frame, std::move(tag) );
+            _qrcodes[seg->start()].emplace_back( QRCode { frame, std::move(tag) } );
         //tf::imshow(_identity.name(), image->get());
         return true;
     }
@@ -1302,7 +1302,7 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(F
     error_code |= Reasons::MaxSegmentLength      * uint32_t(FAST_SETTINGS(track_segment_max_length) > 0 && segment && segment->length() / float(FAST_SETTINGS(frame_rate)) >= FAST_SETTINGS(track_segment_max_length));
     
     //! do we need to start a new segment?
-    if (!_qrcodes.empty() && segment && (error_code != 0 || (!_last_requested_qrcode.valid() && _last_requested_qrcode + 500_f < frameIndex))) {
+    if (SETTING(tags_recognize) && !_qrcodes.empty() && segment && (error_code != 0 || (!_last_requested_qrcode.valid() && _last_requested_qrcode + 500_f < frameIndex))) {
         auto it = _qrcodes.find(segment->start());
         if (it != _qrcodes.end() && it->second.size() > 5) {
             if (it->second.size() > 20 || error_code != 0) {
