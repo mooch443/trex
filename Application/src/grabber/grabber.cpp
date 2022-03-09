@@ -1801,7 +1801,8 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
     }
 
     {
-        auto rawblobs = CPULabeling::run(task->current->get(), true);
+        //auto rawblobs = CPULabeling::run(task->current->get(), true);
+        std::vector<blob::Pair> rawblobs;
         for (auto& blob : task->tags) {
             rawblobs.emplace_back(
                 std::make_unique<blob::line_ptr_t::element_type>(*blob->lines()),

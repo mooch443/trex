@@ -84,7 +84,10 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
     if (my_bounds.contains(pos)) {
         //print("adding tag at ", tag->bounds(), " to individual ", _identity, " at ", my_bounds, " for segment ",*seg);
         auto &&[pos, image] = tag->image(nullptr, Bounds(-1, -1, -1, -1), 0);
-        _qrcodes[seg->start()].emplace_back( frame, std::move(tag) );
+        if (image->cols != 32 || image->rows != 32)
+            FormatWarning("Image dimensions are wrong ", image->bounds());
+        else
+            _qrcodes[seg->start()].emplace_back( frame, std::move(tag) );
         //tf::imshow(_identity.name(), image->get());
         return true;
     }
@@ -1321,7 +1324,7 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(F
                     if (step > 0 && i++ % step == 0) {
                         continue;
                     }
-                    auto ptr = std::get<1>(blob->image());
+                    auto ptr = std::get<1>(blob->image(nullptr, Bounds(-1, -1, -1, -1), 0));
                     //tf::imshow("push", ptr->get());
                     task._frames.push_back(frame);
                     task._images.push_back(std::move(ptr));
