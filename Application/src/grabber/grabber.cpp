@@ -51,6 +51,7 @@ CREATE_STRUCT(GrabSettings,
   (float,        image_brightness_increase),
   (bool,        enable_closed_loop),
   (bool,        tags_enable),
+    (bool,      tags_recognize),
   (bool,        output_statistics),
   (file::Path, filename)
 )
@@ -577,7 +578,7 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
     }
     
 #if !TREX_NO_PYTHON
-    if (GRAB_SETTINGS(enable_closed_loop) || GRAB_SETTINGS(tags_enable)) {
+    if (GRAB_SETTINGS(enable_closed_loop) || GRAB_SETTINGS(tags_recognize)) {
         track::PythonIntegration::set_settings(GlobalSettings::instance());
         track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
 
@@ -751,7 +752,7 @@ FrameGrabber::~FrameGrabber() {
         _tracker_thread->join();
         delete _tracker_thread;
         
-        if (GRAB_SETTINGS(enable_closed_loop) || GRAB_SETTINGS(tags_enable)) {
+        if (GRAB_SETTINGS(enable_closed_loop) || GRAB_SETTINGS(tags_recognize)) {
             Output::PythonIntegration::quit();
         }
         
@@ -1026,8 +1027,10 @@ bool FrameGrabber::load_image(Image_t& current) {
                 return false;
             }
             
-            if(does_change_size)
+            if (does_change_size) {
                 image.get().copyTo(m);
+                current.set_timestamp(image.timestamp());
+            }
         }
     }
     
@@ -1580,7 +1583,12 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
         Timer timer;
         
         used_index_here = Frame_t(_processed.length());
-        _processed.add_individual(*task->frame, pack, compressed);
+        try {
+            _processed.add_individual(*task->frame, pack, compressed);
+        }
+        catch (...)
+        {
+        }
         //_last_index = task->current->index();
         //_last_timestamp = task->frame->timestamp();
         _saving_time = _saving_time * 0.75 + timer.elapsed() * 0.25;
@@ -1801,8 +1809,9 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
     }
 
     {
-        //auto rawblobs = CPULabeling::run(task->current->get(), true);
-        std::vector<blob::Pair> rawblobs;
+        auto rawblobs = CPULabeling::run(task->current->get(), true);
+        //std::vector<blob::Pair> rawblobs;
+        print("detected ", rawblobs.size(), " blobs in image ", task->index);
         for (auto& blob : task->tags) {
             rawblobs.emplace_back(
                 std::make_unique<blob::line_ptr_t::element_type>(*blob->lines()),
@@ -2066,6 +2075,8 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
     else
         task->current = Image::Make(current, current.index(), TS);
     
+    print("task->current ", task->current->bounds());
+
     if(GRAB_SETTINGS(grabber_use_threads)) {
         {
             std::unique_lock<std::mutex> guard(to_pool_mutex);

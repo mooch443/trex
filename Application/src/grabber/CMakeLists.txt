@@ -67,47 +67,15 @@ target_link_libraries(pvconvert PUBLIC
     tracker_gui
     pv
     commons
-    Commons::GLFW
+    #Commons::GLFW
     #Commons::LibPNG
     #Commons::LibZ
-    Commons::OpenCV
+    #Commons::OpenCV
     #${EXTRA_LIBS}
 )
 
 add_dependencies(pvconvert commons)#Commons::OpenCV)
 #target_precompile_headers(pvconvert REUSE_FROM commons)
-
-option(WITH_PYLON "use pylon support" OFF)
-
-if(APPLE AND WITH_PYLON)
-    FIND_LIBRARY(PYLON_LIBRARIES Pylon)
-    if(PYLON_LIBRARIES STREQUAL "PYLON_LIBRARIES-NOTFOUND" OR NOT ${WITH_PYLON})
-        set(PYLON_FOUND false)
-        add_definitions(-DWITH_PYLON=false)
-    else()
-        set(PYLON_FOUND true)
-        add_definitions(-DWITH_PYLON=true)
-        message(STATUS "Pylon found. ${PYLON_LIBRARIES} lol")
-        include_directories(/Library/Frameworks/pylon.framework/Headers/GenICam)
-    endif()
-    
-elseif(WITH_PYLON)
-    find_package(BaslerPylon)
-    if(${PYLON_FOUND})
-        include_directories(${PYLON_INCLUDE_DIRS})
-        add_definitions(-DWITH_PYLON=true)
-        message(STATUS "Pylon found.")
-    else()
-        add_definitions(-DWITH_PYLON=false)
-    endif()
-endif()
-
-
-
-if(PYLON_FOUND AND WITH_PYLON)
-    message(STATUS "linking with pylon")
-    target_link_libraries( ${TGRABS_EXEC_NAME} PUBLIC ${PYLON_LIBRARIES} )
-endif()
 
 
 
@@ -118,14 +86,14 @@ target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE
 	tracker_gui
 	pv
 	commons
-    Commons::IMGUI
-    Commons::GLAD
-	Commons::GLFW
-    Commons::FFMPEG
-    cnpy
+    #Commons::IMGUI
+    #Commons::GLAD
+	#Commons::GLFW
+    #Commons::FFMPEG
+    #cnpy
     #Commons::LibPNG
     #Commons::LibZ
-	Commons::OpenCV
+	#Commons::OpenCV
 	#${EXTRA_LIBS}
 )
 
@@ -156,10 +124,10 @@ target_link_libraries(pvinfo PRIVATE
     tracker_gui
     tracker_misc
 	commons
-    Commons::IMGUI
+    #Commons::IMGUI
 	#Commons::LibPNG
 	#Commons::GLFW
-	Commons::OpenCV
+	#Commons::OpenCV
 	#${EXTRA_LIBS}
 	pv
 )

@@ -591,12 +591,12 @@ int main(int argc, char** argv)
                 auto rejections = GlobalSettings::load_from_file(deprecations, settings_file.str(), AccessLevelType::STARTUP);
                 for(auto && [key, val] : rejections) {
                     if(deprecations.find(key) != deprecations.end())
-                        throw U_EXCEPTION("Parameter '",key,"' is deprecated. Please use '",deprecations.at(key),"'.");
+                        throw U_EXCEPTION("Parameter ",key," is deprecated. Please use ",deprecations.at(key),".");
                 }
                 DebugHeader("/LOADED ", settings_file);
             }
             else
-                FormatError("Cannot find settings file ",settings_file.str(),".");
+                FormatError("Cannot find settings file ",settings_file,".");
         }
         
         /**
@@ -606,11 +606,11 @@ int main(int argc, char** argv)
         cmd.load_settings();
 
 #if !TREX_NO_PYTHON
-        if (SETTING(enable_closed_loop) || SETTING(tags_enable)) {
+        if (SETTING(enable_closed_loop) || SETTING(tags_recognize)) {
+            track::Recognition::fix_python();
             track::PythonIntegration::set_settings(GlobalSettings::instance());
             track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
 
-            track::Recognition::fix_python();
             track::PythonIntegration::instance();
             track::PythonIntegration::ensure_started().get();
         }

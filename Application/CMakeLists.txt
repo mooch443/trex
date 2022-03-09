@@ -260,40 +260,6 @@ endif()
 include_directories(src/commons)
 include_directories(src/commons/common)
 
-if(APPLE)
-    set(CMAKE_PREFIX_PATH ${CMAKE_BINARY_DIR}/opencv_install/lib/cmake/opencv4/ ${CMAKE_PREFIX_PATH})
-    set(OpenCV_DIR ${CMAKE_BINARY_DIR}/opencv_install/)
-elseif(UNIX)
-    set(CMAKE_PREFIX_PATH ${CMAKE_BINARY_DIR}/opencv_install/share/OpenCV/ ${CMAKE_PREFIX_PATH})
-    set(OpenCV_DIR ${CMAKE_BINARY_DIR}/opencv_install/)
-else()
-    set(CMAKE_PREFIX_PATH ${CMAKE_BINARY_DIR}/opencv_install/ ${CMAKE_PREFIX_PATH})
-    set(OpenCV_DIR ${CMAKE_BINARY_DIR}/opencv_install/)
-endif()
-
-message(STATUS "OPENCV_EXTRA_FLAGS_ = ${OPENCV_EXTRA_FLAGS_}")
-message(STATUS "OPENCVDIR = ${OpenCV_DIR}")
-
-find_package(OpenCV PATHS ${OpenCV_DIR} NO_DEFAULT_PATH)
-if(OpenCV_FOUND)
-    set(OpenCV_LIBS ${OpenCV_LIBRARIES})
-    message(STATUS "Found opencv at ${OpenCV_INSTALL_PATH}, using its config.cmake ${OpenCV_LIBRARIES}")
-else()
-    set(OpenCV_LIBS Commons::OpenCV)
-    set(OpenCV_INSTALL_PATH ${CMAKE_BINARY_DIR}/opencv_install)
-endif()
-
-if(UNIX)
-    include_directories( ${OpenCV_INSTALL_PATH}/include/opencv4 )
-else()
-    include_directories( ${OpenCV_INSTALL_PATH}/include )
-endif()
-
-message(STATUS "LINK_DIR=${OpenCV_INCLUDE_DIRS}")
-link_directories(${OpenCV_INSTALL_PATH}/lib ${OpenCV_INSTALL_PATH}/lib/opencv4/3rdparty)
-link_directories(${OpenCV_INSTALL_PATH}/x64/vc17/staticlib)
-
-message(STATUS "Found opencv at ${OpenCV_INSTALL_PATH}, using its config.cmake")
 
 add_subdirectory(src)
 

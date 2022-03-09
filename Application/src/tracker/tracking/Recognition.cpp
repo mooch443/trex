@@ -223,7 +223,8 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             home = SETTING(python_path).value<file::Path>().str();
         if (file::Path(home).exists() && file::Path(home).is_regular())
             home = file::Path(home).remove_filename().str();
-        print("Setting home to ", home);
+
+        print("Checking python at ", home);
 
         if (!can_initialize_python() && !getenv("TREX_DONT_SET_PATHS")) {
             if (!SETTING(quiet))
