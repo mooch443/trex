@@ -13,7 +13,7 @@ elseif(WIN32)
 endif()
 
 if(WIN32)
-    target_link_libraries(tracker_python PRIVATE
+    target_link_libraries(tracker_python PUBLIC
         tracker_misc
         commons
         #cnpy
@@ -22,9 +22,9 @@ if(WIN32)
 		#Commons::LibZIP
 		#Commons::LibZ
     )
-    target_compile_options(tracker_python PRIVATE /D"TREX_EXPORTS")
+    target_compile_options(tracker_python PUBLIC /D"TREX_EXPORTS")
 else()
-    target_link_libraries(tracker_python PRIVATE cnpy commons)
+    target_link_libraries(tracker_python PUBLIC cnpy commons)
 endif()
 
 if(NOT pybind11_external)

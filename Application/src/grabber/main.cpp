@@ -606,14 +606,14 @@ int main(int argc, char** argv)
         cmd.load_settings();
 
 #if !TREX_NO_PYTHON
-        if (SETTING(enable_closed_loop) || SETTING(tags_recognize)) {
+        /*if (SETTING(enable_closed_loop) || SETTING(tags_recognize)) {
             track::Recognition::fix_python();
             track::PythonIntegration::set_settings(GlobalSettings::instance());
             track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
 
             track::PythonIntegration::instance();
             track::PythonIntegration::ensure_started().get();
-        }
+        }*/
 #endif
         
         SETTING(meta_source_path) = Path(SETTING(video_source).value<std::string>());

@@ -578,14 +578,14 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
     }
     
 #if !TREX_NO_PYTHON
-    if (GRAB_SETTINGS(enable_closed_loop) || GRAB_SETTINGS(tags_recognize)) {
+    /*if (GRAB_SETTINGS(enable_closed_loop) || GRAB_SETTINGS(tags_recognize)) {
         track::PythonIntegration::set_settings(GlobalSettings::instance());
         track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
 
         track::Recognition::fix_python();
         track::PythonIntegration::instance();
         track::PythonIntegration::ensure_started().get();
-    }
+    }*/
 #endif
 
     if (tracker) {
@@ -1811,7 +1811,7 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
     {
         auto rawblobs = CPULabeling::run(task->current->get(), true);
         //std::vector<blob::Pair> rawblobs;
-        print("detected ", rawblobs.size(), " blobs in image ", task->index);
+        //print("detected ", rawblobs.size(), " blobs in image ", task->index);
         for (auto& blob : task->tags) {
             rawblobs.emplace_back(
                 std::make_unique<blob::line_ptr_t::element_type>(*blob->lines()),
@@ -2074,8 +2074,6 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
         task->current->create(current, current.index(), TS);
     else
         task->current = Image::Make(current, current.index(), TS);
-    
-    print("task->current ", task->current->bounds());
 
     if(GRAB_SETTINGS(grabber_use_threads)) {
         {

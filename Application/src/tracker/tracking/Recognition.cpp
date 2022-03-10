@@ -214,7 +214,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
     }
 
     void Recognition::fix_python() {
-        if(!FAST_SETTINGS(recognition_enable) && !SETTING(enable_closed_loop) && !SETTING(tags_enable))
+        if(!FAST_SETTINGS(recognition_enable) && !SETTING(enable_closed_loop) && !SETTING(tags_recognize))
             return;
         
 #ifdef TREX_PYTHON_PATH
@@ -263,7 +263,12 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
 
                 if (!can_initialize_python())
                     FormatExcept("Please check your python environment variables, as it failed to initialize even after setting PYTHONHOME and PATH.");
+                else
+                    print("Can initialize.");
             }
+
+            track::PythonIntegration::set_settings(GlobalSettings::instance());
+            track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
         }
 #endif
     }

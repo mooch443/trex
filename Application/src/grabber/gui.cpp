@@ -549,7 +549,7 @@ void GUI::draw(gui::DrawStructure &base) {
                             return true;
                         });
 
-                        if (!SETTING(tags_enable)) {
+                        if (!SETTING(tags_recognize)) {
                             for (auto& v : positions)
                                 base.line(v, 2, fish->identity().color());
                         }
