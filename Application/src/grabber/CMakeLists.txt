@@ -43,7 +43,7 @@ else()
     set(TGRABS_EXEC_NAME tgrabs)
 endif()
 add_executable(${TGRABS_EXEC_NAME} ${SRCS})
-#target_precompile_headers(${TGRABS_EXEC_NAME} REUSE_FROM commons)
+target_precompile_headers(${TGRABS_EXEC_NAME} REUSE_FROM commons)
 
 if(WIN32)
 	set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES LINK_FLAGS_RELEASE "/DELAYLOAD:tracker_python.dll" )
@@ -75,7 +75,7 @@ target_link_libraries(pvconvert PUBLIC
 )
 
 add_dependencies(pvconvert commons)#Commons::OpenCV)
-#target_precompile_headers(pvconvert REUSE_FROM commons)
+target_precompile_headers(pvconvert REUSE_FROM commons)
 
 
 
@@ -86,28 +86,19 @@ target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE
 	tracker_gui
 	pv
 	commons
-    #Commons::IMGUI
-    #Commons::GLAD
-	#Commons::GLFW
-    #Commons::FFMPEG
-    #cnpy
-    #Commons::LibPNG
-    #Commons::LibZ
-	#Commons::OpenCV
-	#${EXTRA_LIBS}
 )
 
 if(NOT COMMONS_NO_PYTHON)
+    target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE tracker_python)
     if(WIN32)
-        target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE tracker_python)
         set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
     endif()
 
-    #if(NOT pybind11_external)
-    #    target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE pybind11::pybind11 pybind11::embed pybind11::module)
-    #else()
-    #    target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE ${PYTHON_LIBRARIES})
-    #endif()
+    if(NOT pybind11_external)
+        target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE pybind11::pybind11 pybind11::embed pybind11::module)
+    else()
+        target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE ${PYTHON_LIBRARIES})
+    endif()
 endif()
 
 if(WITH_HTTPD)
@@ -136,7 +127,7 @@ if(NOT COMMONS_NO_PYTHON)
     target_link_libraries(pvinfo PRIVATE tracker_python)
 endif()
 
-#target_precompile_headers(pvinfo REUSE_FROM commons)
+target_precompile_headers(pvinfo REUSE_FROM commons)
 
 add_dependencies(pvinfo commons) #Commons::OpenCV)
 
@@ -239,11 +230,11 @@ set(targets ${TGRABS_EXEC_NAME} pvinfo pvconvert)
 
 if(APPLE)
     add_executable(tgrabs_starter tgrabs.cpp ${GIT_SOURCES})
-    target_link_libraries(tgrabs_starter PRIVATE commons cnpy)
+    target_link_libraries(tgrabs_starter PRIVATE commons)
     set_target_properties(tgrabs_starter PROPERTIES OUTPUT_NAME tgrabs)
     set(targets ${targets} tgrabs_starter)
     target_compile_definitions(tgrabs_starter PRIVATE TREX_PYTHON_PATH="${CONDA_PREFIX_VAR}")
-    #target_precompile_headers(tgrabs_starter REUSE_FROM commons)
+    target_precompile_headers(tgrabs_starter REUSE_FROM commons)
 endif()
 
 if(WITH_FFMPEG)

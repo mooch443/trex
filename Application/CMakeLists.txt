@@ -49,6 +49,15 @@ if(TREX_CONDA_PACKAGE_INSTALL)
 endif()
 
 
+if(NOT COMMONS_NO_PYTHON)
+    find_package(Python COMPONENTS Interpreter Development REQUIRED)
+    message(STATUS "After find PYTHON: ${Python_FOUND}")
+    message(STATUS "PYTHON: ${Python_LIBRARIES}")
+    message(STATUS "PYTHON: ${Python_EXECUTABLE}")
+    set(PYTHON_EXECUTABLE "${Python_EXECUTABLE}")
+    set(PYTHON_LIBRARY "${Python_LIBRARIES}")
+endif()
+
 add_subdirectory(src/commons)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -210,6 +219,7 @@ if(XCODE)
 endif()
 
 set(trex_subproject_CMAKE_ARGS "")
+message(STATUS "TREX PYTHON VARS: lib:${PYTHON_LIBRARY} inc:${PYTHON_INCLUDE_DIR} exec:${PYTHON_EXECUTABLE}")
 
 SET(trex_subproject_CMAKE_ARGS ${trex_subproject_CMAKE_ARGS}
     -DCMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR}

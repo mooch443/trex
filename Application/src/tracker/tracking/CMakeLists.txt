@@ -10,11 +10,8 @@ elseif(WIN32)
   add_library(tracker_tracking STATIC ${SRCS} ${HDRS})
 endif()
 
-target_link_libraries(tracker_tracking PRIVATE cnpy
-    commons
-)
-
-add_dependencies(tracker_tracking tracker_misc commons)#Commons::OpenCV)
+target_link_libraries(tracker_tracking PRIVATE commons)
+add_dependencies(tracker_tracking tracker_misc commons)
 
 if(WITH_HTTPD)
     add_dependencies(tracker_tracking LibMicroHttpd)
@@ -34,4 +31,4 @@ else()
     )
 endif()
 
-#target_precompile_headers(tracker_tracking REUSE_FROM commons)
+target_precompile_headers(tracker_tracking REUSE_FROM commons)

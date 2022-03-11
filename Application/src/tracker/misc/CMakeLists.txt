@@ -16,11 +16,10 @@ endif()
 target_link_libraries(tracker_misc PRIVATE
     commons
     lzo
-	#cnpy
 )
 
 add_dependencies(tracker_misc commons) #Commons::OpenCV)
-#target_precompile_headers(tracker_misc REUSE_FROM commons)
+target_precompile_headers(tracker_misc REUSE_FROM commons)
 
 if(TREX_CONDA_PACKAGE_INSTALL)
 	if(WIN32)

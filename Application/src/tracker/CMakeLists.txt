@@ -52,12 +52,8 @@ if(NOT WIN32 AND TREX_WITH_TESTS)
         framegrabber_misc
         tracker_tracking
         commons
-        cnpy
-        #Commons::GLFW
-        #${OpenCV_LIBS}
-        #${EXTRA_LIBS}
     )
-    #target_precompile_headers(test_imgui REUSE_FROM commons)
+    target_precompile_headers(test_imgui REUSE_FROM commons)
     add_dependencies(test_imgui commons) #Commons::LibZIP Commons::GLFW Commons::OpenCV)
 endif()
 
@@ -67,15 +63,9 @@ add_executable(properties properties.cpp
 target_link_libraries(properties 
     PUBLIC 
         tracker_tracking
-        #tracker_gui
         tracker_misc
         commons 
-        pv
-        Commons::GLFW
-        Commons::OpenCV
-        imgui
-        Commons::GLAD
-        Commons::LibZIP)
+        pv)
 
 if(NOT COMMONS_NO_PYTHON)
     target_link_libraries(properties 
@@ -96,14 +86,6 @@ target_link_libraries(${TREX_EXEC_NAME} PUBLIC
     tracker_misc
 	pv
 	commons
-	Commons::GLFW
-	Commons::OpenCV
-    Commons::FFMPEG
-    imgui Commons::GLAD
-    Commons::LibZIP
-	#Commons::LibPNG
-	#Commons::LibZ
-	#${EXTRA_LIBS}
 )
 
 if(NOT COMMONS_NO_PYTHON)
@@ -234,17 +216,11 @@ endif()
 if(APPLE)
 add_executable(trex_starter trex.cpp)
 target_link_libraries(trex_starter PRIVATE
-    commons
-    cnpy
-    Commons::GLFW
-    Commons::LibPNG
-    Commons::LibZ
-    Commons::OpenCV
-    ${EXTRA_LIBS})
+    commons)
 set_target_properties(trex_starter PROPERTIES OUTPUT_NAME trex)
 set(targets ${targets} trex_starter)
 
-#target_precompile_headers(trex_starter REUSE_FROM commons)
+target_precompile_headers(trex_starter REUSE_FROM commons)
 
 if(TREX_CONDA_PACKAGE_INSTALL)
     if(WIN32)
@@ -274,8 +250,8 @@ set_target_properties(${TREX_EXEC_NAME} PROPERTIES
     XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon")
 endif()
 
-#target_precompile_headers(properties REUSE_FROM commons)
-#target_precompile_headers(${TREX_EXEC_NAME} REUSE_FROM commons)
+target_precompile_headers(properties REUSE_FROM commons)
+target_precompile_headers(${TREX_EXEC_NAME} REUSE_FROM commons)
 
 install(TARGETS ${targets}
     EXPORT TRex
