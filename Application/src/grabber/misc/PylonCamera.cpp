@@ -158,7 +158,7 @@ namespace fg {
             }
             
         } catch(const GenericException& g) {
-            print("An exception occurred '",g.GetDescription(),"'");
+            print("An exception occurred: ",g.GetDescription());
         }
         
         return false;

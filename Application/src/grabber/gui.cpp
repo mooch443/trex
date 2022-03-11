@@ -241,9 +241,12 @@ void GUI::draw(gui::DrawStructure &base) {
                         background->set_source(std::move(_image));
                         background->set_pos(offset);
                         background->set_scale(Vec2(1 / scale));
-                        noise_image->set_source(Image::Make(_image->rows, _image->cols, 4));
-                        noise_image->set_pos(offset);
-                        noise_image->set_scale(Vec2(1 / scale));
+
+                        if (noise_image) {
+                            noise_image->set_source(Image::Make(_image->rows, _image->cols, 4));
+                            noise_image->set_pos(offset);
+                            noise_image->set_scale(Vec2(1 / scale));
+                        }
                     }
                     else {
                         noise_image = new ExternalImage(Image::Make(_image->rows, _image->cols, 4), offset, Vec2(1 / scale));
@@ -467,8 +470,8 @@ void GUI::draw(gui::DrawStructure &base) {
                             FormatWarning("Individual ", fish->identity().ID(), " does not have ", frame, " despite being advertised by tags.");
                     }
                 }
-
-                Vec2 pos(Tracker::average().cols + 100, 120);
+                
+                Vec2 pos(_grabber.average().cols + 100, 120);
                 for (auto& [k, tup] : speeds) {
                     auto w = base.text(Meta::toStr(k) + ":", pos, Color(150, 150, 150, 255), Font(0.5, Style::Bold), scale)->local_bounds().width;
                     base.text(Meta::toStr(std::get<0>(tup) / std::get<1>(tup)) + "cm/s", pos + Vec2(70, 0), White, Font(0.5), scale);

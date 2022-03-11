@@ -226,19 +226,14 @@ CREATE_STRUCT(Settings,
         void _remove_frames(Frame_t frameIndex);
         
         void set_average(const Image::Ptr& average) {
-            //average.copyTo(_average);
             _average = average;
-            /*if(_grid)
-                delete _grid;
-            
-            if(SETTING(correct_luminance))
-                _grid = new LuminanceGrid(_average);
-            else
-                _grid = NULL;*/
-            
             _background = new StaticBackground(_average, nullptr);
         }
-        static const Image& average() { if(!instance()->_average) throw U_EXCEPTION("Pointer to average image is nullptr."); return *instance()->_average; }
+        static const Image& average(cmn::source_location loc = cmn::source_location::current()) { 
+            if(!instance()->_average) 
+                throw U_EXCEPTION<FormatterType::UNIX, const char*>("Pointer to average image is nullptr.", loc); 
+            return *instance()->_average; 
+        }
         
         
         static decltype(_added_frames)::const_iterator properties_iterator(Frame_t frameIndex);

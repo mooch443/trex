@@ -483,7 +483,7 @@ void PythonIntegration::reinit() {
 
             try {
 #if defined(WIN32)
-                if (!getenv("TREX_DONT_SET_PATHS")) {
+                /*if (!getenv("TREX_DONT_SET_PATHS")) {
                     std::string sep = "/";
                     auto home = Py_GetPythonHome();
                     auto home2 = SETTING(python_path).value<file::Path>().str();
@@ -503,7 +503,41 @@ void PythonIntegration::reinit() {
                         // delete it
                         delete[] pwcsName;
                     }
-                }
+                }*/
+
+
+
+                const DWORD buffSize = 65535;
+                char path[buffSize] = { 0 };
+                GetEnvironmentVariable("PYTHONHOME", path, buffSize);
+                print("Inherited pythonhome: ", std::string(path));
+                GetEnvironmentVariable("PYTHONPATH", path, buffSize);
+                print("Inherited pythonpath: ", std::string(path));
+                GetEnvironmentVariable("PATH", path, buffSize);
+                print("Inherited path: ", std::string(path));
+
+                /*auto home = SETTING(python_path).value<file::Path>().str();//::default_config::conda_environment_path().str();
+                if (file::Path(home).exists() && file::Path(home).is_regular())
+                    home = file::Path(home).remove_filename().str();
+                print("Python home: ", home);
+                auto to_wide = [](const char* home) {
+                    int nChars = MultiByteToWideChar(CP_ACP, 0, home, -1, NULL, 0);
+                    auto pwcsName = std::vector<wchar_t>(nChars);
+                    MultiByteToWideChar(CP_ACP, 0, home, -1, (LPWSTR)pwcsName.data(), nChars);
+                    return pwcsName;
+                };
+
+                auto pwcsName = to_wide(home.c_str());
+                Py_SetPythonHome(pwcsName.data());
+                SetEnvironmentVariable("PYTHONHOME", home.c_str());
+
+                auto pythonpath = home + ";" + home + "/DLLs;" + home + "/Lib/site-packages";
+                pwcsName = to_wide(pythonpath.c_str());
+                Py_SetPath(pwcsName.data());
+                SetEnvironmentVariable("PYTHONPATH", pythonpath.c_str());
+
+                SetEnvironmentVariable("PATH", home.c_str());*/
+
 #endif
 
                 py::initialize_interpreter();

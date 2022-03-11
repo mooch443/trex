@@ -249,8 +249,11 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
 
             set = set + path;
 
-            SetEnvironmentVariable("PATH", set.c_str());
+            //SetEnvironmentVariable("PATH", set.c_str());
             SetEnvironmentVariable("PYTHONHOME", home.c_str());
+
+            //auto pythonpath = home + ";" + home + "/DLLs;" + home + "/Lib/site-packages";
+            //SetEnvironmentVariable("PYTHONPATH", pythonpath.c_str());
 #else
             std::string path = (std::string)getenv("PATH");
             set = set + path;

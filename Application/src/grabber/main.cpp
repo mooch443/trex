@@ -840,7 +840,7 @@ int main(int argc, char** argv)
     }
     catch (const Pylon::GenericException &e)
     {
-        throw U_EXCEPTION("An exception occured: '",e.GetDescription(),"'");
+        throw U_EXCEPTION("An exception occured: ",e.GetDescription());
         return 1;
     }
 #endif

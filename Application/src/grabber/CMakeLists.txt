@@ -154,7 +154,7 @@ message(STATUS "Setting TREX_PYTHON_PATH=${CONDA_PREFIX_VAR}")
 
 target_compile_definitions(pvinfo PRIVATE TREX_PYTHON_PATH="${CONDA_PREFIX_VAR}")
 target_compile_definitions(pvconvert PRIVATE TREX_PYTHON_PATH="${CONDA_PREFIX_VAR}")
-target_compile_definitions(${TGRABS_EXEC_NAME} PRIVATE TREX_PYTHON_PATH="${CONDA_PREFIX_VAR}")
+target_compile_definitions(${TGRABS_EXEC_NAME} PUBLIC TREX_PYTHON_PATH="${CONDA_PREFIX_VAR}")
 
 set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/gfx/GrabberIcon.icns PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 

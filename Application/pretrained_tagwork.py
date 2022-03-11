@@ -34,7 +34,7 @@ def init():
     #TRex.log("# initializing")
     tagwork = Tagwork(width, height)
     #Trex.log("# loading network")
-    tagwork.load("C:/Users/tristan/pretrained.h5")
+    tagwork.load("C:/Users/tristan/Videos/pretrained.h5")
 
 def load():
     pass

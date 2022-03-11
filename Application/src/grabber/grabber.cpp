@@ -383,6 +383,7 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
             }
         } else {
             print("Average image at ",path.str()," doesnt exist.");
+            _average_finished = false;
             if(SETTING(reset_average))
                 SETTING(reset_average) = false;
         }
@@ -1809,8 +1810,8 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
     }
 
     {
-        auto rawblobs = CPULabeling::run(task->current->get(), true);
-        //std::vector<blob::Pair> rawblobs;
+        //auto rawblobs = CPULabeling::run(task->current->get(), true);
+        std::vector<blob::Pair> rawblobs;
         //print("detected ", rawblobs.size(), " blobs in image ", task->index);
         for (auto& blob : task->tags) {
             rawblobs.emplace_back(
