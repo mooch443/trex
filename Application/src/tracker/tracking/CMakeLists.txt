@@ -31,4 +31,4 @@ else()
     )
 endif()
 
-target_precompile_headers(tracker_tracking REUSE_FROM commons)
+#target_precompile_headers(tracker_tracking REUSE_FROM commons)

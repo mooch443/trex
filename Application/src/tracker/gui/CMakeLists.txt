@@ -20,7 +20,7 @@ target_link_libraries(tracker_gui PRIVATE
     tracker_misc
     commons
 )
-target_precompile_headers(tracker_gui REUSE_FROM commons)
+#target_precompile_headers(tracker_gui REUSE_FROM commons)
 
 if(APPLE)
   target_compile_options(tracker_gui PRIVATE "-DNS_FORMAT_ARGUMENT(A)=" "-D_Nullable_result=_Nullable")

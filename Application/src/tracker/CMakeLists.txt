@@ -53,7 +53,7 @@ if(NOT WIN32 AND TREX_WITH_TESTS)
         tracker_tracking
         commons
     )
-    target_precompile_headers(test_imgui REUSE_FROM commons)
+    #target_precompile_headers(test_imgui REUSE_FROM commons)
     add_dependencies(test_imgui commons) #Commons::LibZIP Commons::GLFW Commons::OpenCV)
 endif()
 
@@ -220,7 +220,7 @@ target_link_libraries(trex_starter PRIVATE
 set_target_properties(trex_starter PROPERTIES OUTPUT_NAME trex)
 set(targets ${targets} trex_starter)
 
-target_precompile_headers(trex_starter REUSE_FROM commons)
+#target_precompile_headers(trex_starter REUSE_FROM commons)
 
 if(TREX_CONDA_PACKAGE_INSTALL)
     if(WIN32)
@@ -250,8 +250,8 @@ set_target_properties(${TREX_EXEC_NAME} PROPERTIES
     XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon")
 endif()
 
-target_precompile_headers(properties REUSE_FROM commons)
-target_precompile_headers(${TREX_EXEC_NAME} REUSE_FROM commons)
+#target_precompile_headers(properties REUSE_FROM commons)
+#target_precompile_headers(${TREX_EXEC_NAME} REUSE_FROM commons)
 
 install(TARGETS ${targets}
     EXPORT TRex
