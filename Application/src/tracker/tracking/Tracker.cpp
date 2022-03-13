@@ -1773,7 +1773,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         // ------------------------------------
         // filter and calculate blob properties
         // ------------------------------------
-        std::queue<std::tuple<Individual*, const Individual::BasicStuff*>> need_postures;
+        std::queue<std::tuple<Individual*, Individual::BasicStuff*>> need_postures;
         
         ska::bytell_hash_map<pv::Blob*, bool> blob_assigned;
         ska::bytell_hash_map<Individual*, bool> fish_assigned;
@@ -1837,12 +1837,13 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             if(!blob->moments().ready) {
                 blob->calculate_moments();
             }
-            auto &basic = fish->add(props, frameIndex, frame, blob, -1, match_mode);
-            if(!basic) {
+            auto index = fish->add(props, frameIndex, frame, blob, -1, match_mode);
+            if(index == -1) {
                 FormatExcept("Was not able to assign individual ", fish->identity().ID()," with blob ", blob->blob_id(),"");
                 return;
             }
             
+            auto &basic = fish->basic_stuff()[size_t(index)];
             fish_assigned[fish] = true;
             blob_assigned[blob.get()] = true;
             
@@ -1859,8 +1860,11 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             
             if (do_posture)
                 need_postures.push({fish, basic.get()});
-            else //if(!Recognition::recognition_enabled())
+            else {
                 basic->pixels = nullptr;
+            }
+            //else //if(!Recognition::recognition_enabled())
+            //    basic->pixels = nullptr;
             
             assigned_count++;
         };
@@ -3074,7 +3078,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             TakeTiming take(timing);
             
             if(do_posture && !need_postures.empty()) {
-                static std::vector<std::tuple<Individual*, const Individual::BasicStuff*>> all;
+                static std::vector<std::tuple<Individual*, Individual::BasicStuff*>> all;
                 
                 while(!need_postures.empty()) {
                     all.emplace_back(std::move(need_postures.front()));
@@ -3087,7 +3091,12 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     
                     for(auto it = start; it != end; ++it) {
                         t.reset();
-                        std::get<0>(*it)->save_posture(*std::get<1>(*it), frameIndex);
+                        
+                        auto fish = std::get<0>(*it);
+                        auto basic = std::get<1>(*it);
+                        fish->save_posture(*basic, frameIndex);
+                        basic->pixels = nullptr;
+                        
                         collected += t.elapsed();
                     }
                     

@@ -936,9 +936,10 @@ void Individual::LocalCache::add(const PostureStuff& stuff) {
     }
 }
 
-const Individual::BasicStuff* Individual::add(const FrameProperties* props, Frame_t frameIndex, const PPFrame& frame, const pv::BlobPtr& blob, prob_t current_prob, default_config::matching_mode_t::Class match_mode) {
+int64_t Individual::add(const FrameProperties* props, Frame_t frameIndex, const PPFrame& frame, const pv::BlobPtr& blob, prob_t current_prob, default_config::matching_mode_t::Class match_mode)
+{
     if (has(frameIndex))
-        return nullptr;
+        return -1;
     
     if (frameIndex >= _startFrame && frameIndex <= _endFrame)
         throw UtilsException("Cannot add intermediate frames out of order.");
@@ -1012,7 +1013,8 @@ const Individual::BasicStuff* Individual::add(const FrameProperties* props, Fram
     auto segment = update_add_segment(frameIndex, stuff->centroid, prev_frame, &stuff->blob, p);
     
     // add BasicStuff index to segment
-    segment->add_basic_at(frameIndex, _basic_stuff.size());
+    auto index = _basic_stuff.size();
+    segment->add_basic_at(frameIndex, index);
     if(!_basic_stuff.empty() && stuff->frame < _basic_stuff.back()->frame)
         throw SoftException("(", identity(),") Added basic stuff for frame ", stuff->frame, " after frame ", _basic_stuff.back()->frame,".");
     _basic_stuff.push_back(std::move(stuff));
@@ -1023,7 +1025,7 @@ const Individual::BasicStuff* Individual::add(const FrameProperties* props, Fram
         update_midlines(&_hints);
     }
     
-    return _basic_stuff.back();
+    return int64_t(index);
 }
 
 void Individual::iterate_frames(const Range<Frame_t>& segment, const std::function<bool(Frame_t frame, const std::shared_ptr<SegmentInformation>&, const Individual::BasicStuff*, const Individual::PostureStuff*)>& fn) const {
