@@ -936,7 +936,7 @@ void Individual::LocalCache::add(const PostureStuff& stuff) {
     }
 }
 
-const std::unique_ptr<Individual::BasicStuff>& Individual::add(const FrameProperties* props, Frame_t frameIndex, const PPFrame& frame, const pv::BlobPtr& blob, prob_t current_prob, default_config::matching_mode_t::Class match_mode) {
+const Individual::BasicStuff* Individual::add(const FrameProperties* props, Frame_t frameIndex, const PPFrame& frame, const pv::BlobPtr& blob, prob_t current_prob, default_config::matching_mode_t::Class match_mode) {
     if (has(frameIndex))
         return nullptr;
     
