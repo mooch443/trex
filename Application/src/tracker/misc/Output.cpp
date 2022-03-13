@@ -772,7 +772,7 @@ template<> void Data::read(Individual*& out_ptr) {
             auto N = results->_expected_individuals.load();
             double N_written = results->_N_written.load();
             if(N <= 100 || results->_N_written % max(100u, uint64_t(N * 0.01)) == 0) {
-                print("Read individual ", int64_t(N_written),"/", N," (",int64_t(N_written),"%)...");
+                print("Read individual ", int64_t(N_written),"/", N," (",dec<2>(double(N_written) / double(N)),"%)...");
                 results->_update_progress("", narrow_cast<float>(N_written / double(N)), results->filename().str()+"\n<ref>loading individual</ref> <number>"+Meta::toStr(results->_N_written)+"</number> <ref>of</ref> <number>"+Meta::toStr(N)+"</number>");
             }
         }

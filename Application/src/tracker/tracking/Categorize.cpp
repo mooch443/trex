@@ -352,6 +352,10 @@ DataStore::const_iterator DataStore::end() {
     return _samples.end();
 }
 
+bool DataStore::_ranges_empty_unsafe() {
+    return _ranged_labels.empty();
+}
+
 void DataStore::set_ranged_label(RangedLabel&& ranged)
 {
     std::unique_lock guard(range_mutex());

@@ -140,7 +140,7 @@ namespace default_config {
         CONFIG("tags_enable", false, "(beta) live tracking of tags.");
         CONFIG("tags_debug", false, "(beta) enable debugging for tags.");
         CONFIG("tags_recognize", false, "(beta) apply an existing machine learning network to get tag ids.");
-
+        CONFIG("tags_saved_only", false, "(beta) if set to true, all objects other than the detected blobs are removed and not written to the output video file.");
         CONFIG("cam_circle_mask", false, "If set to true, a circle with a diameter of the width of the video image will mask the video. Anything outside that circle will be disregarded as background.");
         CONFIG("cam_undistort", false, "If set to true, the recorded video image will be undistorted using `cam_undistort_vector` (1x5) and `cam_matrix` (3x3).");
         CONFIG("image_invert", false, "Inverts the image greyscale values before thresholding.");

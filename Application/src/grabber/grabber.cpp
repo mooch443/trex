@@ -53,6 +53,7 @@ CREATE_STRUCT(GrabSettings,
   (bool,        tags_enable),
     (bool,      tags_recognize),
   (bool,        output_statistics),
+(bool, tags_saved_only),
   (file::Path, filename)
 )
 
@@ -1815,9 +1816,10 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
     }
 
     {
-        //auto rawblobs = CPULabeling::run(task->current->get(), true);
         std::vector<blob::Pair> rawblobs;
-        //print("detected ", rawblobs.size(), " blobs in image ", task->index);
+        if(!GRAB_SETTINGS(tags_saved_only))
+            rawblobs = CPULabeling::run(task->current->get(), true);
+        
         for (auto& blob : task->tags) {
             rawblobs.emplace_back(
                 std::make_unique<blob::line_ptr_t::element_type>(*blob->lines()),
