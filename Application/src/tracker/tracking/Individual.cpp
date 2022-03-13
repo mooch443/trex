@@ -1989,7 +1989,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     auto end = Tracker::instance()->frames().end();
     auto iterator = end;
     
-    iterate_frames(range, [&](Frame_t frame, const std::shared_ptr<SegmentInformation> &, auto basic, auto) -> bool
+    iterate_frames(range, [&](Frame_t frame, const std::shared_ptr<SegmentInformation> &, const Individual::BasicStuff* basic, auto) -> bool
     {
         if(is_manual_match(frame)) {
             cache.last_frame_manual = true;
