@@ -215,30 +215,11 @@ endif()
 
 if(APPLE)
 add_executable(trex_starter trex.cpp)
-target_link_libraries(trex_starter PRIVATE
-    commons)
+target_link_libraries(trex_starter PRIVATE commons)
 set_target_properties(trex_starter PROPERTIES OUTPUT_NAME trex)
 set(targets ${targets} trex_starter)
 
 #target_precompile_headers(trex_starter REUSE_FROM commons)
-
-if(TREX_CONDA_PACKAGE_INSTALL)
-    if(WIN32)
-		set(CONDA_PREFIX_VAR "CONDA_PREFIX")
-	else()
-		set(CONDA_PREFIX_VAR "$ENV{PREFIX}")
-	endif()
-    string(REPLACE "\\" "\\\\" CONDA_PREFIX_VAR "${CONDA_PREFIX_VAR}")
-    target_compile_definitions(trex_starter PRIVATE TREX_PYTHON_PATH="${CONDA_PREFIX_VAR}")
-    message(STATUS "Setting TREX_PYTHON_PATH=${CONDA_PREFIX_VAR}")
-else()
-    message(STATUS "Adding compile definitions: ${PYTHON_EXECUTABLE}")
-    target_compile_definitions(trex_starter PRIVATE
-        TREX_PYTHON_PATH="${PYTHON_EXECUTABLE}"
-    )
-    message(STATUS "Setting TREX_PYTHON_PATH=${PYTHON_EXECUTABLE}")
-endif()
-
 endif()
 
 if(APPLE)

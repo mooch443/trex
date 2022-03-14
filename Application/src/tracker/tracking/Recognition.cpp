@@ -136,7 +136,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
     }
 
     bool Recognition::python_available() {
-#ifndef TREX_PYTHON_PATH
+#ifndef COMMONS_PYTHON_EXECUTABLE
         return false;
 #endif
         //return false;
