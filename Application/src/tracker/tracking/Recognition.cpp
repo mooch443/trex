@@ -333,7 +333,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             if(it != entry->second.end()) {
                 std::map<Idx_t, float> map;
                 for (size_t i=0; i<it->second.size(); i++) {
-                    map[fish_idx_to_id.empty() ? Idx_t(i) : fish_idx_to_id.at(Idx_t(i))] = it->second[i];
+                    map[Idx_t(i)] = it->second[i];
                 }
                 return map;
             }

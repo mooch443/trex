@@ -521,10 +521,7 @@ void TrainingData::merge_with(std::shared_ptr<TrainingData> other, bool unmap_ev
         }
     }
     
-    auto str = Meta::toStr(added_images);
-    
-    me = Meta::toStr(*this);
-    print("[TrainingData] Finished merging: ",me," (added images: ",str,")");
+    print("[TrainingData] Finished merging: ",*this," (added images: ",added_images,")");
     
     //if(unmap_everything) {
      //   auto image = draw_coverage();

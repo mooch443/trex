@@ -3544,6 +3544,175 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                 }
             }, from);
             
+            if(header.version <= Output::ResultsFormat::Versions::V_33
+               && !Tracker::recognition()->data().empty())
+            {
+                // probably need to convert blob ids
+                pv::Frame f;
+                size_t found = 0;
+                size_t N = 0;
+                
+                for (auto &[k, v] : Tracker::recognition()->data()) {
+                    GUI::instance()->video_source()->read_frame(f, k.get());
+                    auto & blobs = f.blobs();
+                    N += v.size();
+                    
+                    for(auto &[bid, ps] : v) {
+                        auto it = std::find_if(blobs.begin(), blobs.end(), [&bid=bid](auto &a)
+                        {
+                            return a->blob_id() == bid || a->parent_id() == bid;
+                        });
+                        
+                        auto id = uint32_t(bid);
+                        auto x = id >> 16;
+                        auto y = id & 0x0000FFFF;
+                        auto center = Vec2(x, y);
+                        
+                        if(it != blobs.end() || x > Tracker::average().cols || y > Tracker::average().rows) {
+                            // blobs are probably fine
+                            ++found;
+                        } else {
+                            
+                        }
+                    }
+                    
+                    if(found * 2 > N) {
+                        // blobs are probably fine!
+                        print("blobs are probably fine ",found,"/",N,".");
+                        break;
+                    } else if(N > 0) {
+                        print("blobs are probably not fine.");
+                        break;
+                    }
+                }
+                
+                if(found * 2 <= N && N > 0) {
+                    print("fixing...");
+                    auto old_id_from_position = [](Vec2 center) {
+                        return (uint32_t)( uint32_t((center.x))<<16 | uint32_t((center.y)) );
+                    };
+                    auto old_id_from_blob = [&old_id_from_position](const pv::Blob &blob) -> uint32_t {
+                        if(!blob.lines() || blob.lines()->empty())
+                            return -1;
+                        
+                        const auto start = Vec2(blob.lines()->front().x0,
+                                                blob.lines()->front().y);
+                        const auto end = Vec2(blob.lines()->back().x1,
+                                              blob.lines()->size());
+                        
+                        return old_id_from_position(start + (end - start) * 0.5);
+                    };
+                    
+                    grid::ProximityGrid proximity{ Tracker::average().bounds().size() };
+                    size_t i=0, all_found = 0, not_found = 0;
+                    const size_t N = Tracker::recognition()->data().size();
+                    std::map<Frame_t, std::map<pv::bid, std::vector<float>>> next_recognition;
+                    
+                    for (auto &[k, v] : Tracker::recognition()->data()) {
+                        auto & active = Tracker::active_individuals(k);
+                        std::map<pv::bid, const pv::CompressedBlob*> blobs;
+                        
+                        for(auto fish : active) {
+                            auto b = fish->compressed_blob(k);
+                            if(b) {
+                                auto bounds = b->calculate_bounds();
+                                auto center = bounds.pos() + bounds.size() * 0.5;
+                                blobs[b->blob_id()] = b;
+                                proximity.insert(center.x, center.y, (uint32_t)b->blob_id());
+                            }
+                        }
+                        /*GUI::instance()->video_source()->read_frame(f, k.get());
+                        auto & blobs = f.blobs();
+                        proximity.clear();
+                        for(auto &b : blobs) {
+                            auto c = b->bounds().pos() + b->bounds().size() * 0.5;
+                            proximity.insert(c.x, c.y, (uint32_t)b->blob_id());
+                        }*/
+                        
+                        std::map<pv::bid, std::vector<float>> tmp;
+                        
+                        for(auto &[bid, ps] : v) {
+                            auto id = uint32_t(bid);
+                            auto x = id >> 16;
+                            auto y = id & 0x0000FFFF;
+                            auto center = Vec2(x, y);
+                            
+                            auto r = proximity.query(center, 1);
+                            if(r.size() == 1) {
+                                auto obj = std::get<1>(*r.begin());
+                                /*auto ptr = std::find_if(blobs.begin(), blobs.end(), [obj](auto &b){
+                                    return obj == (uint32_t)b->blob_id();
+                                });*/
+                                /*auto ptr = blobs.find(pv::bid(obj));
+                                
+                                if(ptr == blobs.end()) {
+                                    FormatError("Cannot find actual blob for ", obj);
+                                } else {
+                                    //auto unpack = ptr->second->unpack();
+                                    //print("Found ", center, " as ", obj, " vs. ", id, "(", old_id_from_blob(*unpack) ," / ", *unpack ,")");
+                                }*/
+                                    tmp[obj] = ps;
+                                    ++all_found;
+                                
+                            } else {
+                                const pv::CompressedBlob* found = nullptr;
+                                GUI::instance()->video_source()->read_frame(f, k.get());
+                                for(auto &b : f.blobs()) {
+                                    auto c = b->bounds().pos() + b->bounds().size() * 0.5;
+                                    if(sqdistance(c, center) < 2) {
+                                        //print("Found blob close to ", center, " at ", c, ": ", *b);
+                                        for(auto &fish : active) {
+                                            auto b = fish->compressed_blob(k);
+                                            if(b && (b->blob_id() == pv::bid(id) || b->parent_id == pv::bid(id))) {
+                                                //print("Equal IDS1 ", b->blob_id(), " and ", id);
+                                                tmp[b->blob_id()] = ps;
+                                                found = b;
+                                                break;
+                                            }
+                                            
+                                            if(b) {
+                                                auto bounds = b->calculate_bounds();
+                                                auto center = bounds.pos() + bounds.size() * 0.5;
+                                                
+                                                auto distance = sqdistance(c, center);
+                                                //print("\t", fish->identity(), ": ", b->blob_id(), "(",b->parent_id,") at ", center, " (", distance, ")", (distance < 5 ? "*" : ""));
+                                                
+                                                if(distance < 2) {
+                                                    tmp[b->blob_id()] = ps;
+                                                    found = b;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        
+                                        tmp[b->blob_id()] = ps;
+                                        break;
+                                    }
+                                }
+                                
+                                if(found == nullptr) {
+                                    print("Not found for ", center, " size=", r.size(), " with id ", bid);
+                                    ++not_found;
+                                } else {
+                                    ++all_found;
+                                }
+                            }
+                        }
+                        
+                        //v = tmp;
+                        next_recognition[k] = tmp;
+                        
+                        ++i;
+                        if(i % uint64_t(N * 0.1) == 0)
+                            print("Correcting old-format pv::bid: ", dec<2>(double(i) / double(N) * 100), "%");
+                    }
+                    
+                    print("Found:", all_found, " not found:", not_found);
+                    if(all_found > 0)
+                        Tracker::recognition()->data() = next_recognition;
+                }
+            }
+            
             {
                 sprite::Map config;
                 GlobalSettings::docs_map_t docs;

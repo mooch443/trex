@@ -646,7 +646,7 @@ int main(int argc, char** argv)
             SETTING(filename) = file::Path();
         
         if(SETTING(filename).value<Path>().empty()) {
-            print("You can specify a file to be opened using ./tracker -i <filename>");
+            print("You can specify a file to be opened using ./trex -i <filename>");
             return 0;
         }
     }

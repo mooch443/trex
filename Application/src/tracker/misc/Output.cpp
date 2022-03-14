@@ -116,7 +116,7 @@ MinimalOutline::Ptr Output::ResultsFormat::read_outline(Data& ref, Midline::Ptr 
     
     uint64_t L;
     ref.read<uint64_t>(L);
-    ptr->_points.resize(L);
+    ptr->_points.resize(narrow_cast<uint32_t>(L)); // prevent malformed files from filling the ram
     /*if(_header.version > Output::ResultsFormat::Versions::V_9) {
         ptr->_tail_index = ref.read<data_long_t>();
     } else
@@ -273,7 +273,7 @@ Midline::Ptr Output::ResultsFormat::read_midline(Data& ref) {
     
     uint64_t L;
     ref.read<uint64_t>(L);
-    midline->segments().resize(L);
+    midline->segments().resize(narrow_cast<uint16_t>(L)); // prevent malformed files from filling the RAM
     if(_header.version >= Output::ResultsFormat::Versions::V_10) {
         std::vector<Output::V20MidlineSegment> segments;
         segments.resize(midline->segments().size());
@@ -772,7 +772,7 @@ template<> void Data::read(Individual*& out_ptr) {
             auto N = results->_expected_individuals.load();
             double N_written = results->_N_written.load();
             if(N <= 100 || results->_N_written % max(100u, uint64_t(N * 0.01)) == 0) {
-                print("Read individual ", int64_t(N_written),"/", N," (",dec<2>(double(N_written) / double(N)),"%)...");
+                print("Read individual ", int64_t(N_written),"/", N," (",dec<2>(double(N_written) / double(N) * 100),"%)...");
                 results->_update_progress("", narrow_cast<float>(N_written / double(N)), results->filename().str()+"\n<ref>loading individual</ref> <number>"+Meta::toStr(results->_N_written)+"</number> <ref>of</ref> <number>"+Meta::toStr(N)+"</number>");
             }
         }
@@ -1056,9 +1056,15 @@ namespace Output {
             read<std::string>(_header.cmd_line);
         }
         
+        if(_header.version >= ResultsFormat::V_34) {
+            uint64_t stamp;
+            read<uint64_t>(stamp);
+            _header.creation_time = timestamp_t{ stamp };
+        }
+        
         if(!SETTING(quiet)) {
             DebugHeader("READING PROGRAM STATE");
-            print("Read head of ",filename()," (version:V_",(int)_header.version+1," gui_frame:",_header.gui_frame,"u analysis_range:",_header.analysis_range.start,"d-",_header.analysis_range.end,"d)");
+            print("Read head of ",filename()," (version:V_",(int)_header.version+1," gui_frame:",_header.gui_frame," analysis_range:",_header.analysis_range.start,"-",_header.analysis_range.end," created at ",_header.creation_time,")");
             print("Generated with command-line: ",_header.cmd_line);
         }
     }
@@ -1087,6 +1093,8 @@ namespace Output {
         auto [start, end] = FAST_SETTINGS(analysis_range);
         write<int64_t>(start);
         write<int64_t>(end);
+        
+        write<uint64_t>(_header.creation_time.get());
     }
     
     uint64_t ResultsFormat::write_data(uint64_t num_bytes, const char *buffer) {
@@ -1192,6 +1200,7 @@ namespace Output {
         
         ResultsFormat file(filename.str(), update_progress);
         file.header().gui_frame = sign_cast<uint64_t>(SETTING(gui_frame).value<Frame_t>().get());
+        file.header().creation_time = Image::now();
         file.start_writing(true);
         file.write_file(_tracker._added_frames, _tracker._active_individuals_frame, _tracker._individuals, exclude_settings);
         file.close();
@@ -1340,11 +1349,12 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             for(uint64_t i=0; i<L; ++i) {
                 file.read<data_long_t>(frame);
                 file.read<uint64_t>(size);
+                auto smaller = narrow_cast<uint16_t>(size);
                 
-                for(uint64_t j=0; j<size; ++j) {
+                for(uint16_t j=0; j<smaller; ++j) {
                     file.read<uint32_t>(bid);
                     file.read<uint64_t>(vsize);
-                    tmp.resize(vsize);
+                    tmp.resize(narrow_cast<uint16_t>(vsize)); // more than 2^16 identities? hardly. this also prevents malformed files from crashing the program
                     file.read_data(vsize * sizeof(float), (char*)tmp.data());
                     
                     recognition.data()[Frame_t(frame)][pv::bid(bid)] = tmp;
@@ -1401,7 +1411,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         std::vector<Individual*> fishes;
         
         file.read<uint64_t>(L);
-        fishes.resize(L);
+        fishes.resize(narrow_cast<uint16_t>(L)); // prevent crashes caused by malformed files
         file._expected_individuals = L;
         file._N_written = 0;
         
