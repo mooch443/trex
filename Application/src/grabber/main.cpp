@@ -605,6 +605,16 @@ int main(int argc, char** argv)
          */
         cmd.load_settings();
 
+        if (SETTING(tags_recognize) && !SETTING(enable_live_tracking)) {
+            // need live tracking to track tags
+            SETTING(enable_live_tracking) = true;
+        }
+
+        if (SETTING(enable_closed_loop) && !SETTING(enable_live_tracking)) {
+            FormatWarning("Forcing enable_live_tracking = true because closed loop has been enabled.");
+            SETTING(enable_live_tracking) = true;
+        }
+
 #if !TREX_NO_PYTHON
         /*if (SETTING(enable_closed_loop) || SETTING(tags_recognize)) {
             track::Recognition::fix_python();

@@ -516,11 +516,6 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
     if(_video) {
         SETTING(cam_resolution).value<cv::Size>() = cv::Size(Size2(_cam_size) * GRAB_SETTINGS(cam_scale));
     }
-
-    if(GRAB_SETTINGS(enable_closed_loop) && !SETTING(enable_live_tracking)) {
-        FormatWarning("Forcing enable_live_tracking = true because closed loop has been enabled.");
-        SETTING(enable_live_tracking) = true;
-    }
     
     _pool = std::make_unique<GenericThreadPool>(max(1u, cmn::hardware_concurrency()), [](auto e) { std::rethrow_exception(e); }, "ocl_threads", [](){
         ocl::init_ocl();

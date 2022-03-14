@@ -22,13 +22,5 @@ if(WIN32)
 	set_target_properties(tracker_tracking PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
 endif()
 
-if(TREX_CONDA_PACKAGE_INSTALL)
-    target_compile_definitions(tracker_tracking PRIVATE TREX_PYTHON_PATH="CONDA_PREFIX")
-else()
-    message(STATUS "Adding compile definitions: ${PYTHON_EXECUTABLE}")
-    target_compile_definitions(tracker_tracking PRIVATE
-        TREX_PYTHON_PATH="${PYTHON_EXECUTABLE}"
-    )
-endif()
 
 #target_precompile_headers(tracker_tracking REUSE_FROM commons)

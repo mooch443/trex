@@ -220,7 +220,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         if(!FAST_SETTINGS(recognition_enable) && !SETTING(enable_closed_loop) && !SETTING(tags_recognize))
             return;
         
-#ifdef TREX_PYTHON_PATH
+#ifdef COMMONS_PYTHON_EXECUTABLE
         auto home = ::default_config::conda_environment_path().str();
         if (home.empty())
             home = SETTING(python_path).value<file::Path>().str();

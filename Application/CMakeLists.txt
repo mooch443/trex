@@ -48,16 +48,6 @@ if(TREX_CONDA_PACKAGE_INSTALL)
     endif("${isSystemDir}" STREQUAL "-1")
 endif()
 
-
-if(NOT COMMONS_NO_PYTHON)
-    find_package(Python COMPONENTS Interpreter Development REQUIRED)
-    message(STATUS "After find PYTHON: ${Python_FOUND}")
-    message(STATUS "PYTHON: ${Python_LIBRARIES}")
-    message(STATUS "PYTHON: ${Python_EXECUTABLE}")
-    set(PYTHON_EXECUTABLE "${Python_EXECUTABLE}")
-    set(PYTHON_LIBRARY "${Python_LIBRARIES}")
-endif()
-
 add_subdirectory(src/commons)
 
 set(CMAKE_CXX_STANDARD 20)

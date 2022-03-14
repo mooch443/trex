@@ -139,23 +139,6 @@ set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES
   MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist
 )
 
-if(TREX_CONDA_PACKAGE_INSTALL)
-    if(WIN32)
-		set(CONDA_PREFIX_VAR "CONDA_PREFIX")
-	else()
-		set(CONDA_PREFIX_VAR "$ENV{PREFIX}")
-	endif()
-else()
-    set(CONDA_PREFIX_VAR "${PYTHON_EXECUTABLE}")
-endif()
-    
-string(REPLACE "\\" "\\\\" CONDA_PREFIX_VAR "${CONDA_PREFIX_VAR}")
-message(STATUS "Setting TREX_PYTHON_PATH=${CONDA_PREFIX_VAR}")
-
-target_compile_definitions(pvinfo PRIVATE TREX_PYTHON_PATH="${CONDA_PREFIX_VAR}")
-target_compile_definitions(pvconvert PRIVATE TREX_PYTHON_PATH="${CONDA_PREFIX_VAR}")
-target_compile_definitions(${TGRABS_EXEC_NAME} PUBLIC TREX_PYTHON_PATH="${CONDA_PREFIX_VAR}")
-
 set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/gfx/GrabberIcon.icns PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 
 set(RESOURCE_COPY_FILES
