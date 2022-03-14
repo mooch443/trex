@@ -143,8 +143,8 @@ namespace default_config {
     };
 
 file::Path conda_environment_path() {
-#ifdef TREX_PYTHON_PATH
-    auto compiled_path = file::Path(TREX_PYTHON_PATH).is_regular() ? file::Path(TREX_PYTHON_PATH).remove_filename().str() : file::Path(TREX_PYTHON_PATH).str();
+#ifdef COMMONS_PYTHON_EXECUTABLE
+    auto compiled_path = file::Path(COMMONS_PYTHON_EXECUTABLE).is_regular() ? file::Path(COMMONS_PYTHON_EXECUTABLE).remove_filename().str() : file::Path(COMMONS_PYTHON_EXECUTABLE).str();
     if(compiled_path == "CONDA_PREFIX")
         compiled_path = "";
 #if defined(__linux__) || defined(__APPLE__)
@@ -289,7 +289,7 @@ file::Path conda_environment_path() {
         CONFIG("output_dir", Path(std::string(homedir)+"/Videos"), "Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.");
         CONFIG("fishdata_dir", Path("data"), "Subfolder (below `output_dir`) where the exported NPZ or CSV files will be saved (see `output_graphs`).");
         CONFIG("settings_file", Path(""), "Name of the settings file. By default, this will be set to `filename`.settings in the same folder as `filename`.", STARTUP);
-        CONFIG("python_path", Path(TREX_PYTHON_PATH), "Path to the python home folder" PYTHON_TIPPS ". If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.");
+        CONFIG("python_path", Path(COMMONS_PYTHON_EXECUTABLE), "Path to the python home folder" PYTHON_TIPPS ". If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.");
 
         CONFIG("frame_rate", int(0), "Specifies the frame rate of the video. It is used e.g. for playback speed and certain parts of the matching algorithm. Will be set by the .settings of a video (or by the video itself).", STARTUP);
         CONFIG("calculate_posture", true, "Enables or disables posture calculation. Can only be set before the video is analysed (e.g. in a settings file or as a startup parameter).", STARTUP);

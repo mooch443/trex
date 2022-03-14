@@ -241,9 +241,12 @@ void GUI::draw(gui::DrawStructure &base) {
                         background->set_source(std::move(_image));
                         background->set_pos(offset);
                         background->set_scale(Vec2(1 / scale));
-                        noise_image->set_source(Image::Make(_image->rows, _image->cols, 4));
-                        noise_image->set_pos(offset);
-                        noise_image->set_scale(Vec2(1 / scale));
+
+                        if (noise_image) {
+                            noise_image->set_source(Image::Make(_image->rows, _image->cols, 4));
+                            noise_image->set_pos(offset);
+                            noise_image->set_scale(Vec2(1 / scale));
+                        }
                     }
                     else {
                         noise_image = new ExternalImage(Image::Make(_image->rows, _image->cols, 4), offset, Vec2(1 / scale));
@@ -409,8 +412,9 @@ void GUI::draw(gui::DrawStructure &base) {
         auto shadow = base.text(info_text(), Vec2(26, 18).mul(scale), Black, Font(0.75, Align::VerticalCenter), scale);
         base.text(shadow->txt(), Vec2(25, 17).mul(scale), text_color, Font(0.75, Align::VerticalCenter), scale);
 
+
         if (_grabber.tracker_instance()) {
-            base.section("tracking", [this](gui::DrawStructure& base, Section* section) {
+            base.section("tracking", [this, scale](gui::DrawStructure& base, Section* section) {
                 track::Tracker::LockGuard guard("drawing", 100);
                 if (!guard.locked()) {
                     section->reuse_objects();
@@ -422,19 +426,71 @@ void GUI::draw(gui::DrawStructure &base) {
                 
                 auto tracker = _grabber.tracker_instance();
                 auto individuals = tracker->active_individuals();
+
+                std::map<int64_t, std::tuple<float, float>> speeds;
+
+                for (auto& [fdx, fish] : tracker->individuals()) {
+                    auto codes = fish->qrcodes();
+                    //print("individual ", fish->identity().ID(), " has ", codes.size(), " codes.");
+
+                    for (auto& [frame, code] : codes) {
+                        auto& [id, p] = code;
+                        auto seg = fish->segment_for(frame);
+                        auto color = ColorWheel(id).next();
+                        if (seg) {
+                            if (Tracker::end_frame() < seg->end() + Frame_t(FAST_SETTINGS(frame_rate) * 30)) {
+                                std::vector<Vec2> positions;
+                                for (auto idx : seg->basic_index) {
+                                    if (idx == -1)
+                                        continue;
+
+                                    auto& b = fish->basic_stuff()[idx];
+                                    positions.push_back(b->centroid.pos<Units::PX_AND_SECONDS>());
+
+                                    auto& s = speeds[id];
+                                    std::get<0>(s) += b->centroid.speed < Units::CM_AND_SECONDS>();
+                                    std::get<1>(s)++;
+                                }
+                                base.line(positions, 1, color.alpha(200));
+                                base.text(Meta::toStr(id) + " (" + Meta::toStr(p) + ")", positions[0], color, Font(0.5), scale);
+                            }
+                            else if (Tracker::end_frame() < seg->end() + Frame_t(FAST_SETTINGS(frame_rate) * 60 * 3))  {
+                                for (auto idx : seg->basic_index) {
+                                    if (idx == -1)
+                                        continue;
+
+                                    auto& b = fish->basic_stuff()[idx];
+                                    auto& s = speeds[id];
+                                    std::get<0>(s) += b->centroid.speed < Units::CM_AND_SECONDS>();
+                                    std::get<1>(s)++;
+                                }
+                            }
+                        }
+                        else
+                            FormatWarning("Individual ", fish->identity().ID(), " does not have ", frame, " despite being advertised by tags.");
+                    }
+                }
                 
+                Vec2 pos(_grabber.average().cols + 100, 120);
+                for (auto& [k, tup] : speeds) {
+                    auto w = base.text(Meta::toStr(k) + ":", pos, Color(150, 150, 150, 255), Font(0.5, Style::Bold), scale)->local_bounds().width;
+                    base.text(Meta::toStr(std::get<0>(tup) / std::get<1>(tup)) + "cm/s", pos + Vec2(70, 0), White, Font(0.5), scale);
+                    pos += Vec2(0, 50);
+                }
+
                 for (auto& fish : individuals) {
                     if (fish->has(tracker->end_frame())) {
                         auto stuff = fish->basic_stuff(tracker->end_frame());
 
                         std::vector<std::vector<Vec2>> positions{{}};
+                        std::vector<std::tuple<Vec2, int64_t, float>> tags;
                         Frame_t prev;
 
                         fish->iterate_frames(Range<Frame_t>(tracker->end_frame() - 100_f, tracker->end_frame()), 
                             [&](Frame_t frame, 
                                 const std::shared_ptr<Individual::SegmentInformation>& segment, 
-                                const std::shared_ptr<Individual::BasicStuff>& basic, 
-                                const std::shared_ptr<Individual::PostureStuff>& posture) 
+                                const Individual::BasicStuff* basic, 
+                                const Individual::PostureStuff* posture) 
                             -> bool
                         {
                             if (basic) {
@@ -447,6 +503,13 @@ void GUI::draw(gui::DrawStructure &base) {
 
                                 auto p = bounds.pos() + bounds.size() * 0.5;
                                 positions.back().push_back(p);
+
+                                /*if (frame == segment->start()) {
+                                    auto [id, prob] = fish->qrcode_at(segment->start());
+                                    if (id != -1) {
+                                        tags.push_back({ p, id, prob });
+                                    }
+                                }*/
 
                                 if (frame == tracker->end_frame()) {
                                     base.circle(p, 10, fish->identity().color());
@@ -489,8 +552,16 @@ void GUI::draw(gui::DrawStructure &base) {
                             return true;
                         });
 
-                        for(auto&v : positions)
-                            base.line(v, 2, fish->identity().color());
+                        if (!SETTING(tags_recognize)) {
+                            for (auto& v : positions)
+                                base.line(v, 2, fish->identity().color());
+                        }
+
+                        /*
+                            for (auto& [pos, id, prob] : tags) {
+                            base.text(Meta::toStr(id), pos - Vec2(0,15), fish->identity().color().alpha(100), Font(0.5), scale);
+                            base.circle(pos, 2, fish->identity().color(), fish->identity().color().alpha(100), scale);
+                        }*/
                     }
                 }
             });

@@ -1,6 +1,8 @@
 #ifndef _PYLON_CAMERA_H
 #define _PYLON_CAMERA_H
 
+#include "Camera.h"
+
 #if WITH_PYLON
 //#include <fake_pylon.h>
 #pragma GCC diagnostic push
@@ -30,9 +32,6 @@ using namespace Basler_UsbCameraParams;
 #pragma clang diagnostic pop
 #endif
 #pragma GCC diagnostic pop
-
-#include "Camera.h"
-#include <types.h>
 
 namespace fg {
     class PylonCamera : public Camera {

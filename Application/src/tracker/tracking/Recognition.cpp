@@ -136,7 +136,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
     }
 
     bool Recognition::python_available() {
-#ifndef TREX_PYTHON_PATH
+#ifndef COMMONS_PYTHON_EXECUTABLE
         return false;
 #endif
         //return false;
@@ -211,19 +211,23 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         assert(!instance);
         instance = this;
         fix_python();
+        
+        track::PythonIntegration::set_settings(GlobalSettings::instance());
+        track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
     }
 
     void Recognition::fix_python() {
-        if(!FAST_SETTINGS(recognition_enable) && !SETTING(enable_closed_loop))
+        if(!FAST_SETTINGS(recognition_enable) && !SETTING(enable_closed_loop) && !SETTING(tags_recognize))
             return;
         
-#ifdef TREX_PYTHON_PATH
+#ifdef COMMONS_PYTHON_EXECUTABLE
         auto home = ::default_config::conda_environment_path().str();
         if (home.empty())
             home = SETTING(python_path).value<file::Path>().str();
         if (file::Path(home).exists() && file::Path(home).is_regular())
             home = file::Path(home).remove_filename().str();
-        print("Setting home to ", home);
+
+        print("Checking python at ", home);
 
         if (!can_initialize_python() && !getenv("TREX_DONT_SET_PATHS")) {
             if (!SETTING(quiet))
@@ -248,8 +252,11 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
 
             set = set + path;
 
-            SetEnvironmentVariable("PATH", set.c_str());
+            //SetEnvironmentVariable("PATH", set.c_str());
             SetEnvironmentVariable("PYTHONHOME", home.c_str());
+
+            //auto pythonpath = home + ";" + home + "/DLLs;" + home + "/Lib/site-packages";
+            //SetEnvironmentVariable("PYTHONPATH", pythonpath.c_str());
 #else
             std::string path = (std::string)getenv("PATH");
             set = set + path;
@@ -262,7 +269,12 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
 
                 if (!can_initialize_python())
                     FormatExcept("Please check your python environment variables, as it failed to initialize even after setting PYTHONHOME and PATH.");
+                else
+                    print("Can initialize.");
             }
+
+            track::PythonIntegration::set_settings(GlobalSettings::instance());
+            track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
         }
 #endif
     }
@@ -510,9 +522,9 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         Median<float> median_midline, median_outline, median_angle_diff;
         std::set<float> midline_lengths, outline_stds;
         
-        std::shared_ptr<Individual::PostureStuff> previous_midline;
+        const Individual::PostureStuff* previous_midline = nullptr;
         
-        fish->iterate_frames(segment, [&](Frame_t frame, const auto&, const std::shared_ptr<Individual::BasicStuff> & basic, const std::shared_ptr<Individual::PostureStuff> & posture) -> bool
+        fish->iterate_frames(segment, [&](Frame_t frame, const auto&, auto basic, auto posture) -> bool
         {
             if(!basic || !posture || basic->blob.split())
                 return true;
@@ -588,7 +600,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         return false;
     }
     
-    bool Recognition::eligible_for_training(const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture, const TrainingFilterConstraints &)
+    bool Recognition::eligible_for_training(const Individual::BasicStuff* basic, const Individual::PostureStuff* posture, const TrainingFilterConstraints &)
     {
         if(!basic)
             return false;
@@ -888,8 +900,8 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                                 continue;
                             
                             auto &basic = fish->basic_stuff().at((size_t)bid);
-                            
-                            if(!eligible_for_training(basic, posture, filters))
+                            assert(basic);
+                            if(!eligible_for_training(basic.get(), posture.get(), filters))
                                 continue;
                             
                             elig_frames.insert(basic->frame);
@@ -901,7 +913,8 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                                 continue;
                             
                             auto &basic = fish->basic_stuff().at((size_t)index);
-                            if(!eligible_for_training(basic, nullptr, filters))
+                            assert(basic);
+                            if(!eligible_for_training(basic.get(), nullptr, filters))
                                 continue;
                             
                             elig_frames.insert(basic->frame);

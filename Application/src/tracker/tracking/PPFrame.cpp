@@ -237,6 +237,10 @@ const pv::BlobPtr& PPFrame::bdx_to_ptr(pv::bid bdx) const {
     return _bdx_to_ptr.at(bdx);
 }
 
+void PPFrame::set_tags(std::vector<pv::BlobPtr>&& tags) {
+    _tags = std::move(tags);
+}
+
 void PPFrame::clear_blobs() {
     ASSUME_NOT_FINALIZED;
     
@@ -245,6 +249,7 @@ void PPFrame::clear_blobs() {
     _num_pixels = 0;
     _pixel_samples = 0;
     _bdx_to_ptr.clear();
+    //_tags.clear();
 }
 
 void PPFrame::add_blobs(std::vector<pv::BlobPtr>&& blobs,
@@ -302,6 +307,7 @@ void PPFrame::clear() {
     _bdx_to_ptr.clear();
     _num_pixels = 0;
     _pixel_samples = 0;
+    //_tags.clear();
 }
 
 void PPFrame::fill_proximity_grid() {

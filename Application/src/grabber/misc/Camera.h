@@ -1,7 +1,7 @@
 #ifndef _CAMERA_H
 #define _CAMERA_H
 
-#include <types.h>
+#include <commons.pc.h>
 #include <misc/Image.h>
 #include <misc/vec2.h>
 

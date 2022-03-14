@@ -111,8 +111,10 @@ namespace Output {
             V_31, // add number of individuals per frame
             V_32, // change ShortHorizontalLine format
             V_33, // adding Categorize::DataStore
+
+            V_34, // adding tag information
             
-            current = V_33
+            current = V_34
         };
         
     private:

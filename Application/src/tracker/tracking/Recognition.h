@@ -225,7 +225,7 @@ namespace track {
         
         void update_dataset_quality();
         
-        static bool eligible_for_training(const std::shared_ptr<Individual::BasicStuff>&, const std::shared_ptr<Individual::PostureStuff>&, const TrainingFilterConstraints& constraints);
+        static bool eligible_for_training(const Individual::BasicStuff*, const Individual::PostureStuff*, const TrainingFilterConstraints& constraints);
         
         void remove_frames(Frame_t after);
         void remove_individual(Individual*);

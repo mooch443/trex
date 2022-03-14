@@ -1134,8 +1134,8 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
                 }
             }*/
             
-            auto &basic = fish->basic_stuff()[bidx];
-            auto posture = pidx != -1 ? fish->posture_stuff()[pidx] : nullptr;
+            auto basic = fish->basic_stuff()[bidx].get();
+            auto posture = pidx != -1 ? fish->posture_stuff()[pidx].get() : nullptr;
             
             if(!Recognition::eligible_for_training(basic, posture, filters))
                 continue;
@@ -1167,7 +1167,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             }*/
             
             using namespace default_config;
-            auto midline = posture ? fish->calculate_midline_for(basic, posture) : nullptr;
+            auto midline = posture ? fish->calculate_midline_for(*basic, *posture) : nullptr;
             Recognition::ImageData image_data(Recognition::ImageData::Blob{
                 blob->num_pixels(), 
                 blob->blob_id(), 

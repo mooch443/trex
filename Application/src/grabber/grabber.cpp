@@ -50,7 +50,10 @@ CREATE_STRUCT(GrabSettings,
   (float,        image_contrast_increase),
   (float,        image_brightness_increase),
   (bool,        enable_closed_loop),
+  (bool,        tags_enable),
+    (bool,      tags_recognize),
   (bool,        output_statistics),
+(bool, tags_saved_only),
   (file::Path, filename)
 )
 
@@ -381,6 +384,7 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
             }
         } else {
             print("Average image at ",path.str()," doesnt exist.");
+            _average_finished = false;
             if(SETTING(reset_average))
                 SETTING(reset_average) = false;
         }
@@ -512,11 +516,6 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
     if(_video) {
         SETTING(cam_resolution).value<cv::Size>() = cv::Size(Size2(_cam_size) * GRAB_SETTINGS(cam_scale));
     }
-
-    if(GRAB_SETTINGS(enable_closed_loop) && !SETTING(enable_live_tracking)) {
-        FormatWarning("Forcing enable_live_tracking = true because closed loop has been enabled.");
-        SETTING(enable_live_tracking) = true;
-    }
     
     _pool = std::make_unique<GenericThreadPool>(max(1u, cmn::hardware_concurrency()), [](auto e) { std::rethrow_exception(e); }, "ocl_threads", [](){
         ocl::init_ocl();
@@ -576,13 +575,8 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
     }
     
 #if !TREX_NO_PYTHON
-    if (GRAB_SETTINGS(enable_closed_loop)) {
-        track::PythonIntegration::set_settings(GlobalSettings::instance());
-        track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
-
-        track::Recognition::fix_python();
-        track::PythonIntegration::instance();
-        track::PythonIntegration::ensure_started();
+    if (GRAB_SETTINGS(enable_closed_loop) || GRAB_SETTINGS(tags_recognize)) {
+        track::PythonIntegration::ensure_started().get();
     }
 #endif
 
@@ -750,7 +744,7 @@ FrameGrabber::~FrameGrabber() {
         _tracker_thread->join();
         delete _tracker_thread;
         
-        if (GRAB_SETTINGS(enable_closed_loop)) {
+        if (GRAB_SETTINGS(enable_closed_loop) || GRAB_SETTINGS(tags_recognize)) {
             Output::PythonIntegration::quit();
         }
         
@@ -1025,8 +1019,10 @@ bool FrameGrabber::load_image(Image_t& current) {
                 return false;
             }
             
-            if(does_change_size)
+            if (does_change_size) {
                 image.get().copyTo(m);
+                current.set_timestamp(image.timestamp());
+            }
         }
     }
     
@@ -1053,7 +1049,7 @@ bool FrameGrabber::load_image(Image_t& current) {
     return true;
 }
 
-void FrameGrabber::add_tracker_queue(const pv::Frame& frame, Frame_t index) {
+void FrameGrabber::add_tracker_queue(const pv::Frame& frame, std::vector<pv::BlobPtr>&& tags, Frame_t index) {
     std::unique_ptr<track::PPFrame> ptr;
     static size_t created_items = 0;
     static Timer print_timer;
@@ -1087,6 +1083,8 @@ void FrameGrabber::add_tracker_queue(const pv::Frame& frame, Frame_t index) {
     ptr->frame().set_index(index.get());
     ptr->frame().set_timestamp(frame.timestamp());
     ptr->set_index(index);
+    ptr->set_tags(std::move(tags));
+    tags.clear();
     
     {
         std::lock_guard<std::mutex> guard(ppqueue_mutex);
@@ -1201,7 +1199,12 @@ void FrameGrabber::update_tracker_queue() {
                     if(CL_HAS_FEATURE(VISUAL_FIELD)) {
                         for(auto fish : tracker->active_individuals(frame)) {
                             if(fish->head(frame))
-                                visual_fields[fish->identity().ID()] = std::make_shared<track::VisualField>(fish->identity().ID(), frame, fish->basic_stuff(frame), fish->posture_stuff(frame), false);
+                                visual_fields[fish->identity().ID()] = std::make_shared<track::VisualField>(
+                                    fish->identity().ID(), 
+                                    frame, 
+                                    *fish->basic_stuff(frame), 
+                                    fish->posture_stuff(frame), 
+                                    false);
                             
                         }
                     }
@@ -1491,6 +1494,7 @@ void FrameGrabber::write_fps(uint64_t index, timestamp_t tdelta, timestamp_t ts)
 struct ProcessingTask {
     std::unique_ptr<RawProcessing> process;
     std::unique_ptr<gpuMat> gpu_buffer, scaled_buffer;
+    std::vector<pv::BlobPtr> tags;
     size_t index;
     Image::UPtr mask;
     Image::UPtr current, raw;
@@ -1576,7 +1580,12 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
         Timer timer;
         
         used_index_here = Frame_t(_processed.length());
-        _processed.add_individual(*task->frame, pack, compressed);
+        try {
+            _processed.add_individual(*task->frame, pack, compressed);
+        }
+        catch (...)
+        {
+        }
         //_last_index = task->current->index();
         //_last_timestamp = task->frame->timestamp();
         _saving_time = _saving_time * 0.75 + timer.elapsed() * 0.25;
@@ -1594,7 +1603,7 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
     _last_index = index;
 
     if (added && tracker) {
-        add_tracker_queue(*task->frame, used_index_here);
+        add_tracker_queue(*task->frame, std::move(task->tags), used_index_here);
     }
 
     timestamp_t tdelta, tdelta_camera, now;
@@ -1773,7 +1782,7 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
         }
 
         apply_filters(*input);
-        task->process->generate_binary(*input, image);
+        task->process->generate_binary(*input, image, task->tags);
 
     }
     else {
@@ -1797,7 +1806,16 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
     }
 
     {
-        auto rawblobs = CPULabeling::run(task->current->get(), true);
+        std::vector<blob::Pair> rawblobs;
+        if(!GRAB_SETTINGS(tags_saved_only))
+            rawblobs = CPULabeling::run(task->current->get(), true);
+        
+        for (auto& blob : task->tags) {
+            rawblobs.emplace_back(
+                std::make_unique<blob::line_ptr_t::element_type>(*blob->lines()),
+                std::make_unique<blob::pixel_ptr_t::element_type>(*blob->pixels()));
+        }
+
 #ifdef TGRABS_DEBUG_TIMING
         _raw_blobs = _sub_timer.elapsed();
         _sub_timer.reset();
@@ -1813,8 +1831,14 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
         size_t Ni = task->filtered.size();
         size_t No = task->filtered_out.size();
         
-        for(auto  && pair : rawblobs) {
+        for(auto  &&pair : rawblobs) {
+            /*cmn::blob::Pair pair(
+                std::make_unique<blob::line_ptr_t::element_type>(*blob->lines()),
+                std::make_unique<blob::pixel_ptr_t::element_type>(*blob->pixels())
+            );
             //b->calculate_properties();
+            auto& pixels = pair->pixels();
+            auto& lines = pair->lines();*/
             auto &pixels = pair.pixels;
             auto &lines = pair.lines;
             
@@ -2048,7 +2072,7 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
         task->current->create(current, current.index(), TS);
     else
         task->current = Image::Make(current, current.index(), TS);
-    
+
     if(GRAB_SETTINGS(grabber_use_threads)) {
         {
             std::unique_lock<std::mutex> guard(to_pool_mutex);

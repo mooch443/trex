@@ -55,12 +55,12 @@ namespace track {
         return _instance;
     }
     
-    inline void analyse_posture_pack(Frame_t frameIndex, const std::vector<std::tuple<Individual*, std::shared_ptr<Individual::BasicStuff>>>& p) {
+    inline void analyse_posture_pack(Frame_t frameIndex, const std::vector<std::tuple<Individual*, const Individual::BasicStuff*>>& p) {
         Timer t;
         double collected = 0;
         for(auto && [f, b] : p) {
             t.reset();
-            f->save_posture(b, frameIndex);
+            f->save_posture(*b, frameIndex);
             collected += t.elapsed();
         }
         
@@ -1773,7 +1773,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         // ------------------------------------
         // filter and calculate blob properties
         // ------------------------------------
-        std::queue<std::tuple<Individual*, std::shared_ptr<Individual::BasicStuff>>> need_postures;
+        std::queue<std::tuple<Individual*, Individual::BasicStuff*>> need_postures;
         
         ska::bytell_hash_map<pv::Blob*, bool> blob_assigned;
         ska::bytell_hash_map<Individual*, bool> fish_assigned;
@@ -1837,12 +1837,13 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             if(!blob->moments().ready) {
                 blob->calculate_moments();
             }
-            auto basic = fish->add(props, frameIndex, frame, blob, -1, match_mode);
-            if(!basic) {
+            auto index = fish->add(props, frameIndex, frame, blob, -1, match_mode);
+            if(index == -1) {
                 FormatExcept("Was not able to assign individual ", fish->identity().ID()," with blob ", blob->blob_id(),"");
                 return;
             }
             
+            auto &basic = fish->basic_stuff()[size_t(index)];
             fish_assigned[fish] = true;
             blob_assigned[blob.get()] = true;
             
@@ -1858,9 +1859,12 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             }
             
             if (do_posture)
-                need_postures.push({fish, basic});
-            else //if(!Recognition::recognition_enabled())
+                need_postures.push({fish, basic.get()});
+            else {
                 basic->pixels = nullptr;
+            }
+            //else //if(!Recognition::recognition_enabled())
+            //    basic->pixels = nullptr;
             
             assigned_count++;
         };
@@ -3074,7 +3078,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             TakeTiming take(timing);
             
             if(do_posture && !need_postures.empty()) {
-                static std::vector<std::tuple<Individual*, std::shared_ptr<Individual::BasicStuff>>> all;
+                static std::vector<std::tuple<Individual*, Individual::BasicStuff*>> all;
                 
                 while(!need_postures.empty()) {
                     all.emplace_back(std::move(need_postures.front()));
@@ -3087,7 +3091,12 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     
                     for(auto it = start; it != end; ++it) {
                         t.reset();
-                        std::get<0>(*it)->save_posture(std::get<1>(*it), frameIndex);
+                        
+                        auto fish = std::get<0>(*it);
+                        auto basic = std::get<1>(*it);
+                        fish->save_posture(*basic, frameIndex);
+                        basic->pixels = nullptr;
+                        
                         collected += t.elapsed();
                     }
                     
@@ -3164,8 +3173,64 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         
         update_warnings(frameIndex, frame.time, number_fish, n, prev, props, prev_props, _active_individuals, _individual_add_iterator_map);
         
-        if(save_tags)
+        if (save_tags || !frame.tags().empty()) {
+            // find match between tags and individuals
+            Match::PairedProbabilities paired;
+            const Match::prob_t p_threshold = FAST_SETTINGS(matching_probability_threshold);
+
+            for (auto fish : active_individuals) {
+                Match::pairing_map_t<Match::Blob_t, prob_t> probs;
+                
+                auto cache = frame.cached(fish->identity().ID());
+                if (!cache)
+                    continue;
+
+                for (const auto &blob : frame.tags()) {
+                    auto p = fish->probability(-1, *cache, frameIndex, blob);
+                    if (p >= p_threshold)
+                        probs[&blob] = p;
+                }
+
+                if(!probs.empty())
+                    paired.add(fish, probs);
+            }
+
+            /*for (auto& [fish, fdi] : paired_blobs.row_indexes()) {
+                if (!clique.fids.contains(fdi))
+                    continue;
+
+                auto assigned = fish_assigned.find(fish);
+                if (assigned != fish_assigned.end() && assigned->second)
+                    continue;
+
+                auto edges = paired_blobs.edges_for_row(fdi);
+
+                Match::pairing_map_t<Match::Blob_t, prob_t> probs;
+                for (auto& e : edges) {
+                    auto blob = paired_blobs.col(e.cdx);
+                    if (!blob_assigned.count(blob->get()) || !blob_assigned.at(blob->get()))
+                        probs[blob] = e.p;
+                }
+
+                if (!probs.empty())
+                    paired.add(fish, probs);
+            }*/
+
+            Match::PairingGraph graph(*props, frameIndex, paired);
+            try {
+                auto& optimal = graph.get_optimal_pairing(false, matching_mode_t::hungarian);
+                for (auto& [fish, blob] : optimal.pairings) {
+                    if (!fish->add_qrcode(frameIndex, std::move(*const_cast<pv::BlobPtr*>(blob)))) {
+                        //FormatWarning("Fish ", fish->identity(), " rejected tag at ", (*blob)->bounds());
+                    }
+                }
+            }
+            catch (...) {
+                FormatExcept("Exception during tags to individuals matching.");
+            }
+            frame.tags().clear(); // is invalidated now
             _thread_pool.wait();
+        }
         
         std::lock_guard<std::mutex> guard(_statistics_mutex);
         _statistics[frameIndex].number_fish = assigned_count;

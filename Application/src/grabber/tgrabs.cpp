@@ -13,8 +13,8 @@
 #endif
 
 std::string conda_environment_path(const char* argv) {
-#ifdef TREX_PYTHON_PATH
-    auto compiled_path = file::Path(TREX_PYTHON_PATH).is_regular() ? file::Path(TREX_PYTHON_PATH).remove_filename().str() : file::Path(TREX_PYTHON_PATH).str();
+#ifdef COMMONS_PYTHON_EXECUTABLE
+    auto compiled_path = file::Path(COMMONS_PYTHON_EXECUTABLE).is_regular() ? file::Path(COMMONS_PYTHON_EXECUTABLE).remove_filename().str() : file::Path(COMMONS_PYTHON_EXECUTABLE).str();
 #else
     std::string compiled_path = "";
 #endif

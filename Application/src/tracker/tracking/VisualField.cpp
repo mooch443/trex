@@ -7,7 +7,7 @@
 namespace track {
     static constexpr double right_angle = RADIANS(90);
     
-    VisualField::VisualField(Idx_t fish_id, Frame_t frame, const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture, bool blocking)
+    VisualField::VisualField(Idx_t fish_id, Frame_t frame, const Individual::BasicStuff& basic, const Individual::PostureStuff* posture, bool blocking)
         : max_d(SQR(Tracker::average().cols) + SQR(Tracker::average().rows)), _fish_id(fish_id), _frame(frame)
     {
         calculate(basic, posture, blocking);
@@ -182,13 +182,13 @@ namespace track {
         }
     }
     
-std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(const std::shared_ptr<Individual::BasicStuff>& basic, const std::vector<Vec2>& opts, const Midline::Ptr& midline, float angle)
+std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(const Individual::BasicStuff& basic, const std::vector<Vec2>& opts, const Midline::Ptr& midline, float angle)
 {
     using namespace gui;
     std::array<eye, 2> _eyes;
     Vec2 _fish_pos;
     
-    auto &blob = basic->blob;
+    auto &blob = basic.blob;
     auto bounds = blob.calculate_bounds();
     assert(midline && !midline->empty());
     
@@ -269,7 +269,7 @@ std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(con
     return {_eyes, _fish_pos};
 }
 
-    void VisualField::calculate(const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture, bool blocking) {
+    void VisualField::calculate(const Individual::BasicStuff& basic, const Individual::PostureStuff* posture, bool blocking) {
         static Timing timing("visual field");
         TakeTiming take(timing);
         
@@ -279,7 +279,7 @@ std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(con
         
         auto tracker = Tracker::instance();
         //if(!tracker->properties(_frame))
-        if(!basic || !posture)
+        if(!posture)
             throw U_EXCEPTION("Does not have frame ",_frame,"");
         
         using namespace gui;
@@ -290,7 +290,7 @@ std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(con
         assert(posture);
         
         auto angle = posture->head->angle();
-        auto midline = fish->calculate_midline_for(basic, posture);
+        auto midline = fish->calculate_midline_for(basic, *posture);
         auto &outline = posture->outline;
         auto opts = outline->uncompress();
         _fish_angle = angle;
@@ -483,7 +483,7 @@ std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(con
         for(auto i = frameNr - Frame_t(range); i <= frameNr; ++i) {
             auto ptr = (VisualField*)selected->custom_data(i, VisualField::custom_id);
             if(!ptr && selected->head(i)) {
-                ptr = new VisualField(selected->identity().ID(), i, selected->basic_stuff(i), selected->posture_stuff(i), true);
+                ptr = new VisualField(selected->identity().ID(), i, *selected->basic_stuff(i), selected->posture_stuff(i), true);
                 selected->add_custom_data(i, VisualField::custom_id, ptr, [](void* ptr) {
                     //if(GUI::instance()) {
                     //    std::lock_guard<std::recursive_mutex> lock(base.lock());
