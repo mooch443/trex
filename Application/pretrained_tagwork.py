@@ -17,6 +17,7 @@ class Tagwork:
     def __init__(self, width, height):
         self.width = width
         self.height = height
+        self.counter = 0
         #TRex.log("# image dimensions: "+str(self.width)+"x"+str(self.height))
 
     def load(self, path):
@@ -27,6 +28,10 @@ class Tagwork:
         assert self.model
         images = np.array(images, dtype=float)
         y = np.argmax(self.model.predict(images), axis=-1)
+        file = "/Users/tristan/Videos/locusts/samples/images_"+str(self.counter)+".npz"
+        print("saving to file", file);
+        np.savez(file, images=np.array(images), y=np.array(y));
+        self.counter += 1
         return  y
 
 def init():
@@ -34,7 +39,7 @@ def init():
     #TRex.log("# initializing")
     tagwork = Tagwork(width, height)
     #Trex.log("# loading network")
-    tagwork.load("C:/Users/tristan/Videos/pretrained.h5")
+    tagwork.load("/Users/tristan/Videos/locusts/pretrained.h5")
 
 def load():
     pass

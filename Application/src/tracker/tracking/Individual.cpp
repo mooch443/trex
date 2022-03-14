@@ -1132,7 +1132,19 @@ struct RecTask {
 
                     std::unique_lock guard(_mutex);
                     while (!_terminate) {
-                        RecTask::update();
+                        while (!_queue.empty()) {
+                            auto task = std::move(_queue.front());
+                            _queue.erase(_queue.begin());
+                            if(!_queue.empty())
+                                print(" -> ", _queue.size(), " tasks left (frame: ", task._frames.back(), ")");
+                            
+                            guard.unlock();
+                            //try {
+                                RecTask::update(std::move(task));
+                            //}
+                            guard.lock();
+                        }
+                        
                         _variable.wait_for(guard, std::chrono::milliseconds(1));
                     }
 
@@ -1148,12 +1160,7 @@ struct RecTask {
         _variable.notify_one();
     }
     
-    static void update() {
-        if (_queue.empty())
-            return;
-
-        auto &task = _queue.front();
-
+    static void update(RecTask&& task) {
         Predictions result{
             ._segment_start = task._segment_start,
             .individual = task.individual,
@@ -1209,7 +1216,6 @@ struct RecTask {
         //    print("Predicted values for ", result.individual, " result: ", result._ids.size());
 
         task._callback(std::move(result));
-        _queue.erase(_queue.begin());
     }
 
     inline static std::unique_ptr<std::thread> _update_thread;

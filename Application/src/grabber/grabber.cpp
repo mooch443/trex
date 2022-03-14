@@ -580,14 +580,9 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
     }
     
 #if !TREX_NO_PYTHON
-    /*if (GRAB_SETTINGS(enable_closed_loop) || GRAB_SETTINGS(tags_recognize)) {
-        track::PythonIntegration::set_settings(GlobalSettings::instance());
-        track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
-
-        track::Recognition::fix_python();
-        track::PythonIntegration::instance();
+    if (GRAB_SETTINGS(enable_closed_loop) || GRAB_SETTINGS(tags_recognize)) {
         track::PythonIntegration::ensure_started().get();
-    }*/
+    }
 #endif
 
     if (tracker) {

@@ -977,7 +977,7 @@ uint64_t Data::write(const Individual& val) {
             auto before = Meta::toStr(FileSize(in_len));
             auto after = Meta::toStr(FileSize(size));
             
-            print("Saved ", double(ptr->_N_written.load() + 1) / double(ptr->_expected_individuals.load()) * 100,"%... (individual ", val.identity().ID()," compressed from ", before.c_str()," to ", after.c_str(),").");
+            print("Saved ", dec<2>(double(ptr->_N_written.load() + 1) / double(ptr->_expected_individuals.load()) * 100),"%... (individual ", val.identity().ID()," compressed from ", before.c_str()," to ", after.c_str(),").");
         }
     
     } else {
