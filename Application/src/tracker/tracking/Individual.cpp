@@ -1344,6 +1344,18 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(F
         if(!_frame_segments.empty()) {
             _frame_segments.back()->error_code = error_code;
         }
+        
+        /*if(frameIndex != _startFrame) {
+            print("reasoning for ", identity(), " in ", frameIndex, ":");
+            print(prev_frame != frameIndex - 1_f, " prev: ", prev_frame, " frameIndex: ", frameIndex);
+            print(current_prob != -1 && current_prob < FAST_SETTINGS(track_trusted_probability), " current_prob:", current_prob, " trusted = ", FAST_SETTINGS(track_trusted_probability));
+            print(FAST_SETTINGS(huge_timestamp_ends_segment) && tdelta >= FAST_SETTINGS(huge_timestamp_seconds), " flag: ", FAST_SETTINGS(huge_timestamp_ends_segment), " -> ", tdelta, " >= ", FAST_SETTINGS(huge_timestamp_seconds));
+            print(is_manual_match(frameIndex), " is manual match ", frameIndex, " = ", is_manual_match(frameIndex));
+            print(!blob, " blob: ", blob);
+            print(FAST_SETTINGS(track_end_segment_for_speed) && current.speed<Units::CM_AND_SECONDS>() >= weird_distance(), " max speed: ", FAST_SETTINGS(track_end_segment_for_speed), " speed = ", current.speed<Units::CM_AND_SECONDS>(), " weird: ", weird_distance());
+            if(segment) print(FAST_SETTINGS(track_segment_max_length) > 0 && segment && segment->length() / float(FAST_SETTINGS(frame_rate)) >= FAST_SETTINGS(track_segment_max_length), " segment max length = ", FAST_SETTINGS(track_segment_max_length), " segment percent: ", segment->length() / float(FAST_SETTINGS(frame_rate)));
+            print("");
+        }*/
 
         segment = std::make_shared<SegmentInformation>(Range<Frame_t>(frameIndex, frameIndex), !blob || blob->split() ? Frame_t() : frameIndex);
         _frame_segments.push_back(segment);
