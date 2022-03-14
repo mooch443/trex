@@ -26,6 +26,8 @@
 track::Tracker* tracker = nullptr;
 
 using conversion_range_t = std::pair<long_t,long_t>;
+//#define TAGS_ENABLE
+#if !defined(TAGS_ENABLE)
 CREATE_STRUCT(GrabSettings,
   (bool, grabber_use_threads),
   (bool, cam_undistort),
@@ -50,12 +52,41 @@ CREATE_STRUCT(GrabSettings,
   (float,        image_contrast_increase),
   (float,        image_brightness_increase),
   (bool,        enable_closed_loop),
-  (bool,        tags_enable),
-    (bool,      tags_recognize),
   (bool,        output_statistics),
-(bool, tags_saved_only),
   (file::Path, filename)
 )
+#else
+CREATE_STRUCT(GrabSettings,
+    (bool, grabber_use_threads),
+    (bool, cam_undistort),
+    (int, frame_rate),
+    (Rangef, blob_size_range),
+    (int, threshold),
+    (int, threshold_maximum),
+    (bool, terminate),
+    (bool, reset_average),
+    (bool, image_invert),
+    (uint32_t, average_samples),
+    (bool, correct_luminance),
+    (bool, recording),
+    (uint8_t, color_channel),
+    (bool, quit_after_average),
+    (uint32_t, stop_after_minutes),
+    (float, cam_scale),
+    (conversion_range_t, video_conversion_range),
+    (bool, image_adjust),
+    (bool, equalize_histogram),
+    (bool, image_square_brightness),
+    (float, image_contrast_increase),
+    (float, image_brightness_increase),
+    (bool, enable_closed_loop),
+    (bool, output_statistics),
+    (file::Path, filename),
+    (bool, tags_enable),
+    (bool, tags_recognize),
+    (bool, tags_saved_only)
+)
+#endif
 
 #define GRAB_SETTINGS(NAME) GrabSettings::copy< GrabSettings:: NAME >()
 
@@ -574,7 +605,7 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
         Output::Library::Init();
     }
     
-#if !TREX_NO_PYTHON
+#if !TREX_NO_PYTHON && defined(TAGS_ENABLE)
     if (GRAB_SETTINGS(enable_closed_loop) || GRAB_SETTINGS(tags_recognize)) {
         track::PythonIntegration::ensure_started().get();
     }
@@ -744,7 +775,12 @@ FrameGrabber::~FrameGrabber() {
         _tracker_thread->join();
         delete _tracker_thread;
         
-        if (GRAB_SETTINGS(enable_closed_loop) || GRAB_SETTINGS(tags_recognize)) {
+        if (GRAB_SETTINGS(enable_closed_loop) 
+#if defined(TAGS_ENABLE)
+            || GRAB_SETTINGS(tags_recognize)
+#endif
+            ) 
+        {
             Output::PythonIntegration::quit();
         }
         
@@ -1807,9 +1843,11 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
 
     {
         std::vector<blob::Pair> rawblobs;
+#if defined(TAGS_ENABLE)
         if(!GRAB_SETTINGS(tags_saved_only))
+#endif
             rawblobs = CPULabeling::run(task->current->get(), true);
-        
+
         for (auto& blob : task->tags) {
             rawblobs.emplace_back(
                 std::make_unique<blob::line_ptr_t::element_type>(*blob->lines()),
