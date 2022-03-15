@@ -1229,7 +1229,8 @@ struct RecTask {
 };
 
 void RecTask::init() {
-    Recognition::fix_python();
+    Recognition::fix_python(true);
+    
     PythonIntegration::ensure_started().get();
     //Recognition::check_learning_module(true);
     PythonIntegration::async_python_function([]()->bool {return true; });

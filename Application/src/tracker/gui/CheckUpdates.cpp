@@ -237,7 +237,7 @@ std::future<VersionStatus> perform(bool manually_triggered) {
     auto promise = std::make_shared<std::promise<VersionStatus>>();
     auto future = promise->get_future();
     
-    Recognition::fix_python();
+    Recognition::fix_python(true);
     
     using py = PythonIntegration;
     if(manually_triggered && !GUI_SETTINGS(nowindow) && GUI::instance()) {

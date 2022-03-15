@@ -210,10 +210,10 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
     {
         assert(!instance);
         instance = this;
-        fix_python();
+        fix_python(false);
     }
 
-    void Recognition::fix_python() {
+    void Recognition::fix_python(bool force_init, cmn::source_location loc) {
         static std::once_flag flag;
         std::call_once(flag, [](){
     #ifdef COMMONS_PYTHON_EXECUTABLE
@@ -268,12 +268,26 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                     else
                         print("Can initialize.");
                 }
-                
-                track::PythonIntegration::set_settings(GlobalSettings::instance());
-                track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
             }
     #endif
         });
+        
+        if(force_init
+           || FAST_SETTINGS(recognition_enable)
+           || SETTING(enable_closed_loop)
+           || SETTING(tags_recognize))
+        {
+            if(can_initialize_python()) {
+                static std::once_flag flag2;
+                std::call_once(flag2, [](){
+                    track::PythonIntegration::set_settings(GlobalSettings::instance());
+                    track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
+                });
+                
+            } else {
+                throw U_EXCEPTION<FormatterType::UNIX, const char*>("Cannot initialize python, even though initializing it was required by the caller.", loc);
+            }
+        }
     }
     
     Recognition::~Recognition() {
