@@ -37,6 +37,7 @@ else
     
     if [ -z "${FILES}" ]; then
         echo "[ERROR] No files found."
+        cat "${PWD}/tgrabs.log"
         exit_code=1
     else
         for f in ${FILES}; do
@@ -76,6 +77,7 @@ for MODE in ${MODES}; do
         
         if [ -z "${FILES}" ]; then
             echo "[ERROR] No files found."
+            cat "${PWD}/trex.log"
             exit_code=1
         else
             for f in ${FILES}; do
