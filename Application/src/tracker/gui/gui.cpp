@@ -3360,8 +3360,8 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
             PD(cache).recognition_updated = false;
             PD(cache).set_tracking_dirty();
             
-            if(!force_correct)
-                print("Automatic correct has not been performed (only averages have been calculated). In order to do so, add the keyword 'force' after the command.");
+            //if(!force_correct)
+            //    print("Automatic correct has not been performed (only averages have been calculated). In order to do so, add the keyword 'force' after the command.");
         });
     }
     //});
