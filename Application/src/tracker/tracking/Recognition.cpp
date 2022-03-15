@@ -211,7 +211,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         assert(!instance);
         instance = this;
         fix_python();
-        
+
         track::PythonIntegration::set_settings(GlobalSettings::instance());
         track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
     }
@@ -272,9 +272,6 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                 else
                     print("Can initialize.");
             }
-
-            track::PythonIntegration::set_settings(GlobalSettings::instance());
-            track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
         }
 #endif
     }
@@ -1616,6 +1613,8 @@ void Recognition::load_weights(std::string postfix) {
         const float random_chance = 1.f / FAST_SETTINGS(track_max_individuals);
         const float good_enough = min(1.f, random_chance * 2);
         auto acc = last_prediction_accuracy();
+        if(acc == -1)
+            return; // no data
         if(acc < good_enough)
             FormatWarning("Prediction accuracy for the trained network was lower than it should be (",dec<2>(acc*100),"%, and random is ",dec<2>(random_chance * 100),"% for ",FAST_SETTINGS(track_max_individuals)," individuals). Proceed with caution.");
     }
@@ -2017,7 +2016,10 @@ void Recognition::load_weights(std::string postfix) {
         
             try {
                 if(future.get()) { //&& (load_results == TrainingMode::Apply/* || best_accuracy_worst_class > 0.9*/)) {
-                    DebugCallback("Success (train) with best_accuracy_worst_class = %f.", best_accuracy_worst_class);
+                    if(best_accuracy_worst_class != -1)
+                        DebugCallback("Success (train) with best_accuracy_worst_class = ", best_accuracy_worst_class, ".");
+                    else
+                        DebugCallback("Success (train) with unspecified accuracy (will only be displayed directly after training).");
                     success = true;
                 } else
                     print("Training the network failed (",best_accuracy_worst_class,").");

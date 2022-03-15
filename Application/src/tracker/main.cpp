@@ -1601,20 +1601,7 @@ int main(int argc, char** argv)
             gui.work().add_queue("pausing", [&](){
                 analysis->set_paused(true).get();
                 already_pausing = false;
-                
-                if(SETTING(auto_categorize)) {
-                    GUI::auto_categorize();
-                } else if(SETTING(auto_train)) {
-                    GUI::auto_train();
-                } else if(SETTING(auto_apply)) {
-                    GUI::auto_apply();
-                }
-                
-                // check if results should be saved and the app should quit
-                // automatically after analysis is done.
-                else if(SETTING(auto_quit)) {
-                    GUI::auto_quit();
-                }
+                GUI::tracking_finished();
             });
         }
         
