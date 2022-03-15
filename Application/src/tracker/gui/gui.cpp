@@ -4128,43 +4128,45 @@ void GUI::generate_training_data(GUI::GUIType type, bool force_load) {
     /*-------------------------/
      SAVE METADATA
      -------------------------*/
-    
+
     auto fn = [](TrainingMode::Class load) -> bool {
         std::vector<Rangel> trained;
-        
+
         work().set_progress("training network", 0);
         work().set_item_abortable(true);
-        
+
         try {
             Accumulation acc(load);
             auto ret = acc.start();
-            if(ret && SETTING(auto_train_dont_apply)) {
+            if (ret && SETTING(auto_train_dont_apply)) {
                 GUI::auto_quit();
             }
-            
+
             return ret;
-            
-        } catch(const SoftExceptionImpl& error) {
-            if(SETTING(auto_train_on_startup))
+
+        }
+        catch (const SoftExceptionImpl& error) {
+            if (SETTING(auto_train_on_startup))
                 throw U_EXCEPTION("The training process failed. Please check whether you are in the right python environment and check previous error messages.");
-            
-            if(!SETTING(nowindow))
-                GUI::instance()->gui().dialog("The training process failed. Please check whether you are in the right python environment and check out this error message:\n\n<i>"+escape_html(error.what())+"</i>", "Error");
+
+            if (!SETTING(nowindow))
+                GUI::instance()->gui().dialog("The training process failed. Please check whether you are in the right python environment and check out this error message:\n\n<i>" + escape_html(error.what()) + "</i>", "Error");
             FormatError("The training process failed. Please check whether you are in the right python environment and check previous error messages.");
             return false;
         }
     };
     
-    static constexpr const char message_concern[] = "Once visual identification succeeds, the entire video will be retracked and your previous <i>manual_matches</i> will be overwritten.\nKeep in mind that automatically generated results should always be manually validated (at least in samples). Bad results are often indicated by long training times or by ending on uniqueness values below chance.";
+    static constexpr const char message_concern[] = "Note that once visual identification succeeds, the entire video will be retracked and any previous <i>manual_matches</i> overwritten - you should save them by clicking <i>save config</i> (in the menu) prior to this. Further information is available at <i>trex.run/docs</i>.\n\nKeep in mind that automatically generated results should always be manually validated (at least in samples). Bad results are often indicated by long training times or by ending on uniqueness values below chance.";
     
     static constexpr const char message_no_weights[] = "<b>Training will start from scratch.</b>\nMake sure all of your individuals are properly tracked first, by setting parameters like <i>track_threshold</i>, <i>track_max_speed</i> and <i>blob_size_ranges</i> first. Always try to achieve a decent number of consecutively tracked frames for all individuals (at the same time), but avoid misassignments due to too wide parameter ranges. You may then click on <i>Start</i> below to start the process.";
     
-    static constexpr const char message_weights_available[] = "<b>A network from a previous session is available.</b>\nYou can either <i>Continue</i> training (trying to improve training results further), simply <i>Apply</i> it to the video, or <i>Restart</i> training from scratch (this deletes the previous network).\n\nAfter training, or loading, the video is automatically corrected if the results are deemed acceptable. However, you may clear auto matches and then manually select to <i>auto correct</i> from the menu again to regenerate them.";
+    static constexpr const char message_weights_available[] = "<b>A network from a previous session is available.</b>\nYou can either <i>Continue</i> training (trying to improve training results further), simply <i>Apply</i> it to the video, or <i>Restart</i> training from scratch (this deletes the previous network).";
     
     const auto avail = Recognition::network_weights_available();
-    const std::string message = avail ?
-                std::string(message_weights_available) + "\n" + std::string(message_concern)
-            :   std::string(message_no_weights)        + "\n" + std::string(message_concern);
+    const std::string message = (avail ?
+                std::string(message_weights_available)
+            :   std::string(message_no_weights))
+        + "\n\n" + std::string(message_concern);
     
     //if(Recognition::network_weights_available()) {
         if(type == GUIType::GRAPHICAL) {
