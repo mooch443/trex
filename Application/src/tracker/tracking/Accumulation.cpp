@@ -1774,7 +1774,7 @@ void Accumulation::end_a_step(Result reason) {
                 return;
             _current_accumulation->update_display(e, text);
         });
-    print("[STEP] ", last);
+    print("[STEP] ", last.c_str());
 }
 
 void Accumulation::update_display(gui::Entangled &e, const std::string& text) {

@@ -3885,7 +3885,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
 #ifdef TREX_DEBUG_IDENTITIES
                         log(f, "fish ",fdx,": segment ",segment.start(),"-",segment.end()," has ",n," samples");
 #endif
-                        print("fish ",fdx,": segment ",segment.start(),"-",segment.end()," has ",n," samples");
+                        //print("fish ",fdx,": segment ",segment.start(),"-",segment.end()," has ",n," samples");
                         
                         std::set<std::pair<Idx_t, Match::prob_t>, decltype(compare_greatest)> sorted(compare_greatest);
                         sorted.insert(average.begin(), average.end());
