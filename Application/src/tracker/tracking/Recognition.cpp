@@ -2017,7 +2017,10 @@ void Recognition::load_weights(std::string postfix) {
         
             try {
                 if(future.get()) { //&& (load_results == TrainingMode::Apply/* || best_accuracy_worst_class > 0.9*/)) {
-                    DebugCallback("Success (train) with best_accuracy_worst_class = %f.", best_accuracy_worst_class);
+                    if(best_accuracy_worst_class != -1)
+                        DebugCallback("Success (train) with best_accuracy_worst_class = ", best_accuracy_worst_class, ".");
+                    else
+                        DebugCallback("Success (train) with unspecified accuracy (will only be displayed directly after training).");
                     success = true;
                 } else
                     print("Training the network failed (",best_accuracy_worst_class,").");

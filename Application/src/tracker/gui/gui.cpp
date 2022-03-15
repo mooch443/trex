@@ -150,6 +150,7 @@ struct PrivateData {
 
     Timer _last_frame_change;
 
+    std::queue<std::function<void()>> _tracking_callbacks;
     
     gui::StaticText _info;
 
@@ -3337,8 +3338,11 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
     
     if(type == GUIType::GRAPHICAL) {
         PD(gui).dialog([this](gui::Dialog::Result r) {
-            this->work().add_queue("checking identities...", [this, r](){
-                Tracker::instance()->check_segments_identities(r == Dialog::OKAY, [](float x) { work().set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
+            if(r != Dialog::OKAY)
+                return;
+            
+            this->work().add_queue("checking identities...", [this](){
+                Tracker::instance()->check_segments_identities(true, [](float x) { work().set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
                     this->work().add_queue(t, fn, b);
                 });
                 
@@ -3347,7 +3351,7 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
                 PD(cache).set_tracking_dirty();
             });
             
-        }, "Do you wish to overwrite <key>manual_matches</key> and reanalyse the video from the beginning with automatic corrections enabled? You will probably want to click <b>Yes</b> after training the visual identification network.\n<b>No</b> will only generate averages and does not change any tracked trajectories.", "Auto-correct", "Yes", "No");
+        }, "Automatic correction uses machine learning based predictions to correct potential tracking mistakes. Make sure that you have trained the visual identification network prior to using auto-correct.\nThis action will overwrite your <key>manual_matches</key> and replace any previously set automatic matches based on predictions made by the visual identification network. Is this what you want?", "Auto-correct", "Yes", "Cancel");
     } else {
         this->work().add_queue("checking identities...", [this, force_correct](){
             Tracker::instance()->check_segments_identities(force_correct, [](float x) { work().set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
@@ -3468,6 +3472,32 @@ void GUI::auto_quit() {
     SETTING(auto_quit) = false;
     if(!SETTING(terminate))
         SETTING(terminate) = true;
+}
+    
+void GUI::tracking_finished() {
+    {
+        std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
+        while(PD(tracking_callbacks).empty()) {
+            auto &&item = std::move(PD(tracking_callbacks).front());
+            PD(tracking_callbacks).pop();
+            
+            item();
+        }
+    }
+    
+    if(SETTING(auto_categorize)) {
+        GUI::auto_categorize();
+    } else if(SETTING(auto_train)) {
+        GUI::auto_train();
+    } else if(SETTING(auto_apply)) {
+        GUI::auto_apply();
+    }
+    
+    // check if results should be saved and the app should quit
+    // automatically after analysis is done.
+    else if(SETTING(auto_quit)) {
+        GUI::auto_quit();
+    }
 }
     
 void GUI::auto_categorize() {
@@ -4126,31 +4156,80 @@ void GUI::generate_training_data(GUI::GUIType type, bool force_load) {
         }
     };
     
-    if(Recognition::network_weights_available()) {
+    static constexpr const char message_concern[] = "Keep in mind that machine learning is not magic, and clonal or badly lit individuals may still pose a problem. Samples of automatically generated results should always be manually validated. Bad results are often indicated by long training times or by ending on uniqueness values below chance.";
+    
+    static constexpr const char message_no_weights[] = "<b>Training will start from scratch.</b>\nMake sure all of your individuals are properly tracked first, by setting parameters like <i>track_threshold</i>, <i>track_max_speed</i> and <i>blob_size_ranges</i> first. Always try to achieve a decent number of consecutively tracked frames for all individuals (at the same time), but avoid misassignments due to too wide parameter ranges. You may then click on <i>Start</i> below to start the process.";
+    
+    static constexpr const char message_weights_available[] = "<b>A network from a previous session is available.</b>\nYou can either <i>Continue</i> training (trying to improve training results further), simply <i>Apply</i> it to the video, or <i>Restart</i> training from scratch (this deletes the previous network).\n\nAfter training, or loading, the video is automatically corrected if the results are deemed acceptable. However, you may clear auto matches and then manually select to <i>auto correct</i> from the menu again to regenerate them.";
+    
+    const auto avail = Recognition::network_weights_available();
+    const std::string message = avail ?
+                std::string(message_weights_available) + "\n" + std::string(message_concern)
+            :   std::string(message_no_weights)        + "\n" + std::string(message_concern);
+    
+    //if(Recognition::network_weights_available()) {
         if(type == GUIType::GRAPHICAL) {
-            PD(gui).dialog([fn](Dialog::Result result){
-                work().add_queue("training network", [fn, result](){
+            PD(gui).dialog([fn, avail](Dialog::Result result){
+                work().add_queue("training network", [fn, result, avail=avail](){
                     try {
                         TrainingMode::Class mode;
-                        switch(result) {
-                            case gui::Dialog::OKAY:
-                                mode = TrainingMode::Continue;
-                                break;
-                            case gui::Dialog::SECOND:
-                                mode = TrainingMode::Apply;
-                                break;
-                            case gui::Dialog::THIRD:
-                                mode = TrainingMode::Restart;
-                                break;
-                            case gui::Dialog::FOURTH:
-                                mode = TrainingMode::LoadWeights;
-                                break;
-                            case gui::Dialog::ABORT:
-                                return;
-                                
-                            default:
-                                throw SoftException("Unknown mode %d in generate_training_data.", (int)result);
-                                return;
+                        if(avail) {
+                            switch(result) {
+                                case gui::Dialog::OKAY:
+                                    mode = TrainingMode::Continue;
+                                    break;
+                                case gui::Dialog::SECOND:
+                                    mode = TrainingMode::Apply;
+                                    break;
+                                case gui::Dialog::THIRD:
+                                    mode = TrainingMode::Restart;
+                                    break;
+                                case gui::Dialog::FOURTH:
+                                    mode = TrainingMode::LoadWeights;
+                                    break;
+                                case gui::Dialog::ABORT:
+                                    return;
+                                    
+                                default:
+                                    throw SoftException("Unknown mode ",result," in generate_training_data.");
+                                    return;
+                            }
+                            
+                        } else {
+                            switch(result) {
+                                case gui::Dialog::OKAY:
+                                    mode = TrainingMode::Restart;
+                                    break;
+                                case gui::Dialog::ABORT:
+                                    return;
+                                    
+                                default:
+                                    throw SoftException("Unknown mode ",result," in generate_training_data.");
+                                    return;
+                            }
+                        }
+                        
+                        if(mode == TrainingMode::Continue
+                           || mode == TrainingMode::Restart
+                           || mode == TrainingMode::Apply)
+                        {
+                            print("Registering auto correct callback.");
+                            
+                            auto rec = Tracker::recognition();
+                            if(rec) {
+                                rec->detail().register_finished_callback([&](){
+                                    print("Finished. Auto correcting...");
+                                    
+                                    Tracker::recognition()->check_last_prediction_accuracy();
+                                    
+                                    std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
+                                    PD(tracking_callbacks).push([](){
+                                        instance()->auto_correct(GUI::GUIType::TEXT, false);
+                                    });
+                                    
+                                    instance()->auto_correct(GUI::GUIType::TEXT, true);
+                                });
+                            }
                         }
                         
                         fn(mode);
@@ -4164,7 +4243,7 @@ void GUI::generate_training_data(GUI::GUIType type, bool force_load) {
                     }
                 });
                 
-            }, "<b>Weights from a previous training are available.</b>\nData from a previous training session exists. You can either load it and <i>continue</i> training, just load it and <i>apply</i> the network to the whole video, or simply restart training from scratch. If available, you may also load the weights without any further actions.\n\nNone of these options automatically corrects the tracking data. However, you may first review the prospective identity assignments after training and then manually select to <i>auto correct</i> from the menu.", "Training mode", "Continue", "Cancel", "Apply", "Restart", Recognition::network_weights_available() ? "Load weights" : "");
+            }, message, "Training mode", avail ? "Continue" : "Start", "Cancel", avail ? "Apply" : "", avail ? "Restart" : "", avail ? "Load weights" : "");
             
         } else {
             auto mode = TrainingMode::Restart;
@@ -4178,7 +4257,7 @@ void GUI::generate_training_data(GUI::GUIType type, bool force_load) {
                 FormatWarning("Weights will not be loaded. In order to load weights add 'load' keyword after the command.");
         }
         
-    } else {
+    /*} else {
         if(force_load)
             FormatWarning("Cannot load weights, as no previous weights exist.");
         
@@ -4188,7 +4267,7 @@ void GUI::generate_training_data(GUI::GUIType type, bool force_load) {
                     throw U_EXCEPTION("Using the network returned a bad code (false). See previous errors.");
             }
         });
-    }
+    }*/
 }
 
 void GUI::generate_training_data_faces(const file::Path& path) {
