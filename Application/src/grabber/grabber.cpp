@@ -858,17 +858,24 @@ FrameGrabber::~FrameGrabber() {
     if (_processed.open()) {
         _processed.stop_writing();
         _processed.close();
+        print("[closed]");
     }
 
     FrameGrabber::instance = NULL;
     
-    file::Path filename = make_filename().add_extension("pv");
-    if(filename.exists()) {
-        pv::File file(filename);
-        file.start_reading();
-        file.print_info();
-    } else {
-        FormatError("No file has been written.");
+    try {
+        file::Path filename = make_filename().add_extension("pv");
+        if (filename.exists()) {
+            print("Opening ", filename, "...");
+            pv::File file(filename);
+            file.start_reading();
+            file.print_info();
+        }
+        else {
+            FormatError("No file has been written.");
+        }
+    }
+    catch (...) {
     }
 }
 

@@ -163,7 +163,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             exec += " 2> /dev/null";
 #endif
         } else {
-            FormatWarning("Does not exist in working dir: ",exec);
+            //FormatWarning("Does not exist in working dir: ",exec);
 #if __APPLE__
             auto p = SETTING(wd).value<file::Path>();
             p = p / ".." / ".." / ".." / CHECK_PYTHON_EXECUTABLE_NAME;
@@ -174,17 +174,20 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             } else {
                 p = SETTING(wd).value<file::Path>() / CHECK_PYTHON_EXECUTABLE_NAME;
                 if(p.exists()) {
-                    print("Pure ",p," exists.");
+                    //print("Pure ",p," exists.");
                     exec = p.str()+" 2> /dev/null";
                 } else {
                     // search conda
                     auto conda_prefix = (const char*)getenv("CONDA_PREFIX");
                     if(conda_prefix) {
-                        print("Searching conda environment for trex_check_python... (", std::string(conda_prefix),").");
+                        if(!SETTING(quiet))
+                            print("Searching conda environment for trex_check_python... (", std::string(conda_prefix),").");
                         p = file::Path(conda_prefix) / "usr" / "share" / "trex" / CHECK_PYTHON_EXECUTABLE_NAME;
-                        print("Full path: ", p);
+                        if(!SETTING(quiet))
+                            print("Full path: ", p);
                         if(p.exists()) {
-                            print("Found in conda environment ",std::string(conda_prefix)," at ",p);
+                            if(!SETTING(quiet))
+                                print("Found in conda environment ",std::string(conda_prefix)," at ",p);
                             exec = p.str()+" 2> /dev/null";
                         } else {
                             FormatWarning("Not found in conda environment ",std::string(conda_prefix)," at ",p,".");
@@ -223,7 +226,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             if (file::Path(home).exists() && file::Path(home).is_regular())
                 home = file::Path(home).remove_filename().str();
 
-            print("Checking python at ", home);
+            //print("Checking python at ", home);
 
             if (!can_initialize_python() && !getenv("TREX_DONT_SET_PATHS")) {
                 if (!SETTING(quiet))

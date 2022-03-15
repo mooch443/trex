@@ -707,7 +707,6 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         metadata = generate_metadata();
         _meta_offset = ref.write(metadata);
         
-        print("Updating number of frames with ",this->num_frames,", index offset ",this->index_offset,", timestamp ",this->timestamp,", ", _meta_offset);
         ref.write(this->num_frames, _num_frames_offset);
         ref.write(this->index_offset, _index_offset);
         ref.write(this->timestamp, _timestamp_offset);
@@ -715,6 +714,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         if(average) {
             ref.Data::write_data(_average_offset, average->size(), (char*)average->data());
         }
+        
+        print("Updated number of frames with ",this->num_frames,", index offset ",this->index_offset,", timestamp ",this->timestamp,", ", _meta_offset);
     }
     
     std::string Header::generate_metadata() const {
