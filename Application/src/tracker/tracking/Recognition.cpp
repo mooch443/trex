@@ -1616,6 +1616,8 @@ void Recognition::load_weights(std::string postfix) {
         const float random_chance = 1.f / FAST_SETTINGS(track_max_individuals);
         const float good_enough = min(1.f, random_chance * 2);
         auto acc = last_prediction_accuracy();
+        if(acc == -1)
+            return; // no data
         if(acc < good_enough)
             FormatWarning("Prediction accuracy for the trained network was lower than it should be (",dec<2>(acc*100),"%, and random is ",dec<2>(random_chance * 100),"% for ",FAST_SETTINGS(track_max_individuals)," individuals). Proceed with caution.");
     }
