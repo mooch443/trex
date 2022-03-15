@@ -192,7 +192,7 @@ int main(int argc, char**argv) {
     default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     
     SETTING(recognition_enable) = false;
-    GlobalSettings::access_levels().at("recognition_enable") = AccessLevelType::SYSTEM;
+    GlobalSettings::set_access_level("recognition_enable", AccessLevelType::SYSTEM);
     
     CommandLine cmd(argc, argv, true);
     cmd.cd_home();
@@ -206,6 +206,7 @@ int main(int argc, char**argv) {
     SETTING(quiet) = false;
     cmd.load_settings();
     be_quiet = SETTING(quiet);
+    set_runtime_quiet(be_quiet);
     
 #if !defined(__APPLE__) && defined(TREX_CONDA_PACKAGE_INSTALL)
     auto conda_prefix = ::default_config::conda_environment_path().str();
