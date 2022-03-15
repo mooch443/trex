@@ -5,6 +5,7 @@
 #include <tracker/gui/gui.h>
 #include <gui/WorkProgress.h>
 #include <tracker/misc/default_config.h>
+#include <tracking/Recognition.h>
 
 #if WIN32
 #include <shellapi.h>
@@ -193,8 +194,6 @@ void update_loop() {
         auto now = system_clock::now();
         auto dt = (now - tp).time_since_epoch();
         
-        auto str = Meta::toStr(DurationUS{(uint64_t)dt.count()});
-        
         static const auto short_update_time = 24s * 7;
         static const auto long_update_time = 24h * 7;
         
@@ -204,7 +203,7 @@ void update_loop() {
             if(_last_check_success)
                 print("[CHECK_UPDATES] It has been a week. Let us check for updates...");
             else
-                print("[CHECK_UPDATES] Trying again after ",str,"...");
+                print("[CHECK_UPDATES] Trying again after ",DurationUS{(uint64_t)dt.count()},"...");
             
             SETTING(app_last_update_check) = (uint64_t)duration_cast<microseconds>( now.time_since_epoch() ).count();
             
@@ -237,6 +236,8 @@ void update_loop() {
 std::future<VersionStatus> perform(bool manually_triggered) {
     auto promise = std::make_shared<std::promise<VersionStatus>>();
     auto future = promise->get_future();
+    
+    Recognition::fix_python(true);
     
     using py = PythonIntegration;
     if(manually_triggered && !GUI_SETTINGS(nowindow) && GUI::instance()) {

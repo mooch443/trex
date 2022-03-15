@@ -195,7 +195,7 @@ namespace track {
         Recognition();
         ~Recognition();
 
-        static void fix_python();
+        static void fix_python(bool force_init, cmn::source_location loc = cmn::source_location::current());
         //float p(Frame_t frame, uint32_t blob_id, const Individual *fish);
         std::map<Idx_t, float> ps_raw(Frame_t frame, pv::bid blob_id);
         //bool has(Frame_t frame, uint32_t blob_id);

@@ -15,6 +15,12 @@
 std::string conda_environment_path(const char* argv) {
 #ifdef COMMONS_PYTHON_EXECUTABLE
     auto compiled_path = file::Path(COMMONS_PYTHON_EXECUTABLE).is_regular() ? file::Path(COMMONS_PYTHON_EXECUTABLE).remove_filename().str() : file::Path(COMMONS_PYTHON_EXECUTABLE).str();
+    if(compiled_path == "CONDA_PREFIX")
+        compiled_path = "";
+#if defined(__linux__) || defined(__APPLE__)
+    if(utils::endsWith(compiled_path, "/bin"))
+        compiled_path = file::Path(compiled_path).remove_filename().str();
+#endif
 #else
     std::string compiled_path = "";
 #endif

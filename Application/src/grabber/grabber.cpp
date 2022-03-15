@@ -605,8 +605,12 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
         Output::Library::Init();
     }
     
-#if !TREX_NO_PYTHON && defined(TAGS_ENABLE)
-    if (GRAB_SETTINGS(enable_closed_loop) || GRAB_SETTINGS(tags_recognize)) {
+#if !TREX_NO_PYTHON
+    if (GRAB_SETTINGS(enable_closed_loop) 
+#if defined(TAGS_ENABLE)
+        || GRAB_SETTINGS(tags_recognize)
+#endif
+        ) {
         track::PythonIntegration::ensure_started().get();
     }
 #endif

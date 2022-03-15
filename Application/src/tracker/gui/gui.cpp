@@ -3360,8 +3360,8 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
             PD(cache).recognition_updated = false;
             PD(cache).set_tracking_dirty();
             
-            if(!force_correct)
-                print("Automatic correct has not been performed (only averages have been calculated). In order to do so, add the keyword 'force' after the command.");
+            //if(!force_correct)
+            //    print("Automatic correct has not been performed (only averages have been calculated). In order to do so, add the keyword 'force' after the command.");
         });
     }
     //});
@@ -4155,7 +4155,7 @@ void GUI::generate_training_data(GUI::GUIType type, bool force_load) {
         }
     };
     
-    static constexpr const char message_concern[] = "Keep in mind that machine learning is not magic, and clonal or badly lit individuals may still pose a problem. Samples of automatically generated results should always be manually validated. Bad results are often indicated by long training times or by ending on uniqueness values below chance.";
+    static constexpr const char message_concern[] = "Once visual identification succeeds, the entire video will be retracked and your previous <i>manual_matches</i> will be overwritten.\nKeep in mind that automatically generated results should always be manually validated (at least in samples). Bad results are often indicated by long training times or by ending on uniqueness values below chance.";
     
     static constexpr const char message_no_weights[] = "<b>Training will start from scratch.</b>\nMake sure all of your individuals are properly tracked first, by setting parameters like <i>track_threshold</i>, <i>track_max_speed</i> and <i>blob_size_ranges</i> first. Always try to achieve a decent number of consecutively tracked frames for all individuals (at the same time), but avoid misassignments due to too wide parameter ranges. You may then click on <i>Start</i> below to start the process.";
     

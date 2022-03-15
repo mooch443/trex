@@ -500,8 +500,6 @@ bool Individual::recently_manually_matched(Frame_t frameIndex) const {
 void Individual::remove_frame(Frame_t frameIndex) {
     if (frameIndex > _endFrame)
         return;
-    
-    _hints.remove_after(frameIndex);
 
     {
         auto callbacks = _delete_callbacks;
@@ -510,7 +508,11 @@ void Individual::remove_frame(Frame_t frameIndex) {
         _delete_callbacks.clear();
     }
 
-    
+    if(frameIndex <= start_frame())
+        _hints.clear();
+    else
+        _hints.remove_after(frameIndex);
+
     {
         auto it = added_postures.begin();
         while (it != added_postures.end() && *it < frameIndex) {
@@ -1229,7 +1231,8 @@ struct RecTask {
 };
 
 void RecTask::init() {
-    Recognition::fix_python();
+    Recognition::fix_python(true);
+    
     PythonIntegration::ensure_started().get();
     //Recognition::check_learning_module(true);
     PythonIntegration::async_python_function([]()->bool {return true; });
@@ -1496,7 +1499,7 @@ Midline::Ptr Individual::calculate_midline_for(const BasicStuff &basic, const Po
             midline = midline->normalize();
         else if(size_t(_warned_normalized_midline.elapsed())%5 == 0) {
 #ifndef NDEBUG
-            FormatWarning(identity().ID()," has a pre-normalized midline in frame ",posture->frame,". not normalizing it again.");
+            FormatWarning(identity().ID()," has a pre-normalized midline in frame ",posture.frame,". not normalizing it again.");
 #endif
         }
         
@@ -2558,7 +2561,7 @@ void Individual::save_posture(const BasicStuff& stuff, Frame_t frameIndex) {//Im
     auto direction = c->v();
     direction /= ::length(direction);*/
     
-    assert(stuff->pixels);
+    assert(stuff.pixels);
     Posture ptr(frameIndex, identity().ID());
     ptr.calculate_posture(frameIndex, stuff.pixels);
     //ptr.calculate_posture(frameIndex, greyscale->get(), previous_direction);

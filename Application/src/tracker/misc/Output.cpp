@@ -1047,6 +1047,12 @@ namespace Output {
             read<int64_t>(_header.analysis_range.end);
         } else
             _header.analysis_range = Range<int64_t>(-1, -1);
+
+        if (_header.version >= ResultsFormat::V_34) {
+            uint64_t stamp;
+            read<uint64_t>(stamp);
+            _header.creation_time = timestamp_t{ stamp };
+        }
         
         if(_header.version >= ResultsFormat::V_14) {
             read<std::string>(_header.settings);
@@ -1054,12 +1060,6 @@ namespace Output {
         
         if(_header.version >= ResultsFormat::V_23) {
             read<std::string>(_header.cmd_line);
-        }
-        
-        if(_header.version >= ResultsFormat::V_34) {
-            uint64_t stamp;
-            read<uint64_t>(stamp);
-            _header.creation_time = timestamp_t{ stamp };
         }
         
         if(!SETTING(quiet)) {
