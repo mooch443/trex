@@ -3051,7 +3051,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     if(lost_ids.find(fdx) != lost_ids.end())
                         continue;
                     lost_ids.insert(fdx);
-                    auto basic = fish->empty() ? nullptr : fish->find_frame(frameIndex);
+                    auto basic = fish->empty() ? nullptr : fish->find_frame(frameIndex).get();
                     
                     if(basic && basic->frame == frameIndex) {
                         FormatWarning("Fish ", fdx," not in any of the arrays, but has frame ",frameIndex,".");
