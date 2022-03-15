@@ -186,6 +186,7 @@ int main(int argc, char**argv) {
     SETTING(merge_overlapping_blobs) = true;
     SETTING(merge_mode) = merge_mode_t::centered;
     SETTING(is_video) = true;
+    SETTING(quiet) = false;
     
     //DebugHeader("LOADING DEFAULT SETTINGS");
     default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
@@ -203,9 +204,8 @@ int main(int argc, char**argv) {
     bool fix = false, repair_index = false, save_background = false;
     bool be_quiet = false, print_plain = false, heatmap = false, auto_param = false;
 
-    SETTING(quiet) = false;
     cmd.load_settings();
-    be_quiet = SETTING(quiet);
+    be_quiet = SETTING(quiet).value<bool>();
     set_runtime_quiet(be_quiet);
     
 #if !defined(__APPLE__) && defined(TREX_CONDA_PACKAGE_INSTALL)
@@ -240,7 +240,7 @@ int main(int argc, char**argv) {
                 case Arguments::opencv_ffmpeg_support: {
                     std::string str = cv::getBuildInformation();
                     std::string line = "";
-                    print(str);
+                    print(str.c_str());
                     
                     for(size_t i=0; i<str.length(); ++i) {
                         if(str[i] == '\n') {
@@ -265,7 +265,7 @@ int main(int argc, char**argv) {
                 case Arguments::opencv_opencl_support: {
                     std::string str = cv::getBuildInformation();
                     std::string line = "";
-                    print(str);
+                    print(str.c_str());
                     
                     for(size_t i=0; i<str.length(); ++i) {
                         if(str[i] == '\n') {
@@ -356,7 +356,7 @@ int main(int argc, char**argv) {
                         path = path.add_extension("pv");
                     
                     if(!path.exists())
-                        throw U_EXCEPTION("Cannot find video file '",path.str(),"'. (",path.exists(),")");
+                        throw U_EXCEPTION("Cannot find video file ",path.str(),". (",path.exists(),")");
                     
                     SETTING(filename) = path.remove_extension();
                     break;
@@ -414,7 +414,7 @@ int main(int argc, char**argv) {
                     break;
                     
                 default:
-                    FormatWarning("Unknown option '", option.name.c_str(),"' with value '",!option.value.empty() ? option.value.c_str() : "","'");
+                    FormatWarning("Unknown option ", option.name," with value ",!option.value.empty() ? option.value : "");
                     break;
             }
             
