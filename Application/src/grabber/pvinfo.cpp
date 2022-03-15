@@ -508,6 +508,8 @@ int main(int argc, char**argv) {
         SETTING(quiet) = true;
         cmd.load_settings();
         
+        set_runtime_quiet(true);
+        
         track::Tracker _tracker;
         cv::Mat local;
         average.copyTo(local);
