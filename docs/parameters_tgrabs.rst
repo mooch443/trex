@@ -373,6 +373,16 @@ TGrabs parameters
 
 
 
+.. function:: solid_background_color(uchar)
+
+	**default value:** 255
+
+
+	A greyscale value in case ``enable_difference`` is set to false - TGrabs will automatically generate a background image with the given color.
+
+	.. seealso:: :func:`enable_difference`, 
+
+
 .. function:: stop_after_minutes(uint)
 
 	**default value:** 0
