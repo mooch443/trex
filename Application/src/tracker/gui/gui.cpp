@@ -3478,10 +3478,9 @@ void GUI::tracking_finished() {
     {
         std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
         while(!PD(tracking_callbacks).empty()) {
-            auto &&item = std::move(PD(tracking_callbacks).front());
-            PD(tracking_callbacks).pop();
-            
+            auto &item = PD(tracking_callbacks).front();
             item();
+            PD(tracking_callbacks).pop();
         }
     }
     

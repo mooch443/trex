@@ -211,7 +211,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         assert(!instance);
         instance = this;
         fix_python();
-        
+
         track::PythonIntegration::set_settings(GlobalSettings::instance());
         track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
     }
@@ -272,9 +272,6 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                 else
                     print("Can initialize.");
             }
-
-            track::PythonIntegration::set_settings(GlobalSettings::instance());
-            track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
         }
 #endif
     }
