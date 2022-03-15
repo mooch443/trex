@@ -67,47 +67,15 @@ target_link_libraries(pvconvert PUBLIC
     tracker_gui
     pv
     commons
-    Commons::GLFW
+    #Commons::GLFW
     #Commons::LibPNG
     #Commons::LibZ
-    Commons::OpenCV
+    #Commons::OpenCV
     #${EXTRA_LIBS}
 )
 
 add_dependencies(pvconvert commons)#Commons::OpenCV)
 #target_precompile_headers(pvconvert REUSE_FROM commons)
-
-option(WITH_PYLON "use pylon support" OFF)
-
-if(APPLE AND WITH_PYLON)
-    FIND_LIBRARY(PYLON_LIBRARIES Pylon)
-    if(PYLON_LIBRARIES STREQUAL "PYLON_LIBRARIES-NOTFOUND" OR NOT ${WITH_PYLON})
-        set(PYLON_FOUND false)
-        add_definitions(-DWITH_PYLON=false)
-    else()
-        set(PYLON_FOUND true)
-        add_definitions(-DWITH_PYLON=true)
-        message(STATUS "Pylon found. ${PYLON_LIBRARIES} lol")
-        include_directories(/Library/Frameworks/pylon.framework/Headers/GenICam)
-    endif()
-    
-elseif(WITH_PYLON)
-    find_package(BaslerPylon)
-    if(${PYLON_FOUND})
-        include_directories(${PYLON_INCLUDE_DIRS})
-        add_definitions(-DWITH_PYLON=true)
-        message(STATUS "Pylon found.")
-    else()
-        add_definitions(-DWITH_PYLON=false)
-    endif()
-endif()
-
-
-
-if(PYLON_FOUND AND WITH_PYLON)
-    message(STATUS "linking with pylon")
-    target_link_libraries( ${TGRABS_EXEC_NAME} PUBLIC ${PYLON_LIBRARIES} )
-endif()
 
 
 
@@ -118,19 +86,13 @@ target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE
 	tracker_gui
 	pv
 	commons
-    Commons::IMGUI
-    Commons::GLAD
-	Commons::GLFW
-    Commons::FFMPEG
-    cnpy
-    #Commons::LibPNG
-    #Commons::LibZ
-	Commons::OpenCV
-	#${EXTRA_LIBS}
 )
 
 if(NOT COMMONS_NO_PYTHON)
     target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE tracker_python)
+    if(WIN32)
+        set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
+    endif()
 
     if(NOT pybind11_external)
         target_link_libraries(${TGRABS_EXEC_NAME} PRIVATE pybind11::pybind11 pybind11::embed pybind11::module)
@@ -153,10 +115,10 @@ target_link_libraries(pvinfo PRIVATE
     tracker_gui
     tracker_misc
 	commons
-    Commons::IMGUI
+    #Commons::IMGUI
 	#Commons::LibPNG
 	#Commons::GLFW
-	Commons::OpenCV
+	#Commons::OpenCV
 	#${EXTRA_LIBS}
 	pv
 )
@@ -177,23 +139,6 @@ set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES
   MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist
 )
 
-if(TREX_CONDA_PACKAGE_INSTALL)
-    if(WIN32)
-		set(CONDA_PREFIX_VAR "CONDA_PREFIX")
-	else()
-		set(CONDA_PREFIX_VAR "$ENV{PREFIX}")
-	endif()
-else()
-    set(CONDA_PREFIX_VAR "${PYTHON_EXECUTABLE}")
-endif()
-    
-string(REPLACE "\\" "\\\\" CONDA_PREFIX_VAR "${CONDA_PREFIX_VAR}")
-message(STATUS "Setting TREX_PYTHON_PATH=${CONDA_PREFIX_VAR}")
-
-target_compile_definitions(pvinfo PRIVATE TREX_PYTHON_PATH="${CONDA_PREFIX_VAR}")
-target_compile_definitions(pvconvert PRIVATE TREX_PYTHON_PATH="${CONDA_PREFIX_VAR}")
-target_compile_definitions(${TGRABS_EXEC_NAME} PRIVATE TREX_PYTHON_PATH="${CONDA_PREFIX_VAR}")
-
 set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/gfx/GrabberIcon.icns PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 
 set(RESOURCE_COPY_FILES
@@ -205,6 +150,7 @@ set(RESOURCE_COPY_FILES
 set(RESOURCE_COPY_SINGLE_FILES
     ${CMAKE_SOURCE_DIR}/default.settings
     ${CMAKE_SOURCE_DIR}/closed_loop.py
+    ${CMAKE_SOURCE_DIR}/pretrained_tagwork.py
     ${CMAKE_CURRENT_SOURCE_DIR}/../tracker/python/trex_init.py
 )
 
@@ -267,10 +213,9 @@ set(targets ${TGRABS_EXEC_NAME} pvinfo pvconvert)
 
 if(APPLE)
     add_executable(tgrabs_starter tgrabs.cpp ${GIT_SOURCES})
-    target_link_libraries(tgrabs_starter PRIVATE commons cnpy)
+    target_link_libraries(tgrabs_starter PRIVATE commons)
     set_target_properties(tgrabs_starter PROPERTIES OUTPUT_NAME tgrabs)
     set(targets ${targets} tgrabs_starter)
-    target_compile_definitions(tgrabs_starter PRIVATE TREX_PYTHON_PATH="${CONDA_PREFIX_VAR}")
     #target_precompile_headers(tgrabs_starter REUSE_FROM commons)
 endif()
 

@@ -210,7 +210,7 @@ public:
     file::Path average_name() const;
     
     void safely_close();
-    void add_tracker_queue(const pv::Frame&, Frame_t);
+    void add_tracker_queue(const pv::Frame&, std::vector<pv::BlobPtr>&& tags, Frame_t);
     void update_tracker_queue();
     
     std::atomic_bool _terminate_tracker;

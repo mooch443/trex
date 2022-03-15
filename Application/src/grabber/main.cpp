@@ -591,12 +591,12 @@ int main(int argc, char** argv)
                 auto rejections = GlobalSettings::load_from_file(deprecations, settings_file.str(), AccessLevelType::STARTUP);
                 for(auto && [key, val] : rejections) {
                     if(deprecations.find(key) != deprecations.end())
-                        throw U_EXCEPTION("Parameter '",key,"' is deprecated. Please use '",deprecations.at(key),"'.");
+                        throw U_EXCEPTION("Parameter ",key," is deprecated. Please use ",deprecations.at(key),".");
                 }
                 DebugHeader("/LOADED ", settings_file);
             }
             else
-                FormatError("Cannot find settings file ",settings_file.str(),".");
+                FormatError("Cannot find settings file ",settings_file,".");
         }
         
         /**
@@ -605,17 +605,16 @@ int main(int argc, char** argv)
          */
         cmd.load_settings();
 
-#if !TREX_NO_PYTHON
-        if (SETTING(enable_closed_loop)) {
-            track::PythonIntegration::set_settings(GlobalSettings::instance());
-            track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
-
-            track::Recognition::fix_python();
-            track::PythonIntegration::instance();
-            track::PythonIntegration::ensure_started();
+        if (SETTING(tags_recognize) && !SETTING(enable_live_tracking)) {
+            // need live tracking to track tags
+            SETTING(enable_live_tracking) = true;
         }
-#endif
-        
+
+        if (SETTING(enable_closed_loop) && !SETTING(enable_live_tracking)) {
+            FormatWarning("Forcing enable_live_tracking = true because closed loop has been enabled.");
+            SETTING(enable_live_tracking) = true;
+        }
+
         SETTING(meta_source_path) = Path(SETTING(video_source).value<std::string>());
         std::vector<file::Path> filenames;
         
@@ -840,7 +839,7 @@ int main(int argc, char** argv)
     }
     catch (const Pylon::GenericException &e)
     {
-        throw U_EXCEPTION("An exception occured: '",e.GetDescription(),"'");
+        throw U_EXCEPTION("An exception occured: ",e.GetDescription());
         return 1;
     }
 #endif

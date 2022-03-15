@@ -296,8 +296,13 @@ void draw_blob_view(const DisplayParameters& parm)
                 {
                     //auto label = Categorize::DataStore::ranged_label(Frame_t(parm.cache.frame_idx), blob->blob_id());
                     auto it = parm.cache._ranged_blob_labels.find(blob->blob_id());
-                    if(it != parm.cache._ranged_blob_labels.end()) {
-                        ss << " <nr>" << cats.at(it->second) << "</nr>";
+                    if(it != parm.cache._ranged_blob_labels.end()
+                       && it->second != -1)
+                    {
+                        if(size_t(it->second) < cats.size())
+                            ss << " <nr>" << cats.at(it->second) << "</nr>";
+                        else
+                            ss << " unknown(" << it->second << ")";
                     }
                     /*if(blob->parent_id().valid() && (label = Categorize::DataStore::ranged_label(Frame_t(parm.cache.frame_idx), blob->parent_id()))) {
                         ss << " parent:<str>" << label->name << "</str>";

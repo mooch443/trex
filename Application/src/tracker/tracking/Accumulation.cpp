@@ -157,8 +157,8 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
         it->second->iterate_frames(overall_range, [&individuals_per_frame, id, &used_segments, &current_segment, calculate_posture]
             (Frame_t frame,
              const std::shared_ptr<Individual::SegmentInformation>& segment,
-             const std::shared_ptr<Individual::BasicStuff> & basic,
-             const std::shared_ptr<Individual::PostureStuff> & posture)
+             auto basic,
+             auto posture)
                 -> bool
         {
             if(basic && (posture || !calculate_posture)) {
@@ -1558,7 +1558,7 @@ bool Accumulation::start() {
                             continue;
                         
                         auto &basic = fish->basic_stuff()[size_t(bidx)];
-                        auto posture = pidx > -1 ? fish->posture_stuff()[size_t(pidx)] : nullptr;
+                        auto posture = pidx > -1 ? fish->posture_stuff()[size_t(pidx)].get() : nullptr;
 
                         auto bid = basic->blob.blob_id();
                         auto pid = basic->blob.parent_id;
@@ -1582,7 +1582,7 @@ bool Accumulation::start() {
                         }*/
                         
                         using namespace default_config;
-                        auto midline = posture ? fish->calculate_midline_for(basic, posture) : nullptr;
+                        auto midline = posture ? fish->calculate_midline_for(*basic, *posture) : nullptr;
                         Recognition::ImageData image_data(Recognition::ImageData::Blob{
                                 blob->num_pixels(), 
                                 blob->blob_id(), 
@@ -1774,7 +1774,7 @@ void Accumulation::end_a_step(Result reason) {
                 return;
             _current_accumulation->update_display(e, text);
         });
-    print("[STEP] ", last);
+    print("[STEP] ", last.c_str());
 }
 
 void Accumulation::update_display(gui::Entangled &e, const std::string& text) {

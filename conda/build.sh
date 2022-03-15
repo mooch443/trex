@@ -61,9 +61,9 @@ echo "PKG_CONFIG_PATH=${PKG_CONFIG_PATH}"
 
 echo "Using system flags: ${CMAKE_PLATFORM_FLAGS[@]}"
 cmake .. \
-    -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
-    -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
-    -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
+    -DPython_EXECUTABLE:FILEPATH=${PREFIX}/bin/python3 \
+    -DPython_ROOT_DIR:FILEPATH=${PREFIX} \
+    -DCONDA_PREFIX:PATH=${PREFIX} \
     -DCMAKE_BUILD_TYPE=Release \
     -DWITH_GITSHA1=ON \
     -DCMAKE_INSTALL_PREFIX=$PREFIX \
@@ -82,7 +82,8 @@ cmake .. \
     -DCMAKE_C_COMPILER=$CC \
     -DCMAKE_CXX_COMPILER=$CXX \
     ${CMAKE_PLATFORM_FLAGS[@]}
-
+    #-DPython_INCLUDE_DIRS:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
+    #-DPython_LIBRARIES:FILEPATH=$(python3 ../find_library.py) \
 if [ "$(uname)" == "Linux" ]; then
     make -j$(( $(nproc) - 1 )) Z_LIB
 else

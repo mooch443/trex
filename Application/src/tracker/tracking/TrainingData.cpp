@@ -419,9 +419,7 @@ void TrainingData::merge_with(std::shared_ptr<TrainingData> other, bool unmap_ev
         return;
     }
     
-    auto me = Meta::toStr(*this);
-    auto he = Meta::toStr(*other);
-    print("[TrainingData] Merging ",me," with ",he,".");
+    print("[TrainingData] Merging ",*this," with ",*other,".");
     
     // merge all_classes for both trainingdata and also merge filters
     for(auto id : other->all_classes()) {
@@ -521,10 +519,7 @@ void TrainingData::merge_with(std::shared_ptr<TrainingData> other, bool unmap_ev
         }
     }
     
-    auto str = Meta::toStr(added_images);
-    
-    me = Meta::toStr(*this);
-    print("[TrainingData] Finished merging: ",me," (added images: ",str,")");
+    print("[TrainingData] Finished merging: ",*this," (added images: ",added_images,")");
     
     //if(unmap_everything) {
      //   auto image = draw_coverage();
@@ -1134,8 +1129,8 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
                 }
             }*/
             
-            auto &basic = fish->basic_stuff()[bidx];
-            auto posture = pidx != -1 ? fish->posture_stuff()[pidx] : nullptr;
+            auto basic = fish->basic_stuff()[bidx].get();
+            auto posture = pidx != -1 ? fish->posture_stuff()[pidx].get() : nullptr;
             
             if(!Recognition::eligible_for_training(basic, posture, filters))
                 continue;
@@ -1167,7 +1162,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             }*/
             
             using namespace default_config;
-            auto midline = posture ? fish->calculate_midline_for(basic, posture) : nullptr;
+            auto midline = posture ? fish->calculate_midline_for(*basic, *posture) : nullptr;
             Recognition::ImageData image_data(Recognition::ImageData::Blob{
                 blob->num_pixels(), 
                 blob->blob_id(), 

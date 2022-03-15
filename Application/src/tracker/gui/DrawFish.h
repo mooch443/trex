@@ -66,8 +66,8 @@ namespace gui {
         Bounds _blob_bounds;
         int _match_mode;
         IndividualCache _next_frame_cache;
-        std::shared_ptr<Individual::BasicStuff> _basic_stuff;
-        std::shared_ptr<Individual::PostureStuff> _posture_stuff;
+        const Individual::BasicStuff* _basic_stuff{ nullptr };
+        const Individual::PostureStuff* _posture_stuff{ nullptr };
         int _avg_cat = -1;
         Output::Library::LibInfo _info;
         double _library_y = Graph::invalid();

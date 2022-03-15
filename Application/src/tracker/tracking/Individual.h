@@ -161,7 +161,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
 
     protected:
         //! dense array of all the basic stuff we want to save
-        GETTER(std::vector<std::shared_ptr<BasicStuff>>, basic_stuff)
+        GETTER(std::vector<std::unique_ptr<BasicStuff>>, basic_stuff)
         GETTER(std::vector<default_config::matching_mode_t::Class>, matched_using)
         
     public:
@@ -190,7 +190,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         
     protected:
         //! dense array of all posture related stuff we are saving
-        GETTER(std::vector<std::shared_ptr<PostureStuff>>, posture_stuff)
+        GETTER(std::vector<std::unique_ptr<PostureStuff>>, posture_stuff)
         Frame_t _last_posture_added;
         
     public:
@@ -205,7 +205,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
             {}
             
             void add_basic_at(Frame_t frame, long_t gdx);
-            void add_posture_at(const std::shared_ptr<PostureStuff>& stuff, Individual* fish); //long_t gdx);
+            void add_posture_at(std::unique_ptr<PostureStuff>&& stuff, Individual* fish); //long_t gdx);
             //void remove_frame(long_t);
             
             long_t basic_stuff(Frame_t frame) const;
@@ -279,13 +279,18 @@ constexpr std::array<const char*, 8> ReasonsNames {
             
         public:
             Vec2 add(Frame_t frame, const MotionRecord*);
-            void add(const std::shared_ptr<PostureStuff>&);
+            void add(const PostureStuff&);
             
             LocalCache()
                 : _midline_length(0), _midline_samples(0),
                   _outline_size(0), _outline_samples(0)
             {}
             
+        };
+
+        struct QRCode {
+            Frame_t frame;
+            pv::BlobPtr _blob;
         };
         
     protected:
@@ -294,12 +299,20 @@ constexpr std::array<const char*, 8> ReasonsNames {
         
         //! Segment start to Tag
         std::map<Frame_t, std::multiset<tags::Tag>> _best_images;
+        ska::bytell_hash_map<Frame_t, std::vector<QRCode>> _qrcodes;
+        mutable std::mutex _qrcode_mutex;
+        ska::bytell_hash_map<Frame_t, std::tuple<int64_t, float>> _qrcode_identities;
+        Frame_t _last_requested_qrcode;
         
     public:
+        std::tuple<int64_t, float> qrcode_at(Frame_t segment_start) const;
+        ska::bytell_hash_map<Frame_t, std::tuple<int64_t, float>> qrcodes() const;
+
         float midline_length() const;
         size_t midline_samples() const;
         float outline_size() const;
         
+        bool add_qrcode(Frame_t frameIndex, pv::BlobPtr&&);
         void add_tag_image(const tags::Tag& tag);
         const std::multiset<tags::Tag>* has_tag_images_for(Frame_t frameIndex) const;
         std::set<Frame_t> added_postures;
@@ -338,7 +351,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         const decltype(_identity)& identity() const { return _identity; }
         decltype(_identity)& identity() { return _identity; }
         
-        std::shared_ptr<BasicStuff> add(const FrameProperties*, Frame_t frameIndex, const PPFrame& frame, const pv::BlobPtr& blob, Match::prob_t current_prob, default_config::matching_mode_t::Class);
+        int64_t add(const FrameProperties*, Frame_t frameIndex, const PPFrame& frame, const pv::BlobPtr& blob, Match::prob_t current_prob, default_config::matching_mode_t::Class);
         void remove_frame(Frame_t frameIndex);
         void register_delete_callback(void* ptr, const std::function<void(Individual*)>& lambda);
         void unregister_delete_callback(void* ptr);
@@ -387,7 +400,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //void clear_training_data();
         
         //void save_posture(Frame_t frameIndex, Image::Ptr greyscale, Vec2 previous_direction);
-        void save_posture(std::shared_ptr<BasicStuff> ptr, Frame_t frameIndex);
+        void save_posture(const BasicStuff& ptr, Frame_t frameIndex);
         Vec2 weighted_centroid(const Blob& blob, const std::vector<uchar>& pixels);
         
         long_t thresholded_size(Frame_t frameIndex) const;
@@ -398,11 +411,11 @@ constexpr std::array<const char*, 8> ReasonsNames {
         const Midline::Ptr pp_midline(Frame_t frameIndex) const;
         MinimalOutline::Ptr outline(Frame_t frameIndex) const;
         
-        void iterate_frames(const Range<Frame_t>& segment, const std::function<bool(Frame_t frame, const std::shared_ptr<SegmentInformation>&, const std::shared_ptr<Individual::BasicStuff>&, const std::shared_ptr<Individual::PostureStuff>&)>& fn) const;
+        void iterate_frames(const Range<Frame_t>& segment, const std::function<bool(Frame_t frame, const std::shared_ptr<SegmentInformation>&, const Individual::BasicStuff*, const Individual::PostureStuff*)>& fn) const;
         
-        std::shared_ptr<BasicStuff> basic_stuff(Frame_t frameIndex) const;
-        std::shared_ptr<PostureStuff> posture_stuff(Frame_t frameIndex) const;
-        std::tuple<std::shared_ptr<BasicStuff>, std::shared_ptr<PostureStuff>> all_stuff(Frame_t frameIndex) const;
+        BasicStuff* basic_stuff(Frame_t frameIndex) const;
+        PostureStuff* posture_stuff(Frame_t frameIndex) const;
+        std::tuple<BasicStuff*, PostureStuff*> all_stuff(Frame_t frameIndex) const;
         
         using Probability = Match::prob_t;
         struct DetailProbability {
@@ -417,7 +430,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //Match::PairingGraph::prob_t size_probability(const IndividualCache& cache, Frame_t frameIndex, size_t num_pixels) const;
         Match::prob_t position_probability(const IndividualCache& estimated_px, Frame_t frameIndex, size_t size, const Vec2& position, const Vec2& blob_center) const;
         
-        const std::shared_ptr<BasicStuff>& find_frame(Frame_t frameIndex) const;
+        const std::unique_ptr<BasicStuff>& find_frame(Frame_t frameIndex) const;
         bool evaluate_fitness() const;
         
         //void recognition_segment(Frame_t frame, const std::tuple<size_t, std::map<long_t, float>>&);
@@ -464,13 +477,13 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //void push_to_segments(Frame_t frameIndex, long_t prev_frame);
         void clear_post_processing();
         void update_midlines(const CacheHints*);
-        Midline::Ptr calculate_midline_for(const std::shared_ptr<BasicStuff>& basic, const std::shared_ptr<PostureStuff>& posture_stuff) const;
+        Midline::Ptr calculate_midline_for(const BasicStuff& basic, const PostureStuff& posture_stuff) const;
         
     private:
         friend class gui::Fish;
         
         std::shared_ptr<SegmentInformation> update_add_segment(Frame_t frameIndex, const MotionRecord& current, Frame_t prev_frame, const pv::CompressedBlob* blob, Match::prob_t current_prob);
-        Midline::Ptr update_frame_with_posture(const std::shared_ptr<BasicStuff>& basic, const std::shared_ptr<PostureStuff>& posture_stuff, const CacheHints* hints);
+        Midline::Ptr update_frame_with_posture(BasicStuff& basic, const decltype(Individual::_posture_stuff)::const_iterator& posture_it, const CacheHints* hints);
         //Vec2 add_current_velocity(Frame_t frameIndex, const MotionRecord* p);
     };
 }

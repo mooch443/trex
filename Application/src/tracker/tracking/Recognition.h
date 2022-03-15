@@ -195,7 +195,7 @@ namespace track {
         Recognition();
         ~Recognition();
 
-        static void fix_python();
+        static void fix_python(bool force_init, cmn::source_location loc = cmn::source_location::current());
         //float p(Frame_t frame, uint32_t blob_id, const Individual *fish);
         std::map<Idx_t, float> ps_raw(Frame_t frame, pv::bid blob_id);
         //bool has(Frame_t frame, uint32_t blob_id);
@@ -225,7 +225,7 @@ namespace track {
         
         void update_dataset_quality();
         
-        static bool eligible_for_training(const std::shared_ptr<Individual::BasicStuff>&, const std::shared_ptr<Individual::PostureStuff>&, const TrainingFilterConstraints& constraints);
+        static bool eligible_for_training(const Individual::BasicStuff*, const Individual::PostureStuff*, const TrainingFilterConstraints& constraints);
         
         void remove_frames(Frame_t after);
         void remove_individual(Individual*);

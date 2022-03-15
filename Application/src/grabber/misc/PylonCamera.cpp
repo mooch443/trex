@@ -72,8 +72,9 @@ namespace fg {
         
         // determine camera resolution
         while(true) {
+            //_camera->StartGrabbing(1);
             _camera->StartGrabbing(1);
-            
+            //-cam_framerate 20 -cam_limit_exposure 2000
             if(_camera->GrabCameraEvents.GetValue() == true)
                 _camera->GrabCameraEvents.SetValue(false);
             
@@ -131,30 +132,33 @@ namespace fg {
                 
                 //if(rand()/float(RAND_MAX) >= 0.999)
                 //    throw GenericException("Test", "test", 1);
-                if((_crop.x != 0 || _crop.y != 0) && (_crop.width != 0 || _crop.height != 0))
+                /*if ((_crop.x != 0 || _crop.y != 0) && (_crop.width != 0 || _crop.height != 0))
                 {
                     // using crop offsets
                     cv::Mat tmp(image.GetHeight(), image.GetWidth(), CV_8UC1, (uchar*)image.GetBuffer());
                     tmp(_crop).copyTo(current.get());
                     
-                } else {
-                    current.set(current.index(), (uchar*)image.GetBuffer());
-                }
+                } else {*/
+                    current.create(image.GetHeight(), image.GetWidth(), 1, (uchar*)image.GetBuffer(), current.index());
+
+                    
+                //}
                 auto t = ptrGrabResult->GetTimeStamp() / 1000;
                 //static uint64_t previous = 0;
                 //previous = t;
                 
                 current.set_timestamp(t);
+                //current.set_timestamp(Image::now());
                 //current.set_timestamp(<#const std::chrono::time_point<clock_> &value#>)
                 
                 return true;
                 
             } else {
-               FormatError("Grabbing failed with ", ptrGrabResult->GetErrorCode(),": '",ptrGrabResult->GetErrorDescription().c_str(),"'");
+                FormatError{ "Grabbing failed with ", ptrGrabResult->GetErrorCode(),": ",ptrGrabResult->GetErrorDescription() };
             }
             
         } catch(const GenericException& g) {
-            print("An exception occurred '",g.GetDescription(),"'");
+            print("An exception occurred: ",g.GetDescription());
         }
         
         return false;

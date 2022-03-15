@@ -111,8 +111,10 @@ namespace Output {
             V_31, // add number of individuals per frame
             V_32, // change ShortHorizontalLine format
             V_33, // adding Categorize::DataStore
+
+            V_34, // adding tag information + time of creation
             
-            current = V_33
+            current = V_34
         };
         
     private:
@@ -135,6 +137,7 @@ namespace Output {
             Image average;
             Range<int64_t> analysis_range;
             bool has_recognition_data = false;
+            timestamp_t creation_time{0};
         };
         
         GETTER_NCONST(Header, header)

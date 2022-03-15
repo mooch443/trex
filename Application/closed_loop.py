@@ -40,9 +40,10 @@ def update_tracking():
     
     if frame % 100 == 0:
         s = (str(frame)+"*2\n").encode('ascii')
-        print(frame, "sending message", s)
+        print("[py] frame:",frame, "sending message", s,"dimensions are:",dimensions)
+        TRex.log("TRex package log function: "+str(dimensions))
         process.stdin.write(s)
-        process.stdin.flush()
+        #process.stdin.flush()
         
     try:
         while True:

@@ -71,6 +71,7 @@ Whereas other use-cases are:
    update
    examples
    gui
+   identification
    batch
    formats
    parameters_trex

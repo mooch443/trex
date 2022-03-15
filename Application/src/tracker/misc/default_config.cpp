@@ -143,8 +143,8 @@ namespace default_config {
     };
 
 file::Path conda_environment_path() {
-#ifdef TREX_PYTHON_PATH
-    auto compiled_path = file::Path(TREX_PYTHON_PATH).is_regular() ? file::Path(TREX_PYTHON_PATH).remove_filename().str() : file::Path(TREX_PYTHON_PATH).str();
+#ifdef COMMONS_PYTHON_EXECUTABLE
+    auto compiled_path = file::Path(COMMONS_PYTHON_EXECUTABLE).is_regular() ? file::Path(COMMONS_PYTHON_EXECUTABLE).remove_filename().str() : file::Path(COMMONS_PYTHON_EXECUTABLE).str();
     if(compiled_path == "CONDA_PREFIX")
         compiled_path = "";
 #if defined(__linux__) || defined(__APPLE__)
@@ -289,7 +289,7 @@ file::Path conda_environment_path() {
         CONFIG("output_dir", Path(std::string(homedir)+"/Videos"), "Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.");
         CONFIG("fishdata_dir", Path("data"), "Subfolder (below `output_dir`) where the exported NPZ or CSV files will be saved (see `output_graphs`).");
         CONFIG("settings_file", Path(""), "Name of the settings file. By default, this will be set to `filename`.settings in the same folder as `filename`.", STARTUP);
-        CONFIG("python_path", Path(TREX_PYTHON_PATH), "Path to the python home folder" PYTHON_TIPPS ". If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.");
+        CONFIG("python_path", Path(COMMONS_PYTHON_EXECUTABLE), "Path to the python home folder" PYTHON_TIPPS ". If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.");
 
         CONFIG("frame_rate", int(0), "Specifies the frame rate of the video. It is used e.g. for playback speed and certain parts of the matching algorithm. Will be set by the .settings of a video (or by the video itself).", STARTUP);
         CONFIG("calculate_posture", true, "Enables or disables posture calculation. Can only be set before the video is analysed (e.g. in a settings file or as a startup parameter).", STARTUP);
@@ -569,7 +569,7 @@ file::Path conda_environment_path() {
         CONFIG("recognition_border_size_rescale", float(0.5), "The amount that blob sizes for calculating the heatmap are allowed to go below or above values specified in `blob_size_ranges` (e.g. 0.5 means that the sizes can range between `blob_size_ranges.min * (1 - 0.5)` and `blob_size_ranges.max * (1 + 0.5)`).");
         CONFIG("recognition_smooth_amount", uint16_t(200), "If `recognition_border` is 'outline', this is the amount that the `recognition_border` is smoothed (similar to `outline_smooth_samples`), where larger numbers will smooth more.");
         CONFIG("recognition_coeff", uint16_t(50), "If `recognition_border` is 'outline', this is the number of coefficients to use when smoothing the `recognition_border`.");
-        CONFIG("recognition_enable", true, "This enables internal training. Requires Python3 and Keras to be available.", STARTUP);
+        CONFIG("recognition_enable", true, "This enables internal training. Requires Python3 and Keras to be available.");
         CONFIG("recognition_normalization", recognition_normalization_t::posture, "This enables or disable normalizing the images before training. If set to `none`, the images will be sent to the GPU raw - they will only be cropped out. Otherwise they will be normalized based on head orientation (posture) or the main axis calculated using `image moments`.");
         CONFIG("recognition_image_size", Size2(80, 80), "Size of each image generated for network training.");
         CONFIG("recognition_image_scale", float(1), "Scaling applied to the images before passing them to the network.");

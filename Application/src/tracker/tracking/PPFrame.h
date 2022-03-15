@@ -23,6 +23,7 @@ public:
     bool _finalized = false;
     
 private:
+    std::vector<pv::BlobPtr> _tags;
     std::vector<pv::BlobPtr> _single_blobs;
     GETTER(std::vector<pv::BlobPtr>, blobs)
     GETTER(std::vector<pv::BlobPtr>, original_blobs)
@@ -81,6 +82,9 @@ public:
     //! Will return the pv::BlobPtr assigned with the given bdx.
     /// If the bdx cannot be found, this will throw!
     const pv::BlobPtr& bdx_to_ptr(pv::bid bdx) const;
+
+    void set_tags(std::vector<pv::BlobPtr>&&);
+    std::vector<pv::BlobPtr>& tags() { return _tags; }
     
     //! Only remove blobs and update pixels arrays.
     void clear_blobs();

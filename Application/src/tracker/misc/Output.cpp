@@ -116,7 +116,7 @@ MinimalOutline::Ptr Output::ResultsFormat::read_outline(Data& ref, Midline::Ptr 
     
     uint64_t L;
     ref.read<uint64_t>(L);
-    ptr->_points.resize(L);
+    ptr->_points.resize(narrow_cast<uint32_t>(L)); // prevent malformed files from filling the ram
     /*if(_header.version > Output::ResultsFormat::Versions::V_9) {
         ptr->_tail_index = ref.read<data_long_t>();
     } else
@@ -273,7 +273,7 @@ Midline::Ptr Output::ResultsFormat::read_midline(Data& ref) {
     
     uint64_t L;
     ref.read<uint64_t>(L);
-    midline->segments().resize(L);
+    midline->segments().resize(narrow_cast<uint16_t>(L)); // prevent malformed files from filling the RAM
     if(_header.version >= Output::ResultsFormat::Versions::V_10) {
         std::vector<Output::V20MidlineSegment> segments;
         segments.resize(midline->segments().size());
@@ -383,7 +383,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     bool check_analysis_range = SETTING(analysis_range).value<std::pair<long_t, long_t>>().first != -1 || SETTING(analysis_range).value<std::pair<long_t, long_t>>().second != -1;
     
     struct TemporaryData {
-        std::shared_ptr<Individual::BasicStuff> stuff;
+        std::unique_ptr<Individual::BasicStuff> stuff;
         Frame_t prev_frame;
         Vec2 pos;
         float angle;
@@ -399,7 +399,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     //! processes a single data point
     auto process_frame = [cache_ptr = cache](
              Individual* fish,
-             const TemporaryData& data)
+             TemporaryData&& data)
     {
         const auto& frameIndex = data.stuff->frame;
         
@@ -431,7 +431,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         );
         
         segment->add_basic_at(frameIndex, (long_t)data.index);
-        fish->_basic_stuff[data.index] = data.stuff;
+        fish->_basic_stuff[data.index] = std::move(data.stuff);
     };
     
     //! determine when the worker thread has ended
@@ -454,7 +454,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                 
                 guard.unlock();
                 {
-                    process_frame(fish, data);
+                    process_frame(fish, std::move(data));
                 }
                 guard.lock();
             }
@@ -466,7 +466,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     };
     
     TemporaryData data;
-    data.index = 0; // start with basic_stuff == zero
+    size_t index = 0;// start with basic_stuff == zero
     
     double time;
     
@@ -509,7 +509,8 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             ref.seek(ref.tell() + sizeof(uint32_t)); // blob index no longer used
         
         data.time = time;
-        data.stuff = std::make_shared<Individual::BasicStuff>();
+        data.index = index;
+        data.stuff = std::make_unique<Individual::BasicStuff>();
         data.stuff->frame = Frame_t(frameIndex);
         data.stuff->centroid.init(prev, time, data.pos, data.angle);
         prev = &data.stuff->centroid;
@@ -533,12 +534,12 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         
         {
             std::unique_lock guard(mutex);
-            stuffs.push_back(data);
+            stuffs.push_back(std::move(data));
         }
         variable.notify_one();
         
         prev_frame = frameIndex;
-        ++data.index;
+        ++index;
         
         if(i%100000 == 0 && i)
             print("Blob ", i,"/",N);
@@ -553,9 +554,9 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     });
     
     //!TODO: resize back to intended size
-    if(data.index != fish->_basic_stuff.size()) {
-        fish->_basic_stuff.resize(data.index);
-        fish->_matched_using.resize(data.index);
+    if(index != fish->_basic_stuff.size()) {
+        fish->_basic_stuff.resize(index);
+        fish->_matched_using.resize(index);
     }
     
     assert(!fish->empty());
@@ -632,7 +633,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             
             if(FAST_SETTINGS(calculate_posture)) {
                 // save values
-                auto stuff = std::make_shared<Individual::PostureStuff>();
+                auto stuff = std::make_unique<Individual::PostureStuff>();
                 
                 stuff->frame = frame;
                 stuff->cached_pp_midline = midline;
@@ -641,7 +642,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                 
                 auto segment = fish->segment_for(frame);
                 if(!segment) throw U_EXCEPTION("(",fish->identity().ID(),") Have to add basic stuff before adding posture stuff (frame ",frameIndex,").");
-                segment->add_posture_at(stuff, fish);
+                segment->add_posture_at(std::move(stuff), fish);
                 
             }
             
@@ -654,7 +655,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         // now read outlines and midlines
         ref.read<uint64_t>(N);
         
-        std::map<Frame_t, std::shared_ptr<Individual::PostureStuff>> sorted;
+        std::map<Frame_t, std::unique_ptr<Individual::PostureStuff>> sorted;
         data_long_t previous_frame = -1;
         Frame_t frame;
         
@@ -674,7 +675,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             
             if(FAST_SETTINGS(calculate_posture)) {
                 // save values
-                auto stuff = std::make_shared<Individual::PostureStuff>();
+                auto stuff = std::make_unique<Individual::PostureStuff>();
                 
                 stuff->frame = frame;
                 stuff->cached_pp_midline = midline;
@@ -682,7 +683,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                 auto segment = fish->segment_for(frame);
                 if(!segment) throw U_EXCEPTION("(",fish->identity().ID(),") Have to add basic stuff before adding posture stuff (frame ",frameIndex,").");
                 
-                sorted[stuff->frame] = stuff;
+                sorted[stuff->frame] = std::move(stuff);
             }
         }
         
@@ -697,16 +698,17 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             
             if(FAST_SETTINGS(calculate_posture)) {
                 //fish->posture_stuff(frameIndex);
-                std::shared_ptr<Individual::PostureStuff> stuff;
+                Individual::PostureStuff* stuff = nullptr;
                 auto it = sorted.find(frame);
                 
                 if(it == sorted.end()) {
-                    stuff = std::make_shared<Individual::PostureStuff>();
-                    stuff->frame = frame;
-                    sorted[frame] = stuff;
+                    auto ptr = std::make_unique<Individual::PostureStuff>();
+                    ptr->frame = frame;
+                    stuff = ptr.get();
+                    sorted[frame] = std::move(ptr);
                     
                 } else
-                    stuff = it->second;
+                    stuff = it->second.get();
                 
                 assert(stuff);
                 stuff->outline = outline;
@@ -719,7 +721,25 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                 segment = fish->segment_for(frame);
             if(!segment) throw U_EXCEPTION("(",fish->identity().ID(),") Have to add basic stuff before adding posture stuff (frame ",frame,").");
             
-            segment->add_posture_at(stuff, fish);
+            segment->add_posture_at(std::move(stuff), fish);
+        }
+    }
+
+    if (_header.version >= Versions::V_34) {
+        uint64_t N;
+        ref.read<uint64_t>(N);
+
+        for (uint64_t i = 0; i < N; ++i) {
+            data_long_t frame;
+            ref.read<data_long_t>(frame);
+
+            int32_t id;
+            ref.read<int32_t>(id);
+
+            float prob;
+            ref.read<float>(prob);
+
+            fish->_qrcode_identities[Frame_t(frame)] = { id, prob };
         }
     }
     
@@ -752,7 +772,7 @@ template<> void Data::read(Individual*& out_ptr) {
             auto N = results->_expected_individuals.load();
             double N_written = results->_N_written.load();
             if(N <= 100 || results->_N_written % max(100u, uint64_t(N * 0.01)) == 0) {
-                print("Read individual ", int64_t(N_written),"/", N," (",int64_t(N_written),"%)...");
+                print("Read individual ", int64_t(N_written),"/", N," (",dec<2>(double(N_written) / double(N) * 100),"%)...");
                 results->_update_progress("", narrow_cast<float>(N_written / double(N)), results->filename().str()+"\n<ref>loading individual</ref> <number>"+Meta::toStr(results->_N_written)+"</number> <ref>of</ref> <number>"+Meta::toStr(N)+"</number>");
             }
         }
@@ -859,11 +879,9 @@ uint64_t Data::write(const Individual& val) {
         };
         
         // construct sorted set
-        std::set<std::shared_ptr<Individual::BasicStuff>, decltype(compare)> sorted{
-            val._basic_stuff.begin(),
-            val._basic_stuff.end(),
-            compare
-        };
+        std::set<const Individual::BasicStuff*, decltype(compare)> sorted{ compare };
+        for (auto& ptr : val._basic_stuff)
+            sorted.insert(ptr.get());
     
         // write it to file
         for(auto &stuff : sorted) {
@@ -915,10 +933,18 @@ uint64_t Data::write(const Individual& val) {
     }
     
     pack.write<uint64_t>(outlines.size());
-    
     for(auto && [frame, outline] : outlines) {
         pack.write<data_long_t>(frame);
         pack.write<MinimalOutline>(*outline);
+    }
+
+    pack.write<uint64_t>(val._qrcode_identities.size());
+    for (auto& [frame, match] : val._qrcode_identities) {
+        pack.write<data_long_t>(frame.get());
+
+        auto& [id, prob] = match;
+        pack.write<int32_t>(id);
+        pack.write<float>(prob);
     }
     
     //str = Meta::toStr(FileSize(pack.size()));
@@ -951,7 +977,7 @@ uint64_t Data::write(const Individual& val) {
             auto before = Meta::toStr(FileSize(in_len));
             auto after = Meta::toStr(FileSize(size));
             
-            print("Saved ", double(ptr->_N_written.load() + 1) / double(ptr->_expected_individuals.load()) * 100,"%... (individual ", val.identity().ID()," compressed from ", before.c_str()," to ", after.c_str(),").");
+            print("Saved ", dec<2>(double(ptr->_N_written.load() + 1) / double(ptr->_expected_individuals.load()) * 100),"%... (individual ", val.identity().ID()," compressed from ", before.c_str()," to ", after.c_str(),").");
         }
     
     } else {
@@ -1021,6 +1047,12 @@ namespace Output {
             read<int64_t>(_header.analysis_range.end);
         } else
             _header.analysis_range = Range<int64_t>(-1, -1);
+
+        if (_header.version >= ResultsFormat::V_34) {
+            uint64_t stamp;
+            read<uint64_t>(stamp);
+            _header.creation_time = timestamp_t{ stamp };
+        }
         
         if(_header.version >= ResultsFormat::V_14) {
             read<std::string>(_header.settings);
@@ -1032,7 +1064,7 @@ namespace Output {
         
         if(!SETTING(quiet)) {
             DebugHeader("READING PROGRAM STATE");
-            print("Read head of ",filename()," (version:V_",(int)_header.version+1," gui_frame:",_header.gui_frame,"u analysis_range:",_header.analysis_range.start,"d-",_header.analysis_range.end,"d)");
+            print("Read head of ",filename()," (version:V_",(int)_header.version+1," gui_frame:",_header.gui_frame," analysis_range:",_header.analysis_range.start,"-",_header.analysis_range.end," created at ",_header.creation_time,")");
             print("Generated with command-line: ",_header.cmd_line);
         }
     }
@@ -1061,6 +1093,8 @@ namespace Output {
         auto [start, end] = FAST_SETTINGS(analysis_range);
         write<int64_t>(start);
         write<int64_t>(end);
+        
+        write<uint64_t>(_header.creation_time.get());
     }
     
     uint64_t ResultsFormat::write_data(uint64_t num_bytes, const char *buffer) {
@@ -1166,6 +1200,7 @@ namespace Output {
         
         ResultsFormat file(filename.str(), update_progress);
         file.header().gui_frame = sign_cast<uint64_t>(SETTING(gui_frame).value<Frame_t>().get());
+        file.header().creation_time = Image::now();
         file.start_writing(true);
         file.write_file(_tracker._added_frames, _tracker._active_individuals_frame, _tracker._individuals, exclude_settings);
         file.close();
@@ -1314,11 +1349,12 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             for(uint64_t i=0; i<L; ++i) {
                 file.read<data_long_t>(frame);
                 file.read<uint64_t>(size);
+                auto smaller = narrow_cast<uint16_t>(size);
                 
-                for(uint64_t j=0; j<size; ++j) {
+                for(uint16_t j=0; j<smaller; ++j) {
                     file.read<uint32_t>(bid);
                     file.read<uint64_t>(vsize);
-                    tmp.resize(vsize);
+                    tmp.resize(narrow_cast<uint16_t>(vsize)); // more than 2^16 identities? hardly. this also prevents malformed files from crashing the program
                     file.read_data(vsize * sizeof(float), (char*)tmp.data());
                     
                     recognition.data()[Frame_t(frame)][pv::bid(bid)] = tmp;
@@ -1375,7 +1411,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         std::vector<Individual*> fishes;
         
         file.read<uint64_t>(L);
-        fishes.resize(L);
+        fishes.resize(narrow_cast<uint16_t>(L)); // prevent crashes caused by malformed files
         file._expected_individuals = L;
         file._N_written = 0;
         

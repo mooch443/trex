@@ -150,6 +150,7 @@ struct PrivateData {
 
     Timer _last_frame_change;
 
+    std::queue<std::function<void()>> _tracking_callbacks;
     
     gui::StaticText _info;
 
@@ -1597,7 +1598,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                         
                         VisualField* ptr = (VisualField*)fish->custom_data(frameNr, VisualField::custom_id);
                         if(!ptr && fish->head(frameNr)) {
-                            ptr = new VisualField(id, frameNr, fish->basic_stuff(frameNr), fish->posture_stuff(frameNr), true);
+                            ptr = new VisualField(id, frameNr, *fish->basic_stuff(frameNr), fish->posture_stuff(frameNr), true);
                             fish->add_custom_data(frameNr, VisualField::custom_id, ptr, [](void* ptr) {
                                 if(GUI::instance()) {
                                     std::lock_guard<std::recursive_mutex> lock(PD(gui).lock());
@@ -1646,7 +1647,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                                     if (it != PD(cache)._fish_map.end()) {
                                         PD(cache)._fish_map.erase(f);
                                     }
-                                    });
+                                });
                             }
 
                             PD(cache)._fish_map[fish]->set_data(frameNr, props->time, PD(cache).processed_frame, empty_map);
@@ -3337,8 +3338,11 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
     
     if(type == GUIType::GRAPHICAL) {
         PD(gui).dialog([this](gui::Dialog::Result r) {
-            this->work().add_queue("checking identities...", [this, r](){
-                Tracker::instance()->check_segments_identities(r == Dialog::OKAY, [](float x) { work().set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
+            if(r != Dialog::OKAY)
+                return;
+            
+            this->work().add_queue("checking identities...", [this](){
+                Tracker::instance()->check_segments_identities(true, [](float x) { work().set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
                     this->work().add_queue(t, fn, b);
                 });
                 
@@ -3347,7 +3351,7 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
                 PD(cache).set_tracking_dirty();
             });
             
-        }, "Do you wish to overwrite <key>manual_matches</key> and reanalyse the video from the beginning with automatic corrections enabled? You will probably want to click <b>Yes</b> after training the visual identification network.\n<b>No</b> will only generate averages and does not change any tracked trajectories.", "Auto-correct", "Yes", "No");
+        }, "Automatic correction uses machine learning based predictions to correct potential tracking mistakes. Make sure that you have trained the visual identification network prior to using auto-correct.\nThis action will overwrite your <key>manual_matches</key> and replace any previously set automatic matches based on predictions made by the visual identification network. Is this what you want?", "Auto-correct", "Yes", "Cancel");
     } else {
         this->work().add_queue("checking identities...", [this, force_correct](){
             Tracker::instance()->check_segments_identities(force_correct, [](float x) { work().set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
@@ -3356,8 +3360,8 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
             PD(cache).recognition_updated = false;
             PD(cache).set_tracking_dirty();
             
-            if(!force_correct)
-                print("Automatic correct has not been performed (only averages have been calculated). In order to do so, add the keyword 'force' after the command.");
+            //if(!force_correct)
+            //    print("Automatic correct has not been performed (only averages have been calculated). In order to do so, add the keyword 'force' after the command.");
         });
     }
     //});
@@ -3470,6 +3474,31 @@ void GUI::auto_quit() {
         SETTING(terminate) = true;
 }
     
+void GUI::tracking_finished() {
+    {
+        std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
+        while(!PD(tracking_callbacks).empty()) {
+            auto &item = PD(tracking_callbacks).front();
+            item();
+            PD(tracking_callbacks).pop();
+        }
+    }
+    
+    if(SETTING(auto_categorize)) {
+        GUI::auto_categorize();
+    } else if(SETTING(auto_train)) {
+        GUI::auto_train();
+    } else if(SETTING(auto_apply)) {
+        GUI::auto_apply();
+    }
+    
+    // check if results should be saved and the app should quit
+    // automatically after analysis is done.
+    else if(SETTING(auto_quit)) {
+        GUI::auto_quit();
+    }
+}
+    
 void GUI::auto_categorize() {
     Categorize::Work::set_state(Categorize::Work::State::LOAD);
     Categorize::Work::set_state(Categorize::Work::State::APPLY);
@@ -3543,6 +3572,175 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                     //work().set_item_abortable(true);
                 }
             }, from);
+            
+            if(header.version <= Output::ResultsFormat::Versions::V_33
+               && !Tracker::recognition()->data().empty())
+            {
+                // probably need to convert blob ids
+                pv::Frame f;
+                size_t found = 0;
+                size_t N = 0;
+                
+                for (auto &[k, v] : Tracker::recognition()->data()) {
+                    GUI::instance()->video_source()->read_frame(f, k.get());
+                    auto & blobs = f.blobs();
+                    N += v.size();
+                    
+                    for(auto &[bid, ps] : v) {
+                        auto it = std::find_if(blobs.begin(), blobs.end(), [&bid=bid](auto &a)
+                        {
+                            return a->blob_id() == bid || a->parent_id() == bid;
+                        });
+                        
+                        auto id = uint32_t(bid);
+                        auto x = id >> 16;
+                        auto y = id & 0x0000FFFF;
+                        auto center = Vec2(x, y);
+                        
+                        if(it != blobs.end() || x > Tracker::average().cols || y > Tracker::average().rows) {
+                            // blobs are probably fine
+                            ++found;
+                        } else {
+                            
+                        }
+                    }
+                    
+                    if(found * 2 > N) {
+                        // blobs are probably fine!
+                        print("blobs are probably fine ",found,"/",N,".");
+                        break;
+                    } else if(N > 0) {
+                        print("blobs are probably not fine.");
+                        break;
+                    }
+                }
+                
+                if(found * 2 <= N && N > 0) {
+                    print("fixing...");
+                    auto old_id_from_position = [](Vec2 center) {
+                        return (uint32_t)( uint32_t((center.x))<<16 | uint32_t((center.y)) );
+                    };
+                    auto old_id_from_blob = [&old_id_from_position](const pv::Blob &blob) -> uint32_t {
+                        if(!blob.lines() || blob.lines()->empty())
+                            return -1;
+                        
+                        const auto start = Vec2(blob.lines()->front().x0,
+                                                blob.lines()->front().y);
+                        const auto end = Vec2(blob.lines()->back().x1,
+                                              blob.lines()->size());
+                        
+                        return old_id_from_position(start + (end - start) * 0.5);
+                    };
+                    
+                    grid::ProximityGrid proximity{ Tracker::average().bounds().size() };
+                    size_t i=0, all_found = 0, not_found = 0;
+                    const size_t N = Tracker::recognition()->data().size();
+                    std::map<Frame_t, std::map<pv::bid, std::vector<float>>> next_recognition;
+                    
+                    for (auto &[k, v] : Tracker::recognition()->data()) {
+                        auto & active = Tracker::active_individuals(k);
+                        std::map<pv::bid, const pv::CompressedBlob*> blobs;
+                        
+                        for(auto fish : active) {
+                            auto b = fish->compressed_blob(k);
+                            if(b) {
+                                auto bounds = b->calculate_bounds();
+                                auto center = bounds.pos() + bounds.size() * 0.5;
+                                blobs[b->blob_id()] = b;
+                                proximity.insert(center.x, center.y, (uint32_t)b->blob_id());
+                            }
+                        }
+                        /*GUI::instance()->video_source()->read_frame(f, k.get());
+                        auto & blobs = f.blobs();
+                        proximity.clear();
+                        for(auto &b : blobs) {
+                            auto c = b->bounds().pos() + b->bounds().size() * 0.5;
+                            proximity.insert(c.x, c.y, (uint32_t)b->blob_id());
+                        }*/
+                        
+                        std::map<pv::bid, std::vector<float>> tmp;
+                        
+                        for(auto &[bid, ps] : v) {
+                            auto id = uint32_t(bid);
+                            auto x = id >> 16;
+                            auto y = id & 0x0000FFFF;
+                            auto center = Vec2(x, y);
+                            
+                            auto r = proximity.query(center, 1);
+                            if(r.size() == 1) {
+                                auto obj = std::get<1>(*r.begin());
+                                /*auto ptr = std::find_if(blobs.begin(), blobs.end(), [obj](auto &b){
+                                    return obj == (uint32_t)b->blob_id();
+                                });*/
+                                /*auto ptr = blobs.find(pv::bid(obj));
+                                
+                                if(ptr == blobs.end()) {
+                                    FormatError("Cannot find actual blob for ", obj);
+                                } else {
+                                    //auto unpack = ptr->second->unpack();
+                                    //print("Found ", center, " as ", obj, " vs. ", id, "(", old_id_from_blob(*unpack) ," / ", *unpack ,")");
+                                }*/
+                                    tmp[obj] = ps;
+                                    ++all_found;
+                                
+                            } else {
+                                const pv::CompressedBlob* found = nullptr;
+                                GUI::instance()->video_source()->read_frame(f, k.get());
+                                for(auto &b : f.blobs()) {
+                                    auto c = b->bounds().pos() + b->bounds().size() * 0.5;
+                                    if(sqdistance(c, center) < 2) {
+                                        //print("Found blob close to ", center, " at ", c, ": ", *b);
+                                        for(auto &fish : active) {
+                                            auto b = fish->compressed_blob(k);
+                                            if(b && (b->blob_id() == pv::bid(id) || b->parent_id == pv::bid(id))) {
+                                                //print("Equal IDS1 ", b->blob_id(), " and ", id);
+                                                tmp[b->blob_id()] = ps;
+                                                found = b;
+                                                break;
+                                            }
+                                            
+                                            if(b) {
+                                                auto bounds = b->calculate_bounds();
+                                                auto center = bounds.pos() + bounds.size() * 0.5;
+                                                
+                                                auto distance = sqdistance(c, center);
+                                                //print("\t", fish->identity(), ": ", b->blob_id(), "(",b->parent_id,") at ", center, " (", distance, ")", (distance < 5 ? "*" : ""));
+                                                
+                                                if(distance < 2) {
+                                                    tmp[b->blob_id()] = ps;
+                                                    found = b;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        
+                                        tmp[b->blob_id()] = ps;
+                                        break;
+                                    }
+                                }
+                                
+                                if(found == nullptr) {
+                                    //print("Not found for ", center, " size=", r.size(), " with id ", bid);
+                                    ++not_found;
+                                } else {
+                                    ++all_found;
+                                }
+                            }
+                        }
+                        
+                        //v = tmp;
+                        next_recognition[k] = tmp;
+                        
+                        ++i;
+                        if(i % uint64_t(N * 0.1) == 0)
+                            print("Correcting old-format pv::bid: ", dec<2>(double(i) / double(N) * 100), "%");
+                    }
+                    
+                    print("Found:", all_found, " not found:", not_found);
+                    if(all_found > 0)
+                        Tracker::recognition()->data() = next_recognition;
+                }
+            }
             
             {
                 sprite::Map config;
@@ -3930,58 +4128,109 @@ void GUI::generate_training_data(GUI::GUIType type, bool force_load) {
     /*-------------------------/
      SAVE METADATA
      -------------------------*/
-    
+
     auto fn = [](TrainingMode::Class load) -> bool {
         std::vector<Rangel> trained;
-        
+
         work().set_progress("training network", 0);
         work().set_item_abortable(true);
-        
+
         try {
             Accumulation acc(load);
             auto ret = acc.start();
-            if(ret && SETTING(auto_train_dont_apply)) {
+            if (ret && SETTING(auto_train_dont_apply)) {
                 GUI::auto_quit();
             }
-            
+
             return ret;
-            
-        } catch(const SoftExceptionImpl& error) {
-            if(SETTING(auto_train_on_startup))
+
+        }
+        catch (const SoftExceptionImpl& error) {
+            if (SETTING(auto_train_on_startup))
                 throw U_EXCEPTION("The training process failed. Please check whether you are in the right python environment and check previous error messages.");
-            
-            if(!SETTING(nowindow))
-                GUI::instance()->gui().dialog("The training process failed. Please check whether you are in the right python environment and check out this error message:\n\n<i>"+escape_html(error.what())+"</i>", "Error");
+
+            if (!SETTING(nowindow))
+                GUI::instance()->gui().dialog("The training process failed. Please check whether you are in the right python environment and check out this error message:\n\n<i>" + escape_html(error.what()) + "</i>", "Error");
             FormatError("The training process failed. Please check whether you are in the right python environment and check previous error messages.");
             return false;
         }
     };
     
-    if(Recognition::network_weights_available()) {
+    static constexpr const char message_concern[] = "Note that once visual identification succeeds, the entire video will be retracked and any previous <i>manual_matches</i> overwritten - you should save them by clicking <i>save config</i> (in the menu) prior to this. Further information is available at <i>trex.run/docs</i>.\n\nKeep in mind that automatically generated results should always be manually validated (at least in samples). Bad results are often indicated by long training times or by ending on uniqueness values below chance.";
+    
+    static constexpr const char message_no_weights[] = "<b>Training will start from scratch.</b>\nMake sure all of your individuals are properly tracked first, by setting parameters like <i>track_threshold</i>, <i>track_max_speed</i> and <i>blob_size_ranges</i> first. Always try to achieve a decent number of consecutively tracked frames for all individuals (at the same time), but avoid misassignments due to too wide parameter ranges. You may then click on <i>Start</i> below to start the process.";
+    
+    static constexpr const char message_weights_available[] = "<b>A network from a previous session is available.</b>\nYou can either <i>Continue</i> training (trying to improve training results further), simply <i>Apply</i> it to the video, or <i>Restart</i> training from scratch (this deletes the previous network).";
+    
+    const auto avail = Recognition::network_weights_available();
+    const std::string message = (avail ?
+                std::string(message_weights_available)
+            :   std::string(message_no_weights))
+        + "\n\n" + std::string(message_concern);
+    
+    //if(Recognition::network_weights_available()) {
         if(type == GUIType::GRAPHICAL) {
-            PD(gui).dialog([fn](Dialog::Result result){
-                work().add_queue("training network", [fn, result](){
+            PD(gui).dialog([fn, avail](Dialog::Result result){
+                work().add_queue("training network", [fn, result, avail=avail](){
                     try {
                         TrainingMode::Class mode;
-                        switch(result) {
-                            case gui::Dialog::OKAY:
-                                mode = TrainingMode::Continue;
-                                break;
-                            case gui::Dialog::SECOND:
-                                mode = TrainingMode::Apply;
-                                break;
-                            case gui::Dialog::THIRD:
-                                mode = TrainingMode::Restart;
-                                break;
-                            case gui::Dialog::FOURTH:
-                                mode = TrainingMode::LoadWeights;
-                                break;
-                            case gui::Dialog::ABORT:
-                                return;
-                                
-                            default:
-                                throw SoftException("Unknown mode %d in generate_training_data.", (int)result);
-                                return;
+                        if(avail) {
+                            switch(result) {
+                                case gui::Dialog::OKAY:
+                                    mode = TrainingMode::Continue;
+                                    break;
+                                case gui::Dialog::SECOND:
+                                    mode = TrainingMode::Apply;
+                                    break;
+                                case gui::Dialog::THIRD:
+                                    mode = TrainingMode::Restart;
+                                    break;
+                                case gui::Dialog::FOURTH:
+                                    mode = TrainingMode::LoadWeights;
+                                    break;
+                                case gui::Dialog::ABORT:
+                                    return;
+                                    
+                                default:
+                                    throw SoftException("Unknown mode ",result," in generate_training_data.");
+                                    return;
+                            }
+                            
+                        } else {
+                            switch(result) {
+                                case gui::Dialog::OKAY:
+                                    mode = TrainingMode::Restart;
+                                    break;
+                                case gui::Dialog::ABORT:
+                                    return;
+                                    
+                                default:
+                                    throw SoftException("Unknown mode ",result," in generate_training_data.");
+                                    return;
+                            }
+                        }
+                        
+                        if(mode == TrainingMode::Continue
+                           || mode == TrainingMode::Restart
+                           || mode == TrainingMode::Apply)
+                        {
+                            print("Registering auto correct callback.");
+                            
+                            auto rec = Tracker::recognition();
+                            if(rec) {
+                                rec->detail().register_finished_callback([&](){
+                                    print("Finished. Auto correcting...");
+                                    
+                                    Tracker::recognition()->check_last_prediction_accuracy();
+                                    
+                                    std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
+                                    PD(tracking_callbacks).push([](){
+                                        instance()->auto_correct(GUI::GUIType::TEXT, false);
+                                    });
+                                    
+                                    instance()->auto_correct(GUI::GUIType::TEXT, true);
+                                });
+                            }
                         }
                         
                         fn(mode);
@@ -3995,7 +4244,7 @@ void GUI::generate_training_data(GUI::GUIType type, bool force_load) {
                     }
                 });
                 
-            }, "<b>Weights from a previous training are available.</b>\nData from a previous training session exists. You can either load it and <i>continue</i> training, just load it and <i>apply</i> the network to the whole video, or simply restart training from scratch. If available, you may also load the weights without any further actions.\n\nNone of these options automatically corrects the tracking data. However, you may first review the prospective identity assignments after training and then manually select to <i>auto correct</i> from the menu.", "Training mode", "Continue", "Cancel", "Apply", "Restart", Recognition::network_weights_available() ? "Load weights" : "");
+            }, message, "Training mode", avail ? "Continue" : "Start", "Cancel", avail ? "Apply" : "", avail ? "Restart" : "", avail ? "Load weights" : "");
             
         } else {
             auto mode = TrainingMode::Restart;
@@ -4009,7 +4258,7 @@ void GUI::generate_training_data(GUI::GUIType type, bool force_load) {
                 FormatWarning("Weights will not be loaded. In order to load weights add 'load' keyword after the command.");
         }
         
-    } else {
+    /*} else {
         if(force_load)
             FormatWarning("Cannot load weights, as no previous weights exist.");
         
@@ -4019,7 +4268,7 @@ void GUI::generate_training_data(GUI::GUIType type, bool force_load) {
                     throw U_EXCEPTION("Using the network returned a bad code (false). See previous errors.");
             }
         });
-    }
+    }*/
 }
 
 void GUI::generate_training_data_faces(const file::Path& path) {

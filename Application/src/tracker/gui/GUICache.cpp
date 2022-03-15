@@ -462,27 +462,46 @@ namespace gui {
             }
             
             if(reload_blobs) {
-                _ranged_blob_labels.clear();
-                Frame_t f(frameIndex);
-                for(auto &b: raw_blobs) {
-                    auto label = Categorize::DataStore::ranged_label(f, b->blob->blob_id());
-                    if(label)
-                        _ranged_blob_labels[b->blob->blob_id()] = label->id;
-                }
-                
-                //display_blobs_list.clear();
-                
-                /*std::vector<std::set<uint32_t>> cliques;
-                for(auto &[bdx, clique] : processed_frame.blob_cliques) {
-                    if(!contains(cliques, clique))
-                        cliques.push_back(clique);
-                }
-                _cliques = std::move(cliques);*/
-                
+                /**
+                 * Delete what we know about cliques and replace it
+                 * with current information.
+                 */
                 if(Tracker::instance()->_cliques.count(frameIndex)) {
                     _cliques = Tracker::instance()->_cliques.at(frameIndex);
                 } else
                     _cliques.clear();
+                
+                /**
+                 * Reload all ranged label information.
+                 */
+                _ranged_blob_labels.clear();
+                
+                std::shared_lock guard(Categorize::DataStore::range_mutex());
+                if(!Categorize::DataStore::_ranges_empty_unsafe()) {
+                    Frame_t f(frameIndex);
+                    
+                    if(raw_blobs.size() > 50) {
+                        std::vector<int> labels(raw_blobs.size());
+                        
+                        distribute_vector([&](auto i, auto start, auto end, auto){
+                            for(auto it = start; it != end; ++it, ++i) {
+                                labels[i] = Categorize::DataStore::_ranged_label_unsafe(f, (*it)->blob->blob_id());
+                            }
+                        }, GUI::instance()->blob_thread_pool(), raw_blobs.begin(), raw_blobs.end());
+                        
+                        for(size_t i=0; i<raw_blobs.size(); ++i) {
+                            auto &b = raw_blobs[i];
+                            _ranged_blob_labels[b->blob->blob_id()] = labels[i];
+                        }
+                        
+                    } else {
+                        for(auto &b: raw_blobs) {
+                            auto label = Categorize::DataStore::_ranged_label_unsafe(f, b->blob->blob_id());
+                            if(label != -1)
+                                _ranged_blob_labels[b->blob->blob_id()] = label;
+                        }
+                    }
+                }
             }
             
             boundary = Bounds(min_vec, max_vec - min_vec);

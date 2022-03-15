@@ -24,31 +24,31 @@ namespace Output {
 
 template<typename T = Individual::BasicStuff>
 auto find_stuffs(const Library::LibInfo& info, Frame_t frame) {
-    std::shared_ptr<T> start = nullptr, end = nullptr;
+    T *start = nullptr, *end = nullptr;
     
     auto it = info.fish->iterator_for(frame);
     if(it != info.fish->frame_segments().end() && !(*it)->empty()) {
         assert((*it)->start() < frame);
         
         if constexpr(std::is_same<T, Individual::BasicStuff>::value) {
-            start = info.fish->basic_stuff()[ (*it)->basic_index.back() ];
+            start = info.fish->basic_stuff()[ (*it)->basic_index.back() ].get();
             
             ++it;
             
             // check if there are no segments after the current one, can not interpolate
             if(it != info.fish->frame_segments().end() && !(*it)->empty())
-                end = info.fish->basic_stuff()[ (*it)->basic_index.front() ];
+                end = info.fish->basic_stuff()[ (*it)->basic_index.front() ].get();
             
         } else {
             auto index = (*it)->posture_index.empty() ? -1 : (*it)->posture_index.back();
             if(index != -1)
-                start = info.fish->posture_stuff()[ index ];
+                start = info.fish->posture_stuff()[ index ].get();
             
             ++it;
             if(it != info.fish->frame_segments().end() && !(*it)->empty()) {
                 index = (*it)->posture_index.empty() ? -1 : (*it)->posture_index.front();
                 if(index != -1)
-                    end = info.fish->posture_stuff()[ index ];
+                    end = info.fish->posture_stuff()[ index ].get();
             }
         }
     }

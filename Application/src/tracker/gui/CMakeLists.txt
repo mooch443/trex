@@ -13,13 +13,12 @@ elseif(WIN32)
   add_library(tracker_gui STATIC ${SRCS} ${HDRS})
 endif()
 
-add_dependencies(tracker_gui tracker_misc commons Commons::GLFW) #Commons::OpenCV)
+add_dependencies(tracker_gui tracker_misc commons)
 
-target_link_libraries(tracker_gui PRIVATE cnpy
+target_link_libraries(tracker_gui PRIVATE
     tracker_tracking
     tracker_misc
     commons
-    Commons::GLFW
 )
 #target_precompile_headers(tracker_gui REUSE_FROM commons)
 

@@ -314,6 +314,14 @@ void InfoCard::update() {
     }
     
     y += add<Text>(speed_str, Vec2(10, y), White.alpha(125), Font(0.8f))->height();
+    auto seg = _fish->segment_for(_frameNr);
+    if (seg) {
+        auto [id, p] = _fish->qrcode_at(seg->start());
+        if (id != -1) {
+            y += add<Text>("QR:" + Meta::toStr(id) + " (" + Meta::toStr(p) + ")", Vec2(10, y), White.alpha(125), Font(0.8))->height();
+        }
+    }
+
         
     if(fprobs) {
         track::Match::prob_t max_prob = 0;

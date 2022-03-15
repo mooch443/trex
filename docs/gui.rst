@@ -14,6 +14,8 @@ Generally, all the parameters for one specific task will be prefixed by ``task_`
 
 Some parameter values cannot be changed (such as the build version of the software), but most parameters can be changed at runtime. When changing tracking parameters (prefixed by ``track_``), or posture parameters (prefixed either by ``outline_``, ``midline_``, or ``posture_``), then the video has to be reanalysed to see an effect. This is done by simply clicking on the "reanalyse" button on the top right (1). This button triggers |trex| to delete everything including the current and all following frames, and analyse them again with the new parameters. Some functionality will trigger such behavior automatically, for example when manually correcting identities (see below) where the video will be reanalysed automatically -- starting from the first assignment that has been changed. If you want to reanalyse the entire video, go to the first frame and click "reanalyse".
 
+.. _`Keyboard shortcuts`:
+
 Keyboard shortcuts
 ------------------
 
@@ -38,7 +40,7 @@ Keyboard shortcuts
 +-----------+------------------------------------------------------------------------------------------------+
 | G         | Show/hide graph when an individual is selected                                                 |
 +-----------+------------------------------------------------------------------------------------------------+
-| D         | Switch to RAW mode and back                                                                    |
+| D         | Switch to RAW view and back to tracking view                                                   |
 +-----------+------------------------------------------------------------------------------------------------+
 | M         | Jump to next frame where the number of recognized individuals changed (yellow in timeline)     |
 +-----------+------------------------------------------------------------------------------------------------+
@@ -56,6 +58,8 @@ Keyboard shortcuts
 +-----------+------------------------------------------------------------------------------------------------+
 | P         | Cycle through fish based on ID (forward)                                                       |
 +-----------+------------------------------------------------------------------------------------------------+
+
+.. _`Timeline`:
 
 Timeline
 --------

@@ -13,18 +13,13 @@ elseif(WIN32)
 endif()
 
 if(WIN32)
-    target_link_libraries(tracker_python PRIVATE
+    target_link_libraries(tracker_python PUBLIC
         tracker_misc
         commons
-        cnpy
-        Commons::OpenCV
-	    Commons::LibPNG
-		Commons::LibZIP
-		Commons::LibZ
     )
-    target_compile_options(tracker_python PRIVATE /D"TREX_EXPORTS")
+    target_compile_options(tracker_python PUBLIC /D"TREX_EXPORTS")
 else()
-    target_link_libraries(tracker_python PRIVATE cnpy commons)
+    target_link_libraries(tracker_python PRIVATE commons)
 endif()
 
 if(NOT pybind11_external)
@@ -35,8 +30,7 @@ else()
 endif()
 
 add_executable(trex_check_python check_python.cpp)
-target_link_libraries(trex_check_python commons cnpy Commons::OpenCV Commons::LibZIP Commons::LibZ Commons::LibPNG)
-add_dependencies(trex_check_python commons cnpy Commons::OpenCV Commons::LibZIP)
+target_link_libraries(trex_check_python commons)
 
 if(NOT pybind11_external)
     target_link_libraries(trex_check_python pybind11::pybind11 pybind11::embed pybind11::module)

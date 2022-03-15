@@ -136,7 +136,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
     }
 
     bool Recognition::python_available() {
-#ifndef TREX_PYTHON_PATH
+#ifndef COMMONS_PYTHON_EXECUTABLE
         return false;
 #endif
         //return false;
@@ -163,7 +163,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             exec += " 2> /dev/null";
 #endif
         } else {
-            FormatWarning("Does not exist in working dir: ",exec);
+            //FormatWarning("Does not exist in working dir: ",exec);
 #if __APPLE__
             auto p = SETTING(wd).value<file::Path>();
             p = p / ".." / ".." / ".." / CHECK_PYTHON_EXECUTABLE_NAME;
@@ -174,17 +174,20 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             } else {
                 p = SETTING(wd).value<file::Path>() / CHECK_PYTHON_EXECUTABLE_NAME;
                 if(p.exists()) {
-                    print("Pure ",p," exists.");
+                    //print("Pure ",p," exists.");
                     exec = p.str()+" 2> /dev/null";
                 } else {
                     // search conda
                     auto conda_prefix = (const char*)getenv("CONDA_PREFIX");
                     if(conda_prefix) {
-                        print("Searching conda environment for trex_check_python... (", std::string(conda_prefix),").");
+                        if(!SETTING(quiet))
+                            print("Searching conda environment for trex_check_python... (", std::string(conda_prefix),").");
                         p = file::Path(conda_prefix) / "usr" / "share" / "trex" / CHECK_PYTHON_EXECUTABLE_NAME;
-                        print("Full path: ", p);
+                        if(!SETTING(quiet))
+                            print("Full path: ", p);
                         if(p.exists()) {
-                            print("Found in conda environment ",std::string(conda_prefix)," at ",p);
+                            if(!SETTING(quiet))
+                                print("Found in conda environment ",std::string(conda_prefix)," at ",p);
                             exec = p.str()+" 2> /dev/null";
                         } else {
                             FormatWarning("Not found in conda environment ",std::string(conda_prefix)," at ",p,".");
@@ -210,61 +213,84 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
     {
         assert(!instance);
         instance = this;
-        fix_python();
+        fix_python(false);
     }
 
-    void Recognition::fix_python() {
-        if(!FAST_SETTINGS(recognition_enable) && !SETTING(enable_closed_loop))
-            return;
+    void Recognition::fix_python(bool force_init, cmn::source_location loc) {
+        static std::once_flag flag;
+        std::call_once(flag, [](){
+    #ifdef COMMONS_PYTHON_EXECUTABLE
+            auto home = ::default_config::conda_environment_path().str();
+            if (home.empty())
+                home = SETTING(python_path).value<file::Path>().str();
+            if (file::Path(home).exists() && file::Path(home).is_regular())
+                home = file::Path(home).remove_filename().str();
+
+            //print("Checking python at ", home);
+
+            if (!can_initialize_python() && !getenv("TREX_DONT_SET_PATHS")) {
+                if (!SETTING(quiet))
+                    FormatWarning("Python environment does not appear to be setup correctly. Trying to fix using python path = ",home,"...");
+
+                // this is now the home folder of python
+                std::string sep = "/";
+    #if defined(WIN32)
+                auto set = home + ";" + home + "/DLLs;" + home + "/Lib;" + home + "/Scripts;" + home + "/Library/bin;" + home + "/Library;";
+    #else
+                auto set = home + ":" + home + "/bin:" + home + "/condabin:" + home + "/lib:" + home + "/sbin:";
+    #endif
+
+                sep[0] = file::Path::os_sep();
+                set = utils::find_replace(set, "/", sep);
+                home = utils::find_replace(home, "/", sep);
+
+    #if defined(WIN32) || defined(__WIN32__)
+                const DWORD buffSize = 65535;
+                char path[buffSize] = { 0 };
+                GetEnvironmentVariable("PATH", path, buffSize);
+
+                set = set + path;
+
+                //SetEnvironmentVariable("PATH", set.c_str());
+                SetEnvironmentVariable("PYTHONHOME", home.c_str());
+
+                //auto pythonpath = home + ";" + home + "/DLLs;" + home + "/Lib/site-packages";
+                //SetEnvironmentVariable("PYTHONPATH", pythonpath.c_str());
+    #else
+                std::string path = (std::string)getenv("PATH");
+                set = set + path;
+                setenv("PATH", set.c_str(), 1);
+                setenv("PYTHONHOME", home.c_str(), 1);
+    #endif
+                if (!SETTING(quiet)) {
+                    print("Set PATH=",set);
+                    print("Set PYTHONHOME=",home);
+
+                    if (!can_initialize_python())
+                        FormatExcept("Please check your python environment variables, as it failed to initialize even after setting PYTHONHOME and PATH.");
+                    else
+                        print("Can initialize.");
+                }
+            }
+    #endif
+        });
         
-#ifdef TREX_PYTHON_PATH
-        auto home = ::default_config::conda_environment_path().str();
-        if (home.empty())
-            home = SETTING(python_path).value<file::Path>().str();
-        if (file::Path(home).exists() && file::Path(home).is_regular())
-            home = file::Path(home).remove_filename().str();
-        print("Setting home to ", home);
-
-        if (!can_initialize_python() && !getenv("TREX_DONT_SET_PATHS")) {
-            if (!SETTING(quiet))
-                FormatWarning("Python environment does not appear to be setup correctly. Trying to fix using python path = ",home,"...");
-
-            // this is now the home folder of python
-            std::string sep = "/";
-#if defined(WIN32)
-            auto set = home + ";" + home + "/DLLs;" + home + "/Lib;" + home + "/Scripts;" + home + "/Library/bin;" + home + "/Library;";
-#else
-            auto set = home + ":" + home + "/bin:" + home + "/condabin:" + home + "/lib:" + home + "/sbin:";
-#endif
-
-            sep[0] = file::Path::os_sep();
-            set = utils::find_replace(set, "/", sep);
-            home = utils::find_replace(home, "/", sep);
-
-#if defined(WIN32) || defined(__WIN32__)
-            const DWORD buffSize = 65535;
-            char path[buffSize] = { 0 };
-            GetEnvironmentVariable("PATH", path, buffSize);
-
-            set = set + path;
-
-            SetEnvironmentVariable("PATH", set.c_str());
-            SetEnvironmentVariable("PYTHONHOME", home.c_str());
-#else
-            std::string path = (std::string)getenv("PATH");
-            set = set + path;
-            setenv("PATH", set.c_str(), 1);
-            setenv("PYTHONHOME", home.c_str(), 1);
-#endif
-            if (!SETTING(quiet)) {
-                print("Set PATH=",set);
-                print("Set PYTHONHOME=",home);
-
-                if (!can_initialize_python())
-                    FormatExcept("Please check your python environment variables, as it failed to initialize even after setting PYTHONHOME and PATH.");
+        if(force_init
+           || FAST_SETTINGS(recognition_enable)
+           || SETTING(enable_closed_loop)
+           || SETTING(tags_recognize))
+        {
+            if(can_initialize_python()) {
+                static std::once_flag flag2;
+                std::call_once(flag2, [](){
+                    track::PythonIntegration::set_settings(GlobalSettings::instance());
+                    track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
+                });
+                
+            } else {
+                throw U_EXCEPTION<FormatterType::UNIX, const char*>("Cannot initialize python, even though initializing it was required by the caller.", loc);
             }
         }
-#endif
     }
     
     Recognition::~Recognition() {
@@ -321,7 +347,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             if(it != entry->second.end()) {
                 std::map<Idx_t, float> map;
                 for (size_t i=0; i<it->second.size(); i++) {
-                    map[fish_idx_to_id.empty() ? Idx_t(i) : fish_idx_to_id.at(Idx_t(i))] = it->second[i];
+                    map[Idx_t(i)] = it->second[i];
                 }
                 return map;
             }
@@ -510,9 +536,9 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         Median<float> median_midline, median_outline, median_angle_diff;
         std::set<float> midline_lengths, outline_stds;
         
-        std::shared_ptr<Individual::PostureStuff> previous_midline;
+        const Individual::PostureStuff* previous_midline = nullptr;
         
-        fish->iterate_frames(segment, [&](Frame_t frame, const auto&, const std::shared_ptr<Individual::BasicStuff> & basic, const std::shared_ptr<Individual::PostureStuff> & posture) -> bool
+        fish->iterate_frames(segment, [&](Frame_t frame, const auto&, auto basic, auto posture) -> bool
         {
             if(!basic || !posture || basic->blob.split())
                 return true;
@@ -588,7 +614,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         return false;
     }
     
-    bool Recognition::eligible_for_training(const std::shared_ptr<Individual::BasicStuff>& basic, const std::shared_ptr<Individual::PostureStuff>& posture, const TrainingFilterConstraints &)
+    bool Recognition::eligible_for_training(const Individual::BasicStuff* basic, const Individual::PostureStuff* posture, const TrainingFilterConstraints &)
     {
         if(!basic)
             return false;
@@ -888,8 +914,8 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                                 continue;
                             
                             auto &basic = fish->basic_stuff().at((size_t)bid);
-                            
-                            if(!eligible_for_training(basic, posture, filters))
+                            assert(basic);
+                            if(!eligible_for_training(basic.get(), posture.get(), filters))
                                 continue;
                             
                             elig_frames.insert(basic->frame);
@@ -901,7 +927,8 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                                 continue;
                             
                             auto &basic = fish->basic_stuff().at((size_t)index);
-                            if(!eligible_for_training(basic, nullptr, filters))
+                            assert(basic);
+                            if(!eligible_for_training(basic.get(), nullptr, filters))
                                 continue;
                             
                             elig_frames.insert(basic->frame);
@@ -1603,6 +1630,8 @@ void Recognition::load_weights(std::string postfix) {
         const float random_chance = 1.f / FAST_SETTINGS(track_max_individuals);
         const float good_enough = min(1.f, random_chance * 2);
         auto acc = last_prediction_accuracy();
+        if(acc == -1)
+            return; // no data
         if(acc < good_enough)
             FormatWarning("Prediction accuracy for the trained network was lower than it should be (",dec<2>(acc*100),"%, and random is ",dec<2>(random_chance * 100),"% for ",FAST_SETTINGS(track_max_individuals)," individuals). Proceed with caution.");
     }
@@ -2004,7 +2033,10 @@ void Recognition::load_weights(std::string postfix) {
         
             try {
                 if(future.get()) { //&& (load_results == TrainingMode::Apply/* || best_accuracy_worst_class > 0.9*/)) {
-                    DebugCallback("Success (train) with best_accuracy_worst_class = %f.", best_accuracy_worst_class);
+                    if(best_accuracy_worst_class != -1)
+                        DebugCallback("Success (train) with best_accuracy_worst_class = ", best_accuracy_worst_class, ".");
+                    else
+                        DebugCallback("Success (train) with unspecified accuracy (will only be displayed directly after training).");
                     success = true;
                 } else
                     print("Training the network failed (",best_accuracy_worst_class,").");

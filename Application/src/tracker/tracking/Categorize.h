@@ -143,6 +143,8 @@ struct DataStore {
     using const_iterator = std::vector<Sample::Ptr>::const_iterator;
     static const_iterator begin();
     static const_iterator end();
+    static bool _ranges_empty_unsafe();
+    
     static void write(file::DataFormat&, int version); // read from file
     static void read(file::DataFormat&, int version); // load from file
     
