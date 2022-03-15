@@ -3720,7 +3720,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                                 }
                                 
                                 if(found == nullptr) {
-                                    print("Not found for ", center, " size=", r.size(), " with id ", bid);
+                                    //print("Not found for ", center, " size=", r.size(), " with id ", bid);
                                     ++not_found;
                                 } else {
                                     ++all_found;
