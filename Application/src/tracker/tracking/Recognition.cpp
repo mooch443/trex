@@ -211,69 +211,69 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         assert(!instance);
         instance = this;
         fix_python();
-
-        track::PythonIntegration::set_settings(GlobalSettings::instance());
-        track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
     }
 
     void Recognition::fix_python() {
-        if(!FAST_SETTINGS(recognition_enable) && !SETTING(enable_closed_loop) && !SETTING(tags_recognize))
-            return;
-        
-#ifdef COMMONS_PYTHON_EXECUTABLE
-        auto home = ::default_config::conda_environment_path().str();
-        if (home.empty())
-            home = SETTING(python_path).value<file::Path>().str();
-        if (file::Path(home).exists() && file::Path(home).is_regular())
-            home = file::Path(home).remove_filename().str();
+        static std::once_flag flag;
+        std::call_once(flag, [](){
+    #ifdef COMMONS_PYTHON_EXECUTABLE
+            auto home = ::default_config::conda_environment_path().str();
+            if (home.empty())
+                home = SETTING(python_path).value<file::Path>().str();
+            if (file::Path(home).exists() && file::Path(home).is_regular())
+                home = file::Path(home).remove_filename().str();
 
-        print("Checking python at ", home);
+            print("Checking python at ", home);
 
-        if (!can_initialize_python() && !getenv("TREX_DONT_SET_PATHS")) {
-            if (!SETTING(quiet))
-                FormatWarning("Python environment does not appear to be setup correctly. Trying to fix using python path = ",home,"...");
+            if (!can_initialize_python() && !getenv("TREX_DONT_SET_PATHS")) {
+                if (!SETTING(quiet))
+                    FormatWarning("Python environment does not appear to be setup correctly. Trying to fix using python path = ",home,"...");
 
-            // this is now the home folder of python
-            std::string sep = "/";
-#if defined(WIN32)
-            auto set = home + ";" + home + "/DLLs;" + home + "/Lib;" + home + "/Scripts;" + home + "/Library/bin;" + home + "/Library;";
-#else
-            auto set = home + ":" + home + "/bin:" + home + "/condabin:" + home + "/lib:" + home + "/sbin:";
-#endif
+                // this is now the home folder of python
+                std::string sep = "/";
+    #if defined(WIN32)
+                auto set = home + ";" + home + "/DLLs;" + home + "/Lib;" + home + "/Scripts;" + home + "/Library/bin;" + home + "/Library;";
+    #else
+                auto set = home + ":" + home + "/bin:" + home + "/condabin:" + home + "/lib:" + home + "/sbin:";
+    #endif
 
-            sep[0] = file::Path::os_sep();
-            set = utils::find_replace(set, "/", sep);
-            home = utils::find_replace(home, "/", sep);
+                sep[0] = file::Path::os_sep();
+                set = utils::find_replace(set, "/", sep);
+                home = utils::find_replace(home, "/", sep);
 
-#if defined(WIN32) || defined(__WIN32__)
-            const DWORD buffSize = 65535;
-            char path[buffSize] = { 0 };
-            GetEnvironmentVariable("PATH", path, buffSize);
+    #if defined(WIN32) || defined(__WIN32__)
+                const DWORD buffSize = 65535;
+                char path[buffSize] = { 0 };
+                GetEnvironmentVariable("PATH", path, buffSize);
 
-            set = set + path;
+                set = set + path;
 
-            //SetEnvironmentVariable("PATH", set.c_str());
-            SetEnvironmentVariable("PYTHONHOME", home.c_str());
+                //SetEnvironmentVariable("PATH", set.c_str());
+                SetEnvironmentVariable("PYTHONHOME", home.c_str());
 
-            //auto pythonpath = home + ";" + home + "/DLLs;" + home + "/Lib/site-packages";
-            //SetEnvironmentVariable("PYTHONPATH", pythonpath.c_str());
-#else
-            std::string path = (std::string)getenv("PATH");
-            set = set + path;
-            setenv("PATH", set.c_str(), 1);
-            setenv("PYTHONHOME", home.c_str(), 1);
-#endif
-            if (!SETTING(quiet)) {
-                print("Set PATH=",set);
-                print("Set PYTHONHOME=",home);
+                //auto pythonpath = home + ";" + home + "/DLLs;" + home + "/Lib/site-packages";
+                //SetEnvironmentVariable("PYTHONPATH", pythonpath.c_str());
+    #else
+                std::string path = (std::string)getenv("PATH");
+                set = set + path;
+                setenv("PATH", set.c_str(), 1);
+                setenv("PYTHONHOME", home.c_str(), 1);
+    #endif
+                if (!SETTING(quiet)) {
+                    print("Set PATH=",set);
+                    print("Set PYTHONHOME=",home);
 
-                if (!can_initialize_python())
-                    FormatExcept("Please check your python environment variables, as it failed to initialize even after setting PYTHONHOME and PATH.");
-                else
-                    print("Can initialize.");
+                    if (!can_initialize_python())
+                        FormatExcept("Please check your python environment variables, as it failed to initialize even after setting PYTHONHOME and PATH.");
+                    else
+                        print("Can initialize.");
+                }
+                
+                track::PythonIntegration::set_settings(GlobalSettings::instance());
+                track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
             }
-        }
-#endif
+    #endif
+        });
     }
     
     Recognition::~Recognition() {
