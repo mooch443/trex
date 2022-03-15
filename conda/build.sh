@@ -64,6 +64,8 @@ cmake .. \
     -DPython_INCLUDE_DIRS:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
     -DPython_LIBRARIES:FILEPATH=$(python3 ../find_library.py) \
     -DPython_EXECUTABLE:FILEPATH=$(which python3) \
+    -DPython_ROOT_DIR:FILEPATH="${BUILD_PREFIX}" \
+    -DCONDA_PREFIX:PATH="${BUILD_PREFIX}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DWITH_GITSHA1=ON \
     -DCMAKE_INSTALL_PREFIX=$PREFIX \

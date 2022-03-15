@@ -419,9 +419,7 @@ void TrainingData::merge_with(std::shared_ptr<TrainingData> other, bool unmap_ev
         return;
     }
     
-    auto me = Meta::toStr(*this);
-    auto he = Meta::toStr(*other);
-    print("[TrainingData] Merging ",me," with ",he,".");
+    print("[TrainingData] Merging ",*this," with ",*other,".");
     
     // merge all_classes for both trainingdata and also merge filters
     for(auto id : other->all_classes()) {
