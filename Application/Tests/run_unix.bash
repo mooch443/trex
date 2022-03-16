@@ -34,9 +34,6 @@ if ! which tgrabs; then
         TREX=~/trex/Application/build/Release/trex
         TGRABS=~/trex/Application/build/Release/tgrabs
     fi
-else
-    TGRABS=$(which ${TGRABS})
-    TREX=$(which ${TREX})
 fi
 
 CMD="${TGRABS} -d "${WPWD}" -i \"${WPWD}/test_frames/frame_%3d.jpg\" -o test -threshold 9 -average_samples 100 
