@@ -3563,8 +3563,9 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
     void Tracker::_remove_frames(Frame_t frameIndex) {
         Categorize::DataStore::reanalysed_from(Frame_t(frameIndex));
         
-        LockGuard guard("_remove_frames("+Meta::toStr(frameIndex)+")");
         recognition_pool.wait();
+        
+        LockGuard guard("_remove_frames("+Meta::toStr(frameIndex)+")");
         _thread_pool.wait();
         
         _individual_add_iterator_map.clear();
