@@ -1,6 +1,9 @@
 #!/bin/bash
 
-PWD=$(pwd)/../../videos
+PWD="$(cd $(dirname $0); pwd)"
+PWD="${PWD}/../../videos"
+PWD="$(cd $(dirname $PWD); pwd)/$(basename $PWD)"
+
 WPWD=${PWD}
 TGRABS=tgrabs
 TREX=trex
@@ -20,8 +23,21 @@ else
     fi
 fi
 
-#TGRABS=~/trex/Application/build/RelWithDebInfo/TGrabs.app/Contents/MacOS/TGrabs
-#TREX=~/trex/Application/build/RelWithDebInfo/TRex.app/Contents/MacOS/TRex
+if ! which tgrabs; then
+    if [ $(uname) == "Darwin" ]; then
+        TGRABS=~/trex/Application/build/RelWithDebInfo/TGrabs.app/Contents/MacOS/TGrabs
+        TREX=~/trex/Application/build/RelWithDebInfo/TRex.app/Contents/MacOS/TRex
+    elif [ $(uname) == "Linux" ]; then
+        TREX=~/trex/Application/build/trex
+        TGRABS=~/trex/Application/build/tgrabs
+    else
+        TREX=~/trex/Application/build/Release/trex
+        TGRABS=~/trex/Application/build/Release/tgrabs
+    fi
+else
+    TGRABS=$(which ${TGRABS})
+    TREX=$(which ${TREX})
+fi
 
 CMD="${TGRABS} -d "${WPWD}" -i \"${WPWD}/test_frames/frame_%3d.jpg\" -o test -threshold 9 -average_samples 100 
     -averaging_method mode -meta_real_width 2304 -exec \"${WPWD}/test.settings\" 

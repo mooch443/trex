@@ -979,8 +979,7 @@ bool Accumulation::start() {
                 sorted.insert({ distance, rd, q, cached, range });
             }
             
-            auto str = Meta::toStr(all_distances);
-            print("\t\tall_distances: ",  str);
+            print("\t\tall_distances: ",  all_distances);
         };
         
         float maximum_average_samples = 0;
@@ -1007,8 +1006,7 @@ bool Accumulation::start() {
             sorted_by_quality[L * 3] = {};
             sorted_by_quality[std::numeric_limits<Frame_t::number_t>::max()] = {};
             
-            auto quadrants = Meta::toStr(sorted_by_quality);
-            print("! Sorted segments into quadrants: ", quadrants);
+            print("! Sorted segments into quadrants: ", sorted_by_quality);
             
             size_t inserted_elements = 0;
             
@@ -1024,8 +1022,7 @@ bool Accumulation::start() {
                 }
                 
                 if(!inserted) {
-                    auto str = Meta::toStr(range);
-                    print("Did not find a point to insert ",str,"!");
+                    print("Did not find a point to insert ",range,"!");
                 }
             }
             
@@ -1052,16 +1049,13 @@ bool Accumulation::start() {
             }
             
             if(retained != inserted_elements && retained > 0) {
-                auto str = Meta::toStr(std::get<0>(*sorted_by_quality.begin()));
-                auto str_filtered_out = Meta::toStr(filtered_out);
-                
                 sorted.clear();
                 for(auto && [end, queue] : sorted_by_quality) {
                     for(auto && [q, range] : queue)
                         sorted.insert({-1, Frame_t(), q, nullptr, range});
                 }
                 
-                print("Reduced global segments array by removing ",filtered_out.size()," elements with a quality worse than ",str.c_str()," (",str_filtered_out.c_str(),"). ",sorted_by_quality.size()," elements remaining.");
+                print("Reduced global segments array by removing ",filtered_out.size()," elements with a quality worse than ",std::get<0>(*sorted_by_quality.begin())," (",filtered_out,"). ",sorted_by_quality.size()," elements remaining.");
                 
             } else {
                 print("Did not reduce global segments array. There are not too many of them (", sorted,"). ",sorted.size()," elements in list.");
@@ -1270,8 +1264,7 @@ bool Accumulation::start() {
                 }
             }
             
-            auto str_gaps = Meta::toStr(frame_gaps);
-            print("\tIndividuals frame gaps: ", str_gaps);
+            print("\tIndividuals frame gaps: ", frame_gaps);
             Frame_t::number_t maximal_gaps(0);
             for(auto && [id, L] : frame_gaps) {
                 if(L > maximal_gaps)
@@ -1334,9 +1327,7 @@ bool Accumulation::start() {
                 retry_ranges = false;
                 
             } else if(!sorted.empty()) {
-                auto ssss = Meta::toStr(sorted);
-                auto sss = Meta::toStr(overall_ranges);
-                print("sorted (",sss,"): ",ssss);
+                print("sorted (",sorted,"): ",overall_ranges);
                 
                 auto [overlaps, rd, q, cached, range] = *sorted.begin();
                 auto keep_iterating = update_meta_start_acc(cached ? "(retry)" : "", range, q, overlaps);
@@ -1448,8 +1439,6 @@ bool Accumulation::start() {
         }
         
         if(mbytes > gpu_max_sample_mb) {
-            auto distribution = Meta::toStr(images_per_class);
-            
             print("\t! ", FileSize{ uint64_t(mbytes * 1000) * 1000u },
                 " exceeds the maximum allowed cache size of ", FileSize{ uint64_t(gpu_max_sample_mb * 1000) * 1000u }," (", images_per_class,"). "
                 "Reducing to ", dec<1>(max_images_per_class), " images/class...");
