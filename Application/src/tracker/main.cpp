@@ -745,6 +745,8 @@ int main(int argc, char** argv)
         else
             FormatWarning("Settings file ",settings_file," does not exist.");
     }
+    
+    SETTING(recognition_enable) = true;
 
     Tracker tracker;
     tracker.update_history_log();
