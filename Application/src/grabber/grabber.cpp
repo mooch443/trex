@@ -610,8 +610,16 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
 #if defined(TAGS_ENABLE)
         || GRAB_SETTINGS(tags_recognize)
 #endif
-        ) {
+        )
+    {
+        track::Recognition::fix_python(true);
         track::PythonIntegration::ensure_started().get();
+#if defined(TAGS_ENABLE)
+        track::PythonIntegration::async_python_function([](){
+            track::PythonIntegration::execute("import tensorflow as tf");
+            return true;
+        }).get();
+#endif
     }
 #endif
 

@@ -1403,9 +1403,6 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             _tracker.add_next_frame(props);
         }
         
-        for(auto &prop : _tracker.frames())
-            file._property_cache->push(prop->frame, prop.get());
-        
         // read the individuals
         std::map<Idx_t, Individual*> map_id_ptr;
         std::vector<Individual*> fishes;

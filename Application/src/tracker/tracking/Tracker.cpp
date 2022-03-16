@@ -69,19 +69,47 @@ namespace track {
     }
     
     //std::map<long_t, std::map<uint32_t, long_t>> automatically_assigned_blobs;
-    std::map<Idx_t, std::map<Range<Frame_t>, std::vector<pv::bid>>> automatically_assigned_ranges;
+
+    struct RangesForID {
+        struct AutomaticRange {
+            Range<Frame_t> range;
+            std::vector<pv::bid> bids;
+            
+            bool operator==(const Range<Frame_t>& range) const {
+                return this->range.start == range.start && this->range.end == range.end;
+            }
+        };
+        
+        Idx_t id;
+        std::vector<AutomaticRange> ranges;
+        
+        bool operator==(const Idx_t& idx) const {
+            return id == idx;
+        }
+    };
+    std::vector<RangesForID> _automatically_assigned_ranges;
+
+void add_assigned_range(std::vector<RangesForID>& assigned, Idx_t fdx, const Range<Frame_t>& range, std::vector<pv::bid>&& bids) {
+    auto it = std::find(assigned.begin(), assigned.end(), fdx);
+    if(it == assigned.end()) {
+        assigned.push_back(RangesForID{ fdx, { RangesForID::AutomaticRange{range, std::move(bids)} } });
+        
+    } else {
+        it->ranges.push_back(RangesForID::AutomaticRange{ range, std::move(bids) });
+    }
+}
     
     std::map<Idx_t, pv::bid> Tracker::automatically_assigned(Frame_t frame) {
         //LockGuard guard;
         std::map<Idx_t, pv::bid> blob_for_fish;
         
-        for(auto && [fdx, bff] : automatically_assigned_ranges) {
+        for(auto && [fdx, bff] : _automatically_assigned_ranges) {
             blob_for_fish[fdx] = -1;
             
-            for(auto && [range, blob_ids] : bff) {
-                if(range.contains(frame)) {
-                    assert(frame >= range.start && range.end >= frame);
-                    blob_for_fish[fdx] = blob_ids.at(sign_cast<size_t>((frame - range.start).get()));
+            for(auto & assign : bff) {
+                if(assign.range.contains(frame)) {
+                    assert(frame >= assign.range.start && assign.range.end >= frame);
+                    blob_for_fish[fdx] = assign.bids.at(sign_cast<size_t>((frame - assign.range.start).get()));
                     break;
                 }
             }
@@ -215,20 +243,23 @@ decltype(Tracker::_added_frames)::const_iterator Tracker::properties_iterator(Fr
     }
 
     void Tracker::delete_automatic_assignments(Idx_t fish_id, const FrameRange& frame_range) {
-        auto it = automatically_assigned_ranges.find(fish_id);
-        if(it == automatically_assigned_ranges.end()) {
+        auto it = std::find(_automatically_assigned_ranges.begin(), _automatically_assigned_ranges.end(), fish_id);
+        if(it == _automatically_assigned_ranges.end()) {
             FormatExcept("Cannot find fish ",fish_id," in automatic assignments");
             return;
         }
         
         std::set<Range<Frame_t>> ranges_to_remove;
-        for(auto && [range, blob_ids] : it->second) {
+        for(auto && [range, blob_ids] : it->ranges) {
             if(frame_range.overlaps(range)) {
                 ranges_to_remove.insert(range);
             }
         }
-        for(auto range : ranges_to_remove)
-            it->second.erase(range);
+        for(auto range : ranges_to_remove) {
+            std::erase_if(it->ranges, [&](auto &assign){
+                return assign.range == range;
+            });
+        }
     }
 
     bool callback_registered = false;
@@ -3799,7 +3830,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
             fish->clear_recognition();
         }
         
-        automatically_assigned_ranges.clear();
+        _automatically_assigned_ranges.clear();
     }
     
     void Tracker::check_segments_identities(bool auto_correct, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue, Frame_t after_frame) {
@@ -3850,7 +3881,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         std::map<fdx_t, std::set<Range<Frame_t>>> unassigned_ranges;
         std::map<fdx_t, std::map<Range<Frame_t>, fdx_t>> assigned_ranges;
         
-        decltype(automatically_assigned_ranges) tmp_assigned_ranges;
+        decltype(_automatically_assigned_ranges) tmp_assigned_ranges;
         //automatically_assigned_ranges.clear();
         
         /*static const auto compare = [](const std::pair<long_t, float>& pair0, const std::pair<long_t, float>& pair1){
@@ -4052,33 +4083,36 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                         blob_ids.push_back(pv::bid::invalid);
                     
                     std::set<Range<Frame_t>> remove_from;
-                    for(auto && [range, blobs] : tmp_assigned_ranges[fdx]) {
-                        if(range != segment.range && range.contains(frame)) {
-                            //if(!blob || contains(blobs, blob->blob_id())) {
-                                remove_from.insert(range);
-                            //}
-                            
-                            //break;
+                    auto it = std::find(tmp_assigned_ranges.begin(), tmp_assigned_ranges.end(), fdx);
+                    if(it != tmp_assigned_ranges.end()) {
+                        for(auto & assign : it->ranges) {
+                            if(assign.range != segment.range && assign.range.contains(frame)) {
+                                remove_from.insert(assign.range);
+                            }
                         }
                     }
                     
-                    
-                    /*for(auto && [b, f] : automatically_assigned_blobs[frame]) {
-                        if(f == fdx && (!blob || (blob && b != blob->blob_id()))) {
-                            remove_from.insert(b);
-                        }
-                    }*/
-                    
                     if(!remove_from.empty()) {
-                        for(auto range : remove_from)
-                            tmp_assigned_ranges[fdx].erase(range);
+                        for(auto range : remove_from) {
+                            // find individual fdx,
+                            // then delete range range:
+                            auto it = std::find(tmp_assigned_ranges.begin(), tmp_assigned_ranges.end(), fdx);
+                            if(it != tmp_assigned_ranges.end()) {
+                                for(auto dit = it->ranges.begin(); dit != it->ranges.end(); ) {
+                                    if(dit->range == range) {
+                                        it->ranges.erase(dit);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
                         
                         FormatWarning("While assigning ",frame,",",blob ? (int64_t)blob->blob_id() : -1," to ",fdx," -> same fish already assigned in ranges ",remove_from);
                     }
                 }
                 
                 assert(Frame_t(blob_ids.size()) == segment.range.end - segment.range.start + 1_f);
-                tmp_assigned_ranges[fdx][segment.range] = blob_ids;
+                add_assigned_range(tmp_assigned_ranges, fdx, segment.range, std::move(blob_ids));
             }
         }
 #ifdef TREX_DEBUG_IDENTITIES
@@ -4249,11 +4283,14 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                                     } else
                                         blob_ids.push_back(pv::bid::invalid);
                                     
-                                    
-                                    for(auto && [range, blobs] : tmp_assigned_ranges[chosen_id]) {
-                                        if(range != segment.range && range.contains(frame)) {
-                                            remove_from.insert(range);
-                                            break;
+                                    auto it = std::find(tmp_assigned_ranges.begin(), tmp_assigned_ranges.end(), chosen_id);
+                                    if(it != tmp_assigned_ranges.end()) {
+                                        for(auto && [range, blobs] : it->ranges)
+                                        {
+                                            if(range != segment.range && range.contains(frame)) {
+                                                remove_from.insert(range);
+                                                break;
+                                            }
                                         }
                                     }
                                 }
@@ -4265,7 +4302,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                                     FormatWarning("[ignore] While assigning ",segment.range.start,"-",segment.range.end," to ",(uint32_t)chosen_id," -> same fish already assigned in ranges ",remove_from);
                                 } else {
                                     assert((int64_t)blob_ids.size() == (segment.range.end - segment.range.start + 1_f).get());
-                                    tmp_assigned_ranges[chosen_id][segment.range] = blob_ids;
+                                    add_assigned_range(tmp_assigned_ranges, chosen_id, segment.range, std::move(blob_ids));
                                     
                                     auto blob = fish->blob(segment.start());
                                     if(blob && blob->split() && blob->parent_id().valid())
@@ -4300,7 +4337,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                     }
                     
                     print("automatically_assigned_ranges ", tmp_assigned_ranges.size());
-                    automatically_assigned_ranges = tmp_assigned_ranges;
+                    _automatically_assigned_ranges = tmp_assigned_ranges;
                 }
                 
                 if(!after_frame.valid())
