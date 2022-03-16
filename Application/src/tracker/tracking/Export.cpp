@@ -811,11 +811,11 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                             if(!reduced.blob || !reduced.blob->pixels())
                                 reduced.blob = obj.find_bdx(data.blob.org_id);
                             
-                            print("reduced.blob:",
+                            /*print("reduced.blob:",
                                   reduced.blob ? reduced.blob->bounds() : Bounds(),
                                   " data.bounds:",
                                   data.blob.blob.calculate_bounds(),
-                                  " ", data.blob.blob.num_pixels(), " vs. ", reduced.blob->num_pixels());
+                                  " ", data.blob.blob.num_pixels(), " vs. ", reduced.blob->num_pixels());*/
                         }
                         
                         if(data.blob.blob.parent_id.valid()) {
