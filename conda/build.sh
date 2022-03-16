@@ -106,7 +106,6 @@ if [ "$(uname)" == "Linux" ]; then
     make -j$(( $(nproc) - 1 )) gladex
 fi
 
-
 if [ "$(uname)" == "Linux" ]; then
     make -j$(( $(nproc) - 1 )) imgui
 else

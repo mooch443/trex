@@ -232,7 +232,7 @@ private:
     void key_event(const gui::Event& event);
     void local_event(const gui::Event& event);
     
-    void generate_training_data(GUIType type = GUIType::GRAPHICAL, bool force_load = false);
+    void generate_training_data(std::future<void>&& initialized, GUIType type = GUIType::GRAPHICAL, bool force_load = false);
     std::map<Frame_t, std::set<long_t>> generate_individuals_per_frame(const Rangel& range, TrainingData& data);
     
     void generate_training_data_faces(const file::Path& path);

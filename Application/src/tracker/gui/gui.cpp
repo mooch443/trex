@@ -4107,7 +4107,7 @@ void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void
         }
         
         try {
-            generate_training_data(type, force_load);
+            generate_training_data(std::move(task), type, force_load);
         } catch(const SoftExceptionImpl& ex) {
             if(SETTING(auto_train_on_startup)) {
                 throw U_EXCEPTION("Aborting training data because an exception was thrown ('",ex.what(),"').");
@@ -4124,12 +4124,15 @@ void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void
     
     
 
-void GUI::generate_training_data(GUI::GUIType type, bool force_load) {
+void GUI::generate_training_data(std::future<void>&& initialized, GUI::GUIType type, bool force_load) {
     /*-------------------------/
      SAVE METADATA
      -------------------------*/
+    static std::future<void> current;
+    current = std::move(initialized);
+    //! TODO: Dont do this.
 
-    auto fn = [](TrainingMode::Class load) -> bool {
+    auto fn = [&](TrainingMode::Class load) -> bool {
         std::vector<Rangel> trained;
 
         work().set_progress("training network", 0);
@@ -4137,6 +4140,9 @@ void GUI::generate_training_data(GUI::GUIType type, bool force_load) {
 
         try {
             Accumulation acc(load);
+            if(current.valid())
+                current.get();
+
             auto ret = acc.start();
             if (ret && SETTING(auto_train_dont_apply)) {
                 GUI::auto_quit();
@@ -4169,94 +4175,94 @@ void GUI::generate_training_data(GUI::GUIType type, bool force_load) {
         + "\n\n" + std::string(message_concern);
     
     //if(Recognition::network_weights_available()) {
-        if(type == GUIType::GRAPHICAL) {
-            PD(gui).dialog([fn, avail](Dialog::Result result){
-                work().add_queue("training network", [fn, result, avail=avail](){
-                    try {
-                        TrainingMode::Class mode;
-                        if(avail) {
-                            switch(result) {
-                                case gui::Dialog::OKAY:
-                                    mode = TrainingMode::Continue;
-                                    break;
-                                case gui::Dialog::SECOND:
-                                    mode = TrainingMode::Apply;
-                                    break;
-                                case gui::Dialog::THIRD:
-                                    mode = TrainingMode::Restart;
-                                    break;
-                                case gui::Dialog::FOURTH:
-                                    mode = TrainingMode::LoadWeights;
-                                    break;
-                                case gui::Dialog::ABORT:
-                                    return;
+    if(type == GUIType::GRAPHICAL) {
+        PD(gui).dialog([fn, avail](Dialog::Result result) {
+            work().add_queue("training network", [fn, result, avail = avail]() {
+                try {
+                    TrainingMode::Class mode;
+                    if(avail) {
+                        switch(result) {
+                            case gui::Dialog::OKAY:
+                                mode = TrainingMode::Continue;
+                                break;
+                            case gui::Dialog::SECOND:
+                                mode = TrainingMode::Apply;
+                                break;
+                            case gui::Dialog::THIRD:
+                                mode = TrainingMode::Restart;
+                                break;
+                            case gui::Dialog::FOURTH:
+                                mode = TrainingMode::LoadWeights;
+                                break;
+                            case gui::Dialog::ABORT:
+                                return;
                                     
-                                default:
-                                    throw SoftException("Unknown mode ",result," in generate_training_data.");
-                                    return;
-                            }
-                            
-                        } else {
-                            switch(result) {
-                                case gui::Dialog::OKAY:
-                                    mode = TrainingMode::Restart;
-                                    break;
-                                case gui::Dialog::ABORT:
-                                    return;
-                                    
-                                default:
-                                    throw SoftException("Unknown mode ",result," in generate_training_data.");
-                                    return;
-                            }
+                            default:
+                                throw SoftException("Unknown mode ",result," in generate_training_data.");
+                                return;
                         }
-                        
-                        if(mode == TrainingMode::Continue
-                           || mode == TrainingMode::Restart
-                           || mode == TrainingMode::Apply)
-                        {
-                            print("Registering auto correct callback.");
                             
-                            auto rec = Tracker::recognition();
-                            if(rec) {
-                                rec->detail().register_finished_callback([&](){
-                                    print("Finished. Auto correcting...");
+                    } else {
+                        switch(result) {
+                            case gui::Dialog::OKAY:
+                                mode = TrainingMode::Restart;
+                                break;
+                            case gui::Dialog::ABORT:
+                                return;
                                     
-                                    Tracker::recognition()->check_last_prediction_accuracy();
-                                    
-                                    std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
-                                    PD(tracking_callbacks).push([](){
-                                        instance()->auto_correct(GUI::GUIType::TEXT, false);
-                                    });
-                                    
-                                    instance()->auto_correct(GUI::GUIType::TEXT, true);
-                                });
-                            }
+                            default:
+                                throw SoftException("Unknown mode ",result," in generate_training_data.");
+                                return;
                         }
-                        
-                        fn(mode);
-                        
-                    } catch(const SoftExceptionImpl& error) {
-                        if(SETTING(auto_train_on_startup))
-                            throw U_EXCEPTION("Initialization of the training process failed. Please check whether you are in the right python environment and check previous error messages.");
-                        if(!SETTING(nowindow))
-                            GUI::instance()->gui().dialog("Initialization of the training process failed. Please check whether you are in the right python environment and check out this error message:\n\n<i>"+escape_html(error.what())+"<i/>", "Error");
-                        FormatError("Initialization of the training process failed. Please check whether you are in the right python environment and check previous error messages.");
                     }
-                });
+                        
+                    if(mode == TrainingMode::Continue
+                        || mode == TrainingMode::Restart
+                        || mode == TrainingMode::Apply)
+                    {
+                        print("Registering auto correct callback.");
+                            
+                        auto rec = Tracker::recognition();
+                        if(rec) {
+                            rec->detail().register_finished_callback([&](){
+                                print("Finished. Auto correcting...");
+                                    
+                                Tracker::recognition()->check_last_prediction_accuracy();
+                                    
+                                std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
+                                PD(tracking_callbacks).push([](){
+                                    instance()->auto_correct(GUI::GUIType::TEXT, false);
+                                });
+                                    
+                                instance()->auto_correct(GUI::GUIType::TEXT, true);
+                            });
+                        }
+                    }
+                        
+                    fn(mode);
+                        
+                } catch(const SoftExceptionImpl& error) {
+                    if(SETTING(auto_train_on_startup))
+                        throw U_EXCEPTION("Initialization of the training process failed. Please check whether you are in the right python environment and check previous error messages.");
+                    if(!SETTING(nowindow))
+                        GUI::instance()->gui().dialog("Initialization of the training process failed. Please check whether you are in the right python environment and check out this error message:\n\n<i>"+escape_html(error.what())+"<i/>", "Error");
+                    FormatError("Initialization of the training process failed. Please check whether you are in the right python environment and check previous error messages.");
+                }
+            });
                 
-            }, message, "Training mode", avail ? "Continue" : "Start", "Cancel", avail ? "Apply" : "", avail ? "Restart" : "", avail ? "Load weights" : "");
+        }, message, "Training mode", avail ? "Continue" : "Start", "Cancel", avail ? "Apply" : "", avail ? "Restart" : "", avail ? "Load weights" : "");
             
-        } else {
-            auto mode = TrainingMode::Restart;
-            if(force_load)
-                mode = TrainingMode::Apply;
-            if(!fn(mode)) {
-                if(SETTING(auto_train_on_startup))
-                    throw U_EXCEPTION("Using the network returned a bad code (false). See previous errors.");
-            }
-            if(!force_load)
-                FormatWarning("Weights will not be loaded. In order to load weights add 'load' keyword after the command.");
+    } else {
+        auto mode = TrainingMode::Restart;
+        if(force_load)
+            mode = TrainingMode::Apply;
+        if(!fn(mode)) {
+            if(SETTING(auto_train_on_startup))
+                throw U_EXCEPTION("Using the network returned a bad code (false). See previous errors.");
         }
+        if(!force_load)
+            FormatWarning("Weights will not be loaded. In order to load weights add 'load' keyword after the command.");
+    }
         
     /*} else {
         if(force_load)
