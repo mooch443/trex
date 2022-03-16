@@ -218,6 +218,10 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
 
     void Recognition::fix_python(bool force_init, cmn::source_location loc) {
         static std::once_flag flag;
+        static std::atomic_int counter{0};
+        static std::mutex mutex;
+        static std::condition_variable variable;
+        
         std::call_once(flag, [](){
     #ifdef COMMONS_PYTHON_EXECUTABLE
             auto home = ::default_config::conda_environment_path().str();
@@ -273,23 +277,41 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                 }
             }
     #endif
+            std::unique_lock guard(mutex);
+            counter = 1;
+            variable.notify_all();
         });
         
-        if(force_init
-           || FAST_SETTINGS(recognition_enable)
-           || SETTING(enable_closed_loop)
-           || SETTING(tags_recognize))
+        std::unique_lock guard(mutex);
+        while(counter < 1)
+            variable.wait_for(guard, std::chrono::seconds(1));
+        
+        // only one thread can continue...
+        // but only if the counter has been == 0 before.
+        
+        if(counter == 1 // only do this if we are the first thread arriving here
+           && (force_init
+               || FAST_SETTINGS(recognition_enable)
+               || SETTING(enable_closed_loop)
+               || SETTING(tags_recognize)))
         {
             if(can_initialize_python()) {
+                // redundant with the counter, but OK:
                 static std::once_flag flag2;
                 std::call_once(flag2, [](){
                     track::PythonIntegration::set_settings(GlobalSettings::instance());
                     track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
                 });
                 
+                counter = 2; // set this independently of success
+                
             } else {
+                counter = 3; // set this independently of success
+                
                 throw U_EXCEPTION<FormatterType::UNIX, const char*>("Cannot initialize python, even though initializing it was required by the caller.", loc);
             }
+            
+            variable.notify_all();
         }
     }
     

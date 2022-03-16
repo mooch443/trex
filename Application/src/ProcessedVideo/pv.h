@@ -334,7 +334,7 @@ namespace pv {
         double generate_average_tdelta();
         
         std::string summary() const {
-            return "pv::File<V" + Meta::toStr(_header.version+1) + ", " + Meta::toStr(filesize()) + ", '" + Meta::toStr(filename()) + "', " + Meta::toStr(_header.resolution) + ", " + Meta::toStr(_header.num_frames) + " frames, " + (_header.mask ? "with mask" : "no mask") + ">";
+            return "pv::File<V" + Meta::toStr(_header.version+1) + ", " + filesize() + ", " + Meta::toStr(filename()) + ", " + Meta::toStr(_header.resolution) + ", " + Meta::toStr(_header.num_frames) + " frames, " + (_header.mask ? "with mask" : "no mask") + ">";
         }
         
         std::string toStr() const;

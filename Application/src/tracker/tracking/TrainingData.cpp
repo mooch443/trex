@@ -81,7 +81,7 @@ TrainingData::~TrainingData() {
 }
 
 std::string TrainingData::toStr() const {
-    return "TrainingData<norm:"+Meta::toStr(_normalized)+"' path:"+save_path().str()+"' size:"+Meta::toStr(size())+" ranges:"+Meta::toStr(_data)+">";
+    return "TrainingData<norm:"+Meta::toStr(_normalized)+" path:"+save_path().str()+" size:"+Meta::toStr(size())+" ranges:"+Meta::toStr(_data)+">";
 }
 
 std::string TrainingData::DataRange::toStr() const {

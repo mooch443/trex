@@ -1238,7 +1238,6 @@ void RecTask::init() {
     PythonIntegration::async_python_function([]()->bool {return true; });
     auto res = PythonIntegration::async_python_function([&]() -> bool {
         try {
-            
             PythonIntegration::import_module(tagwork);
             PythonIntegration::set_variable("width", 32, tagwork);
             PythonIntegration::set_variable("height", 32, tagwork);
