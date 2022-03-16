@@ -1,12 +1,20 @@
 #!/bin/bash
 
 PWD="$(cd $(dirname $0); pwd)"
+cd $PWD
+
 PWD="${PWD}/../../videos"
 PWD="$(cd $(dirname $PWD); pwd)/$(basename $PWD)"
 
 WPWD=${PWD}
 TGRABS=tgrabs
 TREX=trex
+
+if ! which git; then
+    GIT="C:\Users\tristan\anaconda3\envs\trex\Library\bin\git.exe"
+else
+    GIT=git
+fi
 
 echo "Detecting system..."
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
@@ -57,7 +65,7 @@ else
             f=$(basename $f .csv)
 
             echo -e -n "\tChecking $f ..."
-            if ! git --no-pager diff --word-diff --no-index -- ${PWD}/data/${f}.csv ${PWD}/compare_data/raw/${f}.csv; then
+            if ! ${GIT} --no-pager diff --word-diff --no-index -- ${PWD}/data/${f}.csv ${PWD}/compare_data/raw/${f}.csv; then
                 echo "FAIL"
                 echo "[ERROR] file $f differs from baseline"
                 exit_code=1
@@ -97,7 +105,7 @@ for MODE in ${MODES}; do
                 f=$(basename $f .csv)
 
                 echo -e -n "\tChecking $f ..."
-                if ! git --no-pager diff --word-diff --no-index -- ${PWD}/corrected/data/${f}.csv ${PWD}/compare_data/raw/${f}.csv; then
+                if ! ${GIT} --no-pager diff --word-diff --no-index -- ${PWD}/corrected/data/${f}.csv ${PWD}/compare_data/raw/${f}.csv; then
                     echo "FAIL"
                     echo "[ERROR] corrected file $f differs from baseline"
                     exit_code=1
