@@ -105,10 +105,6 @@ fi
 if [ "$(uname)" == "Linux" ]; then
     make -j$(( $(nproc) - 1 )) gladex
 fi
-if [ "$(uname)" == "Darwin" ]; then
-    make -j$(( $(sysctl -n hw.ncpu) - 1 )) gladex
-fi
-
 
 if [ "$(uname)" == "Linux" ]; then
     make -j$(( $(nproc) - 1 )) imgui
