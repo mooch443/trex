@@ -226,7 +226,7 @@ TRex parameters
 
 .. function:: build_cxx_options(string)
 
-	**default value:** " -fvisibility-inlines-hidden -fvisibility=hidden -Wno-c++98-compat-pedantic -Wall -Wextra -pedantic -O3 -DNDEBUG -std=c++2a -O3 -Wno-nullability-extension"
+	**default value:** " -fvisibility-inlines-hidden -fvisibility=hidden -Werror=return-stack-address -Wno-c++98-compat-pedantic -Wall -Wextra -pedantic -O3 -DNDEBUG -std=c++2a -O3 -Wno-nullability-extension"
 
 
 	The mode the application was built in.
@@ -2126,7 +2126,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1.6-202-gb5559ce"
+	**default value:** "v1.1.7-70-g2b9a345"
 
 
 	Current application version.

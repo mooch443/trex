@@ -823,8 +823,7 @@ FrameGrabber::~FrameGrabber() {
                 "auto_no_memory_stats"
             });
             
-            auto add = Meta::toStr(additional_exclusions);
-            print("Excluding fields ", add);
+            print("Excluding fields ", additional_exclusions);
             
             auto filename = file::Path(pv::DataLocation::parse("output_settings").str());
             if(!filename.exists() || SETTING(grabber_force_settings)) {
