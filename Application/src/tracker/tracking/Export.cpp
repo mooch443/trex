@@ -774,6 +774,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
             
             std::vector<uchar> all_images, single_images, split_masks;
             std::vector<long_t> all_ranges, single_frames, single_ids, split_frames, split_ids;
+            const bool tracklet_export_difference_images = SETTING(tracklet_export_difference_images).value<bool>();
             
             std::map<long_t, std::map<Range<Frame_t>, std::queue<std::tuple<Frame_t, long_t, Image::UPtr>>>> queues;
             PPFrame obj;
@@ -877,15 +878,22 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                     if(!reduced.blob || !reduced.blob->pixels())
                         continue; // cannot find blob for given id
                     
-                    if(do_normalize_tracklets)
-                        reduced.image = std::move(std::get<0>(data.fish->calculate_normalized_diff_image(data.midline_transform, reduced.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy)));
-                    else {
-                        //auto && [img, pos] = data.fish->calculate_diff_image(blob, output_size);
-                        auto && [pos, img] = reduced.blob->difference_image(*Tracker::instance()->background(), 0);
-                        //auto && [pos, img] = reduced.blob->image(Tracker::instance()->background());
+                    if(do_normalize_tracklets) {
+                        if(tracklet_export_difference_images)
+                            reduced.image = std::move(std::get<0>(data.fish->calculate_normalized_diff_image(data.midline_transform, reduced.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy)));
+                        else
+                            reduced.image = std::move(std::get<0>(data.fish->calculate_normalized_image(data.midline_transform, reduced.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy)));
                         
-                        reduced.image = std::move(img);
-                        reduced.pos = pos;
+                    } else {
+                        if(tracklet_export_difference_images) {
+                            auto && [pos, img] = reduced.blob->difference_image(*Tracker::instance()->background(), 0);
+                            reduced.image = std::move(img);
+                            reduced.pos = pos;
+                        } else {
+                            auto && [pos, img] = reduced.blob->image(Tracker::instance()->background());
+                            reduced.image = std::move(img);
+                            reduced.pos = pos;
+                        }
                     }
                     
                     // normalize image size and write to normal queue
@@ -920,12 +928,23 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                         auto trans = data.midline_transform;
                         trans.translate(full.blob->bounds().pos() - reduced.blob->bounds().pos());
                         
-                        if(do_normalize_tracklets)
-                            full.image = std::get<0>(data.fish->calculate_normalized_diff_image(trans, full.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy));
-                        else {
-                            auto && [pos, img] = full.blob->difference_image(*Tracker::instance()->background(), 0);
-                            full.image = std::move(img);
-                            full.pos = pos;
+                        if(do_normalize_tracklets) {
+                            if(tracklet_export_difference_images)
+                                full.image = std::get<0>(data.fish->calculate_normalized_diff_image(trans, full.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy));
+                            else
+                                full.image = std::get<0>(data.fish->calculate_normalized_image(trans, full.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy));
+                            
+                        } else {
+                            if(tracklet_export_difference_images) {
+                                auto && [pos, img] = full.blob->difference_image(*Tracker::instance()->background(), 0);
+                                full.image = std::move(img);
+                                full.pos = pos;
+                                
+                            } else {
+                                auto && [pos, img] = full.blob->image(Tracker::instance()->background());
+                                full.image = std::move(img);
+                                full.pos = pos;
+                            }
                         }
                         
                         if(full.image) {

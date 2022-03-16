@@ -535,6 +535,7 @@ file::Path conda_environment_path() {
         CONFIG("output_interpolate_positions", bool(false), "If turned on this function will linearly interpolate X/Y, and SPEED values, for all frames in which an individual is missing.");
         CONFIG("output_prefix", std::string(), "A prefix that is prepended to all output files (csv/npz).");
         CONFIG("output_graphs", output_graphs, "The functions that will be exported when saving to CSV, or shown in the graph. `[['X',[option], ...]]`");
+        CONFIG("tracklet_export_difference_images", true, "If set to true, then all exported tracklet images are difference images. If set to false, all exported tracklet images are normal-color images.");
         CONFIG("tracklet_max_images", uint16_t(0), "Maximum number of images that are being output per tracklet given that `output_image_per_tracklet` is true. If the number is 0, then every image will be exported that has been recognized as an individual.");
         CONFIG("tracklet_normalize_orientation", true, "If enabled, all exported tracklet images are normalized according to the calculated posture orientation, so that all heads are looking to the left and only the body moves.");
         CONFIG("tracklet_restore_split_blobs", true, "If enabled, all exported tracklet images are checked for missing pixels. When a blob is too close to another blob, parts of the other blob might be erased so the individuals can be told apart. If enabled, another mask will be saved, that contains only the blob in focus, without the rest-pixels.");

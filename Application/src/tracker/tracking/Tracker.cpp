@@ -274,8 +274,12 @@ decltype(Tracker::_added_frames)::const_iterator Tracker::properties_iterator(Fr
 void Tracker::analysis_state(AnalysisState pause) {
     if(!instance())
         throw U_EXCEPTION("No tracker instance can be used to pause.");
-    instance()->recognition_pool.enqueue([](bool value){
-        SETTING(analysis_paused) = value;
+    static std::future<void> current_state;
+    if(current_state.valid())
+        current_state.get();
+    
+    current_state = std::async(std::launch::async, [](bool pause){
+        SETTING(analysis_paused) = pause;
     }, pause == AnalysisState::PAUSED);
 }
 
@@ -3563,9 +3567,8 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
     void Tracker::_remove_frames(Frame_t frameIndex) {
         Categorize::DataStore::reanalysed_from(Frame_t(frameIndex));
         
-        recognition_pool.wait();
-        
         LockGuard guard("_remove_frames("+Meta::toStr(frameIndex)+")");
+        recognition_pool.wait();
         _thread_pool.wait();
         
         _individual_add_iterator_map.clear();
