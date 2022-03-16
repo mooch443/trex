@@ -209,7 +209,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
     
     Recognition::Recognition() : //_pool(cmn::hardware_concurrency()),
         _last_prediction_accuracy(-1), _trained(false), _has_loaded_weights(false),
-        _running(false), _internal_begin_analysis(false), _dataset_quality(NULL)
+        _running(false), _internal_begin_analysis(false), _dataset_quality(new DatasetQuality)
     {
         assert(!instance);
         instance = this;
@@ -405,8 +405,6 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             return;
         
         Tracker::LockGuard guard("update_dataset_quality");
-        if(!_dataset_quality)
-            _dataset_quality = new DatasetQuality();
         _dataset_quality->update(guard);
     }
     
