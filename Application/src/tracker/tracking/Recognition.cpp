@@ -732,9 +732,8 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                     try {
                         ImageData data(ImageData::Blob{
                             blob->num_pixels(), 
-                            blob->blob_id(), 
-                            pv::bid::invalid, 
-                            blob->parent_id(),
+                            pv::CompressedBlob{blob},
+                            pv::bid::invalid,
                             blob->bounds()
                         }, frame, segment, fish, fdx, midline ? midline->transform(normalize) : gui::Transform());
                         assert(data.segment.contains(frame));
@@ -742,11 +741,11 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                         if(!blob->pixels()) {
                             // pixels arent set! divert adding the image to later, when we go through
                             // all the images for every frame without pixel data
-                            if(waiting_for_pixels[frame].count(data.blob.blob_id)) {
-                                FormatWarning(frame,": double ",data.blob.blob_id," ",data.fish->identity().ID()," / ",waiting_for_pixels[frame].at(data.blob.blob_id).fish->identity().ID()," (",segment.start(),"-",segment.end(),")");
+                            if(waiting_for_pixels[frame].count(data.blob.blob.blob_id())) {
+                                FormatWarning(frame,": double ",data.blob.blob.blob_id()," ",data.fish->identity().ID()," / ",waiting_for_pixels[frame].at(data.blob.blob.blob_id()).fish->identity().ID()," (",segment.start(),"-",segment.end(),")");
                                 continue;
                             } //else
-                            waiting_for_pixels[frame][data.blob.blob_id] = data;
+                            waiting_for_pixels[frame][data.blob.blob.blob_id()] = data;
                             ++waiting_images;
                             //++items_added;
                             continue;
@@ -1027,13 +1026,13 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                 auto e = elements.begin()->second;
                 elements.erase(elements.begin());
                 
-                if(probs.find(e.frame) != probs.end() && probs.at(e.frame).find(e.blob.blob_id) != probs.at(e.frame).end())
+                if(probs.find(e.frame) != probs.end() && probs.at(e.frame).find(e.blob.blob.blob_id()) != probs.at(e.frame).end())
                 {
                     _detail.add_frame(e.frame, e.fdx);
                     continue; // skip this frame + blob because its already been calculated before
                 }
                 
-                pv::BlobPtr blob = Tracker::find_blob_noisy(frame, e.blob.blob_id, e.blob.parent_id, e.blob.bounds);
+                pv::BlobPtr blob = Tracker::find_blob_noisy(frame, e.blob.blob.blob_id(), e.blob.blob.parent_id, e.blob.bounds);
                 if(!blob) {
                     _detail.set_unavailable_blobs(_detail.unavailable_blobs() + 1);
                     _detail.failed_frame(e.frame, e.fdx);
@@ -1412,7 +1411,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                     std::lock_guard<std::mutex> guard(_mutex);
                     for(int64_t j=0; j<(int64_t)indexes.size(); ++j) {
                         size_t i = narrow_cast<size_t>(indexes.at((size_t)j));
-                        probs[data[i].frame][data[i].blob.blob_id] = std::vector<float>(values.begin() + j * FAST_SETTINGS(track_max_individuals), values.begin() + (j + 1) * FAST_SETTINGS(track_max_individuals));
+                        probs[data[i].frame][data[i].blob.blob.blob_id()] = std::vector<float>(values.begin() + j * FAST_SETTINGS(track_max_individuals), values.begin() + (j + 1) * FAST_SETTINGS(track_max_individuals));
                     }
                 }
                 

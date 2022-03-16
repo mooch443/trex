@@ -3106,9 +3106,8 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
             Recognition::ImageData image_data(
                 Recognition::ImageData::Blob{
                     blob->num_pixels(),
-                    blob->blob_id(),
+                    pv::CompressedBlob{blob},
                     pv::bid::invalid,
-                    blob->parent_id(),
                     blob->bounds()
                 },
                 basic->frame, FrameRange(), fish, fish->identity().ID(),
@@ -3122,7 +3121,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
                 images.emplace_back(std::move(image));
                 indexes.emplace_back(basic->frame);
                 positions.emplace_back(pos);
-                blob_ids.emplace_back(image_data.blob.blob_id);
+                blob_ids.emplace_back(image_data.blob.blob.blob_id());
             } else
                 FormatWarning("Image failed (Fish", image_data.fdx,", frame ",image_data.frame,")");
         }

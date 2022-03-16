@@ -1165,9 +1165,8 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             auto midline = posture ? fish->calculate_midline_for(*basic, *posture) : nullptr;
             Recognition::ImageData image_data(Recognition::ImageData::Blob{
                 blob->num_pixels(), 
-                blob->blob_id(), 
+                pv::CompressedBlob{blob},
                 pv::bid::invalid, 
-                blob->parent_id(), 
                 blob->bounds()
             }, frame, (FrameRange)*it->get(), fish, fish->identity().ID(), midline ? midline->transform(normalized()) : gui::Transform());
             image_data.filters = std::make_shared<TrainingFilterConstraints>(filters);
