@@ -102,7 +102,7 @@ else
     make -j$(( $(sysctl -n hw.ncpu) - 1 )) CustomOpenCV
 fi
 
-if [ "$(uname)" == "Linux" ]; then
+if [ "$(uname)" == "Linux" ] || [ "$(uname)" == "Darwin" ]; then
     make -j$(( $(nproc) - 1 )) gladex
 fi
 
