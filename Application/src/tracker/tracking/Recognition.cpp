@@ -209,7 +209,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
     
     Recognition::Recognition() : //_pool(cmn::hardware_concurrency()),
         _last_prediction_accuracy(-1), _trained(false), _has_loaded_weights(false),
-        _running(false), _internal_begin_analysis(false), _dataset_quality(NULL)
+        _running(false), _internal_begin_analysis(false), _dataset_quality(new DatasetQuality)
     {
         assert(!instance);
         instance = this;
@@ -218,6 +218,10 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
 
     void Recognition::fix_python(bool force_init, cmn::source_location loc) {
         static std::once_flag flag;
+        static std::atomic_int counter{0};
+        static std::mutex mutex;
+        static std::condition_variable variable;
+        
         std::call_once(flag, [](){
     #ifdef COMMONS_PYTHON_EXECUTABLE
             auto home = ::default_config::conda_environment_path().str();
@@ -273,23 +277,41 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                 }
             }
     #endif
+            std::unique_lock guard(mutex);
+            counter = 1;
+            variable.notify_all();
         });
         
-        if(force_init
-           || FAST_SETTINGS(recognition_enable)
-           || SETTING(enable_closed_loop)
-           || SETTING(tags_recognize))
+        std::unique_lock guard(mutex);
+        while(counter < 1)
+            variable.wait_for(guard, std::chrono::seconds(1));
+        
+        // only one thread can continue...
+        // but only if the counter has been == 0 before.
+        
+        if(counter == 1 // only do this if we are the first thread arriving here
+           && (force_init
+               || FAST_SETTINGS(recognition_enable)
+               || SETTING(enable_closed_loop)
+               || SETTING(tags_recognize)))
         {
             if(can_initialize_python()) {
+                // redundant with the counter, but OK:
                 static std::once_flag flag2;
                 std::call_once(flag2, [](){
                     track::PythonIntegration::set_settings(GlobalSettings::instance());
                     track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
                 });
                 
+                counter = 2; // set this independently of success
+                
             } else {
+                counter = 3; // set this independently of success
+                
                 throw U_EXCEPTION<FormatterType::UNIX, const char*>("Cannot initialize python, even though initializing it was required by the caller.", loc);
             }
+            
+            variable.notify_all();
         }
     }
     
@@ -383,8 +405,6 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             return;
         
         Tracker::LockGuard guard("update_dataset_quality");
-        if(!_dataset_quality)
-            _dataset_quality = new DatasetQuality();
         _dataset_quality->update(guard);
     }
     
@@ -710,9 +730,8 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                     try {
                         ImageData data(ImageData::Blob{
                             blob->num_pixels(), 
-                            blob->blob_id(), 
-                            pv::bid::invalid, 
-                            blob->parent_id(),
+                            pv::CompressedBlob{blob},
+                            pv::bid::invalid,
                             blob->bounds()
                         }, frame, segment, fish, fdx, midline ? midline->transform(normalize) : gui::Transform());
                         assert(data.segment.contains(frame));
@@ -720,11 +739,11 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                         if(!blob->pixels()) {
                             // pixels arent set! divert adding the image to later, when we go through
                             // all the images for every frame without pixel data
-                            if(waiting_for_pixels[frame].count(data.blob.blob_id)) {
-                                FormatWarning(frame,": double ",data.blob.blob_id," ",data.fish->identity().ID()," / ",waiting_for_pixels[frame].at(data.blob.blob_id).fish->identity().ID()," (",segment.start(),"-",segment.end(),")");
+                            if(waiting_for_pixels[frame].count(data.blob.blob.blob_id())) {
+                                FormatWarning(frame,": double ",data.blob.blob.blob_id()," ",data.fish->identity().ID()," / ",waiting_for_pixels[frame].at(data.blob.blob.blob_id()).fish->identity().ID()," (",segment.start(),"-",segment.end(),")");
                                 continue;
                             } //else
-                            waiting_for_pixels[frame][data.blob.blob_id] = data;
+                            waiting_for_pixels[frame][data.blob.blob.blob_id()] = data;
                             ++waiting_images;
                             //++items_added;
                             continue;
@@ -1005,13 +1024,13 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                 auto e = elements.begin()->second;
                 elements.erase(elements.begin());
                 
-                if(probs.find(e.frame) != probs.end() && probs.at(e.frame).find(e.blob.blob_id) != probs.at(e.frame).end())
+                if(probs.find(e.frame) != probs.end() && probs.at(e.frame).find(e.blob.blob.blob_id()) != probs.at(e.frame).end())
                 {
                     _detail.add_frame(e.frame, e.fdx);
                     continue; // skip this frame + blob because its already been calculated before
                 }
                 
-                pv::BlobPtr blob = Tracker::find_blob_noisy(frame, e.blob.blob_id, e.blob.parent_id, e.blob.bounds);
+                pv::BlobPtr blob = Tracker::find_blob_noisy(frame, e.blob.blob.blob_id(), e.blob.blob.parent_id, e.blob.bounds);
                 if(!blob) {
                     _detail.set_unavailable_blobs(_detail.unavailable_blobs() + 1);
                     _detail.failed_frame(e.frame, e.fdx);
@@ -1390,7 +1409,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                     std::lock_guard<std::mutex> guard(_mutex);
                     for(int64_t j=0; j<(int64_t)indexes.size(); ++j) {
                         size_t i = narrow_cast<size_t>(indexes.at((size_t)j));
-                        probs[data[i].frame][data[i].blob.blob_id] = std::vector<float>(values.begin() + j * FAST_SETTINGS(track_max_individuals), values.begin() + (j + 1) * FAST_SETTINGS(track_max_individuals));
+                        probs[data[i].frame][data[i].blob.blob.blob_id()] = std::vector<float>(values.begin() + j * FAST_SETTINGS(track_max_individuals), values.begin() + (j + 1) * FAST_SETTINGS(track_max_individuals));
                     }
                 }
                 

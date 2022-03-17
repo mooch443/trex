@@ -1238,7 +1238,6 @@ void RecTask::init() {
     PythonIntegration::async_python_function([]()->bool {return true; });
     auto res = PythonIntegration::async_python_function([&]() -> bool {
         try {
-            
             PythonIntegration::import_module(tagwork);
             PythonIntegration::set_variable("width", 32, tagwork);
             PythonIntegration::set_variable("height", 32, tagwork);
@@ -2654,8 +2653,7 @@ Vec2 Individual::weighted_centroid(const Blob& blob, const std::vector<uchar>& p
     return centroid_point / weights;
 }
 
-std::tuple<Image::UPtr, Vec2> Individual::calculate_normalized_diff_image(const gui::Transform &midline_transform, const pv::BlobPtr& blob, float midline_length, const Size2 &output_size, bool use_legacy) {
-    cv::Mat mask, image;
+std::tuple<Image::UPtr, Vec2> normalize_image(const cv::Mat& mask, const cv::Mat& image, const gui::Transform &midline_transform, const pv::BlobPtr& blob, float midline_length, const Size2 &output_size, bool use_legacy) {
     cv::Mat padded;
     
     if(midline_length < 0) {
@@ -2668,9 +2666,6 @@ std::tuple<Image::UPtr, Vec2> Individual::calculate_normalized_diff_image(const 
     }
         //throw std::invalid_argument("[Individual::calculate_normalized_diff_image] invalid midline_length");
     
-    if(!blob->pixels())
-        throw std::invalid_argument("[Individual::calculate_normalized_diff_image] The blob has to contain pixels.");
-    imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, &Tracker::average(), 0);
     
     if(!output_size.empty())
         padded = cv::Mat::zeros(output_size.height, output_size.width, CV_8UC1);
@@ -2742,6 +2737,24 @@ std::tuple<Image::UPtr, Vec2> Individual::calculate_normalized_diff_image(const 
     auto i = tr.getInverse();
     auto pt = i.transformPoint(left, top);
     return { Image::Make(padded), pt };
+}
+
+std::tuple<Image::UPtr, Vec2> Individual::calculate_normalized_image(const gui::Transform &midline_transform, const pv::BlobPtr& blob, float midline_length, const Size2 &output_size, bool use_legacy) {
+    cv::Mat mask, image;
+    if(!blob->pixels())
+        throw std::invalid_argument("[Individual::calculate_normalized_diff_image] The blob has to contain pixels.");
+    imageFromLines(blob->hor_lines(), &mask, &image, NULL, blob->pixels().get(), 0, &Tracker::average(), 0);
+    
+    return normalize_image(mask, image, midline_transform, blob, midline_length, output_size, use_legacy);
+}
+
+std::tuple<Image::UPtr, Vec2> Individual::calculate_normalized_diff_image(const gui::Transform &midline_transform, const pv::BlobPtr& blob, float midline_length, const Size2 &output_size, bool use_legacy) {
+    cv::Mat mask, image;
+    if(!blob->pixels())
+        throw std::invalid_argument("[Individual::calculate_normalized_diff_image] The blob has to contain pixels.");
+    imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, &Tracker::average(), 0);
+    
+    return normalize_image(mask, image, midline_transform, blob, midline_length, output_size, use_legacy);
 }
 
 std::tuple<Image::UPtr, Vec2> Individual::calculate_diff_image(pv::BlobPtr blob, const Size2& output_size) {

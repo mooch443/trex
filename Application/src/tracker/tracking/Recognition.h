@@ -79,9 +79,8 @@ namespace track {
 
             struct Blob {
                 uint64_t num_pixels;
-                pv::bid blob_id;
+                pv::CompressedBlob blob;
                 pv::bid org_id;
-                pv::bid parent_id;
                 Bounds bounds;
 
             } blob;

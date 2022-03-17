@@ -459,9 +459,8 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                                         
                                         ImageData data(ImageData::Blob{
                                             blob->num_pixels(), 
-                                            blob->blob_id(), 
-                                            org_id, 
-                                            blob->parent_id(), 
+                                            pv::CompressedBlob{blob},
+                                            org_id,
                                             blob->bounds()
                                         }, frame, *range, fish, fish->identity().ID(), trans);
                                         data.filters = filters;
@@ -775,6 +774,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
             
             std::vector<uchar> all_images, single_images, split_masks;
             std::vector<long_t> all_ranges, single_frames, single_ids, split_frames, split_ids;
+            const bool tracklet_export_difference_images = SETTING(tracklet_export_difference_images).value<bool>();
             
             std::map<long_t, std::map<Range<Frame_t>, std::queue<std::tuple<Frame_t, long_t, Image::UPtr>>>> queues;
             PPFrame obj;
@@ -799,15 +799,66 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                         pv::BlobPtr blob;
                     } reduced, full;
                     
-                    reduced.blob = Tracker::find_blob_noisy(obj, data.blob.blob_id, data.blob.parent_id, Bounds());
-                    if(data.blob.org_id.valid()) {
-                        full.blob = Tracker::find_blob_noisy(obj, data.blob.org_id, data.blob.parent_id, Bounds());
+                    reduced.blob = obj.find_bdx(data.blob.blob.blob_id());
+                    // Tracker::find_blob_noisy(obj, data.blob.blob.blob_id(), data.blob.blob.parent_id, Bounds());
+                    if(!reduced.blob) {//Tracker::find_blob_noisy(obj, data.blob.blob_id, data.blob.parent_id, Bounds());
+                        auto small = Tracker::find_blob_noisy(obj, data.blob.blob.blob_id(), data.blob.blob.parent_id, Bounds());
+                        if(small)
+                            reduced.blob = small;
+                        
+                        if(data.blob.org_id.valid()) {
+                            if(!full.blob)
+                                full.blob = obj.find_bdx(data.blob.org_id);
+                            if(!reduced.blob || !reduced.blob->pixels())
+                                reduced.blob = obj.find_bdx(data.blob.org_id);
+                            
+                            /*print("reduced.blob:",
+                                  reduced.blob ? reduced.blob->bounds() : Bounds(),
+                                  " data.bounds:",
+                                  data.blob.blob.calculate_bounds(),
+                                  " ", data.blob.blob.num_pixels(), " vs. ", reduced.blob->num_pixels());*/
+                        }
+                        
+                        if(data.blob.blob.parent_id.valid()) {
+                            if(!full.blob)
+                                full.blob = obj.find_bdx(data.blob.blob.parent_id);
+                            //reduced.blob = data.blob.blob.unpack();
+                            //if(!full.blob)
+                            //    full.blob = Tracker::find_blob_noisy(obj, data.blob.org_id, data.blob.blob.parent_id, Bounds());
+                            //full.blob = Tracker::find_blob_noisy(obj, data.blob.blob.parent_id, data.blob.blob.parent_id, Bounds());
+                            /*if(full.blob && !reduced.blob->pixels()) {
+                                auto [pos, image] = full.blob->image();
+                                auto offset = -pos;
+                                print("Image position:", pos, " reduced:", reduced.blob->bounds(), " full:", full.blob->bounds(), " offset:", offset, " org:", data.blob.org_id, " parent:", data.blob.blob.parent_id);
+                                
+                                //if(offset.x >= 0 && offset.y >= 0)
+                                //{
+                                auto pixels = pv::Blob::calculate_pixels(image, reduced.blob->lines(), offset);
+                                tf::imshow("full", image->get());
+                                if(pixels->size() != reduced.blob->num_pixels()) {
+                                    //pixels->resize(reduced.blob->num_pixels());
+                                    print("Pixels ", pixels->size(), " != ", reduced.blob->num_pixels());
+                                } else
+                                    reduced.blob->set_pixels(std::move(pixels));
+                                        
+                                //} else
+                                //    print("Illegal offset:", offset);
+                                //reduced.blob = full.blob;
+                            } else if(!reduced.blob->pixels()) {
+                                full.blob = Tracker::find_blob_noisy(obj, data.blob.org_id, data.blob.blob.parent_id, Bounds());
+                                if(full.blob && !reduced.blob->pixels())
+                                    reduced.blob = full.blob;
+                            } else
+                                print("blob found directly.");*/
+                        } else if(!reduced.blob || !reduced.blob->pixels()) {
+                            //reduced.blob = Tracker::find_blob_noisy(obj, data.blob.blob.blob_id(), data.blob.blob.parent_id, Bounds());
+                        }
                     }
                     
                     if(data.blob.org_id.valid() && !full.blob)//if(!reduced.blob)
                     {
-                        for(auto b : obj.frame().blobs()) {
-                            if(b->blob_id() == data.blob.blob_id) {
+                        for(auto &b : obj.original_blobs()) {
+                            if(b && b->blob_id() == data.blob.blob.blob_id()) {
                                 full.blob = b;
                                 break;
                             }
@@ -815,7 +866,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                     }
                     
                     if(data.blob.org_id.valid() && full.blob == nullptr) {
-                        FormatExcept("Cannot find ", data.blob.blob_id," and ", data.blob.org_id);
+                        FormatExcept("Cannot find ", data.blob.blob.blob_id()," and ", data.blob.org_id);
                         print("reduced: ", reduced.blob ? reduced.blob->blob_id() : 0," full: ",full.blob ? full.blob->blob_id() : 0);
                     }
                     
@@ -824,17 +875,25 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                     if(!reduced.blob && !full.blob)
                         FormatExcept("Frame ", frame,", fish ", data.fish->identity().ID()," nothing found");
                     
-                    if(!reduced.blob)
+                    if(!reduced.blob || !reduced.blob->pixels())
                         continue; // cannot find blob for given id
                     
-                    if(do_normalize_tracklets)
-                        reduced.image = std::move(std::get<0>(data.fish->calculate_normalized_diff_image(data.midline_transform, reduced.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy)));
-                    else {
-                        //auto && [img, pos] = data.fish->calculate_diff_image(blob, output_size);
-                        auto && [pos, img] = reduced.blob->difference_image(*Tracker::instance()->background(), 0);
+                    if(do_normalize_tracklets) {
+                        if(tracklet_export_difference_images)
+                            reduced.image = std::move(std::get<0>(data.fish->calculate_normalized_diff_image(data.midline_transform, reduced.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy)));
+                        else
+                            reduced.image = std::move(std::get<0>(data.fish->calculate_normalized_image(data.midline_transform, reduced.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy)));
                         
-                        reduced.image = std::move(img);
-                        reduced.pos = pos;
+                    } else {
+                        if(tracklet_export_difference_images) {
+                            auto && [pos, img] = reduced.blob->difference_image(*Tracker::instance()->background(), 0);
+                            reduced.image = std::move(img);
+                            reduced.pos = pos;
+                        } else {
+                            auto && [pos, img] = reduced.blob->image(Tracker::instance()->background());
+                            reduced.image = std::move(img);
+                            reduced.pos = pos;
+                        }
                     }
                     
                     // normalize image size and write to normal queue
@@ -869,23 +928,32 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                         auto trans = data.midline_transform;
                         trans.translate(full.blob->bounds().pos() - reduced.blob->bounds().pos());
                         
-                        if(do_normalize_tracklets)
-                            full.image = std::get<0>(data.fish->calculate_normalized_diff_image(trans, full.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy));
-                        else {
-                            auto && [pos, img] = full.blob->difference_image(*Tracker::instance()->background(), 0);
-                            full.image = std::move(img);
-                            full.pos = pos;
+                        if(do_normalize_tracklets) {
+                            if(tracklet_export_difference_images)
+                                full.image = std::get<0>(data.fish->calculate_normalized_diff_image(trans, full.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy));
+                            else
+                                full.image = std::get<0>(data.fish->calculate_normalized_image(trans, full.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy));
+                            
+                        } else {
+                            if(tracklet_export_difference_images) {
+                                auto && [pos, img] = full.blob->difference_image(*Tracker::instance()->background(), 0);
+                                full.image = std::move(img);
+                                full.pos = pos;
+                                
+                            } else {
+                                auto && [pos, img] = full.blob->image(Tracker::instance()->background());
+                                full.image = std::move(img);
+                                full.pos = pos;
+                            }
                         }
                         
                         if(full.image) {
                             if(!do_normalize_tracklets) {
                                 cv::Mat image;
                                 full.image->get().copyTo(image);
-                                
-                                Vec2 offset = full.blob->bounds().pos() - reduced.blob->bounds().pos();
-                                //image(Bounds(-offset, Size2(image) + offset)).copyTo(image);
-                                
                                 cv::cvtColor(image, image, cv::COLOR_GRAY2BGR);
+#ifndef NDEBUG
+                                Vec2 offset = full.blob->bounds().pos() - reduced.blob->bounds().pos();
                                 
                                 auto outline = data.fish->outline(frame);
                                 if(outline) {
@@ -896,19 +964,21 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                                         cv::circle(image, pt, 1, gui::Green);
                                     }
                                 }
-                                
+#endif
                                 Vec2 center_offset = ((reduced.blob->bounds().pos() + reduced.blob->bounds().size() * 0.5) - (full.blob->bounds().pos() + full.blob->bounds().size() * 0.5));
+#ifndef NDEBUG
                                 Vec2 org = offset + center_offset;
                                 cv::rectangle(image, -org, -org + reduced.blob->bounds().size(), gui::Yellow);
                                 
                                 cv::rectangle(image, -offset, -offset + reduced.blob->bounds().size(), gui::White);
                                 cv::circle(image, -offset + reduced.blob->bounds().size() * 0.5, 5, gui::Red);
                                 cv::line(image, -offset + reduced.blob->bounds().size() * 0.5, -offset - center_offset + reduced.blob->bounds().size() * 0.5, gui::Yellow);
-                                
+#endif
                                 cv::Mat empty_file = cv::Mat::zeros((int)output_size.height, (int)output_size.width, CV_8UC3);
                                 Bounds input_bounds(-center_offset, Size2(image) + center_offset);
+#ifndef NDEBUG
                                 cv::putText(image, "input "+Meta::toStr(input_bounds), Vec2(20), cv::FONT_HERSHEY_PLAIN, 0.7, gui::White);
-                                
+#endif
                                 int left = 0, top = 0;
                                 
                                 //Bounds output_bounds(
@@ -925,6 +995,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                                     input_bounds.y = 0;
                                 }
                                 
+#ifndef NDEBUG
                                 Vec2 gp(20, 40);
                                 cv::putText(image, "left "+Meta::toStr(left), gp, cv::FONT_HERSHEY_PLAIN, 0.7, gui::White); gp += Vec2(0, 20);
                                 cv::putText(image, "top "+Meta::toStr(top), gp, cv::FONT_HERSHEY_PLAIN, 0.7, gui::White); gp += Vec2(0, 20);
@@ -934,11 +1005,15 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                                 cv::putText(image, "restricted "+Meta::toStr(input_bounds), gp, cv::FONT_HERSHEY_PLAIN, 0.7, gui::Yellow); gp += Vec2(0, 20);
                                 cv::putText(image, "size "+Meta::toStr(Size2(image)), gp, cv::FONT_HERSHEY_PLAIN, 0.7, gui::White); gp += Vec2(0, 20);
                                 //input_bounds.restrict_to(Bounds(image));
-                                
+#endif
                                 input_bounds.restrict_to(Bounds(empty_file));
+                                auto img_bounds = Bounds(left, top, input_bounds.width, input_bounds.height);
+                                img_bounds.restrict_to(Bounds(image));
                                 
-                                image(Bounds(left, top, input_bounds.width, input_bounds.height)).copyTo(empty_file(input_bounds));
+                                image(img_bounds).copyTo(empty_file(input_bounds));
                                 empty_file.copyTo(image);
+                                
+                                //Tracker::average()(Bounds())
                                 
                                 //tf::imshow("full "+Meta::toStr(frame)+" "+Meta::toStr(reduced.blob->blob_id())+" "+Meta::toStr(Size2(image)), image);
                                 

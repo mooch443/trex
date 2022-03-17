@@ -26,7 +26,7 @@ class Tagwork:
 
     def predict(self, images):
         assert self.model
-        images = np.array(images, dtype=float)
+        images = 255 - np.array(images, dtype=float)
         y = np.argmax(self.model.predict(images), axis=-1)
         file = "/Users/tristan/Videos/locusts/samples/images_"+str(self.counter)+".npz"
         print("saving to file", file);

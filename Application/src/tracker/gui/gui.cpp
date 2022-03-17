@@ -3338,11 +3338,18 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
     
     if(type == GUIType::GRAPHICAL) {
         PD(gui).dialog([this](gui::Dialog::Result r) {
-            if(r != Dialog::OKAY)
+            if(r == Dialog::ABORT)
                 return;
             
-            this->work().add_queue("checking identities...", [this](){
-                Tracker::instance()->check_segments_identities(true, [](float x) { work().set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
+            this->work().add_queue("checking identities...", [this, r](){
+                if(r == Dialog::OKAY) {
+                    std::lock_guard<std::recursive_mutex> lock_guard(PD(gui).lock());
+                    PD(tracking_callbacks).push([](){
+                        instance()->auto_correct(GUI::GUIType::TEXT, false);
+                    });
+                }
+                
+                Tracker::instance()->check_segments_identities(r == Dialog::OKAY, [](float x) { work().set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
                     this->work().add_queue(t, fn, b);
                 });
                 
@@ -3351,7 +3358,7 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
                 PD(cache).set_tracking_dirty();
             });
             
-        }, "Automatic correction uses machine learning based predictions to correct potential tracking mistakes. Make sure that you have trained the visual identification network prior to using auto-correct.\nThis action will overwrite your <key>manual_matches</key> and replace any previously set automatic matches based on predictions made by the visual identification network. Is this what you want?", "Auto-correct", "Yes", "Cancel");
+        }, "Automatic correction uses machine learning based predictions to correct potential tracking mistakes. Make sure that you have trained the visual identification network prior to using auto-correct.\n<i>Apply and retrack</i> will overwrite your <key>manual_matches</key> and replace any previous automatic matches based on new predictions made by the visual identification network. If you just want to see averages for the predictions without changing your tracks, click the <i>review</i> button.", "Auto-correct", "Apply and retrack", "Cancel", "Review probabilities");
     } else {
         this->work().add_queue("checking identities...", [this, force_correct](){
             Tracker::instance()->check_segments_identities(force_correct, [](float x) { work().set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {

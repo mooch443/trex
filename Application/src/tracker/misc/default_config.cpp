@@ -535,6 +535,7 @@ file::Path conda_environment_path() {
         CONFIG("output_interpolate_positions", bool(false), "If turned on this function will linearly interpolate X/Y, and SPEED values, for all frames in which an individual is missing.");
         CONFIG("output_prefix", std::string(), "A prefix that is prepended to all output files (csv/npz).");
         CONFIG("output_graphs", output_graphs, "The functions that will be exported when saving to CSV, or shown in the graph. `[['X',[option], ...]]`");
+        CONFIG("tracklet_export_difference_images", true, "If set to true, then all exported tracklet images are difference images. If set to false, all exported tracklet images are normal-color images.");
         CONFIG("tracklet_max_images", uint16_t(0), "Maximum number of images that are being output per tracklet given that `output_image_per_tracklet` is true. If the number is 0, then every image will be exported that has been recognized as an individual.");
         CONFIG("tracklet_normalize_orientation", true, "If enabled, all exported tracklet images are normalized according to the calculated posture orientation, so that all heads are looking to the left and only the body moves.");
         CONFIG("tracklet_restore_split_blobs", true, "If enabled, all exported tracklet images are checked for missing pixels. When a blob is too close to another blob, parts of the other blob might be erased so the individuals can be told apart. If enabled, another mask will be saved, that contains only the blob in focus, without the rest-pixels.");
@@ -569,7 +570,7 @@ file::Path conda_environment_path() {
         CONFIG("recognition_border_size_rescale", float(0.5), "The amount that blob sizes for calculating the heatmap are allowed to go below or above values specified in `blob_size_ranges` (e.g. 0.5 means that the sizes can range between `blob_size_ranges.min * (1 - 0.5)` and `blob_size_ranges.max * (1 + 0.5)`).");
         CONFIG("recognition_smooth_amount", uint16_t(200), "If `recognition_border` is 'outline', this is the amount that the `recognition_border` is smoothed (similar to `outline_smooth_samples`), where larger numbers will smooth more.");
         CONFIG("recognition_coeff", uint16_t(50), "If `recognition_border` is 'outline', this is the number of coefficients to use when smoothing the `recognition_border`.");
-        CONFIG("recognition_enable", true, "This enables internal training. Requires Python3 and Keras to be available.");
+        CONFIG("recognition_enable", true, "This enables internal training. Requires Python3 and Keras to be available.", SYSTEM);
         CONFIG("recognition_normalization", recognition_normalization_t::posture, "This enables or disable normalizing the images before training. If set to `none`, the images will be sent to the GPU raw - they will only be cropped out. Otherwise they will be normalized based on head orientation (posture) or the main axis calculated using `image moments`.");
         CONFIG("recognition_image_size", Size2(80, 80), "Size of each image generated for network training.");
         CONFIG("recognition_image_scale", float(1), "Scaling applied to the images before passing them to the network.");
@@ -680,6 +681,7 @@ file::Path conda_environment_path() {
             "httpd_port",
             "cam_undistort1",
             "cam_undistort2",
+            "recognition_enable",
             
             // from info utility
             "print_parameters",
