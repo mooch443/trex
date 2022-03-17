@@ -447,7 +447,7 @@ int main(int argc, char** argv)
                     
                     Path path = pv::DataLocation::parse("input", Path(option.value).add_extension("pv"));
                     if(!path.exists())
-                        throw U_EXCEPTION("Cannot find video file '",path.str(),"'. (",path.exists(),")");
+                        throw U_EXCEPTION("Cannot find video file ",path,". (",path.exists(),")");
                     
                     SETTING(filename) = path.remove_extension();
                     break;
