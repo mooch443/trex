@@ -350,20 +350,21 @@ auto async_deferred(F&& func) -> std::future<decltype(func())>
 
 Range<Frame_t> FrameGrabber::processing_range() const {
     //! We either start where the conversion_range starts, or at 0 (for all things).
-    static const auto conversion_range_start =
+    static const Frame_t conversion_range_start =
         (_video && GRAB_SETTINGS(video_conversion_range).first != -1)
-        ? min(_video->length(), (uint64_t)GRAB_SETTINGS(video_conversion_range).first)
-        : 0;
+        ? Frame_t(min(_video->length(), (uint64_t)GRAB_SETTINGS(video_conversion_range).first))
+        : Frame_t(0);
 
     //! We end for videos when the conversion range has been reached, or their length, and
     //! otherwise (no video) never/until escape is pressed.
-    static const auto conversion_range_end =
+    static const Frame_t conversion_range_end =
         _video
-        ? (GRAB_SETTINGS(video_conversion_range).second != -1
+        ? Frame_t(GRAB_SETTINGS(video_conversion_range).second != -1
             ? GRAB_SETTINGS(video_conversion_range).second
             : _video->length())
-        : -1;
-    return Range<Frame_t>{ Frame_t(conversion_range_start), Frame_t(conversion_range_end) };
+        : Frame_t();
+
+    return Range<Frame_t>{ conversion_range_start, conversion_range_end };
 }
 
 FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_starting)
@@ -710,14 +711,20 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
               //! If its a video, we might have timestamps in separate files.
               //! Otherwise we generate fake timestamps based on the set frame_rate.
               if(_video) {
+                  double percent = double(current.index()) / double(GRAB_SETTINGS(frame_rate)) * 1000.0;
+                  size_t fake_delta = size_t(percent * 1000.0);
+
                   if (!_video->has_timestamps()) {
-                      double percent = double(current.index()) / double(GRAB_SETTINGS(frame_rate)) * 1000.0;
-                      
-                      size_t fake_delta = size_t(percent * 1000.0);
                       current.set_timestamp(_start_timing + fake_delta);//std::chrono::microseconds(fake_delta));
                   }
                   else {
-                      current.set_timestamp(_video->timestamp(current.index()));
+                      try {
+                          current.set_timestamp(_video->timestamp(current.index()));
+                      }
+                      catch (const UtilsException& e) {
+                          // failed to retrieve timestamp, so fake the timestamp
+                          current.set_timestamp(_start_timing + fake_delta);
+                      }
                   }
               }
 
@@ -1495,7 +1502,7 @@ void FrameGrabber::update_fps(long_t index, timestamp_t stamp, timestamp_t tdelt
                 auto duration = std::chrono::system_clock::now() - _real_timing;
                 auto ms = std::chrono::duration_cast<std::chrono::microseconds>(duration);
                 auto per_frame = ms / index;
-                auto L = processing_range().end.get();
+                static auto L = processing_range().end.get();
                 auto eta = per_frame * (uint64_t)max(0, int64_t(L) - int64_t(index));
                 ETA = Meta::toStr(DurationUS{eta.count()});
             }

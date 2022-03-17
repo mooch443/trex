@@ -314,9 +314,9 @@ namespace pv {
          **/
         const cv::Size& size() const override { return _header.resolution; }
         uint64_t length() const override { return _header.num_frames; }
-        void frame(uint64_t frameIndex, cv::Mat& output) override;
+        void frame(uint64_t frameIndex, cv::Mat& output, cmn::source_location loc = cmn::source_location::current()) override;
 #ifdef USE_GPU_MAT
-        void frame(uint64_t frameIndex, gpuMat& output) override;
+        void frame(uint64_t frameIndex, gpuMat& output, cmn::source_location loc = cmn::source_location::current()) override;
 #endif
         void frame_optional_background(uint64_t frameIndex, cv::Mat& output, bool with_background);
         bool supports_multithreads() const override { return false; }
@@ -328,7 +328,7 @@ namespace pv {
         virtual bool has_timestamps() const override {
             return true;
         }
-        virtual timestamp_t timestamp(uint64_t) const override;
+        virtual timestamp_t timestamp(uint64_t, cmn::source_location loc = cmn::source_location::current()) const override;
         virtual timestamp_t start_timestamp() const override;
         virtual short framerate() const override;
         double generate_average_tdelta();
