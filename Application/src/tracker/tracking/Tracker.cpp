@@ -165,10 +165,10 @@ Tracker::LockGuard::LockGuard(std::string purpose, uint32_t timeout_ms) : _purpo
                 // acquired the lock :)
                 break;
                 
-            } else if(timer.elapsed() > 10 && print_timer.elapsed() > 10) {
+            } else if(timer.elapsed() > 60 && print_timer.elapsed() > 120) {
                 auto name = _last_thread;
                 auto myname = get_thread_name();
-                FormatWarning("(",myname.c_str(),") Possible dead-lock with '",name.c_str(),"' ('",_last_purpose.c_str(),"') thread holding the lock for ",dec<2>(_thread_holding_lock_timer.elapsed()),"s (waiting for ",timer.elapsed(),"s, current purpose is '",_purpose.c_str(),"')");
+                FormatWarning("(",myname.c_str(),") Possible dead-lock with ",name," (",_last_purpose,") thread holding the lock for ",dec<2>(_thread_holding_lock_timer.elapsed()),"s (waiting for ",timer.elapsed(),"s, current purpose is ",_purpose,")");
                 print_timer.reset();
             }
         }
@@ -243,6 +243,8 @@ decltype(Tracker::_added_frames)::const_iterator Tracker::properties_iterator(Fr
     }
 
     void Tracker::delete_automatic_assignments(Idx_t fish_id, const FrameRange& frame_range) {
+        LockGuard guard("delete_automatic_assignments");
+        
         auto it = std::find(_automatically_assigned_ranges.begin(), _automatically_assigned_ranges.end(), fish_id);
         if(it == _automatically_assigned_ranges.end()) {
             FormatExcept("Cannot find fish ",fish_id," in automatic assignments");
@@ -3846,7 +3848,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         const auto manual_identities = FAST_SETTINGS(manual_identities);
         size_t count=0;
         
-        recognition_pool.wait();
+        //recognition_pool.wait();
         auto fid = FOI::to_id("split_up");
         if(fid != -1)
             FOI::remove_frames(after_frame.valid() ? Frame_t(0) : after_frame, fid);

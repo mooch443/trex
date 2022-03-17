@@ -1035,7 +1035,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                 
                 auto step = size_t(waiting_pixels.size() * 0.1);
                 if(!waiting_pixels.empty() && step > 0 && index % step == 0) {
-                    print("[tracklet_images] Frame ",FAST_SETTINGS(manual_identities).empty() ? float(vec.size()) : float(vec.size()) / float(FAST_SETTINGS(manual_identities).size() + 0.0001) * 100,"/","% identities / frame)","... (", index, waiting_pixels.size());
+                    print("[tracklet_images] Frame ",index,"/",waiting_pixels.size(), " (", dec<2>(FAST_SETTINGS(manual_identities).empty() ? float(vec.size()) : float(vec.size()) / float(FAST_SETTINGS(manual_identities).size() + 0.0001) * 100),"% identities / frame)");
                     if(GUI::instance())
                         GUI::instance()->work().set_percent(index / float(waiting_pixels.size()));
                 }
