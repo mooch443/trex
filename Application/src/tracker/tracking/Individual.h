@@ -54,6 +54,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
 };
 
     template<typename Iterator, typename T>
+        requires _is_smart_pointer<typename Iterator::value_type>
     Iterator find_frame_in_sorted_segments(Iterator start, Iterator end, T object, typename std::enable_if< !is_pair<typename Iterator::value_type>::value, void* >::type = nullptr) {
         if(start != end) {
             auto it = std::upper_bound(start, end, object, [](T o, const auto& ptr) -> bool {
@@ -61,6 +62,23 @@ constexpr std::array<const char*, 8> ReasonsNames {
             });
             
             if((it == end || it != start) && (*(--it))->start() == object)
+            {
+                return it;
+            }
+        }
+        
+        return end;
+    }
+
+    template<typename Iterator, typename T>
+        requires (!_is_smart_pointer<typename Iterator::value_type>)
+    Iterator find_frame_in_sorted_segments(Iterator start, Iterator end, T object, typename std::enable_if< !is_pair<typename Iterator::value_type>::value, void* >::type = nullptr) {
+        if(start != end) {
+            auto it = std::upper_bound(start, end, object, [](T o, const auto& ptr) -> bool {
+                return o < ptr.frames.start;
+            });
+            
+            if((it == end || it != start) && (*(--it)).frames.start == object)
             {
                 return it;
             }

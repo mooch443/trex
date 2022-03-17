@@ -441,7 +441,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                                         auto trans = midline->transform(normalize);
                                         pv::bid org_id;
                                         
-                                        if(SETTING(tracklet_restore_split_blobs) && blob->parent_id().valid()) {
+                                        /*if(SETTING(tracklet_restore_split_blobs) && blob->parent_id().valid()) {
                                             pv::Frame pvf;
                                             GUI::instance()->video_source()->read_frame(pvf, (uint64_t)frame.get());
                                             auto bs = pvf.get_blobs();
@@ -455,7 +455,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                                                     break;
                                                 }
                                             }
-                                        }
+                                        }*/
                                         
                                         ImageData data(ImageData::Blob{
                                             blob->num_pixels(), 
@@ -463,7 +463,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                                             org_id,
                                             blob->bounds()
                                         }, frame, *range, fish, fish->identity().ID(), trans);
-                                        data.filters = filters;
+                                        data.filters = std::make_shared<TrainingFilterConstraints>(*filters);
                                         assert(data.segment.contains(frame));
                                         
                                         std::lock_guard<std::mutex> guard(sync);
@@ -879,9 +879,11 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                         continue; // cannot find blob for given id
                     
                     if(do_normalize_tracklets) {
-                        if(tracklet_export_difference_images)
-                            reduced.image = std::move(std::get<0>(data.fish->calculate_normalized_diff_image(data.midline_transform, reduced.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy)));
-                        else
+                        if(tracklet_export_difference_images) {
+                            reduced.image = std::get<0>(Recognition::calculate_diff_image_with_settings(normalize, reduced.blob, data, output_size));
+                            
+                            //reduced.image = std::move(std::get<0>(data.fish->calculate_normalized_diff_image(data.midline_transform, reduced.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy)));
+                        } else
                             reduced.image = std::move(std::get<0>(data.fish->calculate_normalized_image(data.midline_transform, reduced.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy)));
                         
                     } else {
@@ -1035,7 +1037,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                 
                 auto step = size_t(waiting_pixels.size() * 0.1);
                 if(!waiting_pixels.empty() && step > 0 && index % step == 0) {
-                    print("[tracklet_images] Frame ",FAST_SETTINGS(manual_identities).empty() ? float(vec.size()) : float(vec.size()) / float(FAST_SETTINGS(manual_identities).size() + 0.0001) * 100,"/","% identities / frame)","... (", index, waiting_pixels.size());
+                    print("[tracklet_images] Frame ",index,"/",waiting_pixels.size(), " (", dec<2>(FAST_SETTINGS(manual_identities).empty() ? float(vec.size()) : float(vec.size()) / float(FAST_SETTINGS(manual_identities).size() + 0.0001) * 100),"% identities / frame)");
                     if(GUI::instance())
                         GUI::instance()->work().set_percent(index / float(waiting_pixels.size()));
                 }

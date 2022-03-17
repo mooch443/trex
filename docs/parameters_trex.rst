@@ -2087,6 +2087,15 @@ TRex parameters
 
 
 
+.. function:: tracklet_export_difference_images(bool)
+
+	**default value:** true
+
+
+	If set to true, then all exported tracklet images are difference images. If set to false, all exported tracklet images are normal-color images.
+
+
+
 .. function:: tracklet_max_images(uint16)
 
 	**default value:** 0

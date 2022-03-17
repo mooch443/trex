@@ -903,13 +903,13 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         frame.read_from(*this, (long_t)frame_to_read);
     }
 #ifdef USE_GPU_MAT
-    void File::frame(uint64_t frameIndex, gpuMat &output) {
+    void File::frame(uint64_t frameIndex, gpuMat &output, cmn::source_location loc) {
         cv::Mat local;
         frame_optional_background(frameIndex, local, true);
         local.copyTo(output);
     }
 #endif
-    void File::frame(uint64_t frameIndex, cv::Mat &output) {
+    void File::frame(uint64_t frameIndex, cv::Mat &output, cmn::source_location loc) {
         frame_optional_background(frameIndex, output, true);
     }
     
@@ -1135,12 +1135,12 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         return _header.average_tdelta;
     }
     
-    timestamp_t File::timestamp(uint64_t frameIndex) const {
+    timestamp_t File::timestamp(uint64_t frameIndex, cmn::source_location loc) const {
         if(_open_for_writing)
-            throw U_EXCEPTION("Cannot get timestamps for video while writing.");
+            throw U_EXCEPTION<FormatterType::UNIX, const char*>("Cannot get timestamps for video while writing.", loc);
         
         if(frameIndex >= header().num_frames)
-            throw U_EXCEPTION("Access out of bounds ",frameIndex,"/",header().num_frames,".");
+            throw U_EXCEPTION("Access out of bounds ",frameIndex,"/",header().num_frames,". (caller ", loc.file_name(),":", loc.line(),")");
         
         return header().index_table[frameIndex];
     }
