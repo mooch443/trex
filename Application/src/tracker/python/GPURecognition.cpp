@@ -30,7 +30,7 @@ bool CHECK_NONE(T obj) {
 
 namespace pybind11 {
     namespace detail {
-        template<> struct type_caster<cmn::Image::Ptr>
+        /*template<> struct type_caster<cmn::Image::Ptr>
         {
         public:
 
@@ -39,24 +39,6 @@ namespace pybind11 {
             // Conversion part 1 (Python -> C++)
             bool load(py::handle , bool )
             {
-                /*if ( !convert and !py::array_t<T>::check_(src) )
-                  return false;
-
-                auto buf = py::array_t<T, py::array::c_style | py::array::forcecast>::ensure(src);
-                if ( !buf )
-                  return false;
-
-                auto dims = buf.ndim();
-                if ( dims != 3  )
-                  return false;
-
-                std::vector<size_t> shape(3);
-
-                for ( int i = 0 ; i < 3 ; ++i )
-                  shape[i] = buf.shape()[i];
-
-                value = Matrix3D<T>(shape, buf.data(), buf.data()+buf.size())*/
-
                 return false;
             }
 
@@ -71,7 +53,7 @@ namespace pybind11 {
                     sizeof(uint8_t)
                 };
 
-                /*return py::buffer_info(
+                return py::buffer_info(
                    src->data(),
                    sizeof(uint8_t),
                    py::format_descriptor<uint8_t>::format(),
@@ -82,7 +64,7 @@ namespace pybind11 {
                        sizeof(uint8_t) * src->dims,
                        sizeof(uint8_t)
                    }
-                );*/
+                );
                 py::array a(std::move(shape), std::move(strides), src->data());
                 return a.release();
             }
@@ -100,7 +82,7 @@ namespace pybind11 {
                 py::array a(std::move(shape), std::move(strides), src->data());
                 return a.release();
             }
-        };
+        };*/
     
     template<> struct type_caster<cmn::Image::UPtr>
     {
@@ -129,6 +111,35 @@ namespace pybind11 {
             return a.release();
         }
     };
+
+    template<> struct type_caster<cmn::Image::Ptr>
+    {
+    public:
+
+        PYBIND11_TYPE_CASTER(cmn::Image::Ptr, _("Image::Ptr"));
+
+        // Conversion part 1 (Python -> C++)
+        bool load(py::handle, bool)
+        {
+            return false;
+        }
+
+        //Conversion part 2 (C++ -> Python)
+        static py::handle cast(const cmn::Image::Ptr& src, py::return_value_policy, py::handle)
+        {
+
+            std::vector<size_t> shape{ src->rows, src->cols, src->dims };
+            std::vector<size_t> strides{
+                sizeof(uint8_t) * src->dims * src->cols,
+                sizeof(uint8_t) * src->dims,
+                sizeof(uint8_t)
+            };
+
+            py::array a(std::move(shape), std::move(strides), src->data());
+            return a.release();
+        }
+    };
+
     }
 } // namespace pybind11::detail
 
@@ -161,21 +172,37 @@ std::function<void(const std::string&, const cv::Mat&)> _mat_display = [](auto&,
 
 PYBIND11_EMBEDDED_MODULE(TRex, m) {
     namespace py = pybind11;
-    /*py::class_<cmn::Image, cmn::Image::Ptr>(m, "TRex", py::buffer_protocol())
-    .def_buffer([](cmn::Image &m) -> py::buffer_info {
+    py::class_<cmn::Image::UPtr, cmn::Image::UPtr>(m, "Image::UPtr", py::buffer_protocol())
+    .def_buffer([](const cmn::Image::UPtr&m) -> py::buffer_info {
         return py::buffer_info(
-           m.data(),
+           m->data(),
            sizeof(uint8_t),
            py::format_descriptor<uint8_t>::format(),
            3,
-           { m.rows, m.cols, m.dims },
+           { m->rows, m->cols, m->dims },
            {
-               sizeof(uint8_t) * m.dims * m.cols,
-               sizeof(uint8_t) * m.dims,
+               sizeof(uint8_t) * m->dims * m->cols,
+               sizeof(uint8_t) * m->dims,
                sizeof(uint8_t)
            }
         );
-    });*/
+    });
+
+    py::class_<cmn::Image::Ptr, cmn::Image::Ptr>(m, "Image::Ptr", py::buffer_protocol())
+        .def_buffer([](const cmn::Image::Ptr& m) -> py::buffer_info {
+        return py::buffer_info(
+            m->data(),
+            sizeof(uint8_t),
+            py::format_descriptor<uint8_t>::format(),
+            3,
+            { m->rows, m->cols, m->dims },
+           {
+               sizeof(uint8_t) * m->dims * m->cols,
+               sizeof(uint8_t) * m->dims,
+               sizeof(uint8_t)
+           }
+        );
+    });
 
     m.def("log", [](std::string text) {
         using namespace cmn;
@@ -693,9 +720,13 @@ void PythonIntegration::reinit() {
             py::module module;
             
             {
+                if (check_module("learn_static"))
+                    throw SoftException("Had to reload learn_static while in the training process. This is currently unsupported.");
+
                 std::lock_guard<std::mutex> guard(module_mutex);
-                if(!_modules.count("learn_static"))
+                if (!_modules.count("learn_static"))
                     throw SoftException("Cannot find 'learn_static'.");
+
                 module = _modules.find("learn_static")->second;
             }
             
@@ -738,7 +769,7 @@ void PythonIntegration::reinit() {
         return {indexes, values};
     }
     
-    std::future<bool> PythonIntegration::async_python_function(const std::function<bool ()> &fn, Flag flag, bool can_run_without_init)
+    std::future<bool> PythonIntegration::async_python_function(std::function<bool ()> fn, Flag flag, bool can_run_without_init)
     {
         PackagedTask task{std::packaged_task<bool()>(fn), can_run_without_init};
         auto future = task._task.get_future();

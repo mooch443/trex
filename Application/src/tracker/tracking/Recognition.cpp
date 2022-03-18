@@ -736,6 +736,8 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                         }, frame, segment, fish, fdx, midline ? midline->transform(normalize) : gui::Transform());
                         assert(data.segment.contains(frame));
                         
+                        data.filters = std::make_shared<TrainingFilterConstraints>(filters);
+                        
                         if(!blob->pixels()) {
                             // pixels arent set! divert adding the image to later, when we go through
                             // all the images for every frame without pixel data
@@ -751,7 +753,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                         
                         try {
                             using namespace default_config;
-                            data.filters = std::make_shared<TrainingFilterConstraints>(filters);
+                            
                             data.image = std::get<0>(Recognition::calculate_diff_image_with_settings(normalize, blob, data, output_shape));
                         } catch(const std::invalid_argument& e) {
                             FormatExcept("Caught ", e.what());
@@ -1040,7 +1042,19 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                     continue;
                 }
                 
-                auto custom_len = local_midline_length(e.fish, e.segment.range);
+                std::shared_ptr<TrainingFilterConstraints> custom_len = e.filters;
+                if(!custom_len) {
+                    Tracker::LockGuard guard("filter_constraints");
+                    auto it = std::find_if(Tracker::individuals().begin(), Tracker::individuals().end(), [fish=e.fish](auto &obj) {
+                        return obj.second == fish;
+                    });
+                    if(it == Tracker::individuals().end()) {
+                        FormatExcept("Individual has been deleted while generating pictures.");
+                        continue; // individual has been deleted in the meanwhile
+                    }
+                    
+                    custom_len = std::make_shared<TrainingFilterConstraints>(local_midline_length(e.fish, e.segment.range));
+                }
                 
 #ifndef NDEBUG
                 if(blob->num_pixels() != e.blob.num_pixels) {
@@ -1056,7 +1070,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
 #endif
                 
                 assert(blob->pixels());
-                e.filters = std::make_shared<TrainingFilterConstraints>(custom_len);
+                e.filters = custom_len;
                 e.image = std::get<0>(calculate_diff_image_with_settings(normalize, blob, e, output_shape));
                 
                 if(e.image != nullptr) {
@@ -2051,6 +2065,9 @@ void Recognition::load_weights(std::string postfix) {
             }
         
             try {
+                if (!future.valid())
+                    throw U_EXCEPTION("Future is invalid.");
+
                 if(future.get()) { //&& (load_results == TrainingMode::Apply/* || best_accuracy_worst_class > 0.9*/)) {
                     if(best_accuracy_worst_class != -1)
                         DebugCallback("Success (train) with best_accuracy_worst_class = ", best_accuracy_worst_class, ".");
@@ -2061,7 +2078,7 @@ void Recognition::load_weights(std::string postfix) {
                     print("Training the network failed (",best_accuracy_worst_class,").");
                 
             } catch(const SoftExceptionImpl& e) {
-                print("Runtime error: '", e.what(),"'");
+                print("Runtime error: ", e.what());
             } /*catch(...) {
                 print("Caught an exception.");
             }*/
