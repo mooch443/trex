@@ -277,11 +277,15 @@ int main(int argc, char** argv)
         print("Conda prefix: ", conda_prefix);
         if(!conda_prefix.empty()) {
             std::set<file::Path> files;
-            if (file::Path(conda_prefix + "/bin").exists()) {
-                files = file::Path(conda_prefix + "/bin").find_files();
+            try {
+                if (file::Path(conda_prefix + "/bin").exists()) {
+                    files = file::Path(conda_prefix + "/bin").find_files();
+                }
+                else
+                    files = file::Path(conda_prefix + "/Library/bin").find_files();
             }
-            else
-                files = file::Path(conda_prefix + "/Library/bin").find_files();
+            catch (const UtilsException&) {
+            }
 
             for(auto file : files) {
                 if(file.filename() == "ffmpeg" || file.filename() == "ffmpeg.exe") {
