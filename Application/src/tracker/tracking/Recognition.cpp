@@ -2051,6 +2051,9 @@ void Recognition::load_weights(std::string postfix) {
             }
         
             try {
+                if (!future.valid())
+                    throw U_EXCEPTION("Future is invalid.");
+
                 if(future.get()) { //&& (load_results == TrainingMode::Apply/* || best_accuracy_worst_class > 0.9*/)) {
                     if(best_accuracy_worst_class != -1)
                         DebugCallback("Success (train) with best_accuracy_worst_class = ", best_accuracy_worst_class, ".");
@@ -2061,7 +2064,7 @@ void Recognition::load_weights(std::string postfix) {
                     print("Training the network failed (",best_accuracy_worst_class,").");
                 
             } catch(const SoftExceptionImpl& e) {
-                print("Runtime error: '", e.what(),"'");
+                print("Runtime error: ", e.what());
             } /*catch(...) {
                 print("Caught an exception.");
             }*/
