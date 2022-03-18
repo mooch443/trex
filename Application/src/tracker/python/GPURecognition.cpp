@@ -172,7 +172,7 @@ std::function<void(const std::string&, const cv::Mat&)> _mat_display = [](auto&,
 
 PYBIND11_EMBEDDED_MODULE(TRex, m) {
     namespace py = pybind11;
-    py::class_<cmn::Image::UPtr, cmn::Image::UPtr>(m, "Image::UPtr", py::buffer_protocol())
+    /*py::class_<cmn::Image::UPtr, cmn::Image::UPtr>(m, "Image::UPtr", py::buffer_protocol())
     .def_buffer([](const cmn::Image::UPtr&m) -> py::buffer_info {
         return py::buffer_info(
            m->data(),
@@ -202,7 +202,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
                sizeof(uint8_t)
            }
         );
-    });
+    });*/
 
     m.def("log", [](std::string text) {
         using namespace cmn;
