@@ -510,6 +510,7 @@ int main(int argc, char**argv) {
         
         set_runtime_quiet(true);
         
+        SETTING(recognition_enable) = false;
         track::Tracker _tracker;
         cv::Mat local;
         average.copyTo(local);
