@@ -217,6 +217,11 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
     }
 
     void Recognition::fix_python(bool force_init, cmn::source_location loc) {
+        static const auto app_name = SETTING(app_name).value<std::string>();
+        if (!utils::contains(app_name, "TRex") && !utils::contains(app_name, "TGrabs")) {
+            return;
+        }
+
         static std::once_flag flag;
         static std::atomic_int counter{0};
         static std::mutex mutex;
