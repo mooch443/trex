@@ -147,8 +147,9 @@ protected:
     timestamp_t previous_time = 0;
     std::atomic<bool> _reset_first_index = false;
     
-    std::atomic<double> _processing_timing;
-    std::atomic<double> _loading_timing;
+    std::atomic<double> _processing_timing{0};
+    std::atomic<double> _loading_timing{0};
+    std::atomic<double> _rest_timing{0};
     
     LuminanceGrid *_grid;
     
