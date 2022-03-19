@@ -108,7 +108,8 @@ namespace default_config {
         CONFIG("terminate_error", false, "Internal variable.", STARTUP);
         
         CONFIG("web_time_threshold", float(0.125), "Time-threshold after which a new request can be answered (prevents DDoS).");
-        CONFIG("grabber_use_threads", true, "Use threads to process images (specifically the blob detection).");
+        CONFIG("tgrabs_use_threads", true, "Use threads to process images (specifically the blob detection).", STARTUP);
+        CONFIG("video_reading_use_threads", true, "Use threads to read images from a video file.", STARTUP);
         CONFIG("adaptive_threshold_scale", float(2), "Threshold value to be used for adaptive thresholding, if enabled.");
         CONFIG("use_adaptive_threshold", false, "Enables or disables adaptive thresholding (slower than normal threshold). Deals better with weird backgrounds.");
         CONFIG("dilation_size", int32_t(0), "If set to a value greater than zero, detected shapes will be inflated (and potentially merged). When set to a value smaller than zero, detected shapes will be shrunk (and potentially split).", STARTUP);

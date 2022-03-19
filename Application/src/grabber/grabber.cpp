@@ -27,9 +27,11 @@ track::Tracker* tracker = nullptr;
 
 using conversion_range_t = std::pair<long_t,long_t>;
 //#define TAGS_ENABLE
+//#define TGRABS_DEBUG_TIMING
+
 #if !defined(TAGS_ENABLE)
 CREATE_STRUCT(GrabSettings,
-  (bool, grabber_use_threads),
+  (bool, tgrabs_use_threads),
   (bool, cam_undistort),
   (int, frame_rate),
   (Rangef,        blob_size_range),
@@ -57,7 +59,7 @@ CREATE_STRUCT(GrabSettings,
 )
 #else
 CREATE_STRUCT(GrabSettings,
-    (bool, grabber_use_threads),
+    (bool, tgrabs_use_threads),
     (bool, cam_undistort),
     (int, frame_rate),
     (Rangef, blob_size_range),
@@ -1506,21 +1508,19 @@ void FrameGrabber::update_fps(long_t index, timestamp_t stamp, timestamp_t tdelt
                 ETA = Meta::toStr(DurationUS{eta.count()});
             }
             
-            auto save = uint64_t(_saving_time.load() * 1000 * 1000);
-            DurationUS processing{uint64_t(_processing_timing.load() * 1000 * 1000 - save)};
-            DurationUS loading{uint64_t(_loading_timing.load() * 1000 * 1000)};
+            auto saving = DurationUS{ uint64_t(_saving_time.load() * 1000 * 1000) };
+            auto processing = DurationUS{uint64_t(_processing_timing.load() * 1000 * 1000)};
+            auto loading = DurationUS{uint64_t(_loading_timing.load() * 1000 * 1000)};
+            auto rest = DurationUS{uint64_t(_rest_timing.load() * 1000 * 1000)};
             
-            auto tracking_str = Meta::toStr(DurationUS{ uint64_t(_tracking_time.load() * 1000 * 1000) });
-            auto saving_str = Meta::toStr(DurationUS{ save });
-            auto processing_str = Meta::toStr(processing);
-            auto loading_str = Meta::toStr(loading);
+            auto tracking = DurationUS{ uint64_t(_tracking_time.load() * 1000 * 1000) };
             
             auto str = Meta::toStr(DurationUS{stamp});
             
             if(_video)
-                print(index,"/",_video->length()," (t+",str.c_str(),") @ ", dec<1>(_fps.load()),"fps (eta:",ETA.c_str()," load:",loading_str.c_str()," proc:",processing_str.c_str()," track:",tracking_str.c_str()," save:",saving_str.c_str(),")");
+                print(index,"/",_video->length()," (t+",str.c_str(),") @ ", dec<1>(_fps.load()),"fps (eta:",ETA.c_str()," load:",loading," proc:",processing," track:",tracking," save:",saving," rest:",rest,")");
             else
-                print(index," (t+",str.c_str(),") @ ", dec<1>(_fps.load()),"fps (load:",loading_str.c_str()," proc:",processing_str.c_str()," track:",tracking_str.c_str()," save:",saving_str.c_str(),")");
+                print(index," (t+",str.c_str(),") @ ", dec<1>(_fps.load()),"fps (load:",loading," proc:",processing," track:",tracking," save:",saving," rest:",rest,")");
         }
         
         if(GRAB_SETTINGS(output_statistics))
@@ -1610,6 +1610,9 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
 #ifdef TGRABS_DEBUG_TIMING
     _serialize = timer.elapsed(); timer.reset();
 #endif
+    
+    const auto only_processing_timing = task->timer.elapsed();
+    task->timer.reset();
 
     {
         Timer timer;
@@ -1628,7 +1631,8 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
     //if(_terminate_tracker)
     //    return { -1, false, 0.0 };
     // write frame to file if recording (and if there's anything in the frame)
-    if(/*task->frame->n() > 0 &&*/ (!conversion_range.end.valid() || task->current->index() <= conversion_range.end.get()) && GRAB_SETTINGS(recording) && !GRAB_SETTINGS(quit_after_average)) {
+    if(/*task->frame->n() > 0 &&*/ (!conversion_range.end.valid() || task->current->index() <= conversion_range.end.get()) && GRAB_SETTINGS(recording) && !GRAB_SETTINGS(quit_after_average))
+    {
         if(!_processed.open()) {
             // set (real time) timestamp for video start
             // (just for the user to read out later)
@@ -1758,7 +1762,8 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
         //mp4_queue->refill_queue(_unused_process_images);
     } else
 #endif
-    _processing_timing = _processing_timing * 0.75 + task->timer.elapsed() * 0.25;
+    _processing_timing = _processing_timing * 0.75 + only_processing_timing * 0.25;
+    _rest_timing = _rest_timing * 0.75 + task->timer.elapsed() * 0.25;
     
     {
         std::lock_guard<std::mutex> guard(to_main_mutex);
@@ -1778,16 +1783,7 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
 
     if (index % 10 == 0) {
         std::lock_guard g(time_mutex);
-        Debug("\t[main] serialize:%fms waiting:%fms writing:%fms gui:%fms rest:%fms => %fms (frame_time=%fs time=%fs last=%fs)",
-            _serialize * 1000,
-            _waiting * 1000,
-            _writing * 1000,
-            _gui * 1000,
-            _rest * 1000,
-            (_serialize + _waiting + _writing + _gui + _rest) * 1000,
-            frame_time,
-            last_frame_s,
-            last_time);
+        print("\t[main] serialize:",_serialize * 1000,"ms waiting:",_waiting * 1000,"ms writing:",_writing * 1000,"ms gui:",_gui * 1000,"ms rest:",_rest * 1000,"ms => ",(_serialize + _waiting + _writing + _gui + _rest) * 1000,"ms (frame_time=",frame_time,"s time=",last_frame_s,"s last=",last_time,"s)");
     }
 #endif
     
@@ -1800,6 +1796,12 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
 void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) {
     static const Rangef min_max = GRAB_SETTINGS(blob_size_range);
     static const float cm_per_pixel = SQR(SETTING(cm_per_pixel).value<float>());
+    static const bool enable_threads = GRAB_SETTINGS(tgrabs_use_threads);
+    
+    //static Timing timing("threadable_task");
+    //TakeTiming take(timing);
+    
+    task->timer.reset();
     
 #ifdef TGRABS_DEBUG_TIMING
     Timer _sub_timer;
@@ -1840,7 +1842,7 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
         if (use_corrected && _grid) {
             _grid->correct_image(*input, *input);
         }
-
+        
         apply_filters(*input);
         task->process->generate_binary(image, *input, image, task->tags);
 
@@ -2011,8 +2013,10 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
 }
 
 Queue::Code FrameGrabber::process_image(Image_t& current) {
-    static Timing timing("process_image", 10);
-    TakeTiming take(timing);
+    static const bool enable_threads = GRAB_SETTINGS(tgrabs_use_threads);
+    
+    //static Timing timing("process_image", 10);
+    //TakeTiming take(timing);
     
     if(_task._valid && _task._complete) {
         _task._future.get();
@@ -2063,8 +2067,6 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
      * ==============
      */
     
-//#define TGRABS_DEBUG_TIMING
-    
     static std::vector<std::unique_ptr<ProcessingTask>> for_the_pool;
     static std::vector<std::unique_ptr<ProcessingTask>> inactive_tasks;
     static std::mutex inactive_task_mutex;
@@ -2081,8 +2083,9 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
                 
                 std::unique_lock<std::mutex> guard(to_pool_mutex);
                 while(!_terminate_tracker || !for_the_pool.empty()) {
-                    _multi_variable.wait_for(guard, std::chrono::milliseconds(1));
-
+                    if(for_the_pool.empty())
+                        _multi_variable.wait_for(guard, std::chrono::milliseconds(1));
+ 
                     if(!for_the_pool.empty()) {
                         auto task = std::move(for_the_pool.front());
                         for_the_pool.erase(for_the_pool.begin());
@@ -2136,7 +2139,7 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
     else
         task->current = Image::Make(current, current.index(), TS);
 
-    if(GRAB_SETTINGS(grabber_use_threads)) {
+    if(enable_threads) {
         {
             std::unique_lock<std::mutex> guard(to_pool_mutex);
             Timer timer;
