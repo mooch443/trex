@@ -257,7 +257,6 @@ void ImageThreads::processing() {
             auto current = std::move(_used.back());
             _used.pop_back();
             lock.unlock();
-            
             //print("[proc] processing ", current->index());
             _fn_process(*current);
             
@@ -302,7 +301,7 @@ void FrameGrabber::prepare_average() {
         cv::Mat tmp;
         _average.copyTo(tmp);
         _grid = new LuminanceGrid(tmp);
-        _grid->correct_image(_average);
+        _grid->correct_image(_average, _average);
         
         //cv::Mat corrected;
         //gpu_average.copyTo(corrected);
@@ -733,7 +732,7 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
               return true;
           },
           [&](Image_t& current) -> bool { return load_image(current); },
-          [&](const Image_t& current) -> Queue::Code { return process_image(current); });
+          [&](Image_t& current) -> Queue::Code { return process_image(current); });
     
     print("ThreadedAnalysis started (",_cam_size.width,"x",_cam_size.height," | ",_cropped_size.width,"x",_cropped_size.height,").");
 }
@@ -1839,11 +1838,11 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
         }
 
         if (use_corrected && _grid) {
-            _grid->correct_image(*input);
+            _grid->correct_image(*input, *input);
         }
 
         apply_filters(*input);
-        task->process->generate_binary(*input, image, task->tags);
+        task->process->generate_binary(image, *input, image, task->tags);
 
     }
     else {
@@ -2011,7 +2010,7 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
     _overall.reset();
 }
 
-Queue::Code FrameGrabber::process_image(const Image_t& current) {
+Queue::Code FrameGrabber::process_image(Image_t& current) {
     static Timing timing("process_image", 10);
     TakeTiming take(timing);
     
@@ -2132,7 +2131,8 @@ Queue::Code FrameGrabber::process_image(const Image_t& current) {
     task->index = global_index++;
 
     if (task->current)
-        task->current->create(current, current.index(), TS);
+        task->current->set(std::move(current));
+        //task->current->create(current, current.index(), TS);
     else
         task->current = Image::Make(current, current.index(), TS);
 
