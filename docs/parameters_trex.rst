@@ -2115,15 +2115,6 @@ TRex parameters
 
 
 
-.. function:: tracklet_restore_split_blobs(bool)
-
-	**default value:** true
-
-
-	If enabled, all exported tracklet images are checked for missing pixels. When a blob is too close to another blob, parts of the other blob might be erased so the individuals can be told apart. If enabled, another mask will be saved, that contains only the blob in focus, without the rest-pixels.
-
-
-
 .. function:: use_differences(bool)
 
 	**default value:** false

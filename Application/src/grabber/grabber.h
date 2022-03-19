@@ -36,7 +36,7 @@ class ImageThreads {
     std::function<ImagePtr()> _fn_create;
     std::function<bool(long_t, Image_t&)> _fn_prepare;
     std::function<bool(Image_t&)> _fn_load;
-    std::function<Queue::Code(const Image_t&)> _fn_process;
+    std::function<Queue::Code(Image_t&)> _fn_process;
     
     std::atomic_bool _terminate{false}, _loading_terminated{false};
     std::mutex _image_lock;
@@ -182,7 +182,7 @@ public:
         return !_processed.open() || _paused;
     }
     bool load_image(Image_t& current);
-    Queue::Code process_image(const Image_t& current);
+    Queue::Code process_image(Image_t& current);
     Image::Ptr latest_image();
     
     std::unique_ptr<pv::Frame> last_frame() {
