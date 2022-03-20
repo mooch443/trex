@@ -211,7 +211,7 @@ void GUI::draw(gui::DrawStructure &base) {
 
         {
             auto frame = _grabber.last_frame();
-            auto image = _grabber.latest_image();
+            auto &image = _grabber.latest_image();
             auto noise = _grabber.noise();
 
 #ifndef NDEBUG
@@ -242,8 +242,8 @@ void GUI::draw(gui::DrawStructure &base) {
                         background->set_pos(offset);
                         background->set_scale(Vec2(1 / scale));
 
-                        if (noise_image) {
-                            noise_image->set_source(Image::Make(_image->rows, _image->cols, 4));
+                        if (noise_image && background->source()) {
+                            noise_image->set_source(Image::Make(background->source()->rows, background->source()->cols, 4));
                             noise_image->set_pos(offset);
                             noise_image->set_scale(Vec2(1 / scale));
                         }
@@ -259,7 +259,7 @@ void GUI::draw(gui::DrawStructure &base) {
                     background->set_source(std::move(_image));
                 }
 
-                if (noise_image) {
+                if (noise_image && !noise_image->empty()) {
                     auto N = _noise ? _noise->n() : 0u;
                     std::fill(noise_image->source()->data(), noise_image->source()->data() + noise_image->source()->size(), 0);
 

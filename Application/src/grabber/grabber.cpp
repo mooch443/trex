@@ -55,7 +55,8 @@ CREATE_STRUCT(GrabSettings,
   (float,        image_brightness_increase),
   (bool,        enable_closed_loop),
   (bool,        output_statistics),
-  (file::Path, filename)
+  (file::Path, filename),
+  (bool, nowindow)
 )
 #else
 CREATE_STRUCT(GrabSettings,
@@ -86,7 +87,8 @@ CREATE_STRUCT(GrabSettings,
     (file::Path, filename),
     (bool, tags_enable),
     (bool, tags_recognize),
-    (bool, tags_saved_only)
+    (bool, tags_saved_only),
+    (bool, nowindow)
 )
 #endif
 
@@ -117,7 +119,7 @@ bool FrameGrabber::is_recording() const {
     return GlobalSettings::map().has("recording") && SETTING(recording);
 }
 
-Image::Ptr FrameGrabber::latest_image() {
+const Image::UPtr& FrameGrabber::latest_image() {
     return _current_image;
 }
 
@@ -955,19 +957,23 @@ bool FrameGrabber::add_image_to_average(const cv::Mat& current) {
         if(GRAB_SETTINGS(reset_average)) {
             SETTING(reset_average) = false;
             
-            // to protect _last_frame
-            std::lock_guard<std::mutex> guard(_frame_lock);
-            _average_samples = 0u;
-            _average_finished = false;
-            if(fname.exists()) {
-                if(!fname.delete_file()) {
-                    throw U_EXCEPTION("Cannot delete file ",fname.str(),".");
+            {
+                // to protect _last_frame
+                std::lock_guard guard(_frame_lock);
+                _average_samples = 0u;
+                _average_finished = false;
+                if (fname.exists()) {
+                    if (!fname.delete_file()) {
+                        throw U_EXCEPTION("Cannot delete file ", fname.str(), ".");
+                    }
+                    else print("Deleted file ", fname.str(), ".");
                 }
-                else print("Deleted file ", fname.str(),".");
+
+                _last_frame = nullptr;
             }
-            
-            _last_frame = nullptr;
-            std::atomic_store(&_current_image, Image::Ptr());
+
+            std::unique_lock guard(_current_image_lock);
+            _current_image = nullptr;
         }
         
         if(!_accumulator)
@@ -1006,8 +1012,8 @@ bool FrameGrabber::add_image_to_average(const cv::Mat& current) {
                 SETTING(terminate) = true;
         }
         
-        if(!_current_image)
-            std::atomic_store(&_current_image, std::make_shared<Image>(current));
+        if (!_current_image)
+            _current_image = std::make_unique<Image>(current);
         else
             _current_image->create(current);
         
@@ -1716,35 +1722,52 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
     _writing = timer.elapsed(); timer.reset();
 #endif
 
-    if (!_current_image) {
-        if(task->raw)
-            std::atomic_store(&_current_image, std::make_shared<Image>(*task->raw));
-        else if(task->current)
-            std::atomic_store(&_current_image, std::make_shared<Image>(*task->current));
-    }
-    else if (transfer_to_gui) {
-        if(task->raw)
-            _current_image->create(*task->raw, index);
-        else if (task->current) {
-            _current_image->create(*task->current, index);
+    {
+        std::unique_lock guard(_current_image_lock);
+        if (!_current_image) {
+            if (mp4_queue) {
+                // task->raw is needed further down...
+                assert(task->raw);
+                _current_image = std::make_unique<Image>(*task->raw);
+            }
+            else {
+                if (task->raw)
+                    _current_image = std::move(task->raw);
+                else if (task->current)
+                    _current_image = std::move(task->current);
+            }
         }
-            
+        else if (transfer_to_gui) {
+            if (mp4_queue) {
+                assert(task->raw);
+                _current_image->create(*task->raw, index);
+            }
+            else {
+                if (task->raw)
+                    std::swap(_current_image, task->raw);
+                else if (task->current)
+                    std::swap(_current_image, task->current);
+            }
+        }
+    }
+
+    if (transfer_to_gui) {
         std::swap(_last_frame, task->frame);
-        if(_last_frame)
+
+        if (_last_frame)
             _last_frame->set_index(index);
 
-        //if(false)
         {
             std::lock_guard<std::mutex> guard(_frame_lock);
             if (!task->filtered_out.empty()) {
-                if(!_noise)
-                    _noise = std::make_unique<pv::Frame>(task->current->timestamp().get(), task->filtered_out.size());
+                if (!_noise)
+                    _noise = std::make_unique<pv::Frame>(stamp.get(), task->filtered_out.size());
                 else {
                     _noise->clear();
-                    _noise->set_timestamp(task->current->timestamp().get());
+                    _noise->set_timestamp(stamp.get());
                 }
-                
-                for (auto &b : task->filtered_out) {
+
+                for (auto& b : task->filtered_out) {
                     _noise->add_object(std::move(b.lines), std::move(b.pixels));
                 }
                 task->filtered_out.clear();
@@ -1764,13 +1787,14 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
 
 #if WITH_FFMPEG
     if(mp4_queue && used_index_here.valid()) {
-        task->current->set_index(used_index_here.get());
+        assert(task->raw);
+        task->raw->set_index(used_index_here.get());
         mp4_queue->add(std::move(task->raw));
         
         // try and get images back
         //std::lock_guard<std::mutex> guard(process_image_mutex);
         //mp4_queue->refill_queue(_unused_process_images);
-    } else
+    }
 #endif
     _processing_timing = _processing_timing * 0.75 + only_processing_timing * 0.25;
     _rest_timing = _rest_timing * 0.75 + task->timer.elapsed() * 0.25;
@@ -1824,10 +1848,12 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
 
     const bool use_corrected = GRAB_SETTINGS(correct_luminance);
 
-    if (!task->raw)
-        task->raw = Image::Make();
-
-    task->raw->create(*task->current);
+    //if (mp4_queue) 
+    if(mp4_queue || !GRAB_SETTINGS(nowindow)) {
+        if (!task->raw)
+            task->raw = Image::Make();
+        task->raw->create(*task->current);
+    }
 
     if (!task->gpu_buffer)
         task->gpu_buffer = std::make_unique<gpuMat>();
@@ -2156,7 +2182,10 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
             while(for_the_pool.size() >= 8 && !_terminate_tracker) {
                 _multi_variable.wait_for(guard, std::chrono::milliseconds(1));
                 
-                if(timer.elapsed() > 1) {
+                if(timer.elapsed() > 10) {
+                    if (SETTING(frame_rate).value<int>() < 10) {
+                        print(current.index(), ": There might be a problem. Have been waiting for ", timer.elapsed(), " with no progress (", for_the_pool.size(), " items processing).");
+                    }
                     timer.reset();
                 }
             }

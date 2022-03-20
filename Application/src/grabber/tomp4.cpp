@@ -397,7 +397,7 @@ void FFMPEGQueue::open_video() {
     }
     
     if(!codec)
-        throw U_EXCEPTION("Codec '",codec_name,"' not found, and 'h264_videotoolbox' could not be found either.");
+        throw U_EXCEPTION("Codec ",codec_name," not found, and 'h264_videotoolbox' could not be found either.");
     
     c = avcodec_alloc_context3(codec);
     if (!c)
@@ -608,7 +608,7 @@ void FFMPEGQueue::update_cache_strategy(double needed_ms, double compressed_size
                 double current_frame_rate = 1000.0 / double(needed_ms);
                 double remaining = approximate_length - approximate_ms * current_frame_rate; // how many frames we will have written to file, how many will be left in memory if we try to write everything
                 
-                auto compressed_str = Meta::toStr(FileSize{uint64_t(compressed_size)});
+                auto compressed = FileSize{uint64_t(compressed_size)};
                 
                 if(remaining > maximum_images) {
                     // we need to skip some frames
@@ -616,11 +616,11 @@ void FFMPEGQueue::update_cache_strategy(double needed_ms, double compressed_size
                     auto needed_str = Meta::toStr(FileSize{uint64_t(remaining * _size.width * _size.height)});
                     skip_step = (remaining-maximum_images) / approximate_ms;
                     
-                    FormatWarning("We need to cap memory (",needed_str.c_str()," in remaining images) to ",str.c_str(),", that means losing ",skip_step," images / second (",needed_ms,"ms / frame, ",compressed_str.c_str()," compressed)");
+                    FormatWarning("We need to cap memory (",needed_str.c_str()," in remaining images) to ",str.c_str(),", that means losing ",skip_step," images / second (",needed_ms,"ms / frame, ",compressed," compressed)");
                     
                 } else {
                     // we can keep all frames
-                    print("Cool, we dont need to skip any frames, we can keep it all in memory (", needed_ms,"s / frame, ",compressed_str," compressed).");
+                    print("Cool, we dont need to skip any frames, we can keep it all in memory (", needed_ms,"ms / frame, ",compressed," compressed).");
                 }
                 
                 last_call.reset();

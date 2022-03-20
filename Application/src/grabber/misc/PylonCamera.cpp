@@ -67,8 +67,12 @@ namespace fg {
         if (SETTING(cam_framerate).value<int>() > 0) {
             _camera->AcquisitionFrameRateEnable.SetValue(true);
             _camera->AcquisitionFrameRate.SetValue(SETTING(cam_framerate).value<int>());
-        } else
+        }
+        else {
             _camera->AcquisitionFrameRateEnable.SetValue(false);
+            print("Setting frame_rate from camera = ",_camera->ResultingFrameRate.GetValue());
+            SETTING(cam_framerate) = int(_camera->ResultingFrameRate.GetValue());
+        }
         
         // determine camera resolution
         while(true) {
