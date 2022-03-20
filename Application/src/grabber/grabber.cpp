@@ -226,9 +226,9 @@ void ImageThreads::loading() {
             guard.unlock();
 
             if (_fn_prepare(last_loaded, *current)) {
-                last_loaded = current->index();
-
                 if (_fn_load(*current)) {
+                    last_loaded = current->index();
+
                     // loading was successful, so push to processing
                     guard.lock();
                     _used.push_front(std::move(current));
