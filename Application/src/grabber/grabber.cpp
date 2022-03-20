@@ -1291,7 +1291,11 @@ void FrameGrabber::update_tracker_queue() {
                         std::vector<float> centers;
 
                         size_t number_fields = 0;
-                        std::vector<long_t> vids;
+                        static std::vector<long_t> vids;
+                        static std::vector<float> vdistances;
+
+                        vids.clear();
+                        vdistances.clear();
                         
                         for(auto & fish : tracker->active_individuals(frame))
                         {
@@ -1311,11 +1315,14 @@ void FrameGrabber::update_tracker_queue() {
 
                                 ++number_fields;
 
-                                auto &eye0 = visual_fields[fish->identity().ID()]->eyes().front()._visible_ids;
-                                auto &eye1 = visual_fields[fish->identity().ID()]->eyes().back()._visible_ids;
+                                auto &eye0 = visual_fields[fish->identity().ID()]->eyes().front();
+                                auto &eye1 = visual_fields[fish->identity().ID()]->eyes().back();
 
-                                vids.insert(vids.end(), eye0.begin(), eye0.begin() + track::VisualField::field_resolution);
-                                vids.insert(vids.end(), eye1.begin(), eye1.begin() + track::VisualField::field_resolution);
+                                vids.insert(vids.end(), eye0._visible_ids.begin(), eye0._visible_ids.begin() + track::VisualField::field_resolution);
+                                vids.insert(vids.end(), eye1._visible_ids.begin(), eye1._visible_ids.begin() + track::VisualField::field_resolution);
+
+                                vdistances.insert(vdistances.end(), eye0._depth.begin(), eye0._depth.begin() + track::VisualField::field_resolution);
+                                vdistances.insert(vdistances.end(), eye1._depth.begin(), eye1._depth.begin() + track::VisualField::field_resolution);
                             }
                         }
                         
@@ -1379,7 +1386,10 @@ void FrameGrabber::update_tracker_queue() {
                             py::set_variable("frame", frame.get(), "closed_loop");
                             py::set_variable("visual_field", vids, "closed_loop",
                                 std::vector<size_t>{ number_fields, 2, track::VisualField::field_resolution },
-                                std::vector<size_t>{ 2 * track::VisualField::field_resolution * sizeof(long_t), track::VisualField::field_resolution * sizeof(long_t), sizeof(long_t) });
+                                std::vector<size_t>{ 2 * track::VisualField::field_resolution * sizeof(long_t), track::VisualField::field_resolution * sizeof(long_t), sizeof(long_t) }); 
+                            py::set_variable("visual_field_depth", vdistances, "closed_loop",
+                                    std::vector<size_t>{ number_fields, 2, track::VisualField::field_resolution },
+                                    std::vector<size_t>{ 2 * track::VisualField::field_resolution * sizeof(float), track::VisualField::field_resolution * sizeof(float), sizeof(float) });
                             py::set_variable("midlines", midline_points, "closed_loop",
                                              std::vector<size_t>{ min(number_midlines, ids.size()), FAST_SETTINGS(midline_resolution), 2 },
                                 std::vector<size_t>{ 2 * FAST_SETTINGS(midline_resolution) * sizeof(float), 2 * sizeof(float), sizeof(float) });
