@@ -33,24 +33,19 @@ SplitBlob::SplitBlob(const Background& average, pv::BlobPtr blob)
             
             if(name == "blob_split_max_shrink") {
                 blob_split_max_shrink = value.value<float>();
-                print("blob_split_max_shrink = ", blob_split_max_shrink);
                 
             } else if(name == "blob_split_global_shrink_limit") {
                 blob_split_global_shrink_limit = value.value<float>();
-                print("blob_split_global_shrink_limit = ", blob_split_global_shrink_limit);
                 
             } else if(name == "cm_per_pixel") {
                 sqrcm = SQR(value.value<float>());
-                print("sqrcm = ", sqrcm);
                 
             } else if(name == "track_posture_threshold") {
                posture_threshold = value.value<int>();
-               print("track_posture_threshold = ", posture_threshold);
             }
             
             if(name == "blob_size_ranges" || name == "cm_per_pixel") {
                 fish_minmax = SETTING(blob_size_ranges).value<BlobSizeRange>();
-                print("blob_size_ranges = ", fish_minmax);
             }
         };
         GlobalSettings::map().register_callback(callback, fn);

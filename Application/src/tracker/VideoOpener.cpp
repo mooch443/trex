@@ -31,8 +31,8 @@ void VideoOpener::CustomFileChooser::update_size() {
     
     float s = _graph->scale().x / gui::interface_scale();
     auto column = Size2(
-        _graph->width() * 0.4 - 150, 
-        _graph->height() * 0.4 * gui::interface_scale() - (_selected_text ? _selected_text->height() + _button->height() + 10 : 0))
+        _graph->width() * 0.9 - 150,
+        _graph->height() * 0.7 - (_selected_text ? _selected_text->height() + _button->height() + 10 : 0))
        .div(s);
     
     _update(column.width, column.height);
@@ -359,14 +359,26 @@ VideoOpener::VideoOpener()
     });
     
     _file_chooser->set_update([this](float w, float h) {
-        _screenshot_max_size = Size2(w, h);//.div(_file_chooser->graph()->scale()) - Size2(0, );
+        if(w < 50)
+            w = 50;
         
         if(_raw_description) {
-            _raw_description->set_max_size(Size2(_screenshot_max_size.width, -1));
+            _raw_description->set_max_size(Size2(w, -1));
         }
         if(_info_description) {
-            _info_description->set_max_size(Size2(_screenshot_max_size.width, -1));
-            //_info_description->set_background(Transparent, Red);
+            _info_description->set_max_size(Size2(w * 0.4, -1));
+            h -= _info_description->height();
+            if(h < 0)
+                h = 1;
+        }
+        
+        _screenshot_max_size = Size2(w, h);
+        if (_file_chooser->current_tab().extension == "pv") {
+            //_screenshot_max_size.height *= 0.75;
+        }
+        else {
+            if (_loading_text)
+                _screenshot_max_size.height -= _loading_text->height();
         }
         
         for(auto &[key, ptr] : _text_fields) {
@@ -379,16 +391,6 @@ VideoOpener::VideoOpener()
                 _mini_bowl->set_scale(Vec2(scale.min()));
         }
         _screenshot_previous_size = Size2(0);
-        
-        if(_infos) {
-        _infos->auto_size(Margin{0, 0});
-        _infos->update_layout();
-        }
-        
-        if(_extra) {
-            _extra->auto_size(Margin{0,0});
-            _extra->update_layout();
-        }
         
         if(_horizontal) {
             _horizontal->auto_size(Margin{0, 0});
@@ -477,9 +479,9 @@ VideoOpener::VideoOpener()
             if(image) {
                 _screenshot->set_source(std::move(image));
                 
-                auto max_scale = 1.0f;
-                auto max_size = _screenshot_max_size.mul(max_scale);
-                auto scree_size = max_size;//_screenshot->source()->bounds().size();
+                auto max_scale = 1;//_file_chooser->graph()->scale();
+                auto max_size = _screenshot_max_size.div(max_scale);
+                auto scree_size = _screenshot->source()->bounds().size();
                 
                 if(_raw_description->max_size() != max_size) {
                     _raw_description->set_max_size(max_size);
@@ -489,7 +491,8 @@ VideoOpener::VideoOpener()
                 Vec2 scale;
                 
                 // width is more too big than height:
-                if(scree_size.width > scree_size.height) {
+                if(scree_size.width > scree_size.height) 
+                {
                     scale = Vec2(max_size.min() / scree_size.width );
                 } else {
                     scale = Vec2(max_size.min() / scree_size.height);
@@ -966,12 +969,12 @@ void VideoOpener::select_file(const file::Path &p) {
             }
             
             children.push_back( Layout::Ptr(std::make_shared<Text>(name, Vec2(), White, gui::Font(0.7f))) );
-            children.push_back( Layout::Ptr(std::make_shared<Dropdown>(Bounds(0, 0, 300, 28), folders)) );
+            children.push_back( Layout::Ptr(std::make_shared<Dropdown>(Bounds(0, 0, 250, 28), folders)) );
             ((Dropdown*)children.back().get())->textfield()->set_font(Font(0.7f));
             
         } else {
             children.push_back( Layout::Ptr(std::make_shared<Text>(name, Vec2(), White, gui::Font(0.7f))) );
-            children.push_back( Layout::Ptr(std::make_shared<Textfield>(start, Bounds(0, 0, 300, 28))));
+            children.push_back( Layout::Ptr(std::make_shared<Textfield>(start, Bounds(0, 0, 250, 28))));
             ((Textfield*)children.back().get())->set_font(Font(0.7f));
         }
         
@@ -1060,7 +1063,7 @@ void VideoOpener::select_file(const file::Path &p) {
         _mini_bowl->auto_size(Margin{0, 0});
         
         gui::derived_ptr<gui::Text> info_text = std::make_shared<gui::Text>("Selected", Vec2(), gui::White, gui::Font(0.9f, gui::Style::Bold));
-        _info_description = std::make_shared<gui::StaticText>(settings::htmlify(text), Vec2(), _screenshot_max_size, gui::Font(0.7f));
+        _info_description = std::make_shared<gui::StaticText>(settings::htmlify(text), Vec2(), _screenshot_max_size.div(_file_chooser->graph()->scale()), gui::Font(0.7f));
         gui::derived_ptr<gui::Text> info_2 = std::make_shared<gui::Text>("Background", Vec2(), gui::White, gui::Font(0.9f, gui::Style::Bold));
         
         _infos->set_children({
@@ -1132,7 +1135,7 @@ void VideoOpener::select_file(const file::Path &p) {
         FormatExcept{ "Caught an exception while reading info from ",SETTING(filename).value<file::Path>().str(),"." };
     }
     
-    _horizontal->auto_size(Margin{0, 0});
+    _horizontal->auto_size(Margin{5, 5});
     _horizontal->update_layout();
     
     SETTING(filename) = file::Path();

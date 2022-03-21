@@ -8,6 +8,8 @@ struct Idx_t {
     uint32_t _identity = cmn::infinity<uint32_t>();
     constexpr Idx_t() = default;
     Idx_t(Idx_t const &ID) = default;
+    Idx_t& operator=(const Idx_t&) = default;
+    Idx_t& operator=(Idx_t&&) = default;
     
     template<typename T>
         requires std::convertible_to<T, uint32_t>
