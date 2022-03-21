@@ -31,7 +31,7 @@ void VideoOpener::CustomFileChooser::update_size() {
     
     float s = _graph->scale().x / gui::interface_scale();
     auto column = Size2(
-        _graph->width() * 0.7 - 150, 
+        _graph->width() * 0.9 - 150,
         _graph->height() * 0.7 - (_selected_text ? _selected_text->height() + _button->height() + 10 : 0))
        .div(s);
     
@@ -366,7 +366,7 @@ VideoOpener::VideoOpener()
             _raw_description->set_max_size(Size2(w, -1));
         }
         if(_info_description) {
-            _info_description->set_max_size(Size2(w * 0.5, -1));
+            _info_description->set_max_size(Size2(w * 0.4, -1));
             h -= _info_description->height();
             if(h < 0)
                 h = 1;
