@@ -292,14 +292,10 @@ void FrameGrabber::prepare_average() {
         _average(_crop_rect).copyTo(_average);
     }
     
-    print("cam_scale = ", GRAB_SETTINGS(cam_scale));
     if(GRAB_SETTINGS(cam_scale) != 1)
         cv::resize(_average, _average, _cropped_size);
-        //resize_image(_average, GRAB_SETTINGS(cam_scale));
-    
     
     if(GRAB_SETTINGS(correct_luminance)) {
-        print("Calculating relative luminance...");
         if(_grid)
             delete _grid;
         cv::Mat tmp;
@@ -307,19 +303,7 @@ void FrameGrabber::prepare_average() {
         _grid = new LuminanceGrid(tmp);
         _grid->correct_image(_average, _average);
         
-        //cv::Mat corrected;
-        //gpu_average.copyTo(corrected);
-        
-    } //else
-        //tmp.copyTo(gpu_average);
-    
-    /*if(scale != 1) {
-        cv::Mat temp;
-        //cv::resize(_average, temp, cv::Size(), scale, scale, cv::INTER_NEAREST);
-        _processed.set_average(temp);
-        if(tracker)
-            tracker->set_average(temp);
-    } else {*/
+    }
     
     apply_filters(_average);
     
@@ -355,7 +339,7 @@ Range<Frame_t> FrameGrabber::processing_range() const {
     //! We either start where the conversion_range starts, or at 0 (for all things).
     static const Frame_t conversion_range_start =
         (_video && GRAB_SETTINGS(video_conversion_range).first != -1)
-        ? Frame_t(min(_video->length(), (uint64_t)GRAB_SETTINGS(video_conversion_range).first))
+        ? Frame_t(min(_video->length() - 1, (uint64_t)GRAB_SETTINGS(video_conversion_range).first))
         : Frame_t(0);
 
     //! We end for videos when the conversion range has been reached, or their length, and
@@ -364,7 +348,7 @@ Range<Frame_t> FrameGrabber::processing_range() const {
         _video
         ? Frame_t(GRAB_SETTINGS(video_conversion_range).second != -1
             ? GRAB_SETTINGS(video_conversion_range).second
-            : _video->length())
+            : (_video->length() - 1))
         : Frame_t();
 
     return Range<Frame_t>{ conversion_range_start, conversion_range_end };
@@ -694,11 +678,11 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
 
               if (_video && !_average_finished) {
                   //! Special indexing for video averaging (skipping over frames)
-                  double step = _video->length() 
+                  double step = (_video->length()
                       / floor((double)min(
                           _video->length()-1, 
                           max(1u, GRAB_SETTINGS(average_samples))
-                      ));
+                      )));
 
                   current.set_index(prev != -1 ? (prev + step) : 0);
 
@@ -1026,12 +1010,6 @@ bool FrameGrabber::add_image_to_average(const cv::Mat& current) {
 bool FrameGrabber::load_image(Image_t& current) {
     Timer timer;
     
-    if (GRAB_SETTINGS(terminate)) {
-        --_frame_processing_ratio;
-        //print("terminate ", _frame_processing_ratio.load(), " by ", current.index());
-        return false;
-    }
-    
     static auto size = _cam_size;
     static Image image(size.height, size.width, 1);
     static gpuMat m(size.height, size.width, CV_8UC1);
@@ -1065,9 +1043,8 @@ bool FrameGrabber::load_image(Image_t& current) {
             }
             
             current.set_mask(mask_ptr);
-            
         } catch(const UtilsException& e) {
-            FormatExcept("Skipping frame ", current.index()," and ending conversion.");
+            FormatExcept("Skipping frame ", current.index()," and ending conversion (an exception occurred). Ending normally. Make sure that the video is intact, you can try this before conversion:\n\tffmpeg -i ", SETTING(video_source).value<std::string>(), " -c copy -o fixed.mp4");
             if(!GRAB_SETTINGS(terminate)) {
                 SETTING(terminate) = true;
             }
@@ -1260,12 +1237,15 @@ void FrameGrabber::update_tracker_queue() {
                 }
                 
 #define CL_HAS_FEATURE(NAME) (selected_features.find(CLFeature:: NAME) != selected_features.end())
+                auto& active = tracker->active_individuals(frame);
+                _tracker_current_individuals = active.size();
+
                 if(GRAB_SETTINGS(enable_closed_loop)) {
                     std::map<long_t, std::shared_ptr<track::VisualField>> visual_fields;
                     std::map<long_t, track::Midline::Ptr> midlines;
                     
                     if(CL_HAS_FEATURE(VISUAL_FIELD)) {
-                        for(auto fish : tracker->active_individuals(frame)) {
+                        for(auto fish : active) {
                             if(fish->head(frame))
                                 visual_fields[fish->identity().ID()] = std::make_shared<track::VisualField>(
                                     fish->identity().ID(), 
@@ -1278,7 +1258,7 @@ void FrameGrabber::update_tracker_queue() {
                     }
                     
                     if(CL_HAS_FEATURE(MIDLINE)) {
-                        for(auto fish : tracker->active_individuals(frame)) {
+                        for(auto fish : active) {
                             auto midline = fish->midline(frame);
                             if(midline)
                                 midlines[fish->identity().ID()] = midline;
@@ -1288,7 +1268,7 @@ void FrameGrabber::update_tracker_queue() {
                     static Timing timing("python::closed_loop", 0.1);
                     TakeTiming take(timing);
                     
-                    track::PythonIntegration::async_python_function([&content_timer, &copy, &visual_fields, &midlines, frame = frame, &request_features, &selected_features]()
+                    track::PythonIntegration::async_python_function([&active, &content_timer, &copy, &visual_fields, &midlines, frame = frame, &request_features, &selected_features]()
                     {
                         std::vector<long_t> ids;
                         std::vector<float> midline_points;
@@ -1303,7 +1283,7 @@ void FrameGrabber::update_tracker_queue() {
                         vids.clear();
                         vdistances.clear();
                         
-                        for(auto & fish : tracker->active_individuals(frame))
+                        for(auto & fish : active)
                         {
                             auto basic = fish->basic_stuff(frame);
                             if(basic) {

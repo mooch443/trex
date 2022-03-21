@@ -230,6 +230,27 @@ void GUI::draw(gui::DrawStructure &base) {
 
         auto scale = guard._section->scale().mul(base.scale()).reciprocal();
 
+        Color text_color(255, 255, 255, 255);
+        if (_image && _image->cols > 20 && _image->rows > 20) {
+            cv::Mat tmp = _image->get();
+            double val = 0;
+            size_t samples = 0;
+            for (int i = 0; i < 100 * scale.x; i += 10 * scale.x) {
+                for (int j = 0; j < 20 * scale.y; j += 4 * scale.y) {
+                    val += tmp.at<uchar>(j, i);
+                    samples++;
+                }
+            }
+            val /= samples;
+
+            if (val < 150) {
+                text_color = White;
+            }
+            else {
+                text_color = Black;
+            }
+        }
+
         if (_grabber.average_finished()) {
             if (_frame && _image) {
                 //float scale = SETTING(web_quality).value<int>() / 100.f;
@@ -351,7 +372,7 @@ void GUI::draw(gui::DrawStructure &base) {
 
                 }
                 else {
-                    base.circle(Vec2(12, 18).mul(scale), 5, Black.alpha(255 * alpha), Black.alpha(255 * alpha), scale, Vec2(0.5));
+                    base.circle(Vec2(13, 18).mul(scale), 5, White.alpha(255 * alpha), text_color.alpha(255 * alpha), scale, Vec2(0.5));
                 }
             }
 
@@ -388,30 +409,59 @@ void GUI::draw(gui::DrawStructure &base) {
             }
         }
 
-        Color text_color(255, 255, 255, 255);
-        if (_image && _image->cols > 20 && _image->rows > 20) {
-            cv::Mat tmp = _image->get();
-            double val = 0;
-            size_t samples = 0;
-            for (int i = 0; i < 100; i += 10) {
-                for (int j = 0; j < 20; j += 4) {
-                    val += tmp.at<uchar>(j, i);
-                    samples++;
-                }
-            }
-            val /= samples;
+        {
+            auto shadowed_text = [&](Vec2 pos, const std::string& text, Color color, float font_size = 0.75) {
+                //pos = Vec2(int(pos.x), int(pos.y));
+                auto shadow = base.text(text, (pos + Vec2(1, 1)).mul(scale), Black, Font(font_size, Align::VerticalCenter), scale);
+                return base.text(text, pos.mul(scale), color, Font(font_size, Align::VerticalCenter), scale)->width();
+            };
 
-            if (val < 150) {
-                text_color = White;
+            auto frame = _grabber.last_index().load();
+
+            Vec2 offset(25, 17);
+
+            offset.x += (shadowed_text(offset, "frame", text_color)) + 5;
+            offset.x += (shadowed_text(offset,std::to_string(frame), Cyan)) + 5;
+            //offset.x = offset.x + 15 - int(offset.x) % 15;
+            if (_grabber.video()) {
+                static Vec2 previous = offset;
+                static Timer timer;
+
+                auto diff = offset - previous;
+                if (diff.x > 0)
+                    previous = offset;
+                else
+                    previous += diff * 0.1 * timer.elapsed() * 1;
+
+                offset = previous;
+                timer.reset();
+
+                offset.x += (shadowed_text(offset, "/", text_color)) + 5;
+                offset.x += (shadowed_text(offset, std::to_string(_grabber.video()->length()), text_color)) + 5;
+                //offset.x = offset.x + 5 - int(offset.x) % 5;
             }
-            else {
-                text_color = Black;
+
+            offset.x += base.line((offset + Vec2(0, 0.5)).mul(scale), (offset + Vec2(10, 0.5)).mul(scale), Gray, scale)->width() + 5;
+            offset.x += (shadowed_text(offset, dec<2>(_grabber.fps().load()).toStr(), Cyan)) + 2;
+            offset.x += shadowed_text(offset, "fps", text_color);
+
+            offset.x = 25;
+            offset.y += 22;
+
+            std::vector<std::string> values;
+            if (SETTING(enable_live_tracking)) values.push_back("tracking " +std::to_string(_grabber.tracker_current_individuals().load()));
+            if (SETTING(enable_closed_loop))   values.push_back("closed-loop");
+            if (SETTING(correct_luminance))    values.push_back("normalizing luminance");
+            values.push_back("threshold: " + std::to_string(SETTING(threshold).value<int>()));
+
+            bool darker = false;
+            for (size_t i = 0; i < values.size(); ++i) {
+                offset.x += shadowed_text(offset, values[i], darker ? text_color.exposure(0.9) : text_color, 0.5) + 5;
+                if(i + 1 < values.size())
+                    offset.x += base.line((offset + Vec2(0, 0.5)).mul(scale), (offset + Vec2(5, 0.5)).mul(scale), Gray, scale)->width() + 5;
+                darker = !darker;
             }
         }
-
-        auto shadow = base.text(info_text(), Vec2(26, 18).mul(scale), Black, Font(0.75, Align::VerticalCenter), scale);
-        base.text(shadow->txt(), Vec2(25, 17).mul(scale), text_color, Font(0.75, Align::VerticalCenter), scale);
-
 
         if (_grabber.tracker_instance()) {
             base.section("tracking", [this, scale](gui::DrawStructure& base, Section* section) {
@@ -581,9 +631,9 @@ std::string GUI::info_text() const {
     if(_grabber.video()) {
         ss << "/" << _grabber.video()->length();
     }
-    ss << " recording fps:" << std::fixed << std::setprecision(1) << _grabber.fps();
-    ss << " compratio:" << std::fixed << std::setprecision(2) << _grabber.processed().compression_ratio()*100 << "%";
-    ss << " network: " << std::fixed << std::setprecision(2) << float(_gui_bytes_per_second/1024.f) << "kb/s";
+    ss << " " << std::fixed << std::setprecision(1) << _grabber.fps() << "fps";
+    //ss << " compratio:" << std::fixed << std::setprecision(2) << _grabber.processed().compression_ratio()*100 << "%";
+    //ss << " network: " << std::fixed << std::setprecision(2) << float(_gui_bytes_per_second/1024.f) << "kb/s";
     return ss.str();
 }
 

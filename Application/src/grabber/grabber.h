@@ -85,7 +85,7 @@ public:
         std::atomic<bool> _valid = true;
         
         Task() = default;
-        Task(Task&& task)
+        Task(Task&& task) noexcept
             : _future(std::move(task._future)), _complete(task._complete.load()), _valid(task._valid.load())
         {}
     };
@@ -106,6 +106,7 @@ protected:
     
     AnalysisType* _analysis = nullptr;
 
+    GETTER_I(std::atomic_uint32_t, tracker_current_individuals, 0)
     std::mutex _current_image_lock;
     Image::UPtr _current_image;
     gpuMat _average;

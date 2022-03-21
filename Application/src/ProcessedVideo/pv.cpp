@@ -487,8 +487,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     }
 
     void File::_write_header() { 
-        _header.write(*this); 
-        print_info();
+        _header.write(*this);
     }
     void File::_read_header() {
         _header.read(*this);
@@ -735,7 +734,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             print("Metadata empty.");
         } else {
             ret = "{"+ret+"}";
-            print("Metadata: ",ret);
+            print("Metadata: ",ret.c_str());
         }
         
         return ret;

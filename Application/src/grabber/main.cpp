@@ -740,7 +740,7 @@ int main(int argc, char** argv)
 #endif
         }
             
-        GUI gui(grabber);
+        auto gui = std::make_unique<GUI>(grabber);
 #if WITH_MHD
         Httpd httpd([&](Httpd::Session*, const std::string& url){
             cv::Mat image;
@@ -773,7 +773,7 @@ int main(int argc, char** argv)
             return Httpd::Response(buffer);
         }, "grabber.html");
 #endif
-        while (!gui.terminated())
+        while (!gui->terminated())
         {
             tf::show();
             
@@ -791,7 +791,7 @@ int main(int argc, char** argv)
             
             
             if(!SETTING(nowindow) && !imgui_base && grabber.task()._complete) {
-                imgui_base = std::make_shared<gui::IMGUIBase>(SETTING(app_name).value<std::string>()+" ("+utils::split(SETTING(filename).value<file::Path>().str(),'/').back()+")", gui.gui(), [&](){
+                imgui_base = std::make_shared<gui::IMGUIBase>(SETTING(app_name).value<std::string>()+" ("+utils::split(SETTING(filename).value<file::Path>().str(),'/').back()+")", gui->gui(), [&](){
                     //std::lock_guard<std::recursive_mutex> lock(gui.gui().lock());
                     if(SETTING(terminate))
                         return false;
@@ -799,7 +799,7 @@ int main(int argc, char** argv)
                     return true;
                 }, GUI::static_event);
                     
-                gui.set_base(imgui_base.get());
+                gui->set_base(imgui_base.get());
                 imgui_base->platform()->set_icons({
                     "gfx/"+SETTING(app_name).value<std::string>()+"Icon16.png",
                     "gfx/"+SETTING(app_name).value<std::string>()+"Icon32.png",
@@ -810,13 +810,15 @@ int main(int argc, char** argv)
                 auto status = imgui_base->update_loop();
                 if(status == gui::LoopStatus::END)
                     SETTING(terminate) = true;
-                gui.update_loop();
+                gui->update_loop();
             } else {
                 std::chrono::milliseconds ms(75);
                 std::this_thread::sleep_for(ms);
             }
         }
-        
+
+        gui = nullptr;
+        imgui_base = nullptr;
         print("Ending the program.");
         
     } catch(const UtilsException& e) {

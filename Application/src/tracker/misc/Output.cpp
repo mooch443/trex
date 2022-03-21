@@ -1128,8 +1128,7 @@ namespace Output {
         }
         
         if(!SETTING(quiet)) {
-            auto str = Meta::toStr(FileSize(estimated_size));
-            print("Estimating ",str," for the whole file.");
+            print("Estimating ", FileSize(estimated_size)," for the whole file.");
         }
         std::string text = default_config::generate_delta_config(true, exclude_settings);
         write<std::string>(text);
@@ -1309,7 +1308,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
                 FormatWarning("Not loading from the output folder, but from the input folder because ", filename," could not be found, but ",file," could.");
                 filename = file;
             } else
-                print("Searched at ",file.str(),", but also couldnt be found.");
+                print("Searched at ",file,", but also couldnt be found.");
         }
         
         bytes_per_second = samples = percent_read = 0;
