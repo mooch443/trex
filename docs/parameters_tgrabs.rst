@@ -199,15 +199,6 @@ TGrabs parameters
 	.. seealso:: :func:`filename`, 
 
 
-.. function:: grabber_use_threads(bool)
-
-	**default value:** true
-
-
-	Use threads to process images (specifically the blob detection).
-
-
-
 .. function:: image_adjust(bool)
 
 	**default value:** false
@@ -421,6 +412,15 @@ TGrabs parameters
 	.. seealso:: :func:`video_source`, 
 
 
+.. function:: tgrabs_use_threads(bool)
+
+	**default value:** true
+
+
+	Use threads to process images (specifically the blob detection).
+
+
+
 .. function:: threshold(int)
 
 	**default value:** 9
@@ -464,6 +464,15 @@ TGrabs parameters
 
 
 	If set to a valid value (!= -1), start and end values determine the range converted.
+
+
+
+.. function:: video_reading_use_threads(bool)
+
+	**default value:** true
+
+
+	Use threads to read images from a video file.
 
 
 
