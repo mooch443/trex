@@ -4,6 +4,7 @@
 #include <tracking/Tracker.h>
 #include <tracker/misc/default_config.h>
 #include <gui/GUICache.h>
+#include <misc/CommandLine.h>
 
 template<typename... Args>
 void ASSERT(bool condition, const Args&... args) {
@@ -12,10 +13,13 @@ void ASSERT(bool condition, const Args&... args) {
 	}
 }
 
-int main() {
+int main(int argc, char**argv) {
 	using namespace track;
 	default_config::register_default_locations();
 	GlobalSettings::map().set_do_print(true);
+
+	CommandLine cmd(argc, argv);
+	cmd.cd_home();
 
 	gui::init_errorlog();
 	set_thread_name("main");
@@ -139,15 +143,20 @@ int main() {
 		print("Image: ", Size2(file.average()));
 		tracker.set_average(std::make_unique<Image>(file.average()));
 
-		PPFrame frame;
-		pv::Frame single;
-		Frame_t index(0);
-
 		GUICache cache{&graph, &file};
+
+		std::atomic<double> fps{ 0.0 };
 
 		//Tracker::set_of_individuals_t active;
 		std::thread tracking([&]() {
-			while (true) {
+			PPFrame frame;
+			pv::Frame single;
+			Frame_t index(0);
+			Timer timer;
+			double time_per_frame = 0;
+			double samples = 0;
+
+			while (!SETTING(terminate)) {
 				file.read_frame(single, index.get());
 
 				frame.clear();
@@ -167,18 +176,34 @@ int main() {
 					index += 1_f;
 				else
 					break;
+
+				++samples;
+				time_per_frame += timer.elapsed();
+				if (samples >= 100) {
+					time_per_frame = time_per_frame / samples;
+					samples = 1;
+					fps = 1.0 / time_per_frame;
+				}
+				timer.reset();
 			}
 		});
+
+		Frame_t index(0);
+		//FrameInfo frameinfo;
 
 		IMGUIBase base("BBC Micro owl", graph, [&]() -> bool {
 			auto dt = timer.elapsed();
 			cache.set_dt(dt);
 			timer.reset();
 
-			graph.text("BBC MicroOwl", Vec2(10, 10), White.alpha(255), Font(1));
+			auto h = graph.text("BBC MicroOwl", Vec2(10, 10), White.alpha(255), Font(1), graph.scale().reciprocal() * gui::interface_scale())->local_bounds().height;
+			float w = 10;
+			w += graph.text(dec<2>(fps.load()).toStr() + "fps", Vec2(w, 10 + h), Cyan.alpha(200), Font(0.75), graph.scale().reciprocal() * gui::interface_scale())->local_bounds().width + 10;
+			graph.text("("+cache.tracked_frames.end.toStr() + "/" + Meta::toStr(file.length() - 1) + ")", Vec2(w, 10 + h), Gray.alpha(200), Font(0.75), graph.scale().reciprocal()* gui::interface_scale())->local_bounds().width + 10;
+
 			e.update([&](Entangled& e) {
 				e.add<Rect>(Bounds(graph.mouse_position(), Size2(100, 25)), White, Red);
-				});
+			});
 			graph.wrap_object(e);
 
 			//image.set_pos(last_mouse_pos);
@@ -188,7 +213,18 @@ int main() {
 			auto dim = ptr->window_dimensions().mul(scale * gui::interface_scale());
 			graph.draw_log_messages();//Bounds(Vec2(0), dim));
 
+			static Timer frame_timer;
+			if (frame_timer.elapsed() >= 1.0 / (double)SETTING(frame_rate).value<int>()) {
+				index += 1_f;
+				frame_timer.reset();
+			}
+
 			graph.section("fishbowl", [&](auto&, Section* s) {
+				if(cache.frame_idx == index) {
+					s->reuse_objects();
+					return;
+				}
+
 				track::Tracker::LockGuard guard("update", 1);
 				if (!guard.locked()) {
 					s->reuse_objects();
@@ -197,13 +233,15 @@ int main() {
 
 				s->set_scale(graph.scale().reciprocal());
 				cache.update_data(index);
+				//frameinfo.mx = graph.mouse_position().x;
+				//frameinfo.frameIndex = index;
 
 				//print("Frame ", index, " active: ",active.size(), ".");
-				for (auto fish : Tracker::active_individuals(Tracker::end_frame())) {
-					if (fish->has(Tracker::end_frame())) {
-						auto [basic, posture] = fish->all_stuff(tracker.end_frame());
+				for (auto fish : Tracker::active_individuals(index)) {
+					if (fish->has(index)) {
+						auto [basic, posture] = fish->all_stuff(index);
 						//print("\t", fish->identity().name(), " has frame ", index, " at ", basic->centroid.pos<Units::PX_AND_SECONDS>());
-						graph.circle(basic->centroid.pos<Units::PX_AND_SECONDS>() * 0.25, 15, White, fish->identity().color());
+						graph.circle(basic->centroid.pos<Units::PX_AND_SECONDS>() * 0.25, 5, fish->identity().color(), fish->identity().color().alpha(150));
 					}
 				}
 			});
@@ -224,6 +262,9 @@ int main() {
 
 		ptr = &base;
 		base.loop();
+
+		SETTING(terminate) = true;
+		tracking.join();
 		
 	}
 	catch (const UtilsException& e) {
