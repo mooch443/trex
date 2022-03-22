@@ -6,7 +6,9 @@
 #include <tracking/PairingGraph.h>
 #include <misc/Timer.h>
 #include <misc/pretty.h>
+#if !COMMONS_NO_PYTHON
 #include <python/GPURecognition.h>
+#endif
 #include <gui/gui.h>
 #include <numeric>
 #include <tracking/DatasetQuality.h>
@@ -16,6 +18,8 @@
 #include <misc/SoftException.h>
 #include <misc/PixelTree.h>
 #include <tracking/SplitBlob.h>
+
+
 #include <tracking/Accumulation.h>
 #include <misc/default_settings.h>
 #include <gui/GUICache.h>
@@ -75,6 +79,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         return (float)std::sqrt(sq_sum / v.size());
     }
     
+#if !COMMONS_NO_PYTHON
     void Recognition::notify() {
         if(instance)
             instance->_notify();
@@ -206,6 +211,11 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         last_python_try = ret;
         return ret;
     }
+#else
+bool Recognition::python_available() {
+    return false;
+}
+#endif
     
     Recognition::Recognition() : //_pool(cmn::hardware_concurrency()),
         _last_prediction_accuracy(-1), _trained(false), _has_loaded_weights(false),
@@ -213,9 +223,12 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
     {
         assert(!instance);
         instance = this;
+#if !COMMONS_NO_PYTHON
         fix_python(false);
+#endif
     }
 
+#if !COMMONS_NO_PYTHON
     void Recognition::fix_python(bool force_init, cmn::source_location loc) {
         static const auto app_name = SETTING(app_name).value<std::string>();
         if (!utils::contains(app_name, "TRex") && !utils::contains(app_name, "TGrabs")) {
@@ -319,6 +332,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             variable.notify_all();
         }
     }
+#endif
     
     Recognition::~Recognition() {
         prepare_shutdown();
@@ -665,6 +679,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         return true;
     }
     
+#if !COMMONS_NO_PYTHON
     size_t Recognition::update_elig_frames(std::map<Frame_t, std::map<pv::bid, ImageData>>& waiting_for_pixels)
     {
         Tracker::LockGuard guard("update_elig_frames");
@@ -1149,6 +1164,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
         add_async_prediction();
         return false;
     }
+#endif
     
     void Recognition::Detail::clear() {
         std::lock_guard<std::mutex> guard(lock);
@@ -1329,6 +1345,8 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
             added_individuals_per_frame.erase(frame);
     }
     
+
+#if !COMMONS_NO_PYTHON
     bool Recognition::is_queue_full_enough() const {
         const auto video_length = Tracker::analysis_range().end;
         return _data_queue.size() >= SETTING(gpu_min_elements).value<uint32_t>()
@@ -1673,7 +1691,7 @@ void Recognition::load_weights(std::string postfix) {
         if(acc < good_enough)
             FormatWarning("Prediction accuracy for the trained network was lower than it should be (",dec<2>(acc*100),"%, and random is ",dec<2>(random_chance * 100),"% for ",FAST_SETTINGS(track_max_individuals)," individuals). Proceed with caution.");
     }
-    
+ #endif   
     bool FrameRanges::contains(Frame_t frame) const {
         for(auto &range : ranges) {
             if(range.end == frame || range.contains(frame))
@@ -1762,6 +1780,7 @@ void Recognition::load_weights(std::string postfix) {
         return ranges;
     }
 
+#if !COMMONS_NO_PYTHON
     void Recognition::reinitialize_network() {
         auto running = set_running(true, "reinitialize_network");
         std::future<bool> future;
@@ -2096,4 +2115,9 @@ void Recognition::load_weights(std::string postfix) {
     bool Recognition::recognition_enabled() {
         return FAST_SETTINGS(recognition_enable);
     }
+#else
+bool Recognition::recognition_enabled() {
+    return false;
+}
+#endif
 }

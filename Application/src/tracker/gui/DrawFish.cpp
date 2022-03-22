@@ -1,10 +1,8 @@
 #include "DrawFish.h"
 #include <gui/DrawSFBase.h>
 #include <misc/OutputLibrary.h>
-#include <cmath>
 #include <tracking/Individual.h>
 #include <tracking/VisualField.h>
-#include <gui.h>
 #include <misc/CircularGraph.h>
 #include <misc/create_struct.h>
 #include <gui/DrawMenu.h>
@@ -15,6 +13,7 @@
 #include <gui/DrawBase.h>
 #include <tracking/DetectTag.h>
 #include <gui/GUICache.h>
+#include <gui.h>
 
 using namespace track;
 
@@ -64,7 +63,7 @@ Fish::~Fish() {
         _view.on_hover([](auto e) {
             if(!GUI::instance() || !e.hover.hovered)
                 return;
-            GUI::cache().set_tracking_dirty();
+            GUICache::instance().set_tracking_dirty();
         });
         _view.on_click([ID, this](auto) {
             std::vector<Idx_t> selections = SETTING(gui_focus_group);
@@ -193,11 +192,13 @@ Fish::~Fish() {
             _basic_stuff = _basic;
             _posture_stuff = _posture;
             
+#if !COMMONS_NO_PYTHON
             if(frameIndex == _safe_idx && _basic) {
                 auto c = Categorize::DataStore::_label_averaged_unsafe(&_obj, Frame_t(frameIndex));
                 if(c)
                     _avg_cat = c->id;
             }
+#endif
             
             auto color_source = GUIOPTION(gui_fish_color);
             if(color_source != "identity" && _blob) {
@@ -1223,6 +1224,7 @@ void Fish::label(Drawable* bowl, Entangled &base) {
     //auto raw_cat = Categorize::DataStore::label(Frame_t(_idx), blob);
     //auto cat = Categorize::DataStore::label_interpolated(_obj.identity().ID(), Frame_t(_idx));
 
+#if !COMMONS_NO_PYTHON
     auto c = GUI::cache().processed_frame.cached(_obj.identity().ID());
     if(c) {
         auto cat = c->current_category;
@@ -1243,6 +1245,7 @@ void Fish::label(Drawable* bowl, Entangled &base) {
         if(c)
             secondary_text += (_avg_cat != -1 ? std::string(" ") : std::string()) + "<nr>" + c->name + "</nr>";
     }
+#endif
     
     auto label_text = (color.empty() ? text.str() : ("<"+color+">"+text.str()+"</"+color+">")) + "<a>" + secondary_text + "</a>";
     if (!_label) {

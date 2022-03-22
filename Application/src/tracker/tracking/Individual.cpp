@@ -68,6 +68,7 @@ std::string Identity::raw_name() const {
     return _name;
 }
 
+#if !COMMONS_NO_PYTHON
 bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
     auto seg = segment_for(frame);
     if (!seg) {
@@ -94,6 +95,7 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
 
     return false;
 }
+#endif
 
 void Individual::add_tag_image(const tags::Tag& tag) {
     assert(tag.frame.valid());
@@ -1097,6 +1099,7 @@ T& operator |=(T &lhs, Enum rhs)
     return lhs;
 }
 
+#if !COMMONS_NO_PYTHON
 struct Predictions {
     Frame_t  _segment_start;
     Idx_t individual;
@@ -1271,6 +1274,7 @@ ska::bytell_hash_map<Frame_t, std::tuple<int64_t, float>> Individual::qrcodes() 
     std::unique_lock guard(_qrcode_mutex);
     return _qrcode_identities;
 }
+#endif
 
 std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(Frame_t frameIndex, const MotionRecord& current, Frame_t prev_frame, const pv::CompressedBlob* blob, prob_t current_prob)
 {
@@ -1298,6 +1302,7 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(F
     error_code |= Reasons::WeirdDistance         * uint32_t(FAST_SETTINGS(track_end_segment_for_speed) && current.speed<Units::CM_AND_SECONDS>() >= weird_distance());
     error_code |= Reasons::MaxSegmentLength      * uint32_t(FAST_SETTINGS(track_segment_max_length) > 0 && segment && segment->length() / float(FAST_SETTINGS(frame_rate)) >= FAST_SETTINGS(track_segment_max_length));
     
+#if !COMMONS_NO_PYTHON
     //! do we need to start a new segment?
     if (SETTING(tags_recognize) && !_qrcodes.empty() && segment && (error_code != 0 || (!_last_requested_qrcode.valid() && _last_requested_qrcode + 500_f < frameIndex))) {
         auto it = _qrcodes.find(segment->start());
@@ -1341,6 +1346,7 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(F
             }
         }
     }
+#endif
 
     if(frameIndex == _startFrame || error_code != 0) {
         if(!_frame_segments.empty()) {
@@ -1362,9 +1368,11 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(F
         segment = std::make_shared<SegmentInformation>(Range<Frame_t>(frameIndex, frameIndex), !blob || blob->split() ? Frame_t() : frameIndex);
         _frame_segments.push_back(segment);
         
+#if !COMMONS_NO_PYTHON
         //! Update recognition if enabled
         if(Recognition::recognition_enabled())
             Recognition::notify();
+#endif
         
     } else if(prev_frame == frameIndex - 1_f) {
         assert(!_frame_segments.empty());
@@ -1987,7 +1995,8 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     const MotionRecord* previous_p = nullptr;
     double previous_t = 0;
     Frame_t previous_f;
-    
+
+#if !COMMONS_NO_PYTHON
     std::unordered_map<int, size_t> labels;
     size_t samples = 0;
     
@@ -2003,7 +2012,8 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
             return true;
         });
     }
-    
+#endif
+
     // cm/s / (cm/px)
     // (cm/s)^2 / (cm/px)^2 = (cm^2/s^2) / (cm^2/px^2) = 1 * px^2/s^2
     const auto track_max_px_sq = SQR(cache.track_max_speed_px);
@@ -2089,7 +2099,8 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
         //! \mean{\mathbf{a}}_i(t) = \mathbf{U}\left( \frac{1}{F(t)-F(\tau)+5} \sum_{k \in [F(\tau)-5, F(t)]} \mathbf{a}_i(\Tau(k)) \right)
         raw_acc /= prob_t(used_frames);
     }
-    
+
+#if !COMMONS_NO_PYTHON
     double max_samples = 0, mid = -1;
     for(auto & [l, n] : labels) {
         auto N = n / double(samples);
@@ -2100,6 +2111,9 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     }
     
     cache.current_category = int(mid);
+#else
+    cache.current_category = -1;
+#endif
     
     const MotionRecord* c = pp ? &pp->centroid : nullptr; //centroid_weighted(cache.previous_frame);
     

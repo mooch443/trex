@@ -4,10 +4,6 @@
 #include <tracking/Individual.h>
 #include <file/DataFormat.h>
 
-namespace gui {
-class DrawStructure;
-}
-
 namespace track {
 namespace Categorize {
 
@@ -15,19 +11,81 @@ struct Label {
     using Ptr = std::shared_ptr<Label>;
     std::string name;
     int id;
-    
+
     template<typename... Args>
     static Ptr Make(Args&&...args) {
         return std::make_shared<Label>(std::forward<Args>(args)...);
     }
-    
+
     Label(const std::string& name, int id) : name(name), id(id) {
-        if(id == -1) {
+        if (id == -1) {
             static int _ID = 0;
             id = _ID++;
         }
     }
 };
+
+struct Probabilities {
+    std::unordered_map<int, float> summary;
+    size_t samples = 0;
+    bool valid() const {
+        return samples != 0;
+    }
+};
+
+struct RangedLabel {
+    FrameRange _range;
+    int _label = -1;
+    std::vector<pv::bid> _blobs;
+    Frame_t _maximum_frame_after;
+
+    bool operator<(const Frame_t& other) const {
+        return _range.end() < other;
+    }
+    bool operator>(const Frame_t& other) const {
+        return _range.end() > other;
+    }
+    bool operator<(const RangedLabel& other) const {
+        return _range.end() < other._range.end() || (_range.end() == other._range.end() && _range.start() < other._range.start());
+    }
+    bool operator>(const RangedLabel& other) const {
+        return _range.end() > other._range.end() || (_range.end() == other._range.end() && _range.start() < other._range.start());
+    }
+};
+
+}
+}
+
+namespace gui {
+    class DrawStructure;
+}
+
+namespace track {
+namespace Categorize {
+#if COMMONS_NO_PYTHON
+struct DataStore {
+    static void write(file::DataFormat&, int version); // read from file
+    static void read(file::DataFormat&, int version); // load from file
+    static std::mutex& mutex() {
+        static std::mutex _mutex;
+        return _mutex;
+    }
+    static std::shared_mutex& cache_mutex() {
+        static std::shared_mutex _mutex;
+        return _mutex;
+    }
+    static std::shared_mutex& range_mutex() {
+        static std::shared_mutex _mutex;
+        return _mutex;
+    }
+    static std::shared_mutex& frame_mutex() {
+        static std::shared_mutex _mutex;
+        return _mutex;
+    }
+};
+
+#else
+
 
 struct Sample {
     using Ptr = std::shared_ptr<Sample>;
@@ -66,34 +124,6 @@ struct Sample {
         if(_assigned_label != nullptr)
             throw U_EXCEPTION("Replacing label for sample (was already assigned '",_assigned_label->name.c_str(),"', but now also '",label->name.c_str(),"').");
         _assigned_label = label;
-    }
-};
-
-struct Probabilities {
-    std::unordered_map<int, float> summary;
-    size_t samples = 0;
-    bool valid() const {
-        return samples != 0;
-    }
-};
-
-struct RangedLabel {
-    FrameRange _range;
-    int _label = -1;
-    std::vector<pv::bid> _blobs;
-    Frame_t _maximum_frame_after;
-    
-    bool operator<(const Frame_t& other) const {
-        return _range.end() < other;
-    }
-    bool operator>(const Frame_t& other) const {
-        return _range.end() > other;
-    }
-    bool operator<(const RangedLabel& other) const {
-        return _range.end() < other._range.end() || (_range.end() == other._range.end() && _range.start() < other._range.start());
-    }
-    bool operator>(const RangedLabel& other) const {
-        return _range.end() > other._range.end() || (_range.end() == other._range.end() && _range.start() < other._range.start());
     }
 };
 
@@ -221,6 +251,7 @@ file::Path output_location();
 void clear_labels();
 
 bool weights_available();
+#endif
 
 }
 }

@@ -1,4 +1,6 @@
 #include "CheckUpdates.h"
+
+#if !COMMONS_NO_PYTHON
 #include <misc/GlobalSettings.h>
 #include <misc/metastring.h>
 #include <python/GPURecognition.h>
@@ -317,3 +319,4 @@ std::future<VersionStatus> perform(bool manually_triggered) {
 
 }
 }
+#endif

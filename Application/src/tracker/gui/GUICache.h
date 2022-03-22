@@ -10,6 +10,52 @@ class Timer;
 namespace track { class Individual; }
 
 namespace gui {
+    namespace globals {
+    CREATE_STRUCT(Cache,
+        (bool, gui_run),
+        (gui::mode_t::Class, gui_mode),
+        (bool, nowindow),
+        (bool, auto_train),
+        (bool, auto_apply),
+        (bool, auto_quit),
+        (Frame_t, gui_frame),
+        (bool, terminate),
+        (bool, gui_show_blobs),
+        (bool, gui_show_paths),
+        //(bool, gui_show_manual_matches),
+        (bool, gui_show_texts),
+        (bool, gui_show_selections),
+        (bool, gui_show_inactive_individuals),
+        (bool, gui_show_outline),
+        (bool, gui_show_midline),
+        (bool, gui_show_posture),
+        (bool, gui_show_heatmap),
+        (bool, gui_show_number_individuals),
+        (bool, gui_show_dataset),
+        (bool, gui_show_recognition_summary),
+        (bool, gui_show_visualfield),
+        (bool, gui_show_visualfield_ts),
+        (bool, gui_show_export_options),
+        (bool, gui_show_recognition_bounds),
+        (bool, gui_show_midline_histogram),
+        (bool, gui_show_histograms),
+        (bool, gui_auto_scale),
+        (bool, gui_auto_scale_focus_one),
+        (uint16_t, output_min_frames),
+        (gui::Color, gui_background_color),
+        (bool, gui_equalize_blob_histograms),
+        (float, gui_playback_speed),
+        (int, frame_rate),
+        (float, gui_interface_scale),
+        (default_config::output_format_t::Class, output_format),
+        (uchar, gui_timeline_alpha),
+        (bool, gui_happy_mode),
+        (bool, auto_categorize)
+    )
+    }
+
+#define GUI_SETTINGS(NAME) gui::globals::Cache::copy< gui::globals::Cache:: NAME >()
+
     struct SimpleBlob {
         pv::BlobPtr blob;
         int threshold;
@@ -24,6 +70,9 @@ namespace gui {
     using namespace track;
     
     class GUICache {
+        pv::File* _video{ nullptr };
+        gui::DrawStructure* _graph{ nullptr };
+
     public:
         int last_threshold = -1;
         Frame_t last_frame;
@@ -53,6 +102,8 @@ namespace gui {
         
     public:
         bool recognition_updated = false;
+
+        static GUICache& instance();
         
         Range<Frame_t> tracked_frames;
         std::atomic_bool connectivity_reload;
@@ -90,7 +141,7 @@ namespace gui {
         
         PPFrame processed_frame;
         std::vector<Idx_t> selected;
-        std::atomic<uint64_t> _current_pixels = 0;
+        cmn::atomic<uint64_t> _current_pixels = 0;
         std::atomic<double> _average_pixels = 0;
         
     public:
@@ -125,6 +176,9 @@ namespace gui {
         bool is_tracking_dirty() { return _tracking_dirty; }
         bool must_redraw() const;
     
+        GUICache(gui::DrawStructure*, pv::File*);
         ~GUICache();
     };
 }
+
+STRUCT_META_EXTENSIONS(gui::globals::Cache)

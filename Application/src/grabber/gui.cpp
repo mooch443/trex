@@ -477,6 +477,7 @@ void GUI::draw(gui::DrawStructure &base) {
                 auto tracker = _grabber.tracker_instance();
                 auto individuals = tracker->active_individuals();
 
+#if !COMMONS_NO_PYTHON
                 std::map<int64_t, std::tuple<float, float>> speeds;
 
                 for (auto& [fdx, fish] : tracker->individuals()) {
@@ -527,6 +528,7 @@ void GUI::draw(gui::DrawStructure &base) {
                     base.text(Meta::toStr(std::get<0>(tup) / std::get<1>(tup)) + "cm/s", pos + Vec2(70, 0), White, Font(0.5), scale);
                     pos += Vec2(0, 50);
                 }
+#endif
 
                 for (auto& fish : individuals) {
                     if (fish->has(tracker->end_frame())) {

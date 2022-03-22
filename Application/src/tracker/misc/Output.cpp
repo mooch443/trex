@@ -405,11 +405,14 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         
         const Match::prob_t p_threshold = FAST_SETTINGS(matching_probability_threshold);
         
+#if !COMMONS_NO_PYTHON
         auto label =
             FAST_SETTINGS(track_consistent_categories)
                 ? Categorize::DataStore::ranged_label(frameIndex, data.stuff->blob)
                 : nullptr;
-        
+#else
+        Categorize::Label::Ptr label = nullptr;
+#endif
         Match::prob_t p = p_threshold;
         if(!fish->empty()) {
             auto cache = fish->cache_for_frame(frameIndex, data.time, cache_ptr);
@@ -739,7 +742,9 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             float prob;
             ref.read<float>(prob);
 
+#if !COMMONS_NO_PYTHON
             fish->_qrcode_identities[Frame_t(frame)] = { id, prob };
+#endif
         }
     }
     
@@ -938,6 +943,7 @@ uint64_t Data::write(const Individual& val) {
         pack.write<MinimalOutline>(*outline);
     }
 
+#if !COMMONS_NO_PYTHON
     pack.write<uint64_t>(val._qrcode_identities.size());
     for (auto& [frame, match] : val._qrcode_identities) {
         pack.write<data_long_t>(frame.get());
@@ -946,6 +952,9 @@ uint64_t Data::write(const Individual& val) {
         pack.write<int32_t>(id);
         pack.write<float>(prob);
     }
+#else
+    pack.write<uint64_t>(0u);
+#endif
     
     //str = Meta::toStr(FileSize(pack.size()));
     //auto estimate = Meta::toStr(FileSize(pack_size));

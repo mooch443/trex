@@ -709,6 +709,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             return 0;
         });
 
+#if !COMMONS_NO_PYTHON
         _cache_func["category"] = LIB_NO_CHECK_FNC({
             auto blob = fish->compressed_blob(frame);
             if (blob) {
@@ -726,6 +727,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             }
             return gui::Graph::invalid();
         });
+#endif
         
         _cache_func["event_direction_change"] = LIBFNC({
             auto events = EventAnalysis::events();

@@ -7,7 +7,9 @@
 #include <gui/Transform.h>
 #include <tracking/Individual.h>
 #include <tracking/TrainingData.h>
+#if !COMMONS_NO_PYTHON
 #include <python/GPURecognition.h>
+#endif
 #include <misc/EnumClass.h>
 
 namespace track {
@@ -194,7 +196,9 @@ namespace track {
         Recognition();
         ~Recognition();
 
+#if !COMMONS_NO_PYTHON
         static void fix_python(bool force_init, cmn::source_location loc = cmn::source_location::current());
+#endif
         //float p(Frame_t frame, uint32_t blob_id, const Individual *fish);
         std::map<Idx_t, float> ps_raw(Frame_t frame, pv::bid blob_id);
         //bool has(Frame_t frame, uint32_t blob_id);
@@ -207,24 +211,26 @@ namespace track {
         static size_t number_classes();
         void prepare_shutdown();
         
+#if !COMMONS_NO_PYTHON
         void check_last_prediction_accuracy();
-        
         static bool train(std::shared_ptr<TrainingData> data, const FrameRange& global_range, TrainingMode::Class load_results, uchar gpu_max_epochs = 0, bool dont_save = false, float *worst_accuracy_per_class = NULL, int accumulation_step = -1);
+        static void check_learning_module(bool force_reload_variables = false);
+#endif
         static bool recognition_enabled();
         static bool network_weights_available();
         static bool can_initialize_python();
         static bool python_available();
-        static void check_learning_module(bool force_reload_variables = false);
         
         static std::tuple<Image::UPtr, Vec2> calculate_diff_image_with_settings(const default_config::recognition_normalization_t::Class &normalize, const pv::BlobPtr& blob, const Recognition::ImageData& data, const Size2& output_shape);
 
+#if !COMMONS_NO_PYTHON
         //float available_weights_accuracy(std::shared_ptr<TrainingData> data);
         void load_weights(std::string postfix = "");
         static file::Path network_path();
-        
-        void update_dataset_quality();
-        
+#endif
+
         static bool eligible_for_training(const Individual::BasicStuff*, const Individual::PostureStuff*, const TrainingFilterConstraints& constraints);
+        void update_dataset_quality();
         
         void remove_frames(Frame_t after);
         void remove_individual(Individual*);
@@ -235,15 +241,20 @@ namespace track {
         void clear_filter_cache();
         std::set<Range<Frame_t>> trained_ranges();
         
+#if !COMMONS_NO_PYTHON
         static void notify();
         std::vector<std::vector<float>> predict_chunk(const std::vector<Image::Ptr>&);
         void predict_chunk_internal(const std::vector<Image::Ptr>&, std::vector<std::vector<float>>&);
         void reinitialize_network();
+#endif
         
     private:
+#if !COMMONS_NO_PYTHON
         void add_async_prediction();
+#endif
         bool cached_filter(const Individual *fish, const Range<Frame_t>& segment, TrainingFilterConstraints&, const bool with_std);
         
+#if !COMMONS_NO_PYTHON
         bool load_weights_internal(std::string postfix = "");
         bool train_internally(std::shared_ptr<TrainingData> data, const FrameRange& global_range, TrainingMode::Class load_results, uchar gpu_max_epochs, bool dont_save, float *worst_accuracy_per_class, int accumulation_step);
         bool update_internal_training();
@@ -282,5 +293,6 @@ namespace track {
         std::shared_ptr<LockVariable<std::atomic_bool>> set_running(bool guarded, const std::string& reason);
         void stop_running();
         size_t update_elig_frames(std::map<Frame_t, std::map<pv::bid, ImageData>>&);
+#endif
     };
 }

@@ -1,4 +1,5 @@
 #pragma once
+#if !COMMONS_NO_PYTHON
 #include <commons/common/commons.pc.h>
 
 namespace track {
@@ -26,3 +27,4 @@ void write_version_file();
 
 }
 }
+#endif

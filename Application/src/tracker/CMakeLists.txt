@@ -62,12 +62,13 @@ add_executable(properties properties.cpp
 
 target_link_libraries(properties 
     PUBLIC 
+        tracker_gui
         tracker_tracking
         tracker_misc
         commons 
         pv)
 
-if(NOT COMMONS_NO_PYTHON)
+if(NOT COMMONS_NO_PYTHON AND NOT TREX_NO_PYTHON)
     target_link_libraries(properties 
         PUBLIC tracker_python)
 endif()
@@ -88,9 +89,10 @@ target_link_libraries(${TREX_EXEC_NAME} PUBLIC
 	commons
 )
 
-if(NOT COMMONS_NO_PYTHON)
+if(NOT ${COMMONS_NO_PYTHON} AND NOT ${TREX_NO_PYTHON})
     target_link_libraries(${TREX_EXEC_NAME} 
         PUBLIC tracker_python)
+    message(STATUS "Linking tracker_python")
 endif()
 
 if(WITH_HTTPD)
@@ -188,7 +190,7 @@ elseif(WIN32)
                 "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/${comp_s}")
     endforeach()
     
-else()
+elseif(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 	message(STATUS "Copying files ${RESOURCE_COPY_SINGLE_FILES}")
     foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
         get_filename_component(comp_s ${comp} NAME)

@@ -3,12 +3,19 @@
 #include <misc/GlobalSettings.h>
 #include <tracking/Tracker.h>
 #include <gui/DrawFish.h>
-#include <gui/gui.h>
 #include <tracking/Categorize.h>
 
 namespace gui {
     static std::unique_ptr<std::thread> percentile_ptr = nullptr;
     static std::mutex percentile_mutex;
+    static GUICache* _cache{ nullptr };
+    static GenericThreadPool _pool(cmn::hardware_concurrency(), nullptr, "GUICache::_pool");
+
+    GUICache& GUICache::instance() {
+        if (!_cache)
+            throw U_EXCEPTION("No cache created yet.");
+        return *_cache;
+    }
 
     SimpleBlob::SimpleBlob(std::unique_ptr<ExternalImage>&& available, pv::BlobPtr b, int t)
         : blob(b), threshold(t), ptr(std::move(available))
@@ -17,6 +24,13 @@ namespace gui {
         if (!ptr->source()) {
             ptr->set_source(Image::Make());
         }
+    }
+
+    GUICache::GUICache(DrawStructure* graph, pv::File* video)
+        : _graph(graph), _video(video)
+    {
+        _cache = this;
+        globals::Cache::init();
     }
 
     GUICache::~GUICache() {
@@ -30,8 +44,8 @@ namespace gui {
     void SimpleBlob::convert() {
         Vec2 image_pos;
         
-        auto &percentiles = GUI::cache().pixel_value_percentiles;
-        if (GUI::cache()._equalize_histograms && !percentiles.empty()) {
+        auto &percentiles = GUICache::instance().pixel_value_percentiles;
+        if (GUICache::instance()._equalize_histograms && !percentiles.empty()) {
             image_pos = blob->equalized_luminance_alpha_image(*Tracker::instance()->background(), threshold, percentiles.front(), percentiles.back(), ptr->unsafe_get_source());
         } else {
             image_pos = blob->luminance_alpha_image(*Tracker::instance()->background(), threshold, ptr->unsafe_get_source());
@@ -128,8 +142,8 @@ namespace gui {
     }
     
     void GUICache::set_redraw() {
-        if(GUI::instance())
-            GUI::instance()->gui().set_dirty(nullptr);
+        //if(GUI::instance())
+        //    GUI::instance()->gui().set_dirty(nullptr);
         _dirty = true;
     }
     
@@ -154,7 +168,7 @@ namespace gui {
     void GUICache::update_data(Frame_t frameIndex) {
         const auto threshold = FAST_SETTINGS(track_threshold);
         auto& _tracker = *Tracker::instance();
-        auto& _gui = GUI::instance()->gui();
+        auto& _gui = *_graph;
         _equalize_histograms = GUI_SETTINGS(gui_equalize_blob_histograms);
         
         frame_idx = frameIndex;
@@ -165,10 +179,10 @@ namespace gui {
             if(!done_calculating && !percentile_ptr) {
                 percentile_ptr = std::make_unique<std::thread>([this](){
                     cmn::set_thread_name("percentile_thread");
-                    auto percentiles = GUI::instance()->video_source()->calculate_percentiles({0.05f, 0.95f});
+                    auto percentiles = _video->calculate_percentiles({0.05f, 0.95f});
                     
-                    if(GUI::instance()) {
-                        std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
+                    if(_graph) {
+                        std::lock_guard<std::recursive_mutex> guard(_graph->lock());
                         pixel_value_percentiles = percentiles;
                     }
                     
@@ -209,10 +223,10 @@ namespace gui {
             tracked_frames = Range<Frame_t>(_tracker.start_frame(), _tracker.end_frame());
             
             auto delete_callback = [this](Individual* fish) {
-                if(!GUI::instance())
+                if(!_graph)
                     return;
                 
-                std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
+                std::lock_guard<std::recursive_mutex> guard(_graph->lock());
                 
                 auto id = fish->identity().ID();
                 auto it = individuals.find(id);
@@ -273,7 +287,7 @@ namespace gui {
                 }
                 
                 fish->register_delete_callback((void*)133742, [this](auto){
-                    std::lock_guard<std::recursive_mutex> guard(GUI::instance()->gui().lock());
+                    std::lock_guard<std::recursive_mutex> guard(_graph->lock());
                     active.clear();
                     individuals.clear();
                     active_blobs.clear();
@@ -346,11 +360,8 @@ namespace gui {
                         prev_active = _tracker.active_individuals(frameIndex - 1_f);
                     
                     try {
-                        auto file = static_cast<pv::File*>(GUI::instance()->video_source());
-                        file->read_frame(processed_frame.frame(), frameIndex.get());
-                        
-                        std::lock_guard<std::mutex> guard(GUI::instance()->blob_thread_pool_mutex());
-                        Tracker::instance()->preprocess_frame(processed_frame, prev_active, &GUI::instance()->blob_thread_pool());
+                        _video->read_frame(processed_frame.frame(), frameIndex.get());
+                        Tracker::instance()->preprocess_frame(processed_frame, prev_active, &_pool);
                         
                     } catch(const UtilsException&) {
                         FormatExcept("Frame ", frameIndex," cannot be loaded from file.");
@@ -476,6 +487,7 @@ namespace gui {
                  */
                 _ranged_blob_labels.clear();
                 
+#if !COMMONS_NO_PYTHON
                 std::shared_lock guard(Categorize::DataStore::range_mutex());
                 if(!Categorize::DataStore::_ranges_empty_unsafe()) {
                     Frame_t f(frameIndex);
@@ -502,6 +514,7 @@ namespace gui {
                         }
                     }
                 }
+#endif
             }
             
             boundary = Bounds(min_vec, max_vec - min_vec);
@@ -517,7 +530,7 @@ namespace gui {
             if(it == _animators.end()) {
                 _animators.insert(obj);
                 _delete_handles[obj] = obj->on_delete([this, obj](){
-                    if(!GUI::instance())
+                    if(!_graph)
                         return;
                     this->set_animating(obj, false);
                 });

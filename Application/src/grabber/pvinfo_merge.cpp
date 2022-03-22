@@ -151,8 +151,8 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     }
     
     struct Source {
-        size_t video_index;
-        size_t frame_index;
+        uint64_t video_index;
+        uint64_t frame_index;
         pv::bid blob_id;
     };
     
@@ -251,9 +251,9 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             break;
         
         std::vector<pv::BlobPtr> ptrs;
-        std::vector<size_t> indexes;
+        std::vector<uint64_t> indexes;
         
-        for(size_t vdx = 0; vdx < files.size(); ++vdx) {
+        for(uint64_t vdx = 0; vdx < files.size(); ++vdx) {
             auto &file = files.at(vdx);
             file->read_frame(f, frame);
             if(!vdx) o.set_timestamp(timestamp_offset.get() + f.timestamp());

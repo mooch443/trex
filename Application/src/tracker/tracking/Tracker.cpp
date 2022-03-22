@@ -14,7 +14,9 @@
 #include <misc/ProximityGrid.h>
 #include <tracking/Recognition.h>
 #include <misc/default_settings.h>
+#if !COMMONS_NO_PYTHON
 #include <python/GPURecognition.h>
+#endif
 #include <misc/pretty.h>
 #include <tracking/DatasetQuality.h>
 //#include <gui/gui.h>
@@ -440,7 +442,9 @@ void Tracker::analysis_state(AnalysisState pause) {
         recognition_pool.force_stop();
         _recognition->prepare_shutdown();
         Match::PairingGraph::prepare_shutdown();
+#if !COMMONS_NO_PYTHON
         PythonIntegration::quit();
+#endif
     }
 
     Frame_t Tracker::update_with_manual_matches(const Settings::manual_matches_t& manual_matches) {
@@ -545,6 +549,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         history_split(frame, _active_individuals, history_log != nullptr && history_log->is_open() ? history_log.get() : nullptr, &_thread_pool);
         add(frame.index(), frame);
         
+#if !COMMONS_NO_PYTHON
         //! Update recognition if enabled and end of video reached
         //if(Recognition::recognition_enabled()) 
         {
@@ -554,6 +559,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                     Recognition::notify();
             }
         }
+#endif
         
         std::lock_guard<std::mutex> lguard(_statistics_mutex);
         _statistics[frame.index()].adding_seconds = (float)overall_timer.elapsed();
@@ -790,6 +796,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                         }
                     }
                     
+#if !COMMONS_NO_PYTHON
                     if(!only_allowed.empty()) {
                         auto ldx = Categorize::DataStore::_ranged_label_unsafe(Frame_t(result->frame_index), ptr->blob_id());
                         if(ldx == -1 || !contains(only_allowed, Categorize::DataStore::label(ldx)->name)) {
@@ -797,6 +804,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                             continue;
                         }
                     }
+#endif
                     
                     //! only after all the checks passed, do we commit the blob
                     /// to the "filtered" array:
@@ -822,6 +830,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                     big_blobs,
                     {});
 
+#if !COMMONS_NO_PYTHON
         if (!only_allowed.empty()) {
             for (auto it = big_blobs.begin(); it != big_blobs.end(); ) {
                 auto ldx = Categorize::DataStore::_ranged_label_unsafe(Frame_t(result->frame_index), (*it)->blob_id());
@@ -833,6 +842,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                 ++it;
             }
         }
+#endif
 
         if (!big_blobs.empty()) {
             result->commit(big_blobs);
@@ -1596,6 +1606,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         //std::vector<std::tuple<const pv::BlobPtr*, int>> unassigned_blobs;
         //unassigned_blobs.reserve(frame.blobs().size());
         
+#if !COMMONS_NO_PYTHON
         const bool enable_labels = FAST_SETTINGS(track_consistent_categories) || !FAST_SETTINGS(track_only_categories).empty();
         if(enable_labels) {
             for(size_t i=0; i<frame.blobs().size(); ++i) {//auto &p : frame.blobs) {
@@ -1609,12 +1620,15 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 }
             }
         } else {
+#endif
             for(size_t i=0; i<frame.blobs().size(); ++i) {
                 if(!blob_assigned.at(frame.blobs()[i].get()))
                     unassigned_blobs.push_back(i);
             }
+#if !COMMONS_NO_PYTHON
         }
-        
+#endif
+
         const auto N_blobs = unassigned_blobs.size();
         const auto N_fish  = unassigned_individuals.size();
         const auto matching_probability_threshold = FAST_SETTINGS(matching_probability_threshold);
@@ -3210,6 +3224,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         
         update_warnings(frameIndex, frame.time, number_fish, n, prev, props, prev_props, _active_individuals, _individual_add_iterator_map);
         
+#if !COMMONS_NO_PYTHON
         if (save_tags || !frame.tags().empty()) {
             // find match between tags and individuals
             Match::PairedProbabilities paired;
@@ -3268,6 +3283,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             frame.tags().clear(); // is invalidated now
             _thread_pool.wait();
         }
+#endif
         
         std::lock_guard<std::mutex> guard(_statistics_mutex);
         _statistics[frameIndex].number_fish = assigned_count;
@@ -3567,7 +3583,9 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
     }
     
     void Tracker::_remove_frames(Frame_t frameIndex) {
+#if !COMMONS_NO_PYTHON
         Categorize::DataStore::reanalysed_from(Frame_t(frameIndex));
+#endif
         
         LockGuard guard("_remove_frames("+Meta::toStr(frameIndex)+")");
         recognition_pool.wait();

@@ -13,13 +13,13 @@
 #include <tracker/misc/OutputLibrary.h>
 #include <tracking/Export.h>
 #include <tracker/misc/Output.h>
-#include <python/GPURecognition.h>
 #include <tracking/VisualField.h>
 #include <grabber/default_config.h>
-#if !defined(__EMSCRIPTEN__)
+#if !COMMONS_NO_PYTHON
 #include <pybind11/numpy.h>
-#include <tracking/Recognition.h>
+#include <python/GPURecognition.h>
 #endif
+#include <tracking/Recognition.h>
 #include <misc/SpriteMap.h>
 #include <misc/create_struct.h>
 
@@ -593,7 +593,7 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
         Output::Library::Init();
     }
     
-#if !TREX_NO_PYTHON
+#if !COMMONS_NO_PYTHON
     if (GRAB_SETTINGS(enable_closed_loop) 
 #if defined(TAGS_ENABLE)
         || GRAB_SETTINGS(tags_recognize)
@@ -781,6 +781,7 @@ FrameGrabber::~FrameGrabber() {
         _tracker_thread->join();
         delete _tracker_thread;
         
+#if !COMMONS_NO_PYTHON
         if (GRAB_SETTINGS(enable_closed_loop) 
 #if defined(TAGS_ENABLE)
             || GRAB_SETTINGS(tags_recognize)
@@ -789,6 +790,7 @@ FrameGrabber::~FrameGrabber() {
         {
             Output::PythonIntegration::quit();
         }
+#endif
         
         SETTING(terminate) = false; // TODO: otherwise, stuff might not get exported
         
@@ -1167,6 +1169,7 @@ void FrameGrabber::update_tracker_queue() {
         }
     };
     
+#if !COMMONS_NO_PYTHON
     if(GRAB_SETTINGS(enable_closed_loop)) {
         track::PythonIntegration::async_python_function([&request_features]()
         {
@@ -1181,6 +1184,7 @@ void FrameGrabber::update_tracker_queue() {
             
         }).get();
     }
+#endif
     
     static Timer print_quit_timer;
     static Timer loop_timer;
@@ -1236,6 +1240,7 @@ void FrameGrabber::update_tracker_queue() {
                     print("(tracker) ", tracker->individuals().size()," individuals");
                 }
                 
+#if !COMMONS_NO_PYTHON
 #define CL_HAS_FEATURE(NAME) (selected_features.find(CLFeature:: NAME) != selected_features.end())
                 auto& active = tracker->active_individuals(frame);
                 _tracker_current_individuals = active.size();
@@ -1388,6 +1393,7 @@ void FrameGrabber::update_tracker_queue() {
                         return true;
                     }).get();
                 }
+#endif
             }
             
             if(copy) {

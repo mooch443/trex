@@ -1,6 +1,6 @@
 #include "Accumulation.h"
 
-#if !TREX_NO_PYTHON
+#if !COMMONS_NO_PYTHON
 #include <gui/gui.h>
 #include <tracking/DatasetQuality.h>
 #include <tracking/TrainingData.h>
