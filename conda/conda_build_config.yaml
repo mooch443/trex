@@ -1,13 +1,14 @@
 SDKROOT:
   - /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk # [arm64]
-  - /opt/MacOSX10.13.sdk        # [osx and not arm64]
+  - /opt/MacOSX10.14.sdk        # [osx and not arm64]
 
 CONDA_BUILD_SYSROOT:
   - /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk # [arm64]
-  - /opt/MacOSX10.13.sdk        # [osx and not arm64]
+  - /opt/MacOSX10.14.sdk        # [osx and not arm64]
 
 MACOSX_DEPLOYMENT_TARGET:
-  - 10.13 # [osx and not arm64]
+  - 10.14 # [osx and not arm64]
+  - 11.1 # [osx and arm64]
 
 c_compiler:
 - vs2019 # [win]

@@ -45,9 +45,13 @@ else
             CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}")
         else
             echo "No GITHUB_WORKFLOW detected."
-            export CONDA_BUILD_SYSROOT="/opt/MacOSX10.13.sdk"
-            export MACOSX_DEPLOYMENT_TARGET="10.13"
-            CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=10.13")
+            #export CONDA_BUILD_SYSROOT=$(ls -d /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk | tail -n1)
+            export CONDA_BUILD_SYSROOT="/opt/MacOSX10.14.sdk"
+            export MACOSX_DEPLOYMENT_TARGET="10.14"
+            export SDKROOT="${CONDA_BUILD_SYSROOT}"
+            CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}")
+            export CXXFLAGS="${CXXFLAGS} -isysroot ${CONDA_BUILD_SYSROOT}"  # [osx]
+            export CFLAGS="${CFLAGS} -isysroot ${CONDA_BUILD_SYSROOT}"  # [osx]
         fi
     fi
     CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_SYSROOT=${CONDA_BUILD_SYSROOT}")
