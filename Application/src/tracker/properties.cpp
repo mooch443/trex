@@ -7,6 +7,9 @@
 #include <misc/CommandLine.h>
 #include <gui/Timeline.h>
 #include <gui/DrawFish.h>
+#include <gui/InfoCard.h>
+
+static std::unordered_map<const track::Individual*, std::unique_ptr<gui::Fish>> map;
 
 template<typename... Args>
 void ASSERT(bool condition, const Args&... args) {
@@ -129,6 +132,7 @@ void async_main(void*) {
 			});
 
 		FrameInfo frameinfo;
+		InfoCard card(nullptr);
 		
 		IMGUIBase base("TRex platik version", graph, [&]() -> bool {
 			static Timeline timeline(nullptr, [](bool) {}, []() {}, frameinfo);
@@ -151,18 +155,26 @@ void async_main(void*) {
 			if (frame_timer.elapsed() >= 1.0 / (double)SETTING(frame_rate).value<int>()
 				&& index.get() + 1 < file.length())
 			{
-				index += 1_f;
-				SETTING(gui_frame) = index;
+				if (SETTING(gui_run)) {
+					index += 1_f;
+					SETTING(gui_frame) = index;
+				}
 				frame_timer.reset();
 			}
 
+			frameinfo.mx = graph.mouse_position().x;
+			frameinfo.my = graph.mouse_position().y;
+			frameinfo.frameIndex = index;
+
 			graph.section("fishbowl", [&](auto&, Section* s) {
 				auto fb = ptr->window_dimensions().div(graph.scale());
-				s->set_scale(graph.scale().reciprocal() *
-					min(fb.width / double(file.average().cols),
-						fb.height / double(file.average().rows)));
+				//s->set_scale(graph.scale().reciprocal() *
+				//	min(fb.width / double(file.average().cols),
+				//		fb.height / double(file.average().rows)));
 
-				if (cache.frame_idx == index) {
+				cache.scale_with_boundary(cache.boundary, false, ptr, graph, s, true);
+
+				if (!cache.is_tracking_dirty() && !cache.blobs_dirty() && !cache._dirty) {
 					s->reuse_objects();
 					return;
 				}
@@ -178,13 +190,12 @@ void async_main(void*) {
 				//cv::cvtColor(tracker.average().get(), background, cv::COLOR_GRAY2RGBA);
 				//graph.image(Vec2(0), std::make_unique<Image>(background), Vec2(1), White.alpha(150));
 				graph.image(Vec2(0), std::make_unique<Image>(tracker.average().get()), Vec2(1), White.alpha(150));
-				frameinfo.mx = graph.mouse_position().x;
-				frameinfo.frameIndex = index;
 				frameinfo.analysis_range = tracker.analysis_range();
-				frameinfo.my = graph.mouse_position().y;
 				frameinfo.video_length = file.length();
 				frameinfo.consecutive = tracker.consecutive();
 				frameinfo.current_fps = fps;
+
+				card.update(graph, index);
 				//print("Frame ", index, " active: ",active.size(), ".");
 				for (auto& b : cache.raw_blobs) {
 					b->convert();
@@ -205,8 +216,6 @@ void async_main(void*) {
 					static Entangled entangle;
 					entangle.update([&](Entangled& e) {
 						auto props = tracker.properties(index);
-						static std::unordered_map<const Individual*, std::unique_ptr<gui::Fish>> map;
-
 						for (auto fish : Tracker::active_individuals(index)) {
 							if (fish->has(index)) {
 								auto [basic, posture] = fish->all_stuff(index);
@@ -237,6 +246,8 @@ void async_main(void*) {
 					entangle.set_bounds(Tracker::average().bounds());
 					graph.wrap_object(entangle);
 				}
+
+				cache.on_redraw();
 			});
 
 			//auto bds = graph.text("TRex", Vec2(20, 10), White.alpha(255), Font(1), graph.scale().reciprocal() * gui::interface_scale())->local_bounds();
@@ -246,13 +257,14 @@ void async_main(void*) {
 			//w += graph.text(dec<2>(fps.load()).toStr() + "fps", Vec2(w, 10 + h), Cyan.alpha(200), Font(0.75), graph.scale().reciprocal() * gui::interface_scale())->local_bounds().width + 10;
 			//graph.text("(tracked " + cache.tracked_frames.end.toStr() + "/" + Meta::toStr(file.length() - 1) + ")", Vec2(w, 10 + h), Color(200, 200, 200, 255).alpha(200), Font(0.75), graph.scale().reciprocal() * gui::interface_scale())->local_bounds().width + 10;
 
+
 			timeline.draw(graph);
+			if(cache.primary_selection())
+				graph.wrap_object(card);
 			/*e.update([&](Entangled& e) {
 				e.add<Rect>(Bounds(graph.mouse_position(), Size2(100, 25)), White, Red);
 				});
 			graph.wrap_object(e);*/
-
-			cache.on_redraw();
 
 			//tf::show();
 
@@ -265,6 +277,8 @@ void async_main(void*) {
 					}
 					else if (e.key.code == Codes::Escape)
 						terminate = true;
+					else if (e.key.code == Codes::Space)
+						SETTING(gui_run) = !SETTING(gui_run).value<bool>();
 				}
 				else if (e.type == EventType::WINDOW_RESIZED) {
 					//print("Window resized: ", graph.width(), "x", graph.height(), " -> ", e.size.width, "x", e.size.height);

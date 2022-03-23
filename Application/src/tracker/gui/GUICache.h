@@ -105,6 +105,7 @@ namespace gui {
 
         static GUICache& instance();
         static bool exists();
+        std::tuple<Vec2, Vec2> scale_with_boundary(Bounds& boundary, bool recording, Base* base, DrawStructure& graph, Section* section, bool singular_boundary);
         
         Range<Frame_t> tracked_frames;
         std::atomic_bool connectivity_reload;

@@ -1,5 +1,5 @@
 #include "InfoCard.h"
-#include <gui/gui.h>
+//#include <gui/gui.h>
 #include <tracking/Tracker.h>
 #include <tracking/Recognition.h>
 #include <gui/Timeline.h>
@@ -30,12 +30,13 @@ struct InfoCard::ShadowIndividual {
 };
 
 
-InfoCard::InfoCard()
+InfoCard::InfoCard(std::function<void(Frame_t)> reanalyse)
     :
 _shadow(new ShadowIndividual{}),
 prev(std::make_shared<Button>("prev", Bounds(10, 0, 90, 25), Color(100, 100, 100, 200))),
 next(std::make_shared<Button>("next", Bounds(105, 0, 90, 25), Color(100, 100, 100, 200))),
-detail_button(std::make_shared<Button>("detail", Bounds(Vec2(), Size2(50,20)), Color(100, 100, 100, 200)))
+detail_button(std::make_shared<Button>("detail", Bounds(Vec2(), Size2(50,20)), Color(100, 100, 100, 200))),
+_reanalyse(reanalyse)
 {
 }
 
@@ -64,7 +65,7 @@ void InfoCard::update() {
     
     Color bg(50,50,50,125);
     
-    auto &cache = GUI::instance()->cache();
+    auto &cache = GUICache::instance();
     if(!cache.has_selection() || !_shadow->fdx.valid()) {
         segment_texts.clear();
         other = nullptr;
@@ -271,8 +272,8 @@ void InfoCard::update() {
     
     if(first) {
         prev->on_click([](auto) {
-            auto & cache = GUI::instance()->cache();
-            auto next_frame = GUI::frame();
+            auto & cache = GUICache::instance();
+            auto next_frame = cache.frame_idx;
             if(cache.has_selection()) {
                 Tracker::LockGuard guard("InfoCard::update->prev->on_click");
                 auto segment = cache.primary_selection()->get_segment(next_frame);
@@ -286,13 +287,13 @@ void InfoCard::update() {
             if(!next_frame.valid())
                 return;
             
-            if(GUI::frame() != next_frame)
+            if(cache.frame_idx != next_frame)
                 SETTING(gui_frame) = Frame_t(next_frame);
         });
         
         next->on_click([](auto) {
-            auto & cache = GUI::instance()->cache();
-            auto next_frame = GUI::frame();
+            auto & cache = GUICache::instance();
+            auto next_frame = cache.frame_idx;
             if(cache.has_selection()) {
                 Tracker::LockGuard guard("InfoCard::update->next->on_click");
                 auto segment = cache.primary_selection()->get_segment(next_frame);
@@ -312,7 +313,7 @@ void InfoCard::update() {
             if(!next_frame.valid())
                 return;
             
-            if(GUI::frame() != next_frame)
+            if(cache.frame_idx != next_frame)
                 SETTING(gui_frame) = next_frame;
         });
         
@@ -379,7 +380,7 @@ void InfoCard::update() {
                 if(!_shadow->current_range.empty()) {
                     print("Erasing automatic matches for fish ", _shadow->fdx," in range ", _shadow->current_range.start(),"-",_shadow->current_range.end());
                     Tracker::delete_automatic_assignments(_shadow->fdx, _shadow->current_range);
-                    GUI::reanalyse_from(_shadow->frame);
+                    _reanalyse(_shadow->frame);
                 }
             });
         }
@@ -532,7 +533,7 @@ void InfoCard::update() {
 }
     
     void InfoCard::update(gui::DrawStructure &base, Frame_t frameNr) {
-        auto fish = GUI::cache().primary_selection();
+        auto fish = GUICache::instance().primary_selection();
         
         if(fish) {
             if(_shadow->fdx != fish->identity().ID()) {

@@ -157,7 +157,10 @@ struct PrivateData {
 
     PrivateData(pv::File& video) 
         : _video_source(& video ), 
-          _cache(& _gui, _video_source )
+          _cache(& _gui, _video_source ),
+          _info_card([](Frame_t frame) {
+            GUI::reanalyse_from(frame);
+          })
     { }
 };
 
