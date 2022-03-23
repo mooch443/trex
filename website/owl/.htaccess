@@ -1,0 +1,19 @@
+<IfModule mod_headers.c>
+	Header set Cross-Origin-Opener-Policy same-origin
+	Header set Cross-Origin-Embedder-Policy require-corp
+	
+  <FilesMatch "\.js$">
+      Header set Cache-Control "no-store, max-age=0, must-revalidate"
+  </FilesMatch>
+  <FilesMatch "\.wasm$">
+      Header set Cache-Control "no-store, max-age=0, must-revalidate"
+  </FilesMatch>
+  
+	<FilesMatch "\.(ico|jpg|jpeg|gif|png|pdf|mp3|mp4|pv)$">
+		Header set Cache-Control "public, max-age=7200, no-transform"
+	</FilesMatch>
+		
+	<FilesMatch "\.(html|htm|xml|txt|xsl)$">
+		Header set Cache-Control "public, max-age=7200, must-revalidate"
+	</FilesMatch>
+</IfModule>

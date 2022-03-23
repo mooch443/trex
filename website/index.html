@@ -1,0 +1,314 @@
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:fb="http://ogp.me/ns/fb#">
+	<head>
+		<!--<meta name="twitter:card" content="summary_large_image">-->
+		<meta name="twitter:site" content="@po7ooo">
+		<meta name="twitter:title" content="TRex, fast multi-animal tracking with markerless identification">
+		<meta name="twitter:creator" content="@po7ooo">
+		<meta name="twitter:image" content="https://trex.run/screenshot_visual_field.jpg">
+		<meta name="twitter:domain" content="https://trex.run">
+		
+		<meta property="og:image" content="https://trex.run/screenshot_visual_field.jpg" />
+		<meta property="og:image:width" content="2873"/>
+		<meta property="og:image:height" content="1743"/>
+		<meta property="og:title" content="TRex, fast multi-animal tracking with markerless identification">
+		<meta property="og:description" content="A fast and easy-to-use solution for multi-animal tracking with markerless identification, 2D estimation of posture and visual fields, and interactive data-exploration within an intuitive, platform-independent graphical user-interface.">
+		<meta property="og:type" content="website" />
+		<meta property="og:url" content="https://trex.run/" />
+		
+		<link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
+		<style>
+			@font-face {
+				font-family: 'CustomFont';             
+				src: url('fonts/Quicksand-.ttf');        
+			}         
+			html {
+				background-color: rgb(30,30,30);
+				font-family: 'CustomFont', sans-serif;
+				font-weight: 400;
+
+			}
+			body {
+				background-color: transparent;
+				/*background-image: url("001294.png");
+				background-attachment: fixed;
+				 background-position: center; 
+				  background-repeat: no-repeat;
+				  background-size: cover; */
+				  padding: 0;
+				  margin: 0;
+			}
+			.ominous {
+				font-family: serif;
+				width: 100%;
+				position: relative;
+				top: 0;
+				text-align: center;
+				font-style: italic;
+				font-size: 80px;
+				color: #b8b8b8;
+				cursor: default;
+			}
+			
+			.ominous span {
+				position: relative;
+				margin-left: -3px;
+				opacity: 0;
+				padding-right: 0px;
+			}
+			
+			.footer, .header {
+				background:rgba(0, 0, 0, 0.2);
+				width:100%;
+				padding:5px 0px 5px 0px;
+				margin:0;
+				position: fixed;
+				color: white;
+				font-size: 12px;
+				z-index:500;
+				cursor:default;
+				
+				left: 0;
+				color: #e4e4e4;
+				backdrop-filter: blur(5px);
+				-webkit-backdrop-filter: blur(5px);
+			}
+			
+			a {
+				color: grey;
+			}
+			
+			.footer {
+				bottom: 0;
+				color: #696969;
+				opacity: 0;
+			}
+			
+			.header {
+				top:0;
+				font-size: 25px;
+			}
+			
+			.footer div, .header div {
+				text-align: right;
+				padding: 5px 10px 5px 10px;
+			}
+			
+			.header div {
+				text-align: center;
+				padding: 20px 0px 20px 0px;
+			}
+			
+			.content {
+			  color: #f1f1f1;
+			  width: 100%;
+			  text-align: center;
+			  color: #a5a5a5;
+			  opacity: 0;
+			  font-size: 12px;
+			  padding-top: 10%;
+			  padding-bottom: 10%;
+			}
+
+			.content h2 {
+				font-size:25px; 
+				color: #d4d4d4;
+				font-family: monospace;
+				font-weight: 300;
+			}
+			
+			h4,h3,h2,h1 {
+				font-family: monospace;
+			}
+
+			#myVideo {
+			  position: fixed;
+			  right: 0;
+			  bottom: 0;
+			  min-width: 100%; 
+			  min-height: 100%;
+			  width: 100%;
+			  opacity: 0;
+			  z-index: -500;
+			}
+			
+			.box {
+				width: 380px;
+				padding: 20px 20px 25px 20px;
+				height: auto;
+				margin: 15 auto 15 auto;
+				border-radius: 12px;
+				background-color: rgba(0, 0, 0, 0.35);
+				backdrop-filter: blur(5px);
+				-webkit-backdrop-filter: blur(5px);
+			}
+			
+			.labels {
+				font-family: monospace;
+				display:inline-block;
+				color: #2d804a;
+				margin-bottom: -10px;
+			}
+			
+			.copy_button {
+				font-family: monospace;
+				display:inline-block;
+				text-decoration: underline;
+				color: #2361b6;
+				margin-bottom: -10px;
+				padding-left: 10px;
+			}
+			
+			.copy_button:hover {
+				color: #2e78de;
+				cursor: pointer;
+			}
+			
+			.on-system {
+				font-family: monospace;
+				margin-bottom: 12px;
+			}
+		</style>
+		<title>$ TRex</title>
+		
+		<script lang="javascript" src="jquery.min.js"></script>
+	</head>
+	<body>
+		<!--<div class="header">
+			<div>
+				
+			</div>
+		</div>-->
+		
+		
+		<video autoplay muted loop playsinline id="myVideo">
+			<source src="chrome_background.webm" type='video/webm; codecs="vp9"' />
+			<source src="solid_background.mp4" type='video/mp4; codecs="avc1"'>
+			<source src="safari_background.mov" type='video/mp4; codecs="h264"' />
+		</video>
+		
+		<div class="content">
+			<div class="box" style="padding-bottom: 30px; padding-top: 30px">
+				<div style="position: relative; height:0; margin-bottom: -26.5px">
+					<div id="version" style="font-family:sans-serif; padding: 2px; padding-top: 3px; border-radius: 50px; position: absolute; background: rgba(100, 0, 0, 0.73); border: rgba(100, 0, 0, 0.82); width: 50px; height: 15px; top: 0; left: 10px; font-size: 10px; color: white">
+						v1.1.8_2
+					</div>
+					<!--<div style="font-family:sans-serif; padding: 2px; padding-top: 3px; border-radius: 50px; position: absolute; background: rgba(100, 0, 0, 0.73); border: rgba(100, 0, 0, 0.82); width: 50px; height: 15px; top: 0; right: 10px; font-size: 10px; color: white">
+						v1.1
+					</div>-->
+				</div>
+				
+				<h2><div style="position: absolute; margin-left: 140px">$</div>TRex</h2>
+				
+				<!--<p id="this_command_is_for">
+					The following command is for <span id="os_name">macOS</span> <span id="choose" style="cursor: hand; text-decoration: underline; color: gray">(show all)</span>:
+				</p>-->
+				
+				<p class="labels"># on linux</p><p class="copy_button" onclick="copyEvent('linux')">(copy)</p>
+				<p style="" id="linux" class="on-system">
+					<a href='https://docs.conda.io/en/latest/miniconda.html' target='_blank'>conda</a> create -n tracking -c defaults -c conda-forge -c trexing trex
+				</p>
+				
+				<p class="labels"># on windows, macOS</p><p class="copy_button" onclick="copyEvent('non_linux')">(copy)</p>
+				<p id="non_linux" class="on-system">
+					<a href='https://docs.conda.io/en/latest/miniconda.html' target='_blank'>conda</a> create -n tracking -c trexing trex
+				</p>
+				
+				<p id="on_arm64" style="display:none">
+					On MacOS (arm64) you may need to <a href='https://trex.run/docs/install.html#apple-silicone-macos-arm64'>install</a> additional packages.
+				</p>
+			</div>
+			<div class="box">
+				<h3>documentation</h3>
+				
+				<p>
+					help can be found <a href="/docs">here</a>. the docs cover a lot of the frequently asked questions and, for the more practically inclined, give some real-world <a href="/docs/examples.html">examples</a>, too.
+				</p>
+			</div>
+			<div class="box" style=";">
+				<h3>read more</h3>
+				
+				<p>
+					our open-access paper has just been published in <a href="https://doi.org/10.7554/eLife.64000">eLife</a>!
+				</p>
+				<p>
+					we also have a <a href="http://preprint.trex.run/" target="_blank">preprint</a>.
+				</p>
+			</div>
+		</div>
+		
+		<div class="footer">
+			<div>
+				tristan walter
+			</div>
+		</div>
+		
+		<script>
+			function printRepoCount() {
+			  var responseObj = JSON.parse(this.responseText);
+			  $("#version").text(responseObj[0].name);
+			}
+			
+			function copyEvent(id)
+		    {
+		        var str = document.getElementById(id);
+		        window.getSelection().selectAllChildren(str);
+		        document.execCommand("Copy")
+		    }
+			
+			var request = new XMLHttpRequest();
+			request.onload = printRepoCount;
+			request.open('get', 'https://api.github.com/repos/mooch443/trex/releases', true)
+			request.send()
+			
+			function getOS() {
+			  var userAgent = window.navigator.userAgent,
+			      platform = window.navigator.platform,
+			      macosPlatforms = ['Macintosh', 'MacIntel', 'MacPPC', 'Mac68K'],
+			      windowsPlatforms = ['Win32', 'Win64', 'Windows', 'WinCE'],
+			      iosPlatforms = ['iPhone', 'iPad', 'iPod'],
+			      os = null;
+			
+			  if (macosPlatforms.indexOf(platform) !== -1) {
+			    os = 'Mac OS';
+			  } else if (iosPlatforms.indexOf(platform) !== -1) {
+			    os = 'iOS';
+			  } else if (windowsPlatforms.indexOf(platform) !== -1) {
+			    os = 'Windows';
+			  } else if (/Android/.test(userAgent)) {
+			    os = 'Android';
+			  } else if (!os && /Linux/.test(platform)) {
+			    os = 'Linux';
+			  }
+			
+			  return os;
+			}
+			
+			/*$("#choose").click(function(){
+				$(this).hide();
+				//$("#this_command_is_for").hide();
+				$("#linux").show();
+				$("#non_linux").show();
+				$("#on_arm64").show();
+				$(".labels").show();
+			});*/
+			
+			$(document).ready(function() {
+				$(".content, .footer").delay(1500).animate({"opacity":1}, 2000);
+				$("#myVideo").delay(500).animate({"opacity":1}, 2000);
+				
+				var OS = getOS();
+				$("#os_name").text(OS);
+				
+				/*if(OS == "Linux") {
+					$("#linux").show();
+					$("#non_linux").hide();
+				} else {
+					if(OS == "Mac OS") {
+						$("#on_arm64").show();
+					}
+				}*/
+			});
+		</script>
+	</body>
+</html>
