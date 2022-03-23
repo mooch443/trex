@@ -1,6 +1,8 @@
 #include "Label.h"
-#include <gui/gui.h>
+//#include <gui/gui.h>
 #include <gui/IMGUIBase.h>
+#include <tracking/Tracker.h>
+#include <gui/Timeline.h>
 
 namespace gui {
 
@@ -21,23 +23,27 @@ void Label::set_data(const std::string &text, const Bounds &source, const Vec2 &
     _center = center;
 }
 
-void Label::update(Drawable*ptr, Entangled& base, float alpha, bool disabled) {
+void Label::update(Base* base, Drawable*ptr, Entangled& e, float alpha, bool disabled) {
     alpha = max(0.5, alpha);
     
     Vec2 offset;
     Vec2 scale(1);
     Bounds screen;
-    Size2 background(GUI::instance()->gui().width() * 0.5, GUI::instance()->gui().height() * 0.5);
+
+    auto stage = e.stage();
+    if (!stage)
+        return;
+
+    Size2 background(stage->width() * 0.5, stage->height() * 0.5);
 
     //auto ptr = base.find("fishbowl");
     if (ptr) {
-        screen = base.global_transform().getInverse().transformRect(Bounds(0, 0, GUI::instance()->gui().width(), GUI::instance()->gui().height()));
-        if(!GUI::instance()->gui().scale().empty())
-            scale = GUI::instance()->gui().scale().reciprocal().mul(ptr->scale().reciprocal());
+        screen = e.global_transform().getInverse().transformRect(Bounds(0, 0, stage->width(), stage->height()));
+        if(!stage->scale().empty())
+            scale = stage->scale().reciprocal().mul(ptr->scale().reciprocal());
         
-        auto size = GUI::instance() && GUI::instance()->base()
-            ? GUI::instance()->base()->window_dimensions().mul(scale * gui::interface_scale())
-            : GUI::average().bounds().size();
+        auto size = base ? base->window_dimensions().mul(scale * gui::interface_scale())
+            : track::Tracker::average().bounds().size();
         screen << (Size2)size;
         offset = -(_center - (screen.pos() + Size2(screen.width * 0.5, screen.height * 0.95))) / screen.width;
     }
@@ -46,16 +52,14 @@ void Label::update(Drawable*ptr, Entangled& base, float alpha, bool disabled) {
     _text->set_scale(scale);
     _text->set_alpha(alpha);
 
-    base.advance_wrap(*_text);
+    e.advance_wrap(*_text);
     
     float distance = (_text->global_bounds().height + _source.height * scale.y); // scale.y;
     auto text_pos = _center - offset * (distance + 5 * scale.y);
 
     if(ptr && screen.contains(_center)) {
         auto o = -Vec2(0, _text->local_bounds().height);
-        if(GUI::instance()
-           && GUI::instance()->timeline().visible())
-        {
+        if(Timeline::visible()) {
             o -= Vec2(0, 40);
         }
 
@@ -65,7 +69,7 @@ void Label::update(Drawable*ptr, Entangled& base, float alpha, bool disabled) {
     }
     
     _text->set_pos(text_pos);
-    base.add<Line>(_center, text_pos, (disabled ? Gray : Cyan).alpha(255 * alpha), 1);
+    e.add<Line>(_center, text_pos, (disabled ? Gray : Cyan).alpha(255 * alpha), 1);
 }
 
 }

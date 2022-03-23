@@ -104,6 +104,7 @@ namespace gui {
         bool recognition_updated = false;
 
         static GUICache& instance();
+        static bool exists();
         
         Range<Frame_t> tracked_frames;
         std::atomic_bool connectivity_reload;

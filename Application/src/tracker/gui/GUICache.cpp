@@ -17,6 +17,10 @@ namespace gui {
         return *_cache;
     }
 
+    bool GUICache::exists() {
+        return _cache != nullptr;
+    }
+
     SimpleBlob::SimpleBlob(std::unique_ptr<ExternalImage>&& available, pv::BlobPtr b, int t)
         : blob(b), threshold(t), ptr(std::move(available))
     {
@@ -39,6 +43,8 @@ namespace gui {
             percentile_ptr->join();
             percentile_ptr = nullptr;
         }
+
+        _cache = nullptr;
     }
     
     void SimpleBlob::convert() {

@@ -5,7 +5,7 @@
 #include <tracking/VisualField.h>
 #include <misc/CircularGraph.h>
 #include <misc/create_struct.h>
-#include <gui/DrawMenu.h>
+//#include <gui/DrawMenu.h>
 #include <gui/Label.h>
 #include <tracking/Recognition.h>
 #include <tracking/Categorize.h>
@@ -13,7 +13,7 @@
 #include <gui/DrawBase.h>
 #include <tracking/DetectTag.h>
 #include <gui/GUICache.h>
-#include <gui.h>
+//#include <gui.h>
 
 using namespace track;
 
@@ -61,7 +61,7 @@ Fish::~Fish() {
         _view.set_clickable(true);
         _circle.set_clickable(true);
         _view.on_hover([](auto e) {
-            if(!GUI::instance() || !e.hover.hovered)
+            if(!GUICache::exists() || !e.hover.hovered)
                 return;
             GUICache::instance().set_tracking_dirty();
         });
@@ -71,15 +71,15 @@ Fish::~Fish() {
             
             if(_view.stage() && !(_view.stage()->is_key_pressed(gui::LShift) || _view.stage()->is_key_pressed(gui::RShift))) {
                 if(it != selections.end())
-                    GUI::cache().deselect_all();
+                    GUICache::instance().deselect_all();
                 else
-                    GUI::cache().deselect_all_select(ID);
+                    GUICache::instance().deselect_all_select(ID);
                 
             } else {
                 if(it != selections.end())
-                    GUI::cache().deselect(ID);
+                    GUICache::instance().deselect(ID);
                 else
-                    GUI::cache().do_select(ID);
+                    GUICache::instance().do_select(ID);
             }
             
             
@@ -94,9 +94,9 @@ Fish::~Fish() {
         if (_blob) {
 
             auto p = tags::prettify_blobs(
-                GUI::instance()->cache().processed_frame.blobs(),
-                GUI::instance()->cache().processed_frame.noise(),
-                GUI::instance()->cache().processed_frame.original_blobs(),
+                GUICache::instance().processed_frame.blobs(),
+                GUICache::instance().processed_frame.noise(),
+                GUICache::instance().processed_frame.original_blobs(),
                 Tracker::instance()->background()->image());
 
             for (auto& image : p) {
@@ -218,13 +218,13 @@ Fish::~Fish() {
         window.image(blob_bounds.pos(), _image);
     }*/
     
-    void Fish::update(Drawable* bowl, Entangled& parent, DrawStructure &base) {
+    void Fish::update(Base* base, Drawable* bowl, Entangled& parent, DrawStructure &graph) {
         const int frame_rate = FAST_SETTINGS(frame_rate);
         //const float track_max_reassign_time = FAST_SETTINGS(track_max_reassign_time);
         const auto single_identity = GUIOPTION(gui_single_identity_color);
         //const auto properties = Tracker::properties(_idx);
         //const auto safe_properties = Tracker::properties(_safe_idx);
-        auto &cache = GUI::instance()->cache();
+        auto &cache = GUICache::instance();
         
         _view.set_bounds(_blob_bounds);
         _label_parent.set_bounds(Bounds(Vec2(0), parent.size()));
@@ -237,7 +237,7 @@ Fish::~Fish() {
         _fish_pos = centroid ? centroid->pos<Units::PX_AND_SECONDS>() : (_blob_bounds.pos() + _blob_bounds.size() * 0.5);
         
         const bool hovered = _view.hovered();
-        const bool timeline_visible = GUI::instance() && GUI::instance()->timeline().visible();
+        const bool timeline_visible = GUICache::exists() && Timeline::visible();
         const float max_color = timeline_visible ? 255 : GUIOPTION(gui_faded_brightness);
         
         auto base_color = single_identity != Transparent ? single_identity : _obj.identity().color();
@@ -249,7 +249,7 @@ Fish::~Fish() {
         auto next_props = Tracker::properties(_idx + 1_f);
         auto next_time = next_props ? next_props->time : (current_time + 1.f/float(frame_rate));
         
-        auto active = GUI::cache().active_ids.find(_obj.identity().ID()) != GUI::cache().active_ids.end();
+        auto active = GUICache::instance().active_ids.find(_obj.identity().ID()) != GUICache::instance().active_ids.end();
         bool is_selected = cache.is_selected(_obj.identity().ID());
         std::vector<Vec2> points;
 
@@ -324,9 +324,9 @@ Fish::~Fish() {
         Vec2 mp;
 
         const int panic_button = GUIOPTION(panic_button);
-        auto section = panic_button ? base.find("fishbowl") : nullptr;
+        auto section = panic_button ? graph.find("fishbowl") : nullptr;
         if (section) {
-            Vec2 mouse_position = base.mouse_position();
+            Vec2 mouse_position = graph.mouse_position();
             mouse_position = (mouse_position - section->pos()).div(section->scale());
             mp = mouse_position - _view.pos();
         }
@@ -338,7 +338,7 @@ Fish::~Fish() {
                 }
 
                 float r = float(rand()) / float(RAND_MAX);
-                _plus_angle += sinf(0.5f * (r - 0.5f) * 2 * float(M_PI) * GUI::cache().dt());
+                _plus_angle += sinf(0.5f * (r - 0.5f) * 2 * float(M_PI) * GUICache::instance().dt());
                 window.set_rotation(_plus_angle);
 
                 //r = float(rand()) / float(RAND_MAX);
@@ -358,9 +358,9 @@ Fish::~Fish() {
                 _force += f;
 
                 float _mass = 5;
-                _v += (_force / _mass + Vec2(0, 9.81 / 0.0025)) * GUI::cache().dt();
+                _v += (_force / _mass + Vec2(0, 9.81 / 0.0025)) * GUICache::instance().dt();
 
-                _position += _v * GUI::cache().dt();
+                _position += _v * GUICache::instance().dt();
 
                 window.set_pos(_position);
                 window.set_size(_view.size());
@@ -460,9 +460,9 @@ Fish::~Fish() {
 
             if(panic_button) {
                 _view.add<Line>(_posture.pos(), mp, White.alpha(50));
-                GUI::cache().set_animating(&_view, true);
+                GUICache::instance().set_animating(&_view, true);
             } else
-                GUI::cache().set_animating(&_view, false);
+                GUICache::instance().set_animating(&_view, false);
         
             _view.advance_wrap(_posture);
         
@@ -520,7 +520,7 @@ Fish::~Fish() {
                 constexpr float stiffness = 100, spring_L = 0, spring_damping = 1;
                 static std::unordered_map<const Individual*, Physics> _current_angle;
                 auto &ph = _current_angle[&_obj];
-                double dt = GUI::cache().dt();
+                double dt = GUICache::instance().dt();
                 if(dt > 0.1)
                     dt = 0.1;
             
@@ -588,7 +588,7 @@ Fish::~Fish() {
         
                 auto color_source = GUIOPTION(gui_fish_color);
                 if(color_source == "viridis") {
-                    for(auto &b : GUI::instance()->cache().processed_frame.blobs()) {
+                    for(auto &b : GUICache::instance().processed_frame.blobs()) {
                         if(b->blob_id() == _blob->blob_id() || b->blob_id() == _blob->parent_id) {
                             auto && [dpos, difference] = b->difference_image(*Tracker::instance()->background(), 0);
                             auto rgba = Image::Make(difference->rows, difference->cols, 4);
@@ -627,7 +627,7 @@ Fish::~Fish() {
                     auto percent = min(1.f, cmn::abs(_library_y));
                     Color clr = /*Color(225, 255, 0, 255)*/ base_color * percent + Color(50, 50, 50, 255) * (1 - percent);
                 
-                    for(auto &b : GUI::instance()->cache().processed_frame.blobs()) {
+                    for(auto &b : GUICache::instance().processed_frame.blobs()) {
                         if(b->blob_id() == _blob->blob_id() || b->blob_id() == _blob->parent_id) {
                             auto && [image_pos, image] = b->binary_image(*Tracker::instance()->background(), FAST_SETTINGS(track_threshold));
                             auto && [dpos, difference] = b->difference_image(*Tracker::instance()->background(), 0);
@@ -844,7 +844,7 @@ Fish::~Fish() {
         parent.advance_wrap(_view);
         
         _label_parent.update([&](auto&){
-            label(bowl, _label_parent);
+            label(base, bowl, _label_parent);
         });
         
         parent.advance_wrap(_label_parent);
@@ -1130,7 +1130,7 @@ Fish::~Fish() {
                 _recognition_circle = std::make_shared<Circle>(Vec2(), 1, Transparent, Cyan.alpha(50));
             }
             
-            auto ts = GUI::cache().dt();
+            auto ts = GUICache::instance().dt();
             float target_radius = 100;
             float percent = min(1, _recognition_circle->radius() / target_radius);
             
@@ -1140,12 +1140,12 @@ Fish::~Fish() {
                 _recognition_circle->set_pos(_fish_pos - _view.pos());
                 _recognition_circle->set_radius(_recognition_circle->radius() + ts * (1 - percent) * target_radius * 2);
                 _recognition_circle->set_fill_clr(Cyan.alpha(50 * (1-percent)));
-                GUI::cache().set_animating(&_view, true);
+                GUICache::instance().set_animating(&_view, true);
                 
                 _view.advance_wrap(*_recognition_circle);
                 
             } else {
-                GUI::cache().set_animating(&_view, false);
+                GUICache::instance().set_animating(&_view, false);
             }
             
         } else if(_recognition_circle) {
@@ -1153,25 +1153,25 @@ Fish::~Fish() {
         }
     }
 
-void Fish::label(Drawable* bowl, Entangled &base) {
+void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
     if(GUIOPTION(gui_highlight_categories)) {
         if(_avg_cat != -1) {
-            base.add<Circle>(_view.pos() + _view.size() * 0.5, _view.size().length(), Transparent, ColorWheel(_avg_cat).next().alpha(75));
+            e.add<Circle>(_view.pos() + _view.size() * 0.5, _view.size().length(), Transparent, ColorWheel(_avg_cat).next().alpha(75));
         } else {
-            base.add<Circle>(_view.pos() + _view.size() * 0.5, _view.size().length(), Transparent, Purple.alpha(15));
+            e.add<Circle>(_view.pos() + _view.size() * 0.5, _view.size().length(), Transparent, Purple.alpha(15));
         }
     }
     
     if(GUIOPTION(gui_show_match_modes)) {
-        base.add<Circle>(_view.pos() + _view.size() * 0.5, _view.size().length(), Transparent, ColorWheel(_match_mode).next().alpha(50));
+        e.add<Circle>(_view.pos() + _view.size() * 0.5, _view.size().length(), Transparent, ColorWheel(_match_mode).next().alpha(50));
     }
     
     //auto bdx = blob->blob_id();
     if(GUIOPTION(gui_show_cliques)) {
         uint32_t i=0;
-        for(auto &clique : GUI::cache()._cliques) {
+        for(auto &clique : GUICache::instance()._cliques) {
             if(clique.fishs.contains(_obj.identity().ID())) {
-                base.add<Circle>(_view.pos() + _view.size() * 0.5, _view.size().length(), Transparent, ColorWheel(i).next().alpha(50));
+                e.add<Circle>(_view.pos() + _view.size() * 0.5, _view.size().length(), Transparent, ColorWheel(i).next().alpha(50));
                 break;
             }
             ++i;
@@ -1191,7 +1191,7 @@ void Fish::label(Drawable* bowl, Entangled &base) {
 
     text << _obj.identity().raw_name() << " ";
     
-    if (DrawMenu::matching_list_open() && blob) {
+    /*if (DrawMenu::matching_list_open() && blob) {
         secondary_text = "blob" + Meta::toStr(blob->blob_id());
     }
     else if (GUI_SETTINGS(gui_show_recognition_bounds)) {
@@ -1209,7 +1209,7 @@ void Fish::label(Drawable* bowl, Entangled &base) {
             else
                 color = "nr";
         }
-    }
+    }*/
     
     auto raw = Tracker::instance()->recognition()->ps_raw(_idx, blob->blob_id());
     if (!raw.empty()) {
@@ -1254,11 +1254,11 @@ void Fish::label(Drawable* bowl, Entangled &base) {
     else
         _label->set_data(label_text, blob->calculate_bounds(), fish_pos());
 
-    _label->update(bowl, base, 1, blob == nullptr);
+    _label->update(base, bowl, e, 1, blob == nullptr);
 }
 
 void Fish::shadow(DrawStructure &window) {
-    auto active = GUI::cache().active_ids.find(_obj.identity().ID()) != GUI::cache().active_ids.end();
+    auto active = GUICache::instance().active_ids.find(_obj.identity().ID()) != GUICache::instance().active_ids.end();
     
     if(GUIOPTION(gui_show_shadows) && active) {
         if(!_polygon) {

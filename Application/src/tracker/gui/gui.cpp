@@ -289,7 +289,15 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
 
     PD(collection) = std::make_unique<ExternalImage>(Image::Make(average.rows, average.cols, 4), Vec2());
     
-    PDP(timeline) = std::make_shared<Timeline>(*this, _frameinfo);
+    PDP(timeline) = std::make_shared<Timeline>(best_base(), [](bool b) {
+            if (!GUI::instance())
+                return;
+            GUI::instance()->set_info_visible(b);
+        }, []() {
+            if(GUI::instance())
+                GUI::instance()->update_recognition_rect();
+        }, _frameinfo);
+
     PD(gui).root().insert_cache(_base, std::make_unique<CacheObject>());
     
     PD(info).set_pos(Vec2(_average_image.cols * 0.5, _average_image.rows * 0.5));
@@ -582,6 +590,8 @@ GUI::~GUI() {
 void GUI::set_base(gui::Base* base) {
     std::lock_guard<std::recursive_mutex> guard(PD(gui).lock());
     _base = base;
+    if (PDP(timeline))
+        PDP(timeline)->set_base(base);
         
     if(_base) {
         auto size = (screen_dimensions() / gui::interface_scale()).mul(PD(gui).scale());
@@ -1282,7 +1292,7 @@ void GUI::draw_posture(DrawStructure &base, Individual *fish, Frame_t frameNr) {
     if(midline) {
         // Draw the fish posture with circles
         if(midline) {
-            auto && [bg_offset, max_w] = Timeline::timeline_offsets();
+            auto && [bg_offset, max_w] = Timeline::timeline_offsets(best_base());
             max_w /= PD(gui).scale().x;
             PD(posture_window).set_scale(base.scale().reciprocal());
             auto pos = Vec2(max_w - 10 - bg_offset.x  * PD(posture_window).scale().x,
@@ -1333,7 +1343,7 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
     static bool lost = true;
     static float time_lost = 0;
     
-    auto && [offset, max_w] = Timeline::timeline_offsets();
+    auto && [offset, max_w] = Timeline::timeline_offsets(best_base());
     
     Size2 screen_dimensions = this->screen_dimensions();
     Size2 screen_center = screen_dimensions * 0.5;
@@ -1657,7 +1667,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
 
                             {
                                 std::unique_lock guard(Categorize::DataStore::cache_mutex());
-                                PD(cache)._fish_map[fish]->update(ptr, e, base);
+                                PD(cache)._fish_map[fish]->update(best_base(), ptr, e, base);
                             }
                             //base.wrap_object(*PD(cache)._fish_map[fish]);
                             //PD(cache)._fish_map[fish]->label(ptr, e);
@@ -2271,7 +2281,7 @@ void GUI::set_status(const std::string& text) {
 
 void GUI::draw_footer(DrawStructure& base) {
     static bool first = true;
-    auto && [bg_offset, max_w] = Timeline::timeline_offsets();
+    auto && [bg_offset, max_w] = Timeline::timeline_offsets(best_base());
     
     static HorizontalLayout status_layout({}, Vec2(), Bounds(10,0,0,0));
     static Text gpu_status("", Vec2(), White, Font(0.7)), python_status("", Vec2(), Red, Font(0.7));
@@ -2853,11 +2863,12 @@ void GUI::draw_raw_mode(DrawStructure &base, Frame_t frameIndex) {
         tracker::gui::draw_blob_view({
             .offset = ptr_pos,
             .scale = ptr_scale,
-            .base = base,
+            .graph = base,
             .ptr = (Section*)ptr,
             .cache = PD(cache),
             .transform = transform,
-            .screen = dim
+            .screen = dim,
+            .base = best_base()
         });
     }
 }

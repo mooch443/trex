@@ -1,6 +1,6 @@
 #include "Timeline.h"
 #include <gui/DrawCVBase.h>
-#include <gui/gui.h>
+//#include <gui/gui.h>
 #include <file/CSVExport.h>
 #include <gui/HttpGui.h>
 #include <processing/PadImage.h>
@@ -30,9 +30,9 @@ namespace gui {
     std::string _thread_status;
     std::atomic_bool _terminate;
 
-    GUI* _gui;
-    const Tracker* _tracker;
-    FrameInfo* _frame_info;
+    const Tracker* _tracker{nullptr};
+    FrameInfo* _frame_info{nullptr};
+    Timeline* _instance{ nullptr };
 
     std::shared_ptr<std::thread> _update_events_thread;
 
@@ -44,7 +44,6 @@ namespace gui {
     } _foi_state;
 
     const float bar_height = 30;
-    static Timeline* _instance = nullptr;
 
     struct Interface {
         HorizontalLayout _title_layout{ {}, Vec2(20, 20), Bounds(0, 0, 17, 0) };
@@ -62,15 +61,10 @@ namespace gui {
             //    _proximity_bar.image.create(cv::Mat::zeros(20, 20, CV_8UC4));
 
             _status_text.set_clickable(true);
-            _status_text.on_hover([](auto e) {
-                if (!GUI::instance())
-                    return;
-                if (e.hover.hovered) {
-                    GUI::instance()->set_info_visible(true);
-                }
-                else
-                    GUI::instance()->set_info_visible(false);
-                });
+            _status_text.on_hover([this](auto e) {
+                if(_ptr->_hover_status_text)
+                    _ptr->_hover_status_text(e.hover.hovered);
+            });
 
             _status_text2.on_click([](auto) {
                 SETTING(gui_frame) = _frame_info->global_segment_order.empty() ? Frame_t(0) : _frame_info->global_segment_order.front().start;
@@ -98,7 +92,7 @@ namespace gui {
 
             gui::DrawStructure::SectionGuard section(base, "timeline");
             const Vec2 use_scale = base.scale().reciprocal();
-            auto&& [offset, max_w] = Timeline::timeline_offsets();
+            auto&& [offset, max_w] = Timeline::timeline_offsets(_ptr->_base);
             const float y = 55;
 
             section._section->set_scale(use_scale);
@@ -284,22 +278,31 @@ namespace gui {
         _update_events_thread->join();
     }
     
-    std::tuple<Vec2, float> Timeline::timeline_offsets() {
+    std::tuple<Vec2, float> Timeline::timeline_offsets(Base* base) {
         //const float max_w = Tracker::average().cols;
-        const float max_w = _instance && !_terminate && GUI::instance() && GUI::instance()->best_base() ? GUI::instance()->best_base()->window_dimensions().width * gui::interface_scale() : Tracker::average().cols;
+        const float max_w = _instance && !_terminate && base ? base->window_dimensions().width * gui::interface_scale() : Tracker::average().cols;
         Vec2 offset(0);
         return {offset, max_w};
     }
+
+    Timeline& instance() {
+        if (!_instance)
+            throw U_EXCEPTION("No timeline has been created.");
+        return *_instance;
+    }
     
-    Timeline::Timeline(GUI& gui, FrameInfo& info)
+    Timeline::Timeline(Base* base, std::function<void(bool)> hover_status, std::function<void()> updated_rec_rect, FrameInfo& info)
         : _bar(nullptr),
         tdelta(0),
-        _visible(true)
+        _visible(true),
+        _base(base),
+        _updated_recognition_rect(updated_rec_rect),
+        _hover_status_text(hover_status)
     {
-        _gui = &gui;
+        _instance = this;
+        //_gui = &gui;
         _tracker = Tracker::instance();
         _frame_info = &info;
-        _instance = this;
         
         Interface::get(this);
         _update_events_thread = std::make_shared<std::thread>([this]() {
@@ -408,7 +411,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
         TakeTiming take(timing);
         
         const Vec2 use_scale = _bar ? _bar->stage_scale() : Vec2(1);
-        auto && [offset, max_w] = timeline_offsets();
+        auto && [offset, max_w] = timeline_offsets(_base);
         //const float max_h = Tracker::average().rows;
         
         uint64_t last_change = FOI::last_change();
@@ -434,10 +437,10 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
             _bar->set_color(White.alpha(GUI_SETTINGS(gui_timeline_alpha)));
             _bar->set_clickable(true);
             _bar->on_hover([this](Event e) {
-                if(!GUI::instance())
+                if(!GUICache::exists())
                     return;
                 
-                auto && [offset_, max_w_] = timeline_offsets();
+                auto && [offset_, max_w_] = timeline_offsets(_base);
                 
                 //if(!_proximity_bar.changed_frames.empty())
                 {
@@ -483,7 +486,8 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
             });
             _bar->add_event_handler(MBUTTON, [this](Event e) {
                 if(e.mbutton.pressed && this->mOverFrame().valid() && e.mbutton.button == 0) {
-                    _gui->set_redraw();
+                    //_gui->set_redraw();
+                    GUICache::instance().set_redraw();
                     SETTING(gui_frame) = this->mOverFrame();
                 }
             });
@@ -619,11 +623,8 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
             bool changed = false;
             
             //! Update the cached data
-            if(GUI::instance() && Tracker::instance()) {
-                if(!GUI::instance())
-                    break;
-                
-                std::lock_guard<std::recursive_mutex> lock(GUI::instance()->gui().lock());
+            if(GUICache::exists() && Tracker::instance()) {
+                //std::lock_guard<std::recursive_mutex> lock(GUI::instance()->gui().lock());
                 
                 Tracker::LockGuard guard("Timeline::update_thread", 100);
                 
@@ -682,7 +683,8 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                     //    changed = EventAnalysis::update_events(_frame_info->frameIndex < tracker_endframe ? Tracker::active_individuals(_frame_info->frameIndex) : std::set<Individual*>{});
                     
                     // needs Tracker lock
-                    GUI::instance()->update_recognition_rect();
+                    if(_updated_recognition_rect)
+                        _updated_recognition_rect();
                     update_fois();
                     
                     _update_thread_updated_once = true;
@@ -745,17 +747,22 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
             tracker_endframe = _proximity_bar.end;
         }
     }
-    
+
     void Timeline::set_visible(bool v) {
-        if(_visible != v) {
-            _gui->cache().set_tracking_dirty();
-            _gui->set_redraw();
-            _visible = v;
+        if(instance()._visible != v) {
+            GUICache::instance().set_tracking_dirty();
+            GUICache::instance().set_redraw();
+            //_gui->set_redraw();
+            instance()._visible = v;
         }
+    }
+
+    bool Timeline::visible() {
+        return instance()._visible;
     }
     
     void Timeline::next_poi(Idx_t _s_fdx) {
-        auto frame = GUI::frame();
+        auto frame = GUICache::instance().frame_idx;
         auto next_frame = frame;
         std::set<FOI::fdx_t> fdx;
         
@@ -780,7 +787,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
             
             if(!_s_fdx.valid())
             {
-                auto &cache = GUI::instance()->cache();
+                auto &cache = GUICache::instance();
                 if(!fdx.empty()) {
                     cache.deselect_all();
                     for(auto id : fdx) {
@@ -793,7 +800,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
     }
     
     void Timeline::prev_poi(Idx_t _s_fdx) {
-        auto frame = GUI::frame();
+        auto frame = GUICache::instance().frame_idx;
         auto next_frame = frame;
         std::set<FOI::fdx_t> fdx;
         
@@ -818,7 +825,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
             
             if(!_s_fdx.valid())
             {
-                auto &cache = GUI::instance()->cache();
+                auto &cache = GUICache::instance();
                 if(!fdx.empty()) {
                     cache.deselect_all();
                     for(auto id : fdx) {

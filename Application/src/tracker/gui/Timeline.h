@@ -13,6 +13,7 @@ namespace gui {
 
     class DrawStructure;
     class ExternalImage;
+    class Base;
     
     struct FrameInfo {
         std::atomic_int current_fps{0};
@@ -48,29 +49,30 @@ namespace gui {
         
         bool _visible;
         GETTER(Frame_t, mOverFrame)
-        
+
+        GETTER_SETTER_PTR_I(Base*, base, nullptr)
         GETTER(std::atomic_bool, update_thread_updated_once)
-        
-        
+        std::function<void()> _updated_recognition_rect;
+        std::function<void(bool)> _hover_status_text;
         
     protected:
         
         //Image _border_distance;
         
     public:
-        Timeline(GUI& gui, FrameInfo& info);
+        Timeline(Base *, std::function<void(bool)> hover_status, std::function<void()> update_recognition, FrameInfo& info);
         ~Timeline();
         void draw(DrawStructure& window);
         
-        bool visible() const { return _visible; }
-        void set_visible(bool v);
+        static bool visible();
+        static void set_visible(bool v);
         
         void update_thread();
         void reset_events(Frame_t after_frame = {});
         //void update_border();
         void next_poi(Idx_t fdx = Idx_t());
         void prev_poi(Idx_t fdx = Idx_t());
-        static std::tuple<Vec2, float> timeline_offsets();
+        static std::tuple<Vec2, float> timeline_offsets(Base*);
         
     private:
         friend struct Interface;
