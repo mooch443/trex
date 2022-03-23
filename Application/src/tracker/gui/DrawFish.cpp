@@ -1225,7 +1225,7 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
     //auto cat = Categorize::DataStore::label_interpolated(_obj.identity().ID(), Frame_t(_idx));
 
 #if !COMMONS_NO_PYTHON
-    auto c = GUI::cache().processed_frame.cached(_obj.identity().ID());
+    auto c = GUICache::instance().processed_frame.cached(_obj.identity().ID());
     if(c) {
         auto cat = c->current_category;
         if(cat != -1) {
