@@ -3489,6 +3489,7 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
         }
     }
 }
+#endif
 
 #endif
 
