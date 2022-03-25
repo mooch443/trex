@@ -8,6 +8,7 @@
 #include <gui/WorkProgress.h>
 #include <tracker/misc/default_config.h>
 #include <tracking/Recognition.h>
+#include <gui/GUICache.h>
 
 #if WIN32
 #include <shellapi.h>

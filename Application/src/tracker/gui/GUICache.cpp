@@ -499,7 +499,7 @@ namespace gui {
                             for(auto it = start; it != end; ++it, ++i) {
                                 labels[i] = Categorize::DataStore::_ranged_label_unsafe(f, (*it)->blob->blob_id());
                             }
-                        }, GUI::instance()->blob_thread_pool(), raw_blobs.begin(), raw_blobs.end());
+                        }, _pool, raw_blobs.begin(), raw_blobs.end());
                         
                         for(size_t i=0; i<raw_blobs.size(); ++i) {
                             auto &b = raw_blobs[i];

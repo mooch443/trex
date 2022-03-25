@@ -64,6 +64,7 @@
 #include <tracking/Categorize.h>
 #include <gui/DrawCVBase.h>
 #include "VideoOpener.h"
+#include <gui/GUICache.h>
 
 #if WIN32
 #include <shellapi.h>
