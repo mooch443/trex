@@ -3273,7 +3273,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
         return true;
     });
 
-    print("Saving to '",path.c_str(),"' (",len," frames in range ",range.start,"-",range.end,")");
+    print("Saving to ",path," (",len," frames in range ",range.start,"-",range.end,")");
 
     size_t vres = VisualField::field_resolution * VisualField::layers;
     size_t eye_len = len * vres;
@@ -3291,7 +3291,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
     
     std::shared_ptr<Tracker::LockGuard> guard;
     
-    iterate_frames(range, [&](Frame_t frame, const std::shared_ptr<SegmentInformation> & segment, auto basic, auto posture) -> bool
+    iterate_frames(range, [&](Frame_t frame, const std::shared_ptr<SegmentInformation> &, auto basic, auto posture) -> bool
     {
         if(blocking)
             guard = std::make_shared<Tracker::LockGuard>("new VisualField");
