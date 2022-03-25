@@ -18,8 +18,13 @@ typedef int64_t data_long_t;
 });*/
 
 Output::ResultsFormat::ResultsFormat(const file::Path& filename, std::function<void(const std::string&, float, const std::string&)> update_progress)
-    : DataFormat(filename.str()), _update_progress(update_progress), last_callback(0), estimated_size(0),
-    _post_pool(cmn::hardware_concurrency(), [this](Individual* obj) {
+ : 
+DataFormat(filename.str()),
+_update_progress(update_progress), 
+last_callback(0), 
+estimated_size(0),
+_post_pool(cmn::hardware_concurrency(), [this](Individual* obj) 
+{
     // post processing for individuals
     Timer timer;
     //pv::Frame frame;
@@ -84,7 +89,10 @@ _load_pool(cmn::hardware_concurrency(), [this](std::exception_ptr e) {
     _exception_ptr = e; // send it to main thread
 }, "Output::loadPool"),
 _expected_individuals(0), _N_written(0)
-{}
+{
+    if(!filename.exists())
+        throw U_EXCEPTION("File ", filename," cannot be found.");
+}
 
 Output::ResultsFormat::~ResultsFormat() {
     _generic_pool.wait();
@@ -1070,10 +1078,47 @@ namespace Output {
         if(_header.version >= ResultsFormat::V_23) {
             read<std::string>(_header.cmd_line);
         }
+
+        // read recognition data
+        if(_header.version >= ResultsFormat::V_13) {
+            std::vector<float> tmp;
+            uint64_t L;
+            read<uint64_t>(L);
+            data_long_t frame;
+            uint64_t size, vsize;
+            uint32_t bid;
+            _header.rec_data.clear();
+
+            if(L > 0) {
+                _header.has_recognition_data = true;
+            }
+
+            for(uint64_t i = 0; i < L; ++i) {
+                read<data_long_t>(frame);
+                read<uint64_t>(size);
+                auto smaller = narrow_cast<uint16_t>(size);
+
+                for(uint16_t j = 0; j < smaller; ++j) {
+                    read<uint32_t>(bid);
+                    read<uint64_t>(vsize);
+                    tmp.resize(narrow_cast<uint16_t>(vsize)); // more than 2^16 identities? hardly. this also prevents malformed files from crashing the program
+                    read_data(vsize * sizeof(float), (char*)tmp.data());
+
+                    _header.rec_data[Frame_t(frame)][pv::bid(bid)] = tmp;
+                }
+            }
+        }
+
+        _header.has_categories = false;
+        if(header().version >= ResultsFormat::Versions::V_33) {
+            // read category data
+            if(Categorize::DataStore::wants_to_read(*this, header().version))
+                _header.has_categories = true;
+        }
         
         if(!SETTING(quiet)) {
             DebugHeader("READING PROGRAM STATE");
-            print("Read head of ",filename()," (version:V_",(int)_header.version+1," gui_frame:",_header.gui_frame," analysis_range:",_header.analysis_range.start,"-",_header.analysis_range.end," created at ",_header.creation_time,")");
+            print("Read head of ",filename()," (version:V_",(int)_header.version+1," gui_frame:",_header.gui_frame," analysis_range:",_header.analysis_range.start,"-",_header.analysis_range.end," created at ",_header.creation_time," has_categories:", _header.has_categories, " recognition:", _header.rec_data.size(), ")");
             print("Generated with command-line: ",_header.cmd_line);
         }
     }
@@ -1104,6 +1149,27 @@ namespace Output {
         write<int64_t>(end);
         
         write<uint64_t>(_header.creation_time.get());
+
+        std::string text = default_config::generate_delta_config(true, _header.exclude_settings);
+        write<std::string>(text);
+        write<std::string>(SETTING(cmd_line).value<std::string>());
+
+        // write recognition data
+        const auto& recognition = *Tracker::recognition();
+        write<uint64_t>(recognition.data().size());
+        for(auto&& [frame, map] : recognition.data()) {
+            write<data_long_t>(frame.get());
+            write<uint64_t>(map.size());
+
+            for(auto&& [bid, vector] : map) {
+                write<uint32_t>((uint32_t)bid);
+                write<uint64_t>(vector.size());
+                write_data(sizeof(float) * vector.size(), (const char*)vector.data());
+            }
+        }
+
+        // write categorization data, if it exists
+        Categorize::DataStore::write(*this, header().version);
     }
     
     uint64_t ResultsFormat::write_data(uint64_t num_bytes, const char *buffer) {
@@ -1127,7 +1193,7 @@ namespace Output {
         return pack_size;
     }
     
-    void ResultsFormat::write_file(const std::vector<std::unique_ptr<track::FrameProperties>> &frames, const Tracker::active_individuals_t &active_individuals_frame, const ska::bytell_hash_map<Idx_t, Individual *> &individuals, const std::vector<std::string>& exclude_settings)
+    void ResultsFormat::write_file(const std::vector<std::unique_ptr<track::FrameProperties>> &frames, const Tracker::active_individuals_t &active_individuals_frame, const ska::bytell_hash_map<Idx_t, Individual *> &individuals)
     {
         estimated_size = sizeof(uint64_t)*3 + frames.size() * (sizeof(data_long_t)+sizeof(CompatibilityFrameProperties)) + active_individuals_frame.size() * (sizeof(data_long_t)+sizeof(uint64_t)+(active_individuals_frame.empty() ? individuals.size() : active_individuals_frame.begin()->second.size())*sizeof(data_long_t));
         
@@ -1139,26 +1205,6 @@ namespace Output {
         if(!SETTING(quiet)) {
             print("Estimating ", FileSize(estimated_size)," for the whole file.");
         }
-        std::string text = default_config::generate_delta_config(true, exclude_settings);
-        write<std::string>(text);
-        write<std::string>(SETTING(cmd_line).value<std::string>());
-        
-        // write recognition data
-        const auto &recognition = *Tracker::recognition();
-        write<uint64_t>(recognition.data().size());
-        for(auto && [frame, map] : recognition.data()) {
-            write<data_long_t>(frame.get());
-            write<uint64_t>(map.size());
-            
-            for(auto && [bid, vector] : map) {
-                write<uint32_t>((uint32_t)bid);
-                write<uint64_t>(vector.size());
-                write_data(sizeof(float) * vector.size(), (const char*)vector.data());
-            }
-        }
-        
-        // write categorization data, if it exists
-        Categorize::DataStore::write(*this, header().version);
         
         // write frame properties
         write<uint64_t>(frames.size());
@@ -1209,8 +1255,9 @@ namespace Output {
         ResultsFormat file(filename.str(), update_progress);
         file.header().gui_frame = sign_cast<uint64_t>(SETTING(gui_frame).value<Frame_t>().get());
         file.header().creation_time = Image::now();
+        file.header().exclude_settings = exclude_settings;
         file.start_writing(true);
-        file.write_file(_tracker._added_frames, _tracker._active_individuals_frame, _tracker._individuals, exclude_settings);
+        file.write_file(_tracker._added_frames, _tracker._active_individuals_frame, _tracker._individuals);
         file.close();
         
         // go back from .tmp01 to .results
@@ -1325,7 +1372,6 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         if(!SETTING(quiet))
             print("Trying to open results ",filename.str());
         ResultsFormat file(filename.str(), update_progress);
-        file.start_reading();
         
         auto tmp = _tracker.individuals();
         clean_up();
@@ -1338,43 +1384,18 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         for (auto& p : tmp)
             delete p.second;
 
-        // read recognition data
-        auto &recognition = *Tracker::recognition();
+        auto& recognition = *Tracker::recognition();
         recognition.data().clear();
-        
-        if(file._header.version >= ResultsFormat::V_13) {
-            std::vector<float> tmp;
-            uint64_t L;
-            file.read<uint64_t>(L);
-            data_long_t frame;
-            uint64_t size, vsize;
-            uint32_t bid;
-            
-            if(L > 0) {
-                file._header.has_recognition_data = true;
-            }
-            
-            for(uint64_t i=0; i<L; ++i) {
-                file.read<data_long_t>(frame);
-                file.read<uint64_t>(size);
-                auto smaller = narrow_cast<uint16_t>(size);
-                
-                for(uint16_t j=0; j<smaller; ++j) {
-                    file.read<uint32_t>(bid);
-                    file.read<uint64_t>(vsize);
-                    tmp.resize(narrow_cast<uint16_t>(vsize)); // more than 2^16 identities? hardly. this also prevents malformed files from crashing the program
-                    file.read_data(vsize * sizeof(float), (char*)tmp.data());
-                    
-                    recognition.data()[Frame_t(frame)][pv::bid(bid)] = tmp;
-                }
-            }
-        }
-        
-        if(file.header().version >= ResultsFormat::Versions::V_33) {
-            // read category data
+
+        file.start_reading();
+
+        if(Tracker::recognition())
+            Tracker::recognition()->data() = file.header().rec_data;
+
+        // read the actual categorization data first
+        if(file.header().has_categories)
             Categorize::DataStore::read(file, file.header().version);
-        }
-        
+
         // read frame properties
         uint64_t L;
         file.read<uint64_t>(L);

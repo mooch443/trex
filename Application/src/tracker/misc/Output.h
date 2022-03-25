@@ -138,6 +138,9 @@ namespace Output {
             Range<int64_t> analysis_range;
             bool has_recognition_data = false;
             timestamp_t creation_time{0};
+            bool has_categories = false;
+            std::vector<std::string> exclude_settings;
+            std::map<Frame_t, std::map<pv::bid, std::vector<float>>> rec_data;
         };
         
         GETTER_NCONST(Header, header)
@@ -159,8 +162,7 @@ namespace Output {
         static uint64_t estimate_individual_size(const Individual& val);
         void write_file(const std::vector<std::unique_ptr<track::FrameProperties>>& frames,
                         const Tracker::active_individuals_t& active_individuals_frame,
-                        const ska::bytell_hash_map<Idx_t, Individual*>& individuals,
-                        const std::vector<std::string>& exclude_settings);
+                        const ska::bytell_hash_map<Idx_t, Individual*>& individuals);
         
         Individual* read_individual(Data& ref, const CacheHints* cache);
         Midline::Ptr read_midline(Data& ref);

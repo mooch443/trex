@@ -2048,7 +2048,7 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
     ensure_average_is_ready();
 
     static const auto conversion_range = processing_range();
-    if (conversion_range.end.valid() && current.index() >= conversion_range.end.get()) {
+    if (conversion_range.end.valid() && current.index() > conversion_range.end.get()) {
         if (!GRAB_SETTINGS(terminate)) {
             --_frame_processing_ratio;
             SETTING(terminate) = true;

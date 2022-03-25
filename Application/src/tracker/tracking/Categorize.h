@@ -66,6 +66,8 @@ namespace Categorize {
 struct DataStore {
     static void write(file::DataFormat&, int version); // read from file
     static void read(file::DataFormat&, int version); // load from file
+    static bool wants_to_read(file::DataFormat&, int version); // see if the file contains recognition data
+
     static std::mutex& mutex() {
         static std::mutex _mutex;
         return _mutex;
@@ -177,6 +179,7 @@ struct DataStore {
     
     static void write(file::DataFormat&, int version); // read from file
     static void read(file::DataFormat&, int version); // load from file
+    static bool wants_to_read(file::DataFormat&, int version); // see if the file contains recognition data
     
     static Composition composition();
     static void clear();

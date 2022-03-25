@@ -8,6 +8,7 @@
 #include <gui/Timeline.h>
 #include <gui/DrawFish.h>
 #include <gui/InfoCard.h>
+#include <video/VideoSource.h>
 
 static std::unordered_map<const track::Individual*, std::unique_ptr<gui::Fish>> map;
 
@@ -33,7 +34,7 @@ void async_main(void*) {
 	bool terminate = false;
 	IMGUIBase* ptr = nullptr;
 
-	SETTING(do_history_split) = false;
+	//SETTING(do_history_split) = false;
 
 	GlobalSettings::load_from_string({}, GlobalSettings::map(),
 		"blob_size_ranges = [[0.001,0.07]]\n"
@@ -57,17 +58,26 @@ void async_main(void*) {
 		"track_threshold = 25\n", cmn::AccessLevelType::STARTUP);
 
 #if defined(__EMSCRIPTEN__)
+	//VideoSource source({ file::Path("guppy_8_t36_d15_20191212_085800.avi") });
 	pv::File file("group_1.pv");
 #else
+	//VideoSource source({ file::Path("C:\\Users\\tristan\\trex\\Application\\build_js\\guppy_8_t36_d15_20191212_085800.avi") });
 	pv::File file("C:/Users/tristan/Videos/group_1.pv");
 	//pv::File file("C:/Users/tristan/trex/videos/test.pv");
 #endif
+	//cv::Mat mat;
+	//source.frame(0, mat);
+
+	//cv::imshow("frame", mat);
+	//cv::waitKey(0);
 	print("Will open... group_1...");
 
 	file.start_reading();
 	file.print_info();
 
 	SETTING(gui_frame) = Frame_t(0);
+	SETTING(analysis_paused) = false;
+	SETTING(terminate) = false;
 
 	try {
 		Tracker tracker;
@@ -92,14 +102,29 @@ void async_main(void*) {
 
 		//Tracker::set_of_individuals_t active;
 		std::thread tracking([&]() {
+			set_thread_name("Tracking");
 			PPFrame frame;
 			pv::Frame single;
-			Frame_t index(0);
 			Timer timer;
 			double time_per_frame = 0;
 			double samples = 0;
 
 			while (!SETTING(terminate)) {
+				if(SETTING(analysis_paused)) {
+					std::this_thread::sleep_for(std::chrono::milliseconds(10));
+					continue;
+				}
+
+				Frame_t index = tracker.end_frame();
+				if(!index.valid())
+					index = 0_f;
+				else if(index.get() < file.length() - 1)
+					index += 1_f;
+				else {
+					std::this_thread::sleep_for(std::chrono::milliseconds(10));
+					continue;
+				}
+
 				file.read_frame(single, index.get());
 
 				frame.clear();
@@ -110,16 +135,14 @@ void async_main(void*) {
 				frame.set_index(index);
 
 				track::Tracker::LockGuard guard("update_tracker_queue");
+				if(frame.index() != Tracker::end_frame() + 1_f && (Tracker::end_frame().valid() || frame.index() == 0_f)) 
+				{
+					print("Reanalyse event ", frame.index(), " -> ", Tracker::end_frame());
+					continue;
+				}
+
 				track::Tracker::preprocess_frame(frame, {}, NULL, NULL, false);
 				tracker.add(frame);
-				//active = tracker.active_individuals(index - 1_f);
-				//print(index);
-
-				if (index.get() < file.length() - 1)
-					index += 1_f;
-				else
-					break;
-
 				++samples;
 				time_per_frame += timer.elapsed();
 				if (samples >= 100) {
@@ -129,10 +152,11 @@ void async_main(void*) {
 				}
 				timer.reset();
 			}
-			});
+		});
 
 		FrameInfo frameinfo;
 		InfoCard card(nullptr);
+		cache.set_redraw();
 		
 		IMGUIBase base("TRex platik version", graph, [&]() -> bool {
 			static Timeline timeline(nullptr, [](bool) {}, []() {}, frameinfo);
@@ -167,10 +191,10 @@ void async_main(void*) {
 			frameinfo.frameIndex = index;
 
 			graph.section("fishbowl", [&](auto&, Section* s) {
-				auto fb = ptr->window_dimensions().div(graph.scale());
-				//s->set_scale(graph.scale().reciprocal() *
-				//	min(fb.width / double(file.average().cols),
-				//		fb.height / double(file.average().rows)));
+				/*auto fb = ptr->window_dimensions().div(graph.scale());
+				s->set_scale(graph.scale().reciprocal() *
+						min(fb.width / double(file.average().cols),
+							fb.height / double(file.average().rows)));*/
 
 				cache.scale_with_boundary(cache.boundary, false, ptr, graph, s, true);
 
@@ -179,7 +203,7 @@ void async_main(void*) {
 					return;
 				}
 
-				track::Tracker::LockGuard guard("update", 1);
+				track::Tracker::LockGuard guard("update", 10);
 				if (!guard.locked()) {
 					s->reuse_objects();
 					return;
@@ -190,6 +214,7 @@ void async_main(void*) {
 				//cv::cvtColor(tracker.average().get(), background, cv::COLOR_GRAY2RGBA);
 				//graph.image(Vec2(0), std::make_unique<Image>(background), Vec2(1), White.alpha(150));
 				graph.image(Vec2(0), std::make_unique<Image>(tracker.average().get()), Vec2(1), White.alpha(150));
+				//graph.image(Vec2(0), std::make_unique<Image>(mat), Vec2(1), White.alpha(150));
 				frameinfo.analysis_range = tracker.analysis_range();
 				frameinfo.video_length = file.length();
 				frameinfo.consecutive = tracker.consecutive();
@@ -250,40 +275,71 @@ void async_main(void*) {
 				cache.on_redraw();
 			});
 
-			//auto bds = graph.text("TRex", Vec2(20, 10), White.alpha(255), Font(1), graph.scale().reciprocal() * gui::interface_scale())->local_bounds();
-			//graph.text("platik version", Vec2(bds.x + bds.width + 10, 20), Cyan.alpha(200), Font(0.75), graph.scale().reciprocal() * gui::interface_scale())->local_bounds();
-			//auto h = bds.height;
-			//float w = 20;
-			//w += graph.text(dec<2>(fps.load()).toStr() + "fps", Vec2(w, 10 + h), Cyan.alpha(200), Font(0.75), graph.scale().reciprocal() * gui::interface_scale())->local_bounds().width + 10;
-			//graph.text("(tracked " + cache.tracked_frames.end.toStr() + "/" + Meta::toStr(file.length() - 1) + ")", Vec2(w, 10 + h), Color(200, 200, 200, 255).alpha(200), Font(0.75), graph.scale().reciprocal() * gui::interface_scale())->local_bounds().width + 10;
+			struct Layouter {
+			private:
+				virtual ~Layouter() = 0;
 
+			public:
+				static Entangled& apply(Entangled& d) {
+					d.auto_size(Margin{0.f, 0.f});
+					return d;
+				}
+			};
 
 			timeline.draw(graph);
 			if(cache.primary_selection())
 				graph.wrap_object(card);
-			/*e.update([&](Entangled& e) {
-				e.add<Rect>(Bounds(graph.mouse_position(), Size2(100, 25)), White, Red);
+			
+			/* 
+			 * would be cool to have this syntax:
+			 * (named arguments in any order)
+			 * 
+			 * static Collection menu(
+			 *		Origin{TopRight}, 
+			 *		Scale{0.5}, 
+			 *		Fill{Red}, 
+			 *		Outline{Green}, 
+			 *		[](auto& base) {
+			 *			base.add<Text>("hi", Vec2(10, 5));
+			 *			base.add<Line>(Vec2(0), Vec2(10,0), Red);
+			 *		}
+			 * );
+			 * 
+			 */
+			static Entangled menu([&graph, &tracker](Entangled& menu) {
+				static Button reanalyse("reanalyse", Bounds{ Size2(100, 33) }, [&]() {
+					auto index = SETTING(gui_frame).value<Frame_t>();
+					std::lock_guard guard(graph.lock());
+					if(index.valid() && tracker.end_frame().valid()
+						&& index <= tracker.end_frame()) 
+					{
+						tracker._remove_frames(index);
+					}
 				});
-			graph.wrap_object(e);*/
+				menu.advance_wrap(reanalyse);
+			});
 
-			//tf::show();
+			graph.wrap_object(Layouter::apply(menu));
+			menu.set_origin(BottomRight{});
+			if(timeline.bar())
+				menu.set_pos(Vec2(timeline.bar()->local_bounds().width - 10, timeline.bar()->local_bounds().y - 10));
 
 			return !terminate;
 
-			}, [&](const Event& e) {
-				if (e.type == EventType::KEY && !e.key.pressed) {
-					if (e.key.code == Codes::F && graph.is_key_pressed(Codes::LControl)) {
-						ptr->toggle_fullscreen(graph);
-					}
-					else if (e.key.code == Codes::Escape)
-						terminate = true;
-					else if (e.key.code == Codes::Space)
-						SETTING(gui_run) = !SETTING(gui_run).value<bool>();
+		}, [&](const Event& e) {
+			if (e.type == EventType::KEY && !e.key.pressed) {
+				if (e.key.code == Codes::F && graph.is_key_pressed(Codes::LControl)) {
+					ptr->toggle_fullscreen(graph);
 				}
-				else if (e.type == EventType::WINDOW_RESIZED) {
-					//print("Window resized: ", graph.width(), "x", graph.height(), " -> ", e.size.width, "x", e.size.height);
-				}
-			});
+				else if (e.key.code == Codes::Escape)
+					terminate = true;
+				else if (e.key.code == Codes::Space)
+					SETTING(gui_run) = !SETTING(gui_run).value<bool>();
+			}
+			else if (e.type == EventType::WINDOW_RESIZED) {
+				print("Window resized: ", graph.width(), "x", graph.height(), " -> ", e.size.width, "x", e.size.height);
+			}
+		});
 
 		ptr = &base;
 		base.loop();
