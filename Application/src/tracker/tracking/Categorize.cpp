@@ -3392,8 +3392,8 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
         }
     }
 }
-#else
 
+#else
 
 void DataStore::write(file::DataFormat& data, int /*version*/) {
     data.write<uchar>(0);
@@ -3489,7 +3489,6 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
         }
     }
 }
-#endif
 
 #endif
 
