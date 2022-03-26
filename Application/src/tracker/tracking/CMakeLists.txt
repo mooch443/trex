@@ -18,8 +18,10 @@ if(WITH_HTTPD)
 endif()
 
 if(WIN32)
-    target_link_libraries(tracker_tracking PRIVATE tracker_python)
-	set_target_properties(tracker_tracking PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
+  if(NOT COMMONS_NO_PYTHON)
+     target_link_libraries(tracker_tracking PRIVATE tracker_python)
+	   set_target_properties(tracker_tracking PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
+  endif()
 endif()
 
 

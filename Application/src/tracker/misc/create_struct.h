@@ -42,9 +42,22 @@ public:
             _lock.lock();
         return *ptr;
     }
+#if defined(__EMSCRIPTEN__)
+    template<typename K = T>
+        requires std::is_trivially_copyable< K >::value
+    operator K() const {
+        if (!_lock.owns_lock())
+            _lock.lock();
+        return *ptr;
+    }
+#endif
 };
 
+#if defined(__EMSCRIPTEN__)
+#define SELECT_TYPE(TYPE) TYPE
+#else
 #define SELECT_TYPE(TYPE) typename std::conditional< std::is_trivially_copyable< TYPE >::value, std::atomic< TYPE >, TYPE>::type
+#endif
 
 #define EVERY_PAIR(TYPE, NAME) SELECT_TYPE( TYPE ) NAME; StructMutex_t mutex_ ## NAME ;
 #define STRUCT_STRING_MEMBERS(NAM, a) EVERY_PAIR a

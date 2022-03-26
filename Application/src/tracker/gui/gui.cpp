@@ -79,9 +79,6 @@ using namespace gui;
 
 
 struct PrivateData {
-    GUICache _cache;
-
-
     Frame_t _flow_frame;
     Frame_t _next_frame;
     cv::Mat _cflow, _cflow_next;
@@ -139,6 +136,8 @@ struct PrivateData {
 
     gui::WorkProgress* _work_progress = nullptr;
     gui::DrawStructure _gui;
+
+    GUICache _cache;
     
     struct Footer {
         Dropdown _settings_dropdown = Dropdown(Bounds(0, 0, 200, 33), GlobalSettings::map().keys());
@@ -155,6 +154,11 @@ struct PrivateData {
     gui::StaticText _info;
 
     std::function<void(const Vec2&, bool, std::string)> _clicked_background;
+
+    PrivateData(pv::File& video) 
+        : _video_source(& video ), 
+          _cache(& _gui, _video_source )
+    { }
 };
 
 template<typename T>
@@ -183,7 +187,7 @@ const gui::Timeline& GUI::timeline() {
 
 using namespace Hist;
 
-template<Cache::Variables M>
+template<globals::Cache::Variables M>
 class DirectSettingsItem : public List::Item {
 protected:
     GETTER_SETTER(std::string, description)
@@ -195,7 +199,7 @@ public:
         else
             _description = description;
         
-        set_selected(Cache::get<M>());
+        set_selected(globals::Cache::get<M>());
     }
     
     operator const std::string&() const override {
@@ -215,11 +219,11 @@ public:
     void set_selected(bool s) override {
         if(s != selected()) {
             List::Item::set_selected(s);
-            GlobalSettings::get(Cache::name<M>()) = s;
+            GlobalSettings::get(globals::Cache::name<M>()) = s;
         }
     }
     void update() override {
-        set_selected(Cache::get<M>());
+        set_selected(globals::Cache::get<M>());
     }
 };
 
@@ -271,7 +275,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
         });
     }, "GUI::blob_thread_pool"),
     _properties_visible(false),
-    _private_data(new PrivateData),
+    _private_data(new PrivateData{ video_source }),
 #if WITH_MHD
     _http_gui(NULL),
 #endif
@@ -282,11 +286,8 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
     PDP(tracker) = &tracker;
     PD(posture_window).set_bounds(Bounds(average.cols - 550 - 10, 100, 550, 400));
     PD(gui).set_size(Size2(average.cols, average.rows));
-    PDP(video_source) = &video_source;
 
     PD(collection) = std::make_unique<ExternalImage>(Image::Make(average.rows, average.cols, 4), Vec2());
-    
-    Cache::init();
     
     PDP(timeline) = std::make_shared<Timeline>(*this, _frameinfo);
     PD(gui).root().insert_cache(_base, std::make_unique<CacheObject>());
@@ -533,6 +534,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
+#if !COMMONS_NO_PYTHON
     //static bool did_init_map = false;
     if (Recognition::python_available()) {
         track::PythonIntegration::set_settings(GlobalSettings::instance());
@@ -541,6 +543,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
             GUI::work().set_image(name, Image::Make(image));
         });
     }
+#endif
 }
 
 GUI::~GUI() {
@@ -1827,6 +1830,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
             individuals_graph.set_scale(base.scale().reciprocal());
         }
         
+#if !COMMONS_NO_PYTHON
         if(SETTING(gui_show_uniqueness)) {
             static Graph graph(Bounds(50, 100, 800, 400), "uniqueness");
             static std::mutex mutex;
@@ -1914,6 +1918,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                 graph.set_scale(base.scale().reciprocal());
             }
         }
+#endif
         
         ConfirmedCrossings::draw(base, frameNr);
         
@@ -2022,6 +2027,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
         else if(settings_dropdown.text() == "trainingdata_stats") {
             //TrainingData::print_pointer_stats();
         }
+#if !COMMONS_NO_PYTHON
         else if(utils::beginsWith(settings_dropdown.text(), "$ ")) {
             auto code = settings_dropdown.text().substr(2);
             print("Code: ",code);
@@ -2036,6 +2042,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                 return true;
             });
         }
+#endif
         else if(settings_dropdown.text() == "dont panic") {
             if(GlobalSettings::has("panic_button")
                && SETTING(panic_button).value<int>() != 0)
@@ -2081,6 +2088,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             print("All free fish in frame ", frame(),": ", free_fish);
             print("All inactive fish: ", inactive);
         }
+#if !COMMONS_NO_PYTHON
         else if(settings_dropdown.text() == "print_uniqueness") {
             work().add_queue("discrimination", [](){
                 auto && [data, images, map] = Accumulation::generate_discrimination_data();
@@ -2093,6 +2101,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                 cv::imwrite(path.str(), coverage->get());
             });
         }
+#endif
         else if(settings_dropdown.text() == "print_memory") {
             mem::IndividualMemoryStats overall;
             for(auto && [fdx, fish] : PD(cache).individuals) {
@@ -2269,7 +2278,7 @@ void GUI::draw_footer(DrawStructure& base) {
     static Text additional_status("", Vec2(), White, Font(0.7));
     static Text mouse_status("", Vec2(), White.alpha(200), Font(0.7));
     
-#define SITEM(NAME) DirectSettingsItem<Cache::Variables:: NAME>
+#define SITEM(NAME) DirectSettingsItem<globals::Cache::Variables:: NAME>
     static List options_dropdown(Bounds(0, 0, 150, 33 + 2), "display", {
         std::make_shared<SITEM(gui_show_blobs)>("blobs"),
         std::make_shared<SITEM(gui_show_paths)>("paths"),
@@ -2416,6 +2425,7 @@ void GUI::draw_footer(DrawStructure& base) {
         }
     }
     
+#if !COMMONS_NO_PYTHON
     if (Recognition::python_available()) {
         static Timer status_timer;
         static Recognition::Detail::Info last_status;
@@ -2469,6 +2479,7 @@ void GUI::draw_footer(DrawStructure& base) {
         python_status.set_txt("[Python] Not available.");
         python_status.set_color(White);
     }
+#endif
     
     auto section = PD(gui).find("fishbowl");
     if(section) {
@@ -3490,6 +3501,8 @@ void GUI::tracking_finished() {
             PD(tracking_callbacks).pop();
         }
     }
+
+#if !COMMONS_NO_PYTHON
     
     if(SETTING(auto_categorize)) {
         GUI::auto_categorize();
@@ -3501,11 +3514,14 @@ void GUI::tracking_finished() {
     
     // check if results should be saved and the app should quit
     // automatically after analysis is done.
-    else if(SETTING(auto_quit)) {
+    else
+#endif
+        if(SETTING(auto_quit)) {
         GUI::auto_quit();
     }
 }
     
+#if !COMMONS_NO_PYTHON
 void GUI::auto_categorize() {
     Categorize::Work::set_state(Categorize::Work::State::LOAD);
     Categorize::Work::set_state(Categorize::Work::State::APPLY);
@@ -3553,6 +3569,7 @@ void GUI::auto_apply() {
     std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
     instance()->training_data_dialog(GUI::GUIType::TEXT, true);
 }
+#endif
 
 void GUI::load_state(GUI::GUIType type, file::Path from) {
     static bool state_visible = false;
@@ -3823,6 +3840,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
         
         auto range = PD(tracker).analysis_range();
         bool finished = PD(tracker).end_frame() >= range.end;
+#if !COMMONS_NO_PYTHON
         if(finished && SETTING(auto_categorize)) {
             auto_categorize();
         } else if(finished && SETTING(auto_train)) {
@@ -3832,6 +3850,9 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
             auto_apply();
         }
         else if(finished && SETTING(auto_quit)) {
+#else
+        if(finished && SETTING(auto_quit)) {
+#endif
 #if WITH_SFML
             if(has_window())
                 window().setVisible(false);
@@ -4046,6 +4067,7 @@ void GUI::write_config(bool overwrite, GUI::GUIType type, const std::string& suf
     }
 }
 
+#if !COMMONS_NO_PYTHON
 void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void()> callback) {
     if(!Recognition::recognition_enabled() || !Recognition::python_available()) {
         auto message = Recognition::python_available() ? "Recognition is not enabled." : "Python is not available. Check your configuration.";
@@ -4128,8 +4150,6 @@ void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void
         callback();
     });
 }
-    
-    
 
 void GUI::generate_training_data(std::future<void>&& initialized, GUI::GUIType type, bool force_load) {
     /*-------------------------/
@@ -4449,6 +4469,7 @@ void GUI::generate_training_data_faces(const file::Path& path) {
         throw U_EXCEPTION("Unknown error while saving to ",path.str());
     }
 }
+#endif
 
 void GUI::add_manual_match(Frame_t frameIndex, Idx_t fish_id, pv::bid blob_id) {
     print("Requesting change of fish ", fish_id," to blob ", blob_id," in frame ",frameIndex);

@@ -46,7 +46,9 @@
 #endif
 
 #include <gui/IMGUIBase.h>
+#if !COMMONS_NO_PYTHON
 #include <python/GPURecognition.h>
+#endif
 #include <opencv2/core/utils/logger.hpp>
 
 #include <tracking/Recognition.h>

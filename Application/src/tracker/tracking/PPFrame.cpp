@@ -86,9 +86,11 @@ void PPFrame::_assume_not_finalized(const char* file, int line) {
 }
 
 int PPFrame::label(const pv::BlobPtr& blob) const {
+#if !COMMONS_NO_PYTHON
     auto l = Categorize::DataStore::ranged_label(Frame_t(index()), blob->blob_id());
     if(l)
         return l->id;
+#endif
     return -1;
 }
 

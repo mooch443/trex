@@ -112,7 +112,7 @@ protected:
     gpuMat _average;
     GETTER(cv::Mat, original_average)
     cv::Mat _current_average;
-    std::atomic<uint64_t> _current_average_timestamp;
+    cmn::atomic<uint64_t> _current_average_timestamp;
     std::atomic<double> _tracking_time, _saving_time;
     
     GETTER(std::atomic_bool, average_finished)

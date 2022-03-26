@@ -1,10 +1,12 @@
 #include "Categorize.h"
+
 #include <tracking/Individual.h>
 #include <gui/DrawStructure.h>
 #include <gui/gui.h>
 #include <tracking/Recognition.h>
 #include <tracking/Accumulation.h>
 #include <gui/types/Tooltip.h>
+
 #include <python/GPURecognition.h>
 #include <random>
 #include <misc/default_settings.h>
@@ -15,6 +17,11 @@
 namespace track {
 namespace Categorize {
 
+    std::vector<RangedLabel> _ranged_labels;
+    std::unordered_map<Idx_t, std::unordered_map<const Individual::SegmentInformation*, Label::Ptr>> _interpolated_probability_cache;
+    std::unordered_map<Idx_t, std::unordered_map<const Individual::SegmentInformation*, Label::Ptr>> _averaged_probability_cache;
+
+#if !COMMONS_NO_PYTHON
 // indexes in _samples array
 std::unordered_map<const Individual::SegmentInformation*, size_t> _used_indexes;
 
@@ -182,6 +189,7 @@ void init_labels() {
     for(size_t i=0; i<cats.size(); ++i) {
         _labels[Label::Make(cats.at(i), i)] = {};
     }
+
     Work::_number_labels = _labels.size();
 }
 
@@ -339,10 +347,6 @@ inline std::vector<BlobLabel>* _insert_cache_for_frame(Frame_t frame) {
         _probability_cache.resize((index + 1) * 2);
     return _probability_cache.data() + index;
 }
-
-std::vector<RangedLabel> _ranged_labels;
-std::unordered_map<Idx_t, std::unordered_map<const Individual::SegmentInformation*, Label::Ptr>> _interpolated_probability_cache;
-std::unordered_map<Idx_t, std::unordered_map<const Individual::SegmentInformation*, Label::Ptr>> _averaged_probability_cache;
 
 DataStore::const_iterator DataStore::begin() {
     return _samples.begin();
@@ -2325,181 +2329,6 @@ void Work::loop() {
     }
 }
 
-void DataStore::write(file::DataFormat& data, int /*version*/) {
-    {
-        std::shared_lock guard(cache_mutex());
-        if(_probability_cache.empty()) {
-            data.write<uchar>(0);
-            return;
-        }
-    }
-    
-    data.write<uchar>(1);
-    
-    {
-        std::lock_guard guard(mutex());
-        auto cats = FAST_SETTINGS(categories_ordered);
-        data.write<uint64_t>(cats.size()); // number of labels
-        
-        for(size_t i=0; i<cats.size(); ++i) {
-            data.write<int32_t>(i);  // label id
-            data.write<std::string>(cats[i]); // label id
-        }
-    }
-    
-    {
-        std::shared_lock guard(cache_mutex());
-        data.write<uint64_t>(_probability_cache.size()); // write number of frames
-        
-        int64_t k = tracker_start_frame().get();
-        for(auto &v : _probability_cache) {
-            data.write<uint32_t>(k); // frame index
-            data.write<uint32_t>(narrow_cast<uint32_t>(v.size())); // number of blobs assigned
-            
-            for(auto &[bdx, label] : v) {
-                assert(label);
-                data.write<uint32_t>((uint32_t)bdx); // blob id
-                data.write<int32_t>(label); // label id
-            }
-            ++k;
-        }
-    }
-    
-    {
-        std::shared_lock guard(range_mutex());
-        data.write<uint64_t>(_ranged_labels.size());
-        
-        for(auto &ranged : _ranged_labels) {
-            assert(ranged._range.start().valid() && ranged._range.end().valid());
-            
-            data.write<uint32_t>(ranged._range.start().get());
-            data.write<uint32_t>(ranged._range.end().get());
-            
-            assert(ranged._label);
-            data.write<int>(ranged._label);
-            
-            assert(size_t(ranged._range.length()) == ranged._blobs.size());
-            for(auto &bdx : ranged._blobs)
-                data.write<uint32_t>((uint32_t)bdx);
-        }
-    }
-}
-
-void DataStore::read(file::DataFormat& data, int /*version*/) {
-    clear();
-
-    const auto start_frame = tracker_start_frame();
-    
-    uchar has_categories;
-    data.read(has_categories);
-    
-    if(!has_categories)
-        return;
-    
-    {
-        std::lock_guard guard(mutex());
-        Work::_number_labels = 0;
-        _labels.clear();
-        
-        uint64_t N_labels;
-        data.read(N_labels);
-        std::vector<std::string> labels(N_labels);
-        
-        for (uint64_t i=0; i<N_labels; ++i) {
-            int32_t id;
-            std::string name;
-            
-            data.read(id);
-            data.read(name);
-            
-            auto ptr = Label::Make(name, id);
-            _labels[ptr] = {};
-            labels[i] = name;
-        }
-        
-        SETTING(categories_ordered) = labels;
-        Work::_number_labels = N_labels;
-    }
-    
-    // read contents
-    {
-        std::unique_lock guard(cache_mutex());
-        _probability_cache.clear();
-        
-        uint64_t N_frames;
-        data.read(N_frames);
-        
-        for (uint64_t i=0; i<N_frames; ++i) {
-            uint32_t frame;
-            uint32_t N_blobs;
-            
-            data.read(frame);
-            data.read(N_blobs);
-            
-            for (uint32_t j=0; j<N_blobs; ++j) {
-                uint32_t bdx;
-                int32_t lid;
-                
-                data.read(bdx);
-                data.read(lid);
-                
-                if(frame >= (uint32_t)start_frame.get())
-                    DataStore::_set_label_unsafe(Frame_t(frame), pv::bid(bdx), lid);
-            }
-        }
-    }
-    
-    {
-        std::unique_lock guard(range_mutex());
-        _ranged_labels.clear();
-        
-        uint64_t N_ranges;
-        data.read(N_ranges);
-        
-        RangedLabel ranged;
-        
-        for(uint64_t i=0; i<N_ranges; ++i) {
-            uint32_t start, end;
-            data.read(start);
-            data.read(end);
-            
-            ranged._range = FrameRange(Range<Frame_t>(Frame_t(start), Frame_t(end)));
-            
-            data.read<int>(ranged._label);
-            if(ranged._label == -1) {
-                print("Ranged.label is nullptr for id ",ranged._label);
-            }
-            
-            // should probably check this always and fault gracefully on error since this is user input
-            assert(start <= end);
-            
-            ranged._blobs.clear();
-            ranged._blobs.reserve(end - start + 1);
-            
-            uint32_t bdx;
-            for(uint32_t j=start; j<=end; ++j) {
-                data.read(bdx);
-                ranged._blobs.push_back(bdx);
-            }
-            
-            _ranged_labels.emplace_back(std::move(ranged));
-        }
-
-        std::sort(_ranged_labels.begin(), _ranged_labels.end());
-
-        if (!_ranged_labels.empty()) {
-            auto m = _ranged_labels.back()._range.start();
-            for (auto it = _ranged_labels.rbegin(); it != _ranged_labels.rend(); ++it) {
-                if (it->_range.start() < m) {
-                    m = it->_range.start();
-                }
-
-                it->_maximum_frame_after = m;
-            }
-        }
-    }
-}
-
 void DataStore::clear() {
     {
         std::unique_lock guard(_cache_mutex);
@@ -3393,6 +3222,284 @@ void clear_labels() {
 bool weights_available() {
     return output_location().exists();
 }
+
+void DataStore::write(file::DataFormat& data, int /*version*/) {
+    {
+        std::shared_lock guard(cache_mutex());
+        if (_probability_cache.empty()) {
+            data.write<uchar>(0);
+            return;
+        }
+    }
+
+    data.write<uchar>(1);
+
+    {
+        std::lock_guard guard(mutex());
+        auto cats = FAST_SETTINGS(categories_ordered);
+        data.write<uint64_t>(cats.size()); // number of labels
+
+        for (size_t i = 0; i < cats.size(); ++i) {
+            data.write<int32_t>(i);  // label id
+            data.write<std::string>(cats[i]); // label id
+        }
+    }
+
+    {
+        std::shared_lock guard(cache_mutex());
+        data.write<uint64_t>(_probability_cache.size()); // write number of frames
+
+        int64_t k = tracker_start_frame().get();
+        for (auto& v : _probability_cache) {
+            data.write<uint32_t>(k); // frame index
+            data.write<uint32_t>(narrow_cast<uint32_t>(v.size())); // number of blobs assigned
+
+            for (auto& [bdx, label] : v) {
+                assert(label);
+                data.write<uint32_t>((uint32_t)bdx); // blob id
+                data.write<int32_t>(label); // label id
+            }
+            ++k;
+        }
+    }
+
+    {
+        std::shared_lock guard(range_mutex());
+        data.write<uint64_t>(_ranged_labels.size());
+
+        for (auto& ranged : _ranged_labels) {
+            assert(ranged._range.start().valid() && ranged._range.end().valid());
+
+            data.write<uint32_t>(ranged._range.start().get());
+            data.write<uint32_t>(ranged._range.end().get());
+
+            assert(ranged._label);
+            data.write<int>(ranged._label);
+
+            assert(size_t(ranged._range.length()) == ranged._blobs.size());
+            for (auto& bdx : ranged._blobs)
+                data.write<uint32_t>((uint32_t)bdx);
+        }
+    }
+}
+
+void DataStore::read(file::DataFormat& data, int /*version*/) {
+    clear();
+
+    const auto start_frame = tracker_start_frame();
+
+    uchar has_categories;
+    data.read(has_categories);
+
+    if (!has_categories)
+        return;
+
+    {
+        std::lock_guard guard(mutex());
+        Work::_number_labels = 0;
+        _labels.clear();
+
+        uint64_t N_labels;
+        data.read(N_labels);
+        std::vector<std::string> labels(N_labels);
+
+        for (uint64_t i = 0; i < N_labels; ++i) {
+            int32_t id;
+            std::string name;
+
+            data.read(id);
+            data.read(name);
+
+            auto ptr = Label::Make(name, id);
+            _labels[ptr] = {};
+            labels[i] = name;
+        }
+
+        SETTING(categories_ordered) = labels;
+        Work::_number_labels = N_labels;
+    }
+
+    // read contents
+    {
+        std::unique_lock guard(cache_mutex());
+        _probability_cache.clear();
+
+        uint64_t N_frames;
+        data.read(N_frames);
+
+        for (uint64_t i = 0; i < N_frames; ++i) {
+            uint32_t frame;
+            uint32_t N_blobs;
+
+            data.read(frame);
+            data.read(N_blobs);
+
+            for (uint32_t j = 0; j < N_blobs; ++j) {
+                uint32_t bdx;
+                int32_t lid;
+
+                data.read(bdx);
+                data.read(lid);
+
+                if (frame >= (uint32_t)start_frame.get())
+                    DataStore::_set_label_unsafe(Frame_t(frame), pv::bid(bdx), lid);
+            }
+        }
+    }
+
+    {
+        std::unique_lock guard(range_mutex());
+        _ranged_labels.clear();
+
+        uint64_t N_ranges;
+        data.read(N_ranges);
+
+        RangedLabel ranged;
+
+        for (uint64_t i = 0; i < N_ranges; ++i) {
+            uint32_t start, end;
+            data.read(start);
+            data.read(end);
+
+            ranged._range = FrameRange(Range<Frame_t>(Frame_t(start), Frame_t(end)));
+
+            data.read<int>(ranged._label);
+            if (ranged._label == -1) {
+                print("Ranged.label is nullptr for id ", ranged._label);
+            }
+
+            // should probably check this always and fault gracefully on error since this is user input
+            assert(start <= end);
+
+            ranged._blobs.clear();
+            ranged._blobs.reserve(end - start + 1);
+
+            uint32_t bdx;
+            for (uint32_t j = start; j <= end; ++j) {
+                data.read(bdx);
+                ranged._blobs.push_back(bdx);
+            }
+
+            _ranged_labels.emplace_back(std::move(ranged));
+        }
+
+        std::sort(_ranged_labels.begin(), _ranged_labels.end());
+
+        if (!_ranged_labels.empty()) {
+            auto m = _ranged_labels.back()._range.start();
+            for (auto it = _ranged_labels.rbegin(); it != _ranged_labels.rend(); ++it) {
+                if (it->_range.start() < m) {
+                    m = it->_range.start();
+                }
+
+                it->_maximum_frame_after = m;
+            }
+        }
+    }
+}
+#else
+
+
+void DataStore::write(file::DataFormat& data, int /*version*/) {
+    data.write<uchar>(0);
+}
+
+void DataStore::read(file::DataFormat& data, int /*version*/) {
+    uchar has_categories;
+    data.read(has_categories);
+
+    if (!has_categories)
+        return;
+
+    {
+        uint64_t N_labels;
+        data.read(N_labels);
+        std::vector<std::string> labels(N_labels);
+
+        for (uint64_t i = 0; i < N_labels; ++i) {
+            int32_t id;
+            std::string name;
+
+            data.read(id);
+            data.read(name);
+
+            auto ptr = Label::Make(name, id);
+            labels[i] = name;
+        }
+
+        SETTING(categories_ordered) = labels;
+    }
+
+    // read contents
+    {
+        uint64_t N_frames;
+        data.read(N_frames);
+
+        for (uint64_t i = 0; i < N_frames; ++i) {
+            uint32_t frame;
+            uint32_t N_blobs;
+
+            data.read(frame);
+            data.read(N_blobs);
+
+            for (uint32_t j = 0; j < N_blobs; ++j) {
+                uint32_t bdx;
+                int32_t lid;
+
+                data.read(bdx);
+                data.read(lid);
+            }
+        }
+    }
+
+    {
+        uint64_t N_ranges;
+        data.read(N_ranges);
+
+        RangedLabel ranged;
+
+        for (uint64_t i = 0; i < N_ranges; ++i) {
+            uint32_t start, end;
+            data.read(start);
+            data.read(end);
+
+            ranged._range = FrameRange(Range<Frame_t>(Frame_t(start), Frame_t(end)));
+
+            data.read<int>(ranged._label);
+            if (ranged._label == -1) {
+                print("Ranged.label is nullptr for id ", ranged._label);
+            }
+
+            // should probably check this always and fault gracefully on error since this is user input
+            assert(start <= end);
+
+            ranged._blobs.clear();
+            ranged._blobs.reserve(end - start + 1);
+
+            uint32_t bdx;
+            for (uint32_t j = start; j <= end; ++j) {
+                data.read(bdx);
+                ranged._blobs.push_back(bdx);
+            }
+
+            _ranged_labels.emplace_back(std::move(ranged));
+        }
+
+        std::sort(_ranged_labels.begin(), _ranged_labels.end());
+
+        if (!_ranged_labels.empty()) {
+            auto m = _ranged_labels.back()._range.start();
+            for (auto it = _ranged_labels.rbegin(); it != _ranged_labels.rend(); ++it) {
+                if (it->_range.start() < m) {
+                    m = it->_range.start();
+                }
+
+                it->_maximum_frame_after = m;
+            }
+        }
+    }
+}
+#endif
 
 }
 }

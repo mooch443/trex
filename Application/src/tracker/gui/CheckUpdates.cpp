@@ -1,4 +1,6 @@
 #include "CheckUpdates.h"
+
+#if !COMMONS_NO_PYTHON
 #include <misc/GlobalSettings.h>
 #include <misc/metastring.h>
 #include <python/GPURecognition.h>
@@ -6,6 +8,7 @@
 #include <gui/WorkProgress.h>
 #include <tracker/misc/default_config.h>
 #include <tracking/Recognition.h>
+#include <gui/GUICache.h>
 
 #if WIN32
 #include <shellapi.h>
@@ -317,3 +320,4 @@ std::future<VersionStatus> perform(bool manually_triggered) {
 
 }
 }
+#endif

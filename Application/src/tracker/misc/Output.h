@@ -147,7 +147,7 @@ namespace Output {
         GenericThreadPool _generic_pool, _load_pool;
         std::shared_ptr<CacheHints> _property_cache;
         
-        std::atomic<uint64_t> _expected_individuals, _N_written;
+        cmn::atomic<uint64_t> _expected_individuals, _N_written;
         
     public:
         ResultsFormat(const Path& filename, std::function<void(const std::string&, float, const std::string&)> update_progress);

@@ -186,6 +186,7 @@ public:
                     gPtr->load_state(GUI::GUIType::GRAPHICAL);
                     break;
                     
+#if !COMMONS_NO_PYTHON
                 case CHECK_UPDATE: {
                     gPtr->work().add_queue("", []() {
                         auto status = CheckUpdates::perform(false).get();
@@ -199,6 +200,7 @@ public:
                     
                     break;
                 }
+#endif
                     
                 case LOAD_SETTINGS:
                     gPtr->work().add_queue("", [gPtr](){
@@ -234,9 +236,11 @@ public:
                 case CONFIG:
                     gPtr->write_config(false);
                     break;
+#if !COMMONS_NO_PYTHON
                 case TRAINING:
                     gPtr->training_data_dialog();
                     break;
+#endif
                 case EXPORT:
                     gPtr->export_tracks();
                     break;
@@ -247,11 +251,13 @@ public:
                     });
                     break;
                     
+#if !COMMONS_NO_PYTHON
                 case CATEGORIZE:
                     gPtr->work().add_queue("", [](){
                         Categorize::show();
                     });
                     break;
+#endif
 
                 case START_VALIDATION:
                     ConfirmedCrossings::start();
@@ -607,7 +613,9 @@ public:
         Vec2 pos = Vec2(max_w - 10, 25).mul(use_scale);
         
         matching_gui();
+#if !COMMONS_NO_PYTHON
         Categorize::draw(base);
+#endif
         
         if(_foi_items.empty() || _foi_ids != FOI::ids()) {
             _foi_items.clear();

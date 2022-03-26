@@ -18,7 +18,9 @@
 #include <time.h>
 #include <iomanip>
 
+#if !COMMONS_NO_PYTHON
 #include <python/GPURecognition.h>
+#endif
 
 #include <misc/CommandLine.h>
 #include <gui/SFLoop.h>
@@ -62,6 +64,7 @@
 #include <tracking/Categorize.h>
 #include <gui/DrawCVBase.h>
 #include "VideoOpener.h"
+#include <gui/GUICache.h>
 
 #if WIN32
 #include <shellapi.h>
@@ -114,7 +117,7 @@ void panic(const char *fmt, ...) {
 
 bool pause_stuff = false;
 
-#ifndef WIN32
+#if !defined(WIN32) && !defined(__EMSCRIPTEN__)
 static void dumpstack(void) {
     void *array[20];
     int size;
@@ -164,7 +167,7 @@ static void at_exit() {
 void init_signals() {
     CrashProgram::main_pid = std::this_thread::get_id();
     
-#ifndef WIN32
+#if !defined(WIN32) && !defined(__EMSCRIPTEN__)
     sigact.sa_handler = signal_handler;
     sigemptyset(&sigact.sa_mask);
     sigact.sa_flags = 0;
@@ -211,7 +214,7 @@ int main(int argc, char** argv)
     set_thread_name("main");
     
     progname = *(argv);
-#ifndef WIN32
+#if !defined(WIN32) && !defined(__EMSCRIPTEN__)
     std::atexit(at_exit);
     setenv("KMP_DUPLICATE_LIB_OK", "True", 1);
 #endif
@@ -553,6 +556,7 @@ int main(int argc, char** argv)
                     exit(0);
                     break;
                     
+#if !COMMONS_NO_PYTHON
                 case Arguments::update: {
                     auto status = CheckUpdates::perform(false).get();
                     if(status == CheckUpdates::VersionStatus::OLD || status == CheckUpdates::VersionStatus::ALREADY_ASKED)
@@ -567,6 +571,7 @@ int main(int argc, char** argv)
                     exit(0);
                     break;
                 }
+#endif
                     
                 default:
                     FormatWarning("Unknown option ",option.name," with value ", option.value);
@@ -1257,7 +1262,9 @@ int main(int argc, char** argv)
     gui.set_analysis(analysis.get());
     gui_lock.unlock();
     
+#if !COMMONS_NO_PYTHON
     CheckUpdates::init();
+#endif
     
     auto callback = "TRex::main";
     GlobalSettings::map().register_callback(callback, [&analysis, &gui, callback](sprite::Map::Signal signal, sprite::Map& map, const std::string& key, const sprite::PropertyType& value)
@@ -1365,6 +1372,7 @@ int main(int argc, char** argv)
         DebugHeader("/ LOADED SETTINGS FROM ", path);
     }
     
+#if !COMMONS_NO_PYTHON
     if(SETTING(auto_train)) {
         if(!Recognition::recognition_enabled())
             throw U_EXCEPTION("auto_train switch cant be used without recognition_enable = true.");
@@ -1393,6 +1401,8 @@ int main(int argc, char** argv)
         }
         FormatWarning("The application is going to load a pretrained categories network and apply it after finishing the analysis (or loading).");
     }
+#endif
+
     if(SETTING(auto_quit))
         FormatWarning("Application is going to quit after analysing and exporting data.");
     
@@ -1505,6 +1515,7 @@ int main(int argc, char** argv)
                     else if(utils::beginsWith(command, "export_data")) {
                         gui.export_tracks();
                     }
+#if !COMMONS_NO_PYTHON
                     else if(utils::beginsWith(command, "python ")) {
                         auto copy = cmd;
                         for(size_t i=0; i<cmd.length(); ++i) {
@@ -1527,6 +1538,7 @@ int main(int argc, char** argv)
                             return true;
                         });
                     }
+#endif
                     else if(utils::beginsWith(command, "continue")) {
                         before = true;
                         SETTING(analysis_paused) = false;
@@ -1551,13 +1563,15 @@ int main(int argc, char** argv)
                     else if(utils::beginsWith(command, "save_config")) {
                         gui.write_config(utils::endsWith(command, " force"), GUI::GUIType::TEXT);
                     }
+#if !COMMONS_NO_PYTHON
                     else if(utils::beginsWith(command, "auto_correct")) {
                         gui.auto_correct(GUI::GUIType::TEXT, utils::endsWith(command, " force"));
                     }
                     else if(utils::beginsWith(command, "train_network")) {
-                        gui.training_data_dialog(GUI::GUIType::TEXT, utils::endsWith(command, " load"));
-                        
-                    } else if(utils::beginsWith(command, "reanalyse")) {
+                        gui.training_data_dialog(GUI::GUIType::TEXT, utils::endsWith(command, " load"));    
+                    } 
+#endif
+                    else if(utils::beginsWith(command, "reanalyse")) {
                         GUI::reanalyse_from(0_f, false);
                         SETTING(analysis_paused) = false;
                         /*{
@@ -1627,6 +1641,7 @@ int main(int argc, char** argv)
         }
     },
     [&](gui::SFLoop& loop){
+#if !COMMONS_NO_PYTHON
         static int last_seconds = -1;
         int seconds = (int)loop.time_since_last_update().elapsed();
         if(seconds != last_seconds) {
@@ -1680,12 +1695,15 @@ int main(int argc, char** argv)
             }
         }
         last_seconds = seconds;
+#endif
     });
     
     print("Preparing for shutdown...");
+#if !COMMONS_NO_PYTHON
     CheckUpdates::cleanup();
     Categorize::terminate();
     Recognition::notify();
+#endif
     
     {
         std::lock_guard<std::mutex> lock(data_mutex);

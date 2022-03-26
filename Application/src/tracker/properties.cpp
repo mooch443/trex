@@ -1,5 +1,9 @@
 #include <types.h>
+#include <gui/IMGUIBase.h>
 #include <tracking/MotionRecord.h>
+#include <tracking/Tracker.h>
+#include <tracker/misc/default_config.h>
+#include <gui/GUICache.h>
 
 template<typename... Args>
 void ASSERT(bool condition, const Args&... args) {
@@ -10,6 +14,25 @@ void ASSERT(bool condition, const Args&... args) {
 
 int main() {
 	using namespace track;
+	default_config::register_default_locations();
+	GlobalSettings::map().set_do_print(true);
+
+	gui::init_errorlog();
+	set_thread_name("main");
+	srand((uint)time(NULL));
+
+	FILE* log_file = NULL;
+	std::mutex log_mutex;
+
+	/**
+	 * Set default values for global settings
+	 */
+	using namespace Output;
+	DebugHeader("LOADING DEFAULT SETTINGS");
+	default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+	default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+	GlobalSettings::map().dont_print("gui_frame");
+	GlobalSettings::map().dont_print("gui_focus_group");
 
 	FileSize size{ sizeof(MotionRecord) };
 	auto str = size.toStr();
@@ -74,6 +97,142 @@ int main() {
         print("(", v.pos<Units::CM_AND_SECONDS>().x,",",v.pos<Units::CM_AND_SECONDS>().y,")");
 	}
 
-	return 0;
+    using namespace gui;
+	DrawStructure graph(1024, 1024);
+	Timer timer;
+    Vec2 last_mouse_pos;
+	Entangled e;
+    bool terminate = false;
+    IMGUIBase* ptr = nullptr;
+
+	SETTING(do_history_split) = false;
+	
+	GlobalSettings::load_from_string({}, GlobalSettings::map(),
+		"blob_size_ranges = [[0.001,1000.07]]\n"
+		"blob_split_global_shrink_limit = 0.005\n"
+		"blob_split_max_shrink = 0.1\n"
+		"gpu_enable_accumulation = false\n"
+		"gpu_max_epochs = 5\n"
+		"gpu_max_sample_gb = 1\n"
+		"midline_stiff_percentage = 0.07\n"
+		"outline_resample = 0.75\n"
+		"speed_extrapolation = 10\n"
+		"track_max_individuals = 0\n"
+		"track_max_reassign_time = 0.25\n"
+		"track_max_speed = 15\n"
+		"cm_per_pixel = 0.008082\n"
+		"track_speed_decay = 0.5\n"
+		"track_threshold = 25\n", cmn::AccessLevelType::STARTUP);
+
+#if defined(__EMSCRIPTEN__)
+	pv::File file("group_1.pv");
+#else
+	pv::File file("C:/Users/tristan/Videos/group_1.pv");
+#endif
+	print("Will open... group_1...");
+	file.start_reading();
+	file.print_info();
+
+	try {
+		Tracker tracker;
+		print("Added tracker");
+		print("Image: ", Size2(file.average()));
+		tracker.set_average(std::make_unique<Image>(file.average()));
+
+		PPFrame frame;
+		pv::Frame single;
+		Frame_t index(0);
+
+		GUICache cache{&graph, &file};
+
+		//Tracker::set_of_individuals_t active;
+		std::thread tracking([&]() {
+			while (true) {
+				file.read_frame(single, index.get());
+
+				frame.clear();
+				frame.set_index(index);
+				frame.frame() = single;
+				frame.frame().set_index(index.get());
+				frame.frame().set_timestamp(single.timestamp());
+				frame.set_index(index);
+
+				track::Tracker::LockGuard guard("update_tracker_queue");
+				track::Tracker::preprocess_frame(frame, {}, NULL, NULL, false);
+				tracker.add(frame);
+				//active = tracker.active_individuals(index - 1_f);
+				//print(index);
+
+				if (index.get() < file.length() - 1)
+					index += 1_f;
+				else
+					break;
+			}
+		});
+
+		IMGUIBase base("BBC Micro owl", graph, [&]() -> bool {
+			auto dt = timer.elapsed();
+			cache.set_dt(dt);
+			timer.reset();
+
+			graph.text("BBC MicroOwl", Vec2(10, 10), White.alpha(255), Font(1));
+			e.update([&](Entangled& e) {
+				e.add<Rect>(Bounds(graph.mouse_position(), Size2(100, 25)), White, Red);
+				});
+			graph.wrap_object(e);
+
+			//image.set_pos(last_mouse_pos);
+			//graph.wrap_object(image);
+
+			auto scale = graph.scale().reciprocal();
+			auto dim = ptr->window_dimensions().mul(scale * gui::interface_scale());
+			graph.draw_log_messages();//Bounds(Vec2(0), dim));
+
+			graph.section("fishbowl", [&](auto&, Section* s) {
+				track::Tracker::LockGuard guard("update", 1);
+				if (!guard.locked()) {
+					s->reuse_objects();
+					return;
+				}
+
+				s->set_scale(graph.scale().reciprocal());
+				cache.update_data(index);
+
+				//print("Frame ", index, " active: ",active.size(), ".");
+				for (auto fish : Tracker::active_individuals(Tracker::end_frame())) {
+					if (fish->has(Tracker::end_frame())) {
+						auto [basic, posture] = fish->all_stuff(tracker.end_frame());
+						//print("\t", fish->identity().name(), " has frame ", index, " at ", basic->centroid.pos<Units::PX_AND_SECONDS>());
+						graph.circle(basic->centroid.pos<Units::PX_AND_SECONDS>() * 0.25, 15, White, fish->identity().color());
+					}
+				}
+			});
+
+			cache.on_redraw();
+
+			return !terminate;
+
+		}, [&](const Event& e) {
+			if (e.type == EventType::KEY && !e.key.pressed) {
+				if (e.key.code == Codes::F && graph.is_key_pressed(Codes::LControl)) {
+					ptr->toggle_fullscreen(graph);
+				}
+				else if (e.key.code == Codes::Escape)
+					terminate = true;
+			}
+		});
+
+		ptr = &base;
+		base.loop();
+		
+	}
+	catch (const UtilsException& e) {
+		FormatExcept("Exception: ", e.what());
+	}
+	catch (...) {
+		FormatExcept("Unknown exception.");
+	}
+
+    return 0;
 }
 

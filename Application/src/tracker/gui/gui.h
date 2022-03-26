@@ -1,28 +1,6 @@
 #ifndef _GUI_H
 #define _GUI_H
 
-/*#include <types.h>
-#include <tracking/Posture.h>
-#include <tracking/Tracker.h>
-#include <gui/Graph.h>
-#include <gui/DrawBase.h>
-#include <gui/DrawSFBase.h>
-#include <gui/DrawStructure.h>
-#include <gui/DrawHTMLBase.h>
-#include <gui/Timeline.h> 
-#include <gui/types/Button.h>
-#include <gui/types/List.h>
-#include <gui/types/StaticText.h>
-#include <gui/DrawGraph.h>
-#include <gui/DrawPosture.h>
-#include <gui/types/Histogram.h>
-#include <gui/HttpGui.h>
-#include <gui/types/Dropdown.h>
-#include <gui/types/Layout.h>
-#include <misc/ConnectedTasks.h>
-#include <gui/GUICache.h>
-#include <misc/default_config.h>*/
-
 #include <misc/defines.h>
 #include <misc/create_struct.h>
 #include <misc/default_config.h>
@@ -40,47 +18,6 @@ namespace cmn {
     class ConnectedTasks;
 }
 
-CREATE_STRUCT(Cache,
-    (bool, gui_run),
-    (gui::mode_t::Class, gui_mode),
-    (bool, nowindow),
-    (bool, auto_train),
-    (bool, auto_apply),
-    (bool, auto_quit),
-    (Frame_t, gui_frame),
-    (bool, terminate),
-    (bool, gui_show_blobs),
-    (bool, gui_show_paths),
-    //(bool, gui_show_manual_matches),
-    (bool, gui_show_texts),
-    (bool, gui_show_selections),
-    (bool, gui_show_inactive_individuals),
-    (bool, gui_show_outline),
-    (bool, gui_show_midline),
-    (bool, gui_show_posture),
-    (bool, gui_show_heatmap),
-    (bool, gui_show_number_individuals),
-    (bool, gui_show_dataset),
-    (bool, gui_show_recognition_summary),
-    (bool, gui_show_visualfield),
-    (bool, gui_show_visualfield_ts),
-    (bool, gui_show_export_options),
-    (bool, gui_show_recognition_bounds),
-    (bool, gui_show_midline_histogram),
-    (bool, gui_show_histograms),
-    (bool, gui_auto_scale),
-    (bool, gui_auto_scale_focus_one),
-    (uint16_t, output_min_frames),
-    (gui::Color, gui_background_color),
-    (bool, gui_equalize_blob_histograms),
-    (float, gui_playback_speed),
-    (int, frame_rate),
-    (float, gui_interface_scale),
-    (default_config::output_format_t::Class, output_format),
-    (uchar, gui_timeline_alpha),
-    (bool, gui_happy_mode),
-    (bool, auto_categorize)
-)
 
 namespace gui {
     class GUICache;
@@ -88,15 +25,7 @@ namespace gui {
     class Dropdown;
     class PropertiesGraph;
 
-namespace globals {
-
-
-//(bool, gui_blur_enabled)
-
 }
-}
-
-#define GUI_SETTINGS(NAME) Cache::copy< Cache:: NAME >()
 
 namespace pv {
     class Frame;
@@ -197,10 +126,12 @@ public:
     static void trigger_redraw();
     
     static std::string info(bool escape);
+#if !COMMONS_NO_PYTHON
     static void auto_apply();
     static void auto_train();
-    static void auto_quit();
     static void auto_categorize();
+#endif
+    static void auto_quit();
     
     static gui::GUICache& cache();
     
@@ -232,11 +163,13 @@ private:
     void key_event(const gui::Event& event);
     void local_event(const gui::Event& event);
     
+#if !COMMONS_NO_PYTHON
     void generate_training_data(std::future<void>&& initialized, GUIType type = GUIType::GRAPHICAL, bool force_load = false);
     std::map<Frame_t, std::set<long_t>> generate_individuals_per_frame(const Rangel& range, TrainingData& data);
     
     void generate_training_data_faces(const file::Path& path);
     std::map<Frame_t, long_t> check_additional_range(const Range<Frame_t>& range, TrainingData& data);
+#endif
     
 public:
     void add_manual_match(Frame_t frameIndex, Idx_t fish_id, pv::bid blob_id);
@@ -252,7 +185,9 @@ public:
     static void start_recording();
 
 public:
+#if !COMMONS_NO_PYTHON
     void training_data_dialog(GUIType type = GUIType::GRAPHICAL, bool force_load = false, std::function<void()> = [](){});
+#endif
     void confirm_terminate();
     
     static void update_backups();
@@ -276,7 +211,5 @@ private:
     
     void update_display_blobs(bool draw_blobs, gui::Section*);
 };
-
-STRUCT_META_EXTENSIONS(Cache)
 
 #endif

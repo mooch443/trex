@@ -45,7 +45,7 @@ endif()
 add_executable(${TGRABS_EXEC_NAME} ${SRCS})
 #target_precompile_headers(${TGRABS_EXEC_NAME} REUSE_FROM commons)
 
-if(WIN32)
+if(WIN32 AND NOT COMMONS_NO_PYTHON)
 	set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES LINK_FLAGS_RELEASE "/DELAYLOAD:tracker_python.dll" )
 	set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE}  /DELAYLOAD:tracker_python.dll")
 	set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES LINK_FLAGS_DEBUG "/DELAYLOAD:tracker_python-d.dll" )
@@ -67,11 +67,6 @@ target_link_libraries(pvconvert PUBLIC
     tracker_gui
     pv
     commons
-    #Commons::GLFW
-    #Commons::LibPNG
-    #Commons::LibZ
-    #Commons::OpenCV
-    #${EXTRA_LIBS}
 )
 
 add_dependencies(pvconvert commons)#Commons::OpenCV)
@@ -115,11 +110,6 @@ target_link_libraries(pvinfo PRIVATE
     tracker_gui
     tracker_misc
 	commons
-    #Commons::IMGUI
-	#Commons::LibPNG
-	#Commons::GLFW
-	#Commons::OpenCV
-	#${EXTRA_LIBS}
 	pv
 )
 
@@ -172,7 +162,7 @@ if(APPLE)
                         "${comp}"
                         "$<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>/../Resources/${comp_s}")
     endforeach()
-else()
+elseif(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
         get_filename_component(comp_s ${comp} NAME)
 
@@ -199,7 +189,7 @@ elseif(APPLE)
                 "${comp}"
                 "$<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>/../Resources/${comp_s}")
     endforeach()
-else()
+elseif(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 	foreach(comp ${RESOURCE_COPY_FILES})
         get_filename_component(comp_s ${comp} NAME)
 		add_custom_command(TARGET ${TGRABS_EXEC_NAME} POST_BUILD

@@ -752,7 +752,11 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         if(_open_for_writing)
             bytes = current_offset();
         else {
+#if defined(__EMSCRIPTEN__)
+            bytes = reading_file_size();
+#else
             bytes = _filename.add_extension("pv").file_size();
+#endif
         }
         
         return Meta::toStr(FileSize(bytes));
