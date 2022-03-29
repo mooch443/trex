@@ -1,5 +1,6 @@
 #include "Categorize.h"
 
+#include <tracking/Tracker.h>
 #include <tracking/Individual.h>
 #include <gui/DrawStructure.h>
 #include <gui/gui.h>

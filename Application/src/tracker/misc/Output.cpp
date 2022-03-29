@@ -90,8 +90,8 @@ _load_pool(cmn::hardware_concurrency(), [this](std::exception_ptr e) {
 }, "Output::loadPool"),
 _expected_individuals(0), _N_written(0)
 {
-    if(!filename.exists())
-        throw U_EXCEPTION("File ", filename," cannot be found.");
+    //if(!filename.exists())
+    //    throw U_EXCEPTION("File ", filename," cannot be found.");
 }
 
 Output::ResultsFormat::~ResultsFormat() {
