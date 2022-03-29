@@ -17,7 +17,11 @@ The easy way (Windows, Linux and Intel macOS)
 
 |trex| supports all major platforms. There is an easy way to install |trex| using Anaconda, by creating a new virtual environment (here named ``tracking``, which you can replace)::
 
-	conda create -n tracking -c trexing trex                          # macOS (Intel), Windows, Linux
+	# macOS, Windows
+	conda create -n tracking -c trexing trex
+
+	# Linux
+	conda create -n tracking -c defaults -c conda-forge -c trexing trex
 
 The down-side is that pre-built binaries are compiled with fewer optimzations and features than a manually compiled one (due to compatibility and licensing issues) and thus are slightly slower =(. For example, the conda version does not offer support for Basler cameras. If you need to use |grabs| with machine vision cameras, or need as much speed as possible/the newest version, please consider compiling the software yourself.
 
@@ -26,9 +30,7 @@ The down-side is that pre-built binaries are compiled with fewer optimzations an
 Apple Silicone (macOS arm64)
 ****************************
 
-If you own a new Mac with an Apple Silicone CPU, the Intel version (above) works fine in Rosetta. However, I would strongly encourage installing |trex| via ``miniforge``, which is like Anaconda but supports native arm64 packages. This way, hardware accelerated machine learning on your M1 Macbook is possible! Simply follow the instructions here for installing miniforge: `github.com/apple/tensorflow_macos <https://github.com/apple/tensorflow_macos/issues/153#issue-799924913>`_. Once you're done, you can run the same command as above (only that now everything will be all fast and native ``arm64`` code)::
-
-	conda create -n tracking -c trexing trex  # macOS (arm64)
+If you own a new Mac with an Apple Silicone CPU, the Intel version (above) works fine in Rosetta. However, I would strongly encourage installing |trex| via ``miniforge``, which is like Anaconda but supports native arm64 packages. This way, hardware accelerated machine learning on your M1 Macbook is possible! Simply follow the instructions here for installing miniforge: `github.com/apple/tensorflow_macos <https://github.com/apple/tensorflow_macos/issues/153#issue-799924913>`_. Once you're done, you can run the same command as above (only that now everything will be all fast and native ``arm64`` code).
 
 There is no official tensorflow package yet, which is why |trex| will not allow you to use machine learning right away. But -- yay -- Apple provides their own version for macOS including a native macOS (`developer.apple.com <https://developer.apple.com/metal/tensorflow-plugin/>`_) backend. An Apple Silicone MacBook (2020) only needs ~50ms/step and (with the same data and code) is not much slower than my fast i7 PC with an NVIDIA Geforce 1070 -- running at roughly ~21ms/step. To install tensorflow inside your activated environment, just run::
 
@@ -67,7 +69,11 @@ This runs ``conda build .``, which builds the program according to all the setti
 
 After compilation was successful, |trex| can be installed using::
 
-	conda create -n tracking -c trexing trex  # macOS, Windows, Linux (Intel)
+	# macOS, Windows
+	conda create -n tracking -c local trex
+
+	# Linux
+	conda create -n tracking -c defaults -c conda-forge -c local trex
 
 Notice there is a ``-c local``, instead of the ``-c trexing`` from the first section.
 
@@ -84,8 +90,8 @@ First, make sure that you fulfill the platform-specific requirements:
 
 As well as the general requirements:
 
-* **Python**: We use version ``>= 3.6``.
-* **CMake**: Version ``>= 3.16``.
+* **Python**: We use version ``>= 3.7``.
+* **CMake**: Version ``>= 3.18``.
 
 .. NOTE::
 	We will be using Anaconda here. However, it is not *required* to use Anaconda when compiling |trex| -- it is just a straight-forward way to obtain dependencies. In case you do not want to use Anaconda, please make sure that all mentioned dependencies are installed in a way that can be detected by CMake. You may also add necessary paths to the CMake command-line, such as ``-DOpenCV_DIR=/path/to/opencv`` and use switches to compile certain libraries (such as OpenCV) statically with |trex|.
