@@ -511,8 +511,10 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                     ref.read<double>(time);
                 else
                     ref.read_convert<float>(time);
-            } else
-                time = Tracker::properties(Frame_t(frameIndex))->time;
+            } else {
+                auto p = Tracker::properties(Frame_t(frameIndex));
+                if(p) time = p->time;
+            }
         }
         
         //fish->_blob_indices[frameIndex] = ref.read<uint32_t>();

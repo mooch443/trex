@@ -1863,7 +1863,8 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                         auto && [data, images, image_map] = Accumulation::generate_discrimination_data();
                         auto && [u, umap, uq] = Accumulation::calculate_uniqueness(false, images, image_map);
                         
-			estimated_uniqueness.clear();
+                        estimated_uniqueness.clear();
+
                         std::lock_guard<std::mutex> guard(mutex);
                         for(auto &[k,v] : umap)
                             estimated_uniqueness[k] = v;
@@ -2108,10 +2109,11 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             work().add_queue("discrimination", [](){
                 auto && [data, images, map] = Accumulation::generate_discrimination_data();
                 auto && [unique, unique_map, up] = Accumulation::calculate_uniqueness(false, images, map);
-		std::map<Frame_t, float> unique_map_;
-		for(auto &[k,v] : unique_map)
-			unique_map_[k] = v;
-                auto coverage = data->draw_coverage(unique_map_);
+                
+                std::map<Frame_t, float> tmp;
+                for(auto&[k,v] : unique_map)
+                    tmp[k] = v;
+                auto coverage = data->draw_coverage(tmp);
                 
                 auto path = pv::DataLocation::parse("output", "uniqueness"+(std::string)video_source()->filename().filename()+".png");
                 

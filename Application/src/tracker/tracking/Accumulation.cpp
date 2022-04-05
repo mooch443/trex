@@ -529,6 +529,7 @@ std::tuple<float, ska::bytell_hash_map<Frame_t, float>, float> Accumulation::cal
     }
     
     Timer good_timer;
+    
     size_t good_frames = 0;
     size_t bad_frames = 0;
     double percentages = 0, rpercentages = 0;

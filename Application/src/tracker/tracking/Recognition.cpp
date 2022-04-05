@@ -1623,7 +1623,7 @@ void Recognition::check_learning_module(bool force) {
                 return -1;
                 
             }, "learn_static");
-	    py::set_function("accepted_uniqueness", (std::function<float(void)>)[](void) -> float {
+            py::set_function("accepted_uniqueness", (std::function<float(void)>)[](void) -> float {
                 if(Accumulation::current())
                     return Accumulation::current()->accepted_uniqueness();
                 FormatWarning("There is currently no accumulation in progress.");

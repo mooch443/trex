@@ -184,3 +184,4 @@ namespace gui {
 }
 
 STRUCT_META_EXTENSIONS(gui::globals::Cache)
+
