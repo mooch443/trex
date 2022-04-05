@@ -850,7 +850,7 @@ FrameGrabber::~FrameGrabber() {
                 try {
                     Output::TrackingResults results(*tracker);
                     results.save([](const std::string&, float, const std::string&){  }, Output::TrackingResults::expected_filename(), additional_exclusions);
-                } catch(const UtilsException&) { FormatExcept("Something went wrong saving program state. Maybe no write permissions?"); }
+                } catch(const UtilsException& e) { FormatExcept("Something went wrong saving program state. Maybe no write permissions? ", e.what()); }
             }
         }
         

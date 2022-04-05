@@ -36,9 +36,7 @@ Command-line parameters always override settings files.
 
 If you know the number of individuals, specify before you do the tracking (using the parameter ``track_max_individuals``).
 
-If you have more than 200 individuals and they are always in very close proximity to each other (or you get a lot of warnings), the tree-based matching method might be in trouble (combinatorically speaking). Consider changing your matching algorithm (``match_mode``) to ``approximate`` or ``hungarian``. These algorithms have down-sides to them, but they do scale better for many individuals. If you need something trustworthy: ``hungarian`` is the well-known Hungarian algorithm (https://en.wikipedia.org/wiki/Hungarian_algorithm)!
-
-When converting videos, :func:`meta_real_width` should always be specified unless you do not know the real-world dimensions of what you see. If not set, then all values will be in fictional units (``meta_real_width`` defaults to 30).
+When converting videos, :func:`meta_real_width` should always be specified unless you do not know the real-world dimensions of what you see. If not set, then all values will be in fictional units (``meta_real_width`` defaults to 30). This sets the :func:`cm_per_pixel` parameter for the current video to ``meta_real_width / video-width``. However, in newer versions you can set ``cm_per_pixel`` within the |trex| GUI. Simply click into an empty spot of the arena, hold CTRL/CMD and click somewhere else: a button will pop up to define the selected length as a specific real-world length.
 
 Running TGrabs
 --------------
@@ -180,7 +178,7 @@ Run software directly using shortcuts
 
 Interaction with software on Unix-systems often takes place within a terminal. Under Windows, a lot of the typical interactions take place within a graphical user interface -- however, especially when installed within a conda environment, some additional environment variables need to be set. I am unsure whether this may influence other software or applications, so starting directly from the Anaconda3 PowerShell terminal should be the preferred approach.
 
-Under Windows 10, this can be done by right-clicking on "This Computer" -> "Properties" -> "Advanced System Settings" -> "Environment variables". Inside the "System variables" box, if it does not contain the variable "CONDA_PREFIX" yet, click on "New" to add it. Example::
+If you still want to go the dangerous path, e.g. under Windows 10, you can adjust your environment variables by right-clicking "This Computer" -> "Properties" -> "Advanced System Settings" -> "Environment variables". Inside the "System variables" box, if it does not contain the variable "CONDA_PREFIX" yet, click on "New" to add it. Example::
 
 	Name of the variable: CONDA_PREFIX
 	Value of the variable: C:\Users\tristan\Anaconda3\envs\tracking
