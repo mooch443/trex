@@ -49,7 +49,7 @@ namespace track {
         
         std::shared_ptr<TrainingData> _last_training_data;
         
-        std::map<Frame_t, std::map<pv::bid, std::vector<float>>> probs;
+        ska::bytell_hash_map<Frame_t, ska::bytell_hash_map<pv::bid, std::vector<float>>> probs;
         //std::set<long_t> identities;
         //std::map<long_t, long_t> fish_id_to_idx;
         std::map<Idx_t, Idx_t> fish_idx_to_id;

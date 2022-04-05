@@ -1863,8 +1863,10 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                         auto && [data, images, image_map] = Accumulation::generate_discrimination_data();
                         auto && [u, umap, uq] = Accumulation::calculate_uniqueness(false, images, image_map);
                         
+			estimated_uniqueness.clear();
                         std::lock_guard<std::mutex> guard(mutex);
-                        estimated_uniqueness = umap;
+                        for(auto &[k,v] : umap)
+                            estimated_uniqueness[k] = v;
                         
                         uniquenesses.clear();
                         for(auto && [frame, q] :umap) {
@@ -2106,7 +2108,10 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             work().add_queue("discrimination", [](){
                 auto && [data, images, map] = Accumulation::generate_discrimination_data();
                 auto && [unique, unique_map, up] = Accumulation::calculate_uniqueness(false, images, map);
-                auto coverage = data->draw_coverage(unique_map);
+		std::map<Frame_t, float> unique_map_;
+		for(auto &[k,v] : unique_map)
+			unique_map_[k] = v;
+                auto coverage = data->draw_coverage(unique_map_);
                 
                 auto path = pv::DataLocation::parse("output", "uniqueness"+(std::string)video_source()->filename().filename()+".png");
                 
@@ -3673,11 +3678,11 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                     grid::ProximityGrid proximity{ Tracker::average().bounds().size() };
                     size_t i=0, all_found = 0, not_found = 0;
                     const size_t N = Tracker::recognition()->data().size();
-                    std::map<Frame_t, std::map<pv::bid, std::vector<float>>> next_recognition;
+                    ska::bytell_hash_map<Frame_t, ska::bytell_hash_map<pv::bid, std::vector<float>>> next_recognition;
                     
                     for (auto &[k, v] : Tracker::recognition()->data()) {
                         auto & active = Tracker::active_individuals(k);
-                        std::map<pv::bid, const pv::CompressedBlob*> blobs;
+                        ska::bytell_hash_map<pv::bid, const pv::CompressedBlob*> blobs;
                         
                         for(auto fish : active) {
                             auto b = fish->compressed_blob(k);
@@ -3696,7 +3701,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                             proximity.insert(c.x, c.y, (uint32_t)b->blob_id());
                         }*/
                         
-                        std::map<pv::bid, std::vector<float>> tmp;
+                        ska::bytell_hash_map<pv::bid, std::vector<float>> tmp;
                         
                         for(auto &[bid, ps] : v) {
                             auto id = uint32_t(bid);

@@ -140,7 +140,7 @@ namespace Output {
             timestamp_t creation_time{0};
             bool has_categories = false;
             std::vector<std::string> exclude_settings;
-            std::map<Frame_t, std::map<pv::bid, std::vector<float>>> rec_data;
+            ska::bytell_hash_map<Frame_t, ska::bytell_hash_map<pv::bid, std::vector<float>>> rec_data;
         };
         
         GETTER_NCONST(Header, header)

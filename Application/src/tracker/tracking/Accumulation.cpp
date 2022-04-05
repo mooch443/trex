@@ -380,7 +380,12 @@ void Accumulation::confirm_weights() {
 }
 
 void Accumulation::update_coverage(const TrainingData &data) {
-    auto image = data.draw_coverage(unique_map, _next_ranges, _added_ranges, temp_unique, current_salt, assigned_unique_averages);
+    std::map<Frame_t, float> tmp, temp_tmp;
+    for(auto &[k,v] : unique_map)
+        tmp[k] = v;
+    for(auto &[k,v] : temp_unique)
+        temp_tmp[k] = v;
+    auto image = data.draw_coverage(tmp, _next_ranges, _added_ranges, temp_tmp, current_salt, assigned_unique_averages);
     
     //if(GUI::instance())
     //    GUI::work().set_image("coverage", image);
@@ -481,7 +486,7 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Fram
     return {data, disc_images, disc_frame_map};
 }
 
-std::tuple<float, std::map<Frame_t, float>, float> Accumulation::calculate_uniqueness(bool internal, const std::vector<Image::Ptr>& images, const std::map<Frame_t, Range<size_t>>& map_indexes)
+std::tuple<float, ska::bytell_hash_map<Frame_t, float>, float> Accumulation::calculate_uniqueness(bool internal, const std::vector<Image::Ptr>& images, const std::map<Frame_t, Range<size_t>>& map_indexes)
 {
     std::vector<std::vector<float>> predictions;
     if(internal) {
@@ -523,18 +528,19 @@ std::tuple<float, std::map<Frame_t, float>, float> Accumulation::calculate_uniqu
         FormatExcept("Cannot predict ", images.size()," images.");
     }
     
+    Timer good_timer;
     size_t good_frames = 0;
     size_t bad_frames = 0;
     double percentages = 0, rpercentages = 0;
-    std::map<Frame_t, float> unique_percent;
-    std::map<Frame_t, float> unique_percent_raw;
+    ska::bytell_hash_map<Frame_t, float> unique_percent;
+    ska::bytell_hash_map<Frame_t, float> unique_percent_raw;
     
-    std::map<Idx_t, float> unique_percent_per_identity;
-    std::map<Idx_t, float> per_identity_samples;
+    ska::bytell_hash_map<Idx_t, float> unique_percent_per_identity;
+    ska::bytell_hash_map<Idx_t, float> per_identity_samples;
     
     for(auto && [frame, range] : map_indexes) {
-        std::set<Idx_t> unique_ids;
-        std::map<Idx_t, float> probs;
+        ska::bytell_hash_set<Idx_t> unique_ids;
+        ska::bytell_hash_map<Idx_t, float> probs;
         
         for (auto i = range.start; i < range.end; ++i) {
             Idx_t max_id;
@@ -607,7 +613,7 @@ std::tuple<float, std::map<Frame_t, float>, float> Accumulation::calculate_uniqu
     
     print("Good: ", good_frames," Bad: ", bad_frames," ratio: ", float(good_frames) / float(good_frames + bad_frames),
         " (", percentages / double(unique_percent.size()), " / ", rpercentages / double(unique_percent_raw.size()), "). "
-        "Hoping for at least ", SETTING(gpu_accepted_uniqueness).value<float>(), ".");
+        "Hoping for at least ", SETTING(gpu_accepted_uniqueness).value<float>(), ". In ", good_timer.elapsed(),"s");
     
     return {float(good_frames) / float(good_frames + bad_frames), unique_percent, percentages / double(unique_percent.size())};
 }
