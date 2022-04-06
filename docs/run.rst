@@ -26,7 +26,7 @@ Basic principles & Good practices
 
 Both |grabs| and |trex| offer many parameters that can be set by users. However, that does not mean that all parameters have to be considered in all cases. In fact, most of them will already be set to reasonable values that work in many situations:
 
-	If there is no problem, do not change parameters.
+	*If there is no problem, do not change parameters.*
 	
 Otherwise, if your problem cannot be solved by repeatedly mashing the same sequence of buttons (but with an increasingly stern expression on your face), please consider the list of things that happen frequently in (:doc:`faq`).
 
@@ -36,9 +36,31 @@ Command-line parameters always override settings files.
 
 If you know the number of individuals, specify before you do the tracking (using the parameter ``track_max_individuals``).
 
-If you have more than 200 individuals and they are always in very close proximity to each other (or you get a lot of warnings), the tree-based matching method might be in trouble (combinatorically speaking). Consider changing your matching algorithm (``match_mode``) to ``approximate`` or ``hungarian``. These algorithms have down-sides to them, but they do scale better for many individuals. If you need something trustworthy: ``hungarian`` is the well-known Hungarian algorithm (https://en.wikipedia.org/wiki/Hungarian_algorithm)!
+When converting videos, :func:`meta_real_width` should always be specified unless you do not know the real-world dimensions of what you see. If not set, then all values will be in fictional units (``meta_real_width`` defaults to 30). This sets the :func:`cm_per_pixel` parameter for the current video to ``meta_real_width / video-width``. However, in newer versions you can set ``cm_per_pixel`` within the |trex| GUI. Simply click into an empty spot of the arena, hold CTRL/CMD and click somewhere else: a button will pop up to define the selected length as a specific real-world length. See here: `changing the cm to px conversion factor <https://trex.run/docs/gui.html#changing-the-cm-px-conversion-factor>`_.
 
-When converting videos, :func:`meta_real_width` should always be specified unless you do not know the real-world dimensions of what you see. If not set, then all values will be in fictional units (``meta_real_width`` defaults to 30).
+Consecutive segments
+--------------------
+
+Tracking in |trex| heavily relies on consecutively tracked trajectory pieces. These are often called "segments" or "consecutive segments" here. You can find them in |trex| by selecting an individual and looking at the top-left info card. There it should display frame numbers - with the current frame marked with a line. This moves up when the displayed range of frames (e.g. 1234-1300, or 1234 for a single frame) no longer contains the frame currently viewed in |trex|.
+
+These segments usually end in these situations:
+
+	- the individual cannot be found in a frame (e.g. because it has moved farther than :func:`track_max_speed`)
+	- the individual has not moved too far, but close to too far (90% of ``track_max_speed``)
+	- multiple individuals were expected in the vicinity of too few objects and cannot be separated via thresholding, so it'd rather not track anything to be sure (e.g. when individuals overlap)
+	- is has actually disappeared
+
+If these segments end in other situations, then there is a good chance that some parameters need to be changed. See :ref:`parameter-order` for more information.
+
+Using settings files
+--------------------
+
+[TODO] But basically the format is::
+
+	parameter_name = value
+	parameter2 = value2
+
+If you save this as videoname.settings in your output directory (e.g. ``~/Videos`` by default), |trex| will load these settings before any command-line parameters. Command-line, however, always overwrites .settings files.
 
 Running TGrabs
 --------------
@@ -83,6 +105,25 @@ The tracker only expects an input file::
 ``VIDEONAME`` is either a full path to the video file, or the name of a video file in the default output folder (``~/Videos`` by default). This will open |trex| with all settings set to default, except if there is a ``[VIDEONAME].settings`` file present next to the video file or in the default output folder.
 
 Just like with |grabs|, you can attach any number of additional parameters to the command-line, simply using ``-PARAMETER VALUE`` (see :doc:`parameters_trex`).
+
+.. _parameter-order:
+
+Setting parameters in the correct order
+---------------------------------------
+
+Preferably set parameters in this order (with the goal to only match those objects that are your objects of interest, and exclude the ones that you do not want to track):
+
+	- :func:`cm_per_pixel` (in .settings files, command-line or in |trex|) / :func:`meta_real_width` (during conversion)
+	- :func:`track_threshold`
+	- :func:`blob_size_ranges`
+
+Now all objects of interest should have a cyan number next to them in RAW view (pressing ``D`` in tracking view switches to RAW and vice-versa). More "optional" parameters like can now be set in order to maximize the length of consecutive segments:
+
+	- :func:`track_max_speed`
+	- :func:`track_max_reassign_time`
+	- :func:`track_posture_threshold`
+	- :func:`outline_resample`
+	- :func:`outline_curvature_range_ratio`
 
 Other command-line tools
 ------------------------
@@ -180,7 +221,7 @@ Run software directly using shortcuts
 
 Interaction with software on Unix-systems often takes place within a terminal. Under Windows, a lot of the typical interactions take place within a graphical user interface -- however, especially when installed within a conda environment, some additional environment variables need to be set. I am unsure whether this may influence other software or applications, so starting directly from the Anaconda3 PowerShell terminal should be the preferred approach.
 
-Under Windows 10, this can be done by right-clicking on "This Computer" -> "Properties" -> "Advanced System Settings" -> "Environment variables". Inside the "System variables" box, if it does not contain the variable "CONDA_PREFIX" yet, click on "New" to add it. Example::
+If you still want to go the dangerous path, e.g. under Windows 10, you can adjust your environment variables by right-clicking "This Computer" -> "Properties" -> "Advanced System Settings" -> "Environment variables". Inside the "System variables" box, if it does not contain the variable "CONDA_PREFIX" yet, click on "New" to add it. Example::
 
 	Name of the variable: CONDA_PREFIX
 	Value of the variable: C:\Users\tristan\Anaconda3\envs\tracking

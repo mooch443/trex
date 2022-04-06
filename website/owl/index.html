@@ -1,0 +1,162 @@
+<html>
+
+<head>
+    <title>WebAssembly - Performance Test</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <!--<link rel="manifest" href="manifest.json">-->
+    <style>
+        body {
+            font-family: arial;
+            margin: 0;
+            padding: none;
+        }
+
+        .emscripten {
+            padding-right: 0;
+            margin-left: auto;
+            margin-right: auto;
+            margin: 0px;
+            border: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            display: block;
+        }
+
+        div.emscripten {
+            text-align: center;
+        }
+
+        div.emscripten_border {
+            border: 1px solid black;
+        }
+
+        /* the canvas *must not* have any border or padding, or mouse coords will be wrong */
+
+        canvas.emscripten {
+            border: 0px none;
+            background-color: black;
+        }
+    </style>
+    <script>
+        var _lastTime;
+
+        function getGLCanvas() {
+            return document.getElementById("canvas");
+        }
+
+        function onDeviceMotion(eventData) {
+            var now = performance.now();
+            var intervalTime = now - _lastTime;
+            var rotationRate = eventData.rotationRate;
+            var acceleration = eventData.accelerationIncludingGravity;
+            if (rotationRate != null && rotationRate.alpha != null &&
+                rotationRate.beta != null && rotationRate.gamma != null) {
+                Module.get_app().HandleRotation(intervalTime,
+                    rotationRate.alpha, rotationRate.beta, rotationRate.gamma);
+            }
+            else if (acceleration != null && acceleration.x != null &&
+                acceleration.y != null && acceleration.z != null) {
+                Module.get_app().handleAcceleration(intervalTime,
+                    acceleration.x, acceleration.y, acceleration.z);
+            }
+            _lastTime = now;
+        }
+
+        function initSensors() {
+            window.addEventListener('devicemotion', onDeviceMotion, true);
+        }
+
+        // Main entry point of the Galaga game.
+        function main() {
+            initSensors();
+        }
+
+        // Load the wasm file with Fetch APIs.
+        function onBodyLoad() {
+            fetch('test_gui.wasm').then(response =>
+                response.arrayBuffer()
+            ).then(bytes => {
+                // Once the wasm file has been loaded, the onRuntimeInitialized callback
+                // will be invoked.
+                Module.wasmBinary = bytes;
+                Module.canvas = (function () {
+                    return getGLCanvas();
+                })();
+                Module.onRuntimeInitialized = function () {
+                    main();
+                };
+
+                var script = document.createElement('script');
+                script.src = "test_gui.js";
+                document.body.appendChild(script);
+            });
+
+            var container = getGLCanvas();
+            Module.canvas.width = container.clientWidth;
+            Module.canvas.height = container.clientHeight;
+
+            window.addEventListener ("resize", function (e) {
+
+                Module.canvas.width = container.clientWidth;
+                Module.canvas.height = container.clientHeight;
+
+            }, true);
+
+            setInterval(function() {
+                var container = getGLCanvas();
+                Module.canvas.width = container.clientWidth;
+                Module.canvas.height = container.clientHeight;
+            }, 1000);
+        };
+
+    </script>
+    <!-- <script type="text/javascript" src="webaudiofix.js" /> -->
+    <!-- using .appendChild instead. <script async src="galaga_emcc_app_wasm.js"></script> -->
+</head>
+
+<body style="background:black; " onload="onBodyLoad()">
+    <div style="width:100%; background:black;">
+        <!--<a style="width:100%; display:inline-block; text-align:center;color:white; line-height: 28px;"
+            onclick="Module.requestFullscreen(true, true);" href="javascript:void(0);">
+            ENTER FULLSCREEN</a>-->
+    </div>
+
+    <div class="emscripten_border">
+        <canvas class="emscripten" id="canvas">
+            This web browser doesn't support canvas tag.
+        </canvas>
+    </div>
+
+    <script>
+        var Module =
+        {
+            canvas: (function () {
+                var canvas = document.getElementById('canvas');
+
+                // As a default initial behavior, pop up an alert when webgl context is lost. To make your
+                // application robust, you may want to override this behavior before shipping!
+                // See http://www.khronos.org/registry/webgl/specs/latest/1.0/#5.15.2
+                canvas.addEventListener("webglcontextlost", function (e) { alert('WebGL context lost. You will need to reload the page.'); e.preventDefault(); }, false);
+
+                return canvas;
+            })(),
+
+            preRun: [],
+            postRun: [],
+            printErr: function () {
+                console.warn(Array.prototype.slice.call(arguments).join(" "));
+            },
+            print: function () {
+                console.warn(Array.prototype.slice.call(arguments).join(" "));
+            }
+        };
+
+
+    </script>
+</body>
+
+</html>

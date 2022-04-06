@@ -157,7 +157,10 @@ struct PrivateData {
 
     PrivateData(pv::File& video) 
         : _video_source(& video ), 
-          _cache(& _gui, _video_source )
+          _cache(& _gui, _video_source ),
+          _info_card([](Frame_t frame) {
+            GUI::reanalyse_from(frame);
+          })
     { }
 };
 
@@ -289,7 +292,15 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
 
     PD(collection) = std::make_unique<ExternalImage>(Image::Make(average.rows, average.cols, 4), Vec2());
     
-    PDP(timeline) = std::make_shared<Timeline>(*this, _frameinfo);
+    PDP(timeline) = std::make_shared<Timeline>(best_base(), [](bool b) {
+            if (!GUI::instance())
+                return;
+            GUI::instance()->set_info_visible(b);
+        }, []() {
+            if(GUI::instance())
+                GUI::instance()->update_recognition_rect();
+        }, _frameinfo);
+
     PD(gui).root().insert_cache(_base, std::make_unique<CacheObject>());
     
     PD(info).set_pos(Vec2(_average_image.cols * 0.5, _average_image.rows * 0.5));
@@ -582,6 +593,8 @@ GUI::~GUI() {
 void GUI::set_base(gui::Base* base) {
     std::lock_guard<std::recursive_mutex> guard(PD(gui).lock());
     _base = base;
+    if (PDP(timeline))
+        PDP(timeline)->set_base(base);
         
     if(_base) {
         auto size = (screen_dimensions() / gui::interface_scale()).mul(PD(gui).scale());
@@ -1282,7 +1295,7 @@ void GUI::draw_posture(DrawStructure &base, Individual *fish, Frame_t frameNr) {
     if(midline) {
         // Draw the fish posture with circles
         if(midline) {
-            auto && [bg_offset, max_w] = Timeline::timeline_offsets();
+            auto && [bg_offset, max_w] = Timeline::timeline_offsets(best_base());
             max_w /= PD(gui).scale().x;
             PD(posture_window).set_scale(base.scale().reciprocal());
             auto pos = Vec2(max_w - 10 - bg_offset.x  * PD(posture_window).scale().x,
@@ -1333,7 +1346,7 @@ std::tuple<Vec2, Vec2> GUI::gui_scale_with_boundary(Bounds& boundary, Section* s
     static bool lost = true;
     static float time_lost = 0;
     
-    auto && [offset, max_w] = Timeline::timeline_offsets();
+    auto && [offset, max_w] = Timeline::timeline_offsets(best_base());
     
     Size2 screen_dimensions = this->screen_dimensions();
     Size2 screen_center = screen_dimensions * 0.5;
@@ -1657,7 +1670,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
 
                             {
                                 std::unique_lock guard(Categorize::DataStore::cache_mutex());
-                                PD(cache)._fish_map[fish]->update(ptr, e, base);
+                                PD(cache)._fish_map[fish]->update(best_base(), ptr, e, base);
                             }
                             //base.wrap_object(*PD(cache)._fish_map[fish]);
                             //PD(cache)._fish_map[fish]->label(ptr, e);
@@ -1850,8 +1863,11 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                         auto && [data, images, image_map] = Accumulation::generate_discrimination_data();
                         auto && [u, umap, uq] = Accumulation::calculate_uniqueness(false, images, image_map);
                         
+                        estimated_uniqueness.clear();
+
                         std::lock_guard<std::mutex> guard(mutex);
-                        estimated_uniqueness = umap;
+                        for(auto &[k,v] : umap)
+                            estimated_uniqueness[k] = v;
                         
                         uniquenesses.clear();
                         for(auto && [frame, q] :umap) {
@@ -2093,7 +2109,11 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             work().add_queue("discrimination", [](){
                 auto && [data, images, map] = Accumulation::generate_discrimination_data();
                 auto && [unique, unique_map, up] = Accumulation::calculate_uniqueness(false, images, map);
-                auto coverage = data->draw_coverage(unique_map);
+                
+                std::map<Frame_t, float> tmp;
+                for(auto&[k,v] : unique_map)
+                    tmp[k] = v;
+                auto coverage = data->draw_coverage(tmp);
                 
                 auto path = pv::DataLocation::parse("output", "uniqueness"+(std::string)video_source()->filename().filename()+".png");
                 
@@ -2271,7 +2291,7 @@ void GUI::set_status(const std::string& text) {
 
 void GUI::draw_footer(DrawStructure& base) {
     static bool first = true;
-    auto && [bg_offset, max_w] = Timeline::timeline_offsets();
+    auto && [bg_offset, max_w] = Timeline::timeline_offsets(best_base());
     
     static HorizontalLayout status_layout({}, Vec2(), Bounds(10,0,0,0));
     static Text gpu_status("", Vec2(), White, Font(0.7)), python_status("", Vec2(), Red, Font(0.7));
@@ -2853,11 +2873,12 @@ void GUI::draw_raw_mode(DrawStructure &base, Frame_t frameIndex) {
         tracker::gui::draw_blob_view({
             .offset = ptr_pos,
             .scale = ptr_scale,
-            .base = base,
+            .graph = base,
             .ptr = (Section*)ptr,
             .cache = PD(cache),
             .transform = transform,
-            .screen = dim
+            .screen = dim,
+            .base = best_base()
         });
     }
 }
@@ -3659,11 +3680,11 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                     grid::ProximityGrid proximity{ Tracker::average().bounds().size() };
                     size_t i=0, all_found = 0, not_found = 0;
                     const size_t N = Tracker::recognition()->data().size();
-                    std::map<Frame_t, std::map<pv::bid, std::vector<float>>> next_recognition;
+                    ska::bytell_hash_map<Frame_t, ska::bytell_hash_map<pv::bid, std::vector<float>>> next_recognition;
                     
                     for (auto &[k, v] : Tracker::recognition()->data()) {
                         auto & active = Tracker::active_individuals(k);
-                        std::map<pv::bid, const pv::CompressedBlob*> blobs;
+                        ska::bytell_hash_map<pv::bid, const pv::CompressedBlob*> blobs;
                         
                         for(auto fish : active) {
                             auto b = fish->compressed_blob(k);
@@ -3682,7 +3703,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                             proximity.insert(c.x, c.y, (uint32_t)b->blob_id());
                         }*/
                         
-                        std::map<pv::bid, std::vector<float>> tmp;
+                        ska::bytell_hash_map<pv::bid, std::vector<float>> tmp;
                         
                         for(auto &[bid, ps] : v) {
                             auto id = uint32_t(bid);

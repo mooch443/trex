@@ -1616,6 +1616,20 @@ void Recognition::check_learning_module(bool force) {
                 return 0;
                 
             }, "learn_static");
+            py::set_function("acceptable_uniqueness", (std::function<float(void)>)[](void) -> float {
+                if(Accumulation::current())
+                    return SETTING(gpu_accepted_uniqueness).value<float>();
+                FormatWarning("There is currently no accumulation in progress.");
+                return -1;
+                
+            }, "learn_static");
+            py::set_function("accepted_uniqueness", (std::function<float(void)>)[](void) -> float {
+                if(Accumulation::current())
+                    return Accumulation::current()->accepted_uniqueness();
+                FormatWarning("There is currently no accumulation in progress.");
+                return -1;
+                
+            }, "learn_static");
             py::set_function("update_work_percent", [](float x) {
                 GUI::work().set_percent(x);
             }, "learn_static");

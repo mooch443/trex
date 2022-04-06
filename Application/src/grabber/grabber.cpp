@@ -850,7 +850,7 @@ FrameGrabber::~FrameGrabber() {
                 try {
                     Output::TrackingResults results(*tracker);
                     results.save([](const std::string&, float, const std::string&){  }, Output::TrackingResults::expected_filename(), additional_exclusions);
-                } catch(const UtilsException&) { FormatExcept("Something went wrong saving program state. Maybe no write permissions?"); }
+                } catch(const UtilsException& e) { FormatExcept("Something went wrong saving program state. Maybe no write permissions? ", e.what()); }
             }
         }
         
@@ -1593,7 +1593,7 @@ static Timer last_gui_update;
 std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique_ptr<ProcessingTask>& task)
 {
     static const auto conversion_range = processing_range();
-    static const double frame_time = GRAB_SETTINGS(frame_rate) > 0 ? 1.0 / double(GRAB_SETTINGS(frame_rate)) : 1.0/25.0;
+    /*static*/ const double frame_time = GRAB_SETTINGS(frame_rate) > 0 ? 1.0 / double(GRAB_SETTINGS(frame_rate)) : 1.0/25.0;
     
     Frame_t used_index_here;
     bool added = false;

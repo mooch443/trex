@@ -178,7 +178,7 @@ void draw_blob_view(const DisplayParameters& parm)
         //update_vector_elements(outer_images, outer_simple);
     }
     
-    parm.base.section("blob_outers", [&, parm=parm](DrawStructure &base, auto s) {
+    parm.graph.section("blob_outers", [&, parm=parm](DrawStructure &base, auto s) {
         if(parm.ptr && (parm.cache.is_animating(parm.ptr) || parm.cache.blobs_dirty())) {
             s->set_scale(parm.scale);
             s->set_pos(parm.offset);
@@ -353,7 +353,7 @@ void draw_blob_view(const DisplayParameters& parm)
                 e.advance_wrap(*circ);
                 
                 if(d > 0 && real_size > 0) {
-                    label->update(parm.ptr, e, d, !active);
+                    label->update(parm.base, parm.ptr, e, d, !active);
                     ++displayed;
                 }
             };
@@ -470,13 +470,13 @@ void draw_blob_view(const DisplayParameters& parm)
                 list->clear_textfield();
             }
             
-            popup->set_scale(parm.base.scale().reciprocal());
+            popup->set_scale(parm.graph.scale().reciprocal());
             popup->auto_size(Margin{0, 0});
             popup->update([&](Entangled &base){
                 base.advance_wrap(*list);
             });
             
-            parm.base.wrap_object(*popup);
+            parm.graph.wrap_object(*popup);
             
         } else {
             print("Cannot find clicked blob id ",_clicked_blob_id.load(),".");
@@ -489,7 +489,7 @@ void draw_blob_view(const DisplayParameters& parm)
     last_blob_id = _clicked_blob_id;
     
     if(SETTING(gui_show_pixel_grid)) {
-        parm.base.section("collision_model", [&](auto&, auto s) {
+        parm.graph.section("collision_model", [&](auto&, auto s) {
             if(parm.ptr && (parm.cache.is_animating(parm.ptr) || parm.cache.blobs_dirty())) {
                 s->set_scale(parm.scale);
                 s->set_pos(parm.offset);
@@ -511,7 +511,7 @@ void draw_blob_view(const DisplayParameters& parm)
             auto &grid = parm.cache.processed_frame.blob_grid().get_grid();
             for(auto &set : grid) {
                 for(auto &pixel : set) {
-                    parm.base.circle(Vec2(pixel.x, pixel.y), 1, Transparent, colors.find(pixel.v) != colors.end() ? colors.at(pixel.v) : Color(255, 0, 255, 255));
+                    parm.graph.circle(Vec2(pixel.x, pixel.y), 1, Transparent, colors.find(pixel.v) != colors.end() ? colors.at(pixel.v) : Color(255, 0, 255, 255));
                 }
             }
         });

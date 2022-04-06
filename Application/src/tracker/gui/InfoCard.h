@@ -16,8 +16,10 @@ namespace gui {
         //Button detail_button;
         std::vector<std::tuple<Text*, std::string>> segment_texts;
         Text * previous = nullptr;
+        std::function<void(Frame_t)> _reanalyse;
+
     public:
-        InfoCard();
+        InfoCard(std::function<void(Frame_t)> reanalyse);
         ~InfoCard();
         void update(gui::DrawStructure&, Frame_t);
         void update() override;

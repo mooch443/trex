@@ -1,5 +1,6 @@
 #include "Categorize.h"
 
+#include <tracking/Tracker.h>
 #include <tracking/Individual.h>
 #include <gui/DrawStructure.h>
 #include <gui/gui.h>
@@ -3287,12 +3288,7 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
     clear();
 
     const auto start_frame = tracker_start_frame();
-
-    uchar has_categories;
-    data.read(has_categories);
-
-    if (!has_categories)
-        return;
+    // assume wants_to_read has been called first...
 
     {
         std::lock_guard guard(mutex());
@@ -3397,20 +3393,15 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
         }
     }
 }
-#else
 
+#else
 
 void DataStore::write(file::DataFormat& data, int /*version*/) {
     data.write<uchar>(0);
 }
 
 void DataStore::read(file::DataFormat& data, int /*version*/) {
-    uchar has_categories;
-    data.read(has_categories);
-
-    if (!has_categories)
-        return;
-
+    // assume wants_to_read has been called first
     {
         uint64_t N_labels;
         data.read(N_labels);
@@ -3499,7 +3490,14 @@ void DataStore::read(file::DataFormat& data, int /*version*/) {
         }
     }
 }
+
 #endif
+
+bool Categorize::DataStore::wants_to_read(file::DataFormat& data, int /*version*/) {
+    uchar has_categories;
+    data.read(has_categories);
+    return has_categories == 1;
+}
 
 }
 }
