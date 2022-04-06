@@ -213,6 +213,7 @@ class ValidationCallback(tf.keras.callbacks.Callback):
         self.best_result = {"weights":{}, "unique":-1}
         self.filename = filename
         self.settings = settings
+        self.last_skip_step = np.inf
         
     def plot_comparison_raw(self, do_plot = True, length = -1):
         X_test = self.X_test
@@ -394,12 +395,13 @@ class ValidationCallback(tf.keras.callbacks.Callback):
                 if not self.model.stop_training:
                     if len(self.losses) >= 5 and abs(np.mean(self.loss_diffs[-5:])) < self.minimal_loss_allowed:
                     #if len(self.losses) >= 5 and (np.array(self.loss_diffs[-2:]) < self.minimal_loss_allowed).all():
-                        if self.settings["accumulation_step"] > 0:
+                        if self.settings["accumulation_step"] > 0 or (self.last_skip_step == self.settings["accumulation_step"]):
                             self.model.stop_training = True
                             set_stop_reason("small loss in consecutive epochs")
                             TRex.log("[STOP] Loss is very small in consecutive epochs (epoch "+str(epoch)+"). stopping. loss was "+str(current_loss)+" vs. "+str(mu)+" "+str(self.loss_diffs[-2:]))
                         else:
                             TRex.log("(skipping small loss stopping criterion in first accumulation step)")
+                            self.last_skip_step = self.settings["accumulation_step"]
                     elif len(change) >= 2:
                         TRex.log("\t"+str(current_loss)+" => "+str(current_loss - mu)+" ("+str(current_loss)+" / "+str(mu)+")")
                     count = 0

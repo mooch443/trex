@@ -1194,7 +1194,7 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
     /*if (DrawMenu::matching_list_open() && blob) {
         secondary_text = "blob" + Meta::toStr(blob->blob_id());
     }
-    else if (GUI_SETTINGS(gui_show_recognition_bounds)) {
+    else*/ if (GUI_SETTINGS(gui_show_recognition_bounds)) {
         auto&& [valid, segment] = _obj.has_processed_segment(_idx);
         if (valid) {
             auto&& [samples, map] = _obj.processed_recognition(segment.start());
@@ -1208,17 +1208,17 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
             }
             else
                 color = "nr";
-        }
-    }*/
-    
-    auto raw = Tracker::instance()->recognition()->ps_raw(_idx, blob->blob_id());
-    if (!raw.empty()) {
-        auto it = std::max_element(raw.begin(), raw.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b) {
-            return a.second < b.second;
-            });
+        } else {
+            auto raw = Tracker::instance()->recognition()->ps_raw(_idx, blob->blob_id());
+            if (!raw.empty()) {
+                auto it = std::max_element(raw.begin(), raw.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b) {
+                    return a.second < b.second;
+                    });
 
-        if (it != raw.end()) {
-            secondary_text += " loc" + Meta::toStr(it->first) + " (" + Meta::toStr(it->second) + ")";
+                if (it != raw.end()) {
+                    secondary_text += " loc" + Meta::toStr(it->first) + " (" + Meta::toStr(it->second) + ")";
+                }
+            }
         }
     }
     //auto raw_cat = Categorize::DataStore::label(Frame_t(_idx), blob);
