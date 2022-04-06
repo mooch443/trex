@@ -306,13 +306,13 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                             temporary_save(final_path, [&](file::Path use_path) {
                                 fish_graphs.at(thread_index)->graph().save_npz(use_path.str(), &callback, true);
                                 
-                                std::vector<Frame_t> segment_borders;
+                                std::vector<Frame_t::number_t> segment_borders;
                                 std::vector<float> vxy;
                                 vxy.reserve(fish->frame_count() * 2);
                                 
                                 for(auto & segment : fish->frame_segments()) {
-                                    segment_borders.push_back(segment->start());
-                                    segment_borders.push_back(segment->end());
+                                    segment_borders.push_back(segment->start().get());
+                                    segment_borders.push_back(segment->end().get());
                                     
                                     for(auto frame = segment->start() + 1_f; frame <= segment->end(); frame += 1_f)
                                     {

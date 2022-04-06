@@ -278,13 +278,12 @@ decltype(Tracker::_added_frames)::const_iterator Tracker::properties_iterator(Fr
 void Tracker::analysis_state(AnalysisState pause) {
     if(!instance())
         throw U_EXCEPTION("No tracker instance can be used to pause.");
-    static std::future<void> current_state;
-    if(current_state.valid())
-        current_state.get();
+    std::packaged_task<void(bool)> task([](bool value) {
+        SETTING(analysis_paused) = value;
+    });
     
-    current_state = std::async(std::launch::async, [](bool pause){
-        SETTING(analysis_paused) = pause;
-    }, pause == AnalysisState::PAUSED);
+    std::thread tmp(std::move(task), pause == AnalysisState::PAUSED);
+    tmp.detach();
 }
 
     Tracker::Tracker()

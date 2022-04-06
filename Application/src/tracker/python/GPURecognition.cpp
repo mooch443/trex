@@ -756,6 +756,7 @@ void PythonIntegration::reinit() {
             module.attr("predict")();
             
             module.attr("receive") = py::none();
+            module.attr("images") = py::none();
             //std::string str = utils::read_file("probs.py");
             //py::exec(str, py::globals(), *_locals);
             
