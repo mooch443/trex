@@ -1,0 +1,30 @@
+RewriteEngine On
+RewriteCond %{SERVER_PORT} !=443
+RewriteRule ^(.*)$ https://trex.run/$1 [R=301,L]
+
+# BEGIN Expire headers  
+<IfModule mod_expires.c>  
+  # Turn on the module.
+  ExpiresActive on
+  # Set the default expiry times.
+  ExpiresDefault "access plus 2 days"
+  ExpiresByType image/jpg "access plus 1 month"
+  ExpiresByType image/svg+xml "access 1 month"
+  ExpiresByType image/gif "access plus 1 month"
+  ExpiresByType image/jpeg "access plus 1 month"
+  ExpiresByType image/png "access plus 1 month"
+  ExpiresByType text/css "access plus 600 seconds"
+  ExpiresByType text/javascript "access plus 1 month"
+  ExpiresByType application/javascript "access plus 1 month"
+  ExpiresByType application/x-shockwave-flash "access plus 1 month"
+  ExpiresByType image/ico "access plus 1 month"
+  ExpiresByType image/x-icon "access plus 1 month"
+  ExpiresByType text/html "access plus 600 seconds"
+</IfModule>  
+# END Expire headers
+
+<IfModule mod_headers.c>
+	Header set Cross-Origin-Opener-Policy same-origin
+	Header set Cross-Origin-Embedder-Policy require-corp
+	Header set Cache-Control "no-store, max-age=0, must-revalidate"
+</IfModule>

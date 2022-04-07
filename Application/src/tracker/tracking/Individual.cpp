@@ -3261,7 +3261,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
     std::vector<long_t> ids;
     std::vector<Vec2> fish_pos, eye_pos;
     std::vector<float> fish_angle, eye_angle;
-    std::vector<Frame_t> frames;
+    std::vector<Frame_t::number_t> frames;
     
     size_t len = 0;
 
@@ -3273,7 +3273,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
         return true;
     });
 
-    print("Saving to '",path.c_str(),"' (",len," frames in range ",range.start,"-",range.end,")");
+    print("Saving to ",path," (",len," frames in range ",range.start,"-",range.end,")");
 
     size_t vres = VisualField::field_resolution * VisualField::layers;
     size_t eye_len = len * vres;
@@ -3291,7 +3291,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
     
     std::shared_ptr<Tracker::LockGuard> guard;
     
-    iterate_frames(range, [&](Frame_t frame, const std::shared_ptr<SegmentInformation> & segment, auto basic, auto posture) -> bool
+    iterate_frames(range, [&](Frame_t frame, const std::shared_ptr<SegmentInformation> &, auto basic, auto posture) -> bool
     {
         if(blocking)
             guard = std::make_shared<Tracker::LockGuard>("new VisualField");
@@ -3308,7 +3308,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
         if(ptr) {
             assert(ptr->eyes().size() == 2);
 
-            frames.push_back(frame);
+            frames.push_back(frame.get());
             
             fish_pos.push_back(ptr->fish_pos());
             fish_angle.push_back(ptr->fish_angle());

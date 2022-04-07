@@ -117,33 +117,33 @@ def reinitialize_network():
     model = Sequential()
     TRex.log("initializing network:"+str(image_width)+","+str(image_height)+" "+str(len(classes))+" classes")
 
-    model.add(Input(shape=(int(image_height),int(image_width),1), dtype=float))
-    model.add(Lambda(lambda x: (x / 127.5 - 1.0)))
-    
-    model.add(Convolution2D(16, kernel_size=(5,5), activation='relu'))
-    model.add(MaxPooling2D(pool_size=(2,2)))
-    model.add(BatchNormalization())
-    model.add(Activation('relu'))
-    model.add(SpatialDropout2D(0.25))
-    
-    model.add(Convolution2D(64, kernel_size=(5,5), activation='relu'))
-    model.add(MaxPooling2D(pool_size=(2,2)))
-    model.add(BatchNormalization())
-    model.add(Activation('relu'))
-    model.add(SpatialDropout2D(0.25))
-    #model.add(Dropout(0.5))
+    model.add(Lambda(lambda x: (x / 127.5 - 1.0), input_shape=(int(image_width),int(image_height),1)))
 
-    model.add(Convolution2D(100, kernel_size=(5,5), activation='relu'))
-    model.add(MaxPooling2D(pool_size=(2,2)))
+    model.add(Convolution2D(16, 5))
+#    model.add(Activation('relu'))
     model.add(BatchNormalization())
     model.add(Activation('relu'))
-    model.add(SpatialDropout2D(0.25))
-    #model.add(Dropout(0.5))
-    
+    model.add(MaxPooling2D(pool_size=(2,2)))
+    model.add(SpatialDropout2D(0.05))
+
+    model.add(Convolution2D(64, 5))
+#    model.add(Activation('relu'))
+    model.add(BatchNormalization())
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2,2)))
+    model.add(SpatialDropout2D(0.05))
+
+    model.add(Convolution2D(100, 5))
+#    model.add(Activation('relu'))
+    model.add(BatchNormalization())
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2,2)))
+    model.add(SpatialDropout2D(0.05))
+
     model.add(Dense(100))
     model.add(BatchNormalization())
     model.add(Activation('relu'))
-    model.add(SpatialDropout2D(0.25))
+    model.add(SpatialDropout2D(0.05))
     
     model.add(Flatten())
     model.add(Dense(len(classes), activation='softmax'))
@@ -158,7 +158,7 @@ def reinitialize_network():
         found = False
 
     if found:
-        model.compile(loss=#'categorical_crossentropy',
+        model.compile(loss= #'categorical_crossentropy',
             #SigmoidFocalCrossEntropy(),
             categorical_focal_loss(gamma=2., alpha=.25),
             optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
@@ -213,6 +213,7 @@ class ValidationCallback(tf.keras.callbacks.Callback):
         self.best_result = {"weights":{}, "unique":-1}
         self.filename = filename
         self.settings = settings
+        self.last_skip_step = np.inf
         
     def plot_comparison_raw(self, do_plot = True, length = -1):
         X_test = self.X_test
@@ -228,7 +229,7 @@ class ValidationCallback(tf.keras.callbacks.Callback):
             if len(images) == 0:
                 continue
 
-            Y = self.model.predict(tf.cast(images, float))
+            Y = self.model.predict(images)
             predictions.append(Y)
             
             distance = np.abs(Y - zeros).sum(axis=1)
@@ -291,6 +292,14 @@ class ValidationCallback(tf.keras.callbacks.Callback):
         self.uniquenesses.append(unique)
         set_uniqueness_history(self.uniquenesses)
 
+        if unique >= acceptable_uniqueness() and self.settings["accumulation_step"] >= -1:
+            if self.settings["accumulation_step"] == -1:
+                self.model.stop_training = True
+                set_stop_reason("Uniqueness is sufficient ("+str(unique)+").")
+            elif unique >= accepted_uniqueness():
+                self.model.stop_training = True
+                set_stop_reason("Uniqueness is sufficient ("+str(unique)+").")
+
         # check whether our worst value improved, but only use it if it wasnt the first epoch
         if unique > self.best_result["unique"] and (self.compare_acc <= 0 or unique >= self.compare_acc**2):
             self.best_result["unique"] = unique
@@ -309,7 +318,7 @@ class ValidationCallback(tf.keras.callbacks.Callback):
             global output_path
             self.best_result["weights"] = weights
             try:
-                TRex.log("\t(saving weights as "+output_path+"_progress.npz)")
+                TRex.log("\t(saving weights as '"+output_path+"_progress.npz')")
                 np.savez(output_path+"_progress.npz", weights = np.array(weights, dtype="object"))
             except Exception as e:
                 TRex.warn(str(e))
@@ -359,6 +368,7 @@ class ValidationCallback(tf.keras.callbacks.Callback):
 
             # check for accuracy plateau
             long_time = int(max(5, self.epochs * 0.1))
+            long_time = min(long_time, 10)
             TRex.log("-- worst_value "+str(self.worst_values[-2:])+" -- long time:"+str(long_time))
             if not self.model.stop_training and len(self.worst_values) >= 2 and self.settings["accumulation_step"] >= -1:
                 acc = np.array(self.worst_values[-2:]) #logs[akey][-2:]
@@ -385,12 +395,13 @@ class ValidationCallback(tf.keras.callbacks.Callback):
                 if not self.model.stop_training:
                     if len(self.losses) >= 5 and abs(np.mean(self.loss_diffs[-5:])) < self.minimal_loss_allowed:
                     #if len(self.losses) >= 5 and (np.array(self.loss_diffs[-2:]) < self.minimal_loss_allowed).all():
-                        if self.settings["accumulation_step"] > 0:
+                        if self.settings["accumulation_step"] > 0 or (self.last_skip_step == self.settings["accumulation_step"]):
                             self.model.stop_training = True
                             set_stop_reason("small loss in consecutive epochs")
                             TRex.log("[STOP] Loss is very small in consecutive epochs (epoch "+str(epoch)+"). stopping. loss was "+str(current_loss)+" vs. "+str(mu)+" "+str(self.loss_diffs[-2:]))
                         else:
                             TRex.log("(skipping small loss stopping criterion in first accumulation step)")
+                            self.last_skip_step = self.settings["accumulation_step"]
                     elif len(change) >= 2:
                         TRex.log("\t"+str(current_loss)+" => "+str(current_loss - mu)+" ("+str(current_loss)+" / "+str(mu)+")")
                     count = 0
@@ -467,7 +478,7 @@ def predict():
         print("error with the shape")
         
     indexes = np.array(np.arange(len(train_X)), dtype=np.float32)
-    output = np.array(model.predict(tf.cast(train_X, float)), dtype=np.float32)
+    output = model.predict(train_X)
     
     receive(output, indexes)
 
@@ -482,6 +493,11 @@ def start_learning():
     global output_path, classes, learning_rate, accumulation_step, global_segment, verbosity
     global batch_size, X_val, Y_val, X, Y, run_training, save_weights_after, do_save_training_images, min_iterations
 
+    #batch_size = int(max(batch_size * 2, 64))
+    #if batch_size >= 128:
+    #    batch_size = 200
+    #else:
+    batch_size = int(max(batch_size, 64))
     epochs = max_epochs
     #batch_size = 32
     move_range = min(0.05, 2 / min(image_width, image_height))
@@ -559,9 +575,9 @@ def start_learning():
             for i in range(len(images)):
                 alpha.append(np.random.uniform(0.85, 1.15))
             alpha = np.array(alpha)
-
-        images = images.astype(float) * alpha
-
+        
+        images = images.astype(np.float) * alpha
+        
         return np.clip(images, 0, 255).astype(dtype)
 
     datagen = ImageDataGenerator(#rescale = 1.0/255.0,
@@ -574,6 +590,7 @@ def start_learning():
                                  #preprocessing_function=preprocess,
                                  #use_multiprocessing=True
                                  )
+
     cvalues = np.array(cvalues)
 
     TRex.log("# [init] weights per class "+str(per_class))
@@ -594,7 +611,7 @@ def start_learning():
 
             callback = ValidationCallback(model, classes, X_test, Y_test, epochs, filename, output_prefix+"_"+str(accumulation_step), output_path, best_accuracy_worst_class, estimate_uniqueness, settings)
             
-            validation_data = None
+            '''validation_data = None
             #validation_data = tf.data.Dataset.from_tensor_slices((tf.cast(X_test, float), Y_test))#.batch(batch_size)
             if len(X_test) == 0:
                 validation_data = None
@@ -614,8 +631,19 @@ def start_learning():
                                   steps_per_epoch=per_epoch, 
                                   epochs=max_epochs,
                                   callbacks=[callback],
-                                  verbose=verbosity)
+                                  verbose=verbosity)'''
             
+            validation_data = (X_test, Y_test)
+            if len(X_test) == 0:
+                validation_data = None
+
+            history = model.fit_generator(datagen.flow(X_train, Y_train, batch_size=batch_size),
+                                          validation_data=validation_data,
+                                          steps_per_epoch=per_epoch, epochs=epochs,
+                                          callbacks = [ callback ],
+                                          #class_weight = per_class
+                                          )
+
             model_json = model.to_json()
             with open(output_path+".json", "w") as f:
                 f.write(model_json)

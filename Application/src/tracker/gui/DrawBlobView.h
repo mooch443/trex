@@ -19,11 +19,12 @@ namespace gui {
 
 struct DisplayParameters {
     const cmn::Vec2 &offset, &scale;
-    ::gui::DrawStructure& base;
+    ::gui::DrawStructure& graph;
     ::gui::Section* ptr;
     ::gui::GUICache& cache;
     const ::gui::Transform& transform;
     const cmn::Size2 &screen;
+    ::gui::Base* base{nullptr};
 };
 
 void draw_blob_view(const DisplayParameters&);

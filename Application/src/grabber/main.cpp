@@ -62,7 +62,7 @@
 ENUM_CLASS(Arguments,
            d, dir, i, input, o, output, settings, s, nowindow, mask, h, help, p)
 
-#ifndef WIN32
+#if !defined(WIN32) && !defined(__EMSCRIPTEN__)
 struct sigaction sigact;
 #endif
 char *progname;
@@ -79,7 +79,7 @@ void panic(const char *fmt, ...) {
     exit(1);
 }
 
-#ifndef WIN32
+#if !defined(WIN32) && !defined(__EMSCRIPTEN__)
 static void dumpstack(void) {
     void *array[20];
     size_t size;
@@ -105,7 +105,7 @@ static void signal_handler(int sig) {
             //std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 }
-#else
+#elif defined(WIN32)
 BOOL WINAPI consoleHandler(DWORD signal_code) {
     if (signal_code == CTRL_C_EVENT) {
         if (!SETTING(terminate)) {
@@ -139,7 +139,7 @@ static void at_exit() {
         printf("Closed.\n");
     }
     
-#ifndef WIN32
+#if !defined(WIN32) && !defined(__EMSCRIPTEN__)
     sigemptyset(&sigact.sa_mask);
 #endif
 }
@@ -147,7 +147,7 @@ static void at_exit() {
 void init_signals() {
     CrashProgram::main_pid = std::this_thread::get_id();
     
-#ifndef WIN32
+#if !defined(WIN32) && !defined(__EMSCRIPTEN__)
     sigact.sa_handler = signal_handler;
     sigemptyset(&sigact.sa_mask);
     sigact.sa_flags = 0;
@@ -167,7 +167,7 @@ void init_signals() {
     
     sigaddset(&sigact.sa_mask, SIGKILL);
     sigaction(SIGKILL, &sigact, (struct sigaction *)NULL);
-#else
+#elif defined(WIN32)
     if (!SetConsoleCtrlHandler(consoleHandler, TRUE)) {
         printf("\nERROR: Could not set control handler");
     }

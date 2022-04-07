@@ -608,7 +608,7 @@ public:
     
     void draw() {
         auto &base = GUI::instance()->gui();
-        auto && [offset, max_w] = Timeline::timeline_offsets();
+        auto && [offset, max_w] = Timeline::timeline_offsets(GUI::instance()->best_base());
         auto use_scale = base.scale().reciprocal();
         Vec2 pos = Vec2(max_w - 10, 25).mul(use_scale);
         

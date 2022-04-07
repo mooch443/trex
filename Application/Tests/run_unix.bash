@@ -74,6 +74,8 @@ else
             fi
         done
     fi
+
+    cat "${PWD}/tgrabs.log"
 fi
 
 rm -rf ${PWD}/data

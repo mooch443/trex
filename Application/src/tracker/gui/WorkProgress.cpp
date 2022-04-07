@@ -261,7 +261,7 @@ void WorkProgress::update(gui::DrawStructure &base, gui::Section *section) {
         _additional_updates.pop();
     }
     
-    auto && [bg_offset, max_w] = Timeline::timeline_offsets();
+    auto && [bg_offset, max_w] = Timeline::timeline_offsets(GUI::instance()->best_base());
     static Rect static_background(Bounds(0, 0, max_w, GUI::background_image().rows), Black.alpha(150));
     static StaticText static_desc("description", Vec2(), Size2(-1), Font(0.7, Align::Center));
     //static StaticText static_additional("", Vec2(), Size2(-1), Font(0.7, Align::Center));

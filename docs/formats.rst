@@ -245,20 +245,20 @@ Visual fields are saved by clicking the respective menu button ("export visual f
 
 Each container holds multiple arrays, each are shaped ``Nx2x2x512`` for ``N`` frames, 2 eyes and 2 depth-layers per eye:
 
-	- depth: distance to the visible individual
-	- ids: id of the visible individual (or -1 for self-intersection)
-	- body_part: a percentage that indicates how far from the head (and how close to the tail) the point on the seen individual is on its outline
+	- **depth**: distance to the visible individual (or ``INFINITY == none``; see also `this github issue <https://github.com/mooch443/trex/issues/95#issuecomment-1079142959>`_)
+	- **ids**: id of the visible individual (or ``-1`` for self-intersection)
+	- **body_part**: a percentage that indicates how far from the head (and how close to the tail) the point on the seen individual is on its outline
 
 as well as some meta data:
 
-	- colors: (``Mx4``): ID + RGB for M individuals
-	- fov_range (``2x1``): FOV range in radians
-	- frame_range (``2x1``): Start and end of exported region
-	- fish_pos (``Nx2``): XY position of the individual for each frame
-	- fish_angle (``Nx1``): angle of the body relative to the x-axis
-	- eye_pos (``Nx2x2``): XY position for each eye
-	- eye_angle (``Nx2``): angle for each eye
-	- frames (``Nx1``): frame index
+	- **colors**: (``Mx4``): ID + RGB for M individuals
+	- **fov_range** (``2x1``): FOV range in radians
+	- **frame_range** (``2x1``): Start and end of exported region
+	- **fish_pos** (``Nx2``): XY position of the individual for each frame
+	- **fish_angle** (``Nx1``): angle of the body relative to the x-axis
+	- **eye_pos** (``Nx2x2``): XY position for each eye
+	- **eye_angle** (``Nx2``): angle for each eye
+	- **frames** (``Nx1``): frame index
 
 Heatmaps
 ========

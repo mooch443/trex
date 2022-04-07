@@ -42,7 +42,11 @@ and follow the instructions on screen.
 .. WARNING::
     Older versions of |trex| may use different python versions, which can cause the ``conda update`` process to fail since it does not automatically update python along with |trex|. In such a case, the easiest way is to reinstall the application as described in :doc:`install` and thus replace your current conda environment with a new one, or to manually mention the required python version as part of the update command, e.g.::
 
-        conda update -c trexing trex python=3.9
+        # Windows, macOS
+        conda update -c trexing trex==1.1.8_2 python=3.9.12
+
+        # Linux
+        conda update -c defaults -c conda-forge -c trexing trex==1.1.8_2 python=3.9.12
 
 
 Installed manually
@@ -50,8 +54,8 @@ Installed manually
 
 If you compiled the software yourself, then you simply need to execute::
 
-    git pull
+    git pull --recurse-submodules
     cd Application/build
-    cmake --build .
+    cmake --build . --config Release
 
 Make sure that - if you customized the source code in your version - your changes do not block git from updating the repository in step one.

@@ -63,6 +63,7 @@
 #include <misc/MemoryStats.h>
 #include <tracking/Categorize.h>
 #include <gui/DrawCVBase.h>
+#include <gui/GUICache.h>
 #include "VideoOpener.h"
 #include <gui/GUICache.h>
 
