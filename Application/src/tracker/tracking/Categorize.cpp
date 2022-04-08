@@ -993,8 +993,10 @@ struct Row {
             auto &cell = this->cell(i);
             
             if(cell._sample) {
-                auto d = euclidean_distance(base.mouse_position(), cell.bounds().pos() + cell.bounds().size() * 0.5) / (layout->parent()->global_bounds().size().length() * 0.45);
-                cell._block->set_scale(Vec2(1.25 + 0.35 / (1 + d * d)) * (cell.selected() ? 1.5 : 1));
+                auto d = euclidean_distance(base.mouse_position(), cell.bounds().pos() + cell.bounds().size() * 0.5)
+                    / (layout->parent()->global_bounds().size().length() * 0.45);
+                if(d > 0)
+                    cell._block->set_scale(Vec2(1.25 + 0.35 / (1 + d * d)) * (cell.selected() ? 1.5 : 1));
                 
                 const double seconds_for_all_samples = (cell._image->hovered() ? 15.0 : 2.0);
                 const double samples_per_second = cell._sample->_images.size() / seconds_for_all_samples;
@@ -1056,14 +1058,14 @@ void Cell::update_scale() {
     double s = 1 / double(_row->_cells.size());
     auto base = button_layout()->stage();
 
-    if (base) {
+    if (base && _image->width() > 0) {
         Size2 bsize(base->width() * 0.75, base->height() * 0.75);
-        //bsize = bsize.mul(base->scale());
+        //bsize = bsize.div(base->scale());
 
         if (base->width() < base->height())
             _image->set_scale(Vec2(bsize.width * s / _image->width()).div(base->scale()));
         else
-            _image->set_scale(Vec2(bsize.height * s / _image->height()).div(base->scale()));
+            _image->set_scale(Vec2(bsize.height * (1.0/4.0) / _image->height()).div(base->scale()));
     }
 }
 
@@ -1132,7 +1134,7 @@ struct Interface {
                 "<h2>Categorizing types of individuals</h2>"
                 "Below, an assortment of randomly chosen clips is shown. They are compiled automatically to (hopefully) only contain samples belonging to the same category. Choose clips that best represent the categories you have defined before (<str>" + Meta::toStr(DataStore::label_names()) + "</str>) and assign them by clicking the respective button. But be careful - with them being automatically collected, some of the clips may contain images from multiple categories. It is recommended to <b>Skip</b> these clips, lest risking to confuse the poor network. Regularly, when enough new samples have been collected (and for all categories), they are sent to said network for a training step. Each training step, depending on clip quality, should improve the prediction accuracy (see below).",
                 Vec2(),
-                Vec2(base.width() * 0.5 * base.scale().x, -1), Font(0.7)
+                Vec2(base.width() * 0.75 * base.scale().x, -1), Font(0.7)
                 );
 
             layout.add_child(stext);
@@ -1288,7 +1290,12 @@ struct Interface {
         }
 
         max_w = per_row * (max_w + 10);
+#if __APPLE__
+        max_w = min(base.width() * 2 * 0.9, max_w * 1.25 * base.scale().x);
+#else
         max_w = min(base.width() * 0.9, max_w * 1.25 * base.scale().x);
+#endif
+        //max_w = max(base.width() * 0.5, max_w * 1.25);
 
         static bool redrawing = true;
         static float previous_max = 100;
