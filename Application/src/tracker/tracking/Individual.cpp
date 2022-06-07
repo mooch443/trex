@@ -1172,6 +1172,8 @@ struct RecTask {
             ._frames = std::move(task._frames)
         };
         
+        static std::atomic<int64_t> saved_index{ 0 };
+        
         auto receive = [&](std::vector<float> values) {
             print("received ", values.size(), " ids for ", task._images.size(), " images.");
             result._ids.assign(values.begin(), values.end());
@@ -1193,7 +1195,35 @@ struct RecTask {
 
             result.best_id = max_key;
             result.p = float(maximum) / float(N);
-            print("\tbest guess for individual ", result.individual, " is ", max_key, " with p:", result.p);
+            print("\tbest guess for individual ", result.individual, " is ", max_key, " with p:", result.p, " (", task._images.size()," samples)");
+            
+            /*auto filename = (std::string)SETTING(filename).value<file::Path>().filename();
+            
+            if(result.p >= 0.6) {
+                file::Path output = pv::DataLocation::parse("output", "tags_"+filename) / Meta::toStr(max_key);
+                if(!output.exists())
+                    output.create_folder();
+                output = output / Meta::toStr(saved_index.load());
+                
+                print("\t\t-> exporting ", task._images.size()," guesses to ", output);
+                for (size_t i=0; i<task._images.size(); ++i) {
+                    
+                    cv::imwrite(output.str() + "." + Meta::toStr(i) + ".png", task._images[i]->get());
+                }
+                
+            } else {
+                file::Path output = pv::DataLocation::parse("output", "tags_"+filename) / "unknown";
+                if(!output.exists())
+                    output.create_folder();
+                output = output / Meta::toStr(saved_index.load());
+                
+                print("\t\t-> exporting ", task._images.size()," guesses to ", output);
+                for (size_t i=0; i<task._images.size(); ++i) {
+                    cv::imwrite(output.str() + "." + Meta::toStr(i) + ".png", task._images[i]->get());
+                }
+            }*/
+            
+            ++saved_index;
         };
 
         auto apply = [&]() -> bool {

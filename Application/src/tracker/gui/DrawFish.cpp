@@ -1225,6 +1225,14 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
     //auto cat = Categorize::DataStore::label_interpolated(_obj.identity().ID(), Frame_t(_idx));
 
 #if !COMMONS_NO_PYTHON
+    auto segment = _obj.segment_for(_idx);
+    if(segment) {
+        auto [id, p] = _obj.qrcode_at(segment->start());
+        if(id >= 0 && p > 0) {
+            secondary_text += "<key>QR:"+Meta::toStr(id)+" ("+Meta::toStr(p)+")</key>";
+        }
+    }
+    
     auto c = GUICache::instance().processed_frame.cached(_obj.identity().ID());
     if(c) {
         auto cat = c->current_category;

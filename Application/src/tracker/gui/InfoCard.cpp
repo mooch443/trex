@@ -18,6 +18,7 @@ struct InfoCard::ShadowIndividual {
     pv::CompressedBlob blob;
     Frame_t frame{Frame_t::invalid};
     FrameRange current_range{};
+    std::tuple<int64_t, float> qrcode{-1,0};
     bool has_frame{false};
     bool is_automatic_match{false};
     float speed;
@@ -154,6 +155,8 @@ void InfoCard::update() {
                     }
                 }
                 _shadow->current_range = current_range;
+                
+                _shadow->qrcode = fish->qrcode_at(current_range.start());
                 
             } else
                 _shadow->fdx = Idx_t{};
@@ -397,12 +400,12 @@ void InfoCard::update() {
     std::string speed_str = _shadow->speed < 0 ? "(none)" : (Meta::toStr(_shadow->speed) + "cm/s");
     
     y += add<Text>(speed_str, Vec2(10, y), White.alpha(125), Font(0.8f))->height();
-    /*if (!_shadow->current_range.empty()) {
-        auto [id, p] = _fish->qrcode_at(_shadow->current_range->start());
+    if (!_shadow->current_range.empty()) {
+        auto& [id, p] = _shadow->qrcode;//_fish->qrcode_at(_shadow->current_range->start());
         if (id != -1) {
             y += add<Text>("QR:" + Meta::toStr(id) + " (" + Meta::toStr(p) + ")", Vec2(10, y), White.alpha(125), Font(0.8))->height();
         }
-    }*/
+    }
     
     if(fprobs) {
         track::Match::prob_t max_prob = 0;

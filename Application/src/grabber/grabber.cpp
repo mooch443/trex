@@ -26,7 +26,7 @@
 track::Tracker* tracker = nullptr;
 
 using conversion_range_t = std::pair<long_t,long_t>;
-//#define TAGS_ENABLE
+#define TAGS_ENABLE
 //#define TGRABS_DEBUG_TIMING
 
 #if !defined(TAGS_ENABLE)
