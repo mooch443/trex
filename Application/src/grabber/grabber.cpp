@@ -780,6 +780,8 @@ FrameGrabber::~FrameGrabber() {
         ppvar.notify_all();
         _tracker_thread->join();
         delete _tracker_thread;
+
+        track::Individual::shutdown();
         
 #if !COMMONS_NO_PYTHON
         if (GRAB_SETTINGS(enable_closed_loop) 

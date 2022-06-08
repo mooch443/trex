@@ -310,6 +310,8 @@ constexpr std::array<const char*, 8> ReasonsNames {
             Frame_t frame;
             pv::BlobPtr _blob;
         };
+
+        static void shutdown();
         
     protected:
         LocalCache _local_cache;

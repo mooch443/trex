@@ -30,7 +30,7 @@ class Tagwork:
         y = np.argmax(self.model.predict(images), axis=-1)
         file = "/Users/tristan/Videos/locusts/samples/images_"+str(self.counter)+".npz"
         print("saving to file", file);
-        np.savez(file, images=np.array(images), y=np.array(y));
+        #np.savez(file, images=np.array(images), y=np.array(y));
         self.counter += 1
         return  y
 

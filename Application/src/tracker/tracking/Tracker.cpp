@@ -409,6 +409,8 @@ void Tracker::analysis_state(AnalysisState pause) {
     Tracker::~Tracker() {
         assert(_instance);
         Settings::clear_callbacks();
+
+        Individual::shutdown();
         
         _thread_pool.force_stop();
         if(!SETTING(quiet))

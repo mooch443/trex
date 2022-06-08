@@ -491,6 +491,7 @@ void GUI::draw(gui::DrawStructure &base) {
                         if (seg) {
                             if (Tracker::end_frame() < seg->end() + Frame_t(FAST_SETTINGS(frame_rate) * 30)) {
                                 std::vector<Vec2> positions;
+
                                 for (auto idx : seg->basic_index) {
                                     if (idx == -1)
                                         continue;
@@ -503,7 +504,8 @@ void GUI::draw(gui::DrawStructure &base) {
                                     std::get<1>(s)++;
                                 }
                                 base.line(positions, 1, color.alpha(200));
-                                base.text(Meta::toStr(id) + " (" + Meta::toStr(p) + ")", positions[0], color, Font(0.5), scale);
+                                base.text(Meta::toStr(id) + " (" + Meta::toStr(p) + ")", positions.back() + Vec2(10, 0), color, Font(0.5), scale);
+
                             }
                             else if (Tracker::end_frame() < seg->end() + Frame_t(FAST_SETTINGS(frame_rate) * 60 * 3))  {
                                 for (auto idx : seg->basic_index) {
