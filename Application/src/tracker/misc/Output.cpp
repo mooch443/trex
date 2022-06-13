@@ -7,6 +7,7 @@
 #include <misc/checked_casts.h>
 #include <tracking/Categorize.h>
 #include <misc/frame_t.h>
+#include <misc/IdentifiedTag.h>
 
 using namespace track;
 typedef int64_t data_long_t;
@@ -742,6 +743,8 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         uint64_t N;
         ref.read<uint64_t>(N);
 
+        ska::bytell_hash_map<Frame_t, std::tuple<int64_t, float>> qrcode_identities;
+
         for (uint64_t i = 0; i < N; ++i) {
             data_long_t frame;
             ref.read<data_long_t>(frame);
@@ -753,9 +756,25 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             ref.read<float>(prob);
 
 #if !COMMONS_NO_PYTHON
-            fish->_qrcode_identities[Frame_t(frame)] = { id, prob };
+            auto seg = fish->segment_for(Frame_t(frame));
+            if(seg) {
+                for(auto i : seg->basic_index) {
+                    if(i == -1) continue;
+                    auto center = fish->_basic_stuff[i]->blob.calculate_bounds().center();
+                    IdentifiedTag tag{ 
+                        .id = Idx_t(id),
+                        .pos = center,
+                        .p = prob
+                    };
+
+
+                }
+            }
+            qrcode_identities[Frame_t(frame)] = { id, prob };
 #endif
         }
+
+        fish->_qrcode_identities = qrcode_identities;
     }
     
     //delta = this->tell() - pos_before;

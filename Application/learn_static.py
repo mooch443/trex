@@ -611,7 +611,7 @@ def start_learning():
 
             callback = ValidationCallback(model, classes, X_test, Y_test, epochs, filename, output_prefix+"_"+str(accumulation_step), output_path, best_accuracy_worst_class, estimate_uniqueness, settings)
             
-            '''validation_data = None
+            validation_data = None
             #validation_data = tf.data.Dataset.from_tensor_slices((tf.cast(X_test, float), Y_test))#.batch(batch_size)
             if len(X_test) == 0:
                 validation_data = None
@@ -621,7 +621,7 @@ def start_learning():
             dataset = tf.data.Dataset.from_generator(lambda: datagen.flow(tf.cast(X_train, float), tf.cast(Y_train, float), batch_size=batch_size), 
                 output_types=(tf.float32, tf.float32),
                 output_shapes =(tf.TensorShape([None, int(settings["image_height"]), int(settings["image_width"]), 1]), tf.TensorShape([None, int(len(classes))]))
-            ).repeat()#.shuffle(len(X_train), reshuffle_each_iteration=True)
+            ).repeat().shuffle(batch_size * 2, reshuffle_each_iteration=True)#.batch(batch_size)
             
             #dataset = datagen.flow(tf.cast(X_train, float), Y_train, batch_size=batch_size)
             TRex.log("tf.data.Dataset: "+str(dataset))
@@ -631,9 +631,9 @@ def start_learning():
                                   steps_per_epoch=per_epoch, 
                                   epochs=max_epochs,
                                   callbacks=[callback],
-                                  verbose=verbosity)'''
+                                  verbose=verbosity)
             
-            validation_data = (X_test, Y_test)
+            '''validation_data = (X_test, Y_test)
             if len(X_test) == 0:
                 validation_data = None
 
@@ -642,7 +642,7 @@ def start_learning():
                                           steps_per_epoch=per_epoch, epochs=epochs,
                                           callbacks = [ callback ],
                                           #class_weight = per_class
-                                          )
+                                          )'''
 
             model_json = model.to_json()
             with open(output_path+".json", "w") as f:

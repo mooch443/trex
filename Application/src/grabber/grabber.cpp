@@ -2064,7 +2064,7 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
     if(_start_timing == UINT64_MAX)
         _start_timing = TS;
     TS = TS - _start_timing;
-    //current.set_timestamp(current.timestamp() - _start_timing);
+    current.set_timestamp(TS);
     
     double minutes = double(TS) / 1000.0 / 1000.0 / 60.0;
     if(GRAB_SETTINGS(stop_after_minutes) > 0 && minutes >= GRAB_SETTINGS(stop_after_minutes) && !GRAB_SETTINGS(terminate)) {
@@ -2097,8 +2097,6 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
     static std::once_flag flag;
     static std::vector<std::thread*> thread_pool;
 
-    
-    
     std::call_once(flag, [&](){
         print("Creating queue...");
         for (size_t i=0; i<8; ++i) {
@@ -2157,11 +2155,11 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
         task->clear();
     task->index = global_index++;
 
-    if (task->current)
+    if (task->current) {
         task->current->set(std::move(current));
-        //task->current->create(current, current.index(), TS);
-    else
-        task->current = Image::Make(current, current.index(), TS);
+    } else {
+        task->current = Image::Make(current, current.index());
+    }
 
     if(enable_threads) {
         {

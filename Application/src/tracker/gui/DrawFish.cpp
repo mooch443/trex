@@ -1229,7 +1229,7 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
     if(segment) {
         auto [id, p] = _obj.qrcode_at(segment->start());
         if(id >= 0 && p > 0) {
-            secondary_text += "<key>QR:"+Meta::toStr(id)+" ("+Meta::toStr(p)+")</key>";
+            secondary_text += "<str>QR:"+Meta::toStr(id)+" ("+Meta::toStr(p)+")</str>";
         }
     }
     
