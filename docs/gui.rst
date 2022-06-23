@@ -118,3 +118,29 @@ Different visualisations can be enabled or disabled using the display menu (4) o
 	A graph that shows the number of individuals per frame (only shows data for frames analysed in the current session, not loaded frames).
 - heatmap
 	Show a heatmap with customizable properties. Search ``heatmap_`` in the settings box to find all available options. By default it shows a density map for positions of individuals in the whole video.
+
+
+Excluding regions / tracking specific regions exclusively
+---------------------------------------------------------
+
+Despite available remedies (i.e. using a different :func:`averaging_method`, :func:`correct_luminance`), sometimes noisy regions in recordings are unavoidable. This can be either due to, for example, changing lighting conditions, or certain parts of the experimental setup moving over time. 
+
+When you are converting the video, and noise concentrates on the outer edges of the image / outside the area of interest, it is possible to specify :func:`crop_offsets` to |tgrabs| like::
+
+	tgrabs -i video.mp4 -crop_offsets [0.05,0,0.05,0.1]
+
+Adding the parameter ``crop_offsets`` crops 5% of the image from the left, 0% from the top, 5% from the right, and 10% from the bottom.
+
+Otherwise you may also specify areas of arbitrary shape during tracking (e.g. in |trex|). This is either done graphically via mouse-clicks, or by setting :func:`track_ignore` to the coordinates manually. The coordinates describing the shape are given to ``track_ignore`` in the format::
+
+	array of arrays[array of vectors]
+
+An example from a hypothetical settings file could thus be::
+
+	track_ignore = [[[0,100],[100,100],[50,150]]]
+
+which describes a triangle with the coordinates 0,100 and 100,100 as it's base and 50,150 as it's pointy end.
+
+Within the graphical user-interface you can set these points by clicking on them, which is usually easier. It works in both the tracking and raw views, but it is sometimes easier to do in raw view (press D). Now, simply click on some empty space (not on an object) and, while holding CTRL/CMD, click on additional points to define a shape. During this process a button appeared, as well as a text-field (where you placed your first point). Click on the text-field and enter ``track_ignore`` and select ``track_ignore`` from the results. Switch back to tracking view and the shape you defined should be highlighted (red).
+
+Any object with it's center within the boundaries of this (convex) shape will now be ignored during tracking. To apply this to your already tracked video, please go to frame 0 and click reanalyse. Now you may play the video back and see if all objects have been excluded properly during tracking.

@@ -19,7 +19,7 @@ build:
     script_env:
       - GITHUB_WORKFLOW
       - SDKROOT
-    number: 30
+    number: 31
     string: "{{ hash }}_{{ number }}"
     run_exports:
         - {{ pin_compatible('ffmpeg', min_pin='x.x.x', max_pin='x.x.x') }}
@@ -78,7 +78,7 @@ requirements:
   host:
     - pthread-stubs  # [linux]
     - ffmpeg =4 # [not osx or arm64]
-    - ffmpeg <=4.2.2 # [osx]
+    - ffmpeg <=4.2.2 # [osx and not arm64]
     - python ==3.7.11 # [not win and not arm64]
     - python =3.9 # [osx and arm64]
     - python =3.9 # [win]
@@ -93,7 +93,7 @@ requirements:
     - grpcio # [arm64]
     - wrapt >=1.11.0 # [arm64]
     - ffmpeg =4 # [not osx or arm64]
-    - ffmpeg <=4.2.2 # [osx]
+    - ffmpeg <=4.2.2 # [osx and not arm64]
     - numpy
     - python =3.9 # [osx and arm64]
     - python =3.9 # [win]
