@@ -575,7 +575,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         GETTER(Match::prob_t, p)
         
     public:
-        PairProbability() {}
+        PairProbability() = default;
         PairProbability(Individual* idx, pv::BlobPtr bdx, Match::prob_t p)
             : _idx(idx), _bdx(bdx), _p(p)
         {}
@@ -919,7 +919,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
     std::vector<pv::BlobPtr> Tracker::split_big(
         const BlobReceiver& filter_out,
         const std::vector<pv::BlobPtr> &big_blobs,
-        const robin_hood::unordered_map<pv::Blob*, split_expectation> &expect,
+        const robin_hood::unordered_map<pv::bid, split_expectation> &expect,
         bool discard_small,
         std::ostream* out,
         GenericThreadPool* pool)
@@ -962,9 +962,11 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                     continue;
                 }
                 
+                auto bdx = b->blob_id();
+
                 split_expectation ex(2, false);
-                if(!expect.empty() && expect.count(b.get()))
-                    ex = expect.at(b.get());
+                if(!expect.empty() && expect.count(bdx))
+                    ex = expect.at(bdx);
                 
                 auto rec = b->recount(threshold, *_background);
                 if(!fish_size.close_to_maximum_of_one(rec, 10 * ex.number)) {
@@ -974,7 +976,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                 
                 SplitBlob s(*_background, b);
                 std::vector<pv::BlobPtr> copy;
-                auto ret = s.split(ex.number);
+                auto ret = s.split(ex.number, ex.centers);
                 
                 for(auto &ptr : ret) {
                     if(b->blob_id() != ptr->blob_id())
@@ -1071,21 +1073,26 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         robin_hood::unordered_map<long_t, std::set<pv::bid>> fish_mappings;
         robin_hood::unordered_map<pv::bid, std::set<Idx_t>> blob_mappings;
         robin_hood::unordered_map<Idx_t, ska::bytell_hash_map<pv::bid, Match::prob_t>> paired;
+        robin_hood::unordered_map<Idx_t, Vec2> last_positions;
 
         const auto frame_limit = FAST_SETTINGS(frame_rate) * FAST_SETTINGS(track_max_reassign_time);
         const auto N = active_individuals.size();
 
         {
             const size_t num_threads = pool ? min(hardware_concurrency(), N / 200u) : 0;
-            auto space_limit = Individual::weird_distance() * 0.5;
-            std::condition_variable variable;
+            const auto space_limit = SQR(Individual::weird_distance() * 0.5);
+            const auto frame_rate = FAST_SETTINGS(frame_rate);
+            const auto track_max_reassign_time = FAST_SETTINGS(track_max_reassign_time);
 
-            size_t count = 0;
-            std::mutex mutex;
             CacheHints hints;
             if(frame.index().valid() && frame.index() > Tracker::start_frame())
-                hints.push(frame.index()-1_f, properties(frame.index()-1_f));
+                hints.push(frame.index() - 1_f, properties(frame.index() - 1_f));
             hints.push(frame.index(), properties(frame.index()));
+
+            // mutex protecting count and global paired + fish_mappings/blob_mappings
+            std::mutex mutex;
+            std::condition_variable variable;
+            size_t count = 0;
 
             auto fn = [&](const Tracker::set_of_individuals_t& active_individuals,
                           size_t start,
@@ -1095,6 +1102,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                     Idx_t fdx;
                     std::vector<int64_t> blobs;
                     std::vector<float> distances;
+                    Vec2 last_pos;
                 };
                 struct BlobAssignments {
                     UnorderedVectorSet<Idx_t> idxs;
@@ -1106,6 +1114,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                 auto it = active_individuals.begin();
                 std::advance(it, start);
                 
+                //! go through individuals (for this pack/thread)
                 for(auto i = start; i < start + N; ++i, ++it) {
                     auto fish = *it;
                     auto &cache = frame.individual_cache()[i];

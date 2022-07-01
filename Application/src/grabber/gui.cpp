@@ -453,6 +453,7 @@ void GUI::draw(gui::DrawStructure &base) {
             if (SETTING(enable_closed_loop))   values.push_back("closed-loop");
             if (SETTING(correct_luminance))    values.push_back("normalizing luminance");
             values.push_back("threshold: " + std::to_string(SETTING(threshold).value<int>()));
+            if (SETTING(tags_enable)) values.push_back("tags");
 
             bool darker = false;
             for (size_t i = 0; i < values.size(); ++i) {
@@ -531,6 +532,8 @@ void GUI::draw(gui::DrawStructure &base) {
                     pos += Vec2(0, 50);
                 }
 #endif
+                const auto tags_recognize = SETTING(tags_recognize).value<bool>();
+                const auto gui_show_midline = SETTING(gui_show_midline).value<bool>();
 
                 for (auto& fish : individuals) {
                     if (fish->has(tracker->end_frame())) {
@@ -579,7 +582,7 @@ void GUI::draw(gui::DrawStructure &base) {
                                         auto points = _cached_outline->uncompress();
 
                                         // check if we actually have a tail index
-                                        if (SETTING(gui_show_midline) && _cached_midline && _cached_midline->tail_index() != -1) {
+                                        if (gui_show_midline && _cached_midline && _cached_midline->tail_index() != -1) {
                                             base.circle(points.at(_cached_midline->tail_index()) + bounds.pos(), 5, Blue.alpha(max_color * 0.3));
                                             if (_cached_midline->head_index() != -1)
                                                 base.circle(points.at(_cached_midline->head_index()) + bounds.pos(), 5, Red.alpha(max_color * 0.3));
@@ -606,7 +609,7 @@ void GUI::draw(gui::DrawStructure &base) {
                             return true;
                         });
 
-                        if (!SETTING(tags_recognize)) {
+                        if (!tags_recognize) {
                             for (auto& v : positions)
                                 base.line(v, 2, fish->identity().color());
                         }

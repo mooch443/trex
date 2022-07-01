@@ -331,13 +331,14 @@ CREATE_STRUCT(Settings,
         struct split_expectation {
             size_t number;
             bool allow_less_than;
+            std::vector<Vec2> centers;
             
             split_expectation(size_t number = 0, bool allow_less_than = false)
                 : number(number), allow_less_than(allow_less_than)
             { }
             
             std::string toStr() const {
-                return "{"+std::to_string(number)+","+(allow_less_than ? "true" : "false")+"}";
+                return "{"+std::to_string(number)+","+(allow_less_than ? "true" : "false")+","+Meta::toStr(centers) + "}";
             }
             static std::string class_name() {
                 return "split_expectation";
@@ -478,7 +479,7 @@ CREATE_STRUCT(Settings,
             }
         };
         
-        std::vector<pv::BlobPtr> split_big(const BlobReceiver&, const std::vector<std::shared_ptr<pv::Blob>>& big_blobs, const robin_hood::unordered_map<pv::Blob*, split_expectation> &expect, bool discard_small = false, std::ostream *out = NULL, GenericThreadPool* pool = nullptr);
+        std::vector<pv::BlobPtr> split_big(const BlobReceiver&, const std::vector<std::shared_ptr<pv::Blob>>& big_blobs, const robin_hood::unordered_map<pv::bid, split_expectation> &expect, bool discard_small = false, std::ostream *out = NULL, GenericThreadPool* pool = nullptr);
         
         static void prefilter(const std::shared_ptr<PrefilterBlobs>&, std::vector<pv::BlobPtr>::const_iterator it, std::vector<pv::BlobPtr>::const_iterator end);
         

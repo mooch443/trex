@@ -4,7 +4,7 @@
 #include <misc/GlobalSettings.h>
 #include <misc/PVBlob.h>
 
-#define DEBUG_ME false
+//#define DEBUG_ME true
 
 namespace track { class SplitBlob; }
 
@@ -53,7 +53,7 @@ public:
      * a number of Blobs that seem to be two individuals. Also returns
      * every Blob paired with its grey value array
      */
-    std::vector<pv::BlobPtr> split(size_t presumed_nr);
+    std::vector<pv::BlobPtr> split(size_t presumed_nr, const std::vector<Vec2>& centers);
     
 private:
     size_t apply_threshold(int threshold, std::vector<pv::BlobPtr> &output);
@@ -61,7 +61,7 @@ private:
     Action evaluate_result_multiple(size_t presumed_nr, float first_size, std::vector<pv::BlobPtr>&, ResultProp&);
     
 #if DEBUG_ME
-    void display_match(const std::pair<const int, std::vector<pv::BlobPtr>>&);
+    void display_match(const std::pair<const int, std::vector<pv::BlobPtr>>&, const std::vector<Vec2>& centers);
 #endif
 };
 
