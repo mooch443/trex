@@ -1122,24 +1122,31 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                     Vec2 last_pos(-1,-1);
                     Frame_t last_frame;
                     long_t last_L = -1;
-                    float time_limit;
 
                     // IndividualCache is in the same position as the indexes here
-                    //auto& obj = frame.cached_individuals.at(fish->identity().ID());
                     cache = fish->cache_for_frame(frame.index(), frame.time, &hints);
-                    time_limit = cache.previous_frame.get() - frame_limit;
+                    const auto time_limit = cache.previous_frame.get() - frame_limit; // dont allow too far to the past
                         
+                    // does the current individual have the frame previous to the current frame?
+                    //! try to find a frame thats close in time AND space to the current position
                     size_t counter = 0;
                     auto sit = fish->iterator_for(cache.previous_frame);
-                    if (sit != fish->frame_segments().end() && (*sit)->contains(cache.previous_frame)) {
-                        for (; sit != fish->frame_segments().end() && min((*sit)->end(), cache.previous_frame).get() >= time_limit && counter < frame_limit; ++counter)
+                    if (sit != fish->frame_segments().end() && (*sit)->contains(cache.previous_frame)) 
+                    {
+                        for (; sit != fish->frame_segments().end() 
+                                && min((*sit)->end(), cache.previous_frame).get() >= time_limit 
+                                && counter < frame_limit; // shouldnt this be the same as the previous?
+                            ++counter)
                         {
-                            auto pos = fish->basic_stuff().at((*sit)->basic_stuff((*sit)->end()))->centroid.pos<Units::DEFAULT>();
+                            const auto index = (*sit)->basic_stuff((*sit)->end());
+                            const auto pos = fish->basic_stuff().at(index)->centroid.pos<Units::DEFAULT>();
 
-                            if ((*sit)->length() > FAST_SETTINGS(frame_rate) * FAST_SETTINGS(track_max_reassign_time) * 0.25)
+                            if ((*sit)->length() > frame_rate * track_max_reassign_time * 0.25)
                             {
                                 //! segment is long enough, we can stop. but only actually use it if its not too far away:
-                                if (last_pos.x == -1 || euclidean_distance(pos, last_pos) < space_limit) {
+                                if (last_pos.x == -1 
+                                    || sqdistance(pos, last_pos) < space_limit) 
+                                {
                                     last_frame = min((*sit)->end(), cache.previous_frame);
                                     last_L = (last_frame - (*sit)->start()).get();
                                 }
@@ -1156,7 +1163,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                     }
                     
                     if(last_frame.get() < time_limit) {
-                        Log(out, "\tNot processing fish ", fish->identity()," because its last respected frame is ", last_frame,", best segment length is ", last_L," and were in frame ", frame.index(),".");
+                        Log(out, "\tNot processing fish ", fish->identity()," because its last measured frame is ", last_frame,", best segment length is ", last_L," and we are in frame ", frame.index(),".");
                         continue;
                     }
                     
@@ -1170,6 +1177,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                         //auto &pair_map = paired[fdx];
                         auto& map = fish_assignments[i - start];
                         map.fdx = fdx;
+                        map.last_pos = last_pos.x == -1 ? cache.estimated_px : last_pos;
 
                         for(auto && [d, bdx] : set) {
                             if(!frame.find_bdx(bdx))
@@ -1185,11 +1193,12 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                 }
 
                 std::unique_lock lock(mutex);
-                for (auto& [fdx, blobs, distances] : fish_assignments) {
-                    fish_mappings[fdx].insert(blobs.begin(), blobs.end());
+                for (auto&& [fdx, blobs, distances, last_pos] : fish_assignments) {
+                    fish_mappings[fdx].insert(std::make_move_iterator(blobs.begin()), std::make_move_iterator(blobs.end()));
                     auto N = blobs.size();
                     for(size_t i=0; i<N; ++i)
                         paired[fdx][pv::bid(blobs[i])] = distances[i];
+                    last_positions[fdx] = last_pos;
                 }
                 for (auto& [bdx, assign] : blob_assignments) {
                     blob_mappings[bdx].insert(assign.idxs.begin(), assign.idxs.end());
@@ -1230,8 +1239,8 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         }
         
         UnorderedVectorSet<pv::bid> already_walked;
-        std::vector<pv::BlobPtr> big_blobs;
-        robin_hood::unordered_map<pv::Blob*, split_expectation> expect;
+        UnorderedVectorSet<pv::BlobPtr> big_blobs;
+        robin_hood::unordered_map<pv::bid, split_expectation> expect;
         
         auto manual_splits = FAST_SETTINGS(manual_splits);
         auto manual_splits_frame =
@@ -1256,10 +1265,10 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                 Log(out, "\t\tManually splitting ", (uint32_t)bdx);
                 auto ptr = frame.erase_anywhere(bdx);
                 if(ptr) {
-                    big_blobs.push_back(ptr);
+                    big_blobs.insert(ptr);
                     
-                    expect[ptr.get()].number = 2;
-                    expect[ptr.get()].allow_less_than = false;
+                    expect[bdx].number = 2;
+                    expect[bdx].allow_less_than = false;
                     
                     already_walked.insert(bdx);
                 }
@@ -1274,6 +1283,12 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
             Log(out, "Paired ", paired);
         }
         
+        /**
+         * Now we have found all the mappings from fish->blob and vice-a-versa,
+         * lets do the actual splitting (if enabled).
+         * -------------------------------------------------------------------------------------
+         */
+
         if(!FAST_SETTINGS(track_do_history_split)) {
             frame.finalize();
             return;
@@ -1328,9 +1343,9 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                 continue;
             
             using namespace Match;
-            robin_hood::unordered_map<pv::bid, std::pair<Idx_t, Match::prob_t>> assign_blob; // blob: individual
-            robin_hood::unordered_map<Idx_t, std::set<std::tuple<Match::prob_t, pv::bid>>> all_probs_per_fish;
-            robin_hood::unordered_map<Idx_t, std::set<std::tuple<Match::prob_t, pv::bid>>> probs_per_fish;
+            std::unordered_map<pv::bid, std::pair<Idx_t, Match::prob_t>> assign_blob; // blob: individual
+            std::unordered_map<Idx_t, std::set<std::tuple<Match::prob_t, pv::bid>>> all_probs_per_fish;
+            std::unordered_map<Idx_t, std::set<std::tuple<Match::prob_t, pv::bid>>> probs_per_fish;
             
             if(out) {
                 Log(out, "\t\tMismatch between blobs and number of fish assigned to them.");
@@ -1346,7 +1361,9 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                 }
             }*/
             
-            auto check_combinations = [&assign_blob, out](Idx_t c, decltype(probs_per_fish)::mapped_type& combinations, std::queue<Idx_t>& q) -> bool
+            auto check_combinations = 
+                [&assign_blob, out](Idx_t c, decltype(probs_per_fish)::mapped_type& combinations, std::queue<Idx_t>& q) 
+              -> bool
             {
                 if(!combinations.empty()) {
                     auto b = std::get<1>(*combinations.begin());
@@ -1397,7 +1414,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                 checks.push(c);
             }
             
-            while(!checks.empty()) {
+             while(!checks.empty()) {
                 auto c = checks.front();
                 checks.pop();
                 
@@ -1407,11 +1424,17 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
             }
             
             UnorderedVectorSet<pv::bid> to_delete;
+            std::map<pv::bid, std::vector<Vec2>> centers;
             size_t counter = 0;
+            if(out)
+                Log(out, "Final assign blob:", assign_blob);
+
             for(auto && [fdx, set] : all_probs_per_fish) {
                 if(out) {
                     Log(out, "Combinations ", fdx,": ", set);
                 }
+
+                auto last_pos = last_positions.at(fdx);
                 
                 if(set.empty()) {
                     ++counter;
@@ -1429,33 +1452,45 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                         max_id = std::get<1>(*probs_per_fish.at(fdx).begin());
                         if(max_id.valid()) {
                             frame.split_blobs.insert(max_id);
-                            auto ptr = frame.erase_regular(max_id);
+
+                            auto ptr = frame.find_bdx(max_id);
+                            if(ptr) {
+                                if(assign_blob.count(max_id)) {
+                                    ++expect[max_id].number;
+                                    expect[max_id].centers.push_back(last_positions.at(assign_blob.at(max_id).first) - ptr->bounds().pos());
+                                    assign_blob.erase(max_id);
+                                }
+
+                                ++expect[max_id].number;
+                                big_blobs.insert(ptr);
+                                expect[max_id].centers.push_back(last_pos - ptr->bounds().pos());
+                                Log(out, "Increasing split number in ", *ptr, " to ", expect[max_id]);
+                            } else
+                                Log(out, "Cannot split blob ", max_id, " since it cannot be found.");
+
+                            /*auto ptr = frame.erase_regular(max_id);
                             
                             if(ptr) {
                                 Log(out, "Splitting blob ", max_id);
                                 to_delete.insert(max_id);
                                 
-                                /*for(auto && [ind, blobs] : paired) {
-                                    auto it = blobs.find(max_id);
-                                    if(it != blobs.end()) {
-                                        blobs.erase(it);
-                                    }
-                                }*/
-                                
-                                ++expect[ptr.get()].number;
-                                big_blobs.push_back(ptr);
+                                ++expect[max_id].number;
+                                big_blobs.insert(ptr);
+                                expect[max_id].centers.push_back(last_pos);
                             }
                             else if((ptr = frame.find_bdx(max_id))) {
-                                if(expect.contains(ptr.get())) {
+                                if(expect.contains(max_id)) {
                                     Log(out, "Increasing expect number for blob ", max_id);
-                                    ++expect[ptr.get()].number;
+                                    ++expect[max_id].number;
+                                    expect[max_id].centers.push_back(last_pos);
                                 }
                                 
                                 Log(out, "Would split blob ", max_id,", but its part of additional.");
-                            }
+                            } else
+                                Log(out, "Cannot split blob ", max_id, " since it cannot be found.");*/
                             
                             if(allow_less_than)
-                                expect[ptr.get()].allow_less_than = allow_less_than;
+                                expect[max_id].allow_less_than = allow_less_than;
                         }
                     }
                 }
@@ -1473,21 +1508,8 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                     }
                 }
             }, _thread_pool, paired.begin(), paired.end());
-            /*for(auto & [ind, blobs] : paired) {
-                std::remove_if(blobs.begin(), blobs.end(), [&to_delete](auto &v){
-                    return contains(to_delete, v.first);
-                });
-                auto it = blobs.begin();
-                for(; it != blobs.end();) {
-                    if(contains(to_delete, it->first))
-                        it = blobs.erase(it);
-                    else
-                        ++it;
-                }
-            }*/
             
             if(out) {
-                auto str = Meta::toStr(expect);
                 Log(out, "expect: ", expect);
                 if(counter > 1) {
                     Log(out, "Lost ", counter," fish (", expect, ")");
@@ -1495,23 +1517,23 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
             }
         }
         
-        for(auto && [blob, e] : expect)
-            ++e.number;
+        //for(auto && [blob, e] : expect)
+        //    ++e.number;
         
         if(!manual_splits_frame.empty()) {
             for(auto &bdx : manual_splits_frame) {
                 auto ptr = frame.find_bdx(bdx);
                 if(ptr) {
-                    expect[ptr.get()].allow_less_than = false;
-                    expect[ptr.get()].number = 2;
+                    expect[bdx].allow_less_than = false;
+                    expect[bdx].number = 2;
                 }
             }
         }
+
+        for(auto& b : big_blobs)
+            frame.erase_regular(b->blob_id());
         
-        //static Timing tim("history_split_split_big", 0.1);
-        //TakeTiming tak(tim);
-        
-        auto big_filtered = split_big(BlobReceiver(frame, BlobReceiver::noise), big_blobs, expect, true, out, pool);
+        auto big_filtered = split_big(BlobReceiver(frame, BlobReceiver::noise), big_blobs._data, expect, true, out, pool);
         
         if(!big_filtered.empty())
             frame.add_regular(std::move(big_filtered));
@@ -2110,8 +2132,8 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     auto &blob = frame.bdx_to_ptr(bdx);
                     
                     //std::vector<pv::BlobPtr> additional;
-                    robin_hood::unordered_map<pv::Blob*, split_expectation> expect;
-                    expect[blob.get()] = split_expectation(clique.size() == 1 ? 2 : clique.size(), false);
+                    robin_hood::unordered_map<pv::bid, split_expectation> expect;
+                    expect[bdx] = split_expectation(clique.size() == 1 ? 2 : clique.size(), false);
                     
                     auto big_filtered = split_big(BlobReceiver(frame, BlobReceiver::noise),
                                                   {blob}, expect);
