@@ -229,7 +229,7 @@ class ValidationCallback(tf.keras.callbacks.Callback):
             if len(images) == 0:
                 continue
 
-            Y = self.model.predict(images)
+            Y = self.model.predict(images, verbose=0)
             predictions.append(Y)
             
             distance = np.abs(Y - zeros).sum(axis=1)
@@ -478,7 +478,7 @@ def predict():
         print("error with the shape")
         
     indexes = np.array(np.arange(len(train_X)), dtype=np.float32)
-    output = model.predict(train_X)
+    output = model.predict(train_X, verbose=0)
     
     receive(output, indexes)
 
@@ -670,8 +670,10 @@ def start_learning():
                         best_accuracy_worst_class = callback.best_result["unique"]
                 except:
                     TRex.warn("loading weights failed")
-            else:
+            elif settings.accumulation_step == -2:
                 TRex.warn("could not improve upon previous steps.")
+            else:
+                TRex.warn("Could not improve upon previous steps.")
                 abort_with_error = True
 
         else:

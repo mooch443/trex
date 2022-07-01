@@ -30,9 +30,11 @@ author = 'Tristan Walter'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    "sphinx_rtd_theme",
+    "sphinx_rtd_dark_mode",
     'sphinx.ext.autosectionlabel'
 ]
+
+default_dark_mode = True
 autosectionlabel_prefix_document = True
 autosectionlabel_maxdepth = 4
 
