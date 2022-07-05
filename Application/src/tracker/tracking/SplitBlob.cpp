@@ -221,7 +221,8 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
 
         size_t i = 0;
         for(auto c : centers) {
-            cv::circle(mask, c, 15, i + 2, cv::FILLED);
+            cv::circle(mask, c, 5, i + 2, cv::FILLED);
+            cv::circle(mask, c, 5, 0, 1);
             ++i;
         }
 

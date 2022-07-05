@@ -490,7 +490,7 @@ void GUI::draw(gui::DrawStructure &base) {
                         auto seg = fish->segment_for(frame);
                         auto color = ColorWheel(id).next();
                         if (seg) {
-                            if (Tracker::end_frame() < seg->end() + Frame_t(FAST_SETTINGS(frame_rate) * 30)) {
+                            if (Tracker::end_frame() < seg->end() + Frame_t(FAST_SETTINGS(frame_rate) * 15)) {
                                 std::vector<Vec2> positions;
 
                                 for (auto idx : seg->basic_index) {
@@ -505,7 +505,7 @@ void GUI::draw(gui::DrawStructure &base) {
                                     std::get<1>(s)++;
                                 }
                                 base.line(positions, 1, color.alpha(200));
-                                base.text(Meta::toStr(id) + " (" + Meta::toStr(p) + ")", positions.back() + Vec2(10, 0), color, Font(0.5), scale);
+                                base.text(Meta::toStr(id) + " (" + dec<2>(p).toStr() + ")", positions.back() + Vec2(10, 0), color, Font(0.5), scale);
 
                             }
                             else if (Tracker::end_frame() < seg->end() + Frame_t(FAST_SETTINGS(frame_rate) * 60 * 3))  {

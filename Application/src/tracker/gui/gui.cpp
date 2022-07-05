@@ -1728,7 +1728,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                 for(auto it = PD(cache)._fish_map.cbegin(); it != PD(cache)._fish_map.cend();) {
                     if(it->second->idx() != frameNr) {
                         it->first->unregister_delete_callback(it->second.get());
-                        PD(cache)._fish_map.erase(it++);
+                        it = PD(cache)._fish_map.erase(it);
                     } else
                         it++;
                 }
