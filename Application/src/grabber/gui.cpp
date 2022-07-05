@@ -211,7 +211,7 @@ void GUI::draw(gui::DrawStructure &base) {
 
         {
             auto frame = _grabber.last_frame();
-            auto &image = _grabber.latest_image();
+            auto image = _grabber.latest_image();
             auto noise = _grabber.noise();
 
 #ifndef NDEBUG
@@ -223,7 +223,7 @@ void GUI::draw(gui::DrawStructure &base) {
             if (frame)
                 _frame = std::move(frame);
             if (image)
-                _image = Image::Make(*image);
+                _image = std::move(image);
             if (noise)
                 _noise = std::move(noise);
         }

@@ -187,7 +187,7 @@ public:
     }
     bool load_image(Image_t& current);
     Queue::Code process_image(Image_t& current);
-    const Image::UPtr& latest_image();
+    Image::UPtr latest_image();
     
     std::unique_ptr<pv::Frame> last_frame() {
         std::lock_guard<std::mutex> guard(_frame_lock);

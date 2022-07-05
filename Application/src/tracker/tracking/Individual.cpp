@@ -1397,7 +1397,7 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(F
         {
             auto it = _qrcodes.find(segment->start());
             if(it != _qrcodes.end()) {
-                if(it->second.size() > 10 || error_code != 0) {
+                if(it->second.size() > 2 || error_code != 0) {
                     RecTask task{
                         ._segment_start = segment->start(),
                         .individual = identity().ID(),
@@ -1414,12 +1414,12 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(F
                     };
 
                     // if we can add this code, update the last requested
-                    if(RecTask::add(std::move(task), [this, it](RecTask& task) {
+                    if(RecTask::add(std::move(task), [it](RecTask& task) {
                         size_t step = it->second.size() / 100;
                         size_t i = 0;
 
                         for(auto& [frame, blob] : it->second) {
-                            if(step > 0 && i++ % step == 0) {
+                            if(step > 0 && i++ % step != 0) {
                                 continue;
                             }
                             auto ptr = std::get<1>(blob->image(nullptr, Bounds(-1, -1, -1, -1), 0));

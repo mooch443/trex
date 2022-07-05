@@ -82,6 +82,7 @@ class Accumulation {
     
 public:
     Accumulation(TrainingMode::Class);
+    ~Accumulation();
     bool start();
     
     static float good_uniqueness();

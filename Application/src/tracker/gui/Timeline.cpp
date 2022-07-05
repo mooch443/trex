@@ -127,11 +127,12 @@ namespace gui {
             _status_text.set_txt(number.str());
             number.str("");
 
-            auto consec = _frame_info->global_segment_order.empty() ? Range<Frame_t>({}, {}) : _frame_info->global_segment_order.front();
+            auto segments = _frame_info->global_segment_order;
+            auto consec = segments.empty() ? Range<Frame_t>({}, {}) : segments.front();
             std::vector<Range<Frame_t>> other_consec;
-            if (_frame_info->global_segment_order.size() > 1) {
-                for (size_t i = 0; i < 3 && i < _frame_info->global_segment_order.size(); ++i) {
-                    other_consec.push_back(_frame_info->global_segment_order.at(i));
+            if (segments.size() > 1) {
+                for (size_t i = 0; i < 3 && i < segments.size(); ++i) {
+                    other_consec.push_back(segments.at(i));
                 }
             }
             number << "consec: " << consec.start.toStr() << "-" << consec.end.toStr() << " (" << (consec.end - consec.start).toStr() << ")";
@@ -685,6 +686,8 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                     // needs Tracker lock
                     if(_updated_recognition_rect)
                         _updated_recognition_rect();
+                    
+                    //! TODO: Need to implement thread-safety for the GUI here. Currently very unsafe, for example when the GUI is deleted.
                     update_fois();
                     
                     _update_thread_updated_once = true;

@@ -64,7 +64,6 @@ WorkProgress::WorkProgress()
 
                 _item = item.name;
                 _description = item.desc;
-                _additional.update([](auto&){});
                 while(!_additional_updates.empty())
                     _additional_updates.pop();
                 _item_abortable = item.abortable;
@@ -74,6 +73,11 @@ WorkProgress::WorkProgress()
                 _queue.pop();
                 
                 lock.unlock();
+                {
+                    //! Can only be modified within the GUI lock, due to possible changes within the DrawStructure it is attached to (e.g. also texture things). Can not happen within locked "lock", since that'd be a dead-lock.
+                    std::unique_lock guard(GUI::instance()->gui().lock());
+                    _additional.update([](auto&){});
+                }
                 item.fn();
                 lock.lock();
                 

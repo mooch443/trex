@@ -119,8 +119,11 @@ bool FrameGrabber::is_recording() const {
     return GlobalSettings::map().has("recording") && SETTING(recording);
 }
 
-const Image::UPtr& FrameGrabber::latest_image() {
-    return _current_image;
+Image::UPtr FrameGrabber::latest_image() {
+    std::unique_lock guard(_current_image_lock);
+    if(_current_image)
+        return Image::Make(*_current_image);
+    return nullptr;
 }
 
 cv::Size FrameGrabber::determine_resolution() {
@@ -1000,6 +1003,7 @@ bool FrameGrabber::add_image_to_average(const cv::Mat& current) {
                 SETTING(terminate) = true;
         }
         
+        std::unique_lock guard(_current_image_lock);
         if (!_current_image)
             _current_image = std::make_unique<Image>(current);
         else
