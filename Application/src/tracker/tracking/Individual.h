@@ -323,14 +323,26 @@ constexpr std::array<const char*, 8> ReasonsNames {
 #if !COMMONS_NO_PYTHON
         ska::bytell_hash_map<Frame_t, std::vector<QRCode>> _qrcodes;
         mutable std::mutex _qrcode_mutex;
-        ska::bytell_hash_map<Frame_t, std::tuple<int64_t, float>> _qrcode_identities;
+    public:
+        struct IDaverage {
+            int64_t best_id;
+            float p;
+            uint32_t samples;
+
+            std::string toStr() const {
+                return "Pred<" + std::to_string(best_id) + ","+std::to_string(p) + ">";
+            }
+            static std::string class_name() { return "IDaverage"; }
+        };
+    protected:
+        ska::bytell_hash_map<Frame_t, IDaverage> _qrcode_identities;
         Frame_t _last_requested_qrcode;
 #endif
         
     public:
 #if !COMMONS_NO_PYTHON
-        std::tuple<int64_t, float> qrcode_at(Frame_t segment_start) const;
-        ska::bytell_hash_map<Frame_t, std::tuple<int64_t, float>> qrcodes() const;
+        IDaverage qrcode_at(Frame_t segment_start) const;
+        ska::bytell_hash_map<Frame_t, IDaverage> qrcodes() const;
         bool add_qrcode(Frame_t frameIndex, pv::BlobPtr&&);
 #endif
 

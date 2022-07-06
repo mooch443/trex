@@ -308,17 +308,17 @@ void RecTask::init() {
             FormatError("Error during tagging initialization.");
 }
 
-std::tuple<int64_t, float> Individual::qrcode_at(Frame_t segment_start) const {
+Individual::IDaverage Individual::qrcode_at(Frame_t segment_start) const {
     std::unique_lock guard(_qrcode_mutex);
     auto it = _qrcode_identities.find(segment_start);
     if(it != _qrcode_identities.end()) {
         return it->second;
     }
 
-    return { -1, -1 };
+    return { -1, -1, 0 };
 }
 
-ska::bytell_hash_map<Frame_t, std::tuple<int64_t, float>> Individual::qrcodes() const {
+ska::bytell_hash_map<Frame_t, Individual::IDaverage> Individual::qrcodes() const {
     std::unique_lock guard(_qrcode_mutex);
     return _qrcode_identities;
 }
@@ -1409,7 +1409,7 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(F
                         print("got callback in ", _identity.ID(), " (", prediction.individual, ")");
 
                         std::unique_lock guard(_qrcode_mutex);
-                        _qrcode_identities[prediction._segment_start] = { prediction.best_id, prediction.p };
+                        _qrcode_identities[prediction._segment_start] = { prediction.best_id, prediction.p, (uint32_t)prediction._frames.size() };
                         //_last_requested_qrcode.invalidate();
                     };
 

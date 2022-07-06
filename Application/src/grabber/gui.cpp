@@ -486,7 +486,7 @@ void GUI::draw(gui::DrawStructure &base) {
                     //print("individual ", fish->identity().ID(), " has ", codes.size(), " codes.");
 
                     for (auto& [frame, code] : codes) {
-                        auto& [id, p] = code;
+                        auto& [id, p, n] = code;
                         auto seg = fish->segment_for(frame);
                         auto color = ColorWheel(id).next();
                         if (seg) {

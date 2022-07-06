@@ -743,7 +743,8 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         uint64_t N;
         ref.read<uint64_t>(N);
 
-        ska::bytell_hash_map<Frame_t, std::tuple<int64_t, float>> qrcode_identities;
+        ska::bytell_hash_map<Frame_t, Individual::IDaverage> qrcode_identities;
+        ska::bytell_hash_map<Frame_t, std::vector<tags::Detection>> identifiers;
 
         for (uint64_t i = 0; i < N; ++i) {
             data_long_t frame;
@@ -755,25 +756,30 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             float prob;
             ref.read<float>(prob);
 
+            uint32_t samples;
+            ref.read<uint32_t>(samples);
+
 #if !COMMONS_NO_PYTHON
             auto seg = fish->segment_for(Frame_t(frame));
             if(seg) {
                 for(auto i : seg->basic_index) {
                     if(i == -1) continue;
                     auto center = fish->_basic_stuff[i]->blob.calculate_bounds().center();
-                    IdentifiedTag tag{ 
+
+                    identifiers[Frame_t(frame)].push_back(tags::Detection{
                         .id = Idx_t(id),
                         .pos = center,
+                        .bid = fish->_basic_stuff[i]->blob.blob_id(),
                         .p = prob
-                    };
-
-
+                    });
                 }
             }
-            qrcode_identities[Frame_t(frame)] = { id, prob };
+
+            qrcode_identities[Frame_t(frame)] = { id, prob, samples };
 #endif
         }
 
+        tags::detected(std::move(identifiers));
         fish->_qrcode_identities = qrcode_identities;
     }
     
@@ -977,9 +983,10 @@ uint64_t Data::write(const Individual& val) {
     for (auto& [frame, match] : val._qrcode_identities) {
         pack.write<data_long_t>(frame.get());
 
-        auto& [id, prob] = match;
+        auto& [id, prob, n] = match;
         pack.write<int32_t>(id);
         pack.write<float>(prob);
+        pack.write<uint32_t>(n);
     }
 #else
     pack.write<uint64_t>(0u);
