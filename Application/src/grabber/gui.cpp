@@ -57,11 +57,11 @@ GUI::GUI(FrameGrabber& grabber)
                 { }
             }
             else if(name == std::string("gui_interface_scale")) {
-                gui::Event e(gui::WINDOW_RESIZED);
+                /*gui::Event e(gui::WINDOW_RESIZED);
                 e.size.width = e.size.width;
                 e.size.height = e.size.height;
                 
-                this->event(e);
+                this->event(e);*/
             }
         }
     );
