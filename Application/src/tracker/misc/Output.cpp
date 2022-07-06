@@ -766,7 +766,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                     if(i == -1) continue;
                     auto center = fish->_basic_stuff[i]->blob.calculate_bounds().center();
 
-                    identifiers[Frame_t(frame)].push_back(tags::Detection{
+                    identifiers[fish->_basic_stuff[i]->frame].push_back(tags::Detection{
                         .id = Idx_t(id),
                         .pos = center,
                         .bid = fish->_basic_stuff[i]->blob.blob_id(),
