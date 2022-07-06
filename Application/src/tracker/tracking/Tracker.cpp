@@ -3890,12 +3890,17 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         _automatically_assigned_ranges.clear();
     }
     
-    void Tracker::check_segments_identities(bool auto_correct, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue, Frame_t after_frame) {
+    void Tracker::check_segments_identities(bool auto_correct, IdentitySource source, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue, Frame_t after_frame) {
         
         print("Waiting for lock...");
         LockGuard guard("check_segments_identities");
         print("Updating automatic ranges starting from ", !after_frame.valid() ? Frame_t(0) : after_frame);
         
+        if (source == IdentitySource::QRCodes)
+            print("Using physical tag information.");
+        else
+            print("Using machine learning data.");
+
         const auto manual_identities = FAST_SETTINGS(manual_identities);
         size_t count=0;
         
@@ -3955,117 +3960,139 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         };
         
         const size_t n_lower_bound = max(5, FAST_SETTINGS(frame_rate) * 0.1f);
+
+        auto collect_virtual_fish = [n_lower_bound, after_frame, &virtual_fish, &assigned_ranges]
+            (Idx_t fdx, Individual* fish, const FrameRange& range, size_t N, const std::map<Idx_t, float>& average)
+        {
+            if (N >= n_lower_bound || (range.start() == fish->start_frame() && N > 0)) {
+            }
+            else
+                return false;
+
+#ifdef TREX_DEBUG_IDENTITIES
+            log(f, "fish ", fdx, ": segment ", segment.start(), "-", segment.end(), " has ", n, " samples");
+#endif
+            //print("fish ",fdx,": segment ",segment.start(),"-",segment.end()," has ",n," samples");
+
+            std::set<std::pair<Idx_t, Match::prob_t>, decltype(compare_greatest)> sorted(compare_greatest);
+            sorted.insert(average.begin(), average.end());
+
+            // check if the values for this segment are too close, this probably
+            // means that we shouldnt correct here.
+            if (sorted.size() >= 2) {
+                Match::prob_t ratio = sorted.begin()->second / ((++sorted.begin())->second);
+                if (ratio > 1)
+                    ratio = 1 / ratio;
+
+                if (ratio >= 0.6) {
+#ifdef TREX_DEBUG_IDENTITIES
+                    log(f, "\ttwo largest probs ", sorted.begin()->second, " and ", (++sorted.begin())->second, " are too close (ratio ", ratio, ")");
+#endif
+                    return false;
+                }
+            }
+
+            //auto it = std::max_element(average.begin(), average.end(), compare);
+            auto it = sorted.begin();
+
+            // see if there is already something found for given segment that
+            // overlaps with this segment
+            auto fit = virtual_fish.find(it->first);
+            if (fit != virtual_fish.end()) {
+                // fish exists
+                auto& A = range;
+
+                std::set<range_t> matches;
+                auto rit = fit->second.segments.begin();
+                for (; rit != fit->second.segments.end(); ++rit) {
+                    auto& B = *rit;
+                    //if(B.overlaps(A))
+                    if (A.end() > B.start() && A.start() < B.end())
+                        //if((B.start() >= A.start() && A.end() >= B.start())
+                        //   || (A.start() >= B.start() && B.end() >= A.start()))
+                    {
+                        matches.insert(B);
+                    }
+                }
+
+                if (!matches.empty()) {
+                    // if there are multiple matches, we can already assume that this
+                    // is a much longer segment (because it overlaps multiple smaller segments
+                    // because it starts earlier, cause thats the execution order)
+                    auto rit = matches.begin();
+#ifdef TREX_DEBUG_IDENTITIES
+                    log(f, "\t", fdx, " (as ", it->first, ") Found range(s) ", *rit, " for search range ", segment, " p:", fit->second.probs.at(*rit), " n:", fit->second.samples.at(*rit), " (self:", it->second, ",n:", n, ")");
+#endif
+
+                    Match::prob_t n_me = N;//segment.end() - segment.start();
+                    Match::prob_t n_he = fit->second.samples.at(*rit);//rit->end() - rit->start();
+                    const Match::prob_t N = n_me + n_he;
+
+                    n_me /= N;
+                    n_he /= N;
+
+                    Match::prob_t sum_me = sigmoid(it->second) * sigmoid(n_me);
+                    Match::prob_t sum_he = sigmoid(fit->second.probs.at(*rit)) * sigmoid(n_he);
+
+#ifdef TREX_DEBUG_IDENTITIES
+                    log(f, "\tself:", segment.length(), " ", it->second, " other:", rit->length(), " ", fit->second.probs.at(*rit), " => ", sum_me, " / ", sum_he);
+#endif
+
+                    if (sum_me > sum_he) {
+#ifdef TREX_DEBUG_IDENTITIES
+                        log(f, "\t* Replacing");
+#endif
+
+                        for (auto rit = matches.begin(); rit != matches.end(); ++rit) {
+                            fit->second.probs.erase(*rit);
+                            fit->second.track_ids.erase(rit->range);
+                            fit->second.segments.erase(*rit);
+                            fit->second.samples.erase(*rit);
+                        }
+
+                    }
+                    else
+                        return false;
+                }
+            }
+
+#ifdef TREX_DEBUG_IDENTITIES
+            log(f, "\tassigning ", it->first, " to ", fdx, " with p ", it->second, " for ", segment.start(), segment.end());
+#endif
+            virtual_fish[it->first].segments.insert(range);
+            virtual_fish[it->first].probs[range] = it->second;
+            virtual_fish[it->first].samples[range] = N;
+            virtual_fish[it->first].track_ids[range.range] = fdx;
+
+            assigned_ranges[fdx][range.range] = it->first;
+
+            return true;
+        };
         
         // iterate through segments, find matches for segments.
         // try to find the longest segments and assign them to virtual fish
         for(auto && [fdx, fish] : _individuals) {
-            if(manual_identities.empty() || manual_identities.find(fdx) != manual_identities.end()) {
+            if (source == IdentitySource::QRCodes) {
+                for (auto& [start, assign] : fish->qrcodes()) {
+                    auto segment = fish->segment_for(start);
+                    if (segment) {
+                        std::map<Idx_t, float> a;
+                        a[Idx_t(assign.best_id)] = assign.p;
+                        collect_virtual_fish(fish->identity().ID(), fish, *segment, assign.samples, a);
+                    }
+                }
+            }
+            else if(manual_identities.empty() || manual_identities.find(fdx) != manual_identities.end()) 
+            {
                 // recalculate recognition for all segments
                 //fish->clear_recognition();
-                
-                for(auto && [start, segment] : fish->recognition_segments()) {
-                    auto && [n, average] = fish->processed_recognition(start);
-                    
-                    if(after_frame.valid() && segment.range.end < after_frame)
+
+                for (auto&& [start, segment] : fish->recognition_segments()) {
+                    if (after_frame.valid() && segment.end() < after_frame)
                         continue;
-                    
-                    if(n >= n_lower_bound || (segment.start() == fish->start_frame() && n > 0)) {
-#ifdef TREX_DEBUG_IDENTITIES
-                        log(f, "fish ",fdx,": segment ",segment.start(),"-",segment.end()," has ",n," samples");
-#endif
-                        //print("fish ",fdx,": segment ",segment.start(),"-",segment.end()," has ",n," samples");
-                        
-                        std::set<std::pair<Idx_t, Match::prob_t>, decltype(compare_greatest)> sorted(compare_greatest);
-                        sorted.insert(average.begin(), average.end());
-                        
-                        // check if the values for this segment are too close, this probably
-                        // means that we shouldnt correct here.
-                        if(sorted.size() >= 2) {
-                            Match::prob_t ratio = sorted.begin()->second / ((++sorted.begin())->second);
-                            if(ratio > 1)
-                                ratio = 1 / ratio;
-                            
-                            if(ratio >= 0.6) {
-#ifdef TREX_DEBUG_IDENTITIES
-                                log(f, "\ttwo largest probs ",sorted.begin()->second," and ",(++sorted.begin())->second," are too close (ratio ",ratio,")");
-#endif
-                                continue;
-                            }
-                        }
-                        
-                        //auto it = std::max_element(average.begin(), average.end(), compare);
-                        auto it = sorted.begin();
-                        
-                        // see if there is already something found for given segment that
-                        // overlaps with this segment
-                        auto fit = virtual_fish.find(it->first);
-                        if(fit != virtual_fish.end()) {
-                            // fish exists
-                            auto &A = segment;
-                            
-                            std::set<range_t> matches;
-                            auto rit = fit->second.segments.begin();
-                            for(; rit != fit->second.segments.end(); ++rit) {
-                                auto &B = *rit;
-                                //if(B.overlaps(A))
-                                if(A.end() > B.start() && A.start() < B.end())
-                                //if((B.start() >= A.start() && A.end() >= B.start())
-                                //   || (A.start() >= B.start() && B.end() >= A.start()))
-                                {
-                                    matches.insert(B);
-                                }
-                            }
-                            
-                            if(!matches.empty()) {
-                                // if there are multiple matches, we can already assume that this
-                                // is a much longer segment (because it overlaps multiple smaller segments
-                                // because it starts earlier, cause thats the execution order)
-                                auto rit = matches.begin();
-#ifdef TREX_DEBUG_IDENTITIES
-                                log(f, "\t",fdx," (as ",it->first,") Found range(s) ",*rit," for search range ",segment," p:",fit->second.probs.at(*rit)," n:",fit->second.samples.at(*rit)," (self:",it->second,",n:",n,")");
-#endif
-                                
-                                Match::prob_t n_me = n;//segment.end() - segment.start();
-                                Match::prob_t n_he = fit->second.samples.at(*rit);//rit->end() - rit->start();
-                                const Match::prob_t N = n_me + n_he;
-                                
-                                n_me /= N;
-                                n_he /= N;
-                                
-                                Match::prob_t sum_me = sigmoid(it->second) * sigmoid(n_me);
-                                Match::prob_t sum_he = sigmoid(fit->second.probs.at(*rit)) * sigmoid(n_he);
-                                
-#ifdef TREX_DEBUG_IDENTITIES
-                                log(f, "\tself:",segment.length()," ",it->second," other:",rit->length()," ",fit->second.probs.at(*rit)," => ",sum_me," / ", sum_he);
-#endif
-                                
-                                if(sum_me > sum_he) {
-#ifdef TREX_DEBUG_IDENTITIES
-                                    log(f, "\t* Replacing");
-#endif
-                                    
-                                    for(auto rit = matches.begin(); rit != matches.end(); ++rit) {
-                                        fit->second.probs.erase(*rit);
-                                        fit->second.track_ids.erase(rit->range);
-                                        fit->second.segments.erase(*rit);
-                                        fit->second.samples.erase(*rit);
-                                    }
-                                    
-                                } else
-                                    continue;
-                            }
-                        }
-                        
-#ifdef TREX_DEBUG_IDENTITIES
-                        log(f, "\tassigning ",it->first," to ",fdx," with p ",it->second," for ", segment.start(), segment.end());
-#endif
-                        virtual_fish[it->first].segments.insert(segment);
-                        virtual_fish[it->first].probs[segment] = it->second;
-                        virtual_fish[it->first].samples[segment] = n;
-                        virtual_fish[it->first].track_ids[segment.range] = fdx;
-                        
-                        assigned_ranges[fdx][segment.range] = it->first;
-                    }
+
+                    auto& [n, average] = fish->processed_recognition(start);
+                    collect_virtual_fish(fdx, fish, segment, n, average);
                 }
             }
         }
@@ -4176,205 +4203,309 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         log(f, "----");
 #endif
         decltype(unassigned_ranges) still_unassigned;
+
+        auto apply = [this, &still_unassigned, &manual_splits, &assigned_ranges, &tmp_assigned_ranges]
+        (Idx_t fdx, Individual* fish, FrameRange segment, Idx_t prev_id, Idx_t next_id, MotionRecord* prev_pos, MotionRecord* next_pos, Frame_t prev_blob_frame)
+        {
+            Vec2 pos_start(FLT_MAX), pos_end(FLT_MAX);
+            auto blob_start = fish->centroid_weighted(segment.start());
+            auto blob_end = fish->centroid_weighted(segment.end());
+            if (blob_start)
+                pos_start = blob_start->pos<Units::CM_AND_SECONDS>();
+            if (blob_end)
+                pos_end = blob_end->pos<Units::CM_AND_SECONDS>();
+
+            if (blob_start && blob_end) {
+                auto dprev = euclidean_distance(prev_pos->pos<Units::CM_AND_SECONDS>(), pos_start)
+                    / abs(blob_start->time() - prev_pos->time());
+                auto dnext = euclidean_distance(next_pos->pos<Units::CM_AND_SECONDS>(), pos_end)
+                    / abs(next_pos->time() - blob_end->time());
+                Idx_t chosen_id;
+
+                if (dnext < dprev) {
+                    if (dprev < FAST_SETTINGS(track_max_speed) * 0.1)
+                        chosen_id = next_id;
+                }
+                else if (dnext < FAST_SETTINGS(track_max_speed) * 0.1)
+                    chosen_id = prev_id;
+
+                if (chosen_id.valid()) {
+#ifdef TREX_DEBUG_IDENTITIES
+                    if (segment.start() == 0) {
+                        log(f, "Fish ", fdx, ": chosen_id ", chosen_id, ", assigning ", segment, " (", dprev, " / ", dnext, ")...");
+                    }
+#endif
+
+                    if (prev_blob_frame.valid() && prev_id.valid()) {
+                        // we found the previous blob/segment quickly:
+                        /*auto range = _individuals.count(prev_id) ? _individuals.at(prev_id)->get_segment_safe(prev_blob_frame) : FrameRange();
+                        if (!range.empty()) {
+                            Frame_t frame = range.end();
+                            while (frame >= range.start()) {
+                                auto blob = _individuals.at(prev_id)->compressed_blob(frame);
+                                if (blob->split()) {
+                                    //if(blob->parent_id != pv::bid::invalid) {
+                                        //manual_splits[frame].insert(blob->parent_id());
+                                    //}
+                                }
+                                else
+                                    break;
+
+                                --frame;
+                            }
+                        }*/
+                    }
+
+                    std::set<Range<Frame_t>> remove_from;
+
+                    std::vector<pv::bid> blob_ids;
+                    for (Frame_t frame = segment.start(); frame <= segment.end(); ++frame) {
+                        auto blob = fish->compressed_blob(frame);
+
+                        if (blob) {
+                            //automatically_assigned_blobs[frame][blob->blob_id()] = fdx;
+                            blob_ids.push_back(blob->blob_id());
+                            //if(blob->split() && blob->parent_id().valid())
+                            //    manual_splits[frame].insert(blob->parent_id());
+                        }
+                        else
+                            blob_ids.push_back(pv::bid::invalid);
+
+                        auto it = std::find(tmp_assigned_ranges.begin(), tmp_assigned_ranges.end(), chosen_id);
+                        if (it != tmp_assigned_ranges.end()) {
+                            for (auto&& [range, blobs] : it->ranges)
+                            {
+                                if (range != segment.range && range.contains(frame)) {
+                                    remove_from.insert(range);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if (!remove_from.empty()) {
+                        //for(auto range : remove_from)
+                        //    automatically_assigned_ranges[chosen_id].erase(range);
+
+                        FormatWarning("[ignore] While assigning ", segment.range.start, "-", segment.range.end, " to ", (uint32_t)chosen_id, " -> same fish already assigned in ranges ", remove_from);
+                    }
+                    else {
+                        assert((int64_t)blob_ids.size() == (segment.range.end - segment.range.start + 1_f).get());
+                        add_assigned_range(tmp_assigned_ranges, chosen_id, segment.range, std::move(blob_ids));
+
+                        auto blob = fish->blob(segment.start());
+                        if (blob && blob->split() && blob->parent_id().valid())
+                            manual_splits[segment.start()].insert(blob->parent_id());
+
+                        assigned_ranges[fdx][segment.range] = chosen_id;
+                    }
+
+                    return;
+                }
+            }
+
+            still_unassigned[fdx].insert(segment.range);
+        };
+
         //auto manual_identities = FAST_SETTINGS(manual_identities);
         for(auto && [fdx, fish] : _individuals) {
-            if(!manual_identities.count(fdx))
-                continue;
-            
-            for(auto && [start, segment] : fish->recognition_segments()) {
-                auto previous = fish->recognition_segments().end(),
-                     next = fish->recognition_segments().end();
-                
-                const auto current = fish->recognition_segments().find(start);
-                if(after_frame.valid() && segment.range.end < after_frame)
-                    continue;
-                //if(start == 741 && fish->identity().ID() == 1)
-                
-                if(current != fish->recognition_segments().end()) {
-                    auto it = current;
-                    if((++it) != fish->recognition_segments().end())
-                        next = it;
-                    
-                    it = current;
-                    if(it != fish->recognition_segments().begin())
-                        previous = (--it);
-                }
-                
-                if(assigned_ranges.count(fdx) && assigned_ranges.at(fdx).count(segment.range)) {
-                    continue; // already assigned this frame segment to someone...
-                }
-                
-                if(next != fish->recognition_segments().end() && /*previous.start() != -1 &&*/ next->second.start().valid()) {
+            if (source == IdentitySource::QRCodes) {
+                for (auto& [start, ids] : fish->qrcodes()) {
+                    const auto current = fish->find_segment_with_start(start);
+                    if (current == fish->frame_segments().end()) {
+                        FormatWarning("Cannot find frame segment ", start, " with ", ids, " for ", fish->identity());
+                        continue;
+                    }
+
+                    auto segment = *(*current);
+                    auto previous = fish->frame_segments().end(),
+                        next = fish->frame_segments().end();
+
+                    if (after_frame.valid() && segment.range.end < after_frame)
+                        continue;
+                    //if(start == 741 && fish->identity().ID() == 1)
+
+                    if (current != fish->frame_segments().end()) {
+                        auto it = current;
+                        if ((++it) != fish->frame_segments().end())
+                            next = it;
+
+                        it = current;
+                        if (it != fish->frame_segments().begin())
+                            previous = (--it);
+                    }
+
+                    if (assigned_ranges.count(fdx) && assigned_ranges.at(fdx).count(segment.range)) {
+                        continue; // already assigned this frame segment to someone...
+                    }
+
+                    if (next != fish->frame_segments().end() && /*previous.start() != -1 &&*/ (*next)->start().valid()) {
+                    }
+                    else
+                        continue;
+
                     Idx_t prev_id, next_id;
-                    MotionRecord *prev_pos = nullptr, *next_pos = nullptr;
+                    MotionRecord* prev_pos = nullptr, * next_pos = nullptr;
                     Frame_t prev_blob_frame;
-                    
+
                     auto it = assigned_ranges.find(fdx);
-                    if(it != assigned_ranges.end()) {
+                    if (it != assigned_ranges.end()) {
                         decltype(it->second.begin()) rit;
-                        const Frame_t max_frames{ FAST_SETTINGS(frame_rate)*15 };
-                        
+                        const Frame_t max_frames{ FAST_SETTINGS(frame_rate) * 15 };
+
                         // skip some frame segments to find the next assigned id
                         do {
                             // dont assign anything after one second
-                            if(next->second.start() >= current->second.end() + max_frames)
+                            if ((*next)->start() >= (*current)->end() + max_frames)
                                 break;
-                            
-                            rit = it->second.find(next->second.range);
-                            if(rit != it->second.end()) {
+
+                            rit = it->second.find((*next)->range);
+                            if (rit != it->second.end()) {
                                 next_id = rit->second;
-                                
-                                if(virtual_fish.count(next_id) && virtual_fish.at(next_id).track_ids.count(rit->first)) {
+
+                                if (virtual_fish.count(next_id) && virtual_fish.at(next_id).track_ids.count(rit->first)) {
                                     auto org_id = virtual_fish.at(next_id).track_ids.at(rit->first);
-                                    auto blob = _individuals.at(org_id)->centroid_weighted(next->second.start());
-                                    if(blob)
+                                    auto blob = _individuals.at(org_id)->centroid_weighted((*next)->start());
+                                    if (blob)
                                         next_pos = blob;
                                 }
                                 break;
                             }
-                            
-                        } while((++next) != fish->recognition_segments().end());
-                        
+
+                        } while ((++next) != fish->frame_segments().end());
+
                         // skip some frame segments to find the previous assigned id
-                        while(previous != fish->recognition_segments().end()) {
+                        while (previous != fish->frame_segments().end()) {
                             // dont assign anything after one second
-                            if(previous->second.end() + max_frames < current->second.start())
+                            if ((*previous)->end() + max_frames < (*current)->start())
                                 break;
-                            
-                            rit = it->second.find(previous->second.range);
-                            if(rit != it->second.end()) {
+
+                            rit = it->second.find((*previous)->range);
+                            if (rit != it->second.end()) {
                                 prev_id = rit->second;
-                                
-                                if(virtual_fish.count(prev_id) && virtual_fish.at(prev_id).track_ids.count(rit->first)) {
+
+                                if (virtual_fish.count(prev_id) && virtual_fish.at(prev_id).track_ids.count(rit->first)) {
+                                    auto org_id = virtual_fish.at(prev_id).track_ids.at(rit->first);
+                                    auto pos = _individuals.at(org_id)->centroid_weighted((*previous)->end());
+                                    if (pos) {
+                                        prev_pos = pos;
+                                        prev_blob_frame = (*previous)->end();
+                                    }
+                                }
+                                break;
+                            }
+
+                            if (previous != fish->frame_segments().begin())
+                                --previous;
+                            else
+                                break;
+                        }
+                    }
+
+                    if (next_id.valid() && prev_id.valid() && next_id == prev_id && prev_pos && next_pos) {
+
+                    }
+                    else
+                        continue;
+
+                    apply(fdx, fish, segment, prev_id, next_id, prev_pos, next_pos, prev_blob_frame);
+                }
+            }
+            else if (!manual_identities.count(fdx)) {
+                for (auto& [start, segment] : fish->recognition_segments()) {
+                    auto previous = fish->recognition_segments().end(),
+                        next = fish->recognition_segments().end();
+
+                    const auto current = fish->recognition_segments().find(start);
+                    if (after_frame.valid() && segment.range.end < after_frame)
+                        continue;
+                    //if(start == 741 && fish->identity().ID() == 1)
+
+                    if (current != fish->recognition_segments().end()) {
+                        auto it = current;
+                        if ((++it) != fish->recognition_segments().end())
+                            next = it;
+
+                        it = current;
+                        if (it != fish->recognition_segments().begin())
+                            previous = (--it);
+                    }
+
+                    if (assigned_ranges.count(fdx) && assigned_ranges.at(fdx).count(segment.range)) {
+                        continue; // already assigned this frame segment to someone...
+                    }
+
+                    if (next != fish->recognition_segments().end() && next->second.start().valid()) {
+                    }
+                    else
+                        continue;
+
+                    Idx_t prev_id, next_id;
+                    MotionRecord* prev_pos = nullptr, * next_pos = nullptr;
+                    Frame_t prev_blob_frame;
+
+                    auto it = assigned_ranges.find(fdx);
+                    if (it != assigned_ranges.end()) {
+                        decltype(it->second.begin()) rit;
+                        const Frame_t max_frames{ FAST_SETTINGS(frame_rate) * 15 };
+
+                        // skip some frame segments to find the next assigned id
+                        do {
+                            // dont assign anything after one second
+                            if (next->second.start() >= current->second.end() + max_frames)
+                                break;
+
+                            rit = it->second.find(next->second.range);
+                            if (rit != it->second.end()) {
+                                next_id = rit->second;
+
+                                if (virtual_fish.count(next_id) && virtual_fish.at(next_id).track_ids.count(rit->first)) {
+                                    auto org_id = virtual_fish.at(next_id).track_ids.at(rit->first);
+                                    auto blob = _individuals.at(org_id)->centroid_weighted(next->second.start());
+                                    if (blob)
+                                        next_pos = blob;
+                                }
+                                break;
+                            }
+
+                        } while ((++next) != fish->recognition_segments().end());
+
+                        // skip some frame segments to find the previous assigned id
+                        while (previous != fish->recognition_segments().end()) {
+                            // dont assign anything after one second
+                            if (previous->second.end() + max_frames < current->second.start())
+                                break;
+
+                            rit = it->second.find(previous->second.range);
+                            if (rit != it->second.end()) {
+                                prev_id = rit->second;
+
+                                if (virtual_fish.count(prev_id) && virtual_fish.at(prev_id).track_ids.count(rit->first)) {
                                     auto org_id = virtual_fish.at(prev_id).track_ids.at(rit->first);
                                     auto pos = _individuals.at(org_id)->centroid_weighted(previous->second.end());
-                                    if(pos) {
+                                    if (pos) {
                                         prev_pos = pos;
                                         prev_blob_frame = previous->second.end();
                                     }
                                 }
                                 break;
                             }
-                            
-                            if(previous != fish->recognition_segments().begin())
+
+                            if (previous != fish->recognition_segments().begin())
                                 --previous;
                             else
                                 break;
                         }
                     }
-                    
-                    if(next_id.valid() && prev_id.valid() && next_id == prev_id && prev_pos && next_pos) {
-                        Vec2 pos_start(FLT_MAX), pos_end(FLT_MAX);
-                        auto blob_start = fish->centroid_weighted(segment.start());
-                        auto blob_end = fish->centroid_weighted(segment.end());
-                        if(blob_start)
-                            pos_start = blob_start->pos<Units::CM_AND_SECONDS>();
-                        if(blob_end)
-                            pos_end = blob_end->pos<Units::CM_AND_SECONDS>();
-                        
-                        if(blob_start && blob_end) {
-                            auto dprev = euclidean_distance(prev_pos->pos<Units::CM_AND_SECONDS>(), pos_start) 
-                                / abs(blob_start->time() - prev_pos->time());
-                            auto dnext = euclidean_distance(next_pos->pos<Units::CM_AND_SECONDS>(), pos_end) 
-                                / abs(next_pos->time() - blob_end->time());
-                            Idx_t chosen_id;
-                            
-                            if(dnext < dprev) {
-                                if(dprev < FAST_SETTINGS(track_max_speed) * 0.1)
-                                    chosen_id = next_id;
-                            } else if(dnext < FAST_SETTINGS(track_max_speed) * 0.1)
-                                chosen_id = prev_id;
-                            
-                            if(chosen_id.valid()) {
-#ifdef TREX_DEBUG_IDENTITIES
-                                if(segment.start() == 0) {
-                                    log(f, "Fish ",fdx,": chosen_id ",chosen_id,", assigning ",segment," (",dprev," / ",dnext,")...");
-                                }
-#endif
-                                
-                                if(prev_blob_frame.valid() && prev_id.valid()) {
-                                    // we found the previous blob/segment quickly:
-                                    auto range = _individuals.at(prev_id)->get_segment_safe(prev_blob_frame);
-                                    if(!range.empty()) {
-                                        Frame_t frame = range.end();
-                                        while(frame >= range.start()) {
-                                            auto blob = _individuals.at(prev_id)->compressed_blob(frame);
-                                            if(blob->split()) {
-                                                //if(blob->parent_id != pv::bid::invalid) {
-                                                    //manual_splits[frame].insert(blob->parent_id());
-                                                //}
-                                            } else
-                                                break;
-                                            
-                                            --frame;
-                                        }
-                                    }
-                                }
-                                
-                                // find and remove duplicates
-                                /*auto it = automatic_matches.find(segment.start());
-                                if(it != automatic_matches.end()) {
-                                    long_t to_erase = -1;
-                                    for(auto && [fdx, bdx] : it->second) {
-                                        if(fdx != chosen_id && bdx == fish->blob(segment.start())->blob_id()) {
-                                            to_erase = fdx;
-                                            break;
-                                        }
-                                    }
-                                    
-                                    if(to_erase != -1)
-                                        it->second.erase(to_erase);
-                                }*/
-                                
-                                std::set<Range<Frame_t>> remove_from;
-                                
-                                std::vector<pv::bid> blob_ids;
-                                for(Frame_t frame=segment.start(); frame<=segment.end(); ++frame) {
-                                    auto blob = fish->compressed_blob(frame);
-                                    
-                                    if(blob) {
-                                        //automatically_assigned_blobs[frame][blob->blob_id()] = fdx;
-                                        blob_ids.push_back(blob->blob_id());
-                                        //if(blob->split() && blob->parent_id().valid())
-                                        //    manual_splits[frame].insert(blob->parent_id());
-                                    } else
-                                        blob_ids.push_back(pv::bid::invalid);
-                                    
-                                    auto it = std::find(tmp_assigned_ranges.begin(), tmp_assigned_ranges.end(), chosen_id);
-                                    if(it != tmp_assigned_ranges.end()) {
-                                        for(auto && [range, blobs] : it->ranges)
-                                        {
-                                            if(range != segment.range && range.contains(frame)) {
-                                                remove_from.insert(range);
-                                                break;
-                                            }
-                                        }
-                                    }
-                                }
-                                
-                                if(!remove_from.empty()) {
-                                    //for(auto range : remove_from)
-                                    //    automatically_assigned_ranges[chosen_id].erase(range);
-                                    
-                                    FormatWarning("[ignore] While assigning ",segment.range.start,"-",segment.range.end," to ",(uint32_t)chosen_id," -> same fish already assigned in ranges ",remove_from);
-                                } else {
-                                    assert((int64_t)blob_ids.size() == (segment.range.end - segment.range.start + 1_f).get());
-                                    add_assigned_range(tmp_assigned_ranges, chosen_id, segment.range, std::move(blob_ids));
-                                    
-                                    auto blob = fish->blob(segment.start());
-                                    if(blob && blob->split() && blob->parent_id().valid())
-                                        manual_splits[segment.start()].insert(blob->parent_id());
-                                    
-                                    assigned_ranges[fdx][segment.range] = chosen_id;
-                                }
-                                
-                                continue;
-                            }
-                        }
+
+                    if (next_id.valid() && prev_id.valid() && next_id == prev_id && prev_pos && next_pos) {
+
                     }
+                    else
+                        continue;
+
+                    apply(fdx, fish, segment, prev_id, next_id, prev_pos, next_pos, prev_blob_frame);
                 }
-                
-                still_unassigned[fdx].insert(segment.range);
             }
         }
         

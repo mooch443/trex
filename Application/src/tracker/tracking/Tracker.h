@@ -281,7 +281,13 @@ CREATE_STRUCT(Settings,
         void update_history_log();
         
         Frame_t update_with_manual_matches(const Settings::manual_matches_t& manual_matches);
-        void check_segments_identities(bool auto_correct, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue = [](auto,auto,auto){}, Frame_t after_frame = {});
+
+        enum IdentitySource {
+            MachineLearning,
+            QRCodes
+        };
+
+        void check_segments_identities(bool auto_correct, IdentitySource, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue = [](auto,auto,auto){}, Frame_t after_frame = {});
         void clear_segments_identities();
         void prepare_shutdown();
         void wait();

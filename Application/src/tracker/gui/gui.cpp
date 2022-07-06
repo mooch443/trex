@@ -37,6 +37,7 @@
 #include <gui/DrawTrackingView.h>
 #include <gui/DrawExportOptions.h>
 #include <gui/ScreenRecorder.h>
+#include <misc/IdentifiedTag.h>
 
 #include <pv.h>
 
@@ -3300,7 +3301,7 @@ void GUI::key_event(const gui::Event &event) {
                     FormatWarning("Aborting training data because an exception was thrown.");
                 }*/
                 
-                Tracker::instance()->check_segments_identities(false, [](auto){}, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
+                Tracker::instance()->check_segments_identities(false, Tracker::IdentitySource::MachineLearning, [](auto){}, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
                     this->work().add_queue(t, fn, b);
                 }, frame());
                 
@@ -3369,11 +3370,15 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
     }
     
     if(type == GUIType::GRAPHICAL) {
-        PD(gui).dialog([this](gui::Dialog::Result r) {
+        const char* message_only_ml = "Automatic correction uses machine learning based predictions to correct potential tracking mistakes. Make sure that you have trained the visual identification network prior to using auto-correct.\n<i>Apply and retrack</i> will overwrite your <key>manual_matches</key> and replace any previous automatic matches based on new predictions made by the visual identification network. If you just want to see averages for the predictions without changing your tracks, click the <i>review</i> button.";
+        const char* message_both = "Automatic correction uses machine learning based predictions to correct potential tracking mistakes (visual identification, or physical tag data). Make sure that you have trained the visual identification network prior to using auto-correct, or that tag information is available.\n<i>Visual identification</i> and <i>Tags</i> will overwrite your <key>manual_matches</key> and replace any previous automatic matches based on new predictions made by the visual identification network/the tag data. If you just want to see averages for the visual identification predictions without changing your tracks, click the <i>Review VI</i> button.";
+        const bool tags_available = tags::available();
+
+        PD(gui).dialog([this, tags_available](gui::Dialog::Result r) {
             if(r == Dialog::ABORT)
                 return;
             
-            this->work().add_queue("checking identities...", [this, r](){
+            this->work().add_queue("checking identities...", [this, r, tags_available](){
                 if(r == Dialog::OKAY) {
                     std::lock_guard<std::recursive_mutex> lock_guard(PD(gui).lock());
                     PD(tracking_callbacks).push([](){
@@ -3381,7 +3386,7 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
                     });
                 }
                 
-                Tracker::instance()->check_segments_identities(r == Dialog::OKAY, [](float x) { work().set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
+                Tracker::instance()->check_segments_identities(r != Dialog::SECOND, tags_available && r == Dialog::THIRD ? Tracker::IdentitySource::QRCodes : Tracker::IdentitySource::MachineLearning, [](float x) { work().set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
                     this->work().add_queue(t, fn, b);
                 });
                 
@@ -3390,10 +3395,10 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
                 PD(cache).set_tracking_dirty();
             });
             
-        }, "Automatic correction uses machine learning based predictions to correct potential tracking mistakes. Make sure that you have trained the visual identification network prior to using auto-correct.\n<i>Apply and retrack</i> will overwrite your <key>manual_matches</key> and replace any previous automatic matches based on new predictions made by the visual identification network. If you just want to see averages for the predictions without changing your tracks, click the <i>review</i> button.", "Auto-correct", "Apply and retrack", "Cancel", "Review probabilities");
+        }, tags_available ? message_both : message_only_ml, "Auto-correct", tags_available ? "Apply visual identification" : "Apply and retrack", "Cancel", "Review VI", tags_available ? "Apply tags" : "");
     } else {
         this->work().add_queue("checking identities...", [this, force_correct](){
-            Tracker::instance()->check_segments_identities(force_correct, [](float x) { work().set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
+            Tracker::instance()->check_segments_identities(force_correct, Tracker::IdentitySource::MachineLearning, [](float x) { work().set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
                 this->work().add_queue(t, fn, b);
             });
             PD(cache).recognition_updated = false;
@@ -3820,7 +3825,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
             
             if(Recognition::recognition_enabled()) {
                 GUI::instance()->work().add_queue("", [](){
-                    Tracker::instance()->check_segments_identities(false, [](float ) { },
+                    Tracker::instance()->check_segments_identities(false, Tracker::IdentitySource::MachineLearning, [](float ) { },
                     [](const std::string&t, const std::function<void()>& fn, const std::string&b)
                     {
                         if(GUI::instance())
