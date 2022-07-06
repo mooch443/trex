@@ -1,4 +1,5 @@
 import sphinx_rtd_theme
+numfig = True
 
 # Configuration file for the Sphinx documentation builder.
 #

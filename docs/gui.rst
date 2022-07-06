@@ -78,7 +78,7 @@ Changing the cm/px conversion factor
 
 Usually the easiest way to set a conversion factor is in TGrabs, before the video is even segmented. TGrabs expects a parameter :func:`meta_real_width`, which contains the "real-world" size in X-direction of the present video and sticks with the video as integrated meta-data. However, in case you want to change this factor later on, you can do this from within TRex. Careful, though. Doing this changes what the values in :func:`track_max_speed` and even :func:`blob_size_ranges` mean (and thus also tracking results)!
 
-Depending on your operating system, hold ``CMD`` or ``CTRL`` (depending on your operating system) and click on two points on the background - the distance between them is supposed to be a "known length" - for example, if you have a cm strip integrated into your video background for reference.
+Depending on your operating system, hold ⌘ or ``CTRL`` (depending on your operating system) and click on two points on the background - the distance between them is supposed to be a "known length" - for example, if you have a cm strip integrated into your video background for reference.
 
 .. image:: trex_calibrate_length.png
 
@@ -91,7 +91,7 @@ In order to keep the applied changes, don't forget to save your config (Menu -> 
 Display menu
 ------------
 
-Different visualisations can be enabled or disabled using the display menu (4) on the bottom left. Expand the "display" list by clicking on it, and you will see various options -- including the heatmaps feature, posture (for which you can also use the ``B`` key), outlines/midlines (a full list can be found below):
+Different visualisations can be enabled or disabled using the display menu (4) on the bottom left. Expand the "display" list by clicking on it, and you will see various options -- including the heatmaps feature, posture (for which you can also use the 🄱 key), outlines/midlines (a full list can be found below):
 
 .. image:: ../images/trex_display_options.png
 	:width: 200
@@ -99,7 +99,7 @@ Different visualisations can be enabled or disabled using the display menu (4) o
 	:align: center
 
 - export options
-	Toggles a movable window showing all possible output fields (for when you press ``S``/click on "menu" -> "save tracking data"). (This is currently a bit basic and will be updated in a future version.)
+	Toggles a movable window showing all possible output fields (for when you press 🅂/click on "menu" -> "save tracking data"). (This is currently a bit basic and will be updated in a future version.)
 - zoom on selected
 	Whether to zoom in on the selected individual or not. Can be combined with the next option.
 - auto zoom
@@ -125,7 +125,7 @@ Excluding regions / tracking specific regions exclusively
 
 Despite available remedies (i.e. using a different :func:`averaging_method`, :func:`correct_luminance`), sometimes noisy regions in recordings are unavoidable. This can be either due to, for example, changing lighting conditions, or certain parts of the experimental setup moving over time. 
 
-When you are converting the video, and noise concentrates on the outer edges of the image / outside the area of interest, it is possible to specify :func:`crop_offsets` to |tgrabs| like::
+When you are converting the video, and noise concentrates on the outer edges of the image / outside the area of interest, it is possible to specify :func:`crop_offsets` to |grabs| like::
 
 	tgrabs -i video.mp4 -crop_offsets [0.05,0,0.05,0.1]
 
@@ -141,6 +141,31 @@ An example from a hypothetical settings file could thus be::
 
 which describes a triangle with the coordinates 0,100 and 100,100 as it's base and 50,150 as it's pointy end.
 
-Within the graphical user-interface you can set these points by clicking on them, which is usually easier. It works in both the tracking and raw views, but it is sometimes easier to do in raw view (press D). Now, simply click on some empty space (not on an object) and, while holding CTRL/CMD, click on additional points to define a shape. During this process a button appeared, as well as a text-field (where you placed your first point). Click on the text-field and enter ``track_ignore`` and select ``track_ignore`` from the results. Switch back to tracking view and the shape you defined should be highlighted (red).
+.. figure:: track_ignore.png
+	:width: 1024
+	
+	Here, a triangle was selected using CTRL/⌘-Click on multiple points. This shape can now be added to parameters like ``track_ignore``.
+
+Within the graphical user-interface you can set these points by clicking on them, which is usually easier. It works in both the tracking and raw views, but it is sometimes easier to do in raw view (press 🄳). Now, simply click on some empty space (not on an object) and, while holding CTRL/⌘, click on additional points to define a shape. During this process a button appeared, as well as a text-field (where you placed your first point). Click on the text-field and enter ``track_ignore`` and select ``track_ignore`` from the results. Switch back to tracking view and the shape you defined should be highlighted (red).
 
 Any object with it's center within the boundaries of this (convex) shape will now be ignored during tracking. To apply this to your already tracked video, please go to frame 0 and click reanalyse. Now you may play the video back and see if all objects have been excluded properly during tracking.
+
+Manually assigning individuals
+------------------------------
+
+First, press 🄳 to get into raw mode [1]_. Clicking on the small white circle inside objects reveals an assignment menu, where you can either enter a specific number or select one of the individual IDs in the list.
+
+This change will be kept even if previous tracking changes, so be sure to go about this chronologically. Changing assignments in earlier parts of a video will affect later parts of the video since these parts are retracked and IDs might differ (unless corrected by automatic indentification, in which case manual corrections are usually not needed anyway).
+
+.. figure:: raw_mode_menu.png
+	:width: 1024
+	:name: raw-mode-menu
+
+
+	The small white circles inside objects are clickable and will open a menu where you can choose to manually assign an individual to this object.
+
+The individual will now be assigned in *this* frame to *this* object, which does not mean that it will stay that way in the future. Manual matches override automatic matches (by visual identification + auto correction), but only in the given frame. To override automatic matches for an entire segment, please select the individual first, go to the start frame of that segment and click on the small "delete" button in the matching info card on the left. Now all automatic matches for this specific segment are deleted and you can manually assign the individual to other objects.
+
+
+.. [1] In that mode, tracking info is invisible and only the thresholded objects are displayed (see figure :numref:`raw-mode-menu`).
+
