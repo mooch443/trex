@@ -482,7 +482,7 @@ TRex parameters
 
 .. function:: gpu_learning_rate(float)
 
-	**default value:** 0.0005
+	**default value:** 0.0001
 
 
 	Learning rate for training a recognition network.

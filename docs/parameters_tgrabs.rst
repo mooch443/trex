@@ -38,7 +38,7 @@ TGrabs parameters
 
 .. function:: averaging_method(averaging_method_t)
 
-	**default value:** mean
+	**default value:** mode
 
 	**possible values:**
 		- `mean`: Sum all samples and divide by N.

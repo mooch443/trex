@@ -21,9 +21,31 @@ namespace tags {
 		bool operator==(const pv::bid&) const;
 		bool operator==(const Detection&) const = default;
 		size_t hash() const {
-			return std::hash<std::tuple<uint32_t, float, float>>()({ bid.operator unsigned int(), pos.x, pos.y });
+			return std::hash<uint32_t>()( bid.operator unsigned int() );
 		}
 	};
+
+struct Assignment {
+    Idx_t id;
+    pv::bid bid;
+    float p;
+    
+    Assignment() = default;
+    Assignment(Detection&& d)
+        : id(d.id), bid(d.bid), p(d.p)
+    {}
+    
+    bool valid() const {
+        return bid.valid();
+    }
+
+    auto operator<=>(const Assignment&) const = default;
+    bool operator==(const pv::bid&) const;
+    bool operator==(const Assignment&) const = default;
+    size_t hash() const {
+        return std::hash<uint32_t>()( bid.operator unsigned int() );
+    }
+};
 
 	void detected(auto&& collection) {
 		for(auto&& [frame, tags] : collection) {
@@ -34,8 +56,8 @@ namespace tags {
 	}
 	void detected(Frame_t, Detection&& tag);
 	void remove(Frame_t, pv::bid);
-	Detection find(Frame_t, pv::bid);
-	UnorderedVectorSet<std::tuple<float, Detection>> query(Frame_t frame, const Vec2& pos, float distance);
+	Assignment find(Frame_t, pv::bid);
+	UnorderedVectorSet<std::tuple<float, Assignment>> query(Frame_t frame, const Vec2& pos, float distance);
 	bool available();
 }
 }

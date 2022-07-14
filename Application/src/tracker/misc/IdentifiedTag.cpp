@@ -9,6 +9,13 @@ namespace std {
             return k.hash();
         }
     };
+
+    template <>
+    struct hash<track::tags::Assignment> {
+        size_t operator()(const track::tags::Assignment& k) const {
+            return k.hash();
+        }
+    };
 }
 
 namespace track {
@@ -19,9 +26,13 @@ namespace tags {
         return this->bid == b;
     }
 
-    class DetectionGrid : public grid::Grid2D<Detection, std::vector<grid::pixel<Detection>>> {
+    bool Assignment::operator==(const pv::bid& b) const {
+        return this->bid == b;
+    }
+
+    class DetectionGrid : public grid::Grid2D<Assignment, std::vector<grid::pixel<Assignment>>> {
     public:
-        using result_t = std::tuple<float, Detection>;
+        using result_t = std::tuple<float, Assignment>;
 
         DetectionGrid();
 
@@ -29,7 +40,7 @@ namespace tags {
         //std::string str(fdx_pos dx, Vec2 point, float max_d) const;
 
     private:
-        virtual Detection query(float, float) const override { return Detection{}; }
+        virtual Assignment query(float, float) const override { return Assignment{}; }
     };
 
     DetectionGrid::DetectionGrid()
@@ -37,7 +48,7 @@ namespace tags {
 
     UnorderedVectorSet<DetectionGrid::result_t> DetectionGrid::query(const Vec2& point, float max_d) const {
         std::vector<result_t> result;
-        std::vector<Detection> found;
+        std::vector<Assignment> found;
 
         //! assume squared grid
         assert(_scale.x == _scale.y);
@@ -109,7 +120,7 @@ namespace tags {
         return UnorderedVectorSet(std::move(result));
     }
 
-	inline static ska::bytell_hash_map<Frame_t, DetectionGrid> grid;
+	inline static std::unordered_map<Frame_t, DetectionGrid> grid;
     inline static std::mutex grid_mutex;
     inline static std::atomic<uint64_t> added_entries{ 0 };
 
@@ -117,20 +128,21 @@ namespace tags {
         ++added_entries;
 
         std::unique_lock guard(grid_mutex);
-	    grid[frame].insert(tag.pos.x, tag.pos.y, std::move(tag));
+        grid[frame].insert(tag.pos.x, tag.pos.y, Assignment{std::move(tag)});
     }
 
-    UnorderedVectorSet<std::tuple<float, Detection>> query(Frame_t f, const Vec2& p, float d) {
+    UnorderedVectorSet<std::tuple<float, Assignment>> query(Frame_t f, const Vec2& p, float d) {
         std::unique_lock guard(grid_mutex);
         return grid[f].query(p, d);
     }
 
     void remove(Frame_t frame, pv::bid bid) {
         std::unique_lock guard(grid_mutex);
-        grid[frame].erase(Detection{.bid = bid});
+        throw U_EXCEPTION("Remove not implemented");
+        //grid[frame].erase(Assignment{.bid = bid});
     }
 
-    Detection find(Frame_t frame, pv::bid bdx) {
+    Assignment find(Frame_t frame, pv::bid bdx) {
         std::unique_lock guard(grid_mutex);
         auto it = grid.find(frame);
         if (it == grid.end())
