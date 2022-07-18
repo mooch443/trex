@@ -1713,7 +1713,7 @@ TRex parameters
 
 .. function:: python_path(path)
 
-	**default value:** "/Users/tristan/miniforge3/envs/trex/bin/python3.9"
+	**default value:** "/Users/tristan/miniforge3/envs/trex2/bin/python3.10"
 
 
 	Path to the python home folder. If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.
@@ -2126,7 +2126,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1.7-70-g2b9a345"
+	**default value:** "v1.1.8_2-43-gef10448"
 
 
 	Current application version.

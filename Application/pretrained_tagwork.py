@@ -27,9 +27,9 @@ class Tagwork:
     def predict(self, images):
         assert self.model
         images = 255 - np.array(images, dtype=float)
-        y = np.argmax(self.model.predict(images), axis=-1)
-        file = "/Users/tristan/Videos/locusts/samples/images_"+str(self.counter)+".npz"
-        print("saving to file", file);
+        y = np.argmax(self.model.predict(images, verbose=0), axis=-1)
+        #file = "/Users/tristan/Videos/locusts/samples/images_"+str(self.counter)+".npz"
+        #print("saving to file", file);
         #np.savez(file, images=np.array(images), y=np.array(y));
         self.counter += 1
         return  y
@@ -52,7 +52,7 @@ def predict():
     if len(tag_images) == 0:
         print("# empty images array")
     else:
-        print("# predicting ", len(tag_images))
+        #print("# predicting ", len(tag_images))
         receive(tagwork.predict(tag_images))
 
         #del tag_images

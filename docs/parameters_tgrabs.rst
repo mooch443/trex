@@ -393,6 +393,87 @@ TGrabs parameters
 	.. seealso:: :func:`approximate_length_minutes`, :func:`stop_after_minutes`, 
 
 
+.. function:: tags_approximation(float)
+
+	**default value:** 0.025
+
+
+	Higher values (up to 1.0) will lead to coarser approximation of the rectangle/tag shapes.
+
+
+
+.. function:: tags_debug(bool)
+
+	**default value:** false
+
+
+	(beta) enable debugging for tags.
+
+
+
+.. function:: tags_enable(bool)
+
+	**default value:** false
+
+
+	(beta) live tracking of tags.
+
+
+
+.. function:: tags_equalize_hist(bool)
+
+	**default value:** true
+
+
+	
+
+
+
+.. function:: tags_num_sides(range<int>)
+
+	**default value:** [3,7]
+
+
+	The number of sides of the tag (e.g. should be 4 if it is a rectangle).
+
+
+
+.. function:: tags_recognize(bool)
+
+	**default value:** false
+
+
+	(beta) apply an existing machine learning network to get tag ids.
+
+
+
+.. function:: tags_saved_only(bool)
+
+	**default value:** false
+
+
+	(beta) if set to true, all objects other than the detected blobs are removed and not written to the output video file.
+
+
+
+.. function:: tags_size_range(range<double>)
+
+	**default value:** [0,10]
+
+
+	
+
+
+
+.. function:: tags_threshold(uchar)
+
+	**default value:** 251
+
+
+	
+
+
+
 .. function:: terminate_error(bool)
 
 	**default value:** false

@@ -109,7 +109,7 @@ struct RecTask {
                 auto task = std::move(_queue.back());
                 _queue.erase(--_queue.end());
                 //if(!_queue.empty())
-                print("task ", counted.load(), " -> ", _queue.size(), " tasks left (frame: ", task._frames.back(), ")");
+                //print("task ", counted.load(), " -> ", _queue.size(), " tasks left (frame: ", task._frames.back(), ")");
                 _current_fdx = task._fdx;
 
                 guard.unlock();
@@ -148,7 +148,7 @@ struct RecTask {
                 continue;
             }
 
-            print("Replacing task for ", t._fdx, " in segment ", t._segment_start, "(", t._frames.size(), " vs. ", task._frames.size(), ")");
+            //print("Replacing task for ", t._fdx, " in segment ", t._segment_start, "(", t._frames.size(), " vs. ", task._frames.size(), ")");
             std::swap(t, task);
             _variable.notify_one();
             return true;
@@ -170,9 +170,9 @@ struct RecTask {
         static std::atomic<int64_t> saved_index{ 0 };
 
         auto receive = [&](std::vector<float> values) {
-            print("received ", values.size(), " ids for ", task._images.size(), " images.");
+            //print("received ", values.size(), " ids for ", task._images.size(), " images.");
             result._ids.assign(values.begin(), values.end());
-            print(result._ids);
+            //print(result._ids);
 
             ska::bytell_hash_map<int, int> _best_id;
             for(auto i : result._ids)
@@ -190,7 +190,7 @@ struct RecTask {
 
             result.best_id = max_key;
             result.p = float(maximum) / float(N);
-            print("\tbest guess for individual ", result.individual, " is ", max_key, " with p:", result.p, " (", task._images.size(), " samples)");
+            //print("\tbest guess for individual ", result.individual, " is ", max_key, " with p:", result.p, " (", task._images.size(), " samples)");
 
             /*auto filename = (std::string)SETTING(filename).value<file::Path>().filename();
 
@@ -1406,7 +1406,7 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(F
                     };
 
                     task._callback = [this](Predictions&& prediction) {
-                        print("got callback in ", _identity.ID(), " (", prediction.individual, ")");
+                        //print("got callback in ", _identity.ID(), " (", prediction.individual, ")");
 
                         std::unique_lock guard(_qrcode_mutex);
                         _qrcode_identities[prediction._segment_start] = { prediction.best_id, prediction.p, (uint32_t)prediction._frames.size() };
@@ -1431,7 +1431,7 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(F
                         //print("Constructed task: ", task._images.size());
                       })) 
                     {
-                        cmn::print("Have ", it->second.size(), " QRCodes for segment ", *segment);
+                        //cmn::print("Have ", it->second.size(), " QRCodes for segment ", *segment);
 
                         std::unique_lock guard(_qrcode_mutex);
                         _last_requested_qrcode = frameIndex;
