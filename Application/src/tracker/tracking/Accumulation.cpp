@@ -627,6 +627,16 @@ Accumulation::Accumulation(TrainingMode::Class mode) : _mode(mode), _accumulatio
     
 }
 
+Accumulation::~Accumulation() {
+    std::lock_guard lock(GUI::instance()->gui().lock());
+    _textarea = nullptr;
+    _graph = nullptr;
+    _layout = nullptr;
+    _layout_rows = nullptr;
+    _coverage_image = nullptr;
+    _dots = nullptr;
+}
+
 float Accumulation::step_calculate_uniqueness() {
     auto && [_, map, up] = calculate_uniqueness(true, _disc_images, _disc_frame_map);
     if(up >= current_best) {

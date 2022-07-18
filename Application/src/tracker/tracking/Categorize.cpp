@@ -993,7 +993,7 @@ struct Row {
             auto &cell = this->cell(i);
             
             if(cell._sample) {
-                auto d = euclidean_distance(base.mouse_position(), cell.bounds().pos() + cell.bounds().size() * 0.5)
+                auto d = euclidean_distance(base.mouse_position(), cell.bounds().pos() + cell.bounds().size() * 0.5) 
                     / (layout->parent()->global_bounds().size().length() * 0.45);
                 if(d > 0)
                     cell._block->set_scale(Vec2(1.25 + 0.35 / (1 + d * d)) * (cell.selected() ? 1.5 : 1));

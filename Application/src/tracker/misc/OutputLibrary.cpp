@@ -8,6 +8,7 @@
 #include <gui/Graph.h>
 #include <tracker/misc/default_config.h>
 #include <tracking/Categorize.h>
+#include <misc/IdentifiedTag.h>
 
 namespace Output {
     using namespace gui;
@@ -961,6 +962,26 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             }
             
             return gui::Graph::invalid();
+        });
+        
+        _cache_func["qr_id"] = LIBGLFNC({
+            auto blob = info.fish->compressed_blob(frame);
+            if(!blob)
+                return gui::Graph::invalid();
+            auto tag = tags::find(frame, blob->blob_id());
+            if(!tag.valid())
+                return gui::Graph::invalid();
+            return tag.id;
+        });
+        
+        _cache_func["qr_p"] = LIBGLFNC({
+            auto blob = info.fish->compressed_blob(frame);
+            if(!blob)
+                return gui::Graph::invalid();
+            auto tag = tags::find(frame, blob->blob_id());
+            if(!tag.valid())
+                return gui::Graph::invalid();
+            return tag.p;
         });
         
         SETTING(output_graphs) = SETTING(output_graphs).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();

@@ -1,0 +1,16 @@
+.sig-name {
+    color:  rgb(191, 191, 191) !important;
+    padding-right: 5px;
+}
+
+dt {
+    padding-left:5px
+}
+
+span.ow {
+    color:  #c988f1;
+}
+
+.highlight .nv {
+    color:  #7ca3ff;
+}

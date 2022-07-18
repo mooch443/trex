@@ -14,6 +14,7 @@
 #include <tracking/DetectTag.h>
 #include <gui/GUICache.h>
 //#include <gui.h>
+#include <misc/IdentifiedTag.h>
 
 using namespace track;
 
@@ -1225,13 +1226,25 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
     //auto cat = Categorize::DataStore::label_interpolated(_obj.identity().ID(), Frame_t(_idx));
 
 #if !COMMONS_NO_PYTHON
+    auto detection = tags::find(_idx, blob->blob_id());
+    if (detection.valid()) {
+        secondary_text += "<str>tag:" + Meta::toStr(detection.id) + " (" + dec<2>(detection.p).toStr() + ")</str>";
+    }
+    auto segment = _obj.segment_for(_idx);
+    if(segment) {
+        auto [id, p, n] = _obj.qrcode_at(segment->start());
+        if(id >= 0 && p > 0) {
+            secondary_text += std::string(" ") + "<str>QR:"+Meta::toStr(id)+" ("+dec<2>(p).toStr() + ")</str>";
+        }
+    }
+    
     auto c = GUICache::instance().processed_frame.cached(_obj.identity().ID());
     if(c) {
         auto cat = c->current_category;
         if(cat != -1) {
             auto l = Categorize::DataStore::label(cat);
             if(l)
-                secondary_text += "<key>"+l->name+"</key>";
+                secondary_text += std::string(" ") + "<key>"+l->name+"</key>";
         }
     }
     

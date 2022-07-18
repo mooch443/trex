@@ -26,7 +26,7 @@
 track::Tracker* tracker = nullptr;
 
 using conversion_range_t = std::pair<long_t,long_t>;
-//#define TAGS_ENABLE
+#define TAGS_ENABLE
 //#define TGRABS_DEBUG_TIMING
 
 #if !defined(TAGS_ENABLE)
@@ -119,8 +119,11 @@ bool FrameGrabber::is_recording() const {
     return GlobalSettings::map().has("recording") && SETTING(recording);
 }
 
-const Image::UPtr& FrameGrabber::latest_image() {
-    return _current_image;
+Image::UPtr FrameGrabber::latest_image() {
+    std::unique_lock guard(_current_image_lock);
+    if(_current_image)
+        return Image::Make(*_current_image);
+    return nullptr;
 }
 
 cv::Size FrameGrabber::determine_resolution() {
@@ -780,6 +783,8 @@ FrameGrabber::~FrameGrabber() {
         ppvar.notify_all();
         _tracker_thread->join();
         delete _tracker_thread;
+
+        track::Individual::shutdown();
         
 #if !COMMONS_NO_PYTHON
         if (GRAB_SETTINGS(enable_closed_loop) 
@@ -998,6 +1003,7 @@ bool FrameGrabber::add_image_to_average(const cv::Mat& current) {
                 SETTING(terminate) = true;
         }
         
+        std::unique_lock guard(_current_image_lock);
         if (!_current_image)
             _current_image = std::make_unique<Image>(current);
         else
@@ -2062,7 +2068,7 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
     if(_start_timing == UINT64_MAX)
         _start_timing = TS;
     TS = TS - _start_timing;
-    //current.set_timestamp(current.timestamp() - _start_timing);
+    current.set_timestamp(TS);
     
     double minutes = double(TS) / 1000.0 / 1000.0 / 60.0;
     if(GRAB_SETTINGS(stop_after_minutes) > 0 && minutes >= GRAB_SETTINGS(stop_after_minutes) && !GRAB_SETTINGS(terminate)) {
@@ -2095,8 +2101,6 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
     static std::once_flag flag;
     static std::vector<std::thread*> thread_pool;
 
-    
-    
     std::call_once(flag, [&](){
         print("Creating queue...");
         for (size_t i=0; i<8; ++i) {
@@ -2155,11 +2159,11 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
         task->clear();
     task->index = global_index++;
 
-    if (task->current)
+    if (task->current) {
         task->current->set(std::move(current));
-        //task->current->create(current, current.index(), TS);
-    else
-        task->current = Image::Make(current, current.index(), TS);
+    } else {
+        task->current = Image::Make(current, current.index());
+    }
 
     if(enable_threads) {
         {

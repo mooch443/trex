@@ -8,6 +8,22 @@ Visual Identification
 
 This section describes general principles regarding the visual identification algorithm in |trex|.
 
+Motivation
+----------
+
+This algorithm was added to |trex| because tracking based on kinematics alone can never guarantee perfect assignments. Even under ideal conditions. The reason for this is that whenever individuals are hidden for arbitrary amounts of time, potentially in the same position (i.e. overlapping or under some kind of cover), simple predictions as to the likely identity assignments will fail after they reemerge.
+
+The only solution is to add another, idependent source of information - for which there are a few possibilities:
+
+- **use size differences**: not always possible, when similarly sized individuals are present
+- **use physical marks**: adding physical tags/information to animals in the "real world" is a frequently used method, and often works well. However, physical attachments can alter the behavior of individuals (e.g. due to the attachment process or differences in movement dynamics), and can thus be problematic.
+
+Here, we use a third alternative: recognizing individuals by a process akin to face recognition (although more general). We take multiple pictures of each individual and teach an artificial neural network to differentiate between the animals. In the end we will be able to consistently assign the same number to each "physical" individual, independently of how it may look in any single image. Many examples/samples are required to cover most of the possible visual variation, making it very tedious to collect them manually - especially for large groups. This is why |trex| employs an algorithm that allows, given certain preconditions, to do all this automatically.
+
+The algorithm chooses a point in time when all known individuals are visible and separated at the same time. This provides a starting point for collecting a number of samples per "physical" individual. From there the samples per individual can be expanded per individual (in both directions of time) until it is lost - e.g. due to overlapping with another individual. Afterward, other such "global segments" (where all individuals are separated) can be added.
+
+The following sections describe how to improve tracking data with the goal of applying the visual identification algorithm.
+
 General procedure
 -----------------
 

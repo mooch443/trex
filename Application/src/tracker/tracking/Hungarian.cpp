@@ -683,7 +683,7 @@ ssize_t BitSet_any(BitSet _this)
         return -1;
     
     size_t i = *(_this.first) - 1;
-    return (ssize_t)(lb(*(_this.limbs + i) & -*(_this.limbs + i)) + (i << 6L));
+    return (ssize_t)(lb(size_t(*(_this.limbs + i)) & -size_t(*(_this.limbs + i))) + (i << 6L));
 }
 
 

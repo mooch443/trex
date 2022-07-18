@@ -132,7 +132,7 @@ namespace gui {
         std::set<uint32_t> checked_probs;
         
     public:
-        ska::bytell_hash_map<Individual*, std::unique_ptr<gui::Fish>> _fish_map;
+        std::unordered_map<Individual*, std::unique_ptr<gui::Fish>> _fish_map;
         std::map<Frame_t, track::Tracker::Statistics> _statistics;
         std::unordered_map<pv::bid, int> _ranged_blob_labels;
         

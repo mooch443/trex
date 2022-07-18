@@ -127,7 +127,7 @@ namespace Output {
         std::exception_ptr _exception_ptr;
         
         struct Header {
-            Versions version;
+            Versions version = Versions::current;
             uint64_t gui_frame = 0;
             std::string settings;
             std::string cmd_line;

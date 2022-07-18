@@ -124,7 +124,7 @@ namespace default_config {
         CONFIG("correct_luminance", false, "Attempts to correct for badly lit backgrounds by evening out luminance across the background.", STARTUP);
         CONFIG("equalize_histogram", false, "Equalizes the histogram of the image before thresholding and background subtraction.");
         CONFIG("quit_after_average", false, "If set to true, this will terminate the program directly after generating (or loading) a background average image.", STARTUP);
-        CONFIG("averaging_method", averaging_method_t::mean, "Determines the way in which the background samples are combined. The background generated in the process will be used to subtract background from foreground objects during conversion.");
+        CONFIG("averaging_method", averaging_method_t::mode, "Determines the way in which the background samples are combined. The background generated in the process will be used to subtract background from foreground objects during conversion.");
         CONFIG("average_samples", uint32_t(100), "Number of samples taken to generate an average image. Usually fewer are necessary for `averaging_method`s max, and min.");
         CONFIG("reset_average", false, "If set to true, the average will be regenerated using the live stream of images (video or camera).");
         CONFIG("solid_background_color", uchar(255), "A greyscale value in case `enable_difference` is set to false - TGrabs will automatically generate a background image with the given color.");
@@ -133,7 +133,7 @@ namespace default_config {
         CONFIG("cam_framerate", int(-1), "If set to anything else than 0, this will limit the basler camera framerate to the given fps value.", STARTUP);
         CONFIG("cam_limit_exposure", int(5500), "Sets the cameras exposure time in micro seconds.");
 
-        /*CONFIG("tags_size_range", Range<double>(0,10), "");
+        CONFIG("tags_size_range", Range<double>(0,10), "");
         CONFIG("tags_equalize_hist", true, "");
         CONFIG("tags_threshold", uchar(251), "");
         CONFIG("tags_num_sides", Range<int>(3,7), "The number of sides of the tag (e.g. should be 4 if it is a rectangle).");
@@ -142,7 +142,7 @@ namespace default_config {
         CONFIG("tags_debug", false, "(beta) enable debugging for tags.");
         CONFIG("tags_recognize", false, "(beta) apply an existing machine learning network to get tag ids.");
         CONFIG("tags_saved_only", false, "(beta) if set to true, all objects other than the detected blobs are removed and not written to the output video file.");
-         */
+         
          
         CONFIG("cam_circle_mask", false, "If set to true, a circle with a diameter of the width of the video image will mask the video. Anything outside that circle will be disregarded as background.");
         CONFIG("cam_undistort", false, "If set to true, the recorded video image will be undistorted using `cam_undistort_vector` (1x5) and `cam_matrix` (3x3).");

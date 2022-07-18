@@ -52,6 +52,11 @@ namespace fg {
         }
         
         cv::Size target_res = SETTING(cam_resolution);
+        if(target_res.width == -1) {
+            target_res = cv::Size(_camera->WidthMax.GetValue(), _camera->HeightMax.GetValue());
+            SETTING(cam_resolution) = target_res;
+        }
+
         const int64_t offx = (_camera->WidthMax.GetValue() - target_res.width) * 0.5,
         offy = (_camera->HeightMax.GetValue() - target_res.height) * 0.5;
         print("Setting dimensions to ",target_res.width,"x",target_res.height," (offsets ",offx,",",offy,")");

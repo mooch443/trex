@@ -8,7 +8,7 @@ from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.metrics import classification_report
-#import TRex
+import TRex
 import numpy as np
 
 tagwork = None
@@ -30,7 +30,7 @@ class Tagwork:
         y = np.argmax(self.model.predict(images), axis=-1)
         file = "/Users/tristan/Videos/locusts/samples/images_"+str(self.counter)+".npz"
         print("saving to file", file);
-        np.savez(file, images=np.array(images), y=np.array(y));
+        #np.savez(file, images=np.array(images), y=np.array(y));
         self.counter += 1
         return  y
 
@@ -38,8 +38,9 @@ def init():
     global width, height, tagwork
     #TRex.log("# initializing")
     tagwork = Tagwork(width, height)
-    #Trex.log("# loading network")
-    tagwork.load("/Users/tristan/Videos/locusts/pretrained.h5")
+    p = "/Users/tristan/Videos/locusts/pretrained_both_7.6.22.h5"
+    TRex.log("# loading network "+p)
+    tagwork.load(p)
 
 def load():
     pass
