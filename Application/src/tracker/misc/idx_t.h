@@ -19,6 +19,10 @@ struct Idx_t {
     constexpr operator uint32_t() const { return _identity; }
     constexpr bool valid() const { return _identity != cmn::infinity<uint32_t>(); }
     
+    constexpr auto operator<=>(const Idx_t& other) const {
+        return _identity <=> other._identity;
+    }
+    
     static std::string class_name() { return "Idx_t"; }
     static Idx_t fromStr(const std::string&);
     std::string toStr() const { return !valid() ? "-1" : std::to_string((uint32_t)_identity); }
