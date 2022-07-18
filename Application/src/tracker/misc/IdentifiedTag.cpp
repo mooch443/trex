@@ -147,8 +147,18 @@ namespace tags {
         auto it = grid.find(frame);
         if (it == grid.end())
             return {};
-        auto r = it->second.find(bdx);
-        return r;
+
+#if !defined(_MSC_VER) || _MSC_VER >= 1930
+        return it->second.find(bdx);
+#else
+        for (const auto& set : it->second.get_grid()) {
+            auto it = std::find(set.begin(), set.end(), bdx);
+            if (it != set.end())
+                return it->v;
+        }
+
+        return Assignment{};
+#endif
     }
 
     bool available() {
