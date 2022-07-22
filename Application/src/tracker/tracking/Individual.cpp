@@ -167,18 +167,16 @@ struct RecTask {
             ._frames = std::move(task._frames)
         };
 
-        static std::atomic<int64_t> saved_index{ 0 };
-
         auto receive = [&](std::vector<float> values) {
             //print("received ", values.size(), " ids for ", task._images.size(), " images.");
             result._ids.assign(values.begin(), values.end());
             //print(result._ids);
 
-            ska::bytell_hash_map<int, int> _best_id;
+            std::unordered_map<int, int> _best_id;
             for(auto i : result._ids)
                 _best_id[i]++;
 
-            int maximum = 0;
+            int maximum = -1;
             int max_key = -1;
             int N = result._ids.size();
             for(auto& [k, v] : _best_id) {
@@ -192,45 +190,50 @@ struct RecTask {
             result.p = float(maximum) / float(N);
             //print("\tbest guess for individual ", result.individual, " is ", max_key, " with p:", result.p, " (", task._images.size(), " samples)");
 
-            /*auto filename = (std::string)SETTING(filename).value<file::Path>().filename();
+            static const bool tags_save_predictions = SETTING(tags_save_predictions).value<bool>();
+            if(tags_save_predictions) {
+                static std::atomic<int64_t> saved_index{ 0 };
+                static const auto filename = (std::string)SETTING(filename).value<file::Path>().filename();
 
-            if(result.p >= 0.6) {
-                file::Path output = pv::DataLocation::parse("output", "tags_"+filename) / Meta::toStr(max_key);
-                if(!output.exists())
-                    output.create_folder();
-                output = output / Meta::toStr(saved_index.load());
+                //if(result.p <= 0.7)
+                {
+                    file::Path output = pv::DataLocation::parse("output", "tags_"+filename) / Meta::toStr(max_key);
+                    if(!output.exists())
+                        output.create_folder();
+                    
+                    auto prefix = Meta::toStr(result.individual) + "." + Meta::toStr(result._segment_start);
+                    if(!(output / prefix).exists())
+                        (output / prefix).create_folder();
+                    
+                    auto files = (output / prefix).find_files();
+                    
+                    // delete files that already existed for this individual AND segment
+                    for(auto &f : files) {
+                        if(utils::beginsWith((std::string)f.filename(), prefix))
+                            f.delete_file();
+                    }
+                    
+                    // save example image
+                    if(!task._images.empty())
+                        cv::imwrite((output / prefix).str() + ".png", task._images.front()->get());
+                    
+                    output = output / prefix / (Meta::toStr(saved_index.load()) + ".");
 
-                print("\t\t-> exporting ", task._images.size()," guesses to ", output);
-                for (size_t i=0; i<task._images.size(); ++i) {
-
-                    cv::imwrite(output.str() + "." + Meta::toStr(i) + ".png", task._images[i]->get());
+                    print("\t\t-> exporting ", task._images.size()," guesses to ", output);
+                    
+                    for (size_t i=0; i<task._images.size(); ++i) {
+                        cv::imwrite(output.str() + Meta::toStr(i) + ".png", task._images[i]->get());
+                    }
                 }
-
-            } else {
-                file::Path output = pv::DataLocation::parse("output", "tags_"+filename) / "unknown";
-                if(!output.exists())
-                    output.create_folder();
-                output = output / Meta::toStr(saved_index.load());
-
-                print("\t\t-> exporting ", task._images.size()," guesses to ", output);
-                for (size_t i=0; i<task._images.size(); ++i) {
-                    cv::imwrite(output.str() + "." + Meta::toStr(i) + ".png", task._images[i]->get());
-                }
-            }*/
-
-            ++saved_index;
+                
+                ++saved_index;
+            }
         };
 
         auto apply = [&]() -> bool {
-            //print("set images: ", task._images.size());
-
             PythonIntegration::set_variable("tag_images", task._images, tagwork);
             PythonIntegration::set_function("receive", receive, tagwork);
-
             PythonIntegration::run(tagwork, "predict");
-
-            //print("Receive says: ", result._ids.size());
-
             PythonIntegration::set_function("receive", [](std::vector<float> v) {
                 FormatError("Illegal call. ", v.size());
                 }, tagwork);
@@ -1393,7 +1396,8 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(F
         
         if(segment_ended // either the segment ended
             || !_last_requested_qrcode.valid() // or we have not requested a code yet
-            || _last_requested_qrcode + Frame_t(1.f * (float)FAST_SETTINGS(frame_rate)) < frameIndex) // or the last time has been at least a second ago
+            || _last_requested_qrcode + Frame_t(1.f * (float)FAST_SETTINGS(frame_rate)) < frameIndex // or the last time has been at least a second ago
+           )
         {
             auto it = _qrcodes.find(segment->start());
             if(it != _qrcodes.end()) {
@@ -1414,7 +1418,7 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(F
                     };
 
                     // if we can add this code, update the last requested
-                    if(RecTask::add(std::move(task), [it](RecTask& task) {
+                    if(RecTask::add(std::move(task), [it, ID = identity(), frameIndex, segment](RecTask& task) {
                         size_t step = it->second.size() / 100;
                         size_t i = 0;
 
@@ -1427,6 +1431,9 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(F
                             task._frames.push_back(frame);
                             task._images.push_back(std::move(ptr));
                         }
+                        
+                        //if(it->second.size() > 1)
+                            print("sampling from ", it->second.size(), " to ",task._images.size(), " images of individual ", ID," at frame ", frameIndex," which started at ", segment->start(),".");
 
                         //print("Constructed task: ", task._images.size());
                       })) 

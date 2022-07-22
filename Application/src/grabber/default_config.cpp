@@ -135,7 +135,8 @@ namespace default_config {
 
         CONFIG("tags_size_range", Range<double>(0,10), "");
         CONFIG("tags_equalize_hist", true, "");
-        CONFIG("tags_threshold", uchar(251), "");
+        CONFIG("tags_threshold", int(-5), "Threshold passed on to cv::adaptiveThreshold, lower numbers (below zero) are equivalent to higher thresholds / removing more of the pixels of objects and shrinking them.");
+        CONFIG("tags_save_predictions", false, "Save images of tags, sorted into folders labelled according to network predictions (i.e. 'tag 22') to '`output_dir`/tags_`filename`/<individual>.<frame>/*'. ");
         CONFIG("tags_num_sides", Range<int>(3,7), "The number of sides of the tag (e.g. should be 4 if it is a rectangle).");
         CONFIG("tags_approximation", 0.025f, "Higher values (up to 1.0) will lead to coarser approximation of the rectangle/tag shapes.");
         CONFIG("tags_enable", false, "(beta) live tracking of tags.");
