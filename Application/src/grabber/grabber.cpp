@@ -1562,7 +1562,7 @@ void FrameGrabber::write_fps(uint64_t index, timestamp_t tdelta, timestamp_t ts)
 struct ProcessingTask {
     std::unique_ptr<RawProcessing> process;
     std::unique_ptr<gpuMat> gpu_buffer, scaled_buffer;
-    std::vector<pv::BlobPtr> tags;
+    TagCache tags;
     size_t index;
     Image::UPtr mask;
     Image::UPtr current, raw;
@@ -1675,7 +1675,7 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
     _last_index = index;
 
     if (added && tracker) {
-        add_tracker_queue(*task->frame, std::move(task->tags), used_index_here);
+        add_tracker_queue(*task->frame, std::move(task->tags.tags), used_index_here);
     }
 
     timestamp_t tdelta, tdelta_camera, now;
@@ -1872,7 +1872,7 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
         }
         
         apply_filters(*input);
-        task->process->generate_binary(image, *input, image, task->tags);
+        task->process->generate_binary(image, *input, image, &task->tags);
 
     }
     else {
@@ -1902,7 +1902,7 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
 #endif
             rawblobs = CPULabeling::run(task->current->get(), true);
 
-        for (auto& blob : task->tags) {
+        for (auto& blob : task->tags.tags) {
             rawblobs.emplace_back(
                 std::make_unique<blob::line_ptr_t::element_type>(*blob->lines()),
                 std::make_unique<blob::pixel_ptr_t::element_type>(*blob->pixels()));

@@ -158,6 +158,9 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //! misc warnings
         Timer _warned_normalized_midline;
         
+        int _last_predicted_id{-1};
+        Frame_t _last_predicted_frame;
+        
     public:
         //! Stuff that belongs together and is definitely
         //! present in every frame

@@ -447,6 +447,16 @@ TGrabs parameters
 
 
 
+.. function:: tags_save_predictions(bool)
+
+	**default value:** false
+
+
+	Save images of tags, sorted into folders labelled according to network predictions (i.e. 'tag 22') to '``output_dir``/tags_``filename``/<individual>.<frame>/*'. 
+
+	.. seealso:: :func:`output_dir`, :func:`filename`, 
+
+
 .. function:: tags_saved_only(bool)
 
 	**default value:** false
@@ -465,12 +475,12 @@ TGrabs parameters
 
 
 
-.. function:: tags_threshold(uchar)
+.. function:: tags_threshold(int)
 
-	**default value:** 251
+	**default value:** -5
 
 
-	
+	Threshold passed on to cv::adaptiveThreshold, lower numbers (below zero) are equivalent to higher thresholds / removing more of the pixels of objects and shrinking them.
 
 
 
