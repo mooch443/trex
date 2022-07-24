@@ -127,7 +127,7 @@ struct RecTask {
     }
 
     static void init();
-    static bool add(RecTask&& task, const std::function<void(RecTask&)>& fill) {
+    static bool add(RecTask&& task, const std::function<void(RecTask&)>& fill, const std::function<void()>& callback) {
         std::unique_lock guard(_mutex);
         static std::once_flag flag;
 
@@ -142,6 +142,9 @@ struct RecTask {
 
         if(task._images.size() < 5)
             return false;
+        
+        if(callback)
+            callback();
 
         for(auto& t : _queue) {
             if(t._fdx != task._fdx || t._segment_start != task._segment_start) {
@@ -1415,29 +1418,60 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(F
                         std::unique_lock guard(_qrcode_mutex);
                         _qrcode_identities[prediction._segment_start] = { prediction.best_id, prediction.p, (uint32_t)prediction._frames.size() };
                         //_last_requested_qrcode.invalidate();
+                        _last_predicted_id = prediction.best_id;
+                        _last_predicted_frame = prediction._segment_start;
                     };
 
-                    // if we can add this code, update the last requested
-                    if(RecTask::add(std::move(task), [it, ID = identity(), frameIndex, segment](RecTask& task) {
+                    auto fill = [it, ID = identity(), segment](RecTask& task)
+                    {
                         size_t step = it->second.size() / 100;
                         size_t i = 0;
 
                         for(auto& [frame, blob] : it->second) {
-                            if(step > 0 && i++ % step != 0) {
-                                continue;
-                            }
-                            auto ptr = std::get<1>(blob->image(nullptr, Bounds(-1, -1, -1, -1), 0));
-                            //tf::imshow("push", ptr->get());
-                            task._frames.push_back(frame);
-                            task._images.push_back(std::move(ptr));
+                          if(step > 0 && i++ % step != 0) {
+                              continue;
+                          }
+                          auto ptr = std::get<1>(blob->image(nullptr, Bounds(-1, -1, -1, -1), 0));
+                          //tf::imshow("push", ptr->get());
+                          task._frames.push_back(frame);
+                          task._images.push_back(std::move(ptr));
                         }
-                        
-                        //if(it->second.size() > 1)
-                            print("sampling from ", it->second.size(), " to ",task._images.size(), " images of individual ", ID," at frame ", frameIndex," which started at ", segment->start(),".");
 
-                        //print("Constructed task: ", task._images.size());
-                      })) 
-                    {
+                        //if(it->second.size() > 1)
+                        //  print("sampling from ", it->second.size(), " to ",task._images.size(), " images of individual ", ID," at frame ", frameIndex," which started at ", segment->start(),".");
+                    };
+                    
+                    auto callback = [&]() {
+                        static const bool tags_save_predictions = SETTING(tags_save_predictions).value<bool>();
+                        if(!tags_save_predictions)
+                            return;
+                        
+                        std::unique_lock guard(_qrcode_mutex);
+                        if(!_last_predicted_frame.valid()
+                           || _last_predicted_frame != segment->start())
+                            return;
+                        
+                        static const auto filename = (std::string)SETTING(filename).value<file::Path>().filename();
+                        file::Path output = pv::DataLocation::parse("output", "tags_"+filename) / Meta::toStr(_last_predicted_id);
+                        
+                        if(!output.exists())
+                            return;
+                        
+                        auto prefix = Meta::toStr(identity().ID()) + "." + Meta::toStr(segment->start());
+                        if(!(output / prefix).exists())
+                            return;
+                        
+                        auto files = (output / prefix).find_files();
+                        
+                        // delete files that already existed for this individual AND segment
+                        for(auto &f : files) {
+                            f.delete_file();
+                            //print("\tdeleting file ", f);
+                        }
+                    };
+                    
+                    // if we can add this code, update the last requested
+                    if(RecTask::add(std::move(task), fill, callback)) {
                         //cmn::print("Have ", it->second.size(), " QRCodes for segment ", *segment);
 
                         std::unique_lock guard(_qrcode_mutex);
