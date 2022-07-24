@@ -6,8 +6,10 @@
 #include <misc/metastring.h>
 #include <misc/PixelTree.h>
 #include <misc/cnpy_wrapper.h>
+#include <tracker/misc/default_config.h>
 
 using namespace track;
+using namespace default_config;
 
 std::atomic_bool registered_callbacks = false;
 float blob_split_max_shrink = 0.02f;
@@ -15,6 +17,7 @@ float blob_split_global_shrink_limit = 0.01f;
 float sqrcm = 1.f;
 BlobSizeRange fish_minmax({Rangef(0.001,1000)});
 int posture_threshold = 15;
+auto blob_split_algorithm = blob_split_algorithm_t::threshold;
 
 SplitBlob::SplitBlob(const Background& average, pv::BlobPtr blob)
     :   max_objects(0),
@@ -43,7 +46,8 @@ SplitBlob::SplitBlob(const Background& average, pv::BlobPtr blob)
                 
             } else if(name == "track_posture_threshold") {
                posture_threshold = value.value<int>();
-            }
+            } else if(name == "blob_split_algorithm")
+                blob_split_algorithm = value.value<blob_split_algorithm_t::Class>();
             
             if(name == "blob_size_ranges" || name == "cm_per_pixel") {
                 fish_minmax = SETTING(blob_size_ranges).value<BlobSizeRange>();
@@ -56,6 +60,7 @@ SplitBlob::SplitBlob(const Background& average, pv::BlobPtr blob)
         fn(sprite::Map::Signal::NONE, GlobalSettings::map(), "cm_per_pixel", SETTING(cm_per_pixel).get());
         fn(sprite::Map::Signal::NONE, GlobalSettings::map(), "track_posture_threshold", SETTING(track_posture_threshold).get());
         fn(sprite::Map::Signal::NONE, GlobalSettings::map(), "blob_size_ranges", SETTING(blob_size_ranges).get());
+        fn(sprite::Map::Signal::NONE, GlobalSettings::map(), "blob_split_algorithm", SETTING(blob_split_algorithm).get());
     }
     
 #if DEBUG_ME
@@ -189,19 +194,6 @@ SplitBlob::Action SplitBlob::evaluate_result_multiple(size_t presumed_nr, float 
 std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<Vec2>& centers)
 {
     std::map<int, ResultProp> best_matches;
-
-    /* {
-        auto [p, img] = _blob->image(Tracker::instance()->background());
-        auto [p0, img0] = _blob->binary_image();
-
-        file::Path path = "C:/Users/tristan/Videos/locusts/last_blob.npz";
-        npz_save(path.str(), "image", img0->data(), std::vector<size_t>{img0->rows, img0->cols}, "w");
-        std::vector<float> coords;
-        for(auto c : centers)
-            coords.insert(coords.end(),  { c.x, c.y });
-        npz_save(path.str(), "coords", coords.data(), std::vector<size_t>{centers.size(), 2}, "a");
-        tf::imshow("analyse blob", img0->get());
-    }*/
     
     size_t calculations = 0;
     Timer timer;
@@ -286,8 +278,11 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
 #if DEBUG_ME
         print("T:", threshold);
 #endif
-        //float max_size = apply_threshold(threshold, blobs) * sqrcm;
-        float max_size = (threshold == -1 ? apply_threshold(threshold, blobs) : apply_watershed(centers, blobs)) * sqrcm;
+        float max_size;
+        if(blob_split_algorithm == blob_split_algorithm_t::threshold)
+            max_size = apply_threshold(threshold, blobs) * sqrcm;
+        else
+            max_size = (threshold == -1 ? apply_threshold(threshold, blobs) : apply_watershed(centers, blobs)) * sqrcm;
         
         // cant find any blobs anymore...
         if(blobs.empty())
@@ -339,13 +334,15 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
     {
         
         if(presumed_nr > 1) {
-            action = fn(0);
-
-            /*for(int i = posture_threshold + 10; i < 255; i += 1) {//max(1, (i-posture_threshold)*0.25)) {
-                action = fn(i);
-                if(action == ABORT || action == KEEP_ABORT)
-                    break;
-            }*/
+            if(blob_split_algorithm == blob_split_algorithm_t::threshold) {
+                for(int i = posture_threshold + 10; i < 255; i += 1) {
+                    action = fn(i);
+                    if(action == ABORT || action == KEEP_ABORT)
+                        break;
+                }
+            }
+            else
+                action = fn(0);
         }
     }
     
@@ -408,10 +405,6 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                     grey.resize(N + n);
                     std::copy(ptr, ptr + n, grey.data() + N);
                     N += n;
-                    /*for(int x = h.x0; x <= h.x1; x++) {
-                        assert(h.y < _original_grey.rows && x < _original_grey.cols);
-                        grey.push_back(_original_grey.at<uchar>(h.y, x));
-                    }*/
                 }
                 
                 blob->set_pixels(std::make_unique<std::vector<uchar>>(std::move(grey)));
@@ -455,9 +448,6 @@ void SplitBlob::display_match(const std::pair<const int, std::vector<pv::BlobPtr
     cv::Mat copy;
     cv::cvtColor(_original, copy, cv::COLOR_GRAY2BGR);
     
-    //for(size_t i=0; i<blobs.size(); ++i) {
-    //    auto& blob = blobs.second[i];
-        
     for (auto& blob : blobs.second) {
         auto clr = wheel.next();
         

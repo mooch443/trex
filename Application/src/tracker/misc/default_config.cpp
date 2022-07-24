@@ -99,6 +99,11 @@ namespace default_config {
         "Manually check for updates, do not automatically check for them online.",
         "Automatically check for updates periodically (once per week)."
     )
+
+    ENUM_CLASS_DOCS(blob_split_algorithm_t,
+        "Adaptively increase the threshold of closeby objects, until separation.",
+        "Use the previously known positions of objects to place a seed within the overlapped objects and perform a watershed run."
+    )
     
     static const std::map<std::string, std::string> deprecated = {
         {"outline_step", "outline_smooth_step"},
@@ -418,6 +423,7 @@ file::Path conda_environment_path() {
         CONFIG("blob_size_ranges", BlobSizeRange({Rangef(0.1f, 3)}), "Blobs below the lower bound are recognized as noise instead of individuals. Blobs bigger than the upper bound are considered to potentially contain more than one individual. You can look these values up by pressing `D` in TRex to get to the raw view (see `https://trex.run/docs/gui.html` for details). The unit is #pixels * (cm/px)^2. `cm_per_pixel` is used for this conversion.");
         CONFIG("blob_split_max_shrink", float(0.2), "The minimum percentage of the starting blob size (after thresholding), that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.");
         CONFIG("blob_split_global_shrink_limit", float(0.2), "The minimum percentage of the minimum in `blob_size_ranges`, that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.");
+        CONFIG("blob_split_algorithm", blob_split_algorithm_t::threshold, "The default splitting algorithm used to split objects that are too close together.");
         
         CONFIG("visual_field_eye_offset", float(0.15), "A percentage telling the program how much the eye positions are offset from the start of the midline.");
         CONFIG("visual_field_eye_separation", float(60), "Degrees of separation between the eye and looking straight ahead. Results in the eye looking towards head.angle +- `visual_field_eye_separation`.");

@@ -59,6 +59,9 @@ namespace default_config {
 
     ENUM_CLASS(app_update_check_t, none, manually, automatically)
     ENUM_CLASS_HAS_DOCS(app_update_check_t)
+
+    ENUM_CLASS(blob_split_algorithm_t, threshold, fill)
+    ENUM_CLASS_HAS_DOCS(blob_split_algorithm_t)
 }
 
 namespace gui {

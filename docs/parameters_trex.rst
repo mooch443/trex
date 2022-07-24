@@ -178,6 +178,19 @@ TRex parameters
 	.. seealso:: :func:`cm_per_pixel`, 
 
 
+.. function:: blob_split_algorithm(blob_split_algorithm_t)
+
+	**default value:** threshold
+
+	**possible values:**
+		- `threshold`: Adaptively increase the threshold of closeby objects, until separation.
+		- `fill`: Use the previously known positions of objects to place a seed within the overlapped objects and perform a watershed run.
+
+	The default splitting algorithm used to split objects that are too close together.
+
+
+
+
 .. function:: blob_split_global_shrink_limit(float)
 
 	**default value:** 0.2
@@ -2126,7 +2139,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1.8_2-48-g1be8a0c"
+	**default value:** "v1.1.8_2-49-g3893f85"
 
 
 	Current application version.
