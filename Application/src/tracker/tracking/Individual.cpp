@@ -111,24 +111,24 @@ struct RecTask {
                 //if(!_queue.empty())
                 
                 if(!_queue.empty() && _queue.size() % 10 == 0 && _terminate) {
-                    print("task ", counted.load(), " -> ", _queue.size(), " tasks left (frame: ", task._frames.back(), ")");
+                    //print("task ", counted.load(), " -> ", _queue.size(), " tasks left (frame: ", task._frames.back(), ")");
                     
-                    std::unordered_set<std::tuple<Idx_t, Frame_t>> segments;
+                    /*std::unordered_set<std::tuple<Idx_t, Frame_t>> segments;
                     std::map<Idx_t, std::vector<Frame_t>> histo;
                     for(auto &t : _queue) {
                         histo[t._fdx].push_back(t._segment_start);
                         if(segments.contains({t._fdx, t._segment_start})) {
-                            print("\talready contains ", t._fdx, " and ", t._segment_start, " (", t._frames.size(), ").");
+                            //print("\talready contains ", t._fdx, " and ", t._segment_start, " (", t._frames.size(), ").");
                         } else
                             segments.insert({t._fdx, t._segment_start});
                     }
                     
-                    print("\t-> ",histo);
+                    print("\t-> ",histo);*/
                 }
                 
                 _current_fdx = task._fdx;
                 
-                print("[task] individual:", task._fdx, " segment:", task._segment_start, " _queue:", _queue.size());
+                //print("[task] individual:", task._fdx, " segment:", task._segment_start, " _queue:", _queue.size());
 
                 guard.unlock();
                 RecTask::update(std::move(task));

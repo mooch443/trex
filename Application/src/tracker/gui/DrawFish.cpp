@@ -1228,13 +1228,13 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
 #if !COMMONS_NO_PYTHON
     auto detection = tags::find(_idx, blob->blob_id());
     if (detection.valid()) {
-        secondary_text += "<str>tag:" + Meta::toStr(detection.id) + " (" + dec<2>(detection.p).toStr() + ")</str>";
+        secondary_text += "<a>tag:" + Meta::toStr(detection.id) + " (" + dec<2>(detection.p).toStr() + ")</a>";
     }
     auto segment = _obj.segment_for(_idx);
     if(segment) {
         auto [id, p, n] = _obj.qrcode_at(segment->start());
         if(id >= 0 && p > 0) {
-            secondary_text += std::string(" ") + "<str>QR:"+Meta::toStr(id)+" ("+dec<2>(p).toStr() + ")</str>";
+            secondary_text += std::string(" ") + "<a><i>QR:"+Meta::toStr(id)+" ("+dec<2>(p).toStr() + ")</i></a>";
         }
     }
     
