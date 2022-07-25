@@ -339,7 +339,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         };
     protected:
         ska::bytell_hash_map<Frame_t, IDaverage> _qrcode_identities;
-        Frame_t _last_requested_qrcode;
+        Frame_t _last_requested_qrcode, _last_requested_segment;
 #endif
         
     public:
