@@ -480,19 +480,23 @@ void GUI::draw(gui::DrawStructure &base) {
 
 #if !COMMONS_NO_PYTHON
                 std::map<int64_t, std::tuple<float, float>> speeds;
-
+                const int64_t displayed_range = FAST_SETTINGS(frame_rate) * 10;
+                const int64_t analysed_range = FAST_SETTINGS(frame_rate) * 60 * 3;
+                
                 for (auto& [fdx, fish] : tracker->individuals()) {
                     auto codes = fish->qrcodes();
                     //print("individual ", fish->identity().ID(), " has ", codes.size(), " codes.");
-
+                    
                     for (auto& [frame, code] : codes) {
                         auto& [id, p, n] = code;
                         auto seg = fish->segment_for(frame);
                         auto color = ColorWheel(id).next();
                         if (seg) {
-                            if (Tracker::end_frame() < seg->end() + Frame_t(FAST_SETTINGS(frame_rate) * 15)) {
+                            if (Tracker::end_frame() < seg->end() + Frame_t(displayed_range)) {
+                                const auto is_end = seg->contains(Frame_t(_frame->index()));
+                                float percent = saturate((float(_frame->index()) - float(seg->end().get())) / float(displayed_range), 0.f, 1.f);
+                                
                                 std::vector<Vec2> positions;
-
                                 for (auto idx : seg->basic_index) {
                                     if (idx == -1)
                                         continue;
@@ -504,11 +508,13 @@ void GUI::draw(gui::DrawStructure &base) {
                                     std::get<0>(s) += b->centroid.speed < Units::CM_AND_SECONDS>();
                                     std::get<1>(s)++;
                                 }
-                                base.line(positions, 1, color.alpha(200));
-                                base.text(Meta::toStr(id) + " (" + dec<2>(p).toStr() + ")", positions.back() + Vec2(10, 0), color, Font(0.5), scale);
+                                
+                                auto alpha = saturate(200.f * (1 - percent), 0, 255);
+                                base.line(positions, 1, color.alpha(alpha));
+                                base.text(Meta::toStr(id) + " (" + dec<2>(p).toStr() + ")", positions.back() + Vec2(10, 0), color.alpha(alpha), is_end ? Font(0.5, Style::Bold) : Font(0.5), scale);
 
                             }
-                            else if (Tracker::end_frame() < seg->end() + Frame_t(FAST_SETTINGS(frame_rate) * 60 * 3))  {
+                            else if (Tracker::end_frame() < seg->end() + Frame_t(analysed_range))  {
                                 for (auto idx : seg->basic_index) {
                                     if (idx == -1)
                                         continue;
