@@ -104,13 +104,31 @@ struct RecTask {
         RecTask::init();
 
         std::unique_lock guard(_mutex);
-        while(!_terminate) {
+        while(!_terminate || !_queue.empty()) {
             while(!_queue.empty()) {
                 auto task = std::move(_queue.back());
                 _queue.erase(--_queue.end());
                 //if(!_queue.empty())
-                //print("task ", counted.load(), " -> ", _queue.size(), " tasks left (frame: ", task._frames.back(), ")");
+                
+                if(!_queue.empty() && _queue.size() % 10 == 0 && _terminate) {
+                    print("task ", counted.load(), " -> ", _queue.size(), " tasks left (frame: ", task._frames.back(), ")");
+                    
+                    std::unordered_set<std::tuple<Idx_t, Frame_t>> segments;
+                    std::map<Idx_t, std::vector<Frame_t>> histo;
+                    for(auto &t : _queue) {
+                        histo[t._fdx].push_back(t._segment_start);
+                        if(segments.contains({t._fdx, t._segment_start})) {
+                            print("\talready contains ", t._fdx, " and ", t._segment_start, " (", t._frames.size(), ").");
+                        } else
+                            segments.insert({t._fdx, t._segment_start});
+                    }
+                    
+                    print("\t-> ",histo);
+                }
+                
                 _current_fdx = task._fdx;
+                
+                print("[task] individual:", task._fdx, " segment:", task._segment_start, " _queue:", _queue.size());
 
                 guard.unlock();
                 RecTask::update(std::move(task));
@@ -134,29 +152,39 @@ struct RecTask {
         std::call_once(flag, []() {
             _update_thread = std::make_unique<std::thread>(RecTask::thread);
         });
-
-        if(task._optional && _queue.size() >= 20)
-            return false;
-
-        fill(task);
-
-        if(task._images.size() < 5)
-            return false;
         
         if(callback)
             callback();
 
-        for(auto& t : _queue) {
-            if(t._fdx != task._fdx || t._segment_start != task._segment_start) {
+        for(auto it = _queue.begin(); it != _queue.end(); ) {
+            if(it->_fdx != task._fdx
+               || it->_segment_start != task._segment_start)
+            {
+                ++it;
                 continue;
             }
-
-            //print("Replacing task for ", t._fdx, " in segment ", t._segment_start, "(", t._frames.size(), " vs. ", task._frames.size(), ")");
-            std::swap(t, task);
-            _variable.notify_one();
+            
+            _queue.erase(it);
+            
+            fill(task);
+            //if(task._images.size() < 5)
+            //    return false;
+            
+            //print("[fill] individual:", task._fdx, " segment:", task._segment_start, " size:", task._images.size());
+            _queue.emplace_back(std::move(task));
+            
             return true;
         }
-
+        
+        //if(task._optional && _queue.size() >= 50 && !_terminate)
+        //    return false;
+        
+        fill(task);
+        
+        //print("[fill'] individual:", task._fdx, " segment:", task._segment_start, " size:", task._images.size());
+        if(task._images.size() < 5)
+            return false;
+        
         _queue.emplace_back(std::move(task));
         _variable.notify_one();
 
@@ -191,7 +219,7 @@ struct RecTask {
 
             result.best_id = max_key;
             result.p = float(maximum) / float(N);
-            //print("\tbest guess for individual ", result.individual, " is ", max_key, " with p:", result.p, " (", task._images.size(), " samples)");
+            //print("\t",result._segment_start,": individual ", result.individual, " is ", max_key, " with p:", result.p, " (", task._images.size(), " samples)");
 
             static const bool tags_save_predictions = SETTING(tags_save_predictions).value<bool>();
             if(tags_save_predictions) {
@@ -352,6 +380,123 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
         else
             _qrcodes[seg->start()].emplace_back( QRCode { frame, std::move(tag) } );
         //tf::imshow(_identity.name(), image->get());
+        
+        auto check_qrcode = [this](Frame_t frame, const std::shared_ptr<SegmentInformation>& segment)
+        {
+            static const bool tags_recognize = SETTING(tags_recognize).value<bool>();
+            
+            const bool segment_ended = segment && segment->start() != _last_requested_segment;
+            if(segment_ended) {
+                //print("individual:",identity().ID(), " segment:",segment->start()," ended before ", frame);
+                _last_requested_qrcode.invalidate();
+                _last_requested_segment = segment->start();
+            }
+
+        #if !COMMONS_NO_PYTHON
+            //! do we need to start a new segment?
+            if (tags_recognize && !_qrcodes.empty() && !_frame_segments.empty()) {
+                auto segment = _frame_segments.back();
+                
+                if(segment_ended // either the segment ended
+                    || !_last_requested_qrcode.valid() // or we have not requested a code yet
+                    || _last_requested_qrcode + Frame_t(5.f * (float)FAST_SETTINGS(frame_rate)) < frame // or the last time has been at least a second ago
+                   )
+                {
+                    auto it = _qrcodes.find(segment->start());
+                    if(it != _qrcodes.end()) {
+                        //print("[update] at ", frame," ", segment ? segment->range : Range<Frame_t>(), " individual:", identity().ID(), " with ended:", segment_ended, " lastqrcodepred:", _last_predicted_id, " lastqrframe:",_last_requested_qrcode, " images:", it->second.size());
+                        
+                        if(it->second.size() > 2 || segment_ended) {
+                            RecTask task{
+                                ._segment_start = segment->start(),
+                                .individual = identity().ID(),
+                                ._optional = !segment_ended,
+                                ._fdx = identity().ID()
+                            };
+
+                            task._callback = [this, range = segment->range, N = it->second.size()](Predictions&& prediction) {
+                                //print("got callback in ", _identity.ID(), " (", prediction.individual, ")");
+                                
+                                //print("\t",range, " individual ", identity().ID(), " has ", N, " images. ended=", segment_ended, " got callback with pred=", prediction.best_id);
+
+                                std::unique_lock guard(_qrcode_mutex);
+                                _qrcode_identities[prediction._segment_start] = { prediction.best_id, prediction.p, (uint32_t)prediction._frames.size() };
+                                _last_predicted_id = prediction.best_id;
+                                _last_predicted_frame = prediction._segment_start;
+                            };
+
+                            auto fill = [it, ID = identity(), segment](RecTask& task)
+                            {
+                                size_t step = it->second.size() / 100;
+                                size_t i = 0;
+
+                                for(auto& [frame, blob] : it->second) {
+                                  if(step > 0 && i++ % step != 0) {
+                                      continue;
+                                  }
+                                  auto ptr = std::get<1>(blob->image(nullptr, Bounds(-1, -1, -1, -1), 0));
+                                  //tf::imshow("push", ptr->get());
+                                  task._frames.push_back(frame);
+                                  task._images.push_back(std::move(ptr));
+                                }
+
+                                //if(it->second.size() > 1)
+                                //  print("sampling from ", it->second.size(), " to ",task._images.size(), " images of individual ", ID," at frame ", frameIndex," which started at ", segment->start(),".");
+                            };
+                            
+                            auto callback = [&]() {
+                                static const bool tags_save_predictions = SETTING(tags_save_predictions).value<bool>();
+                                if(!tags_save_predictions)
+                                    return;
+                                
+                                std::unique_lock guard(_qrcode_mutex);
+                                if(!_last_predicted_frame.valid()
+                                   || _last_predicted_frame != segment->start())
+                                    return;
+                                
+                                static const auto filename = (std::string)SETTING(filename).value<file::Path>().filename();
+                                file::Path output = pv::DataLocation::parse("output", "tags_"+filename) / Meta::toStr(_last_predicted_id);
+                                
+                                if(!output.exists())
+                                    return;
+                                
+                                auto prefix = Meta::toStr(identity().ID()) + "." + Meta::toStr(segment->start());
+                                if(!(output / prefix).exists())
+                                    return;
+                                
+                                auto files = (output / prefix).find_files();
+                                
+                                // delete files that already existed for this individual AND segment
+                                for(auto &f : files) {
+                                    f.delete_file();
+                                    //print("\tdeleting file ", f);
+                                }
+                            };
+                            
+                            // if we can add this code, update the last requested
+                            if(RecTask::add(std::move(task), fill, callback)) {
+                                //cmn::print("Have ", it->second.size(), " QRCodes for segment ", *segment, " in individual:", identity().ID(), " ", segment_ended);
+
+                                std::unique_lock guard(_qrcode_mutex);
+                                _last_requested_qrcode = frame;
+                                
+                            } //else
+                                //print("\t",segment->range, " individual:", identity().ID(), " rejected ",it->second.size()," images.");
+                                
+                        } //else {
+                            //print("\t",segment->range, " individual:", identity().ID(), " not enough images ",it->second.size(),".");
+                        //}
+                        
+                    } //else if(segment_ended && segment->length() > 2) {
+                    //    print("\t",segment->range, " individual:", identity().ID(), " does not have QRCodes.");
+                    //}
+                }
+            }
+        #endif
+        };
+        
+        check_qrcode(frame, seg);
+        
         return true;
     }
 
@@ -1392,96 +1537,6 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(F
     error_code |= Reasons::MaxSegmentLength      * uint32_t(FAST_SETTINGS(track_segment_max_length) > 0 && segment && segment->length() / float(FAST_SETTINGS(frame_rate)) >= FAST_SETTINGS(track_segment_max_length));
     
     const bool segment_ended = error_code != 0;
-
-#if !COMMONS_NO_PYTHON
-    //! do we need to start a new segment?
-    if (SETTING(tags_recognize) && !_qrcodes.empty() && segment) {
-        
-        if(segment_ended // either the segment ended
-            || !_last_requested_qrcode.valid() // or we have not requested a code yet
-            || _last_requested_qrcode + Frame_t(1.f * (float)FAST_SETTINGS(frame_rate)) < frameIndex // or the last time has been at least a second ago
-           )
-        {
-            auto it = _qrcodes.find(segment->start());
-            if(it != _qrcodes.end()) {
-                if(it->second.size() > 2 || error_code != 0) {
-                    RecTask task{
-                        ._segment_start = segment->start(),
-                        .individual = identity().ID(),
-                        ._optional = !segment_ended,
-                        ._fdx = identity().ID()
-                    };
-
-                    task._callback = [this](Predictions&& prediction) {
-                        //print("got callback in ", _identity.ID(), " (", prediction.individual, ")");
-
-                        std::unique_lock guard(_qrcode_mutex);
-                        _qrcode_identities[prediction._segment_start] = { prediction.best_id, prediction.p, (uint32_t)prediction._frames.size() };
-                        //_last_requested_qrcode.invalidate();
-                        _last_predicted_id = prediction.best_id;
-                        _last_predicted_frame = prediction._segment_start;
-                    };
-
-                    auto fill = [it, ID = identity(), segment](RecTask& task)
-                    {
-                        size_t step = it->second.size() / 100;
-                        size_t i = 0;
-
-                        for(auto& [frame, blob] : it->second) {
-                          if(step > 0 && i++ % step != 0) {
-                              continue;
-                          }
-                          auto ptr = std::get<1>(blob->image(nullptr, Bounds(-1, -1, -1, -1), 0));
-                          //tf::imshow("push", ptr->get());
-                          task._frames.push_back(frame);
-                          task._images.push_back(std::move(ptr));
-                        }
-
-                        //if(it->second.size() > 1)
-                        //  print("sampling from ", it->second.size(), " to ",task._images.size(), " images of individual ", ID," at frame ", frameIndex," which started at ", segment->start(),".");
-                    };
-                    
-                    auto callback = [&]() {
-                        static const bool tags_save_predictions = SETTING(tags_save_predictions).value<bool>();
-                        if(!tags_save_predictions)
-                            return;
-                        
-                        std::unique_lock guard(_qrcode_mutex);
-                        if(!_last_predicted_frame.valid()
-                           || _last_predicted_frame != segment->start())
-                            return;
-                        
-                        static const auto filename = (std::string)SETTING(filename).value<file::Path>().filename();
-                        file::Path output = pv::DataLocation::parse("output", "tags_"+filename) / Meta::toStr(_last_predicted_id);
-                        
-                        if(!output.exists())
-                            return;
-                        
-                        auto prefix = Meta::toStr(identity().ID()) + "." + Meta::toStr(segment->start());
-                        if(!(output / prefix).exists())
-                            return;
-                        
-                        auto files = (output / prefix).find_files();
-                        
-                        // delete files that already existed for this individual AND segment
-                        for(auto &f : files) {
-                            f.delete_file();
-                            //print("\tdeleting file ", f);
-                        }
-                    };
-                    
-                    // if we can add this code, update the last requested
-                    if(RecTask::add(std::move(task), fill, callback)) {
-                        //cmn::print("Have ", it->second.size(), " QRCodes for segment ", *segment);
-
-                        std::unique_lock guard(_qrcode_mutex);
-                        _last_requested_qrcode = frameIndex;
-                    }
-                }
-            }
-        }
-    }
-#endif
 
     if(frameIndex == _startFrame || segment_ended) {
         if(!_frame_segments.empty()) {
