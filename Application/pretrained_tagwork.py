@@ -12,12 +12,14 @@ import TRex
 import numpy as np
 
 tagwork = None
+model_path = None
 
 class Tagwork:
-    def __init__(self, width, height):
+    def __init__(self, width, height, model_path):
         self.width = width
         self.height = height
         self.counter = 0
+        self.model_path = model_path
         #TRex.log("# image dimensions: "+str(self.width)+"x"+str(self.height))
 
     def load(self, path):
@@ -35,12 +37,11 @@ class Tagwork:
         return  y
 
 def init():
-    global width, height, tagwork
+    global width, height, tagwork, model_path
     #TRex.log("# initializing")
-    tagwork = Tagwork(width, height)
-    p = "/Users/tristan/Videos/locusts/pretrained_both_7.6.22.h5"
-    TRex.log("# loading network "+p)
-    tagwork.load(p)
+    tagwork = Tagwork(width, height, model_path)
+    TRex.log("# loading network "+model_path)
+    tagwork.load(model_path)
 
 def load():
     pass

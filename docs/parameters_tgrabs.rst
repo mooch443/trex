@@ -429,6 +429,15 @@ TGrabs parameters
 
 
 
+.. function:: tags_model_path(path)
+
+	**default value:** "tag_recognition_network.h5"
+
+
+	The pretrained model used to recognize QRcodes/tags according to `<https://github.com/jgraving/pinpoint/blob/2d7f6803b38f52acb28facd12bd106754cad89bd/barcodes/old_barcodes_py2/4x4_4bit/master_list.pdf>`_. Path to a pretrained network .h5 file that takes 32x32px images of tags and returns a (N, 122) shaped tensor with 1-hot encoding.
+
+
+
 .. function:: tags_num_sides(range<int>)
 
 	**default value:** [3,7]

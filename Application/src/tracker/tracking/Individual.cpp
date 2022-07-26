@@ -101,44 +101,57 @@ struct RecTask {
         set_thread_name("RecTask::update_thread");
         print("RecTask::update_thread begun");
 
-        RecTask::init();
+        try {
+            RecTask::init();
 
-        std::unique_lock guard(_mutex);
-        while(!_terminate || !_queue.empty()) {
-            while(!_queue.empty()) {
-                auto task = std::move(_queue.back());
-                _queue.erase(--_queue.end());
-                //if(!_queue.empty())
-                
-                if(!_queue.empty() && _queue.size() % 10 == 0 && _terminate) {
-                    //print("task ", counted.load(), " -> ", _queue.size(), " tasks left (frame: ", task._frames.back(), ")");
+            std::unique_lock guard(_mutex);
+            while(!_terminate || !_queue.empty()) {
+                while(!_queue.empty()) {
+                    auto task = std::move(_queue.back());
+                    _queue.erase(--_queue.end());
+                    //if(!_queue.empty())
                     
-                    /*std::unordered_set<std::tuple<Idx_t, Frame_t>> segments;
-                    std::map<Idx_t, std::vector<Frame_t>> histo;
-                    for(auto &t : _queue) {
-                        histo[t._fdx].push_back(t._segment_start);
-                        if(segments.contains({t._fdx, t._segment_start})) {
-                            //print("\talready contains ", t._fdx, " and ", t._segment_start, " (", t._frames.size(), ").");
-                        } else
-                            segments.insert({t._fdx, t._segment_start});
+                    if(!_queue.empty() && _queue.size() % 10 == 0 && _terminate) {
+                        //print("task ", counted.load(), " -> ", _queue.size(), " tasks left (frame: ", task._frames.back(), ")");
+                        
+                        /*std::unordered_set<std::tuple<Idx_t, Frame_t>> segments;
+                        std::map<Idx_t, std::vector<Frame_t>> histo;
+                        for(auto &t : _queue) {
+                            histo[t._fdx].push_back(t._segment_start);
+                            if(segments.contains({t._fdx, t._segment_start})) {
+                                //print("\talready contains ", t._fdx, " and ", t._segment_start, " (", t._frames.size(), ").");
+                            } else
+                                segments.insert({t._fdx, t._segment_start});
+                        }
+                        
+                        print("\t-> ",histo);*/
                     }
                     
-                    print("\t-> ",histo);*/
+                    _current_fdx = task._fdx;
+                    
+                    //print("[task] individual:", task._fdx, " segment:", task._segment_start, " _queue:", _queue.size());
+
+                    guard.unlock();
+                    try {
+                        RecTask::update(std::move(task));
+                    } catch(...) {
+                        guard.lock();
+                        _current_fdx = Idx_t();
+                        throw;
+                    }
+                    guard.lock();
+
+                    ++counted;
+                    _current_fdx = Idx_t();
                 }
-                
-                _current_fdx = task._fdx;
-                
-                //print("[task] individual:", task._fdx, " segment:", task._segment_start, " _queue:", _queue.size());
 
-                guard.unlock();
-                RecTask::update(std::move(task));
-                guard.lock();
-
-                ++counted;
-                _current_fdx = Idx_t();
+                _variable.wait_for(guard, std::chrono::milliseconds(1));
             }
-
-            _variable.wait_for(guard, std::chrono::milliseconds(1));
+            
+        } catch(const SoftExceptionImpl&) {
+            // do nothing
+            SETTING(terminate_error) = true;
+            SETTING(terminate) = true;
         }
 
         print("RecTask::update_thread ended");
@@ -319,13 +332,18 @@ void Individual::shutdown() {
 
 void RecTask::init() {
     Recognition::fix_python(true);
-
+    
     PythonIntegration::ensure_started().get();
     //Recognition::check_learning_module(true);
     PythonIntegration::async_python_function([]()->bool {return true; });
     auto res = PythonIntegration::async_python_function([&]() -> bool {
         try {
             PythonIntegration::import_module(tagwork);
+            auto path = SETTING(tags_model_path).value<file::Path>();
+            if(path.empty() || !path.exists()) {
+                throw SoftException("The model at ", path, " can not be found. Please set `tags_model_path` to point to an h5 file with a pretrained network. See `https://trex.run/docs/parameters_tgrabs.html#tags_model_path` for more information.");
+            }
+            PythonIntegration::set_variable("model_path", path.str(), tagwork);
             PythonIntegration::set_variable("width", 32, tagwork);
             PythonIntegration::set_variable("height", 32, tagwork);
             PythonIntegration::run(tagwork, "init");
