@@ -184,7 +184,8 @@ SplitBlob::Action SplitBlob::evaluate_result_multiple(size_t presumed_nr, float 
     }
     r.ratio = ratio;
     
-    if(presumed_nr <= blobs.size() && ratio >= 0.4) {
+    if(presumed_nr <= blobs.size() && ((blob_split_algorithm == blob_split_algorithm_t::threshold && ratio >= 0.3) || (blob_split_algorithm == blob_split_algorithm_t::fill && ratio >= 0.4))) 
+    {
         return KEEP_ABORT;
     }
     
