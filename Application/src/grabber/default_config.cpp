@@ -132,7 +132,8 @@ namespace default_config {
         CONFIG("cam_resolution", cv::Size(-1, -1), "Defines the dimensions of the camera image.", STARTUP);
         CONFIG("cam_framerate", int(-1), "If set to anything else than 0, this will limit the basler camera framerate to the given fps value.", STARTUP);
         CONFIG("cam_limit_exposure", int(5500), "Sets the cameras exposure time in micro seconds.");
-
+        
+        CONFIG("tags_model_path", file::Path("tag_recognition_network.h5"), "The pretrained model used to recognize QRcodes/tags according to `https://github.com/jgraving/pinpoint/blob/2d7f6803b38f52acb28facd12bd106754cad89bd/barcodes/old_barcodes_py2/4x4_4bit/master_list.pdf`. Path to a pretrained network .h5 file that takes 32x32px images of tags and returns a (N, 122) shaped tensor with 1-hot encoding.");
         CONFIG("tags_size_range", Range<double>(0,10), "");
         CONFIG("tags_equalize_hist", true, "");
         CONFIG("tags_threshold", int(-5), "Threshold passed on to cv::adaptiveThreshold, lower numbers (below zero) are equivalent to higher thresholds / removing more of the pixels of objects and shrinking them.");
