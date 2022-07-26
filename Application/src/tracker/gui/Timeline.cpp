@@ -30,6 +30,8 @@ namespace gui {
 
     std::string _thread_status;
     std::atomic_bool _terminate;
+    std::mutex _terminate_mutex;
+    std::condition_variable _terminate_variable;
 
     const Tracker* _tracker{nullptr};
     FrameInfo* _frame_info{nullptr};
@@ -283,6 +285,7 @@ namespace gui {
 
     Timeline::~Timeline() {
         _terminate = true;
+        _terminate_variable.notify_all();
         _update_events_thread->join();
     }
     
@@ -439,46 +442,49 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
             _foi_state.last_change = last_change;
         }
         
-        //if(_proximity_bar.image.rows && _proximity_bar.image.cols) {
-        if(_bar == NULL) {
+        if (_bar == NULL) {
             _bar = std::make_unique<ExternalImage>(Image::Make(), Vec2());
             _bar->set_color(White.alpha(GUI_SETTINGS(gui_timeline_alpha)));
             _bar->set_clickable(true);
-            _bar->on_hover([this](Event e) {
-                if(!GUICache::exists())
+            _bar->on_hover([this](Event e) 
+                {
+                if (!GUICache::exists())
                     return;
-                
-                auto && [offset_, max_w_] = timeline_offsets(_base);
-                
+
+                auto&& [offset_, max_w_] = timeline_offsets(_base);
+
                 //if(!_proximity_bar.changed_frames.empty())
                 {
                     float distance2frame = FLT_MAX;
                     Frame_t framemOver;
-                    
-                    if(_bar && _bar->hovered()) {
+
+                    if (_bar && _bar->hovered()) {
                         std::lock_guard<std::mutex> guard(_proximity_bar.mutex);
                         //Vec2 pp(max_w / float(_frame_info->video_length) * idx.first, 50);
                         //float dis = abs(e.hover.x - pp.x);
                         static Timing timing("Scrubbing", 0.01);
-                        Frame_t idx = Frame_t( roundf(e.hover.x / max_w_ * float(_frame_info->video_length)) );
+                        Frame_t idx = Frame_t(roundf(e.hover.x / max_w_ * float(_frame_info->video_length)));
                         auto it = _proximity_bar.changed_frames.find(idx);
-                        if(it != _proximity_bar.changed_frames.end()) {
+                        if (it != _proximity_bar.changed_frames.end()) {
                             framemOver = idx;
                             distance2frame = 0;
-                        } else if((it = _proximity_bar.changed_frames.find(idx - 1_f)) != _proximity_bar.changed_frames.end()) {
+                        }
+                        else if ((it = _proximity_bar.changed_frames.find(idx - 1_f)) != _proximity_bar.changed_frames.end()) {
                             framemOver = idx - 1_f;
                             distance2frame = 1;
-                        } else if((it = _proximity_bar.changed_frames.find(idx + 1_f)) != _proximity_bar.changed_frames.end()) {
+                        }
+                        else if ((it = _proximity_bar.changed_frames.find(idx + 1_f)) != _proximity_bar.changed_frames.end()) {
                             framemOver = idx + 1_f;
                             distance2frame = 1;
                         }
                     }
-                    
+
                     if (distance2frame < 2) {
                         _mOverFrame = framemOver;
-                        
-                    } else if(_bar->hovered()) {
-                        if(tracker_endframe.load().valid()) {
+
+                    }
+                    else if (_bar->hovered()) {
+                        if (tracker_endframe.load().valid()) {
                             _mOverFrame = Frame_t(min(float(_frame_info->video_length), e.hover.x * float(_frame_info->video_length) / max_w_));
                             _bar->set_dirty();
                         }
@@ -486,21 +492,22 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                     else
                         _mOverFrame.invalidate();
                 }
-                
-                if(_bar->hovered() && _bar->pressed() && this->mOverFrame().valid())
+
+                if (_bar->hovered() && _bar->pressed() && this->mOverFrame().valid())
                 {
                     SETTING(gui_frame) = Frame_t(this->mOverFrame());
                 }
-            });
+                });
+
             _bar->add_event_handler(MBUTTON, [this](Event e) {
-                if(e.mbutton.pressed && this->mOverFrame().valid() && e.mbutton.button == 0) {
+                if (e.mbutton.pressed && this->mOverFrame().valid() && e.mbutton.button == 0) {
                     //_gui->set_redraw();
                     GUICache::instance().set_redraw();
                     SETTING(gui_frame) = this->mOverFrame();
                 }
-            });
+                });
         }
-        
+
         bool changed = false;
         
         if(use_scale.y > 0) {
@@ -519,25 +526,32 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
             {
                 auto image = Image::Make(1, max_w, 4);
                 image->set_to(0);
-                if(_bar->parent() && _bar->parent()->stage()) {
-                    guard.unlock();
-                    try {
-                        std::lock_guard<std::recursive_mutex> lock(_bar->parent()->stage()->lock());
-                        _bar->set_source(std::move(image));
-                    }
-                    catch(...) { }
-                    guard.lock();
-                }
                 
                 _proximity_bar.end.invalidate();
                 _proximity_bar.start.invalidate();
                 
                 changed = true;
                 _proximity_bar.changed_frames.clear();
+
+                if (_bar->parent() && _bar->parent()->stage()) {
+                    guard.unlock();
+                    try {
+                        std::lock_guard<std::recursive_mutex> lock(_bar->parent()->stage()->lock());
+                        _bar->set_source(std::move(image));
+                    }
+                    catch (...) {}
+                    guard.lock();
+                }
             }
         }
         
         if(tracker_endframe.load().valid() && _proximity_bar.end < tracker_endframe.load()) {
+            cv::Mat img;
+            if (_bar->parent() && _bar->parent()->stage()) {
+                std::lock_guard<std::recursive_mutex> lock(_bar->parent()->stage()->lock());
+                img = _bar->source()->get();
+            }
+
             std::unique_lock guard(_proximity_bar.mutex);
             auto individual_coverage = [](Frame_t frame) {
                 float count = 0;
@@ -555,16 +569,6 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
             }
             
             Vec2 pos(max_w / float(_frame_info->video_length) * _proximity_bar.end.get(), 0);
-            cv::Mat img;
-            if(_bar->parent() && _bar->parent()->stage()) {
-                guard.unlock();
-                try {
-                    std::lock_guard<std::recursive_mutex> lock(_bar->parent()->stage()->lock());
-                    img = _bar->source()->get();
-                }
-                catch (...) {}
-                guard.lock();
-            }
             
             if(_proximity_bar.end < _tracker->end_frame()) {
                 _proximity_bar.end = _tracker->end_frame();
@@ -636,6 +640,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
     
     void Timeline::update_thread() {
         _terminate = false;
+        _terminate_variable.notify_all();
         
         _foi_state.color = Color(255, 200, 100, 255);
         _foi_state.last_change = 0;
@@ -644,6 +649,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
         auto long_wait_time = std::chrono::seconds(1);
         auto short_wait_time = std::chrono::milliseconds(5);
         
+        std::unique_lock tmut(_terminate_mutex);
         while(!_terminate) {
             bool changed = false;
             
@@ -736,10 +742,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                 }
             }
             
-            if(!changed)
-                std::this_thread::sleep_for(long_wait_time);
-            else
-                std::this_thread::sleep_for(short_wait_time);
+            _terminate_variable.wait_for(tmut, !changed ? long_wait_time : short_wait_time);
         }
     }
     
