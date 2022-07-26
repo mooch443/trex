@@ -25,6 +25,7 @@ namespace gui {
 
     } _proximity_bar;
 
+    std::mutex _frame_info_mutex;
     std::atomic<Frame_t> tracker_endframe, tracker_startframe;
 
     std::string _thread_status;
@@ -105,51 +106,57 @@ namespace gui {
                 _pause.set_txt("pause");
                 _pause.set_fill_clr(Color(75, 25, 25, GUI_SETTINGS(gui_timeline_alpha)));
             }
-
+            
             std::stringstream number;
-            number << _frame_info->frameIndex.load().toStr() << "/" << _frame_info->video_length << ", " << _frame_info->big_count << " tracks";
-            if (_frame_info->small_count)
-                number << " (" << _frame_info->small_count << " short)";
-            if (_frame_info->up_to_this_frame != _frame_info->big_count)
-                number << ", " << _frame_info->up_to_this_frame << " known here";
-
-            if (_frame_info->current_count != FAST_SETTINGS(track_max_individuals))
-                number << " " << _frame_info->current_count << " this frame";
-
-            if (!FAST_SETTINGS(analysis_paused))
-                number << " (analysis: " << _frame_info->current_fps << " fps)";
-            else
-                number << " (analysis paused)";
-
-            DurationUS duration{ uint64_t((double(_frame_info->frameIndex.load().get()) / double(FAST_SETTINGS(frame_rate)))) * 1000u * 1000u };
-            number << " " << Meta::toStr(duration);
-
-            _status_text.set_txt(number.str());
-            number.str("");
-
-            auto segments = _frame_info->global_segment_order;
-            auto consec = segments.empty() ? Range<Frame_t>({}, {}) : segments.front();
+            decltype(_frame_info->global_segment_order) segments;
+            decltype(segments)::value_type consec;
             std::vector<Range<Frame_t>> other_consec;
-            if (segments.size() > 1) {
-                for (size_t i = 0; i < 3 && i < segments.size(); ++i) {
-                    other_consec.push_back(segments.at(i));
+            
+            {
+                std::unique_lock info_guard(_frame_info_mutex);
+                number << _frame_info->frameIndex.load().toStr() << "/" << _frame_info->video_length << ", " << _frame_info->big_count << " tracks";
+                if (_frame_info->small_count)
+                    number << " (" << _frame_info->small_count << " short)";
+                if (_frame_info->up_to_this_frame != _frame_info->big_count)
+                    number << ", " << _frame_info->up_to_this_frame << " known here";
+
+                if (_frame_info->current_count != FAST_SETTINGS(track_max_individuals))
+                    number << " " << _frame_info->current_count << " this frame";
+
+                if (!FAST_SETTINGS(analysis_paused))
+                    number << " (analysis: " << _frame_info->current_fps << " fps)";
+                else
+                    number << " (analysis paused)";
+
+                DurationUS duration{ uint64_t((double(_frame_info->frameIndex.load().get()) / double(FAST_SETTINGS(frame_rate)))) * 1000u * 1000u };
+                number << " " << Meta::toStr(duration);
+
+                _status_text.set_txt(number.str());
+                number.str("");
+
+                segments = _frame_info->global_segment_order;
+                consec = segments.empty() ? Range<Frame_t>({}, {}) : segments.front();
+                
+                if (segments.size() > 1) {
+                    for (size_t i = 0; i < 3 && i < segments.size(); ++i) {
+                        other_consec.push_back(segments.at(i));
+                    }
                 }
+                number << "consec: " << consec.start.toStr() << "-" << consec.end.toStr() << " (" << (consec.end - consec.start).toStr() << ")";
+
+                Color consec_color = White;
+                if (consec.contains(_frame_info->frameIndex))
+                    consec_color = Green;
+
+                if (_status_text2.hovered())
+                    consec_color = consec_color.exposureHSL(0.9f);
+                _status_text2.set_color(consec_color);
+
+                _status_text2.set_txt(number.str());
+                number.str("");
+
+                number << "delta: " << _frame_info->tdelta << "s";
             }
-            number << "consec: " << consec.start.toStr() << "-" << consec.end.toStr() << " (" << (consec.end - consec.start).toStr() << ")";
-
-            Color consec_color = White;
-            if (consec.contains(_frame_info->frameIndex))
-                consec_color = Green;
-
-            if (_status_text2.hovered())
-                consec_color = consec_color.exposureHSL(0.9f);
-            _status_text2.set_color(consec_color);
-
-            _status_text2.set_txt(number.str());
-            number.str("");
-
-            number << "delta: " << _frame_info->tdelta << "s";
-
             //number << ", " << tracker_endframe << ")";
             //number << " tdelta:" << std::fixed << std::setprecision(3) << tdelta << " " << std::fixed << std::setprecision(3) << _frame_info->tdelta_gui;
             number << NetworkStats::status();
@@ -512,7 +519,10 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
             {
                 auto image = Image::Make(1, max_w, 4);
                 image->set_to(0);
-                _bar->set_source(std::move(image));
+                if(_bar->parent() && _bar->parent()->stage()) {
+                    std::lock_guard<std::recursive_mutex> lock(_bar->parent()->stage()->lock());
+                    _bar->set_source(std::move(image));
+                }
                 
                 _proximity_bar.end.invalidate();
                 _proximity_bar.start.invalidate();
@@ -540,7 +550,11 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
             }
             
             Vec2 pos(max_w / float(_frame_info->video_length) * _proximity_bar.end.get(), 0);
-            cv::Mat img = _bar->source()->get();
+            cv::Mat img;
+            if(_bar->parent() && _bar->parent()->stage()) {
+                std::lock_guard<std::recursive_mutex> lock(_bar->parent()->stage()->lock());
+                img = _bar->source()->get();
+            }
             
             if(_proximity_bar.end < _tracker->end_frame()) {
                 _proximity_bar.end = _tracker->end_frame();
@@ -636,46 +650,50 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                     auto props = Tracker::properties(index);
                     auto prev_props = Tracker::properties(index - 1_f);
                     
-                    _frame_info->tdelta = props && prev_props ? props->time - prev_props->time : 0;
-                    _frame_info->small_count = 0;
-                    _frame_info->big_count = 0;
-                    _frame_info->current_count = 0;
-                    _frame_info->up_to_this_frame = 0;
-                    _frame_info->analysis_range = Tracker::analysis_range();
-                    tracker_endframe = _tracker->end_frame();
-                    tracker_startframe = _tracker->start_frame();
-                    
-                    if(prev_props && props) {
-                        tdelta = _frame_info->tdelta;
-                    }
-                    
-                    _frame_info->training_ranges = _tracker->recognition() ? _tracker->recognition()->trained_ranges() : std::set<Range<Frame_t>>{};
-                    _frame_info->consecutive = _tracker->consecutive();
-                    _frame_info->global_segment_order = track::Tracker::global_segment_order();
-                    
-                    //if(longest != _frame_info->longest_consecutive && Tracker::recognition())
-                    //if(Tracker::recognition()) {
-                        /*for(auto &consec : _frame_info->global_segment_order) {
-                            if(!Tracker::recognition()->dataset_quality() || !Tracker::recognition()->dataset_quality()->has(consec)) {
-                                Tracker::recognition()->update_dataset_quality();
-                                break;
-                            }
-                        }*/
-                        //Tracker::recognition()->update_dataset_quality();
-                    //}
-                    
-                    if(Tracker::properties(_frame_info->frameIndex)) {
-                        for (auto& fish : _frame_info->frameIndex.load() >= tracker_startframe.load() && _frame_info->frameIndex.load() < tracker_endframe.load() ?  Tracker::active_individuals(_frame_info->frameIndex) : Tracker::set_of_individuals_t{}) {
-                            if ((int)fish->frame_count() < FAST_SETTINGS(frame_rate)*3) {
-                                _frame_info->small_count++;
-                            } else
-                                _frame_info->big_count++;
-                            
-                            if(fish->has(_frame_info->frameIndex))
-                                ++_frame_info->current_count;
-                            
-                            if(fish->start_frame() <= _frame_info->frameIndex) {
-                                _frame_info->up_to_this_frame++;
+                    {
+                        std::unique_lock info_lock(_frame_info_mutex);
+                        
+                        _frame_info->tdelta = props && prev_props ? props->time - prev_props->time : 0;
+                        _frame_info->small_count = 0;
+                        _frame_info->big_count = 0;
+                        _frame_info->current_count = 0;
+                        _frame_info->up_to_this_frame = 0;
+                        _frame_info->analysis_range = Tracker::analysis_range();
+                        tracker_endframe = _tracker->end_frame();
+                        tracker_startframe = _tracker->start_frame();
+                        
+                        if(prev_props && props) {
+                            tdelta = _frame_info->tdelta;
+                        }
+                        
+                        _frame_info->training_ranges = _tracker->recognition() ? _tracker->recognition()->trained_ranges() : std::set<Range<Frame_t>>{};
+                        _frame_info->consecutive = _tracker->consecutive();
+                        _frame_info->global_segment_order = track::Tracker::global_segment_order();
+                        
+                        //if(longest != _frame_info->longest_consecutive && Tracker::recognition())
+                        //if(Tracker::recognition()) {
+                            /*for(auto &consec : _frame_info->global_segment_order) {
+                                if(!Tracker::recognition()->dataset_quality() || !Tracker::recognition()->dataset_quality()->has(consec)) {
+                                    Tracker::recognition()->update_dataset_quality();
+                                    break;
+                                }
+                            }*/
+                            //Tracker::recognition()->update_dataset_quality();
+                        //}
+                        
+                        if(Tracker::properties(_frame_info->frameIndex)) {
+                            for (auto& fish : _frame_info->frameIndex.load() >= tracker_startframe.load() && _frame_info->frameIndex.load() < tracker_endframe.load() ?  Tracker::active_individuals(_frame_info->frameIndex) : Tracker::set_of_individuals_t{}) {
+                                if ((int)fish->frame_count() < FAST_SETTINGS(frame_rate)*3) {
+                                    _frame_info->small_count++;
+                                } else
+                                    _frame_info->big_count++;
+                                
+                                if(fish->has(_frame_info->frameIndex))
+                                    ++_frame_info->current_count;
+                                
+                                if(fish->start_frame() <= _frame_info->frameIndex) {
+                                    _frame_info->up_to_this_frame++;
+                                }
                             }
                         }
                     }
