@@ -504,7 +504,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
         bool changed = false;
         
         if(use_scale.y > 0) {
-            std::lock_guard<std::mutex> guard(_proximity_bar.mutex);
+            std::unique_lock guard(_proximity_bar.mutex);
             static std::string last_name;
             
             // update proximity bar, whenever the FOI to display changed
@@ -520,8 +520,13 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                 auto image = Image::Make(1, max_w, 4);
                 image->set_to(0);
                 if(_bar->parent() && _bar->parent()->stage()) {
-                    std::lock_guard<std::recursive_mutex> lock(_bar->parent()->stage()->lock());
-                    _bar->set_source(std::move(image));
+                    guard.unlock();
+                    try {
+                        std::lock_guard<std::recursive_mutex> lock(_bar->parent()->stage()->lock());
+                        _bar->set_source(std::move(image));
+                    }
+                    catch(...) { }
+                    guard.lock();
                 }
                 
                 _proximity_bar.end.invalidate();
@@ -533,7 +538,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
         }
         
         if(tracker_endframe.load().valid() && _proximity_bar.end < tracker_endframe.load()) {
-            std::lock_guard<std::mutex> guard(_proximity_bar.mutex);
+            std::unique_lock guard(_proximity_bar.mutex);
             auto individual_coverage = [](Frame_t frame) {
                 float count = 0;
                 if(Tracker::properties(frame)) {
@@ -552,8 +557,13 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
             Vec2 pos(max_w / float(_frame_info->video_length) * _proximity_bar.end.get(), 0);
             cv::Mat img;
             if(_bar->parent() && _bar->parent()->stage()) {
-                std::lock_guard<std::recursive_mutex> lock(_bar->parent()->stage()->lock());
-                img = _bar->source()->get();
+                guard.unlock();
+                try {
+                    std::lock_guard<std::recursive_mutex> lock(_bar->parent()->stage()->lock());
+                    img = _bar->source()->get();
+                }
+                catch (...) {}
+                guard.lock();
             }
             
             if(_proximity_bar.end < _tracker->end_frame()) {
