@@ -442,46 +442,49 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
             _foi_state.last_change = last_change;
         }
         
-        //if(_proximity_bar.image.rows && _proximity_bar.image.cols) {
-        if(_bar == NULL) {
+        if (_bar == NULL) {
             _bar = std::make_unique<ExternalImage>(Image::Make(), Vec2());
             _bar->set_color(White.alpha(GUI_SETTINGS(gui_timeline_alpha)));
             _bar->set_clickable(true);
-            _bar->on_hover([this](Event e) {
-                if(!GUICache::exists())
+            _bar->on_hover([this](Event e) 
+                {
+                if (!GUICache::exists())
                     return;
-                
-                auto && [offset_, max_w_] = timeline_offsets(_base);
-                
+
+                auto&& [offset_, max_w_] = timeline_offsets(_base);
+
                 //if(!_proximity_bar.changed_frames.empty())
                 {
                     float distance2frame = FLT_MAX;
                     Frame_t framemOver;
-                    
-                    if(_bar && _bar->hovered()) {
+
+                    if (_bar && _bar->hovered()) {
                         std::lock_guard<std::mutex> guard(_proximity_bar.mutex);
                         //Vec2 pp(max_w / float(_frame_info->video_length) * idx.first, 50);
                         //float dis = abs(e.hover.x - pp.x);
                         static Timing timing("Scrubbing", 0.01);
-                        Frame_t idx = Frame_t( roundf(e.hover.x / max_w_ * float(_frame_info->video_length)) );
+                        Frame_t idx = Frame_t(roundf(e.hover.x / max_w_ * float(_frame_info->video_length)));
                         auto it = _proximity_bar.changed_frames.find(idx);
-                        if(it != _proximity_bar.changed_frames.end()) {
+                        if (it != _proximity_bar.changed_frames.end()) {
                             framemOver = idx;
                             distance2frame = 0;
-                        } else if((it = _proximity_bar.changed_frames.find(idx - 1_f)) != _proximity_bar.changed_frames.end()) {
+                        }
+                        else if ((it = _proximity_bar.changed_frames.find(idx - 1_f)) != _proximity_bar.changed_frames.end()) {
                             framemOver = idx - 1_f;
                             distance2frame = 1;
-                        } else if((it = _proximity_bar.changed_frames.find(idx + 1_f)) != _proximity_bar.changed_frames.end()) {
+                        }
+                        else if ((it = _proximity_bar.changed_frames.find(idx + 1_f)) != _proximity_bar.changed_frames.end()) {
                             framemOver = idx + 1_f;
                             distance2frame = 1;
                         }
                     }
-                    
+
                     if (distance2frame < 2) {
                         _mOverFrame = framemOver;
-                        
-                    } else if(_bar->hovered()) {
-                        if(tracker_endframe.load().valid()) {
+
+                    }
+                    else if (_bar->hovered()) {
+                        if (tracker_endframe.load().valid()) {
                             _mOverFrame = Frame_t(min(float(_frame_info->video_length), e.hover.x * float(_frame_info->video_length) / max_w_));
                             _bar->set_dirty();
                         }
@@ -489,21 +492,22 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                     else
                         _mOverFrame.invalidate();
                 }
-                
-                if(_bar->hovered() && _bar->pressed() && this->mOverFrame().valid())
+
+                if (_bar->hovered() && _bar->pressed() && this->mOverFrame().valid())
                 {
                     SETTING(gui_frame) = Frame_t(this->mOverFrame());
                 }
-            });
+                });
+
             _bar->add_event_handler(MBUTTON, [this](Event e) {
-                if(e.mbutton.pressed && this->mOverFrame().valid() && e.mbutton.button == 0) {
+                if (e.mbutton.pressed && this->mOverFrame().valid() && e.mbutton.button == 0) {
                     //_gui->set_redraw();
                     GUICache::instance().set_redraw();
                     SETTING(gui_frame) = this->mOverFrame();
                 }
-            });
+                });
         }
-        
+
         bool changed = false;
         
         if(use_scale.y > 0) {
