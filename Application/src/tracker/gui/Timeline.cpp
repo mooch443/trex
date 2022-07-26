@@ -30,6 +30,8 @@ namespace gui {
 
     std::string _thread_status;
     std::atomic_bool _terminate;
+    std::mutex _terminate_mutex;
+    std::condition_variable _terminate_variable;
 
     const Tracker* _tracker{nullptr};
     FrameInfo* _frame_info{nullptr};
@@ -283,6 +285,7 @@ namespace gui {
 
     Timeline::~Timeline() {
         _terminate = true;
+        _terminate_variable.notify_all();
         _update_events_thread->join();
     }
     
@@ -519,25 +522,32 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
             {
                 auto image = Image::Make(1, max_w, 4);
                 image->set_to(0);
-                if(_bar->parent() && _bar->parent()->stage()) {
-                    guard.unlock();
-                    try {
-                        std::lock_guard<std::recursive_mutex> lock(_bar->parent()->stage()->lock());
-                        _bar->set_source(std::move(image));
-                    }
-                    catch(...) { }
-                    guard.lock();
-                }
                 
                 _proximity_bar.end.invalidate();
                 _proximity_bar.start.invalidate();
                 
                 changed = true;
                 _proximity_bar.changed_frames.clear();
+
+                if (_bar->parent() && _bar->parent()->stage()) {
+                    guard.unlock();
+                    try {
+                        std::lock_guard<std::recursive_mutex> lock(_bar->parent()->stage()->lock());
+                        _bar->set_source(std::move(image));
+                    }
+                    catch (...) {}
+                    guard.lock();
+                }
             }
         }
         
         if(tracker_endframe.load().valid() && _proximity_bar.end < tracker_endframe.load()) {
+            cv::Mat img;
+            if (_bar->parent() && _bar->parent()->stage()) {
+                std::lock_guard<std::recursive_mutex> lock(_bar->parent()->stage()->lock());
+                img = _bar->source()->get();
+            }
+
             std::unique_lock guard(_proximity_bar.mutex);
             auto individual_coverage = [](Frame_t frame) {
                 float count = 0;
@@ -555,16 +565,6 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
             }
             
             Vec2 pos(max_w / float(_frame_info->video_length) * _proximity_bar.end.get(), 0);
-            cv::Mat img;
-            if(_bar->parent() && _bar->parent()->stage()) {
-                guard.unlock();
-                try {
-                    std::lock_guard<std::recursive_mutex> lock(_bar->parent()->stage()->lock());
-                    img = _bar->source()->get();
-                }
-                catch (...) {}
-                guard.lock();
-            }
             
             if(_proximity_bar.end < _tracker->end_frame()) {
                 _proximity_bar.end = _tracker->end_frame();
@@ -636,6 +636,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
     
     void Timeline::update_thread() {
         _terminate = false;
+        _terminate_variable.notify_all();
         
         _foi_state.color = Color(255, 200, 100, 255);
         _foi_state.last_change = 0;
@@ -644,6 +645,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
         auto long_wait_time = std::chrono::seconds(1);
         auto short_wait_time = std::chrono::milliseconds(5);
         
+        std::unique_lock tmut(_terminate_mutex);
         while(!_terminate) {
             bool changed = false;
             
@@ -736,10 +738,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                 }
             }
             
-            if(!changed)
-                std::this_thread::sleep_for(long_wait_time);
-            else
-                std::this_thread::sleep_for(short_wait_time);
+            _terminate_variable.wait_for(tmut, !changed ? long_wait_time : short_wait_time);
         }
     }
     
