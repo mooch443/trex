@@ -949,7 +949,7 @@ void set_function_internal(const char* name_, T f, const std::string& m) {
             }
         }
         
-        throw SoftException("Cannot define function '", name_,"' in ", m," because the module does not exist.");
+        throw SoftException("Cannot define function ",fmt::clr<FormatColor::DARK_CYAN>(m.c_str()),"::", fmt::clr<FormatColor::CYAN>(name_)," because the module ",fmt::clr<FormatColor::DARK_CYAN>(m.c_str())," does not exist (you should probably have a look at previous error messages).");
     }
 }
 
