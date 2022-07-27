@@ -15,6 +15,6 @@ c_compiler:
 cxx_compiler:
 - vs2019 # [win]
 cxx_compiler_version:
-  - 10 # [linux]
+  - 11 # [linux]
 c_compiler_version:
-  - 10 # [linux]
+  - 11 # [linux]
