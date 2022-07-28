@@ -24,7 +24,8 @@ jobs:
     steps:
     - uses: actions/checkout@v3
       with:
-        - submodules: 'recursive'
+        ref: ${{ github.ref }}
+        submodules: 'recursive'
     - name: Cache conda
       uses: actions/cache@v3
       env:
