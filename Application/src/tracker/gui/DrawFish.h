@@ -24,9 +24,8 @@ namespace gui {
         Label* _label { nullptr };
 
         track::Individual& _obj;
-        const track::PPFrame* _frame;
-        GETTER(Frame_t, idx)
-        Frame_t _safe_idx;
+        GETTER(Frame_t, frame)
+        Frame_t _safe_frame;
         double _time;
         ExternalImage _image;
         int32_t _probability_radius = 0;
@@ -38,8 +37,6 @@ namespace gui {
 
         std::vector<Vertex> _vertices;
         std::vector<std::unique_ptr<Vertices>> _paths;
-        //Image _image;
-        //Image *_probabilities;
         const EventAnalysis::EventMap* _events;
         
         Vec2 _position;
@@ -81,7 +78,7 @@ namespace gui {
         ~Fish();
         void update(Base* base, Drawable* bowl, Entangled& p, DrawStructure& d);
         //void draw_occlusion(DrawStructure& window);
-        void set_data(Frame_t frameIndex, double time, const track::PPFrame& frame, const EventAnalysis::EventMap* events);
+        void set_data(Frame_t frameIndex, double time, const EventAnalysis::EventMap* events);
         
     private:
         //void paint(cv::Mat &target, int max_frames = 1000) const;

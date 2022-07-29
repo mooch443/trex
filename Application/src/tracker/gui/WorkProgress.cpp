@@ -313,6 +313,7 @@ void WorkProgress::update(gui::DrawStructure &base, gui::Section *section) {
             static_desc.set_txt(_description);
             static_desc.set_pos(offset);
             static_desc.set_origin(Vec2(0.5, 0));
+            static_desc.set_max_size(screen_dimensions * 0.66);
             static_desc.set_background(Transparent, Transparent);
             
             base.advance_wrap(static_desc);
@@ -349,7 +350,7 @@ void WorkProgress::update(gui::DrawStructure &base, gui::Section *section) {
             Size2 bar_size(width, 30);
             
             base.add<Rect>(Bounds(Vec2(0, offset.y), bar_size), White.alpha(100), Black, Vec2(1), Vec2(0.5, 0));
-            auto bar = base.add<Rect>(Bounds(Vec2(1, 1 + offset.y), Size2(bar_size.width * _percent-2, bar_size.height-2)), White.alpha(180), White, Vec2(1), Vec2(0.5, 0));
+            auto bar = base.add<Rect>(Bounds(Vec2(1, 1 + offset.y), Size2(bar_size.width * saturate(_percent.load(), 0.f, 1.f) - 2, bar_size.height - 2)), White.alpha(180), White, Vec2(1), Vec2(0.5, 0));
             offset += Vec2(0, bar->height() + margin);
             width = max(width, bar->width());
         }

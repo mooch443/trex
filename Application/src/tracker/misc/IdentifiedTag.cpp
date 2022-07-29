@@ -2,6 +2,70 @@
 #include <misc/ProximityGrid.h>
 #include <misc/ranges.h>
 
+
+namespace track {
+namespace tags {
+
+struct BidAndProbability {
+    pv::bid bdx;
+    float p;
+    
+    constexpr auto operator<=>(const BidAndProbability&) const = default;
+    std::string toStr() const {
+        return "BidP<bdx:"+Meta::toStr(bdx)+" p:"+Meta::toStr(p)+">";
+    }
+};
+
+struct AssignmentsPerTag {
+    Idx_t tag;
+    mutable std::shared_mutex mutex;
+    std::unordered_map<Frame_t, BidAndProbability> detections;
+    
+    auto operator<=>(const AssignmentsPerTag& other) const {
+        return tag <=> other.tag;
+    }
+    
+    BidAndProbability assignment_in_frame(Frame_t frame) const {
+        std::shared_lock guard(mutex);
+        auto it = detections.find(frame);
+        if(it != detections.end()) {
+            return it->second;
+        }
+        return BidAndProbability{};
+    }
+    
+    void add_assignment(Frame_t frame, BidAndProbability&& assignment) {
+        std::unique_lock guard(mutex);
+        auto it = detections.find(frame);
+        if(it != detections.end()) {
+            assert(assignment.bdx.valid());
+            if(it->second.bdx.valid() && it->second.bdx != assignment.bdx) {
+                if(it->second.p < assignment.p) {
+                    // replace because the probability is worse
+                    //detections.erase(it);
+                    FormatWarning("There is already a detection for tag ", tag, " in frame ", frame, ": ", it->second, ". Using new: ", assignment);
+                    detections.insert_or_assign(it->first, std::move(assignment));
+                    //std::swap(std::move(it->second), std::move(assignment));
+                } else {
+                    FormatWarning("There is already a detection for tag ", tag, " in frame ", frame, ": ", it->second, ". Skipping assignment to ", assignment);
+                }
+            } else
+                it->second = std::move(assignment);
+            
+            return;
+        }
+        
+        detections.emplace(frame, std::move(assignment));
+    }
+    
+    size_t hash() const {
+        return std::hash<Idx_t>()( tag );
+    }
+};
+
+}
+}
+
 namespace std {
     template <>
     struct hash<track::tags::Detection> {
@@ -13,6 +77,13 @@ namespace std {
     template <>
     struct hash<track::tags::Assignment> {
         size_t operator()(const track::tags::Assignment& k) const {
+            return k.hash();
+        }
+    };
+
+    template <>
+    struct hash<track::tags::AssignmentsPerTag> {
+        size_t operator()(const track::tags::AssignmentsPerTag& k) const {
             return k.hash();
         }
     };
@@ -120,30 +191,53 @@ namespace tags {
         return UnorderedVectorSet(std::move(result));
     }
 
+    inline static std::unordered_map<Idx_t, AssignmentsPerTag> assignments;
 	inline static std::unordered_map<Frame_t, DetectionGrid> grid;
-    inline static std::mutex grid_mutex;
+    inline static std::shared_mutex grid_mutex;
     inline static std::atomic<uint64_t> added_entries{ 0 };
 
     void detected(Frame_t frame, Detection&& tag) {
         ++added_entries;
+        
+        BidAndProbability translate{.bdx=tag.bid, .p=tag.p};
 
         std::unique_lock guard(grid_mutex);
-        grid[frame].insert(tag.pos.x, tag.pos.y, Assignment{std::move(tag)});
+        auto it = assignments.find(tag.id);
+        if(!tag.id.valid())
+            FormatWarning("Tag id ", tag.id, " is not valid for blob ", tag.bid, " at ", tag.pos);
+        if(it != assignments.end())
+            it->second.add_assignment(frame, std::move(translate));
+        else {
+            auto &atg = assignments[tag.id];
+            atg.tag = tag.id;
+            atg.add_assignment(frame, std::move(translate));
+        }
+        //grid[frame].insert(tag.pos.x, tag.pos.y, Assignment{std::move(tag)});
     }
 
-    UnorderedVectorSet<std::tuple<float, Assignment>> query(Frame_t f, const Vec2& p, float d) {
-        std::unique_lock guard(grid_mutex);
+    /*UnorderedVectorSet<std::tuple<float, Assignment>> query(Frame_t f, const Vec2& p, float d) {
+        std::shared_lock guard(grid_mutex);
         return grid[f].query(p, d);
-    }
+    }*/
 
-    void remove(Frame_t frame, pv::bid bid) {
+    void remove(Frame_t /*frame*/, pv::bid /*bid*/) {
         std::unique_lock guard(grid_mutex);
         throw U_EXCEPTION("Remove not implemented");
         //grid[frame].erase(Assignment{.bid = bid});
     }
 
     Assignment find(Frame_t frame, pv::bid bdx) {
-        std::unique_lock guard(grid_mutex);
+        std::shared_lock guard(grid_mutex);
+        for(const auto &[id, tag] : assignments) {
+            auto a = tag.assignment_in_frame(frame);
+            if(a.bdx.valid() && bdx == a.bdx) {
+                return Assignment{id, bdx, a.p};
+            }
+        }
+        
+        return Assignment{};
+        
+        /*std::shared_lock guard(grid_mutex);
         auto it = grid.find(frame);
         if (it == grid.end())
             return {};
@@ -151,6 +245,8 @@ namespace tags {
 #if !defined(_MSC_VER) || _MSC_VER >= 1930
         return it->second.find(bdx);
 #else
+        // Old MSVC versions (e.g. 2019) will not compile
+        // the above code, unfortunately. So here we go...
         for (const auto& set : it->second.get_grid()) {
             auto it = std::find(set.begin(), set.end(), bdx);
             if (it != set.end())
@@ -158,7 +254,7 @@ namespace tags {
         }
 
         return Assignment{};
-#endif
+#endif*/
     }
 
     bool available() {

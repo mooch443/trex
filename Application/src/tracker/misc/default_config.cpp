@@ -104,6 +104,13 @@ namespace default_config {
         "Adaptively increase the threshold of closeby objects, until separation.",
         "Use the previously known positions of objects to place a seed within the overlapped objects and perform a watershed run."
     )
+
+ENUM_CLASS_DOCS(visual_identification_version_t,
+    "This always points to the current version.",
+    "The order of Max-Pooling layers was changed, along with some other minor changes.",
+    "Changed activation order, added BatchNormalization. No Flattening to maintain spatial context.",
+    "The original layout."
+)
     
     static const std::map<std::string, std::string> deprecated = {
         {"outline_step", "outline_smooth_step"},
@@ -581,6 +588,7 @@ file::Path conda_environment_path() {
         CONFIG("recognition_image_size", Size2(80, 80), "Size of each image generated for network training.");
         CONFIG("recognition_image_scale", float(1), "Scaling applied to the images before passing them to the network.");
         CONFIG("recognition_save_training_images", false, "If set to true, the program will save the images used for a successful training of the recognition network to the output path.");
+        CONFIG("visual_identification_version", visual_identification_version_t::current, "Newer versions of TRex sometimes change the network layout for (e.g.) visual identification, which will make them incompatible with older trained models. This parameter allows you to change the expected version back, to ensure backwards compatibility.");
         CONFIG("gpu_enable_accumulation", true, "Enables or disables the idtrackerai-esque accumulation protocol cascade. It is usually a good thing to enable this (especially in more complicated videos), but can be disabled as a fallback (e.g. if computation time is a major constraint).");
         CONFIG("gpu_accepted_uniqueness", float(0), "If changed (from 0), the ratio given here will be the acceptable uniqueness for the video - which will stop accumulation if reached.");
         CONFIG("auto_train_dont_apply", false, "If set to true, setting `auto_train` will only train and not apply the trained network.");

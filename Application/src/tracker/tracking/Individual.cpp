@@ -112,7 +112,7 @@ struct RecTask {
                     //if(!_queue.empty())
                     
                     if(!_queue.empty() && _queue.size() % 10 == 0 && _terminate) {
-                        //print("task ", counted.load(), " -> ", _queue.size(), " tasks left (frame: ", task._frames.back(), ")");
+                        print("waiting for task ", counted.load(), " -> ", _queue.size(), " tasks left (frame: ", task._frames.back(), ")");
                         
                         /*std::unordered_set<std::tuple<Idx_t, Frame_t>> segments;
                         std::map<Idx_t, std::vector<Frame_t>> histo;

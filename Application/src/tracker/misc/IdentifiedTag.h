@@ -31,6 +31,7 @@ struct Assignment {
     float p;
     
     Assignment() = default;
+    Assignment(Idx_t id, pv::bid bid, float p) : id(id), bid(bid), p(p) {}
     Assignment(Detection&& d)
         : id(d.id), bid(d.bid), p(d.p)
     {}
@@ -57,7 +58,7 @@ struct Assignment {
 	void detected(Frame_t, Detection&& tag);
 	void remove(Frame_t, pv::bid);
 	Assignment find(Frame_t, pv::bid);
-	UnorderedVectorSet<std::tuple<float, Assignment>> query(Frame_t frame, const Vec2& pos, float distance);
+	//UnorderedVectorSet<std::tuple<float, Assignment>> query(Frame_t frame, const Vec2& pos, float distance);
 	bool available();
 }
 }

@@ -20,6 +20,10 @@ struct Idx_t {
     constexpr bool valid() const { return _identity != cmn::infinity<uint32_t>(); }
     
     constexpr auto operator<=>(const Idx_t& other) const {
+#ifndef NDEBUG
+        if(!valid() || !other.valid())
+            throw std::invalid_argument("Comparing to an invalid Idx_t does not produce the desired outcome.");
+#endif
         return _identity <=> other._identity;
     }
     

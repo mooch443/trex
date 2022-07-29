@@ -29,6 +29,7 @@
 #ifndef NDEBUG
 //#define PAIRING_PRINT_STATS
 #endif
+//#define TREX_DEBUG_IDENTITIES
 
 namespace track {
     auto *tracker_lock = new std::recursive_timed_mutex;
@@ -1257,9 +1258,9 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                 
                 auto it = blob_mappings.find(bdx);
                 if(it == blob_mappings.end()) {
-                    blob_mappings[bdx] = { Idx_t() };
+                    blob_mappings[bdx] = { };
                 } else{
-                    it->second.insert(Idx_t());
+                    //it->second.insert(Idx_t());
                 }
                 
                 Log(out, "\t\tManually splitting ", (uint32_t)bdx);
@@ -1316,7 +1317,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                 
                 for(auto fdx: blob_mappings.at(current)) {
                     // ignore manually forced splits
-                    if(fdx < 0)
+                    if(!fdx.valid())
                         continue;
                     
                     for(auto &b : fish_mappings.at(fdx)) {
@@ -1923,7 +1924,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             }
             auto index = fish->add(props, frameIndex, frame, blob, -1, match_mode);
             if(index == -1) {
-                FormatExcept("Was not able to assign individual ", fish->identity().ID()," with blob ", blob->blob_id(),"");
+                FormatExcept("Was not able to assign individual ", fish->identity().ID()," with blob ", blob->blob_id()," in frame ", frameIndex);
                 return;
             }
             
@@ -2271,7 +2272,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         
         auto automatic_assignments = automatically_assigned(frameIndex);
         for(auto && [fdx, bdx] : automatic_assignments) {
-            if(bdx < 0)
+            if(!bdx.valid())
                 continue; // dont assign this fish
             
             Individual *fish = nullptr;
@@ -3959,9 +3960,13 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
             return 1.0/(1.0 + exp((0.5-x)*2.0*M_PI));
         };
         
-        const size_t n_lower_bound = max(5, FAST_SETTINGS(frame_rate) * 0.1f);
+        const size_t n_lower_bound =  source == IdentitySource::QRCodes ? 2  : max(5, FAST_SETTINGS(frame_rate) * 0.1f);
 
-        auto collect_virtual_fish = [n_lower_bound, after_frame, &virtual_fish, &assigned_ranges]
+        auto collect_virtual_fish = [n_lower_bound, after_frame, &virtual_fish, &assigned_ranges
+#ifdef TREX_DEBUG_IDENTITIES
+            ,f
+#endif
+        ]
             (Idx_t fdx, Individual* fish, const FrameRange& range, size_t N, const std::map<Idx_t, float>& average)
         {
             if (N >= n_lower_bound || (range.start() == fish->start_frame() && N > 0)) {
@@ -3970,7 +3975,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                 return false;
 
 #ifdef TREX_DEBUG_IDENTITIES
-            log(f, "fish ", fdx, ": segment ", segment.start(), "-", segment.end(), " has ", n, " samples");
+            log(f, "fish ", fdx, ": segment ", range, " has ", N, " samples");
 #endif
             //print("fish ",fdx,": segment ",segment.start(),"-",segment.end()," has ",n," samples");
 
@@ -4021,7 +4026,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                     // because it starts earlier, cause thats the execution order)
                     auto rit = matches.begin();
 #ifdef TREX_DEBUG_IDENTITIES
-                    log(f, "\t", fdx, " (as ", it->first, ") Found range(s) ", *rit, " for search range ", segment, " p:", fit->second.probs.at(*rit), " n:", fit->second.samples.at(*rit), " (self:", it->second, ",n:", n, ")");
+                    log(f, "\t", fdx, " (as ", it->first, ") Found range(s) ", *rit, " for search range ", range, " p:", fit->second.probs.at(*rit), " n:", fit->second.samples.at(*rit), " (self:", it->second, ",n:", N, ")");
 #endif
 
                     Match::prob_t n_me = N;//segment.end() - segment.start();
@@ -4035,7 +4040,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                     Match::prob_t sum_he = sigmoid(fit->second.probs.at(*rit)) * sigmoid(n_he);
 
 #ifdef TREX_DEBUG_IDENTITIES
-                    log(f, "\tself:", segment.length(), " ", it->second, " other:", rit->length(), " ", fit->second.probs.at(*rit), " => ", sum_me, " / ", sum_he);
+                    log(f, "\tself:", range.length(), " ", it->second, " other:", rit->length(), " ", fit->second.probs.at(*rit), " => ", sum_me, " / ", sum_he);
 #endif
 
                     if (sum_me > sum_he) {
@@ -4057,7 +4062,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
             }
 
 #ifdef TREX_DEBUG_IDENTITIES
-            log(f, "\tassigning ", it->first, " to ", fdx, " with p ", it->second, " for ", segment.start(), segment.end());
+            log(f, "\tassigning ", it->first, " to ", fdx, " with p ", it->second, " for ", range);
 #endif
             virtual_fish[it->first].segments.insert(range);
             virtual_fish[it->first].probs[range] = it->second;
@@ -4075,7 +4080,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
             if (source == IdentitySource::QRCodes) {
                 for (auto& [start, assign] : fish->qrcodes()) {
                     auto segment = fish->segment_for(start);
-                    if (segment) {
+                    if (segment && segment->contains(start)) {
                         std::map<Idx_t, float> a;
                         a[Idx_t(assign.best_id)] = assign.p;
                         collect_virtual_fish(fish->identity().ID(), fish, *segment, assign.samples, a);
@@ -4204,7 +4209,11 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
 #endif
         decltype(unassigned_ranges) still_unassigned;
 
-        auto apply = [this, &still_unassigned, &manual_splits, &assigned_ranges, &tmp_assigned_ranges]
+        auto apply = [ &still_unassigned, &manual_splits, &assigned_ranges, &tmp_assigned_ranges
+#ifdef TREX_DEBUG_IDENTITIES
+            ,f
+#endif
+        ]
         (Idx_t fdx, Individual* fish, FrameRange segment, Idx_t prev_id, Idx_t next_id, MotionRecord* prev_pos, MotionRecord* next_pos, Frame_t prev_blob_frame)
         {
             Vec2 pos_start(FLT_MAX), pos_end(FLT_MAX);
@@ -4231,7 +4240,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
 
                 if (chosen_id.valid()) {
 #ifdef TREX_DEBUG_IDENTITIES
-                    if (segment.start() == 0) {
+                    if (segment.start() == 0_f) {
                         log(f, "Fish ", fdx, ": chosen_id ", chosen_id, ", assigning ", segment, " (", dprev, " / ", dnext, ")...");
                     }
 #endif

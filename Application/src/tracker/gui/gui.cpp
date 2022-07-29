@@ -1667,7 +1667,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                                 });
                             }
 
-                            PD(cache)._fish_map[fish]->set_data(frameNr, props->time, PD(cache).processed_frame, empty_map);
+                            PD(cache)._fish_map[fish]->set_data(frameNr, props->time, empty_map);
 
                             {
                                 std::unique_lock guard(Categorize::DataStore::cache_mutex());
@@ -1727,7 +1727,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                 }
                 
                 for(auto it = PD(cache)._fish_map.cbegin(); it != PD(cache)._fish_map.cend();) {
-                    if(it->second->idx() != frameNr) {
+                    if(it->second->frame() != frameNr) {
                         it->first->unregister_delete_callback(it->second.get());
                         it = PD(cache)._fish_map.erase(it);
                     } else
@@ -2660,7 +2660,9 @@ void GUI::update_display_blobs(bool draw_blobs, Section* ) {
                     //auto bds = bowl.transformRect((*it)->blob->bounds());
                     //if(bds.overlaps(screen_bounds))
                     //{
-                if(!gui_show_only_unassigned || !contains(PD(cache).active_blobs, (*it)->blob->blob_id())) {
+                if(!gui_show_only_unassigned ||
+                   (!PD(cache).display_blobs.contains((*it)->blob.get()) && !contains(PD(cache).active_blobs, (*it)->blob->blob_id())))
+                {
                     (*it)->convert();
                     //vector.push_back((*it)->convert());
                     map[(*it)->blob.get()] = it->get();
@@ -3667,6 +3669,8 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                 
                 if(found * 2 <= N && N > 0) {
                     print("fixing...");
+                    work().set_item("Fixing old blob_ids...");
+                    work().set_description("This is necessary because you are loading an <b>old</b> .results file with <b>visual identification data</b> and, since the format of blob_ids has changed, we would otherwise be unable to associate the objects with said visual identification info.\n<i>If you want to avoid this step, please use the older TRex version to load the file or let this run and overwrite the old .results file (so you don't have to wait again). Be careful, however, as information might not transfer over perfectly.</i>\n");
                     auto old_id_from_position = [](Vec2 center) {
                         return (uint32_t)( uint32_t((center.x))<<16 | uint32_t((center.y)) );
                     };
@@ -3782,8 +3786,10 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                         next_recognition[k] = tmp;
                         
                         ++i;
-                        if(i % uint64_t(N * 0.1) == 0)
+                        if(i % uint64_t(N * 0.1) == 0) {
                             print("Correcting old-format pv::bid: ", dec<2>(double(i) / double(N) * 100), "%");
+                            work().set_percent(double(i) / double(N));
+                        }
                     }
                     
                     print("Found:", all_found, " not found:", not_found);

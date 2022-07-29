@@ -1647,6 +1647,9 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
             auto epoch = std::chrono::time_point<std::chrono::system_clock>();
             _processed.set_start_time(!_video || !_video->has_timestamps() ? std::chrono::system_clock::now() : (epoch + std::chrono::microseconds(_video->start_timestamp().get())));
             _processed.start_writing(true);
+            
+        } else {
+            assert(task->current->index() == 0 || task->current->index() == _last_index + 1);
         }
         
         Timer timer;
@@ -1671,7 +1674,6 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
     auto stamp = task->current->timestamp();
     auto index = task->current->index();
 
-    assert(index == 0 || index == _last_index + 1);
     _last_index = index;
 
     if (added && tracker) {
