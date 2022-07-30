@@ -9,10 +9,11 @@
 namespace track {
     using namespace cmn;
 
-    struct TREX_EXPORT PackagedTask {
+    struct PackagedTask {
         std::packaged_task<bool(void)> _task;
         bool _can_run_before_init;
-        PackagedTask(auto&& task, bool can_run) : _task(std::move(task)), _can_run_before_init(can_run) {}
+        template<typename F>
+        PackagedTask(F&& task, bool can_run) : _task(std::move(task)), _can_run_before_init(can_run) {}
         PackagedTask(PackagedTask&&) = default;
         PackagedTask(const PackagedTask&) = delete;
         PackagedTask& operator=(PackagedTask&&) = default;

@@ -95,6 +95,18 @@ struct RecTask {
     Idx_t _fdx;
     inline static Idx_t _current_fdx;
 
+    RecTask() = default;
+    RecTask(RecTask&&) = default;
+#if defined(_MSC_VER)
+    RecTask(const RecTask&) {
+        throw std::exception();
+    }
+#else
+    RecTask(const RecTask&) = delete;
+#endif
+    RecTask& operator=(RecTask&&) = default;
+    RecTask& operator=(const RecTask&) = delete;
+
     static void thread() {
         static std::atomic<size_t> counted{ 0 };
 
@@ -207,12 +219,11 @@ struct RecTask {
     static void update(RecTask&& task) {
         auto individual = task.individual;
         
-        auto apply = std::bind( [] (RecTask& task) mutable -> bool {
+        auto apply = [task = std::move(task)]() mutable -> bool {
             
             PythonIntegration::set_variable("tag_images", task._images, tagwork);
             
-            auto receive = [task = std::move(task)](std::vector<int64_t> values) mutable
-            {
+            auto receive = [task = std::move(task)](std::vector<int64_t> values) mutable {
                 Predictions result{
                     ._segment_start = task._segment_start,
                     .individual = task.individual,
@@ -287,15 +298,9 @@ struct RecTask {
             PythonIntegration::set_function("receive", std::move(pt), tagwork);
             PythonIntegration::run(tagwork, "predict");
             PythonIntegration::unset_function("receive", tagwork);
-            /*PythonIntegration::set_function("receive", std::packaged_task<void(std::vector<int64_t>)>([](std::vector<int64_t> v){
-                FormatError("Illegal call. ", v.size());
-            }), tagwork);*/
-            //PythonIntegration::set_function("receive", [](std::vector<int64_t> v) {
-           //     FormatError("Illegal call. ", v.size());
-            //    }, tagwork);
             
             return true;
-        }, std::move(task));
+        };
 
         auto res = PythonIntegration::async_python_function(std::move(apply)).get();
         if(!res) {
@@ -435,12 +440,13 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
                         //print("[update] at ", frame," ", segment ? segment->range : Range<Frame_t>(), " individual:", identity().ID(), " with ended:", segment_ended, " lastqrcodepred:", _last_predicted_id, " lastqrframe:",_last_requested_qrcode, " images:", it->second.size());
                         
                         if(it->second.size() > 2 || segment_ended) {
-                            RecTask task{
-                                ._segment_start = segment->start(),
-                                .individual = identity().ID(),
-                                ._optional = !segment_ended,
-                                ._fdx = identity().ID()
-                            };
+                            RecTask task;
+                            {
+                                task._segment_start = segment->start(),
+                                    task.individual = identity().ID(),
+                                    task._optional = !segment_ended,
+                                    task._fdx = identity().ID();
+                            }
 
                             task._callback = [this, range = segment->range, N = it->second.size()](Predictions&& prediction) {
                                 //print("got callback in ", _identity.ID(), " (", prediction.individual, ")");
