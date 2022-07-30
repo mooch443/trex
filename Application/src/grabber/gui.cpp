@@ -284,7 +284,7 @@ void GUI::draw(gui::DrawStructure &base) {
                     background->set_source(std::move(_image));
                 }
 
-                if (noise_image && !noise_image->empty()) {
+                if (noise_image && !noise_image->empty() && _noise) {
                     auto mat = noise_image->source()->get();
                     
                     if(last_noise) {
@@ -319,7 +319,7 @@ void GUI::draw(gui::DrawStructure &base) {
 
             if (background)
                 base.wrap_object(*background); 
-            if (noise_image)
+            if (noise_image && _noise)
                 base.wrap_object(*noise_image);
             //base.image(offset, convert, 1/scale);
 
