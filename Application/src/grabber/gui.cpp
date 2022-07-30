@@ -484,18 +484,28 @@ void GUI::draw(gui::DrawStructure &base) {
                 const int64_t analysed_range = FAST_SETTINGS(frame_rate) * 60 * 1;
 
                 size_t counter = 0;
+                const Frame_t search = Frame_t(max(0, Tracker::end_frame().get() - analysed_range));
 
                 for (auto& [fdx, fish] : tracker->individuals()) {
-                    auto codes = fish->qrcodes();
+                    auto it = fish->iterator_for(search);
+                    for (; it != fish->frame_segments().end(); ++it) {
+                        auto code = fish->qrcode_at((*it)->start());
+                        if (code.best_id == -1) {
+                            continue;
+                        }
+
+                        auto& seg = *it;
+
+                    //auto codes = fish->qrcodes();
                     //print("individual ", fish->identity().ID(), " has ", codes.size(), " codes.");
                     
-                    for (auto& [frame, code] : codes) {
+                    //for (auto& [frame, code] : codes) {
                         ++counter;
 
                         auto& [id, p, n] = code;
-                        auto seg = fish->segment_for(frame);
+                        //auto seg = fish->segment_for(frame);
                         auto color = ColorWheel(id).next();
-                        if (seg) {
+                        //if (seg) {
                             if (Tracker::end_frame() < seg->end() + Frame_t(displayed_range)) {
                                 const auto is_end = seg->contains(Frame_t(_frame->index()));
                                 float percent = saturate((float(_frame->index()) - float(seg->end().get())) / float(displayed_range), 0.f, 1.f);
@@ -541,9 +551,9 @@ void GUI::draw(gui::DrawStructure &base) {
                                     ++i;
                                 }
                             }
-                        }
-                        else
-                            FormatWarning("Individual ", fish->identity().ID(), " does not have ", frame, " despite being advertised by tags.");
+                        //}
+                        //else
+                        //    FormatWarning("Individual ", fish->identity().ID(), " does not have ", seg->start(), " despite being advertised by tags.");
                     }
                 }
 
