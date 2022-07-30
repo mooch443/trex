@@ -503,7 +503,7 @@ void GUI::draw(gui::DrawStructure &base) {
                 const int64_t analysed_range = FAST_SETTINGS(frame_rate) * 60 * 1;
 
                 size_t counter = 0;
-                const Frame_t search = Frame_t(max(0, Tracker::end_frame().get() - analysed_range));
+                //const Frame_t search = Frame_t(max(0, Tracker::end_frame().get() - analysed_range));
                 const Frame_t min_display_frame = Frame_t(max(0, Tracker::end_frame().get() - displayed_range));
 #endif
                 static const auto tags_recognize = SETTING(tags_recognize).value<bool>();
@@ -516,10 +516,11 @@ void GUI::draw(gui::DrawStructure &base) {
                     if (fish->end_frame() < min_display_frame)
                         continue;
                     
-                    auto it = fish->iterator_for(search);
+                    auto it = fish->iterator_for(min_display_frame);//search);
                     for (; it != fish->frame_segments().end(); ++it) {
                         const auto &seg = *it;
-                        if(seg->end() < search)
+                        //if(seg->end() < search)
+                        if(seg->end() < min_display_frame)
                             continue;
                         
                         positions.clear();
@@ -545,10 +546,18 @@ void GUI::draw(gui::DrawStructure &base) {
                         //!     - or we have a qrcode detected in here and want to display it
                         if(tags_recognize && speeds_ptr == nullptr)
                             continue;
-                            
-                        for(const auto i : seg->basic_index) {
-                            assert(i != -1);
-                            const auto &basic = fish->basic_stuff()[i];
+                        
+                        size_t idx = seg->basic_index.front();
+                        if(seg->start() < min_display_frame) {
+                            assert(seg->end() >= min_display_frame);
+                            idx = seg->basic_stuff(min_display_frame);
+                        }
+                        
+                        auto bit = fish->basic_stuff().begin() + idx;
+                        auto end = fish->basic_stuff().begin() + seg->basic_index.back();
+                        
+                        for(; bit != end; ++bit) {
+                            const auto &basic = *bit;//fish->basic_stuff()[idx];
                             const auto &frame = basic->frame;
                             
                             //auto bounds = basic->blob.calculate_bounds();
