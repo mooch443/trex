@@ -473,21 +473,25 @@ void GUI::draw(gui::DrawStructure &base) {
                 }
 
                 using namespace track;
-                const auto gui_outline_thickness = SETTING(gui_outline_thickness).value<uint8_t>();
+                static const auto gui_outline_thickness = SETTING(gui_outline_thickness).value<uint8_t>();
                 
                 auto tracker = _grabber.tracker_instance();
                 auto individuals = tracker->active_individuals();
 
 #if !COMMONS_NO_PYTHON
                 std::map<int64_t, std::tuple<float, float>> speeds;
-                const int64_t displayed_range = FAST_SETTINGS(frame_rate) * 10;
-                const int64_t analysed_range = FAST_SETTINGS(frame_rate) * 60 * 3;
-                
+                const int64_t displayed_range = FAST_SETTINGS(frame_rate) * 5;
+                const int64_t analysed_range = FAST_SETTINGS(frame_rate) * 60 * 1;
+
+                size_t counter = 0;
+
                 for (auto& [fdx, fish] : tracker->individuals()) {
                     auto codes = fish->qrcodes();
                     //print("individual ", fish->identity().ID(), " has ", codes.size(), " codes.");
                     
                     for (auto& [frame, code] : codes) {
+                        ++counter;
+
                         auto& [id, p, n] = code;
                         auto seg = fish->segment_for(frame);
                         auto color = ColorWheel(id).next();
@@ -497,18 +501,22 @@ void GUI::draw(gui::DrawStructure &base) {
                                 float percent = saturate((float(_frame->index()) - float(seg->end().get())) / float(displayed_range), 0.f, 1.f);
                                 
                                 std::vector<Vec2> positions;
+                                size_t i = 0;
                                 positions.reserve(min((size_t)displayed_range, seg->basic_index.size()));
                                 for (auto idx : seg->basic_index) {
                                     if (idx == -1)
                                         continue;
 
                                     auto& b = fish->basic_stuff()[idx];
-                                    if (positions.size() < displayed_range)
+                                    if (seg->basic_index.size() < displayed_range + i) {
                                         positions.push_back(b->centroid.pos<Units::PX_AND_SECONDS>());
 
-                                    auto& s = speeds[id];
-                                    std::get<0>(s) += b->centroid.speed<Units::CM_AND_SECONDS>();
-                                    std::get<1>(s)++;
+                                        auto& s = speeds[id];
+                                        std::get<0>(s) += b->centroid.speed<Units::CM_AND_SECONDS>();
+                                        std::get<1>(s)++;
+                                    }
+
+                                    ++i;
                                 }
                                 
                                 auto alpha = saturate(200.f * (1 - percent), 0, 255);
@@ -517,14 +525,20 @@ void GUI::draw(gui::DrawStructure &base) {
 
                             }
                             else if (Tracker::end_frame() < seg->end() + Frame_t(analysed_range))  {
+                                size_t i = 0;
+
                                 for (auto idx : seg->basic_index) {
                                     if (idx == -1)
                                         continue;
 
-                                    auto& b = fish->basic_stuff()[idx];
-                                    auto& s = speeds[id];
-                                    std::get<0>(s) += b->centroid.speed < Units::CM_AND_SECONDS>();
-                                    std::get<1>(s)++;
+                                    if (seg->basic_index.size() < analysed_range + i) {
+                                        auto& b = fish->basic_stuff()[idx];
+                                        auto& s = speeds[id];
+                                        std::get<0>(s) += b->centroid.speed < Units::CM_AND_SECONDS>();
+                                        std::get<1>(s)++;
+                                    }
+
+                                    ++i;
                                 }
                             }
                         }
@@ -532,6 +546,9 @@ void GUI::draw(gui::DrawStructure &base) {
                             FormatWarning("Individual ", fish->identity().ID(), " does not have ", frame, " despite being advertised by tags.");
                     }
                 }
+
+                if (Tracker::end_frame().get() % 1000 == 0)
+                    print("[GUI:debug] Processing ", counter, " positions.");
                 
                 Vec2 pos(_grabber.average().cols + 100, 120);
                 for (auto& [k, tup] : speeds) {
@@ -540,8 +557,8 @@ void GUI::draw(gui::DrawStructure &base) {
                     pos += Vec2(0, 50);
                 }
 #endif
-                const auto tags_recognize = SETTING(tags_recognize).value<bool>();
-                const auto gui_show_midline = SETTING(gui_show_midline).value<bool>();
+                static const auto tags_recognize = SETTING(tags_recognize).value<bool>();
+                static const auto gui_show_midline = SETTING(gui_show_midline).value<bool>();
 
                 for (auto& fish : individuals) {
                     if (fish->has(tracker->end_frame())) {
