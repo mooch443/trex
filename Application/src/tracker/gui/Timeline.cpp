@@ -425,23 +425,27 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
         auto && [offset, max_w] = timeline_offsets(_base);
         //const float max_h = Tracker::average().rows;
         
-        uint64_t last_change = FOI::last_change();
-        auto name = SETTING(gui_foi_name).value<std::string>();
-        
-        if(last_change != _foi_state.last_change || name != _foi_state.name) {
-            _foi_state.name = name;
-            
-            if(!_foi_state.name.empty()) {
-                long_t id = FOI::to_id(_foi_state.name);
-                if(id != -1) {
-                    _foi_state.changed_frames = FOI::foi(id);//_tracker->changed_frames();
-                    _foi_state.color = FOI::color(_foi_state.name);
+        // initialize and check FOI status
+        {
+            uint64_t last_change = FOI::last_change();
+            auto name = SETTING(gui_foi_name).value<std::string>();
+
+            if (last_change != _foi_state.last_change || name != _foi_state.name) {
+                _foi_state.name = name;
+
+                if (!_foi_state.name.empty()) {
+                    long_t id = FOI::to_id(_foi_state.name);
+                    if (id != -1) {
+                        _foi_state.changed_frames = FOI::foi(id);//_tracker->changed_frames();
+                        _foi_state.color = FOI::color(_foi_state.name);
+                    }
                 }
+
+                _foi_state.last_change = last_change;
             }
-            
-            _foi_state.last_change = last_change;
         }
         
+        // initialize the bar if not yet done
         if (_bar == NULL) {
             _bar = std::make_unique<ExternalImage>(Image::Make(), Vec2());
             _bar->set_color(White.alpha(GUI_SETTINGS(gui_timeline_alpha)));
@@ -497,7 +501,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                 {
                     SETTING(gui_frame) = Frame_t(this->mOverFrame());
                 }
-                });
+            });
 
             _bar->add_event_handler(MBUTTON, [this](Event e) {
                 if (e.mbutton.pressed && this->mOverFrame().valid() && e.mbutton.button == 0) {
@@ -505,7 +509,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                     GUICache::instance().set_redraw();
                     SETTING(gui_frame) = this->mOverFrame();
                 }
-                });
+            });
         }
 
         bool changed = false;
@@ -548,12 +552,13 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
         if(tracker_endframe.load().valid() && _proximity_bar.end < tracker_endframe.load()) {
             cv::Mat img;
             if (_bar->parent() && _bar->parent()->stage()) {
-                std::lock_guard<std::recursive_mutex> lock(_bar->parent()->stage()->lock());
+                std::lock_guard lock(_bar->parent()->stage()->lock());
                 img = _bar->source()->get();
             }
 
             std::unique_lock guard(_proximity_bar.mutex);
             auto individual_coverage = [](Frame_t frame) {
+                Tracker::LockGuard guard("Timeline::individual_coverage", 100);
                 float count = 0;
                 if(Tracker::properties(frame)) {
                     for(auto fish : Tracker::instance()->active_individuals(frame)) {
@@ -658,7 +663,6 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                 //std::lock_guard<std::recursive_mutex> lock(GUI::instance()->gui().lock());
                 
                 Tracker::LockGuard guard("Timeline::update_thread", 100);
-                
                 if(guard.locked()) {
                     Timer timer;
                     
@@ -721,8 +725,6 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                     if(_updated_recognition_rect)
                         _updated_recognition_rect();
                     
-                    //! TODO: Need to implement thread-safety for the GUI here. Currently very unsafe, for example when the GUI is deleted.
-                    update_fois();
                     
                     _update_thread_updated_once = true;
                     
@@ -740,7 +742,11 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                         short_wait_time = std::chrono::milliseconds(5);
                     }
                 }
+
+                //! TODO: Need to implement thread-safety for the GUI here. Currently very unsafe, for example when the GUI is deleted.
+                update_fois();
             }
+
             
             _terminate_variable.wait_for(tmut, !changed ? long_wait_time : short_wait_time);
         }
