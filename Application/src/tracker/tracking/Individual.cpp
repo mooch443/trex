@@ -205,94 +205,104 @@ struct RecTask {
     }
 
     static void update(RecTask&& task) {
-        Predictions result{
-            ._segment_start = task._segment_start,
-            .individual = task.individual,
-            ._frames = std::move(task._frames)
-        };
+        auto individual = task.individual;
+        
+        auto apply = std::bind( [] (RecTask& task) mutable -> bool {
+            
+            PythonIntegration::set_variable("tag_images", task._images, tagwork);
+            
+            auto receive = [task = std::move(task)](std::vector<int64_t> values) mutable
+            {
+                Predictions result{
+                    ._segment_start = task._segment_start,
+                    .individual = task.individual,
+                    ._frames = std::move(task._frames),
+                    ._ids = std::move(values)
+                };
+                
+                //std::copy(values.begin(), values.end(), result._ids.end());
+                
+                std::unordered_map<int, int> _best_id;
+                for(auto i : result._ids)
+                    _best_id[i]++;
 
-        auto receive = [&](std::vector<float> values) {
-            //print("received ", values.size(), " ids for ", task._images.size(), " images.");
-            result._ids.assign(values.begin(), values.end());
-            //print(result._ids);
-
-            std::unordered_map<int, int> _best_id;
-            for(auto i : result._ids)
-                _best_id[i]++;
-
-            int maximum = -1;
-            int max_key = -1;
-            int N = result._ids.size();
-            for(auto& [k, v] : _best_id) {
-                if(v > maximum) {
-                    maximum = v;
-                    max_key = k;
+                int maximum = -1;
+                int max_key = -1;
+                int N = result._ids.size();
+                for(auto& [k, v] : _best_id) {
+                    if(v > maximum) {
+                        maximum = v;
+                        max_key = k;
+                    }
                 }
-            }
 
-            result.best_id = max_key;
-            result.p = float(maximum) / float(N);
-            //print("\t",result._segment_start,": individual ", result.individual, " is ", max_key, " with p:", result.p, " (", task._images.size(), " samples)");
+                result.best_id = max_key;
+                result.p = float(maximum) / float(N);
+                //print("\t",result._segment_start,": individual ", result.individual, " is ", max_key, " with p:", result.p, " (", task._images.size(), " samples)");
 
-            static const bool tags_save_predictions = SETTING(tags_save_predictions).value<bool>();
-            if(tags_save_predictions) {
-                static std::atomic<int64_t> saved_index{ 0 };
-                static const auto filename = (std::string)SETTING(filename).value<file::Path>().filename();
+                static const bool tags_save_predictions = SETTING(tags_save_predictions).value<bool>();
+                if(tags_save_predictions) {
+                    static std::atomic<int64_t> saved_index{ 0 };
+                    static const auto filename = (std::string)SETTING(filename).value<file::Path>().filename();
 
-                //if(result.p <= 0.7)
-                {
-                    file::Path output = pv::DataLocation::parse("output", "tags_"+filename) / Meta::toStr(max_key);
-                    if(!output.exists())
-                        output.create_folder();
-                    
-                    auto prefix = Meta::toStr(result.individual) + "." + Meta::toStr(result._segment_start);
-                    if(!(output / prefix).exists())
-                        (output / prefix).create_folder();
-                    
-                    auto files = (output / prefix).find_files();
-                    
-                    // delete files that already existed for this individual AND segment
-                    for(auto &f : files) {
-                        if(utils::beginsWith((std::string)f.filename(), prefix))
-                            f.delete_file();
+                    //if(result.p <= 0.7)
+                    {
+                        file::Path output = pv::DataLocation::parse("output", "tags_"+filename) / Meta::toStr(max_key);
+                        if(!output.exists())
+                            output.create_folder();
+                        
+                        auto prefix = Meta::toStr(result.individual) + "." + Meta::toStr(result._segment_start);
+                        if(!(output / prefix).exists())
+                            (output / prefix).create_folder();
+                        
+                        auto files = (output / prefix).find_files();
+                        
+                        // delete files that already existed for this individual AND segment
+                        for(auto &f : files) {
+                            if(utils::beginsWith((std::string)f.filename(), prefix))
+                                f.delete_file();
+                        }
+                        
+                        // save example image
+                        if(!task._images.empty())
+                            cv::imwrite((output / prefix).str() + ".png", task._images.front()->get());
+                        
+                        output = output / prefix / (Meta::toStr(saved_index.load()) + ".");
+
+                        print("\t\t-> exporting ", task._images.size()," guesses to ", output);
+                        
+                        for (size_t i=0; i<task._images.size(); ++i) {
+                            cv::imwrite(output.str() + Meta::toStr(i) + ".png", task._images[i]->get());
+                        }
                     }
                     
-                    // save example image
-                    if(!task._images.empty())
-                        cv::imwrite((output / prefix).str() + ".png", task._images.front()->get());
-                    
-                    output = output / prefix / (Meta::toStr(saved_index.load()) + ".");
-
-                    print("\t\t-> exporting ", task._images.size()," guesses to ", output);
-                    
-                    for (size_t i=0; i<task._images.size(); ++i) {
-                        cv::imwrite(output.str() + Meta::toStr(i) + ".png", task._images[i]->get());
-                    }
+                    ++saved_index;
                 }
                 
-                ++saved_index;
-            }
-        };
-
-        auto apply = [&]() -> bool {
-            PythonIntegration::set_variable("tag_images", task._images, tagwork);
-            PythonIntegration::set_function("receive", receive, tagwork);
+                //print("Calling callback on ", result.individual, " and frame ", result._segment_start);
+                task._callback(std::move(result));
+            };
+            
+            auto pt = std::packaged_task<void(std::vector<int64_t>)>(std::move(receive));
+            PythonIntegration::set_function("receive", std::move(pt), tagwork);
             PythonIntegration::run(tagwork, "predict");
-            PythonIntegration::set_function("receive", [](std::vector<float> v) {
+            PythonIntegration::unset_function("receive", tagwork);
+            /*PythonIntegration::set_function("receive", std::packaged_task<void(std::vector<int64_t>)>([](std::vector<int64_t> v){
                 FormatError("Illegal call. ", v.size());
-                }, tagwork);
-
+            }), tagwork);*/
+            //PythonIntegration::set_function("receive", [](std::vector<int64_t> v) {
+           //     FormatError("Illegal call. ", v.size());
+            //    }, tagwork);
+            
             return true;
-        };
+        }, std::move(task));
 
         auto res = PythonIntegration::async_python_function(std::move(apply)).get();
         if(!res) {
-            FormatError("There was an error during apply for ", result.individual);
+            FormatError("There was an error during apply for ", individual);
         }
         //else
         //    print("Predicted values for ", result.individual, " result: ", result._ids.size());
-
-        task._callback(std::move(result));
     }
 
     inline static std::unique_ptr<std::thread> _update_thread;

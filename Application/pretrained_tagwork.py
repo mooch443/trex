@@ -54,7 +54,7 @@ def predict():
         print("# empty images array")
     else:
         #print("# predicting ", len(tag_images))
-        receive(tagwork.predict(tag_images))
+        receive(tagwork.predict(tag_images).astype(np.int64))
 
         #del tag_images
 
