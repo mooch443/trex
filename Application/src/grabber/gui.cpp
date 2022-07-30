@@ -497,15 +497,17 @@ void GUI::draw(gui::DrawStructure &base) {
                                 float percent = saturate((float(_frame->index()) - float(seg->end().get())) / float(displayed_range), 0.f, 1.f);
                                 
                                 std::vector<Vec2> positions;
+                                positions.reserve(min((size_t)displayed_range, seg->basic_index.size()));
                                 for (auto idx : seg->basic_index) {
                                     if (idx == -1)
                                         continue;
 
                                     auto& b = fish->basic_stuff()[idx];
-                                    positions.push_back(b->centroid.pos<Units::PX_AND_SECONDS>());
+                                    if (positions.size() < displayed_range)
+                                        positions.push_back(b->centroid.pos<Units::PX_AND_SECONDS>());
 
                                     auto& s = speeds[id];
-                                    std::get<0>(s) += b->centroid.speed < Units::CM_AND_SECONDS>();
+                                    std::get<0>(s) += b->centroid.speed<Units::CM_AND_SECONDS>();
                                     std::get<1>(s)++;
                                 }
                                 
