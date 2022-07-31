@@ -660,86 +660,88 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
             
             //! Update the cached data
             if(GUICache::exists() && Tracker::instance()) {
-                //std::lock_guard<std::recursive_mutex> lock(GUI::instance()->gui().lock());
-                
-                Tracker::LockGuard guard("Timeline::update_thread", 100);
-                if(guard.locked()) {
-                    Timer timer;
-                    
-                    auto index = _frame_info->frameIndex.load();
-                    auto props = Tracker::properties(index);
-                    auto prev_props = Tracker::properties(index - 1_f);
-                    
-                    {
-                        std::unique_lock info_lock(_frame_info_mutex);
-                        
-                        _frame_info->tdelta = props && prev_props ? props->time - prev_props->time : 0;
-                        _frame_info->small_count = 0;
-                        _frame_info->big_count = 0;
-                        _frame_info->current_count = 0;
-                        _frame_info->up_to_this_frame = 0;
-                        _frame_info->analysis_range = Tracker::analysis_range();
-                        tracker_endframe = _tracker->end_frame();
-                        tracker_startframe = _tracker->start_frame();
-                        
-                        if(prev_props && props) {
-                            tdelta = _frame_info->tdelta;
-                        }
-                        
-                        _frame_info->training_ranges = _tracker->recognition() ? _tracker->recognition()->trained_ranges() : std::set<Range<Frame_t>>{};
-                        _frame_info->consecutive = _tracker->consecutive();
-                        _frame_info->global_segment_order = track::Tracker::global_segment_order();
-                        
-                        //if(longest != _frame_info->longest_consecutive && Tracker::recognition())
-                        //if(Tracker::recognition()) {
-                            /*for(auto &consec : _frame_info->global_segment_order) {
-                                if(!Tracker::recognition()->dataset_quality() || !Tracker::recognition()->dataset_quality()->has(consec)) {
-                                    Tracker::recognition()->update_dataset_quality();
-                                    break;
-                                }
-                            }*/
-                            //Tracker::recognition()->update_dataset_quality();
-                        //}
-                        
-                        if(Tracker::properties(_frame_info->frameIndex)) {
-                            for (auto& fish : _frame_info->frameIndex.load() >= tracker_startframe.load() && _frame_info->frameIndex.load() < tracker_endframe.load() ?  Tracker::active_individuals(_frame_info->frameIndex) : Tracker::set_of_individuals_t{}) {
-                                if ((int)fish->frame_count() < FAST_SETTINGS(frame_rate)*3) {
-                                    _frame_info->small_count++;
-                                } else
-                                    _frame_info->big_count++;
-                                
-                                if(fish->has(_frame_info->frameIndex))
-                                    ++_frame_info->current_count;
-                                
-                                if(fish->start_frame() <= _frame_info->frameIndex) {
-                                    _frame_info->up_to_this_frame++;
+                {
+                    Tracker::LockGuard guard("Timeline::update_thread", 100);
+                    if (guard.locked()) {
+                        Timer timer;
+
+                        auto index = _frame_info->frameIndex.load();
+                        auto props = Tracker::properties(index);
+                        auto prev_props = Tracker::properties(index - 1_f);
+
+                        {
+                            std::unique_lock info_lock(_frame_info_mutex);
+
+                            _frame_info->tdelta = props && prev_props ? props->time - prev_props->time : 0;
+                            _frame_info->small_count = 0;
+                            _frame_info->big_count = 0;
+                            _frame_info->current_count = 0;
+                            _frame_info->up_to_this_frame = 0;
+                            _frame_info->analysis_range = Tracker::analysis_range();
+                            tracker_endframe = _tracker->end_frame();
+                            tracker_startframe = _tracker->start_frame();
+
+                            if (prev_props && props) {
+                                tdelta = _frame_info->tdelta;
+                            }
+
+                            _frame_info->training_ranges = _tracker->recognition() ? _tracker->recognition()->trained_ranges() : std::set<Range<Frame_t>>{};
+                            _frame_info->consecutive = _tracker->consecutive();
+                            _frame_info->global_segment_order = track::Tracker::global_segment_order();
+
+                            //if(longest != _frame_info->longest_consecutive && Tracker::recognition())
+                            //if(Tracker::recognition()) {
+                                /*for(auto &consec : _frame_info->global_segment_order) {
+                                    if(!Tracker::recognition()->dataset_quality() || !Tracker::recognition()->dataset_quality()->has(consec)) {
+                                        Tracker::recognition()->update_dataset_quality();
+                                        break;
+                                    }
+                                }*/
+                                //Tracker::recognition()->update_dataset_quality();
+                            //}
+
+                            if (Tracker::properties(_frame_info->frameIndex)) {
+                                for (auto& fish : _frame_info->frameIndex.load() >= tracker_startframe.load() && _frame_info->frameIndex.load() < tracker_endframe.load() ? Tracker::active_individuals(_frame_info->frameIndex) : Tracker::set_of_individuals_t{}) {
+                                    if ((int)fish->frame_count() < FAST_SETTINGS(frame_rate) * 3) {
+                                        _frame_info->small_count++;
+                                    }
+                                    else
+                                        _frame_info->big_count++;
+
+                                    if (fish->has(_frame_info->frameIndex))
+                                        ++_frame_info->current_count;
+
+                                    if (fish->start_frame() <= _frame_info->frameIndex) {
+                                        _frame_info->up_to_this_frame++;
+                                    }
                                 }
                             }
                         }
-                    }
-                    
-                    //if(FAST_SETTINGS(calculate_posture))
-                    //    changed = EventAnalysis::update_events(_frame_info->frameIndex < tracker_endframe ? Tracker::active_individuals(_frame_info->frameIndex) : std::set<Individual*>{});
-                    
-                    // needs Tracker lock
-                    if(_updated_recognition_rect)
-                        _updated_recognition_rect();
-                    
-                    
-                    _update_thread_updated_once = true;
-                    
-                    if(timer.elapsed() > 0.1 && !FAST_SETTINGS(analysis_paused)) {
-                        if(long_wait_time < std::chrono::seconds(30)) {
-                            long_wait_time = std::chrono::seconds(30);
-                            short_wait_time = std::chrono::seconds(30);
-                            
-                            if(!FAST_SETTINGS(analysis_paused))
-                                FormatWarning("Throtteling some non-essential gui functions until analysis is over.");
+
+                        //if(FAST_SETTINGS(calculate_posture))
+                        //    changed = EventAnalysis::update_events(_frame_info->frameIndex < tracker_endframe ? Tracker::active_individuals(_frame_info->frameIndex) : std::set<Individual*>{});
+
+                        // needs Tracker lock
+                        if (_updated_recognition_rect)
+                            _updated_recognition_rect();
+
+
+                        _update_thread_updated_once = true;
+
+                        if (timer.elapsed() > 0.1 && !FAST_SETTINGS(analysis_paused)) {
+                            if (long_wait_time < std::chrono::seconds(30)) {
+                                long_wait_time = std::chrono::seconds(30);
+                                short_wait_time = std::chrono::seconds(30);
+
+                                if (!FAST_SETTINGS(analysis_paused))
+                                    FormatWarning("Throtteling some non-essential gui functions until analysis is over.");
+                            }
+
                         }
-                        
-                    } else {
-                        long_wait_time = std::chrono::seconds(1);
-                        short_wait_time = std::chrono::milliseconds(5);
+                        else {
+                            long_wait_time = std::chrono::seconds(1);
+                            short_wait_time = std::chrono::milliseconds(5);
+                        }
                     }
                 }
 
@@ -747,7 +749,6 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                 update_fois();
             }
 
-            
             _terminate_variable.wait_for(tmut, !changed ? long_wait_time : short_wait_time);
         }
     }
