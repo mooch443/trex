@@ -513,7 +513,7 @@ VideoOpener::VideoOpener()
                     
                     if(_screenshot_previous_size.empty()) {
                         {
-                            std::string info_text = "<h3>Info</h3>\n";
+                            std::string info_text = "";//<h3>Info</h3>\n";
                             info_text += "<key>resolution</key>: <ref><nr>"+Meta::toStr(_buffer->_video->size().width)+"</nr>x<nr>"+Meta::toStr(_buffer->_video->size().height)+"</nr></ref>\n";
                             
                             DurationUS us{ uint64_t( _buffer->_video->length() / double(_buffer->_video->framerate()) * 1000.0 * 1000.0 ) };
