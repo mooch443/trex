@@ -1296,7 +1296,7 @@ namespace Output {
                 DebugCallback("Finished writing ", filename, ".");
             }
         } else
-            throw U_EXCEPTION("Cannot move '",filename.str(),"' to '",filename.remove_extension().str(),"' (but results have been saved, you just have to rename the file).");
+            throw U_EXCEPTION("Cannot move ",filename," to ",filename.remove_extension()," (but results have been saved, you just have to rename the file).");
     }
     
     void TrackingResults::clean_up() {
@@ -1326,7 +1326,6 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
     const auto number_fish = FAST_SETTINGS(track_max_individuals);
     data_long_t prev = 0;
     data_long_t n = 0;
-    double prev_time = !_tracker.start_frame().valid() ? 0 : _tracker.properties(_tracker.start_frame())->time;
     
     //auto it = _tracker._active_individuals_frame.begin();
     if(_tracker._active_individuals_frame.size() != _tracker._added_frames.size()) {
@@ -1339,8 +1338,6 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
     ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator> iterator_map;
     
     for(const auto &props : _tracker._added_frames) {
-        prev_time = props->time;
-        
         // number of individuals actually assigned in this frame
         /*n = 0;
         for(const auto &fish : it->second) {

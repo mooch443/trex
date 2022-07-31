@@ -785,6 +785,17 @@ file::Path conda_environment_path() {
             return pv::DataLocation::parse("output", settings_file);
         });
         
+        pv::DataLocation::register_path("backup_settings", [](file::Path) -> file::Path {
+            file::Path settings_file(SETTING(filename).value<Path>().filename());
+            if(settings_file.empty())
+                throw U_EXCEPTION("settings_file (and like filename) is an empty string.");
+            
+            if(!settings_file.has_extension() || settings_file.extension() != "settings")
+                settings_file = settings_file.add_extension("settings");
+            
+            return pv::DataLocation::parse("output", "backup") / settings_file;
+        });
+        
         pv::DataLocation::register_path("input", [](file::Path filename) -> file::Path {
             if(!filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG

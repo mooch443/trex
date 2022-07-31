@@ -861,11 +861,6 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         const uint32_t num_blobs = (uint32_t)frame.blobs().size();
         const int threshold = FAST_SETTINGS(track_threshold);
         
-        //static const unsigned concurrentThreadsSupported = cmn::hardware_concurrency();
-        
-        //static Timing initial_filter("initial_filter", 1);
-        //initial_filter.start_measure();
-        
         size_t available_threads = 1 + (pool ? pool->num_threads() : 0);
         size_t maximal_threads = frame.blobs().size();
         size_t needed_threads = min(maximal_threads / (size_t)FAST_SETTINGS(blobs_per_thread), available_threads);
@@ -1619,7 +1614,6 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
     
     {
         using namespace Match;
-        static const unsigned concurrentThreadsSupported = cmn::hardware_concurrency();
         
         static Timing probs("Tracker::paired", 30);
         TakeTiming take(probs);
@@ -1818,7 +1812,6 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
 }
 
     void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
-        static const unsigned concurrentThreadsSupported = cmn::hardware_concurrency();
         double time = double(frame.frame().timestamp()) / double(1000*1000);
         
         if (!start_frame().valid() || start_frame() > frameIndex) {
@@ -1924,7 +1917,9 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             }
             auto index = fish->add(props, frameIndex, frame, blob, -1, match_mode);
             if(index == -1) {
+#ifndef NDEBUG
                 FormatExcept("Was not able to assign individual ", fish->identity().ID()," with blob ", blob->blob_id()," in frame ", frameIndex);
+#endif
                 return;
             }
             
@@ -2045,8 +2040,10 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 }
                 
             } else {
+#ifndef NDEBUG
                 if(frameIndex != start_frame())
                     FormatWarning("Individual number ", fdx," out of range in frame ",frameIndex,". Creating new one.");
+#endif
                 
                 auto blob = frame.find_bdx(bdx);
                 if(!blob) {

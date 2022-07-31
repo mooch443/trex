@@ -333,8 +333,7 @@ int main(int argc, char**argv) {
                             path = pv::DataLocation::parse("input", *found.begin());
                             
                         } else if(found.size() > 1) {
-                            auto str = Meta::toStr(found);
-                            print("Found too many files matching the pattern ",option.value,": ",str,".");
+                            print("Found too many files matching the pattern ",option.value,": ",found,".");
                         } else
                             print("No files found that match the pattern ", option.value,".");
                     }
@@ -348,7 +347,7 @@ int main(int argc, char**argv) {
                                 SETTING(filename) = path.remove_extension();
                                 break;
                             } else
-                                throw U_EXCEPTION("Cannot find results file ",path.str(),". (%d)");
+                                throw U_EXCEPTION("Cannot find results file ",path,".");
                         }
                     }
                     
@@ -356,7 +355,7 @@ int main(int argc, char**argv) {
                         path = path.add_extension("pv");
                     
                     if(!path.exists())
-                        throw U_EXCEPTION("Cannot find video file ",path.str(),". (",path.exists(),")");
+                        throw U_EXCEPTION("Cannot find video file ",path,". (",path.exists(),")");
                     
                     SETTING(filename) = path.remove_extension();
                     break;

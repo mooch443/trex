@@ -1181,7 +1181,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                 break;
                 
             default:
-                throw U_EXCEPTION("Unknown operator '",operation,"'");
+                throw U_EXCEPTION("Unknown operator ",operation);
                 break;
         }
         

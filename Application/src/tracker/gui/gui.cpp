@@ -450,7 +450,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                 GUI::set_redraw();
             }
             
-            if(name == "gui_background_color") {
+            if(name == "gui_background_color" && _base) {
                 _base->set_background_color(value.value<Color>());
             }
             
@@ -1084,8 +1084,8 @@ void GUI::reanalyse_from(Frame_t frame, bool in_thread) {
                 Output::Library::clear_cache();
                 PD(timeline)->reset_events(frame);
                 
-            } else {
-                FormatExcept("The requested frame ", frame," is not part of the video, and certainly beyond end_frame (", Tracker::end_frame(),".");
+            } else if(Tracker::end_frame().valid()) {
+                FormatExcept("The requested frame ", frame," is not part of the video, and certainly beyond end_frame (", Tracker::end_frame(),").");
             }
         }
         
@@ -2962,7 +2962,7 @@ void GUI::update_backups() {
 void GUI::start_backup() {
     work().add_queue("", [](){
         print("Writing backup of settings...");
-        GUI::write_config(true, TEXT, ".backup");
+        GUI::write_config(true, TEXT, "backup");
     });
 }
 
@@ -4060,7 +4060,7 @@ std::string GUI::info(bool escape) {
 }
 
 void GUI::write_config(bool overwrite, GUI::GUIType type, const std::string& suffix) {
-    auto filename = file::Path(pv::DataLocation::parse("output_settings").str() + suffix);
+    auto filename = pv::DataLocation::parse(suffix == "backup" ? "backup_settings" : "output_settings");
     auto text = default_config::generate_delta_config();
     
     if(filename.exists() && !overwrite) {

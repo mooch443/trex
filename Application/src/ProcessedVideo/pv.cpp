@@ -456,8 +456,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         std::lock_guard<std::mutex> guard(location_mutex);
         if(location_funcs.find(purpose) != location_funcs.end()) {
-            auto str = Meta::toStr(extract_keys(location_funcs));
-            throw U_EXCEPTION("Purpose '",purpose,"' already found in map with keys ",str,". Cannot register twice.");
+            throw U_EXCEPTION("Purpose ",purpose," already found in map with keys ",extract_keys(location_funcs),". Cannot register twice.");
         }
         
         location_funcs.insert({purpose, fn});
@@ -469,8 +468,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             std::lock_guard<std::mutex> guard(location_mutex);
             auto it = location_funcs.find(utils::trim(utils::lowercase(purpose)));
             if(it == location_funcs.end()) {
-                auto str = Meta::toStr(extract_keys(location_funcs));
-                throw U_EXCEPTION("Cannot find purpose '",purpose,"' in map with keys ",str," in order to modify path '",path.str(),"'.");
+                throw U_EXCEPTION("Cannot find purpose ",purpose," in map with keys ",extract_keys(location_funcs)," in order to modify path ",path,".");
             }
             
             fn = it->second;

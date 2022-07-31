@@ -43,11 +43,15 @@ struct AssignmentsPerTag {
                 if(it->second.p < assignment.p) {
                     // replace because the probability is worse
                     //detections.erase(it);
+#ifndef NDEBUG
                     FormatWarning("There is already a detection for tag ", tag, " in frame ", frame, ": ", it->second, ". Using new: ", assignment);
+#endif
                     detections.insert_or_assign(it->first, std::move(assignment));
                     //std::swap(std::move(it->second), std::move(assignment));
                 } else {
+#ifndef NDEBUG
                     FormatWarning("There is already a detection for tag ", tag, " in frame ", frame, ": ", it->second, ". Skipping assignment to ", assignment);
+#endif
                 }
             } else
                 it->second = std::move(assignment);

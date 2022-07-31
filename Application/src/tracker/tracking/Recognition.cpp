@@ -2097,7 +2097,7 @@ void Recognition::load_weights(std::string postfix) {
                         }
                         
                     } catch(const SoftExceptionImpl& e) {
-                        print("Runtime error: '", e.what(),"'");
+                        print("Runtime error: ", e.what());
                         return false;
                     }
                     
