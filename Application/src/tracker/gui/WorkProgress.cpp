@@ -410,7 +410,7 @@ void WorkProgress::update(gui::DrawStructure &base, gui::Section *section) {
     
     auto work_images = _images;
     if(!work_images.empty()) {
-        static VerticalLayout layout({});
+        static VerticalLayout layout;
         
         layout.set_policy(VerticalLayout::Policy::CENTER);
         std::vector<Layout::Ptr> objects;
