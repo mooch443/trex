@@ -779,6 +779,23 @@ FrameGrabber::~FrameGrabber() {
     }
 #endif
     
+    {
+        Timer timer;
+        while(!_tracker_terminated) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            if(timer.elapsed() > 30) {
+                timer.reset();
+                print("Still waiting for tracker to terminate...");
+            }
+        }
+    }
+    
+    if (_processed.open()) {
+        _processed.stop_writing();
+        _processed.close();
+        print("[closed]");
+    }
+    
     if(tracker) {
         ppvar.notify_all();
         _tracker_thread->join();
@@ -861,12 +878,6 @@ FrameGrabber::~FrameGrabber() {
         
         SETTING(terminate) = true; // TODO: Otherwise stuff would not have been exported
         delete tracker;
-    }
-
-    if (_processed.open()) {
-        _processed.stop_writing();
-        _processed.close();
-        print("[closed]");
     }
 
     FrameGrabber::instance = NULL;
@@ -1152,6 +1163,7 @@ void FrameGrabber::update_tracker_queue() {
     set_thread_name("Tracker::Thread");
     print("Starting tracker thread.");
     _terminate_tracker = false;
+    _tracker_terminated = false;
     
     //pybind11::module closed_loop;
     Timer content_timer;
@@ -1417,6 +1429,7 @@ void FrameGrabber::update_tracker_queue() {
     }
     
     print("Ending tracker thread.");
+    _tracker_terminated = true;
 }
 
 void FrameGrabber::ensure_average_is_ready() {

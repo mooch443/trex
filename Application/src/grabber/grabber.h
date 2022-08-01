@@ -217,7 +217,7 @@ public:
     void add_tracker_queue(const pv::Frame&, std::vector<pv::BlobPtr>&& tags, Frame_t);
     void update_tracker_queue();
     
-    std::atomic_bool _terminate_tracker;
+    std::atomic_bool _terminate_tracker, _tracker_terminated{false};
     std::vector<std::unique_ptr<std::thread>> _multi_pool;
     std::condition_variable _multi_variable;
     

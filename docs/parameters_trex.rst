@@ -2191,6 +2191,21 @@ TRex parameters
 
 
 
+.. function:: visual_identification_version(visual_identification_version_t)
+
+	**default value:** current
+
+	**possible values:**
+		- `current`: This always points to the current version.
+		- `v118_3`: The order of Max-Pooling layers was changed, along with some other minor changes.
+		- `v110`: Changed activation order, added BatchNormalization. No Flattening to maintain spatial context.
+		- `v100`: The original layout.
+
+	Newer versions of TRex sometimes change the network layout for (e.g.) visual identification, which will make them incompatible with older trained models. This parameter allows you to change the expected version back, to ensure backwards compatibility.
+
+
+
+
 .. function:: web_quality(int)
 
 	**default value:** 75
