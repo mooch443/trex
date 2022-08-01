@@ -4,6 +4,7 @@
 #include <misc/idx_t.h>
 #include <misc/vec2.h>
 #include <misc/PVBlob.h>
+#include <file/DataFormat.h>
 
 namespace track {
 namespace tags {
@@ -60,5 +61,10 @@ struct Assignment {
 	Assignment find(Frame_t, pv::bid);
 	//UnorderedVectorSet<std::tuple<float, Assignment>> query(Frame_t frame, const Vec2& pos, float distance);
 	bool available();
+    
+    //! writes to results file / binary format
+    void write(Data&);
+    //! reads from results file / binary format
+    void read(Data&);
 }
 }

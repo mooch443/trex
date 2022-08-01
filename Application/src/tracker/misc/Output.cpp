@@ -1199,6 +1199,9 @@ namespace Output {
 
         // write categorization data, if it exists
         Categorize::DataStore::write(*this, header().version);
+        
+        //! write other tag representation
+        tags::write(*this);
     }
     
     uint64_t ResultsFormat::write_data(uint64_t num_bytes, const char *buffer) {
@@ -1421,6 +1424,10 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         // read the actual categorization data first
         if(file.header().has_categories)
             Categorize::DataStore::read(file, file.header().version);
+        
+        if(file.header().version >= ResultsFormat::Versions::V_35) {
+            tags::read(file);
+        }
 
         // read frame properties
         uint64_t L;

@@ -113,8 +113,9 @@ namespace Output {
             V_33, // adding Categorize::DataStore
 
             V_34, // adding tag information + time of creation
+            V_35, // adding tags::information so it can be preserved across saves
             
-            current = V_34
+            current = V_35
         };
         
     private:

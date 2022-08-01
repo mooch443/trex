@@ -230,6 +230,64 @@ namespace tags {
         //grid[frame].erase(Assignment{.bid = bid});
     }
 
+    void write(Data& data) {
+        std::shared_lock guard(grid_mutex);
+        print("Writing ", assignments.size(), " tags to file...");
+
+        uint64_t counter = sizeof(uint32_t);
+        for(const auto &[id, tag] : assignments) {
+            counter += 2 * sizeof(uint32_t)
+                + tag.detections.size() * (sizeof(uint32_t) * 2 + sizeof(float));
+        }
+        
+        print("tags take up ", FileSize{counter});
+        
+        DataPackage package(counter);
+        package.write<uint32_t>(assignments.size());
+        
+        for(const auto &[id, tag] : assignments) {
+            package.write<uint32_t>(id._identity);
+            package.write<uint32_t>(tag.detections.size());
+            for(auto &[frame, pair] : tag.detections) {
+                package.write<uint32_t>(frame.get());
+                package.write<uint32_t>(pair.bdx._id);
+                package.write<float>(pair.p);
+            }
+        }
+        
+        data.write(package);
+    }
+
+    void read(Data& data) {
+        std::unique_lock guard(grid_mutex);
+        uint32_t N;
+        uint32_t identity;
+        BidAndProbability pair;
+        uint32_t frame;
+        
+        data.read<uint32_t>(N);
+        assignments.clear();
+        
+        print("Reading ", N, " assignments.");
+        
+        for (uint32_t i=0; i<N; ++i) {
+            data.read<uint32_t>(identity);
+            
+            uint32_t Na;
+            data.read<uint32_t>(Na);
+            auto &assign = assignments[Idx_t(identity)];
+            
+            for (uint32_t j=0; j<Na; ++j) {
+                data.read<uint32_t>(frame);
+                data.read<uint32_t>(pair.bdx._id);
+                data.read<float>(pair.p);
+                assign.detections[Frame_t(frame)] = std::move(pair);
+            }
+        }
+        
+        print("Read ", N, " tags.");
+    }
+
     Assignment find(Frame_t frame, pv::bid bdx) {
         std::shared_lock guard(grid_mutex);
         for(const auto &[id, tag] : assignments) {
