@@ -78,6 +78,7 @@ namespace pv {
         std::swap(_mask, other._mask);
         std::swap(_pixels, other._pixels);
         std::swap(_blobs, other._blobs);
+        std::swap(_flags, other._flags);
     }
 
     void Frame::operator=(const Frame &other) {
@@ -89,6 +90,7 @@ namespace pv {
         
         _mask.clear();
         _pixels.clear();
+        _flags = other._flags;
         
         for (size_t i=0; i<other.n(); ++i) {
             _mask.push_back(std::make_unique<blob::line_ptr_t::element_type>(*other._mask[i]));
@@ -102,10 +104,15 @@ namespace pv {
     {
         _mask.reserve(n);
         _pixels.reserve(n);
+        _flags.reserve(n);
     }
     
     Frame::Frame(File& ref, long_t idx) {
         read_from(ref, idx);
+    }
+
+    std::unique_ptr<pv::Blob> Frame::blob_at(size_t i) const {
+        return std::make_unique<pv::Blob>(*_mask[i], *_pixels[i], _flags[i]);
     }
     
     const std::vector<pv::BlobPtr>& Frame::get_blobs() const {
@@ -116,12 +123,9 @@ namespace pv {
     
     std::vector<pv::BlobPtr>& Frame::get_blobs() {
         if(_blobs.empty()) {
-            for (uint32_t i=0; i<n(); i++) {
-                auto &mask = _mask[i];
-                auto &px = _pixels[i];
-                
-                _blobs.push_back(std::make_shared<pv::Blob>(*mask, *px));
-            }
+            _blobs.reserve(n());
+            for (uint32_t i=0; i<n(); i++)
+                _blobs.push_back(blob_at(i));
         }
         
         return _blobs;
@@ -130,6 +134,7 @@ namespace pv {
     void Frame::clear() {
         _mask.clear();
         _pixels.clear();
+        _flags.clear();
         _n = 0;
         _timestamp = 0;
         _loading_time = 0;
@@ -211,6 +216,7 @@ namespace pv {
         
         _mask.reserve(_n);
         _pixels.reserve(_n);
+        _flags.reserve(_n);
         
         // declared outside so memory doesnt have to be freed/allocated all the time
         static DataPackage pixels;
@@ -219,7 +225,12 @@ namespace pv {
         
         for(int i=0; i<_n; i++) {
             uint16_t start_y, mask_size;
+            uint8_t flags = 0;
+            
             ptr->read<uint16_t>(start_y);
+            if(ref.header().version >= V_8) {
+                ptr->read<uint8_t>(flags);
+            }
             ptr->read<uint16_t>(mask_size);
             
             if(ref.header().version < V_7) {
@@ -262,6 +273,7 @@ namespace pv {
             auto v = std::make_unique<std::vector<uchar>>((uchar*)pixels.data(),
                                                  (uchar*)pixels.data()+num_pixels);
             _pixels.emplace_back(std::move(v));
+            _flags.push_back(flags);
         }
         
         _mask.shrink_to_fit();
@@ -271,7 +283,7 @@ namespace pv {
             delete compressed;
     }
     
-    void Frame::add_object(blob::line_ptr_t&& mask, blob::pixel_ptr_t&& pixels) {
+    void Frame::add_object(blob::Pair&& pair) {
         assert(mask->size() < UINT16_MAX);
         
 #ifndef NDEBUG
@@ -286,20 +298,22 @@ namespace pv {
         }
 #endif
         
-        _mask.push_back(std::move(mask));
-        _pixels.push_back(std::move(pixels));
+        _mask.push_back(std::move(pair.lines));
+        _pixels.push_back(std::move(pair.pixels));
+        _flags.push_back(pair.extra_flags);
         
         _n++;
     }
 
-void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vector<uchar>& pixels) {
+void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vector<uchar>& pixels, uint8_t flags) {
     assert(mask.size() < UINT16_MAX);
     _mask.push_back(std::make_unique<blob::line_ptr_t::element_type>(mask));
     _pixels.push_back(std::make_unique<blob::pixel_ptr_t::element_type>(pixels));
+    _flags.push_back(flags);
     _n++;
 }
     
-    void Frame::add_object(const std::vector<HorizontalLine> &mask_, const cv::Mat &full_image) {
+    void Frame::add_object(const std::vector<HorizontalLine> &mask_, const cv::Mat &full_image, uint8_t flags) {
         assert(full_image.rows > 0 && full_image.cols > 0);
         assert(!mask_.empty());
         
@@ -352,7 +366,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             pixel_ptr += N;
         }
         
-        add_object(std::move(mask), std::move(pixels));
+        add_object(blob::Pair{std::move(mask), std::move(pixels), flags});
         //free(pixels);
     }
     
@@ -361,7 +375,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         uint64_t elem_size = sizeof(Header::line_type);
         
         for (auto &m : _mask)
-            bytes += sizeof(uint16_t) + m->size() * elem_size;
+            bytes += sizeof(uint16_t) + sizeof(uint8_t) + m->size() * elem_size;
         
         for (auto &m : _pixels)
             bytes += m->size() * sizeof(char);
@@ -388,9 +402,11 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         for(uint16_t i=0; i<_n; i++) {
             auto &mask = _mask.at(i);
             auto &pixels = _pixels.at(i);
+            auto flags = _flags.at(i);
             
             auto compressed = Header::line_type::compress(*mask);
             pack.write(uint16_t(mask->empty() ? 0 : mask->front().y));
+            pack.write(uint8_t(flags));
             pack.write(uint16_t(compressed.size()));
             pack.write_data(compressed.size() * elem_size, (char*)compressed.data());
             pack.write_data(pixels->size() * sizeof(char), (char*)pixels->data());

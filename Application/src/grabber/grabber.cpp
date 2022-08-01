@@ -1774,8 +1774,8 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
                     _noise->set_timestamp(stamp.get());
                 }
 
-                for (auto& b : task->filtered_out) {
-                    _noise->add_object(std::move(b.lines), std::move(b.pixels));
+                for (auto&& b : task->filtered_out) {
+                    _noise->add_object(std::move(b));
                 }
                 task->filtered_out.clear();
             }
@@ -1917,10 +1917,12 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
 #endif
             rawblobs = CPULabeling::run(task->current->get(), true);
 
+        constexpr uint8_t flags = pv::Blob::flag(pv::Blob::Flags::is_tag);
         for (auto& blob : task->tags.tags) {
             rawblobs.emplace_back(
                 std::make_unique<blob::line_ptr_t::element_type>(*blob->lines()),
-                std::make_unique<blob::pixel_ptr_t::element_type>(*blob->pixels()));
+                std::make_unique<blob::pixel_ptr_t::element_type>(*blob->pixels()),
+                flags);
         }
 
 #ifdef TGRABS_DEBUG_TIMING
@@ -2015,10 +2017,10 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
         static Timing timing("adding frame");
         TakeTiming take(timing);
         
-        for (auto &b: task->filtered) {
+        for (auto &&b: task->filtered) {
             if(b.lines->size() < UINT16_MAX) {
                 if(b.lines->size() < UINT16_MAX)
-                    task->frame->add_object(std::move(b.lines), std::move(b.pixels));
+                    task->frame->add_object(std::move(b));
                 else
                     FormatWarning("Lots of lines!");
             }

@@ -722,11 +722,19 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         std::vector<pv::BlobPtr> ptrs;
         auto only_allowed = FAST_SETTINGS(track_only_categories);
         
-        auto check_blob = [&track_ignore, &track_include, &result, &cm_sqr](const pv::BlobPtr& b){
+        const auto tags_dont_track = SETTING(tags_dont_track).value<bool>();
+        
+        auto check_blob = [&tags_dont_track, &track_ignore, &track_include, &result, &cm_sqr](const pv::BlobPtr& b)
+        {
             if(b->pixels()->size() * cm_sqr > result->fish_size.max_range().end * 100)
                 b->force_set_recount(result->threshold);
             else
                 b->recount(result->threshold, *result->background);
+            
+            if(b->is_tag() && tags_dont_track) {
+                result->filter_out(b);
+                return false;
+            }
             
             if (!track_ignore.empty()) {
                 if (blob_matches_shapes(b, track_ignore)) {
@@ -1934,7 +1942,12 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                         blob_fish_map[blob->parent_id()] = fish;
                     
                     //pv::BlobPtr copy = std::make_shared<pv::Blob>((Blob*)blob.get(), std::make_shared<std::vector<uchar>>(*blob->pixels()));
-                    tagged_fish.push_back(std::make_shared<pv::Blob>(*blob->lines(), *blob->pixels()));
+                    tagged_fish.push_back(
+                        std::make_shared<pv::Blob>(
+                            *blob->lines(),
+                            *blob->pixels(),
+                            blob->flags())
+                    );
                 }
             }
             

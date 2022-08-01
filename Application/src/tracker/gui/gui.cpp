@@ -2648,12 +2648,14 @@ void GUI::update_display_blobs(bool draw_blobs, Section* ) {
             //std::vector<std::unique_ptr<gui::ExternalImage>> vector;
             
             const bool gui_show_only_unassigned = SETTING(gui_show_only_unassigned).value<bool>();
+            const bool tags_dont_track = SETTING(tags_dont_track).value<bool>();
             size_t pixels = 0;
             double average_pixels = 0, samples = 0;
             
             for(auto it = start; it != end; ++it) {
-                if(!*it)
+                if(!*it || (tags_dont_track && (*it)->blob->is_tag())) {
                     continue;
+                }
                 
                 //bool found = copy.count((*it)->blob.get());
                 //if(!found) {

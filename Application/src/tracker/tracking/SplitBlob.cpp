@@ -238,13 +238,15 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
         cv::erode(tmp, tmp, element);
         img->get().copyTo(tmp, tmp);
 
-        auto detections = CPULabeling::run(tmp);
-        //print("Detections: ", detections.size());
+        {
+            auto detections = CPULabeling::run(tmp);
+            //print("Detections: ", detections.size());
 
-        output.clear();
-        for(auto&& [lines, pixels] : detections) {
-            output.emplace_back(pv::Blob::make(std::move(lines), std::move(pixels)));
-            //output.back()->add_offset(-_blob->bounds().pos());
+            output.clear();
+            for(auto&& [lines, pixels, flags] : detections) {
+                output.emplace_back(pv::Blob::make(std::move(lines), std::move(pixels), flags));
+                //output.back()->add_offset(-_blob->bounds().pos());
+            }
         }
 
         std::sort(output.begin(), output.end(),

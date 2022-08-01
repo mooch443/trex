@@ -569,6 +569,7 @@ file::Path conda_environment_path() {
         
         CONFIG("tags_path", file::Path(""), "If this path is set, the program will try to find tags and save them at the specified location.");
         CONFIG("tags_image_size", Size2(32, 32), "The image size that tag images are normalized to.");
+        CONFIG("tags_dont_track", true, "If true, disables the tracking of tags as objects in TRex. This means that tags are not displayed like other objects and are instead only used as additional 'information' to correct tracks. However, if you enabled `tags_saved_only` in TGrabs, setting this parameter to true will make your TRex look quite empty.");
         //CONFIG("correct_luminance", true, "", STARTUP);
         
         CONFIG("grid_points", std::vector<Vec2>{}, "Whenever there is an identification network loaded and this array contains more than one point `[[x0,y0],[x1,y1],...]`, then the network will only be applied to blobs within circles around these points. The size of these circles is half of the average distance between the points.");

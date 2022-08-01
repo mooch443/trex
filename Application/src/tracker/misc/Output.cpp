@@ -257,7 +257,8 @@ uint64_t Data::write(const pv::BlobPtr& val) {
     // this will turn
     uint8_t byte = (val->parent_id().valid() ? 0x2 : 0x0)
                    | uint8_t(val->split() ? 0x1 : 0)
-                   | uint8_t(val->tried_to_split() ? 0x4 : 0x0);
+                   | uint8_t(val->tried_to_split() ? 0x4 : 0x0)
+                   | uint8_t(val->is_tag() ? 0x8 : 0x0);
     uint64_t p = write<uint8_t>(byte);
     if(val->parent_id().valid())
         write<data_long_t>((int64_t)val->parent_id());

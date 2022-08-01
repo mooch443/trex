@@ -333,7 +333,7 @@ void GUI::draw(gui::DrawStructure &base) {
                     if (m->empty())
                         continue;
 
-                    pv::Blob blob(*m, *_frame->pixels().at(i));
+                    pv::Blob blob(*m, *_frame->pixels().at(i), _frame->flags().at(i));
                     auto pos = blob.bounds().pos();
                     auto clr = wheel.next();
                     base.rect(pos + offset, blob.bounds().size(), Transparent, clr.alpha(150));
