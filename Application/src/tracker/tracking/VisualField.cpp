@@ -39,6 +39,7 @@ namespace track {
         }
     };
 
+    //! TODO: Remove cache whenever possible.
     inline static std::mutex history_mutex;
     inline static std::unordered_map<Idx_t, std::vector<RelativeHeadPosition>> history;
     
@@ -240,6 +241,7 @@ RelativeHeadPosition history_smoothing(Frame_t frame, Idx_t fdx, const RelativeH
     // other values before this one also available!
     // collect some samples and return an average
     decltype(max_samples) samples = 0;
+    //std::set<Frame_t> sampled;
     
     for (; samples < max_samples;) {
         if(it->frame < frame - Frame_t(max_samples)) {
@@ -247,6 +249,7 @@ RelativeHeadPosition history_smoothing(Frame_t frame, Idx_t fdx, const RelativeH
         }
         
         accum += *it;
+        //sampled.insert(it->frame);
         ++samples;
         
         if(it != hist.begin())
@@ -259,7 +262,7 @@ RelativeHeadPosition history_smoothing(Frame_t frame, Idx_t fdx, const RelativeH
         accum.frame = 1_f;
         accum /= Float2_t(samples);
 #ifndef NDEBUG
-        print(samples, " samples for ", fdx, " in frame ", frame);
+        print(samples, " samples for ", fdx, " in frame ", frame, ": ", sampled);
 #endif
     }
     

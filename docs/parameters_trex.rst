@@ -1897,6 +1897,15 @@ TRex parameters
 
 
 
+.. function:: tags_dont_track(bool)
+
+	**default value:** true
+
+
+	If true, disables the tracking of tags as objects in TRex. This means that tags are not displayed like other objects and are instead only used as additional 'information' to correct tracks. However, if you enabled ``tags_saved_only`` in TGrabs, setting this parameter to true will make your TRex look quite empty.
+
+
+
 .. function:: tags_image_size(size)
 
 	**default value:** [32,32]
@@ -2188,6 +2197,15 @@ TRex parameters
 
 
 	Degrees of separation between the eye and looking straight ahead. Results in the eye looking towards head.angle +- .
+
+
+
+.. function:: visual_field_history_smoothing(uchar)
+
+	**default value:** 0
+
+
+	The maximum number of previous values (and look-back in frames) to take into account when smoothing visual field orientations. If greater than 0, visual fields will use smoothed previous eye positions to determine the optimal current eye position. This is usually only necessary when postures are somewhat noisy to a degree that makes visual fields unreliable.
 
 
 
