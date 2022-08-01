@@ -25,6 +25,7 @@
 #include <misc/MemoryStats.h>
 //#include <gui/WorkProgress.h>
 #include <tracking/Categorize.h>
+#include <tracking/VisualField.h>
 
 #ifndef NDEBUG
 //#define PAIRING_PRINT_STATS
@@ -3762,7 +3763,9 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
             assert((_added_frames.empty() && !end_frame().valid()) || (end_frame().valid() && (*_added_frames.rbegin())->frame == end_frame()));
         }
         
+        VisualField::remove_frames_after(frameIndex);
         FOI::remove_frames(frameIndex);
+        
         global_segment_order_changed();
         
         print("Inactive individuals: ", _inactive_individuals);

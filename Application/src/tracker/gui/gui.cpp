@@ -424,7 +424,10 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                 "whitelist",
                 "blacklist",
                 "gui_background_color",
-                "gui_show_detailed_probabilities"
+                "gui_show_detailed_probabilities",
+                "visual_field_eye_separation",
+                "visual_field_eye_offset",
+                "visual_field_history_smoothing"
             };
             
             if(name == "gui_equalize_blob_histograms") {

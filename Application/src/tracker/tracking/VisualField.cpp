@@ -6,6 +6,41 @@
 
 namespace track {
     static constexpr double right_angle = RADIANS(90);
+
+    struct RelativeHeadPosition {
+        Frame_t frame;
+        Vec2 eye0; //! relative position to centroid
+        Vec2 eye1;
+        Vec2 eye_angle;
+        Vec2 fish_angle;
+        
+        RelativeHeadPosition& operator/=(const auto s) {
+            eye0 /= s;
+            eye1 /= s;
+            eye_angle /= s;
+            fish_angle /= s;
+            return *this;
+        }
+        
+        RelativeHeadPosition& operator+=(const RelativeHeadPosition& other) {
+            eye0 += other.eye0;
+            eye1 += other.eye1;
+            eye_angle += other.eye_angle;
+            fish_angle += other.fish_angle;
+            return *this;
+        }
+        
+        bool valid() const {
+            return frame.valid();
+        }
+        
+        auto operator<=>(const RelativeHeadPosition& other) const {
+            return frame <=> other.frame;
+        }
+    };
+
+    inline static std::mutex history_mutex;
+    inline static std::unordered_map<Idx_t, std::vector<RelativeHeadPosition>> history;
     
     VisualField::VisualField(Idx_t fish_id, Frame_t frame, const Individual::BasicStuff& basic, const Individual::PostureStuff* posture, bool blocking)
         : max_d(SQR(Tracker::average().cols) + SQR(Tracker::average().rows)), _fish_id(fish_id), _frame(frame)
@@ -181,8 +216,55 @@ namespace track {
             return Vec2(x, y);
         }
     }
+
+void VisualField::remove_frames_after(Frame_t frame) {
+    std::unique_lock guard(history_mutex);
+    for(auto &[key, value] : history) {
+        std::erase_if(value, [frame](const auto& rel) {
+            return rel.frame >= frame;
+        });
+    }
+}
     
-std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(const Individual::BasicStuff& basic, const std::vector<Vec2>& opts, const Midline::Ptr& midline, float angle)
+RelativeHeadPosition history_smoothing(Frame_t frame, Idx_t fdx, const RelativeHeadPosition& relative, uint8_t max_samples = 100)
+{
+    RelativeHeadPosition accum;
+    assert(relative.valid());
+    
+    std::unique_lock guard(history_mutex);
+    auto &hist = history[fdx];
+    auto it = insert_sorted(hist, relative);
+    if(it == hist.begin())
+        return accum;
+    
+    // other values before this one also available!
+    // collect some samples and return an average
+    decltype(max_samples) samples = 0;
+    
+    for (; samples < max_samples;) {
+        if(it->frame < frame - Frame_t(max_samples)) {
+            break;
+        }
+        
+        accum += *it;
+        ++samples;
+        
+        if(it != hist.begin())
+            --it;
+        else
+            break;
+    }
+    
+    if(samples > 1) {
+        accum.frame = 1_f;
+        accum /= Float2_t(samples);
+        print(samples, " samples for ", fdx, " in frame ", frame);
+    }
+    
+    return accum;
+}
+
+std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(Frame_t frame, Idx_t fdx, const Individual::BasicStuff& basic, const std::vector<Vec2>& opts, const Midline::Ptr& midline, float fish_angle)
 {
     using namespace gui;
     std::array<eye, 2> _eyes;
@@ -192,23 +274,16 @@ std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(con
     auto bounds = blob.calculate_bounds();
     assert(midline && !midline->empty());
     
-    size_t segment_index = midline->segments().size() * max(0.f, FAST_SETTINGS(visual_field_eye_offset));
-    double eye_separation = RADIANS(FAST_SETTINGS(visual_field_eye_separation));
-    auto &segment = midline->segments().at(segment_index);
-    auto h0 = segment.l_length + 3;
-    auto h1 = segment.height - segment.l_length + 3;
-    
-    { //! detect the contact points and decide where the eyes are going to be, depending on where an outgoing line intersects with the own outline
-        Vec2 pt = segment.pos;
+    //! Find where the eyes should be based on a given midline segment
+    auto find_eyes_from = [&](const MidlineSegment& segment, float midline_angle, float eye_angle){
+        auto h0 = segment.l_length + 3;
+        auto h1 = segment.height - segment.l_length + 3;
         
-        float angle = midline->angle() + M_PI;
-        float x = (pt.x * cmn::cos(angle) - pt.y * cmn::sin(angle));
-        float y = (pt.x * cmn::sin(angle) + pt.y * cmn::cos(angle));
+        //! detect the contact points and decide where the eyes are going to be, depending on where an outgoing line intersects with the own outline
+        Vec2 pt = segment.pos.rotate(midline_angle) + midline->offset();
         
-        pt = Vec2(x, y) + midline->offset();
-        
-        Vec2 left_direction = Vec2(cos(angle - right_angle), sin(angle - right_angle)).normalize();
-        Vec2 right_direction = Vec2(cos(angle + right_angle), sin(angle + right_angle)).normalize();
+        auto left_direction = Vec2::from_angle(eye_angle - right_angle).normalize();
+        Vec2 right_direction = Vec2::from_angle(eye_angle + right_angle).normalize();
         
         Vec2 left_end = pt + left_direction * h0 * 2;
         Vec2 right_end = pt + right_direction * h1 * 2;
@@ -223,7 +298,6 @@ std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(con
             
             if(left_intersect.x == FLT_MAX) {
                 if(LineSegementsIntersect(pt0, pt1, pt, left_end, intersect)) {
-                    
                     left_intersect = intersect;
                     
                     // check if both are found already
@@ -233,8 +307,7 @@ std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(con
             }
             
             if(right_intersect.x == FLT_MAX) {
-                if(LineSegementsIntersect(pt0, pt1, pt, right_end, intersect))
-                {
+                if(LineSegementsIntersect(pt0, pt1, pt, right_end, intersect)) {
                     right_intersect = intersect;
                     
                     // check if both are found
@@ -254,11 +327,65 @@ std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(con
         } else
             _eyes[1].pos = bounds.pos() + pt + right_direction * h1;
         
-        _fish_pos = bounds.pos() + pt;
+        return pt;
+    };
+    
+    const auto visual_field_history_smoothing = FAST_SETTINGS(visual_field_history_smoothing);
+    size_t segment_index = midline->segments().size() * max(0.f, FAST_SETTINGS(visual_field_eye_offset));
+    double eye_separation = RADIANS(FAST_SETTINGS(visual_field_eye_separation));
+    auto &segment = midline->segments().at(segment_index);
+    float angle = midline->angle() + M_PI;
+        
+    auto pt = find_eyes_from(segment, angle, angle);
+    
+    if(visual_field_history_smoothing > 0) {
+        auto angle_vector = Vec2::from_angle(angle);
+        
+        RelativeHeadPosition relative{
+          .frame = frame,
+          .eye0 = _eyes[0].pos - bounds.center(),
+          .eye1 = _eyes[1].pos - bounds.center(),
+          .eye_angle = angle_vector,
+          .fish_angle = Vec2::from_angle(fish_angle)
+        };
+        
+        auto accum = history_smoothing(frame, fdx, relative, visual_field_history_smoothing);
+        if(accum.valid()) {
+            auto e0 = accum.eye0 + bounds.center();
+            auto e1 = accum.eye1 + bounds.center();
+            
+            //! try to find the closest point on the midline
+            //! to the point that we calculated to be in the
+            //! center of both (smoothed) eye points:
+            auto smooth_center = e1 + 0.5 * (e0 - e1);
+            
+            float min_d = FLT_MAX;
+            size_t min_i = 0;
+            const auto moffset = midline->offset() + bounds.pos();
+            
+            for(size_t i=0; i<midline->segments().size(); ++i) {
+                auto &seg = midline->segments()[i];
+                auto pt = seg.pos.rotate(angle) + moffset;
+                auto d = sqdistance(pt, smooth_center);
+                if(d < min_d) {
+                    min_d = d;
+                    min_i = i;
+                }
+            }
+            
+            if(segment_index != min_i) {
+                pt = find_eyes_from(midline->segments().at(min_i),
+                                    angle,
+                                    accum.eye_angle.atan2());
+                fish_angle = accum.fish_angle.atan2();
+            }
+        }
     }
     
-    _eyes[0].angle = angle + eye_separation;
-    _eyes[1].angle = angle - eye_separation;
+    _fish_pos = bounds.pos() + pt;
+    
+    _eyes[0].angle = fish_angle + eye_separation;
+    _eyes[1].angle = fish_angle - eye_separation;
     
     _eyes[0].clr = Color(0, 50, 255, 255);
     _eyes[1].clr = Color(255, 50, 0, 255);
@@ -295,7 +422,7 @@ std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(con
         auto opts = outline->uncompress();
         _fish_angle = angle;
         
-        auto&& [eyes, pos] = generate_eyes(basic, opts, midline, angle);
+        auto&& [eyes, pos] = generate_eyes(frame(), fish_id(), basic, opts, midline, angle);
         _fish_pos = pos;
         _eyes = std::move(eyes);
         

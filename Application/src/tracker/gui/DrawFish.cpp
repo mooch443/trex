@@ -549,7 +549,7 @@ Fish::~Fish() {
                 ph.direction += ph.v * dt;
             
                 if (_basic_stuff) {
-                    auto&& [eyes, off] = VisualField::generate_eyes(*_basic_stuff, points, _cached_midline, alpha);
+                    auto&& [eyes, off] = VisualField::generate_eyes(_frame, _obj.identity().ID(), *_basic_stuff, points, _cached_midline, alpha);
 
                     auto d = ph.direction;
                     auto L = d.length();

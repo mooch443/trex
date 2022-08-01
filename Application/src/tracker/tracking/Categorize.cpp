@@ -61,12 +61,6 @@ typename std::vector<T>::const_iterator find_keyed_tuple(const std::vector<T>& v
     return (a == v) ? it : vector.end();
 }
 
-template<class T>
-auto insert_sorted(std::vector<T>& vector, T&& element) {
-    return vector.insert(std::upper_bound(vector.begin(), vector.end(), element), std::move(element));
-}
-
-
 namespace Work {
 
 std::atomic_bool terminate = false, _learning = false;
@@ -2178,10 +2172,10 @@ Work::Task Work::_pick_front_thread() {
             vector.reserve(_frame_cache.size());
 
             for (auto& [v, pp] : _frame_cache) {
-                minimum_range = min(v._frame, minimum_range);
-                maximum_range = max(v._frame, maximum_range);
-                mean += v._frame;
-                vector.push_back(v._frame);
+                minimum_range = min(v.get(), minimum_range);
+                maximum_range = max(v.get(), maximum_range);
+                mean += v.get();
+                vector.push_back(v.get());
             }
         }
 
@@ -2482,8 +2476,8 @@ void paint_distributions(int64_t frame) {
                     sum = 0;
                     for (auto& [c, pp] : _frame_cache) {
                         cv::line(mat,
-                                 Vec2(c._frame - Tracker::start_frame().get(), 100 / scale) * scale,
-                                 Vec2(c._frame - Tracker::start_frame().get(), 200 / scale) * scale,
+                                 Vec2(c.get() - Tracker::start_frame().get(), 100 / scale) * scale,
+                                 Vec2(c.get() - Tracker::start_frame().get(), 200 / scale) * scale,
                                  Yellow);
                         sum += c.get();
                     }

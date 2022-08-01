@@ -606,17 +606,6 @@ TrainingData::TrainingAndValidation TrainingData::join_split_data() const {
     return result;
 }
 
-template< typename T >
-typename std::vector<T>::iterator
-   insert_sorted( std::vector<T> & vec, T const& item )
-{
-    return vec.insert
-        (
-            std::upper_bound( vec.begin(), vec.end(), item ),
-            item
-        );
-}
-
 Idx_t TrainingData::DataRange::map(Idx_t id) const {
     if(applied_mapping.empty()) return id;
     return applied_mapping.at(id);
