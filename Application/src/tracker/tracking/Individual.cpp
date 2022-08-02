@@ -113,13 +113,16 @@ struct RecTask {
         static Timer last_print_timer;
         
         std::unique_lock guard(_mutex);
-        if(last_print_timer.elapsed() > 10)
+        /*if(last_print_timer.elapsed() > 0.25)
         {
-            print("RecTask::Queue[",_queue.size(),"] ", _time_last_added.elapsed(),"s since last add.");
-            last_print_timer.reset();
-        }
-        return  _queue.size() < 100
-            && (_queue.size() < 10 || _time_last_added.elapsed() > _average_time_per_task * 2);
+            //print("RecTask::Queue[",_queue.size(),"] ", _time_last_added.elapsed(),"s since last add.");
+            //last_print_timer.reset();
+        }*/
+        bool result = _queue.size() < 100
+                && (_queue.size() < 10 || _time_last_added.elapsed() > _average_time_per_task * 2);
+        if(result)
+            print("\tAllowing a task to be added (",_time_last_added.elapsed(), ") size=[",_queue.size(),"].");
+        return result;
     }
 
     static void thread() {
