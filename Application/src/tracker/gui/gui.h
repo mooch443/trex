@@ -131,6 +131,7 @@ public:
     static void auto_train();
     static void auto_categorize();
 #endif
+    static void auto_tags();
     static void auto_quit();
     
     static gui::GUICache& cache();

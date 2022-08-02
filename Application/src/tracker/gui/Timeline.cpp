@@ -545,7 +545,9 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                     }
                     catch (...) {}
                     guard.lock();
-                }
+                    
+                } else
+                    return;
             }
         }
         
@@ -554,7 +556,8 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
             if (_bar->parent() && _bar->parent()->stage()) {
                 std::lock_guard lock(_bar->parent()->stage()->lock());
                 img = _bar->source()->get();
-            }
+            } else
+                return;
 
             std::unique_lock guard(_proximity_bar.mutex);
             auto individual_coverage = [](Frame_t frame) {
@@ -618,22 +621,24 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                     }
                 }
                 
-                for(size_t i=0; i<_proximity_bar.samples_per_pixel.size(); ++i) {
-                    px = _proximity_bar.samples_per_pixel[i];
-                    if(px > 0) {
-                        Vec2 pp(i, 0);
-                        float d = float(px) / float(N);
-                        img(Bounds(pp, Size2(1, img.rows))) = (cv::Scalar)_foi_state.color.alpha(50 + 205 * min(1, SQR(d)));
+                if(img.cols > 0 && img.rows > 0) {
+                    for(size_t i=0; i<_proximity_bar.samples_per_pixel.size(); ++i) {
+                        px = _proximity_bar.samples_per_pixel[i];
+                        if(px > 0) {
+                            Vec2 pp(i, 0);
+                            float d = float(px) / float(N);
+                            img(Bounds(pp, Size2(1, img.rows))) = (cv::Scalar)_foi_state.color.alpha(50 + 205 * min(1, SQR(d)));
+                        }
+                        //cv::rectangle(img, pp, pp+Vec2(1,img.rows), _foi_state.color, -1);
                     }
-                    //cv::rectangle(img, pp, pp+Vec2(1,img.rows), _foi_state.color, -1);
-                }
-                
-                float x = max_w / float(_frame_info->video_length) * tracker_endframe.load().get();
-                if(previous_point.x != -1 && previous_point.x != x)
-                {
-                    Vec2 point(x, individual_coverage(tracker_endframe) * img.rows);
-                    DEBUG_CV(cv::line(img, previous_point, Vec2(x-1, previous_point.y), Red));
-                    DEBUG_CV(cv::line(img, Vec2(x-1, previous_point.y), point, Red));
+                    
+                    float x = max_w / float(_frame_info->video_length) * tracker_endframe.load().get();
+                    if(previous_point.x != -1 && previous_point.x != x)
+                    {
+                        Vec2 point(x, individual_coverage(tracker_endframe) * img.rows);
+                        DEBUG_CV(cv::line(img, previous_point, Vec2(x-1, previous_point.y), Red));
+                        DEBUG_CV(cv::line(img, Vec2(x-1, previous_point.y), point, Red));
+                    }
                 }
             }
             

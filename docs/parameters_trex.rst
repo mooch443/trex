@@ -138,6 +138,24 @@ TRex parameters
 
 
 
+.. function:: auto_tags(bool)
+
+	**default value:** false
+
+
+	If set to true, the application will automatically apply available tag information once the results file has been loaded. It will then automatically correct potential tracking mistakes based on this information.
+
+
+
+.. function:: auto_tags_on_startup(bool)
+
+	**default value:** false
+
+
+	Used internally by the software.
+
+
+
 .. function:: auto_train(bool)
 
 	**default value:** false

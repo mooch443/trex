@@ -1043,6 +1043,10 @@ int main(int argc, char** argv)
         SETTING(auto_train_on_startup) = true;
     }
     
+    if(SETTING(auto_tags)) {
+        SETTING(auto_tags_on_startup) = true;
+    }
+    
     if(!SETTING(auto_train_on_startup) && SETTING(auto_train_dont_apply)) {
         FormatWarning("auto_train_dont_apply was set without auto_train enabled. This may lead to confusing behavior. Overwriting auto_train_dont_apply = false.");
         SETTING(auto_train_dont_apply) = false;
