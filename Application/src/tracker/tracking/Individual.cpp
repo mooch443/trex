@@ -113,11 +113,12 @@ struct RecTask {
         static Timer last_print_timer;
         
         std::unique_lock guard(_mutex);
-        if(last_print_timer.elapsed() > 10) {
+        if(last_print_timer.elapsed() > 10)
+        {
             print("RecTask::Queue[",_queue.size(),"] ", _time_last_added.elapsed(),"s since last add.");
             last_print_timer.reset();
         }
-        return  _queue.size() < 1000
+        return  _queue.size() < 100
             && (_queue.size() < 10 || _time_last_added.elapsed() > _average_time_per_task * 2);
     }
 
@@ -460,9 +461,10 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
                 auto segment = _frame_segments.back();
                 
                 if(segment_ended // either the segment ended
-                    || !_last_requested_qrcode.valid() // or we have not requested a code yet
-                    || (RecTask::can_take_more() && _last_requested_qrcode + Frame_t(5.f * (float)FAST_SETTINGS(frame_rate)) < frame)
-                            // or the last time has been at least a second ago
+                    || (RecTask::can_take_more()
+                        && (!_last_requested_qrcode.valid() // or we have not requested a code yet
+                            || _last_requested_qrcode + Frame_t(5.f * (float)FAST_SETTINGS(frame_rate)) < frame) // or the last time has been at least a second ago
+                        )
                    )
                 {
                     auto it = _qrcodes.find(segment->start());

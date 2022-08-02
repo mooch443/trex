@@ -134,16 +134,18 @@ namespace default_config {
         CONFIG("cam_limit_exposure", int(5500), "Sets the cameras exposure time in micro seconds.");
         
         CONFIG("tags_model_path", file::Path("tag_recognition_network.h5"), "The pretrained model used to recognize QRcodes/tags according to `https://github.com/jgraving/pinpoint/blob/2d7f6803b38f52acb28facd12bd106754cad89bd/barcodes/old_barcodes_py2/4x4_4bit/master_list.pdf`. Path to a pretrained network .h5 file that takes 32x32px images of tags and returns a (N, 122) shaped tensor with 1-hot encoding.");
-        CONFIG("tags_size_range", Range<double>(0,10), "");
-        CONFIG("tags_equalize_hist", true, "");
-        CONFIG("tags_threshold", int(-5), "Threshold passed on to cv::adaptiveThreshold, lower numbers (below zero) are equivalent to higher thresholds / removing more of the pixels of objects and shrinking them.");
+        
+        CONFIG("tags_maximum_image_size", Size2(80,80), "Tags that are bigger than these pixel dimensions may be cropped off. All extracted tags are then pre-aligned to any of their sides, and normalized/scaled down or up to a 32x32 picture (to make life for the machine learning network easier).");
+        CONFIG("tags_size_range", Range<double>(0.08,2), "The minimum and maximum area accepted as a (square) physical tag on the individuals.");
+        CONFIG("tags_equalize_hist", false, "Apply a histogram equalization before applying a threshold. Mostly this should not be necessary due to using adaptive thresholds anyway.");
+        CONFIG("tags_threshold", int(-5), "Threshold passed on to cv::adaptiveThreshold, lower numbers (below zero) are equivalent to higher thresholds / removing more of the pixels of objects and shrinking them. Positive numbers may invert the image/mask.");
         CONFIG("tags_save_predictions", false, "Save images of tags, sorted into folders labelled according to network predictions (i.e. 'tag 22') to '`output_dir`/tags_`filename`/<individual>.<frame>/*'. ");
         CONFIG("tags_num_sides", Range<int>(3,7), "The number of sides of the tag (e.g. should be 4 if it is a rectangle).");
         CONFIG("tags_approximation", 0.025f, "Higher values (up to 1.0) will lead to coarser approximation of the rectangle/tag shapes.");
-        CONFIG("tags_enable", false, "(beta) live tracking of tags.");
-        CONFIG("tags_debug", false, "(beta) enable debugging for tags.");
-        CONFIG("tags_recognize", false, "(beta) apply an existing machine learning network to get tag ids.");
-        CONFIG("tags_saved_only", false, "(beta) if set to true, all objects other than the detected blobs are removed and not written to the output video file.");
+        CONFIG("tags_enable", false, "(beta) If enabled, TGrabs will search for (black) square shapes with white insides (and other stuff inside them) - like QRCodes or similar tags. These can then be recognized using a pre-trained machine learning network (see `tags_recognize`), and/or exported to PNG files using `tags_save_predictions`.");
+        CONFIG("tags_debug", false, "(beta) Enable debugging for tags.");
+        CONFIG("tags_recognize", false, "(beta) Apply an existing machine learning network to turn images of tags into tag ids (numbers, e.g. 1-122). Be sure to set `tags_model_path` along-side this.");
+        CONFIG("tags_saved_only", false, "(beta) If set to true, all objects other than the detected blobs are removed and will not be written to the output video file.");
          
          
         CONFIG("cam_circle_mask", false, "If set to true, a circle with a diameter of the width of the video image will mask the video. Anything outside that circle will be disregarded as background.");

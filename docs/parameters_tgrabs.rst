@@ -407,7 +407,7 @@ TGrabs parameters
 	**default value:** false
 
 
-	(beta) enable debugging for tags.
+	(beta) Enable debugging for tags.
 
 
 
@@ -416,16 +416,26 @@ TGrabs parameters
 	**default value:** false
 
 
-	(beta) live tracking of tags.
+	(beta) If enabled, TGrabs will search for (black) square shapes with white insides (and other stuff inside them) - like QRCodes or similar tags. These can then be recognized using a pre-trained machine learning network (see ``tags_recognize``), and/or exported to PNG files using ``tags_save_predictions``.
 
+	.. seealso:: :func:`tags_recognize`, :func:`tags_save_predictions`, 
 
 
 .. function:: tags_equalize_hist(bool)
 
-	**default value:** true
+	**default value:** false
 
 
-	
+	Apply a histogram equalization before applying a threshold. Mostly this should not be necessary due to using adaptive thresholds anyway.
+
+
+
+.. function:: tags_maximum_image_size(size)
+
+	**default value:** [80,80]
+
+
+	Tags that are bigger than these pixel dimensions may be cropped off. All extracted tags are then pre-aligned to any of their sides, and normalized/scaled down or up to a 32x32 picture (to make life for the machine learning network easier).
 
 
 
@@ -452,8 +462,9 @@ TGrabs parameters
 	**default value:** false
 
 
-	(beta) apply an existing machine learning network to get tag ids.
+	(beta) Apply an existing machine learning network to turn images of tags into tag ids (numbers, e.g. 1-122). Be sure to set ``tags_model_path`` along-side this.
 
+	.. seealso:: :func:`tags_model_path`, 
 
 
 .. function:: tags_save_predictions(bool)
@@ -471,16 +482,16 @@ TGrabs parameters
 	**default value:** false
 
 
-	(beta) if set to true, all objects other than the detected blobs are removed and not written to the output video file.
+	(beta) If set to true, all objects other than the detected blobs are removed and will not be written to the output video file.
 
 
 
 .. function:: tags_size_range(range<double>)
 
-	**default value:** [0,10]
+	**default value:** [0.08,2]
 
 
-	
+	The minimum and maximum area accepted as a (square) physical tag on the individuals.
 
 
 
@@ -489,7 +500,7 @@ TGrabs parameters
 	**default value:** -5
 
 
-	Threshold passed on to cv::adaptiveThreshold, lower numbers (below zero) are equivalent to higher thresholds / removing more of the pixels of objects and shrinking them.
+	Threshold passed on to cv::adaptiveThreshold, lower numbers (below zero) are equivalent to higher thresholds / removing more of the pixels of objects and shrinking them. Positive numbers may invert the image/mask.
 
 
 
