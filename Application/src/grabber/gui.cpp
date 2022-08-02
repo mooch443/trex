@@ -502,7 +502,6 @@ void GUI::draw(gui::DrawStructure &base) {
                 const int64_t displayed_range = FAST_SETTINGS(frame_rate) * 5;
                 const int64_t analysed_range = FAST_SETTINGS(frame_rate) * 60 * 1;
 
-                size_t counter = 0;
                 //const Frame_t search = Frame_t(max(0, Tracker::end_frame().get() - analysed_range));
                 const Frame_t min_display_frame = Frame_t(max(0, Tracker::end_frame().get() - displayed_range));
 #endif
@@ -630,9 +629,6 @@ void GUI::draw(gui::DrawStructure &base) {
                         base.text(Meta::toStr(code.best_id) + " (" + dec<2>(code.p).toStr() + ")", positions.back() + Vec2(10, 0), color.alpha(alpha), is_end ? Font(0.5, Style::Bold) : Font(0.5), scale);
                     }
                 }
-                
-                if (Tracker::end_frame().get() % 1000 == 0)
-                    print("[GUI:debug] Processing ", counter, " positions.");
                 
                 Vec2 pos(_grabber.average().cols + 100, 120);
                 for (auto& [k, tup] : speeds) {

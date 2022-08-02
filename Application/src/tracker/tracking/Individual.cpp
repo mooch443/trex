@@ -117,8 +117,8 @@ struct RecTask {
             print("RecTask::Queue[",_queue.size(),"] ", _time_last_added.elapsed(),"s since last add.");
             last_print_timer.reset();
         }
-        return _queue.size() < 1000
-            && _time_last_added.elapsed() > _average_time_per_task * 2;
+        return  _queue.size() < 1000
+            && (_queue.size() < 10 || _time_last_added.elapsed() > _average_time_per_task * 2);
     }
 
     static void thread() {
