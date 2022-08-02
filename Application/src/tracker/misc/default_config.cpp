@@ -60,7 +60,8 @@ namespace default_config {
     )
 
     ENUM_CLASS_DOCS(gui_recording_format_t,
-        "AVI / video format (codec FFV1 is used in unix systems)",
+        "AVI / video format (codec MJPG is used)",
+        "MP4 / video format (codec H264 is used)",
         "individual images in JPEG format",
         "individual images in PNG format"
     )
@@ -400,7 +401,7 @@ file::Path conda_environment_path() {
         CONFIG("gui_fish_color", std::string("identity"), "");
         CONFIG("gui_single_identity_color", gui::Transparent, "If set to something else than transparent, all individuals will be displayed with this color.");
         CONFIG("gui_zoom_limit", Size2(300, 300), "");
-        CONFIG("gui_recording_format", gui_recording_format_t::avi, "Sets the format for recording mode (when R is pressed in the GUI). Supported formats are 'avi', 'jpg' and 'png'. JPEGs have 75%% compression, AVI is using MJPEG compression.");
+        CONFIG("gui_recording_format", gui_recording_format_t::mp4, "Sets the format for recording mode (when R is pressed in the GUI). Supported formats are 'avi', 'jpg' and 'png'. JPEGs have 75%% compression, AVI is using MJPEG compression.");
         CONFIG("gui_happy_mode", false, "If `calculate_posture` is enabled, enabling this option likely improves your experience with TRex.");
         CONFIG("individual_names", std::map<uint32_t, std::string>{}, "A map of `{individual-id: \"individual-name\", ...}` that names individuals in the GUI and exported data.");
         CONFIG("individual_prefix", std::string("fish"), "The prefix that is added to all the files containing certain IDs. So individual 0 will turn into '[prefix]0' for all the npz files and within the program.");

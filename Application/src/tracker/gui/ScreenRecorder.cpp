@@ -169,8 +169,6 @@ struct ScreenRecorder::Data {
         _last_recording_frame = {};
         _recording = true;
         
-        base->set_frame_recording(true);
-        
         file::Path frames = frame_output_dir();
         if(!frames.exists()) {
             if(!frames.create_folder()) {
@@ -213,9 +211,11 @@ struct ScreenRecorder::Data {
                     : base->window_dimensions());
         
         using namespace default_config;
-        auto format = SETTING(guiPD(recording_format)).value<gui_recording_format_t::Class>();
+        auto format = SETTING(gui_recording_format).value<gui_recording_format_t::Class>();
         
-        if(format == gui_recording_format_t::avi) {
+        if(format == gui_recording_format_t::avi
+           || format == gui_recording_format_t::mp4)
+        {
             auto original_dims = size;
             if(size.width % 2 > 0)
                 size.width -= size.width % 2;
@@ -223,14 +223,16 @@ struct ScreenRecorder::Data {
                 size.height -= size.height % 2;
             print("Trying to record with size ",size.width,"x",size.height," instead of ",original_dims.width,"x",original_dims.height," @ ",SETTING(frame_rate).value<int>());
             
-            frames = frames.add_extension("avi").str();
-            _recording_capture = new cv::VideoWriter(frames.str(),
-                cv::VideoWriter::fourcc('F','F','V','1'),
-                                                     //cv::VideoWriter::fourcc('H','2','6','4'), //cv::VideoWriter::fourcc('I','4','2','0'),
-                                                     SETTING(frame_rate).value<int>(), size, true);
+            frames = frames.add_extension(format.toStr()).str();
+            _recording_capture = new cv::VideoWriter{
+                frames.str(),
+                format == gui_recording_format_t::mp4
+                    ? cv::VideoWriter::fourcc('H','2','6','4')
+                    : cv::VideoWriter::fourcc('M','J','P','G'),
+                (double)SETTING(frame_rate).value<int>(), size, true};
             
             if(!_recording_capture->isOpened()) {
-                FormatExcept("Cannot open video writer for path ",frames.str(),".");
+                FormatExcept("Cannot open video writer for path ",frames,". Please check file permissions, or try another format (`gui_recording_format`).");
                 _recording = false;
                 delete _recording_capture;
                 _recording_capture = NULL;
@@ -238,7 +240,11 @@ struct ScreenRecorder::Data {
                 return;
             }
             
-        } else if(format == gui_recording_format_t::jpg || format == gui_recording_format_t::png) {
+            _recording_capture->set(cv::VIDEOWRITER_PROP_QUALITY, 100);
+            
+        } else if(format == gui_recording_format_t::jpg
+                  || format == gui_recording_format_t::png)
+        {
             if(!frames.exists()) {
                 if(!frames.create_folder()) {
                     FormatError("Cannot create folder ",frames.str(),". Cannot record.");
@@ -249,6 +255,7 @@ struct ScreenRecorder::Data {
             }
         }
         
+        base->set_frame_recording(true);
         print("Recording to ", frames,"... (",format.name(),")");
         
         _recording_size = size;

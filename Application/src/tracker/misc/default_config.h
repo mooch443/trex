@@ -42,7 +42,7 @@ namespace default_config {
     ENUM_CLASS(gpu_verbosity_t, silent, full, oneline)
     ENUM_CLASS_HAS_DOCS(gpu_verbosity_t)
     
-    ENUM_CLASS(gui_recording_format_t, avi, jpg, png)
+    ENUM_CLASS(gui_recording_format_t, avi, mp4, jpg, png)
     ENUM_CLASS_HAS_DOCS(gui_recording_format_t)
     
     ENUM_CLASS(peak_mode_t, pointy, broad)

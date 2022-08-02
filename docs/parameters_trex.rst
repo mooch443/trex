@@ -764,10 +764,11 @@ TRex parameters
 
 .. function:: gui_recording_format(gui_recording_format_t)
 
-	**default value:** avi
+	**default value:** mp4
 
 	**possible values:**
-		- `avi`: AVI / video format (codec FFV1 is used in unix systems)
+		- `avi`: AVI / video format (codec MJPG is used)
+		- `mp4`: MP4 / video format (codec H264 is used)
 		- `jpg`: individual images in JPEG format
 		- `png`: individual images in PNG format
 
