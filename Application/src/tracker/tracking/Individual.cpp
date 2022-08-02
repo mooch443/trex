@@ -113,7 +113,7 @@ struct RecTask {
         static Timer last_print_timer;
         
         std::unique_lock guard(_mutex);
-        if(last_print_timer.elapsed() > 0.25)
+        if(last_print_timer.elapsed() > 5)
         {
             print("RecTask::Queue[",_queue.size(),"] ", _time_last_added.elapsed(),"s since last add.");
             last_print_timer.reset();
