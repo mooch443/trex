@@ -84,6 +84,8 @@ struct RecTask {
     inline static std::mutex _mutex;
     inline static std::condition_variable _variable;
     inline static std::vector<RecTask> _queue;
+    inline static std::atomic<double> _average_time_per_task{0.0};
+    inline static Timer _time_last_added;
 
     Frame_t _segment_start;
     Idx_t individual;
@@ -106,19 +108,36 @@ struct RecTask {
 #endif
     RecTask& operator=(RecTask&&) = default;
     RecTask& operator=(const RecTask&) = delete;
+    
+    static bool can_take_more() {
+        static Timer last_print_timer;
+        
+        std::unique_lock guard(_mutex);
+        if(last_print_timer.elapsed() > 10) {
+            print("RecTask::Queue[",_queue.size(),"] ", _time_last_added.elapsed(),"s since last add.");
+            last_print_timer.reset();
+        }
+        return _queue.size() < 1000
+            && _time_last_added.elapsed() > _average_time_per_task * 2;
+    }
 
     static void thread() {
         static std::atomic<size_t> counted{ 0 };
+        double time_per_task = 0;
+        double time_per_task_samples = 0;
 
         set_thread_name("RecTask::update_thread");
         print("RecTask::update_thread begun");
 
         try {
             RecTask::init();
+            Timer task_timer;
 
             std::unique_lock guard(_mutex);
             while(!_terminate || !_queue.empty()) {
                 while(!_queue.empty()) {
+                    task_timer.reset();
+                    
                     auto task = std::move(_queue.back());
                     _queue.erase(--_queue.end());
                     //if(!_queue.empty())
@@ -153,6 +172,17 @@ struct RecTask {
                     }
                     guard.lock();
 
+                    time_per_task += task_timer.elapsed();
+                    ++time_per_task_samples;
+                    
+                    if(time_per_task_samples > 100) {
+                        time_per_task /= time_per_task_samples;
+                        time_per_task_samples = 1;
+                        _average_time_per_task = time_per_task;
+                        
+                        print("RecTask::time_per_task(",DurationUS{ uint64_t(_average_time_per_task * 1000 * 1000) },")");
+                    }
+                    
                     ++counted;
                     _current_fdx = Idx_t();
                 }
@@ -201,18 +231,17 @@ struct RecTask {
             return true;
         }
         
-        //if(task._optional && _queue.size() >= 50 && !_terminate)
-        //    return false;
-        
         fill(task);
         
-        //print("[fill'] individual:", task._fdx, " segment:", task._segment_start, " size:", task._images.size());
         if(task._images.size() < 5)
             return false;
+        
+        //print("[fill'] individual:", task._fdx, " segment:", task._segment_start, " size:", task._images.size(), " time:", _time_last_added.elapsed() * 1000, "ms");
         
         _queue.emplace_back(std::move(task));
         _variable.notify_one();
 
+        _time_last_added.reset();
         return true;
     }
 
@@ -432,7 +461,8 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
                 
                 if(segment_ended // either the segment ended
                     || !_last_requested_qrcode.valid() // or we have not requested a code yet
-                    || _last_requested_qrcode + Frame_t(5.f * (float)FAST_SETTINGS(frame_rate)) < frame // or the last time has been at least a second ago
+                    || (RecTask::can_take_more() && _last_requested_qrcode + Frame_t(5.f * (float)FAST_SETTINGS(frame_rate)) < frame)
+                            // or the last time has been at least a second ago
                    )
                 {
                     auto it = _qrcodes.find(segment->start());
