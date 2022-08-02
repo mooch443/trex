@@ -6,6 +6,9 @@
 namespace track {
 namespace tags {
 
+inline static std::shared_mutex grid_mutex;
+inline static std::atomic<uint64_t> added_entries{ 0 };
+
 struct BidAndProbability {
     pv::bid bdx;
     float p;
@@ -46,6 +49,7 @@ struct AssignmentsPerTag {
 #ifndef NDEBUG
                     FormatWarning("There is already a detection for tag ", tag, " in frame ", frame, ": ", it->second, ". Using new: ", assignment);
 #endif
+                    ++added_entries;
                     detections.insert_or_assign(it->first, std::move(assignment));
                     //std::swap(std::move(it->second), std::move(assignment));
                 } else {
@@ -59,6 +63,7 @@ struct AssignmentsPerTag {
             return;
         }
         
+        ++added_entries;
         detections.emplace(frame, std::move(assignment));
     }
     
@@ -196,13 +201,9 @@ namespace tags {
     }
 
     inline static std::unordered_map<Idx_t, AssignmentsPerTag> assignments;
-	inline static std::unordered_map<Frame_t, DetectionGrid> grid;
-    inline static std::shared_mutex grid_mutex;
-    inline static std::atomic<uint64_t> added_entries{ 0 };
+    inline static std::unordered_map<Frame_t, DetectionGrid> grid;
 
     void detected(Frame_t frame, Detection&& tag) {
-        ++added_entries;
-        
         BidAndProbability translate{.bdx=tag.bid, .p=tag.p};
 
         std::unique_lock guard(grid_mutex);
@@ -267,6 +268,7 @@ namespace tags {
         
         data.read<uint32_t>(N);
         assignments.clear();
+        added_entries = 0;
         
         print("Reading ", N, " assignments.");
         
@@ -275,6 +277,7 @@ namespace tags {
             
             uint32_t Na;
             data.read<uint32_t>(Na);
+            added_entries += Na;
             auto &assign = assignments[Idx_t(identity)];
             
             for (uint32_t j=0; j<Na; ++j) {
