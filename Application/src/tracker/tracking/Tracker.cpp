@@ -4551,6 +4551,11 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                     
                     print("automatically_assigned_ranges ", tmp_assigned_ranges.size());
                     _automatically_assigned_ranges = tmp_assigned_ranges;
+                    
+                    if(!after_frame.valid()) {
+                        Settings::set<Settings::Variables::manual_matches>(automatic_matches);
+                        Settings::set<Settings::Variables::manual_splits>(manual_splits);
+                    }
                 }
                 
                 if(!after_frame.valid())

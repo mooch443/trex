@@ -1451,11 +1451,6 @@ bool Recognition::python_available() {
                 print("[GPU] ",dec<2>(values.size() / float(FAST_SETTINGS(track_max_individuals))),"/",images.size()," values returned in ",dec<2>(time * 1000),"ms");
 
                 this->stop_running();
-                
-                if(_detail.finished_frames(uploaded_frames)) {
-                    // -
-                    _detail.clear(false);
-                }
 
                 {
                     std::lock_guard<std::mutex> guard(_mutex);
@@ -1463,6 +1458,11 @@ bool Recognition::python_available() {
                         size_t i = narrow_cast<size_t>(indexes.at((size_t)j));
                         probs[data[i].frame][data[i].blob.blob.blob_id()] = std::vector<float>(values.begin() + j * FAST_SETTINGS(track_max_individuals), values.begin() + (j + 1) * FAST_SETTINGS(track_max_individuals));
                     }
+                }
+                
+                if(_detail.finished_frames(uploaded_frames)) {
+                    // -
+                    _detail.clear(false);
                 }
                 
                 if(GUI::instance()) {
