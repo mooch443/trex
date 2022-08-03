@@ -261,7 +261,7 @@ class ValidationCallback(tf.keras.callbacks.Callback):
                         elif len(v) > 0:
                             count = 0
                     TRex.log("\tcounted "+str(count)+" increases in loss in consecutive epochs - "+str(change))
-                    if count >= 4:
+                    if (count >= 4 and self.settings["accumulation_step"] != 0) or (count >= 8 and self.settings["accumulation_step"] == 0):
                         # we seem to have started overfitting
                         set_stop_reason("overfitting")
                         TRex.log("[STOP] overfitting. stopping with loss diffs: "+str(change))
