@@ -7,6 +7,7 @@
 #include <misc/checked_casts.h>
 #include <tracking/Categorize.h>
 #include <misc/frame_t.h>
+#include <misc/IdentifiedTag.h>
 
 using namespace track;
 typedef int64_t data_long_t;
@@ -256,7 +257,8 @@ uint64_t Data::write(const pv::BlobPtr& val) {
     // this will turn
     uint8_t byte = (val->parent_id().valid() ? 0x2 : 0x0)
                    | uint8_t(val->split() ? 0x1 : 0)
-                   | uint8_t(val->tried_to_split() ? 0x4 : 0x0);
+                   | uint8_t(val->tried_to_split() ? 0x4 : 0x0)
+                   | uint8_t(val->is_tag() ? 0x8 : 0x0);
     uint64_t p = write<uint8_t>(byte);
     if(val->parent_id().valid())
         write<data_long_t>((int64_t)val->parent_id());
@@ -742,6 +744,9 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         uint64_t N;
         ref.read<uint64_t>(N);
 
+        ska::bytell_hash_map<Frame_t, Individual::IDaverage> qrcode_identities;
+        ska::bytell_hash_map<Frame_t, std::vector<tags::Detection>> identifiers;
+
         for (uint64_t i = 0; i < N; ++i) {
             data_long_t frame;
             ref.read<data_long_t>(frame);
@@ -752,10 +757,31 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             float prob;
             ref.read<float>(prob);
 
+            uint32_t samples;
+            ref.read<uint32_t>(samples);
+
 #if !COMMONS_NO_PYTHON
-            fish->_qrcode_identities[Frame_t(frame)] = { id, prob };
+            auto seg = fish->segment_for(Frame_t(frame));
+            if(seg) {
+                for(auto i : seg->basic_index) {
+                    if(i == -1) continue;
+                    auto center = fish->_basic_stuff[i]->blob.calculate_bounds().center();
+
+                    identifiers[fish->_basic_stuff[i]->frame].push_back(tags::Detection{
+                        .id = Idx_t(id),
+                        .pos = center,
+                        .bid = fish->_basic_stuff[i]->blob.blob_id(),
+                        .p = prob
+                    });
+                }
+            }
+
+            qrcode_identities[Frame_t(frame)] = { id, prob, samples };
 #endif
         }
+
+        tags::detected(std::move(identifiers));
+        fish->_qrcode_identities = qrcode_identities;
     }
     
     //delta = this->tell() - pos_before;
@@ -958,9 +984,10 @@ uint64_t Data::write(const Individual& val) {
     for (auto& [frame, match] : val._qrcode_identities) {
         pack.write<data_long_t>(frame.get());
 
-        auto& [id, prob] = match;
+        auto& [id, prob, n] = match;
         pack.write<int32_t>(id);
         pack.write<float>(prob);
+        pack.write<uint32_t>(n);
     }
 #else
     pack.write<uint64_t>(0u);
@@ -1172,6 +1199,9 @@ namespace Output {
 
         // write categorization data, if it exists
         Categorize::DataStore::write(*this, header().version);
+        
+        //! write other tag representation
+        tags::write(*this);
     }
     
     uint64_t ResultsFormat::write_data(uint64_t num_bytes, const char *buffer) {
@@ -1270,7 +1300,7 @@ namespace Output {
                 DebugCallback("Finished writing ", filename, ".");
             }
         } else
-            throw U_EXCEPTION("Cannot move '",filename.str(),"' to '",filename.remove_extension().str(),"' (but results have been saved, you just have to rename the file).");
+            throw U_EXCEPTION("Cannot move ",filename," to ",filename.remove_extension()," (but results have been saved, you just have to rename the file).");
     }
     
     void TrackingResults::clean_up() {
@@ -1300,7 +1330,6 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
     const auto number_fish = FAST_SETTINGS(track_max_individuals);
     data_long_t prev = 0;
     data_long_t n = 0;
-    double prev_time = !_tracker.start_frame().valid() ? 0 : _tracker.properties(_tracker.start_frame())->time;
     
     //auto it = _tracker._active_individuals_frame.begin();
     if(_tracker._active_individuals_frame.size() != _tracker._added_frames.size()) {
@@ -1313,8 +1342,6 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
     ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator> iterator_map;
     
     for(const auto &props : _tracker._added_frames) {
-        prev_time = props->time;
-        
         // number of individuals actually assigned in this frame
         /*n = 0;
         for(const auto &fish : it->second) {
@@ -1397,6 +1424,10 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         // read the actual categorization data first
         if(file.header().has_categories)
             Categorize::DataStore::read(file, file.header().version);
+        
+        if(file.header().version >= ResultsFormat::Versions::V_35) {
+            tags::read(file);
+        }
 
         // read frame properties
         uint64_t L;

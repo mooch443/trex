@@ -14,6 +14,7 @@
 #include <tracking/DetectTag.h>
 #include <gui/GUICache.h>
 //#include <gui.h>
+#include <misc/IdentifiedTag.h>
 
 using namespace track;
 
@@ -50,7 +51,7 @@ Fish::~Fish() {
 
     Fish::Fish(Individual& obj)
         :   _obj(obj),
-            _idx(-1),
+            _frame(-1),
             _info(&_obj, Output::Options_t{}),
             _graph(Bounds(0, 0, 300, 300), "Recent direction histogram")
     {
@@ -137,14 +138,13 @@ Fish::~Fish() {
         }
     }
     
-    void Fish::set_data(Frame_t frameIndex, double time, const PPFrame &frame, const EventAnalysis::EventMap *events)
+    void Fish::set_data(Frame_t frameIndex, double time, const EventAnalysis::EventMap *events)
     {
-        _safe_idx = _obj.find_frame(frameIndex)->frame;
+        _safe_frame = _obj.find_frame(frameIndex)->frame;
         _time = time;
-        _frame = &frame;
         _events = events;
         
-        if(_idx != frameIndex) {
+        if(_frame != frameIndex) {
             _library_y = Graph::invalid();
             _avg_cat = -1;
             _next_frame_cache.valid = false;
@@ -152,18 +152,18 @@ Fish::~Fish() {
                 _image.unsafe_get_source().set_index(-1);
             points.clear();
             
-            auto seg = _obj.segment_for(_idx);
+            auto seg = _obj.segment_for(_frame);
             if(seg) {
-                _match_mode = (int)_obj.matched_using().at(seg->basic_stuff(_idx)).value();
+                _match_mode = (int)_obj.matched_using().at(seg->basic_stuff(_frame)).value();
             } else
                 _match_mode = -1;
             
-            auto && [basic, posture] = _obj.all_stuff(_safe_idx);
+            auto && [basic, posture] = _obj.all_stuff(_safe_frame);
             
             const Individual::PostureStuff* current_posture;
             const Individual::BasicStuff* current_basic;
             
-            if(frameIndex == _safe_idx) {
+            if(frameIndex == _safe_frame) {
                 current_posture = posture;
                 current_basic = basic;
             } else {
@@ -183,17 +183,17 @@ Fish::~Fish() {
             
             _view.set_dirty();
             
-            _blob = _obj.compressed_blob(_safe_idx);
+            _blob = _obj.compressed_blob(_safe_frame);
             _blob_bounds = _blob ? _blob->calculate_bounds() : _view.bounds();
 
             //check_tags();
             
-            auto [_basic, _posture] = _obj.all_stuff(_safe_idx);
+            auto [_basic, _posture] = _obj.all_stuff(_safe_frame);
             _basic_stuff = _basic;
             _posture_stuff = _posture;
             
 #if !COMMONS_NO_PYTHON
-            if(frameIndex == _safe_idx && _basic) {
+            if(frameIndex == _safe_frame && _basic) {
                 auto c = Categorize::DataStore::_label_averaged_unsafe(&_obj, Frame_t(frameIndex));
                 if(c)
                     _avg_cat = c->id;
@@ -202,7 +202,7 @@ Fish::~Fish() {
             
             auto color_source = GUIOPTION(gui_fish_color);
             if(color_source != "identity" && _blob) {
-                _library_y = Output::Library::get_with_modifiers(color_source, _info, _safe_idx);
+                _library_y = Output::Library::get_with_modifiers(color_source, _info, _safe_frame);
                 if(!Graph::is_invalid(_library_y)) {
                     if(color_source == "X") _library_y /= float(Tracker::average().cols) * FAST_SETTINGS(cm_per_pixel);
                     else if(color_source == "Y") _library_y /= float(Tracker::average().rows) * FAST_SETTINGS(cm_per_pixel);
@@ -210,7 +210,7 @@ Fish::~Fish() {
             }
         }
         
-        _idx = frameIndex;
+        _frame = frameIndex;
     }
     
     /*void Fish::draw_occlusion(gui::DrawStructure &window) {
@@ -246,7 +246,7 @@ Fish::~Fish() {
         _color = clr;
         
         auto current_time = _time;
-        auto next_props = Tracker::properties(_idx + 1_f);
+        auto next_props = Tracker::properties(_frame + 1_f);
         auto next_time = next_props ? next_props->time : (current_time + 1.f/float(frame_rate));
         
         auto active = GUICache::instance().active_ids.find(_obj.identity().ID()) != GUICache::instance().active_ids.end();
@@ -453,7 +453,7 @@ Fish::~Fish() {
         
         _view.update([&](Entangled&) {
             if (GUIOPTION(gui_show_paths))
-                paintPath(offset, _safe_idx, cmn::max(_obj.start_frame(), _safe_idx - 1000_f), base_color);
+                paintPath(offset, _safe_frame, cmn::max(_obj.start_frame(), _safe_frame - 1000_f), base_color);
 
             if (FAST_SETTINGS(track_max_individuals) > 0 && GUIOPTION(gui_show_boundary_crossings))
                 update_recognition_circle();
@@ -488,7 +488,7 @@ Fish::~Fish() {
                 // DISPLAY NEXT POSITION (estimated position in _idx + 1)
                 //if(cache.processed_frame.cached_individuals.count(_obj.identity().ID())) {
                 if(!_next_frame_cache.valid)
-                    _next_frame_cache = _obj.cache_for_frame(_idx + 1_f, next_time);
+                    _next_frame_cache = _obj.cache_for_frame(_frame + 1_f, next_time);
                 auto estimated = _next_frame_cache.estimated_px + offset;
             
                 _view.add<Circle>(c_pos, 2, White.alpha(max_color));
@@ -526,9 +526,9 @@ Fish::~Fish() {
             
                 Vec2 force = ph.v * (-damping_linear);
             
-                if(ph.frame != _idx) {
+                if(ph.frame != _frame) {
                     ph.direction += 0; // rad/s
-                    ph.frame = _idx;
+                    ph.frame = _frame;
                 }
             
                 auto alpha = _posture_stuff->head->angle();
@@ -549,7 +549,7 @@ Fish::~Fish() {
                 ph.direction += ph.v * dt;
             
                 if (_basic_stuff) {
-                    auto&& [eyes, off] = VisualField::generate_eyes(*_basic_stuff, points, _cached_midline, alpha);
+                    auto&& [eyes, off] = VisualField::generate_eyes(_frame, _obj.identity().ID(), *_basic_stuff, points, _cached_midline, alpha);
 
                     auto d = ph.direction;
                     auto L = d.length();
@@ -656,9 +656,9 @@ Fish::~Fish() {
                 auto c = cache.processed_frame.cached(_obj.identity().ID());
                 if (c) {
                     auto &mat = _image.unsafe_get_source();
-                    if(mat.index() != _idx.get()) {
+                    if(mat.index() != _frame.get()) {
                         mat.create(Tracker::average().rows, Tracker::average().cols, 4);
-                        mat.set_index(_idx.get());
+                        mat.set_index(_frame.get());
 
                         if(_probability_radius < 10 || _probability_center.empty())
                             mat.set_to(0);
@@ -682,11 +682,11 @@ Fish::~Fish() {
                                 return;
                             if (pos.y < 0 || pos.y >= mat.rows)
                                 return;
-                            if (_idx <= _obj.start_frame())
+                            if (_frame <= _obj.start_frame())
                                 return;
 
                             auto ptr = mat.ptr(pos.y, pos.x);
-                            auto p = _obj.probability(-1, *c, _idx, pos + 1 * 0.5, 1);
+                            auto p = _obj.probability(-1, *c, _frame, pos + 1 * 0.5, 1);
                             if (p/*.p*/ < FAST_SETTINGS(matching_probability_threshold))
                                 return;
 
@@ -769,7 +769,7 @@ Fish::~Fish() {
                     float value = 0;
                     size_t count_ones = 0;
                 
-                    for (auto frame = _idx - Frame_t(FAST_SETTINGS(posture_direction_smoothing)); frame <= _idx + Frame_t(FAST_SETTINGS(posture_direction_smoothing)); ++frame)
+                    for (auto frame = _frame - Frame_t(FAST_SETTINGS(posture_direction_smoothing)); frame <= _frame + Frame_t(FAST_SETTINGS(posture_direction_smoothing)); ++frame)
                     {
                         auto midline = _obj.pp_midline(frame);
                         if(midline) {
@@ -810,7 +810,7 @@ Fish::~Fish() {
                     }*/
                 
                     for(auto && [frame, in] : interp) {
-                        if(frame == _idx) {
+                        if(frame == _frame) {
                             _graph.set_title(Meta::toStr(ddangle.count(frame) ? ddangle.at(frame) : FLT_MAX) + " " +Meta::toStr(in));
                         }
                     }
@@ -833,7 +833,7 @@ Fish::~Fish() {
                         points.push_back(Vec2(frame.get(), a));
                     }
                     _graph.add_points("angle''", points);
-                    _graph.set_zero(_idx.get());
+                    _graph.set_zero(_frame.get());
                 
                     _view.advance_wrap(_graph);
                 }
@@ -868,10 +868,10 @@ Fish::~Fish() {
             from = _obj.start_frame();
         
         from = _obj.start_frame();
-        to = min(_obj.end_frame(), _idx);
+        to = min(_obj.end_frame(), _frame);
         
-        float color_start = max(0, round(_idx.get() - FAST_SETTINGS(frame_rate) * GUIOPTION(gui_max_path_time)));
-        float color_end = max(color_start + 1, _idx.get());
+        float color_start = max(0, round(_frame.get() - FAST_SETTINGS(frame_rate) * GUIOPTION(gui_max_path_time)));
+        float color_end = max(color_start + 1, _frame.get());
         
         from = max(Frame_t(color_start), from);
         
@@ -1181,7 +1181,7 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
     if (!GUIOPTION(gui_show_texts))
         return;
     
-    auto blob = _obj.compressed_blob(_idx);
+    auto blob = _obj.compressed_blob(_frame);
     if(!blob)
         return;
     
@@ -1195,7 +1195,7 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
         secondary_text = "blob" + Meta::toStr(blob->blob_id());
     }
     else*/ if (GUI_SETTINGS(gui_show_recognition_bounds)) {
-        auto&& [valid, segment] = _obj.has_processed_segment(_idx);
+        auto&& [valid, segment] = _obj.has_processed_segment(_frame);
         if (valid) {
             auto&& [samples, map] = _obj.processed_recognition(segment.start());
             auto it = std::max_element(map.begin(), map.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b) {
@@ -1209,7 +1209,7 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
             else
                 color = "nr";
         } else {
-            auto raw = Tracker::instance()->recognition()->ps_raw(_idx, blob->blob_id());
+            auto raw = Tracker::instance()->recognition()->ps_raw(_frame, blob->blob_id());
             if (!raw.empty()) {
                 auto it = std::max_element(raw.begin(), raw.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b) {
                     return a.second < b.second;
@@ -1225,17 +1225,29 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
     //auto cat = Categorize::DataStore::label_interpolated(_obj.identity().ID(), Frame_t(_idx));
 
 #if !COMMONS_NO_PYTHON
+    auto detection = tags::find(_frame, blob->blob_id());
+    if (detection.valid()) {
+        secondary_text += "<a>tag:" + Meta::toStr(detection.id) + " (" + dec<2>(detection.p).toStr() + ")</a>";
+    }
+    auto segment = _obj.segment_for(_frame);
+    if(segment) {
+        auto [id, p, n] = _obj.qrcode_at(segment->start());
+        if(id >= 0 && p > 0) {
+            secondary_text += std::string(" ") + "<a><i>QR:"+Meta::toStr(id)+" ("+dec<2>(p).toStr() + ")</i></a>";
+        }
+    }
+    
     auto c = GUICache::instance().processed_frame.cached(_obj.identity().ID());
     if(c) {
         auto cat = c->current_category;
         if(cat != -1) {
             auto l = Categorize::DataStore::label(cat);
             if(l)
-                secondary_text += "<key>"+l->name+"</key>";
+                secondary_text += std::string(" ") + "<key>"+l->name+"</key>";
         }
     }
     
-    auto cat = Categorize::DataStore::_label_unsafe(Frame_t(_idx), blob->blob_id());
+    auto cat = Categorize::DataStore::_label_unsafe(Frame_t(_frame), blob->blob_id());
     if (cat != -1) {
         secondary_text += std::string(" ") + (cat ? "<b>" : "") + "<i>" + Categorize::DataStore::label(cat)->name + "</i>" + (cat ? "</b>" : "");
     }

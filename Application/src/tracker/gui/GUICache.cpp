@@ -718,7 +718,7 @@ namespace gui {
 
         if (target_pos.x / target_scale.x > mw * 0.95f) {
 #ifndef NDEBUG
-            print("target_pos.x = ", target_pos.x, " target_scale.x = ", target_scale.x, " screen_center.x = ", screen_center.width, " screen_dimensions.x = ", screen_dimensions.width, " window_dimensions.x = ", base()->window_dimensions().width);
+            //print("target_pos.x = ", target_pos.x, " target_scale.x = ", target_scale.x, " screen_center.x = ", screen_center.width, " screen_dimensions.x = ", screen_dimensions.width, " window_dimensions.x = ", base()->window_dimensions().width);
 #endif
             target_pos.x = mw * target_scale.x * 0.95f;
         }

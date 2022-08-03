@@ -42,7 +42,7 @@ namespace default_config {
     ENUM_CLASS(gpu_verbosity_t, silent, full, oneline)
     ENUM_CLASS_HAS_DOCS(gpu_verbosity_t)
     
-    ENUM_CLASS(gui_recording_format_t, avi, jpg, png)
+    ENUM_CLASS(gui_recording_format_t, avi, mp4, jpg, png)
     ENUM_CLASS_HAS_DOCS(gui_recording_format_t)
     
     ENUM_CLASS(peak_mode_t, pointy, broad)
@@ -59,6 +59,12 @@ namespace default_config {
 
     ENUM_CLASS(app_update_check_t, none, manually, automatically)
     ENUM_CLASS_HAS_DOCS(app_update_check_t)
+
+    ENUM_CLASS(blob_split_algorithm_t, threshold, fill)
+    ENUM_CLASS_HAS_DOCS(blob_split_algorithm_t)
+
+    ENUM_CLASS(visual_identification_version_t, current, v118_3, v110, v100)
+    ENUM_CLASS_HAS_DOCS(visual_identification_version_t)
 }
 
 namespace gui {

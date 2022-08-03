@@ -116,9 +116,14 @@ struct DrawExportOptions::Data {
                 for (auto& e : g.second) {
                     Output::Library::parse_modifiers(e, modifiers);
                 }
-                for (auto& e : modifiers.values()) {
-                    if (wanted.contains(e))
-                        result[g.first].insert(e.name());
+                if(modifiers.size() == 0) {
+                    // no modifiers is also okay
+                    result.try_emplace(g.first);
+                } else {
+                    for (auto& e : modifiers.values()) {
+                        if (wanted.contains(e))
+                            result[g.first].insert(e.name());
+                    }
                 }
             }
             return result;
@@ -143,10 +148,10 @@ struct DrawExportOptions::Data {
                     std::set<std::string> append;
                     auto it = graphs_map.find(f);
                     if (it != graphs_map.end()) {
-                        count = it->second.size();
+                        count = max(it->second.size(), 1u);
                         append = it->second;
                     }
-
+                    
                     items.push_back(Item{
                         ._name = f,
                         ._count = count,
@@ -157,7 +162,7 @@ struct DrawExportOptions::Data {
             }
 
             export_options.set_items(items);
-            print("Filtering for: ",search.text());
+            //print("Filtering for: ",search.text());
         }
     }
 };

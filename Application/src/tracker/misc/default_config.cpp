@@ -60,7 +60,8 @@ namespace default_config {
     )
 
     ENUM_CLASS_DOCS(gui_recording_format_t,
-        "AVI / video format (codec FFV1 is used in unix systems)",
+        "AVI / video format (codec MJPG is used)",
+        "MP4 / video format (codec H264 is used)",
         "individual images in JPEG format",
         "individual images in PNG format"
     )
@@ -99,6 +100,18 @@ namespace default_config {
         "Manually check for updates, do not automatically check for them online.",
         "Automatically check for updates periodically (once per week)."
     )
+
+    ENUM_CLASS_DOCS(blob_split_algorithm_t,
+        "Adaptively increase the threshold of closeby objects, until separation.",
+        "Use the previously known positions of objects to place a seed within the overlapped objects and perform a watershed run."
+    )
+
+ENUM_CLASS_DOCS(visual_identification_version_t,
+    "This always points to the current version.",
+    "The order of Max-Pooling layers was changed, along with some other minor changes.",
+    "Changed activation order, added BatchNormalization. No Flattening to maintain spatial context.",
+    "The original layout."
+)
     
     static const std::map<std::string, std::string> deprecated = {
         {"outline_step", "outline_smooth_step"},
@@ -388,7 +401,7 @@ file::Path conda_environment_path() {
         CONFIG("gui_fish_color", std::string("identity"), "");
         CONFIG("gui_single_identity_color", gui::Transparent, "If set to something else than transparent, all individuals will be displayed with this color.");
         CONFIG("gui_zoom_limit", Size2(300, 300), "");
-        CONFIG("gui_recording_format", gui_recording_format_t::avi, "Sets the format for recording mode (when R is pressed in the GUI). Supported formats are 'avi', 'jpg' and 'png'. JPEGs have 75%% compression, AVI is using MJPEG compression.");
+        CONFIG("gui_recording_format", gui_recording_format_t::mp4, "Sets the format for recording mode (when R is pressed in the GUI). Supported formats are 'avi', 'jpg' and 'png'. JPEGs have 75%% compression, AVI is using MJPEG compression.");
         CONFIG("gui_happy_mode", false, "If `calculate_posture` is enabled, enabling this option likely improves your experience with TRex.");
         CONFIG("individual_names", std::map<uint32_t, std::string>{}, "A map of `{individual-id: \"individual-name\", ...}` that names individuals in the GUI and exported data.");
         CONFIG("individual_prefix", std::string("fish"), "The prefix that is added to all the files containing certain IDs. So individual 0 will turn into '[prefix]0' for all the npz files and within the program.");
@@ -418,9 +431,11 @@ file::Path conda_environment_path() {
         CONFIG("blob_size_ranges", BlobSizeRange({Rangef(0.1f, 3)}), "Blobs below the lower bound are recognized as noise instead of individuals. Blobs bigger than the upper bound are considered to potentially contain more than one individual. You can look these values up by pressing `D` in TRex to get to the raw view (see `https://trex.run/docs/gui.html` for details). The unit is #pixels * (cm/px)^2. `cm_per_pixel` is used for this conversion.");
         CONFIG("blob_split_max_shrink", float(0.2), "The minimum percentage of the starting blob size (after thresholding), that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.");
         CONFIG("blob_split_global_shrink_limit", float(0.2), "The minimum percentage of the minimum in `blob_size_ranges`, that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.");
+        CONFIG("blob_split_algorithm", blob_split_algorithm_t::threshold, "The default splitting algorithm used to split objects that are too close together.");
         
         CONFIG("visual_field_eye_offset", float(0.15), "A percentage telling the program how much the eye positions are offset from the start of the midline.");
         CONFIG("visual_field_eye_separation", float(60), "Degrees of separation between the eye and looking straight ahead. Results in the eye looking towards head.angle +- `visual_field_eye_separation`.");
+        CONFIG("visual_field_history_smoothing", uint8_t(0), "The maximum number of previous values (and look-back in frames) to take into account when smoothing visual field orientations. If greater than 0, visual fields will use smoothed previous eye positions to determine the optimal current eye position. This is usually only necessary when postures are somewhat noisy to a degree that makes visual fields unreliable.");
         
         CONFIG("auto_minmax_size", false, "Program will try to find minimum / maximum size of the individuals automatically for the current `cm_per_pixel` setting. Can only be passed as an argument upon startup. The calculation is based on the median blob size in the video and assumes a relatively low level of noise.", STARTUP);
         CONFIG("auto_number_individuals", false, "Program will automatically try to find the number of individuals (with sizes given in `blob_size_ranges`) and set `track_max_individuals` to that value.");
@@ -525,6 +540,8 @@ file::Path conda_environment_path() {
         CONFIG("auto_quit", false, "If set to true, the application will automatically save all results and export CSV files and quit, after the analysis is complete."); // save and quit after analysis is done
         CONFIG("auto_apply", false, "If set to true, the application will automatically apply the network with existing weights once the analysis is done. It will then automatically correct and reanalyse the video.");
         CONFIG("auto_categorize", false, "If set to true, the program will try to load <video>_categories.npz from the `output_dir`. If successful, then categories will be computed according to the current categories_ settings. Combine this with the `auto_quit` parameter to automatically save and quit afterwards. If weights cannot be loaded, the app crashes.");
+        CONFIG("auto_tags", false, "If set to true, the application will automatically apply available tag information once the results file has been loaded. It will then automatically correct potential tracking mistakes based on this information.");
+        CONFIG("auto_tags_on_startup", false, "Used internally by the software.", SYSTEM);
         CONFIG("auto_no_memory_stats", true, "If set to true, no memory statistics will be saved on auto_quit.");
         CONFIG("auto_no_results", false, "If set to true, the auto_quit option will NOT save a .results file along with the NPZ (or CSV) files. This saves time and space, but also means that the tracked portion cannot be loaded via -load afterwards. Useful, if you only want to analyse the resulting data and never look at the tracked video again.");
         CONFIG("auto_no_tracking_data", false, "If set to true, the auto_quit option will NOT save any `output_graphs` tracking data - just the posture data (if enabled) and the results file (if not disabled). This saves time and space if that is a need.");
@@ -556,6 +573,7 @@ file::Path conda_environment_path() {
         
         CONFIG("tags_path", file::Path(""), "If this path is set, the program will try to find tags and save them at the specified location.");
         CONFIG("tags_image_size", Size2(32, 32), "The image size that tag images are normalized to.");
+        CONFIG("tags_dont_track", true, "If true, disables the tracking of tags as objects in TRex. This means that tags are not displayed like other objects and are instead only used as additional 'information' to correct tracks. However, if you enabled `tags_saved_only` in TGrabs, setting this parameter to true will make your TRex look quite empty.");
         //CONFIG("correct_luminance", true, "", STARTUP);
         
         CONFIG("grid_points", std::vector<Vec2>{}, "Whenever there is an identification network loaded and this array contains more than one point `[[x0,y0],[x1,y1],...]`, then the network will only be applied to blobs within circles around these points. The size of these circles is half of the average distance between the points.");
@@ -575,11 +593,12 @@ file::Path conda_environment_path() {
         CONFIG("recognition_image_size", Size2(80, 80), "Size of each image generated for network training.");
         CONFIG("recognition_image_scale", float(1), "Scaling applied to the images before passing them to the network.");
         CONFIG("recognition_save_training_images", false, "If set to true, the program will save the images used for a successful training of the recognition network to the output path.");
+        CONFIG("visual_identification_version", visual_identification_version_t::current, "Newer versions of TRex sometimes change the network layout for (e.g.) visual identification, which will make them incompatible with older trained models. This parameter allows you to change the expected version back, to ensure backwards compatibility.");
         CONFIG("gpu_enable_accumulation", true, "Enables or disables the idtrackerai-esque accumulation protocol cascade. It is usually a good thing to enable this (especially in more complicated videos), but can be disabled as a fallback (e.g. if computation time is a major constraint).");
         CONFIG("gpu_accepted_uniqueness", float(0), "If changed (from 0), the ratio given here will be the acceptable uniqueness for the video - which will stop accumulation if reached.");
         CONFIG("auto_train_dont_apply", false, "If set to true, setting `auto_train` will only train and not apply the trained network.");
         CONFIG("gpu_accumulation_enable_final_step", true, "If enabled, the network will be trained on all the validation + training data accumulated, as a last step of the accumulation protocol cascade. This is intentional overfitting.");
-        CONFIG("gpu_learning_rate", float(0.0005), "Learning rate for training a recognition network.");
+        CONFIG("gpu_learning_rate", float(0.0001), "Learning rate for training a recognition network.");
         CONFIG("gpu_max_epochs", uchar(150), "Maximum number of epochs for training a recognition network (0 means infinite).");
         CONFIG("gpu_verbosity", gpu_verbosity_t::full, "Determines the nature of the output on the command-line during training. This does not change any behaviour in the graphical interface.");
         CONFIG("gpu_min_iterations", uchar(100), "Minimum number of iterations per epoch for training a recognition network.");
@@ -769,6 +788,17 @@ file::Path conda_environment_path() {
                 settings_file = settings_file.add_extension("settings");
             
             return pv::DataLocation::parse("output", settings_file);
+        });
+        
+        pv::DataLocation::register_path("backup_settings", [](file::Path) -> file::Path {
+            file::Path settings_file(SETTING(filename).value<Path>().filename());
+            if(settings_file.empty())
+                throw U_EXCEPTION("settings_file (and like filename) is an empty string.");
+            
+            if(!settings_file.has_extension() || settings_file.extension() != "settings")
+                settings_file = settings_file.add_extension("settings");
+            
+            return pv::DataLocation::parse("output", "backup") / settings_file;
         });
         
         pv::DataLocation::register_path("input", [](file::Path filename) -> file::Path {

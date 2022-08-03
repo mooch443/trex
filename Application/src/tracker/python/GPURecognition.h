@@ -9,6 +9,16 @@
 namespace track {
     using namespace cmn;
 
+    struct PackagedTask {
+        std::packaged_task<bool(void)> _task;
+        bool _can_run_before_init;
+        template<typename F>
+        PackagedTask(F&& task, bool can_run) : _task(std::move(task)), _can_run_before_init(can_run) {}
+        PackagedTask(PackagedTask&&) = default;
+        PackagedTask(const PackagedTask&) = delete;
+        PackagedTask& operator=(PackagedTask&&) = default;
+    };
+
     class TREX_EXPORT PythonIntegration {
     public:
         enum Flag {
@@ -37,7 +47,19 @@ namespace track {
         void initialize();
 
         static std::tuple<std::vector<float>, std::vector<float>> probabilities(const std::vector<Image::Ptr>& images);
-        static std::future<bool> async_python_function(std::function<bool()> fn, Flag = Flag::DEFAULT, bool can_run_without_init = false);
+        
+        static void async_python_function(PackagedTask&&, Flag);
+        static std::future<bool> async_python_function(auto&& fn, Flag flag = Flag::DEFAULT, bool can_run_without_init = false)
+        {
+            PackagedTask task{
+                std::packaged_task<bool()>(std::move(fn)),
+                can_run_without_init
+            };
+            
+            auto future = task._task.get_future();
+            async_python_function(std::move(task), flag);
+            return future;
+        }
 
         static void set_variable(const std::string&, const std::vector<Image::Ptr>&, const std::string & m = "");
         static void set_variable(const std::string&, const std::vector<Image::UPtr>&, const std::string & m = "");
@@ -68,6 +90,8 @@ namespace track {
         static void set_function(const char* name_, std::function<void(std::string)> f, const std::string &m = "");
         static void set_function(const char* name_, std::function<void(std::vector<uchar>, std::vector<std::string>)> f, const std::string &m = "");
         static void set_function(const char* name_, std::function<void(std::vector<float>)> f, const std::string &m = "");
+        static void set_function(const char* name_,
+                                 std::packaged_task<void(std::vector<int64_t>)>&& f, const std::string &m = "");
         static void unset_function(const char* name_, const std::string &m = "");
         
         static void quit();

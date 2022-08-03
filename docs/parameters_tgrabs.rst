@@ -38,7 +38,7 @@ TGrabs parameters
 
 .. function:: averaging_method(averaging_method_t)
 
-	**default value:** mean
+	**default value:** mode
 
 	**possible values:**
 		- `mean`: Sum all samples and divide by N.
@@ -391,6 +391,117 @@ TGrabs parameters
 	Custom override of how many bytes of system RAM the program is allowed to fill. If ``approximate_length_minutes`` or ``stop_after_minutes`` are set, this might help to increase the resulting RAW video footage frame_rate.
 
 	.. seealso:: :func:`approximate_length_minutes`, :func:`stop_after_minutes`, 
+
+
+.. function:: tags_approximation(float)
+
+	**default value:** 0.025
+
+
+	Higher values (up to 1.0) will lead to coarser approximation of the rectangle/tag shapes.
+
+
+
+.. function:: tags_debug(bool)
+
+	**default value:** false
+
+
+	(beta) Enable debugging for tags.
+
+
+
+.. function:: tags_enable(bool)
+
+	**default value:** false
+
+
+	(beta) If enabled, TGrabs will search for (black) square shapes with white insides (and other stuff inside them) - like QRCodes or similar tags. These can then be recognized using a pre-trained machine learning network (see ``tags_recognize``), and/or exported to PNG files using ``tags_save_predictions``.
+
+	.. seealso:: :func:`tags_recognize`, :func:`tags_save_predictions`, 
+
+
+.. function:: tags_equalize_hist(bool)
+
+	**default value:** false
+
+
+	Apply a histogram equalization before applying a threshold. Mostly this should not be necessary due to using adaptive thresholds anyway.
+
+
+
+.. function:: tags_maximum_image_size(size)
+
+	**default value:** [80,80]
+
+
+	Tags that are bigger than these pixel dimensions may be cropped off. All extracted tags are then pre-aligned to any of their sides, and normalized/scaled down or up to a 32x32 picture (to make life for the machine learning network easier).
+
+
+
+.. function:: tags_model_path(path)
+
+	**default value:** "tag_recognition_network.h5"
+
+
+	The pretrained model used to recognize QRcodes/tags according to `<https://github.com/jgraving/pinpoint/blob/2d7f6803b38f52acb28facd12bd106754cad89bd/barcodes/old_barcodes_py2/4x4_4bit/master_list.pdf>`_. Path to a pretrained network .h5 file that takes 32x32px images of tags and returns a (N, 122) shaped tensor with 1-hot encoding.
+
+
+
+.. function:: tags_num_sides(range<int>)
+
+	**default value:** [3,7]
+
+
+	The number of sides of the tag (e.g. should be 4 if it is a rectangle).
+
+
+
+.. function:: tags_recognize(bool)
+
+	**default value:** false
+
+
+	(beta) Apply an existing machine learning network to turn images of tags into tag ids (numbers, e.g. 1-122). Be sure to set ``tags_model_path`` along-side this.
+
+	.. seealso:: :func:`tags_model_path`, 
+
+
+.. function:: tags_save_predictions(bool)
+
+	**default value:** false
+
+
+	Save images of tags, sorted into folders labelled according to network predictions (i.e. 'tag 22') to '``output_dir``/tags_``filename``/<individual>.<frame>/*'. 
+
+	.. seealso:: :func:`output_dir`, :func:`filename`, 
+
+
+.. function:: tags_saved_only(bool)
+
+	**default value:** false
+
+
+	(beta) If set to true, all objects other than the detected blobs are removed and will not be written to the output video file.
+
+
+
+.. function:: tags_size_range(range<double>)
+
+	**default value:** [0.08,2]
+
+
+	The minimum and maximum area accepted as a (square) physical tag on the individuals.
+
+
+
+.. function:: tags_threshold(int)
+
+	**default value:** -5
+
+
+	Threshold passed on to cv::adaptiveThreshold, lower numbers (below zero) are equivalent to higher thresholds / removing more of the pixels of objects and shrinking them. Positive numbers may invert the image/mask.
+
 
 
 .. function:: terminate_error(bool)

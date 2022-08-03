@@ -77,7 +77,11 @@ namespace pv {
         /** Changed format of ShortHorizontalLine */
         V_7,
         
-        current = V_7
+        /** Added flags per object */
+        V_8,
+        
+        //! current
+        current = V_8
     };
     
     class Frame : public IndexedDataTransport {
@@ -90,6 +94,7 @@ namespace pv {
         
         GETTER_NCONST(std::vector<std::unique_ptr<std::vector<HorizontalLine>>>, mask)
         GETTER_NCONST(std::vector<std::unique_ptr<std::vector<uchar>>>, pixels)
+        GETTER_NCONST(std::vector<uint8_t>, flags)
         GETTER(std::vector<std::shared_ptr<pv::Blob>>, blobs)
         
     public:
@@ -117,7 +122,8 @@ namespace pv {
         
         void read_from(File& ref, long_t idx);
         
-        void add_object(const std::vector<HorizontalLine>& mask, const cv::Mat& full_image);
+        void add_object(const std::vector<HorizontalLine>& mask, const cv::Mat& full_image, uint8_t flags);
+        std::unique_ptr<pv::Blob> blob_at(size_t i) const;
         std::vector<std::shared_ptr<pv::Blob>>& get_blobs();
         const std::vector<std::shared_ptr<pv::Blob>>& get_blobs() const;
         
@@ -125,8 +131,8 @@ namespace pv {
          * Adds a new object to this frame.
          * ! takes ownership of both arrays
          **/
-        void add_object(blob::line_ptr_t&& mask, blob::pixel_ptr_t&& pixels);
-        void add_object(const std::vector<HorizontalLine>& mask, const std::vector<uchar>& pixels);
+        void add_object(blob::Pair&& pair);
+        void add_object(const std::vector<HorizontalLine>& mask, const std::vector<uchar>& pixels, uint8_t flags);
 
         uint64_t size() const;
         void clear();

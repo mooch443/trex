@@ -16,7 +16,7 @@
 namespace gui {
 GlobalSettings::docs_map_t temp_docs;
 sprite::Map temp_settings;
-constexpr double video_chooser_column_width = 400;
+constexpr double video_chooser_column_width = 300;
 
 VideoOpener::CustomFileChooser::CustomFileChooser(
         const file::Path& start,
@@ -31,7 +31,7 @@ void VideoOpener::CustomFileChooser::update_size() {
     
     float s = _graph->scale().x / gui::interface_scale();
     auto column = Size2(
-        _graph->width() * 0.9 - 150,
+        _graph->width() * 0.9 - 50,
         _graph->height() * 0.7 - (_selected_text ? _selected_text->height() + _button->height() + 10 : 0))
        .div(s);
     
@@ -76,7 +76,7 @@ VideoOpener::LabeledTextField::LabeledTextField(const std::string& name)
     
     _docs = gui::temp_docs[name];
 
-    _text_field->set_text(_ref.get().valueString());
+    update();
     _text_field->on_text_changed([this](){
         try {
             _ref.get().set_value_from_string(_text_field->text());
@@ -86,7 +86,11 @@ VideoOpener::LabeledTextField::LabeledTextField(const std::string& name)
 }
 
 void VideoOpener::LabeledTextField::update() {
-    _text_field->set_text(_ref.get().valueString());
+    auto str = _ref.get().valueString();
+    if(str.length() >= 2 && str.front() == '"' && str.back() == '"') {
+        str = str.substr(1,str.length()-2);
+    }
+    _text_field->set_text(str);
 }
 
 VideoOpener::LabeledDropDown::LabeledDropDown(const std::string& name)
@@ -180,8 +184,8 @@ VideoOpener::VideoOpener()
     
     _horizontal = std::make_shared<gui::HorizontalLayout>();
     _extra = std::make_shared<gui::VerticalLayout>();
-    _infos = std::make_shared<gui::VerticalLayout>();
-    
+    _infos = std::make_shared<gui::VerticalLayout>(Bounds(10, 10, 10, 10));
+    _infos->set_background(DarkCyan.alpha(25), DarkCyan.alpha(125));
     _horizontal->set_policy(gui::HorizontalLayout::TOP);
     _extra->set_policy(gui::VerticalLayout::LEFT);
     _infos->set_policy(gui::VerticalLayout::LEFT);
@@ -200,7 +204,7 @@ VideoOpener::VideoOpener()
     _recording_panel->set_clickable(true);
     _camera = std::make_shared<gui::ExternalImage>(Image::Make(32, 32, 4));
     _raw_settings = std::make_shared<gui::VerticalLayout>();
-    _raw_info = std::make_shared<gui::VerticalLayout>();
+    _raw_info = std::make_shared<gui::VerticalLayout>(Bounds(10,10,10,10));
     _raw_info->set_policy(gui::VerticalLayout::LEFT);
     _screenshot = std::make_shared<gui::ExternalImage>();
     _text_fields.clear();
@@ -248,12 +252,14 @@ VideoOpener::VideoOpener()
     
     _loading_text = std::make_shared<gui::Text>("generating average", Vec2(100,0), Cyan, gui::Font(0.6f));
     
-    _raw_description = std::make_shared<gui::StaticText>("Info", Vec2(), Size2(video_chooser_column_width, -1), Font(0.7f));
+    _raw_description = std::make_shared<gui::StaticText>("Info", Vec2(), Size2(video_chooser_column_width, -1), Font(0.5f));
+    _raw_description->set_background(Transparent, Transparent);
     _raw_info->set_children({
         Layout::Ptr(std::make_shared<Text>("Preview", Vec2(), White, gui::Font(0.9f, Style::Bold))),
         _screenshot,
         _raw_description
     });
+    _raw_info->set_background(DarkCyan.alpha(25), DarkCyan.alpha(125));
     _horizontal_raw->set_children({_raw_settings, _raw_info});
     _horizontal_raw->set_policy(gui::HorizontalLayout::TOP);
     
@@ -362,33 +368,33 @@ VideoOpener::VideoOpener()
         if(w < 50)
             w = 50;
         
-        if(_raw_description) {
-            _raw_description->set_max_size(Size2(w, -1));
-        }
-        if(_info_description) {
-            _info_description->set_max_size(Size2(w * 0.4, -1));
-            h -= _info_description->height();
-            if(h < 0)
-                h = 1;
-        }
-        
-        _screenshot_max_size = Size2(w, h);
-        if (_file_chooser->current_tab().extension == "pv") {
-            //_screenshot_max_size.height *= 0.75;
-        }
-        else {
+        if(_file_chooser->current_tab().extension == "pv") {
+            if(_info_description) {
+                _info_description->set_max_size(Size2(w * 0.5, h));
+                h -= _info_description->height();
+                if(h <= 0)
+                    h = 1;
+            }
+            
+        } else {
+            if(_raw_description) {
+                _raw_description->set_max_size(Size2(w, -1));
+            }
+            
             if (_loading_text)
-                _screenshot_max_size.height -= _loading_text->height();
+                h -= _loading_text->height() + 20;
         }
         
-        for(auto &[key, ptr] : _text_fields) {
-            ptr.get()->representative()->set_size(Size2(_screenshot_max_size.width * 0.4, ptr->representative()->height()));
-        }
+        _screenshot_max_size = Size2(w * 0.5, h);
         
         if(_background && _background->source()) {
             auto scale = _screenshot_max_size.div(_background->source()->bounds().size());
-            if(_mini_bowl)
-                _mini_bowl->set_scale(Vec2(scale.min()));
+            if(_mini_bowl) {
+                if(scale.width < 1 || scale.height < 1)
+                    _mini_bowl->set_scale(Vec2(scale.min()));
+                else
+                    _mini_bowl->set_scale(Vec2(scale.max()));
+            }
         }
         _screenshot_previous_size = Size2(0);
         
@@ -478,7 +484,6 @@ VideoOpener::VideoOpener()
             auto image = _buffer->next();
             if(image) {
                 _screenshot->set_source(std::move(image));
-                
                 auto max_scale = 1;//_file_chooser->graph()->scale();
                 auto max_size = _screenshot_max_size.div(max_scale);
                 auto scree_size = _screenshot->source()->bounds().size();
@@ -508,7 +513,7 @@ VideoOpener::VideoOpener()
                     
                     if(_screenshot_previous_size.empty()) {
                         {
-                            std::string info_text = "<h3>Info</h3>\n";
+                            std::string info_text = "";//<h3>Info</h3>\n";
                             info_text += "<key>resolution</key>: <ref><nr>"+Meta::toStr(_buffer->_video->size().width)+"</nr>x<nr>"+Meta::toStr(_buffer->_video->size().height)+"</nr></ref>\n";
                             
                             DurationUS us{ uint64_t( _buffer->_video->length() / double(_buffer->_video->framerate()) * 1000.0 * 1000.0 ) };
@@ -838,7 +843,7 @@ Image::UPtr VideoOpener::BufferedVideo::next() {
 }
 
 void VideoOpener::select_file(const file::Path &p) {
-    const double max_width = _file_chooser->graph()->width() * 0.3;
+    const double max_width = _file_chooser->graph()->width() * 0.25;
     std::lock_guard guard(_file_chooser->graph()->lock());
     _end_frames_thread = true;
     
@@ -869,7 +874,7 @@ void VideoOpener::select_file(const file::Path &p) {
                 TEMP_SETTING(output_name) = file::Path("video");
                 auto filename = p;
                 
-                if(p.has_extension())
+                if(p.has_extension() && p.extension() == "pv")
                     filename = filename.remove_extension();
                 
                 if(utils::contains((std::string)p.filename(), '%')) {
@@ -909,9 +914,10 @@ void VideoOpener::select_file(const file::Path &p) {
     using namespace gui;
     using namespace file;
     
+    auto ext = _file_chooser->current_tab().extension == "pv" ? "pv" : "";
     GlobalSettings::map().dont_print("filename");
-    _selected = p.remove_extension();
-    SETTING(filename) = p.remove_extension();
+    _selected = p.remove_extension(ext);
+    SETTING(filename) = p.remove_extension(ext);
     
     Path settings_file = pv::DataLocation::parse("settings");
     sprite::Map tmp;
@@ -945,6 +951,8 @@ void VideoOpener::select_file(const file::Path &p) {
         Layout::Ptr(std::make_shared<Text>("Settings", Vec2(), White, gui::Font(0.9f, Style::Bold)))
     };
     
+    constexpr double settings_width = 240;
+    
     for(auto &name : _settings_to_show) {
         std::string start;
         if(tmp[name].is_type<std::string>())
@@ -969,12 +977,12 @@ void VideoOpener::select_file(const file::Path &p) {
             }
             
             children.push_back( Layout::Ptr(std::make_shared<Text>(name, Vec2(), White, gui::Font(0.7f))) );
-            children.push_back( Layout::Ptr(std::make_shared<Dropdown>(Bounds(0, 0, 250, 28), folders)) );
+            children.push_back( Layout::Ptr(std::make_shared<Dropdown>(Bounds(0, 0, settings_width, 28), folders)) );
             ((Dropdown*)children.back().get())->textfield()->set_font(Font(0.7f));
             
         } else {
             children.push_back( Layout::Ptr(std::make_shared<Text>(name, Vec2(), White, gui::Font(0.7f))) );
-            children.push_back( Layout::Ptr(std::make_shared<Textfield>(start, Bounds(0, 0, 250, 28))));
+            children.push_back( Layout::Ptr(std::make_shared<Textfield>(start, Bounds(0, 0, settings_width, 28))));
             ((Textfield*)children.back().get())->set_font(Font(0.7f));
         }
         
@@ -1029,7 +1037,7 @@ void VideoOpener::select_file(const file::Path &p) {
         children.push_back( Layout::Ptr(std::make_shared<Text>("No loadable results found.", Vec2(), Gray, gui::Font(0.7f, Style::Bold))) );
     
     _extra->set_children(children);
-    _extra->auto_size(Margin{0,0});
+    _extra->auto_size(Margin{5,0});
     _extra->update_layout();
     
     try {
@@ -1063,13 +1071,13 @@ void VideoOpener::select_file(const file::Path &p) {
         _mini_bowl->auto_size(Margin{0, 0});
         
         gui::derived_ptr<gui::Text> info_text = std::make_shared<gui::Text>("Selected", Vec2(), gui::White, gui::Font(0.9f, gui::Style::Bold));
-        _info_description = std::make_shared<gui::StaticText>(settings::htmlify(text), Vec2(), _screenshot_max_size.div(_file_chooser->graph()->scale()), gui::Font(0.7f));
-        gui::derived_ptr<gui::Text> info_2 = std::make_shared<gui::Text>("Background", Vec2(), gui::White, gui::Font(0.9f, gui::Style::Bold));
+        _info_description = std::make_shared<gui::StaticText>(settings::htmlify(text), Vec2(), Size2(_screenshot_max_size.div(_file_chooser->graph()->scale()).width * 0.25, _screenshot_max_size.div(_file_chooser->graph()->scale()).height), gui::Font(0.7f));
+        //gui::derived_ptr<gui::Text> info_2 = std::make_shared<gui::Text>("Preview", Vec2(), gui::White, gui::Font(0.9f, gui::Style::Bold));
         
         _infos->set_children({
             info_text,
             _info_description,
-            info_2,
+            //info_2,
             _mini_bowl
         });
         

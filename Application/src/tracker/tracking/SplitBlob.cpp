@@ -5,8 +5,11 @@
 #include <misc/Timer.h>
 #include <misc/metastring.h>
 #include <misc/PixelTree.h>
+#include <misc/cnpy_wrapper.h>
+#include <tracker/misc/default_config.h>
 
 using namespace track;
+using namespace default_config;
 
 std::atomic_bool registered_callbacks = false;
 float blob_split_max_shrink = 0.02f;
@@ -14,6 +17,7 @@ float blob_split_global_shrink_limit = 0.01f;
 float sqrcm = 1.f;
 BlobSizeRange fish_minmax({Rangef(0.001,1000)});
 int posture_threshold = 15;
+auto blob_split_algorithm = blob_split_algorithm_t::threshold;
 
 SplitBlob::SplitBlob(const Background& average, pv::BlobPtr blob)
     :   max_objects(0),
@@ -42,7 +46,8 @@ SplitBlob::SplitBlob(const Background& average, pv::BlobPtr blob)
                 
             } else if(name == "track_posture_threshold") {
                posture_threshold = value.value<int>();
-            }
+            } else if(name == "blob_split_algorithm")
+                blob_split_algorithm = value.value<blob_split_algorithm_t::Class>();
             
             if(name == "blob_size_ranges" || name == "cm_per_pixel") {
                 fish_minmax = SETTING(blob_size_ranges).value<BlobSizeRange>();
@@ -55,6 +60,7 @@ SplitBlob::SplitBlob(const Background& average, pv::BlobPtr blob)
         fn(sprite::Map::Signal::NONE, GlobalSettings::map(), "cm_per_pixel", SETTING(cm_per_pixel).get());
         fn(sprite::Map::Signal::NONE, GlobalSettings::map(), "track_posture_threshold", SETTING(track_posture_threshold).get());
         fn(sprite::Map::Signal::NONE, GlobalSettings::map(), "blob_size_ranges", SETTING(blob_size_ranges).get());
+        fn(sprite::Map::Signal::NONE, GlobalSettings::map(), "blob_split_algorithm", SETTING(blob_split_algorithm).get());
     }
     
 #if DEBUG_ME
@@ -74,7 +80,7 @@ size_t SplitBlob::apply_threshold(int threshold, std::vector<pv::BlobPtr> &outpu
         auto out = _diff_px.data();
         auto bg = Tracker::instance()->background();
         //auto grid = Tracker::instance()->grid();
-        LuminanceGrid* grid = nullptr;
+        constexpr LuminanceGrid* grid = nullptr;
         
         for (auto &line : _blob->hor_lines()) {
             for (auto x=line.x0; x<=line.x1; ++x, ++px, ++out) {
@@ -90,7 +96,9 @@ size_t SplitBlob::apply_threshold(int threshold, std::vector<pv::BlobPtr> &outpu
     }
     
     std::sort(output.begin(), output.end(),
-              [](const pv::BlobPtr& a, const pv::BlobPtr& b) { return std::make_tuple(a->pixels()->size(), a->blob_id()) > std::make_tuple(b->pixels()->size(), b->blob_id()); });
+       [](const pv::BlobPtr& a, const pv::BlobPtr& b) { 
+            return std::make_tuple(a->pixels()->size(), a->blob_id()) > std::make_tuple(b->pixels()->size(), b->blob_id()); 
+       });
     
     return output.empty() ? 0 : (*output.begin())->pixels()->size();
     /*auto first_method = timer.elapsed();
@@ -124,7 +132,7 @@ SplitBlob::Action SplitBlob::evaluate_result_single(std::vector<pv::BlobPtr> &re
     
 #if DEBUG_ME
     // evaluate result
-    display_match({0, result});
+    display_match({0, result}, {});
 #endif
     
     // delete unnecessary blobs
@@ -176,14 +184,15 @@ SplitBlob::Action SplitBlob::evaluate_result_multiple(size_t presumed_nr, float 
     }
     r.ratio = ratio;
     
-    if(presumed_nr <= blobs.size() && ratio >= 0.3) {
+    if(presumed_nr <= blobs.size() && ((blob_split_algorithm == blob_split_algorithm_t::threshold && ratio >= 0.3) || (blob_split_algorithm == blob_split_algorithm_t::fill && ratio >= 0.4))) 
+    {
         return KEEP_ABORT;
     }
     
     return REMOVE;
 }
 
-std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr)
+std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<Vec2>& centers)
 {
     std::map<int, ResultProp> best_matches;
     
@@ -192,14 +201,91 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr)
     std::vector<pv::BlobPtr> blobs;
     float first_size = 0;
     size_t more_than_1_times = 0;
+
+    const auto apply_watershed = [this](const std::vector<Vec2>& centers, std::vector<pv::BlobPtr>& output) {
+        static const cv::Mat element = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(2 * 1 + 1, 2 * 1 + 1), cv::Point(1, 1));
+
+        auto [offset, img] = _blob->image();
+        cv::Mat mask = cv::Mat::zeros(img->rows, img->cols, CV_32SC1);
+        for(size_t i = 0; i < img->size(); ++i) {
+            if(img->data()[i] == 0)
+                mask.ptr<int>()[i] = 1;
+        }
+
+        size_t i = 0;
+        for(auto c : centers) {
+            cv::circle(mask, c, 5, i + 2, cv::FILLED);
+            cv::circle(mask, c, 5, 0, 1);
+            ++i;
+        }
+
+        cv::Mat tmp;
+        //mask.convertTo(tmp, CV_8UC1, 255.f / float(centers.size() + 2));
+
+        //tf::imshow("labels1", tmp);
+        cv::cvtColor(img->get(), tmp, cv::COLOR_GRAY2BGR);
+        cv::watershed(tmp, mask);
+
+        //mask.convertTo(tmp, CV_8UC1, 255.f / float(centers.size() + 1));
+        //tf::imshow("labels", tmp);
+        //tf::imshow("image", img->get());
+
+        //cv::subtract(mask, 1, mask);
+        mask.convertTo(tmp, CV_8UC1);
+        cv::threshold(tmp, tmp, 1, 255, cv::THRESH_BINARY);
+        //tf::imshow("thresholded", tmp);
+
+        cv::erode(tmp, tmp, element);
+        img->get().copyTo(tmp, tmp);
+
+        {
+            auto detections = CPULabeling::run(tmp);
+            //print("Detections: ", detections.size());
+
+            output.clear();
+            for(auto&& [lines, pixels, flags] : detections) {
+                output.emplace_back(pv::Blob::make(std::move(lines), std::move(pixels), flags));
+                //output.back()->add_offset(-_blob->bounds().pos());
+            }
+        }
+
+        std::sort(output.begin(), output.end(),
+            [](const pv::BlobPtr& a, const pv::BlobPtr& b) {
+                return std::make_tuple(a->pixels()->size(), a->blob_id()) > std::make_tuple(b->pixels()->size(), b->blob_id());
+            });
+
+
+        //resize_image(tmp, 5, cv::INTER_NEAREST);
+        //cv::cvtColor(tmp, tmp, cv::COLOR_GRAY2BGR);
+
+        i = 0;
+        ColorWheel wheel;
+        for(auto& d : output) {
+            auto c = wheel.next();
+            for(auto& l : *d->lines())
+                cv::line(tmp, (Vec2(l.x0, l.y) + 0.5) * 5, (Vec2(l.x1, l.y) + 0.5) * 5, c, 5);
+            //pv::Blob b(std::move(d.lines), std::move(d.pixels));
+            //auto [p, img] = b.image();
+            //auto [p, img] = d->image();
+            //tf::imshow("blob" + Meta::toStr(i), img->get());
+            ++i;
+        }
+        //tf::imshow("blobs", tmp);
+
+        return output.empty() ? 0 : (*output.begin())->pixels()->size();
+    };
     
-    const auto fn = [&calculations, &blobs, presumed_nr, &first_size, &more_than_1_times, &best_matches, this](int threshold) {
+    const auto fn = [&apply_watershed, &calculations, &blobs, &centers, presumed_nr, &first_size, &more_than_1_times, &best_matches, this](int threshold) {
         calculations++;
         
 #if DEBUG_ME
         print("T:", threshold);
 #endif
-        float max_size = apply_threshold(threshold, blobs) * sqrcm;
+        float max_size;
+        if(blob_split_algorithm == blob_split_algorithm_t::threshold)
+            max_size = apply_threshold(threshold, blobs) * sqrcm;
+        else
+            max_size = (threshold == -1 ? apply_threshold(threshold, blobs) : apply_watershed(centers, blobs)) * sqrcm;
         
         // cant find any blobs anymore...
         if(blobs.empty())
@@ -229,33 +315,37 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr)
         if(blobs.size() > 1)
             more_than_1_times++;
         
-        // found at least two blobs now
+        // we found enough blobs, so we're allowed to keep it
         if(action == KEEP || action == KEEP_ABORT) {
 #if DEBUG_ME
-            print("Found ", blobs.size()," blobs at threshold ", threshold," (expected ",presumed_nr,")");
+            print("Found ", blobs.size()," blobs at threshold ", threshold," (expected ",presumed_nr,") with centers: ", centers);
 #endif
             
             result.blobs = blobs;
             best_matches[threshold] = result;
-            
-        } else {
-            blobs.clear();
         }
-        
+
+        blobs.clear();
         return action;
     };
     
     auto action = fn(-1);
     
-    if(action != KEEP && action != KEEP_ABORT && _blob->pixels()->size() * sqrcm < fish_minmax.max_range().end * 100) {
-        static const auto element = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(3, 3), cv::Point(1, 1));
-    
+    if(action != KEEP 
+        && action != KEEP_ABORT 
+        && _blob->pixels()->size() * sqrcm < fish_minmax.max_range().end * 100) 
+    {
+        
         if(presumed_nr > 1) {
-            for(int i=posture_threshold+10; i < 255; i+=1) {//max(1, (i-posture_threshold)*0.25)) {
-                action = fn(i);
-                if(action == ABORT || action == KEEP_ABORT)
-                    break;
+            if(blob_split_algorithm == blob_split_algorithm_t::threshold) {
+                for(int i = posture_threshold + 10; i < 255; i += 1) {
+                    action = fn(i);
+                    if(action == ABORT || action == KEEP_ABORT)
+                        break;
+                }
             }
+            else
+                action = fn(0);
         }
     }
     
@@ -311,12 +401,13 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr)
             
             if(!blob->pixels()) {
                 grey.clear();
-                
-                for (auto h : blob->hor_lines()) {
-                    for (int x=h.x0; x<=h.x1; x++) {
-                        assert(h.y < _original_grey.rows && x < _original_grey.cols);
-                        grey.push_back(_original_grey.at<uchar>(h.y, x));
-                    }
+                int32_t N = 0;
+                for (auto& h : blob->hor_lines()) {
+                    auto n = int32_t(h.x1) - int32_t(h.x0) + 1;
+                    auto ptr = _original_grey.ptr(h.y, h.x0);
+                    grey.resize(N + n);
+                    std::copy(ptr, ptr + n, grey.data() + N);
+                    N += n;
                 }
                 
                 blob->set_pixels(std::make_unique<std::vector<uchar>>(std::move(grey)));
@@ -327,12 +418,11 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr)
         
 #if DEBUG_ME
         print("Best result with threshold ", best);
-        display_match({best, best_matches.at(best).blobs});
+        display_match({best, best_matches.at(best).blobs}, centers);
 #endif
     } else {
 #if DEBUG_ME
-        auto str = Meta::toStr(best_matches);
-        FormatWarning("Not found ", presumed_nr," objects. ",str);
+        FormatWarning("Not found ", presumed_nr," objects. ", best_matches);
         tf::imshow("original", _original);
         
         /*cv::Mat tmp;
@@ -355,7 +445,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr)
 }
 
 #if DEBUG_ME
-void SplitBlob::display_match(const std::pair<const int, std::vector<pv::BlobPtr>>& blobs)
+void SplitBlob::display_match(const std::pair<const int, std::vector<pv::BlobPtr>>& blobs, const std::vector<Vec2>& centers)
 {
     ColorWheel wheel;
     cv::Mat copy;
@@ -393,7 +483,12 @@ void SplitBlob::display_match(const std::pair<const int, std::vector<pv::BlobPtr
         cv::bitwise_and(submask, _original(cv::Rect(x, y, w, h)), submask);
         fish(cv::Rect(0, 0, w, h)).copyTo(subtmp, submask);
     }
-    
+
+    for(auto& p : centers) {
+        cv::circle(copy, p, 2, gui::Red, 1);
+        cv::circle(copy, p, 2, gui::White, cv::FILLED);
+    }
+
     tf::imshow("copy", copy);
 //cv::waitKey();
 }

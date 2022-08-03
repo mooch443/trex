@@ -113,8 +113,9 @@ namespace Output {
             V_33, // adding Categorize::DataStore
 
             V_34, // adding tag information + time of creation
+            V_35, // adding tags::information so it can be preserved across saves
             
-            current = V_34
+            current = V_35
         };
         
     private:
@@ -127,7 +128,7 @@ namespace Output {
         std::exception_ptr _exception_ptr;
         
         struct Header {
-            Versions version;
+            Versions version = Versions::current;
             uint64_t gui_frame = 0;
             std::string settings;
             std::string cmd_line;

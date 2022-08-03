@@ -138,6 +138,24 @@ TRex parameters
 
 
 
+.. function:: auto_tags(bool)
+
+	**default value:** false
+
+
+	If set to true, the application will automatically apply available tag information once the results file has been loaded. It will then automatically correct potential tracking mistakes based on this information.
+
+
+
+.. function:: auto_tags_on_startup(bool)
+
+	**default value:** false
+
+
+	Used internally by the software.
+
+
+
 .. function:: auto_train(bool)
 
 	**default value:** false
@@ -176,6 +194,19 @@ TRex parameters
 	Blobs below the lower bound are recognized as noise instead of individuals. Blobs bigger than the upper bound are considered to potentially contain more than one individual. You can look these values up by pressing ``D`` in TRex to get to the raw view (see `<https://trex.run/docs/gui.html>`_ for details). The unit is #pixels * (cm/px)^2. ``cm_per_pixel`` is used for this conversion.
 
 	.. seealso:: :func:`cm_per_pixel`, 
+
+
+.. function:: blob_split_algorithm(blob_split_algorithm_t)
+
+	**default value:** threshold
+
+	**possible values:**
+		- `threshold`: Adaptively increase the threshold of closeby objects, until separation.
+		- `fill`: Use the previously known positions of objects to place a seed within the overlapped objects and perform a watershed run.
+
+	The default splitting algorithm used to split objects that are too close together.
+
+
 
 
 .. function:: blob_split_global_shrink_limit(float)
@@ -226,7 +257,7 @@ TRex parameters
 
 .. function:: build_cxx_options(string)
 
-	**default value:** " -fvisibility-inlines-hidden -fvisibility=hidden -Werror=return-stack-address -Wno-c++98-compat-pedantic -Wall -Wextra -pedantic -O3 -DNDEBUG -std=c++2a -O3 -Wno-nullability-extension"
+	**default value:** " -fvisibility-inlines-hidden -fvisibility=hidden -Werror=return-stack-address -Wno-c++98-compat-pedantic -Wall -Wextra -pedantic  -DNDEBUG -std=c++2a -O3 -Wno-nullability-extension"
 
 
 	The mode the application was built in.
@@ -482,7 +513,7 @@ TRex parameters
 
 .. function:: gpu_learning_rate(float)
 
-	**default value:** 0.0005
+	**default value:** 0.0001
 
 
 	Learning rate for training a recognition network.
@@ -751,10 +782,11 @@ TRex parameters
 
 .. function:: gui_recording_format(gui_recording_format_t)
 
-	**default value:** avi
+	**default value:** mp4
 
 	**possible values:**
-		- `avi`: AVI / video format (codec FFV1 is used in unix systems)
+		- `avi`: AVI / video format (codec MJPG is used)
+		- `mp4`: MP4 / video format (codec H264 is used)
 		- `jpg`: individual images in JPEG format
 		- `png`: individual images in PNG format
 
@@ -1713,7 +1745,7 @@ TRex parameters
 
 .. function:: python_path(path)
 
-	**default value:** "/Users/tristan/miniforge3/envs/trex/bin/python3.9"
+	**default value:** "/Users/tristan/miniforge3/envs/trex2/bin/python3.10"
 
 
 	Path to the python home folder. If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.
@@ -1881,6 +1913,15 @@ TRex parameters
 
 
 	Used for matching when estimating the next position of an individual. Smaller values are appropriate for lower frame rates. The higher this value is, the more previous frames will have significant weight in estimating the next position (with an exponential decay).
+
+
+
+.. function:: tags_dont_track(bool)
+
+	**default value:** true
+
+
+	If true, disables the tracking of tags as objects in TRex. This means that tags are not displayed like other objects and are instead only used as additional 'information' to correct tracks. However, if you enabled ``tags_saved_only`` in TGrabs, setting this parameter to true will make your TRex look quite empty.
 
 
 
@@ -2126,7 +2167,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1.7-70-g2b9a345"
+	**default value:** "v1.1.8_2-49-g3893f85"
 
 
 	Current application version.
@@ -2175,6 +2216,30 @@ TRex parameters
 
 
 	Degrees of separation between the eye and looking straight ahead. Results in the eye looking towards head.angle +- .
+
+
+
+.. function:: visual_field_history_smoothing(uchar)
+
+	**default value:** 0
+
+
+	The maximum number of previous values (and look-back in frames) to take into account when smoothing visual field orientations. If greater than 0, visual fields will use smoothed previous eye positions to determine the optimal current eye position. This is usually only necessary when postures are somewhat noisy to a degree that makes visual fields unreliable.
+
+
+
+.. function:: visual_identification_version(visual_identification_version_t)
+
+	**default value:** current
+
+	**possible values:**
+		- `current`: This always points to the current version.
+		- `v118_3`: The order of Max-Pooling layers was changed, along with some other minor changes.
+		- `v110`: Changed activation order, added BatchNormalization. No Flattening to maintain spatial context.
+		- `v100`: The original layout.
+
+	Newer versions of TRex sometimes change the network layout for (e.g.) visual identification, which will make them incompatible with older trained models. This parameter allows you to change the expected version back, to ensure backwards compatibility.
+
 
 
 

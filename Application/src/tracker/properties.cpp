@@ -258,7 +258,7 @@ void async_main(void*) {
 										});
 								}
 
-								drawfish->set_data(index, props->time, cache.processed_frame, nullptr);
+								drawfish->set_data(index, props->time, nullptr);
 
 								{
 									drawfish->update(ptr, s, e, graph);

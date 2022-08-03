@@ -13,13 +13,13 @@ channels:
 source:
     git_url: https://github.com/mooch443/trex.git
     git_depth: 1
-    git_rev: main
+    git_tag: main
 
 build:
     script_env:
       - GITHUB_WORKFLOW
       - SDKROOT
-    number: 30
+    number: 31
     string: "{{ hash }}_{{ number }}"
     run_exports:
         - {{ pin_compatible('ffmpeg', min_pin='x.x.x', max_pin='x.x.x') }}
@@ -42,10 +42,10 @@ requirements:
     - pkg-config            # [not win]
     - jom                   # [win]
     - make                  # [unix]
-    - sysroot_linux-64 ==2.17 # [linux]
     - python =3.9 # [win]
     - python =3.9 # [arm64]
-    - python ==3.7.11 # [not win and not arm64]
+    - python =3.7 # [linux]
+    - python =3.7.11 # [osx and not arm64]
     - {{ compiler('c') }}
     - {{ compiler('cxx') }}
     - cmake >=3.14
@@ -78,8 +78,9 @@ requirements:
   host:
     - pthread-stubs  # [linux]
     - ffmpeg =4 # [not osx or arm64]
-    - ffmpeg <=4.2.2 # [osx]
-    - python ==3.7.11 # [not win and not arm64]
+    - ffmpeg <=4.2.2 # [osx and not arm64]
+    - python =3.7 # [linux]
+    - python =3.7.11 # [osx and not arm64]
     - python =3.9 # [osx and arm64]
     - python =3.9 # [win]
     
@@ -93,11 +94,12 @@ requirements:
     - grpcio # [arm64]
     - wrapt >=1.11.0 # [arm64]
     - ffmpeg =4 # [not osx or arm64]
-    - ffmpeg <=4.2.2 # [osx]
+    - ffmpeg <=4.2.2 # [osx and not arm64]
     - numpy
+    - python =3.7.11 # [osx and not arm64] 
     - python =3.9 # [osx and arm64]
     - python =3.9 # [win]
-    - python ==3.7.11 # [not win and not arm64]
+    - python =3.7 # [not win and not arm64]
     - h5py # [arm64]
     - hdf5 # [arm64]
     - pip  # [arm64]

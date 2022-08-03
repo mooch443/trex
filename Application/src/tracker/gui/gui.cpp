@@ -37,6 +37,7 @@
 #include <gui/DrawTrackingView.h>
 #include <gui/DrawExportOptions.h>
 #include <gui/ScreenRecorder.h>
+#include <misc/IdentifiedTag.h>
 
 #include <pv.h>
 
@@ -423,7 +424,10 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                 "whitelist",
                 "blacklist",
                 "gui_background_color",
-                "gui_show_detailed_probabilities"
+                "gui_show_detailed_probabilities",
+                "visual_field_eye_separation",
+                "visual_field_eye_offset",
+                "visual_field_history_smoothing"
             };
             
             if(name == "gui_equalize_blob_histograms") {
@@ -449,7 +453,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                 GUI::set_redraw();
             }
             
-            if(name == "gui_background_color") {
+            if(name == "gui_background_color" && _base) {
                 _base->set_background_color(value.value<Color>());
             }
             
@@ -1083,8 +1087,8 @@ void GUI::reanalyse_from(Frame_t frame, bool in_thread) {
                 Output::Library::clear_cache();
                 PD(timeline)->reset_events(frame);
                 
-            } else {
-                FormatExcept("The requested frame ", frame," is not part of the video, and certainly beyond end_frame (", Tracker::end_frame(),".");
+            } else if(Tracker::end_frame().valid()) {
+                FormatExcept("The requested frame ", frame," is not part of the video, and certainly beyond end_frame (", Tracker::end_frame(),").");
             }
         }
         
@@ -1666,7 +1670,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                                 });
                             }
 
-                            PD(cache)._fish_map[fish]->set_data(frameNr, props->time, PD(cache).processed_frame, empty_map);
+                            PD(cache)._fish_map[fish]->set_data(frameNr, props->time, empty_map);
 
                             {
                                 std::unique_lock guard(Categorize::DataStore::cache_mutex());
@@ -1726,9 +1730,9 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                 }
                 
                 for(auto it = PD(cache)._fish_map.cbegin(); it != PD(cache)._fish_map.cend();) {
-                    if(it->second->idx() != frameNr) {
+                    if(it->second->frame() != frameNr) {
                         it->first->unregister_delete_callback(it->second.get());
-                        PD(cache)._fish_map.erase(it++);
+                        it = PD(cache)._fish_map.erase(it);
                     } else
                         it++;
                 }
@@ -2399,6 +2403,9 @@ void GUI::draw_footer(DrawStructure& base) {
                     {
                         SETTING(auto_train_on_startup) = false;
                     }
+                    if(key == "auto_tags") {
+                        SETTING(auto_tags_on_startup) = false;
+                    }
                     
                 } else
                    FormatError("User cannot write setting ", key," (",GlobalSettings::access_level(key).name(),").");
@@ -2647,19 +2654,23 @@ void GUI::update_display_blobs(bool draw_blobs, Section* ) {
             //std::vector<std::unique_ptr<gui::ExternalImage>> vector;
             
             const bool gui_show_only_unassigned = SETTING(gui_show_only_unassigned).value<bool>();
+            const bool tags_dont_track = SETTING(tags_dont_track).value<bool>();
             size_t pixels = 0;
             double average_pixels = 0, samples = 0;
             
             for(auto it = start; it != end; ++it) {
-                if(!*it)
+                if(!*it || (tags_dont_track && (*it)->blob->is_tag())) {
                     continue;
+                }
                 
                 //bool found = copy.count((*it)->blob.get());
                 //if(!found) {
                     //auto bds = bowl.transformRect((*it)->blob->bounds());
                     //if(bds.overlaps(screen_bounds))
                     //{
-                if(!gui_show_only_unassigned || !contains(PD(cache).active_blobs, (*it)->blob->blob_id())) {
+                if(!gui_show_only_unassigned ||
+                   (!PD(cache).display_blobs.contains((*it)->blob.get()) && !contains(PD(cache).active_blobs, (*it)->blob->blob_id())))
+                {
                     (*it)->convert();
                     //vector.push_back((*it)->convert());
                     map[(*it)->blob.get()] = it->get();
@@ -2959,7 +2970,7 @@ void GUI::update_backups() {
 void GUI::start_backup() {
     work().add_queue("", [](){
         print("Writing backup of settings...");
-        GUI::write_config(true, TEXT, ".backup");
+        GUI::write_config(true, TEXT, "backup");
     });
 }
 
@@ -3300,7 +3311,7 @@ void GUI::key_event(const gui::Event &event) {
                     FormatWarning("Aborting training data because an exception was thrown.");
                 }*/
                 
-                Tracker::instance()->check_segments_identities(false, [](auto){}, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
+                Tracker::instance()->check_segments_identities(false, Tracker::IdentitySource::MachineLearning, [](auto){}, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
                     this->work().add_queue(t, fn, b);
                 }, frame());
                 
@@ -3369,11 +3380,15 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
     }
     
     if(type == GUIType::GRAPHICAL) {
-        PD(gui).dialog([this](gui::Dialog::Result r) {
+        const char* message_only_ml = "Automatic correction uses machine learning based predictions to correct potential tracking mistakes. Make sure that you have trained the visual identification network prior to using auto-correct.\n<i>Apply and retrack</i> will overwrite your <key>manual_matches</key> and replace any previous automatic matches based on new predictions made by the visual identification network. If you just want to see averages for the predictions without changing your tracks, click the <i>review</i> button.";
+        const char* message_both = "Automatic correction uses machine learning based predictions to correct potential tracking mistakes (visual identification, or physical tag data). Make sure that you have trained the visual identification network prior to using auto-correct, or that tag information is available.\n<i>Visual identification</i> and <i>Tags</i> will overwrite your <key>manual_matches</key> and replace any previous automatic matches based on new predictions made by the visual identification network/the tag data. If you just want to see averages for the visual identification predictions without changing your tracks, click the <i>Review VI</i> button.";
+        const bool tags_available = tags::available();
+
+        PD(gui).dialog([this, tags_available](gui::Dialog::Result r) {
             if(r == Dialog::ABORT)
                 return;
             
-            this->work().add_queue("checking identities...", [this, r](){
+            this->work().add_queue("checking identities...", [this, r, tags_available](){
                 if(r == Dialog::OKAY) {
                     std::lock_guard<std::recursive_mutex> lock_guard(PD(gui).lock());
                     PD(tracking_callbacks).push([](){
@@ -3381,7 +3396,7 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
                     });
                 }
                 
-                Tracker::instance()->check_segments_identities(r == Dialog::OKAY, [](float x) { work().set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
+                Tracker::instance()->check_segments_identities(r != Dialog::SECOND, tags_available && r == Dialog::THIRD ? Tracker::IdentitySource::QRCodes : Tracker::IdentitySource::MachineLearning, [](float x) { work().set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
                     this->work().add_queue(t, fn, b);
                 });
                 
@@ -3390,10 +3405,10 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
                 PD(cache).set_tracking_dirty();
             });
             
-        }, "Automatic correction uses machine learning based predictions to correct potential tracking mistakes. Make sure that you have trained the visual identification network prior to using auto-correct.\n<i>Apply and retrack</i> will overwrite your <key>manual_matches</key> and replace any previous automatic matches based on new predictions made by the visual identification network. If you just want to see averages for the predictions without changing your tracks, click the <i>review</i> button.", "Auto-correct", "Apply and retrack", "Cancel", "Review probabilities");
+        }, tags_available ? message_both : message_only_ml, "Auto-correct", tags_available ? "Apply visual identification" : "Apply and retrack", "Cancel", "Review VI", tags_available ? "Apply tags" : "");
     } else {
         this->work().add_queue("checking identities...", [this, force_correct](){
-            Tracker::instance()->check_segments_identities(force_correct, [](float x) { work().set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
+            Tracker::instance()->check_segments_identities(force_correct, Tracker::IdentitySource::MachineLearning, [](float x) { work().set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
                 this->work().add_queue(t, fn, b);
             });
             PD(cache).recognition_updated = false;
@@ -3531,13 +3546,22 @@ void GUI::tracking_finished() {
         GUI::auto_train();
     } else if(SETTING(auto_apply)) {
         GUI::auto_apply();
+    } else if(SETTING(auto_tags)) {
+        auto message = "Can currently only use auto_tags in combination with '-load', when loading from a results file generated by TGrabs (where the tag information is stored). Please append '-load' to the command-line, for example, to load an existing results file.\nOtherwise please open a ticket at https://github.com/mooch443/trex, if you have a specific application for this kind of function (where TRex, not TGrabs, applies a network model to existing tag images).";
+        if(SETTING(auto_tags_on_startup))
+            throw U_EXCEPTION(message);
+        else
+            FormatWarning{message};
+        
+        //GUI::auto_tags();
     }
     
     // check if results should be saved and the app should quit
     // automatically after analysis is done.
     else
 #endif
-        if(SETTING(auto_quit)) {
+        if(SETTING(auto_quit))
+    {
         GUI::auto_quit();
     }
 }
@@ -3569,6 +3593,35 @@ void GUI::auto_train() {
     std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
     instance()->training_data_dialog(GUI::GUIType::TEXT, false /* retrain */);
 }
+    
+    void GUI::auto_tags() {
+        SETTING(auto_tags) = false;
+        
+        if(!tags::available()) {
+            auto message = "Cannot perform automatic correction based on tags, since no tag information is available.";
+            if(SETTING(auto_tags_on_startup)) {
+                throw U_EXCEPTION(message);
+            } else
+                FormatWarning{message};
+            
+            return;
+        }
+            
+        std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
+        instance()->work().add_queue("checking identities...", [](){
+            Tracker::instance()->check_segments_identities(
+                true,
+                Tracker::IdentitySource::QRCodes,
+                [](float x) { work().set_percent(x); },
+                [](const std::string&t, const std::function<void()>& fn, const std::string&b) {
+                    instance()->work().add_queue(t, fn, b);
+                }
+            );
+            
+            PD(cache).recognition_updated = false;
+            PD(cache).set_tracking_dirty();
+        });
+    }
 
 void GUI::auto_apply() {
     SETTING(auto_apply) = false;
@@ -3662,6 +3715,8 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                 
                 if(found * 2 <= N && N > 0) {
                     print("fixing...");
+                    work().set_item("Fixing old blob_ids...");
+                    work().set_description("This is necessary because you are loading an <b>old</b> .results file with <b>visual identification data</b> and, since the format of blob_ids has changed, we would otherwise be unable to associate the objects with said visual identification info.\n<i>If you want to avoid this step, please use the older TRex version to load the file or let this run and overwrite the old .results file (so you don't have to wait again). Be careful, however, as information might not transfer over perfectly.</i>\n");
                     auto old_id_from_position = [](Vec2 center) {
                         return (uint32_t)( uint32_t((center.x))<<16 | uint32_t((center.y)) );
                     };
@@ -3777,8 +3832,10 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                         next_recognition[k] = tmp;
                         
                         ++i;
-                        if(i % uint64_t(N * 0.1) == 0)
+                        if(i % uint64_t(N * 0.1) == 0) {
                             print("Correcting old-format pv::bid: ", dec<2>(double(i) / double(N) * 100), "%");
+                            work().set_percent(double(i) / double(N));
+                        }
                     }
                     
                     print("Found:", all_found, " not found:", not_found);
@@ -3820,7 +3877,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
             
             if(Recognition::recognition_enabled()) {
                 GUI::instance()->work().add_queue("", [](){
-                    Tracker::instance()->check_segments_identities(false, [](float ) { },
+                    Tracker::instance()->check_segments_identities(false, Tracker::IdentitySource::MachineLearning, [](float ) { },
                     [](const std::string&t, const std::function<void()>& fn, const std::string&b)
                     {
                         if(GUI::instance())
@@ -3869,6 +3926,9 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
         }
         else if(finished && SETTING(auto_apply)) {
             auto_apply();
+        }
+        else if(finished && SETTING(auto_tags)) {
+            auto_tags();
         }
         else if(finished && SETTING(auto_quit)) {
 #else
@@ -4049,7 +4109,7 @@ std::string GUI::info(bool escape) {
 }
 
 void GUI::write_config(bool overwrite, GUI::GUIType type, const std::string& suffix) {
-    auto filename = file::Path(pv::DataLocation::parse("output_settings").str() + suffix);
+    auto filename = pv::DataLocation::parse(suffix == "backup" ? "backup_settings" : "output_settings");
     auto text = default_config::generate_delta_config();
     
     if(filename.exists() && !overwrite) {
@@ -4160,9 +4220,9 @@ void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void
             generate_training_data(std::move(task), type, force_load);
         } catch(const SoftExceptionImpl& ex) {
             if(SETTING(auto_train_on_startup)) {
-                throw U_EXCEPTION("Aborting training data because an exception was thrown ('",ex.what(),"').");
+                throw U_EXCEPTION("Aborting training data because an exception was thrown (",std::string(ex.what()),").");
             } else
-                print("Aborting training data because an exception was thrown ('",ex.what(),"').");
+                print("Aborting training data because an exception was thrown (",std::string(ex.what()),").");
         }
         
         if(!before)

@@ -1,5 +1,5 @@
 if [ "$(uname)" == "Linux" ]; then
-	conda build -c defaults -c conda-forge .
+	conda build .
 else
 	conda build .
 fi

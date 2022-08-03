@@ -187,7 +187,7 @@ public:
     }
     bool load_image(Image_t& current);
     Queue::Code process_image(Image_t& current);
-    const Image::UPtr& latest_image();
+    Image::UPtr latest_image();
     
     std::unique_ptr<pv::Frame> last_frame() {
         std::lock_guard<std::mutex> guard(_frame_lock);
@@ -217,7 +217,7 @@ public:
     void add_tracker_queue(const pv::Frame&, std::vector<pv::BlobPtr>&& tags, Frame_t);
     void update_tracker_queue();
     
-    std::atomic_bool _terminate_tracker;
+    std::atomic_bool _terminate_tracker, _tracker_terminated{false};
     std::vector<std::unique_ptr<std::thread>> _multi_pool;
     std::condition_variable _multi_variable;
     

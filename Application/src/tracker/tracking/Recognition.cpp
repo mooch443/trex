@@ -1583,6 +1583,9 @@ void Recognition::check_learning_module(bool force) {
             else
                 batch_size = 128;
             
+            auto version = SETTING(visual_identification_version).value<default_config::visual_identification_version_t::Class>();
+            print("network version: ", version);
+            py::set_variable("network_version", version.toStr(), "learn_static");
             py::set_variable("classes", ids, "learn_static");
             py::set_variable("image_width", image_size().width, "learn_static");
             py::set_variable("image_height", image_size().height, "learn_static");
@@ -2094,7 +2097,7 @@ void Recognition::load_weights(std::string postfix) {
                         }
                         
                     } catch(const SoftExceptionImpl& e) {
-                        print("Runtime error: '", e.what(),"'");
+                        print("Runtime error: ", e.what());
                         return false;
                     }
                     

@@ -268,7 +268,8 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             for(size_t i=0; i<f.n(); ++i) {
                 auto b = std::make_shared<pv::Blob>(
                     std::move(f.mask().at(i)),
-                    std::move(f.pixels().at(i)));
+                    std::move(f.pixels().at(i)),
+                    f.flags().at(i));
                 auto recount = b->recount(track_threshold, *backgrounds.at(vdx));
                 
                 if(recount < blob_size_range.start * 0.1 || recount > blob_size_range.end * 5)
@@ -321,8 +322,12 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         
         for(auto &clique : cliques) {
             if(clique.size() == 1 || !merge_overlapping_blobs) {
-                for(auto &b : clique) {
-                    o.add_object(std::move(b->steal_lines()), std::move(b->pixels()));
+                for(auto &&b : clique) {
+                    o.add_object(blob::Pair{
+                        std::move(b->steal_lines()),
+                        std::move(b->pixels()),
+                        b->flags()
+                    });
                 }
                 
             } else {
@@ -368,13 +373,13 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
                 }
                 
                 auto blobs = CPULabeling::run(mat);
-                for(auto && [lines, pixels] : blobs) {
-                    for(auto &line : *lines) {
+                for(auto && pair : blobs) {
+                    for(auto &line : *pair.lines) {
                         line.x0 += bounds.pos().x;
                         line.x1 += bounds.pos().x;
                         line.y += bounds.pos().y;
                     }
-                    o.add_object(std::move(lines), std::move(pixels));
+                    o.add_object(std::move(pair));
                     //std::make_shared<pv::Blob>(lines, pixels);
                 }
                 //cv::imshow("blended", mat);

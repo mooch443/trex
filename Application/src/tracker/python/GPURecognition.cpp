@@ -318,10 +318,6 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
 namespace track {
     namespace py = pybind11;
 
-    struct PackagedTask {
-        std::packaged_task<bool(void)> _task;
-        bool _can_run_before_init = false;
-    };
 
     std::shared_ptr<py::scoped_interpreter> guard = nullptr;
     pybind11::module numpy, TRex, _main;
@@ -354,7 +350,7 @@ namespace track {
     }
 
     template<typename T>
-    void set_function_internal(const char* name_, T f, const std::string& m);
+    void set_function_internal(const char* name_, T&& f, const std::string& m);
 
     void PythonIntegration::set_display_function(std::function<void(const std::string&, const cv::Mat&)> fn) {
         _mat_display = fn;
@@ -769,30 +765,26 @@ void PythonIntegration::reinit() {
         
         return {indexes, values};
     }
-    
-    std::future<bool> PythonIntegration::async_python_function(std::function<bool ()> fn, Flag flag, bool can_run_without_init)
+
+void PythonIntegration::async_python_function(PackagedTask && task, Flag flag) {
+    if(flag != Flag::FORCE_ASYNC
+       && std::this_thread::get_id() == _saved_id)
     {
-        PackagedTask task{std::packaged_task<bool()>(fn), can_run_without_init};
-        auto future = task._task.get_future();
-        if(flag != Flag::FORCE_ASYNC
-           && std::this_thread::get_id() == _saved_id)
-        {
-            try {
-                task._task();
-            } catch (py::error_already_set &e) {
-                FormatExcept{ "Python runtime error: ", e.what() };
-                e.restore();
-                throw SoftException(e.what());
-            } catch(...) {
-                FormatExcept("Random exception");
-            }
-        } else {
-            std::unique_lock lock(_data_mutex);
-            tasks.push_back(std::move(task));
-            _update_condition.notify_one();
+        try {
+            task._task();
+        } catch (py::error_already_set &e) {
+            FormatExcept{ "Python runtime error: ", e.what() };
+            e.restore();
+            throw SoftException(e.what());
+        } catch(...) {
+            FormatExcept("Random exception");
         }
-        return future;
+    } else {
+        std::unique_lock lock(_data_mutex);
+        tasks.emplace_back(std::move(task));
+        _update_condition.notify_one();
     }
+}
 
 std::shared_future<bool> PythonIntegration::ensure_started() {
     if(!_initialize_promise)
@@ -935,21 +927,21 @@ template<> TREX_EXPORT float PythonIntegration::get_variable(const std::string& 
 }
 
 template<typename T>
-void set_function_internal(const char* name_, T f, const std::string& m) {
+void set_function_internal(const char* name_, T&& f, const std::string& m) {
     PythonIntegration::check_correct_thread_id();
     
     if(m.empty()) {
-        _main.def(name_, f);
+        _main.def(name_, std::move(f));
     } else {
         if(_modules.count(m)) {
             auto &mod = _modules[m];
             if(!CHECK_NONE(mod)) {
-                mod.def(name_, f);
+                mod.def(name_, std::move(f));
                 return;
             }
         }
         
-        throw SoftException("Cannot define function '", name_,"' in ", m," because the module does not exist.");
+        throw SoftException("Cannot define function ",fmt::clr<FormatColor::DARK_CYAN>(m.c_str()),"::", fmt::clr<FormatColor::CYAN>(name_)," because the module ",fmt::clr<FormatColor::DARK_CYAN>(m.c_str())," does not exist (you should probably have a look at previous error messages).");
     }
 }
 
@@ -969,6 +961,14 @@ void PythonIntegration::set_function(const char* name_, std::function<void(std::
 void PythonIntegration::set_function(const char* name_, std::function<void(std::vector<float>)> f, const std::string &m)
 {
     set_function_internal(name_, f, m);
+}
+
+void PythonIntegration::set_function(const char* name_, std::packaged_task<void(std::vector<int64_t>)>&& f, const std::string &m)
+{
+    set_function_internal(name_, [f = std::move(f)](std::vector<int64_t> v) mutable {
+        f(v);
+        f.get_future().get();
+    }, m);
 }
 
 void PythonIntegration::set_function(const char* name_, std::function<void(std::vector<uchar>, std::vector<std::string>)> f, const std::string &m)

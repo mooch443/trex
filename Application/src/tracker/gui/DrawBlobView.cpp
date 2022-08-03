@@ -724,9 +724,23 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                     v = v.normalize();
                     
                     a = atan2(v);
-                    base.text(Meta::toStr(D)+" px", Vec2(boundary[1] - boundary[0]) * 0.5 + boundary[0] + v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525), Cyan.alpha(200), font, sca, a);
+                    base.text(
+                        Meta::toStr(D)+" px", 
+                        Vec2(boundary[1] - boundary[0]) * 0.5 + boundary[0] + v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525), 
+                        Cyan.alpha(200), 
+                        font, 
+                        sca, 
+                        Vec2(0.5),
+                        a);
                     
-                    base.text(Meta::toStr(D * SETTING(cm_per_pixel).value<float>())+" cm", Vec2(boundary[1] - boundary[0]) * 0.5 + boundary[0] - v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525), Cyan.alpha(200), font, sca, a);
+                    base.text(
+                        Meta::toStr(D * SETTING(cm_per_pixel).value<float>())+" cm", 
+                        Vec2(boundary[1] - boundary[0]) * 0.5 + boundary[0] - v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525), 
+                        Cyan.alpha(200), 
+                        font, 
+                        sca,
+                        Vec2(0.5), 
+                        a);
                 }
                 
                 Font f = font;

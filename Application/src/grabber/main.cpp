@@ -301,6 +301,17 @@ int main(int argc, char** argv)
         return pv::DataLocation::parse("output", settings_file);
     });
     
+    pv::DataLocation::register_path("backup_settings", [](file::Path) -> file::Path {
+        file::Path settings_file(SETTING(filename).value<Path>().filename());
+        if(settings_file.empty())
+            throw U_EXCEPTION("settings_file (and like filename) is an empty string.");
+        
+        if(!settings_file.has_extension() || settings_file.extension() != "settings")
+            settings_file = settings_file.add_extension("settings");
+        
+        return pv::DataLocation::parse("output", "backup") / settings_file;
+    });
+    
     GlobalSettings::map().set_do_print(true);
     
     /*auto debug_callback = DEBUG::SetDebugCallback({

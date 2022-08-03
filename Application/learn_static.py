@@ -9,165 +9,14 @@ from tensorflow.keras import backend as K
 from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
+from visual_identification_network import Network
+
 import numpy as np
 import TRex
 
-# from https://github.com/umbertogriffo/focal-loss-keras
-def binary_focal_loss(gamma=2., alpha=.25):
-    """
-    Binary form of focal loss.
-
-      FL(p_t) = -alpha * (1 - p_t)**gamma * log(p_t)
-
-      where p = sigmoid(x), p_t = p or 1 - p depending on if the label is 1 or 0, respectively.
-
-    References:
-        https://arxiv.org/pdf/1708.02002.pdf
-    Usage:
-     model.compile(loss=[binary_focal_loss(alpha=.25, gamma=2)], metrics=["accuracy"], optimizer=adam)
-
-    """
-
-    def binary_focal_loss_fixed(y_true, y_pred):
-        """
-        :param y_true: A tensor of the same shape as `y_pred`
-        :param y_pred:  A tensor resulting from a sigmoid
-        :return: Output tensor.
-        """
-        y_true = tf.cast(y_true, tf.float32)
-        # Define epsilon so that the back-propagation will not result in NaN for 0 divisor case
-        epsilon = K.epsilon()
-        # Add the epsilon to prediction value
-        # y_pred = y_pred + epsilon
-        # Clip the prediciton value
-        y_pred = K.clip(y_pred, epsilon, 1.0 - epsilon)
-        # Calculate p_t
-        p_t = tf.where(K.equal(y_true, 1), y_pred, 1 - y_pred)
-        # Calculate alpha_t
-        alpha_factor = K.ones_like(y_true) * alpha
-        alpha_t = tf.where(K.equal(y_true, 1), alpha_factor, 1 - alpha_factor)
-        # Calculate cross entropy
-        cross_entropy = -K.log(p_t)
-        weight = alpha_t * K.pow((1 - p_t), gamma)
-        # Calculate focal loss
-        loss = weight * cross_entropy
-        # Sum the losses in mini_batch
-        loss = K.mean(K.sum(loss, axis=1))
-        return loss
-
-    return binary_focal_loss_fixed
-
-
-def categorical_focal_loss(alpha, gamma=2.):
-    """
-    Softmax version of focal loss.
-    When there is a skew between different categories/labels in your data set, you can try to apply this function as a
-    loss.
-           m
-      FL = ∑  -alpha * (1 - p_o,c)^gamma * y_o,c * log(p_o,c)
-          c=1
-
-      where m = number of classes, c = class and o = observation
-
-    Parameters:
-      alpha -- the same as weighing factor in balanced cross entropy. Alpha is used to specify the weight of different
-      categories/labels, the size of the array needs to be consistent with the number of classes.
-      gamma -- focusing parameter for modulating factor (1-p)
-
-    Default value:
-      gamma -- 2.0 as mentioned in the paper
-      alpha -- 0.25 as mentioned in the paper
-
-    References:
-        Official paper: https://arxiv.org/pdf/1708.02002.pdf
-        https://www.tensorflow.org/api_docs/python/tf/keras/backend/categorical_crossentropy
-
-    Usage:
-     model.compile(loss=[categorical_focal_loss(alpha=[[.25, .25, .25]], gamma=2)], metrics=["accuracy"], optimizer=adam)
-    """
-
-    alpha = np.array(alpha, dtype=np.float32)
-
-    def categorical_focal_loss_fixed(y_true, y_pred):
-        """
-        :param y_true: A tensor of the same shape as `y_pred`
-        :param y_pred: A tensor resulting from a softmax
-        :return: Output tensor.
-        """
-
-        # Clip the prediction value to prevent NaN's and Inf's
-        epsilon = K.epsilon()
-        y_pred = K.clip(y_pred, epsilon, 1. - epsilon)
-
-        # Calculate Cross Entropy
-        cross_entropy = -y_true * K.log(y_pred)
-
-        # Calculate Focal Loss
-        loss = alpha * K.pow(1 - y_pred, gamma) * cross_entropy
-
-        # Compute mean loss in mini_batch
-        return K.mean(K.sum(loss, axis=-1))
-
-    return categorical_focal_loss_fixed
-
 def reinitialize_network():
-    global model, image_width, image_height, classes, learning_rate, sess
-
-
-    model = Sequential()
-    TRex.log("initializing network:"+str(image_width)+","+str(image_height)+" "+str(len(classes))+" classes")
-
-    model.add(Lambda(lambda x: (x / 127.5 - 1.0), input_shape=(int(image_width),int(image_height),1)))
-
-    model.add(Convolution2D(16, 5))
-#    model.add(Activation('relu'))
-    model.add(BatchNormalization())
-    model.add(Activation('relu'))
-    model.add(MaxPooling2D(pool_size=(2,2)))
-    model.add(SpatialDropout2D(0.05))
-
-    model.add(Convolution2D(64, 5))
-#    model.add(Activation('relu'))
-    model.add(BatchNormalization())
-    model.add(Activation('relu'))
-    model.add(MaxPooling2D(pool_size=(2,2)))
-    model.add(SpatialDropout2D(0.05))
-
-    model.add(Convolution2D(100, 5))
-#    model.add(Activation('relu'))
-    model.add(BatchNormalization())
-    model.add(Activation('relu'))
-    model.add(MaxPooling2D(pool_size=(2,2)))
-    model.add(SpatialDropout2D(0.05))
-
-    model.add(Dense(100))
-    model.add(BatchNormalization())
-    model.add(Activation('relu'))
-    model.add(SpatialDropout2D(0.05))
-    
-    model.add(Flatten())
-    model.add(Dense(len(classes), activation='softmax'))
-
-    import platform
-    import importlib
-    found = True
-    try:
-        importlib.import_module('tensorflow')
-        import tensorflow
-    except ImportError:
-        found = False
-
-    if found:
-        model.compile(loss= #'categorical_crossentropy',
-            #SigmoidFocalCrossEntropy(),
-            categorical_focal_loss(gamma=2., alpha=.25),
-            optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-            metrics=['accuracy'])
-    else:
-        model.compile(loss='categorical_crossentropy',
-            optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-            metrics=['accuracy'])
-    model.summary(print_fn=TRex.log)
+    global model, image_width, image_height, classes, learning_rate, sess, network_version
+    model = Network(image_width=image_width, image_height=image_height, classes=classes, learning_rate=learning_rate, version=network_version).model
 
 class UserCancelException(Exception):
     """Raised when user clicks cancel"""
@@ -229,7 +78,7 @@ class ValidationCallback(tf.keras.callbacks.Callback):
             if len(images) == 0:
                 continue
 
-            Y = self.model.predict(images)
+            Y = self.model.predict(images, verbose=0)
             predictions.append(Y)
             
             distance = np.abs(Y - zeros).sum(axis=1)
@@ -478,7 +327,7 @@ def predict():
         print("error with the shape")
         
     indexes = np.array(np.arange(len(train_X)), dtype=np.float32)
-    output = model.predict(train_X)
+    output = model.predict(train_X, verbose=0)
     
     receive(output, indexes)
 
@@ -611,7 +460,7 @@ def start_learning():
 
             callback = ValidationCallback(model, classes, X_test, Y_test, epochs, filename, output_prefix+"_"+str(accumulation_step), output_path, best_accuracy_worst_class, estimate_uniqueness, settings)
             
-            '''validation_data = None
+            validation_data = None
             #validation_data = tf.data.Dataset.from_tensor_slices((tf.cast(X_test, float), Y_test))#.batch(batch_size)
             if len(X_test) == 0:
                 validation_data = None
@@ -621,7 +470,7 @@ def start_learning():
             dataset = tf.data.Dataset.from_generator(lambda: datagen.flow(tf.cast(X_train, float), tf.cast(Y_train, float), batch_size=batch_size), 
                 output_types=(tf.float32, tf.float32),
                 output_shapes =(tf.TensorShape([None, int(settings["image_height"]), int(settings["image_width"]), 1]), tf.TensorShape([None, int(len(classes))]))
-            ).repeat()#.shuffle(len(X_train), reshuffle_each_iteration=True)
+            ).repeat().shuffle(batch_size * 2, reshuffle_each_iteration=True)#.batch(batch_size)
             
             #dataset = datagen.flow(tf.cast(X_train, float), Y_train, batch_size=batch_size)
             TRex.log("tf.data.Dataset: "+str(dataset))
@@ -631,9 +480,9 @@ def start_learning():
                                   steps_per_epoch=per_epoch, 
                                   epochs=max_epochs,
                                   callbacks=[callback],
-                                  verbose=verbosity)'''
+                                  verbose=verbosity)
             
-            validation_data = (X_test, Y_test)
+            '''validation_data = (X_test, Y_test)
             if len(X_test) == 0:
                 validation_data = None
 
@@ -642,7 +491,7 @@ def start_learning():
                                           steps_per_epoch=per_epoch, epochs=epochs,
                                           callbacks = [ callback ],
                                           #class_weight = per_class
-                                          )
+                                          )'''
 
             model_json = model.to_json()
             with open(output_path+".json", "w") as f:
@@ -670,8 +519,10 @@ def start_learning():
                         best_accuracy_worst_class = callback.best_result["unique"]
                 except:
                     TRex.warn("loading weights failed")
-            else:
+            elif settings.accumulation_step == -2:
                 TRex.warn("could not improve upon previous steps.")
+            else:
+                TRex.warn("Could not improve upon previous steps.")
                 abort_with_error = True
 
         else:
