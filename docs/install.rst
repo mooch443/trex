@@ -17,11 +17,8 @@ The easy way (Windows, Linux and Intel macOS)
 
 |trex| supports all major platforms. There is an easy way to install |trex| using Anaconda, by creating a new virtual environment (here named ``tracking``, which you can replace)::
 
-	# macOS, Windows
+	# macOS, Windows, Linux
 	conda create -n tracking -c trexing trex
-
-	# Linux
-	conda create -n tracking -c defaults -c conda-forge -c trexing trex
 
 The down-side is that pre-built binaries are compiled with fewer optimzations and features than a manually compiled one (due to compatibility and licensing issues) and thus are slightly slower =(. For example, the conda version does not offer support for Basler cameras. If you need to use |grabs| with machine vision cameras, or need as much speed as possible/the newest version, please consider compiling the software yourself.
 
@@ -34,7 +31,7 @@ If you own a new Mac with an Apple Silicone CPU, the Intel version (above) works
 
 There is no official tensorflow package yet, which is why |trex| will not allow you to use machine learning right away. But -- yay -- Apple provides their own version for macOS including a native macOS (`developer.apple.com <https://developer.apple.com/metal/tensorflow-plugin/>`_) backend. An Apple Silicone MacBook (2020) only needs ~50ms/step and (with the same data and code) is not much slower than my fast i7 PC with an NVIDIA Geforce 1070 -- running at roughly ~21ms/step. To install tensorflow inside your activated environment, just run::
 
-	conda install -c apple tensorflow-deps==2.7.0 && python -m pip install tensorflow-macos==2.7.0 tensorflow-metal==0.3.0
+	conda install -c apple tensorflow-deps && python -m pip install tensorflow-macos tensorflow-metal
 
 Now |trex|, if installed within the same environment, has the full power of your Mac at its disposal. Have fun!
 
@@ -69,11 +66,8 @@ This runs ``conda build .``, which builds the program according to all the setti
 
 After compilation was successful, |trex| can be installed using::
 
-	# macOS, Windows
+	# macOS, Windows, Linux
 	conda create -n tracking -c local trex
-
-	# Linux
-	conda create -n tracking -c defaults -c conda-forge -c local trex
 
 Notice there is a ``-c local``, instead of the ``-c trexing`` from the first section.
 
