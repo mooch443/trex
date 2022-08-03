@@ -3408,8 +3408,14 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
         }, tags_available ? message_both : message_only_ml, "Auto-correct", tags_available ? "Apply visual identification" : "Apply and retrack", "Cancel", "Review VI", tags_available ? "Apply tags" : "");
     } else {
         this->work().add_queue("checking identities...", [this, force_correct](){
-            Tracker::instance()->check_segments_identities(force_correct, Tracker::IdentitySource::MachineLearning, [](float x) { work().set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
+            Tracker::instance()->check_segments_identities(force_correct, Tracker::IdentitySource::MachineLearning, [](float x) { work().set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b)
+            {
                 this->work().add_queue(t, fn, b);
+                
+                std::lock_guard<std::recursive_mutex> lock_guard(PD(gui).lock());
+                PD(tracking_callbacks).push([](){
+                    instance()->auto_correct(GUI::GUIType::TEXT, false);
+                });
             });
             PD(cache).recognition_updated = false;
             PD(cache).set_tracking_dirty();
@@ -4338,10 +4344,6 @@ void GUI::generate_training_data(std::future<void>&& initialized, GUI::GUIType t
                                 Tracker::recognition()->check_last_prediction_accuracy();
                                     
                                 std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
-                                PD(tracking_callbacks).push([](){
-                                    instance()->auto_correct(GUI::GUIType::TEXT, false);
-                                });
-                                    
                                 instance()->auto_correct(GUI::GUIType::TEXT, true);
                             });
                         }

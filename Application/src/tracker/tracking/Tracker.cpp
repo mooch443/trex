@@ -3926,15 +3926,18 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
 #ifdef TREX_DEBUG_IDENTITIES
         auto f = fopen(pv::DataLocation::parse("output", "identities.log").c_str(), "wb");
 #endif
-        distribute_vector([this, &count, &callback, &manual_identities](auto, auto it, auto, auto){
-            auto & [fdx, fish] = *it;
-            
-            if(manual_identities.empty() || manual_identities.find(fdx) != manual_identities.end()) {
-                fish->clear_recognition();
-                fish->calculate_average_recognition();
+        distribute_vector([this, &count, &callback, &manual_identities](auto, auto start, auto end, auto)
+        {
+            for(auto it = start; it != end; ++it) {
+                auto & [fdx, fish] = *it;
                 
-                callback(count / float(_individuals.size()) * 0.5f);
-                ++count;
+                if(manual_identities.empty() || manual_identities.find(fdx) != manual_identities.end()) {
+                    fish->clear_recognition();
+                    fish->calculate_average_recognition();
+                    
+                    callback(count / float(_individuals.size()) * 0.5f);
+                    ++count;
+                }
             }
             
         }, recognition_pool, _individuals.begin(), _individuals.end());
