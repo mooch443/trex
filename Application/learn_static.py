@@ -78,7 +78,7 @@ class ValidationCallback(tf.keras.callbacks.Callback):
             if len(images) == 0:
                 continue
 
-            Y = self.model.predict(images, verbose=0)
+            Y = self.model.predict(tf.cast(images, dtype=np.float32), verbose=0)
             predictions.append(Y)
             
             distance = np.abs(Y - zeros).sum(axis=1)
@@ -327,7 +327,7 @@ def predict():
         print("error with the shape")
         
     indexes = np.array(np.arange(len(train_X)), dtype=np.float32)
-    output = model.predict(train_X, verbose=0)
+    output = model.predict(tf.cast(train_X, dtype=np.float32), verbose=0)
     
     receive(output, indexes)
 
