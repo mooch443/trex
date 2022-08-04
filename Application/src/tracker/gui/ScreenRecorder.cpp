@@ -227,8 +227,13 @@ struct ScreenRecorder::Data {
             _recording_capture = new cv::VideoWriter{
                 frames.str(),
                 format == gui_recording_format_t::mp4
+#ifdef __APPLE__
                     ? cv::VideoWriter::fourcc('H','2','6','4')
-                    : cv::VideoWriter::fourcc('M','J','P','G'),
+                    : cv::VideoWriter::fourcc('M', 'J', 'P', 'G'),
+#else
+                    ? cv::VideoWriter::fourcc('m', 'p', '4', 'v')
+                    : cv::VideoWriter::fourcc('F', 'F', 'V', '1'),
+#endif
                 (double)SETTING(frame_rate).value<int>(), size, true};
             
             if(!_recording_capture->isOpened()) {

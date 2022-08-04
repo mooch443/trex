@@ -127,7 +127,7 @@ std::tuple<Image::UPtr, Vec2> Recognition::calculate_diff_image_with_settings(co
                 if(!FAST_SETTINGS(recognition_enable) || this->_running || timer.elapsed() < 1)
                     continue;
                 
-                if(!GUI_SETTINGS(terminate) && !terminate_thread) {
+                if(!GUI_SETTINGS(terminate) && !terminate_thread && info.percent < 1) {
                     this->update_internal_training();
                 }
                 
@@ -1166,10 +1166,17 @@ bool Recognition::python_available() {
     }
 #endif
     
-    void Recognition::Detail::clear() {
+    void Recognition::Detail::clear(bool clear_percentage) {
         std::lock_guard<std::mutex> guard(lock);
         added_to_queue = processed = 0;
         added_individuals_per_frame.clear();
+        _max_pre_frame.clear();
+        _max_pst_frame.clear();
+        _unavailable_blobs = 0;
+        if(clear_percentage) {
+            _percent = 0;
+        }
+        _processing_percent = 0;
     }
     
     Recognition::Detail::Info Recognition::Detail::info() {
@@ -1215,7 +1222,7 @@ bool Recognition::python_available() {
         proc.insert(fdx);
     }
     
-    void Recognition::Detail::finished_frames(const std::map<Frame_t, std::set<Idx_t> > &individuals_per_frame) {
+    bool Recognition::Detail::finished_frames(const std::map<Frame_t, std::set<Idx_t> > &individuals_per_frame) {
         size_t added_frames;
         Range<Frame_t> analysis_range;
         Frame_t end_frame, video_length;
@@ -1275,12 +1282,15 @@ bool Recognition::python_available() {
         obj = info();
         
         //auto percent = (float(obj.processed) / float(obj.added)) * (float(obj.max_frame) / float(_last_checked_frame > 0 ? _last_checked_frame : 1));
+        
+        bool result = false;
         if(obj.percent >= 1 && obj.added >= obj.processed) {
             for(auto &callback : callbacks)
                 callback();
             
             std::lock_guard<std::mutex> guard(lock);
             registered_callbacks.clear();
+            result = true;
         }
         
         if(abs(_percent - _last_percent) > 0.05 || obj.percent >= 1) {
@@ -1294,6 +1304,8 @@ bool Recognition::python_available() {
             
             _last_percent = _percent;
         }
+        
+        return result;
     }
     
     void Recognition::Detail::register_finished_callback(std::function<void()>&& fn) {
@@ -1439,8 +1451,6 @@ bool Recognition::python_available() {
                 print("[GPU] ",dec<2>(values.size() / float(FAST_SETTINGS(track_max_individuals))),"/",images.size()," values returned in ",dec<2>(time * 1000),"ms");
 
                 this->stop_running();
-                
-                _detail.finished_frames(uploaded_frames);
 
                 {
                     std::lock_guard<std::mutex> guard(_mutex);
@@ -1448,6 +1458,11 @@ bool Recognition::python_available() {
                         size_t i = narrow_cast<size_t>(indexes.at((size_t)j));
                         probs[data[i].frame][data[i].blob.blob.blob_id()] = std::vector<float>(values.begin() + j * FAST_SETTINGS(track_max_individuals), values.begin() + (j + 1) * FAST_SETTINGS(track_max_individuals));
                     }
+                }
+                
+                if(_detail.finished_frames(uploaded_frames)) {
+                    // -
+                    _detail.clear(false);
                 }
                 
                 if(GUI::instance()) {
@@ -2037,6 +2052,7 @@ void Recognition::load_weights(std::string postfix) {
                             _fish_last_frame.clear();
                             _last_frames.clear();
                             _data_queue.clear();
+                            _detail.clear();
                             probs.clear();
                         }
                         

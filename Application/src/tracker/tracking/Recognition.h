@@ -183,9 +183,9 @@ namespace track {
             void inproc_frame(Frame_t, Idx_t);
             void failed_frame(Frame_t, Idx_t);
             
-            void finished_frames(const std::map<Frame_t, std::set<Idx_t>>& individuals_per_frame);
+            bool finished_frames(const std::map<Frame_t, std::set<Idx_t>>& individuals_per_frame);
             void register_finished_callback(std::function<void()>&& fn);
-            void clear();
+            void clear(bool clear_percentage = true);
         };
         
     protected:
