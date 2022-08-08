@@ -60,9 +60,9 @@ if [ "$(uname)" == "Linux" ]; then
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
             -DCMAKE_BUILD_TYPE=Release \
             -DWITH_FFMPEG=ON \
-            -DCOMMONS_BUILD_ZLIB=OFF \
-            -DCOMMONS_BUILD_ZIP=OFF \
-            -DCOMMONS_BUILD_PNG=OFF \
+            -DCOMMONS_BUILD_ZLIB=ON \
+            -DCOMMONS_BUILD_ZIP=ON \
+            -DCOMMONS_BUILD_PNG=ON \
             -DCOMMONS_BUILD_OPENCV=ON \
             -DCMAKE_PREFIX_PATH="$CONDA_PREFIX;$CONDA_PREFIX/lib/pkgconfig;$CONDA_PREFIX/lib" \
             -DWITH_PYLON=ON
