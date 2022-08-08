@@ -139,6 +139,9 @@ else
 fi
 
 cmake --build . --target Z_LIB --config Release
+cmake --build . --target libzip --config Release
+cmake --build . --target libpng_custom --config Release
+cmake ..
 cmake --build . --target CustomOpenCV --config Release
 cmake ..
 cmake --build . --config Release
