@@ -92,13 +92,7 @@ bool DatasetQuality::calculate_segment(const Range<Frame_t> &consec, const uint6
     
     std::set<Individual*> found;
     
-    for(auto id : FAST_SETTINGS(manual_identities)) {
-        // does the given fish exist yet?
-        auto it = Tracker::individuals().find(id);
-        if(it == Tracker::individuals().end())
-            continue;
-        
-        auto fish = it->second;
+    for(auto &[id, fish] : Tracker::individuals()) {
         if(!fish->frame_segments().empty()) {
             auto it = fish->frame_segments().rbegin();
             if((*it)->range.overlaps(consec)) {
@@ -161,7 +155,8 @@ void DatasetQuality::remove_segment(const Range<Frame_t> &range) {
 }
 
 void DatasetQuality::update(const Tracker::LockGuard& guard) {
-    if(FAST_SETTINGS(manual_identities).empty() || Tracker::instance()->consecutive().empty())
+    if(FAST_SETTINGS(track_max_individuals) == 0
+       || Tracker::instance()->consecutive().empty())
         return;
     
     auto video_length = Tracker::analysis_range().end.get();

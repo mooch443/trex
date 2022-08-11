@@ -25,7 +25,7 @@ namespace track {
     class Recognition;
     class TrainingData;
     class FOI;
-    struct fdx_t;
+    //struct fdx_t;
     struct SplitData;
     
     struct IndividualStatus {
@@ -69,7 +69,6 @@ CREATE_STRUCT(Settings,
   (float, matching_probability_threshold),
   (uint16_t, posture_direction_smoothing),
   (file::Path, tags_path),
-  (std::set<Idx_t>, manual_identities),
   (std::vector<Vec2>, grid_points),
   (std::vector<std::vector<Vec2>>, recognition_shapes),
   (float, grid_points_scaling),
@@ -246,6 +245,12 @@ CREATE_STRUCT(Settings,
         }
         static const FrameProperties* add_next_frame(const FrameProperties&);
         static void clear_properties();
+        
+        //! returns an ordered set of Idx_t for all individuals that exist
+        static const std::set<Idx_t> identities();
+        
+        //! returns true only if track_max_individuals > 0
+        static bool has_identities();
         
         static Frame_t start_frame() { return instance()->_startFrame.load(); }
         static Frame_t end_frame() { return instance()->_endFrame.load(); }

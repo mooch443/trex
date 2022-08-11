@@ -252,7 +252,7 @@ Image::UPtr TrainingData::draw_coverage(const std::map<Frame_t, float>& unique_p
     
     std::map<long_t, gui::Color> colors;
     
-    int rows = cmn::max(1, (long_t)FAST_SETTINGS(manual_identities).size());
+    int rows = cmn::max(1, (long_t)Tracker::identities().size());
     
     float row_height = float(image->rows) / float(rows);
     float column_width = float(image->cols) / float(analysis_range.length().get());
@@ -265,7 +265,7 @@ Image::UPtr TrainingData::draw_coverage(const std::map<Frame_t, float>& unique_p
     
     
     ColorWheel wheel;
-    for(auto id : FAST_SETTINGS(manual_identities)) {
+    for(auto id : Tracker::identities()) {
         gui::Color color = wheel.next();
         colors[id] = color;
     }
@@ -899,7 +899,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
     if(fewest_samples == std::numeric_limits<double>::max())
         fewest_samples = most_samples = 0;
     
-    const double number_classes = FAST_SETTINGS(manual_identities).size();
+    const double number_classes = Tracker::identities().size();
     const double gpu_max_sample_gb = double(SETTING(gpu_max_sample_gb).value<float>());
     double percentile = ceil((most_samples - fewest_samples) * 0.65 + fewest_samples); // 0.65 percentile of #images/class
     const double current_filesize_per_class = percentile * (double)output_size.width * (double)output_size.height * 4;
@@ -1022,9 +1022,9 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
         // check so that we do not generate images again, that we have generated before
         std::set<Idx_t> filtered_ids;
         
-        for(auto id : FAST_SETTINGS(manual_identities)) {
-            if(individuals_per_frame.at(frame).find(Idx_t(id)) != individuals_per_frame.at(frame).end())
-                filtered_ids.insert(Idx_t(id));
+        for(auto id : Tracker::identities()) {
+            if(individuals_per_frame.at(frame).find(id) != individuals_per_frame.at(frame).end())
+                filtered_ids.insert(id);
         }
         
         if(frame < inserted_start)

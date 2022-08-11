@@ -255,7 +255,7 @@ struct RecTask {
     static void update(RecTask&& task) {
         auto individual = task.individual;
         
-        auto apply = [task = std::move(task)]() mutable -> bool {
+        auto apply = [task = std::move(task)]() mutable -> void {
             
             PythonIntegration::set_variable("tag_images", task._images, tagwork);
             
@@ -334,14 +334,13 @@ struct RecTask {
             PythonIntegration::set_function("receive", std::move(pt), tagwork);
             PythonIntegration::run(tagwork, "predict");
             PythonIntegration::unset_function("receive", tagwork);
-            
-            return true;
         };
 
-        auto res = PythonIntegration::async_python_function(std::move(apply)).get();
-        if(!res) {
-            FormatError("There was an error during apply for ", individual);
-        }
+        //auto res =
+        PythonIntegration::async_python_function(nullptr, std::move(apply)).get();
+        //if(!res) {
+        //    FormatError("There was an error during apply for ", individual);
+        //}
         //else
         //    print("Predicted values for ", result.individual, " result: ", result._ids.size());
     }
@@ -386,8 +385,8 @@ void RecTask::init() {
     
     PythonIntegration::ensure_started().get();
     //Recognition::check_learning_module(true);
-    PythonIntegration::async_python_function([]()->bool {return true; });
-    auto res = PythonIntegration::async_python_function([&]() -> bool {
+    PythonIntegration::async_python_function(nullptr, []()->void  { });
+    PythonIntegration::async_python_function(nullptr, [&]() -> void {
         try {
             PythonIntegration::import_module(tagwork);
             auto path = SETTING(tags_model_path).value<file::Path>();
@@ -398,17 +397,13 @@ void RecTask::init() {
             PythonIntegration::set_variable("width", 32, tagwork);
             PythonIntegration::set_variable("height", 32, tagwork);
             PythonIntegration::run(tagwork, "init");
-            print("tagging initialized.");
-            return true;
-        } catch(...) {
-            return false;
-        }
-        }).get();
-
-        if(res) {
             print("Initialized tagging successfully.");
-        } else
+            
+        } catch(...) {
             FormatError("Error during tagging initialization.");
+            return;
+        }
+    }).get();
 }
 
 Individual::IDaverage Individual::qrcode_at(Frame_t segment_start) const {
@@ -912,7 +907,9 @@ MinimalOutline::Ptr Individual::outline(Frame_t frameIndex) const {
 Individual::Individual(Identity&& id)
     : _identity(std::move(id))
 {
-    if(FAST_SETTINGS(manual_identities).count(identity().ID()))
+    auto identities = Tracker::identities();
+    auto set = std::set<Idx_t>(identities.begin(), identities.end());
+    if(set.count(identity().ID()))
         identity().set_manual(true);
     //else
     //    throw U_EXCEPTION("Hey");
@@ -1631,7 +1628,7 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(F
         
 #if !COMMONS_NO_PYTHON
         //! Update recognition if enabled
-        if(Recognition::recognition_enabled())
+        if(Tracker::recognition())
             Recognition::notify();
 #endif
         

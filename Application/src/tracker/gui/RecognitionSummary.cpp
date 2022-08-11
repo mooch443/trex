@@ -18,8 +18,8 @@ namespace gui {
         Font side_font(0.8f / interface_scale, Align::Right);
         Font bottom_font(0.8f / interface_scale, Align::Center);
         
-        auto manual_identities = FAST_SETTINGS(manual_identities);
-        std::set<Idx_t> sorted(manual_identities.begin(), manual_identities.end());
+        auto manual_identities = Tracker::identities();
+        auto sorted = manual_identities;
         for(auto id : manual_identities) {
             if(cache.individuals.find(id) == cache.individuals.end())
                 sorted.erase(id);

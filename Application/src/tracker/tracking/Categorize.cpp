@@ -1779,7 +1779,7 @@ void Work::start_learning() {
     
     Work::_learning = true;
     
-    PythonIntegration::async_python_function([]() -> bool{
+    PythonIntegration::async_python_function(nullptr, []() -> void {
         Work::status() = "Initializing...";
         Work::initialized() = false;
         
@@ -2131,8 +2131,6 @@ void Work::start_learning() {
         print("## Ending python blockade.");
         print("Clearing DataStore.");
         DataStore::clear();
-        
-        return true;
         
     }, PythonIntegration::Flag::DEFAULT, false);
 }

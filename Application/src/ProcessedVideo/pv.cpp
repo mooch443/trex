@@ -284,13 +284,13 @@ namespace pv {
     }
     
     void Frame::add_object(blob::Pair&& pair) {
-        assert(mask->size() < UINT16_MAX);
+        assert(pair.lines->size() < UINT16_MAX);
         
 #ifndef NDEBUG
-        HorizontalLine prev = mask->empty() ? HorizontalLine() : mask->front();
+        HorizontalLine prev = pair.lines->empty() ? HorizontalLine() : pair.lines->front();
         
         uint64_t count = 0;
-        for (auto &line : *mask) {
+        for (auto &line : *pair.lines) {
             if(!(prev == line) && !(prev < line))
                 FormatWarning("Lines not properly ordered, or overlapping in x [",prev.x0,"-",prev.x1,"] < [",line.x0,"-",line.x1,"] (",prev.y,"/",line.y,").");
             prev = line;

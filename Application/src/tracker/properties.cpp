@@ -87,15 +87,6 @@ void async_main(void*) {
 
 		Tracker::auto_calculate_parameters(file);
 
-		if (SETTING(manual_identities).value<std::set<track::Idx_t>>().empty() && SETTING(track_max_individuals).value<uint32_t>() != 0)
-		{
-			std::set<track::Idx_t> vector;
-			for (uint32_t i = 0; i < SETTING(track_max_individuals).value<uint32_t>(); ++i) {
-				vector.insert(track::Idx_t(i));
-			}
-			SETTING(manual_identities) = vector;
-		}
-
 		GUICache cache{ &graph, &file };
 
 		std::atomic<double> fps{ 0.0 };

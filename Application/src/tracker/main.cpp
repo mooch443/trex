@@ -1014,15 +1014,6 @@ int main(int argc, char** argv)
     
     Tracker::auto_calculate_parameters(video);
     
-    if(SETTING(manual_identities).value<std::set<track::Idx_t>>().empty() && SETTING(track_max_individuals).value<uint32_t>() != 0)
-    {
-        std::set<track::Idx_t> vector;
-        for(uint32_t i=0; i<SETTING(track_max_individuals).value<uint32_t>(); ++i) {
-            vector.insert(track::Idx_t(i));
-        }
-        SETTING(manual_identities) = vector;
-    }
-    
     default_config::warn_deprecated("global", GlobalSettings::map());
     
     if(FAST_SETTINGS(track_max_individuals) == 1
@@ -1532,15 +1523,14 @@ int main(int argc, char** argv)
                     
                         copy = utils::find_replace(copy, "\\n", "\n");
                         copy = utils::find_replace(copy, "\\t", "\t");
-                        PythonIntegration::async_python_function([copy]()->bool
+                        PythonIntegration::async_python_function(nullptr, [copy]()-> void
                         {
                             print("Executing ",copy);
                             try {
                                 PythonIntegration::execute(copy);
                             } catch(const SoftExceptionImpl& e) {
-                                print("Runtime error: '", e.what(),"'");
+                                print("Runtime error: ", e.what());
                             }
-                            return true;
                         });
                     }
 #endif

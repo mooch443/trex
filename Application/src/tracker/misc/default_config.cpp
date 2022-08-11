@@ -459,7 +459,6 @@ file::Path conda_environment_path() {
         CONFIG("enable_absolute_difference", true, "If set to true, the threshold values will be applied to abs(image - background). Otherwise max(0, image - background).");
         CONFIG("track_time_probability_enabled", bool(true), "");
         CONFIG("track_max_reassign_time", float(0.5), "Distance in time (seconds) where the matcher will stop trying to reassign an individual based on previous position. After this time runs out, depending on the settings, the tracker will try to find it based on other criteria, or generate a new individual.");
-        CONFIG("manual_identities", std::set<track::Idx_t>{}, "", SYSTEM);
         
         CONFIG("gui_highlight_categories", false, "If enabled, categories (if applied in the video) will be highlighted in the tracking view.");
         CONFIG("categories_ordered", std::vector<std::string>{}, "Ordered list of names of categories that are used in categorization (classification of types of individuals).");
@@ -736,9 +735,6 @@ file::Path conda_environment_path() {
         
         //if(GUI::instance() && SETTING(frame_rate).value<int>() == GUI::instance()->video_source()->framerate())
         //    exclude_fields.push_back("frame_rate");
-        
-        if((uint32_t)FAST_SETTINGS(manual_identities).size() == FAST_SETTINGS(track_max_individuals))
-            exclude_fields.push_back("manual_identities");
         
         /**
          * Write the remaining settings.

@@ -324,7 +324,7 @@ def predict():
     
     train_X = np.array(images, copy=False)
     if len(train_X.shape) != 4:
-        print("error with the shape")
+        print("error with the shape ", train_X.shape, " < len 4")
         
     indexes = np.array(np.arange(len(train_X)), dtype=np.float32)
     output = model.predict(tf.cast(train_X, dtype=np.float32), verbose=0)

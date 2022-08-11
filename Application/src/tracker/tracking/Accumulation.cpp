@@ -86,14 +86,12 @@ std::string Accumulation::Result::toStr() const {
 void Accumulation::unsetup() {
     try {
         PythonIntegration::ensure_started();
-        PythonIntegration::async_python_function([](){
-            
+        PythonIntegration::async_python_function(nullptr, [](){
             track::PythonIntegration::unset_function("update_work_percent", "learn_static");
             track::PythonIntegration::unset_function("update_work_description", "learn_static");
             track::PythonIntegration::unset_function("set_stop_reason", "learn_static");
             track::PythonIntegration::unset_function("set_per_class_accuracy", "learn_static");
             track::PythonIntegration::unset_function("set_uniqueness_history", "learn_static");
-            return true;
             
         }).get();
     } catch(const std::future_error& e) {
@@ -130,22 +128,21 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
     std::map<Frame_t, std::set<Idx_t>> individuals_per_frame;
     const bool calculate_posture = FAST_SETTINGS(calculate_posture);
     
-    for(auto id : FAST_SETTINGS(manual_identities)) {
-        auto it = Tracker::individuals().find(id);
-        if(it == Tracker::individuals().end()) {
+    for(auto &[id, fish] : Tracker::individuals()) {
+        if(!Tracker::identities().count(id)) {
             print("Individual ",id," not part of the training dataset.");
             continue;
         }
         
         Range<Frame_t> overall_range(range);
         
-        auto frange = it->second->get_segment(range.start);
+        auto frange = fish->get_segment(range.start);
         if(frange.contains(range.start)) {
             overall_range.start = min(range.start, frange.range.start);
             overall_range.end = max(range.end, frange.range.end);
         }
         
-        frange = it->second->get_segment(range.end);
+        frange = fish->get_segment(range.end);
         if(frange.contains(range.end)) {
             overall_range.start = min(overall_range.start, frange.range.start);
             overall_range.end = max(overall_range.end, frange.range.end);
@@ -154,7 +151,7 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
         std::set<std::shared_ptr<Individual::SegmentInformation>> used_segments;
         std::shared_ptr<Individual::SegmentInformation> current_segment;
         
-        it->second->iterate_frames(overall_range, [&individuals_per_frame, id, &used_segments, &current_segment, calculate_posture]
+        fish->iterate_frames(overall_range, [&individuals_per_frame, id=id, &used_segments, &current_segment, calculate_posture]
             (Frame_t frame,
              const std::shared_ptr<Individual::SegmentInformation>& segment,
              auto basic,
@@ -162,7 +159,7 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
                 -> bool
         {
             if(basic && (posture || !calculate_posture)) {
-                individuals_per_frame[frame].insert(Idx_t(id));
+                individuals_per_frame[frame].insert(id);
                 if(segment != current_segment) {
                     used_segments.insert(segment);
                     current_segment = segment;
@@ -173,7 +170,7 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
         
         if(data) {
             for(auto &segment : used_segments) {
-                data->filters().set(Idx_t(id), *segment, Tracker::recognition()->local_midline_length(it->second, segment->range, false));
+                data->filters().set(id, *segment, Tracker::recognition()->local_midline_length(fish, segment->range, false));
             }
         }
         
@@ -192,7 +189,7 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
 }
 
 std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(const Range<Frame_t>& range, TrainingData& data, bool check_length, DatasetQuality::Quality quality) {
-    const float pure_chance = 1.f / FAST_SETTINGS(manual_identities).size();
+    const float pure_chance = 1.f / float(FAST_SETTINGS(track_max_individuals));
    // data.set_normalized(SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>());
     
     if(data.empty()) {
@@ -238,13 +235,17 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
     
     auto && [images, ids] = data.join_arrays();
     auto probabilities = Tracker::instance()->recognition()->predict_chunk(images);
+    const size_t N = FAST_SETTINGS(track_max_individuals);
+    
+    //! TODO: remove this dependency
+    assert(N == Tracker::identities().size());
     
     Tracker::LockGuard guard("Accumulation::generate_training_data");
 
     std::map<Idx_t, std::tuple<float, std::vector<float>>> averages;
-    for(auto id : FAST_SETTINGS(manual_identities)) {
-        std::get<1>(averages[Idx_t(id)]).resize(FAST_SETTINGS(manual_identities).size());
-        std::get<0>(averages[Idx_t(id)]) = 0;
+    for(auto id : Tracker::identities()) {
+        std::get<1>(averages[id]).resize(N);
+        std::get<0>(averages[id]) = 0;
     }
     
     std::set<Idx_t> added_ids, not_added_ids;
@@ -253,11 +254,17 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
         
         if(!ps.empty()) {
             auto & [samples, average] = averages[ids[i]];
+            assert(ps.size() == N);
+            
             added_ids.insert(ids[i]);
             for(size_t j=0; j<ps.size(); ++j) {
+                //! TODO: needs another redirection, or predict_chunk needs to fix
+                //! this automatically. ids[] contains "real" ids, whereas predicted ids might not
                 average[j] += ps[j];
             }
+            
             ++samples;
+            
         } else
             not_added_ids.insert(ids[i]);
     }
@@ -303,7 +310,9 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
         unique_ids.insert(pred_id);
     }
     
-    if(unique_ids.size() == FAST_SETTINGS(manual_identities).size() - 1 && min_prob > pure_chance * FAST_SETTINGS(recognition_segment_add_factor)) {
+    if(unique_ids.size() + 1 == FAST_SETTINGS(track_max_individuals)
+       && min_prob > pure_chance * FAST_SETTINGS(recognition_segment_add_factor))
+    {
         print("\tOnly one missing id in predicted ids. Guessing solution...");
         
         //! Searching for consecutive numbers, finding the gap
@@ -346,15 +355,19 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
         unique_ids.insert(missing_predicted_id);
     }
     
-    if(unique_ids.size() == FAST_SETTINGS(manual_identities).size() && min_prob > pure_chance * FAST_SETTINGS(recognition_segment_add_factor)) {
+    if(unique_ids.size() == FAST_SETTINGS(track_max_individuals)
+       && min_prob > pure_chance * FAST_SETTINGS(recognition_segment_add_factor))
+    {
         print("\t[+] Dataset range (",range.start,"-",range.end,", ",quality,") is acceptable for training with assignments: ",max_indexes);
         
-    } else if(unique_ids.size() != FAST_SETTINGS(manual_identities).size()) {
+    } else if(unique_ids.size() != FAST_SETTINGS(track_max_individuals)) {
         auto str = format<FormatterType::NONE>("\t[-] Dataset range (", range,", ",quality,") does not predict unique ids.");
         end_a_step(Result(FrameRange(range), -1, AccumulationStatus::Cached, AccumulationReason::NoUniqueIDs, str));
         print(str.c_str());
         return {true, {}};
-    } else if(min_prob <= pure_chance * FAST_SETTINGS(recognition_segment_add_factor)) {
+        
+    } else if(min_prob <= pure_chance * FAST_SETTINGS(recognition_segment_add_factor))
+    {
         auto str = format<FormatterType::NONE>("\t[-] Dataset range (", range,", ", quality,") minimal class-probability ", min_prob," is lower than ", pure_chance * FAST_SETTINGS(recognition_segment_add_factor),".");
         end_a_step(Result(FrameRange(range), -1, AccumulationStatus::Cached, AccumulationReason::ProbabilityTooLow, str));
         print(str.c_str());
@@ -443,30 +456,29 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Fram
         auto &individuals = Tracker::individuals();
         std::map<Frame_t, std::set<Idx_t>> disc_individuals_per_frame;
         
-        for(Frame_t frame = analysis_range.start; frame <= analysis_range.end; frame += Frame_t(max(1, analysis_range.length().get() / 333)))
+        for(Frame_t frame = analysis_range.start;
+            frame <= analysis_range.end;
+            frame += Frame_t(max(1, analysis_range.length().get() / 333)))
         {
             if(frame < Tracker::start_frame())
                 continue;
             if(frame > Tracker::end_frame())
                 break;
             
-            for(auto id : FAST_SETTINGS(manual_identities)) {
-                auto f = individuals.find(id);
-                if(f == individuals.end())
-                    continue;
-                auto fish = f->second;
+            for(auto &[id, fish] : individuals) {
                 auto blob = fish->compressed_blob(frame);
-                if(blob && !blob->split()) {
-                    auto bounds = blob->calculate_bounds();
-                    if(Tracker::instance()->border().in_recognition_bounds( bounds.pos() + bounds.size() * 0.5))
-                    {
-                        auto frange = fish->get_segment(frame);
-                        if(frange.contains(frame)) {
-                            if(!data->filters().has(Idx_t(id), frange)) {
-                                data->filters().set(Idx_t(id), frange,  Tracker::recognition()->local_midline_length(fish, frame, false));
-                            }
-                            disc_individuals_per_frame[frame].insert(Idx_t(id));
+                if(!blob || blob->split())
+                    continue;
+                
+                auto bounds = blob->calculate_bounds();
+                if(Tracker::instance()->border().in_recognition_bounds(bounds.center()))
+                {
+                    auto frange = fish->get_segment(frame);
+                    if(frange.contains(frame)) {
+                        if(!data->filters().has(Idx_t(id), frange)) {
+                            data->filters().set(Idx_t(id), frange,  Tracker::recognition()->local_midline_length(fish, frame, false));
                         }
+                        disc_individuals_per_frame[frame].insert(Idx_t(id));
                     }
                 }
             }
@@ -547,11 +559,11 @@ std::tuple<float, ska::bytell_hash_map<Frame_t, float>, float> Accumulation::cal
             Idx_t max_id;
             float max_p = 0;
             
-            if(predictions.at(i).size() < FAST_SETTINGS(manual_identities).size()) {
+            if(predictions.at(i).size() < FAST_SETTINGS(track_max_individuals)) {
                 continue;
             }
             
-            for(size_t id=0; id<FAST_SETTINGS(manual_identities).size(); ++id)
+            for(size_t id=0; id<FAST_SETTINGS(track_max_individuals); ++id)
             {
                 auto p = predictions.at(i).at(id);
                 if(p > max_p) {
@@ -620,7 +632,7 @@ std::tuple<float, ska::bytell_hash_map<Frame_t, float>, float> Accumulation::cal
 }
 
 float Accumulation::good_uniqueness() {
-    return max(0.8, (float(FAST_SETTINGS(manual_identities).size()) - 0.5f) / float(FAST_SETTINGS(manual_identities).size()));
+    return max(0.8, (float(FAST_SETTINGS(track_max_individuals)) - 0.5f) / float(FAST_SETTINGS(track_max_individuals)));
 }
 
 Accumulation::Accumulation(TrainingMode::Class mode) : _mode(mode), _accumulation_step(0), _counted_steps(0), _last_step(1337) {
@@ -721,8 +733,7 @@ bool Accumulation::start() {
         return true;*/
         
         auto data = std::make_shared<TrainingData>();
-        auto manual = FAST_SETTINGS(manual_identities);
-        data->set_classes(std::set<Idx_t>(manual.begin(), manual.end()));
+        data->set_classes(Tracker::identities());
         auto result = Recognition::train(data, FrameRange(), TrainingMode::Apply, -1, true);
         
         if(result) {
@@ -1239,8 +1250,8 @@ bool Accumulation::start() {
             }
             
             std::map<Idx_t, int64_t> sizes;
-            for(auto id : FAST_SETTINGS(manual_identities)) {
-                sizes[Idx_t(id)] = 0;
+            for(auto id : Tracker::identities()) {
+                sizes[id] = 0;
             }
             
             std::map<Idx_t, std::set<FrameRange>> assigned_ranges;

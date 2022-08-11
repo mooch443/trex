@@ -347,7 +347,7 @@ bool Recognition::python_available() {
     }
     
     size_t Recognition::number_classes() {
-        return FAST_SETTINGS(manual_identities).size();
+        return FAST_SETTINGS(track_max_individuals);
     }
     
     /*bool Recognition::has(Frame_t frame, uint32_t blob_id) {
@@ -832,10 +832,14 @@ bool Recognition::python_available() {
             fclose(f);
         #endif
     }
+
+std::set<Idx_t> classes() {
+    return Tracker::identities();
+}
     
     bool Recognition::update_internal_training() {
         assert(FAST_SETTINGS(recognition_enable));
-        auto identities = FAST_SETTINGS(manual_identities);
+        auto identities = classes();
         if(identities.empty())
             return false;
 
@@ -1234,14 +1238,8 @@ bool Recognition::python_available() {
             analysis_range = Tracker::analysis_range();
             video_length = analysis_range.end;
             
-            // collect required fishies
-            std::vector<Individual*> fishies;
-            for (auto id : FAST_SETTINGS(manual_identities)) {
-                if(!Tracker::individuals().count(id))
-                    print("Tracking does not contain required id '",id,"' for recognition.");
-                else
-                    fishies.push_back(Tracker::individuals().at(id));
-            }
+            if(Tracker::identities().size() < FAST_SETTINGS(track_max_individuals))
+                FormatWarning("Tracking has not yet found all required individuals (", FAST_SETTINGS(track_max_individuals)," vs. ", Tracker::identities(),")");
             
             added_frames = min(added_frames, (size_t)analysis_range.length().get());
         }
@@ -1415,7 +1413,7 @@ bool Recognition::python_available() {
         // acquire running lock
         set_running(false, "add_async_prediction");
         
-        PythonIntegration::async_python_function([this]() -> bool
+        PythonIntegration::async_python_function(nullptr, [this]()
         {
             while(true) {
                 Timer timer;
@@ -1476,7 +1474,6 @@ bool Recognition::python_available() {
             }
            
             notify();
-            return true;
        });
     }
     
@@ -1495,21 +1492,14 @@ bool Recognition::python_available() {
         
         print("[Recognition::predict] ", data.size()," values");
         
-        auto result = PythonIntegration::async_python_function([this, &probabilities, &data]() -> bool
+        PythonIntegration::async_python_function(nullptr, [this, &probabilities, &data]()
         {
             predict_chunk_internal(data, probabilities);
             this->stop_running();
             notify();
-            return true;
-        });
+        }).get();
         
-        if(!result.get()) {
-            FormatError("Prediction wasnt successful.");
-        } else {
-            return probabilities;
-        }
-        
-        return {};
+        return probabilities;
     }
 
 void Recognition::predict_chunk_internal(const std::vector<Image::Ptr> & data, std::vector<std::vector<float>>& probabilities) {
@@ -1581,9 +1571,9 @@ bool Recognition::load_weights_internal(std::string postfix) {
 void Recognition::check_learning_module(bool force) {
     using py = PythonIntegration;
     
-    PythonIntegration::async_python_function([force]() -> bool
+    py::async_python_function(nullptr, [force]()
     {
-        auto result = PythonIntegration::check_module("learn_static");
+        auto result = py::check_module("learn_static");
         if(result || force || py::is_none("classes", "learn_static")) {
             size_t N = FAST_SETTINGS(track_max_individuals) ? (size_t)FAST_SETTINGS(track_max_individuals) : 1u;
             std::vector<int32_t> ids;
@@ -1674,31 +1664,23 @@ void Recognition::check_learning_module(bool force) {
             }, "learn_static");
         }
         
-        return true;
-        
     }).get();
 }
 
 void Recognition::load_weights(std::string postfix) {
-    auto running = set_running(true, "load_weights");
-    std::future<bool> future;
-    {
-        std::unique_lock<decltype(_data_queue_mutex)> guard(_data_queue_mutex);
-        
-        future = PythonIntegration::async_python_function([this, postfix]() -> bool
-        {
-            Recognition::check_learning_module();
-            return load_weights_internal(postfix);
-        });
-    }
-    
     std::string reason = "<unknown reason>";
     
     try {
-        if(future.get()) {
-            return;
-        } else
-            throw U_EXCEPTION("load_weights_internal returned false.");
+        auto running = set_running(true, "load_weights");
+        std::unique_lock<decltype(_data_queue_mutex)> guard(_data_queue_mutex);
+        
+        PythonIntegration::async_python_function(nullptr, [this, postfix]()
+        {
+            Recognition::check_learning_module();
+            load_weights_internal(postfix);
+        }).get();
+        
+        return;
         
     } catch(...) {
         try {
@@ -1814,25 +1796,17 @@ void Recognition::load_weights(std::string postfix) {
 
 #if !COMMONS_NO_PYTHON
     void Recognition::reinitialize_network() {
-        auto running = set_running(true, "reinitialize_network");
-        std::future<bool> future;
-        {
-            std::unique_lock<decltype(_data_queue_mutex)> guard(_data_queue_mutex);
-            
-            future = PythonIntegration::async_python_function([this]() -> bool
-            {
-                reinitialize_network_internal();
-                return true;
-            });
-        }
         
         std::string reason;
-        
         try {
-            if(future.get()) {
-                return;
-            } else
-                throw U_EXCEPTION("Failed to reinitialize network because future was false (this cannot happen?).");
+            auto running = set_running(true, "reinitialize_network");
+            std::unique_lock<decltype(_data_queue_mutex)> guard(_data_queue_mutex);
+            
+            PythonIntegration::async_python_function(nullptr, [this]() {
+                reinitialize_network_internal();
+            }).get();
+            
+            return;
             
         } catch(...) {
             reason = "<unknown reason>";
@@ -1933,25 +1907,30 @@ void Recognition::load_weights(std::string postfix) {
                 //return;
                 
                 std::unique_lock<decltype(_data_queue_mutex)> guard(_data_queue_mutex);
+                std::promise<bool> promise;
+                future = promise.get_future();
                 
-                future = PythonIntegration::async_python_function([
+                PythonIntegration::async_python_function(nullptr, [
+                    promise = std::move(promise),
                     data, load_results,
                     gpu_max_epochs,dont_save, &best_accuracy_worst_class, 
                         worst_accuracy_per_class, accumulation_step,
-                        &global_range, this]
-                  () -> bool {
+                        &global_range, this]() mutable -> void
+                 {
                     check_learning_module();
                     
                     std::vector<long_t> classes(data->all_classes().begin(), data->all_classes().end());
                     auto joined_data = data->join_split_data();
                     
-                    if(FAST_SETTINGS(manual_identities).size() > classes.size()) {
+                    if(number_classes() > classes.size()) {
                         std::set<Idx_t> missing;
-                        for(auto id : FAST_SETTINGS(manual_identities)) {
+                        for(auto id : Tracker::identities()) {
                             if(std::find(classes.begin(), classes.end(), id) == classes.end())
                                 missing.insert(id);
                         }
-                        print("Not all identities are represented in the training data (missing: ",missing,").");
+                        
+                        //! abort training process since not all identities have been found
+                        throw SoftException("Not all identities are represented in the training data (missing: ",missing,").");
                     }
                     
                     if(load_results != TrainingMode::Accumulate) {
@@ -2086,7 +2065,8 @@ void Recognition::load_weights(std::string postfix) {
                                            || fish.images.at(i)->rows != resolution.height)
                                         {
                                             FormatExcept("Image dimensions of ",fish.images.at(i)->cols,"x",fish.images.at(i)->rows," are different from the others (",resolution.width,"x",resolution.height,") in training data for fish ",d->frames.start," in range [",d->frames.end,",%d].");
-                                            return false;
+                                            promise.set_value(false);
+                                            return;
                                         }
                                         
                                         images.insert(images.end(), fish.images.at(i)->data(), fish.images.at(i)->data() + size_t(resolution.width * resolution.height));
@@ -2114,10 +2094,11 @@ void Recognition::load_weights(std::string postfix) {
                         
                     } catch(const SoftExceptionImpl& e) {
                         print("Runtime error: ", e.what());
-                        return false;
+                        promise.set_value(false);
+                        return;
                     }
                     
-                    return true;
+                    promise.set_value(true);
                 });
             }
         

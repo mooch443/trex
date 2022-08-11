@@ -1208,7 +1208,7 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
             }
             else
                 color = "nr";
-        } else {
+        } else if(Tracker::instance()->recognition()) {
             auto raw = Tracker::instance()->recognition()->ps_raw(_frame, blob->blob_id());
             if (!raw.empty()) {
                 auto it = std::max_element(raw.begin(), raw.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b) {

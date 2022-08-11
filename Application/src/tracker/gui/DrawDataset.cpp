@@ -70,13 +70,11 @@ namespace gui {
             }
             
             using dataset_t = std::tuple<std::map<track::Idx_t, DatasetQuality::Single>, DatasetQuality::Quality>;
-            //_current_quality = dataset ? dataset->quality(frame) : -1;
-                
-            for(auto id : FAST_SETTINGS(manual_identities)) {
-                if(!Tracker::individuals().count(id))
+            auto identities = Tracker::identities();
+            for(auto &[id, fish] : Tracker::individuals()) {
+                if(!identities.count(id))
                     continue;
                 
-                auto fish = Tracker::individuals().at(id);
                 _names[id] = fish->identity().name();
                 _cache[id] = {};
                 

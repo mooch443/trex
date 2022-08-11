@@ -1599,16 +1599,15 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                 }
                 
                 Tracker::set_of_individuals_t source;
-                if(FAST_SETTINGS(track_max_individuals) && GUI_SETTINGS(gui_show_inactive_individuals)) {
-                    for(auto id : FAST_SETTINGS(manual_identities)) {
-                        auto it = PD(cache).individuals.find(id);
-                        if(it != PD(cache).individuals.end())
-                            source.insert(it->second);
-                    }
-                    
-                    for(auto fish : PD(cache).active) {
+                if(Tracker::has_identities() && GUI_SETTINGS(gui_show_inactive_individuals))
+                {
+                    for(auto [id, fish] : PD(cache).individuals)
                         source.insert(fish);
-                    }
+                    //! TODO: Tracker::identities().count(id) ?
+                    
+                } else {
+                    for(auto fish : PD(cache).active)
+                        source.insert(fish);
                 }
                 
                 
@@ -1699,7 +1698,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                         
                         std::map<track::Idx_t, Individual*> search;
                         
-                        if(FAST_SETTINGS(manual_identities).empty()) {
+                        if(!Tracker::has_identities()) {
                             for(auto fish : PD(cache).active) {
                                 lengths.clear();
                                 for (auto && stuff : fish->posture_stuff()) {
@@ -1709,19 +1708,17 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                                 all.push_back(lengths);
                                 print(lengths.size()," midline samples for ",fish->identity().raw_name().c_str());
                             }
+                            
                         } else {
-                            for(auto id : FAST_SETTINGS(manual_identities)) {
-                                auto it = PD(cache).individuals.find(id);
-                                if(it != PD(cache).individuals.end()) {
-                                    auto fish = it->second;
-                                    lengths.clear();
-                                    for (auto && stuff : fish->posture_stuff()) {
-                                        if(stuff->midline_length != Individual::PostureStuff::infinity)
-                                            lengths.push_back(stuff->midline_length * FAST_SETTINGS(cm_per_pixel));
-                                    }
-                                    all.push_back(lengths);
-                                    print(lengths.size()," midline samples for ",fish->identity().raw_name().c_str());
+                            for(auto &[id, fish] : PD(cache).individuals) {
+                                //! TODO: Tracker::identities().count(id) ?
+                                lengths.clear();
+                                for (auto && stuff : fish->posture_stuff()) {
+                                    if(stuff->midline_length != Individual::PostureStuff::infinity)
+                                        lengths.push_back(stuff->midline_length * FAST_SETTINGS(cm_per_pixel));
                                 }
+                                all.push_back(lengths);
+                                print(lengths.size()," midline samples for ",fish->identity().raw_name().c_str());
                             }
                         }
                         
@@ -2053,13 +2050,12 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             print("Code: ",code);
             code = utils::find_replace(code, "\\n", "\n");
             code = utils::find_replace(code, "\\t", "\t");
-            PythonIntegration::async_python_function([code]() -> bool {
+            PythonIntegration::async_python_function(nullptr, [code]() -> void {
                 try {
                     PythonIntegration::execute(code);
                 } catch(const SoftExceptionImpl& e) {
-                    FormatExcept("Python runtime exception: '", e.what(),"'");
+                    FormatExcept("Python runtime exception: ", e.what());
                 }
-                return true;
             });
         }
 #endif

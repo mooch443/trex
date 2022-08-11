@@ -262,7 +262,7 @@ namespace gui {
                     _registered_callback.erase(cit);
             };
             
-            if(FAST_SETTINGS(manual_identities).empty()) {
+            if(FAST_SETTINGS(track_max_individuals) == 0) {
                 for(auto fish : active) {
                     if(!_registered_callback.count(fish)) {
                         fish->register_delete_callback((void*)12341337, delete_callback);
@@ -270,12 +270,8 @@ namespace gui {
                     }
                 }
             } else {
-                
-                for(auto id : FAST_SETTINGS(manual_identities)) {
-                    auto it = individuals.find(id);
-                    if(it != individuals.end()) {
-                        it->second->register_delete_callback((void*)12341337, delete_callback);
-                    }
+                for(auto &[id, fish] : Tracker::individuals()) {
+                    fish->register_delete_callback((void*)12341337, delete_callback);
                 }
             }
             

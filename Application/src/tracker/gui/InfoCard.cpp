@@ -7,6 +7,8 @@
 #include <gui/GUICache.h>
 #include <gui/DrawBase.h>
 
+#include <misc/IdentifiedTag.h>
+
 namespace gui {
 struct ShadowSegment {
     Range<Frame_t> frames;
@@ -18,7 +20,7 @@ struct InfoCard::ShadowIndividual {
     pv::CompressedBlob blob;
     Frame_t frame{Frame_t::invalid};
     FrameRange current_range{};
-    Individual::IDaverage qrcode{-1,0};
+    tags::Assignment qrcode;
     bool has_frame{false};
     bool is_automatic_match{false};
     float speed;
@@ -105,7 +107,7 @@ void InfoCard::update() {
                     title = "average n:"+Meta::toStr(n);
                     _shadow->raw = values;
                     
-                } else {
+                } else if(Tracker::recognition()) {
                     _shadow->raw = Tracker::recognition()->ps_raw(_shadow->frame, blob_id);
                 }
                 
@@ -156,7 +158,7 @@ void InfoCard::update() {
                 }
                 _shadow->current_range = current_range;
                 
-                _shadow->qrcode = fish->qrcode_at(current_range.start());
+                _shadow->qrcode = tags::find(_shadow->frame, _shadow->blob.blob_id());
                 
             } else
                 _shadow->fdx = Idx_t{};
@@ -401,9 +403,8 @@ void InfoCard::update() {
     
     y += add<Text>(speed_str, Vec2(10, y), White.alpha(125), Font(0.8f))->height();
     if (!_shadow->current_range.empty()) {
-        auto& [id, p, n] = _shadow->qrcode;//_fish->qrcode_at(_shadow->current_range->start());
-        if (id != -1) {
-            y += add<Text>("QR:" + Meta::toStr(id) + " (" + dec<2>(p).toStr() + ", N:" + Meta::toStr(n) + ")", Vec2(10, y), White.alpha(125), Font(0.8))->height();
+        if (_shadow->qrcode.valid()) {
+            y += add<Text>("QR:" + Meta::toStr(_shadow->qrcode.id) + " (" + dec<2>(_shadow->qrcode.p).toStr() + ")", Vec2(10, y), White.alpha(125), Font(0.8))->height();
         }
     }
     

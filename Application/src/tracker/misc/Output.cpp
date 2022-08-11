@@ -1184,16 +1184,20 @@ namespace Output {
         write<std::string>(SETTING(cmd_line).value<std::string>());
 
         // write recognition data
-        const auto& recognition = *Tracker::recognition();
-        write<uint64_t>(recognition.data().size());
-        for(auto&& [frame, map] : recognition.data()) {
-            write<data_long_t>(frame.get());
-            write<uint64_t>(map.size());
+        const auto recognition = Tracker::recognition();
+        if(!recognition)
+            write<uint64_t>(0);
+        else {
+            write<uint64_t>(recognition->data().size());
+            for(auto&& [frame, map] : recognition->data()) {
+                write<data_long_t>(frame.get());
+                write<uint64_t>(map.size());
 
-            for(auto&& [bid, vector] : map) {
-                write<uint32_t>((uint32_t)bid);
-                write<uint64_t>(vector.size());
-                write_data(sizeof(float) * vector.size(), (const char*)vector.data());
+                for(auto&& [bid, vector] : map) {
+                    write<uint32_t>((uint32_t)bid);
+                    write<uint64_t>(vector.size());
+                    write_data(sizeof(float) * vector.size(), (const char*)vector.data());
+                }
             }
         }
 
@@ -1413,13 +1417,16 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         for (auto& p : tmp)
             delete p.second;
 
-        auto& recognition = *Tracker::recognition();
-        recognition.data().clear();
+        auto recognition = Tracker::recognition();
+        if(recognition)
+            recognition->data().clear();
 
         file.start_reading();
 
-        if(Tracker::recognition())
-            Tracker::recognition()->data() = file.header().rec_data;
+        if(recognition)
+            recognition->data() = file.header().rec_data;
+        else if(!file.header().rec_data.empty())
+            FormatWarning("Throwing away ", file.header().rec_data.size(), " entries in recognition data from the .results file, since recognition was disabled.");
 
         // read the actual categorization data first
         if(file.header().has_categories)

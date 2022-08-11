@@ -84,62 +84,62 @@ namespace pybind11 {
             }
         };*/
     
-    template<> struct type_caster<cmn::Image::UPtr>
-    {
-    public:
-
-        PYBIND11_TYPE_CASTER(cmn::Image::UPtr, _("Image::UPtr"));
-
-        // Conversion part 1 (Python -> C++)
-        bool load(py::handle, bool)
+        template<> struct type_caster<cmn::Image::UPtr>
         {
-            return false;
-        }
+        public:
 
-        //Conversion part 2 (C++ -> Python)
-        static py::handle cast(const cmn::Image::UPtr& src, py::return_value_policy, py::handle)
+            PYBIND11_TYPE_CASTER(cmn::Image::UPtr, _("Image::UPtr"));
+
+            // Conversion part 1 (Python -> C++)
+            bool load(py::handle, bool)
+            {
+                return false;
+            }
+
+            //Conversion part 2 (C++ -> Python)
+            static py::handle cast(const cmn::Image::UPtr& src, py::return_value_policy, py::handle)
+            {
+
+                std::vector<size_t> shape{ src->rows, src->cols, src->dims };
+                std::vector<size_t> strides{
+                    sizeof(uint8_t) * src->dims * src->cols,
+                    sizeof(uint8_t) * src->dims,
+                    sizeof(uint8_t)
+                };
+
+                py::array a(std::move(shape), std::move(strides), src->data());
+                return a.release();
+            }
+        };
+
+        template<> struct type_caster<cmn::Image::Ptr>
         {
+        public:
 
-            std::vector<size_t> shape{ src->rows, src->cols, src->dims };
-            std::vector<size_t> strides{
-                sizeof(uint8_t) * src->dims * src->cols,
-                sizeof(uint8_t) * src->dims,
-                sizeof(uint8_t)
-            };
+            PYBIND11_TYPE_CASTER(cmn::Image::Ptr, _("Image::Ptr"));
 
-            py::array a(std::move(shape), std::move(strides), src->data());
-            return a.release();
-        }
-    };
+            // Conversion part 1 (Python -> C++)
+            bool load(py::handle, bool)
+            {
+                return false;
+            }
 
-    template<> struct type_caster<cmn::Image::Ptr>
-    {
-    public:
+            //Conversion part 2 (C++ -> Python)
+            static py::handle cast(const cmn::Image::Ptr& src, py::return_value_policy, py::handle)
+            {
 
-        PYBIND11_TYPE_CASTER(cmn::Image::Ptr, _("Image::Ptr"));
+                std::vector<size_t> shape{ src->rows, src->cols, src->dims };
+                std::vector<size_t> strides{
+                    sizeof(uint8_t) * src->dims * src->cols,
+                    sizeof(uint8_t) * src->dims,
+                    sizeof(uint8_t)
+                };
 
-        // Conversion part 1 (Python -> C++)
-        bool load(py::handle, bool)
-        {
-            return false;
-        }
-
-        //Conversion part 2 (C++ -> Python)
-        static py::handle cast(const cmn::Image::Ptr& src, py::return_value_policy, py::handle)
-        {
-
-            std::vector<size_t> shape{ src->rows, src->cols, src->dims };
-            std::vector<size_t> strides{
-                sizeof(uint8_t) * src->dims * src->cols,
-                sizeof(uint8_t) * src->dims,
-                sizeof(uint8_t)
-            };
-
-            py::array a(std::move(shape), std::move(strides), src->data());
-            return a.release();
-        }
-    };
-
+                py::array a(std::move(shape), std::move(strides), src->data());
+                return a.release();
+            }
+        };
+    
     }
 } // namespace pybind11::detail
 
@@ -428,13 +428,15 @@ namespace track {
     }
 
 void PythonIntegration::reinit() {
-    async_python_function([]() -> bool {
+    async_python_function(nullptr, []() -> bool {
         using namespace py::literals;
         python_gpu_initialized() = false;
         python_initializing() = true;
         
-        auto fail = [](const auto& e, int line){
-            FormatExcept("Python runtime error (", line, ": '",e.what(),"'");
+        auto fail = [](const auto& e, cmn::source_location loc = cmn::source_location::current()){
+            auto file = file::Path(loc.file_name()).filename();
+            FormatExcept("Python runtime error (", file.data(),":", loc.line(), ": ",e.what(),")");
+            python_init_error() = e.what();
             python_gpu_initialized() = false;
             python_initializing() = false;
         };
@@ -442,7 +444,8 @@ void PythonIntegration::reinit() {
         try {
             //if(_settings->map().get<bool>("recognition_enable").value())
             {
-                async_python_function([fail](){
+                //async_python_function(nullptr, [fail]()
+                                      {
                     try {
                         auto cmd = utils::read_file("trex_init.py");
                         py::exec(cmd);
@@ -451,30 +454,35 @@ void PythonIntegration::reinit() {
                         
                     } catch(const UtilsException& ex) {
                         print("Error while executing 'trex_init.py'. Content: ",ex.what());
-                        fail(ex, __LINE__);
-                        return false;
+                        python_init_error() = ex.what();
+                        fail(ex);
+                        //return false;
+                        throw;
                         
-                    } catch(py::error_already_set& e) {
-                        fail(e, __LINE__);
-                        e.restore();
-                        return false;
-                    }
+                    } /*catch(py::error_already_set& e) {
+                        python_init_error() = e.what();
+                        fail(e);
+                        //e.restore();
+                        //return false;
+                        throw;
+                    }*/
                     
-                    return true;
+                    //return true;
                     
-                }, Flag::FORCE_ASYNC, true);
+                }//, Flag::FORCE_ASYNC, true);
                 
             }
             
             return true;
             
         } catch(py::error_already_set &e) {
-            fail(e, __LINE__);
-            e.restore();
-            return false;
+            fail(e);
+            //e.restore();
+            //return false;
+            throw;
         }
         
-    }, Flag::DEFAULT, true);
+    }, Flag::DEFAULT, true).get();
 }
     
     void PythonIntegration::initialize() {
@@ -501,8 +509,10 @@ void PythonIntegration::reinit() {
                 python_initializing() = false;
                 
                 //guard = nullptr;
-                _initialize_promise->set_value(false);
+                //_initialize_promise->set_value(false);
             };
+            
+            std::unique_ptr<py::scoped_interpreter> scope;
 
             try {
 #if defined(WIN32)
@@ -563,7 +573,8 @@ void PythonIntegration::reinit() {
 
 #endif
 
-                py::initialize_interpreter();
+                //py::initialize_interpreter();
+                scope = std::make_unique<py::scoped_interpreter>();
                 
                 _main = py::module::import("__main__");
                 _main.def("set_version", [](std::string x, bool has_gpu, std::string physical_name) {
@@ -596,11 +607,13 @@ void PythonIntegration::reinit() {
             } catch(const UtilsException& ex) {
                 print("Error while executing 'trex_init.py'. Content: ",ex.what());
                 fail(ex, __LINE__);
+                _initialize_promise->set_exception(std::current_exception());
                 return;
                 
             } catch(py::error_already_set& e) {
                 fail(e, __LINE__);
-                e.restore();
+                //e.restore();
+                _initialize_promise->set_exception(std::current_exception());
                 return;
             }
             catch (...) {
@@ -608,17 +621,20 @@ void PythonIntegration::reinit() {
                 python_initializing() = false;
                 python_initialized() = false;
                 FormatExcept("Cannot initialize the python interpreter.");
-                _initialize_promise->set_value(false);
+                //_initialize_promise->set_value(false);
+                _initialize_promise->set_exception(std::current_exception());
                 return;
             }
             
             bool printed = false;
             
-            while (!_terminate) {
-                while(!tasks.empty() && !_terminate) {
+            while (!_terminate || !tasks.empty()) {
+                while(!tasks.empty()) {
                     auto it = tasks.begin();
                     
-                    if(!python_gpu_initialized() && !tasks.front()._can_run_before_init)
+                    if(!python_gpu_initialized()
+                       && !tasks.front()._can_run_before_init
+                       && python_init_error().empty())
                     {
                         for (; it != tasks.end(); ++it) {
                             if(it->_can_run_before_init) {
@@ -633,7 +649,17 @@ void PythonIntegration::reinit() {
                             }
                             
                             lock.unlock();
-                            reinit();
+                            try {
+                                reinit();
+                            } catch(...) {
+                                FormatExcept("[py] Error during initialization (trex_init.py).");
+                                lock.lock();
+                                
+                                for(auto &task : tasks)
+                                    task._task._promise.set_exception(std::current_exception());
+                                
+                                break;
+                            }
                             lock.lock();
                             continue;
                         }
@@ -649,20 +675,26 @@ void PythonIntegration::reinit() {
                     
                     lock.unlock();
                     try {
-                        task._task();
+                        if(task._network)
+                            task._network->activate();
+                        task();
                     } catch(py::error_already_set& e) {
                         FormatExcept("Python runtime exception: ", e.what());
-                        e.restore();
+                        //e.restore();
                     } catch( ... ) {
                         print("Caught one exception.");
                     }
                     lock.lock();
                 }
                 
-                if(_terminate)
+                if(!python_init_error().empty()) {
+                    // there has been an error, so deinit!
+                    print("Breaking out of loop due to error in initialization.");
                     break;
+                }
                 
-                _update_condition.wait_for(lock, std::chrono::milliseconds(250));
+                if(!_terminate)
+                    _update_condition.wait_for(lock, std::chrono::milliseconds(250));
             }
             
             try {
@@ -687,7 +719,10 @@ void PythonIntegration::reinit() {
             
             try {
                 //py::finalize_interpreter();
-                Py_Finalize();
+                //Py_Finalize();
+                scope = nullptr;
+                print("[py] ended.");
+                tasks.clear();
                 
             } catch(py::error_already_set &e) {
                 print("Python runtime error during clean-up: ", e.what());
@@ -709,7 +744,6 @@ void PythonIntegration::reinit() {
         std::lock_guard<std::mutex> guard(mutex);
         values.clear();
         indexes.clear();
-        //values.resize(images.size() * FAST_SETTINGS(manual_identities).size());
         
         try {
             //check_module("learn_static");
@@ -766,24 +800,33 @@ void PythonIntegration::reinit() {
         return {indexes, values};
     }
 
-void PythonIntegration::async_python_function(PackagedTask && task, Flag flag) {
+std::future<void> PythonIntegration::async_python_function(PackagedTask && task, Flag flag) {
+    auto future = task.future();
+    
     if(flag != Flag::FORCE_ASYNC
        && std::this_thread::get_id() == _saved_id)
     {
         try {
-            task._task();
+            task();
         } catch (py::error_already_set &e) {
             FormatExcept{ "Python runtime error: ", e.what() };
-            e.restore();
+            //e.restore();
             throw SoftException(e.what());
+            
         } catch(...) {
             FormatExcept("Random exception");
         }
     } else {
         std::unique_lock lock(_data_mutex);
+        if(!python_init_error().empty()) {
+            throw SoftException("Calling on an already erroneous python thread.");
+        }
+        
         tasks.emplace_back(std::move(task));
         _update_condition.notify_one();
     }
+    
+    return future;
 }
 
 std::shared_future<bool> PythonIntegration::ensure_started() {
@@ -912,7 +955,7 @@ T get_variable_internal(const std::string& name, const std::string& m) {
             }
         }
     } catch(py::error_already_set & e) {
-        FormatExcept("Python runtime error: '", e.what(),"'");
+        FormatExcept("Python runtime error: ", e.what());
         e.restore();
     }
     
@@ -961,6 +1004,14 @@ void PythonIntegration::set_function(const char* name_, std::function<void(std::
 void PythonIntegration::set_function(const char* name_, std::function<void(std::vector<float>)> f, const std::string &m)
 {
     set_function_internal(name_, f, m);
+}
+
+void PythonIntegration::set_function(const char* name_, std::packaged_task<void(std::vector<std::vector<float>>,std::vector<float>)>&& f, const std::string &m)
+{
+    set_function_internal(name_, [f = std::move(f)](std::vector<std::vector<float>> a,std::vector<float> b) mutable {
+        f(a, b);
+        f.get_future().get();
+    }, m);
 }
 
 void PythonIntegration::set_function(const char* name_, std::packaged_task<void(std::vector<int64_t>)>&& f, const std::string &m)
@@ -1075,7 +1126,7 @@ void PythonIntegration::execute(const std::string& cmd)  {
         pybind11::exec(cmd, pybind11::globals(), *_locals);
     }
     catch (pybind11::error_already_set & e) {
-        e.restore();
+        //e.restore();
         if (e.what()) {
             throw SoftException(e.what());
         }
@@ -1094,7 +1145,7 @@ void PythonIntegration::import_module(const std::string& name) {
         _modules[name] = _main.import(name.c_str());
     }
     catch (pybind11::error_already_set & e) {
-        e.restore();
+        //e.restore();
 
         _modules[name].release();
         throw SoftException(e.what());

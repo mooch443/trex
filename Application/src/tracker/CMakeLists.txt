@@ -7,6 +7,40 @@ add_subdirectory(misc)
 
 include_directories(${CMAKE_SOURCE_DIR}/src/ProcessedVideo)
 
+
+add_executable(test_network network.cpp
+    "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h)
+target_link_libraries(test_network tracker_python tracker_tracking tracker_misc pv commons ${PYTHON_LIBRARIES})
+message(STATUS "pylib=${PYTHON_LIBRARY}")
+
+if(NOT pybind11_external)
+    target_link_libraries(test_network pybind11::pybind11 pybind11::embed pybind11::module)
+else()
+    target_link_libraries(test_network ${PYTHON_LIBRARIES})
+endif()
+
+#set_target_properties(test_network PROPERTIES
+#  MACOSX_BUNDLE TRUE
+ # MACOSX_BUNDLE_GUI_IDENTIFIER "app.trex.tests"
+#  MACOSX_BUNDLE_BUNDLE_NAME test_network
+#  MACOSX_BUNDLE_EXEC_TARGET test_network
+#  MACOSX_BUNDLE_INFO_STRING ""
+#)
+
+
+add_custom_command(TARGET test_network POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+        "${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py"
+        "$<TARGET_FILE_DIR:test_network>/trex_init.py")
+add_custom_command(TARGET test_network POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+        "${CMAKE_SOURCE_DIR}/learn_static.py"
+        "$<TARGET_FILE_DIR:test_network>/learn_static.py")
+add_custom_command(TARGET test_network POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+        "${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py"
+        "$<TARGET_FILE_DIR:test_network>/visual_identification_network.py")
+
 if(APPLE)
     set(TREX_EXEC_NAME TRex)
 else()

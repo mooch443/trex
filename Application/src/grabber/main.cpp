@@ -723,15 +723,6 @@ int main(int argc, char** argv)
             print("Logging to ", path.str(),".");
         }
         
-        if(SETTING(manual_identities).value<std::set<track::Idx_t>>().empty() && SETTING(track_max_individuals).value<uint32_t>() != 0)
-        {
-            std::set<track::Idx_t> vector;
-            for(uint32_t i=0; i<SETTING(track_max_individuals).value<uint32_t>(); ++i) {
-                vector.insert(track::Idx_t(i));
-            }
-            SETTING(manual_identities) = vector;
-        }
-
         std::shared_ptr<gui::IMGUIBase> imgui_base;
         
 #if WITH_PYLON

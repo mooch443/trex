@@ -79,6 +79,9 @@ public:
     /// something != nullptr.
     pv::BlobPtr find_bdx(pv::bid bdx) const;
     
+    //! Tries to find a blob in the original blobs.
+    pv::BlobPtr find_original_bdx(pv::bid bdx) const;
+    
     //! Will return the pv::BlobPtr assigned with the given bdx.
     /// If the bdx cannot be found, this will throw!
     const pv::BlobPtr& bdx_to_ptr(pv::bid bdx) const;

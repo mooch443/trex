@@ -356,8 +356,8 @@ public:
             };
             
             std::vector<std::shared_ptr<FishAndBlob>> fish_and_blob;
-            if(!FAST_SETTINGS(manual_identities).empty()) {
-                for(auto id : FAST_SETTINGS(manual_identities)) {
+            if(Tracker::has_identities()) {
+                for(auto id : Tracker::identities()) {
                     fish_and_blob.push_back(std::make_shared<FishAndBlob>(id, GUI::cache().fish_selected_blobs.count(id) ? GUI::cache().fish_selected_blobs.at(id) : -1));
                 }
             } else {

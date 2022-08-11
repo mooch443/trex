@@ -445,8 +445,10 @@ void draw_blob_view(const DisplayParameters& parm)
         
         if(found) {
             std::set<std::tuple<float, Dropdown::TextItem>> items;
-            for(auto id : FAST_SETTINGS(manual_identities)) {
-                if(parm.cache.individuals.count(id) && (!parm.cache.fish_selected_blobs.count(id) ||parm.cache.fish_selected_blobs.at(id) != _clicked_blob_id)) {
+            for(auto &[id, fish] : parm.cache.individuals) {
+                if(!parm.cache.fish_selected_blobs.count(id)
+                    || parm.cache.fish_selected_blobs.at(id) != _clicked_blob_id)
+                {
                     float d = FLT_MAX;
                     auto c = parm.cache.processed_frame.cached(id);
                     if(GUI::frame() > Tracker::start_frame() && c) {

@@ -235,6 +235,11 @@ pv::BlobPtr PPFrame::find_bdx(pv::bid bdx) const {
     return nullptr;
 }
 
+pv::BlobPtr PPFrame::find_original_bdx(pv::bid bdx) const {
+    auto it = std::find(_original_blobs.begin(), _original_blobs.end(), bdx);
+    return it != _original_blobs.end() ? *it : nullptr;
+}
+
 const pv::BlobPtr& PPFrame::bdx_to_ptr(pv::bid bdx) const {
     return _bdx_to_ptr.at(bdx);
 }

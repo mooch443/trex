@@ -278,7 +278,7 @@ std::future<VersionStatus> perform(bool manually_triggered) {
         }
     };
     
-    py::async_python_function([fn]() -> bool {
+    py::async_python_function(nullptr, [fn]() {
         py::set_function("retrieve_version", fn);
         
         try {
@@ -312,7 +312,7 @@ std::future<VersionStatus> perform(bool manually_triggered) {
         }
         
         py::unset_function("retrieve_version");
-        return true;
+        
     }, py::Flag::DEFAULT, true);
     
     return future;
