@@ -247,10 +247,10 @@ void Cell::update(float s) {
             for(size_t i=0; i<_sample->_probabilities.size(); ++i) {
                 if(!summary.empty())
                     summary += " ";
-                summary += std::string(index == i ? "<b><a>" : "<ref>")
+                summary += std::string(index == i ? "<b><str>" : "<ref>")
                     +  DataStore::label(i)->name
-                    + (index == i ? "</a></b>" : "</ref>")
-                    + ":<nr>" + dec<2>(_sample->_probabilities[i] * 100).toStr()+"%</nr>";
+                    + (index == i ? "</str></b>" : "</ref>")
+                    + ":<nr>" + dec<2>(_sample->_probabilities[i] * 100).toStr()+"</nr>%";
             }
             
             text = summary + "\n" + text;

@@ -1883,7 +1883,7 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
     
     if(!_textarea) {
         _textarea = std::make_shared<StaticText>("", Vec2());
-        _textarea->set_max_size(Size2(600, -1));
+        _textarea->set_max_size(Size2(650, -1));
         _textarea->set_base_text_color(Color(150,150,150,255));
         _textarea->set_background(Transparent, Transparent);
     }

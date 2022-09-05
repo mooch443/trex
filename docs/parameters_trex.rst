@@ -161,9 +161,8 @@ TRex parameters
 	**default value:** false
 
 
-	If set to true (and ``recognition_enable`` is also set to true), the application will automatically train the recognition network with the best track segment and apply it to the video.
+	If set to true, the application will automatically train the recognition network with the best track segment and apply it to the video.
 
-	.. seealso:: :func:`recognition_enable`, 
 
 
 .. function:: auto_train_dont_apply(bool)
@@ -1788,15 +1787,6 @@ TRex parameters
 	If ``recognition_border`` is 'outline', this is the number of coefficients to use when smoothing the ``recognition_border``.
 
 	.. seealso:: :func:`recognition_border`, :func:`recognition_border`, 
-
-
-.. function:: recognition_enable(bool)
-
-	**default value:** true
-
-
-	This enables internal training. Requires Python3 and Keras to be available.
-
 
 
 .. function:: recognition_image_scale(float)
