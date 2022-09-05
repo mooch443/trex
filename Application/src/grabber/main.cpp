@@ -370,7 +370,6 @@ int main(int argc, char** argv)
     try {
         DebugHeader("LOADING DEFAULT SETTINGS");
         ::default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
-        SETTING(recognition_enable) = false;
         
         grab::default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
         grab::default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);

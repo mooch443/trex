@@ -19,6 +19,7 @@
 #include <tracking/IndividualCache.h>
 #include <tracking/PPFrame.h>
 #include <misc/ranges.h>
+#include <tracking/Stuffs.h>
 
 #define DEBUG_ORIENTATION false
 
@@ -161,53 +162,10 @@ constexpr std::array<const char*, 8> ReasonsNames {
         int _last_predicted_id{-1};
         Frame_t _last_predicted_frame;
         
-    public:
-        //! Stuff that belongs together and is definitely
-        //! present in every frame
-        struct BasicStuff {
-            Frame_t frame;
-            
-            MotionRecord centroid;
-            //MotionRecord* weighted_centroid;
-            uint64_t thresholded_size;
-            pv::CompressedBlob blob;
-            pv::BlobPtr pixels;
-            
-            BasicStuff()
-                : frame(Frame_t::invalid),
-                  thresholded_size(0)
-            {}
-            
-        };
-
     protected:
         //! dense array of all the basic stuff we want to save
         GETTER(std::vector<std::unique_ptr<BasicStuff>>, basic_stuff)
         GETTER(std::vector<default_config::matching_mode_t::Class>, matched_using)
-        
-    public:
-        //! Stuff that is only present if postures are
-        //! calculated and present in the given frame.
-        //! (There are no frame_segments available for pre-sorting requests)
-        struct PostureStuff {
-            static constexpr float infinity = cmn::infinity<float>();
-            Frame_t frame;
-            
-            MotionRecord* head;
-            MotionRecord* centroid_posture;
-            Midline::Ptr cached_pp_midline;
-            MinimalOutline::Ptr outline;
-            float posture_original_angle;
-            float midline_angle, midline_length;
-            //!TODO: consider adding processed midline_angle and length
-            
-            PostureStuff()
-                : head(nullptr), centroid_posture(nullptr), posture_original_angle(infinity), midline_angle(infinity), midline_length(infinity)
-            {}
-            
-            ~PostureStuff();
-            bool cached() const { return posture_original_angle != infinity; }
-        };
         
     protected:
         //! dense array of all posture related stuff we are saving
@@ -451,7 +409,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         const Midline::Ptr pp_midline(Frame_t frameIndex) const;
         MinimalOutline::Ptr outline(Frame_t frameIndex) const;
         
-        void iterate_frames(const Range<Frame_t>& segment, const std::function<bool(Frame_t frame, const std::shared_ptr<SegmentInformation>&, const Individual::BasicStuff*, const Individual::PostureStuff*)>& fn) const;
+        void iterate_frames(const Range<Frame_t>& segment, const std::function<bool(Frame_t frame, const std::shared_ptr<SegmentInformation>&, const BasicStuff*, const PostureStuff*)>& fn) const;
         
         BasicStuff* basic_stuff(Frame_t frameIndex) const;
         PostureStuff* posture_stuff(Frame_t frameIndex) const;
@@ -485,21 +443,6 @@ constexpr std::array<const char*, 8> ReasonsNames {
         bool recently_manually_matched(Frame_t frameIndex) const;
         
         std::tuple<std::vector<std::tuple<float, float>>, std::vector<float>, size_t, MovementInformation> calculate_previous_vector(Frame_t frameIndex) const;
-        
-        /**
-         * Calculates an actual cropped out image for a given frameIndex.
-         * If something goes wrong it returns a nullptr.
-         *
-         * @param frameIndex the frame number within start_frame - end_frame
-         * @param normalize If set to true, the function will normalize direction to be horizontal based on midline. If no midline is available it returns a nullptr
-         * @param output_size If this parameter is non-empty, the returned image will be padded / cropped to the appropriate size with the fish in the center (according to midline length)
-         * @param pixelized the blob saved inside the fish structure is most likely reduced, so it doesnt contain pixel information anymore. if this blob is provided, the pixels array from this blob will be used if needed.
-         * @return an image pointer to a one-channel 8-bit greyscale image containing the difference image
-         */
-        
-        static std::tuple<Image::UPtr, Vec2> calculate_diff_image(pv::BlobPtr blob, const Size2& output_size);
-        static std::tuple<Image::UPtr, Vec2> calculate_normalized_diff_image(const gui::Transform& midline_transform, const pv::BlobPtr& blob, float midline_length, const Size2& output_size, bool use_legacy);
-        static std::tuple<Image::UPtr, Vec2> calculate_normalized_image(const gui::Transform& midline_transform, const pv::BlobPtr& blob, float midline_length, const Size2& output_size, bool use_legacy);
         
         std::string toStr() const;
         static std::string class_name() {

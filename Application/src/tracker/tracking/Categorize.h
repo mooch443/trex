@@ -244,6 +244,26 @@ enum class State {
 State& state();
 void set_state(State);
 void add_task(LearningTask&&);
+
+/*
+ For interaction with the GUI:
+ */
+std::atomic<float>& best_accuracy();
+std::mutex& recv_mutex();
+
+bool& initialized();
+std::atomic_bool& terminate();
+std::atomic_bool& learning();
+
+inline constexpr float good_enough() {
+    return 0.75;
+}
+
+std::condition_variable& learning_variable();
+
+void add_training_sample(const Sample::Ptr& sample);
+Sample::Ptr front_sample();
+
 }
 
 void show();
@@ -254,6 +274,7 @@ file::Path output_location();
 void clear_labels();
 
 bool weights_available();
+
 #endif
 
 }

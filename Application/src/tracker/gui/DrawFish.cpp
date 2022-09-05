@@ -160,8 +160,8 @@ Fish::~Fish() {
             
             auto && [basic, posture] = _obj.all_stuff(_safe_frame);
             
-            const Individual::PostureStuff* current_posture;
-            const Individual::BasicStuff* current_basic;
+            const PostureStuff* current_posture;
+            const BasicStuff* current_basic;
             
             if(frameIndex == _safe_frame) {
                 current_posture = posture;
@@ -833,6 +833,13 @@ Fish::~Fish() {
                         points.push_back(Vec2(frame.get(), a));
                     }
                     _graph.add_points("angle''", points);
+                    
+                    points.clear();
+                    for(auto && [frame, a] : angles) {
+                        points.push_back(Vec2(frame.get(), a));
+                    }
+                    _graph.add_points("angle", points);
+                    
                     _graph.set_zero(_frame.get());
                 
                     _view.advance_wrap(_graph);
@@ -1197,7 +1204,7 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
     else*/ if (GUI_SETTINGS(gui_show_recognition_bounds)) {
         auto&& [valid, segment] = _obj.has_processed_segment(_frame);
         if (valid) {
-            auto&& [samples, map] = _obj.processed_recognition(segment.start());
+            auto [samples, map] = _obj.processed_recognition(segment.start());
             auto it = std::max_element(map.begin(), map.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b) {
                 return a.second < b.second;
             });
@@ -1208,14 +1215,15 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
             }
             else
                 color = "nr";
-        } else if(Tracker::instance()->recognition()) {
-            auto raw = Tracker::instance()->recognition()->ps_raw(_frame, blob->blob_id());
-            if (!raw.empty()) {
-                auto it = std::max_element(raw.begin(), raw.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b) {
-                    return a.second < b.second;
+        } else {
+            auto pred = Tracker::instance()->find_prediction(_frame, blob->blob_id());
+            if(pred) {
+                auto map = Tracker::prediction2map(*pred);
+                auto it = std::max_element(map.begin(), map.end(), [](const std::pair<long_t, float>& a, const std::pair<long_t, float>& b) {
+                        return a.second < b.second;
                     });
 
-                if (it != raw.end()) {
+                if (it != map.end()) {
                     secondary_text += " loc" + Meta::toStr(it->first) + " (" + Meta::toStr(it->second) + ")";
                 }
             }

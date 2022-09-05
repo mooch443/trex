@@ -18,10 +18,16 @@
 #if !COMMONS_NO_PYTHON
 #include <pybind11/numpy.h>
 #include <python/GPURecognition.h>
+#include <python/PythonWrapper.h>
+#include <tracking/RecTask.h>
 #endif
 #include <tracking/Recognition.h>
 #include <misc/SpriteMap.h>
 #include <misc/create_struct.h>
+
+#if !COMMONS_NO_PYTHON
+namespace py = Python;
+#endif
 
 track::Tracker* tracker = nullptr;
 
@@ -539,6 +545,27 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
         SETTING(cam_resolution).value<cv::Size>() = cv::Size(Size2(_cam_size) * GRAB_SETTINGS(cam_scale));
     }
     
+#if !COMMONS_NO_PYTHON
+    if (GRAB_SETTINGS(enable_closed_loop)
+#if defined(TAGS_ENABLE)
+        || GRAB_SETTINGS(tags_recognize)
+#endif
+        )
+    {
+        py::init().get();
+#if defined(TAGS_ENABLE)
+        if(GRAB_SETTINGS(tags_recognize)) {
+            py::schedule([](){
+                using py = track::PythonIntegration;
+                py::execute("import tensorflow as tf");
+            }).get();
+            
+            track::RecTask::init();
+        }
+#endif
+    }
+#endif
+    
     _pool = std::make_unique<GenericThreadPool>(max(1u, cmn::hardware_concurrency()), [](auto e) { std::rethrow_exception(e); }, "ocl_threads", [](){
         ocl::init_ocl();
     });
@@ -595,24 +622,6 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
         tracker = new track::Tracker();
         Output::Library::Init();
     }
-    
-#if !COMMONS_NO_PYTHON
-    if (GRAB_SETTINGS(enable_closed_loop) 
-#if defined(TAGS_ENABLE)
-        || GRAB_SETTINGS(tags_recognize)
-#endif
-        )
-    {
-        track::Recognition::fix_python(true);
-        track::PythonIntegration::ensure_started().get();
-#if defined(TAGS_ENABLE)
-        track::PythonIntegration::async_python_function([](){
-            track::PythonIntegration::execute("import tensorflow as tf");
-            return true;
-        }).get();
-#endif
-    }
-#endif
 
     if (tracker) {
         _tracker_thread = new std::thread([this]() {
@@ -800,7 +809,13 @@ FrameGrabber::~FrameGrabber() {
         ppvar.notify_all();
         _tracker_thread->join();
         delete _tracker_thread;
-
+        
+#if !COMMONS_NO_PYTHON
+        if(GRAB_SETTINGS(tags_recognize)) {
+            track::RecTask::deinit();
+        }
+#endif
+        
         track::Individual::shutdown();
         
 #if !COMMONS_NO_PYTHON
@@ -810,7 +825,7 @@ FrameGrabber::~FrameGrabber() {
 #endif
             ) 
         {
-            Output::PythonIntegration::quit();
+            py::deinit().get();
         }
 #endif
         
@@ -1189,16 +1204,11 @@ void FrameGrabber::update_tracker_queue() {
     
 #if !COMMONS_NO_PYTHON
     if(GRAB_SETTINGS(enable_closed_loop)) {
-        track::PythonIntegration::async_python_function([&request_features]()
+        py::schedule([&request_features]()
         {
-            try {
-                track::PythonIntegration::import_module("closed_loop");
-                request_features(track::PythonIntegration::run_retrieve_str("closed_loop", "request_features"));
-            }
-            catch (const SoftExceptionImpl&) {
-
-            }
-            return true;
+            using py = track::PythonIntegration;
+            py::import_module("closed_loop");
+            request_features(py::run_retrieve_str("closed_loop", "request_features"));
             
         }).get();
     }
@@ -1291,7 +1301,13 @@ void FrameGrabber::update_tracker_queue() {
                     static Timing timing("python::closed_loop", 0.1);
                     TakeTiming take(timing);
                     
-                    track::PythonIntegration::async_python_function([&active, &content_timer, &copy, &visual_fields, &midlines, frame = frame, &request_features, &selected_features]()
+                    py::schedule([ &active,
+                                   &content_timer,
+                                   &visual_fields,
+                                   &midlines,
+                                   frame = frame,
+                                   &request_features,
+                                   &selected_features]()
                     {
                         std::vector<long_t> ids;
                         std::vector<float> midline_points;
@@ -1510,7 +1526,7 @@ bool FrameGrabber::crop_and_scale(const gpuMat& gpu, gpuMat& output) {
 
 void FrameGrabber::update_fps(long_t index, timestamp_t stamp, timestamp_t tdelta, timestamp_t now) {
     {
-        std::unique_lock<std::mutex> fps_lock(_fps_lock);
+        std::unique_lock fps_lock(_fps_lock);
         _current_fps++;
         
         float elapsed = _fps_timer.elapsed();
@@ -1529,12 +1545,11 @@ void FrameGrabber::update_fps(long_t index, timestamp_t stamp, timestamp_t tdelt
                 ETA = Meta::toStr(DurationUS{eta.count()});
             }
             
-            auto saving = DurationUS{ uint64_t(_saving_time.load() * 1000 * 1000) };
-            auto processing = DurationUS{uint64_t(_processing_timing.load() * 1000 * 1000)};
-            auto loading = DurationUS{uint64_t(_loading_timing.load() * 1000 * 1000)};
-            auto rest = DurationUS{uint64_t(_rest_timing.load() * 1000 * 1000)};
-            
-            auto tracking = DurationUS{ uint64_t(_tracking_time.load() * 1000 * 1000) };
+            saving = DurationUS{ uint64_t(_saving_time.load() * 1000 * 1000) };
+            processing = DurationUS{uint64_t(_processing_timing.load() * 1000 * 1000)};
+            loading = DurationUS{uint64_t(_loading_timing.load() * 1000 * 1000)};
+            rest = DurationUS{uint64_t(_rest_timing.load() * 1000 * 1000)};
+            tracking = DurationUS{ uint64_t(_tracking_time.load() * 1000 * 1000) };
             
             auto str = Meta::toStr(DurationUS{stamp});
             

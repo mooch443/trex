@@ -270,8 +270,6 @@ namespace tags {
         assignments.clear();
         added_entries = 0;
         
-        print("Reading ", N, " assignments.");
-        
         for (uint32_t i=0; i<N; ++i) {
             data.read<uint32_t>(identity);
             
@@ -288,7 +286,8 @@ namespace tags {
             }
         }
         
-        print("Read ", N, " tags.");
+        if(N>0)
+            print("Read ", N, " tags.");
     }
 
     Assignment find(Frame_t frame, pv::bid bdx) {

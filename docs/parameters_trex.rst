@@ -1291,15 +1291,6 @@ TRex parameters
 
 
 
-.. function:: manual_identities(set<Idx_t>)
-
-	**default value:** []
-
-
-	
-
-
-
 .. function:: manual_matches(map<frame,map<Idx_t,blob>>)
 
 	**default value:** {}

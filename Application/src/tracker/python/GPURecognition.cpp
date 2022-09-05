@@ -166,43 +166,10 @@ MESSAGE_TYPE(PythonLog, TYPE_INFO, false, CYAN, "python");
 MESSAGE_TYPE(PythonWarn, TYPE_WARNING, false, YELLOW, "python");*/
 
 cmn::GlobalSettings* _settings{ nullptr };
-std::function<void(const std::string&, const cv::Mat&)> _mat_display = [](auto&, auto&) {
-
-};
+std::function<void(const std::string&, const cv::Mat&)> _mat_display = [](auto&, auto&) { };
 
 PYBIND11_EMBEDDED_MODULE(TRex, m) {
     namespace py = pybind11;
-    /*py::class_<cmn::Image::UPtr, cmn::Image::UPtr>(m, "Image::UPtr", py::buffer_protocol())
-    .def_buffer([](const cmn::Image::UPtr&m) -> py::buffer_info {
-        return py::buffer_info(
-           m->data(),
-           sizeof(uint8_t),
-           py::format_descriptor<uint8_t>::format(),
-           3,
-           { m->rows, m->cols, m->dims },
-           {
-               sizeof(uint8_t) * m->dims * m->cols,
-               sizeof(uint8_t) * m->dims,
-               sizeof(uint8_t)
-           }
-        );
-    });
-
-    py::class_<cmn::Image::Ptr, cmn::Image::Ptr>(m, "Image::Ptr", py::buffer_protocol())
-        .def_buffer([](const cmn::Image::Ptr& m) -> py::buffer_info {
-        return py::buffer_info(
-            m->data(),
-            sizeof(uint8_t),
-            py::format_descriptor<uint8_t>::format(),
-            3,
-            { m->rows, m->cols, m->dims },
-           {
-               sizeof(uint8_t) * m->dims * m->cols,
-               sizeof(uint8_t) * m->dims,
-               sizeof(uint8_t)
-           }
-        );
-    });*/
 
     m.def("log", [](std::string text) {
         using namespace cmn;
@@ -212,36 +179,6 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         using namespace cmn;
         FormatWarning(fmt::clr<FormatColor::DARK_GRAY>("[py] "),text.c_str());
     });
-
-    /*m.def("show_work_image", [](std::string name, pybind11::buffer b) {
-#if CMN_WITH_IMGUI_INSTALLED
-        namespace py = pybind11;
-        py::buffer_info info = b.request();
-
-        if (info.format != py::format_descriptor<uint8_t>::format())
-            throw std::runtime_error("Incompatible format: expected a uint8_t array!");
-
-        if (info.ndim != 3 && info.ndim != 2)
-            throw std::runtime_error("Incompatible buffer dimension!");
-
-        auto map = cv::Mat((int)info.shape[0], (int)info.shape[1], (int)CV_8UC(info.ndim == 2 ? 1 : info.shape[2]), static_cast<uint8_t*>(info.ptr));
-
-        //auto desktop = Size2(sf::VideoMode::getDesktopMode().width * 0.65,
-         //                    sf::VideoMode::getDesktopMode().height * 0.65);
-        if (GUI::instance()) {
-            cmn::Image::Ptr image = std::make_shared<cmn::Image>(map.rows, map.cols, 4);
-
-            if (map.channels() == 3)
-                cv::cvtColor(map, image->get(), cv::COLOR_BGR2BGRA);
-            else if (map.channels() == 4)
-                map.copyTo(image->get());
-            //else if(map.channels() == 4)
-            //    cv::cvtColor(map, image->get(), cv::COLOR_RGBA2BGRA);
-
-            GUI::work().set_image(name, image);
-        }
-#endif
-    }, pybind11::arg().none(), pybind11::arg().noconvert());*/
 
     m.def("video_size", []() -> pybind11::dict {
         using namespace pybind11::literals;
@@ -316,125 +253,191 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
 #include <misc/Timer.h>
 
 namespace track {
-    namespace py = pybind11;
+namespace py = pybind11;
 
+std::atomic_bool& python_initialized() {
+    static std::atomic_bool _python_initialized = false;
+    return _python_initialized;
+}
+std::atomic_bool& python_initializing() {
+    static std::atomic_bool _python_initializing = false;
+    return _python_initializing;
+}
+std::atomic_bool& python_gpu_initialized() {
+    static std::atomic_bool _python_gpu_initialized = false;
+    return _python_gpu_initialized;
+}
+std::atomic_int& python_major_version() {
+    static std::atomic_int _python_major_version = 0;
+    return _python_major_version;
+}
+std::atomic_int& python_minor_version() {
+    static std::atomic_int _python_minor_version = 0;
+    return _python_minor_version;
+}
+std::atomic_int& python_uses_gpu() {
+    static std::atomic_int _python_uses_gpu = false;
+    return _python_uses_gpu;
+}
 
-    std::shared_ptr<py::scoped_interpreter> guard = nullptr;
-    pybind11::module numpy, TRex, _main;
-    pybind11::dict* _locals = nullptr;
-    std::mutex module_mutex;
+std::string& python_init_error() {
+    static std::string _python_init_error = "";
+    return _python_init_error;
+}
+std::string& python_gpu_name() {
+    static std::string _python_gpu_name;
+    return _python_gpu_name;
+}
 
-    std::map<std::string, std::string> contents;
-    std::map<std::string, pybind11::module> _modules;
+pybind11::module numpy, TRex, _main;
+pybind11::dict* _locals = nullptr;
+std::mutex module_mutex;
 
-    std::atomic<bool> _terminate = false;
-    std::map<Idx_t, std::deque<std::tuple<long_t, Image::Ptr>>> _classes;
-    std::map<Idx_t, std::set<long_t>> _received;
-    std::map<Idx_t, std::set<long_t>> _sent_to_training;
-    std::map<Idx_t, std::vector<Image::Ptr>> _test_data;
+std::map<std::string, std::string> _module_contents;
+std::map<std::string, pybind11::module> _modules;
 
-    std::vector<PackagedTask> tasks;
+std::thread::id _saved_id;
+std::unique_ptr<py::scoped_interpreter> _interpreter;
 
-    std::thread* _network_update_thread = nullptr;
-    std::condition_variable _update_condition;
-    std::mutex _data_mutex, _initialize_mutex;
-    std::condition_variable _initialize_condition;
-    std::thread::id _saved_id;
+void PythonIntegration::set_settings(GlobalSettings* obj) {
+    GlobalSettings::set_instance(obj);
+    _settings = obj;
+}
 
-    std::unique_ptr<std::promise<bool>> _initialize_promise;
-    std::shared_future<bool> _initialize_future;
+template<typename T>
+void set_function_internal(const char* name_, T&& f, const std::string& m);
 
-    void PythonIntegration::set_settings(GlobalSettings* obj) {
-        GlobalSettings::set_instance(obj);
-        _settings = obj;
-    }
+void PythonIntegration::set_display_function(std::function<void(const std::string&, const cv::Mat&)> fn) {
+    _mat_display = fn;
+}
 
-    template<typename T>
-    void set_function_internal(const char* name_, T&& f, const std::string& m);
-
-    void PythonIntegration::set_display_function(std::function<void(const std::string&, const cv::Mat&)> fn) {
-        _mat_display = fn;
-    }
-
-    std::atomic_bool& PythonIntegration::python_initialized() {
-        static std::atomic_bool _python_initialized = false;
-        return _python_initialized;
-    }
-    std::atomic_bool& PythonIntegration::python_initializing() {
-        static std::atomic_bool _python_initializing = false;
-        return _python_initializing;
-    }
-    std::atomic_bool& PythonIntegration::python_gpu_initialized() {
-        static std::atomic_bool _python_gpu_initialized = false;
-        return _python_gpu_initialized;
-    }
-    std::atomic_int& PythonIntegration::python_major_version() {
-        static std::atomic_int _python_major_version = 0;
-        return _python_major_version;
-    }
-    std::atomic_int& PythonIntegration::python_minor_version() {
-        static std::atomic_int _python_minor_version = 0;
-        return _python_minor_version;
-    }
-    std::atomic_int& PythonIntegration::python_uses_gpu() {
-        static std::atomic_int _python_uses_gpu = false;
-        return _python_uses_gpu;
-    }
+void PythonIntegration::init() {
+    python_initialized() = false;
+    python_initializing() = true;
     
-    std::string& PythonIntegration::python_init_error() {
-        static std::string _python_init_error = "";
-        return _python_init_error;
-    }
-    std::string& PythonIntegration::python_gpu_name() {
-        static std::string _python_gpu_name;
-        return _python_gpu_name;
-    }
-    
-    PythonIntegration*& PythonIntegration::instance(bool check) {
-        static PythonIntegration *_instance = nullptr;
-        if(!_instance && !check)
-            _instance = new PythonIntegration;
-        return _instance;
-    }
-    
-    PythonIntegration::PythonIntegration()
-    {
-        initialize();
-    }
-
-    PythonIntegration::~PythonIntegration() {
-        shutdown();
-    }
-    
-    void PythonIntegration::quit() {
-        if(_network_update_thread) {
-            delete instance(false);
-        }
-        if(instance(true))
-            instance(true) = nullptr;
-    }
-    
-    void PythonIntegration::shutdown() {
-        _terminate = true;
-        python_initialized() = false;
+    auto fail = [](const auto& e, cmn::source_location loc = cmn::source_location::current()){
+        python_init_error() = e.what();
+        python_initializing() = false;
+        FormatExcept("Python runtime error (GPURecognition:", loc.line(), "): ", e.what());
         
-        if(_network_update_thread) {
-            _update_condition.notify_all();
-            
-            _network_update_thread->join();
-            delete _network_update_thread;
-            _network_update_thread = nullptr;
-        }
-    }
+        python_initialized() = false;
+        python_initializing() = false;
+    };
+    
+    //! set new thread ID. we expect everything to happen from this thread now.
+    _saved_id = std::this_thread::get_id();
 
-void PythonIntegration::reinit() {
-    async_python_function(nullptr, []() -> bool {
+    try {
+        using namespace py::literals;
+        
+#if defined(WIN32)
+        const DWORD buffSize = 65535;
+        char path[buffSize] = { 0 };
+        GetEnvironmentVariable("PYTHONHOME", path, buffSize);
+        print("Inherited pythonhome: ", std::string(path));
+        GetEnvironmentVariable("PYTHONPATH", path, buffSize);
+        print("Inherited pythonpath: ", std::string(path));
+        GetEnvironmentVariable("PATH", path, buffSize);
+        print("Inherited path: ", std::string(path));
+#endif
+
+        _interpreter = std::make_unique<py::scoped_interpreter>();
+        
+        _main = py::module::import("__main__");
+        _main.def("set_version", [](std::string x, bool has_gpu, std::string physical_name) {
+#ifndef NDEBUG
+            print("set_version called with ",x," and ",physical_name," - ",has_gpu?"gpu":"no gpu");
+#endif
+            auto array = utils::split(x, ' ');
+            if(array.size() > 0) {
+                array = utils::split(array.front(), '.');
+                if(array.size() >= 1)
+                    python_major_version() = Meta::fromStr<int>(array[0]);
+                if(array.size() > 1)
+                    python_minor_version() = Meta::fromStr<int>(array[1]);
+            }
+            
+            python_uses_gpu() = has_gpu;
+            python_gpu_name() = physical_name;
+        });
+        
+        TRex = _main.import("TRex");
+        _locals = new pybind11::dict();
+        print("# imported TRex module");
+        
+        PythonIntegration::execute("import sys\nset_version(sys.version, False, '')");
+        
+        try {
+            auto cmd = utils::read_file("trex_init.py");
+            py::exec(cmd);
+            python_gpu_initialized() = true;
+            python_initializing() = false;
+            
+        } catch(const UtilsException& ex) {
+            print("Error while executing 'trex_init.py'. Content: ",ex.what());
+            python_init_error() = ex.what();
+            fail(ex);
+            //return false;
+            throw;
+        } 
+        
+        python_initialized() = true;
+        python_initializing() = false;
+        
+    } catch(const UtilsException& ex) {
+        fail(ex);
+        throw SoftException("Error while executing 'trex_init.py'. Content: ",ex.what());
+        
+    } catch(py::error_already_set& e) {
+        fail(e);
+        throw SoftException(e.what());
+    }
+    catch (...) {
+        python_init_error() = "Cannot initialize interpreter.";
+        python_initializing() = false;
+        python_initialized() = false;
+        throw SoftException("Cannot initialize interpreter.");
+    }
+}
+
+void PythonIntegration::deinit() {
+    try {
+        track::numpy.release();
+        track::TRex.release();
+        track::_main.release();
+
+        {
+            std::lock_guard<std::mutex> guard(module_mutex);
+            _modules.clear();
+        }
+
+        if (_locals) {
+            delete _locals;
+            _locals = nullptr;
+        }
+
+    } catch(py::error_already_set &e) {
+        throw SoftException("Python runtime error during clean-up: ", e.what());
+    }
+    
+    try {
+        _interpreter = nullptr;
+        print("[py] ended.");
+        
+    } catch(py::error_already_set &e) {
+        throw SoftException("Python runtime error during clean-up: ", e.what());
+    }
+}
+
+/*void PythonIntegration::reinit() {
+    async_python_function(nullptr, []() {
         using namespace py::literals;
         python_gpu_initialized() = false;
         python_initializing() = true;
         
         auto fail = [](const auto& e, cmn::source_location loc = cmn::source_location::current()){
-            auto file = file::Path(loc.file_name()).filename();
+            auto path = file::Path(loc.file_name());
+            auto file = path.filename();
             FormatExcept("Python runtime error (", file.data(),":", loc.line(), ": ",e.what(),")");
             python_init_error() = e.what();
             python_gpu_initialized() = false;
@@ -442,412 +445,25 @@ void PythonIntegration::reinit() {
         };
         
         try {
-            //if(_settings->map().get<bool>("recognition_enable").value())
-            {
-                //async_python_function(nullptr, [fail]()
-                                      {
-                    try {
-                        auto cmd = utils::read_file("trex_init.py");
-                        py::exec(cmd);
-                        python_gpu_initialized() = true;
-                        python_initializing() = false;
-                        
-                    } catch(const UtilsException& ex) {
-                        print("Error while executing 'trex_init.py'. Content: ",ex.what());
-                        python_init_error() = ex.what();
-                        fail(ex);
-                        //return false;
-                        throw;
-                        
-                    } /*catch(py::error_already_set& e) {
-                        python_init_error() = e.what();
-                        fail(e);
-                        //e.restore();
-                        //return false;
-                        throw;
-                    }*/
-                    
-                    //return true;
-                    
-                }//, Flag::FORCE_ASYNC, true);
-                
-            }
-            
-            return true;
+            auto cmd = utils::read_file("trex_init.py");
+            py::exec(cmd);
+            python_gpu_initialized() = true;
+            python_initializing() = false;
             
         } catch(py::error_already_set &e) {
             fail(e);
-            //e.restore();
-            //return false;
+            throw;
+            
+        } catch(const UtilsException& ex) {
+            print("Error while executing 'trex_init.py'. Content: ",ex.what());
+            python_init_error() = ex.what();
+            fail(ex);
             throw;
         }
         
     }, Flag::DEFAULT, true).get();
-}
-    
-    void PythonIntegration::initialize() {
-        using namespace py::literals;
-        
-        _initialize_promise = std::make_unique<std::promise<bool>>();
-        _initialize_future = _initialize_promise->get_future().share();
-        
-        _network_update_thread = new std::thread([]() -> void {
-            cmn::set_thread_name("PythonIntegration::update");
-            std::unique_lock<std::mutex> lock(_data_mutex);
-            _saved_id = std::this_thread::get_id();
+}*/
 
-            python_initialized() = false;
-            python_initializing() = true;
-            _terminate = false;
-            
-            auto fail = [](const auto& e, int line){
-                python_init_error() = e.what();
-                python_initializing() = false;
-                FormatExcept("Python runtime error (", line, ": '", e.what(), "'");
-                
-                python_initialized() = false;
-                python_initializing() = false;
-                
-                //guard = nullptr;
-                //_initialize_promise->set_value(false);
-            };
-            
-            std::unique_ptr<py::scoped_interpreter> scope;
-
-            try {
-#if defined(WIN32)
-                /*if (!getenv("TREX_DONT_SET_PATHS")) {
-                    std::string sep = "/";
-                    auto home = Py_GetPythonHome();
-                    auto home2 = SETTING(python_path).value<file::Path>().str();
-                    if(file::Path(home2).exists() && file::Path(home2).is_regular())
-                        home2 = file::Path(home2).remove_filename().str();
-                    print("Setting home to ",home2);
-
-                    if (!home2.empty()) {
-                        home2 = utils::find_replace(home2, "/", sep);
-
-                        int nChars = MultiByteToWideChar(CP_ACP, 0, home2.c_str(), -1, NULL, 0);
-                        wchar_t* pwcsName = new wchar_t[nChars];
-                        MultiByteToWideChar(CP_ACP, 0, home2.c_str(), -1, (LPWSTR)pwcsName, nChars);
-                        Py_SetPythonHome(pwcsName);
-                        SetEnvironmentVariable("PYTHONHOME", home2.c_str());
-
-                        // delete it
-                        delete[] pwcsName;
-                    }
-                }*/
-
-
-
-                const DWORD buffSize = 65535;
-                char path[buffSize] = { 0 };
-                GetEnvironmentVariable("PYTHONHOME", path, buffSize);
-                print("Inherited pythonhome: ", std::string(path));
-                GetEnvironmentVariable("PYTHONPATH", path, buffSize);
-                print("Inherited pythonpath: ", std::string(path));
-                GetEnvironmentVariable("PATH", path, buffSize);
-                print("Inherited path: ", std::string(path));
-
-                /*auto home = SETTING(python_path).value<file::Path>().str();//::default_config::conda_environment_path().str();
-                if (file::Path(home).exists() && file::Path(home).is_regular())
-                    home = file::Path(home).remove_filename().str();
-                print("Python home: ", home);
-                auto to_wide = [](const char* home) {
-                    int nChars = MultiByteToWideChar(CP_ACP, 0, home, -1, NULL, 0);
-                    auto pwcsName = std::vector<wchar_t>(nChars);
-                    MultiByteToWideChar(CP_ACP, 0, home, -1, (LPWSTR)pwcsName.data(), nChars);
-                    return pwcsName;
-                };
-
-                auto pwcsName = to_wide(home.c_str());
-                Py_SetPythonHome(pwcsName.data());
-                SetEnvironmentVariable("PYTHONHOME", home.c_str());
-
-                auto pythonpath = home + ";" + home + "/DLLs;" + home + "/Lib/site-packages";
-                pwcsName = to_wide(pythonpath.c_str());
-                Py_SetPath(pwcsName.data());
-                SetEnvironmentVariable("PYTHONPATH", pythonpath.c_str());
-
-                SetEnvironmentVariable("PATH", home.c_str());*/
-
-#endif
-
-                //py::initialize_interpreter();
-                scope = std::make_unique<py::scoped_interpreter>();
-                
-                _main = py::module::import("__main__");
-                _main.def("set_version", [](std::string x, bool has_gpu, std::string physical_name) {
-#ifndef NDEBUG
-                    print("set_version called with ",x," and ",physical_name," - ",has_gpu?"gpu":"no gpu");
-#endif
-                    auto array = utils::split(x, ' ');
-                    if(array.size() > 0) {
-                        array = utils::split(array.front(), '.');
-                        if(array.size() >= 1)
-                            python_major_version() = Meta::fromStr<int>(array[0]);
-                        if(array.size() > 1)
-                            python_minor_version() = Meta::fromStr<int>(array[1]);
-                    }
-                    
-                    python_uses_gpu() = has_gpu;
-                    python_gpu_name() = physical_name;
-                });
-                
-                TRex = _main.import("TRex");
-                _locals = new pybind11::dict("model"_a="None");
-                print("# imported TRex module");
-                
-                PythonIntegration::execute("import sys\nset_version(sys.version, False, '')");
-                
-                python_initialized() = true;
-                python_initializing() = false;
-                _initialize_promise->set_value(true);
-                
-            } catch(const UtilsException& ex) {
-                print("Error while executing 'trex_init.py'. Content: ",ex.what());
-                fail(ex, __LINE__);
-                _initialize_promise->set_exception(std::current_exception());
-                return;
-                
-            } catch(py::error_already_set& e) {
-                fail(e, __LINE__);
-                //e.restore();
-                _initialize_promise->set_exception(std::current_exception());
-                return;
-            }
-            catch (...) {
-                python_init_error() = "Cannot initialize interpreter.";
-                python_initializing() = false;
-                python_initialized() = false;
-                FormatExcept("Cannot initialize the python interpreter.");
-                //_initialize_promise->set_value(false);
-                _initialize_promise->set_exception(std::current_exception());
-                return;
-            }
-            
-            bool printed = false;
-            
-            while (!_terminate || !tasks.empty()) {
-                while(!tasks.empty()) {
-                    auto it = tasks.begin();
-                    
-                    if(!python_gpu_initialized()
-                       && !tasks.front()._can_run_before_init
-                       && python_init_error().empty())
-                    {
-                        for (; it != tasks.end(); ++it) {
-                            if(it->_can_run_before_init) {
-                                break;
-                            }
-                        }
-                        
-                        if(it == tasks.end()) {
-                            if(!printed) {
-                                FormatWarning("Cannot run python tasks while python is not initialized.");
-                                printed = true;
-                            }
-                            
-                            lock.unlock();
-                            try {
-                                reinit();
-                            } catch(...) {
-                                FormatExcept("[py] Error during initialization (trex_init.py).");
-                                lock.lock();
-                                
-                                for(auto &task : tasks)
-                                    task._task._promise.set_exception(std::current_exception());
-                                
-                                break;
-                            }
-                            lock.lock();
-                            continue;
-                        }
-                    }
-                    
-                    if(it == tasks.end())
-                        continue;
-                    
-                    printed = false;
-                    
-                    auto task = std::move(*it);
-                    tasks.erase(it);
-                    
-                    lock.unlock();
-                    try {
-                        if(task._network)
-                            task._network->activate();
-                        task();
-                    } catch(py::error_already_set& e) {
-                        FormatExcept("Python runtime exception: ", e.what());
-                        //e.restore();
-                    } catch( ... ) {
-                        print("Caught one exception.");
-                    }
-                    lock.lock();
-                }
-                
-                if(!python_init_error().empty()) {
-                    // there has been an error, so deinit!
-                    print("Breaking out of loop due to error in initialization.");
-                    break;
-                }
-                
-                if(!_terminate)
-                    _update_condition.wait_for(lock, std::chrono::milliseconds(250));
-            }
-            
-            try {
-                track::numpy.release();
-                track::TRex.release();
-                track::_main.release();
-
-                {
-                    std::lock_guard<std::mutex> guard(module_mutex);
-                    _modules.clear();
-                }
-
-                if (_locals) {
-                    delete _locals;
-                    _locals = nullptr;
-                }
-
-            } catch(py::error_already_set &e) {
-                print("Python runtime error during clean-up: ", e.what());
-                e.restore();
-            }
-            
-            try {
-                //py::finalize_interpreter();
-                //Py_Finalize();
-                scope = nullptr;
-                print("[py] ended.");
-                tasks.clear();
-                
-            } catch(py::error_already_set &e) {
-                print("Python runtime error during clean-up: ", e.what());
-                e.restore();
-            }
-        });
-    }
-    
-    std::tuple<std::vector<float>, std::vector<float>> PythonIntegration::probabilities(const std::vector<Image::Ptr>& images)
-    {
-        check_correct_thread_id();
-        
-        namespace py = pybind11;
-        using namespace py::literals;
-        
-        static std::mutex mutex;
-        static std::vector<float> values, indexes;
-        
-        std::lock_guard<std::mutex> guard(mutex);
-        values.clear();
-        indexes.clear();
-        
-        try {
-            //check_module("learn_static");
-            py::module module;
-            
-            {
-                if (check_module("learn_static"))
-                    throw SoftException("Had to reload learn_static while in the training process. This is currently unsupported.");
-
-                std::lock_guard<std::mutex> guard(module_mutex);
-                if (!_modules.count("learn_static"))
-                    throw SoftException("Cannot find 'learn_static'.");
-
-                module = _modules.find("learn_static")->second;
-            }
-            
-            module.attr("images") = images;
-            module.def("receive", [&](py::array_t<float> x, py::array_t<float> idx) {
-                std::vector<float> temporary;
-                auto array = x.unchecked<2>();
-                auto idxes = idx.unchecked<1>();
-                
-                print("Copying ", array.size()," data");
-                auto ptr = array.data(0,0);
-                auto end = ptr + array.size();
-                temporary.insert(temporary.end(), ptr, end);
-                values = temporary;
-                
-                ptr = idxes.data(0);
-                end = ptr + idxes.size();
-                temporary.clear();
-                temporary.insert(temporary.end(), ptr, end);
-                indexes = temporary;
-                x.release();
-                idx.release();
-                
-            }, py::arg("x").noconvert(), py::arg("idx").noconvert());
-        
-            
-            module.attr("predict")();
-            
-            module.attr("receive") = py::none();
-            module.attr("images") = py::none();
-            //std::string str = utils::read_file("probs.py");
-            //py::exec(str, py::globals(), *_locals);
-            
-            //(*_locals)["images"] = nullptr;
-            
-        } catch (py::error_already_set &e) {
-            print("Runtime error: '", e.what(),"'");
-            e.restore();
-        }
-        
-        return {indexes, values};
-    }
-
-std::future<void> PythonIntegration::async_python_function(PackagedTask && task, Flag flag) {
-    auto future = task.future();
-    
-    if(flag != Flag::FORCE_ASYNC
-       && std::this_thread::get_id() == _saved_id)
-    {
-        try {
-            task();
-        } catch (py::error_already_set &e) {
-            FormatExcept{ "Python runtime error: ", e.what() };
-            //e.restore();
-            throw SoftException(e.what());
-            
-        } catch(...) {
-            FormatExcept("Random exception");
-        }
-    } else {
-        std::unique_lock lock(_data_mutex);
-        if(!python_init_error().empty()) {
-            throw SoftException("Calling on an already erroneous python thread.");
-        }
-        
-        tasks.emplace_back(std::move(task));
-        _update_condition.notify_one();
-    }
-    
-    return future;
-}
-
-std::shared_future<bool> PythonIntegration::ensure_started() {
-    if(!_initialize_promise)
-        _initialize_promise = std::make_unique<std::promise<bool>>();
-    
-    if(!_initialize_future.valid()) {
-        _initialize_future = _initialize_promise->get_future().share();
-    }
-    
-    if(!python_initialized() && !python_initializing() && !python_init_error().empty())
-    {
-        //async_python_function([]()->bool{return true;});
-        
-    } else if(!python_initialized()) {
-        FormatWarning("Python not yet initialized. Waiting...");
-        PythonIntegration::instance();
-    }
-    
-    return _initialize_future;
-}
 
 bool PythonIntegration::check_module(const std::string& name) {
     check_correct_thread_id();
@@ -856,7 +472,7 @@ bool PythonIntegration::check_module(const std::string& name) {
     bool result = false;
     
     auto c = utils::read_file(name+".py");
-    if (c != contents[name] || CHECK_NONE(_modules[name])) {
+    if (c != _module_contents[name] || CHECK_NONE(_modules[name])) {
         auto& mod = _modules[name];
 
         try {
@@ -873,7 +489,7 @@ bool PythonIntegration::check_module(const std::string& name) {
             mod.release();
         }
 
-        contents[name] = c;
+        _module_contents[name] = c;
     }
     
     return result;
@@ -881,6 +497,7 @@ bool PythonIntegration::check_module(const std::string& name) {
 
 void PythonIntegration::run(const std::string& module_name, const std::string& function) {
     check_correct_thread_id();
+    print("[py] Running ",module_name.c_str(),"::",function.c_str());
     
     std::unique_lock<std::mutex> guard(module_mutex);
 
@@ -956,7 +573,6 @@ T get_variable_internal(const std::string& name, const std::string& m) {
         }
     } catch(py::error_already_set & e) {
         FormatExcept("Python runtime error: ", e.what());
-        e.restore();
     }
     
     throw SoftException("Cannot find variable ", name," in ", m,".");
@@ -973,6 +589,7 @@ template<typename T>
 void set_function_internal(const char* name_, T&& f, const std::string& m) {
     PythonIntegration::check_correct_thread_id();
     
+    print("[py] defining function ",m.c_str(),"::",name_);
     if(m.empty()) {
         _main.def(name_, std::move(f));
     } else {
@@ -981,6 +598,27 @@ void set_function_internal(const char* name_, T&& f, const std::string& m) {
             if(!CHECK_NONE(mod)) {
                 mod.def(name_, std::move(f));
                 return;
+            }
+        }
+        
+        throw SoftException("Cannot define function ",fmt::clr<FormatColor::DARK_CYAN>(m.c_str()),"::", fmt::clr<FormatColor::CYAN>(name_)," because the module ",fmt::clr<FormatColor::DARK_CYAN>(m.c_str())," does not exist (you should probably have a look at previous error messages).");
+    }
+}
+
+bool PythonIntegration::valid(const std::string & name_, const std::string& m) {
+    return /*exists(name_, m) &&*/ !is_none(name_, m);
+}
+
+bool PythonIntegration::exists(const std::string & name_, const std::string& m) {
+    PythonIntegration::check_correct_thread_id();
+    
+    if(m.empty()) {
+        return _main.contains(name_);
+    } else {
+        if(_modules.count(m)) {
+            auto &mod = _modules[m];
+            if(!CHECK_NONE(mod)) {
+                return mod.contains(name_);
             }
         }
         
@@ -1006,10 +644,10 @@ void PythonIntegration::set_function(const char* name_, std::function<void(std::
     set_function_internal(name_, f, m);
 }
 
-void PythonIntegration::set_function(const char* name_, std::packaged_task<void(std::vector<std::vector<float>>,std::vector<float>)>&& f, const std::string &m)
+void PythonIntegration::set_function(const char* name_, std::packaged_task<void(std::vector<std::vector<float>>&&,std::vector<float>&&)>&& f, const std::string &m)
 {
-    set_function_internal(name_, [f = std::move(f)](std::vector<std::vector<float>> a,std::vector<float> b) mutable {
-        f(a, b);
+    set_function_internal(name_, [f = std::move(f)](std::vector<std::vector<float>>&& a,std::vector<float>&& b) mutable {
+        f(std::move(a), std::move(b));
         f.get_future().get();
     }, m);
 }
@@ -1029,12 +667,12 @@ void PythonIntegration::set_function(const char* name_, std::function<void(std::
 
 void PythonIntegration::unset_function(const char *name_, const std::string &m) {
     check_correct_thread_id();
-    
+    print("[py] Undefining function ",m.c_str(),"::",name_);
     if(m.empty()) {
         if(!CHECK_NONE(_main.attr(name_))) {
             _main.attr(name_) = nullptr;
         } else
-            print("Cannot find '",name_,"' in _main.");
+            print("Cannot find ",std::string(name_)," in _main.");
     } else {
         if(_modules.count(m)) {
             auto &mod = _modules[m];
@@ -1112,11 +750,15 @@ void PythonIntegration::set_variable(const std::string & name, const std::vector
     }
 }
 
+bool PythonIntegration::is_correct_thread_id() {
+    return std::this_thread::get_id() == _saved_id;
+}
+
 void PythonIntegration::check_correct_thread_id() {
-    if(std::this_thread::get_id() != _saved_id) {
-        auto name = get_thread_name();
-        throw U_EXCEPTION("Executing python code in wrong thread (",name,").");
-    }
+    if(is_correct_thread_id())
+        return;
+    
+    throw U_EXCEPTION("Executing python code in wrong thread (",get_thread_name(),").");
 }
 
 void PythonIntegration::execute(const std::string& cmd)  {
@@ -1126,7 +768,6 @@ void PythonIntegration::execute(const std::string& cmd)  {
         pybind11::exec(cmd, pybind11::globals(), *_locals);
     }
     catch (pybind11::error_already_set & e) {
-        //e.restore();
         if (e.what()) {
             throw SoftException(e.what());
         }
@@ -1139,14 +780,12 @@ void PythonIntegration::import_module(const std::string& name) {
     check_correct_thread_id();
     
     std::lock_guard<std::mutex> guard(module_mutex);
-    contents[name] = utils::read_file(name + ".py");
+    _module_contents[name] = utils::read_file(name + ".py");
 
     try {
         _modules[name] = _main.import(name.c_str());
     }
     catch (pybind11::error_already_set & e) {
-        //e.restore();
-
         _modules[name].release();
         throw SoftException(e.what());
     }

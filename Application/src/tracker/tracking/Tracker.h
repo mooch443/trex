@@ -86,7 +86,6 @@ CREATE_STRUCT(Settings,
   (std::string, individual_prefix),
   (uint64_t, video_length),
   (analrange_t, analysis_range),
-  (bool, recognition_enable),
   (float, visual_field_eye_offset),
   (float, visual_field_eye_separation),
   (uint8_t, visual_field_history_smoothing),
@@ -125,6 +124,14 @@ CREATE_STRUCT(Settings,
         
         GETTER_NCONST(Border, border)
         
+        ska::bytell_hash_map<Frame_t, ska::bytell_hash_map<pv::bid, std::vector<float>>> _vi_predictions;
+    public:
+        void predicted(Frame_t, pv::bid, std::vector<float>&&);
+        const std::vector<float>& get_prediction(Frame_t, pv::bid) const;
+        const std::vector<float>* find_prediction(Frame_t, pv::bid) const;
+        static std::map<Idx_t, float> prediction2map(const std::vector<float>& pred);
+        
+    protected:
         std::vector<std::unique_ptr<FrameProperties>> _added_frames;
     public:
         const std::vector<std::unique_ptr<FrameProperties>>& frames() const { return _added_frames; }

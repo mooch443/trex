@@ -108,7 +108,11 @@ void InfoCard::update() {
                     _shadow->raw = values;
                     
                 } else if(Tracker::recognition()) {
-                    _shadow->raw = Tracker::recognition()->ps_raw(_shadow->frame, blob_id);
+                    auto pred = Tracker::instance()->find_prediction(_shadow->frame, blob_id);
+                    if(pred)
+                        _shadow->raw = Tracker::prediction2map(*pred);
+                    else
+                        _shadow->raw.clear();
                 }
                 
                 _shadow->recognition_segment = segment;
@@ -453,7 +457,7 @@ void InfoCard::update() {
     
     y += 30;
     
-    if(Recognition::recognition_enabled() && fish_has_frame) {
+    if(fish_has_frame) {
         Bounds tmp(0, y-10, 200, 0);
         auto rect = add<Rect>(tmp, bg.alpha(bg.a));
         

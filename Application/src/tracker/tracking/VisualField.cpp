@@ -43,7 +43,7 @@ struct RelativeHeadPosition {
 inline static std::mutex history_mutex;
 inline static std::unordered_map<Idx_t, std::vector<RelativeHeadPosition>> history;
 
-VisualField::VisualField(Idx_t fish_id, Frame_t frame, const Individual::BasicStuff& basic, const Individual::PostureStuff* posture, bool blocking)
+VisualField::VisualField(Idx_t fish_id, Frame_t frame, const BasicStuff& basic, const PostureStuff* posture, bool blocking)
     : max_d(SQR(Tracker::average().cols) + SQR(Tracker::average().rows)), _fish_id(fish_id), _frame(frame)
 {
     calculate(basic, posture, blocking);
@@ -242,7 +242,7 @@ RelativeHeadPosition history_smoothing(Frame_t frame, Idx_t fdx, const RelativeH
     return accum;
 }
 
-std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(Frame_t frame, Idx_t fdx, const Individual::BasicStuff& basic, const std::vector<Vec2>& opts, const Midline::Ptr& midline, float fish_angle)
+std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(Frame_t frame, Idx_t fdx, const BasicStuff& basic, const std::vector<Vec2>& opts, const Midline::Ptr& midline, float fish_angle)
 {
     using namespace gui;
     std::array<eye, 2> _eyes;
@@ -374,7 +374,7 @@ std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(Fra
     return {_eyes, _fish_pos};
 }
 
-void VisualField::calculate(const Individual::BasicStuff& basic, const Individual::PostureStuff* posture, bool blocking) {
+void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture, bool blocking) {
     static Timing timing("visual field");
     TakeTiming take(timing);
     

@@ -144,10 +144,10 @@ class ValidationCallback(tf.keras.callbacks.Callback):
         if unique >= acceptable_uniqueness() and self.settings["accumulation_step"] >= -1:
             if self.settings["accumulation_step"] == -1:
                 self.model.stop_training = True
-                set_stop_reason("Uniqueness is sufficient ("+str(unique)+").")
+                set_stop_reason("Uniqueness is sufficient ("+str(unique)+")")
             elif unique >= accepted_uniqueness():
                 self.model.stop_training = True
-                set_stop_reason("Uniqueness is sufficient ("+str(unique)+").")
+                set_stop_reason("Uniqueness is sufficient ("+str(unique)+")")
 
         # check whether our worst value improved, but only use it if it wasnt the first epoch
         if unique > self.best_result["unique"] and (self.compare_acc <= 0 or unique >= self.compare_acc**2):
@@ -274,24 +274,24 @@ class ValidationCallback(tf.keras.callbacks.Callback):
     def on_epoch_end(self, epoch, logs={}):
         worst_value = self.evaluate(epoch, True, logs)
 
-        global gui_terminated, gui_custom_button
-        if gui_terminated():
+        global get_abort_training, get_skip_step
+        if get_abort_training():
             global UserCancelException
             self.model.stop_training = True
             #TRex.log("aborting because we have been asked to by main")
             raise UserCancelException()
-        if gui_custom_button():
+        if get_skip_step():
             global UserSkipException
             self.model.stop_training = True
             raise UserSkipException()
 
     def on_batch_end(self, batch, logs={}):
-        global gui_terminated, gui_custom_button
-        if gui_terminated():
+        global get_abort_training, get_skip_step
+        if get_abort_training():
             global UserCancelException
             self.model.stop_training = True
             raise UserCancelException()
-        if gui_custom_button():
+        if get_skip_step():
             global UserSkipException
             self.model.stop_training = True
             raise UserSkipException()
@@ -338,7 +338,7 @@ def predict():
 
 
 def start_learning():
-    global best_accuracy_worst_class, max_epochs, image_width, image_height
+    global best_accuracy_worst_class, max_epochs, image_width, image_height, update_work_percent
     global output_path, classes, learning_rate, accumulation_step, global_segment, verbosity
     global batch_size, X_val, Y_val, X, Y, run_training, save_weights_after, do_save_training_images, min_iterations
 

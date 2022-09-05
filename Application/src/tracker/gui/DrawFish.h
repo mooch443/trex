@@ -63,8 +63,8 @@ namespace gui {
         Bounds _blob_bounds;
         int _match_mode;
         IndividualCache _next_frame_cache;
-        const Individual::BasicStuff* _basic_stuff{ nullptr };
-        const Individual::PostureStuff* _posture_stuff{ nullptr };
+        const BasicStuff* _basic_stuff{ nullptr };
+        const PostureStuff* _posture_stuff{ nullptr };
         int _avg_cat = -1;
         Output::Library::LibInfo _info;
         double _library_y = Graph::invalid();

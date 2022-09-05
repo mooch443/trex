@@ -127,6 +127,11 @@ protected:
     VideoSource * _video_mask;
     GETTER_PTR(fg::Camera*, camera)
     
+public:
+    std::mutex _fps_lock;
+    DurationUS saving, loading, processing, rest, tracking;
+    
+protected:
 	long _current_fps;
 	GETTER(std::atomic<float>, fps)
 	Timer _fps_timer;
@@ -156,7 +161,7 @@ protected:
     
     LuminanceGrid *_grid;
     
-    std::mutex _log_lock, _fps_lock;
+    std::mutex _log_lock;
     
     FILE* file;
     

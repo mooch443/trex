@@ -268,7 +268,6 @@ VideoOpener::VideoOpener()
         "blob_size_ranges",
         "track_threshold",
         "calculate_posture",
-        "recognition_enable",
         "auto_train",
         "auto_quit",
         "output_prefix",

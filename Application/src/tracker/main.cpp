@@ -66,6 +66,7 @@
 #include <gui/GUICache.h>
 #include "VideoOpener.h"
 #include <gui/GUICache.h>
+#include <python/PythonWrapper.h>
 
 #if WIN32
 #include <shellapi.h>
@@ -89,6 +90,7 @@
 
 using namespace track;
 using namespace file;
+namespace py = Python;
 
 std::mutex data_mutex;
 double data_sec = 0.0, data_kbytes = 0.0;
@@ -568,7 +570,7 @@ int main(int argc, char** argv)
                     } else
                          FormatError("Error checking for the newest version: ",CheckUpdates::last_error(),". Please check your internet connection and try again.");
                     
-                    PythonIntegration::quit();
+                    py::deinit().get();
                     exit(0);
                     break;
                 }
@@ -755,8 +757,6 @@ int main(int argc, char** argv)
         else
             FormatWarning("Settings file ",settings_file," does not exist.");
     }
-    
-    SETTING(recognition_enable) = true;
 
     Tracker tracker;
     tracker.update_history_log();
@@ -1048,8 +1048,8 @@ int main(int argc, char** argv)
     
     cmn::Blob blob;
     auto copy = blob.properties();
-    print("BasicStuff<",sizeof(track::Individual::BasicStuff),"> ",
-          "PostureStuff<",sizeof(track::Individual::PostureStuff),"> ",
+    print("BasicStuff<",sizeof(track::BasicStuff),"> ",
+          "PostureStuff<",sizeof(track::PostureStuff),"> ",
           "Individual<",sizeof(track::Individual),"> ",
           "Blob<",sizeof(pv::Blob),"> ",
           "MotionRecord<",sizeof(MotionRecord),"> ",
@@ -1059,7 +1059,7 @@ int main(int argc, char** argv)
           "bool<",sizeof(bool),"> "
           "cmn::Blob::properties<",sizeof(decltype(copy)),">");
     print("localcache:",sizeof(Individual::LocalCache)," identity:",sizeof(Identity)," std::map<long_t, Vec2>:", sizeof(std::map<long_t, Vec2>));
-    print("BasicStuff:",sizeof(Individual::BasicStuff)," pv::Blob:",sizeof(pv::Blob)," Compressed:", sizeof(pv::CompressedBlob));
+    print("BasicStuff:",sizeof(BasicStuff)," pv::Blob:",sizeof(pv::Blob)," Compressed:", sizeof(pv::CompressedBlob));
     print("Midline:",sizeof(Midline)," MinimalOutline:",sizeof(MinimalOutline));
     
     GUI *tmp = new GUI(video, tracker.average(), tracker);
@@ -1370,13 +1370,11 @@ int main(int argc, char** argv)
     
 #if !COMMONS_NO_PYTHON
     if(SETTING(auto_train)) {
-        if(!Recognition::recognition_enabled())
-            throw U_EXCEPTION("auto_train switch cant be used without recognition_enable = true.");
         FormatWarning("The application is going to attempt to automatically train the network upon finding a suitable consecutive segment.");
     }
     if(SETTING(auto_apply)) {
-        if(SETTING(auto_train) || !Recognition::network_weights_available()) {
-            auto path = Recognition::network_path();
+        if(SETTING(auto_train) || !py::VINetwork::weights_available()) {
+            auto path = py::VINetwork::network_path();
             path = path.add_extension("npz");
             
             SETTING(terminate_error) = true;
@@ -1422,6 +1420,8 @@ int main(int argc, char** argv)
     
     if(go_fullscreen)
         gui.toggle_fullscreen();
+    
+    py::init();
     
     gui::SFLoop loop(gui.gui(), imgui_base, [&](gui::SFLoop&, gui::LoopStatus status){
         {
@@ -1523,8 +1523,8 @@ int main(int argc, char** argv)
                     
                         copy = utils::find_replace(copy, "\\n", "\n");
                         copy = utils::find_replace(copy, "\\t", "\t");
-                        PythonIntegration::async_python_function(nullptr, [copy]()-> void
-                        {
+                        
+                        py::schedule([copy]() {
                             print("Executing ",copy);
                             try {
                                 PythonIntegration::execute(copy);
@@ -1697,7 +1697,6 @@ int main(int argc, char** argv)
 #if !COMMONS_NO_PYTHON
     CheckUpdates::cleanup();
     Categorize::terminate();
-    Recognition::notify();
 #endif
     
     {

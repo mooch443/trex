@@ -76,8 +76,11 @@ GUI* GUI::instance() {
 #ifndef NDEBUG
 #include <gui/FlowMenu.h>
 #endif
-using namespace gui;
 
+#include <python/PythonWrapper.h>
+
+using namespace gui;
+namespace py = Python;
 
 struct PrivateData {
     Frame_t _flow_frame;
@@ -385,13 +388,11 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                     PD(tracker).border().update(PD(video_source));
                     
                     {
+                        FilterCache::clear();
+                        
                         Tracker::LockGuard guard("setting_changed_"+name);
-                        if(Tracker::recognition())
-                            Tracker::recognition()->clear_filter_cache();
-                        if(Tracker::recognition() && Tracker::recognition()->dataset_quality()) {
-                            auto start = Tracker::start_frame();
-                            Tracker::recognition()->dataset_quality()->remove_frames(start);
-                        }
+                        auto start = Tracker::start_frame();
+                        DatasetQuality::remove_frames(start);
                     }
                     
                     std::lock_guard<std::recursive_mutex> lock_guard(this->gui().lock());
@@ -551,7 +552,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
 
 #if !COMMONS_NO_PYTHON
     //static bool did_init_map = false;
-    if (Recognition::python_available()) {
+    if (py::python_available()) {
         track::PythonIntegration::set_settings(GlobalSettings::instance());
         track::PythonIntegration::set_display_function([](const std::string& name, const cv::Mat& image)
         {
@@ -1702,7 +1703,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                             for(auto fish : PD(cache).active) {
                                 lengths.clear();
                                 for (auto && stuff : fish->posture_stuff()) {
-                                    if(stuff->midline_length != Individual::PostureStuff::infinity)
+                                    if(stuff->midline_length != PostureStuff::infinity)
                                         lengths.push_back(stuff->midline_length * FAST_SETTINGS(cm_per_pixel));
                                 }
                                 all.push_back(lengths);
@@ -1714,7 +1715,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                                 //! TODO: Tracker::identities().count(id) ?
                                 lengths.clear();
                                 for (auto && stuff : fish->posture_stuff()) {
-                                    if(stuff->midline_length != Individual::PostureStuff::infinity)
+                                    if(stuff->midline_length != PostureStuff::infinity)
                                         lengths.push_back(stuff->midline_length * FAST_SETTINGS(cm_per_pixel));
                                 }
                                 all.push_back(lengths);
@@ -1852,8 +1853,8 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
             static std::vector<Vec2> uniquenesses;
             static bool running = false;
             
-            if(estimated_uniqueness.empty() && Recognition::recognition_enabled()
-               && Tracker::instance()->recognition()->has_loaded_weights())
+            if(estimated_uniqueness.empty()
+               && py::VINetwork::status().weights_valid)
             {
                 std::lock_guard<std::mutex> guard(mutex);
                 if(!running) {
@@ -1946,7 +1947,9 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
             }
         }
         
-        if(SETTING(gui_show_dataset) /*&& Recognition::recognition_enabled()*/ && PD(timeline)->visible()) {
+        if(SETTING(gui_show_dataset)
+           && PD(timeline)->visible())
+        {
             if(!PD(dataset)) {
                 PD(dataset) = std::make_shared<DrawDataset>();
                 auto screen = screen_dimensions();
@@ -1955,7 +1958,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
             base.wrap_object(*PD(dataset));
         }
         
-        if(SETTING(gui_show_recognition_summary) && Recognition::recognition_enabled()) {
+        if(SETTING(gui_show_recognition_summary)) {
             static RecognitionSummary recognition_summary;
             recognition_summary.update(base);
         }
@@ -2039,7 +2042,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
         //! CHEAT CODES
         if(settings_dropdown.text() == "datasetquality") {
             Tracker::LockGuard guard("settings_dropdown.text() datasetquality");
-            Tracker::recognition()->dataset_quality()->print_info();
+            DatasetQuality::print_info();
         }
         else if(settings_dropdown.text() == "trainingdata_stats") {
             //TrainingData::print_pointer_stats();
@@ -2050,12 +2053,17 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             print("Code: ",code);
             code = utils::find_replace(code, "\\n", "\n");
             code = utils::find_replace(code, "\\t", "\t");
-            PythonIntegration::async_python_function(nullptr, [code]() -> void {
-                try {
-                    PythonIntegration::execute(code);
-                } catch(const SoftExceptionImpl& e) {
-                    FormatExcept("Python runtime exception: ", e.what());
-                }
+            
+            py::schedule(py::PackagedTask{
+                ._task = py::package::F([code]() -> void {
+                    using py = PythonIntegration;
+                    try {
+                        py::execute(code);
+                    } catch(const SoftExceptionImpl& e) {
+                        FormatExcept("Python runtime exception: ", e.what());
+                    }
+                }),
+                ._can_run_before_init = true
             });
         }
 #endif
@@ -2449,29 +2457,30 @@ void GUI::draw_footer(DrawStructure& base) {
     }
     
 #if !COMMONS_NO_PYTHON
-    if (Recognition::python_available()) {
+    if (py::python_available()) {
+        namespace py = Python;
+        
         static Timer status_timer;
-        static Recognition::Detail::Info last_status;
-        auto current_status = PD(tracker).recognition() ? PD(tracker).recognition()->detail().info() : Recognition::Detail::Info();
-        if (PythonIntegration::python_initialized() && (last_status != current_status || gpu_status.txt().empty() || status_timer.elapsed() > 1)) {
+        static Accumulation::Status last_status;
+        auto current_status = Accumulation::status();
+        
+        if (python_initialized()
+            && (last_status != current_status
+                || gpu_status.txt().empty()
+                || status_timer.elapsed() > 1))
+        {
             last_status = current_status;
             status_timer.reset();
 
             std::string txt;
-            if(PythonIntegration::python_gpu_initialized())
-                txt += "["+std::string(PythonIntegration::python_uses_gpu() ? PythonIntegration::python_gpu_name() : "CPU")+"]";
+            if(python_gpu_initialized())
+                txt += "["+std::string(python_uses_gpu() ? python_gpu_name() : "CPU")+"]";
 
-            if (SETTING(recognition_enable)) {
-                if (current_status.percent == 1)
-                    txt += " finished.";
-                else if (current_status.percent > 0 || current_status.added > current_status.processed)
-                    txt += " processed " + Meta::toStr(size_t(current_status.percent * 100)) + "% of known frames" + (current_status.failed_blobs ? (" " + Meta::toStr(current_status.failed_blobs) + " failed blobs") : "");
-            }
-
-            //txt += " " + Meta::toStr(PD(cache).tracked_frames.length()) + " " + Meta::toStr(current_status.N) + " " + Meta::toStr(current_status.processed) + " " + Meta::toStr(current_status.added);
-
-            //txt += " " + Meta::toStr(current_status.N / float(PD(cache).tracked_frames.length()));
-            //txt += " " + Meta::toStr((float(current_status.processed) / float(current_status.added)));
+            if (!current_status.busy && current_status.percent == 1)
+                txt += " finished.";
+            else if (current_status.busy)
+                txt += " applied " + Meta::toStr(size_t(current_status.percent * 100)) + "%" + (current_status.failed_blobs ? (" " + Meta::toStr(current_status.failed_blobs) + " failed blobs") : "");
+            else txt += " idle.";
 
             static Timer print_timer;
             if (print_timer.elapsed() > 1) {
@@ -2480,19 +2489,19 @@ void GUI::draw_footer(DrawStructure& base) {
                 print_timer.reset();
             }
             gpu_status.set_txt(txt);
-        } else
+        } else if(!python_initialized())
             gpu_status.set_txt("");
 
-        if (PythonIntegration::python_initializing()) {
+        if (python_initializing()) {
             python_status.set_txt("[Python] initializing...");
             python_status.set_color(Yellow);
         }
-        else if (PythonIntegration::python_initialized()) {
-            python_status.set_txt("[Python " + Meta::toStr(PythonIntegration::python_major_version().load()) + "." + Meta::toStr(PythonIntegration::python_minor_version().load()) + "]");
+        else if (python_initialized()) {
+            python_status.set_txt("[Python " + Meta::toStr(python_major_version().load()) + "." + Meta::toStr(python_minor_version().load()) + "]");
             python_status.set_color(Green);
         }
-        else if (python_status.txt().empty() || (!PythonIntegration::python_init_error().empty() && !PythonIntegration::python_initialized() && !PythonIntegration::python_initializing())) {
-            python_status.set_txt("[Python] " + PythonIntegration::python_init_error());
+        else if (python_status.txt().empty() || (!python_init_error().empty() && !python_initialized() && !python_initializing())) {
+            python_status.set_txt("[Python] " + python_init_error());
             python_status.set_color(Red);
         } else {
             python_status.set_txt("[Python] Initializes when required.");
@@ -2726,7 +2735,7 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
         }
         
         
-        if(Recognition::recognition_enabled() && GUI_SETTINGS(gui_show_recognition_bounds)) {
+        if(GUI_SETTINGS(gui_show_recognition_bounds)) {
             if(!PD(tracking)._recognition_image.source()->empty()) {
                 base.wrap_object(PD(tracking)._recognition_image);
             }
@@ -3370,10 +3379,6 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
     //work().add_queue("checking identities...", [this](){
     if(!Tracker::instance())
         return;
-    if(!Recognition::recognition_enabled()) {
-        FormatWarning("No identity network loaded and training internally is disabled. Restart with -use_network true");
-        return;
-    }
     
     if(type == GUIType::GRAPHICAL) {
         const char* message_only_ml = "Automatic correction uses machine learning based predictions to correct potential tracking mistakes. Make sure that you have trained the visual identification network prior to using auto-correct.\n<i>Apply and retrack</i> will overwrite your <key>manual_matches</key> and replace any previous automatic matches based on new predictions made by the visual identification network. If you just want to see averages for the predictions without changing your tracks, click the <i>review</i> button.";
@@ -3584,18 +3589,17 @@ void GUI::auto_train() {
     if(!instance())
         return;
     
-    auto rec = Tracker::recognition();
-    if(rec) {
-        rec->detail().register_finished_callback([&](){
-            print("Finished.");
-            
-            Tracker::recognition()->check_last_prediction_accuracy();
-            
-            std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
-            instance()->auto_correct(GUI::GUIType::TEXT, true);
-        });
-        print("Registering finished callback.");
-    }
+    Accumulation::register_apply_callback([&](){
+        print("Finished.");
+        
+        // TODO: MISSING
+        //Tracker::recognition()->check_last_prediction_accuracy();
+        
+        std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
+        instance()->auto_correct(GUI::GUIType::TEXT, true);
+    });
+    
+    print("Registering finished callback.");
     
     std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
     instance()->training_data_dialog(GUI::GUIType::TEXT, false /* retrain */);
@@ -3635,17 +3639,15 @@ void GUI::auto_apply() {
     if(!instance())
         return;
     
-    auto rec = Tracker::recognition();
-    if(rec) {
-        rec->detail().register_finished_callback([&](){
-            print("Finished.");
-            
-            Tracker::recognition()->check_last_prediction_accuracy();
-            
-            std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
-            instance()->auto_correct(GUI::GUIType::TEXT, true);
-        });
-    }
+    Accumulation::register_apply_callback([&](){
+        print("Finished.");
+        
+        // TODO: MISSING
+        //Tracker::recognition()->check_last_prediction_accuracy();
+        
+        std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
+        instance()->auto_correct(GUI::GUIType::TEXT, true);
+    });
     
     std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
     instance()->training_data_dialog(GUI::GUIType::TEXT, true);
@@ -3679,7 +3681,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
             }, from);
             
             if(header.version <= Output::ResultsFormat::Versions::V_33
-               && !Tracker::recognition()->data().empty())
+               && Tracker::recognition() && !Tracker::recognition()->data().empty())
             {
                 // probably need to convert blob ids
                 pv::Frame f;
@@ -3882,29 +3884,14 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                 SETTING(analysis_range) = std::pair<long_t, long_t>(header.analysis_range.start, header.analysis_range.end);
             }
             
-            if(Recognition::recognition_enabled()) {
-                GUI::instance()->work().add_queue("", [](){
-                    Tracker::instance()->check_segments_identities(false, Tracker::IdentitySource::MachineLearning, [](float ) { },
-                    [](const std::string&t, const std::function<void()>& fn, const std::string&b)
-                    {
-                        if(GUI::instance())
-                            GUI::instance()->work().add_queue(t, fn, b);
-                    });
+            GUI::instance()->work().add_queue("", [](){
+                Tracker::instance()->check_segments_identities(false, Tracker::IdentitySource::MachineLearning, [](float ) { },
+                [](const std::string&t, const std::function<void()>& fn, const std::string&b)
+                {
+                    if(GUI::instance())
+                        GUI::instance()->work().add_queue(t, fn, b);
                 });
-                
-                if(GUI::instance()) {
-                    /*update_progress("apply network...", -1, "");
-                    
-                    Tracker::instance()->check_segments_identities(false, [](float){}, [](const std::string&t, const std::function<void()>& fn, const std::string&b) {
-                        if(GUI::instance())
-                            GUI::work().add_queue(t, fn, b);
-                    });
-                    
-                    Tracker::instance()->thread_pool().enqueue([](){
-                        Tracker::recognition()->update_dataset_quality();
-                    });*/
-                }
-            }
+            });
             
         } catch(const UtilsException& e) {
             FormatExcept("Cannot load results. Crashed with exception: ", e.what());
@@ -4157,8 +4144,8 @@ void GUI::write_config(bool overwrite, GUI::GUIType type, const std::string& suf
 
 #if !COMMONS_NO_PYTHON
 void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void()> callback) {
-    if(!Recognition::recognition_enabled() || !Recognition::python_available()) {
-        auto message = Recognition::python_available() ? "Recognition is not enabled." : "Python is not available. Check your configuration.";
+    if(!py::python_available()) {
+        auto message = py::python_available() ? "Recognition is not enabled." : "Python is not available. Check your configuration.";
         if(SETTING(auto_train_on_startup))
             throw U_EXCEPTION(message);
         
@@ -4176,8 +4163,11 @@ void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void
     {
         auto task = std::async(std::launch::async, [](){
             cmn::set_thread_name("async::ensure_started");
-            auto f = PythonIntegration::ensure_started();
-            if(!f.get()) {
+            try {
+                py::init().get();
+                print("Initialization success.");
+                
+            } catch(...) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(25));
                 PD(gui).close_dialogs();
                 
@@ -4188,14 +4178,14 @@ void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void
                 text = "Initializing Python failed. Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow).";
 #endif
                 
-                auto message = text + "Python says: '"+PythonIntegration::python_init_error()+"'.";
+                auto message = text + "Python says: "+python_init_error()+".";
                 FormatExcept(message.c_str());
                 
                 if(!SETTING(nowindow)) {
 #if defined(__APPLE__) && defined(__aarch64__)
                     std::string command = "pip install --upgrade --force --no-dependencies https://github.com/apple/tensorflow_macos/releases/download/v0.1alpha3/tensorflow_macos-0.1a3-cp38-cp38-macosx_11_0_arm64.whl https://github.com/apple/tensorflow_macos/releases/download/v0.1alpha3/tensorflow_addons_macos-0.1a3-cp38-cp38-macosx_11_0_arm64.whl";
                     
-                    text += "\n<i>"+escape_html(PythonIntegration::python_init_error())+"</i>";
+                    text += "\n<i>"+escape_html(python_init_error())+"</i>";
                     text += "\n\nYou can run <i>"+command+"</i> automatically in the current environment by clicking the button below.";
                     
                     PD(gui).dialog([command](Dialog::Result r) {
@@ -4209,8 +4199,7 @@ void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void
                     PD(gui).dialog(text, "Error");
 #endif
                 }
-            } else
-                print("Initialization success.");
+            }
         });
         //PythonIntegration::instance();
         
@@ -4219,8 +4208,7 @@ void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void
         
         {
             Tracker::LockGuard guard("GUI::training_data_dialog");
-            if(Tracker::recognition() && Tracker::recognition()->dataset_quality())
-                Tracker::recognition()->dataset_quality()->update(guard);
+            DatasetQuality::update(guard);
         }
         
         try {
@@ -4283,7 +4271,7 @@ void GUI::generate_training_data(std::future<void>&& initialized, GUI::GUIType t
     
     static constexpr const char message_weights_available[] = "<b>A network from a previous session is available.</b>\nYou can either <i>Continue</i> training (trying to improve training results further), simply <i>Apply</i> it to the video, or <i>Restart</i> training from scratch (this deletes the previous network).";
     
-    const auto avail = Recognition::network_weights_available();
+    const auto avail = py::VINetwork::weights_available();
     const std::string message = (avail ?
                 std::string(message_weights_available)
             :   std::string(message_no_weights))
@@ -4337,17 +4325,15 @@ void GUI::generate_training_data(std::future<void>&& initialized, GUI::GUIType t
                     {
                         print("Registering auto correct callback.");
                             
-                        auto rec = Tracker::recognition();
-                        if(rec) {
-                            rec->detail().register_finished_callback([&](){
-                                print("Finished. Auto correcting...");
-                                    
-                                Tracker::recognition()->check_last_prediction_accuracy();
-                                    
-                                std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
-                                instance()->auto_correct(GUI::GUIType::TEXT, true);
-                            });
-                        }
+                        Accumulation::register_apply_callback([&](){
+                            print("Finished. Auto correcting...");
+                                
+                            // TODO: MISSING
+                            //Tracker::recognition()->check_last_prediction_accuracy();
+                                
+                            std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
+                            instance()->auto_correct(GUI::GUIType::TEXT, true);
+                        });
                     }
                         
                     fn(mode);

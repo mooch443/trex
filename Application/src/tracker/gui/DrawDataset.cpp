@@ -58,10 +58,6 @@ namespace gui {
         if(frame == _last_frame && consec == _last_consecutive_frames && current_consec == _last_current_frames)
             return;
         
-        auto dataset = Tracker::recognition()
-            ? Tracker::recognition()->dataset_quality()
-            : nullptr;
-
         {
             Tracker::LockGuard guard("DrawDataset::update",100);
             if(!guard.locked()) {
@@ -89,9 +85,10 @@ namespace gui {
                 } else {
                     auto blob = fish->compressed_blob(frame);
                     if(blob) {
-                        auto raw = Tracker::recognition()->ps_raw(frame, blob->blob_id());
-                        if(!raw.empty()) {
-                            for (auto && [fdx, p] : raw)
+                        auto pred = Tracker::instance()->find_prediction(frame, blob->blob_id());
+                        if(pred) {
+                            auto map = Tracker::prediction2map(*pred);
+                            for (auto & [fdx, p] : map)
                                 std::get<1>(_cache[id])[fdx] = p;
                             std::get<0>(_cache[id]) = 1;
                         }
@@ -103,14 +100,8 @@ namespace gui {
             // so we want to display information about the other one too
             if(current_consec != consec && current_consec.start.valid() && _last_current_frames != current_consec)
             {
-                if(dataset) {
-                    _meta_current = dataset->per_fish(current_consec);
-                    _current_quality = dataset->quality(current_consec);
-                } else {
-                    _meta_current.clear();
-                    _current_quality = DatasetQuality::Quality();
-                }
-                
+                _meta_current = DatasetQuality::per_fish(current_consec);
+                _current_quality = DatasetQuality::quality(current_consec);
                 _last_current_frames = current_consec;
             }
             
@@ -119,9 +110,10 @@ namespace gui {
                 _last_current_frames = current_consec;
             }
             
-            auto && [per_fish, quality] = dataset
-                ? dataset_t{ dataset->per_fish(consec), dataset->quality(consec) }
-                : dataset_t{ std::map<track::Idx_t, DatasetQuality::Single>{}, DatasetQuality::Quality() };
+            auto && [per_fish, quality] = dataset_t {
+                DatasetQuality::per_fish(consec),
+                DatasetQuality::quality(consec)
+            };
             
             _meta = per_fish;
             _last_consecutive_frames = consec;

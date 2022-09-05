@@ -167,6 +167,7 @@ Float2_t polygonArea(const std::vector<Vec2>& pts)
 
 void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
     using namespace gui;
+    using namespace track::image;
     GenericThreadPool _blob_thread_pool(cmn::hardware_concurrency());
     
     Tracker::LockGuard guard("GUI::export_tracks");
@@ -180,7 +181,6 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
     
     auto previous_output_frame_window = SETTING(output_frame_window).value<long_t>();
     auto output_image_per_tracklet = GUI::instance() ? SETTING(output_image_per_tracklet).value<bool>() : false;
-    auto recognition_enable = FAST_SETTINGS(recognition_enable);
     auto output_format = SETTING(output_format).value<default_config::output_format_t::Class>();
     auto output_posture_data = SETTING(output_posture_data).value<bool>();
     auto output_min_frames = SETTING(output_min_frames).value<uint16_t>();
@@ -219,8 +219,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
     print("[exporting] Writing data from `output_graphs` to ",fishdata / (filename+"_"+individual_prefix+"*."+output_format.name()));
     if(output_posture_data)
         print("[exporting] Writing posture data to ",posture_path);
-    if(recognition_enable)
-        print("[exporting] Writing recognition data to ",recognition_path);
+    print("[exporting] Writing recognition data to ",recognition_path);
     
     try {
         std::map<long_t, float> all_percents;
@@ -405,7 +404,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                     for(auto &range : fish->frame_segments()) {
                         // only generate an image if the segment is long_t enough
                         if(range->length() >= (long_t)output_min_frames) {
-                            auto filters = std::make_shared<TrainingFilterConstraints>(Tracker::recognition()->local_midline_length(fish, range->range));
+                            auto filters = constraints::local_midline_length(fish, range->range);
                             // Init data strutctures
                             size_t image_count = 0;
                             
@@ -463,7 +462,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                                             org_id,
                                             blob->bounds()
                                         }, frame, *range, fish, fish->identity().ID(), trans);
-                                        data.filters = std::make_shared<TrainingFilterConstraints>(*filters);
+                                        data.filters = std::make_shared<FilterCache>(*filters);
                                         assert(data.segment.contains(frame));
                                         
                                         std::lock_guard<std::mutex> guard(sync);
@@ -477,7 +476,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                     }
                 }
                 
-                if(recognition_enable && SETTING(output_recognition_data)) {
+                if(SETTING(output_recognition_data)) {
                     // output network data
                     file::Path path = ((std::string)SETTING(filename).value<file::Path>().filename() + "_recognition_" + fish->identity().name() + ".npz");
                     
@@ -485,20 +484,21 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                     if(range.empty())
                         fish_range = Range<Frame_t>(fish->start_frame(), fish->end_frame());
                     
+                    namespace py = Python;
                     std::vector<float> probabilities;
-                    probabilities.reserve((size_t)fish_range.length().get() * Recognition::number_classes());
+                    probabilities.reserve((size_t)fish_range.length().get() * py::VINetwork::number_classes());
                     
                     std::vector<long_t> recognition_frames;
                     
                     for(auto frame : fish_range.iterable()) {
                         auto blob = fish->blob(frame);
                         if(blob) {
-                            auto map = Tracker::recognition()->ps_raw(frame, blob->blob_id());
-                            if(!map.empty()) {
+                            auto pred = Tracker::instance()->find_prediction(frame, blob->blob_id());
+                            if(pred) {
+                                auto map = Tracker::prediction2map(*pred);
                                 for(auto && [rid, p] : map) {
                                     probabilities.push_back(p);
                                 }
-                                
                                 recognition_frames.push_back(frame.get());
                             }
                         }
@@ -507,7 +507,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                     file::Path final_path = fishdata / path;
                     temporary_save(fishdata / path, [&](file::Path use_path) {
                         cmn::npz_save(use_path.str(), "frames", recognition_frames);
-                        cmn::npz_save(use_path.str(), "probs", probabilities.data(), { recognition_frames.size(), Recognition::number_classes() }, "a");
+                        cmn::npz_save(use_path.str(), "probs", probabilities.data(), { recognition_frames.size(), py::VINetwork::number_classes() }, "a");
                     });
                 }
                 
@@ -884,7 +884,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                             
                             //reduced.image = std::move(std::get<0>(data.fish->calculate_normalized_diff_image(data.midline_transform, reduced.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy)));
                         } else
-                            reduced.image = std::move(std::get<0>(data.fish->calculate_normalized_image(data.midline_transform, reduced.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy)));
+                            reduced.image = std::move(std::get<0>(calculate_normalized_image(data.midline_transform, reduced.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy, &Tracker::average())));
                         
                     } else {
                         if(tracklet_export_difference_images) {
@@ -932,9 +932,9 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                         
                         if(do_normalize_tracklets) {
                             if(tracklet_export_difference_images)
-                                full.image = std::get<0>(data.fish->calculate_normalized_diff_image(trans, full.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy));
+                                full.image = std::get<0>(calculate_normalized_diff_image(trans, full.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy, &Tracker::average()));
                             else
-                                full.image = std::get<0>(data.fish->calculate_normalized_image(trans, full.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy));
+                                full.image = std::get<0>(calculate_normalized_image(trans, full.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy, &Tracker::average()));
                             
                         } else {
                             if(tracklet_export_difference_images) {

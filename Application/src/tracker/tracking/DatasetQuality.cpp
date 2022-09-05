@@ -2,23 +2,35 @@
 #include <tracking/Individual.h>
 #include <gui/gui.h>
 #include <tracking/Recognition.h>
+#include <tracking/VisualIdentification.h>
+#include <tracking/FilterCache.h>
 
 namespace track {
-std::string DatasetQuality::Single::toStr() const {
+namespace DatasetQuality {
+
+namespace py = Python;
+
+Range<Frame_t> _manually_selected{{},{}};
+std::map<Range<Frame_t>, std::map<Idx_t, Single>> _cache;
+std::map<Range<Frame_t>, Quality> _quality;
+Range<Frame_t> _last_seen;
+std::set<Range<Frame_t>> _previous_selected;
+
+std::set<Quality, std::greater<>> _sorted;
+
+void remove_segment(const Range<Frame_t>& range);
+bool calculate_segment(const Range<Frame_t>&, const uint64_t video_length, const Tracker::LockGuard&);
+Single evaluate_single(Idx_t id, Individual* fish, const Range<Frame_t>& consec, const Tracker::LockGuard& guard);
+
+std::string Single::toStr() const {
     return "{"+Meta::toStr(id)+","+Meta::toStr(distance_travelled)+" travelled,"+Meta::toStr(grid_cells_visited)+" cells visited}";
 }
 
-DatasetQuality::DatasetQuality()
-:_manually_selected({},{})
-{
-    
-}
-
-void DatasetQuality::print_info() const {
+void print_info() {
     print("DatasetQuality: ", _sorted);
 }
 
-DatasetQuality::Quality DatasetQuality::quality(const Range<Frame_t> &range) const {
+Quality quality(const Range<Frame_t> &range) {
     auto it = _quality.find(range);
     if(it == _quality.end())
         return Quality();
@@ -26,7 +38,7 @@ DatasetQuality::Quality DatasetQuality::quality(const Range<Frame_t> &range) con
     return it->second;
 }
 
-/*float DatasetQuality::quality(float frame) const {
+/*float quality(float frame) const {
     for(auto && [segment, value] : _quality) {
         if(segment.contains(frame) || segment.end == frame)
             return value;
@@ -34,7 +46,7 @@ DatasetQuality::Quality DatasetQuality::quality(const Range<Frame_t> &range) con
     return -1;
 }*/
 
-void DatasetQuality::remove_frames(Frame_t start) {
+void remove_frames(Frame_t start) {
     for(auto it = _sorted.begin(); it != _sorted.end();) {
         if(it->range.end >= start)
             it = _sorted.erase(it);
@@ -60,7 +72,7 @@ void DatasetQuality::remove_frames(Frame_t start) {
     _last_seen = Range<Frame_t>({}, {});
 }
 
-bool DatasetQuality::calculate_segment(const Range<Frame_t> &consec, const uint64_t video_length, const Tracker::LockGuard& guard) {
+bool calculate_segment(const Range<Frame_t> &consec, const uint64_t video_length, const Tracker::LockGuard& guard) {
     if(consec.length().get() < 5) {
         return true; // skipping range because its too short, but send "ok" signal
     }
@@ -73,7 +85,7 @@ bool DatasetQuality::calculate_segment(const Range<Frame_t> &consec, const uint6
     decltype(_cache)::mapped_type map;
     std::mutex thread_mutex;
     
-    auto work = [&consec, &guard, &thread_mutex, this, &max_cells, &min_cells, &num_average, &average_samples, &map](Individual *fish) {
+    auto work = [&consec, &guard, &thread_mutex, &max_cells, &min_cells, &num_average, &average_samples, &map](Individual *fish) {
         // collect meta information for the currently selected best consecutive frames
         auto single = evaluate_single(fish->identity().ID(), fish, consec, guard);
         
@@ -130,7 +142,7 @@ bool DatasetQuality::calculate_segment(const Range<Frame_t> &consec, const uint6
     _cache[consec] = map;
     
     if(map.empty()) {
-        FormatExcept("Values in DatasetQuality::calculate_segment is empty.");
+        FormatExcept("Values in calculate_segment is empty.");
     } else {
         // calculate quality by multiplying the overall number of
         // cells visited by all fish inthe segment by the minimum ratio.
@@ -145,7 +157,7 @@ bool DatasetQuality::calculate_segment(const Range<Frame_t> &consec, const uint6
     return true;
 }
 
-void DatasetQuality::remove_segment(const Range<Frame_t> &range) {
+void remove_segment(const Range<Frame_t> &range) {
     auto it = _cache.find(range);
     if(it != _cache.end()) {
         _sorted.erase(range);
@@ -154,7 +166,7 @@ void DatasetQuality::remove_segment(const Range<Frame_t> &range) {
     }
 }
 
-void DatasetQuality::update(const Tracker::LockGuard& guard) {
+void update(const Tracker::LockGuard& guard) {
     if(FAST_SETTINGS(track_max_individuals) == 0
        || Tracker::instance()->consecutive().empty())
         return;
@@ -219,25 +231,25 @@ void DatasetQuality::update(const Tracker::LockGuard& guard) {
         Tracker::global_segment_order_changed();
 }
 
-Range<Frame_t> DatasetQuality::best_range() const {
+Range<Frame_t> best_range() {
     if(!_sorted.empty())
         return _sorted.begin()->range;
     return Range<Frame_t>({},{});
 }
 
-std::map<Idx_t, DatasetQuality::Single> DatasetQuality::per_fish(const Range<Frame_t> &range) const {
+std::map<Idx_t, Single> per_fish(const Range<Frame_t> &range) {
     auto it = _cache.find(range);
     if(it == _cache.end())
         return {};
     return it->second;
 }
 
-bool DatasetQuality::has(const Range<Frame_t>& range) const {
+bool has(const Range<Frame_t>& range) {
     auto it = _cache.find(range);
     return it != _cache.end() && !it->second.empty();
 }
 
-DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fish, const Range<Frame_t> &_consec, const Tracker::LockGuard&)
+Single evaluate_single(Idx_t id, Individual* fish, const Range<Frame_t> &_consec, const Tracker::LockGuard&)
 {
     //assert(Tracker::individuals().find(id) != Tracker::individuals().end());
     
@@ -358,14 +370,15 @@ DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fis
     }*/
         
     //! TODO: Use local_midline_length function instead
-    auto constraints = Tracker::recognition()->local_midline_length(fish, consec.range, true);
+    using namespace track::constraints;
+    auto constraints = local_midline_length(fish, consec.range, true);
     if(consec.start() > Tracker::start_frame() && fish->centroid_weighted(consec.start() - 1_f)) {
         prev = fish->centroid_weighted(consec.start() - 1_f)->pos<Units::PX_AND_SECONDS>();
     }
     
-    fish->iterate_frames(consec.range, [&](Frame_t i, const auto&, const Individual::BasicStuff* basic, auto posture) -> bool
+    fish->iterate_frames(consec.range, [&](Frame_t i, const auto&, const BasicStuff* basic, auto posture) -> bool
     {
-        if(!Recognition::eligible_for_training(basic, posture, constraints))
+        if(!py::VINetwork::is_good(basic, posture))
             return true;
         
         // go through all frames within the segment
@@ -397,13 +410,14 @@ DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fis
     
     Single single(id);
     single.grid_cells_visited = grid_cells.size();
-    single.midline_len = constraints.median_midline_length_px;
-    single.midline_std = constraints.midline_length_px_std;
+    single.midline_len = constraints->median_midline_length_px;
+    single.midline_std = constraints->midline_length_px_std;
     single.distance_travelled = travelled;
-    single.outline_len = constraints.median_number_outline_pts;
-    single.outline_std = constraints.outline_pts_std;
-    single.median_angle_var = constraints.median_angle_diff;
+    single.outline_len = constraints->median_number_outline_pts;
+    single.outline_std = constraints->outline_pts_std;
+    single.median_angle_var = constraints->median_angle_diff;
     single.number_frames = number_frames;
     return single;
+}
 }
 }

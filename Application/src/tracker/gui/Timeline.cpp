@@ -694,17 +694,6 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                             _frame_info->consecutive = _tracker->consecutive();
                             _frame_info->global_segment_order = track::Tracker::global_segment_order();
 
-                            //if(longest != _frame_info->longest_consecutive && Tracker::recognition())
-                            //if(Tracker::recognition()) {
-                                /*for(auto &consec : _frame_info->global_segment_order) {
-                                    if(!Tracker::recognition()->dataset_quality() || !Tracker::recognition()->dataset_quality()->has(consec)) {
-                                        Tracker::recognition()->update_dataset_quality();
-                                        break;
-                                    }
-                                }*/
-                                //Tracker::recognition()->update_dataset_quality();
-                            //}
-
                             if (Tracker::properties(_frame_info->frameIndex)) {
                                 for (auto& fish : _frame_info->frameIndex.load() >= tracker_startframe.load() && _frame_info->frameIndex.load() < tracker_endframe.load() ? Tracker::active_individuals(_frame_info->frameIndex) : Tracker::set_of_individuals_t{}) {
                                     if ((int)fish->frame_count() < FAST_SETTINGS(frame_rate) * 3) {

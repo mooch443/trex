@@ -8,6 +8,7 @@
 #include <tracking/Categorize.h>
 #include <misc/frame_t.h>
 #include <misc/IdentifiedTag.h>
+#include <tracking/DatasetQuality.h>
 
 using namespace track;
 typedef int64_t data_long_t;
@@ -393,7 +394,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     bool check_analysis_range = SETTING(analysis_range).value<std::pair<long_t, long_t>>().first != -1 || SETTING(analysis_range).value<std::pair<long_t, long_t>>().second != -1;
     
     struct TemporaryData {
-        std::unique_ptr<Individual::BasicStuff> stuff;
+        std::unique_ptr<BasicStuff> stuff;
         Frame_t prev_frame;
         Vec2 pos;
         float angle;
@@ -525,7 +526,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         
         data.time = time;
         data.index = index;
-        data.stuff = std::make_unique<Individual::BasicStuff>();
+        data.stuff = std::make_unique<BasicStuff>();
         data.stuff->frame = Frame_t(frameIndex);
         data.stuff->centroid.init(prev, time, data.pos, data.angle);
         prev = &data.stuff->centroid;
@@ -648,7 +649,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             
             if(FAST_SETTINGS(calculate_posture)) {
                 // save values
-                auto stuff = std::make_unique<Individual::PostureStuff>();
+                auto stuff = std::make_unique<PostureStuff>();
                 
                 stuff->frame = frame;
                 stuff->cached_pp_midline = midline;
@@ -670,7 +671,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         // now read outlines and midlines
         ref.read<uint64_t>(N);
         
-        std::map<Frame_t, std::unique_ptr<Individual::PostureStuff>> sorted;
+        std::map<Frame_t, std::unique_ptr<PostureStuff>> sorted;
         data_long_t previous_frame = -1;
         Frame_t frame;
         
@@ -690,7 +691,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             
             if(FAST_SETTINGS(calculate_posture)) {
                 // save values
-                auto stuff = std::make_unique<Individual::PostureStuff>();
+                auto stuff = std::make_unique<PostureStuff>();
                 
                 stuff->frame = frame;
                 stuff->cached_pp_midline = midline;
@@ -713,11 +714,11 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             
             if(FAST_SETTINGS(calculate_posture)) {
                 //fish->posture_stuff(frameIndex);
-                Individual::PostureStuff* stuff = nullptr;
+                PostureStuff* stuff = nullptr;
                 auto it = sorted.find(frame);
                 
                 if(it == sorted.end()) {
-                    auto ptr = std::make_unique<Individual::PostureStuff>();
+                    auto ptr = std::make_unique<PostureStuff>();
                     ptr->frame = frame;
                     stuff = ptr.get();
                     sorted[frame] = std::move(ptr);
@@ -920,7 +921,7 @@ uint64_t Data::write(const Individual& val) {
         };
         
         // construct sorted set
-        std::set<const Individual::BasicStuff*, decltype(compare)> sorted{ compare };
+        std::set<const BasicStuff*, decltype(compare)> sorted{ compare };
         for (auto& ptr : val._basic_stuff)
             sorted.insert(ptr.get());
     
@@ -1224,7 +1225,7 @@ namespace Output {
         + sizeof(uchar)*3
         + val._basic_stuff.size() * (sizeof(data_long_t)+physical_properties_size+sizeof(uint32_t)+(val._basic_stuff.empty() ? 100 : (*val._basic_stuff.begin())->blob._lines.size())*1.1*sizeof(pv::ShortHorizontalLine))
         + val._posture_stuff.size() * (sizeof(data_long_t)+sizeof(uint64_t)+((val._posture_stuff.empty() || !val._posture_stuff.front()->cached_pp_midline ?SETTING(midline_resolution).value<uint32_t>() : (*val._posture_stuff.begin())->cached_pp_midline->size()) * sizeof(float) * 2 + sizeof(float) * 5 + sizeof(uint64_t))+physical_properties_size+((val._posture_stuff.empty() || !val._posture_stuff.front()->outline ? 0 : val._posture_stuff.front()->outline->size()*1.1)*sizeof(uint16_t) + sizeof(float)*2+sizeof(uint64_t)))
-        + val._basic_stuff.size() * sizeof(decltype(Individual::BasicStuff::thresholded_size)) + sizeof(uint64_t);
+        + val._basic_stuff.size() * sizeof(decltype(BasicStuff::thresholded_size)) + sizeof(uint64_t);
         
         return pack_size;
     }
@@ -1373,9 +1374,11 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         }
     }
     
-    if(_tracker.recognition() && FAST_SETTINGS(recognition_enable)) {
+    {
         update_progress("Finding segments...", -1, "");
-        _tracker.recognition()->update_dataset_quality();
+        
+        Tracker::LockGuard guard("find_segments");
+        DatasetQuality::update(guard);
     }
 }
     

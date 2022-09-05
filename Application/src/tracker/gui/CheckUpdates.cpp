@@ -9,10 +9,13 @@
 #include <tracker/misc/default_config.h>
 #include <tracking/Recognition.h>
 #include <gui/GUICache.h>
+#include <python/PythonWrapper.h>
 
 #if WIN32
 #include <shellapi.h>
 #endif
+
+namespace py = Python;
 
 namespace track {
 namespace CheckUpdates {
@@ -240,21 +243,18 @@ std::future<VersionStatus> perform(bool manually_triggered) {
     auto promise = std::make_shared<std::promise<VersionStatus>>();
     auto future = promise->get_future();
     
-    Recognition::fix_python(true);
-    
-    using py = PythonIntegration;
     if(manually_triggered && !GUI_SETTINGS(nowindow) && GUI::instance()) {
         GUI::work().add_queue("Initializing python...", [](){
-            py::ensure_started().wait();
+            py::init().get();
         });
         
     } else {
         if(GUI::instance() && GUI::work().is_this_in_queue()) {
             GUI::work().set_item("Initializing python...");
-            py::ensure_started().get();
+            py::init().get();
             GUI::work().set_item("");
         } else {
-            py::ensure_started();
+            py::init();
         }
     }
     
@@ -278,42 +278,46 @@ std::future<VersionStatus> perform(bool manually_triggered) {
         }
     };
     
-    py::async_python_function(nullptr, [fn]() {
-        py::set_function("retrieve_version", fn);
-        
-        try {
-            py::execute("import requests");
-            py::execute("retrieve_version(sorted([o['name'].split(':')[0].split('v')[1] for o in requests.get('https://api.github.com/repos/mooch443/trex/releases', headers={'accept':'application/vnd.github.v3.full+json'}).json() if 'v' in o['name']])[-1])");
-        } catch(const SoftExceptionImpl& ex) {
-            std::string line = ex.what();
-            auto array = utils::split(line, '\n');
-            for(auto &l : array)
-                l = escape_html(l);
+    py::schedule(py::PackagedTask{
+        ._task = py::package::F([fn]() {
+            using py = PythonIntegration;
+            py::set_function("retrieve_version", fn);
             
-            if(array.size() > 3) {
-                array.erase(array.begin() + 1, array.begin() + (array.size() - 2));
-                array.insert(array.begin() + 1, std::string("<i>see terminal for full stack...</i>"));
-            }
-            
-            line.clear();
-            for(auto &l : array) {
-                if(l.empty())
-                    continue;
+            try {
+                py::execute("import requests");
+                py::execute("retrieve_version(sorted([o['name'].split(':')[0].split('v')[1] for o in requests.get('https://api.github.com/repos/mooch443/trex/releases', headers={'accept':'application/vnd.github.v3.full+json'}).json() if 'v' in o['name']])[-1])");
+            } catch(const SoftExceptionImpl& ex) {
+                std::string line = ex.what();
+                auto array = utils::split(line, '\n');
+                for(auto &l : array)
+                    l = escape_html(l);
                 
-                if(!line.empty())
-                    line += "\n";
-                line += l;
+                if(array.size() > 3) {
+                    array.erase(array.begin() + 1, array.begin() + (array.size() - 2));
+                    array.insert(array.begin() + 1, std::string("<i>see terminal for full stack...</i>"));
+                }
+                
+                line.clear();
+                for(auto &l : array) {
+                    if(l.empty())
+                        continue;
+                    
+                    if(!line.empty())
+                        line += "\n";
+                    line += l;
+                }
+                
+                _last_error = line;
+                
+                FormatError("Failed to retrieve github status to determine what the current version is. Assuming current version is the most up-to-date one.");
+                fn("");
             }
             
-            _last_error = line;
+            py::unset_function("retrieve_version");
             
-            FormatError("Failed to retrieve github status to determine what the current version is. Assuming current version is the most up-to-date one.");
-            fn("");
-        }
-        
-        py::unset_function("retrieve_version");
-        
-    }, py::Flag::DEFAULT, true);
+        }),
+        ._can_run_before_init = true
+    });
     
     return future;
 }

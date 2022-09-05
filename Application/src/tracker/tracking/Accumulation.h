@@ -11,7 +11,13 @@ class Graph;
 class HorizontalLayout;
 }
 
+namespace Python {
+class VINetwork;
+}
+
 namespace track {
+namespace TrainingMode = ::Python::TrainingMode;
+
 ENUM_CLASS(AccumulationStatus, Added, Cached, Failed, None)
 ENUM_CLASS(AccumulationReason, NoUniqueIDs, ProbabilityTooLow, NotEnoughImages, TrainingFailed, UniquenessTooLow, Skipped, None)
 
@@ -85,8 +91,21 @@ public:
     ~Accumulation();
     bool start();
     
+    struct Status {
+        bool busy{false};
+        float percent{-1};
+        size_t failed_blobs{0};
+        
+        auto operator<=>(const Status& other) const = default;
+    };
+    
+    static Status& status();
+    
+    static void register_apply_callback(std::function<void()>&&);
+    static void on_terminate();
+    
     static float good_uniqueness();
-    std::map<Frame_t, std::set<Idx_t>> generate_individuals_per_frame(const Range<Frame_t>& range, TrainingData* data, std::map<Idx_t, std::set<std::shared_ptr<Individual::SegmentInformation>>>*);
+    static std::map<Frame_t, std::set<Idx_t>> generate_individuals_per_frame(const Range<Frame_t>& range, TrainingData* data, std::map<Idx_t, std::set<std::shared_ptr<Individual::SegmentInformation>>>*);
     std::tuple<bool, std::map<Idx_t, Idx_t>> check_additional_range(const Range<Frame_t>& range, TrainingData& data, bool check_length, DatasetQuality::Quality);
     void confirm_weights();
     void update_coverage(const TrainingData& data);
@@ -114,6 +133,7 @@ private:
     float step_calculate_uniqueness();
 
     friend class Recognition;
+    friend class Python::VINetwork;
     void set_per_class_accuracy(const std::vector<float>& v);
     void set_uniqueness_history(const std::vector<float>& v);
     std::vector<float> per_class_accuracy() const;

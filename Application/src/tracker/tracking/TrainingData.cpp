@@ -3,6 +3,9 @@
 #include <tracking/Tracker.h>
 #include <tracking/Recognition.h>
 #include <misc/PixelTree.h>
+#include <tracking/VisualIdentification.h>
+
+namespace py = Python;
 
 namespace track {
 
@@ -58,10 +61,6 @@ void remove_pointer(TrainingData* data) {
 #else
     UNUSED(data);
 #endif
-}
-
-std::string TrainingFilterConstraints::toStr() const {
-    return "TFC<l:" + Meta::toStr(median_midline_length_px) + "+-" + Meta::toStr(midline_length_px_std) + " pts:" + Meta::toStr(median_number_outline_pts) + "+-" + Meta::toStr(outline_pts_std) + " angle:" + Meta::toStr(median_angle_diff) + ">";
 }
 
 TrainingData::TrainingData(const MidlineFilters& filters)
@@ -859,14 +858,10 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
     
     for(auto && [frame, ids] : individuals_per_frame) {
         for(auto id : ids) {
-            auto filters = custom_midline_lengths.has(id, frame)
-                ? custom_midline_lengths.get(id, frame)
-                : TrainingFilterConstraints();
-            
             auto fish = Tracker::individuals().at(id);
             auto && [basic, posture] = fish->all_stuff(frame);
             
-            if(!Recognition::eligible_for_training(basic, posture, filters)
+            if(!py::VINetwork::is_good(basic, posture)
                || !basic || basic->blob.split())
             {
                 illegal_frames[id].insert(frame);
@@ -1092,7 +1087,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             auto fish = Tracker::individuals().at(id);
             auto filters = custom_midline_lengths.has(id)
                 ? custom_midline_lengths.get(id, frame)
-                : TrainingFilterConstraints();
+                : FilterCache();
             
             auto it = fish->iterator_for(frame);
             if(it == fish->frame_segments().end())
@@ -1121,7 +1116,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             auto basic = fish->basic_stuff()[bidx].get();
             auto posture = pidx != -1 ? fish->posture_stuff()[pidx].get() : nullptr;
             
-            if(!Recognition::eligible_for_training(basic, posture, filters))
+            if(!py::VINetwork::is_good(basic, posture))
                 continue;
 
             auto bid = basic->blob.blob_id();
@@ -1158,7 +1153,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
                 pv::bid::invalid, 
                 blob->bounds()
             }, frame, (FrameRange)*it->get(), fish, fish->identity().ID(), midline ? midline->transform(normalized()) : gui::Transform());
-            image_data.filters = std::make_shared<TrainingFilterConstraints>(filters);
+            image_data.filters = std::make_shared<FilterCache>(filters);
             
             image = std::get<0>(Recognition::calculate_diff_image_with_settings(normalized(), blob, image_data, output_size));
             

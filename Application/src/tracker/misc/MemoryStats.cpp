@@ -153,9 +153,9 @@ uint64_t MemoryStats::get_memory_size(const Midline::Ptr& obj, const std::string
 #define _ADD_DETAIL(NAME) { auto by = get_memory_size(obj-> NAME, name); details[name][ #NAME ] += by; bytes += by; }
 
 template <>
-uint64_t MemoryStats::get_memory_size(const std::shared_ptr<Individual::BasicStuff>& obj, const std::string& name) {
+uint64_t MemoryStats::get_memory_size(const std::shared_ptr<BasicStuff>& obj, const std::string& name) {
     uint64_t bytes = sizeof(obj)
-                   + sizeof(Individual::BasicStuff);
+                   + sizeof(BasicStuff);
     
     _ADD_DETAIL(centroid)
     //_ADD_DETAIL(weighted_centroid)
@@ -168,9 +168,9 @@ uint64_t MemoryStats::get_memory_size(const std::shared_ptr<Individual::BasicStu
 }
 
 template <>
-uint64_t MemoryStats::get_memory_size(const std::shared_ptr<Individual::PostureStuff>& obj, const std::string& name) {
+uint64_t MemoryStats::get_memory_size(const std::shared_ptr<PostureStuff>& obj, const std::string& name) {
     uint64_t bytes = sizeof(obj)
-                   + sizeof(Individual::PostureStuff);
+                   + sizeof(PostureStuff);
     
     _ADD_DETAIL(outline)
     _ADD_DETAIL(head)

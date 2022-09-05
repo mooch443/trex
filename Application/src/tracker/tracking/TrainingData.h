@@ -7,27 +7,10 @@
 #include <tracker/misc/default_config.h>
 #include <tracker/misc/idx_t.h>
 #include <misc/ranges.h>
+#include <tracking/FilterCache.h>
 
 namespace track {
-
-struct TrainingFilterConstraints {
-    float median_midline_length_px;
-    float median_number_outline_pts;
-    float midline_length_px_std, outline_pts_std;
-    float median_angle_diff;
-    
-    TrainingFilterConstraints()
-        : median_midline_length_px(-1), median_number_outline_pts(-1), midline_length_px_std(-1), outline_pts_std(-1), median_angle_diff(-1)
-    {}
-    
-    bool empty() const { return median_midline_length_px == -1; }
-    bool has_std() const { return midline_length_px_std != -1; }
-    
-    std::string toStr() const;
-    static std::string class_name() {
-        return "TrainingFilterConstraints";
-    }
-};
+using namespace constraints;
 
 class TrainingData {
 public:
@@ -67,7 +50,7 @@ public:
     };
     
     struct MidlineFilters {
-        std::map<Idx_t, std::map<FrameRange, TrainingFilterConstraints>> filters;
+        std::map<Idx_t, std::map<FrameRange, FilterCache>> filters;
         
         MidlineFilters(const decltype(filters)& filters = {})
             : filters(filters)
@@ -114,7 +97,7 @@ public:
             return false;
         }
         
-        void set(Idx_t ID, const TrainingFilterConstraints& filter) {
+        void set(Idx_t ID, const FilterCache& filter) {
             if(has(ID))
                 print("[TrainingFilter] ",ID," is already present. Replacing.");
             
@@ -123,7 +106,7 @@ public:
             filters[ID][FrameRange()] = filter;
         }
         
-        void set(Idx_t ID, const FrameRange& range, const TrainingFilterConstraints& filter) {
+        void set(Idx_t ID, const FrameRange& range, const FilterCache& filter) {
             if(has(ID, range))
                 FormatWarning("[TrainingFilter] ", ID," in range ", range.start(), "-", range.end()," is already present. Replacing.");
             if(filters[ID].find(FrameRange()) != filters[ID].end())
@@ -132,10 +115,10 @@ public:
             filters[ID][range] = filter;
         }
         
-        const TrainingFilterConstraints& get(Idx_t ID, Frame_t frame) const {
+        const FilterCache& get(Idx_t ID, Frame_t frame) const {
             auto fit = filters.find(ID);
             if(fit == filters.end())
-                throw U_EXCEPTION("Cannot find ID ",ID," in TrainingFilterConstraints.");
+                throw U_EXCEPTION("Cannot find ID ",ID," in FilterCache.");
             
             auto it = fit->second.find(FrameRange());
             if(it != fit->second.end())
@@ -146,7 +129,7 @@ public:
                     return f;
             }
             
-            throw U_EXCEPTION("Cannot find frame ",frame," in TrainingFilterConstraints.");
+            throw U_EXCEPTION("Cannot find frame ",frame," in FilterCache.");
         }
     };
     
@@ -155,8 +138,8 @@ public:
         std::vector<Image::Ptr> training_images, validation_images;
         std::vector<long_t> training_ids, validation_ids;
     };
-    //std::map<long_t, TrainingFilterConstraints> custom_midline_lengths_no_std;
-    //std::map<long_t, TrainingFilterConstraints> custom_midline_lengths_std;
+    //std::map<long_t, FilterCache> custom_midline_lengths_no_std;
+    //std::map<long_t, FilterCache> custom_midline_lengths_std;
     
 private:
     GETTER_SETTER_I(default_config::recognition_normalization_t::Class, normalized, default_config::recognition_normalization_t::none)

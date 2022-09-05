@@ -14,9 +14,6 @@
 #include <misc/ProximityGrid.h>
 #include <tracking/Recognition.h>
 #include <misc/default_settings.h>
-#if !COMMONS_NO_PYTHON
-#include <python/GPURecognition.h>
-#endif
 #include <misc/pretty.h>
 #include <tracking/DatasetQuality.h>
 //#include <gui/gui.h>
@@ -26,6 +23,14 @@
 //#include <gui/WorkProgress.h>
 #include <tracking/Categorize.h>
 #include <tracking/VisualField.h>
+
+#if !COMMONS_NO_PYTHON
+#include <python/GPURecognition.h>
+#include <python/PythonWrapper.h>
+#include <tracking/RecTask.h>
+#include <tracking/Accumulation.h>
+namespace py = Python;
+#endif
 
 #ifndef NDEBUG
 //#define PAIRING_PRINT_STATS
@@ -59,7 +64,7 @@ namespace track {
         return _instance;
     }
     
-    inline void analyse_posture_pack(Frame_t frameIndex, const std::vector<std::tuple<Individual*, const Individual::BasicStuff*>>& p) {
+    inline void analyse_posture_pack(Frame_t frameIndex, const std::vector<std::tuple<Individual*, const BasicStuff*>>& p) {
         Timer t;
         double collected = 0;
         for(auto && [f, b] : p) {
@@ -101,6 +106,45 @@ void add_assigned_range(std::vector<RangesForID>& assigned, Idx_t fdx, const Ran
     } else {
         it->ranges.push_back(RangesForID::AutomaticRange{ range, std::move(bids) });
     }
+}
+
+void Tracker::predicted(Frame_t frame, pv::bid bdx, std::vector<float> && ps) {
+    auto &ff = _vi_predictions[frame];
+#ifndef NDEBUG
+    if(ff.count(bdx)) {
+        FormatWarning("bdx ", bdx, " already in predictions (forgot to clear?).");
+    }
+#endif
+    
+    ff[bdx] = std::move(ps);
+}
+
+const std::vector<float>& Tracker::get_prediction(Frame_t frame, pv::bid bdx) const {
+    auto ptr = find_prediction(frame, bdx);
+    if(!ptr)
+        throw U_EXCEPTION("Assumed that prediction in ", frame, " for ", bdx, " exists. It does not.");
+    return *ptr;
+}
+
+const std::vector<float>* Tracker::find_prediction(Frame_t frame, pv::bid bdx) const
+{
+    auto it = _vi_predictions.find(frame);
+    if(it == _vi_predictions.end())
+        return nullptr;
+    
+    auto kit = it->second.find(bdx);
+    if(kit == it->second.end())
+        return nullptr;
+    
+    return &kit->second;
+}
+
+std::map<Idx_t, float> Tracker::prediction2map(const std::vector<float>& pred) {
+    std::map<Idx_t, float> map;
+    for (size_t i=0; i<pred.size(); i++) {
+        map[Idx_t(i)] = pred[i];
+    }
+    return map;
 }
     
     std::map<Idx_t, pv::bid> Tracker::automatically_assigned(Frame_t frame) {
@@ -320,9 +364,8 @@ void Tracker::analysis_state(AnalysisState pause) {
             }
         });
         Settings::set_callback(Settings::manually_approved, [](auto&, auto&){
-            if(recognition() && recognition()->dataset_quality()) {
-                recognition()->update_dataset_quality();
-            }
+            Tracker::LockGuard guard("manually_approved");
+            DatasetQuality::update(guard);
         });
         
         auto track_list_update = [](auto&key, auto&value)
@@ -373,10 +416,7 @@ void Tracker::analysis_state(AnalysisState pause) {
                     }
                     
                     Tracker::instance()->_thread_pool.wait();
-                    if(Tracker::recognition() && Tracker::recognition()->dataset_quality()) {
-                        Tracker::recognition()->dataset_quality()->remove_frames(start_frame());
-                        Tracker::recognition()->update_dataset_quality();
-                    }
+                    DatasetQuality::update(guard);
                 };
                 
                 /*if(GUI::instance()) {
@@ -406,12 +446,16 @@ void Tracker::analysis_state(AnalysisState pause) {
             
         }
         
-        _recognition = new Recognition();
+        //_recognition = new Recognition();
     }
     Tracker::~Tracker() {
         assert(_instance);
         Settings::clear_callbacks();
-
+        
+#if !COMMONS_NO_PYTHON
+        Accumulation::on_terminate();
+        RecTask::deinit();
+#endif
         Individual::shutdown();
         
         _thread_pool.force_stop();
@@ -448,7 +492,8 @@ void Tracker::analysis_state(AnalysisState pause) {
             _recognition->prepare_shutdown();
         Match::PairingGraph::prepare_shutdown();
 #if !COMMONS_NO_PYTHON
-        PythonIntegration::quit();
+        Accumulation::on_terminate();
+        py::deinit().get();
 #endif
     }
 
@@ -553,18 +598,6 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         
         history_split(frame, _active_individuals, history_log != nullptr && history_log->is_open() ? history_log.get() : nullptr, &_thread_pool);
         add(frame.index(), frame);
-        
-#if !COMMONS_NO_PYTHON
-        //! Update recognition if enabled and end of video reached
-        //if(Recognition::recognition_enabled()) 
-        {
-            const auto video_length = Tracker::analysis_range().end;
-            if (frame.index() >= video_length) {
-                if(_recognition)
-                    Recognition::notify();
-            }
-        }
-#endif
         
         std::lock_guard<std::mutex> lguard(_statistics_mutex);
         _statistics[frame.index()].adding_seconds = (float)overall_timer.elapsed();
@@ -1903,7 +1936,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         // ------------------------------------
         // filter and calculate blob properties
         // ------------------------------------
-        std::queue<std::tuple<Individual*, Individual::BasicStuff*>> need_postures;
+        std::queue<std::tuple<Individual*, BasicStuff*>> need_postures;
         
         ska::bytell_hash_map<pv::Blob*, bool> blob_assigned;
         ska::bytell_hash_map<Individual*, bool> fish_assigned;
@@ -2000,8 +2033,6 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             else {
                 basic->pixels = nullptr;
             }
-            //else //if(!Recognition::recognition_enabled())
-            //    basic->pixels = nullptr;
             
             assigned_count++;
         };
@@ -3198,7 +3229,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             TakeTiming take(timing);
             
             if(do_posture && !need_postures.empty()) {
-                static std::vector<std::tuple<Individual*, Individual::BasicStuff*>> all;
+                static std::vector<std::tuple<Individual*, BasicStuff*>> all;
                 
                 while(!need_postures.empty()) {
                     all.emplace_back(std::move(need_postures.front()));
@@ -3596,16 +3627,20 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         if(all_good) {
             if(!_consecutive.empty() && _consecutive.back().end == frameIndex - 1_f) {
                 _consecutive.back().end = frameIndex;
-                if(frameIndex == analysis_range().end && _recognition)
-                    _recognition->update_dataset_quality();
+                if(frameIndex == analysis_range().end && _recognition) {
+                    Tracker::LockGuard guard("update_consecutive");
+                    DatasetQuality::update(guard);
+                }
             } else {
                 if(!_consecutive.empty()) {
                     FOI::add(FOI(_consecutive.back(), "global segment"));
                 }
                 
                 _consecutive.push_back(Range<Frame_t>(frameIndex, frameIndex));
-                if(update_dataset && _recognition)
-                    _recognition->update_dataset_quality();
+                if(update_dataset) {
+                    Tracker::LockGuard guard("update_consecutive#2");
+                    DatasetQuality::update(guard);
+                }
             }
         }
     }
@@ -3749,16 +3784,10 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         if(_individuals.empty())
             Identity::set_running_id(Idx_t(0));
         
-        if(_recognition) {
-            _recognition->clear_filter_cache();
-            
-            _recognition->remove_frames(frameIndex);
-            
-            if(_recognition->dataset_quality()) {
-                _recognition->dataset_quality()->remove_frames(frameIndex);
-                _recognition->update_dataset_quality();
-            }
-        }
+        FilterCache::clear();
+        //! TODO: MISSING remove_frames
+        //_recognition->remove_frames(frameIndex);
+        DatasetQuality::update(guard);
         
         {
             //! update the cache for frame properties
@@ -3823,7 +3852,12 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                     return true;
                 if(manuals.find(B) != manuals.end() && manuals.find(A) == manuals.end())
                     return false;
-                return (recognition() && recognition()->dataset_quality() ? ((recognition()->dataset_quality()->has(A) ? recognition()->dataset_quality()->quality(A) : DatasetQuality::Quality()) > (recognition()->dataset_quality()->has(B) ? recognition()->dataset_quality()->quality(B) : DatasetQuality::Quality())) : (A.length() > B.length()));
+                return ((DatasetQuality::has(A)
+                         ? DatasetQuality::quality(A)
+                         : DatasetQuality::Quality())
+                        > (DatasetQuality::has(B)
+                           ? DatasetQuality::quality(B)
+                           : DatasetQuality::Quality()));
             });
             
             if(!manually_approved.empty()) {

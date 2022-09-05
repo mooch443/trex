@@ -23,7 +23,7 @@ namespace Output {
         return _default_cache;
     }
 
-template<typename T = Individual::BasicStuff>
+template<typename T = BasicStuff>
 auto find_stuffs(const Library::LibInfo& info, Frame_t frame) {
     T *start = nullptr, *end = nullptr;
     
@@ -31,7 +31,7 @@ auto find_stuffs(const Library::LibInfo& info, Frame_t frame) {
     if(it != info.fish->frame_segments().end() && !(*it)->empty()) {
         assert((*it)->start() < frame);
         
-        if constexpr(std::is_same<T, Individual::BasicStuff>::value) {
+        if constexpr(std::is_same<T, BasicStuff>::value) {
             start = info.fish->basic_stuff()[ (*it)->basic_index.back() ].get();
             
             ++it;
@@ -72,7 +72,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         }
         
     } else {
-        auto pair = find_stuffs<Individual::PostureStuff>(info, frame);
+        auto pair = find_stuffs<PostureStuff>(info, frame);
         if(pair.first && pair.second) {
             // now we have start/end coordinates, interpolate
             percent = (float)(frame - pair.first->frame).get() / (float)(pair.second->frame - pair.first->frame).get();

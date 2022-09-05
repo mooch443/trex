@@ -473,9 +473,25 @@ void GUI::draw(gui::DrawStructure &base) {
             if (SETTING(correct_luminance))    values.push_back("normalizing luminance");
             values.push_back("threshold: " + std::to_string(SETTING(threshold).value<int>()));
             if (SETTING(tags_enable)) values.push_back("tags");
+            values.push_back("<nl>");
+            
+            {
+                std::unique_lock fps_lock(_grabber._fps_lock);
+                if(_grabber.loading.timestamp.valid()) {
+                    values.push_back("load "+_grabber.loading.toStr());
+                    values.push_back("proc "+_grabber.processing.toStr());
+                    values.push_back("track "+_grabber.tracking.toStr());
+                }
+            }
 
             bool darker = false;
             for (size_t i = 0; i < values.size(); ++i) {
+                if(values[i] == "<nl>") {
+                    offset.x = 25;
+                    offset.y += 18;
+                    darker = false;
+                }
+                
                 offset.x += shadowed_text(offset, values[i], darker ? text_color.exposure(0.9) : text_color, 0.5) + 5;
                 if(i + 1 < values.size())
                     offset.x += base.line((offset + Vec2(0, 0.5)).mul(scale), (offset + Vec2(5, 0.5)).mul(scale), Gray, scale)->width() + 5;
@@ -648,8 +664,8 @@ void GUI::draw(gui::DrawStructure &base) {
                         fish->iterate_frames(Range<Frame_t>(tracker->end_frame() - 100_f, tracker->end_frame()),
                             [&](Frame_t frame, 
                                 const std::shared_ptr<Individual::SegmentInformation>& ,
-                                const Individual::BasicStuff* basic, 
-                                const Individual::PostureStuff* posture) 
+                                const BasicStuff* basic, 
+                                const PostureStuff* posture) 
                             -> bool
                         {
                             if (basic) {

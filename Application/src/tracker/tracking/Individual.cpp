@@ -17,6 +17,11 @@
 #include <gui/Graph.h>
 #include <tracking/Categorize.h>
 
+#if !COMMONS_NO_PYTHON
+#include <python/PythonWrapper.h>
+#include <tracking/RecTask.h>
+#endif
+
 #define NAN_SAFE_NORMALIZE(X, Y) { \
     const auto L = X.length(); \
     if(L) Y = X / L; \
@@ -68,344 +73,11 @@ std::string Identity::raw_name() const {
     return _name;
 }
 
-#if !COMMONS_NO_PYTHON
-struct Predictions {
-    Frame_t  _segment_start;
-    Idx_t individual;
-    std::vector<Frame_t> _frames;
-    std::vector<int64_t> _ids;
-    int64_t best_id;
-    float p;
-};
-
-struct RecTask {
-    inline static constexpr auto tagwork = "pretrained_tagwork";
-    inline static std::atomic_bool _terminate = false;
-    inline static std::mutex _mutex;
-    inline static std::condition_variable _variable;
-    inline static std::vector<RecTask> _queue;
-    inline static std::atomic<double> _average_time_per_task{0.0};
-    inline static Timer _time_last_added;
-
-    Frame_t _segment_start;
-    Idx_t individual;
-    std::vector<Frame_t> _frames;
-    std::vector<Image::UPtr> _images;
-
-    std::function<void(Predictions&&)> _callback;
-    bool _optional;
-    Idx_t _fdx;
-    inline static Idx_t _current_fdx;
-
-    RecTask() = default;
-    RecTask(RecTask&&) = default;
-#if defined(_MSC_VER)
-    RecTask(const RecTask&) {
-        throw std::exception();
-    }
-#else
-    RecTask(const RecTask&) = delete;
-#endif
-    RecTask& operator=(RecTask&&) = default;
-    RecTask& operator=(const RecTask&) = delete;
-    
-    static bool can_take_more() {
-        static Timer last_print_timer;
-        
-        std::unique_lock guard(_mutex);
-        if(last_print_timer.elapsed() > 5)
-        {
-            print("RecTask::Queue[",_queue.size(),"] ", _time_last_added.elapsed(),"s since last add.");
-            last_print_timer.reset();
-        }
-        bool result = _queue.size() < 100
-                && (_queue.size() < 10
-                    || (_queue.size() < 50 && _time_last_added.elapsed() > _average_time_per_task * 2));
-#ifndef NDEBUG
-        if(result)
-            print("\tAllowing a task to be added (",_time_last_added.elapsed(), ") size=[",_queue.size(),"].");
-#endif
-        return result;
-    }
-
-    static void thread() {
-        static std::atomic<size_t> counted{ 0 };
-        double time_per_task = 0;
-        double time_per_task_samples = 0;
-
-        set_thread_name("RecTask::update_thread");
-        print("RecTask::update_thread begun");
-
-        try {
-            RecTask::init();
-            Timer task_timer;
-
-            std::unique_lock guard(_mutex);
-            while(!_terminate || !_queue.empty()) {
-                while(!_queue.empty()) {
-                    task_timer.reset();
-                    
-                    auto task = std::move(_queue.back());
-                    _queue.erase(--_queue.end());
-                    //if(!_queue.empty())
-                    
-                    if(!_queue.empty() && _queue.size() % 10 == 0 && _terminate) {
-                        print("waiting for task ", counted.load(), " -> ", _queue.size(), " tasks left (frame: ", task._frames.back(), ")");
-                        
-                        /*std::unordered_set<std::tuple<Idx_t, Frame_t>> segments;
-                        std::map<Idx_t, std::vector<Frame_t>> histo;
-                        for(auto &t : _queue) {
-                            histo[t._fdx].push_back(t._segment_start);
-                            if(segments.contains({t._fdx, t._segment_start})) {
-                                //print("\talready contains ", t._fdx, " and ", t._segment_start, " (", t._frames.size(), ").");
-                            } else
-                                segments.insert({t._fdx, t._segment_start});
-                        }
-                        
-                        print("\t-> ",histo);*/
-                    }
-                    
-                    _current_fdx = task._fdx;
-                    
-                    //print("[task] individual:", task._fdx, " segment:", task._segment_start, " _queue:", _queue.size());
-
-                    guard.unlock();
-                    try {
-                        RecTask::update(std::move(task));
-                    } catch(...) {
-                        guard.lock();
-                        _current_fdx = Idx_t();
-                        throw;
-                    }
-                    guard.lock();
-
-                    time_per_task += task_timer.elapsed();
-                    ++time_per_task_samples;
-                    
-                    if(time_per_task_samples > 100) {
-                        time_per_task /= time_per_task_samples;
-                        time_per_task_samples = 1;
-                        _average_time_per_task = time_per_task;
-                        
-                        print("RecTask::time_per_task(",DurationUS{ uint64_t(_average_time_per_task * 1000 * 1000) },")");
-                    }
-                    
-                    ++counted;
-                    _current_fdx = Idx_t();
-                }
-
-                _variable.wait_for(guard, std::chrono::milliseconds(1));
-            }
-            
-        } catch(const SoftExceptionImpl&) {
-            // do nothing
-            SETTING(terminate_error) = true;
-            SETTING(terminate) = true;
-        }
-
-        print("RecTask::update_thread ended");
-    }
-
-    static void init();
-    static bool add(RecTask&& task, const std::function<void(RecTask&)>& fill, const std::function<void()>& callback) {
-        std::unique_lock guard(_mutex);
-        static std::once_flag flag;
-
-        std::call_once(flag, []() {
-            _update_thread = std::make_unique<std::thread>(RecTask::thread);
-        });
-        
-        if(callback)
-            callback();
-
-        for(auto it = _queue.begin(); it != _queue.end(); ) {
-            if(it->_fdx != task._fdx
-               || it->_segment_start != task._segment_start)
-            {
-                ++it;
-                continue;
-            }
-            
-            _queue.erase(it);
-            
-            fill(task);
-            //if(task._images.size() < 5)
-            //    return false;
-            
-            //print("[fill] individual:", task._fdx, " segment:", task._segment_start, " size:", task._images.size());
-            _queue.emplace_back(std::move(task));
-            
-            return true;
-        }
-        
-        fill(task);
-        
-        if(task._images.size() < 5)
-            return false;
-        
-        //print("[fill'] individual:", task._fdx, " segment:", task._segment_start, " size:", task._images.size(), " time:", _time_last_added.elapsed() * 1000, "ms");
-        
-        _queue.emplace_back(std::move(task));
-        _variable.notify_one();
-
-        _time_last_added.reset();
-        return true;
-    }
-
-    static void update(RecTask&& task) {
-        auto individual = task.individual;
-        
-        auto apply = [task = std::move(task)]() mutable -> void {
-            
-            PythonIntegration::set_variable("tag_images", task._images, tagwork);
-            
-            auto receive = [task = std::move(task)](std::vector<int64_t> values) mutable {
-                Predictions result{
-                    ._segment_start = task._segment_start,
-                    .individual = task.individual,
-                    ._frames = std::move(task._frames),
-                    ._ids = std::move(values)
-                };
-                
-                //std::copy(values.begin(), values.end(), result._ids.end());
-                
-                std::unordered_map<int, int> _best_id;
-                for(auto i : result._ids)
-                    _best_id[i]++;
-
-                int maximum = -1;
-                int max_key = -1;
-                int N = result._ids.size();
-                for(auto& [k, v] : _best_id) {
-                    if(v > maximum) {
-                        maximum = v;
-                        max_key = k;
-                    }
-                }
-
-                result.best_id = max_key;
-                result.p = float(maximum) / float(N);
-                //print("\t",result._segment_start,": individual ", result.individual, " is ", max_key, " with p:", result.p, " (", task._images.size(), " samples)");
-
-                static const bool tags_save_predictions = SETTING(tags_save_predictions).value<bool>();
-                if(tags_save_predictions) {
-                    static std::atomic<int64_t> saved_index{ 0 };
-                    static const auto filename = (std::string)SETTING(filename).value<file::Path>().filename();
-
-                    //if(result.p <= 0.7)
-                    {
-                        file::Path output = pv::DataLocation::parse("output", "tags_"+filename) / Meta::toStr(max_key);
-                        if(!output.exists())
-                            output.create_folder();
-                        
-                        auto prefix = Meta::toStr(result.individual) + "." + Meta::toStr(result._segment_start);
-                        if(!(output / prefix).exists())
-                            (output / prefix).create_folder();
-                        
-                        auto files = (output / prefix).find_files();
-                        
-                        // delete files that already existed for this individual AND segment
-                        for(auto &f : files) {
-                            if(utils::beginsWith((std::string)f.filename(), prefix))
-                                f.delete_file();
-                        }
-                        
-                        // save example image
-                        if(!task._images.empty())
-                            cv::imwrite((output / prefix).str() + ".png", task._images.front()->get());
-                        
-                        output = output / prefix / (Meta::toStr(saved_index.load()) + ".");
-
-                        print("\t\t-> exporting ", task._images.size()," guesses to ", output);
-                        
-                        for (size_t i=0; i<task._images.size(); ++i) {
-                            cv::imwrite(output.str() + Meta::toStr(i) + ".png", task._images[i]->get());
-                        }
-                    }
-                    
-                    ++saved_index;
-                }
-                
-                //print("Calling callback on ", result.individual, " and frame ", result._segment_start);
-                task._callback(std::move(result));
-            };
-            
-            auto pt = std::packaged_task<void(std::vector<int64_t>)>(std::move(receive));
-            PythonIntegration::set_function("receive", std::move(pt), tagwork);
-            PythonIntegration::run(tagwork, "predict");
-            PythonIntegration::unset_function("receive", tagwork);
-        };
-
-        //auto res =
-        PythonIntegration::async_python_function(nullptr, std::move(apply)).get();
-        //if(!res) {
-        //    FormatError("There was an error during apply for ", individual);
-        //}
-        //else
-        //    print("Predicted values for ", result.individual, " result: ", result._ids.size());
-    }
-
-    inline static std::unique_ptr<std::thread> _update_thread;
-
-    static void remove(Idx_t fdx) {
-        std::unique_lock guard(_mutex);
-        for(auto it = _queue.begin(); it != _queue.end(); ) {
-            if(it->_fdx == fdx) {
-                it = _queue.erase(it);
-            } else
-                ++it;
-        }
-
-        while(_current_fdx.valid() && fdx == _current_fdx) {
-            // we are currently processing an individual
-            _variable.wait_for(guard, std::chrono::milliseconds(1));
-        }
-    }
-
-    static void deinit() {
-        if(_terminate)
-            return;
-
-        _terminate = true;
-        _variable.notify_all();
-
-        if(_update_thread) {
-            _update_thread->join();
-            _update_thread = nullptr;
-        }
-    }
-};
-
 void Individual::shutdown() {
-    RecTask::deinit();
-}
-
-void RecTask::init() {
-    Recognition::fix_python(true);
     
-    PythonIntegration::ensure_started().get();
-    //Recognition::check_learning_module(true);
-    PythonIntegration::async_python_function(nullptr, []()->void  { });
-    PythonIntegration::async_python_function(nullptr, [&]() -> void {
-        try {
-            PythonIntegration::import_module(tagwork);
-            auto path = SETTING(tags_model_path).value<file::Path>();
-            if(path.empty() || !path.exists()) {
-                throw SoftException("The model at ", path, " can not be found. Please set `tags_model_path` to point to an h5 file with a pretrained network. See `https://trex.run/docs/parameters_tgrabs.html#tags_model_path` for more information.");
-            }
-            PythonIntegration::set_variable("model_path", path.str(), tagwork);
-            PythonIntegration::set_variable("width", 32, tagwork);
-            PythonIntegration::set_variable("height", 32, tagwork);
-            PythonIntegration::run(tagwork, "init");
-            print("Initialized tagging successfully.");
-            
-        } catch(...) {
-            FormatError("Error during tagging initialization.");
-            return;
-        }
-    }).get();
 }
 
+#if !COMMONS_NO_PYTHON
 Individual::IDaverage Individual::qrcode_at(Frame_t segment_start) const {
     std::unique_lock guard(_qrcode_mutex);
     auto it = _qrcode_identities.find(segment_start);
@@ -773,19 +445,14 @@ std::shared_ptr<Individual::SegmentInformation> Individual::segment_for(Frame_t 
     return it == _frame_segments.end() || !(*it)->contains(frameIndex) ? nullptr : *it;
 }
 
-Individual::PostureStuff::~PostureStuff() {
-    if(head) delete head;
-    if(centroid_posture) delete centroid_posture;
-}
-
-Individual::BasicStuff* Individual::basic_stuff(Frame_t frameIndex) const {
+BasicStuff* Individual::basic_stuff(Frame_t frameIndex) const {
     auto segment = segment_for(frameIndex);
     if(segment)
         return SEGMENT_ACCESS(_basic_stuff, segment->basic_stuff(frameIndex)).get(); //_basic_stuff.at( segment->basic_stuff(frameIndex) );
     return nullptr;
 }
 
-Individual::PostureStuff* Individual::posture_stuff(Frame_t frameIndex) const {
+PostureStuff* Individual::posture_stuff(Frame_t frameIndex) const {
     auto segment = segment_for(frameIndex);
     if(segment) {
         auto index = segment->posture_stuff(frameIndex);
@@ -795,7 +462,7 @@ Individual::PostureStuff* Individual::posture_stuff(Frame_t frameIndex) const {
     return nullptr;
 }
 
-std::tuple<Individual::BasicStuff*, Individual::PostureStuff*> Individual::all_stuff(Frame_t frameIndex) const {
+std::tuple<BasicStuff*, PostureStuff*> Individual::all_stuff(Frame_t frameIndex) const {
     auto segment = segment_for(frameIndex);
     if(segment) {
         auto basic_index = segment->basic_stuff(frameIndex);
@@ -925,8 +592,9 @@ Individual::~Individual() {
     
     remove_frame(start_frame());
     
-    if(Tracker::recognition())
-        Tracker::recognition()->remove_individual(this);
+    //! TODO: MISSING remove_invidiual
+    //if(Tracker::recognition())
+    //    Tracker::recognition()->remove_individual(this);
 #ifndef NDEBUG
     print("Deleting individual ", identity().ID());
 #endif
@@ -1511,7 +1179,7 @@ int64_t Individual::add(const FrameProperties* props, Frame_t frameIndex, const 
     return int64_t(index);
 }
 
-void Individual::iterate_frames(const Range<Frame_t>& segment, const std::function<bool(Frame_t frame, const std::shared_ptr<SegmentInformation>&, const Individual::BasicStuff*, const Individual::PostureStuff*)>& fn) const {
+void Individual::iterate_frames(const Range<Frame_t>& segment, const std::function<bool(Frame_t frame, const std::shared_ptr<SegmentInformation>&, const BasicStuff*, const PostureStuff*)>& fn) const {
     auto fit = iterator_for(segment.start);
     auto end = _frame_segments.end();
     
@@ -1625,12 +1293,6 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(F
 
         segment = std::make_shared<SegmentInformation>(Range<Frame_t>(frameIndex, frameIndex), !blob || blob->split() ? Frame_t() : frameIndex);
         _frame_segments.push_back(segment);
-        
-#if !COMMONS_NO_PYTHON
-        //! Update recognition if enabled
-        if(Tracker::recognition())
-            Recognition::notify();
-#endif
         
     } else if(prev_frame == frameIndex - 1_f) {
         assert(!_frame_segments.empty());
@@ -1885,8 +1547,7 @@ Midline::Ptr Individual::update_frame_with_posture(BasicStuff& basic, const decl
         
         // guard has been unlocked:
         //! Update recognition if enabled
-        if(Recognition::recognition_enabled())
-            Recognition::notify();
+        Recognition::notify();
         
     } else if(prev_frame == frameIndex-1) {
         assert(!_frame_segments.empty());
@@ -2279,7 +1940,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     auto end = Tracker::instance()->frames().end();
     auto iterator = end;
     
-    iterate_frames(range, [&](Frame_t frame, const std::shared_ptr<SegmentInformation> &, const Individual::BasicStuff* basic, auto) -> bool
+    iterate_frames(range, [&](Frame_t frame, const std::shared_ptr<SegmentInformation> &, const BasicStuff* basic, auto) -> bool
     {
         if(is_manual_match(frame)) {
             cache.last_frame_manual = true;
@@ -2605,7 +2266,7 @@ Individual::Probability Individual::probability(int label, const IndividualCache
     //};
 }
 
-const std::unique_ptr<Individual::BasicStuff>& Individual::find_frame(Frame_t frameIndex) const
+const std::unique_ptr<BasicStuff>& Individual::find_frame(Frame_t frameIndex) const
 {
     if(!empty()) {
         if(frameIndex <= _startFrame)
@@ -2925,178 +2586,6 @@ Vec2 Individual::weighted_centroid(const Blob& blob, const std::vector<uchar>& p
     return centroid_point / weights;
 }
 
-std::tuple<Image::UPtr, Vec2> normalize_image(const cv::Mat& mask, const cv::Mat& image, const gui::Transform &midline_transform, const pv::BlobPtr& blob, float midline_length, const Size2 &output_size, bool use_legacy) {
-    cv::Mat padded;
-    
-    if(midline_length < 0) {
-        static Timer timer;
-        if(timer.elapsed() > 1) { // dont spam messages
-            FormatWarning("[Individual::calculate_normalized_diff_image] invalid midline_length");
-            timer.reset();
-        }
-        return {nullptr, Vec2()};
-    }
-        //throw std::invalid_argument("[Individual::calculate_normalized_diff_image] invalid midline_length");
-    
-    
-    if(!output_size.empty())
-        padded = cv::Mat::zeros(output_size.height, output_size.width, CV_8UC1);
-    else
-        image.copyTo(padded);
-    assert(padded.isContinuous());
-    
-    auto size = Size2(padded.size());
-    auto scale = FAST_SETTINGS(recognition_image_scale);
-    //Vec2 pos = size * 0.5 + Vec2(midline_length * 0.4);
-    
-    gui::Transform tr;
-    if(use_legacy) {
-        tr.translate(size * 0.5);
-        tr.scale(Vec2(scale));
-        tr.translate(Vec2(-midline_length * 0.5, 0));
-        
-    } else {
-        tr.translate(size * 0.5);
-        tr.scale(Vec2(scale));
-        tr.translate(Vec2(midline_length * 0.4));
-    }
-    tr.combine(midline_transform);
-    
-    auto t = tr.toCV();
-    
-    image.copyTo(image, mask);
-    //tf::imshow("before", image);
-    
-    cv::warpAffine(image, padded, t, (cv::Size)size, cv::INTER_LINEAR, cv::BORDER_CONSTANT);
-    //resize_image(padded, SETTING(recognition_image_scale).value<float>());
-    
-    //tf::imshow("after", padded);
-    int left = 0, right = 0, top = 0, bottom = 0;
-    
-    if(!output_size.empty()) {
-        if(padded.cols < output_size.width) {
-            left = roundf(output_size.width - padded.cols);
-            right = left / 2;
-            left -= right;
-        }
-        
-        if(padded.rows < output_size.height) {
-            top = roundf(output_size.height - padded.rows);
-            bottom = top / 2;
-            top -= bottom;
-        }
-        
-        if(left || right || top || bottom)
-            cv::copyMakeBorder(padded, padded, top, bottom, left, right, cv::BORDER_CONSTANT, 0);
-        
-        assert(padded.cols >= output_size.width && padded.rows >= output_size.height);
-        if(padded.cols > output_size.width || padded.rows > output_size.height) {
-            left = padded.cols - output_size.width;
-            right = left / 2;
-            left -= right;
-            
-            top = padded.rows - output_size.height;
-            bottom = top / 2;
-            top -= bottom;
-            
-            padded(Bounds(left, top, padded.cols - left - right, padded.rows - top - bottom)).copyTo(padded);
-        }
-    }
-    
-    if(!output_size.empty() && (padded.cols != output_size.width || padded.rows != output_size.height))
-        throw U_EXCEPTION("Padded size differs from expected size (",padded.cols,"x",padded.rows," != ",output_size.width,"x",output_size.height,")");
-    
-    auto i = tr.getInverse();
-    auto pt = i.transformPoint(left, top);
-    return { Image::Make(padded), pt };
-}
-
-std::tuple<Image::UPtr, Vec2> Individual::calculate_normalized_image(const gui::Transform &midline_transform, const pv::BlobPtr& blob, float midline_length, const Size2 &output_size, bool use_legacy) {
-    cv::Mat mask, image;
-    if(!blob->pixels())
-        throw std::invalid_argument("[Individual::calculate_normalized_diff_image] The blob has to contain pixels.");
-    imageFromLines(blob->hor_lines(), &mask, &image, NULL, blob->pixels().get(), 0, &Tracker::average(), 0);
-    
-    return normalize_image(mask, image, midline_transform, blob, midline_length, output_size, use_legacy);
-}
-
-std::tuple<Image::UPtr, Vec2> Individual::calculate_normalized_diff_image(const gui::Transform &midline_transform, const pv::BlobPtr& blob, float midline_length, const Size2 &output_size, bool use_legacy) {
-    cv::Mat mask, image;
-    if(!blob->pixels())
-        throw std::invalid_argument("[Individual::calculate_normalized_diff_image] The blob has to contain pixels.");
-    imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, &Tracker::average(), 0);
-    
-    return normalize_image(mask, image, midline_transform, blob, midline_length, output_size, use_legacy);
-}
-
-std::tuple<Image::UPtr, Vec2> Individual::calculate_diff_image(pv::BlobPtr blob, const Size2& output_size) {
-    cv::Mat mask, image;
-    cv::Mat padded;
-    
-    if(!blob->pixels())
-        throw std::invalid_argument("[Individual::calculate_diff_image] The blob has to contain pixels.");
-    imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, &Tracker::average(), 0);
-    image.copyTo(padded, mask);
-    
-    auto scale = FAST_SETTINGS(recognition_image_scale);
-    if(scale != 1)
-        resize_image(padded, scale);
-    
-    Bounds bounds(blob->bounds().pos(), blob->bounds().size() + blob->bounds().pos());
-    
-    if(!output_size.empty()) {
-        int left = 0, right = 0, top = 0, bottom = 0;
-        if(padded.cols < output_size.width) {
-            left = roundf(output_size.width - padded.cols);
-            right = left / 2;
-            left -= right;
-        }
-        
-        if(padded.rows < output_size.height) {
-            top = roundf(output_size.height - padded.rows);
-            bottom = top / 2;
-            top -= bottom;
-        }
-        
-        if(left || right || top || bottom) {
-            bounds.x -= left;
-            bounds.y -= top;
-            bounds.width += right;
-            bounds.height += bottom;
-            
-            cv::copyMakeBorder(padded, padded, top, bottom, left, right, cv::BORDER_CONSTANT, 0);
-        }
-        
-        bounds << Size2(bounds.size() - bounds.pos());
-        
-        assert(padded.cols >= output_size.width && padded.rows >= output_size.height);
-        if(padded.cols > output_size.width || padded.rows > output_size.height) {
-            left = padded.cols - output_size.width;
-            right = left / 2;
-            left -= right;
-            
-            top = padded.rows - output_size.height;
-            bottom = top / 2;
-            top -= bottom;
-            
-            Bounds cut(left, top, padded.cols - left - right, padded.rows - top - bottom);
-            
-            bounds.x += cut.x;
-            bounds.y += cut.y;
-            bounds.width = cut.width;
-            bounds.height = cut.height;
-            
-            padded(cut).copyTo(padded);
-        }
-    }
-    
-    if(!output_size.empty() && (padded.cols != output_size.width || padded.rows != output_size.height))
-        throw U_EXCEPTION("Padded size differs from expected size (",padded.cols,"x",padded.rows," != ",output_size.width,"x",output_size.height,")");
-    
-    
-    return { Image::Make(padded), bounds.pos() };
-}
-
 bool Individual::evaluate_fitness() const {
 	if(frame_count() <= 25)
 		return false;
@@ -3153,12 +2642,13 @@ std::map<Frame_t, FrameRange> split_segment_by_probability(const Individual* fis
         if(!blob)
             return {-1.f, 0.f};
         
-        auto raw = Tracker::recognition()->ps_raw(frame, blob->blob_id());
         float max_id = -1;
         float max_p = 0;
         
-        if(!raw.empty()) {
-            for (auto && [fdx, p] : raw) {
+        auto pred = Tracker::instance()->find_prediction(frame, blob->blob_id());
+        if(pred) {
+            auto map = Tracker::prediction2map(*pred);
+            for (auto && [fdx, p] : map) {
                 if(p > max_p) {
                     max_p = p;
                     max_id = fdx;
@@ -3388,20 +2878,19 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
         std::map<Idx_t, std::tuple<long_t, float>> samples;
         size_t overall = 0;
 
-        if (!Tracker::recognition()->data().empty()) {
-            for (auto i = segment.start; i < segment.end; ++i) {
-                auto blob = this->blob(i);
-                if (!blob)
-                    continue;
+        for (auto i = segment.start; i < segment.end; ++i) {
+            auto blob = this->blob(i);
+            if (!blob)
+                continue;
 
-                auto raw = Tracker::recognition()->ps_raw(i, blob->blob_id());
-                if (!raw.empty()) {
-                    ++overall;
+            auto pred = Tracker::instance()->find_prediction(i, blob->blob_id());
+            if(pred) {
+                auto map = Tracker::prediction2map(*pred);
+                ++overall;
 
-                    for (auto&& [fdx, p] : raw) {
-                        ++std::get<0>(samples[Idx_t(fdx)]);
-                        std::get<1>(samples[Idx_t(fdx)]) += p;
-                    }
+                for (auto&& [fdx, p] : map) {
+                    ++std::get<0>(samples[Idx_t(fdx)]);
+                    std::get<1>(samples[Idx_t(fdx)]) += p;
                 }
             }
         }
@@ -3431,7 +2920,7 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
 const decltype(Individual::average_recognition_segment)::mapped_type Individual::average_recognition(Frame_t segment_start) {
     auto it = average_recognition_segment.find(segment_start);
     if(it == average_recognition_segment.end()) {
-        if (Tracker::recognition()->data().empty())
+        if (!Tracker::recognition() || Tracker::recognition()->data().empty())
             return { 0,{} };
 
         // average cannot be found for given segment. try to calculate it...
@@ -3458,11 +2947,12 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
             if(!blob)
                 continue;
             
-            auto raw = Tracker::recognition()->ps_raw(i, blob->blob_id());
-            if(!raw.empty()) {
+            auto pred = Tracker::instance()->find_prediction(i, blob->blob_id());
+            if(pred) {
+                auto map = Tracker::prediction2map(*pred);
                 ++overall;
                 
-                for (auto && [fdx, p] : raw) {
+                for (auto && [fdx, p] : map) {
                     ++std::get<0>(samples[Idx_t(fdx)]);
                     std::get<1>(samples[Idx_t(fdx)]) += p;
                 }

@@ -49,17 +49,17 @@ namespace track {
         GETTER(Frame_t, frame)
         
     public:
-        VisualField(Idx_t fish_id, Frame_t frame,const Individual::BasicStuff& basic, const Individual::PostureStuff* posture, bool blocking);
+        VisualField(Idx_t fish_id, Frame_t frame,const BasicStuff& basic, const PostureStuff* posture, bool blocking);
         
         const decltype(_eyes)& eyes() const { return _eyes; }
-        void calculate(const Individual::BasicStuff& basic, const Individual::PostureStuff* posture, bool blocking = true);
+        void calculate(const BasicStuff& basic, const PostureStuff* posture, bool blocking = true);
         void show(gui::DrawStructure &graph);
         static void show_ts(gui::DrawStructure &graph, Frame_t frameNr, Individual* selected);
         void plot_projected_line(eye& e, std::tuple<float, float>& tuple, double d, const Vec2& point, Idx_t id, float hd);
         
         static void remove_frames_after(Frame_t);
         
-        static std::tuple<std::array<eye, 2>, Vec2> generate_eyes(Frame_t frame, Idx_t fdx, const Individual::BasicStuff& basic, const std::vector<Vec2>& outline, const Midline::Ptr& midline, float angle);
+        static std::tuple<std::array<eye, 2>, Vec2> generate_eyes(Frame_t frame, Idx_t fdx, const BasicStuff& basic, const std::vector<Vec2>& outline, const Midline::Ptr& midline, float angle);
     };
 }
 

@@ -16,14 +16,158 @@
 #include <gui/types/StaticText.h>
 #include <misc/checked_casts.h>
 #include <gui/DrawBase.h>
-//#include <tracking/WalkMan.h>
+#include <tracking/FilterCache.h>
+#include <python/PythonWrapper.h>
+#include <tracking/FilterCache.h>
+#include <tracking/VisualIdentification.h>
+#include <tracking/ImageExtractor.h>
+
+namespace py = Python;
 
 namespace track {
 using namespace file;
+using namespace constraints;
 
+std::mutex callback_mutex;
+std::vector<std::function<void()>> _apply_callbacks;
 std::mutex _current_lock;
 std::mutex _current_assignment_lock, _current_uniqueness_lock;
+Python::VINetwork* _network{nullptr};
 Accumulation *_current_accumulation = nullptr;
+
+
+inline static std::mutex _elevator_mutex;
+inline static std::unique_ptr<std::thread> _elevator;
+inline static std::future<void> _elevator_future;
+
+void Accumulation::on_terminate() {
+    std::unique_lock guard(_elevator_mutex);
+    if(_elevator_future.valid()) {
+        try {
+            _elevator_future.get();
+        } catch(...) {
+            FormatExcept("Ignoring exception in elevator_future at exit.");
+        }
+    }
+    
+    if(_elevator)
+        _elevator->join();
+    _elevator = nullptr;
+}
+
+template<typename F>
+void elevate_task(F&& fn) {
+    std::unique_lock guard(_elevator_mutex);
+    if(_elevator_future.valid()) {
+        //! need to block until task is done
+        try {
+            _elevator_future.get();
+        } catch(...) {
+            FormatExcept("Future error in elevate_task, while waiting.");
+        }
+    }
+    
+    if(_elevator)
+        _elevator->join();
+    
+    std::promise<void> promise;
+    _elevator_future = promise.get_future();
+    
+    _elevator = std::make_unique<std::thread>([
+        promise = std::move(promise),
+        fn=std::move(fn)]()
+      mutable
+    {
+        set_thread_name("elevate_thread");
+        promise.set_value_at_thread_exit();
+        fn();
+    });
+}
+
+Accumulation::Status& Accumulation::status() {
+    static Status status;
+    return status;
+}
+
+void apply_network() {
+    using namespace extract;
+    uint8_t max_threads = 5u;
+    extract::Settings settings{
+        .flags = (uint32_t)Flag::RemoveSmallFrames,
+        .image_size = SETTING(recognition_image_size).value<Size2>(),
+        .max_size_bytes = uint64_t((double)SETTING(gpu_max_cache).value<float>() * 1000.0 * 1000.0 * 1000.0 / double(max_threads)),
+        .num_threads = max_threads,
+        .normalization = SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>()
+    };
+    
+    ImageExtractor e{
+        *GUI::video_source(),
+        [](const Query& q)->bool {
+            return !q.basic->blob.split();
+        },
+        [&](std::vector<Result>&& results) {
+            // partial_apply
+            std::vector<Image::UPtr> images;
+            images.reserve(results.size());
+            
+            for(auto &&r : results)
+                images.emplace_back(std::move(r.image));
+            
+            try {
+                std::vector<Idx_t> ids;
+                for (auto &r : results) {
+                    ids.push_back(r.fdx);
+                }
+                
+                //auto averages = py::VINetwork::instance()->paverages(ids, std::move(images));
+                auto probabilities = py::VINetwork::instance()->probabilities(std::move(images));
+                
+                const size_t N = py::VINetwork::number_classes();
+                
+                Tracker::LockGuard guard("apply_weights");
+                for(size_t i=0; i<results.size(); ++i) {
+                    auto start = probabilities.begin() + i * N;
+                    auto end   = probabilities.begin() + (i + 1) * N;
+                    
+                    auto &r = results[i];
+                    Tracker::instance()->predicted(r.frame, r.bdx, std::vector<float>(std::make_move_iterator(start), std::make_move_iterator(end)));
+                }
+                
+                /*visual->probabilities(std::move(images), [results = std::move(results)](auto&& values, auto&& indexes) mutable {
+                    py::VINetwork::transform_results(results.size(), std::move(indexes), std::move(values));
+                    print("\tGot response for ", results.size(), " items (with ",values.size()," items and ",indexes.size()," indexes).");
+                }).get();*/
+                print("Got averages for ", results.size(), " extracted images: ", probabilities.size());
+                
+            } catch(...) {
+                FormatExcept("Prediction failed.");
+                throw;
+            }
+        },
+        [](auto extractor, double percent, bool finished) {
+            // callback
+            if(finished) {
+                print("All done extracting. Overall pushed ", extractor->pushed_items());
+                
+                std::unique_lock guard(callback_mutex);
+                for(auto & c : _apply_callbacks) {
+                    c();
+                }
+                _apply_callbacks.clear();
+                Accumulation::status().percent = 1.0;
+                Accumulation::status().busy = false;
+                
+            } else {
+                print("Percent: ", percent * 100, "%");
+                Accumulation::status().percent = percent;
+                Accumulation::status().busy = true;
+            }
+        },
+        std::move(settings)
+    };
+    
+    
+}
 
 struct AccumulationLock {
     std::shared_ptr<std::lock_guard<std::mutex>> _guard;
@@ -55,6 +199,10 @@ struct AccumulationLock {
 };
 
 std::mutex _per_class_lock;
+void Accumulation::register_apply_callback(std::function<void ()> && fn) {
+    std::unique_lock guard(callback_mutex);
+    _apply_callbacks.push_back(std::move(fn));
+}
 
 void Accumulation::set_per_class_accuracy(const std::vector<float> &v) {
     std::lock_guard<std::mutex> guard(_per_class_lock);
@@ -84,32 +232,26 @@ std::string Accumulation::Result::toStr() const {
 }
 
 void Accumulation::unsetup() {
-    try {
-        PythonIntegration::ensure_started();
-        PythonIntegration::async_python_function(nullptr, [](){
-            track::PythonIntegration::unset_function("update_work_percent", "learn_static");
-            track::PythonIntegration::unset_function("update_work_description", "learn_static");
-            track::PythonIntegration::unset_function("set_stop_reason", "learn_static");
-            track::PythonIntegration::unset_function("set_per_class_accuracy", "learn_static");
-            track::PythonIntegration::unset_function("set_uniqueness_history", "learn_static");
-            
-        }).get();
-    } catch(const std::future_error& e) {
-        throw SoftException("Failed to unsetup python ('", e.what(),"')'");
-    }
+    py::VINetwork::unset_work_variables();
 }
 
 void Accumulation::setup() {
-    PythonIntegration::ensure_started();
+    py::init();
     try {
-        Recognition::check_learning_module();
+        _network = py::VINetwork::instance().get();
+        _network->set_skip_button([](){
+            return GUI::instance() && GUI::work().item_custom_triggered();
+        });
+        _network->set_abort_training([](){
+            return SETTING(terminate_training).value<bool>() || (GUI::instance() && GUI::work().item_aborted());
+        });
         
     } catch(const std::future_error& error) {
         FormatExcept("Checking learning module failed ", std::string(error.what()),".");
 #if defined(__APPLE__) && defined(__aarch64__)
-        throw SoftException("Checking the learning module failed. Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow). Since you are using an ARM Mac, you may need to install additional libraries. Python says: ",PythonIntegration::python_init_error(),".");
+        throw SoftException("Checking the learning module failed. Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow). Since you are using an ARM Mac, you may need to install additional libraries. Python says: ",python_init_error(),".");
 #else
-        throw SoftException("Checking the learning module failed. Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow). Python says: '",PythonIntegration::python_init_error(),"'.");
+        throw SoftException("Checking the learning module failed. Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow). Python says: ",python_init_error(),".");
 #endif
     }
 }
@@ -170,7 +312,7 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
         
         if(data) {
             for(auto &segment : used_segments) {
-                data->filters().set(id, *segment, Tracker::recognition()->local_midline_length(fish, segment->range, false));
+                data->filters().set(id, *segment, *constraints::local_midline_length(fish, segment->range, false));
             }
         }
         
@@ -234,40 +376,14 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
     }*/
     
     auto && [images, ids] = data.join_arrays();
-    auto probabilities = Tracker::instance()->recognition()->predict_chunk(images);
-    const size_t N = FAST_SETTINGS(track_max_individuals);
-    
-    //! TODO: remove this dependency
-    assert(N == Tracker::identities().size());
     
     Tracker::LockGuard guard("Accumulation::generate_training_data");
-
-    std::map<Idx_t, std::tuple<float, std::vector<float>>> averages;
-    for(auto id : Tracker::identities()) {
-        std::get<1>(averages[id]).resize(N);
-        std::get<0>(averages[id]) = 0;
-    }
+    auto averages = _network->paverages(ids, std::move(images));
     
-    std::set<Idx_t> added_ids, not_added_ids;
-    for(size_t i=0; i<images.size(); ++i) {
-        auto & ps = probabilities[i];
-        
-        if(!ps.empty()) {
-            auto & [samples, average] = averages[ids[i]];
-            assert(ps.size() == N);
-            
-            added_ids.insert(ids[i]);
-            for(size_t j=0; j<ps.size(); ++j) {
-                //! TODO: needs another redirection, or predict_chunk needs to fix
-                //! this automatically. ids[] contains "real" ids, whereas predicted ids might not
-                average[j] += ps[j];
-            }
-            
-            ++samples;
-            
-        } else
-            not_added_ids.insert(ids[i]);
-    }
+    std::set<Idx_t> added_ids = extract_keys(averages);
+    std::set<Idx_t> not_added_ids;
+    std::set<Idx_t> all_ids = Tracker::identities();
+    std::set_difference(all_ids.begin(), all_ids.end(), added_ids.begin(), added_ids.end(), std::inserter(not_added_ids, not_added_ids.end()));
     
     print("\tCalculated assignments for range ",range.start,"-",range.end," based on previous training (ids ",added_ids," / missing ",not_added_ids,"):");
     
@@ -379,7 +495,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
 
 void Accumulation::confirm_weights() {
     print("Confirming weights.");
-    auto path = Recognition::network_path();
+    auto path = py::VINetwork::network_path();
     auto progress_path = file::Path(path.str() + "_progress.npz");
     path = path.add_extension("npz");
     
@@ -476,7 +592,7 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Fram
                     auto frange = fish->get_segment(frame);
                     if(frange.contains(frame)) {
                         if(!data->filters().has(Idx_t(id), frange)) {
-                            data->filters().set(Idx_t(id), frange,  Tracker::recognition()->local_midline_length(fish, frame, false));
+                            data->filters().set(Idx_t(id), frange,  *constraints::local_midline_length(fish, frame, false));
                         }
                         disc_individuals_per_frame[frame].insert(Idx_t(id));
                     }
@@ -500,43 +616,8 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Fram
 
 std::tuple<float, ska::bytell_hash_map<Frame_t, float>, float> Accumulation::calculate_uniqueness(bool internal, const std::vector<Image::Ptr>& images, const std::map<Frame_t, Range<size_t>>& map_indexes)
 {
-    std::vector<std::vector<float>> predictions;
-    if(internal) {
-        predictions.resize(images.size());
-        
-        /*static std::vector<float> values;
-        values.clear();
-        
-        PythonIntegration::instance()->main().def("receive", [&](py::array_t<float> x) {
-            std::vector<float> temporary;
-            auto array = x.unchecked<2>();
-            
-            auto ptr = array.data(0,0);
-            auto end = ptr + array.size();
-            temporary.insert(temporary.end(), ptr, end);
-            values = temporary;
-            
-        }, py::arg().noconvert());
-        
-        py::exec("receive(model.predict([uniqueness_data], steps=1))", py::globals(), *PythonIntegration::instance()->locals());
-        
-        assert(values.size() % FAST_SETTINGS(track_max_individuals) == 0);
-        assert(values.size() / FAST_SETTINGS(track_max_individuals) == predictions.size());
-        
-        auto it = values.begin();
-        auto end = it + FAST_SETTINGS(track_max_individuals);
-        for(size_t j=0; it != values.end(); ++j) {
-            predictions[j] = std::vector<float>(it, end);
-            
-            it = end;
-            end += FAST_SETTINGS(track_max_individuals);
-        }*/
-        
-        Tracker::recognition()->predict_chunk_internal(images, predictions);
-    }
-    else predictions = Tracker::recognition()->predict_chunk(images);
-    
-    if(predictions.empty() || predictions.begin()->empty()) {
+    auto predictions = _network->probabilities(images);
+    if(predictions.empty()) {
         FormatExcept("Cannot predict ", images.size()," images.");
     }
     
@@ -551,6 +632,8 @@ std::tuple<float, ska::bytell_hash_map<Frame_t, float>, float> Accumulation::cal
     ska::bytell_hash_map<Idx_t, float> unique_percent_per_identity;
     ska::bytell_hash_map<Idx_t, float> per_identity_samples;
     
+    const size_t N = FAST_SETTINGS(track_max_individuals);
+    
     for(auto && [frame, range] : map_indexes) {
         ska::bytell_hash_set<Idx_t> unique_ids;
         ska::bytell_hash_map<Idx_t, float> probs;
@@ -559,13 +642,9 @@ std::tuple<float, ska::bytell_hash_map<Frame_t, float>, float> Accumulation::cal
             Idx_t max_id;
             float max_p = 0;
             
-            if(predictions.at(i).size() < FAST_SETTINGS(track_max_individuals)) {
-                continue;
-            }
-            
-            for(size_t id=0; id<FAST_SETTINGS(track_max_individuals); ++id)
+            for(size_t id=0; id<N; ++id)
             {
-                auto p = predictions.at(i).at(id);
+                auto p = predictions.at(i * N + id);
                 if(p > max_p) {
                     max_p = p;
                     max_id = Idx_t(id);
@@ -670,79 +749,33 @@ bool Accumulation::start() {
     }
     
     _initial_range = ranges.front();
-    PythonIntegration::instance();
     
     if(SETTING(gpu_accepted_uniqueness).value<float>() == 0) {
         SETTING(gpu_accepted_uniqueness) = good_uniqueness();
     }
     
+    Accumulation::setup();
+    
     if(_mode == TrainingMode::LoadWeights) {
-        Accumulation::setup();
-        Tracker::recognition()->reinitialize_network();
-        Tracker::recognition()->load_weights();
-        Tracker::recognition()->set_has_loaded_weights(true);
-        
+        _network->load_weights();
         return true;
         
     } else if(_mode == TrainingMode::Continue) {
-        if(!Recognition::network_weights_available()) {
-            FormatExcept("Cannot continue training. Need to train on the first segment.");
+        if(!py::VINetwork::weights_available()) {
+            FormatExcept("Cannot continue training, if no previous training was completed successfully.");
             return false;
         }
         
         print("[CONTINUE] Initializing network and loading available weights from previous run.");
-        Accumulation::setup();
-        Tracker::recognition()->reinitialize_network();
-        Tracker::recognition()->load_weights();
-        Tracker::recognition()->set_has_loaded_weights(true);
+        _network->load_weights();
         
     } else if(_mode == TrainingMode::Apply) {
-        Accumulation::setup();
-        
-        /*using namespace walk;
-        WalkMan(WalkMan::Source{"tracking", [](Frame_t frame) -> Task {
-            std::vector<pv::BlobPtr> blobs;
-            std::vector<uint32_t> ids;
-            
-            {
-                Tracker::LockGuard guard("VI::discover");
-                auto active = Tracker::active_individuals(frame);
-                blobs.reserve(active.size());
-                ids.reserve(active.size());
-                
-                for(auto &fish : active) {
-                    blobs.emplace_back(std::move(fish->blob(frame)));
-                    ids.push_back(fish->identity().ID());
-                }
-            }
-            
-            return Task(frame, std::move(ids), std::move(blobs));
-            
-        }}, std::vector<Step>{
-            Step{"generate_images", [](Task& task) {
-                print("generate images in ", task.size());
-                task.set_step(task.current_step()+1);
-            }},
-            Step{"learn_static", [](Task& task) {
-                print("Executing learn_static on task of size ", task.size());
-                //task._images.clear();
-                task.set_step(task.current_step() + 1);
-            }
-        }});
-        
-        return true;*/
-        
         auto data = std::make_shared<TrainingData>();
         data->set_classes(Tracker::identities());
-        auto result = Recognition::train(data, FrameRange(), TrainingMode::Apply, -1, true);
+        _network->train(data, FrameRange(), TrainingMode::Apply, 0, true, nullptr, -1);
         
-        if(result) {
-            Tracker::recognition()->set_has_loaded_weights(true);
-            Tracker::recognition()->set_trained(true);
-            Recognition::notify();
-        }
-        
-        return result;
+        elevate_task(apply_network);
+        return true;
     }
     
     _collected_data = std::make_shared<TrainingData>();
@@ -753,7 +786,6 @@ bool Accumulation::start() {
     {
         Tracker::LockGuard guard("GUI::generate_training_data");
         GUI::work().set_progress("generating images", 0);
-        Recognition::notify();
         
         DebugCallback("Generating initial training dataset [%d-%d] (%d) in memory.", _initial_range.start, _initial_range.end, _initial_range.length());
         
@@ -818,8 +850,6 @@ bool Accumulation::start() {
     }
     current_best = 0;
     
-    setup();
-    
     _checked_ranges_output.push_back(_initial_range.start);
     _checked_ranges_output.push_back(_initial_range.end);
     
@@ -881,9 +911,17 @@ bool Accumulation::start() {
         float acc = best_uniqueness();
         current_best = 0;
         
-        auto result = Recognition::train(_collected_data, FrameRange(_initial_range), _mode, -1, true, &acc, SETTING(gpu_enable_accumulation) ? 0 : -1);
+        py::VINetwork::add_percent_callback("Accumulation", [](float p, const std::string& desc) {
+            if(p != -1)
+                GUI::work().set_percent(p);
+            if(!desc.empty())
+                GUI::work().set_description(settings::htmlify(desc));
+        });
         
-        if(!result) {
+        try {
+            _network->train(_collected_data, FrameRange(_initial_range), _mode, SETTING(gpu_max_epochs).value<uchar>(), true, &acc, SETTING(gpu_enable_accumulation) ? 0 : -1);
+        
+        } catch(...) {
             auto text = "["+std::string(_mode.name())+"] Initial training failed. Cannot continue to accumulate.";
             end_a_step(Result(FrameRange(_initial_range), acc, AccumulationStatus::Failed, AccumulationReason::TrainingFailed, text));
             
@@ -899,7 +937,7 @@ bool Accumulation::start() {
             _uniquenesses.push_back(acc);
         }
         
-        auto q = track::Tracker::recognition()->dataset_quality()->quality(_initial_range);
+        auto q = DatasetQuality::quality(_initial_range);
         auto str = format<FormatterType::NONE>("Successfully added initial range (", q,") ", *_collected_data);
         print(str.c_str());
         
@@ -1013,7 +1051,7 @@ bool Accumulation::start() {
         float maximum_average_samples = 0;
         for(auto & range : ranges) {
             //auto d = min(abs(range.end - initial_range.start), abs(range.end - initial_range.end), min(abs(range.start - initial_range.start), abs(range.start - initial_range.end)));
-            auto q = track::Tracker::recognition()->dataset_quality()->quality(range);
+            auto q = DatasetQuality::quality(range);
             if(q.min_cells > 0) {
                 sorted.insert({-1, Frame_t(), q, nullptr, range});
                 if(maximum_average_samples < q.average_samples)
@@ -1117,16 +1155,12 @@ bool Accumulation::start() {
                 float acc = best_uniqueness;
                 current_best = 0;
                 
-                PythonIntegration::ensure_started();
+                py::init().get();
                 
-                if(Recognition::train(second_data,
-                                      FrameRange(range),
-                                      TrainingMode::Accumulate,
-                                      (long_t)-1,
-                                      true,
-                                      &acc,
-                                      steps))
-                {
+                try {
+                    //std::shared_ptr<TrainingData> data, const FrameRange& global_range, TrainingMode::Class load_results, uchar gpu_max_epochs, bool dont_save, float *worst_accuracy_per_class, int accumulation_step
+                    _network->train(second_data, FrameRange(range), TrainingMode::Accumulate, SETTING(gpu_max_epochs).value<uchar>(), true, &acc, steps);
+                    
                     float acceptance = 0;
                     float uniqueness = -1;
                     
@@ -1200,12 +1234,12 @@ bool Accumulation::start() {
                         print(str.c_str());
                         end_a_step(Result(FrameRange(range), acc, AccumulationStatus::Failed, AccumulationReason::UniquenessTooLow, str));
                         
-                        Tracker::recognition()->load_weights("");
+                        _network->load_weights();
                         
                         return {false, nullptr};
                     }
                     
-                } else {
+                } catch(...) {
                     auto && [p, map, up] = calculate_uniqueness(false, _disc_images, _disc_frame_map);
                     auto str = format<FormatterType::NONE>("Adding range ", range, " failed (uniqueness would have been ", p, " vs. ", best_uniqueness, ").");
                     print(str.c_str());
@@ -1216,7 +1250,7 @@ bool Accumulation::start() {
                     } else
                         end_a_step(Result(FrameRange(range), acc, AccumulationStatus::Failed, AccumulationReason::TrainingFailed, str));
                     
-                    Tracker::recognition()->load_weights("");
+                    _network->load_weights();
                     return {false, nullptr};
                 }
                 
@@ -1561,7 +1595,7 @@ bool Accumulation::start() {
                     for(auto id : ids) {
                         auto filters = _collected_data->filters().has(id)
                             ? _collected_data->filters().get(id, frame)
-                            : TrainingFilterConstraints();
+                            : FilterCache();
                         
                         auto fish = Tracker::individuals().at(id);
                         
@@ -1606,9 +1640,9 @@ bool Accumulation::start() {
                                 pv::bid::invalid,
                                 blob->bounds()
                             }, frame, (FrameRange)(*it->get()), fish, Idx_t(fish->identity().ID()), midline ? midline->transform(method) : gui::Transform());
-                        image_data.filters = std::make_shared<TrainingFilterConstraints>(filters);
+                        image_data.filters = std::make_shared<FilterCache>(filters);
                         
-                        image = std::get<0>(Recognition::calculate_diff_image_with_settings(method, blob, image_data, output_size));
+                        image = std::get<0>(constraints::diff_image(method, blob, image_data.midline_transform, image_data.filters->median_midline_length_px, output_size, &Tracker::average()));
                         if(image)
                             images[frames_assignment[frame][id]].push_back(image);
                     }
@@ -1664,7 +1698,7 @@ bool Accumulation::start() {
         uchar gpu_max_epochs = SETTING(gpu_max_epochs);
         float acc = best_uniqueness();
         current_best = 0;
-        Recognition::train(_collected_data, FrameRange(), TrainingMode::Accumulate, narrow_cast<int>(max(3.f, gpu_max_epochs * 0.25f)), true, &acc, -2);
+        _network->train(_collected_data, FrameRange(), TrainingMode::Accumulate, narrow_cast<int>(max(3.f, gpu_max_epochs * 0.25f)), true, &acc, -2);
         
         if(acc >= best_uniqueness()) {
             {
@@ -1680,7 +1714,7 @@ bool Accumulation::start() {
             auto str = format<FormatterType::NONE>("Overfitting with uniqueness of ", dec<2>(acc), " did not improve score. Ignoring.");
             print(str.c_str());
             end_a_step(Result(FrameRange(), acc, AccumulationStatus::Failed, AccumulationReason::UniquenessTooLow, str));
-            Tracker::recognition()->load_weights("");
+            _network->load_weights();
         }
     }
     
@@ -1701,9 +1735,7 @@ bool Accumulation::start() {
     
     // GUI::work().item_custom_triggered() could be set, but we accept the training nonetheless if it worked so far. its just skipping one specific step
     if(!GUI::work().item_aborted() && !uniqueness_history().empty()) {
-        Tracker::recognition()->set_has_loaded_weights(true);
-        Tracker::recognition()->set_trained(true);
-        Recognition::notify();
+        elevate_task(apply_network);
     }
     
     return true;
@@ -1790,7 +1822,36 @@ void Accumulation::end_a_step(Result reason) {
                 return;
             _current_accumulation->update_display(e, text);
         });
-    print("[STEP] ", last.c_str());
+    
+    auto ranges = gui::StaticText::to_tranges(last);
+    
+    std::string cleaned;
+    //print("Cleaning text ", last, " using ");
+    
+    auto add_trange = [&](const gui::TRange& k) {
+        if(k.name == "key")
+            cleaned += fmt::clr<FormatColor::CYAN>(k.text).toStr();
+        else if(k.name == "nr")
+            cleaned += fmt::clr<FormatColor::GREEN>(k.text).toStr();
+        else if(k.name == "str")
+            cleaned += fmt::clr<FormatColor::RED>(k.text).toStr();
+        else
+            cleaned += k.text;//fmt::clr<FormatColor::CYAN>(range.text);
+    };
+    for(auto &range : ranges) {
+        //print("range: ", range.name, "  -- ", range.text);
+        if(range.subranges.empty()) {
+            add_trange(range);
+        } else {
+            for(auto &k : range.subranges) {
+                add_trange(k);
+            }
+        }
+        
+    }
+    
+    if(!cleaned.empty())
+        print("[STEP] ", cleaned.c_str());
 }
 
 void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
@@ -1822,6 +1883,7 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
     
     if(!_textarea) {
         _textarea = std::make_shared<StaticText>("", Vec2());
+        _textarea->set_max_size(Size2(600, -1));
         _textarea->set_base_text_color(Color(150,150,150,255));
         _textarea->set_background(Transparent, Transparent);
     }

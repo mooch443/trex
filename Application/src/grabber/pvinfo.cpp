@@ -192,9 +192,6 @@ int main(int argc, char**argv) {
     default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     
-    SETTING(recognition_enable) = false;
-    GlobalSettings::set_access_level("recognition_enable", AccessLevelType::SYSTEM);
-    
     CommandLine cmd(argc, argv, true);
     cmd.cd_home();
     
@@ -509,7 +506,6 @@ int main(int argc, char**argv) {
         
         set_runtime_quiet(true);
         
-        SETTING(recognition_enable) = false;
         track::Tracker _tracker;
         cv::Mat local;
         average.copyTo(local);

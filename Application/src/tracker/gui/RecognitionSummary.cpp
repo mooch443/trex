@@ -1,11 +1,12 @@
 #include "RecognitionSummary.h"
 #include <tracking/Tracker.h>
 #include <gui/gui.h>
-#include <tracking/Recognition.h>
+#include <tracking/VisualIdentification.h>
 #include <gui/GUICache.h>
 #include <gui/DrawBase.h>
 
 using namespace track;
+namespace py = Python;
 
 namespace gui {
     void RecognitionSummary::update(gui::DrawStructure& base) {
@@ -25,7 +26,7 @@ namespace gui {
                 sorted.erase(id);
         }
 
-        size_t output_size = Tracker::recognition()->number_classes();
+        size_t output_size = py::VINetwork::number_classes();
         obj.set_scale(base.scale().reciprocal().mul(interface_scale));
 
         const float margin = 5 / interface_scale,

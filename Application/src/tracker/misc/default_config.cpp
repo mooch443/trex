@@ -120,7 +120,8 @@ ENUM_CLASS_DOCS(visual_identification_version_t,
         {"fish_max_reassign_time", "track_max_reassign_time"},
         {"outline_curvature_range", ""},
         {"load_identity_network", ""},
-        {"try_network_training_internally", "recognition_enable"},
+        {"try_network_training_internally", ""},
+        {"recognition_enable", ""},
         {"network_training_output_size", "recognition_image_size"},
         {"gui_save_npy_quit", "auto_quit"},
         {"gui_auto_quit", "auto_quit"},
@@ -551,7 +552,7 @@ file::Path conda_environment_path() {
         CONFIG("auto_no_memory_stats", true, "If set to true, no memory statistics will be saved on auto_quit.");
         CONFIG("auto_no_results", false, "If set to true, the auto_quit option will NOT save a .results file along with the NPZ (or CSV) files. This saves time and space, but also means that the tracked portion cannot be loaded via -load afterwards. Useful, if you only want to analyse the resulting data and never look at the tracked video again.");
         CONFIG("auto_no_tracking_data", false, "If set to true, the auto_quit option will NOT save any `output_graphs` tracking data - just the posture data (if enabled) and the results file (if not disabled). This saves time and space if that is a need.");
-        CONFIG("auto_train", false, "If set to true (and `recognition_enable` is also set to true), the application will automatically train the recognition network with the best track segment and apply it to the video.");
+        CONFIG("auto_train", false, "If set to true, the application will automatically train the recognition network with the best track segment and apply it to the video.");
         CONFIG("auto_train_on_startup", false, "This is a parameter that is used by the system to determine whether `auto_train` was set on startup, and thus also whether a failure of `auto_train` should result in a crash (return code != 0).", SYSTEM);
         CONFIG("analysis_range", std::pair<long_t,long_t>(-1, -1), "Sets start and end of the analysed frames.");
         CONFIG("output_min_frames", uint16_t(1), "Filters all individual with less than N frames when exporting. Individuals with fewer than N frames will also be hidden in the GUI unless `gui_show_inactive_individuals` is enabled (default).");
@@ -594,7 +595,6 @@ file::Path conda_environment_path() {
         CONFIG("recognition_border_size_rescale", float(0.5), "The amount that blob sizes for calculating the heatmap are allowed to go below or above values specified in `blob_size_ranges` (e.g. 0.5 means that the sizes can range between `blob_size_ranges.min * (1 - 0.5)` and `blob_size_ranges.max * (1 + 0.5)`).");
         CONFIG("recognition_smooth_amount", uint16_t(200), "If `recognition_border` is 'outline', this is the amount that the `recognition_border` is smoothed (similar to `outline_smooth_samples`), where larger numbers will smooth more.");
         CONFIG("recognition_coeff", uint16_t(50), "If `recognition_border` is 'outline', this is the number of coefficients to use when smoothing the `recognition_border`.");
-        CONFIG("recognition_enable", true, "This enables internal training. Requires Python3 and Keras to be available.", SYSTEM);
         CONFIG("recognition_normalization", recognition_normalization_t::posture, "This enables or disable normalizing the images before training. If set to `none`, the images will be sent to the GPU raw - they will only be cropped out. Otherwise they will be normalized based on head orientation (posture) or the main axis calculated using `image moments`.");
         CONFIG("recognition_image_size", Size2(80, 80), "Size of each image generated for network training.");
         CONFIG("recognition_image_scale", float(1), "Scaling applied to the images before passing them to the network.");
@@ -706,7 +706,6 @@ file::Path conda_environment_path() {
             "httpd_port",
             "cam_undistort1",
             "cam_undistort2",
-            "recognition_enable",
             
             // from info utility
             "print_parameters",
