@@ -17,7 +17,7 @@
 #include <misc/checked_casts.h>
 #include <gui/DrawBase.h>
 #include <tracking/FilterCache.h>
-#include <python/PythonWrapper.h>
+#include <tracking/PythonWrapper.h>
 #include <tracking/FilterCache.h>
 #include <tracking/VisualIdentification.h>
 #include <tracking/ImageExtractor.h>
@@ -94,8 +94,8 @@ void apply_network() {
     uint8_t max_threads = 5u;
     extract::Settings settings{
         .flags = (uint32_t)Flag::RemoveSmallFrames,
-        .image_size = SETTING(recognition_image_size).value<Size2>(),
         .max_size_bytes = uint64_t((double)SETTING(gpu_max_cache).value<float>() * 1000.0 * 1000.0 * 1000.0 / double(max_threads)),
+        .image_size = SETTING(recognition_image_size).value<Size2>(),
         .num_threads = max_threads,
         .normalization = SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>()
     };

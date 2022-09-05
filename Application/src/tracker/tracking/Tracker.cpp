@@ -25,8 +25,7 @@
 #include <tracking/VisualField.h>
 
 #if !COMMONS_NO_PYTHON
-#include <python/GPURecognition.h>
-#include <python/PythonWrapper.h>
+#include <tracking/PythonWrapper.h>
 #include <tracking/RecTask.h>
 #include <tracking/Accumulation.h>
 namespace py = Python;

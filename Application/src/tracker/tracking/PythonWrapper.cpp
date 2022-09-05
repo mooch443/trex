@@ -1,5 +1,4 @@
 #include "PythonWrapper.h"
-#include "GPURecognition.h"
 #include <python/GPURecognition.h>
 #include <tracker/misc/default_config.h>
 
@@ -117,6 +116,8 @@ void update() {
 }
 
 std::shared_future<void> init() {
+    fix_paths(false);
+
     if(python_initialized()) {
         assert(_init_future.valid());
         return _init_future;
@@ -124,10 +125,8 @@ std::shared_future<void> init() {
     } else if(python_initializing()) {
         assert(_init_future.valid());
         return _init_future;
-        
     }
     
-    fix_paths(false);
     if(_thread) {
         print("There is already a thread running. Restarting...");
         Python::_terminate = true;

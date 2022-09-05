@@ -3,21 +3,16 @@
 #include <commons.pc.h>
 #include <misc/SoftException.h>
 #include <misc/GlobalSettings.h>
-#include <python/Network.h>
+#include <tracking/Network.h>
+#include <misc/PackLambda.h>
 
 namespace Python {
 
-
-
-namespace package {
-using F = std::packaged_task<void()>;
-}
-
-
+using PromisedTask = cmn::package::promised<void>;
 
 struct PackagedTask {
     Network * _network;
-    package::F _task;
+    PromisedTask _task;
     bool _can_run_before_init;
 };
 
@@ -29,8 +24,8 @@ enum Flag {
 
 auto pack(auto&& f, Network* net = nullptr) {
     return PackagedTask{
-        ._task = package::F(std::move(f)),
-        ._network = net
+        ._network = net,
+        ._task = PromisedTask(std::move(f))
     };
 }
 

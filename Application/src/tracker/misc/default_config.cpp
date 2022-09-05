@@ -727,7 +727,7 @@ file::Path conda_environment_path() {
          * Exclude some settings based on what would automatically be assigned
          * if they weren't set at all.
          */
-        if(SETTING(cm_per_pixel).value<float>() == SETTING(meta_real_width).value<float>() / float(track::Tracker::average().cols))
+        if(SETTING(cm_per_pixel).value<float>() == SETTING(meta_real_width).value<float>() / float(SETTING(video_size).value<Size2>().width))
         {
             exclude_fields.push_back("cm_per_pixel");
         }

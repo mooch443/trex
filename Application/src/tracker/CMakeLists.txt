@@ -27,19 +27,33 @@ endif()
 #  MACOSX_BUNDLE_INFO_STRING ""
 #)
 
-
-add_custom_command(TARGET test_network POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E create_symlink
+if(WIN32)
+    add_custom_command(TARGET test_network POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
         "${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py"
         "$<TARGET_FILE_DIR:test_network>/trex_init.py")
-add_custom_command(TARGET test_network POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E create_symlink
-        "${CMAKE_SOURCE_DIR}/learn_static.py"
-        "$<TARGET_FILE_DIR:test_network>/learn_static.py")
-add_custom_command(TARGET test_network POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E create_symlink
-        "${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py"
-        "$<TARGET_FILE_DIR:test_network>/visual_identification_network.py")
+    add_custom_command(TARGET test_network POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy
+            "${CMAKE_SOURCE_DIR}/learn_static.py"
+            "$<TARGET_FILE_DIR:test_network>/learn_static.py")
+    add_custom_command(TARGET test_network POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy
+            "${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py"
+            "$<TARGET_FILE_DIR:test_network>/visual_identification_network.py")
+else()
+    add_custom_command(TARGET test_network POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E create_symlink
+            "${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py"
+            "$<TARGET_FILE_DIR:test_network>/trex_init.py")
+    add_custom_command(TARGET test_network POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E create_symlink
+            "${CMAKE_SOURCE_DIR}/learn_static.py"
+            "$<TARGET_FILE_DIR:test_network>/learn_static.py")
+    add_custom_command(TARGET test_network POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E create_symlink
+            "${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py"
+            "$<TARGET_FILE_DIR:test_network>/visual_identification_network.py")
+endif()
 
 if(APPLE)
     set(TREX_EXEC_NAME TRex)
@@ -98,6 +112,7 @@ target_link_libraries(properties
     PUBLIC 
         tracker_gui
         tracker_tracking
+        tracker_python
         tracker_misc
         commons 
         pv)

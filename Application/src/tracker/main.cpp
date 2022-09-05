@@ -66,7 +66,7 @@
 #include <gui/GUICache.h>
 #include "VideoOpener.h"
 #include <gui/GUICache.h>
-#include <python/PythonWrapper.h>
+#include <tracking/PythonWrapper.h>
 
 #if WIN32
 #include <shellapi.h>

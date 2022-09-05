@@ -77,7 +77,7 @@ GUI* GUI::instance() {
 #include <gui/FlowMenu.h>
 #endif
 
-#include <python/PythonWrapper.h>
+#include <tracking/PythonWrapper.h>
 
 using namespace gui;
 namespace py = Python;
@@ -2055,7 +2055,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             code = utils::find_replace(code, "\\t", "\t");
             
             py::schedule(py::PackagedTask{
-                ._task = py::package::F([code]() -> void {
+                ._task = py::PromisedTask([code]() -> void {
                     using py = PythonIntegration;
                     try {
                         py::execute(code);

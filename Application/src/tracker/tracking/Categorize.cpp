@@ -12,7 +12,7 @@
 #include <tracking/StaticBackground.h>
 
 #include <tracking/FilterCache.h>
-#include <python/PythonWrapper.h>
+#include <tracking/PythonWrapper.h>
 
 #include <tracking/CategorizeInterface.h>
 
@@ -1234,7 +1234,7 @@ void Work::start_learning() {
     Work::_learning = true;
     namespace py = Python;
     
-    py::schedule(py::PackagedTask{._task = py::package::F([]() -> void {
+    py::schedule(py::PackagedTask{._task = py::PromisedTask([]() -> void {
         Work::status() = "Initializing...";
         Work::initialized() = false;
         

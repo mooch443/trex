@@ -5,7 +5,7 @@
 #include <tracking/Tracker.h>
 #include <misc/default_config.h>
 #include <misc/Output.h>
-#include <python/PythonWrapper.h>
+#include <tracking/PythonWrapper.h>
 #include <misc/CommandLine.h>
 #include <tracking/ImageExtractor.h>
 #include <tracking/VisualIdentification.h>
@@ -142,8 +142,8 @@ int main(int argc, char**argv) {
             },
             extract::Settings{
                 .flags = (uint32_t)Flag::RemoveSmallFrames,
-                .image_size = Size2(80,80),
                 .max_size_bytes = 1000u * 1000u * 1000u / 5u / 10u,
+                .image_size = Size2(80,80),
                 .num_threads = 5u,
                 .normalization = SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>()
             }

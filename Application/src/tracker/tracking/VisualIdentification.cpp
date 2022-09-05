@@ -1,5 +1,5 @@
 #include "VisualIdentification.h"
-#include <python/PythonWrapper.h>
+#include <tracking/PythonWrapper.h>
 #include <python/GPURecognition.h>
 #include <misc/frame_t.h>
 #include <misc/PVBlob.h>
@@ -256,10 +256,10 @@ void VINetwork::load_weights_internal() {
 
 void VINetwork::load_weights() {
     py::schedule(PackagedTask{
-        ._task = package::F([this](){
+        ._network = &_network,
+        ._task = PromisedTask([this](){
             load_weights_internal();
         }),
-        ._network = &_network,
         ._can_run_before_init = true
     }).get();
 }
@@ -379,7 +379,8 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
     future = promise.get_future();
     
     py::schedule(PackagedTask{
-        ._task = package::F([
+        ._network = &_network,
+        ._task = PromisedTask([
             promise = std::move(promise),
             data, load_results,
             gpu_max_epochs,dont_save, &best_accuracy_worst_class,
@@ -464,11 +465,9 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                     _status.busy = true;
                     py::run("learn_static", "start_learning");
                     
-                    //! TODO: MISSING item_custom_triggered
-                    /*if(GUI::work().item_custom_triggered()) {
+                    if (skip_function && skip_function())
                         throw SoftException("User skipped.");
-                    }*/
-                    
+
                     best_accuracy_worst_class = py::get_variable<float>("best_accuracy_worst_class", "learn_static");
                     if(worst_accuracy_per_class)
                         *worst_accuracy_per_class = best_accuracy_worst_class;
@@ -558,7 +557,6 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                 promise.set_exception(std::current_exception());
             }
         }),
-        ._network = &_network,
         ._can_run_before_init = false
         
     });

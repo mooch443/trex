@@ -63,7 +63,7 @@ struct Settings {
     std::string toStr() const {
         return "settings<flags:"+Meta::toStr(flags)
             +" max:"+FileSize{max_size_bytes}.toStr()
-            +" res:",Meta::toStr(image_size)
+            +" res:"+Meta::toStr(image_size)
             +" threads:"+Meta::toStr(num_threads)+">";
     }
 };
@@ -94,12 +94,13 @@ private:
     using callback_t = package::F<callback_sig>;
     
 public:
+    template<typename F>
     ImageExtractor(pv::File & video,
-                   auto && selector,
+                   F && selector,
                    auto && partial_apply,
                    auto && callback,
                    Settings&& settings = {})
-        requires requires (Query q) { { selector(q) } -> std::convertible_to<bool>; }
+        requires requires (Query q, F && selector) { { selector(q) } -> std::convertible_to<bool>; }
                       && similar_args<decltype(partial_apply), partial_apply_sig>
                       && similar_args<decltype(callback), callback_sig>
                       && similar_args<decltype(selector), selector_sig>

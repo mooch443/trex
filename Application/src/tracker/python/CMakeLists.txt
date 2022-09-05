@@ -9,12 +9,13 @@ if(UNIX)
         ${CMAKE_CURRENT_SOURCE_DIR}/trex_init.py
         ${CMAKE_CURRENT_SOURCE_DIR}/trex_learn_category.py)
 elseif(WIN32)
-    add_library(tracker_python SHARED ${SRCS} ${HDRS})
+    add_library(tracker_python SHARED ${SRCS} ${HDRS} "${CMAKE_CURRENT_BINARY_DIR}/../../GitSHA1.cpp" ../../GitSHA1.h)
 endif()
 
 if(WIN32)
     target_link_libraries(tracker_python PUBLIC
         tracker_misc
+        pv
         commons
     )
     target_compile_options(tracker_python PUBLIC /D"TREX_EXPORTS")

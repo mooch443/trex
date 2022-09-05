@@ -5,19 +5,20 @@
 #include <misc/SoftException.h>
 #include <misc/GlobalSettings.h>
 #include <misc/idx_t.h>
+#include <misc/PackLambda.h>
 
 namespace track {
     using namespace cmn;
 
-    std::atomic_bool& python_initialized();
-    std::atomic_bool& python_initializing();
-    std::atomic_bool& python_gpu_initialized();
-    std::atomic_int& python_major_version();
-    std::atomic_int& python_minor_version();
-    std::atomic_int& python_uses_gpu();
+    TREX_EXPORT std::atomic_bool& python_initialized();
+    TREX_EXPORT std::atomic_bool& python_initializing();
+    TREX_EXPORT std::atomic_bool& python_gpu_initialized();
+    TREX_EXPORT std::atomic_int& python_major_version();
+    TREX_EXPORT std::atomic_int& python_minor_version();
+    TREX_EXPORT std::atomic_int& python_uses_gpu();
 
-    std::string& python_init_error();
-    std::string& python_gpu_name();
+    TREX_EXPORT std::string& python_init_error();
+    TREX_EXPORT std::string& python_gpu_name();
 
     class TREX_EXPORT PythonIntegration {
     private:
@@ -60,9 +61,9 @@ namespace track {
         static void set_function(const char* name_, std::function<void(std::string)> f, const std::string &m = "");
         static void set_function(const char* name_, std::function<void(std::vector<uchar>, std::vector<std::string>)> f, const std::string &m = "");
         static void set_function(const char* name_, std::function<void(std::vector<float>)> f, const std::string &m = "");
-        static void set_function(const char* name_, std::packaged_task<void(std::vector<std::vector<float>>&&,std::vector<float>&&)>&& f, const std::string &m = "");
+        static void set_function(const char* name_, cmn::package::F<void(std::vector<std::vector<float>>&&,std::vector<float>&&)>&& f, const std::string &m = "");
         static void set_function(const char* name_,
-                                 std::packaged_task<void(std::vector<int64_t>)>&& f, const std::string &m = "");
+            cmn::package::F<void(std::vector<int64_t>)>&& f, const std::string &m = "");
         static void unset_function(const char* name_, const std::string &m = "");
         
     public:

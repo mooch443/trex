@@ -18,7 +18,7 @@
 #include <tracking/Categorize.h>
 
 #if !COMMONS_NO_PYTHON
-#include <python/PythonWrapper.h>
+#include <tracking/PythonWrapper.h>
 #include <tracking/RecTask.h>
 #endif
 

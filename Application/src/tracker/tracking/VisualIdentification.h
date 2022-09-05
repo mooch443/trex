@@ -1,10 +1,10 @@
 #pragma once
 
 #include <types.h>
-#include <python/Network.h>
+#include <tracking/Network.h>
 #include <tracker/misc/default_config.h>
 #include <misc/Image.h>
-#include <python/PythonWrapper.h>
+#include <tracking/PythonWrapper.h>
 #include <misc/idx_t.h>
 #include <file/Path.h>
 #include <tracking/TrainingData.h>
@@ -28,7 +28,7 @@ concept image_ptr =    cmn::_clean_same<T, cmn::Image::Ptr>
 class VINetwork {
 protected:
     Network _network;
-    using callback_t = std::packaged_task<void(std::vector<std::vector<float>>&&,std::vector<float>&&)>;
+    using callback_t = cmn::package::F<void(std::vector<std::vector<float>>&&,std::vector<float>&&)>;
     std::shared_ptr<track::TrainingData> _last_training_data;
     
 public:
@@ -172,12 +172,14 @@ public:
     //! @throws SoftException if no weights have been loaded yet / trained
     std::future<void> probabilities(auto&& images, auto&& callback) {
         return Python::schedule(PackagedTask{
-            ._task = package::F([callback = std::move(callback),
+            ._network = &_network,
+            ._task = PromisedTask([callback = std::move(callback),
                       images = std::move(images)]()
                 mutable
             {
-                callback_t pc([callback = std::move(callback)](std::vector<std::vector<float>>&& ps,
-                                         std::vector<float>&& indexes)
+                callback_t pc([callback = std::move(callback)](
+                    std::vector<std::vector<float>>&& ps,
+                    std::vector<float>&& indexes)
                    mutable
                 {
                     callback(std::move(ps), std::move(indexes));
@@ -185,7 +187,6 @@ public:
                 
                 set_variables(std::move(images), std::move(pc));
             }),
-            ._network = &_network,
             ._can_run_before_init = false
         });
     }

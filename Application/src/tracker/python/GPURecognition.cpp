@@ -644,19 +644,17 @@ void PythonIntegration::set_function(const char* name_, std::function<void(std::
     set_function_internal(name_, f, m);
 }
 
-void PythonIntegration::set_function(const char* name_, std::packaged_task<void(std::vector<std::vector<float>>&&,std::vector<float>&&)>&& f, const std::string &m)
+void PythonIntegration::set_function(const char* name_, cmn::package::F<void(std::vector<std::vector<float>>&&,std::vector<float>&&)>&& f, const std::string &m)
 {
     set_function_internal(name_, [f = std::move(f)](std::vector<std::vector<float>>&& a,std::vector<float>&& b) mutable {
         f(std::move(a), std::move(b));
-        f.get_future().get();
     }, m);
 }
 
-void PythonIntegration::set_function(const char* name_, std::packaged_task<void(std::vector<int64_t>)>&& f, const std::string &m)
+void PythonIntegration::set_function(const char* name_, cmn::package::F<void(std::vector<int64_t>)>&& f, const std::string &m)
 {
     set_function_internal(name_, [f = std::move(f)](std::vector<int64_t> v) mutable {
         f(v);
-        f.get_future().get();
     }, m);
 }
 

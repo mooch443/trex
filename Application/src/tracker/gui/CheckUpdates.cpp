@@ -9,7 +9,7 @@
 #include <tracker/misc/default_config.h>
 #include <tracking/Recognition.h>
 #include <gui/GUICache.h>
-#include <python/PythonWrapper.h>
+#include <tracking/PythonWrapper.h>
 
 #if WIN32
 #include <shellapi.h>
@@ -279,7 +279,7 @@ std::future<VersionStatus> perform(bool manually_triggered) {
     };
     
     py::schedule(py::PackagedTask{
-        ._task = py::package::F([fn]() {
+        ._task = py::PromisedTask([fn]() {
             using py = PythonIntegration;
             py::set_function("retrieve_version", fn);
             

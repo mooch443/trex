@@ -7,7 +7,7 @@
 #include <misc/Image.h>
 #include <misc/GlobalSettings.h>
 #include <python/GPURecognition.h>
-#include <python/PythonWrapper.h>
+#include <tracking/PythonWrapper.h>
 #include <pv.h>
 
 namespace py = Python;
@@ -246,7 +246,7 @@ void RecTask::update(RecTask&& task) {
             task._callback(std::move(result));
         };
         
-        auto pt = std::packaged_task<void(std::vector<int64_t>)>(std::move(receive));
+        auto pt = cmn::package::F<void(std::vector<int64_t>)>(std::move(receive));
         py::set_function("receive", std::move(pt), tagwork);
         py::run(tagwork, "predict");
         py::unset_function("receive", tagwork);

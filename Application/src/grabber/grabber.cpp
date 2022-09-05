@@ -18,7 +18,7 @@
 #if !COMMONS_NO_PYTHON
 #include <pybind11/numpy.h>
 #include <python/GPURecognition.h>
-#include <python/PythonWrapper.h>
+#include <tracking/PythonWrapper.h>
 #include <tracking/RecTask.h>
 #endif
 #include <tracking/Recognition.h>
