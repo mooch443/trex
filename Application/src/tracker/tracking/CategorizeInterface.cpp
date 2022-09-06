@@ -323,7 +323,7 @@ void Cell::update_scale() {
         //print("DPI = ", ((IMGUIBase*)GUI::instance()->best_base())->dpi_scale(), " bsize = ", bsize);
         if(GUI::instance())
             bsize = bsize / ((IMGUIBase*)GUI::instance()->best_base())->dpi_scale();
-        bsize = bsize.div(base->scale()) * 0.8;
+        bsize = bsize.div(base->scale());
 
         if (base->width() * s < base->height() / 4.0)
             _image->set_scale(Vec2(bsize.width * s / _image->width()));
@@ -397,7 +397,7 @@ void Row::update(DrawStructure& base, double dt) {
             auto d = euclidean_distance(base.mouse_position(), cell.bounds().pos() + cell.bounds().size() * 0.5)
                 / (layout->parent()->global_bounds().size().length() * 0.45);
             if(d > 0)
-                cell._block->set_scale(Vec2(1.25 + 0.35 / (1 + d * d)) * (cell.selected() ? 1.5 : 1));
+                cell._block->set_scale(Vec2(0.8 + 0.2 / (1 + d * d)) * (cell.selected() ? 1.5 : 1));
             
             const double seconds_for_all_samples = (cell._image->hovered() ? 15.0 : 2.0);
             const double samples_per_second = cell._sample->_images.size() / seconds_for_all_samples;
@@ -652,9 +652,7 @@ void Interface::draw(DrawStructure& base) {
     auto window = (GUI::instance() && GUI::instance()->base() ? (GUI::instance()->base()->window_dimensions().div(base.scale())) : Size2(base.width(), base.height())) * gui::interface_scale();
     auto center = window * 0.5;
     layout.set_pos(center);
-    base.circle(center, 100, Red, Red);
-    print("GUI::window_dimensions ", GUI::instance()->base()->window_dimensions(), " window = ", window, " scale = ", base.scale());
-
+    
     rect.set_z_index(1);
     rect.set_size(window);
 
