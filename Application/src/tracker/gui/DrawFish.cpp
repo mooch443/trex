@@ -1224,7 +1224,7 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
                     });
 
                 if (it != map.end()) {
-                    secondary_text += " loc" + Meta::toStr(it->first) + " (" + Meta::toStr(it->second) + ")";
+                    secondary_text += " loc" + Meta::toStr(it->first) + " (" + dec<2>(it->second).toStr() + ")";
                 }
             }
         }

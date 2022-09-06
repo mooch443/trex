@@ -239,17 +239,10 @@ void VINetwork::load_weights_internal() {
     reinitialize_internal();
     
     try {
-        auto program = "import numpy as np\nimport learn_static\n"
-        "with np.load(learn_static.output_path+'.npz', allow_pickle=True) as npz:\n"
-        "   m = npz['weights'].item()\n"
-        "   for i, layer in zip(range(len(learn_static.model.layers)), learn_static.model.layers):\n"
-        "       if i in m:\n"
-        "           layer.set_weights(m[i])\n";
-        py::execute(program);
+        py::run("learn_static", "load_weights");
         print("\tReloaded weights.");
         
     } catch(...) {
-        FormatExcept("[py] Failed to load weights.");
         throw;
     }
 }
