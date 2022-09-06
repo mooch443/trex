@@ -84,12 +84,12 @@ _post_pool(cmn::hardware_concurrency(), [this](Individual* obj)
         set_thread_name(name);
         
 }, "Output::post_pool"),
-_generic_pool(cmn::hardware_concurrency(), [this](std::exception_ptr e) {
+_generic_pool(cmn::hardware_concurrency(), "Output::GenericPool", [this](std::exception_ptr e) {
     _exception_ptr = e; // send it to main thread
-}, "Output::GenericPool"),
-_load_pool(cmn::hardware_concurrency(), [this](std::exception_ptr e) {
+}),
+_load_pool(cmn::hardware_concurrency(), "Output::loadPool", [this](std::exception_ptr e) {
     _exception_ptr = e; // send it to main thread
-}, "Output::loadPool"),
+}),
 _expected_individuals(0), _N_written(0)
 {
     //if(!filename.exists())

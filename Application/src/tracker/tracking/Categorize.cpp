@@ -1586,7 +1586,7 @@ void Work::start_learning() {
     }), ._can_run_before_init = false});
 }
 
-GenericThreadPool pool(cmn::hardware_concurrency(), [](auto e) { std::rethrow_exception(e); }, "Work::LoopPool");
+GenericThreadPool pool(cmn::hardware_concurrency(), "Work::LoopPool");
 
 template<typename T>
 T CalcMHWScore(std::vector<T> hWScores) {

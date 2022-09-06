@@ -566,7 +566,7 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
     }
 #endif
     
-    _pool = std::make_unique<GenericThreadPool>(max(1u, cmn::hardware_concurrency()), [](auto e) { std::rethrow_exception(e); }, "ocl_threads", [](){
+    _pool = std::make_unique<GenericThreadPool>(max(1u, cmn::hardware_concurrency()), "ocl_threads", nullptr, [](){
         ocl::init_ocl();
     });
     

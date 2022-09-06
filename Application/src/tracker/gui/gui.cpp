@@ -272,7 +272,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
     _average_image(average),
     _direction_change(false), _play_direction(1),
     _base(NULL),
-    _blob_thread_pool(cmn::hardware_concurrency(), [](std::exception_ptr e) {
+    _blob_thread_pool(cmn::hardware_concurrency(), "GUI::blob_thread_pool", [](std::exception_ptr e) {
         GUI::work().add_queue("", [e](){
             try {
                 std::rethrow_exception(e);
@@ -280,7 +280,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                 GUI::instance()->gui().dialog("An error occurred in the blob thread pool:\n<i>"+std::string(ex.what())+"</i>", "Error");
             }
         });
-    }, "GUI::blob_thread_pool"),
+    }),
     _properties_visible(false),
     _private_data(new PrivateData{ video_source }),
 #if WITH_MHD

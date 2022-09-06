@@ -130,10 +130,7 @@ void ImageExtractor::update_thread(selector_t&& selector, partial_apply_t&& part
 }
 
 uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t& callback) {
-    GenericThreadPool pool(_settings.num_threads, [](auto e) {
-        std::rethrow_exception(e);
-        
-    }, "ImageExtractorThread");
+    GenericThreadPool pool(_settings.num_threads, "ImageExtractorThread");
     
     std::mutex mutex;
     uint64_t pushed_items{0}, total_items = this->_collected_items;

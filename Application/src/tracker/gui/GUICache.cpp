@@ -11,7 +11,7 @@ namespace gui {
     static std::unique_ptr<std::thread> percentile_ptr = nullptr;
     static std::mutex percentile_mutex;
     static GUICache* _cache{ nullptr };
-    static GenericThreadPool _pool(cmn::hardware_concurrency(), nullptr, "GUICache::_pool");
+    static GenericThreadPool _pool(cmn::hardware_concurrency(), "GUICache::_pool");
 
     GUICache& GUICache::instance() {
         if (!_cache)
