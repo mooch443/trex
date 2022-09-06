@@ -184,7 +184,10 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                         auto posture = fish->posture_stuff(index);
                         if(posture && basic) {
                             Midline::Ptr midline = fish->calculate_midline_for(*basic, *posture);
-                            midline_transform = midline->transform(recognition_normalization);
+                            if(midline)
+                                midline_transform = midline->transform(recognition_normalization);
+                            else
+                                continue;
                         }
                     }
                 }

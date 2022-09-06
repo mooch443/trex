@@ -395,13 +395,13 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
     std::map<Idx_t, std::tuple<long_t, float>> print_out;
     
     for(auto && [id, tup] : averages) {
-        auto & [samples, values] = tup;
+        const auto & [samples, values] = tup;
         int64_t max_index = -1;
         float max_p = 0;
-        if(samples > 0) {
+        /*if(samples > 0) {
             for(auto & v : values)
                 v /= samples;
-        }
+        }*/
         
         for(uint32_t i=0; i<values.size(); ++i) {
             auto v = values[i];
@@ -1761,8 +1761,8 @@ void Accumulation::end_a_step(Result reason) {
     size_t i=0;
     std::string last;
     for(auto &r : _accumulation_results) {
-        if(i >= 5 && i <= _accumulation_results.size()-5) {
-            if(i == 5)
+        if(i >= 3 && i <= _accumulation_results.size()-3) {
+            if(i == 3)
                 text += "...\n";
             ++i;
             continue;
@@ -1886,7 +1886,7 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
     
     if(!_textarea) {
         _textarea = std::make_shared<StaticText>("", Vec2());
-        _textarea->set_max_size(Size2(650, -1));
+        _textarea->set_max_size(Size2(700, 180));
         _textarea->set_base_text_color(Color(150,150,150,255));
         _textarea->set_background(Transparent, Transparent);
     }

@@ -208,8 +208,8 @@ void update(const Tracker::LockGuard& guard) {
         _previous_selected.insert(range);
     }
     
-    std::vector<Range<Frame_t>> segments(Tracker::instance()->consecutive().begin(), Tracker::instance()->consecutive().end());
-    print("Consecutives: ", segments);
+    //std::vector<Range<Frame_t>> segments(Tracker::instance()->consecutive().begin(), Tracker::instance()->consecutive().end());
+    //print("Consecutives: ", segments);
     
     for(auto &consec : Tracker::instance()->consecutive()) {
         if(consec.end.get() != video_length && consec == Tracker::instance()->consecutive().back())
@@ -218,9 +218,9 @@ void update(const Tracker::LockGuard& guard) {
         if(_cache.find(consec) == _cache.end() && consec.length().get() > 5) {
             if(calculate_segment(consec, video_length, guard)) {
                 //break; // if this fails, dont set last seen and try again next time
-//#ifndef NDEBUG
+#ifndef NDEBUG
                 print("Calculated segment ", consec.start,"-",consec.end);
-//#endif
+#endif
                 changed = true;
             }
         }

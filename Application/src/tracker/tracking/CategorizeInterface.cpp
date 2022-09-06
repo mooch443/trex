@@ -318,8 +318,10 @@ void Cell::update_scale() {
     auto base = button_layout()->stage();
 
     if (base && _image->width() > 0) {
-        Size2 bsize(base->width() * 1.25, base->height() * 1.25);
-        //bsize = bsize.div(base->scale());
+        Size2 bsize(base->width() * 0.6, base->height() * 0.6);
+#if __APPLE__
+        bsize = bsize.mul(2);
+#endif
 
         if (base->width() < base->height())
             _image->set_scale(Vec2(bsize.width * s / _image->width()).div(base->scale()));
