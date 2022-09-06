@@ -10,7 +10,7 @@ include_directories(${CMAKE_SOURCE_DIR}/src/ProcessedVideo)
 
 add_executable(test_network network.cpp
     "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h)
-target_link_libraries(test_network tracker_python tracker_tracking tracker_misc pv commons ${PYTHON_LIBRARIES})
+target_link_libraries(test_network tracker_tracking tracker_python tracker_misc pv commons ${PYTHON_LIBRARIES})
 message(STATUS "pylib=${PYTHON_LIBRARY}")
 
 if(NOT pybind11_external)
