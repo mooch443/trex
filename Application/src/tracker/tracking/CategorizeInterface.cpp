@@ -3,6 +3,7 @@
 #include <tracking/Tracker.h>
 #include <gui/gui.h>
 #include <misc/default_settings.h>
+#include <gui/IMGUIBase.h>
 
 namespace track {
 namespace Categorize {
@@ -318,15 +319,17 @@ void Cell::update_scale() {
     auto base = button_layout()->stage();
 
     if (base && _image->width() > 0) {
-        Size2 bsize(base->width() * 0.6, base->height() * 0.6);
-#if __APPLE__
-        bsize = bsize.mul(2);
-#endif
+        Size2 bsize(base->width(), base->height());
+        //print("DPI = ", ((IMGUIBase*)GUI::instance()->best_base())->dpi_scale(), " bsize = ", bsize);
+        if(GUI::instance())
+            bsize = bsize / ((IMGUIBase*)GUI::instance()->best_base())->dpi_scale();
+        bsize = bsize.div(base->scale()) * 0.8;
 
-        if (base->width() < base->height())
-            _image->set_scale(Vec2(bsize.width * s / _image->width()).div(base->scale()));
+        if (base->width() * s < base->height() / 4.0)
+            _image->set_scale(Vec2(bsize.width * s / _image->width()));
         else
-            _image->set_scale(Vec2(bsize.height * (1.0/4.0) / _image->height()).div(base->scale()));
+            _image->set_scale(Vec2(bsize.height * (1.0/4.0) / _image->height()));
+        
     }
 }
 
