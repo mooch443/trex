@@ -2632,9 +2632,6 @@ void log(FILE* f, const char* cmd, ...) {
 
 std::map<Frame_t, FrameRange> split_segment_by_probability(const Individual* fish, const Individual::SegmentInformation& segment)
 {
-    if (!Tracker::recognition() || Tracker::recognition()->data().empty())
-        return {};
-
     auto for_frame = [fish](Frame_t frame) -> std::tuple<long_t, float> {
         std::map<long_t, std::tuple<long_t, float>> samples;
         
@@ -2920,9 +2917,6 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
 const decltype(Individual::average_recognition_segment)::mapped_type Individual::average_recognition(Frame_t segment_start) {
     auto it = average_recognition_segment.find(segment_start);
     if(it == average_recognition_segment.end()) {
-        if (!Tracker::recognition() || Tracker::recognition()->data().empty())
-            return { 0,{} };
-
         // average cannot be found for given segment. try to calculate it...
         auto sit = std::upper_bound(_frame_segments.begin(), _frame_segments.end(), segment_start, [](Frame_t frame, const auto& ptr) {
             return frame < ptr->start();

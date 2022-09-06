@@ -22,7 +22,6 @@ namespace mem { struct TrackerMemoryStats; }
 
 namespace track {
     class Posture;
-    class Recognition;
     class TrainingData;
     class FOI;
     //struct fdx_t;
@@ -126,6 +125,10 @@ CREATE_STRUCT(Settings,
         
         ska::bytell_hash_map<Frame_t, ska::bytell_hash_map<pv::bid, std::vector<float>>> _vi_predictions;
     public:
+        const auto& vi_predictions() const {
+            return _vi_predictions;
+        }
+        void set_vi_data(const decltype(_vi_predictions)& predictions);
         void predicted(Frame_t, pv::bid, std::vector<float>&&);
         const std::vector<float>& get_prediction(Frame_t, pv::bid) const;
         const std::vector<float>* find_prediction(Frame_t, pv::bid) const;
@@ -163,7 +166,6 @@ CREATE_STRUCT(Settings,
         uint64_t _max_individuals;
         //GETTER_PTR(LuminanceGrid*, grid)
         GETTER_PTR(StaticBackground*, background)
-        Recognition* _recognition;
         
         ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator> _individual_add_iterator_map;
         ska::bytell_hash_map<Idx_t, size_t> _segment_map_known_capacity;
@@ -311,7 +313,6 @@ CREATE_STRUCT(Settings,
         //static bool generate_training_images(pv::File&, const std::set<long_t>& frames, TrainingData&, const std::function<void(float)>& = [](float){});
         //static bool generate_training_images(pv::File&, const Rangel& range, TrainingData&, const std::function<void(float)>& = [](float){});
         
-        static Recognition* recognition();
         static std::vector<Range<Frame_t>> global_segment_order();
         static void global_segment_order_changed();
         static void auto_calculate_parameters(pv::File& video, bool quiet = false);

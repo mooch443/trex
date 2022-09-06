@@ -3681,14 +3681,14 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
             }, from);
             
             if(header.version <= Output::ResultsFormat::Versions::V_33
-               && Tracker::recognition() && !Tracker::recognition()->data().empty())
+               && !Tracker::instance()->vi_predictions().empty())
             {
                 // probably need to convert blob ids
                 pv::Frame f;
                 size_t found = 0;
                 size_t N = 0;
                 
-                for (auto &[k, v] : Tracker::recognition()->data()) {
+                for (auto &[k, v] : Tracker::instance()->vi_predictions()) {
                     GUI::instance()->video_source()->read_frame(f, k.get());
                     auto & blobs = f.blobs();
                     N += v.size();
@@ -3743,10 +3743,10 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                     
                     grid::ProximityGrid proximity{ Tracker::average().bounds().size() };
                     size_t i=0, all_found = 0, not_found = 0;
-                    const size_t N = Tracker::recognition()->data().size();
+                    const size_t N = Tracker::instance()->vi_predictions().size();
                     ska::bytell_hash_map<Frame_t, ska::bytell_hash_map<pv::bid, std::vector<float>>> next_recognition;
                     
-                    for (auto &[k, v] : Tracker::recognition()->data()) {
+                    for (auto &[k, v] : Tracker::instance()->vi_predictions()) {
                         auto & active = Tracker::active_individuals(k);
                         ska::bytell_hash_map<pv::bid, const pv::CompressedBlob*> blobs;
                         
@@ -3849,7 +3849,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                     
                     print("Found:", all_found, " not found:", not_found);
                     if(all_found > 0)
-                        Tracker::recognition()->data() = next_recognition;
+                        Tracker::instance()->set_vi_data(next_recognition);
                 }
             }
             

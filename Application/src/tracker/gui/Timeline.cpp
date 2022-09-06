@@ -690,7 +690,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                                 tdelta = _frame_info->tdelta;
                             }
 
-                            _frame_info->training_ranges = _tracker->recognition() ? _tracker->recognition()->trained_ranges() : std::set<Range<Frame_t>>{};
+                            //_frame_info->training_ranges = _tracker->recognition() ? _tracker->recognition()->trained_ranges() : std::set<Range<Frame_t>>{};
                             _frame_info->consecutive = _tracker->consecutive();
                             _frame_info->global_segment_order = track::Tracker::global_segment_order();
 

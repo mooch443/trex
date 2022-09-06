@@ -113,14 +113,17 @@ void apply_network() {
             for(auto &&r : results)
                 images.emplace_back(std::move(r.image));
             
+            std::vector<Idx_t> ids; ids.reserve(results.size());
+            for (auto &r : results) {
+                ids.push_back(r.fdx);
+            }
+            
+            print("ImageExtractor has ", images.size(), " images and ", results.size(), " results, ids ", ids.size(), ".");
+            
             try {
-                std::vector<Idx_t> ids;
-                for (auto &r : results) {
-                    ids.push_back(r.fdx);
-                }
-                
-                //auto averages = py::VINetwork::instance()->paverages(ids, std::move(images));
                 auto probabilities = py::VINetwork::instance()->probabilities(std::move(images));
+                
+                print("\tGot ", probabilities.size(), " probabilities.");
                 
                 const size_t N = py::VINetwork::number_classes();
                 

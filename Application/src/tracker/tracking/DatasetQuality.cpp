@@ -13,7 +13,6 @@ namespace py = Python;
 Range<Frame_t> _manually_selected{{},{}};
 std::map<Range<Frame_t>, std::map<Idx_t, Single>> _cache;
 std::map<Range<Frame_t>, Quality> _quality;
-Range<Frame_t> _last_seen;
 std::set<Range<Frame_t>> _previous_selected;
 
 std::set<Quality, std::greater<>> _sorted;
@@ -69,7 +68,6 @@ void remove_frames(Frame_t start) {
     }
     
     _manually_selected = Range<Frame_t>({},{});
-    _last_seen = Range<Frame_t>({}, {});
 }
 
 bool calculate_segment(const Range<Frame_t> &consec, const uint64_t video_length, const Tracker::LockGuard& guard) {
@@ -210,6 +208,9 @@ void update(const Tracker::LockGuard& guard) {
         _previous_selected.insert(range);
     }
     
+    std::vector<Range<Frame_t>> segments(Tracker::instance()->consecutive().begin(), Tracker::instance()->consecutive().end());
+    print("Consecutives: ", segments);
+    
     for(auto &consec : Tracker::instance()->consecutive()) {
         if(consec.end.get() != video_length && consec == Tracker::instance()->consecutive().back())
             break;
@@ -217,14 +218,12 @@ void update(const Tracker::LockGuard& guard) {
         if(_cache.find(consec) == _cache.end() && consec.length().get() > 5) {
             if(calculate_segment(consec, video_length, guard)) {
                 //break; // if this fails, dont set last seen and try again next time
-#ifndef NDEBUG
+//#ifndef NDEBUG
                 print("Calculated segment ", consec.start,"-",consec.end);
-#endif
+//#endif
                 changed = true;
             }
         }
-        
-        _last_seen = consec;
     }
     
     if(changed)

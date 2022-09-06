@@ -313,13 +313,6 @@ decltype(Tracker::_added_frames)::const_iterator Tracker::properties_iterator(Fr
 
     bool callback_registered = false;
     
-    Recognition* Tracker::recognition() {
-        if(!_instance)
-            throw U_EXCEPTION("There is no valid instance if Tracker available (Tracker::recognition).");
-        
-        return _instance->_recognition;
-    }
-
 void Tracker::analysis_state(AnalysisState pause) {
     if(!instance())
         throw U_EXCEPTION("No tracker instance can be used to pause.");
@@ -337,7 +330,7 @@ void Tracker::analysis_state(AnalysisState pause) {
             recognition_pool(max(1u, cmn::hardware_concurrency()), nullptr, "RecognitionPool"),
             _midline_errors_frame(0), _overall_midline_errors(0),
             _max_individuals(0),
-            _background(NULL), _recognition(NULL),
+            _background(NULL),
             _inactive_individuals([this](Idx_t A, Idx_t B){
                 auto it = _individuals.find(A);
                 assert(it != _individuals.end());
@@ -444,8 +437,6 @@ void Tracker::analysis_state(AnalysisState pause) {
                 variable_changed(sprite::Map::Signal::NONE, cmn::GlobalSettings::map(), n, cmn::GlobalSettings::get(n).get());
             
         }
-        
-        //_recognition = new Recognition();
     }
     Tracker::~Tracker() {
         assert(_instance);
@@ -487,8 +478,6 @@ void Tracker::analysis_state(AnalysisState pause) {
     void Tracker::prepare_shutdown() {
         _thread_pool.force_stop();
         recognition_pool.force_stop();
-        if(_recognition)
-            _recognition->prepare_shutdown();
         Match::PairingGraph::prepare_shutdown();
 #if !COMMONS_NO_PYTHON
         Accumulation::on_terminate();
@@ -3626,7 +3615,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         if(all_good) {
             if(!_consecutive.empty() && _consecutive.back().end == frameIndex - 1_f) {
                 _consecutive.back().end = frameIndex;
-                if(frameIndex == analysis_range().end && _recognition) {
+                if(frameIndex == analysis_range().end) {
                     Tracker::LockGuard guard("update_consecutive");
                     DatasetQuality::update(guard);
                 }
@@ -3713,6 +3702,8 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                 print(_consecutive.back().start,"-",_consecutive.back().end);
             }
         }
+        
+        DatasetQuality::remove_frames(frameIndex);
         
         std::vector<Idx_t> to_delete;
         std::vector<Individual*> ptrs;
@@ -4275,6 +4266,10 @@ void apply(
     still_unassigned[fdx].insert(segment.range);
 }
 }
+
+void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
+    _vi_predictions = std::move(predictions);
+}
     
     void Tracker::check_segments_identities(bool auto_correct, IdentitySource source, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue, Frame_t after_frame) {
         
@@ -4469,7 +4464,7 @@ void apply(
             assert(source == IdentitySource::MachineLearning);
             
             for(const auto & [fdx, fish] : _individuals) {
-                //! TODO: recalculate recognition for all segments
+                //! TODO: MISSING recalculate recognition for all segments
                 //fish->clear_recognition();
 
                 for (auto&& [start, segment] : fish->recognition_segments()) {

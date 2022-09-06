@@ -107,7 +107,7 @@ void InfoCard::update() {
                     title = "average n:"+Meta::toStr(n);
                     _shadow->raw = values;
                     
-                } else if(Tracker::recognition()) {
+                } else {
                     auto pred = Tracker::instance()->find_prediction(_shadow->frame, blob_id);
                     if(pred)
                         _shadow->raw = Tracker::prediction2map(*pred);

@@ -110,7 +110,12 @@ public:
         
         probabilities(std::move(images), [N = images.size(), prom = std::move(prom)](auto &&values, auto &&indexes) mutable
         {
-            prom.set_value(transform_results(N, std::move(indexes), std::move(values)));
+            try {
+                prom.set_value(transform_results(N, std::move(indexes), std::move(values)));
+            } catch(...) {
+                prom.set_exception(std::current_exception());
+                throw;
+            }
         });
         
         return future.get();

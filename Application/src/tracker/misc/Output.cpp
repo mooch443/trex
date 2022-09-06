@@ -1185,12 +1185,11 @@ namespace Output {
         write<std::string>(SETTING(cmd_line).value<std::string>());
 
         // write recognition data
-        const auto recognition = Tracker::recognition();
-        if(!recognition)
+        if(Tracker::instance()->vi_predictions().empty())
             write<uint64_t>(0);
         else {
-            write<uint64_t>(recognition->data().size());
-            for(auto&& [frame, map] : recognition->data()) {
+            write<uint64_t>(Tracker::instance()->vi_predictions().size());
+            for(auto&& [frame, map] : Tracker::instance()->vi_predictions()) {
                 write<data_long_t>(frame.get());
                 write<uint64_t>(map.size());
 
@@ -1232,7 +1231,14 @@ namespace Output {
     
     void ResultsFormat::write_file(const std::vector<std::unique_ptr<track::FrameProperties>> &frames, const Tracker::active_individuals_t &active_individuals_frame, const ska::bytell_hash_map<Idx_t, Individual *> &individuals)
     {
-        estimated_size = sizeof(uint64_t)*3 + frames.size() * (sizeof(data_long_t)+sizeof(CompatibilityFrameProperties)) + active_individuals_frame.size() * (sizeof(data_long_t)+sizeof(uint64_t)+(active_individuals_frame.empty() ? individuals.size() : active_individuals_frame.begin()->second.size())*sizeof(data_long_t));
+        estimated_size = sizeof(uint64_t)*3
+            + frames.size() * (sizeof(data_long_t)+sizeof(CompatibilityFrameProperties))
+            + active_individuals_frame.size() * (sizeof(data_long_t)
+            + sizeof(uint64_t)
+            + (active_individuals_frame.empty()
+               ? individuals.size()
+               : active_individuals_frame.begin()->second.size())
+             * sizeof(data_long_t));
         
         _expected_individuals = individuals.size();
         for (auto& fish: individuals) {
@@ -1242,6 +1248,8 @@ namespace Output {
         if(!SETTING(quiet)) {
             print("Estimating ", FileSize(estimated_size)," for the whole file.");
         }
+        
+        start_writing(true);
         
         // write frame properties
         write<uint64_t>(frames.size());
@@ -1293,7 +1301,6 @@ namespace Output {
         file.header().gui_frame = sign_cast<uint64_t>(SETTING(gui_frame).value<Frame_t>().get());
         file.header().creation_time = Image::now();
         file.header().exclude_settings = exclude_settings;
-        file.start_writing(true);
         file.write_file(_tracker._added_frames, _tracker._active_individuals_frame, _tracker._individuals);
         file.close();
         
@@ -1420,16 +1427,12 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         for (auto& p : tmp)
             delete p.second;
 
-        auto recognition = Tracker::recognition();
-        if(recognition)
-            recognition->data().clear();
-
         file.start_reading();
 
-        if(recognition)
-            recognition->data() = file.header().rec_data;
-        else if(!file.header().rec_data.empty())
-            FormatWarning("Throwing away ", file.header().rec_data.size(), " entries in recognition data from the .results file, since recognition was disabled.");
+        //if(!file.header().rec_data.empty())
+            Tracker::instance()->set_vi_data(file.header().rec_data);
+        //else if(!file.header().rec_data.empty())
+        //    FormatWarning("Throwing away ", file.header().rec_data.size(), " entries in recognition data from the .results file, since recognition was disabled.");
 
         // read the actual categorization data first
         if(file.header().has_categories)
