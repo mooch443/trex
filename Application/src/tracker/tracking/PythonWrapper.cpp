@@ -16,10 +16,8 @@ std::unique_ptr<std::thread> _thread;
 
 std::atomic<int> last_python_try{0};
 
-void update() {
+void update(std::promise<void>&& init_promise) {
     set_thread_name("Python::update");
-    std::promise<void> init_promise;
-    _init_future = init_promise.get_future().share();
     
     struct Guard {
         Guard() {
@@ -134,8 +132,11 @@ std::shared_future<void> init() {
         _thread = nullptr;
     }
     
+    std::promise<void> init_promise;
+    _init_future = init_promise.get_future().share();
+    
     _exit_promise = {};
-    _thread = std::make_unique<std::thread>(update);
+    _thread = std::make_unique<std::thread>(update, std::move(init_promise));
     
     /*schedule(PackagedTask{
         ._task = package::F([](){
@@ -259,6 +260,7 @@ std::future<void> schedule(PackagedTask && task, Flag flag) {
         if(!python_init_error().empty())
             throw SoftException("Calling on an already erroneous python thread.");
         
+        std::unique_lock guard(_queue_mutex);
         _queue.emplace_back(std::move(task));
         _queue_update.notify_one();
     }

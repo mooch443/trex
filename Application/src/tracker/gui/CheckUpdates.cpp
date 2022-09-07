@@ -7,7 +7,6 @@
 #include <tracker/gui/gui.h>
 #include <gui/WorkProgress.h>
 #include <tracker/misc/default_config.h>
-#include <tracking/Recognition.h>
 #include <gui/GUICache.h>
 #include <tracking/PythonWrapper.h>
 

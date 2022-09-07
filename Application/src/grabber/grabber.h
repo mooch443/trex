@@ -1,27 +1,17 @@
 #ifndef _GRABBER_H
 #define _GRABBER_H
 
-#include <types.h>
 #include <misc/ranges.h>
 #include <misc/ThreadedAnalysis.h>
-#include <misc/Median.h>
-
 #include <misc/Timer.h>
 #include <pv.h>
 
 #include <video/VideoSource.h>
-
-#include <misc/PylonCamera.h>
-#include <misc/Webcam.h>
 #include <misc/Camera.h>
 
 #include <misc/ThreadPool.h>
 #include <processing/LuminanceGrid.h>
 #include <misc/frame_t.h>
-
-#if CV_MAJOR_VERSION >= 3
-#include <opencv2/core/ocl.hpp>
-#endif
 
 #if WITH_FFMPEG
 #include "tomp4.h"
@@ -29,42 +19,9 @@
 
 #include <video/AveragingAccumulator.h>
 #include "gpuImage.h"
+#include "ImageThreads.h"
 
 using namespace cmn;
-
-class ImageThreads {
-    std::function<ImagePtr()> _fn_create;
-    std::function<bool(long_t, Image_t&)> _fn_prepare;
-    std::function<bool(Image_t&)> _fn_load;
-    std::function<Queue::Code(Image_t&)> _fn_process;
-    
-    std::atomic_bool _terminate{false}, _loading_terminated{false};
-    std::mutex _image_lock;
-    std::condition_variable _condition;
-    
-    std::thread *_load_thread;
-    std::thread *_process_thread;
-    
-    std::deque<ImagePtr> _used;
-    std::deque<ImagePtr> _unused;
-    
-public:
-    ImageThreads(const decltype(_fn_create)& create,
-                 const decltype(_fn_prepare)& prepare,
-                 const decltype(_fn_load)& load,
-                 const decltype(_fn_process)& process);
-    
-    ~ImageThreads();
-    
-    void terminate();
-    
-    const std::thread* loading_thread() const { return _load_thread; }
-    const std::thread* analysis_thread() const { return _process_thread; }
-    
-private:
-    void loading();
-    void processing();
-};
 
 namespace track {
 class Tracker;
@@ -75,7 +32,7 @@ struct ProcessingTask;
 class FrameGrabber {
 public:
     //typedef ThreadedAnalysis<Image, 10> AnalysisType;
-    typedef ImageThreads AnalysisType;
+    using AnalysisType = grab::ImageThreads;
     Range<Frame_t> processing_range() const;
     
     static track::Tracker* tracker_instance();
@@ -190,8 +147,13 @@ public:
             return false;
         return !_processed.open() || _paused;
     }
+    
+    void initialize_from_source(const std::string& source);
+    
+    bool prepare_image(long_t prev, Image_t& current);
     bool load_image(Image_t& current);
     Queue::Code process_image(Image_t& current);
+    
     Image::UPtr latest_image();
     
     std::unique_ptr<pv::Frame> last_frame() {

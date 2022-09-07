@@ -2,7 +2,6 @@
 #include <misc/Timer.h>
 #include <tracking/FOI.h>
 #include <misc/default_config.h>
-#include <tracking/Recognition.h>
 #include <lzo/minilzo.h>
 #include <misc/checked_casts.h>
 #include <tracking/Categorize.h>

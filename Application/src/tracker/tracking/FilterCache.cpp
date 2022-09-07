@@ -15,11 +15,48 @@ using namespace default_config;
 
 namespace track {
 namespace image {
+
+std::tuple<Image::UPtr, Vec2>
+calculate_diff_image_with_settings(
+    const default_config::recognition_normalization_t::Class &normalize,
+    const gui::Transform &midline_transform,
+    float median_midline_length_px,
+    const pv::BlobPtr& blob,
+    const cmn::Image* background,
+    const Size2& output_shape)
+{
+    if(normalize == default_config::recognition_normalization_t::posture)
+        return calculate_normalized_diff_image(midline_transform,
+                                               blob,
+                                               median_midline_length_px,
+                                               output_shape,
+                                               false,
+                                               background);
+    else if(normalize == default_config::recognition_normalization_t::legacy)
+        return calculate_normalized_diff_image(midline_transform, blob, median_midline_length_px, output_shape, true, background);
+    else if (normalize == default_config::recognition_normalization_t::moments)
+    {
+        blob->calculate_moments();
+        
+        gui::Transform tr;
+        float angle = narrow_cast<float>(-blob->orientation() + M_PI * 0.25);
+        
+        tr.rotate(DEGREE(angle));
+        tr.translate( -blob->bounds().size() * 0.5);
+        //tr.translate(-offset());
+        
+        return calculate_normalized_diff_image(tr, blob, 0, output_shape, false, background);
+    }
+    else {
+        auto && [img, pos] = calculate_diff_image(blob, output_shape, background);
+        return std::make_tuple(std::move(img), pos);
+    }
+}
+
 std::tuple<Image::UPtr, Vec2> normalize_image(
       const cv::Mat& mask,
       const cv::Mat& image,
       const gui::Transform &midline_transform,
-      const pv::BlobPtr& blob,
       float midline_length,
       const Size2 &output_size,
       bool use_legacy)
@@ -120,7 +157,7 @@ calculate_normalized_image(const gui::Transform &midline_transform,
         throw std::invalid_argument("[calculate_normalized_diff_image] The blob has to contain pixels.");
     imageFromLines(blob->hor_lines(), &mask, &image, NULL, blob->pixels().get(), 0, background, 0);
     
-    return normalize_image(mask, image, midline_transform, blob, midline_length, output_size, use_legacy);
+    return normalize_image(mask, image, midline_transform, midline_length, output_size, use_legacy);
 }
 
 std::tuple<Image::UPtr, Vec2>
@@ -136,7 +173,7 @@ calculate_normalized_diff_image(const gui::Transform &midline_transform,
         throw std::invalid_argument("[calculate_normalized_diff_image] The blob has to contain pixels.");
     imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, background, 0);
     
-    return normalize_image(mask, image, midline_transform, blob, midline_length, output_size, use_legacy);
+    return normalize_image(mask, image, midline_transform, midline_length, output_size, use_legacy);
 }
 
 std::tuple<Image::UPtr, Vec2>

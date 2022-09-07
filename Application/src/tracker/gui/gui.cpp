@@ -19,12 +19,12 @@
 #include <gui/DrawCVBase.h>
 
 #include <tracking/Tracker.h>
-#include <tracking/Recognition.h>
 #include <tracking/DatasetQuality.h>
 #include <tracking/VisualField.h>
 #include <tracking/Export.h>
 #include <tracking/Accumulation.h>
 #include <tracking/Categorize.h>
+#include <python/GPURecognition.h>
 
 #include <misc/ConnectedTasks.h>
 #include <misc/default_settings.h>
@@ -553,7 +553,6 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
 #if !COMMONS_NO_PYTHON
     //static bool did_init_map = false;
     if (py::python_available()) {
-        track::PythonIntegration::set_settings(GlobalSettings::instance());
         track::PythonIntegration::set_display_function([](const std::string& name, const cv::Mat& image)
         {
             GUI::work().set_image(name, Image::Make(image));

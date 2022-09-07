@@ -490,6 +490,7 @@ void GUI::draw(gui::DrawStructure &base) {
                     offset.x = 25;
                     offset.y += 18;
                     darker = false;
+                    continue;
                 }
                 
                 offset.x += shadowed_text(offset, values[i], darker ? text_color.exposure(0.9) : text_color, 0.5) + 5;

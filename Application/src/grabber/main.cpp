@@ -51,8 +51,6 @@
 #endif
 #include <opencv2/core/utils/logger.hpp>
 
-#include <tracking/Recognition.h>
-
 #if __linux__
 #include <X11/Xlib.h>
 #endif

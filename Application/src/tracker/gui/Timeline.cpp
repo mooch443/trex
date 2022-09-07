@@ -1,12 +1,10 @@
 #include "Timeline.h"
 #include <gui/DrawCVBase.h>
-//#include <gui/gui.h>
 #include <file/CSVExport.h>
 #include <gui/HttpGui.h>
 #include <processing/PadImage.h>
 #include <tracking/FOI.h>
 #include <misc/ReverseAdapter.h>
-#include <tracking/Recognition.h>
 #include <tracking/DatasetQuality.h>
 #include <gui/types/Button.h>
 #include <misc/EventAnalysis.h>
@@ -218,6 +216,7 @@ namespace gui {
             float percent = float(tracker_endframe.load().get()) / _frame_info->video_length;
             base.rect(pos, Size2(max_w * percent, bar_height), red_bar_clr);
 
+            std::unique_lock info_lock(_frame_info_mutex);
             if (_bar && use_scale.y > 0) {
                 std::lock_guard<std::mutex> guard(_proximity_bar.mutex);
                 float new_height = roundf(bar_height);

@@ -203,7 +203,7 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                     continue;
                 }
                 
-                tf::imshow("image", image->get());
+                //tf::imshow("image", image->get());
                 
                 results.emplace_back(Result{
                     .frame = index,

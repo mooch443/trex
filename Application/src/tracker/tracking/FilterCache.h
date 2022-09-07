@@ -34,6 +34,15 @@ calculate_diff_image(pv::BlobPtr blob,
                      const Size2& output_size,
                      const cmn::Image* background);
 
+std::tuple<Image::UPtr, Vec2>
+calculate_diff_image_with_settings(
+    const default_config::recognition_normalization_t::Class &normalize,
+    const gui::Transform &midline_transform,
+    float median_midline_length_px,
+    const pv::BlobPtr& blob,
+    const cmn::Image* background,
+    const Size2& output_shape);
+
 }
 
 namespace constraints {

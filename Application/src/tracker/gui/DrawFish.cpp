@@ -5,9 +5,7 @@
 #include <tracking/VisualField.h>
 #include <misc/CircularGraph.h>
 #include <misc/create_struct.h>
-//#include <gui/DrawMenu.h>
 #include <gui/Label.h>
-#include <tracking/Recognition.h>
 #include <tracking/Categorize.h>
 #include <gui/IMGUIBase.h>
 #include <gui/DrawBase.h>

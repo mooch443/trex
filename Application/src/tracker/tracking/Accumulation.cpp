@@ -21,6 +21,7 @@
 #include <tracking/FilterCache.h>
 #include <tracking/VisualIdentification.h>
 #include <tracking/ImageExtractor.h>
+#include <python/GPURecognition.h>
 
 namespace py = Python;
 
@@ -100,6 +101,8 @@ void apply_network() {
         .normalization = SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>()
     };
     
+    std::mutex write_mutex;
+    
     ImageExtractor e{
         *GUI::video_source(),
         [](const Query& q)->bool {
@@ -147,8 +150,10 @@ void apply_network() {
                 throw;
             }
         },
-        [](auto extractor, double percent, bool finished) {
+        [&write_mutex](auto extractor, double percent, bool finished) {
             // callback
+            std::unique_lock guard(write_mutex);
+            
             if(finished) {
                 print("All done extracting. Overall pushed ", extractor->pushed_items());
                 
@@ -1637,15 +1642,15 @@ bool Accumulation::start() {
                         
                         using namespace default_config;
                         auto midline = posture ? fish->calculate_midline_for(*basic, *posture) : nullptr;
-                        Recognition::ImageData image_data(Recognition::ImageData::Blob{
+                        /*Recognition::ImageData image_data(Recognition::ImageData::Blob{
                                 blob->num_pixels(), 
                                 pv::CompressedBlob{blob},
                                 pv::bid::invalid,
                                 blob->bounds()
-                            }, frame, (FrameRange)(*it->get()), fish, Idx_t(fish->identity().ID()), midline ? midline->transform(method) : gui::Transform());
-                        image_data.filters = std::make_shared<FilterCache>(filters);
+                            }, frame, (FrameRange)(*it->get()), fish, Idx_t(fish->identity().ID()), midline ? midline->transform(method) : gui::Transform());*/
+                        //image_data.filters = std::make_shared<FilterCache>(filters);
                         
-                        image = std::get<0>(constraints::diff_image(method, blob, image_data.midline_transform, image_data.filters->median_midline_length_px, output_size, &Tracker::average()));
+                        image = std::get<0>(constraints::diff_image(method, blob, midline ? midline->transform(method) : gui::Transform(), filters.median_midline_length_px, output_size, &Tracker::average()));
                         if(image)
                             images[frames_assignment[frame][id]].push_back(image);
                     }

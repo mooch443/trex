@@ -5,7 +5,6 @@
 #include <tracking/DebugDrawing.h>
 #include <algorithm>
 #include <misc/ReverseAdapter.h>
-#include <tracking/Recognition.h>
 #include <cnpy/cnpy.h>
 #include <tracking/VisualField.h>
 #include <misc/pretty.h>

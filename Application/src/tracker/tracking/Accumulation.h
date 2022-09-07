@@ -2,9 +2,10 @@
 
 #if !TREX_NO_PYTHON
 #include <tracking/Tracker.h>
-#include <tracking/Recognition.h>
 #include <tracking/DatasetQuality.h>
 #include <gui/types/Layout.h>
+#include <tracking/TrainingData.h>
+#include <tracking/VisualIdentification.h>
 
 namespace gui {
 class Graph;

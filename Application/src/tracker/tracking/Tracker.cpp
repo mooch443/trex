@@ -2,25 +2,19 @@
 #include <misc/GlobalSettings.h>
 #include <tracking/SplitBlob.h>
 #include <misc/Timer.h>
-#include <iomanip>
-#include <random>
 #include "PairingGraph.h"
 #include <misc/OutputLibrary.h>
 #include <tracking/DetectTag.h>
 #include <misc/cnpy_wrapper.h>
 #include <processing/CPULabeling.h>
 #include <misc/ReverseAdapter.h>
-#include <processing/CPULabeling.h>
 #include <misc/ProximityGrid.h>
-#include <tracking/Recognition.h>
 #include <misc/default_settings.h>
 #include <misc/pretty.h>
 #include <tracking/DatasetQuality.h>
-//#include <gui/gui.h>
 #include <misc/PixelTree.h>
 #include <misc/CircularGraph.h>
 #include <misc/MemoryStats.h>
-//#include <gui/WorkProgress.h>
 #include <tracking/Categorize.h>
 #include <tracking/VisualField.h>
 
@@ -4282,7 +4276,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
         else
             print("Using machine learning data.");
 
-        size_t count=0;
+        std::atomic<size_t> count{0u};
         
         //recognition_pool.wait();
         auto fid = FOI::to_id("split_up");
@@ -4292,7 +4286,8 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
 #ifdef TREX_DEBUG_IDENTITIES
         auto f = fopen(pv::DataLocation::parse("output", "identities.log").c_str(), "wb");
 #endif
-        distribute_vector([this, &count, &callback](auto, auto start, auto end, auto)
+        float N = float(_individuals.size());
+        distribute_vector([&count, &callback, N](auto, auto start, auto end, auto)
         {
             for(auto it = start; it != end; ++it) {
                 auto & [fdx, fish] = *it;
@@ -4300,7 +4295,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
                 fish->clear_recognition();
                 fish->calculate_average_recognition();
                 
-                callback(count / float(_individuals.size()) * 0.5f);
+                callback(count / N * 0.5f);
                 ++count;
             }
             

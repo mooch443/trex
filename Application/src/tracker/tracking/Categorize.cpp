@@ -43,6 +43,8 @@ std::vector<std::tuple<Frame_t, std::shared_ptr<PPFrame>>> _frame_cache;
 std::unordered_set<Frame_t> _current_cached_frames;
 #endif
 
+GenericThreadPool pool(cmn::hardware_concurrency(), "Work::LoopPool");
+
 template<class T, class U>
 typename std::vector<T>::const_iterator find_in_sorted(const std::vector<T>& vector, const U& v) {
     auto it = std::lower_bound(vector.begin(),
@@ -799,6 +801,7 @@ void terminate() {
         Work::_variable.notify_all();
         Work::thread->join();
         Work::thread = nullptr;
+        pool.force_stop();
     }
 }
 
@@ -893,6 +896,16 @@ struct NetworkApplicationState {
     //! Used to measure completion time for each task
     Timer _timer, _predict;
     double _prepare;
+    
+    static auto& current() {
+        static std::unordered_map<Individual*, NetworkApplicationState> _map;
+        return _map;
+    }
+    
+    static auto& current_mutex() {
+        static std::mutex _mutex;
+        return _mutex;
+    }
     
     Range<Frame_t> peek() {
         static Timing timing("NetworkApplicationState::peek", 0.1);
@@ -1069,7 +1082,10 @@ struct NetworkApplicationState {
         auto it = segments.begin();
         N = segments.size();
         
-        initialized = true;
+        {
+            std::lock_guard guard(NetworkApplicationState::current_mutex());
+            initialized = true;
+        }
 
         if(size_t(offset) > segments.size()) {
             FormatWarning("Offset ", offset.load()," larger than segments size ",segments.size(),".");
@@ -1142,16 +1158,6 @@ struct NetworkApplicationState {
         else
             print("No more tasks for fish ", fish->identity().ID());
 #endif
-    }
-    
-    static auto& current() {
-        static std::unordered_map<Individual*, NetworkApplicationState> _map;
-        return _map;
-    }
-    
-    static auto& current_mutex() {
-        static std::mutex _mutex;
-        return _mutex;
     }
     
     static double percent() {
@@ -1586,8 +1592,6 @@ void Work::start_learning() {
     }), ._can_run_before_init = false});
 }
 
-GenericThreadPool pool(cmn::hardware_concurrency(), "Work::LoopPool");
-
 template<typename T>
 T CalcMHWScore(std::vector<T> hWScores) {
     if (hWScores.empty())
@@ -1724,9 +1728,15 @@ void Work::work_thread() {
             
             // process sergment
             guard.unlock();
-            _variable.notify_one();
-            task.func();
-            guard.lock();
+            try {
+                _variable.notify_one();
+                task.func();
+                guard.lock();
+                
+            } catch(...) {
+                guard.lock();
+                throw;
+            }
             
             // remove segment again
             for(auto it = _currently_processed_segments.begin(); it != _currently_processed_segments.end(); ++it)
@@ -1744,14 +1754,18 @@ void Work::work_thread() {
         Sample::Ptr sample;
         while (_generated_samples.size() < requested_samples() && !terminate()) {
             guard.unlock();
-            {
+            try {
                 //Tracker::LockGuard g("get_random::loop");
                 sample = DataStore::get_random();
                 if (sample && sample->_images.size() < 1) {
                     sample = Sample::Invalid();
                 }
+                guard.lock();
+                
+            } catch(...) {
+                guard.lock();
+                throw;
             }
-            guard.lock();
 
             if (sample != Sample::Invalid() && !sample->_assigned_label) {
                 _generated_samples.push(sample);
@@ -2373,28 +2387,21 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         //auto it = fish->iterator_for(basic->frame);
         if (blob) { //&& it != fish->frame_segments().end()) {
             //Tracker::LockGuard guard("Categorize::sample");
-
-            Recognition::ImageData image_data(
-                Recognition::ImageData::Blob{
-                    blob->num_pixels(),
-                    pv::CompressedBlob{blob},
-                    pv::bid::invalid,
-                    blob->bounds()
-                },
-                basic->frame, FrameRange(), fish, fish->identity().ID(),
-                midline ? midline->transform(normalize) : gui::Transform()
-            );
-
-            image_data.filters = std::make_shared<FilterCache>(custom_len);
-
-            auto [image, pos] = Recognition::calculate_diff_image_with_settings(normalize, blob, image_data, dims);
+            
+            auto [image, pos] =
+                image::calculate_diff_image_with_settings(
+                  normalize,
+                  midline ? midline->transform(normalize) : gui::Transform(),
+                  custom_len.median_midline_length_px,
+                  blob, &Tracker::average(), dims);
+            
             if (image) {
                 images.emplace_back(std::move(image));
                 indexes.emplace_back(basic->frame);
                 positions.emplace_back(pos);
-                blob_ids.emplace_back(image_data.blob.blob.blob_id());
+                blob_ids.emplace_back(blob->blob_id());
             } else
-                FormatWarning("Image failed (Fish", image_data.fdx,", frame ",image_data.frame,")");
+                FormatWarning("Image failed (Fish", fish->identity().ID(),", frame ",frame,")");
         }
         else {
 #ifndef NDEBUG

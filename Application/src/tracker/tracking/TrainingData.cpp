@@ -1,9 +1,9 @@
 #include "TrainingData.h"
 #include <misc/GlobalSettings.h>
 #include <tracking/Tracker.h>
-#include <tracking/Recognition.h>
 #include <misc/PixelTree.h>
 #include <tracking/VisualIdentification.h>
+#include <tracking/FilterCache.h>
 
 namespace py = Python;
 
@@ -1146,16 +1146,16 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             }*/
             
             using namespace default_config;
-            auto midline = posture ? fish->calculate_midline_for(*basic, *posture) : nullptr;
-            Recognition::ImageData image_data(Recognition::ImageData::Blob{
-                blob->num_pixels(), 
-                pv::CompressedBlob{blob},
-                pv::bid::invalid, 
-                blob->bounds()
-            }, frame, (FrameRange)*it->get(), fish, fish->identity().ID(), midline ? midline->transform(normalized()) : gui::Transform());
-            image_data.filters = std::make_shared<FilterCache>(filters);
+            auto midline = posture
+                ? fish->calculate_midline_for(*basic, *posture)
+                : nullptr;
             
-            image = std::get<0>(Recognition::calculate_diff_image_with_settings(normalized(), blob, image_data, output_size));
+            image = std::get<0>(
+                image::calculate_diff_image_with_settings(
+                  normalized(),
+                  midline ? midline->transform(normalized()) : gui::Transform(),
+                  filters.median_midline_length_px,
+                  blob, &Tracker::average(), output_size));
             
             if(blob->bounds().width > output_size.width
                || blob->bounds().height > output_size.height)

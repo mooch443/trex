@@ -269,12 +269,13 @@ void VINetwork::set_variables_internal(auto && images, callback_t && callback)
     using py = PythonIntegration;
     py::check_correct_thread_id();
     
-    if(images.size() == 0) {
-        print("Empty images array.");
-        return;
-    }
-    
     try {
+        if(images.size() == 0) {
+            print("Empty images array.");
+            callback(std::vector<std::vector<float>>{},std::vector<float>{});
+            return;
+        }
+        
         py::set_variable("images", images, "learn_static");
         py::set_function("receive", std::move(callback), "learn_static");
         py::run("learn_static", "predict");

@@ -6,6 +6,8 @@
 #include "processing/RawProcessing.h"
 #include "misc/TestCamera.h"
 #include <misc/InteractiveCamera.h>
+#include <misc/PylonCamera.h>
+#include <misc/Webcam.h>
 #include <misc/ocl.h>
 #include <processing/CPULabeling.h>
 #include <misc/PVBlob.h>
@@ -21,7 +23,6 @@
 #include <tracking/PythonWrapper.h>
 #include <tracking/RecTask.h>
 #endif
-#include <tracking/Recognition.h>
 #include <misc/SpriteMap.h>
 #include <misc/create_struct.h>
 
@@ -147,51 +148,6 @@ track::Tracker* FrameGrabber::tracker_instance() {
     return tracker;
 }
 
-ImageThreads::ImageThreads(const decltype(_fn_create)& create,
-                           const decltype(_fn_prepare)& prepare,
-                           const decltype(_fn_load)& load,
-                           const decltype(_fn_process)& process)
-  : _fn_create(create),
-    _fn_prepare(prepare),
-    _fn_load(load),
-    _fn_process(process),
-    _terminate(false),
-    _load_thread(NULL),
-    _process_thread(NULL)
-{
-    // create the cache
-    std::unique_lock<std::mutex> lock(_image_lock);
-    for (int i=0; i<10; i++) {
-        _unused.push_front(_fn_create());
-    }
-    
-    _load_thread = new std::thread([this](){loading();});
-    _process_thread = new std::thread([this](){ processing();});
-}
-
-ImageThreads::~ImageThreads() {
-    terminate();
-
-    _load_thread->join();
-    _process_thread->join();
-
-    std::unique_lock<std::mutex> lock(_image_lock);
-
-    delete _load_thread;
-    delete _process_thread;
-
-    // clear cache
-    while (!_unused.empty())
-        _unused.pop_front();
-    while (!_used.empty())
-        _used.pop_front();
-}
-
-void ImageThreads::terminate() { 
-    _terminate = true; 
-    _condition.notify_all();
-}
-
 void FrameGrabber::apply_filters(gpuMat& gpu_buffer) {
     if(GRAB_SETTINGS(image_adjust)) {
         float alpha = GRAB_SETTINGS(image_contrast_increase) / 255.f;
@@ -215,71 +171,6 @@ void FrameGrabber::apply_filters(gpuMat& gpu_buffer) {
             cv::equalizeHist(gpu_buffer, gpu_buffer);
         }
     }
-}
-
-void ImageThreads::loading() {
-    long_t last_loaded = -1;
-    cmn::set_thread_name("ImageThreads::loading");
-    std::unique_lock guard(_image_lock);
-
-    while (!_terminate) {
-        // retrieve images from camera
-        if (_unused.empty()) {
-            // skip this image. queue is full...
-            guard.unlock();
-            std::this_thread::sleep_for(std::chrono::microseconds(10));
-            guard.lock();
-
-        }
-        else {
-            auto current = std::move(_unused.front());
-            _unused.pop_front();
-            guard.unlock();
-
-            if (_fn_prepare(last_loaded, *current)) {
-                if (_fn_load(*current)) {
-                    last_loaded = current->index();
-
-                    // loading was successful, so push to processing
-                    guard.lock();
-                    _used.push_front(std::move(current));
-                    _condition.notify_one();
-                    continue;
-                }
-            }
-
-            guard.lock();
-            _unused.push_front(std::move(current));
-        }
-    }
-    
-    _loading_terminated = true;
-    print("[load] loading terminated.");
-}
-
-void ImageThreads::processing() {
-    std::unique_lock<std::mutex> lock(_image_lock);
-    ocl::init_ocl();
-    cmn::set_thread_name("ImageThreads::processing");
-    
-    while(!_loading_terminated || !_used.empty()) {
-        // process images and write to file
-        _condition.wait_for(lock, std::chrono::milliseconds(1));
-        
-        while(!_used.empty()) {
-            auto current = std::move(_used.back());
-            _used.pop_back();
-            lock.unlock();
-            //print("[proc] processing ", current->index());
-            _fn_process(*current);
-            
-            lock.lock();
-            assert(!contains(_unused, current));
-            _unused.push_back(std::move(current));
-        }
-    }
-    
-    print("[proc] processing terminated.");
 }
 
 file::Path FrameGrabber::make_filename() {
@@ -385,141 +276,7 @@ FrameGrabber::FrameGrabber(std::function<void(FrameGrabber&)> callback_before_st
         _processed.filename().remove_filename().create_folder();
     
     std::string source = SETTING(video_source);
-    
-#if WITH_PYLON
-    if(utils::lowercase(source) == "basler") {
-        std::lock_guard<std::mutex> guard(_camera_lock);
-        _camera = new fg::PylonCamera;
-        if(SETTING(cam_framerate).value<int>() > 0 && SETTING(frame_rate).value<int>() <= 0) {
-            SETTING(frame_rate) = SETTING(cam_framerate).value<int>();
-        }
-        
-        auto path = average_name();
-        print("Saving average at or loading from ", path.str(),".");
-        
-        if(path.exists()) {
-            if(SETTING(reset_average)) {
-                FormatWarning("Average exists, but will not be used because 'reset_average' is set to true.");
-                SETTING(reset_average) = false;
-            } else {
-                cv::Mat file = cv::imread(path.str());
-                if(file.rows == _camera->size().height && file.cols == _camera->size().width) {
-                    cv::cvtColor(file, _average, cv::COLOR_BGR2GRAY);
-                    _average_finished = true;
-                    _current_average_timestamp = 1337;
-                } else
-                    FormatWarning("Loaded average has wrong dimensions (", file.cols,"x",file.rows,"), overwriting...");
-            }
-        } else {
-            print("Average image at ",path.str()," doesnt exist.");
-            _average_finished = false;
-            if(SETTING(reset_average))
-                SETTING(reset_average) = false;
-        }
-        
-    }
-    else
-#else
-    if (utils::lowercase(source) == "basler") {
-        throw U_EXCEPTION("Software was not compiled with basler API.");
-
-    } else
-#endif
-
-    if(utils::lowercase(source) == "webcam") {
-        std::lock_guard<std::mutex> guard(_camera_lock);
-        _camera = new fg::Webcam;
-        _processed.set_resolution(_camera->size() * GRAB_SETTINGS(cam_scale));
-
-        if (((fg::Webcam*)_camera)->frame_rate() > 0 
-            && SETTING(cam_framerate).value<int>() == -1) 
-        {
-            SETTING(cam_framerate).value<int>() = ((fg::Webcam*)_camera)->frame_rate();
-        }
-
-        if (SETTING(frame_rate).value<int>() <= 0) {
-            print("Setting frame_rate from webcam (", SETTING(cam_framerate).value<int>(),"). If -1, assume 25.");
-            SETTING(frame_rate) = SETTING(cam_framerate).value<int>() > 0 ? SETTING(cam_framerate).value<int>() : 25;
-        }
-        
-    } else if(utils::lowercase(source) == "test_image") {
-        std::lock_guard<std::mutex> guard(_camera_lock);
-        _camera = new fg::TestCamera(SETTING(cam_resolution).value<cv::Size>());
-        cv::Mat background = cv::Mat::ones(_camera->size().height, _camera->size().width, CV_8UC1) * 255;
-        
-        _average_finished = true;
-        background.copyTo(_average);
-        _current_average_timestamp = 1337;
-        
-    } else if(utils::lowercase(source) == "interactive") {
-        if(SETTING(cam_framerate).value<int>() > 0 && SETTING(frame_rate).value<int>() <= 0) {
-            SETTING(frame_rate) = SETTING(cam_framerate).value<int>();
-        } else
-            SETTING(frame_rate).value<int>() = 30;
-        
-        std::lock_guard<std::mutex> guard(_camera_lock);
-        _camera = new fg::InteractiveCamera();
-        cv::Mat background = cv::Mat::zeros(_camera->size().height, _camera->size().width, CV_8UC1);
-        _average_finished = true;
-        background.copyTo(_average);
-        _current_average_timestamp = 1337;
-        
-    } else {
-        std::vector<file::Path> filenames;
-        auto video_source = SETTING(video_source).value<std::string>();
-        try {
-            filenames = Meta::fromStr<std::vector<file::Path>>(video_source);
-            if(filenames.size() > 1) {
-                print("Found an array of filenames (", filenames.size(),").");
-            } else if(filenames.size() == 1) {
-                SETTING(video_source) = filenames.front();
-                filenames.clear();
-            } else
-                throw U_EXCEPTION("Empty input filename ",video_source,". Please specify an input name.");
-            
-        } catch(const illegal_syntax& e) {
-            // ... do nothing
-        }
-        
-        if(filenames.empty()) {
-            auto filepath = file::Path(SETTING(video_source).value<std::string>());
-            if(filepath.remove_filename().empty()) {
-                auto path = (SETTING(output_dir).value<file::Path>() / filepath);
-                filenames.push_back(path);
-            } else
-                filenames.push_back(filepath);
-        }
-        
-        for(auto &name : filenames) {
-            name = pv::DataLocation::parse("input", name);
-        }
-        
-        if(filenames.size() == 1) {
-            _video = new VideoSource(filenames.front().str());
-            
-        } else {
-            _video = new VideoSource(filenames);
-        }
-        
-        int frame_rate = _video->framerate();
-        if(frame_rate == -1) {
-            frame_rate = 25;
-        }
-        
-        if(SETTING(frame_rate).value<int>() == -1) {
-            print("Setting frame rate to ", frame_rate," (from video).");
-            SETTING(frame_rate) = (int)frame_rate;
-        } else if(SETTING(frame_rate).value<int>() != frame_rate) {
-            FormatWarning("Overwriting default frame rate of ", frame_rate," with ",SETTING(frame_rate).value<int>(),".");
-        }
-        
-        if(!SETTING(mask_path).value<file::Path>().empty()) {
-            auto path = pv::DataLocation::parse("input", SETTING(mask_path).value<file::Path>());
-            if(path.exists()) {
-                _video_mask = new VideoSource(path.str());
-            }
-        }
-    }
+    initialize_from_source(source);
     
     // determine recording resolution and set it
     _cam_size = determine_resolution();
@@ -681,60 +438,149 @@ void FrameGrabber::initialize(std::function<void(FrameGrabber&)>&& callback_befo
               return ImageMake(_cropped_size.height, _cropped_size.width);
           },
           [&](long_t prev, Image_t& current) -> bool { // prepare object
-              if(_reset_first_index) {
-                  _reset_first_index = false;
-                  prev = -1;
-              }
-
-              static const auto conversion_range = processing_range();
-
-              if (_video && !_average_finished) {
-                  //! Special indexing for video averaging (skipping over frames)
-                  double step = (_video->length()
-                      / floor((double)min(
-                          _video->length()-1, 
-                          max(1u, GRAB_SETTINGS(average_samples))
-                      )));
-
-                  current.set_index(prev != -1 ? (prev + step) : 0);
-
-              } else
-                  current.set_index(prev != -1 ? prev + 1 : conversion_range.start.get());
-
-              if (conversion_range.end.valid() && current.index() > conversion_range.end.get()) {
-                  if(!GRAB_SETTINGS(terminate))
-                    SETTING(terminate) = true;
-                  return false;
-              }
-
-              //! If its a video, we might have timestamps in separate files.
-              //! Otherwise we generate fake timestamps based on the set frame_rate.
-              if(_video) {
-                  double percent = double(current.index()) / double(GRAB_SETTINGS(frame_rate)) * 1000.0;
-                  size_t fake_delta = size_t(percent * 1000.0);
-
-                  if (!_video->has_timestamps()) {
-                      current.set_timestamp(_start_timing + fake_delta);//std::chrono::microseconds(fake_delta));
-                  }
-                  else {
-                      try {
-                          current.set_timestamp(_video->timestamp(current.index()));
-                      }
-                      catch (const UtilsException& e) {
-                          // failed to retrieve timestamp, so fake the timestamp
-                          current.set_timestamp(_start_timing + fake_delta);
-                      }
-                  }
-              }
-
-              ++_frame_processing_ratio;
-              //print("increase to ", _frame_processing_ratio.load()," by ",current.index());
-              return true;
+              return prepare_image(prev, current);
           },
           [&](Image_t& current) -> bool { return load_image(current); },
           [&](Image_t& current) -> Queue::Code { return process_image(current); });
     
     print("ThreadedAnalysis started (",_cam_size.width,"x",_cam_size.height," | ",_cropped_size.width,"x",_cropped_size.height,").");
+}
+
+void FrameGrabber::initialize_from_source(const std::string &source) {
+#if WITH_PYLON
+    if(utils::lowercase(source) == "basler") {
+        std::lock_guard<std::mutex> guard(_camera_lock);
+        _camera = new fg::PylonCamera;
+        if(SETTING(cam_framerate).value<int>() > 0 && SETTING(frame_rate).value<int>() <= 0) {
+            SETTING(frame_rate) = SETTING(cam_framerate).value<int>();
+        }
+        
+        auto path = average_name();
+        print("Saving average at or loading from ", path.str(),".");
+        
+        if(path.exists()) {
+            if(SETTING(reset_average)) {
+                FormatWarning("Average exists, but will not be used because 'reset_average' is set to true.");
+                SETTING(reset_average) = false;
+            } else {
+                cv::Mat file = cv::imread(path.str());
+                if(file.rows == _camera->size().height && file.cols == _camera->size().width) {
+                    cv::cvtColor(file, _average, cv::COLOR_BGR2GRAY);
+                    _average_finished = true;
+                    _current_average_timestamp = 1337;
+                } else
+                    FormatWarning("Loaded average has wrong dimensions (", file.cols,"x",file.rows,"), overwriting...");
+            }
+        } else {
+            print("Average image at ",path.str()," doesnt exist.");
+            _average_finished = false;
+            if(SETTING(reset_average))
+                SETTING(reset_average) = false;
+        }
+        
+    }
+    else
+#else
+    if (utils::lowercase(source) == "basler") {
+        throw U_EXCEPTION("Software was not compiled with basler API.");
+
+    } else
+#endif
+
+    if(utils::lowercase(source) == "webcam") {
+        std::lock_guard<std::mutex> guard(_camera_lock);
+        _camera = new fg::Webcam;
+        _processed.set_resolution(_camera->size() * GRAB_SETTINGS(cam_scale));
+
+        if (((fg::Webcam*)_camera)->frame_rate() > 0
+            && SETTING(cam_framerate).value<int>() == -1)
+        {
+            SETTING(cam_framerate).value<int>() = ((fg::Webcam*)_camera)->frame_rate();
+        }
+
+        if (SETTING(frame_rate).value<int>() <= 0) {
+            print("Setting frame_rate from webcam (", SETTING(cam_framerate).value<int>(),"). If -1, assume 25.");
+            SETTING(frame_rate) = SETTING(cam_framerate).value<int>() > 0 ? SETTING(cam_framerate).value<int>() : 25;
+        }
+        
+    } else if(utils::lowercase(source) == "test_image") {
+        std::lock_guard<std::mutex> guard(_camera_lock);
+        _camera = new fg::TestCamera(SETTING(cam_resolution).value<cv::Size>());
+        cv::Mat background = cv::Mat::ones(_camera->size().height, _camera->size().width, CV_8UC1) * 255;
+        
+        _average_finished = true;
+        background.copyTo(_average);
+        _current_average_timestamp = 1337;
+        
+    } else if(utils::lowercase(source) == "interactive") {
+        if(SETTING(cam_framerate).value<int>() > 0 && SETTING(frame_rate).value<int>() <= 0) {
+            SETTING(frame_rate) = SETTING(cam_framerate).value<int>();
+        } else
+            SETTING(frame_rate).value<int>() = 30;
+        
+        std::lock_guard<std::mutex> guard(_camera_lock);
+        _camera = new fg::InteractiveCamera();
+        cv::Mat background = cv::Mat::zeros(_camera->size().height, _camera->size().width, CV_8UC1);
+        _average_finished = true;
+        background.copyTo(_average);
+        _current_average_timestamp = 1337;
+        
+    } else {
+        std::vector<file::Path> filenames;
+        auto video_source = SETTING(video_source).value<std::string>();
+        try {
+            filenames = Meta::fromStr<std::vector<file::Path>>(video_source);
+            if(filenames.size() > 1) {
+                print("Found an array of filenames (", filenames.size(),").");
+            } else if(filenames.size() == 1) {
+                SETTING(video_source) = filenames.front();
+                filenames.clear();
+            } else
+                throw U_EXCEPTION("Empty input filename ",video_source,". Please specify an input name.");
+            
+        } catch(const illegal_syntax& e) {
+            // ... do nothing
+        }
+        
+        if(filenames.empty()) {
+            auto filepath = file::Path(SETTING(video_source).value<std::string>());
+            if(filepath.remove_filename().empty()) {
+                auto path = (SETTING(output_dir).value<file::Path>() / filepath);
+                filenames.push_back(path);
+            } else
+                filenames.push_back(filepath);
+        }
+        
+        for(auto &name : filenames) {
+            name = pv::DataLocation::parse("input", name);
+        }
+        
+        if(filenames.size() == 1) {
+            _video = new VideoSource(filenames.front().str());
+            
+        } else {
+            _video = new VideoSource(filenames);
+        }
+        
+        int frame_rate = _video->framerate();
+        if(frame_rate == -1) {
+            frame_rate = 25;
+        }
+        
+        if(SETTING(frame_rate).value<int>() == -1) {
+            print("Setting frame rate to ", frame_rate," (from video).");
+            SETTING(frame_rate) = (int)frame_rate;
+        } else if(SETTING(frame_rate).value<int>() != frame_rate) {
+            FormatWarning("Overwriting default frame rate of ", frame_rate," with ",SETTING(frame_rate).value<int>(),".");
+        }
+        
+        if(!SETTING(mask_path).value<file::Path>().empty()) {
+            auto path = pv::DataLocation::parse("input", SETTING(mask_path).value<file::Path>());
+            if(path.exists()) {
+                _video_mask = new VideoSource(path.str());
+            }
+        }
+    }
 }
 
 FrameGrabber::~FrameGrabber() {
@@ -1039,6 +885,58 @@ bool FrameGrabber::add_image_to_average(const cv::Mat& current) {
     }
     
     return false;
+}
+
+bool FrameGrabber::prepare_image(long_t prev, Image_t &current) {
+    if(_reset_first_index) {
+        _reset_first_index = false;
+        prev = -1;
+    }
+
+    static const auto conversion_range = processing_range();
+
+    if (_video && !_average_finished) {
+        //! Special indexing for video averaging (skipping over frames)
+        double step = (_video->length()
+            / floor((double)min(
+                _video->length()-1,
+                max(1u, GRAB_SETTINGS(average_samples))
+            )));
+
+        current.set_index(prev != -1 ? (prev + step) : 0);
+
+    } else
+        current.set_index(prev != -1 ? prev + 1 : conversion_range.start.get());
+
+    if (conversion_range.end.valid() && current.index() > conversion_range.end.get()) {
+        if(!GRAB_SETTINGS(terminate))
+          SETTING(terminate) = true;
+        return false;
+    }
+
+    //! If its a video, we might have timestamps in separate files.
+    //! Otherwise we generate fake timestamps based on the set frame_rate.
+    if(_video) {
+        double percent = double(current.index()) / double(GRAB_SETTINGS(frame_rate)) * 1000.0;
+        size_t fake_delta = size_t(percent * 1000.0);
+
+        if (!_video->has_timestamps()) {
+            current.set_timestamp(_start_timing + fake_delta);//std::chrono::microseconds(fake_delta));
+        }
+        else {
+            try {
+                current.set_timestamp(_video->timestamp(current.index()));
+            }
+            catch (const UtilsException& e) {
+                // failed to retrieve timestamp, so fake the timestamp
+                current.set_timestamp(_start_timing + fake_delta);
+            }
+        }
+    }
+
+    ++_frame_processing_ratio;
+    //print("increase to ", _frame_processing_ratio.load()," by ",current.index());
+    return true;
 }
 
 bool FrameGrabber::load_image(Image_t& current) {

@@ -20,6 +20,8 @@ file(GLOB SRCS
 	default_config.h
     CropWindow.h
     CropWindow.cpp
+    ImageThreads.h
+    ImageThreads.cpp
 	main.cpp
     ${GIT_SOURCES}
     gfx/TGrabsIcon16.png

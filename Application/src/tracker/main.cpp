@@ -20,6 +20,7 @@
 
 #if !COMMONS_NO_PYTHON
 #include <python/GPURecognition.h>
+#include <tracking/VisualIdentification.h>
 #endif
 
 #include <misc/CommandLine.h>
@@ -29,7 +30,6 @@
 #include <misc/default_config.h>
 #include <misc/OutputLibrary.h>
 #include <misc/Output.h>
-#include <tracking/Recognition.h>
 #include <gui/WorkProgress.h>
 #include <gui/CheckUpdates.h>
 
