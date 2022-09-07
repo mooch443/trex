@@ -1642,13 +1642,6 @@ bool Accumulation::start() {
                         
                         using namespace default_config;
                         auto midline = posture ? fish->calculate_midline_for(*basic, *posture) : nullptr;
-                        /*Recognition::ImageData image_data(Recognition::ImageData::Blob{
-                                blob->num_pixels(), 
-                                pv::CompressedBlob{blob},
-                                pv::bid::invalid,
-                                blob->bounds()
-                            }, frame, (FrameRange)(*it->get()), fish, Idx_t(fish->identity().ID()), midline ? midline->transform(method) : gui::Transform());*/
-                        //image_data.filters = std::make_shared<FilterCache>(filters);
                         
                         image = std::get<0>(constraints::diff_image(method, blob, midline ? midline->transform(method) : gui::Transform(), filters.median_midline_length_px, output_size, &Tracker::average()));
                         if(image)

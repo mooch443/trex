@@ -4276,7 +4276,6 @@ void GUI::generate_training_data(std::future<void>&& initialized, GUI::GUIType t
             :   std::string(message_no_weights))
         + "\n\n" + std::string(message_concern);
     
-    //if(Recognition::network_weights_available()) {
     if(type == GUIType::GRAPHICAL) {
         PD(gui).dialog([fn, avail](Dialog::Result result) {
             work().add_queue("training network", [fn, result, avail = avail]() {

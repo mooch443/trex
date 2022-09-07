@@ -2500,7 +2500,7 @@ void Work::set_state(State state) {
                 // restart
                 LearningTask task;
                 task.type = LearningTask::Type::Restart;
-                task.callback = [](const LearningTask& task) {
+                task.callback = [](const LearningTask&) {
                     DataStore::clear();
                 };
                 Work::add_task(std::move(task));

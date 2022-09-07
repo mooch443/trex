@@ -1525,43 +1525,6 @@ Midline::Ptr Individual::update_frame_with_posture(BasicStuff& basic, const decl
     return midline;
 }
 
-/*void Individual::push_to_segments(Frame_t frameIndex, long_t prev_frame) {
-    // conditions of when to start/end frame segments
-    double tdelta = Tracker::has(frameIndex) && Tracker::has(frameIndex-1) ? Tracker::properties(frameIndex).time - Tracker::properties(frameIndex-1).time : 0;
-    
-    auto segment = segment_for(frameIndex);
-    auto current = centroid_weighted(frameIndex);
-    auto blob = this->blob(frameIndex);
-    
-    if(frameIndex == _startFrame
-       || prev_frame != frameIndex-1
-       || (FAST_SETTINGS(huge_timestamp_ends_segment) && tdelta >= FAST_SETTINGS(huge_timestamp_seconds))
-       || is_manual_match(frameIndex)
-       || (current && current->speed() >= weird_distance())
-       || !blob)
-    {
-        _frame_segments[frameIndex] = std::make_shared<SegmentInformation>(Range<Frame_t>(frameIndex, frameIndex), !blob || blob->split() ? -1 : frameIndex);
-        
-        update_midlines();
-        
-        // guard has been unlocked:
-        //! Update recognition if enabled
-        Recognition::notify();
-        
-    } else if(prev_frame == frameIndex-1) {
-        assert(!_frame_segments.empty());
-        auto segment = _frame_segments.rbegin()->second;
-        segment->range.end = frameIndex;
-        if(segment->first_usable == -1 && blob && !blob->split())
-            segment->first_usable = frameIndex;
-        
-        const long_t video_length = Tracker::analysis_range().end;
-        if(frameIndex >= video_length) {
-            update_midlines();
-        }
-    }
-}*/
-
 #include <random>
 
 template<class RandAccessIter, typename T = typename RandAccessIter::value_type>
