@@ -253,7 +253,7 @@ class Categorize:
     def update_best_accuracy(self, X_test, Y_test):
         global set_best_accuracy
         y_test = np.argmax(Y_test, axis=1) # Convert one-hot to index
-        y_pred = np.argmax(self.model.predict(X_test), axis=-1)
+        y_pred = np.argmax(self.model.predict(X_test, verbose=0), axis=-1)
         report = classification_report(y_test, y_pred, output_dict=True)
         for key in report:
             TRex.log("report: "+str(key)+" "+str(report[key]))
@@ -268,7 +268,7 @@ class Categorize:
     def predict(self, images):
         assert self.model
         images = np.array(images, dtype=float)
-        y = np.argmax(self.model.predict(images), axis=-1)
+        y = np.argmax(self.model.predict(images, verbose=0), axis=-1)
         return  y
 
 def start():

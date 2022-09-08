@@ -163,7 +163,8 @@ void remove_segment(const Range<Frame_t> &range) {
     }
 }
 
-void update(const Tracker::LockGuard& guard) {
+void update() {
+    Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "DatasetQuality::update");
     if(FAST_SETTINGS(track_max_individuals) == 0
        || Tracker::instance()->consecutive().empty())
         return;

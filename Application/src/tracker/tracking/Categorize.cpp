@@ -43,7 +43,7 @@ std::vector<std::tuple<Frame_t, std::shared_ptr<PPFrame>>> _frame_cache;
 std::unordered_set<Frame_t> _current_cached_frames;
 #endif
 
-GenericThreadPool pool(cmn::hardware_concurrency(), "Work::LoopPool");
+std::unique_ptr<GenericThreadPool> pool;
 
 template<class T, class U>
 typename std::vector<T>::const_iterator find_in_sorted(const std::vector<T>& vector, const U& v) {
@@ -257,7 +257,7 @@ Sample::Ptr DataStore::random_sample(Idx_t fid) {
     Individual *fish;
     
     {
-        Tracker::LockGuard guard("Categorize::random_sample");
+        Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Categorize::random_sample");
         auto iit = Tracker::instance()->individuals().find(fid);
         if (iit != Tracker::instance()->individuals().end()) {
             fish = iit->second;
@@ -285,7 +285,7 @@ Sample::Ptr DataStore::get_random() {
     
     std::set<Idx_t> individuals;
     {
-        Tracker::LockGuard guard("Categorize::random_sample");
+        Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Categorize::random_sample");
         individuals = extract_keys(Tracker::instance()->individuals());
     }
     
@@ -801,12 +801,14 @@ void terminate() {
         Work::_variable.notify_all();
         Work::thread->join();
         Work::thread = nullptr;
-        pool.force_stop();
+        pool = nullptr;
+        Work::state() = Work::State::NONE;
+        Work::terminate() = false;
     }
 }
 
 void show() {
-    if(!Work::visible()) {
+    if(!Work::visible() && Work::state() != Work::State::APPLY) {
         Work::set_state(Work::State::SELECTION);
         Work::visible() = true;
     }
@@ -912,7 +914,7 @@ struct NetworkApplicationState {
         TakeTiming take(timing);
 
         if (segments.empty()) {
-            Tracker::LockGuard guard("NetworkApplicationState::peek");
+            Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "NetworkApplicationState::peek");
             segments = fish->frame_segments();
             N = segments.size();
         }
@@ -1002,24 +1004,28 @@ struct NetworkApplicationState {
                     }
                     
                     RangedLabel ranged;
-                    ranged._label = biggest_i; //DataStore::label_averaged(fish->identity().ID(), Frame_t(task.segment->start()));
-                    assert(ranged._label != -1);
-                    ranged._range = *task.segment;
-                    ranged._blobs.reserve(task.segment->length());
                     
-                    //Tracker::LockGuard guard("task.callback.set_ranged_label");
-                    for(auto f = task.segment->start(); f <= task.segment->end(); f += 1_f) {
-                        assert(task.segment->contains(f));
-                        {
-                            auto &basic = fish->basic_stuff().at(task.segment->basic_stuff(f));
-                            ranged._blobs.push_back(basic->blob.blob_id());
-                        } //else
-                           // print("Segment does not contain ",f);
+                    {
+                        //Tracker::LockGuard guard("task.callback.receive_samples");
+                        
+                        ranged._label = biggest_i; //DataStore::label_averaged(fish->identity().ID(), Frame_t(task.segment->start()));
+                        assert(ranged._label != -1);
+                        ranged._range = *task.segment;
+                        ranged._blobs.reserve(task.segment->length());
+                        
+                        for(auto f = task.segment->start(); f <= task.segment->end(); f += 1_f) {
+                            assert(task.segment->contains(f));
+                            {
+                                auto &basic = fish->basic_stuff().at(task.segment->basic_stuff(f));
+                                ranged._blobs.push_back(basic->blob.blob_id());
+                            } //else
+                               // print("Segment does not contain ",f);
+                        }
+#ifndef NDEBUG
+                        print("Fish",fish->identity().ID(),": Segment ",task.segment->start(),"-",task.segment->end()," done with ",ranged._blobs.size()," blobs");
+#endif
                     }
 
-#ifndef NDEBUG
-                    print("Fish",fish->identity().ID(),": Segment ",task.segment->start(),"-",task.segment->end()," done with ",ranged._blobs.size()," blobs");
-#endif
                     DataStore::set_ranged_label(std::move(ranged));
                 }
             }
@@ -1075,7 +1081,7 @@ struct NetworkApplicationState {
         task.type = LearningTask::Type::Prediction;
 
         {
-            Tracker::LockGuard guard("next()");
+            Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "next()");
             segments = fish->frame_segments();
         }
         
@@ -1161,6 +1167,8 @@ struct NetworkApplicationState {
     }
     
     static double percent() {
+        if(!Work::initialized_apply())
+            return 0.0;
         std::lock_guard guard(current_mutex());
         double percent = 0, N = 0;
         for (auto &[k, v] : current()) {
@@ -1181,11 +1189,16 @@ void start_applying() {
     Work::task_queue().push_back(Work::Task{
         Range<Frame_t>({},{}),Range<Frame_t>({},{}),
         [](){
+            std::lock_guard wguard(Work::_mutex);
             print("## Initializing APPLY.");
             {
-                Tracker::LockGuard guard("Categorize::start_applying");
+                Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Categorize::start_applying");
                 std::lock_guard g(NetworkApplicationState::current_mutex());
                 NetworkApplicationState::current().clear();
+                for(auto &[f, c] : NetworkApplicationState::current()) {
+                    print("\t",f->identity().ID()," offset = ",c.offset.load(), " percent = ", c.N.load());
+                }
+                print("[APPLY] Cleared NetworkApplicationState ", NetworkApplicationState::current().size());
                 
                 for (auto &[id, ptr] : Tracker::individuals()) {
                     auto &obj = NetworkApplicationState::current()[ptr];
@@ -1202,7 +1215,6 @@ void start_applying() {
                 for(auto & [k, v] : NetworkApplicationState::current()) {
                     auto f = v.peek();
                     
-                    std::lock_guard guard(Work::_mutex);
                     Work::task_queue().push_back(Work::Task{
                         Range<Frame_t>({},{}),f,
                         [k=k](){
@@ -1222,6 +1234,7 @@ void start_applying() {
             }
             
             print("Done adding initial samples ", indexes);
+            Work::initialized_apply() = true;
         }
     });
         
@@ -1241,6 +1254,7 @@ void Work::start_learning() {
     namespace py = Python;
     
     py::schedule(py::PackagedTask{._task = py::PromisedTask([]() -> void {
+        print("[Categorize] APPLY Initializing...");
         Work::status() = "Initializing...";
         Work::initialized() = false;
         
@@ -1388,10 +1402,7 @@ void Work::start_learning() {
                 queue().pop();
 
                 guard.unlock();
-                /*if(py::check_module(module)) {
-                    print("Module ",module," changed, reset variables...");
-                    reset_variables();
-                }*/
+                
                 try {
                     switch (item.type) {
                         case LearningTask::Type::Load: {
@@ -1588,6 +1599,7 @@ void Work::start_learning() {
         print("## Ending python blockade.");
         print("Clearing DataStore.");
         DataStore::clear();
+        Categorize::terminate();
         
     }), ._can_run_before_init = false});
 }
@@ -1713,6 +1725,7 @@ Work::Task Work::_pick_front_thread() {
 }
 
 void Work::work_thread() {
+    print("APPLY Starting work thread");
     std::unique_lock guard(Work::_mutex);
     const std::thread::id id = std::this_thread::get_id();
     constexpr size_t maximum_tasks = 5u;
@@ -1782,6 +1795,8 @@ void Work::work_thread() {
         if(collected < maximum_tasks)
             _variable.wait_for(guard, std::chrono::seconds(1));
     }
+    
+    print("APPLY Ending work_thread");
 }
 
 void Work::loop() {
@@ -1789,8 +1804,9 @@ void Work::loop() {
     static Timer timer;
     static std::mutex timer_mutex;
     
-    for (size_t i = 0; i < pool.num_threads(); ++i) {
-        pool.enqueue(Work::work_thread);
+    pool = std::make_unique<GenericThreadPool>(cmn::hardware_concurrency(), "Work::LoopPool");
+    for (size_t i = 0; i < pool->num_threads(); ++i) {
+        pool->enqueue(Work::work_thread);
     }
 }
 
@@ -2045,7 +2061,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
 
         Tracker::set_of_individuals_t active;
         {
-            Tracker::LockGuard guard("Categorize::sample");
+            Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Categorize::sample");
             active = frame == Tracker::start_frame()
                 ? decltype(active)()
                 : Tracker::active_individuals(frame - 1_f);
@@ -2239,7 +2255,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
     
     {
         {
-            Tracker::LockGuard guard("Categorize::sample");
+            Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Categorize::sample");
             range = segment->range;
             basic_index = segment->basic_index;
             frames.reserve(basic_index.size());
@@ -2371,7 +2387,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<Individual::SegmentInform
         FilterCache custom_len;
         
         {
-            Tracker::LockGuard guard("Categorize::sample");
+            Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Categorize::sample");
             basic = fish->basic_stuff().at(index).get();
             auto posture = fish->posture_stuff(frame);
             midline = posture ? fish->calculate_midline_for(*basic, *posture) : nullptr;
@@ -2520,6 +2536,7 @@ void Work::set_state(State state) {
             
         case State::APPLY: {
             //assert(Work::state() == State::SELECTION);
+            Work::initialized_apply() = false;
             LearningTask task;
             task.type = LearningTask::Type::Apply;
             Work::add_task(std::move(task));

@@ -23,7 +23,6 @@ namespace gui {
 
     } _proximity_bar;
 
-    std::mutex _frame_info_mutex;
     std::atomic<Frame_t> tracker_endframe, tracker_startframe;
 
     std::string _thread_status;
@@ -113,7 +112,7 @@ namespace gui {
             std::vector<Range<Frame_t>> other_consec;
             
             {
-                std::unique_lock info_guard(_frame_info_mutex);
+                std::unique_lock info_guard(Timeline::_frame_info_mutex);
                 number << _frame_info->frameIndex.load().toStr() << "/" << _frame_info->video_length << ", " << _frame_info->big_count << " tracks";
                 if (_frame_info->small_count)
                     number << " (" << _frame_info->small_count << " short)";
@@ -216,7 +215,7 @@ namespace gui {
             float percent = float(tracker_endframe.load().get()) / _frame_info->video_length;
             base.rect(pos, Size2(max_w * percent, bar_height), red_bar_clr);
 
-            std::unique_lock info_lock(_frame_info_mutex);
+            std::unique_lock info_lock(Timeline::_frame_info_mutex);
             if (_bar && use_scale.y > 0) {
                 std::lock_guard<std::mutex> guard(_proximity_bar.mutex);
                 float new_height = roundf(bar_height);
@@ -560,7 +559,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
 
             std::unique_lock guard(_proximity_bar.mutex);
             auto individual_coverage = [](Frame_t frame) {
-                Tracker::LockGuard guard("Timeline::individual_coverage", 100);
+                Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Timeline::individual_coverage", 100);
                 float count = 0;
                 if(Tracker::properties(frame)) {
                     for(auto fish : Tracker::instance()->active_individuals(frame)) {
@@ -665,7 +664,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
             //! Update the cached data
             if(GUICache::exists() && Tracker::instance()) {
                 {
-                    Tracker::LockGuard guard("Timeline::update_thread", 100);
+                    Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Timeline::update_thread", 100);
                     if (guard.locked()) {
                         Timer timer;
 

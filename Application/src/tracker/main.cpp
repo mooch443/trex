@@ -1120,7 +1120,7 @@ int main(int argc, char** argv)
             static Timing all_processing("Analysis::process()", 50);
             TakeTiming all(all_processing);
 
-            Tracker::LockGuard guard("Analysis::process()");
+            Tracker::LockGuard guard(Tracker::LockGuard::w_t{}, "Analysis::process()");
             if(GUI_SETTINGS(terminate))
                 return false;
             
@@ -1438,7 +1438,7 @@ int main(int argc, char** argv)
                 before = analysis->is_paused();
                 analysis->set_paused(true).get();
                 
-                Tracker::LockGuard guard("pause_stuff");
+                Tracker::LockGuard guard(Tracker::LockGuard::w_t{}, "pause_stuff");
             
                 print("Console opened.");
                 print("Please enter command below (type help for available commands):");
@@ -1475,7 +1475,7 @@ int main(int argc, char** argv)
                         GUI::work().add_queue("retrieving matches", [](){
                             Settings::manual_matches_t manual_matches;
                             {
-                                Tracker::LockGuard guard("retrieving matches");
+                                Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "retrieving matches");
                                 
                                 for(auto && [id, fish] : Tracker::individuals()) {
                                     for(auto frame : fish->manually_matched()) {
@@ -1539,7 +1539,7 @@ int main(int argc, char** argv)
                         SETTING(analysis_paused) = false;
                     }
                     else if(utils::lowercase(command) == "print_memory") {
-                        Tracker::LockGuard guard("print_memory");
+                        Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "print_memory");
                         mem::IndividualMemoryStats overall;
                         for(auto && [fdx, fish] : Tracker::individuals()) {
                             mem::IndividualMemoryStats stats(fish);

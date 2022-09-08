@@ -169,9 +169,10 @@ Float2_t polygonArea(const std::vector<Vec2>& pts)
 void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
     using namespace gui;
     using namespace track::image;
-    GenericThreadPool _blob_thread_pool(cmn::hardware_concurrency());
     
-    Tracker::LockGuard guard("GUI::export_tracks");
+    GenericThreadPool _blob_thread_pool(cmn::hardware_concurrency(), "export_pool");
+    
+    Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "GUI::export_tracks");
     tracker.wait();
     
     // save old values and remove all calculation/scaling options from output
@@ -352,51 +353,51 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                 
                 for(auto &seg : fish->frame_segments()) {
                     //for(auto frameIndex = seg->start(); frameIndex <= seg->end(); ++frameIndex) {
-                        auto set = fish->has_tag_images_for(seg->end());
-                        if(set && !set->empty()) {
-                            std::vector<uchar> arrays;
-                            std::vector<long_t> frame_indices;
-                            std::vector<pv::bid> blob_ids;
+                    auto set = fish->has_tag_images_for(seg->end());
+                    if(set && !set->empty()) {
+                        std::vector<uchar> arrays;
+                        std::vector<long_t> frame_indices;
+                        std::vector<pv::bid> blob_ids;
+                        
+                        std::vector<uchar> image_data;
+                        Size2 shape;
+                        
+                        printf("tags for %u: ", (uint32_t)fish->identity().ID());
+                        for(auto && [var, bid, ptr, frame] : *set) {
+                            shape = Size2(ptr->cols, ptr->rows);
+                            // had previous frame, lost in this frame (finalize segment)
+                            assert(frame <= seg->end());
+                            auto before = arrays.size();
+                            arrays.resize(arrays.size() + ptr->size());
                             
-                            std::vector<uchar> image_data;
-                            Size2 shape;
-                            
-                            printf("tags for %u: ", (uint32_t)fish->identity().ID());
-                            for(auto && [var, bid, ptr, frame] : *set) {
-                                shape = Size2(ptr->cols, ptr->rows);
-                                // had previous frame, lost in this frame (finalize segment)
-                                assert(frame <= seg->end());
-                                auto before = arrays.size();
-                                arrays.resize(arrays.size() + ptr->size());
-                                
-                                printf("%d ", frame.get());
-                                frame_indices.push_back(frame.get());
-                                blob_ids.push_back(bid);
-                                std::copy(ptr->data(), ptr->data() + ptr->size(), arrays.begin() + before);
-                            }
-                            printf("\n");
-                            
-                            if(arrays.size() > 0) {
-                                auto range = fish->get_segment(seg->end());
-                                
-                                if(!fish->has(range.start()))
-                                    throw U_EXCEPTION("Range starts at ",range.start(),", but frame is not set for fish ",fish->identity().ID(),".");
-                                auto start_blob_id = fish->blob(range.start())->blob_id();
-                                
-                                file::Path path(tags_path / SETTING(filename).value<file::Path>().filename() / ("frame"+range.start().toStr()+"_blob"+Meta::toStr(start_blob_id)+".npz"));
-                                if(!path.remove_filename().exists()) {
-                                    if(!path.remove_filename().create_folder())
-                                        throw U_EXCEPTION("Cannot create folder ",path.remove_filename().str()," please check permissions.");
-                                }
-                                
-                                print("Writing ", set->size()," images ",path.str());
-                                cmn::npz_save(path.str(), "images", arrays.data(), {set->size(), (uint)shape.width, (uint)shape.height});
-                                
-                                //path = path.remove_filename() / ("fdx_"+path.filename().to_string());
-                                cmn::npz_save(path.str(), "frames", frame_indices, "a");
-                                cmn::npz_save(path.str(), "blob_ids", blob_ids, "a");
-                            }
+                            printf("%d ", frame.get());
+                            frame_indices.push_back(frame.get());
+                            blob_ids.push_back(bid);
+                            std::copy(ptr->data(), ptr->data() + ptr->size(), arrays.begin() + before);
                         }
+                        printf("\n");
+                        
+                        if(arrays.size() > 0) {
+                            auto range = fish->get_segment(seg->end());
+                            
+                            if(!fish->has(range.start()))
+                                throw U_EXCEPTION("Range starts at ",range.start(),", but frame is not set for fish ",fish->identity().ID(),".");
+                            auto start_blob_id = fish->blob(range.start())->blob_id();
+                            
+                            file::Path path(tags_path / SETTING(filename).value<file::Path>().filename() / ("frame"+range.start().toStr()+"_blob"+Meta::toStr(start_blob_id)+".npz"));
+                            if(!path.remove_filename().exists()) {
+                                if(!path.remove_filename().create_folder())
+                                    throw U_EXCEPTION("Cannot create folder ",path.remove_filename().str()," please check permissions.");
+                            }
+                            
+                            print("Writing ", set->size()," images ",path.str());
+                            cmn::npz_save(path.str(), "images", arrays.data(), {set->size(), (uint)shape.width, (uint)shape.height});
+                            
+                            //path = path.remove_filename() / ("fdx_"+path.filename().to_string());
+                            cmn::npz_save(path.str(), "frames", frame_indices, "a");
+                            cmn::npz_save(path.str(), "blob_ids", blob_ids, "a");
+                        }
+                    }
                     //}
                 }
                 

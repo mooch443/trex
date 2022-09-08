@@ -41,7 +41,10 @@ namespace gui {
     
     class Timeline {
         //Size2 size;
+    public:
+        inline static std::mutex _frame_info_mutex;
         
+    protected:
         GETTER(std::unique_ptr<ExternalImage>, bar)
         GETTER(std::unique_ptr<ExternalImage>, consecutives)
         

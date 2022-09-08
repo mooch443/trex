@@ -390,7 +390,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                     {
                         FilterCache::clear();
                         
-                        Tracker::LockGuard guard("setting_changed_"+name);
+                        Tracker::LockGuard guard(Tracker::LockGuard::w_t{}, "setting_changed_"+name);
                         auto start = Tracker::start_frame();
                         DatasetQuality::remove_frames(start);
                     }
@@ -542,7 +542,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
 #endif
     
     { // do this in order to trigger calculating pixel percentages
-        Tracker::LockGuard guard("GUI::update_data(-1)");
+        Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "GUI::update_data(-1)");
         PD(cache).update_data(Frame_t(FAST_SETTINGS(analysis_range).first));
     }
     
@@ -945,7 +945,7 @@ void GUI::draw(DrawStructure &base) {
     }
     
     PD(gui).section("show", [this, mode](DrawStructure &base, auto* section) {
-        Tracker::LockGuard guard("show()", 100);
+        Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "show()", 100);
         if(!guard.locked() || !PD(real_update)) {
             section->reuse_objects();
         } else {
@@ -1078,7 +1078,7 @@ void GUI::reanalyse_from(Frame_t frame, bool in_thread) {
             Tracker::instance()->wait();
             
             std::lock_guard<std::recursive_mutex> gguard(GUI::gui().lock());
-            Tracker::LockGuard guard("reanalyse_from");
+            Tracker::LockGuard guard(Tracker::LockGuard::w_t{}, "reanalyse_from");
             
             if(frame <= Tracker::end_frame()) {
                 Tracker::instance()->_remove_frames(frame);
@@ -1219,7 +1219,7 @@ void GUI::debug_optical_flow(DrawStructure &base, Frame_t frameIndex) {
     };
     
     auto draw_flow = [&gen_ov](Frame_t frameIndex, cv::Mat& image){
-        Tracker::LockGuard guard("draw_flow");
+        Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "draw_flow");
         
         cv::Mat current_, prev_;
         gen_ov(frameIndex > PD(tracker).start_frame() ? frameIndex - 1_f : PD(tracker).start_frame(), prev_);
@@ -1294,7 +1294,7 @@ void GUI::draw_posture(DrawStructure &base, Individual *fish, Frame_t frameNr) {
     if(!fish)
         return;
     
-    Tracker::LockGuard guard("GUI::draw_posture");
+    Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "GUI::draw_posture");
     auto midline = fish->midline(frameNr);
     if(midline) {
         // Draw the fish posture with circles
@@ -1691,7 +1691,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                     if(FAST_SETTINGS(calculate_posture) && end_frame != PD(cache).tracked_frames.end) {
                         end_frame = PD(cache).tracked_frames.end;
                         
-                        Tracker::LockGuard guard("gui_show_midline_histogram");
+                        Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "gui_show_midline_histogram");
                         
                         std::vector<std::vector<float>> all;
                         std::vector<float> lengths;
@@ -2040,7 +2040,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
     } else {
         //! CHEAT CODES
         if(settings_dropdown.text() == "datasetquality") {
-            Tracker::LockGuard guard("settings_dropdown.text() datasetquality");
+            Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "settings_dropdown.text() datasetquality");
             DatasetQuality::print_info();
         }
         else if(settings_dropdown.text() == "trainingdata_stats") {
@@ -2079,7 +2079,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                 SETTING(panic_button) = int(1);
         }
         else if(settings_dropdown.text() == "consecutive") {
-            Tracker::LockGuard guard("settings_dropdown.text() consecutive");
+            Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "settings_dropdown.text() consecutive");
             auto consec = std::set<Range<Frame_t>>(Tracker::instance()->consecutive().begin(), Tracker::instance()->consecutive().end());
             print("consecutive frames: ", consec);
             
@@ -2147,7 +2147,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             
         } else if(settings_dropdown.text() == "heatmap") {
             this->work().add_queue("generating heatmap", [](){
-                Tracker::LockGuard guard("settings_dropdown.text() heatmap");
+                Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "settings_dropdown.text() heatmap");
                 
                 cv::Mat map(PD(video_source).header().resolution.height, PD(video_source).header().resolution.width, CV_8UC4);
                 
@@ -2190,7 +2190,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             });
             
         } else if(settings_dropdown.text() == "pixels") {
-            Tracker::LockGuard guard("settings_dropdown.text() pixels");
+            Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "settings_dropdown.text() pixels");
             print("Calculating...");
             
             std::map<std::string, size_t> average_pixels;
@@ -2532,6 +2532,7 @@ void GUI::draw_footer(DrawStructure& base) {
 }
 
 void GUI::update_recognition_rect() {
+    //! TODO: Thread-safety?
     const float max_w = Tracker::average().cols;
     const float max_h = Tracker::average().rows;
     
@@ -3331,7 +3332,7 @@ void GUI::key_event(const gui::Event &event) {
                 bool before = PD(analysis).is_paused();
                 PD(analysis).set_paused(true).get();
                 
-                Tracker::LockGuard guard("Codes::I");
+                Tracker::LockGuard guard(Tracker::LockGuard::w_t{}, "Codes::I");
                 PD(tracker).wait();
                 
                 Results results(PD(tracker));
@@ -3444,7 +3445,7 @@ void GUI::save_state(GUI::GUIType type, bool force_overwrite) {
         bool before = PD(analysis).is_paused();
         PD(analysis).set_paused(true).get();
         
-        Tracker::LockGuard guard("GUI::save_state");
+        Tracker::LockGuard guard(Tracker::LockGuard::w_t{}, "GUI::save_state");
         PD(tracker).wait();
         
         try {
@@ -3506,7 +3507,7 @@ void GUI::auto_quit() {
     FormatWarning("Saving and quitting...");
                         
     std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
-    Tracker::LockGuard guard("saving and quitting");
+    Tracker::LockGuard guard(Tracker::LockGuard::w_t{}, "saving and quitting");
     PD(cache).deselect_all();
     instance()->write_config(true);
     
@@ -3663,7 +3664,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
         bool before = PD(analysis).is_paused();
         PD(analysis).set_paused(true).get();
         
-        Tracker::LockGuard guard("GUI::load_state");
+        Tracker::LockGuard guard(Tracker::LockGuard::w_t{}, "GUI::load_state");
         PD(tracker).wait();
         
         Output::TrackingResults results(PD(tracker));
@@ -3965,7 +3966,7 @@ void GUI::save_visual_fields() {
     bool before = PD(analysis).is_paused();
     PD(analysis).set_paused(true).get();
     
-    Tracker::LockGuard guard("GUI::save_visual_fields");
+    Tracker::LockGuard guard(Tracker::LockGuard::w_t{}, "GUI::save_visual_fields");
     PD(tracker).wait();
     
     Individual *selected = PD(cache).primary_selection();
@@ -4205,10 +4206,7 @@ void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void
         bool before = PD(analysis).is_paused();
         PD(analysis).set_paused(true).get();
         
-        {
-            Tracker::LockGuard guard("GUI::training_data_dialog");
-            DatasetQuality::update(guard);
-        }
+        DatasetQuality::update();
         
         try {
             generate_training_data(std::move(task), type, force_load);
@@ -4373,7 +4371,7 @@ void GUI::generate_training_data(std::future<void>&& initialized, GUI::GUIType t
 }
 
 void GUI::generate_training_data_faces(const file::Path& path) {
-    Tracker::LockGuard guard("GUI::generate_training_data_faces");
+    Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "GUI::generate_training_data_faces");
     work().set_item("Generating data...");
     
     auto ranges = frameinfo().global_segment_order;

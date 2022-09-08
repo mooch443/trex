@@ -78,7 +78,7 @@ void InfoCard::update() {
     }
     
     if(_shadow->fdx.valid()) {
-        Tracker::LockGuard guard("InfoCard::update", 10);
+        Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "InfoCard::update", 10);
         if(guard.locked()) {
             auto it = Tracker::individuals().find(_shadow->fdx);
             if(it != Tracker::individuals().end()) {
@@ -283,7 +283,7 @@ void InfoCard::update() {
             auto & cache = GUICache::instance();
             auto next_frame = cache.frame_idx;
             if(cache.has_selection()) {
-                Tracker::LockGuard guard("InfoCard::update->prev->on_click");
+                Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "InfoCard::update->prev->on_click");
                 auto segment = cache.primary_selection()->get_segment(next_frame);
                 
                 if(next_frame == segment.start())
@@ -303,7 +303,7 @@ void InfoCard::update() {
             auto & cache = GUICache::instance();
             auto next_frame = cache.frame_idx;
             if(cache.has_selection()) {
-                Tracker::LockGuard guard("InfoCard::update->next->on_click");
+                Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "InfoCard::update->next->on_click");
                 auto segment = cache.primary_selection()->get_segment(next_frame);
                 if(segment.start().valid()) {
                     auto it = cache.primary_selection()->find_segment_with_start(segment.start());
@@ -384,7 +384,7 @@ void InfoCard::update() {
                 if(!_shadow->fdx.valid())
                     return;
                 
-                Tracker::LockGuard guard("InfoCard::update->delete->on_click");
+                Tracker::LockGuard guard(Tracker::LockGuard::w_t{}, "InfoCard::update->delete->on_click");
                 if(!_shadow->current_range.empty()) {
                     print("Erasing automatic matches for fish ", _shadow->fdx," in range ", _shadow->current_range.start(),"-",_shadow->current_range.end());
                     Tracker::delete_automatic_assignments(_shadow->fdx, _shadow->current_range);

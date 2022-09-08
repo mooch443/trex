@@ -38,18 +38,23 @@ namespace gui {
                 set_scale(parent()->stage()->scale().reciprocal());
         }
         
-        auto frame = GUI::instance()->frameinfo().frameIndex.load();
-        auto consec = GUI::instance()->frameinfo().global_segment_order.empty()
-            ? Range<Frame_t>({},{})
-            : GUI::instance()->frameinfo().global_segment_order.front();
-        
+        Frame_t frame;
         Range<Frame_t> current_consec({}, {});
+        decltype(FrameInfo::global_segment_order)::value_type consec;
         
-        if(!consec.contains(frame)) {
-            for(auto & range : GUI::instance()->frameinfo().consecutive) {
-                if(range.contains(frame)) {
-                    current_consec = range;
-                    break;
+        {
+            std::unique_lock info_lock(Timeline::_frame_info_mutex);
+            frame = GUI::instance()->frameinfo().frameIndex.load();
+            consec = GUI::instance()->frameinfo().global_segment_order.empty()
+                ? Range<Frame_t>({},{})
+                : GUI::instance()->frameinfo().global_segment_order.front();
+            
+            if(!consec.contains(frame)) {
+                for(auto & range : GUI::instance()->frameinfo().consecutive) {
+                    if(range.contains(frame)) {
+                        current_consec = range;
+                        break;
+                    }
                 }
             }
         }
@@ -58,7 +63,7 @@ namespace gui {
             return;
         
         {
-            Tracker::LockGuard guard("DrawDataset::update",100);
+            Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "DrawDataset::update",100);
             if(!guard.locked()) {
                 set_content_changed(true);
                 return;

@@ -1382,9 +1382,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
     
     {
         update_progress("Finding segments...", -1, "");
-        
-        Tracker::LockGuard guard("find_segments");
-        DatasetQuality::update(guard);
+        DatasetQuality::update();
     }
 }
     

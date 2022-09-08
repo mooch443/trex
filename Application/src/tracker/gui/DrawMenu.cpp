@@ -461,7 +461,7 @@ public:
         }
         
         if((!overall.id.valid() || memory_timer.elapsed() > 10) && GUI::cache().tracked_frames.end != last_end_frame) {
-            Tracker::LockGuard guard("memory_stats", 100);
+            Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "memory_stats", 100);
             if(guard.locked()) {
                 overall.clear();
                 last_end_frame = GUI::cache().tracked_frames.end;

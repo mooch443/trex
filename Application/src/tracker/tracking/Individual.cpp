@@ -602,7 +602,7 @@ Individual::~Individual() {
 void Individual::unregister_delete_callback(void* ptr) {
     if(!Tracker::instance())
         return;
-    Tracker::LockGuard guard("unregister_delete_callback");
+    Tracker::LockGuard guard(Tracker::LockGuard::w_t{}, "unregister_delete_callback");
     _delete_callbacks.erase(ptr);
 }
 
@@ -610,7 +610,7 @@ void Individual::register_delete_callback(void* ptr, const std::function<void(In
     if(!Tracker::instance())
         return;
     
-    Tracker::LockGuard guard("register_delete_callback");
+    Tracker::LockGuard guard(Tracker::LockGuard::w_t{}, "register_delete_callback");
     _delete_callbacks[ptr] = lambda;
 }
 
@@ -1094,14 +1094,6 @@ int64_t Individual::add(const FrameProperties* props, Frame_t frameIndex, const 
     if (frameIndex >= _startFrame && frameIndex <= _endFrame)
         throw UtilsException("Cannot add intermediate frames out of order.");
     
-    if (_startFrame > frameIndex || !_startFrame.valid()) {
-        _startFrame = frameIndex;
-    }
-    
-    if (_endFrame < frameIndex || !_endFrame.valid()) {
-        _endFrame = frameIndex;
-    }
-    
     // find valid previous frame
     //!TODO: can probably use segment ptr here
     auto prev_frame = frameIndex - 1_f;
@@ -1114,6 +1106,14 @@ int64_t Individual::add(const FrameProperties* props, Frame_t frameIndex, const 
                 prev_prop = &previous->centroid;
             }
         }
+    }
+    
+    if (_startFrame > frameIndex || !_startFrame.valid()) {
+        _startFrame = frameIndex;
+    }
+    
+    if (_endFrame < frameIndex || !_endFrame.valid()) {
+        _endFrame = frameIndex;
     }
     
     _hints.push(frameIndex, props);
@@ -2236,6 +2236,29 @@ const std::unique_ptr<BasicStuff>& Individual::find_frame(Frame_t frameIndex) co
         if(frameIndex >= _endFrame)
             return _basic_stuff.back();
         
+        /*if(_basic_stuff.size() > 1) {
+            auto &l_1 = _basic_stuff.back();
+            if(l_1->frame == frameIndex) {
+                return l_1;
+            }
+        }*/
+        /*{
+            static std::mutex _data;
+            static double distance = 0, samples = 0;
+            static std::map<Frame_t, double> values;
+            std::unique_lock guard(_data);
+            if(_endFrame.valid() && frameIndex.valid() && _endFrame != frameIndex) {
+                values[_endFrame - frameIndex]++;
+                
+                distance += (_endFrame.get() - frameIndex.get());
+                samples++;
+                
+                if(uint64_t(samples) % 100 == 0) {
+                    print("distance: ", distance / samples, values, " ", frameIndex, " vs. ", _endFrame);
+                }
+            }
+        }*/
+        
         auto end = _frame_segments.end();
         auto it = std::lower_bound(_frame_segments.begin(), end, frameIndex, [](const auto& ptr, Frame_t frame){
             return ptr->start() < frame;
@@ -2823,6 +2846,9 @@ std::tuple<bool, FrameRange> Individual::has_processed_segment(Frame_t frameInde
 const decltype(Individual::average_recognition_segment)::mapped_type Individual::processed_recognition(Frame_t segment_start) {
     auto it = average_processed_segment.find(segment_start);
     if(it == average_processed_segment.end()) {
+        //! acquire write access
+        Tracker::LockGuard guard(Tracker::LockGuard::w_t{}, "average_recognition_segment");
+        
         // average cannot be found for given segment. try to calculate it...
         auto sit = _recognition_segments.find(segment_start);
         if(sit == _recognition_segments.end())
@@ -2956,6 +2982,30 @@ std::tuple<size_t, Idx_t, float> Individual::average_recognition_identity(Frame_
     return {std::get<0>(it->second), mdx, mdx_p};
 }
 
+void Individual::add_custom_data(Frame_t frame, long_t id, void* ptr, std::function<void(void*)> fn_delete) {
+    Tracker::LockGuard guard(Tracker::LockGuard::w_t{}, "add_custom_data");
+    auto it = _custom_data[frame].find(id);
+    if(it != _custom_data[frame].end()) {
+        FormatWarning("Custom data with id ", id," already present in frame ",frame,".");
+        it->second.second(it->second.first);
+    }
+    _custom_data[frame][id] = { ptr, fn_delete };
+}
+
+void * Individual::custom_data(Frame_t frame, long_t id) const {
+    Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "custom_data");
+    auto it = _custom_data.find(frame);
+    if(it == _custom_data.end())
+        return NULL;
+    
+    auto it1 = it->second.find(id);
+    if(it1 != it->second.end()) {
+        return it1->second.first;
+    }
+    
+    return NULL;
+}
+
 void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range, const std::function<void(float, const std::string&)>& update, bool blocking) {
     if(range.empty())
         range = Range<Frame_t>(_startFrame, _endFrame);
@@ -2998,7 +3048,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
     iterate_frames(range, [&](Frame_t frame, const std::shared_ptr<SegmentInformation> &, auto basic, auto posture) -> bool
     {
         if(blocking)
-            guard = std::make_shared<Tracker::LockGuard>("new VisualField");
+            guard = std::make_shared<Tracker::LockGuard>(Tracker::LockGuard::ro_t{}, "new VisualField");
         if(!posture || !posture->head)
             return true;
         

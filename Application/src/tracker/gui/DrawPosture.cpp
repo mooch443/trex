@@ -30,7 +30,7 @@ namespace gui {
         } else if(!content_changed())
             return;
         
-        Tracker::LockGuard guard("Posture::update", 100);
+        Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Posture::update", 100);
         if(!guard.locked()) {
             set_content_changed(true);
             return;

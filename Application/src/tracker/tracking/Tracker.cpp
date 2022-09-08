@@ -31,7 +31,7 @@ namespace py = Python;
 //#define TREX_DEBUG_IDENTITIES
 
 namespace track {
-    auto *tracker_lock = new std::recursive_timed_mutex;
+    auto *tracker_lock = new std::shared_timed_mutex;
 
     std::shared_ptr<std::ofstream> history_log;
     std::mutex log_mutex;
@@ -162,51 +162,167 @@ std::map<Idx_t, float> Tracker::prediction2map(const std::vector<float>& pred) {
 static std::string _last_thread = "<none>", _last_purpose = "";
 static Timer _thread_holding_lock_timer;
 static std::map<std::string, Timer> _last_printed_purpose;
-static std::thread::id _last_thread_id;
+static std::thread::id _writing_thread_id;
+
+std::mutex thread_switch_mutex;
+
+static std::mutex read_mutex;
+static std::unordered_set<std::thread::id> read_locks;
 
 Tracker::LockGuard::~LockGuard() {
-    if(lock) {
-        if(_set_name) {
-            if(_timer.elapsed() >= 0.1) {
-                auto name = get_thread_name();
-                if(_last_printed_purpose.find(_purpose) == _last_printed_purpose.end() || _last_printed_purpose[_purpose].elapsed() >= 10) {
-                    auto str = Meta::toStr(DurationUS{uint64_t(_timer.elapsed() * 1000 * 1000)});
-                    print("thread ",name," held the lock for ",str.c_str()," with purpose ",_purpose.c_str());
-                    _last_printed_purpose[_purpose].reset();
-                }
+    if(_write && _set_name) {
+        std::unique_lock tswitch(thread_switch_mutex);
+        if(_timer.elapsed() >= 0.1) {
+            auto name = get_thread_name();
+            if(_last_printed_purpose.find(_purpose) == _last_printed_purpose.end() || _last_printed_purpose[_purpose].elapsed() >= 10) {
+                auto str = Meta::toStr(DurationUS{uint64_t(_timer.elapsed() * 1000 * 1000)});
+                print("thread ",name," held the lock for ",str.c_str()," with purpose ",_purpose.c_str());
+                _last_printed_purpose[_purpose].reset();
+            }
+        }
+        
+        _last_purpose = "";
+        _last_thread = "<none>";
+        _thread_holding_lock_timer.reset();
+    }
+    
+    _locked = false;
+        
+    if(_write) {
+        if(_owns_write) {
+            {
+                std::unique_lock tswitch(thread_switch_mutex);
+                //std::stringstream ss, ss1;
+                //ss << _writing_thread_id;
+                //ss1 << std::this_thread::get_id();
+                
+                //print("[TG] ",_purpose, " resets _writing_thread_id(old=", ss.str()," vs. mine=", ss1.str(),") write=", _write, " regain=", _regain_read, " owned=", _owns_write);
+                _writing_thread_id = std::thread::id();
             }
             
-            _last_purpose = "";
-            _last_thread = "<none>";
-            _thread_holding_lock_timer.reset();
-            _last_thread_id = std::thread::id();
+            tracker_lock->unlock();
+            
+            if(_regain_read) {
+                //std::stringstream ss;
+                //ss << std::this_thread::get_id();
+                //print("[TG] ", _purpose, " reacquired shared_lock in thread ", ss.str(), " temporarily for write lock");
+                
+                tracker_lock->lock_shared();
+                
+                std::unique_lock rm(read_mutex);
+                read_locks.insert(std::this_thread::get_id());
+            }
+            
         }
-        delete lock;
+    } else if(_owns_write) {
+        //std::stringstream ss;
+        //ss << std::this_thread::get_id();
+        //print("[TG] ", _purpose, " released shared_lock in thread ", ss.str());
+        
+        {
+            std::unique_lock rm(read_mutex);
+            read_locks.erase(std::this_thread::get_id());
+        }
+        
+        tracker_lock->unlock_shared();
     }
+        
 }
 
-Tracker::LockGuard::LockGuard(std::string purpose, uint32_t timeout_ms) : _purpose(purpose), _set_name(false)
+//Tracker::LockGuard::LockGuard(std::string purpose, uint32_t timeout_ms) : LockGuard(w_t{}, purpose, timeout_ms)
+//{ }
+
+Tracker::LockGuard::LockGuard(Tracker::LockGuard::w_t, std::string purpose, uint32_t timeout_ms) : _write(true), _purpose(purpose)
+{
+    init(timeout_ms);
+}
+
+Tracker::LockGuard::LockGuard(Tracker::LockGuard::ro_t, std::string purpose, uint32_t timeout_ms) : _write(false), _purpose(purpose)
+{
+    init(timeout_ms);
+}
+
+bool Tracker::LockGuard::locked() const {
+    //std::unique_lock tswitch(thread_switch_mutex);
+    return _locked;//(!_write && _writing_thread_id == std::thread::id())
+        //|| std::this_thread::get_id() == _writing_thread_id;
+}
+
+bool Tracker::LockGuard::init(uint32_t timeout_ms)
 {
     assert(Tracker::instance());
     assert(!purpose.empty());
-    lock = NULL;
     
-    if(timeout_ms) {
-        auto duration = std::chrono::milliseconds(timeout_ms);
-        if(!tracker_lock->try_lock_for(duration)) {
-            // did not get the lock... :(
-            return;
+    
+    auto my_id = std::this_thread::get_id();
+    
+    {
+        std::unique_lock tswitch(thread_switch_mutex);
+        if(my_id == _writing_thread_id) {
+            _locked = true;
+            //std::stringstream ss;
+            //ss << _writing_thread_id;
+            //print("[TG] ",_purpose, " already has writing lock at ", ss.str());
+            return true;
+        }
+    }
+    
+    if(!_write) {
+        std::unique_lock rm(read_mutex);
+        if(read_locks.contains(my_id)) {
+            //! we are already reading in this thread, dont
+            //! reacquire the lock
+            _locked = true;
+            return true;
         }
         
     } else {
-        auto duration = std::chrono::milliseconds(10);
+        std::unique_lock rm(read_mutex);
+        if(read_locks.contains(my_id)) {
+            read_locks.erase(my_id);
+            tracker_lock->unlock_shared();
+            
+            //std::stringstream ss;
+            //ss << std::this_thread::get_id();
+            //print("[TG] ", _purpose, " released shared_lock in thread ", ss.str(), " temporarily for write lock");
+            
+            _regain_read = true;
+        }
+    }
+    
+    if(timeout_ms) {
+        auto duration = std::chrono::milliseconds(timeout_ms);
+        if(_write && !tracker_lock->try_lock_for(duration)) {
+            // did not get the write lock... :(
+            if(_regain_read) {
+                _regain_read = false;
+                //std::stringstream ss;
+                //ss << std::this_thread::get_id();
+                //print("[TG] ", _purpose, " reacquired shared_lock in thread ", ss.str(), " temporarily for write lock");
+                
+                tracker_lock->lock_shared();
+                
+                std::unique_lock rm(read_mutex);
+                read_locks.insert(my_id);
+            }
+            
+            return false;
+        } else if(!_write && !tracker_lock->try_lock_shared_for(duration)) {
+            return false;
+        }
+        
+    } else {
+        constexpr auto duration = std::chrono::milliseconds(10);
         Timer timer, print_timer;
         while(true) {
-            if(tracker_lock->try_lock_for(duration)) {
+            if((_write && tracker_lock->try_lock_for(duration))
+               || (!_write && tracker_lock->try_lock_shared_for(duration)))
+            {
                 // acquired the lock :)
                 break;
                 
             } else if(timer.elapsed() > 60 && print_timer.elapsed() > 120) {
+                std::unique_lock tswitch(thread_switch_mutex);
                 auto name = _last_thread;
                 auto myname = get_thread_name();
                 FormatWarning("(",myname.c_str(),") Possible dead-lock with ",name," (",_last_purpose,") thread holding the lock for ",dec<2>(_thread_holding_lock_timer.elapsed()),"s (waiting for ",timer.elapsed(),"s, current purpose is ",_purpose,")");
@@ -215,17 +331,34 @@ Tracker::LockGuard::LockGuard(std::string purpose, uint32_t timeout_ms) : _purpo
         }
     }
     
-    lock = new std::lock_guard<std::recursive_timed_mutex>(*tracker_lock, std::adopt_lock);
+    _locked = true;
+    _owns_write = true;
     
-    auto my_id = std::this_thread::get_id();
-    if(my_id != _last_thread_id) {
+    if(_write) {
+        
+        std::unique_lock tswitch(thread_switch_mutex);
+        _set_name = true;
         _last_thread = get_thread_name();
         _last_purpose = _purpose;
         _thread_holding_lock_timer.reset();
         _timer.reset();
-        _last_thread_id = my_id;
-        _set_name = true;
+        
+        //std::stringstream ss, ss1;
+        //ss << my_id;
+        //ss1 << _writing_thread_id;
+        //print("[TG] ",_purpose," sets writing thread id ", ss.str(), " from ", ss1.str());
+        
+        _writing_thread_id = my_id;
+    } else {
+        //std::stringstream ss;
+        //ss << my_id;
+        //print("[TG] ",_purpose," acquire read lock in thread ", ss.str());
+        
+        std::unique_lock rm(read_mutex);
+        read_locks.insert(my_id);
     }
+    
+    return true;
 }
 
 static CacheHints _properties_cache;
@@ -278,13 +411,13 @@ decltype(Tracker::_added_frames)::const_iterator Tracker::properties_iterator(Fr
     }
         
     void Tracker::print_memory() {
-        LockGuard guard("print_memory");
+        LockGuard guard(LockGuard::ro_t{}, "print_memory");
         mem::TrackerMemoryStats stats;
         stats.print();
     }
 
     void Tracker::delete_automatic_assignments(Idx_t fish_id, const FrameRange& frame_range) {
-        LockGuard guard("delete_automatic_assignments");
+        LockGuard guard(LockGuard::w_t{}, "delete_automatic_assignments");
         
         auto it = std::find(_automatically_assigned_ranges.begin(), _automatically_assigned_ranges.end(), fish_id);
         if(it == _automatically_assigned_ranges.end()) {
@@ -350,8 +483,7 @@ void Tracker::analysis_state(AnalysisState pause) {
             }
         });
         Settings::set_callback(Settings::manually_approved, [](auto&, auto&){
-            Tracker::LockGuard guard("manually_approved");
-            DatasetQuality::update(guard);
+            DatasetQuality::update();
         });
         
         auto track_list_update = [](auto&key, auto&value)
@@ -391,18 +523,20 @@ void Tracker::analysis_state(AnalysisState pause) {
             if(v != FAST_SETTINGS(posture_direction_smoothing))
             {
                 auto worker = [key](){
-                    LockGuard guard("Updating midlines in changed_setting("+key+")");
-                    
-                    for (auto && [id, fish] : Tracker::individuals()) {
-                        Tracker::instance()->_thread_pool.enqueue([](long_t id, Individual *fish){
-                            print("\t", id);
-                            fish->clear_post_processing();
-                            fish->update_midlines(nullptr);
-                        }, id, fish);
+                    {
+                        LockGuard guard(Tracker::LockGuard::w_t{}, "Updating midlines in changed_setting("+key+")");
+                        
+                        for (auto && [id, fish] : Tracker::individuals()) {
+                            Tracker::instance()->_thread_pool.enqueue([](long_t id, Individual *fish){
+                                print("\t", id);
+                                fish->clear_post_processing();
+                                fish->update_midlines(nullptr);
+                            }, id, fish);
+                        }
+                        
+                        Tracker::instance()->_thread_pool.wait();
                     }
-                    
-                    Tracker::instance()->_thread_pool.wait();
-                    DatasetQuality::update(guard);
+                    DatasetQuality::update();
                 };
                 
                 /*if(GUI::instance()) {
@@ -422,7 +556,7 @@ void Tracker::analysis_state(AnalysisState pause) {
                 }
                 
                 if(contains(Settings::names(), key)) {
-                    Tracker::LockGuard guard("changed_settings");
+                    Tracker::LockGuard guard(LockGuard::ro_t{}, "changed_settings");
                     Settings :: variable_changed(signal, map, key, value);
                 }
             };
@@ -480,7 +614,7 @@ void Tracker::analysis_state(AnalysisState pause) {
     }
 
     Frame_t Tracker::update_with_manual_matches(const Settings::manual_matches_t& manual_matches) {
-        LockGuard guard("update_with_manual_matches");
+        LockGuard guard(LockGuard::ro_t{}, "update_with_manual_matches");
         
         static std::atomic_bool first_run(true);
         static Settings::manual_matches_t compare = manual_matches;
@@ -489,42 +623,41 @@ void Tracker::analysis_state(AnalysisState pause) {
             //auto str = Meta::toStr(compare);
             //SETTING(manual_matches) = manual_matches;
             return {};
-            
-        } else {
-            //auto str0 = Meta::toStr(compare), str1 = Meta::toStr(manual_matches);
-            auto copy = manual_matches; // another copy
-            auto next = copy;
-            
-            // iterate over old to find frames that are not in the current version
-            Frame_t first_change;
-            
-            auto itn = compare.begin(), ito = copy.begin();
-            for (; itn != compare.end() && ito != copy.end(); ++itn, ++ito) {
-                if(itn->first != ito->first || itn->second != ito->second) {
-                    first_change = Frame_t(min(itn->first, ito->first));
-                    break;
-                }
-            }
-            
-            // if one of the iterators reached the end, but the other one didnt
-            if((itn == compare.end()) ^ (ito == copy.end())) {
-                if(itn == compare.end())
-                    first_change = Frame_t(ito->first);
-                else
-                    first_change = Frame_t(itn->first);
-            }
-            
-            if(first_change.valid() && first_change <= Tracker::end_frame()) {
-                Tracker::analysis_state(Tracker::AnalysisState::UNPAUSED);
-            }
-            
-            //SETTING(manual_matches) = next;
-            //FAST_SETTINGS(manual_matches) = next;
-            //auto str = Meta::toStr(FAST_SETTINGS(manual_matches));
-            compare = next;
-            
-            return first_change;
         }
+        
+        //auto str0 = Meta::toStr(compare), str1 = Meta::toStr(manual_matches);
+        auto copy = manual_matches; // another copy
+        auto next = copy;
+        
+        // iterate over old to find frames that are not in the current version
+        Frame_t first_change;
+        
+        auto itn = compare.begin(), ito = copy.begin();
+        for (; itn != compare.end() && ito != copy.end(); ++itn, ++ito) {
+            if(itn->first != ito->first || itn->second != ito->second) {
+                first_change = Frame_t(min(itn->first, ito->first));
+                break;
+            }
+        }
+        
+        // if one of the iterators reached the end, but the other one didnt
+        if((itn == compare.end()) ^ (ito == copy.end())) {
+            if(itn == compare.end())
+                first_change = Frame_t(ito->first);
+            else
+                first_change = Frame_t(itn->first);
+        }
+        
+        if(first_change.valid() && first_change <= Tracker::end_frame()) {
+            Tracker::analysis_state(Tracker::AnalysisState::UNPAUSED);
+        }
+        
+        //SETTING(manual_matches) = next;
+        //FAST_SETTINGS(manual_matches) = next;
+        //auto str = Meta::toStr(FAST_SETTINGS(manual_matches));
+        compare = next;
+        
+        return first_change;
     }
 
 bool operator<(Frame_t frame, const FrameProperties& props) {
@@ -556,7 +689,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         TakeTiming take(timing);
         
         Timer overall_timer;
-        LockGuard guard("Tracker::add(PPFrame)");
+        LockGuard guard(LockGuard::w_t{}, "Tracker::add(PPFrame)");
         
         assert(frame.index().valid());
         
@@ -616,7 +749,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
     };
 
     void Tracker::update_history_log() {
-        Tracker::LockGuard guard("update_history_log");
+        Tracker::LockGuard guard(LockGuard::ro_t{}, "update_history_log");
         if(history_log == nullptr && !SETTING(history_matching_log).value<file::Path>().empty()) {
             history_log = std::make_shared<std::ofstream>();
             
@@ -1091,7 +1224,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
 
         float tdelta;
         {
-            Tracker::LockGuard guard("history_split#1");
+            Tracker::LockGuard guard(LockGuard::ro_t{}, "history_split#1");
             auto props = properties(frame.index() - 1_f);
             tdelta = props ? (frame.time - props->time) : 0;
         }
@@ -1249,7 +1382,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
             frame.individual_cache().resize(N);
             
             if(num_threads < 2 || !pool || N < num_threads) {
-                Tracker::LockGuard guard("history_split#2");
+                Tracker::LockGuard guard(LockGuard::ro_t{}, "history_split#2");
                 fn(active_individuals, 0, N);
                 
             } else if(N) {
@@ -1257,7 +1390,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                 size_t per_thread = (N - last) / num_threads;
                 size_t i = 0;
 
-                Tracker::LockGuard guard("history_split#2");
+                Tracker::LockGuard guard(LockGuard::ro_t{}, "history_split#2");
                 for (; (i<=num_threads && last) || (!last && i<num_threads); ++i) {
                     size_t n = per_thread;
                     if(i == num_threads)
@@ -3610,8 +3743,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
             if(!_consecutive.empty() && _consecutive.back().end == frameIndex - 1_f) {
                 _consecutive.back().end = frameIndex;
                 if(frameIndex == analysis_range().end) {
-                    Tracker::LockGuard guard("update_consecutive");
-                    DatasetQuality::update(guard);
+                    DatasetQuality::update();
                 }
             } else {
                 if(!_consecutive.empty()) {
@@ -3620,8 +3752,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
                 
                 _consecutive.push_back(Range<Frame_t>(frameIndex, frameIndex));
                 if(update_dataset) {
-                    Tracker::LockGuard guard("update_consecutive#2");
-                    DatasetQuality::update(guard);
+                    DatasetQuality::update();
                 }
             }
         }
@@ -3661,7 +3792,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         Categorize::DataStore::reanalysed_from(Frame_t(frameIndex));
 #endif
         
-        LockGuard guard("_remove_frames("+Meta::toStr(frameIndex)+")");
+        LockGuard guard(LockGuard::w_t{}, "_remove_frames("+Meta::toStr(frameIndex)+")");
         recognition_pool.wait();
         _thread_pool.wait();
         
@@ -3771,7 +3902,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         FilterCache::clear();
         //! TODO: MISSING remove_frames
         //_recognition->remove_frames(frameIndex);
-        DatasetQuality::update(guard);
+        DatasetQuality::update();
         
         {
             //! update the cache for frame properties
@@ -3819,13 +3950,14 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
     }
 
     void Tracker::global_segment_order_changed() {
-        LockGuard guard("Tracker::global_segment_order_changed");
+        LockGuard guard(LockGuard::w_t{}, "Tracker::global_segment_order_changed");
         _global_segment_order.clear();
     }
     
     std::vector<Range<Frame_t>> Tracker::global_segment_order() {
-        LockGuard guard("Tracker::max_range()");
+        LockGuard guard(LockGuard::ro_t{}, "Tracker::max_range()");
         if(_global_segment_order.empty()) {
+            LockGuard guard(LockGuard::w_t{}, "Tracker::max_range()::write");
             std::set<Range<Frame_t>> manuals;
             auto manually_approved = FAST_SETTINGS(manually_approved);
             for(auto && [from, to] : manually_approved)
@@ -3919,7 +4051,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
     }
     
     void Tracker::clear_segments_identities() {
-        LockGuard guard("clear_segments_identities");
+        LockGuard guard(LockGuard::w_t{}, "clear_segments_identities");
         
         recognition_pool.wait();
         auto fid = FOI::to_id("split_up");
@@ -4268,7 +4400,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
     void Tracker::check_segments_identities(bool auto_correct, IdentitySource source, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue, Frame_t after_frame) {
         
         print("Waiting for lock...");
-        LockGuard guard("check_segments_identities");
+        LockGuard guard(LockGuard::w_t{}, "check_segments_identities");
         print("Updating automatic ranges starting from ", !after_frame.valid() ? Frame_t(0) : after_frame);
         
         if (source == IdentitySource::QRCodes)
@@ -4625,7 +4757,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
                 //std::lock_guard<decltype(GUI::instance()->gui().lock())> guard(GUI::instance()->gui().lock());
                 
                 {
-                    Tracker::LockGuard guard("check_segments_identities::auto_correct");
+                    Tracker::LockGuard guard(LockGuard::w_t{}, "check_segments_identities::auto_correct");
                     Tracker::instance()->_remove_frames(!after_frame.valid() ? Tracker::analysis_range().start : after_frame);
                     for(auto && [fdx, fish] : instance()->individuals()) {
                         fish->clear_recognition();

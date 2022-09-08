@@ -324,27 +324,8 @@ constexpr std::array<const char*, 8> ReasonsNames {
         OrientationProperties why_orientation(Frame_t frame) const;
 #endif
         
-        void add_custom_data(Frame_t frame, long_t id, void* ptr, std::function<void(void*)> fn_delete) {
-            auto it = _custom_data[frame].find(id);
-            if(it != _custom_data[frame].end()) {
-                FormatWarning("Custom data with id ", id," already present in frame ",frame,".");
-                it->second.second(it->second.first);
-            }
-            _custom_data[frame][id] = { ptr, fn_delete };
-        }
-        
-        void * custom_data(Frame_t frame, long_t id) const {
-            auto it = _custom_data.find(frame);
-            if(it == _custom_data.end())
-                return NULL;
-            
-            auto it1 = it->second.find(id);
-            if(it1 != it->second.end()) {
-                return it1->second.first;
-            }
-            
-            return NULL;
-        }
+        void add_custom_data(Frame_t frame, long_t id, void* ptr, std::function<void(void*)> fn_delete);
+        void * custom_data(Frame_t frame, long_t id) const;
         
         const decltype(_identity)& identity() const { return _identity; }
         decltype(_identity)& identity() { return _identity; }

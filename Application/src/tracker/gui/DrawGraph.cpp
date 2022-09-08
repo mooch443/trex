@@ -5,7 +5,7 @@ using namespace track;
 namespace gui {
     void PropertiesGraph::Graph::before_draw() {
         if(content_changed()) {
-            Tracker::LockGuard guard("PropertiesGraph::Graph::before_draw()",100);
+            Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "PropertiesGraph::Graph::before_draw()",100);
             if(guard.locked()) {
                 gui::Graph::update();
                 _content_changed = false;

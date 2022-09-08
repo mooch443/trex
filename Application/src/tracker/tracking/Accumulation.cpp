@@ -130,7 +130,7 @@ void apply_network() {
                 
                 const size_t N = py::VINetwork::number_classes();
                 
-                Tracker::LockGuard guard("apply_weights");
+                Tracker::LockGuard guard(Tracker::LockGuard::w_t{}, "apply_weights");
                 for(size_t i=0; i<results.size(); ++i) {
                     auto start = probabilities.begin() + i * N;
                     auto end   = probabilities.begin() + (i + 1) * N;
@@ -274,7 +274,7 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
         TrainingData* data,
         std::map<Idx_t, std::set<std::shared_ptr<Individual::SegmentInformation>>>* coverage)
 {
-    Tracker::LockGuard guard("Accumulation::generate_individuals_per_frame");
+    Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Accumulation::generate_individuals_per_frame");
     std::map<Frame_t, std::set<Idx_t>> individuals_per_frame;
     const bool calculate_posture = FAST_SETTINGS(calculate_posture);
     
@@ -343,7 +343,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
    // data.set_normalized(SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>());
     
     if(data.empty()) {
-        Tracker::LockGuard guard("Accumulation::generate_training_data");
+        Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Accumulation::generate_training_data");
         GUI::work().set_progress("generating images", 0);
         
         std::map<Idx_t, std::set<std::shared_ptr<Individual::SegmentInformation>>> segments;
@@ -385,7 +385,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
     
     auto && [images, ids] = data.join_arrays();
     
-    Tracker::LockGuard guard("Accumulation::generate_training_data");
+    Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Accumulation::generate_training_data");
     auto averages = _network->paverages(ids, std::move(images));
     
     std::set<Idx_t> added_ids = extract_keys(averages);
@@ -564,7 +564,7 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Fram
     auto data = std::make_shared<TrainingData>();
     
     {
-        Tracker::LockGuard guard("Accumulation::discriminate");
+        Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Accumulation::discriminate");
         gui::WorkInstance generating_images("generating images");
         if (GUI::instance())
             GUI::work().set_progress("generating images", 0);
@@ -622,7 +622,7 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Fram
     return {data, disc_images, disc_frame_map};
 }
 
-std::tuple<float, ska::bytell_hash_map<Frame_t, float>, float> Accumulation::calculate_uniqueness(bool internal, const std::vector<Image::Ptr>& images, const std::map<Frame_t, Range<size_t>>& map_indexes)
+std::tuple<float, ska::bytell_hash_map<Frame_t, float>, float> Accumulation::calculate_uniqueness(bool , const std::vector<Image::Ptr>& images, const std::map<Frame_t, Range<size_t>>& map_indexes)
 {
     auto predictions = _network->probabilities(images);
     if(predictions.empty()) {
@@ -792,7 +792,7 @@ bool Accumulation::start() {
     std::string reason_to_stop = "";
     
     {
-        Tracker::LockGuard guard("GUI::generate_training_data");
+        Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "GUI::generate_training_data");
         GUI::work().set_progress("generating images", 0);
         
         DebugCallback("Generating initial training dataset [%d-%d] (%d) in memory.", _initial_range.start, _initial_range.end, _initial_range.length());
