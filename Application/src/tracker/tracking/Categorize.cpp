@@ -1202,8 +1202,8 @@ void start_applying() {
         .image_size = SETTING(recognition_image_size).value<Size2>(),
         .num_threads = max_threads,
         .normalization = normalize,
-        .segment_min_samples = FAST_SETTINGS(categories_min_sample_images),
         .item_step = 5u,
+        .segment_min_samples = FAST_SETTINGS(categories_min_sample_images),
         .query_lock = [](){
             return std::make_unique<std::shared_lock<std::shared_mutex>>(DataStore::cache_mutex());
         }
