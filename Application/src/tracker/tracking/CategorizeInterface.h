@@ -26,6 +26,7 @@ struct Interface {
     Layout::Ptr load = Layout::Make<Button>("Load", Bounds(0, 0, 100, 33));
     Layout::Ptr close = Layout::Make<Button>("Hide", Bounds(0, 0, 100, 33));
     Layout::Ptr restart = Layout::Make<Button>("Restart", Bounds(0, 0, 100, 33));
+    Layout::Ptr reapply = Layout::Make<Button>("Reapply", Bounds(0, 0, 100, 33));
     Layout::Ptr train = Layout::Make<Button>("Train", Bounds(0, 0, 100, 33));
     Layout::Ptr shuffle = Layout::Make<Button>("Shuffle", Bounds(0, 0, 100, 33));
     Layout::Ptr buttons = Layout::Make<HorizontalLayout>(std::vector<Layout::Ptr>{});

@@ -509,6 +509,10 @@ Label::Ptr DataStore::label_averaged(Idx_t fish, Frame_t frame) {
     return label_averaged(it->second, frame);
 }
 
+bool DataStore::empty() {
+    std::shared_lock guard(cache_mutex());
+    return _probability_cache.empty();
+}
 
 Label::Ptr DataStore::label_averaged(const Individual* fish, Frame_t frame) {
     assert(fish);
@@ -1209,6 +1213,8 @@ void start_applying() {
         std::lock_guard guard(DataStore::mutex());
         init_labels();
     }
+    
+    GUI::set_status("Applying...");
     
     ImageExtractor(*GUI::video_source(), [normalize](const Query& q) -> bool {
         return !q.basic->blob.split() && (normalize != default_config::recognition_normalization_t::posture || q.posture) && DataStore::_label_unsafe(q.basic->frame, q.basic->blob.blob_id()) == -1;
@@ -2715,8 +2721,8 @@ void clear_labels() {
         std::unique_lock g(DataStore::cache_mutex());
         _interpolated_probability_cache.clear();
         _averaged_probability_cache.clear();
+        _probability_cache.clear();
     }
-
 }
 
 bool weights_available() {

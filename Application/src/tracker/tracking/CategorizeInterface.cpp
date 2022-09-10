@@ -545,7 +545,12 @@ void Interface::init(DrawStructure& base) {
             //PythonIntegration::quit();
 
             Work::set_state(Work::State::SELECTION);
-            });
+        });
+        reapply->on_click([](auto) {
+            DataStore::clear();
+            Categorize::clear_labels();
+            Work::set_state(Work::State::APPLY);
+        });
         train->on_click([](auto) {
             if (Work::state() == Work::State::SELECTION) {
                 Work::add_training_sample(nullptr);
@@ -712,6 +717,12 @@ void Interface::draw(DrawStructure& base) {
     if (Work::initialized()) {
         auto all_options = std::vector<Layout::Ptr>{ restart, load, train, shuffle, close };
         if (Work::best_accuracy() >= Work::good_enough() * 0.5) {
+            if(!DataStore::empty()) {
+                all_options.insert(all_options.begin(), reapply);
+                apply.to<Button>()->set_txt("Continue");
+            } else
+                apply.to<Button>()->set_txt("Apply");
+            
             all_options.insert(all_options.begin(), apply);
         }
 
