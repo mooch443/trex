@@ -152,12 +152,12 @@ struct DataStore {
     static Label::Ptr label(int ID);
     
     static Sample::Ptr sample(
-         const std::shared_ptr<Individual::SegmentInformation>& segment,
+         const std::shared_ptr<SegmentInformation>& segment,
          Individual* fish,
          const size_t max_samples,
          const size_t min_samples
     );
-    static Sample::Ptr temporary(const std::shared_ptr<Individual::SegmentInformation>& segment,
+    static Sample::Ptr temporary(const std::shared_ptr<SegmentInformation>& segment,
                                  Individual* fish,
                                  const size_t max_samples,
                                  const size_t min_samples = 50u,
@@ -219,7 +219,7 @@ struct LearningTask {
     Sample::Ptr sample;
     std::function<void(const LearningTask&)> callback;
     std::vector<float> result;
-    std::shared_ptr<Individual::SegmentInformation> segment;
+    std::shared_ptr<SegmentInformation> segment;
     long_t idx = -1;
     
     bool valid() const {

@@ -51,6 +51,9 @@ void ImageExtractor::collect(selector_t&& selector) {
     //! we need a lock for this, since we're walking through all individuals
     //! maybe I can split this up later, but could be dangerous.
     Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "ImageExtractor");
+    std::unique_ptr<std::shared_lock<std::shared_mutex>> query_guard;
+    if(_settings.query_lock)
+        query_guard = _settings.query_lock();
     
     // go through all individuals
     Query q;
@@ -59,6 +62,7 @@ void ImageExtractor::collect(selector_t&& selector) {
     for (auto &[fdx, fish] : Tracker::individuals()) {
         print("Individual ", fdx, " has ", fish->frame_count(), " frames.");
         
+        size_t i{0};
         fish->iterate_frames(Range<Frame_t>(fish->start_frame(), fish->end_frame()),
          [&, fdx=fdx](Frame_t frame,
                       auto& seg,
@@ -66,6 +70,13 @@ void ImageExtractor::collect(selector_t&& selector) {
                       auto posture)
              -> bool
          {
+            if(seg->length() < _settings.segment_min_samples)
+                return true;
+            
+            if(_settings.item_step > 1u
+               && i++ % _settings.item_step != 0)
+                return true;
+            
             q.basic = basic;
             q.posture = posture;
             
@@ -133,29 +144,65 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
     GenericThreadPool pool(_settings.num_threads, "ImageExtractorThread");
     
     std::mutex mutex;
-    uint64_t pushed_items{0}, total_items = this->_collected_items;
+    uint64_t pushed_items{0u}, total_items{0u};
     const auto recognition_normalization = _settings.normalization;
     const Size2 image_size = _settings.image_size;
     const uint64_t image_bytes = image_size.width * image_size.height * 1 * sizeof(uchar);
     const uint64_t max_images_per_step = max(1u, _settings.max_size_bytes / image_bytes);
-    print("Pushing ", max_images_per_step, " per step (",FileSize{image_bytes},"/image).");
+    
+    for(auto &[index, samples] : _tasks)
+        total_items += samples.size();
+    
+    auto keys = extract_keys(_tasks);
+    
+    const uint64_t original_items = total_items;
+    
+    print("Pushing ", max_images_per_step, " per step (",FileSize{image_bytes},"/image). ", total_items, " pictures scheduled.");
     
     // distribute the tasks across threads
     distribute_vector([&](auto i, auto start, auto end, auto) {
+        size_t N = 0, pushed = 0;
         PPFrame pp;
         std::vector<Result> results;
         
-        size_t N = 0, pushed = 0;
         for(auto it = start; it != end; ++it) {
             auto &[index, samples] = *it;
             N += samples.size();
         }
         
+        print("Thread ", i, " going for ", std::distance(start, end), " items. _tasks = ", _tasks.size());
+            
+        auto commit_results = [&](std::vector<Result>&& results) {
+            // need to take a break here
+            {
+                std::unique_lock guard(mutex);
+                pushed_items += results.size();
+            }
+            pushed += results.size();
+            print("Taking a break in thread ", i, " after ", pushed, "/",N," items (",results.size()," being pushed at once).");
+            apply(std::move(results));
+            results.clear();
+            
+            std::unique_lock guard(mutex);
+            print("Thread ", i, " callback ", pushed_items, " / ", total_items);
+            callback(this, double(pushed_items) / double(total_items), false);
+        };
+        
         for(auto it = start; it != end; ++it) {
             auto &[index, samples] = *it;
             pp.set_index(index);
-            _video.read_frame(pp.frame(), index.get());
-            Tracker::preprocess_frame(pp, {}, NULL, NULL);
+            try {
+                _video.read_frame(pp.frame(), index.get());
+                Tracker::preprocess_frame(pp, Tracker::active_individuals(index), NULL, NULL);
+            } catch(const UtilsException& e) {
+                FormatExcept("Cannot preprocess frame ", index, ". ", e.what());
+                {
+                    std::unique_lock guard(mutex);
+                    total_items -= samples.size();
+                    FormatWarning("Skipping ", samples.size(), " items.");
+                }
+                continue;
+            }
             
             for(const auto &[fdx, bdx, range] : samples) {
                 auto blob = pp.find_bdx(bdx);
@@ -163,6 +210,10 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                     blob = pp.find_original_bdx(bdx);
                     if(!blob) {
                         //print("Cannot find ", bdx, " in frame ", index);
+                        {
+                            std::unique_lock guard(mutex);
+                            --total_items;
+                        }
                         continue;
                     }
                 }
@@ -183,23 +234,34 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                             Midline::Ptr midline = fish->calculate_midline_for(*basic, *posture);
                             if(midline)
                                 midline_transform = midline->transform(recognition_normalization);
-                            else
+                            else {
+                                {
+                                    std::unique_lock guard(mutex);
+                                    --total_items;
+                                }
                                 continue;
+                            }
                         }
                     }
                 }
                 
-                auto &&[image, pos] = constraints::diff_image(recognition_normalization,
-                                                              blob,
-                                                              midline_transform,
-                                                              median_midline_length_px,
-                                                              _settings.image_size,
-                                                              &Tracker::average());
+                auto &&[image, pos] = image::calculate_diff_image_with_settings(recognition_normalization, midline_transform, median_midline_length_px, blob, &Tracker::average(), _settings.image_size);
+                /*auto &&[image, pos] = constraints::diff_image(
+                          recognition_normalization,
+                          blob,
+                          midline_transform,
+                          median_midline_length_px,
+                          _settings.image_size,
+                          &Tracker::average());*/
                 //auto &&[image, pos] = Individual::calculate_diff_image(blob, _settings.image_size);
                 //auto &&[pos, image] = blob->difference_image(*Tracker::instance()->background(), FAST_SETTINGS(track_threshold));
                 if(!image) {
                     //! can this happen?
                     FormatWarning("Cannot generate image for ", bdx, " of ", fdx, " in frame ", index,".");
+                    {
+                        std::unique_lock guard(mutex);
+                        --total_items;
+                    }
                     continue;
                 }
                 
@@ -212,38 +274,19 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                     .image = std::move(image)
                 });
                 
-                if(results.size() >= max_images_per_step) {
-                    // need to take a break here
-                    {
-                        std::unique_lock guard(mutex);
-                        pushed_items += results.size();
-                    }
-                    pushed += results.size();
-                    print("Taking a break in thread ", i, " after ", pushed, "/",N," items (",results.size()," being pushed at once).");
-                    apply(std::move(results));
-                    results.clear();
-                    
-                    callback(this, double(pushed_items) / double(total_items), false);
-                }
+                if(results.size() >= max_images_per_step)
+                    commit_results(std::move(results));
             }
         }
         
-        if(!results.empty()) {
-            {
-                std::unique_lock guard(mutex);
-                pushed_items += results.size();
-            }
-            
-            pushed += results.size();
-            print("Thread ", i, " ended. Pushing: ", pushed, "/",N," items (",results.size()," being pushed at once).");
-            apply(std::move(results));
-            
-            callback(this, double(pushed_items) / double(total_items), false);
-        }
+        if(!results.empty())
+            commit_results(std::move(results));
+        
+        print("Thread ", i, " ended. Pushed ", pushed, " items (of ", N,").");
         
     }, pool, _tasks.begin(), _tasks.end());
     
-    print("distribute ended.");
+    print("distribute ended ",pushed_items,"/",total_items," (originally ", original_items,"[",int64_t(pushed_items) - int64_t(original_items),"]). With original keys: ", keys);
     return pushed_items;
 }
 

@@ -10,7 +10,7 @@
 
 namespace gui {
 struct ShadowSegment {
-    Range<Frame_t> frames;
+    FrameRange frames;
     uint32_t error_code;
 };
 struct InfoCard::ShadowIndividual {
@@ -119,14 +119,14 @@ void InfoCard::update() {
                 
                 auto range_of = [](const auto& rit) -> const FrameRange& {
                     using value_t = typename cmn::remove_cvref<decltype(rit)>::type;
-                    using SegPtr_t = std::shared_ptr<Individual::SegmentInformation>;
+                    using SegPtr_t = std::shared_ptr<SegmentInformation>;
                     
                     if constexpr(std::is_same<value_t, FrameRange>::value)    return rit;
                     else if constexpr(std::is_same<value_t, SegPtr_t>::value) return *rit;
                     else if constexpr(is_pair<value_t>::value) return rit.second;
                     else if constexpr(is_pair<typename cmn::remove_cvref<decltype(*rit)>::type>::value) return (*rit).second;
                     else if constexpr(std::is_same<decltype((*rit)->range), FrameRange>::value) return (*rit)->range;
-                    else if constexpr(std::is_same<typename cmn::remove_cvref<decltype(*rit)>::type, std::shared_ptr<track::Individual::SegmentInformation>>::value)
+                    else if constexpr(std::is_same<typename cmn::remove_cvref<decltype(*rit)>::type, std::shared_ptr<track::SegmentInformation>>::value)
                         return *(*rit);
                     else return *rit;
                 };
@@ -136,7 +136,7 @@ void InfoCard::update() {
                 
                 for(auto it = fish->frame_segments().begin(); it != fish->frame_segments().end(); ++it)
                 {
-                    auto range = ((FrameRange)range_of(it)).range;
+                    auto range = ((FrameRange)range_of(it));
                     _shadow->segments.push_back(ShadowSegment{
                         range,
                         (*it)->error_code
@@ -145,7 +145,7 @@ void InfoCard::update() {
                 
                 for(auto it = fish->recognition_segments().begin(); it != fish->recognition_segments().end(); ++it)
                 {
-                    auto range = ((FrameRange)range_of(it)).range;
+                    auto range = ((FrameRange)range_of(it));
                     _shadow->rec_segments.push_back(ShadowSegment{
                         range,
                         0
@@ -207,11 +207,11 @@ void InfoCard::update() {
         auto rit = segments.rbegin();
         Frame_t current_segment;
         for(; rit != segments.rend(); ++rit) {
-            if(rit->frames.end < _shadow->frame)
+            if(rit->frames.end() < _shadow->frame)
                 break;
             
-            current_segment = rit->frames.start;
-            if(rit->frames.start <= _shadow->frame)
+            current_segment = rit->frames.start();
+            if(rit->frames.start() <= _shadow->frame)
                 break;
         }
         
@@ -220,23 +220,26 @@ void InfoCard::update() {
         i = 0;
         auto it = rit == segments.rend()
             ? segments.begin()
-            : track::find_frame_in_sorted_segments(segments.begin(), segments.end(), rit->frames.start);
+            : track::find_frame_in_sorted_segments(segments.begin(), segments.end(), rit->frames.start());
         auto it0 = it;
         
         for (; it != segments.end() && cmn::abs(std::distance(it0, it)) < 5; ++it, ++i)
         {
             std::string str;
             auto range = it->frames;
-            if(range.length() <= 1_f)
-                str = range.start.toStr();
+            if(range.length() <= 1)
+                str = range.start().toStr();
             else
-                str = range.start.toStr() + "-" + range.end.toStr();
+                str = range.start().toStr() + "-" + range.end().toStr();
             
             //!TODO: Need to collect width() beforehand
             auto p = Vec2(width() - 10 + offx, float(height() - 40) * 0.5f + ((i - 2) + 1) * (float)Base::default_line_spacing(Font(1.1f)));
             auto alpha = 25 + 230 * (1 - cmn::abs(i-2) / 5.0f);
             
-            text = add<Text>(str, p, _shadow->frame != range.start ? White.alpha(alpha) : Color(200,235,255).alpha(alpha), Font(0.8f), Vec2(1), Vec2(1, 0.5f));
+            text = add<Text>(str, p, _shadow->frame != range.start()
+                             ? White.alpha(alpha)
+                             : Color(200,235,255).alpha(alpha),
+                             Font(0.8f), Vec2(1), Vec2(1, 0.5f));
             text->set_clickable(true);
             //text = advance(text);
             
@@ -265,7 +268,7 @@ void InfoCard::update() {
             }
             segment_texts.push_back({text, tt});
             
-            if(it->frames.start == current_segment) {
+            if(it->frames.start() == current_segment) {
                 bool inside = it->frames.contains(_shadow->frame);
                 auto offy = - (inside ? 0.f : (Base::default_line_spacing(Font(1.1f))*0.5f));
                 add<Line>(Vec2(10+offx, p.y + offy), Vec2(text->pos().x - (!inside ? 0 : text->width() + 10), p.y + offy), inside ? White : White.alpha(100));

@@ -20,6 +20,7 @@
 #include <tracking/PPFrame.h>
 #include <misc/ranges.h>
 #include <tracking/Stuffs.h>
+#include <tracking/SegmentInformation.h>
 
 #define DEBUG_ORIENTATION false
 
@@ -33,7 +34,7 @@ namespace track {
 
 enum class Reasons {
     None = 0,
-    LostForOneFrame = 1,
+    FramesSkipped = 1,
     TimestampTooDifferent = 2,
     ProbabilityTooSmall = 4,
     ManualMatch = 8,
@@ -45,7 +46,7 @@ enum class Reasons {
 
 constexpr std::array<const char*, 8> ReasonsNames {
     "None",
-    "LostForOneFrame",
+    "FramesSkipped",
     "TimestampTooDifferent",
     "ProbabilityTooSmall",
     "ManualMatch",
@@ -76,10 +77,10 @@ constexpr std::array<const char*, 8> ReasonsNames {
     Iterator find_frame_in_sorted_segments(Iterator start, Iterator end, T object, typename std::enable_if< !is_pair<typename Iterator::value_type>::value, void* >::type = nullptr) {
         if(start != end) {
             auto it = std::upper_bound(start, end, object, [](T o, const auto& ptr) -> bool {
-                return o < ptr.frames.start;
+                return o < ptr.frames.start();
             });
             
-            if((it == end || it != start) && (*(--it)).frames.start == object)
+            if((it == end || it != start) && (*(--it)).frames.start() == object)
             {
                 return it;
             }
@@ -173,37 +174,6 @@ constexpr std::array<const char*, 8> ReasonsNames {
         Frame_t _last_posture_added;
         
     public:
-        struct SegmentInformation : public FrameRange {
-            std::vector<long_t> basic_index;
-            std::vector<long_t> posture_index;
-            uint32_t error_code = std::numeric_limits<uint32_t>::max();
-            
-            SegmentInformation(const Range<Frame_t>& range = Range<Frame_t>(Frame_t(), Frame_t()),
-                               Frame_t first_usable = Frame_t())
-                : FrameRange(range, first_usable)
-            {}
-            
-            void add_basic_at(Frame_t frame, long_t gdx);
-            void add_posture_at(std::unique_ptr<PostureStuff>&& stuff, Individual* fish); //long_t gdx);
-            //void remove_frame(long_t);
-            
-            long_t basic_stuff(Frame_t frame) const;
-            long_t posture_stuff(Frame_t frame) const;
-            
-            constexpr bool overlaps(const SegmentInformation& v) const {
-                return contains(v.start()) || contains(v.end())
-                    || v.contains(start()) || v.contains(end())
-                    || v.start() == end() || start() == v.end();
-            }
-            
-            constexpr bool operator<(const SegmentInformation& other) const {
-                return range < other.range;
-            }
-            
-            constexpr bool operator<(Frame_t frame) const {
-                return range.start < frame;
-            }
-        };
         
     protected:
         GETTER(std::set<Frame_t>, manually_matched)
@@ -446,6 +416,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         
     private:
         friend class gui::Fish;
+        friend struct SegmentInformation;
         
         std::shared_ptr<SegmentInformation> update_add_segment(Frame_t frameIndex, const MotionRecord& current, Frame_t prev_frame, const pv::CompressedBlob* blob, Match::prob_t current_prob);
         Midline::Ptr update_frame_with_posture(BasicStuff& basic, const decltype(Individual::_posture_stuff)::const_iterator& posture_it, const CacheHints* hints);
@@ -453,7 +424,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
     };
 }
 
-inline bool operator<(const std::shared_ptr<track::Individual::SegmentInformation>& ptr, cmn::Frame_t frame) {
+inline bool operator<(const std::shared_ptr<track::SegmentInformation>& ptr, cmn::Frame_t frame) {
     assert(ptr != nullptr);
     return ptr->start() < frame;
 }

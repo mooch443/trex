@@ -33,7 +33,7 @@ namespace gui {
     }
 
     GUICache::GUICache(DrawStructure* graph, pv::File* video)
-        : _graph(graph), _video(video)
+        : _video(video), _graph(graph)
     {
         _cache = this;
         globals::Cache::init();

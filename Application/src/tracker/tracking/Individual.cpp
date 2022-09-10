@@ -337,12 +337,12 @@ struct FrameNumber {
     Frame_t frame;
 };
 
-inline bool operator<(const std::shared_ptr<track::Individual::SegmentInformation>& ptr, const FrameNumber& frame) {
+inline bool operator<(const std::shared_ptr<track::SegmentInformation>& ptr, const FrameNumber& frame) {
     assert(ptr != nullptr);
     return ptr->end() < frame.frame;
 }
 
-inline bool operator<(const FrameNumber& frame, const std::shared_ptr<track::Individual::SegmentInformation>& ptr) {
+inline bool operator<(const FrameNumber& frame, const std::shared_ptr<track::SegmentInformation>& ptr) {
     assert(ptr != nullptr);
     return frame.frame < ptr->start();
 }
@@ -352,63 +352,6 @@ bool Individual::has(Frame_t frame) const {
         return false;
     
     return std::binary_search(_frame_segments.begin(), _frame_segments.end(), FrameNumber{frame});
-}
-
-void Individual::SegmentInformation::add_basic_at(Frame_t frame, long_t gdx) {
-    UNUSED(frame);
-    assert(end() == frame);
-    basic_index.push_back(gdx);
-}
-
-#ifndef NDEBUG
-#define SEGMENT_ACCESS(INDEXARRAY, INDEX) INDEXARRAY . at( INDEX )
-#define FRAME_SEGMENT_ACCESS(INDEXARRAY, INDEX) INDEXARRAY . at( ( INDEX ).get() )
-#else
-#define SEGMENT_ACCESS(INDEXARRAY, INDEX) INDEXARRAY [ INDEX ]
-#define FRAME_SEGMENT_ACCESS(INDEXARRAY, INDEX) INDEXARRAY [ ( INDEX ).get() ]
-#endif
-
-void Individual::SegmentInformation::add_posture_at(std::unique_ptr<PostureStuff>&& stuff, Individual* fish) {//long_t gdx) {
-    long_t L = length();
-    if(posture_index.size() != size_t(L)) {
-        long_t prev = posture_index.size();
-        posture_index.resize(L);
-        for (long_t i=prev; i<L; ++i) {
-            SEGMENT_ACCESS(posture_index, i) = -1;
-        }
-    }
-    
-    long_t gdx = fish->_posture_stuff.size();
-    
-    if(fish->added_postures.find(stuff->frame) == fish->added_postures.end()) {
-        fish->added_postures.insert(stuff->frame);
-    } else {
-        print(fish->added_postures);
-        throw SoftException("(", fish->identity(),") Posture for frame ",stuff->frame," already added.");
-    }
-    
-    if(!fish->_posture_stuff.empty() && stuff->frame < fish->_posture_stuff.back()->frame)
-        throw SoftException("(", fish->identity().ID(),") Adding frame ", stuff->frame," after frame ", fish->_last_posture_added);
-    
-    fish->_last_posture_added = stuff->frame;
-    FRAME_SEGMENT_ACCESS(posture_index, stuff->frame - start()) = gdx;
-
-    fish->_posture_stuff.push_back(std::move(stuff));
-}
-
-long_t Individual::SegmentInformation::basic_stuff(Frame_t frame) const {
-    //assert(frame >= start() && frame <= end() && size_t(frame-start()) < basic_index.size());
-    if(frame < start() || frame > end() || (size_t)(frame-start()).get() >= basic_index.size())
-        return -1;
-    return FRAME_SEGMENT_ACCESS(basic_index, frame - start());
-}
-
-long_t Individual::SegmentInformation::posture_stuff(Frame_t frame) const {
-    if(posture_index.empty() || !contains(frame)
-       || (posture_index.size() < basic_index.size() && (size_t)(frame - start()).get() >= posture_index.size() ))
-        return -1;
-    assert(frame >= start() && frame <= end() && (size_t)(frame-start()).get() < posture_index.size());
-    return FRAME_SEGMENT_ACCESS(posture_index, frame - start()); //posture_index .at( frame - start() );
 }
 
 decltype(Individual::_frame_segments)::const_iterator Individual::iterator_for(Frame_t frameIndex) const {
@@ -436,13 +379,19 @@ decltype(Individual::_frame_segments)::const_iterator Individual::iterator_for(F
     return it;
 }
 
-std::shared_ptr<Individual::SegmentInformation> Individual::segment_for(Frame_t frameIndex) const {
+std::shared_ptr<SegmentInformation> Individual::segment_for(Frame_t frameIndex) const {
     if(frameIndex < _startFrame || frameIndex > _endFrame)
         return nullptr;
     
     auto it = iterator_for(frameIndex);
     return it == _frame_segments.end() || !(*it)->contains(frameIndex) ? nullptr : *it;
 }
+
+#ifndef NDEBUG
+#define SEGMENT_ACCESS(INDEXARRAY, INDEX) INDEXARRAY . at( INDEX )
+#else
+#define SEGMENT_ACCESS(INDEXARRAY, INDEX) INDEXARRAY [ INDEX ]
+#endif
 
 BasicStuff* Individual::basic_stuff(Frame_t frameIndex) const {
     auto segment = segment_for(frameIndex);
@@ -1245,7 +1194,7 @@ T& operator |=(T &lhs, Enum rhs)
     return lhs;
 }
 
-std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(Frame_t frameIndex, const MotionRecord& current, Frame_t prev_frame, const pv::CompressedBlob* blob, prob_t current_prob)
+std::shared_ptr<SegmentInformation> Individual::update_add_segment(Frame_t frameIndex, const MotionRecord& current, Frame_t prev_frame, const pv::CompressedBlob* blob, prob_t current_prob)
 {
     //! find a segment this (potentially) belongs to
     std::shared_ptr<SegmentInformation> segment = nullptr;
@@ -1263,7 +1212,7 @@ std::shared_ptr<Individual::SegmentInformation> Individual::update_add_segment(F
     
     double tdelta = prop && prev_prop ? prop->time - prev_prop->time : 0;
     uint32_t error_code = 0;
-    error_code |= Reasons::LostForOneFrame       * uint32_t(prev_frame != frameIndex - 1_f);
+    error_code |= Reasons::FramesSkipped         * uint32_t(prev_frame != frameIndex - 1_f);
     error_code |= Reasons::ProbabilityTooSmall   * uint32_t(current_prob != -1 && current_prob < FAST_SETTINGS(track_trusted_probability));
     error_code |= Reasons::TimestampTooDifferent * uint32_t(FAST_SETTINGS(huge_timestamp_ends_segment) && tdelta >= FAST_SETTINGS(huge_timestamp_seconds));
     error_code |= Reasons::ManualMatch           * uint32_t(is_manual_match(frameIndex));
@@ -1693,9 +1642,12 @@ const FrameProperties* CacheHints::properties(Frame_t index) const {
 }
 
 IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, const CacheHints* hints) const {
+    if(!frameIndex.valid())
+        throw U_EXCEPTION("Invalid frame in cache_for_frame");
+    
     IndividualCache cache;
     cache._idx = Idx_t(identity().ID());
-    if(empty()) {
+    if(empty() || !_startFrame.valid() || frameIndex <= _startFrame) {
         cache.individual_empty = true;
         return cache;
     }
@@ -1825,6 +1777,45 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     
     cache.tdelta = time - ptime;//pp.first < frameIndex ? (time - ptime) : time;
     cache.local_tdelta = prev_props ? time - prev_props->time : 0;
+    
+    if(cache.tdelta == 0) {
+        long_t bdx = -1, pdx = -1;
+        
+        if(!_frame_segments.empty()) {
+            if(it != _frame_segments.end()
+               && (*it)->contains(frameIndex - 1_f))
+            {
+                bdx = (*it)->basic_stuff(frameIndex - 1_f);
+                pdx = (*it)->posture_stuff(frameIndex - 1_f);
+                
+                print("#1 ", bdx, " ", pdx, " ", (*it)->range, " contains ", frameIndex - 1_f);
+                
+            } else {
+                if(it != _frame_segments.end() && (*it)->end() <= frameIndex - 1_f) {
+                    bdx = (*it)->basic_stuff((*it)->end());
+                    pdx = (*it)->posture_stuff((*it)->end());
+                    
+                    print("#2 ", bdx, " ", pdx, " ", (*it)->end(), " <= ", frameIndex - 1_f);
+                }
+                else if(frameIndex <= _startFrame && _startFrame.valid()) {
+                    bdx = (*_frame_segments.begin())->basic_stuff(_startFrame);
+                    pdx = (*_frame_segments.begin())->posture_stuff(_startFrame);
+                    
+                    print("#3 ", bdx, " ", pdx, " ", frameIndex, " <= ", _startFrame);
+                    
+                } else if(frameIndex >= _endFrame && _endFrame >= _startFrame && _endFrame.valid()) {
+                    bdx = (*_frame_segments.rbegin())->basic_stuff(_endFrame);
+                    pdx = (*_frame_segments.rbegin())->posture_stuff(_endFrame);
+                    
+                    print("#4 ", bdx, " ", pdx, " ", frameIndex, " >= ", _endFrame, "  && ", _endFrame, " >= ", _startFrame);
+                    
+                } else
+                    print("Nothing to be found for ",frameIndex - 1_f);
+            }
+        }
+        
+        throw U_EXCEPTION("No time difference between ",frameIndex," and ",cache.previous_frame," in calculate_next_positions. pp->frame=", pp ? pp->frame : Frame_t(), " ");
+    }
     
     auto raw = Vec2(0.0, 0.0);
     auto raw_acc = Vec2(0, 0);
@@ -2000,9 +1991,6 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     
     //! \mean{s}_{i}(t) = \underset{k \in [F(\tau)-5, F(t)]}{\median} \norm{\hat{\mathbf{v}}_i(\Tau(k))}
     prob_t speed = max(0.6f, sqrt(used_frames ? static_median(average_speed.begin(), average_speed.end()) : 0));
-    
-    if(cache.tdelta == 0)
-        throw U_EXCEPTION("No time difference between ",frameIndex," and ",cache.previous_frame," in calculate_next_positions.");
     
     //! \lambda
     const float lambda = SQR(SQR(max(0, min(1, FAST_SETTINGS(track_speed_decay)))));
@@ -2615,7 +2603,7 @@ void log(FILE* f, const char* cmd, ...) {
 #endif
 }
 
-std::map<Frame_t, FrameRange> split_segment_by_probability(const Individual* fish, const Individual::SegmentInformation& segment)
+std::map<Frame_t, FrameRange> split_segment_by_probability(const Individual* fish, const SegmentInformation& segment)
 {
     auto for_frame = [fish](Frame_t frame) -> std::tuple<long_t, float> {
         std::map<long_t, std::tuple<long_t, float>> samples;

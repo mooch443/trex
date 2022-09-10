@@ -272,7 +272,7 @@ Accumulation* Accumulation::current() {
 std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
         const Range<Frame_t>& range,
         TrainingData* data,
-        std::map<Idx_t, std::set<std::shared_ptr<Individual::SegmentInformation>>>* coverage)
+        std::map<Idx_t, std::set<std::shared_ptr<SegmentInformation>>>* coverage)
 {
     Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Accumulation::generate_individuals_per_frame");
     std::map<Frame_t, std::set<Idx_t>> individuals_per_frame;
@@ -298,12 +298,12 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
             overall_range.end = max(overall_range.end, frange.range.end);
         }
         
-        std::set<std::shared_ptr<Individual::SegmentInformation>> used_segments;
-        std::shared_ptr<Individual::SegmentInformation> current_segment;
+        std::set<std::shared_ptr<SegmentInformation>> used_segments;
+        std::shared_ptr<SegmentInformation> current_segment;
         
         fish->iterate_frames(overall_range, [&individuals_per_frame, id=id, &used_segments, &current_segment, calculate_posture]
             (Frame_t frame,
-             const std::shared_ptr<Individual::SegmentInformation>& segment,
+             const std::shared_ptr<SegmentInformation>& segment,
              auto basic,
              auto posture)
                 -> bool
@@ -346,7 +346,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
         Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Accumulation::generate_training_data");
         GUI::work().set_progress("generating images", 0);
         
-        std::map<Idx_t, std::set<std::shared_ptr<Individual::SegmentInformation>>> segments;
+        std::map<Idx_t, std::set<std::shared_ptr<SegmentInformation>>> segments;
         auto coverage = generate_individuals_per_frame(range, &data, &segments);
         
         if(check_length) {

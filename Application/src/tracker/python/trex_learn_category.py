@@ -314,9 +314,9 @@ def predict():
     global categorize, images, receive
     assert type(categorize) != type(None)
 
-    receive(categorize.predict(images))
-
+    results = categorize.predict(images)
     del images
+    receive(results)
 
 def clear_images():
     global categorize

@@ -181,9 +181,9 @@ uint64_t MemoryStats::get_memory_size(const std::shared_ptr<PostureStuff>& obj, 
 }
 
 template <>
-uint64_t MemoryStats::get_memory_size(const std::shared_ptr<Individual::SegmentInformation>& obj, const std::string& name) {
+uint64_t MemoryStats::get_memory_size(const std::shared_ptr<SegmentInformation>& obj, const std::string& name) {
     uint64_t bytes = sizeof(obj)
-        + sizeof(Individual::SegmentInformation)
+        + sizeof(SegmentInformation)
         + memory_selector(*this, obj->basic_index, name)
         + memory_selector(*this, obj->posture_index, name);
     return bytes;

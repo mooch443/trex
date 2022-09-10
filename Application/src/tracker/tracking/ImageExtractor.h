@@ -8,6 +8,7 @@
 #include <tracker/misc/default_config.h>
 #include <pv.h>
 #include <misc/PackLambda.h>
+#include <tracking/SegmentInformation.h>
 
 using namespace cmn;
 using namespace track;
@@ -59,12 +60,18 @@ struct Settings {
     Size2 image_size{Float2_t(80), Float2_t(80)};
     uint8_t num_threads{5u};
     default_config::recognition_normalization_t::Class normalization{default_config::recognition_normalization_t::none};
+    uint64_t item_step{1u};
+    uint64_t segment_min_samples{0u};
+    std::function<std::unique_ptr<std::shared_lock<std::shared_mutex>>()> query_lock = nullptr;
     
     std::string toStr() const {
         return "settings<flags:"+Meta::toStr(flags)
             +" max:"+FileSize{max_size_bytes}.toStr()
             +" res:"+Meta::toStr(image_size)
-            +" threads:"+Meta::toStr(num_threads)+">";
+            +" threads:"+Meta::toStr(num_threads)
+            +" step:"+Meta::toStr(item_step)
+            +" min_samples:"+Meta::toStr(segment_min_samples)
+            +">";
     }
 };
 
@@ -87,7 +94,7 @@ private:
     
     using selector_sig = bool(const Query&);
     using partial_apply_sig = void(std::vector<Result>&&);
-    using callback_sig = void(ImageExtractor*, double, bool);
+    using callback_sig = void(ImageExtractor*, double p, bool finished);
     
     using selector_t = package::F<selector_sig>;
     using partial_apply_t = package::F<partial_apply_sig>;

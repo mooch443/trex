@@ -730,7 +730,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             }
         }
         
-        std::shared_ptr<Individual::SegmentInformation> segment = nullptr;
+        std::shared_ptr<SegmentInformation> segment = nullptr;
         for(auto && [frame, stuff] : sorted) {
             if(!segment || !segment->contains(frame))
                 segment = fish->segment_for(frame);

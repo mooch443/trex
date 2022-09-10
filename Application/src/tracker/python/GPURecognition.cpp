@@ -651,6 +651,15 @@ void PythonIntegration::set_function(const char* name_, cmn::package::F<void(std
     }, m);
 }
 
+template<>
+void PythonIntegration::set_function(const char* name_, cmn::package::F<void(std::vector<float>)>&& f, const std::string &m)
+{
+    set_function_internal(name_, [f = std::move(f)](std::vector<float> v) mutable {
+        f(v);
+    }, m);
+}
+
+template<>
 void PythonIntegration::set_function(const char* name_, cmn::package::F<void(std::vector<int64_t>)>&& f, const std::string &m)
 {
     set_function_internal(name_, [f = std::move(f)](std::vector<int64_t> v) mutable {

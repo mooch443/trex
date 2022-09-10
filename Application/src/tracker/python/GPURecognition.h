@@ -62,8 +62,14 @@ namespace track {
         static void set_function(const char* name_, std::function<void(std::vector<uchar>, std::vector<std::string>)> f, const std::string &m = "");
         static void set_function(const char* name_, std::function<void(std::vector<float>)> f, const std::string &m = "");
         static void set_function(const char* name_, cmn::package::F<void(std::vector<std::vector<float>>&&,std::vector<float>&&)>&& f, const std::string &m = "");
+        
+        template<typename T>
         static void set_function(const char* name_,
-            cmn::package::F<void(std::vector<int64_t>)>&& f, const std::string &m = "");
+                                 cmn::package::F<void(std::vector<T>)>&& f, const std::string &m = "") {
+            throw std::invalid_argument("Cannot use this type.");
+        }
+        //static void set_function(const char* name_,
+        //    cmn::package::F<void(const std::vector<float>&)>&& f, const std::string &m = "");
         static void unset_function(const char* name_, const std::string &m = "");
         
     public:
@@ -75,4 +81,12 @@ namespace track {
 
     template<> TREX_EXPORT std::string PythonIntegration::get_variable(const std::string&, const std::string&);
     template<> TREX_EXPORT float PythonIntegration::get_variable(const std::string&, const std::string&);
+
+template<> TREX_EXPORT
+void PythonIntegration::set_function(const char* name_,
+                  cmn::package::F<void(std::vector<float>)>&& f, const std::string &m);
+
+template<> TREX_EXPORT
+void PythonIntegration::set_function(const char* name_,
+                  cmn::package::F<void(std::vector<int64_t>)>&& f, const std::string &m);
 }
