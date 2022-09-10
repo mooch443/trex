@@ -178,6 +178,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
     protected:
         GETTER(std::set<Frame_t>, manually_matched)
         std::set<Frame_t> automatically_matched;
+        std::mutex _delete_callback_mutex;
         
 #if DEBUG_ORIENTATION
         std::map<long_t, OrientationProperties> _why_orientation;

@@ -945,19 +945,28 @@ void GUI::draw(DrawStructure &base) {
     }
     
     PD(gui).section("show", [this, mode](DrawStructure &base, auto* section) {
-        Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "show()", 100);
-        if(!guard.locked() || !PD(real_update)) {
+        if (!PD(real_update)) {
             section->reuse_objects();
-        } else {
+            return;
+        }
+
+        Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "show()", 100);
+
+        if (!guard.locked()) {
+            section->reuse_objects();
+
+        }
+        else {
             PD(cache).update_data(this->frame());
+
             this->draw_raw(base, this->frame());
             PD(cache).set_mode(mode);
-            
-            if(mode == gui::mode_t::tracking)
+
+            if (mode == gui::mode_t::tracking)
                 this->draw_tracking(base, this->frame());
-            else if(mode == gui::mode_t::blobs)
+            else if (mode == gui::mode_t::blobs)
                 this->draw_raw_mode(base, this->frame());
-            
+
             PD(cache).updated_blobs();
         }
     });

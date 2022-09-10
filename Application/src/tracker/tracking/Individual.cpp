@@ -549,17 +549,12 @@ Individual::~Individual() {
 }
 
 void Individual::unregister_delete_callback(void* ptr) {
-    if(!Tracker::instance())
-        return;
-    Tracker::LockGuard guard(Tracker::LockGuard::w_t{}, "unregister_delete_callback");
+    std::unique_lock guard(_delete_callback_mutex);
     _delete_callbacks.erase(ptr);
 }
 
 void Individual::register_delete_callback(void* ptr, const std::function<void(Individual*)>& lambda) {
-    if(!Tracker::instance())
-        return;
-    
-    Tracker::LockGuard guard(Tracker::LockGuard::w_t{}, "register_delete_callback");
+    std::unique_lock guard(_delete_callback_mutex);
     _delete_callbacks[ptr] = lambda;
 }
 
@@ -599,10 +594,15 @@ void Individual::remove_frame(Frame_t frameIndex) {
         return;
 
     {
-        auto callbacks = _delete_callbacks;
+        decltype(_delete_callbacks) callbacks;
+        {
+            std::unique_lock guard(_delete_callback_mutex);
+            callbacks = _delete_callbacks; 
+            _delete_callbacks.clear();
+        }
+
         for (auto& f : callbacks)
             f.second(this);
-        _delete_callbacks.clear();
     }
 
     if(frameIndex <= start_frame())
