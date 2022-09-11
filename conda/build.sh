@@ -43,17 +43,17 @@ else
             export SDKROOT="${CONDA_BUILD_SYSROOT}"
             export MACOSX_DEPLOYMENT_TARGET="11.0"
             export CXX="$BUILD_PREFIX/bin/clang++"
-            export C="$BUILD_PREFIX/bin/clang"
-            CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} -DCMAKE_C_COMPILER=$BUILD_PREFIX/bin/clang -DCMAKE_CXX_COMPILER=$BUILD_PREFIX/bin/clang++")
+            export C="$BUILD_PREFIX/bin/clang-14"
+            CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} -DCMAKE_C_COMPILER=$BUILD_PREFIX/bin/clang-14 -DCMAKE_CXX_COMPILER=$BUILD_PREFIX/bin/clang++")
         else
             echo "No GITHUB_WORKFLOW detected."
             #export CONDA_BUILD_SYSROOT=$(ls -d /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk | tail -n1)
             export CONDA_BUILD_SYSROOT="/opt/MacOSX11.1.sdk"
             export MACOSX_DEPLOYMENT_TARGET="11.0"
             export CXX="$BUILD_PREFIX/bin/clang++"
-            export C="$BUILD_PREFIX/bin/clang"
+            export C="$BUILD_PREFIX/bin/clang-14"
             export SDKROOT="${CONDA_BUILD_SYSROOT}"
-            CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} -DCMAKE_C_COMPILER=$BUILD_PREFIX/bin/clang -DCMAKE_CXX_COMPILER=$BUILD_PREFIX/bin/clang++")
+            CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} -DCMAKE_C_COMPILER=$BUILD_PREFIX/bin/clang-14 -DCMAKE_CXX_COMPILER=$BUILD_PREFIX/bin/clang++")
             export CXXFLAGS="${CXXFLAGS} -isysroot ${CONDA_BUILD_SYSROOT}"  # [osx]
             export CFLAGS="${CFLAGS} -isysroot ${CONDA_BUILD_SYSROOT}"  # [osx]
         fi
