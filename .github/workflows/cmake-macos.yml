@@ -5,11 +5,11 @@ on: [push]
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Release
-  MACOSX_DEPLOYMENT_TARGET: 11.0
-  CONDA_BUILD_SYSROOT: /Applications/Xcode_13.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk
-  SDKROOT: /Applications/Xcode_13.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk
+  MACOSX_DEPLOYMENT_TARGET: 11.1
+  CONDA_BUILD_SYSROOT: /Applications/Xcode_12.4.0.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.1.sdk
+  SDKROOT: /Applications/Xcode_12.4.0.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.1.sdk
   GITHUB_WORKFLOW: CondaBuildMacOS
-  CC: $BUILD_PREFIX/bin/clang-14
+  CC: $BUILD_PREFIX/bin/clang
   CXX: $BUILD_PREFIX/bin/clang++
 
 jobs:

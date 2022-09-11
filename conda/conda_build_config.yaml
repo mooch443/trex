@@ -7,7 +7,7 @@ CONDA_BUILD_SYSROOT:
   - /opt/MacOSX11.1.sdk        # [osx and not arm64]
 
 CC:
-  - $BUILD_PREFIX/bin/clang-14 # [osx and not arm64]
+  - $BUILD_PREFIX/bin/clang # [osx and not arm64]
 CXX:
   - $BUILD_PREFIX/bin/clang++ # [osx and not arm64]
 
