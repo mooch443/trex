@@ -9,6 +9,8 @@ env:
   CONDA_BUILD_SYSROOT: /Applications/Xcode_13.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk
   SDKROOT: /Applications/Xcode_13.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk
   GITHUB_WORKFLOW: CondaBuildMacOS
+  CC: $BUILD_PREFIX/bin/clang-14
+  CXX: $BUILD_PREFIX/bin/clang++
 
 jobs:
   build:
