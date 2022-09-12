@@ -244,7 +244,6 @@ void Accumulation::unsetup() {
 }
 
 void Accumulation::setup() {
-    py::init();
     try {
         _network = py::VINetwork::instance().get();
         _network->set_skip_button([](){

@@ -1421,7 +1421,7 @@ int main(int argc, char** argv)
     if(go_fullscreen)
         gui.toggle_fullscreen();
     
-    py::init();
+    //py::init();
     
     gui::SFLoop loop(gui.gui(), imgui_base, [&](gui::SFLoop&, gui::LoopStatus status){
         {

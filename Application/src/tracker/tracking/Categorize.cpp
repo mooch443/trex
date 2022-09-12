@@ -2671,7 +2671,6 @@ void Work::set_state(State state) {
                 Work::requested_samples() = Interface::per_row * 2;
                 Work::_variable.notify_one();
                 Work::visible() = true;
-                Python::init();
                 Work::start_learning();
             }
             

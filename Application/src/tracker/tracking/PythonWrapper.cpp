@@ -16,13 +16,33 @@ std::unique_ptr<std::thread> _thread;
 
 std::atomic<int> last_python_try{0};
 
+std::atomic<bool> _initialized{false}, _initializing{false};
+
+bool python_initialized() {
+    return _initialized.load();
+}
+
+bool python_initializing() {
+    return _initializing.load();
+}
+
 void update(std::promise<void>&& init_promise) {
     set_thread_name("Python::update");
     
     struct Guard {
         Guard() {
             print("[py] init()");
-            py::init();
+
+            _initialized = false;
+            try {
+                py::init();
+                _initialized = true;
+                _initializing = false;
+            }
+            catch (...) {
+                _initializing = false;
+                throw;
+            }
         }
         
         ~Guard() {
@@ -105,6 +125,8 @@ void update(std::promise<void>&& init_promise) {
                 _queue_update.wait(guard);
         }
         
+        _initialized = false;
+        _terminate = false;
         print("[py] ended.");
         _exit_promise.set_value();
         
@@ -126,14 +148,16 @@ std::shared_future<void> init() {
     }
     
     if(_thread) {
-        print("There is already a thread running. Restarting...");
-        Python::_terminate = true;
-        _thread->join();
-        _thread = nullptr;
+        throw U_EXCEPTION("There is already a thread running. Cannot initialize Python twice.");
+        //Python::_terminate = true;
+        //_thread->join();
+        //_thread = nullptr;
     }
     
     std::promise<void> init_promise;
     _init_future = init_promise.get_future().share();
+    Python::_terminate = false;
+    _initializing = true;
     
     _exit_promise = {};
     _thread = std::make_unique<std::thread>(update, std::move(init_promise));
@@ -157,6 +181,13 @@ std::shared_future<void> init() {
 }
 
 std::future<void> deinit() {
+    if (!_init_future.valid()) {
+        std::promise<void> p;
+        auto f = p.get_future();
+        p.set_value();
+        return f;
+    }
+
     if(_terminate)
         throw U_EXCEPTION("PythonWrapper was not started when deinit() was called.");
     
@@ -338,6 +369,7 @@ bool python_available() {
 #ifndef COMMONS_PYTHON_EXECUTABLE
     return false;
 #else
+    fix_paths(false);
     if(last_python_try == 0) {
         can_initialize_python();
     }

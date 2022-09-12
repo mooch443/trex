@@ -255,11 +255,11 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
 namespace track {
 namespace py = pybind11;
 
-std::atomic_bool& python_initialized() {
+std::atomic_bool& initialized() {
     static std::atomic_bool _python_initialized = false;
     return _python_initialized;
 }
-std::atomic_bool& python_initializing() {
+std::atomic_bool& initializing() {
     static std::atomic_bool _python_initializing = false;
     return _python_initializing;
 }
@@ -312,16 +312,16 @@ void PythonIntegration::set_display_function(std::function<void(const std::strin
 }
 
 void PythonIntegration::init() {
-    python_initialized() = false;
-    python_initializing() = true;
+    initialized() = false;
+    initializing() = true;
     
     auto fail = [](const auto& e, cmn::source_location loc = cmn::source_location::current()){
         python_init_error() = e.what();
-        python_initializing() = false;
+        initializing() = false;
         FormatExcept("Python runtime error (GPURecognition:", loc.line(), "): ", e.what());
         
-        python_initialized() = false;
-        python_initializing() = false;
+        initialized() = false;
+        initializing() = false;
     };
     
     //! set new thread ID. we expect everything to happen from this thread now.
@@ -371,7 +371,7 @@ void PythonIntegration::init() {
             auto cmd = utils::read_file("trex_init.py");
             py::exec(cmd);
             python_gpu_initialized() = true;
-            python_initializing() = false;
+            initializing() = false;
             
         } catch(const UtilsException& ex) {
             print("Error while executing 'trex_init.py'. Content: ",ex.what());
@@ -381,8 +381,8 @@ void PythonIntegration::init() {
             throw;
         } 
         
-        python_initialized() = true;
-        python_initializing() = false;
+        initialized() = true;
+        initializing() = false;
         
     } catch(const UtilsException& ex) {
         fail(ex);
@@ -394,8 +394,8 @@ void PythonIntegration::init() {
     }
     catch (...) {
         python_init_error() = "Cannot initialize interpreter.";
-        python_initializing() = false;
-        python_initialized() = false;
+        initializing() = false;
+        initialized() = false;
         throw SoftException("Cannot initialize interpreter.");
     }
 }

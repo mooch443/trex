@@ -33,6 +33,8 @@ std::shared_future<void> init();
 std::future<void> deinit();
 std::future<void> schedule(PackagedTask&&, Flag = Flag::DEFAULT);
 bool python_available();
+bool python_initialized();
+bool python_initializing();
 void fix_paths(bool force_init, cmn::source_location loc = cmn::source_location::current());
 
 template<typename T>

@@ -10,8 +10,8 @@
 namespace track {
     using namespace cmn;
 
-    TREX_EXPORT std::atomic_bool& python_initialized();
-    TREX_EXPORT std::atomic_bool& python_initializing();
+    TREX_EXPORT std::atomic_bool& initialized();
+    TREX_EXPORT std::atomic_bool& initializing();
     TREX_EXPORT std::atomic_bool& python_gpu_initialized();
     TREX_EXPORT std::atomic_int& python_major_version();
     TREX_EXPORT std::atomic_int& python_minor_version();

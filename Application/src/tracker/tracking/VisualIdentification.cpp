@@ -315,9 +315,6 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
         GUI::work().set_progress("training", 0);
     }*/
     
-    if(!python_initialized())
-        return false;
-    
     std::future<bool> future;
     
     // try doing everything in-memory without saving it

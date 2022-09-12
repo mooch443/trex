@@ -2472,7 +2472,7 @@ void GUI::draw_footer(DrawStructure& base) {
         static Accumulation::Status last_status;
         auto current_status = Accumulation::status();
         
-        if (python_initialized()
+        if (py::python_initialized()
             && (last_status != current_status
                 || gpu_status.txt().empty()
                 || status_timer.elapsed() > 1))
@@ -2497,18 +2497,18 @@ void GUI::draw_footer(DrawStructure& base) {
                 print_timer.reset();
             }
             gpu_status.set_txt(txt);
-        } else if(!python_initialized())
+        } else if(!py::python_initialized())
             gpu_status.set_txt("");
 
-        if (python_initializing()) {
+        if (py::python_initializing()) {
             python_status.set_txt("[Python] initializing...");
             python_status.set_color(Yellow);
         }
-        else if (python_initialized()) {
+        else if (py::python_initialized()) {
             python_status.set_txt("[Python " + Meta::toStr(python_major_version().load()) + "." + Meta::toStr(python_minor_version().load()) + "]");
             python_status.set_color(Green);
         }
-        else if (python_status.txt().empty() || (!python_init_error().empty() && !python_initialized() && !python_initializing())) {
+        else if (python_status.txt().empty() || (!python_init_error().empty() && !py::python_initialized() && !py::python_initializing())) {
             python_status.set_txt("[Python] " + python_init_error());
             python_status.set_color(Red);
         } else {
@@ -4173,7 +4173,7 @@ void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void
         auto task = std::async(std::launch::async, [](){
             cmn::set_thread_name("async::ensure_started");
             try {
-                py::init().get();
+                //py::init().get();
                 print("Initialization success.");
                 
             } catch(...) {
