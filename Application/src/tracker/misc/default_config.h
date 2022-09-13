@@ -9,8 +9,8 @@ namespace default_config {
     using namespace cmn;
     
     void get(sprite::Map& config, GlobalSettings::docs_map_t& docs, decltype(GlobalSettings::set_access_level)* fn);
-    void warn_deprecated(const std::string& source, sprite::Map& map);
-    void warn_deprecated(const std::string& source, const std::map<std::string, std::string>& keys);
+    void warn_deprecated(const file::Path& source, sprite::Map& map);
+    void warn_deprecated(const file::Path& source, const std::map<std::string, std::string>& keys);
     bool is_deprecated(const std::string& key);
     const std::map<std::string, std::string>& deprecations();
     std::string replacement(const std::string& key);

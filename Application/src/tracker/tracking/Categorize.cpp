@@ -421,16 +421,16 @@ void DataStore::_set_ranged_label_unsafe(RangedLabel&& r)
             break;
     }
     
-    /*m = -1;
+    /*m = Frame_t();
     for(auto it = _ranged_labels.rbegin(); it != _ranged_labels.rend(); ++it) {
         if(it->_maximum_frame_after != m) {
             FormatWarning("ranged(",it->_range.start(),"-",it->_range.end(),"): maximum_frame_after = ",it->_maximum_frame_after," != ",m);
             it->_maximum_frame_after = m;
         }
-        if(it->_range.start() < m || m == -1) {
+        if(it->_range.start() < m || !m.valid()) {
             m = it->_range.start();
         }
-    } */
+    }*/
 }
 
 Label::Ptr DataStore::ranged_label(Frame_t frame, pv::bid bdx) {
@@ -447,15 +447,15 @@ int DataStore::_ranged_label_unsafe(Frame_t frame, pv::bid bdx) {
     // returned first range which end()s after frame,
     // now check how far back we can go:
     for(; eit != _ranged_labels.end(); ++eit) {
-        if(frame < eit->_maximum_frame_after)
-            break;
-        
         // and see if it is in fact contained
         if(eit->_range.contains(frame)) {
             if(eit->_blobs.at((frame - eit->_range.start()).get()) == bdx) {
                 return eit->_label;
             }
         }
+        
+        if(frame < eit->_maximum_frame_after)
+            break;
     }
     
     return -1;
@@ -842,8 +842,8 @@ Sample::Ptr Work::front_sample() {
             
             if(sample != Sample::Invalid()
                && (sample->_images.empty()
-                   || sample->_images.front()->rows != FAST_SETTINGS(recognition_image_size).height
-                   || sample->_images.front()->cols != FAST_SETTINGS(recognition_image_size).width)
+                   || sample->_images.front()->rows != FAST_SETTINGS(individual_image_size).height
+                   || sample->_images.front()->cols != FAST_SETTINGS(individual_image_size).width)
                )
             {
                 sample = Sample::Invalid();
@@ -1199,10 +1199,10 @@ void start_applying() {
     extract::Settings settings{
         .flags = 0,//(uint32_t)Flag::RemoveSmallFrames,
         .max_size_bytes = uint64_t((double)SETTING(gpu_max_cache).value<float>() * 1000.0 * 1000.0 * 1000.0 / double(max_threads)),
-        .image_size = SETTING(recognition_image_size).value<Size2>(),
+        .image_size = FAST_SETTINGS(individual_image_size),
         .num_threads = max_threads,
         .normalization = normalize,
-        .item_step = 5u,
+        .item_step = 1u,
         .segment_min_samples = FAST_SETTINGS(categories_min_sample_images),
         .query_lock = [](){
             return std::make_unique<std::shared_lock<std::shared_mutex>>(DataStore::cache_mutex());
@@ -1237,7 +1237,7 @@ void start_applying() {
                 if(py::check_module(module))
                 {
                     print("Reset python functions and variables...");
-                    const auto dims = SETTING(recognition_image_size).value<Size2>();
+                    const auto dims = FAST_SETTINGS(individual_image_size);
                     print("dimensions = ", dims);
                     std::map<std::string, int> keys;
                     auto cat = FAST_SETTINGS(categories_ordered);
@@ -1265,23 +1265,21 @@ void start_applying() {
                     assert(r.size() == results.size());
                     
                     {
+#ifndef NDEBUG
                         static Timing timing("callback.set_labels_unsafe", 0.1);
                         TakeTiming take(timing);
+#endif
                         std::unique_lock guard(DataStore::cache_mutex());
-                        std::set<Frame_t> unique_frames;
                         for(size_t i=0; i<results.size(); ++i) {
                             const auto& frame = results[i].frame;
                             const auto& bdx = results[i].bdx;
-                            //print("r[",i,"] = ", r.at(i));
                             
                             if(r[i] <= -1)
                                 FormatWarning("Label for frame ", frame," blob ",bdx," is nullptr.");
                             else {
-                                unique_frames.insert(frame);
                                 DataStore::_set_label_unsafe(Frame_t(frame), bdx, r[i]);
                             }
                         }
-                        print("\tlabels in frames ", unique_frames);
                     }
                     
                     py::unset_function("receive", module);
@@ -1304,16 +1302,22 @@ void start_applying() {
             print("Finished.");
             
             {
+                {
+                    std::unique_lock guard(DataStore::range_mutex());
+                    _ranged_labels.clear();
+                }
+                
                 Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "ranged_labels");
                 std::shared_lock label_guard(DataStore::cache_mutex());
+                
                 std::vector<float> sums(Work::_number_labels);
+                std::fill(sums.begin(), sums.end(), 0);
                 
                 for(auto &[fdx, fish] : Tracker::individuals()) {
                     for(auto& seg : fish->frame_segments()) {
                         RangedLabel ranged;
                         ranged._range = *seg;
                         
-                        //std::fill(sums.begin(), sums.end(), 0);
                         size_t samples = 0;
                         
                         for(auto &bix : seg->basic_index) {
@@ -1356,6 +1360,9 @@ void start_applying() {
             if(SETTING(auto_categorize) && SETTING(auto_quit)) {
                 GUI::auto_quit();
             }
+            
+            if(SETTING(auto_categorize))
+                SETTING(auto_categorize) = false;
             
         } else
             GUI::set_status(text);
@@ -1448,7 +1455,7 @@ void Work::start_learning() {
         
         auto reset_variables = [](){
             print("Reset python functions and variables...");
-            const auto dims = SETTING(recognition_image_size).value<Size2>();
+            const auto dims = FAST_SETTINGS(individual_image_size);
             std::map<std::string, int> keys;
             auto cat = FAST_SETTINGS(categories_ordered);
             for(size_t i=0; i<cat.size(); ++i)
@@ -1519,7 +1526,7 @@ void Work::start_learning() {
         
         std::unique_lock guard(Work::_learning_mutex);
         while(Work::_learning) {
-            const auto dims = SETTING(recognition_image_size).value<Size2>();
+            const auto dims = FAST_SETTINGS(individual_image_size);
             const auto gpu_max_sample_images = double(SETTING(gpu_max_sample_gb).value<float>()) * 1000.0 * 1000.0 * 1000.0 / double(sizeof(float)) * 0.5 / dims.width / dims.height;
             
             Work::_learning_variable.wait_for(guard, std::chrono::milliseconds(200));
@@ -2494,8 +2501,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<SegmentInformation>& segm
     auto normalize = SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>();
     if (normalize == default_config::recognition_normalization_t::posture && !FAST_SETTINGS(calculate_posture))
         normalize = default_config::recognition_normalization_t::moments;
-    //const auto scale = FAST_SETTINGS(recognition_image_scale);
-    const auto dims = SETTING(recognition_image_size).value<Size2>();
+    const auto dims = FAST_SETTINGS(individual_image_size);
 
     for(auto &[index, frame, ptr] : stuff_indexes) {
 
@@ -2549,11 +2555,12 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<SegmentInformation>& segm
             //Tracker::LockGuard guard("Categorize::sample");
             
             auto [image, pos] =
-                image::calculate_diff_image_with_settings(
-                  normalize,
-                  midline ? midline->transform(normalize) : gui::Transform(),
-                  custom_len.median_midline_length_px,
-                  blob, &Tracker::average(), dims);
+                constraints::diff_image(normalize,
+                                        blob,
+                                        midline ? midline->transform(normalize) : gui::Transform(),
+                                        custom_len.median_midline_length_px,
+                                        dims,
+                                        &Tracker::average());
             
             if (image) {
                 images.emplace_back(std::move(image));

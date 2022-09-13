@@ -2485,10 +2485,10 @@ void GUI::draw_footer(DrawStructure& base) {
                 txt += "["+std::string(python_uses_gpu() ? python_gpu_name() : "CPU")+"]";
 
             if (!current_status.busy && current_status.percent == 1)
-                txt += " finished.";
+                txt += " Finished.";
             else if (current_status.busy)
-                txt += " applied " + Meta::toStr(size_t(current_status.percent * 100)) + "%" + (current_status.failed_blobs ? (" " + Meta::toStr(current_status.failed_blobs) + " failed blobs") : "");
-            else txt += " idle.";
+                txt += " Applied " + Meta::toStr(size_t(current_status.percent * 100)) + "%" + (current_status.failed_blobs ? (" " + Meta::toStr(current_status.failed_blobs) + " failed blobs") : "");
+            else txt += " Idle.";
 
             static Timer print_timer;
             if (print_timer.elapsed() > 1) {

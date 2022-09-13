@@ -245,7 +245,7 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                     }
                 }
                 
-                auto &&[image, pos] = image::calculate_diff_image_with_settings(recognition_normalization, midline_transform, median_midline_length_px, blob, &Tracker::average(), _settings.image_size);
+                auto &&[image, pos] = constraints::diff_image(recognition_normalization, blob, midline_transform, median_midline_length_px, _settings.image_size, &Tracker::average());
                 /*auto &&[image, pos] = constraints::diff_image(
                           recognition_normalization,
                           blob,

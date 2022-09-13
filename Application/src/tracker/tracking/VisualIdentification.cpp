@@ -18,7 +18,7 @@ inline static std::mutex _instance_mutex;
 inline static std::unique_ptr<VINetwork> _instance;
 
 CREATE_STRUCT(Settings,
-    (Size2, recognition_image_size)
+    (Size2, individual_image_size)
 )
 
 #define PSetting(NAME) Settings :: get<Settings::Variables:: NAME>()
@@ -107,8 +107,8 @@ void VINetwork::setup(bool force) {
         //py::unset_function("model", "learn_static");
         py::set_variable("network_version", version.toStr(), "learn_static");
         py::set_variable("classes", ids, "learn_static");
-        py::set_variable("image_width", PSetting(recognition_image_size).width, "learn_static");
-        py::set_variable("image_height", PSetting(recognition_image_size).height, "learn_static");
+        py::set_variable("image_width", PSetting(individual_image_size).width, "learn_static");
+        py::set_variable("image_height", PSetting(individual_image_size).height, "learn_static");
         py::set_variable("learning_rate", SETTING(gpu_learning_rate).value<float>(), "learn_static");
         py::set_variable("batch_size", (long_t)batch_size, "learn_static");
         py::set_variable("video_length", narrow_cast<long_t>(SETTING(video_length).value<uint64_t>()), "learn_static");
@@ -422,7 +422,7 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                 py::set_variable("classes", classes, "learn_static");
                 py::set_variable("save_weights_after", load_results != TrainingMode::Accumulate, "learn_static");
                 
-                print("Pushing ", (joined_data.validation_images.size() + joined_data.training_images.size())," images (",FileSize((joined_data.validation_images.size() + joined_data.training_images.size()) * PSetting(recognition_image_size).width * PSetting(recognition_image_size).height * 4),") to python...");
+                print("Pushing ", (joined_data.validation_images.size() + joined_data.training_images.size())," images (",FileSize((joined_data.validation_images.size() + joined_data.training_images.size()) * PSetting(individual_image_size).width * PSetting(individual_image_size).height * 4),") to python...");
                 
                 uchar setting_max_epochs = int(SETTING(gpu_max_epochs).value<uchar>());
                 py::set_variable("max_epochs", gpu_max_epochs != 0 ? min(setting_max_epochs, gpu_max_epochs) : setting_max_epochs, "learn_static");

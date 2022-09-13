@@ -16,43 +16,6 @@ using namespace default_config;
 namespace track {
 namespace image {
 
-std::tuple<Image::UPtr, Vec2>
-calculate_diff_image_with_settings(
-    const default_config::recognition_normalization_t::Class &normalize,
-    const gui::Transform &midline_transform,
-    float median_midline_length_px,
-    const pv::BlobPtr& blob,
-    const cmn::Image* background,
-    const Size2& output_shape)
-{
-    if(normalize == default_config::recognition_normalization_t::posture)
-        return calculate_normalized_diff_image(midline_transform,
-                                               blob,
-                                               median_midline_length_px,
-                                               output_shape,
-                                               false,
-                                               background);
-    else if(normalize == default_config::recognition_normalization_t::legacy)
-        return calculate_normalized_diff_image(midline_transform, blob, median_midline_length_px, output_shape, true, background);
-    else if (normalize == default_config::recognition_normalization_t::moments)
-    {
-        blob->calculate_moments();
-        
-        gui::Transform tr;
-        float angle = narrow_cast<float>(-blob->orientation() + M_PI * 0.25);
-        
-        tr.rotate(DEGREE(angle));
-        tr.translate( -blob->bounds().size() * 0.5);
-        //tr.translate(-offset());
-        
-        return calculate_normalized_diff_image(tr, blob, 0, output_shape, false, background);
-    }
-    else {
-        auto && [img, pos] = calculate_diff_image(blob, output_shape, background);
-        return std::make_tuple(std::move(img), pos);
-    }
-}
-
 std::tuple<Image::UPtr, Vec2> normalize_image(
       const cv::Mat& mask,
       const cv::Mat& image,
@@ -79,18 +42,18 @@ std::tuple<Image::UPtr, Vec2> normalize_image(
     assert(padded.isContinuous());
     
     auto size = Size2(padded.size());
-    auto scale = SETTING(recognition_image_scale).value<float>();
+    auto scale = FAST_SETTINGS(individual_image_scale);
     //Vec2 pos = size * 0.5 + Vec2(midline_length * 0.4);
     
     gui::Transform tr;
     if(use_legacy) {
         tr.translate(size * 0.5);
-        tr.scale(Vec2(scale));
+        tr.scale(scale);
         tr.translate(Vec2(-midline_length * 0.5, 0));
         
     } else {
         tr.translate(size * 0.5);
-        tr.scale(Vec2(scale));
+        tr.scale(scale);
         tr.translate(Vec2(midline_length * 0.4));
     }
     tr.combine(midline_transform);
@@ -101,7 +64,7 @@ std::tuple<Image::UPtr, Vec2> normalize_image(
     //tf::imshow("before", image);
     
     cv::warpAffine(image, padded, t, (cv::Size)size, cv::INTER_LINEAR, cv::BORDER_CONSTANT);
-    //resize_image(padded, SETTING(recognition_image_scale).value<float>());
+    //resize_image(padded, SETTING(individual_image_scale).value<float>());
     
     //tf::imshow("after", padded);
     int left = 0, right = 0, top = 0, bottom = 0;
@@ -189,7 +152,7 @@ calculate_diff_image(pv::BlobPtr blob,
     imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, background, 0);
     image.copyTo(padded, mask);
     
-    auto scale = SETTING(recognition_image_scale).value<float>();
+    auto scale = FAST_SETTINGS(individual_image_scale);
     if(scale != 1)
         resize_image(padded, scale);
     

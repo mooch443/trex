@@ -35,7 +35,7 @@ int main(int argc, char**argv) {
     }
 #endif
     //SETTING(quiet) = true;
-    default_config::register_default_locations();
+    ::default_config::register_default_locations();
     
     /*GenericThreadPool pool(cmn::hardware_concurrency());
     gui::heatmap::Grid grid;

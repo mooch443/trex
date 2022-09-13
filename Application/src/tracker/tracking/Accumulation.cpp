@@ -96,12 +96,14 @@ void apply_network() {
     extract::Settings settings{
         .flags = (uint32_t)Flag::RemoveSmallFrames,
         .max_size_bytes = uint64_t((double)SETTING(gpu_max_cache).value<float>() * 1000.0 * 1000.0 * 1000.0 / double(max_threads)),
-        .image_size = SETTING(recognition_image_size).value<Size2>(),
+        .image_size = SETTING(individual_image_size).value<Size2>(),
         .num_threads = max_threads,
         .normalization = SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>()
     };
     
     std::mutex write_mutex;
+    Accumulation::status().percent = 0.0;
+    Accumulation::status().busy = true;
     
     ImageExtractor e{
         *GUI::video_source(),
@@ -881,7 +883,7 @@ bool Accumulation::start() {
                 auto data = _collected_data->join_split_data();
                 auto ranges_path = pv::DataLocation::parse("output", Path(SETTING(filename).value<file::Path>().filename()+"_validation_data.npz"));
                 
-                const Size2 dims = SETTING(recognition_image_size);
+                const Size2 dims = SETTING(individual_image_size);
                 FileSize size((data.validation_images.size() + data.training_images.size()) * size_t(dims.width * dims.height));
                 std::vector<uchar> all_images;
                 all_images.resize(size.bytes);
@@ -1447,7 +1449,7 @@ bool Accumulation::start() {
         auto data = _collected_data->join_split_data();
         auto ranges_path = pv::DataLocation::parse("output", Path(SETTING(filename).value<file::Path>().filename()+"_validation_data.npz"));
         
-        const Size2 dims = SETTING(recognition_image_size);
+        const Size2 dims = SETTING(individual_image_size);
         FileSize size((data.validation_images.size() + data.training_images.size()) * dims.width * dims.height);
         std::vector<uchar> all_images;
         all_images.resize(size.bytes);
@@ -1499,7 +1501,7 @@ bool Accumulation::start() {
         
         const double number_classes = images_per_class.size();
         const double gpu_max_sample_mb = double(SETTING(gpu_max_sample_gb).value<float>()) * 1000;
-        const Size2 output_size = SETTING(recognition_image_size);
+        const Size2 output_size = SETTING(individual_image_size);
         const double max_images_per_class = gpu_max_sample_mb * 1000 * 1000 / number_classes / output_size.width / output_size.height / 4;
         
         double mbytes = 0;
@@ -1660,7 +1662,7 @@ bool Accumulation::start() {
                     auto ranges_path = pv::DataLocation::parse("output", Path(SETTING(filename).value<file::Path>().filename()+"_validation_data_"+method.name()+".npz"));
                     
                     
-                    const Size2 dims = SETTING(recognition_image_size);
+                    const Size2 dims = SETTING(individual_image_size);
                     std::vector<Idx_t> ids;
                     size_t total_images = 0;
                     for(auto && [id, img]: images) {

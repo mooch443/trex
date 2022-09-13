@@ -122,7 +122,9 @@ ENUM_CLASS_DOCS(visual_identification_version_t,
         {"load_identity_network", ""},
         {"try_network_training_internally", ""},
         {"recognition_enable", ""},
-        {"network_training_output_size", "recognition_image_size"},
+        {"recognition_image_scale", "individual_image_scale"},
+        {"recognition_image_size", "individual_image_size"},
+        {"network_training_output_size", "individual_image_size"},
         {"gui_save_npy_quit", "auto_quit"},
         {"gui_auto_quit", "auto_quit"},
         {"gui_stop_after", "analysis_range"},
@@ -217,7 +219,7 @@ file::Path conda_environment_path() {
         return deprecated;
     }
     
-    void warn_deprecated(const std::string& source, sprite::Map& map) {
+    void warn_deprecated(const file::Path& source, sprite::Map& map) {
         std::map<std::string, std::string> found;
         
         for(auto &key : map.keys()) {
@@ -228,7 +230,7 @@ file::Path conda_environment_path() {
         warn_deprecated(source, found);
     }
     
-    void warn_deprecated(const std::string& source, const std::map<std::string, std::string>& keys) {
+    void warn_deprecated(const file::Path& source, const std::map<std::string, std::string>& keys) {
         bool found = false;
         for (auto && [key, val] : keys) {
             if(is_deprecated(key)) {
@@ -595,8 +597,8 @@ file::Path conda_environment_path() {
         CONFIG("recognition_smooth_amount", uint16_t(200), "If `recognition_border` is 'outline', this is the amount that the `recognition_border` is smoothed (similar to `outline_smooth_samples`), where larger numbers will smooth more.");
         CONFIG("recognition_coeff", uint16_t(50), "If `recognition_border` is 'outline', this is the number of coefficients to use when smoothing the `recognition_border`.");
         CONFIG("recognition_normalization", recognition_normalization_t::posture, "This enables or disable normalizing the images before training. If set to `none`, the images will be sent to the GPU raw - they will only be cropped out. Otherwise they will be normalized based on head orientation (posture) or the main axis calculated using `image moments`.");
-        CONFIG("recognition_image_size", Size2(80, 80), "Size of each image generated for network training.");
-        CONFIG("recognition_image_scale", float(1), "Scaling applied to the images before passing them to the network.");
+        CONFIG("individual_image_size", Size2(80, 80), "Size of each image generated for network training.");
+        CONFIG("individual_image_scale", float(1), "Scaling applied to the images before passing them to the network.");
         CONFIG("recognition_save_training_images", false, "If set to true, the program will save the images used for a successful training of the recognition network to the output path.");
         CONFIG("visual_identification_version", visual_identification_version_t::current, "Newer versions of TRex sometimes change the network layout for (e.g.) visual identification, which will make them incompatible with older trained models. This parameter allows you to change the expected version back, to ensure backwards compatibility.");
         CONFIG("gpu_enable_accumulation", true, "Enables or disables the idtrackerai-esque accumulation protocol cascade. It is usually a good thing to enable this (especially in more complicated videos), but can be disabled as a fallback (e.g. if computation time is a major constraint).");
@@ -761,6 +763,27 @@ file::Path conda_environment_path() {
     }
     
     void register_default_locations() {
+        pv::DataLocation::register_path("app", [](file::Path path) -> file::Path {
+            auto wd = SETTING(wd).value<file::Path>();
+#if defined(TREX_CONDA_PACKAGE_INSTALL)
+            auto conda_prefix = ::default_config::conda_environment_path();
+            if(!conda_prefix.empty()) {
+                wd = conda_prefix / "usr" / "share" / "trex";
+            }
+#elif __APPLE__
+            wd = wd / ".." / "Resources";
+#endif
+            return wd / path;
+        });
+        
+        pv::DataLocation::register_path("default.settings", [](file::Path) -> file::Path {
+            auto settings_file = pv::DataLocation::parse("app", "default.settings");
+            if(settings_file.empty())
+                throw U_EXCEPTION("settings_file is an empty string.");
+            
+            return settings_file;
+        });
+        
         pv::DataLocation::register_path("settings", [](file::Path path) -> file::Path {
             if(path.empty())
                 path = SETTING(settings_file).value<Path>();

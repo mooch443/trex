@@ -359,9 +359,6 @@ int main(int argc, char**argv) {
 	set_thread_name("main");
 	srand((uint)time(NULL));
 
-	FILE* log_file = NULL;
-	std::mutex log_mutex;
-
 	/**
 	 * Set default values for global settings
 	 */

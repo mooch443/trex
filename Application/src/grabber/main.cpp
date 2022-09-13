@@ -233,23 +233,9 @@ int main(int argc, char** argv)
     }
 #endif
     
-    pv::DataLocation::register_path("input", [](file::Path filename) -> file::Path {
-        if(!filename.empty() && filename.is_absolute()) {
-#ifndef NDEBUG
-            if(!SETTING(quiet))
-                print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
-#endif
-            return filename;
-        }
-        
-        auto path = SETTING(output_dir).value<file::Path>();
-        if(path.empty())
-            return filename;
-        else
-            return path / filename;
-    });
+    ::default_config::register_default_locations();
     
-    pv::DataLocation::register_path("settings", [](file::Path path) -> file::Path {
+    pv::DataLocation::replace_path("settings", [](file::Path path) -> file::Path {
         auto settings_file = path.str().empty() ? SETTING(settings_file).value<Path>() : path;
         if(settings_file.empty()) {
             print("The parameter settings_file (or -s) is empty. You can specify a settings file in the command-line by adding:\n\t-s 'path/to/file.settings'");
@@ -266,69 +252,8 @@ int main(int argc, char** argv)
         return settings_file;
     });
     
-    pv::DataLocation::register_path("output", [](file::Path filename) -> file::Path {
-        if(!filename.empty() && filename.is_absolute()) {
-#ifndef NDEBUG
-            if(!SETTING(quiet))
-                print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
-#endif
-            return filename;
-        }
-        
-        auto prefix = SETTING(output_prefix).value<std::string>();
-        auto path = SETTING(output_dir).value<file::Path>();
-        
-        if(!prefix.empty()) {
-            path = path / prefix;
-        }
-        
-        if(path.empty())
-            return filename;
-        else
-            return path / filename;
-    });
-    
-    pv::DataLocation::register_path("output_settings", [](file::Path) -> file::Path {
-        file::Path settings_file(SETTING(filename).value<Path>().filename());
-        if(settings_file.empty())
-            throw U_EXCEPTION("settings_file (and like filename) is an empty string.");
-        
-        if(!settings_file.has_extension() || settings_file.extension() != "settings")
-            settings_file = settings_file.add_extension("settings");
-        
-        return pv::DataLocation::parse("output", settings_file);
-    });
-    
-    pv::DataLocation::register_path("backup_settings", [](file::Path) -> file::Path {
-        file::Path settings_file(SETTING(filename).value<Path>().filename());
-        if(settings_file.empty())
-            throw U_EXCEPTION("settings_file (and like filename) is an empty string.");
-        
-        if(!settings_file.has_extension() || settings_file.extension() != "settings")
-            settings_file = settings_file.add_extension("settings");
-        
-        return pv::DataLocation::parse("output", "backup") / settings_file;
-    });
-    
     GlobalSettings::map().set_do_print(true);
     
-    /*auto debug_callback = DEBUG::SetDebugCallback({
-        DEBUG::DEBUG_TYPE::TYPE_ERROR,
-        DEBUG::DEBUG_TYPE::TYPE_EXCEPTION,
-        DEBUG::DEBUG_TYPE::TYPE_WARNING,
-        DEBUG::DEBUG_TYPE::TYPE_INFO
-    }, [](auto, const std::string& msg) {
-        std::lock_guard<std::mutex> guard(log_mutex);
-        if(log_file) {
-            char nl = '\n';
-            fwrite(msg.c_str(), 1, msg.length(), log_file);
-            fwrite(&nl, 1, 1, log_file);
-            fflush(log_file);
-        }
-    });
-    */
-    
-    //!TODO: Error log_file not implemented
     gui::init_errorlog();
     ocl::init_ocl();
     
@@ -460,10 +385,11 @@ int main(int argc, char** argv)
             }
         }
         
-        if(Path("default.settings").exists() && Path("default.settings").is_regular()) {
-            DebugHeader("LOADING FROM 'default.settings'");
-            GlobalSettings::load_from_file({}, "default.settings", AccessLevelType::STARTUP);
-            DebugHeader("LOADED 'default.settings'");
+        auto default_path = pv::DataLocation::parse("default.settings");
+        if(default_path.exists()) {
+            DebugHeader("LOADING FROM ",default_path);
+            ::default_config::warn_deprecated(default_path, GlobalSettings::load_from_file(::default_config::deprecations(), "default.settings", AccessLevelType::STARTUP));
+            DebugHeader("LOADED ",default_path);
         }
         
         for(auto &option : cmd) {
@@ -847,7 +773,6 @@ int main(int argc, char** argv)
     }
 #endif
     
-    //DEBUG::UnsetDebugCallback(debug_callback);
     gui::deinit_errorlog();
     
     if(log_file)

@@ -5,7 +5,7 @@ endif()
 
 message("-- USER environment variable is set to: " $ENV{USER})
 
-project(TRex)
+project(TRex LANGUAGES CXX C)
 if(POLICY CMP0114)
   cmake_policy(PUSH)
   cmake_policy(SET CMP0114 NEW)
@@ -16,8 +16,6 @@ include(ExternalProject)
 if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.12.0")
     include(FetchContent)
 endif()
-
-enable_testing ()
 
 set(MACOSX_BUNDLE_GUI_IDENTIFIER "com.tristan.tracker")
 set(CMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM "tristan")

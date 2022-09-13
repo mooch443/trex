@@ -198,7 +198,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
     }
     //auto calculate_posture = SETTING(calculate_posture).value<bool>();
     
-    const Size2 output_size = SETTING(recognition_image_size);
+    const Size2 output_size = SETTING(individual_image_size);
     const bool do_normalize_tracklets = SETTING(tracklet_normalize_orientation);
     const bool do_normalize_output = SETTING(output_normalize_midline_data);
     const uint16_t tracklet_max_images = SETTING(tracklet_max_images);
@@ -824,8 +824,14 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                     
                     if(do_normalize_tracklets) {
                         if(tracklet_export_difference_images) {
-                            reduced.image = std::get<0>(image::calculate_diff_image_with_settings(normalize, data.midline_transform, data.median_midline_length_px, data.blob, &Tracker::average(), output_size));
-                            
+                            reduced.image = std::get<0>(
+                                constraints::diff_image(normalize,
+                                                        data.blob,
+                                                        data.midline_transform,
+                                                        data.median_midline_length_px,
+                                                        output_size,
+                                                        &Tracker::average()));
+
                             //reduced.image = std::move(std::get<0>(data.fish->calculate_normalized_diff_image(data.midline_transform, reduced.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy)));
                         } else
                             reduced.image = std::move(std::get<0>(calculate_normalized_image(data.midline_transform, reduced.blob, data.median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy, &Tracker::average())));

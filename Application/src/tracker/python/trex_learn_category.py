@@ -129,7 +129,7 @@ class Categorize:
             shape = npz["x"].shape
 
             if shape[1] != self.height or shape[2] != self.width:
-                TRex.warn("# loading of weights failed since resolutions differed: "+str(self.width)+"x"+str(self.height)+" != "+str(shape[2])+"x"+str(shape[1])+". Change recognition_image_size accordingly, or restart the process.")
+                TRex.warn("# loading of weights failed since resolutions differed: "+str(self.width)+"x"+str(self.height)+" != "+str(shape[2])+"x"+str(shape[1])+". Change individual_image_size accordingly, or restart the process.")
                 return
 
             assert shape[1] == self.height and shape[2] == self.width

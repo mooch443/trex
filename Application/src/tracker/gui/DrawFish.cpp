@@ -1246,15 +1246,16 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
     auto c = GUICache::instance().processed_frame.cached(_obj.identity().ID());
     if(c) {
         auto cat = c->current_category;
-        if(cat != -1) {
+        if(cat != -1 && cat != _avg_cat) {
             auto l = Categorize::DataStore::label(cat);
-            if(l)
+            if(l) {
                 secondary_text += std::string(" ") + "<key>"+l->name+"</key>";
+            }
         }
     }
     
     auto cat = Categorize::DataStore::_label_unsafe(Frame_t(_frame), blob->blob_id());
-    if (cat != -1) {
+    if (cat != -1 && cat != _avg_cat) {
         secondary_text += std::string(" ") + (cat ? "<b>" : "") + "<i>" + Categorize::DataStore::label(cat)->name + "</i>" + (cat ? "</b>" : "");
     }
     

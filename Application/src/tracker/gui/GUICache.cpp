@@ -515,8 +515,7 @@ namespace gui {
                     } else {
                         for(auto &b: raw_blobs) {
                             auto label = Categorize::DataStore::_ranged_label_unsafe(f, b->blob->blob_id());
-                            if(label != -1)
-                                _ranged_blob_labels[b->blob->blob_id()] = label;
+                            _ranged_blob_labels[b->blob->blob_id()] = label;
                         }
                     }
                 }

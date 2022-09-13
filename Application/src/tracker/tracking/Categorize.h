@@ -51,6 +51,10 @@ struct RangedLabel {
     bool operator>(const RangedLabel& other) const {
         return _range.end() > other._range.end() || (_range.end() == other._range.end() && _range.start() < other._range.start());
     }
+    
+    std::string toStr() const {
+        return "Label<"+Meta::toStr(_range)+"="+Meta::toStr(_label)+" ma:"+Meta::toStr(_maximum_frame_after)+">";
+    }
 };
 
 }

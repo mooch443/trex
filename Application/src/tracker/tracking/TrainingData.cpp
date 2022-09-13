@@ -766,7 +766,7 @@ std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::share
     
     const double number_classes = SETTING(track_max_individuals).value<uint32_t>();
     const double gpu_max_sample_mb = double(SETTING(gpu_max_sample_gb).value<float>()) * 1000;
-    const Size2 output_size = SETTING(recognition_image_size);
+    const Size2 output_size = SETTING(individual_image_size);
     const double max_images_per_class = gpu_max_sample_mb * 1000 * 1000 / number_classes / output_size.width / output_size.height / 4;
     
     for(auto && [id, ranges] : ranges_to_add) {
@@ -851,7 +851,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
     
     Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "generate_training_data");
     PPFrame video_frame;
-    const Size2 output_size = SETTING(recognition_image_size);
+    const Size2 output_size = SETTING(individual_image_size);
     const auto& custom_midline_lengths = filters();
     
     std::map<Idx_t, std::set<Frame_t>> illegal_frames;
@@ -1150,12 +1150,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
                 ? fish->calculate_midline_for(*basic, *posture)
                 : nullptr;
             
-            image = std::get<0>(
-                image::calculate_diff_image_with_settings(
-                  normalized(),
-                  midline ? midline->transform(normalized()) : gui::Transform(),
-                  filters.median_midline_length_px,
-                  blob, &Tracker::average(), output_size));
+            image = std::get<0>(constraints::diff_image(normalized(), blob, midline ? midline->transform(normalized()) : gui::Transform(), filters.median_midline_length_px, output_size, &Tracker::average()));
             
             if(blob->bounds().width > output_size.width
                || blob->bounds().height > output_size.height)

@@ -1245,6 +1245,24 @@ TRex parameters
 
 
 
+.. function:: individual_image_scale(float)
+
+	**default value:** 1
+
+
+	Scaling applied to the images before passing them to the network.
+
+
+
+.. function:: individual_image_size(size)
+
+	**default value:** [80,80]
+
+
+	Size of each image generated for network training.
+
+
+
 .. function:: individual_names(map<uint,string>)
 
 	**default value:** {}
@@ -1787,24 +1805,6 @@ TRex parameters
 	If ``recognition_border`` is 'outline', this is the number of coefficients to use when smoothing the ``recognition_border``.
 
 	.. seealso:: :func:`recognition_border`, :func:`recognition_border`, 
-
-
-.. function:: recognition_image_scale(float)
-
-	**default value:** 1
-
-
-	Scaling applied to the images before passing them to the network.
-
-
-
-.. function:: recognition_image_size(size)
-
-	**default value:** [80,80]
-
-
-	Size of each image generated for network training.
-
 
 
 .. function:: recognition_normalization(recognition_normalization_t)

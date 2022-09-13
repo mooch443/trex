@@ -261,8 +261,11 @@ int main(int argc, char** argv)
             CommandLine cmd(argc, argv, true);
             cmd.cd_home();
             
-            if(Path("default.settings").exists()) {
-                default_config::warn_deprecated("default.settings", GlobalSettings::load_from_file(default_config::deprecations(), "default.settings", AccessLevelType::STARTUP));
+            auto default_path = pv::DataLocation::parse("default.settings");
+            if(default_path.exists()) {
+                DebugHeader("LOADING FROM ",default_path);
+                ::default_config::warn_deprecated(default_path, GlobalSettings::load_from_file(::default_config::deprecations(), "default.settings", AccessLevelType::STARTUP));
+                DebugHeader("LOADED ",default_path);
             }
             
             printf("%s", SETTING(output_dir).value<file::Path>().str().c_str());
@@ -372,10 +375,11 @@ int main(int argc, char** argv)
         }
     }
 
-    if(Path("default.settings").exists()) {
-        DebugHeader("LOADING FROM 'default.settings'");
-        default_config::warn_deprecated("default.settings", GlobalSettings::load_from_file(default_config::deprecations(), "default.settings", AccessLevelType::STARTUP));
-        DebugHeader("LOADED 'default.settings'");
+    auto default_path = pv::DataLocation::parse("default.settings");
+    if(default_path.exists()) {
+        DebugHeader("LOADING FROM ",default_path);
+        default_config::warn_deprecated(default_path, GlobalSettings::load_from_file(default_config::deprecations(), "default.settings", AccessLevelType::STARTUP));
+        DebugHeader("LOADED ",default_path);
     }
 
     gpuMat average;

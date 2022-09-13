@@ -93,7 +93,7 @@ CREATE_STRUCT(Settings,
   (bool, track_do_history_split),
   (uint8_t, posture_closing_steps),
   (uint8_t, posture_closing_size),
-  (float, recognition_image_scale),
+  (float, individual_image_scale),
   (bool, analysis_paused),
   (float, track_trusted_probability),
   (float, recognition_segment_add_factor),
@@ -102,7 +102,7 @@ CREATE_STRUCT(Settings,
   (std::vector<std::string>, categories_ordered),
   (std::vector<std::string>, track_only_categories),
   (float, track_segment_max_length),
-  (Size2, recognition_image_size),
+  (Size2, individual_image_size),
   (uint32_t, categories_min_sample_images)
 )
 
