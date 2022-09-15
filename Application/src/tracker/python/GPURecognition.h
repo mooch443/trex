@@ -63,13 +63,16 @@ namespace track {
         static void set_function(const char* name_, std::function<void(std::vector<float>)> f, const std::string &m = "");
         static void set_function(const char* name_, cmn::package::F<void(std::vector<std::vector<float>>&&,std::vector<float>&&)>&& f, const std::string &m = "");
         
+        //! Setting a lambda function for a vector of T.
+        //! @param name_ Name of the function
+        //! @param f The function
+        //! @param m Module name
         template<typename T>
-        static void set_function(const char* name_,
-                                 cmn::package::F<void(std::vector<T>)>&& f, const std::string &m = "") {
+        static void set_function(const char*,
+                                 cmn::package::F<void(std::vector<T>)>&&, const std::string & = "") {
             throw std::invalid_argument("Cannot use this type.");
         }
-        //static void set_function(const char* name_,
-        //    cmn::package::F<void(const std::vector<float>&)>&& f, const std::string &m = "");
+        
         static void unset_function(const char* name_, const std::string &m = "");
         
     public:

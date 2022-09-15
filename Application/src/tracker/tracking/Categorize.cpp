@@ -884,307 +884,6 @@ static void log_event(const std::string& name, Frame_t frame, const Identity& id
 }
 #endif
 
-struct NetworkApplicationState {
-    Individual *fish;
-    
-    //! last known size of the fish frame_segments
-    std::atomic<size_t> N;
-    
-    //! set to true after first next()
-    bool initialized = false;
-    
-    Individual::segment_map segments;
-    
-    //! basically the iterator, but not using pointers here,
-    /// in case i want to change the iterator type later.
-    std::atomic<Individual::segment_map::difference_type> offset = 0;
-    
-    //! Used to measure completion time for each task
-    Timer _timer, _predict;
-    double _prepare;
-    
-    static auto& current() {
-        static std::unordered_map<Individual*, NetworkApplicationState> _map;
-        return _map;
-    }
-    
-    static auto& current_mutex() {
-        static std::mutex _mutex;
-        return _mutex;
-    }
-    
-    Range<Frame_t> peek() {
-        static Timing timing("NetworkApplicationState::peek", 0.1);
-        TakeTiming take(timing);
-
-        if (segments.empty()) {
-            Tracker::LockGuard guard(ro_t{}, "NetworkApplicationState::peek");
-            segments = fish->frame_segments();
-            N = segments.size();
-        }
-        
-        if (size_t(offset) == segments.size()) {
-            return Range<Frame_t>({},{}); // no more segments
-        }
-        else if (size_t(offset) > segments.size()) {
-            return Range<Frame_t>({},{}); // probably something changed and we are now behind
-        }
-
-        auto it = segments.begin() + offset.load();
-        if(it != segments.end())
-            return (*it)->range;
-        
-        return Range<Frame_t>({},{});
-    }
-    
-    void receive_samples(const LearningTask& task) {
-        static Timing timing("receive_samples", 0.1);
-        TakeTiming take(timing);
-        Range<Frame_t> f;
-        
-        {
-            {
-                static Timing timing("callback.find_blobs", 0.1);
-                TakeTiming take(timing);
-                
-               // Tracker::LockGuard guard("task.callback");
-                f = peek();
-                
-                /*for(size_t i=0; i<task.result.size(); ++i) {
-                    auto frame = task.sample->_frames.at(i);
-                    auto blob = fish->compressed_blob(frame);
-                    if (!blob) {
-                        FormatExcept("Blob in frame ", frame," not found");
-                        blobs[i] = -1;
-                        continue;
-                    }
-                    blobs[i] = blob->blob_id();
-                }*/
-            }
-            
-            if(!task.result.empty()) {
-                std::vector<float> sums(Work::_number_labels);
-                
-                {
-                    static Timing timing("callback.set_labels_unsafe", 0.1);
-                    TakeTiming take(timing);
-                    std::unique_lock guard(DataStore::cache_mutex());
-                    for(size_t i=0; i<task.result.size(); ++i) {
-                        auto frame = task.sample->_frames[i];
-                        auto bdx = task.sample->_blob_ids[i];
-                        if(task.result[i] == -1)
-                        //auto l = DataStore::label(task.result[i]);
-                        //if (!l)
-                            FormatWarning("Label for frame ", frame," blob ",bdx," is nullptr.");
-                        else {
-                            DataStore::_set_label_unsafe(Frame_t(frame), bdx, task.result[i]);
-                            sums.at(task.result[i]) += 1;
-#ifndef NDEBUG
-                            auto L = DataStore::_label_unsafe(Frame_t(frame), bdx);
-                            if (L != task.result[i]) {
-                                print("Fish",fish->identity().ID(),": Labels do not match.");
-                            }
-#endif
-                        }
-#ifndef NDEBUG
-                        log_event("Labelled", Frame_t(frame), fish->identity());
-#endif
-                    }
-                }
-                
-                if(task.segment) {
-                    static Timing timing("callback.task.set_ranged_label", 0.1);
-                    TakeTiming take(timing);
-                    
-                    size_t biggest_i = 0;
-                    float biggest = 0;
-                    for(size_t i=0; i<sums.size(); ++i) {
-                        sums[i] /= float(task.result.size());
-                        
-                        if(sums[i] > biggest) {
-                            biggest_i = i;
-                            biggest = sums[i];
-                        }
-                    }
-                    
-                    RangedLabel ranged;
-                    
-                    {
-                        //Tracker::LockGuard guard("task.callback.receive_samples");
-                        
-                        ranged._label = biggest_i; //DataStore::label_averaged(fish->identity().ID(), Frame_t(task.segment->start()));
-                        assert(ranged._label != -1);
-                        ranged._range = *task.segment;
-                        ranged._blobs.reserve(task.segment->length());
-                        
-                        for(auto f = task.segment->start(); f <= task.segment->end(); f += 1_f) {
-                            assert(task.segment->contains(f));
-                            {
-                                auto &basic = fish->basic_stuff().at(task.segment->basic_stuff(f));
-                                ranged._blobs.push_back(basic->blob.blob_id());
-                            } //else
-                               // print("Segment does not contain ",f);
-                        }
-#ifndef NDEBUG
-                        print("Fish",fish->identity().ID(),": Segment ",task.segment->start(),"-",task.segment->end()," done with ",ranged._blobs.size()," blobs");
-#endif
-                    }
-
-                    DataStore::set_ranged_label(std::move(ranged));
-                }
-            }
-            
-            {
-                static std::mutex _task_timings_m;
-                static double tps = 0, tpp = 0, tpre = 0;
-                static uint64_t samples = 0;
-                
-                std::lock_guard g(_task_timings_m);
-                tps += _timer.elapsed();
-                tpre += _prepare;
-                tpp += _predict.elapsed();
-                
-                ++samples;
-                
-                //! print every 25s
-                if(uint32_t(tps) % 2500 == 0) {
-                    print("TPS: ",tps / double(samples),"s for each image, preparation: ",tpre / double(samples),"s, predict: ",tpp / double(samples),"s, ",samples," samples");
-                }
-            }
-        
-            /*if(task.segment) {
-                static Timing timing("callback.set_ranged_label", 0.1);
-                TakeTiming take(timing);
-                
-                
-            }*/
-            
-            {
-                static Timing timing("callback.peek", 0.1);
-                TakeTiming take(timing);
-                
-                std::lock_guard guard(Work::_mutex);
-                Work::task_queue().push_back(Work::Task{
-                    f,f,
-                    [this]()
-                    {
-                        this->next();
-                    }
-                });
-            }
-
-            Work::_variable.notify_one();
-        }
-    }
-    
-    //! start the next prediction task
-    void next() {
-        _predict.reset();
-        std::shared_ptr<SegmentInformation> segment;
-        LearningTask task;
-        task.type = LearningTask::Type::Prediction;
-
-        {
-            Tracker::LockGuard guard(ro_t{}, "next()");
-            segments = fish->frame_segments();
-        }
-        
-        auto it = segments.begin();
-        N = segments.size();
-        
-        {
-            std::lock_guard guard(NetworkApplicationState::current_mutex());
-            initialized = true;
-        }
-
-        if(size_t(offset) > segments.size()) {
-            FormatWarning("Offset ", offset.load()," larger than segments size ",segments.size(),".");
-            it = segments.end();
-        } else
-            std::advance(it, offset.load());
-        
-#ifndef NDEBUG
-        size_t skipped = 0;
-#endif
-        
-        const auto max_len = FAST_SETTINGS(track_segment_max_length);
-        const auto min_len = uint32_t(max_len > 0 ? max(1, max_len * 0.1 * float(FAST_SETTINGS(frame_rate))) : FAST_SETTINGS(categories_min_sample_images));
-        
-        do {
-            if(Work::terminate())
-                break;
-            
-            static std::mutex tm;
-            static Timer update;
-            
-            bool done = size_t(offset) >= segments.size();
-            
-            
-            if (done || it == segments.end())
-                break;
-
-            segment = *it;
-            Label::Ptr ptr;
-            if(segment->length() >= (int)min_len && !(ptr = DataStore::label_interpolated(fish, Frame_t(segment->start())))) {
-                task.sample = DataStore::temporary(segment, fish, 300u, min_len, true);
-                task.segment = segment;
-                
-#ifndef NDEBUG
-                if(!task.sample)
-                    print("Skipping (failed) Fish",fish->identity().ID(),": (",segment->start(),"-",segment->end(),", len=",segment->length(),")");
-                //else
-#endif
-            }
-#ifndef NDEBUG
-            else {
-                print("Skipping Fish",fish->identity().ID()," (",segment->start(),"-",segment->end(),", len=",segment->length(),"): ",ptr ? ptr->name.c_str() : "none");
-                //++skipped;
-            }
-#endif
-            
-            ++offset;
-            ++it;
-
-        } while (task.sample == Sample::Invalid());
-        
-#ifndef NDEBUG
-        if(skipped)
-            log_event("Skipped "+Meta::toStr(skipped), Frame_t(-1), fish->identity());
-#endif
-        _prepare = _predict.elapsed();
-        //_prepare = _timer.elapsed();
-        
-        if(task.sample != Sample::Invalid()) {
-            task.idx = fish->identity().ID();
-            task.callback = [this](const LearningTask& task) {
-                receive_samples(task);
-            };
-            _predict.reset();
-            
-            Work::add_task(std::move(task));
-            
-        }
-#ifndef NDEBUG
-        else
-            print("No more tasks for fish ", fish->identity().ID());
-#endif
-    }
-    
-    static double percent() {
-        if(!Work::initialized_apply())
-            return 0.0;
-        std::lock_guard guard(current_mutex());
-        double percent = 0, N = 0;
-        for (auto &[k, v] : current()) {
-            percent += double(v.offset);
-            N += v.N;
-            if(!v.initialized)
-                ++N; // guarantee that it does not terminate when it is not done with the initial runs
-        }
-        return N>0 ? percent / double(N) : 0;
-    }
-};
-
 void start_applying() {
     using namespace extract;
     auto normalize = SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>();
@@ -1213,18 +912,23 @@ void start_applying() {
         init_labels();
     }
     
+    print("[Categorize] Applying with settings ", settings);
     GUI::set_status("Applying...");
+    Timer apply_timer;
     
     ImageExtractor(*GUI::video_source(), [normalize](const Query& q) -> bool {
         return !q.basic->blob.split() && (normalize != default_config::individual_image_normalization_t::posture || q.posture) && DataStore::_label_unsafe(q.basic->frame, q.basic->blob.blob_id()) == -1;
         
     }, [](std::vector<Result>&& results) {
+#ifndef NDEBUG
         static Timing timing("Categorize::Predict");
         TakeTiming take(timing);
+#endif
         
         Python::schedule([results = std::move(results)]() mutable {
             using py = PythonIntegration;
             
+            // single out the images
             std::vector<Image::UPtr> images;
             images.reserve(results.size());
             for(auto &&result : results) {
@@ -1235,9 +939,9 @@ void start_applying() {
                 const std::string module = "trex_learn_category";
                 if(py::check_module(module))
                 {
-                    print("Reset python functions and variables...");
+                    // If the module had been unloaded, reload all variables
+                    // relevant to training:
                     const auto dims = FAST_SETTINGS(individual_image_size);
-                    print("dimensions = ", dims);
                     std::map<std::string, int> keys;
                     auto cat = FAST_SETTINGS(categories_ordered);
                     for(size_t i=0; i<cat.size(); ++i)
@@ -1260,7 +964,6 @@ void start_applying() {
                 py::set_function("receive", package::F<void(std::vector<float>)>([results = std::move(results), module](std::vector<float> r) mutable
                  {
                     // received
-                    print("received ", r.size(), " items ", results.size());
                     assert(r.size() == results.size());
                     
                     {
@@ -1287,18 +990,23 @@ void start_applying() {
                 }), module);
                 
                 py::run(module, "predict");
+                
             } catch(...) {
-                FormatExcept("Prediction failed. See above for an error description.");
+                FormatExcept("[Categorize] Prediction failed. See above for an error description.");
             }
         }).get();
         
-    }, [](auto, auto percent, auto finished) {
+    }, [apply_timer = std::move(apply_timer)](auto, auto percent, auto finished) {
         auto text = "Applying "+dec<2>(percent * 100).toStr()+"%...";
-        print(text.c_str());
+        static Timer print_timer;
+        if(print_timer.elapsed() > 1) {
+            print_timer.reset();
+            print("[Categorize] ",text.c_str());
+        }
         
         if(finished) {
             GUI::set_status("");
-            print("Finished.");
+            print("[Categorize] Finished applying after ", DurationUS{uint64_t(apply_timer.elapsed() * 1000 * 1000)},".");
             
             {
                 {
@@ -1367,66 +1075,6 @@ void start_applying() {
             GUI::set_status(text);
         
     }, std::move(settings));
-    
-    return;
-    
-    Work::initialized_apply() = false;
-    Work::start_learning(); // make sure the work-horse is started
-    
-    std::lock_guard guard(Work::_mutex);
-    Work::task_queue().push_back(Work::Task{
-        Range<Frame_t>({},{}),Range<Frame_t>({},{}),
-        [](){
-            std::lock_guard wguard(Work::_mutex);
-            print("## Initializing APPLY.");
-            {
-                Tracker::LockGuard guard(ro_t{}, "Categorize::start_applying");
-                std::lock_guard g(NetworkApplicationState::current_mutex());
-                NetworkApplicationState::current().clear();
-                for(auto &[f, c] : NetworkApplicationState::current()) {
-                    print("\t",f->identity().ID()," offset = ",c.offset.load(), " percent = ", c.N.load());
-                }
-                print("[APPLY] Cleared NetworkApplicationState ", NetworkApplicationState::current().size());
-                
-                for (auto &[id, ptr] : Tracker::individuals()) {
-                    auto &obj = NetworkApplicationState::current()[ptr];
-                    obj.fish = ptr;
-                }
-
-                print("## Created ", NetworkApplicationState::current().size()," objects");
-            }
-            
-            Work::status() = "Applying "+dec<2>(NetworkApplicationState::percent() * 100).toStr()+"%...";
-            
-            {
-                std::lock_guard guard(NetworkApplicationState::current_mutex());
-                for(auto & [k, v] : NetworkApplicationState::current()) {
-                    auto f = v.peek();
-                    
-                    Work::task_queue().push_back(Work::Task{
-                        Range<Frame_t>({},{}),f,
-                        [k=k](){
-                            NetworkApplicationState::current().at(k).next();
-                            // start first task
-                        }
-                    });
-                    
-                    if (Work::terminate())
-                        break;
-                }
-            }
-            
-            std::vector<Range<Frame_t>> indexes;
-            for(auto& t : Work::task_queue()) {
-                indexes.push_back(t.range);
-            }
-            
-            print("Done adding initial samples ", indexes);
-            Work::initialized_apply() = true;
-        }
-    });
-        
-    Work::_variable.notify_all();
 }
 
 file::Path output_location() {
@@ -1530,7 +1178,6 @@ void Work::start_learning() {
             
             Work::_learning_variable.wait_for(guard, std::chrono::milliseconds(200));
             
-            size_t executed = 0;
             bool clear_probs = false;
             bool force_training = false;
             force_prediction = false;
@@ -1653,8 +1300,8 @@ void Work::start_learning() {
 #ifndef NDEBUG
                             Timer receive_timer;
                             Timer timer;
-#endif
                             double by_callbacks = 0;
+#endif
                             
                             for (auto& [item, offset] : prediction_tasks) {
                                 if (item.type == LearningTask::Type::Prediction) {
@@ -1663,7 +1310,9 @@ void Work::start_learning() {
                                     if (item.callback) {
                                         timer.reset();
                                         item.callback(item);
+#ifndef NDEBUG
                                         by_callbacks += timer.elapsed();
+#endif
                                     }
                                 } else
                                     FormatWarning("LearningTask type was not prediction?");
@@ -1875,7 +1524,6 @@ Work::Task Work::_pick_front_thread() {
 }
 
 void Work::work_thread() {
-    print("APPLY Starting work thread");
     std::unique_lock guard(Work::_mutex);
     const std::thread::id id = std::this_thread::get_id();
     constexpr size_t maximum_tasks = 5u;
@@ -1945,12 +1593,9 @@ void Work::work_thread() {
         if(collected < maximum_tasks)
             _variable.wait_for(guard, std::chrono::seconds(1));
     }
-    
-    print("APPLY Ending work_thread");
 }
 
 void Work::loop() {
-    static std::atomic<size_t> hits = 0, misses = 0;
     static Timer timer;
     static std::mutex timer_mutex;
     
@@ -2162,7 +1807,7 @@ void paint_distributions(int64_t frame) {
 #endif
 }
 
-std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_ptr<SegmentInformation>& segment, std::atomic<size_t>& _delete, std::atomic<size_t>& _create, std::atomic<size_t>& _reuse) {
+std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_ptr<SegmentInformation>&, std::atomic<size_t>& _delete, std::atomic<size_t>& _create, std::atomic<size_t>& _reuse) {
     if(Work::terminate() || !GUI::instance())
         return nullptr;
     
@@ -2370,11 +2015,11 @@ static Timer debug_timer;
 std::mutex debug_mutex;
 ///#endif
 
-Sample::Ptr DataStore::temporary(const std::shared_ptr<SegmentInformation>& segment,
-                                 Individual* fish,
-                                 const size_t sample_rate,
-                                 const size_t min_samples,
-                                 bool exclude_labelled)
+Sample::Ptr DataStore::temporary(
+     const std::shared_ptr<SegmentInformation>& segment,
+     Individual* fish,
+     const size_t sample_rate,
+     const size_t min_samples)
 {
     {
         // try to find the sought after segment in the already cached ones
@@ -2414,7 +2059,6 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<SegmentInformation>& segm
         }
 
         const size_t step = basic_index.size() < min_samples ? 1u : max(1u, basic_index.size() / sample_rate);
-        size_t s = step; // start with 1, try to find something that is already in cache
         std::shared_ptr<PPFrame> ptr;
         size_t found_frame_immediately = 0, found_frames = 0;
         

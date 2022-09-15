@@ -1518,7 +1518,6 @@ static std::condition_variable single_variable;
 static std::mutex to_pool_mutex, to_main_mutex;
 static std::mutex time_mutex;
 
-static int64_t last_updated = -1;
 static double last_frame_s = -1;
 static Timer last_gui_update;
 
@@ -1750,8 +1749,7 @@ std::tuple<int64_t, bool, double> FrameGrabber::in_main_thread(const std::unique
 void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) {
     static const Rangef min_max = GRAB_SETTINGS(blob_size_range);
     static const float cm_per_pixel = SQR(SETTING(cm_per_pixel).value<float>());
-    static const bool enable_threads = GRAB_SETTINGS(tgrabs_use_threads);
-    
+
     //static Timing timing("threadable_task");
     //TakeTiming take(timing);
     
@@ -1948,8 +1946,11 @@ void FrameGrabber::threadable_task(const std::unique_ptr<ProcessingTask>& task) 
     _pv_frame = _sub_timer.elapsed();
     _sub_timer.reset();
 #endif
-    
-    auto [_last_task_peek, gui_updated, last_time] = in_main_thread(task);
+
+#ifdef TGRABS_DEBUG_TIMING
+    auto [_last_task_peek, gui_updated, last_time] =
+#endif
+    in_main_thread(task);
 #ifdef TGRABS_DEBUG_TIMING
     _main_thread = _sub_timer.elapsed();
 

@@ -868,8 +868,6 @@ int main(int argc, char** argv)
         
         size_t added_frames = 0, processed_frames = 0;
         
-        auto step = (video.length() - video.length()%500) / 500;
-        
         auto range = arange<size_t>(0, video.length()-1);
         distribute_vector([&](auto, auto start, auto end, auto){
             pv::Frame frame;

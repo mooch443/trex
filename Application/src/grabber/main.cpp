@@ -657,7 +657,7 @@ int main(int argc, char** argv)
         try {
 #endif
         
-        FrameGrabber grabber([&imgui_base](FrameGrabber& grabber){
+        FrameGrabber grabber([](FrameGrabber&){
             exec_main_queue([&](){}).get();
         });
             

@@ -20,7 +20,7 @@ void ImageExtractor::filter_tasks() {
     size_t counter = 0;
     for(auto &task : _tasks)
         counter += task.second.size();
-    print("Before filtering: ", FileSize{sizeof(Task) * counter + sizeof(decltype(_tasks)::value_type) * _tasks.size() + sizeof(_tasks)}, " of tasks for ", _tasks.size(), " frames.");
+    print("[IE] Before filtering: ", FileSize{sizeof(Task) * counter + sizeof(decltype(_tasks)::value_type) * _tasks.size() + sizeof(_tasks)}, " of tasks for ", _tasks.size(), " frames.");
     
     size_t N = 0;
     for(auto &[frame, samples] : _tasks)
@@ -28,7 +28,7 @@ void ImageExtractor::filter_tasks() {
     
     std::set<Frame_t> remove;
     double average = double(N) / _tasks.size();
-    print("On average ", average, " items per frame.");
+    print("[IE] On average ", average, " items per frame.");
     
     for (auto it = _tasks.begin(); it != _tasks.end(); ++it) {
         if(it->second.size() < average) {
@@ -36,7 +36,7 @@ void ImageExtractor::filter_tasks() {
         }
     }
     
-    print("Removing ", remove.size(), " frames.");
+    print("[IE] Removing ", remove.size(), " frames.");
     
     for(auto frame : remove)
         _tasks.erase(frame);
@@ -44,7 +44,7 @@ void ImageExtractor::filter_tasks() {
     counter = 0;
     for(auto &task : _tasks)
         counter += task.second.size();
-    print("After filtering: ", FileSize{sizeof(Task) * counter + sizeof(decltype(_tasks)::value_type) * _tasks.size() + sizeof(_tasks)}, " of tasks for ", _tasks.size(), " frames.");
+    print("[IE] After filtering: ", FileSize{sizeof(Task) * counter + sizeof(decltype(_tasks)::value_type) * _tasks.size() + sizeof(_tasks)}, " of tasks for ", _tasks.size(), " frames.");
 }
 
 void ImageExtractor::collect(selector_t&& selector) {
@@ -60,7 +60,7 @@ void ImageExtractor::collect(selector_t&& selector) {
     Task task;
     
     for (auto &[fdx, fish] : Tracker::individuals()) {
-        print("Individual ", fdx, " has ", fish->frame_count(), " frames.");
+        //print("Individual ", fdx, " has ", fish->frame_count(), " frames.");
         
         size_t i{0};
         fish->iterate_frames(Range<Frame_t>(fish->start_frame(), fish->end_frame()),
@@ -99,7 +99,7 @@ void ImageExtractor::collect(selector_t&& selector) {
     for(auto &task : _tasks)
         counter += task.second.size();
     
-    print("Collected ", FileSize{sizeof(Task) * counter + sizeof(decltype(_tasks)::value_type) * _tasks.size() + sizeof(_tasks)}, " of data in ", _tasks.size(), " frames.");
+    print("[IE] Collected ", FileSize{sizeof(Task) * counter + sizeof(decltype(_tasks)::value_type) * _tasks.size() + sizeof(_tasks)}, " of data in ", _tasks.size(), " frames.");
 }
 
 //! The main thread of the async extractor.
@@ -114,12 +114,12 @@ void ImageExtractor::update_thread(selector_t&& selector, partial_apply_t&& part
     try {
         Timer timer;
         collect(std::move(selector));
-        print("Took ", timer.elapsed(), "s to calculate all tasks.");
+        print("[IE] Took ", timer.elapsed(), "s to calculate all tasks.");
         timer.reset();
         
         if(is(_settings.flags, Flag::RemoveSmallFrames)) {
             filter_tasks();
-            print("Took ", timer.elapsed(), "s for filtering step.");
+            print("[IE] Took ", timer.elapsed(), "s for filtering step.");
         }
     
         // this will take the longest, since we actually
@@ -157,11 +157,16 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
     
     const uint64_t original_items = total_items;
     
-    print("Pushing ", max_images_per_step, " per step (",FileSize{image_bytes},"/image). ", total_items, " pictures scheduled.");
+//#ifndef NDEBUG
+    print("[IE] Pushing ", max_images_per_step, " per step (",FileSize{image_bytes},"/image). ", total_items, " pictures scheduled.");
+//#endif
     
     // distribute the tasks across threads
     distribute_vector([&](auto i, auto start, auto end, auto) {
-        size_t N = 0, pushed = 0;
+        size_t N = 0;
+#ifndef NDEBUG
+        size_t pushed = 0;
+#endif
         PPFrame pp;
         std::vector<Result> results;
         
@@ -170,7 +175,9 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
             N += samples.size();
         }
         
-        print("Thread ", i, " going for ", std::distance(start, end), " items. _tasks = ", _tasks.size());
+#ifndef NDEBUG
+        print("[IE] Thread ", i, " going for ", std::distance(start, end), " items. _tasks = ", _tasks.size());
+#endif
             
         auto commit_results = [&](std::vector<Result>&& results) {
             // need to take a break here
@@ -178,13 +185,17 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                 std::unique_lock guard(mutex);
                 pushed_items += results.size();
             }
+#ifndef NDEBUG
             pushed += results.size();
-            print("Taking a break in thread ", i, " after ", pushed, "/",N," items (",results.size()," being pushed at once).");
+            print("[IE] Taking a break in thread ", i, " after ", pushed, "/",N," items (",results.size()," being pushed at once).");
+#endif
             apply(std::move(results));
             results.clear();
             
             std::unique_lock guard(mutex);
-            print("Thread ", i, " callback ", pushed_items, " / ", total_items);
+#ifndef NDEBUG
+            print("[IE] Thread ", i, " callback ", pushed_items, " / ", total_items);
+#endif
             callback(this, double(pushed_items) / double(total_items), false);
         };
         
@@ -195,11 +206,11 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                 _video.read_frame(pp.frame(), index.get());
                 Tracker::preprocess_frame(pp, Tracker::active_individuals(index), NULL, NULL);
             } catch(const UtilsException& e) {
-                FormatExcept("Cannot preprocess frame ", index, ". ", e.what());
+                FormatExcept("[IE] Cannot preprocess frame ", index, ". ", e.what());
                 {
                     std::unique_lock guard(mutex);
                     total_items -= samples.size();
-                    FormatWarning("Skipping ", samples.size(), " items.");
+                    FormatWarning("[IE] Skipping ", samples.size(), " items.");
                 }
                 continue;
             }
@@ -246,26 +257,16 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                 }
                 
                 auto &&[image, pos] = constraints::diff_image(individual_image_normalization, blob, midline_transform, median_midline_length_px, _settings.image_size, &Tracker::average());
-                /*auto &&[image, pos] = constraints::diff_image(
-                          individual_image_normalization,
-                          blob,
-                          midline_transform,
-                          median_midline_length_px,
-                          _settings.image_size,
-                          &Tracker::average());*/
-                //auto &&[image, pos] = Individual::calculate_diff_image(blob, _settings.image_size);
-                //auto &&[pos, image] = blob->difference_image(*Tracker::instance()->background(), FAST_SETTINGS(track_threshold));
+                
                 if(!image) {
                     //! can this happen?
-                    FormatWarning("Cannot generate image for ", bdx, " of ", fdx, " in frame ", index,".");
+                    FormatWarning("[IE] Cannot generate image for ", bdx, " of ", fdx, " in frame ", index,".");
                     {
                         std::unique_lock guard(mutex);
                         --total_items;
                     }
                     continue;
                 }
-                
-                //tf::imshow("image", image->get());
                 
                 results.emplace_back(Result{
                     .frame = index,
@@ -278,15 +279,17 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                     commit_results(std::move(results));
             }
         }
-        
+
         if(!results.empty())
             commit_results(std::move(results));
         
-        print("Thread ", i, " ended. Pushed ", pushed, " items (of ", N,").");
+#ifndef NDEBUG
+        print("[IE] Thread ", i, " ended. Pushed ", pushed, " items (of ", N,").");
+#endif
         
     }, pool, _tasks.begin(), _tasks.end());
     
-    print("distribute ended ",pushed_items,"/",total_items," (originally ", original_items,"[",int64_t(pushed_items) - int64_t(original_items),"]). With original keys: ", keys);
+    print("[IE] Ended ",pushed_items,"/",total_items," (originally ", original_items,"[",int64_t(pushed_items) - int64_t(original_items),"]).");
     return pushed_items;
 }
 

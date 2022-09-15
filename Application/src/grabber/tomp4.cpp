@@ -91,7 +91,6 @@ void encode(AVCodecContext *enc_ctx, AVFrame *frame, AVPacket *pkt,
             return;
         else if (ret < 0) {
             throw U_EXCEPTION("Error during encoding (receive) ",ret,"");
-            exit(1);
         }
         
         //pkt->dts = AV_NOPTS_VALUE;
@@ -174,10 +173,9 @@ void FFMPEGQueue::loop() {
     Timer last_printout;
     auto prints = [&last_printout, this](bool force){
         if(last_printout.elapsed() >= 30 || force) {
-            double samples, ms, compressed_size;
+            double ms, compressed_size;
             {
                 std::lock_guard<std::mutex> fps_guard(fps_mutex);
-                samples = frame_samples;
                 ms = frame_average / frame_samples;
                 
                 if(samples_compressed_size > 0)

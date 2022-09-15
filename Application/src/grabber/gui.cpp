@@ -429,9 +429,11 @@ void GUI::draw(gui::DrawStructure &base) {
         }
 
         {
-            auto shadowed_text = [&](Vec2 pos, const std::string& text, Color color, float font_size = 0.75) {
-                //pos = Vec2(int(pos.x), int(pos.y));
-                auto shadow = base.text(text, (pos + Vec2(1, 1)).mul(scale), Black, Font(font_size, Align::VerticalCenter), scale);
+            auto shadowed_text = [&](Vec2 pos, const std::string& text, Color color, float font_size = 0.75)
+            {
+                // shadow
+                base.text(text, (pos + Vec2(1, 1)).mul(scale), Black, Font(font_size, Align::VerticalCenter), scale);
+                // text
                 return base.text(text, pos.mul(scale), color, Font(font_size, Align::VerticalCenter), scale)->width();
             };
 
@@ -500,236 +502,241 @@ void GUI::draw(gui::DrawStructure &base) {
             }
         }
 
-        if (_grabber.tracker_instance()) {
-            base.section("tracking", [this, scale](gui::DrawStructure& base, Section* section) {
-                track::Tracker::LockGuard guard(ro_t{}, "drawing", 100);
-                if (!guard.locked()) {
-                    section->reuse_objects();
-                    return;
-                }
-
-                using namespace track;
-                static const auto gui_outline_thickness = SETTING(gui_outline_thickness).value<uint8_t>();
-                
-                auto tracker = _grabber.tracker_instance();
-                auto individuals = tracker->active_individuals();
-
-#if !COMMONS_NO_PYTHON
-                ska::bytell_hash_map<int64_t, std::tuple<float, float>> speeds;
-                const int64_t displayed_range = FAST_SETTINGS(frame_rate) * 5;
-                const int64_t analysed_range = FAST_SETTINGS(frame_rate) * 60 * 1;
-
-                //const Frame_t search = Frame_t(max(0, Tracker::end_frame().get() - analysed_range));
-                const Frame_t min_display_frame = Frame_t(max(0, Tracker::end_frame().get() - displayed_range));
-#endif
-                static const auto tags_recognize = SETTING(tags_recognize).value<bool>();
-                static const auto gui_show_midline = SETTING(gui_show_midline).value<bool>();
-                
-                std::vector<Vertex> oline;
-                std::vector<Vec2> positions;
-                
-                for (auto& fish : individuals) {
-                    if (fish->end_frame() < min_display_frame)
-                        continue;
-                    
-                    auto it = fish->iterator_for(min_display_frame);//search);
-                    for (; it != fish->frame_segments().end(); ++it) {
-                        const auto &seg = *it;
-                        //if(seg->end() < search)
-                        if(seg->end() < min_display_frame)
-                            continue;
-                        
-                        positions.clear();
-                        positions.reserve(min((size_t)displayed_range, seg->basic_index.size()));
-                        
-                        const auto code =
-                            tags_recognize
-                              ? fish->qrcode_at((*it)->start())
-                              : Individual::IDaverage{.best_id = -1, .p = -1, .samples = 0};
-                        
-                        decltype(speeds)::mapped_type* speeds_ptr = nullptr;
-                        Color color;
-                        
-                        if (code.best_id != -1) {
-                            speeds_ptr = &speeds[code.best_id];
-                            color = ColorWheel(code.best_id).next();
-                        } else {
-                            color = fish->identity().color();
-                        }
-                        
-                        //! only draw the lines and collect the data if we either:
-                        //!     - do not recognize tags anyway (so its just the normal tracking view)
-                        //!     - or we have a qrcode detected in here and want to display it
-                        if(tags_recognize && speeds_ptr == nullptr)
-                            continue;
-                        
-                        size_t idx = seg->basic_index.front();
-                        if(seg->start() < min_display_frame) {
-                            assert(seg->end() >= min_display_frame);
-                            idx = seg->basic_stuff(min_display_frame);
-                        }
-                        
-                        auto bit = fish->basic_stuff().begin() + idx;
-                        auto end = fish->basic_stuff().begin() + seg->basic_index.back();
-                        
-                        for(; bit != end; ++bit) {
-                            const auto &basic = *bit;//fish->basic_stuff()[idx];
-                            const auto &frame = basic->frame;
-                            
-                            //auto bounds = basic->blob.calculate_bounds();
-                            
-                            /*if(speeds_ptr) {
-                                std::get<0>(*speeds_ptr) += basic->centroid.speed<Units::CM_AND_SECONDS>();
-                                std::get<1>(*speeds_ptr)++;
-                            }*/
-
-                            //! only go further into the drawing / acquisition code
-                            //! if we actually want to draw it
-                            if(frame < min_display_frame)
-                                continue;
-                            
-                            //auto p = bounds.pos() + bounds.size() * 0.5;
-                            auto p = basic->centroid.pos<Units::PX_AND_SECONDS>();
-                            positions.push_back(p);
-
-                            //! if this is the last frame, also add the outline to the drawing
-                            if (frame == fish->end_frame()) {
-                                auto bounds = basic->blob.calculate_bounds();
-                                base.circle(p, 10, fish->identity().color());
-                                
-                                auto posture_index = seg->posture_stuff(frame);
-                                if (posture_index != -1) {
-                                    auto &posture = fish->posture_stuff()[posture_index];
-                                    auto &_cached_outline = posture->outline;
-                                    auto &_cached_midline = posture->cached_pp_midline;
-                                    auto &clr = fish->identity().color();
-                                    auto max_color = 255;
-                                    auto points = _cached_outline->uncompress();
-
-                                    // check if we actually have a tail index
-                                    if (gui_show_midline && _cached_midline && _cached_midline->tail_index() != -1) {
-                                        base.circle(points.at(_cached_midline->tail_index()) + bounds.pos(), 5, Blue.alpha(max_color * 0.3));
-                                        if (_cached_midline->head_index() != -1)
-                                            base.circle(points.at(_cached_midline->head_index()) + bounds.pos(), 5, Red.alpha(max_color * 0.3));
-                                    }
-
-                                    //float right_side = outline->tail_index() + 1;
-                                    //float left_side = points.size() - outline->tail_index();
-                                    oline.clear();
-                                    oline.reserve(points.size());
-                                    
-                                    for (size_t i = 0; i < points.size(); i++) {
-                                        auto pt = points[i] + bounds.pos();
-                                        Color c = clr.alpha(max_color);
-                                        /*if(outline->tail_index() != -1) {
-                                            float d = cmn::abs(float(i) - float(outline->tail_index())) / ((long_t)i > outline->tail_index() ? left_side : right_side) * 0.4 + 0.5;
-                                            c = Color(clr.r, clr.g, clr.b, max_color * d);
-                                        }*/
-                                        oline.push_back(Vertex(pt, c));
-                                    }
-                                    oline.push_back(Vertex(points.front() + bounds.pos(), clr.alpha(0.04 * max_color)));
-                                    //auto line =
-                                    base.add_object(new Line(oline, gui_outline_thickness));
-                                }
-                            }
-                        }
-                        
-                        //! nothing to draw? continue
-                        if(positions.empty())
-                            continue;
-                        
-                        const auto is_end = seg->contains(Frame_t(_frame->index()));
-                        float percent = saturate((float(_frame->index()) - float(seg->end().get())) / float(displayed_range), 0.f, 1.f);
-                        auto alpha = saturate(200.f * (1 - percent), 0, 255);
-                        
-                        base.line(positions, 1, color.alpha(alpha));
-                        base.text(Meta::toStr(code.best_id) + " (" + dec<2>(code.p).toStr() + ")", positions.back() + Vec2(10, 0), color.alpha(alpha), is_end ? Font(0.5, Style::Bold) : Font(0.5), scale);
-                    }
-                }
-                
-                Vec2 pos(_grabber.average().cols + 100, 120);
-                for (auto& [k, tup] : speeds) {
-                    //auto w =
-                    base.text(Meta::toStr(k) + ":", pos, Color(150, 150, 150, 255), Font(0.5, Style::Bold), scale);//->local_bounds().width;
-                    base.text(Meta::toStr(std::get<0>(tup) / std::get<1>(tup)) + "cm/s", pos + Vec2(70, 0), White, Font(0.5), scale);
-                    pos += Vec2(0, 50);
-                }
-                
-                //----
-                /*for (auto& fish : individuals) {
-                    if (fish->has(tracker->end_frame())) {
-                        std::vector<std::vector<Vec2>> positions{{}};
-                        std::vector<std::tuple<Vec2, int64_t, float>> tags;
-                        Frame_t prev;
-
-                        fish->iterate_frames(Range<Frame_t>(tracker->end_frame() - 100_f, tracker->end_frame()),
-                            [&](Frame_t frame, 
-                                const std::shared_ptr<SegmentInformation>& ,
-                                const BasicStuff* basic, 
-                                const PostureStuff* posture) 
-                            -> bool
-                        {
-                            if (basic) {
-                                auto bounds = basic->blob.calculate_bounds();
-
-                                if (prev.valid() && prev != frame - 1_f) {
-                                    positions.push_back({});
-                                }
-                                prev = frame;
-
-                                auto p = bounds.pos() + bounds.size() * 0.5;
-                                positions.back().push_back(p);
-
-                                if (frame == tracker->end_frame()) {
-                                    base.circle(p, 10, fish->identity().color());
-                                    //auto cache = fish->cache_for_frame(frame, tracker->properties(frame)->time);
-                                    //base.text(Meta::toStr(fish->probability(cache, frame, basic->blob).p), positions.back() - Vec2(0, -100));
-
-                                    if (posture) {
-                                        std::vector<Vertex> oline;
-                                        auto &_cached_outline = posture->outline;
-                                        auto &_cached_midline = posture->cached_pp_midline;
-                                        auto &clr = fish->identity().color();
-                                        auto max_color = 255;
-                                        auto points = _cached_outline->uncompress();
-
-                                        // check if we actually have a tail index
-                                        if (gui_show_midline && _cached_midline && _cached_midline->tail_index() != -1) {
-                                            base.circle(points.at(_cached_midline->tail_index()) + bounds.pos(), 5, Blue.alpha(max_color * 0.3));
-                                            if (_cached_midline->head_index() != -1)
-                                                base.circle(points.at(_cached_midline->head_index()) + bounds.pos(), 5, Red.alpha(max_color * 0.3));
-                                        }
-
-                                        //float right_side = outline->tail_index() + 1;
-                                        //float left_side = points.size() - outline->tail_index();
-
-                                        for (size_t i = 0; i < points.size(); i++) {
-                                            auto pt = points[i] + bounds.pos();
-                                            Color c = clr.alpha(max_color);
-                                            oline.push_back(Vertex(pt, c));
-                                        }
-                                        oline.push_back(Vertex(points.front() + bounds.pos(), clr.alpha(0.04 * max_color)));
-                                        //auto line =
-                                        base.add_object(new Line(oline, gui_outline_thickness));
-                                    }
-                                }
-                            }
-                            return true;
-                        });
-
-                        if (!tags_recognize) {
-                            for (auto& v : positions)
-                                base.line(v, 2, fish->identity().color());
-                        }
-                    }
-                }*/
-            });
-        }
+        draw_tracking(base, scale);
     }
 
     auto scale = base.scale().reciprocal();
     auto dim = _sf_base ? _sf_base->window_dimensions().mul(scale * gui::interface_scale()) : Size2(_grabber.average());
     base.draw_log_messages(Bounds(Vec2(0, 85).mul(scale* gui::interface_scale()), dim - Size2(10, 85).mul(scale * gui::interface_scale())));
+}
+
+void GUI::draw_tracking(gui::DrawStructure &base, const Vec2& scale) {
+    using namespace gui;
+    
+    if(!_grabber.tracker_instance())
+        return;
+    
+    base.section("tracking", [this, &scale](gui::DrawStructure& base, Section* section) {
+        track::Tracker::LockGuard guard(ro_t{}, "drawing", 100);
+        if (!guard.locked()) {
+            section->reuse_objects();
+            return;
+        }
+
+        using namespace track;
+        static const auto gui_outline_thickness = SETTING(gui_outline_thickness).value<uint8_t>();
+        
+        auto tracker = _grabber.tracker_instance();
+        auto individuals = tracker->active_individuals();
+
+#if !COMMONS_NO_PYTHON
+        ska::bytell_hash_map<int64_t, std::tuple<float, float>> speeds;
+        const int64_t displayed_range = FAST_SETTINGS(frame_rate) * 5;
+
+        const Frame_t min_display_frame = Frame_t(max(0, Tracker::end_frame().get() - displayed_range));
+#endif
+        static const auto tags_recognize = SETTING(tags_recognize).value<bool>();
+        static const auto gui_show_midline = SETTING(gui_show_midline).value<bool>();
+        
+        std::vector<Vertex> oline;
+        std::vector<Vec2> positions;
+        
+        for (auto& fish : individuals) {
+            if (fish->end_frame() < min_display_frame)
+                continue;
+            
+            auto it = fish->iterator_for(min_display_frame);//search);
+            for (; it != fish->frame_segments().end(); ++it) {
+                const auto &seg = *it;
+                //if(seg->end() < search)
+                if(seg->end() < min_display_frame)
+                    continue;
+                
+                positions.clear();
+                positions.reserve(min((size_t)displayed_range, seg->basic_index.size()));
+                
+                const auto code =
+                    tags_recognize
+                      ? fish->qrcode_at((*it)->start())
+                      : Individual::IDaverage{.best_id = -1, .p = -1, .samples = 0};
+                
+                decltype(speeds)::mapped_type* speeds_ptr = nullptr;
+                Color color;
+                
+                if (code.best_id != -1) {
+                    speeds_ptr = &speeds[code.best_id];
+                    color = ColorWheel(code.best_id).next();
+                } else {
+                    color = fish->identity().color();
+                }
+                
+                //! only draw the lines and collect the data if we either:
+                //!     - do not recognize tags anyway (so its just the normal tracking view)
+                //!     - or we have a qrcode detected in here and want to display it
+                if(tags_recognize && speeds_ptr == nullptr)
+                    continue;
+                
+                size_t idx = seg->basic_index.front();
+                if(seg->start() < min_display_frame) {
+                    assert(seg->end() >= min_display_frame);
+                    idx = seg->basic_stuff(min_display_frame);
+                }
+                
+                auto bit = fish->basic_stuff().begin() + idx;
+                auto end = fish->basic_stuff().begin() + seg->basic_index.back();
+                
+                for(; bit != end; ++bit) {
+                    const auto &basic = *bit;//fish->basic_stuff()[idx];
+                    const auto &frame = basic->frame;
+                    
+                    //auto bounds = basic->blob.calculate_bounds();
+                    
+                    /*if(speeds_ptr) {
+                        std::get<0>(*speeds_ptr) += basic->centroid.speed<Units::CM_AND_SECONDS>();
+                        std::get<1>(*speeds_ptr)++;
+                    }*/
+
+                    //! only go further into the drawing / acquisition code
+                    //! if we actually want to draw it
+                    if(frame < min_display_frame)
+                        continue;
+                    
+                    //auto p = bounds.pos() + bounds.size() * 0.5;
+                    auto p = basic->centroid.pos<Units::PX_AND_SECONDS>();
+                    positions.push_back(p);
+
+                    //! if this is the last frame, also add the outline to the drawing
+                    if (frame == fish->end_frame()) {
+                        auto bounds = basic->blob.calculate_bounds();
+                        base.circle(p, 10, fish->identity().color());
+                        
+                        auto posture_index = seg->posture_stuff(frame);
+                        if (posture_index != -1) {
+                            auto &posture = fish->posture_stuff()[posture_index];
+                            auto &_cached_outline = posture->outline;
+                            auto &_cached_midline = posture->cached_pp_midline;
+                            auto &clr = fish->identity().color();
+                            auto max_color = 255;
+                            auto points = _cached_outline->uncompress();
+
+                            // check if we actually have a tail index
+                            if (gui_show_midline && _cached_midline && _cached_midline->tail_index() != -1) {
+                                base.circle(points.at(_cached_midline->tail_index()) + bounds.pos(), 5, Blue.alpha(max_color * 0.3));
+                                if (_cached_midline->head_index() != -1)
+                                    base.circle(points.at(_cached_midline->head_index()) + bounds.pos(), 5, Red.alpha(max_color * 0.3));
+                            }
+
+                            //float right_side = outline->tail_index() + 1;
+                            //float left_side = points.size() - outline->tail_index();
+                            oline.clear();
+                            oline.reserve(points.size());
+                            
+                            for (size_t i = 0; i < points.size(); i++) {
+                                auto pt = points[i] + bounds.pos();
+                                Color c = clr.alpha(max_color);
+                                /*if(outline->tail_index() != -1) {
+                                    float d = cmn::abs(float(i) - float(outline->tail_index())) / ((long_t)i > outline->tail_index() ? left_side : right_side) * 0.4 + 0.5;
+                                    c = Color(clr.r, clr.g, clr.b, max_color * d);
+                                }*/
+                                oline.push_back(Vertex(pt, c));
+                            }
+                            oline.push_back(Vertex(points.front() + bounds.pos(), clr.alpha(0.04 * max_color)));
+                            //auto line =
+                            base.add_object(new Line(oline, gui_outline_thickness));
+                        }
+                    }
+                }
+                
+                //! nothing to draw? continue
+                if(positions.empty())
+                    continue;
+                
+                const auto is_end = seg->contains(Frame_t(_frame->index()));
+                float percent = saturate((float(_frame->index()) - float(seg->end().get())) / float(displayed_range), 0.f, 1.f);
+                auto alpha = saturate(200.f * (1 - percent), 0, 255);
+                
+                base.line(positions, 1, color.alpha(alpha));
+                base.text(Meta::toStr(code.best_id) + " (" + dec<2>(code.p).toStr() + ")", positions.back() + Vec2(10, 0), color.alpha(alpha), is_end ? Font(0.5, Style::Bold) : Font(0.5), scale);
+            }
+        }
+        
+        Vec2 pos(_grabber.average().cols + 100, 120);
+        for (auto& [k, tup] : speeds) {
+            //auto w =
+            base.text(Meta::toStr(k) + ":", pos, Color(150, 150, 150, 255), Font(0.5, Style::Bold), scale);//->local_bounds().width;
+            base.text(Meta::toStr(std::get<0>(tup) / std::get<1>(tup)) + "cm/s", pos + Vec2(70, 0), White, Font(0.5), scale);
+            pos += Vec2(0, 50);
+        }
+        
+        //----
+        /*for (auto& fish : individuals) {
+            if (fish->has(tracker->end_frame())) {
+                std::vector<std::vector<Vec2>> positions{{}};
+                std::vector<std::tuple<Vec2, int64_t, float>> tags;
+                Frame_t prev;
+
+                fish->iterate_frames(Range<Frame_t>(tracker->end_frame() - 100_f, tracker->end_frame()),
+                    [&](Frame_t frame,
+                        const std::shared_ptr<SegmentInformation>& ,
+                        const BasicStuff* basic,
+                        const PostureStuff* posture)
+                    -> bool
+                {
+                    if (basic) {
+                        auto bounds = basic->blob.calculate_bounds();
+
+                        if (prev.valid() && prev != frame - 1_f) {
+                            positions.push_back({});
+                        }
+                        prev = frame;
+
+                        auto p = bounds.pos() + bounds.size() * 0.5;
+                        positions.back().push_back(p);
+
+                        if (frame == tracker->end_frame()) {
+                            base.circle(p, 10, fish->identity().color());
+                            //auto cache = fish->cache_for_frame(frame, tracker->properties(frame)->time);
+                            //base.text(Meta::toStr(fish->probability(cache, frame, basic->blob).p), positions.back() - Vec2(0, -100));
+
+                            if (posture) {
+                                std::vector<Vertex> oline;
+                                auto &_cached_outline = posture->outline;
+                                auto &_cached_midline = posture->cached_pp_midline;
+                                auto &clr = fish->identity().color();
+                                auto max_color = 255;
+                                auto points = _cached_outline->uncompress();
+
+                                // check if we actually have a tail index
+                                if (gui_show_midline && _cached_midline && _cached_midline->tail_index() != -1) {
+                                    base.circle(points.at(_cached_midline->tail_index()) + bounds.pos(), 5, Blue.alpha(max_color * 0.3));
+                                    if (_cached_midline->head_index() != -1)
+                                        base.circle(points.at(_cached_midline->head_index()) + bounds.pos(), 5, Red.alpha(max_color * 0.3));
+                                }
+
+                                //float right_side = outline->tail_index() + 1;
+                                //float left_side = points.size() - outline->tail_index();
+
+                                for (size_t i = 0; i < points.size(); i++) {
+                                    auto pt = points[i] + bounds.pos();
+                                    Color c = clr.alpha(max_color);
+                                    oline.push_back(Vertex(pt, c));
+                                }
+                                oline.push_back(Vertex(points.front() + bounds.pos(), clr.alpha(0.04 * max_color)));
+                                //auto line =
+                                base.add_object(new Line(oline, gui_outline_thickness));
+                            }
+                        }
+                    }
+                    return true;
+                });
+
+                if (!tags_recognize) {
+                    for (auto& v : positions)
+                        base.line(v, 2, fish->identity().color());
+                }
+            }
+        }*/
+    });
 }
 
 std::string GUI::info_text() const {

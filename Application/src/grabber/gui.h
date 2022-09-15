@@ -68,6 +68,7 @@ public:
     void set_redraw();
     bool terminated() const;
     void draw(gui::DrawStructure& base);
+    void draw_tracking(gui::DrawStructure& base, const Vec2& scale);
     std::string info_text() const;
     void update_loop();
     

@@ -46,7 +46,7 @@ requirements:
     - make                  # [unix]
     - {{ compiler('c') }}
     - {{ compiler('cxx') }}
-    - cmake >=3.14
+    - cmake >=3.20
     - git
     - {{ cdt('mesa-libgl-devel') }}  # [linux]
     - {{ cdt('mesa-dri-drivers') }}  # [linux]
@@ -72,15 +72,15 @@ requirements:
     - {{ cdt('libXdamage-devel') }}            # [linux]
     - {{ cdt('libXau-devel') }}                # [linux]
     - {{ cdt('libuuid-devel') }} # [linux]
+    - python >=3.9,<4 # [win]
 
   host:
     - pthread-stubs  # [linux]
+    - python =3.7 # [linux]
+    - python >=3.7.11,<4 # [osx and not arm64]
+    - python >=3.9,<4 # [osx and arm64]
     - ffmpeg =4 # [not osx or arm64]
     - ffmpeg <=4.2.2 # [osx and not arm64]
-    - python =3.7 # [linux]
-    - python =3.7.11 # [osx and not arm64]
-    - python =3.9 # [osx and arm64]
-    - python =3.9 # [win]
     
   run:
     - tensorflow =2.6 # [not linux and not arm64 and not osx]
@@ -89,21 +89,14 @@ requirements:
     - cudatoolkit # [win]
     - cudnn # [win]
     - scikit-learn
-    - grpcio # [arm64]
-    - wrapt >=1.11.0 # [arm64]
     - numpy
-    - h5py # [arm64]
-    - hdf5 # [arm64]
     - pip  # [arm64]
-    - keras-preprocessing # [arm64]
-    - requests # [osx and not arm64]
-    - six # [osx and not amd64]
-    - wheel # [osx and not amd64]
+    - protobuf =3.19 # [arm64]
     - requests
 
 about:
   home: https://trex.run
-  license: GPLv3
+  license: GPL3
   license_file:
       - LICENSE
       - Application/build/_deps/pybind11-src/LICENSE

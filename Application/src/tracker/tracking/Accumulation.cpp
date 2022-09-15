@@ -123,13 +123,15 @@ void apply_network() {
                 ids.push_back(r.fdx);
             }
             
+#ifndef NDEBUG
             print("ImageExtractor has ", images.size(), " images and ", results.size(), " results, ids ", ids.size(), ".");
+#endif
             
             try {
                 auto probabilities = py::VINetwork::instance()->probabilities(std::move(images));
-                
+#ifndef NDEBUG
                 print("\tGot ", probabilities.size(), " probabilities.");
-                
+#endif
                 const size_t N = py::VINetwork::number_classes();
                 
                 Tracker::LockGuard guard(w_t{}, "apply_weights");
@@ -141,14 +143,14 @@ void apply_network() {
                     Tracker::instance()->predicted(r.frame, r.bdx, std::vector<float>(std::make_move_iterator(start), std::make_move_iterator(end)));
                 }
                 
-                /*visual->probabilities(std::move(images), [results = std::move(results)](auto&& values, auto&& indexes) mutable {
-                    py::VINetwork::transform_results(results.size(), std::move(indexes), std::move(values));
-                    print("\tGot response for ", results.size(), " items (with ",values.size()," items and ",indexes.size()," indexes).");
-                }).get();*/
+#ifndef NDEBUG
                 print("Got averages for ", results.size(), " extracted images: ", probabilities.size());
+#endif
                 
             } catch(...) {
+#ifndef NDEBUG
                 FormatExcept("Prediction failed.");
+#endif
                 throw;
             }
         },
@@ -157,7 +159,7 @@ void apply_network() {
             std::unique_lock guard(write_mutex);
             
             if(finished) {
-                print("All done extracting. Overall pushed ", extractor->pushed_items());
+                print("[Apply] All done extracting. Overall pushed ", extractor->pushed_items());
                 
                 std::unique_lock guard(callback_mutex);
                 for(auto & c : _apply_callbacks) {
@@ -168,7 +170,7 @@ void apply_network() {
                 Accumulation::status().busy = false;
                 
             } else {
-                print("Percent: ", percent * 100, "%");
+                print("[Apply] Percent: ", percent * 100, "%");
                 Accumulation::status().percent = percent;
                 Accumulation::status().busy = true;
             }

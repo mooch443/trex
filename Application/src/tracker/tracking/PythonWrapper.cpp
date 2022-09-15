@@ -46,8 +46,8 @@ void update(std::promise<void>&& init_promise) {
         }
         
         ~Guard() {
-            print("[py] deinit()");
             py::deinit();
+            print("[py] deinit()");
         }
     };
     
@@ -127,7 +127,6 @@ void update(std::promise<void>&& init_promise) {
         
         _initialized = false;
         _terminate = false;
-        print("[py] ended.");
         _exit_promise.set_value();
         
     } catch(...) {

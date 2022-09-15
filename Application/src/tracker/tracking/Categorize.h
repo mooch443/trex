@@ -161,11 +161,11 @@ struct DataStore {
          const size_t max_samples,
          const size_t min_samples
     );
-    static Sample::Ptr temporary(const std::shared_ptr<SegmentInformation>& segment,
-                                 Individual* fish,
-                                 const size_t max_samples,
-                                 const size_t min_samples = 50u,
-                                 bool exclude_labelled = false);
+    static Sample::Ptr temporary(
+         const std::shared_ptr<SegmentInformation>& segment,
+         Individual* fish,
+         const size_t max_samples,
+         const size_t min_samples = 50u);
     
     static Sample::Ptr random_sample(Idx_t fid);
     static Sample::Ptr get_random();
