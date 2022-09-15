@@ -85,7 +85,7 @@ requirements:
     - ffmpeg <=4.2.2 # [osx and not arm64]
     
   run:
-    - tensorflow >=2.6,<3 # [win]
+    - tensorflow-gpu >=2.6,<3 # [win]
     - tensorflow-gpu >=2.4,<3 # [linux]
     - tensorflow =2   # [osx and not arm64]
     - cudatoolkit # [win]
