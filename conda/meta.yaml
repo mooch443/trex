@@ -77,10 +77,7 @@ requirements:
     - pthread-stubs  # [linux]
     - {{ pin_compatible('python', min_pin='x.x', max_pin='x.x') }}
     - {{ pin_compatible('ffmpeg', min_pin='x.x', max_pin='x.x') }}
-    - python >=3.7,<4 # [win]
-    - python =3.7 # [linux]
-    - python >=3.7.11,<4 # [osx and not arm64]
-    - python >=3.9,<4 # [osx and arm64]
+    - python >=3.7,<4
     - ffmpeg =4 # [not osx or arm64]
     - ffmpeg <=4.2.2 # [osx and not arm64]
     
