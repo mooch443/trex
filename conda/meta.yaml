@@ -24,8 +24,6 @@ build:
     number: 42
     string: "{{ hash }}_{{ number }}"
     run_exports:
-        - {{ pin_compatible('ffmpeg', min_pin='x.x.x', max_pin='x.x.x') }}
-        - {{ pin_compatible('python', min_pin='x.x.x', max_pin='x.x.x') }}
         - {{ pin_compatible('libgcc-ng', min_pin='x.x.x', max_pin='x.x.x') }} # [linux]
         - {{ pin_compatible('libstdcxx-ng', min_pin='x.x.x', max_pin='x.x.x') }} # [linux]
     detect_binary_files_with_prefix: True
@@ -72,20 +70,21 @@ requirements:
     - {{ cdt('libXdamage-devel') }}            # [linux]
     - {{ cdt('libXau-devel') }}                # [linux]
     - {{ cdt('libuuid-devel') }} # [linux]
-    - python >=3.9,<4 # [win]
-    - python =3.7 # [linux]
-    - python >=3.7.11,<4 # [osx and not arm64]
-    - python >=3.9,<4 # [osx and arm64]
-
+    - python
 
   host:
     - pthread-stubs  # [linux]
-    - python
+    - {{ pin_compatible('python', min_pin='x.x', max_pin='x.x') }}
+    - {{ pin_compatible('ffmpeg', min_pin='x.x', max_pin='x.x') }}
+    - python >=3.7,<4 # [win]
+    - python =3.7 # [linux]
+    - python >=3.7.11,<4 # [osx and not arm64]
+    - python >=3.9,<4 # [osx and arm64]
     - ffmpeg =4 # [not osx or arm64]
     - ffmpeg <=4.2.2 # [osx and not arm64]
     
   run:
-    - tensorflow =2.6 # [not linux and not arm64 and not osx]
+    - tensorflow >=2.6 # [not linux and not arm64 and not osx]
     - tensorflow-gpu =2.4 # [linux]
     - tensorflow =2   # [osx and not arm64]
     - cudatoolkit # [win]

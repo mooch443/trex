@@ -23,3 +23,11 @@ cxx_compiler_version:
   - 11 # [linux]
 c_compiler_version:
   - 11 # [linux]
+
+pin_run_as_build:
+  python:
+    min_pin: x.x.x
+    max_pin: x.x.x
+  ffmpeg:
+    min_pin: x.x.x
+    max_pin: x.x.x
