@@ -353,31 +353,16 @@ int main(int argc, char** argv)
         DebugHeader("LOADING COMMANDLINE");
         CommandLine cmd(argc, argv, true, grab::default_config::deprecations());
         cmd.cd_home();
-#if __APPLE__
-        std::string _wd = "../Resources/";
-    #if defined(WIN32)
+        
+        auto _wd = pv::DataLocation::parse("app");
+#if defined(WIN32)
         if (SetCurrentDirectoryA(_wd.c_str()))
-    #else
+#else
         if (!chdir(_wd.c_str()))
-    #endif
+#endif
             print("Changed directory to ", _wd,".");
         else
             FormatError("Cannot change directory to ",_wd,".");
-        
-#elif defined(TREX_CONDA_PACKAGE_INSTALL)
-        auto conda_prefix = ::default_config::conda_environment_path().str();
-        if(!conda_prefix.empty()) {
-            file::Path _wd(conda_prefix);
-            _wd = _wd / "usr" / "share" / "trex";
-            
-#if defined(WIN32)
-            if (!SetCurrentDirectoryA(_wd.c_str()))
-#else
-            if (chdir(_wd.c_str()))
-#endif
-                FormatExcept("Cannot change directory to ",_wd.str(),"");
-        }
-#endif
         
         for(auto &option : cmd.settings()) {
             if(utils::lowercase(option.name) == "output_prefix") {
@@ -388,7 +373,7 @@ int main(int argc, char** argv)
         auto default_path = pv::DataLocation::parse("default.settings");
         if(default_path.exists()) {
             DebugHeader("LOADING FROM ",default_path);
-            ::default_config::warn_deprecated(default_path, GlobalSettings::load_from_file(::default_config::deprecations(), "default.settings", AccessLevelType::STARTUP));
+            ::default_config::warn_deprecated(default_path, GlobalSettings::load_from_file(::default_config::deprecations(), default_path.str(), AccessLevelType::STARTUP));
             DebugHeader("LOADED ",default_path);
         }
         

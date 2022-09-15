@@ -220,10 +220,11 @@ int main(int argc, char**argv) {
     }
 #endif
     
-    if(file::Path("default.settings").exists()) {
-        //DebugHeader("LOADING FROM 'default.settings'");
-        default_config::warn_deprecated("default.settings", GlobalSettings::load_from_file(default_config::deprecations(), "default.settings", AccessLevelType::STARTUP));
-        //DebugHeader("LOADED 'default.settings'");
+    auto default_path = pv::DataLocation::parse("default.settings");
+    if(default_path.exists()) {
+        DebugHeader("LOADING FROM ",default_path);
+        default_config::warn_deprecated(default_path, GlobalSettings::load_from_file(default_config::deprecations(), default_path.str(), AccessLevelType::STARTUP));
+        DebugHeader("LOADED ",default_path);
     }
     
     //const char *command = NULL, *value = NULL;

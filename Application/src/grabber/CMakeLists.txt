@@ -133,72 +133,74 @@ set_target_properties(${TGRABS_EXEC_NAME} PROPERTIES
 
 set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/gfx/GrabberIcon.icns PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 
-set(RESOURCE_COPY_FILES
-	${CMAKE_SOURCE_DIR}/src/html
-	${CMAKE_SOURCE_DIR}/src/fonts
-    ${CMAKE_CURRENT_SOURCE_DIR}/gfx
-)
+if(NOT TREX_CONDA_PACKAGE_INSTALL )
+    set(RESOURCE_COPY_FILES
+        ${CMAKE_SOURCE_DIR}/src/html
+        ${CMAKE_SOURCE_DIR}/src/fonts
+        ${CMAKE_CURRENT_SOURCE_DIR}/gfx
+    )
 
-set(RESOURCE_COPY_SINGLE_FILES
-    ${CMAKE_SOURCE_DIR}/default.settings
-    ${CMAKE_SOURCE_DIR}/closed_loop.py
-    ${CMAKE_SOURCE_DIR}/pretrained_tagwork.py
-    ${CMAKE_CURRENT_SOURCE_DIR}/../tracker/python/trex_init.py
-)
+    set(RESOURCE_COPY_SINGLE_FILES
+        ${CMAKE_SOURCE_DIR}/default.settings
+        ${CMAKE_SOURCE_DIR}/closed_loop.py
+        ${CMAKE_SOURCE_DIR}/pretrained_tagwork.py
+        ${CMAKE_CURRENT_SOURCE_DIR}/../tracker/python/trex_init.py
+    )
 
-if(NOT WIN32)
-    foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
-        get_filename_component(comp_s ${comp} NAME)
-        add_custom_command(TARGET pvinfo POST_BUILD
+    if(NOT WIN32)
+        foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
+            get_filename_component(comp_s ${comp} NAME)
+            add_custom_command(TARGET pvinfo POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy
+                            "${comp}"
+                            "$<TARGET_FILE_DIR:pvinfo>/${comp_s}")
+        endforeach()
+    endif()
+
+    if(APPLE)
+        foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
+            get_filename_component(comp_s ${comp} NAME)
+            add_custom_command(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy
+                            "${comp}"
+                            "$<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>/../Resources/${comp_s}")
+        endforeach()
+    elseif(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+        foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
+            get_filename_component(comp_s ${comp} NAME)
+
+            add_custom_command(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy
-                        "${comp}"
-                        "$<TARGET_FILE_DIR:pvinfo>/${comp_s}")
-    endforeach()
-endif()
+                    "${comp}"
+                    "$<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>/${comp_s}")
+        endforeach()
+    endif()
 
-if(APPLE)
-    foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
-        get_filename_component(comp_s ${comp} NAME)
-        add_custom_command(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy
-                        "${comp}"
-                        "$<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>/../Resources/${comp_s}")
-    endforeach()
-elseif(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
-        get_filename_component(comp_s ${comp} NAME)
-
-        add_custom_command(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy
-                "${comp}"
-                "$<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>/${comp_s}")
-    endforeach()
-endif()
-
-IF("${CMAKE_SYSTEM}" MATCHES "Linux")
-	foreach(comp ${RESOURCE_COPY_FILES})
-        get_filename_component(comp_s ${comp} NAME)
-		add_custom_command(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
-		    COMMAND ${CMAKE_COMMAND} -E copy_directory
-		        "${comp}"
-		        "$<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>/${comp_s}")
-	endforeach()
-elseif(APPLE)
-    foreach(comp ${RESOURCE_COPY_FILES})
-        get_filename_component(comp_s ${comp} NAME)
-        add_custom_command(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${comp}"
-                "$<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>/../Resources/${comp_s}")
-    endforeach()
-elseif(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-	foreach(comp ${RESOURCE_COPY_FILES})
-        get_filename_component(comp_s ${comp} NAME)
-		add_custom_command(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
-		    COMMAND ${CMAKE_COMMAND} -E copy_directory
-		        "${comp}"
-		        "$<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>/${comp_s}")
-	endforeach()
+    IF("${CMAKE_SYSTEM}" MATCHES "Linux")
+        foreach(comp ${RESOURCE_COPY_FILES})
+            get_filename_component(comp_s ${comp} NAME)
+            add_custom_command(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${comp}"
+                    "$<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>/${comp_s}")
+        endforeach()
+    elseif(APPLE)
+        foreach(comp ${RESOURCE_COPY_FILES})
+            get_filename_component(comp_s ${comp} NAME)
+            add_custom_command(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${comp}"
+                    "$<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>/../Resources/${comp_s}")
+        endforeach()
+    elseif(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+        foreach(comp ${RESOURCE_COPY_FILES})
+            get_filename_component(comp_s ${comp} NAME)
+            add_custom_command(TARGET ${TGRABS_EXEC_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${comp}"
+                    "$<TARGET_FILE_DIR:${TGRABS_EXEC_NAME}>/${comp_s}")
+        endforeach()
+    endif()
 endif()
 
 set(targets ${TGRABS_EXEC_NAME} pvinfo pvconvert)

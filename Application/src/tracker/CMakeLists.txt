@@ -182,82 +182,84 @@ endif()
 
 set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/gfx/TRexIcon.icns PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 
-set(RESOURCE_COPY_FILES
-	${CMAKE_SOURCE_DIR}/src/html
-	${CMAKE_SOURCE_DIR}/src/fonts
-    ${CMAKE_CURRENT_SOURCE_DIR}/gfx
-)
-set(RESOURCE_COPY_SINGLE_FILES
-	${CMAKE_SOURCE_DIR}/default.settings
-    ${CMAKE_SOURCE_DIR}/learn_static.py
-    ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py
-    ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_learn_category.py
-    ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py
-)
+if(NOT TREX_CONDA_PACKAGE_INSTALL)
+    set(RESOURCE_COPY_FILES
+        ${CMAKE_SOURCE_DIR}/src/html
+        ${CMAKE_SOURCE_DIR}/src/fonts
+        ${CMAKE_CURRENT_SOURCE_DIR}/gfx
+    )
+    set(RESOURCE_COPY_SINGLE_FILES
+        ${CMAKE_SOURCE_DIR}/default.settings
+        ${CMAKE_SOURCE_DIR}/learn_static.py
+        ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py
+        ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_learn_category.py
+        ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py
+    )
 
-IF("${CMAKE_SYSTEM}" MATCHES "Linux")
-	message(STATUS "Copying files ${RESOURCE_COPY_SINGLE_FILES}")
-	foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
-        get_filename_component(comp_s ${comp} NAME)
+    IF("${CMAKE_SYSTEM}" MATCHES "Linux")
+        message(STATUS "Copying files ${RESOURCE_COPY_SINGLE_FILES}")
+        foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
+            get_filename_component(comp_s ${comp} NAME)
 
-		add_custom_command(TARGET ${TREX_EXEC_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E create_symlink
+            add_custom_command(TARGET ${TREX_EXEC_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E create_symlink
+                    "${comp}"
+                    "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/${comp_s}")
+            message(STATUS ${CMAKE_COMMAND} -E create_symlink
                 "${comp}"
                 "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/${comp_s}")
-		message(STATUS ${CMAKE_COMMAND} -E create_symlink
-            "${comp}"
-            "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/${comp_s}")
-	endforeach()
+        endforeach()
 
-	foreach(comp ${RESOURCE_COPY_FILES})
-        get_filename_component(comp_s ${comp} NAME)
+        foreach(comp ${RESOURCE_COPY_FILES})
+            get_filename_component(comp_s ${comp} NAME)
 
-		add_custom_command(TARGET ${TREX_EXEC_NAME} POST_BUILD
-		    COMMAND ${CMAKE_COMMAND} -E copy_directory
-		        "${comp}"
-		        "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/${comp_s}")
-	endforeach()
-elseif(WIN32)
-    message(STATUS "(windows) Copying files ${RESOURCE_COPY_SINGLE_FILES}")
-    message(STATUS "(install_prefix) :${CMAKE_INSTALL_PREFIX} :${CMAKE_BINARY_DIR}")
-    
-    foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
-        get_filename_component(comp_s ${comp} NAME)
+            add_custom_command(TARGET ${TREX_EXEC_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${comp}"
+                    "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/${comp_s}")
+        endforeach()
+    elseif(WIN32)
+        message(STATUS "(windows) Copying files ${RESOURCE_COPY_SINGLE_FILES}")
+        message(STATUS "(install_prefix) :${CMAKE_INSTALL_PREFIX} :${CMAKE_BINARY_DIR}")
+        
+        foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
+            get_filename_component(comp_s ${comp} NAME)
 
-        add_custom_command(TARGET ${TREX_EXEC_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy
-                "${comp}"
-                "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/${comp_s}")
-    endforeach()
-
-    message(STATUS "(windows) Copying folders ${RESOURCE_COPY_FILES}")
-    foreach(comp ${RESOURCE_COPY_FILES})
-        get_filename_component(comp_s ${comp} NAME)
-
-        add_custom_command(TARGET ${TREX_EXEC_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${comp}"
-                "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/${comp_s}")
-    endforeach()
-    
-elseif(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-	message(STATUS "Copying files ${RESOURCE_COPY_SINGLE_FILES}")
-    foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
-        get_filename_component(comp_s ${comp} NAME)
-        add_custom_command(TARGET ${TREX_EXEC_NAME} POST_BUILD
+            add_custom_command(TARGET ${TREX_EXEC_NAME} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy
-                        "${comp}"
-                        "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/../Resources/${comp_s}")
-        install(FILES ${comp} DESTINATION bin)
-    endforeach()
+                    "${comp}"
+                    "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/${comp_s}")
+        endforeach()
 
-	foreach(comp ${RESOURCE_COPY_FILES})
-        get_filename_component(comp_s ${comp} NAME)
-		add_custom_command(TARGET ${TREX_EXEC_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${comp}"
-                "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/../Resources/${comp_s}")
-	endforeach()
+        message(STATUS "(windows) Copying folders ${RESOURCE_COPY_FILES}")
+        foreach(comp ${RESOURCE_COPY_FILES})
+            get_filename_component(comp_s ${comp} NAME)
+
+            add_custom_command(TARGET ${TREX_EXEC_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${comp}"
+                    "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/${comp_s}")
+        endforeach()
+        
+    elseif(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+        message(STATUS "Copying files ${RESOURCE_COPY_SINGLE_FILES}")
+        foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
+            get_filename_component(comp_s ${comp} NAME)
+            add_custom_command(TARGET ${TREX_EXEC_NAME} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy
+                            "${comp}"
+                            "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/../Resources/${comp_s}")
+            install(FILES ${comp} DESTINATION bin)
+        endforeach()
+
+        foreach(comp ${RESOURCE_COPY_FILES})
+            get_filename_component(comp_s ${comp} NAME)
+            add_custom_command(TARGET ${TREX_EXEC_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${comp}"
+                    "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/../Resources/${comp_s}")
+        endforeach()
+    endif()
 endif()
 
 set(targets ${TREX_EXEC_NAME})
