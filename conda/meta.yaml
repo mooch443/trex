@@ -45,7 +45,8 @@ requirements:
     - {{ compiler('c') }}
     - {{ compiler('cxx') }}
     - cmake >=3.20
-    - git
+    - git # [not win]
+    - git <2.34|>=2.35 # [win]
     - {{ cdt('mesa-libgl-devel') }}  # [linux]
     - {{ cdt('mesa-dri-drivers') }}  # [linux]
     - {{ cdt('libselinux') }}  # [linux]
@@ -84,8 +85,8 @@ requirements:
     - ffmpeg <=4.2.2 # [osx and not arm64]
     
   run:
-    - tensorflow >=2.6 # [not linux and not arm64 and not osx]
-    - tensorflow-gpu =2.4 # [linux]
+    - tensorflow >=2.6,<3 # [win]
+    - tensorflow-gpu >=2.4,<3 # [linux]
     - tensorflow =2   # [osx and not arm64]
     - cudatoolkit # [win]
     - cudnn # [win]
