@@ -209,10 +209,8 @@ file::Path conda_environment_path() {
     } else
         home = compiled_path;
     
-#ifndef NDEBUG
     if(!SETTING(quiet))
         print("Set conda environment path = ",home);
-#endif
     return home;
 }
     

@@ -349,9 +349,11 @@ int main(int argc, char** argv)
     }
     SETTING(cmd_line) = ss.str();
     
+    print("CWD: ", file::cwd());
     DebugHeader("LOADING COMMANDLINE");
     CommandLine cmd(argc, argv, true);
     cmd.cd_home();
+    print("CWD: ", file::cwd());
     
     auto _wd = pv::DataLocation::parse("app");
 #if defined(WIN32)
@@ -360,8 +362,11 @@ int main(int argc, char** argv)
     if (!chdir(_wd.c_str()))
 #endif
         print("Changed directory to ", _wd,".");
-    else
+    else {
         FormatError("Cannot change directory to ",_wd,".");
+    }
+    
+    print("CWD: ", file::cwd());
     
     for(auto &option : cmd.settings()) {
         if(utils::lowercase(option.name) == "output_prefix") {
