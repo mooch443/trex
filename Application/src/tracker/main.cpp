@@ -358,15 +358,7 @@ int main(int argc, char** argv)
     print("CWD: ", file::cwd());
     
     auto _wd = file::DataLocation::parse("app");
-#if defined(WIN32)
-    if (SetCurrentDirectoryA(_wd.c_str()))
-#else
-    if (!chdir(_wd.c_str()))
-#endif
-        print("Changed directory to ", _wd,".");
-    else {
-        FormatError("Cannot change directory to ",_wd,".");
-    }
+    file::cd(_wd);
     
     print("CWD: ", file::cwd());
     

@@ -1,6 +1,7 @@
 #include "PythonWrapper.h"
 #include <python/GPURecognition.h>
 #include <tracker/misc/default_config.h>
+#include <file/DataLocation.h>
 
 namespace Python {
 using namespace track;
@@ -396,6 +397,9 @@ void fix_paths(bool force_init, cmn::source_location loc) {
     static std::condition_variable variable;
     
     std::call_once(flag, [](){
+        if(file::DataLocation::is_registered("app"))
+            file::cd(file::DataLocation::parse("app"));
+        
 #ifdef COMMONS_PYTHON_EXECUTABLE
         auto home = ::default_config::conda_environment_path().str();
         if (home.empty())

@@ -329,6 +329,10 @@ void PythonIntegration::init() {
     
     //! set new thread ID. we expect everything to happen from this thread now.
     _saved_id = std::this_thread::get_id();
+    
+    if(file::DataLocation::is_registered("app"))
+        file::cd(file::DataLocation::parse("app"));
+    
     auto trex_init = file::DataLocation::is_registered("app")
         ? file::DataLocation::parse("app", "trex_init.py")
         : "trex_init.py";

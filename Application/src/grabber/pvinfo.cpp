@@ -206,20 +206,8 @@ int main(int argc, char**argv) {
     be_quiet = SETTING(quiet).value<bool>();
     set_runtime_quiet(be_quiet);
     
-#if !defined(__APPLE__) && defined(TREX_CONDA_PACKAGE_INSTALL)
-    auto conda_prefix = ::default_config::conda_environment_path().str();
-    if(!conda_prefix.empty()) {
-        file::Path _wd(conda_prefix);
-        _wd = _wd / "usr" / "share" / "trex";
-        
-#if defined(WIN32)
-        if (!SetCurrentDirectoryA(_wd.c_str()))
-#else
-        if (chdir(_wd.c_str()))
-#endif
-            FormatExcept("Cannot change directory to ",_wd.str(),"");
-    }
-#endif
+    auto _wd = file::DataLocation::parse("app");
+    file::cd(_wd);
     
     auto default_path = file::DataLocation::parse("default.settings");
     if(default_path.exists()) {

@@ -358,20 +358,7 @@ int main(int argc, char** argv)
         cmd.cd_home();
         
         auto _wd = file::DataLocation::parse("app");
-#if defined(WIN32)
-        if (SetCurrentDirectoryA(_wd.c_str()))
-#else
-        if (!chdir(_wd.c_str()))
-#endif
-            print("Changed directory to ", _wd,".");
-        else
-            FormatError("Cannot change directory to ",_wd,".");
-        
-        for(auto &option : cmd.settings()) {
-            if(utils::lowercase(option.name) == "output_prefix") {
-                SETTING(output_prefix) = option.value;
-            }
-        }
+        file::cd(_wd);
         
         auto default_path = file::DataLocation::parse("default.settings");
         if(default_path.exists()) {
