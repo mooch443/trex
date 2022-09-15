@@ -87,7 +87,8 @@ requirements:
     - cudatoolkit # [win]
     - cudnn # [win]
     - scikit-learn
-    - numpy
+    - numpy # [not arm64]
+    - numpy =1.22 # [arm64]
     - pip  # [arm64]
     - protobuf =3.19 # [arm64]
     - requests

@@ -9,6 +9,7 @@
 #include <gui/DrawFish.h>
 #include <gui/InfoCard.h>
 #include <video/VideoSource.h>
+#include <file/DataLocation.h>
 
 static std::unordered_map<const track::Individual*, std::unique_ptr<gui::Fish>> map;
 
