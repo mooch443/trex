@@ -145,7 +145,7 @@ int main(int argc, char**argv) {
                 .max_size_bytes = 1000u * 1000u * 1000u / 5u / 10u,
                 .image_size = Size2(80,80),
                 .num_threads = 5u,
-                .normalization = SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>()
+                .normalization = SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>()
             }
         };
         

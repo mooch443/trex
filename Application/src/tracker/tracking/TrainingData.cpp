@@ -68,9 +68,9 @@ TrainingData::TrainingData(const MidlineFilters& filters)
 {
     add_pointer(this);
     
-    auto normalize = SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>();
-    if(!FAST_SETTINGS(calculate_posture) && normalize == default_config::recognition_normalization_t::posture)
-        normalize = default_config::recognition_normalization_t::moments;
+    auto normalize = SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>();
+    if(!FAST_SETTINGS(calculate_posture) && normalize == default_config::individual_image_normalization_t::posture)
+        normalize = default_config::individual_image_normalization_t::moments;
     
     set_normalized(normalize);
 }
@@ -849,7 +849,7 @@ std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::share
 bool TrainingData::generate(const std::string& step_description, pv::File & video_file, std::map<Frame_t, std::set<Idx_t> > individuals_per_frame, const std::function<void(float)>& callback, const TrainingData* source) {
     auto frames = extract_keys(individuals_per_frame);
     
-    Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "generate_training_data");
+    Tracker::LockGuard guard(ro_t{}, "generate_training_data");
     PPFrame video_frame;
     const Size2 output_size = SETTING(individual_image_size);
     const auto& custom_midline_lengths = filters();

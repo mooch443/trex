@@ -98,7 +98,7 @@ void apply_network() {
         .max_size_bytes = uint64_t((double)SETTING(gpu_max_cache).value<float>() * 1000.0 * 1000.0 * 1000.0 / double(max_threads)),
         .image_size = SETTING(individual_image_size).value<Size2>(),
         .num_threads = max_threads,
-        .normalization = SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>()
+        .normalization = SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>()
     };
     
     std::mutex write_mutex;
@@ -132,7 +132,7 @@ void apply_network() {
                 
                 const size_t N = py::VINetwork::number_classes();
                 
-                Tracker::LockGuard guard(Tracker::LockGuard::w_t{}, "apply_weights");
+                Tracker::LockGuard guard(w_t{}, "apply_weights");
                 for(size_t i=0; i<results.size(); ++i) {
                     auto start = probabilities.begin() + i * N;
                     auto end   = probabilities.begin() + (i + 1) * N;
@@ -275,7 +275,7 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
         TrainingData* data,
         std::map<Idx_t, std::set<std::shared_ptr<SegmentInformation>>>* coverage)
 {
-    Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Accumulation::generate_individuals_per_frame");
+    Tracker::LockGuard guard(ro_t{}, "Accumulation::generate_individuals_per_frame");
     std::map<Frame_t, std::set<Idx_t>> individuals_per_frame;
     const bool calculate_posture = FAST_SETTINGS(calculate_posture);
     
@@ -341,10 +341,10 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
 
 std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(const Range<Frame_t>& range, TrainingData& data, bool check_length, DatasetQuality::Quality quality) {
     const float pure_chance = 1.f / float(FAST_SETTINGS(track_max_individuals));
-   // data.set_normalized(SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>());
+   // data.set_normalized(SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>());
     
     if(data.empty()) {
-        Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Accumulation::generate_training_data");
+        Tracker::LockGuard guard(ro_t{}, "Accumulation::generate_training_data");
         GUI::work().set_progress("generating images", 0);
         
         std::map<Idx_t, std::set<std::shared_ptr<SegmentInformation>>> segments;
@@ -386,7 +386,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
     
     auto && [images, ids] = data.join_arrays();
     
-    Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Accumulation::generate_training_data");
+    Tracker::LockGuard guard(ro_t{}, "Accumulation::generate_training_data");
     auto averages = _network->paverages(ids, std::move(images));
     
     std::set<Idx_t> added_ids = extract_keys(averages);
@@ -565,7 +565,7 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Fram
     auto data = std::make_shared<TrainingData>();
     
     {
-        Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Accumulation::discriminate");
+        Tracker::LockGuard guard(ro_t{}, "Accumulation::discriminate");
         gui::WorkInstance generating_images("generating images");
         if (GUI::instance())
             GUI::work().set_progress("generating images", 0);
@@ -793,7 +793,7 @@ bool Accumulation::start() {
     std::string reason_to_stop = "";
     
     {
-        Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "GUI::generate_training_data");
+        Tracker::LockGuard guard(ro_t{}, "GUI::generate_training_data");
         GUI::work().set_progress("generating images", 0);
         
         DebugCallback("Generating initial training dataset [%d-%d] (%d) in memory.", _initial_range.start, _initial_range.end, _initial_range.length());
@@ -1584,7 +1584,7 @@ bool Accumulation::start() {
                 }
             }
             
-            for(auto method : default_config::recognition_normalization_t::values)
+            for(auto method : default_config::individual_image_normalization_t::values)
             {
                 std::map<Idx_t, std::vector<Image::Ptr>> images;
                 PPFrame video_frame;

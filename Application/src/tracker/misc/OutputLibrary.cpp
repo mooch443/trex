@@ -1343,7 +1343,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         header.insert(header.end(), nheader.begin(), nheader.end());
         std::vector<Individual*> neighbors;
         
-        Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "save_focussed_on");
+        Tracker::LockGuard guard(ro_t{}, "save_focussed_on");
         
         for (auto && [id, neighbor] : Tracker::individuals()) {
             if(neighbor != fish) {

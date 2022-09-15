@@ -235,18 +235,18 @@ inline float standard_deviation(const std::set<float> & v) {
 }
 
 std::tuple<Image::UPtr, Vec2> diff_image(
-     const recognition_normalization_t::Class &normalize,
+     const individual_image_normalization_t::Class &normalize,
      const pv::BlobPtr& blob,
      const gui::Transform& midline_transform,
      float median_midline_length_px,
      const Size2& output_shape,
      const Image* background)
 {
-    if(normalize == recognition_normalization_t::posture)
+    if(normalize == individual_image_normalization_t::posture)
         return calculate_normalized_diff_image(midline_transform, blob, median_midline_length_px, output_shape, false, background);
-    else if(normalize == recognition_normalization_t::legacy)
+    else if(normalize == individual_image_normalization_t::legacy)
         return calculate_normalized_diff_image(midline_transform, blob, median_midline_length_px, output_shape, true, background);
-    else if (normalize == recognition_normalization_t::moments)
+    else if (normalize == individual_image_normalization_t::moments)
     {
         blob->calculate_moments();
         

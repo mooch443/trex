@@ -1240,7 +1240,7 @@ void Midline::fix_length(float len, std::vector<MidlineSegment>& pts, bool debug
     //    this->angle() = calculate_angle();
 }
 
-gui::Transform Midline::transform(const default_config::recognition_normalization_t::Class &type, bool to_real_world) const {
+gui::Transform Midline::transform(const default_config::individual_image_normalization_t::Class &type, bool to_real_world) const {
     gui::Transform tr;
     
     if(empty())
@@ -1253,7 +1253,7 @@ gui::Transform Midline::transform(const default_config::recognition_normalizatio
         return tr;
     }
     
-    float angle = -this->angle() + (type == default_config::recognition_normalization_t::legacy ? (M_PI) : (M_PI * 0.25));
+    float angle = -this->angle() + (type == default_config::individual_image_normalization_t::legacy ? (M_PI) : (M_PI * 0.25));
     tr.translate(-front());
     tr.rotate(DEGREE(angle));
     tr.translate(-offset());

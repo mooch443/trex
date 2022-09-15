@@ -903,6 +903,16 @@ TRex parameters
 	.. seealso:: :func:`track_max_reassign_time`, 
 
 
+.. function:: gui_show_individual_preview(bool)
+
+	**default value:** true
+
+
+	Shows preview images for all selected individuals as they would be processed during network training, based on settings like ``individual_image_size``, ``individual_image_scale`` and ``individual_image_normalization``.
+
+	.. seealso:: :func:`individual_image_size`, :func:`individual_image_scale`, :func:`individual_image_normalization`, 
+
+
 .. function:: gui_show_match_modes(bool)
 
 	**default value:** false
@@ -1242,6 +1252,21 @@ TRex parameters
 
 
 	Inverts the image greyscale values before thresholding.
+
+
+
+.. function:: individual_image_normalization(individual_image_normalization_t)
+
+	**default value:** posture
+
+	**possible values:**
+		- `none`: No normalization. Images will only be cropped out and used as-is.
+		- `moments`: Images will be cropped out and aligned as in idtracker.ai using the main axis calculated using `image moments`.
+		- `posture`: Images will be cropped out and rotated so that the head will be fixed in one position and only the tail moves.
+		- `legacy`: Images will be aligned parallel to the x axis.
+
+	This enables or disable normalizing the images before training. If set to ``none``, the images will be sent to the GPU raw - they will only be cropped out. Otherwise they will be normalized based on head orientation (posture) or the main axis calculated using ``image moments``.
+
 
 
 
@@ -1805,21 +1830,6 @@ TRex parameters
 	If ``recognition_border`` is 'outline', this is the number of coefficients to use when smoothing the ``recognition_border``.
 
 	.. seealso:: :func:`recognition_border`, :func:`recognition_border`, 
-
-
-.. function:: recognition_normalization(recognition_normalization_t)
-
-	**default value:** posture
-
-	**possible values:**
-		- `none`: No normalization. Images will only be cropped out and used as-is.
-		- `moments`: Images will be cropped out and aligned as in idtracker.ai using the main axis calculated using `image moments`.
-		- `posture`: Images will be cropped out and rotated so that the head will be fixed in one position and only the tail moves.
-		- `legacy`: Images will be aligned parallel to the x axis.
-
-	This enables or disable normalizing the images before training. If set to ``none``, the images will be sent to the GPU raw - they will only be cropped out. Otherwise they will be normalized based on head orientation (posture) or the main axis calculated using ``image moments``.
-
-
 
 
 .. function:: recognition_save_progress_images(bool)

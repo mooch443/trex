@@ -77,7 +77,7 @@ namespace track {
          * from the global system to the midline coordinate system (in order to e.g.
          * normalize an image)
          **/
-        gui::Transform transform(const default_config::recognition_normalization_t::Class &type, bool to_real_world = false) const;
+        gui::Transform transform(const default_config::individual_image_normalization_t::Class &type, bool to_real_world = false) const;
         
     private:
         friend class Outline;

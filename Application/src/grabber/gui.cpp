@@ -502,7 +502,7 @@ void GUI::draw(gui::DrawStructure &base) {
 
         if (_grabber.tracker_instance()) {
             base.section("tracking", [this, scale](gui::DrawStructure& base, Section* section) {
-                track::Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "drawing", 100);
+                track::Tracker::LockGuard guard(ro_t{}, "drawing", 100);
                 if (!guard.locked()) {
                     section->reuse_objects();
                     return;

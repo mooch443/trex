@@ -26,6 +26,9 @@ namespace track {
     class FOI;
     //struct fdx_t;
     struct SplitData;
+
+    struct ro_t {};
+    struct w_t {};
     
     struct IndividualStatus {
         const MotionRecord* prev;
@@ -173,8 +176,6 @@ CREATE_STRUCT(Settings,
         
     public:
         struct LockGuard {
-            struct ro_t {};
-            struct w_t {};
             
             LockGuard(LockGuard&&) = delete;
             LockGuard(const LockGuard&) = delete;

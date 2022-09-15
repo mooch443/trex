@@ -583,7 +583,7 @@ namespace gui {
         checked_probs.insert(fdx);
         
         {
-            Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "GUICache::probs");
+            Tracker::LockGuard guard(ro_t{}, "GUICache::probs");
             auto c = processed_frame.cached(fdx);
             if(c) {
                 for(auto& blob : processed_frame.blobs()) {

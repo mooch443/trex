@@ -55,7 +55,7 @@ struct FilterCache {
     static void clear();
 };
 
-std::tuple<Image::UPtr, Vec2> diff_image(const default_config::recognition_normalization_t::Class &normalize,
+std::tuple<Image::UPtr, Vec2> diff_image(const default_config::individual_image_normalization_t::Class &normalize,
                                          const pv::BlobPtr& blob,
                                          const gui::Transform& midline_transform,
                                          float median_midline_length_px,

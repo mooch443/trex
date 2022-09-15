@@ -59,7 +59,7 @@ struct Settings {
     uint64_t max_size_bytes{1000u * 1000u * 1000u};
     Size2 image_size{Float2_t(80), Float2_t(80)};
     uint8_t num_threads{5u};
-    default_config::recognition_normalization_t::Class normalization{default_config::recognition_normalization_t::none};
+    default_config::individual_image_normalization_t::Class normalization{default_config::individual_image_normalization_t::none};
     uint64_t item_step{1u};
     uint64_t segment_min_samples{0u};
     std::function<std::unique_ptr<std::shared_lock<std::shared_mutex>>()> query_lock = nullptr;

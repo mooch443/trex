@@ -232,12 +232,12 @@ Tracker::LockGuard::~LockGuard() {
 //Tracker::LockGuard::LockGuard(std::string purpose, uint32_t timeout_ms) : LockGuard(w_t{}, purpose, timeout_ms)
 //{ }
 
-Tracker::LockGuard::LockGuard(Tracker::LockGuard::w_t, std::string purpose, uint32_t timeout_ms) : _write(true), _purpose(purpose)
+Tracker::LockGuard::LockGuard(w_t, std::string purpose, uint32_t timeout_ms) : _write(true), _purpose(purpose)
 {
     init(timeout_ms);
 }
 
-Tracker::LockGuard::LockGuard(Tracker::LockGuard::ro_t, std::string purpose, uint32_t timeout_ms) : _write(false), _purpose(purpose)
+Tracker::LockGuard::LockGuard(ro_t, std::string purpose, uint32_t timeout_ms) : _write(false), _purpose(purpose)
 {
     init(timeout_ms);
 }
@@ -411,13 +411,13 @@ decltype(Tracker::_added_frames)::const_iterator Tracker::properties_iterator(Fr
     }
         
     void Tracker::print_memory() {
-        LockGuard guard(LockGuard::ro_t{}, "print_memory");
+        LockGuard guard(ro_t{}, "print_memory");
         mem::TrackerMemoryStats stats;
         stats.print();
     }
 
     void Tracker::delete_automatic_assignments(Idx_t fish_id, const FrameRange& frame_range) {
-        LockGuard guard(LockGuard::w_t{}, "delete_automatic_assignments");
+        LockGuard guard(w_t{}, "delete_automatic_assignments");
         
         auto it = std::find(_automatically_assigned_ranges.begin(), _automatically_assigned_ranges.end(), fish_id);
         if(it == _automatically_assigned_ranges.end()) {
@@ -524,7 +524,7 @@ void Tracker::analysis_state(AnalysisState pause) {
             {
                 auto worker = [key](){
                     {
-                        LockGuard guard(Tracker::LockGuard::w_t{}, "Updating midlines in changed_setting("+key+")");
+                        LockGuard guard(w_t{}, "Updating midlines in changed_setting("+key+")");
                         
                         for (auto && [id, fish] : Tracker::individuals()) {
                             Tracker::instance()->_thread_pool.enqueue([](long_t id, Individual *fish){
@@ -556,7 +556,7 @@ void Tracker::analysis_state(AnalysisState pause) {
                 }
                 
                 if(contains(Settings::names(), key)) {
-                    Tracker::LockGuard guard(LockGuard::ro_t{}, "changed_settings");
+                    Tracker::LockGuard guard(ro_t{}, "changed_settings");
                     Settings :: variable_changed(signal, map, key, value);
                 }
             };
@@ -614,7 +614,7 @@ void Tracker::analysis_state(AnalysisState pause) {
     }
 
     Frame_t Tracker::update_with_manual_matches(const Settings::manual_matches_t& manual_matches) {
-        LockGuard guard(LockGuard::ro_t{}, "update_with_manual_matches");
+        LockGuard guard(ro_t{}, "update_with_manual_matches");
         
         static std::atomic_bool first_run(true);
         static Settings::manual_matches_t compare = manual_matches;
@@ -689,7 +689,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         TakeTiming take(timing);
         
         Timer overall_timer;
-        LockGuard guard(LockGuard::w_t{}, "Tracker::add(PPFrame)");
+        LockGuard guard(w_t{}, "Tracker::add(PPFrame)");
         
         assert(frame.index().valid());
         
@@ -749,7 +749,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
     };
 
     void Tracker::update_history_log() {
-        Tracker::LockGuard guard(LockGuard::ro_t{}, "update_history_log");
+        Tracker::LockGuard guard(ro_t{}, "update_history_log");
         if(history_log == nullptr && !SETTING(history_matching_log).value<file::Path>().empty()) {
             history_log = std::make_shared<std::ofstream>();
             
@@ -1224,7 +1224,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
 
         float tdelta;
         {
-            Tracker::LockGuard guard(LockGuard::ro_t{}, "history_split#1");
+            Tracker::LockGuard guard(ro_t{}, "history_split#1");
             auto props = properties(frame.index() - 1_f);
             tdelta = props ? (frame.time - props->time) : 0;
         }
@@ -1382,7 +1382,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
             frame.individual_cache().resize(N);
             
             if(num_threads < 2 || !pool || N < num_threads) {
-                Tracker::LockGuard guard(LockGuard::ro_t{}, "history_split#2");
+                Tracker::LockGuard guard(ro_t{}, "history_split#2");
                 fn(active_individuals, 0, N);
                 
             } else if(N) {
@@ -1390,7 +1390,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                 size_t per_thread = (N - last) / num_threads;
                 size_t i = 0;
 
-                Tracker::LockGuard guard(LockGuard::ro_t{}, "history_split#2");
+                Tracker::LockGuard guard(ro_t{}, "history_split#2");
                 for (; (i<=num_threads && last) || (!last && i<num_threads); ++i) {
                     size_t n = per_thread;
                     if(i == num_threads)
@@ -3792,7 +3792,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         Categorize::DataStore::reanalysed_from(Frame_t(frameIndex));
 #endif
         
-        LockGuard guard(LockGuard::w_t{}, "_remove_frames("+Meta::toStr(frameIndex)+")");
+        LockGuard guard(w_t{}, "_remove_frames("+Meta::toStr(frameIndex)+")");
         recognition_pool.wait();
         _thread_pool.wait();
         
@@ -3950,14 +3950,14 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
     }
 
     void Tracker::global_segment_order_changed() {
-        LockGuard guard(LockGuard::w_t{}, "Tracker::global_segment_order_changed");
+        LockGuard guard(w_t{}, "Tracker::global_segment_order_changed");
         _global_segment_order.clear();
     }
     
     std::vector<Range<Frame_t>> Tracker::global_segment_order() {
-        LockGuard guard(LockGuard::ro_t{}, "Tracker::max_range()");
+        LockGuard guard(ro_t{}, "Tracker::max_range()");
         if(_global_segment_order.empty()) {
-            LockGuard guard(LockGuard::w_t{}, "Tracker::max_range()::write");
+            LockGuard guard(w_t{}, "Tracker::max_range()::write");
             std::set<Range<Frame_t>> manuals;
             auto manually_approved = FAST_SETTINGS(manually_approved);
             for(auto && [from, to] : manually_approved)
@@ -4017,14 +4017,14 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         std::map<long_t, Rangel> ranges;
         TrainingData::MidlineFilters filters;
         
-        GETTER(default_config::recognition_normalization_t::Class, normalized)
+        GETTER(default_config::individual_image_normalization_t::Class, normalized)
         
     public:
         SplitData();
         void add_frame(Frame_t frame, long_t id, Image::Ptr image);
     };
     
-    SplitData::SplitData() : _normalized(SETTING(recognition_normalize_direction).value<default_config::recognition_normalization_t::Class>()) {
+    SplitData::SplitData() : _normalized(SETTING(recognition_normalize_direction).value<default_config::individual_image_normalization_t::Class>()) {
         
     }
     
@@ -4051,7 +4051,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
     }
     
     void Tracker::clear_segments_identities() {
-        LockGuard guard(LockGuard::w_t{}, "clear_segments_identities");
+        LockGuard guard(w_t{}, "clear_segments_identities");
         
         recognition_pool.wait();
         auto fid = FOI::to_id("split_up");
@@ -4400,7 +4400,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
     void Tracker::check_segments_identities(bool auto_correct, IdentitySource source, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue, Frame_t after_frame) {
         
         print("Waiting for lock...");
-        LockGuard guard(LockGuard::w_t{}, "check_segments_identities");
+        LockGuard guard(w_t{}, "check_segments_identities");
         print("Updating automatic ranges starting from ", !after_frame.valid() ? Frame_t(0) : after_frame);
         
         if (source == IdentitySource::QRCodes)
@@ -4757,7 +4757,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
                 //std::lock_guard<decltype(GUI::instance()->gui().lock())> guard(GUI::instance()->gui().lock());
                 
                 {
-                    Tracker::LockGuard guard(LockGuard::w_t{}, "check_segments_identities::auto_correct");
+                    Tracker::LockGuard guard(w_t{}, "check_segments_identities::auto_correct");
                     Tracker::instance()->_remove_frames(!after_frame.valid() ? Tracker::analysis_range().start : after_frame);
                     for(auto && [fdx, fish] : instance()->individuals()) {
                         fish->clear_recognition();

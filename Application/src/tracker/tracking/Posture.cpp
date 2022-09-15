@@ -378,7 +378,7 @@ namespace track {
                 
                 auto midline = _normalized_midline;
                 if(midline) {
-                    auto transform = midline->transform(default_config::recognition_normalization_t::none, true);
+                    auto transform = midline->transform(default_config::individual_image_normalization_t::none, true);
                     for(auto &seg : midline->segments()) {
                         auto trans = transform.transformPoint(seg.pos);
                         cv::circle(colored, OFFSET(trans), 3, Red);

@@ -142,7 +142,7 @@ public:
     //std::map<long_t, FilterCache> custom_midline_lengths_std;
     
 private:
-    GETTER_SETTER_I(default_config::recognition_normalization_t::Class, normalized, default_config::recognition_normalization_t::none)
+    GETTER_SETTER_I(default_config::individual_image_normalization_t::Class, normalized, default_config::individual_image_normalization_t::none)
     GETTER_SETTER(file::Path, save_path)
     GETTER_SETTER_PTR(std::shared_ptr<TrainingData>, data_source)
     

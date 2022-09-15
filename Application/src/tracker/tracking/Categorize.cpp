@@ -7,7 +7,6 @@
 #include <tracking/Accumulation.h>
 
 #include <python/GPURecognition.h>
-#include <random>
 #include <misc/default_settings.h>
 #include <tracking/StaticBackground.h>
 
@@ -258,7 +257,7 @@ Sample::Ptr DataStore::random_sample(Idx_t fid) {
     Individual *fish;
     
     {
-        Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Categorize::random_sample");
+        Tracker::LockGuard guard(ro_t{}, "Categorize::random_sample");
         auto iit = Tracker::instance()->individuals().find(fid);
         if (iit != Tracker::instance()->individuals().end()) {
             fish = iit->second;
@@ -286,7 +285,7 @@ Sample::Ptr DataStore::get_random() {
     
     std::set<Idx_t> individuals;
     {
-        Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Categorize::random_sample");
+        Tracker::LockGuard guard(ro_t{}, "Categorize::random_sample");
         individuals = extract_keys(Tracker::instance()->individuals());
     }
     
@@ -919,7 +918,7 @@ struct NetworkApplicationState {
         TakeTiming take(timing);
 
         if (segments.empty()) {
-            Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "NetworkApplicationState::peek");
+            Tracker::LockGuard guard(ro_t{}, "NetworkApplicationState::peek");
             segments = fish->frame_segments();
             N = segments.size();
         }
@@ -1086,7 +1085,7 @@ struct NetworkApplicationState {
         task.type = LearningTask::Type::Prediction;
 
         {
-            Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "next()");
+            Tracker::LockGuard guard(ro_t{}, "next()");
             segments = fish->frame_segments();
         }
         
@@ -1188,11 +1187,11 @@ struct NetworkApplicationState {
 
 void start_applying() {
     using namespace extract;
-    auto normalize = SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>();
-    if(normalize == default_config::recognition_normalization_t::posture
+    auto normalize = SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>();
+    if(normalize == default_config::individual_image_normalization_t::posture
        && !FAST_SETTINGS(calculate_posture))
     {
-        normalize = default_config::recognition_normalization_t::moments;
+        normalize = default_config::individual_image_normalization_t::moments;
     }
     
     uint8_t max_threads = 5u;
@@ -1217,7 +1216,7 @@ void start_applying() {
     GUI::set_status("Applying...");
     
     ImageExtractor(*GUI::video_source(), [normalize](const Query& q) -> bool {
-        return !q.basic->blob.split() && (normalize != default_config::recognition_normalization_t::posture || q.posture) && DataStore::_label_unsafe(q.basic->frame, q.basic->blob.blob_id()) == -1;
+        return !q.basic->blob.split() && (normalize != default_config::individual_image_normalization_t::posture || q.posture) && DataStore::_label_unsafe(q.basic->frame, q.basic->blob.blob_id()) == -1;
         
     }, [](std::vector<Result>&& results) {
         static Timing timing("Categorize::Predict");
@@ -1307,7 +1306,7 @@ void start_applying() {
                     _ranged_labels.clear();
                 }
                 
-                Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "ranged_labels");
+                Tracker::LockGuard guard(ro_t{}, "ranged_labels");
                 std::shared_lock label_guard(DataStore::cache_mutex());
                 
                 std::vector<float> sums(Work::_number_labels);
@@ -1381,7 +1380,7 @@ void start_applying() {
             std::lock_guard wguard(Work::_mutex);
             print("## Initializing APPLY.");
             {
-                Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Categorize::start_applying");
+                Tracker::LockGuard guard(ro_t{}, "Categorize::start_applying");
                 std::lock_guard g(NetworkApplicationState::current_mutex());
                 NetworkApplicationState::current().clear();
                 for(auto &[f, c] : NetworkApplicationState::current()) {
@@ -2212,7 +2211,7 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
 
         Tracker::set_of_individuals_t active;
         {
-            Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Categorize::sample");
+            Tracker::LockGuard guard(ro_t{}, "Categorize::sample");
             active = frame == Tracker::start_frame()
                 ? decltype(active)()
                 : Tracker::active_individuals(frame - 1_f);
@@ -2406,7 +2405,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<SegmentInformation>& segm
     
     {
         {
-            Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Categorize::sample");
+            Tracker::LockGuard guard(ro_t{}, "Categorize::sample");
             range = segment->range;
             basic_index = segment->basic_index;
             frames.reserve(basic_index.size());
@@ -2498,9 +2497,9 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<SegmentInformation>& segm
     // actually generate frame data + load pixels from PV file, if the cache for a certain frame has not yet been generated.
     size_t non = 0, cont = 0;
 
-    auto normalize = SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>();
-    if (normalize == default_config::recognition_normalization_t::posture && !FAST_SETTINGS(calculate_posture))
-        normalize = default_config::recognition_normalization_t::moments;
+    auto normalize = SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>();
+    if (normalize == default_config::individual_image_normalization_t::posture && !FAST_SETTINGS(calculate_posture))
+        normalize = default_config::individual_image_normalization_t::moments;
     const auto dims = FAST_SETTINGS(individual_image_size);
 
     for(auto &[index, frame, ptr] : stuff_indexes) {
@@ -2537,7 +2536,7 @@ Sample::Ptr DataStore::temporary(const std::shared_ptr<SegmentInformation>& segm
         FilterCache custom_len;
         
         {
-            Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Categorize::sample");
+            Tracker::LockGuard guard(ro_t{}, "Categorize::sample");
             basic = fish->basic_stuff().at(index).get();
             auto posture = fish->posture_stuff(frame);
             midline = posture ? fish->calculate_midline_for(*basic, *posture) : nullptr;

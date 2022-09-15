@@ -559,7 +559,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
 
             std::unique_lock guard(_proximity_bar.mutex);
             auto individual_coverage = [](Frame_t frame) {
-                Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Timeline::individual_coverage", 100);
+                Tracker::LockGuard guard(ro_t{}, "Timeline::individual_coverage", 100);
                 float count = 0;
                 if(Tracker::properties(frame)) {
                     for(auto fish : Tracker::instance()->active_individuals(frame)) {
@@ -664,7 +664,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
             //! Update the cached data
             if(GUICache::exists() && Tracker::instance()) {
                 {
-                    Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "Timeline::update_thread", 100);
+                    Tracker::LockGuard guard(ro_t{}, "Timeline::update_thread", 100);
                     if (guard.locked()) {
                         Timer timer;
 

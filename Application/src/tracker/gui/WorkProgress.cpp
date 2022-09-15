@@ -73,7 +73,7 @@ WorkProgress::WorkProgress()
                 _queue.pop();
                 
                 lock.unlock();
-                {
+                if(GUI::instance()) {
                     //! Can only be modified within the GUI lock, due to possible changes within the DrawStructure it is attached to (e.g. also texture things). Can not happen within locked "lock", since that'd be a dead-lock.
                     std::unique_lock guard(GUI::instance()->gui().lock());
                     _additional.update([](auto&){});
@@ -88,7 +88,7 @@ WorkProgress::WorkProgress()
                 set_percent(0);
 
 #ifdef WIN32
-                if (ptbl) {
+                if (ptbl && GUI::instance()) {
                     HWND hwnd = glfwGetWin32Window(((gui::IMGUIBase*)GUI::instance()->base())->platform()->window_handle());
                     ptbl->SetProgressState(hwnd, TBPF_NOPROGRESS);
                 }

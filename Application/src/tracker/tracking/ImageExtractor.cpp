@@ -50,7 +50,7 @@ void ImageExtractor::filter_tasks() {
 void ImageExtractor::collect(selector_t&& selector) {
     //! we need a lock for this, since we're walking through all individuals
     //! maybe I can split this up later, but could be dangerous.
-    Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "ImageExtractor");
+    Tracker::LockGuard guard(ro_t{}, "ImageExtractor");
     std::unique_ptr<std::shared_lock<std::shared_mutex>> query_guard;
     if(_settings.query_lock)
         query_guard = _settings.query_lock();
@@ -145,7 +145,7 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
     
     std::mutex mutex;
     uint64_t pushed_items{0u}, total_items{0u};
-    const auto recognition_normalization = _settings.normalization;
+    const auto individual_image_normalization = _settings.normalization;
     const Size2 image_size = _settings.image_size;
     const uint64_t image_bytes = image_size.width * image_size.height * 1 * sizeof(uchar);
     const uint64_t max_images_per_step = max(1u, _settings.max_size_bytes / image_bytes);
@@ -221,8 +221,8 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                 float median_midline_length_px = 0;
                 gui::Transform midline_transform;
                 
-                if(recognition_normalization == default_config::recognition_normalization_t::posture) {
-                    Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "normalization");
+                if(individual_image_normalization == default_config::individual_image_normalization_t::posture) {
+                    Tracker::LockGuard guard(ro_t{}, "normalization");
                     auto fish = Tracker::individuals().at(fdx);
                     if(fish) {
                         auto filter = constraints::local_midline_length(fish, range, false);
@@ -233,7 +233,7 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                         if(posture && basic) {
                             Midline::Ptr midline = fish->calculate_midline_for(*basic, *posture);
                             if(midline)
-                                midline_transform = midline->transform(recognition_normalization);
+                                midline_transform = midline->transform(individual_image_normalization);
                             else {
                                 {
                                     std::unique_lock guard(mutex);
@@ -245,9 +245,9 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                     }
                 }
                 
-                auto &&[image, pos] = constraints::diff_image(recognition_normalization, blob, midline_transform, median_midline_length_px, _settings.image_size, &Tracker::average());
+                auto &&[image, pos] = constraints::diff_image(individual_image_normalization, blob, midline_transform, median_midline_length_px, _settings.image_size, &Tracker::average());
                 /*auto &&[image, pos] = constraints::diff_image(
-                          recognition_normalization,
+                          individual_image_normalization,
                           blob,
                           midline_transform,
                           median_midline_length_px,

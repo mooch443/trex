@@ -45,7 +45,7 @@ namespace default_config {
         "The video-file provides a binary mask (e.g. when `cam_circle_mask` was set to true during recording), which is then used to determine in/out." // {"circle",
     )
 
-    ENUM_CLASS_DOCS(recognition_normalization_t,
+    ENUM_CLASS_DOCS(individual_image_normalization_t,
                     "No normalization. Images will only be cropped out and used as-is.",
                     "Images will be cropped out and aligned as in idtracker.ai using the main axis calculated using `image moments`.",
                     "Images will be cropped out and rotated so that the head will be fixed in one position and only the tail moves.",
@@ -146,7 +146,8 @@ ENUM_CLASS_DOCS(visual_identification_version_t,
         {"posture_threshold_constant", "track_posture_threshold"},
         {"threshold_constant", "track_threshold"},
         {"recognition_rect", "recognition_shapes"},
-        {"recognition_normalize_direction", "recognition_normalization"},
+        {"recognition_normalization", "individual_image_normalization"},
+        {"recognition_normalize_direction", "individual_image_normalization"},
         {"match_use_approximate", "match_mode"},
         {"output_npz", "output_format"},
         {"gui_heatmap_value_range", "heatmap_value_range"},
@@ -354,6 +355,7 @@ file::Path conda_environment_path() {
         CONFIG("gui_faded_brightness", uchar(255), "The alpha value of tracking-related elements when timeline is hidden (0-255).");
         CONFIG("gui_equalize_blob_histograms", true, "Equalize histograms of blobs wihtin videos (makes them more visible).");
         CONFIG("gui_show_heatmap", false, "Showing a heatmap per identity, normalized by maximum samples per grid-cell.");
+        CONFIG("gui_show_individual_preview", true, "Shows preview images for all selected individuals as they would be processed during network training, based on settings like `individual_image_size`, `individual_image_scale` and `individual_image_normalization`.");
         CONFIG("heatmap_ids", std::vector<uint32_t>(), "Add ID numbers to this array to exclusively display heatmap values for those individuals.");
         CONFIG("heatmap_value_range", Range<double>(-1, -1), "Give a custom value range that is used to normalize heatmap cell values.");
         CONFIG("heatmap_smooth", double(0.05), "Value between 0 and 1, think of as `heatmap_smooth` times video-width, indicating the maximum upscaled size of the heatmaps shown in the tracker. Makes them prettier, but maybe much slower.");
@@ -596,7 +598,7 @@ file::Path conda_environment_path() {
         CONFIG("recognition_border_size_rescale", float(0.5), "The amount that blob sizes for calculating the heatmap are allowed to go below or above values specified in `blob_size_ranges` (e.g. 0.5 means that the sizes can range between `blob_size_ranges.min * (1 - 0.5)` and `blob_size_ranges.max * (1 + 0.5)`).");
         CONFIG("recognition_smooth_amount", uint16_t(200), "If `recognition_border` is 'outline', this is the amount that the `recognition_border` is smoothed (similar to `outline_smooth_samples`), where larger numbers will smooth more.");
         CONFIG("recognition_coeff", uint16_t(50), "If `recognition_border` is 'outline', this is the number of coefficients to use when smoothing the `recognition_border`.");
-        CONFIG("recognition_normalization", recognition_normalization_t::posture, "This enables or disable normalizing the images before training. If set to `none`, the images will be sent to the GPU raw - they will only be cropped out. Otherwise they will be normalized based on head orientation (posture) or the main axis calculated using `image moments`.");
+        CONFIG("individual_image_normalization", individual_image_normalization_t::posture, "This enables or disable normalizing the images before training. If set to `none`, the images will be sent to the GPU raw - they will only be cropped out. Otherwise they will be normalized based on head orientation (posture) or the main axis calculated using `image moments`.");
         CONFIG("individual_image_size", Size2(80, 80), "Size of each image generated for network training.");
         CONFIG("individual_image_scale", float(1), "Scaling applied to the images before passing them to the network.");
         CONFIG("recognition_save_training_images", false, "If set to true, the program will save the images used for a successful training of the recognition network to the output path.");
@@ -909,7 +911,7 @@ void load_string_with_deprecations(const file::Path& settings_file, const std::s
                         GlobalSettings::load_from_string(deprecations(), map, r+" = [-1,"+val+"]\n", accessLevel);
                     } else if(key == "recognition_normalize_direction") {
                         bool value = utils::lowercase(val) != "false";
-                        GlobalSettings::load_from_string(deprecations(), map, r+" = "+Meta::toStr(value ? recognition_normalization_t::posture : recognition_normalization_t::none)+"\n", accessLevel);
+                        GlobalSettings::load_from_string(deprecations(), map, r+" = "+Meta::toStr(value ? individual_image_normalization_t::posture : individual_image_normalization_t::none)+"\n", accessLevel);
                         
                     } else GlobalSettings::load_from_string(deprecations(), map, r+" = "+val+"\n", accessLevel);
                 }

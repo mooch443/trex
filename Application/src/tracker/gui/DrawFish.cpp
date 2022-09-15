@@ -427,7 +427,7 @@ Fish::~Fish() {
                 midline_points = _midline.segments();
 
                 std::vector<Vertex> line;
-                auto tf = _cached_midline->transform(default_config::recognition_normalization_t::none, true);
+                auto tf = _cached_midline->transform(default_config::individual_image_normalization_t::none, true);
 
                 for (auto &segment : midline_points) {
                     //Vec2 pt = segment.pos;

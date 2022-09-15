@@ -172,7 +172,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
     
     GenericThreadPool _blob_thread_pool(cmn::hardware_concurrency(), "export_pool");
     
-    Tracker::LockGuard guard(Tracker::LockGuard::ro_t{}, "GUI::export_tracks");
+    Tracker::LockGuard guard(ro_t{}, "GUI::export_tracks");
     tracker.wait();
     
     // save old values and remove all calculation/scaling options from output
@@ -189,9 +189,9 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
     auto no_tracking_data = SETTING(auto_no_tracking_data).value<bool>();
     auto auto_no_memory_stats = SETTING(auto_no_memory_stats).value<bool>();
     
-    auto normalize = SETTING(recognition_normalization).value<default_config::recognition_normalization_t::Class>();
-    if(!FAST_SETTINGS(calculate_posture) && normalize == default_config::recognition_normalization_t::posture)
-        normalize = default_config::recognition_normalization_t::moments;
+    auto normalize = SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>();
+    if(!FAST_SETTINGS(calculate_posture) && normalize == default_config::individual_image_normalization_t::posture)
+        normalize = default_config::individual_image_normalization_t::moments;
     
     if(no_tracking_data) {
         FormatWarning("Not saving tracking data because of 'auto_no_tracking_data' flag being set.");
@@ -552,7 +552,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                             midline_offsets.push_back(atan2(midline->segments().back().pos - midline->segments().front().pos));
                             
                             // transform for transforming coordinates to real-world
-                            Transform tf = midline->transform(default_config::recognition_normalization_t::none, true);
+                            Transform tf = midline->transform(default_config::individual_image_normalization_t::none, true);
                             
                             auto points = outline->uncompress();
                             outline_points.insert(outline_points.end(), points.begin(), points.end());
@@ -832,9 +832,9 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                                                         output_size,
                                                         &Tracker::average()));
 
-                            //reduced.image = std::move(std::get<0>(data.fish->calculate_normalized_diff_image(data.midline_transform, reduced.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy)));
+                            //reduced.image = std::move(std::get<0>(data.fish->calculate_normalized_diff_image(data.midline_transform, reduced.blob, data.filters->median_midline_length_px, output_size, normalize == default_config::individual_image_normalization_t::legacy)));
                         } else
-                            reduced.image = std::move(std::get<0>(calculate_normalized_image(data.midline_transform, reduced.blob, data.median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy, &Tracker::average())));
+                            reduced.image = std::move(std::get<0>(calculate_normalized_image(data.midline_transform, reduced.blob, data.median_midline_length_px, output_size, normalize == default_config::individual_image_normalization_t::legacy, &Tracker::average())));
                         
                     } else {
                         if(tracklet_export_difference_images) {
@@ -882,9 +882,9 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                         
                         if(do_normalize_tracklets) {
                             if(tracklet_export_difference_images)
-                                full.image = std::get<0>(calculate_normalized_diff_image(trans, full.blob, data.median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy, &Tracker::average()));
+                                full.image = std::get<0>(calculate_normalized_diff_image(trans, full.blob, data.median_midline_length_px, output_size, normalize == default_config::individual_image_normalization_t::legacy, &Tracker::average()));
                             else
-                                full.image = std::get<0>(calculate_normalized_image(trans, full.blob, data.median_midline_length_px, output_size, normalize == default_config::recognition_normalization_t::legacy, &Tracker::average()));
+                                full.image = std::get<0>(calculate_normalized_image(trans, full.blob, data.median_midline_length_px, output_size, normalize == default_config::individual_image_normalization_t::legacy, &Tracker::average()));
                             
                         } else {
                             if(tracklet_export_difference_images) {

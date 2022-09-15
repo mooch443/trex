@@ -160,7 +160,7 @@ namespace track {
         for(ushort x = 0; x < _mask->cols; ++x) {
             for (ushort y = 0; y < _mask->rows; ++y) {
                 auto p = pos2grid(Vec2(x, y));
-                _mask->data()[y * _mask->cols + x] = value(p) >= middle ? 255 : 0; //float(rand()) / RAND_MAX * 255 > 125 ? 255 : 0;
+                _mask->data()[y * _mask->cols + x] = value(p) >= middle ? 255 : 0;
             }
         }
         
