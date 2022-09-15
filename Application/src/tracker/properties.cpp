@@ -353,7 +353,7 @@ int main(int argc, char**argv) {
 	GlobalSettings::map().set_do_print(true);
 
 	CommandLine cmd(argc, argv);
-	cmd.cd_home();
+    file::cd(file::DataLocation::parse("app"));
 
 	gui::init_errorlog();
 	set_thread_name("main");

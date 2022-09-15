@@ -355,10 +355,7 @@ int main(int argc, char** argv)
         // switch working directory
         DebugHeader("LOADING COMMANDLINE");
         CommandLine cmd(argc, argv, true, grab::default_config::deprecations());
-        cmd.cd_home();
-        
-        auto _wd = file::DataLocation::parse("app");
-        file::cd(_wd);
+        file::cd(file::DataLocation::parse("app"));
         
         auto default_path = file::DataLocation::parse("default.settings");
         if(default_path.exists()) {

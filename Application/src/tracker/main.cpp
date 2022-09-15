@@ -261,7 +261,7 @@ int main(int argc, char** argv)
             default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
             
             CommandLine cmd(argc, argv, true);
-            cmd.cd_home();
+            file::cd(file::DataLocation::parse("app"));
             
             auto default_path = file::DataLocation::parse("default.settings");
             if(default_path.exists()) {
@@ -354,12 +354,7 @@ int main(int argc, char** argv)
     print("CWD: ", file::cwd());
     DebugHeader("LOADING COMMANDLINE");
     CommandLine cmd(argc, argv, true);
-    cmd.cd_home();
-    print("CWD: ", file::cwd());
-    
-    auto _wd = file::DataLocation::parse("app");
-    file::cd(_wd);
-    
+    file::cd(file::DataLocation::parse("app"));
     print("CWD: ", file::cwd());
     
     for(auto &option : cmd.settings()) {

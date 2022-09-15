@@ -194,7 +194,7 @@ int main(int argc, char**argv) {
     default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     
     CommandLine cmd(argc, argv, true);
-    cmd.cd_home();
+    file::cd(file::DataLocation::parse("app"));
     
     std::vector<std::pair<std::string, std::string>> updated_settings;
     std::vector<std::string> remove_settings;
@@ -205,9 +205,6 @@ int main(int argc, char**argv) {
     cmd.load_settings();
     be_quiet = SETTING(quiet).value<bool>();
     set_runtime_quiet(be_quiet);
-    
-    auto _wd = file::DataLocation::parse("app");
-    file::cd(_wd);
     
     auto default_path = file::DataLocation::parse("default.settings");
     if(default_path.exists()) {
