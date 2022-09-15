@@ -5,7 +5,7 @@
 #include <misc/default_settings.h>
 #include <tracking/Tracker.h>
 #include <misc/cnpy_wrapper.h>
-#include <pv.h>
+#include <file/DataLocation.h>
 
 namespace track {
 static std::map<Frame_t, std::set<FOI>> _fois;
@@ -155,7 +155,7 @@ bool ConfirmedCrossings::next(FOIStatus& foi) {
             };
             
             assert(rows.size() == shape[0] * shape[1]);
-            file::Path path = pv::DataLocation::parse("output", SETTING(filename).value<file::Path>().str()+"_confirmations.npz");
+            file::Path path = file::DataLocation::parse("output", SETTING(filename).value<file::Path>().str()+"_confirmations.npz");
             try {
                 cmn::npz_save(path.str(), "data", rows.data(), shape);
                 DebugHeader("Saved to ", path, ".");

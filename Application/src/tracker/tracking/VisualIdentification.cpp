@@ -7,6 +7,7 @@
 #include <tracking/Accumulation.h>
 #include <misc/create_struct.h>
 #include <misc/cnpy_wrapper.h>
+#include <file/DataLocation.h>
 
 namespace Python {
 
@@ -64,7 +65,7 @@ file::Path VINetwork::network_path() {
     filename = filename.extension() == "pv"
             ? filename.remove_extension()
             : filename;
-    filename = pv::DataLocation::parse("output", filename.str() + "_weights");
+    filename = file::DataLocation::parse("output", filename.str() + "_weights");
     return filename;
 }
 

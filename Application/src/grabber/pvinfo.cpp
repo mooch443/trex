@@ -14,6 +14,7 @@
 #include <gui/IdentityHeatmap.h>
 #include <opencv2/core/utils/logger.hpp>
 #include <misc/ocl.h>
+#include <file/DataLocation.h>
 
 using namespace cmn;
 
@@ -220,7 +221,7 @@ int main(int argc, char**argv) {
     }
 #endif
     
-    auto default_path = pv::DataLocation::parse("default.settings");
+    auto default_path = file::DataLocation::parse("default.settings");
     if(default_path.exists()) {
         DebugHeader("LOADING FROM ",default_path);
         default_config::warn_deprecated(default_path, GlobalSettings::load_from_file(default_config::deprecations(), default_path.str(), AccessLevelType::STARTUP));
@@ -287,13 +288,13 @@ int main(int argc, char**argv) {
                     
                 case Arguments::i:
                 case Arguments::input: {
-                    file::Path path = pv::DataLocation::parse("input", file::Path(option.value));
+                    file::Path path = file::DataLocation::parse("input", file::Path(option.value));
                     
                     if(utils::contains(option.value, '*')) {
                         std::set<file::Path> found;
                         
                         auto parts = utils::split(option.value, '*');
-                        file::Path folder = pv::DataLocation::parse("input", file::Path(option.value).remove_filename());
+                        file::Path folder = file::DataLocation::parse("input", file::Path(option.value).remove_filename());
                         print("Scanning pattern ",option.value," in folder ",folder.str(),"...");
                         
                         for(auto &file: folder.find_files("pv")) {
@@ -328,7 +329,7 @@ int main(int argc, char**argv) {
                         }
                         
                         if(found.size() == 1) {
-                            path = pv::DataLocation::parse("input", *found.begin());
+                            path = file::DataLocation::parse("input", *found.begin());
                             
                         } else if(found.size() > 1) {
                             print("Found too many files matching the pattern ",option.value,": ",found,".");
@@ -445,7 +446,7 @@ int main(int argc, char**argv) {
     if(!GlobalSettings::map().has("filename") && argc >= 1)
         SETTING(filename) = file::Path(argv[argc-1]);
     
-    file::Path settings_file = pv::DataLocation::parse("settings");
+    file::Path settings_file = file::DataLocation::parse("settings");
     if(settings_file.exists())
         GlobalSettings::load_from_file({}, settings_file.str(), AccessLevelType::STARTUP);
     
@@ -460,11 +461,11 @@ int main(int argc, char**argv) {
         if(video.header().version <= pv::Version::V_2) {
             SETTING(crop_offsets) = CropOffsets();
             
-            file::Path settings_file = pv::DataLocation::parse("settings");
+            file::Path settings_file = file::DataLocation::parse("settings");
             if(settings_file.exists())
                 GlobalSettings::load_from_file({}, settings_file.str(), AccessLevelType::STARTUP);
             
-            auto output_settings = pv::DataLocation::parse("output_settings");
+            auto output_settings = file::DataLocation::parse("output_settings");
             if(output_settings.exists() && output_settings != settings_file) {
                 GlobalSettings::load_from_file({}, output_settings.str(), AccessLevelType::STARTUP);
             }
@@ -497,7 +498,7 @@ int main(int argc, char**argv) {
         SETTING(video_mask) = video.has_mask();
         SETTING(video_length) = uint64_t(video.length());
         
-        auto output_settings = pv::DataLocation::parse("output_settings");
+        auto output_settings = file::DataLocation::parse("output_settings");
         if(output_settings.exists() && output_settings != settings_file) {
             GlobalSettings::load_from_file({}, output_settings.str(), AccessLevelType::STARTUP);
         }
@@ -549,7 +550,7 @@ int main(int argc, char**argv) {
         
         if(SETTING(write_settings)) {
             auto text = default_config::generate_delta_config();
-            auto filename = file::Path(pv::DataLocation::parse("output_settings").str() + ".auto");
+            auto filename = file::Path(file::DataLocation::parse("output_settings").str() + ".auto");
             
             if(filename.exists() && !be_quiet)
                 print("Overwriting file ",filename.str(),".");
@@ -869,7 +870,7 @@ int main(int argc, char**argv) {
         
         path = path.add_extension("results");
         
-        auto output_settings = pv::DataLocation::parse("output_settings");
+        auto output_settings = file::DataLocation::parse("output_settings");
         if(output_settings.exists() && output_settings != settings_file) {
             GlobalSettings::load_from_file({}, output_settings.str(), AccessLevelType::STARTUP);
         }

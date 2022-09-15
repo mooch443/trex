@@ -182,7 +182,7 @@ void write_version_file() {
         fclose(f);
     }
     else
-        FormatExcept("Cannot open update_check file for writing to save the settings (maybe no permissions in app folder?).");
+        FormatExcept("Cannot open update_check file for writing to save the settings (maybe no permissions in ",file::cwd(),"?).");
 }
 
 void update_loop() {

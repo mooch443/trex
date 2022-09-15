@@ -8,6 +8,7 @@
 #include <misc/frame_t.h>
 #include <misc/IdentifiedTag.h>
 #include <tracking/DatasetQuality.h>
+#include <file/DataLocation.h>
 
 using namespace track;
 typedef int64_t data_long_t;
@@ -1282,7 +1283,7 @@ namespace Output {
         file::Path filename = SETTING(filename).value<Path>().filename();
         filename = filename.extension() == "pv" ?
         filename.replace_extension("results") : filename.add_extension("results");
-        return pv::DataLocation::parse("output", filename);
+        return file::DataLocation::parse("output", filename);
     }
     
     void TrackingResults::save(std::function<void (const std::string &, float, const std::string &)> update_progress, Path filename, const std::vector<std::string>& exclude_settings) const {
@@ -1399,7 +1400,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             file = file.extension() == "pv" ?
             file.replace_extension("results") : file.add_extension("results");
             
-            //file = pv::DataLocation::parse("input", filename.filename());
+            //file = file::DataLocation::parse("input", filename.filename());
             if(file.exists()) {
                 FormatWarning("Not loading from the output folder, but from the input folder because ", filename," could not be found, but ",file," could.");
                 filename = file;

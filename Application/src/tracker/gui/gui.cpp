@@ -41,6 +41,7 @@
 #include <gui/DrawPreviewImage.h>
 
 #include <pv.h>
+#include <file/DataLocation.h>
 
 #if WIN32
 #include <Shellapi.h>
@@ -367,7 +368,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
             
             if(name == "exec") {
                 if(!SETTING(exec).value<file::Path>().empty()) {
-                    file::Path settings_file = pv::DataLocation::parse("settings", SETTING(exec).value<file::Path>());
+                    file::Path settings_file = file::DataLocation::parse("settings", SETTING(exec).value<file::Path>());
                     execute_settings(settings_file, AccessLevelType::PUBLIC);
                     SETTING(exec) = file::Path();
                 }
@@ -643,7 +644,7 @@ void GUI::run(bool r) {
 void GUI::load_connectivity_matrix() {
     print("Updating connectivity matrix...");
     auto path = SETTING(gui_connectivity_matrix_file).value<file::Path>();
-    path = pv::DataLocation::parse("input", path);
+    path = file::DataLocation::parse("input", path);
     
     if(!path.exists())
         throw U_EXCEPTION("Cannot find connectivity matrix file ",path.str(),".");
@@ -2134,7 +2135,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                     tmp[k] = v;
                 auto coverage = data->draw_coverage(tmp);
                 
-                auto path = pv::DataLocation::parse("output", "uniqueness"+(std::string)video_source()->filename().filename()+".png");
+                auto path = file::DataLocation::parse("output", "uniqueness"+(std::string)video_source()->filename().filename()+".png");
                 
                 print("Uniqueness: ", unique," (output to ",path.str(),")");
                 cv::imwrite(path.str(), coverage->get());
@@ -3349,7 +3350,7 @@ void GUI::key_event(const gui::Event &event) {
                 
                 Results results(PD(tracker));
                 
-                file::Path fishdata = pv::DataLocation::parse("output", SETTING(fishdata_dir).value<file::Path>());
+                file::Path fishdata = file::DataLocation::parse("output", SETTING(fishdata_dir).value<file::Path>());
                 
                 if(!fishdata.exists())
                     if(!fishdata.create_folder())
@@ -3984,7 +3985,7 @@ void GUI::save_visual_fields() {
     Individual *selected = PD(cache).primary_selection();
     
     auto fishdata_dir = SETTING(fishdata_dir).value<file::Path>();
-    auto fishdata = pv::DataLocation::parse("output", fishdata_dir);
+    auto fishdata = file::DataLocation::parse("output", fishdata_dir);
     if(!fishdata.exists())
         if(!fishdata.create_folder())
             throw U_EXCEPTION("Cannot create folder ",fishdata.str()," for saving fishdata.");
@@ -4115,7 +4116,7 @@ std::string GUI::info(bool escape) {
 }
 
 void GUI::write_config(bool overwrite, GUI::GUIType type, const std::string& suffix) {
-    auto filename = pv::DataLocation::parse(suffix == "backup" ? "backup_settings" : "output_settings");
+    auto filename = file::DataLocation::parse(suffix == "backup" ? "backup_settings" : "output_settings");
     auto text = default_config::generate_delta_config();
     
     if(filename.exists() && !overwrite) {

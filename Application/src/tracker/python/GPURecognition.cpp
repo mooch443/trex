@@ -18,6 +18,7 @@
 #include <misc/default_settings.h>
 #include <misc/default_config.h>
 #include <misc/GlobalSettings.h>
+#include <file/DataLocation.h>
 
 #include <misc/format.h>
 
@@ -328,6 +329,9 @@ void PythonIntegration::init() {
     
     //! set new thread ID. we expect everything to happen from this thread now.
     _saved_id = std::this_thread::get_id();
+    auto trex_init = file::DataLocation::is_registered("app")
+        ? file::DataLocation::parse("app", "trex_init.py")
+        : "trex_init.py";
 
     try {
         using namespace py::literals;
@@ -370,13 +374,13 @@ void PythonIntegration::init() {
         PythonIntegration::execute("import sys\nset_version(sys.version, False, '')");
         
         try {
-            auto cmd = utils::read_file("trex_init.py");
+            auto cmd = trex_init.read_file();
             py::exec(cmd);
             python_gpu_initialized() = true;
             initializing() = false;
             
         } catch(const UtilsException& ex) {
-            print("Error while executing 'trex_init.py'. Content: ",ex.what());
+            print("Error while executing ", trex_init,". Content: ",ex.what());
             python_init_error() = ex.what();
             fail(ex);
             //return false;
@@ -388,7 +392,7 @@ void PythonIntegration::init() {
         
     } catch(const UtilsException& ex) {
         fail(ex);
-        throw SoftException("Error while executing 'trex_init.py'. Content: ",ex.what());
+        throw SoftException("Error while executing ", trex_init,". Content: ",ex.what());
         
     } catch(py::error_already_set& e) {
         fail(e);
@@ -430,42 +434,6 @@ void PythonIntegration::deinit() {
         throw SoftException("Python runtime error during clean-up: ", e.what());
     }
 }
-
-/*void PythonIntegration::reinit() {
-    async_python_function(nullptr, []() {
-        using namespace py::literals;
-        python_gpu_initialized() = false;
-        python_initializing() = true;
-        
-        auto fail = [](const auto& e, cmn::source_location loc = cmn::source_location::current()){
-            auto path = file::Path(loc.file_name());
-            auto file = path.filename();
-            FormatExcept("Python runtime error (", file.data(),":", loc.line(), ": ",e.what(),")");
-            python_init_error() = e.what();
-            python_gpu_initialized() = false;
-            python_initializing() = false;
-        };
-        
-        try {
-            auto cmd = utils::read_file("trex_init.py");
-            py::exec(cmd);
-            python_gpu_initialized() = true;
-            python_initializing() = false;
-            
-        } catch(py::error_already_set &e) {
-            fail(e);
-            throw;
-            
-        } catch(const UtilsException& ex) {
-            print("Error while executing 'trex_init.py'. Content: ",ex.what());
-            python_init_error() = ex.what();
-            fail(ex);
-            throw;
-        }
-        
-    }, Flag::DEFAULT, true).get();
-}*/
-
 
 bool PythonIntegration::check_module(const std::string& name) {
     check_correct_thread_id();

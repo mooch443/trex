@@ -8,7 +8,7 @@
 #include <misc/GlobalSettings.h>
 #include <python/GPURecognition.h>
 #include <tracking/PythonWrapper.h>
-#include <pv.h>
+#include <file/DataLocation.h>
 
 namespace py = Python;
 
@@ -210,7 +210,7 @@ void RecTask::update(RecTask&& task) {
 
                 //if(result.p <= 0.7)
                 {
-                    file::Path output = pv::DataLocation::parse("output", "tags_"+filename) / Meta::toStr(max_key);
+                    file::Path output = file::DataLocation::parse("output", "tags_"+filename) / Meta::toStr(max_key);
                     if(!output.exists())
                         output.create_folder();
                     

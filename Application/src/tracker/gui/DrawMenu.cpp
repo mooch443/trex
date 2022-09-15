@@ -13,6 +13,7 @@
 #include <tracking/Categorize.h>
 #include <gui/GUICache.h>
 #include <gui/types/Button.h>
+#include <file/DataLocation.h>
 
 #include <tracking/Tracker.h>
 
@@ -220,10 +221,10 @@ public:
                                 
                             } else if(result == Dialog::OKAY) {
                                 // load from settings file
-                                auto settings_file = pv::DataLocation::parse("settings");
+                                auto settings_file = file::DataLocation::parse("settings");
                                 GUI::execute_settings(settings_file, AccessLevelType::PUBLIC);
                                 
-                                auto output_settings = pv::DataLocation::parse("output_settings");
+                                auto output_settings = file::DataLocation::parse("output_settings");
                                 if(output_settings.exists() && output_settings != settings_file)
                                     GUI::execute_settings(output_settings, AccessLevelType::STARTUP);
                             }

@@ -25,6 +25,7 @@
 #endif
 #include <misc/SpriteMap.h>
 #include <misc/create_struct.h>
+#include <file/DataLocation.h>
 
 #if !COMMONS_NO_PYTHON
 namespace py = Python;
@@ -174,7 +175,7 @@ void FrameGrabber::apply_filters(gpuMat& gpu_buffer) {
 }
 
 file::Path FrameGrabber::make_filename() {
-    auto path = pv::DataLocation::parse("output", SETTING(filename).value<file::Path>());
+    auto path = file::DataLocation::parse("output", SETTING(filename).value<file::Path>());
     if(path.extension() == "pv")
         return path.remove_extension();
     
@@ -552,7 +553,7 @@ void FrameGrabber::initialize_from_source(const std::string &source) {
         }
         
         for(auto &name : filenames) {
-            name = pv::DataLocation::parse("input", name);
+            name = file::DataLocation::parse("input", name);
         }
         
         if(filenames.size() == 1) {
@@ -575,7 +576,7 @@ void FrameGrabber::initialize_from_source(const std::string &source) {
         }
         
         if(!SETTING(mask_path).value<file::Path>().empty()) {
-            auto path = pv::DataLocation::parse("input", SETTING(mask_path).value<file::Path>());
+            auto path = file::DataLocation::parse("input", SETTING(mask_path).value<file::Path>());
             if(path.exists()) {
                 _video_mask = new VideoSource(path.str());
             }
@@ -712,7 +713,7 @@ FrameGrabber::~FrameGrabber() {
             
             print("Excluding fields ", additional_exclusions);
             
-            auto filename = file::Path(pv::DataLocation::parse("output_settings").str());
+            auto filename = file::Path(file::DataLocation::parse("output_settings").str());
             if(!filename.exists() || SETTING(grabber_force_settings)) {
                 auto text = default_config::generate_delta_config(false, additional_exclusions);
                 
@@ -760,7 +761,7 @@ FrameGrabber::~FrameGrabber() {
 }
 
 file::Path FrameGrabber::average_name() const {
-    auto path = pv::DataLocation::parse("output", "average_" + (std::string)GRAB_SETTINGS(filename).filename() + ".png");
+    auto path = file::DataLocation::parse("output", "average_" + (std::string)GRAB_SETTINGS(filename).filename() + ".png");
     return path;
 }
 
@@ -1468,7 +1469,7 @@ void FrameGrabber::write_fps(uint64_t index, timestamp_t tdelta, timestamp_t ts)
         return;
     
     if(!file) {
-        file::Path path = pv::DataLocation::parse("output", std::string(GRAB_SETTINGS(filename).filename())+"_conversion_timings.csv");
+        file::Path path = file::DataLocation::parse("output", std::string(GRAB_SETTINGS(filename).filename())+"_conversion_timings.csv");
         file = fopen(path.c_str(), "wb");
         if (file) {
             std::string str = "index,tdelta,time\n";

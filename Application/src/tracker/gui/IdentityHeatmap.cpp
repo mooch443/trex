@@ -5,6 +5,7 @@
 #include <misc/cnpy_wrapper.h>
 #include <misc/checked_casts.h>
 #include <tracking/Export.h>
+#include <file/DataLocation.h>
 
 namespace gui {
 namespace heatmap {
@@ -148,7 +149,7 @@ void HeatmapController::save() {
     size_t package_index = 0;
     
     auto fishdata_dir = SETTING(fishdata_dir).value<file::Path>();
-    auto fishdata = pv::DataLocation::parse("output", fishdata_dir);
+    auto fishdata = file::DataLocation::parse("output", fishdata_dir);
     if(!fishdata.exists())
         if(!fishdata.create_folder())
             throw U_EXCEPTION("Cannot create folder ",fishdata.str()," for saving fishdata.");

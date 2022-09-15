@@ -10,7 +10,9 @@
 #include <sys/types.h>
 #include <pwd.h>
 #endif
+
 #include <misc/default_settings.h>
+#include <file/DataLocation.h>
 
 const auto homedir = []() {
 #ifndef WIN32
@@ -763,7 +765,7 @@ file::Path conda_environment_path() {
     }
     
     void register_default_locations() {
-        pv::DataLocation::register_path("app", [](file::Path path) -> file::Path {
+        file::DataLocation::register_path("app", [](file::Path path) -> file::Path {
             auto wd = SETTING(wd).value<file::Path>();
 #if defined(TREX_CONDA_PACKAGE_INSTALL)
             auto conda_prefix = ::default_config::conda_environment_path();
@@ -773,18 +775,20 @@ file::Path conda_environment_path() {
 #elif __APPLE__
             wd = wd / ".." / "Resources";
 #endif
+            if(path.empty())
+                return wd;
             return wd / path;
         });
         
-        pv::DataLocation::register_path("default.settings", [](file::Path) -> file::Path {
-            auto settings_file = pv::DataLocation::parse("app", "default.settings");
+        file::DataLocation::register_path("default.settings", [](file::Path) -> file::Path {
+            auto settings_file = file::DataLocation::parse("app", "default.settings");
             if(settings_file.empty())
                 throw U_EXCEPTION("settings_file is an empty string.");
             
             return settings_file;
         });
         
-        pv::DataLocation::register_path("settings", [](file::Path path) -> file::Path {
+        file::DataLocation::register_path("settings", [](file::Path path) -> file::Path {
             if(path.empty())
                 path = SETTING(settings_file).value<Path>();
             if(path.empty()) {
@@ -796,14 +800,14 @@ file::Path conda_environment_path() {
             if(!path.has_extension() || path.extension() != "settings")
                 path = path.add_extension("settings");
             
-            auto settings_file = pv::DataLocation::parse("input", path);
+            auto settings_file = file::DataLocation::parse("input", path);
             if(settings_file.empty())
                 throw U_EXCEPTION("settings_file is an empty string.");
             
             return settings_file;
         });
         
-        pv::DataLocation::register_path("output_settings", [](file::Path) -> file::Path {
+        file::DataLocation::register_path("output_settings", [](file::Path) -> file::Path {
             file::Path settings_file = SETTING(filename).value<Path>().filename();
             if(settings_file.empty())
                 throw U_EXCEPTION("settings_file is an empty string.");
@@ -811,10 +815,10 @@ file::Path conda_environment_path() {
             if(!settings_file.has_extension() || settings_file.extension() != "settings")
                 settings_file = settings_file.add_extension("settings");
             
-            return pv::DataLocation::parse("output", settings_file);
+            return file::DataLocation::parse("output", settings_file);
         });
         
-        pv::DataLocation::register_path("backup_settings", [](file::Path) -> file::Path {
+        file::DataLocation::register_path("backup_settings", [](file::Path) -> file::Path {
             file::Path settings_file(SETTING(filename).value<Path>().filename());
             if(settings_file.empty())
                 throw U_EXCEPTION("settings_file (and like filename) is an empty string.");
@@ -822,10 +826,10 @@ file::Path conda_environment_path() {
             if(!settings_file.has_extension() || settings_file.extension() != "settings")
                 settings_file = settings_file.add_extension("settings");
             
-            return pv::DataLocation::parse("output", "backup") / settings_file;
+            return file::DataLocation::parse("output", "backup") / settings_file;
         });
         
-        pv::DataLocation::register_path("input", [](file::Path filename) -> file::Path {
+        file::DataLocation::register_path("input", [](file::Path filename) -> file::Path {
             if(!filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
                 if(!SETTING(quiet))
@@ -841,7 +845,7 @@ file::Path conda_environment_path() {
                 return path / filename;
         });
         
-        pv::DataLocation::register_path("output", [](file::Path filename) -> file::Path {
+        file::DataLocation::register_path("output", [](file::Path filename) -> file::Path {
             if(!filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
                 if(!SETTING(quiet))

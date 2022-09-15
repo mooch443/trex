@@ -16,6 +16,8 @@
 #include <tracking/CategorizeInterface.h>
 #include <tracking/ImageExtractor.h>
 
+#include <file/DataLocation.h>
+
 namespace track {
 namespace Categorize {
 
@@ -876,7 +878,7 @@ static void log_event(const std::string& name, Frame_t frame, const Identity& id
         std::lock_guard g(log_lock);
         log_.push_back(text);
         
-        auto f = pv::DataLocation::parse("output", file::Path((std::string)SETTING(filename).value<file::Path>().filename()+"_categorize.log")).fopen("ab");
+        auto f = file::DataLocation::parse("output", file::Path((std::string)SETTING(filename).value<file::Path>().filename()+"_categorize.log")).fopen("ab");
         text += "\n";
         fwrite(text.c_str(), sizeof(char), text.length(), f);
         fclose(f);
@@ -1078,7 +1080,7 @@ void start_applying() {
 }
 
 file::Path output_location() {
-    return pv::DataLocation::parse("output", file::Path((std::string)SETTING(filename).value<file::Path>().filename() + "_categories.npz"));
+    return file::DataLocation::parse("output", file::Path((std::string)SETTING(filename).value<file::Path>().filename() + "_categories.npz"));
 }
 
 void Work::start_learning() {

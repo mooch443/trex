@@ -4,6 +4,7 @@
 #include <file/Path.h>
 #include <misc/GlobalSettings.h>
 #include <misc/CommandLine.h>
+#include <file/DataLocation.h>
 
 using namespace file;
 
@@ -100,7 +101,7 @@ int main(int argc, char**argv) {
     //static_assert(std::is_trivial<pv::bid>::value, "pv::bid has to be trivial.");
     static_assert(std::is_standard_layout<pv::bid>::value, "pv::bid has to be standard layout.");
     
-    pv::DataLocation::register_path("settings", [](file::Path path) -> file::Path {
+    file::DataLocation::register_path("settings", [](file::Path path) -> file::Path {
         using namespace file;
         auto settings_file = path.str().empty() ? SETTING(settings_file).value<Path>() : path;
         if(settings_file.empty())

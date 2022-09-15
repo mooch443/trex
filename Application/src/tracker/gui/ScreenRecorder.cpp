@@ -7,7 +7,7 @@
 #include <gui/DrawBase.h>
 #include <gui/DrawStructure.h>
 #include <gui/WorkProgress.h>
-#include <pv.h>
+#include <file/DataLocation.h>
 #include <gui/IMGUIBase.h>
 
 namespace gui {
@@ -158,7 +158,7 @@ struct ScreenRecorder::Data {
     }
     
     file::Path frame_output_dir() {
-        return pv::DataLocation::parse("output", file::Path("frames") / (std::string)SETTING(filename).value<file::Path>().filename());
+        return file::DataLocation::parse("output", file::Path("frames") / (std::string)SETTING(filename).value<file::Path>().filename());
     }
     
     void start_recording(Base* base, Frame_t frame) {

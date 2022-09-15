@@ -8,7 +8,7 @@
 #include <tracker/gui/DrawGraph.h>
 #include <misc/cnpy_wrapper.h>
 #include <tracker/misc/MemoryStats.h>
-#include <pv.h>
+#include <file/DataLocation.h>
 #include <misc/checked_casts.h>
 #include <gui/IdentityHeatmap.h>
 #include <tracking/FilterCache.h>
@@ -204,7 +204,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
     const uint16_t tracklet_max_images = SETTING(tracklet_max_images);
     
     auto fishdata_dir = SETTING(fishdata_dir).value<file::Path>();
-    auto fishdata = pv::DataLocation::parse("output", fishdata_dir);
+    auto fishdata = file::DataLocation::parse("output", fishdata_dir);
     if(!fishdata.exists())
         if(!fishdata.create_folder())
             throw U_EXCEPTION("Cannot create folder ",fishdata.str()," for saving fishdata.");

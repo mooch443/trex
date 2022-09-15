@@ -7,6 +7,7 @@
 #include <misc/PVBlob.h>
 #include <processing/CPULabeling.h>
 #include <misc/ranges.h>
+#include <file/DataLocation.h>
 
 using namespace cmn;
 
@@ -32,7 +33,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     std::map<pv::File*, float> cms_per_pixel;
     Size2 resolution;
     
-    pv::DataLocation::register_path("merge", [](file::Path filename) -> file::Path {
+    file::DataLocation::register_path("merge", [](file::Path filename) -> file::Path {
         if(!filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
             if(!SETTING(quiet))
@@ -43,13 +44,13 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         
         auto path = SETTING(merge_dir).value<file::Path>();
         if(path.empty()) {
-            return pv::DataLocation::parse("input", filename);
+            return file::DataLocation::parse("input", filename);
         } else
             return path / filename;
     });
     
     for(auto name : merge_videos) {
-        name = pv::DataLocation::parse("merge", name);
+        name = file::DataLocation::parse("merge", name);
         if((name.has_extension() && name.extension() == "pv" && !name.exists())
            || !name.add_extension("pv").exists())
         { // approximation (this is not a true XOR)
@@ -72,7 +73,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         //cv::waitKey(1);
         
         SETTING(filename) = name.remove_extension();
-        auto settings_file = pv::DataLocation::parse("output_settings");
+        auto settings_file = file::DataLocation::parse("output_settings");
         if(settings_file.exists()) {
             print("settings for ",name.str()," found");
             auto config = std::make_shared<sprite::Map>();
@@ -114,7 +115,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     } else {
         auto path = SETTING(merge_background).value<file::Path>();
         auto raw_path = path;
-        path = pv::DataLocation::parse("input", path);
+        path = file::DataLocation::parse("input", path);
         
         if((!path.has_extension() && path.add_extension("pv").exists()) || (path.has_extension() && path.extension() == "pv")) {
             pv::File file(path);
@@ -180,7 +181,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     if(SETTING(merge_output_path).value<file::Path>().empty())
         SETTING(merge_output_path) = file::Path("merged");
     
-    file::Path out_path = pv::DataLocation::parse("output", SETTING(merge_output_path).value<file::Path>());
+    file::Path out_path = file::DataLocation::parse("output", SETTING(merge_output_path).value<file::Path>());
     pv::File output(out_path);
     
     output.set_resolution((cv::Size)resolution);

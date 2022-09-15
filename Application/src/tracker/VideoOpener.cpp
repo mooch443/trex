@@ -3,6 +3,7 @@
 #include <misc/GlobalSettings.h>
 #include <gui/types/Dropdown.h>
 #include <pv.h>
+#include <file/DataLocation.h>
 #include <tracker/misc/Output.h>
 #include <misc/default_settings.h>
 #include <gui/types/StaticText.h>
@@ -918,7 +919,7 @@ void VideoOpener::select_file(const file::Path &p) {
     _selected = p.remove_extension(ext);
     SETTING(filename) = p.remove_extension(ext);
     
-    Path settings_file = pv::DataLocation::parse("settings");
+    Path settings_file = file::DataLocation::parse("settings");
     sprite::Map tmp;
     tmp.set_do_print(false);
     

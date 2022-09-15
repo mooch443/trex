@@ -15,6 +15,7 @@
 #include <misc/SoftException.h>
 #include <gui/Graph.h>
 #include <tracking/Categorize.h>
+#include <file/DataLocation.h>
 
 #if !COMMONS_NO_PYTHON
 #include <tracking/PythonWrapper.h>
@@ -192,7 +193,7 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
                                     return;
                                 
                                 static const auto filename = (std::string)SETTING(filename).value<file::Path>().filename();
-                                file::Path output = pv::DataLocation::parse("output", "tags_"+filename) / Meta::toStr(_last_predicted_id);
+                                file::Path output = file::DataLocation::parse("output", "tags_"+filename) / Meta::toStr(_last_predicted_id);
                                 
                                 if(!output.exists())
                                     return;

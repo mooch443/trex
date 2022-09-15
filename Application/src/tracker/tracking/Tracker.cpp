@@ -17,6 +17,7 @@
 #include <misc/MemoryStats.h>
 #include <tracking/Categorize.h>
 #include <tracking/VisualField.h>
+#include <file/DataLocation.h>
 
 #if !COMMONS_NO_PYTHON
 #include <tracking/PythonWrapper.h>
@@ -755,7 +756,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
             
             auto path = SETTING(history_matching_log).value<file::Path>();
             if(!path.empty()) {
-                path = pv::DataLocation::parse("output", path);
+                path = file::DataLocation::parse("output", path);
                 DebugCallback("Opening history_log at ", path, "...");
                 //!TODO: CHECK IF THIS WORKS
                 history_log->open(path.str(), std::ios_base::out | std::ios_base::binary);
@@ -1993,7 +1994,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
             }
             
             try {
-                auto path = pv::DataLocation::parse("output", (std::string)SETTING(filename).value<file::Path>().filename()+"_threading_stats.npz").str();
+                auto path = file::DataLocation::parse("output", (std::string)SETTING(filename).value<file::Path>().filename()+"_threading_stats.npz").str();
                 npz_save(path, "values", values.data(), std::vector<size_t>{bins.size(), 3});
                 print("Saved threading stats at ", path,".");
             } catch(...) {
@@ -4416,7 +4417,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
             FOI::remove_frames(after_frame.valid() ? Frame_t(0) : after_frame, fid);
         
 #ifdef TREX_DEBUG_IDENTITIES
-        auto f = fopen(pv::DataLocation::parse("output", "identities.log").c_str(), "wb");
+        auto f = fopen(file::DataLocation::parse("output", "identities.log").c_str(), "wb");
 #endif
         float N = float(_individuals.size());
         distribute_vector([&count, &callback, N](auto, auto start, auto end, auto)

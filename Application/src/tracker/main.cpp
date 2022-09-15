@@ -84,7 +84,9 @@
 
 #if __linux__                                                                
 #include <X11/Xlib.h>                                                        
-#endif 
+#endif
+
+#include <file/DataLocation.h>
 
 //-Functions-------------------------------------------------------------------
 
@@ -97,7 +99,7 @@ double data_sec = 0.0, data_kbytes = 0.0;
 double frames_sec = 0, frames_count = 0;
 
 ENUM_CLASS(Arguments,
-           d,dir,i,input,s,settings,nowindow,load,h,fs,p,r,update,quiet)
+           d,dir,i,input,s,settings,nowindow,load,h,fs,p,r,update,quiet,y)
 
 #ifndef WIN32
 struct sigaction sigact;
@@ -261,7 +263,7 @@ int main(int argc, char** argv)
             CommandLine cmd(argc, argv, true);
             cmd.cd_home();
             
-            auto default_path = pv::DataLocation::parse("default.settings");
+            auto default_path = file::DataLocation::parse("default.settings");
             if(default_path.exists()) {
                 DebugHeader("LOADING FROM ",default_path);
                 default_config::warn_deprecated(default_path, GlobalSettings::load_from_file(default_config::deprecations(), default_path.str(), AccessLevelType::STARTUP));
@@ -355,7 +357,7 @@ int main(int argc, char** argv)
     cmd.cd_home();
     print("CWD: ", file::cwd());
     
-    auto _wd = pv::DataLocation::parse("app");
+    auto _wd = file::DataLocation::parse("app");
 #if defined(WIN32)
     if (SetCurrentDirectoryA(_wd.c_str()))
 #else
@@ -374,7 +376,7 @@ int main(int argc, char** argv)
         }
     }
 
-    auto default_path = pv::DataLocation::parse("default.settings");
+    auto default_path = file::DataLocation::parse("default.settings");
     if(default_path.exists()) {
         DebugHeader("LOADING FROM ",default_path);
         default_config::warn_deprecated(default_path, GlobalSettings::load_from_file(default_config::deprecations(), default_path.str(), AccessLevelType::STARTUP));
@@ -409,7 +411,7 @@ int main(int argc, char** argv)
                         std::set<file::Path> found;
                         
                         auto parts = utils::split(option.value, '*');
-                        Path folder = pv::DataLocation::parse("input", Path(option.value).remove_filename());
+                        Path folder = file::DataLocation::parse("input", Path(option.value).remove_filename());
                         print("Scanning pattern ",option.value," in folder ",folder,"...");
                         
                         for(auto &file: folder.find_files("pv")) {
@@ -444,7 +446,7 @@ int main(int argc, char** argv)
                         }
                         
                         if(found.size() == 1) {
-                            Path path = pv::DataLocation::parse("input", *found.begin());
+                            Path path = file::DataLocation::parse("input", *found.begin());
                             if(!path.exists())
                                 throw U_EXCEPTION("Cannot find video file '",path.str(),"'. (",path.exists(),")");
                             
@@ -458,7 +460,7 @@ int main(int argc, char** argv)
                             print("No files found that match the pattern ",option.value,".");
                     }
                     
-                    Path path = pv::DataLocation::parse("input", Path(option.value).add_extension("pv"));
+                    Path path = file::DataLocation::parse("input", Path(option.value).add_extension("pv"));
                     if(!path.exists())
                         throw U_EXCEPTION("Cannot find video file ",path,". (",path.exists(),")");
                     
@@ -492,7 +494,7 @@ int main(int argc, char** argv)
                         
                         auto rst = cmn::settings::help_restructured_text("TRex parameters", GlobalSettings::defaults(), GlobalSettings::docs(), GlobalSettings::access_levels());
                         
-                        file::Path path = pv::DataLocation::parse("output", "parameters_trex.rst");
+                        file::Path path = file::DataLocation::parse("output", "parameters_trex.rst");
                         auto f = path.fopen("wb");
                         if(!f)
                             throw U_EXCEPTION("Cannot open ",path.str());
@@ -593,7 +595,7 @@ int main(int argc, char** argv)
     }
 
     if (argc == 2) {
-        Path path = pv::DataLocation::parse("input", Path(argv[1]));
+        Path path = file::DataLocation::parse("input", Path(argv[1]));
         if (path.exists()) {
             SETTING(filename) = path.remove_extension();
             SETTING(output_dir) = path.remove_filename();
@@ -679,11 +681,11 @@ int main(int argc, char** argv)
     if(video.header().version <= pv::Version::V_2) {
         SETTING(crop_offsets) = CropOffsets();
         
-        Path settings_file = pv::DataLocation::parse("settings");
+        Path settings_file = file::DataLocation::parse("settings");
         if(GUI::execute_settings(settings_file, AccessLevelType::STARTUP))
             executed_a_settings = true;
         
-        auto output_settings = pv::DataLocation::parse("output_settings");
+        auto output_settings = file::DataLocation::parse("output_settings");
         if(output_settings.exists() && output_settings != settings_file) {
             if(GUI::execute_settings(output_settings, AccessLevelType::STARTUP))
                 executed_a_settings = true;
@@ -720,7 +722,7 @@ int main(int argc, char** argv)
     
     Library::InitVariables();
     
-    Path settings_file = pv::DataLocation::parse("settings");
+    Path settings_file = file::DataLocation::parse("settings");
     if(SETTING(settings_file).value<file::Path>().empty()) {
         if(GUI::execute_settings(settings_file, AccessLevelType::STARTUP))
             executed_a_settings = true;
@@ -746,7 +748,7 @@ int main(int argc, char** argv)
     cmd.load_settings();
     
     if(SETTING(settings_file).value<file::Path>().empty()) {
-        auto output_settings = pv::DataLocation::parse("output_settings");
+        auto output_settings = file::DataLocation::parse("output_settings");
         if(output_settings.exists() && output_settings != settings_file) {
             if(GUI::execute_settings(output_settings, AccessLevelType::STARTUP))
                 executed_a_settings = true;
@@ -759,6 +761,21 @@ int main(int argc, char** argv)
             executed_a_settings = true;
         else
             FormatWarning("Settings file ",settings_file," does not exist.");
+    }
+    
+    file::Path first_time_setup("first_time_setup");
+    if(!first_time_setup.exists()) {
+        DebugHeader("TRex first time setup");
+        print("Software is started the first time!");
+        
+        if(contains(cmd.options(), "y")) {
+            print("-y is set, so you accept the default output_dir choice:");
+            print("\toutput_dir = ", SETTING(output_dir).value<file::Path>());
+            auto f = first_time_setup.fopen("wb");
+            fclose(f);
+        } else {
+            
+        }
     }
 
     Tracker tracker;
@@ -823,7 +840,7 @@ int main(int argc, char** argv)
     }
     
     if(!SETTING(exec).value<file::Path>().empty()) {
-        Path exec_settings = pv::DataLocation::parse("settings", SETTING(exec).value<file::Path>());
+        Path exec_settings = file::DataLocation::parse("settings", SETTING(exec).value<file::Path>());
         if(!GUI::execute_settings(exec_settings, AccessLevelType::STARTUP))
             FormatExcept("Settings file ",exec_settings.str()," cannot be found or execution failed.");
         else
@@ -842,7 +859,7 @@ int main(int argc, char** argv)
     tracker.set_average(Image::Make(local));
     
     if(!SETTING(log_file).value<file::Path>().empty()) {
-        auto path = SETTING(log_file).value<file::Path>();//pv::DataLocation::parse("output", SETTING(log_file).value<file::Path>());
+        auto path = SETTING(log_file).value<file::Path>();//file::DataLocation::parse("output", SETTING(log_file).value<file::Path>());
         set_log_file(path.str());
         print("Logging to ", path,".");
     }
@@ -1388,7 +1405,7 @@ int main(int argc, char** argv)
     if(SETTING(auto_categorize)) {
         if(!Categorize::weights_available()) {
             auto file = (std::string)SETTING(filename).value<file::Path>().filename();
-            auto output = (std::string)pv::DataLocation::parse("output").str();
+            auto output = (std::string)file::DataLocation::parse("output").str();
             
             SETTING(terminate_error) = true;
             SETTING(terminate) = true;

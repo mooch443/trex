@@ -7,6 +7,7 @@
 #include <misc/checked_casts.h>
 #include <misc/ranges.h>
 #include <misc/SpriteMap.h>
+#include <file/DataLocation.h>
 
 /**
  * =============================
@@ -20,9 +21,6 @@ namespace pv {
     // used to register for global settings updates
     static std::mutex settings_mutex;
     static std::atomic_bool use_differences(false), settings_registered(false);
-    
-    static std::mutex location_mutex;
-    static std::map<std::string, std::function<file::Path(file::Path)>> location_funcs;
 
     /**
      * If there is a task that is async (and can be run read-only for example) and e.g. continously calls "read_frame", then a task sentinel can be registered. This prevents the file from being destroyed until the task is done.
@@ -465,54 +463,6 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             }
         }
     }
-    
-    void DataLocation::register_path(std::string purpose, std::function<file::Path (file::Path)> fn)
-    {
-        purpose = utils::trim(utils::lowercase(purpose));
-        
-        std::lock_guard<std::mutex> guard(location_mutex);
-        if(location_funcs.find(purpose) != location_funcs.end()) {
-            throw U_EXCEPTION("Purpose ",purpose," already found in map with keys ",extract_keys(location_funcs),". Cannot register twice.");
-        }
-        
-        print("Registering purpose ", purpose);
-        location_funcs.insert({purpose, fn});
-    }
-
-    void DataLocation::replace_path(std::string purpose, std::function<file::Path (file::Path)> fn)
-    {
-        purpose = utils::trim(utils::lowercase(purpose));
-        
-        std::lock_guard<std::mutex> guard(location_mutex);
-        auto it = location_funcs.find(purpose);
-        if(it != location_funcs.end())
-            location_funcs.erase(it);
-        
-        print("Replacing purpose ", purpose);
-        location_funcs.insert({purpose, fn});
-    }
-    
-    file::Path DataLocation::parse(const std::string &purpose, file::Path path) {
-        std::function<file::Path(file::Path)> fn;
-        {
-            std::lock_guard<std::mutex> guard(location_mutex);
-            auto it = location_funcs.find(utils::trim(utils::lowercase(purpose)));
-            if(it == location_funcs.end()) {
-                throw U_EXCEPTION("Cannot find purpose ",purpose," in map with keys ",extract_keys(location_funcs)," in order to modify path ",path,".");
-            }
-            
-            fn = it->second;
-        }
-        
-        return fn(path);
-    }
-    
-    bool DataLocation::is_registered(std::string purpose) {
-        purpose = utils::trim(utils::lowercase(purpose));
-        
-        std::lock_guard<std::mutex> guard(location_mutex);
-        return location_funcs.find(purpose) != location_funcs.end();
-    }
 
     void File::_write_header() { 
         _header.write(*this);
@@ -569,9 +519,9 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         if(version == Version::V_2) {
             // must read settings from file before loading...
-            if(!DataLocation::is_registered("settings"))
+            if(!file::DataLocation::is_registered("settings"))
                 throw U_EXCEPTION("You have to register a DataLocation for 'settings' before using pv files (usually the same folder the video is in + exchange the .pv name with .settings).");
-            auto settings_file = DataLocation::parse("settings");
+            auto settings_file = file::DataLocation::parse("settings");
             if (settings_file.exists())
                 GlobalSettings::load_from_file({}, settings_file.str(), AccessLevelType::PUBLIC);
         }
