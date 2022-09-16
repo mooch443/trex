@@ -260,6 +260,22 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
                     "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/../Resources/${comp_s}")
         endforeach()
     endif()
+else()
+    set(RESOURCE_COPY_FILES
+        ${CMAKE_CURRENT_SOURCE_DIR}/gfx
+    )
+
+    if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+        message(STATUS "Copying files ${RESOURCE_COPY_SINGLE_FILES}")
+
+        foreach(comp ${RESOURCE_COPY_FILES})
+            get_filename_component(comp_s ${comp} NAME)
+            add_custom_command(TARGET ${TREX_EXEC_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${comp}"
+                    "$<TARGET_FILE_DIR:${TREX_EXEC_NAME}>/../Resources/${comp_s}")
+        endforeach()
+    endif()
 endif()
 
 set(targets ${TREX_EXEC_NAME})
