@@ -1417,9 +1417,9 @@ int main(int argc, char** argv)
         
         gui.set_base(imgui_base);
         imgui_base->platform()->set_icons({
-            "gfx/"+SETTING(app_name).value<std::string>()+"Icon16.png",
-            "gfx/"+SETTING(app_name).value<std::string>()+"Icon32.png",
-            "gfx/"+SETTING(app_name).value<std::string>()+"Icon64.png"
+            file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"Icon16.png"),
+            file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"Icon32.png"),
+            file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"Icon64.png")
         });
     }
     

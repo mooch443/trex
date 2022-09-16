@@ -6,6 +6,7 @@
 #include <gui/GuiTypes.h>
 #include <gui/types/Button.h>
 #include <misc/CropOffsets.h>
+#include <file/DataLocation.h>
 
 namespace gui {
     constexpr float radius = 100;
@@ -36,9 +37,9 @@ namespace gui {
         });
         
         _base->platform()->set_icons({
-            "gfx/"+SETTING(app_name).value<std::string>()+"Icon16.png",
-            "gfx/"+SETTING(app_name).value<std::string>()+"Icon32.png",
-            "gfx/"+SETTING(app_name).value<std::string>()+"Icon64.png"
+            file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"Icon16.png"),
+            file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"Icon32.png"),
+            file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"Icon64.png")
         });
         
         _rect = std::make_shared<Rect>(Bounds(), Cyan.alpha(125));
