@@ -53,7 +53,7 @@ struct DrawExportOptions::Data {
     Data()
         :   parent(Bounds(100, 100, 200, 500)),
             close("x", Bounds(Vec2(parent.width() - 3, 5), Size2(25, 25))),
-            search("", Bounds(Vec2(5, close.height() + 15), Size2(parent.width() - 10, 30))),
+            search(Bounds(Vec2(5, close.height() + 15), Size2(parent.width() - 10, 30))),
             export_options(Bounds(
                search.pos() + Vec2(0, search.height() + 10),
                Size2(search.width(), parent.height() - (search.pos().y + search.height() + 20))), {}, Font(0.5, Align::Left))

@@ -69,7 +69,7 @@ void VideoOpener::LabeledCheckbox::update() {
 
 VideoOpener::LabeledTextField::LabeledTextField(const std::string& name)
     : LabeledField(name),
-      _text_field(std::make_shared<gui::Textfield>("", Bounds(0, 0, video_chooser_column_width, 28))),
+      _text_field(std::make_shared<gui::Textfield>(Bounds(0, 0, video_chooser_column_width, 28))),
       _ref(gui::temp_settings[name])
 {
     _text_field->set_placeholder(name);
@@ -230,7 +230,7 @@ VideoOpener::VideoOpener()
     });
     
     _recording_panel->set_children(std::vector<Layout::Ptr>{
-        Layout::Ptr(std::make_shared<Text>("Camera", Vec2(), White, gui::Font(0.9f, Style::Bold))),
+        Layout::Ptr(std::make_shared<Text>("Camera", gui::Font(0.9f, Style::Bold))),
         _camera
     });
     _recording_panel->set_name("RecordingPanel");
@@ -243,7 +243,7 @@ VideoOpener::VideoOpener()
     _text_fields["cmd_parameters"] = std::make_unique<LabeledTextField>("cmd_parameters");
     
     std::vector<Layout::Ptr> objects{
-        Layout::Ptr(std::make_shared<Text>("Settings", Vec2(), White, gui::Font(0.9f, Style::Bold)))
+        Layout::Ptr(std::make_shared<Text>("Settings", White, gui::Font(0.9f, Style::Bold)))
     };
     for(auto &[key, ptr] : _text_fields) {
         ptr->add_to(objects);
@@ -251,12 +251,12 @@ VideoOpener::VideoOpener()
     
     _raw_settings->set_children(objects);
     
-    _loading_text = std::make_shared<gui::Text>("generating average", Vec2(100,0), Cyan, gui::Font(0.6f));
+    _loading_text = std::make_shared<gui::Text>("generating average", Loc(100,0), Cyan, gui::Font(0.6f));
     
-    _raw_description = std::make_shared<gui::StaticText>("Info", Vec2(), Size2(video_chooser_column_width, -1), Font(0.5f));
+    _raw_description = std::make_shared<gui::StaticText>("Info", SizeLimit(video_chooser_column_width, -1), Font(0.5f));
     _raw_description->set_background(Transparent, Transparent);
     _raw_info->set_children({
-        Layout::Ptr(std::make_shared<Text>("Preview", Vec2(), White, gui::Font(0.9f, Style::Bold))),
+        Layout::Ptr(std::make_shared<Text>("Preview", White, gui::Font(0.9f, Style::Bold))),
         _screenshot,
         _raw_description
     });
@@ -948,7 +948,7 @@ void VideoOpener::select_file(const file::Path &p) {
     }
     
     std::vector<Layout::Ptr> children {
-        Layout::Ptr(std::make_shared<Text>("Settings", Vec2(), White, gui::Font(0.9f, Style::Bold)))
+        Layout::Ptr(std::make_shared<Text>("Settings", White, gui::Font(0.9f, Style::Bold)))
     };
     
     constexpr double settings_width = 240;
@@ -976,13 +976,13 @@ void VideoOpener::select_file(const file::Path &p) {
                 }
             }
             
-            children.push_back( Layout::Ptr(std::make_shared<Text>(name, Vec2(), White, gui::Font(0.7f))) );
+            children.push_back( Layout::Ptr(std::make_shared<Text>(name, White, gui::Font(0.7f))) );
             children.push_back( Layout::Ptr(std::make_shared<Dropdown>(Bounds(0, 0, settings_width, 28), folders)) );
             ((Dropdown*)children.back().get())->textfield()->set_font(Font(0.7f));
             
         } else {
-            children.push_back( Layout::Ptr(std::make_shared<Text>(name, Vec2(), White, gui::Font(0.7f))) );
-            children.push_back( Layout::Ptr(std::make_shared<Textfield>(start, Bounds(0, 0, settings_width, 28))));
+            children.push_back( Layout::Ptr(std::make_shared<Text>(name, White, gui::Font(0.7f))) );
+            children.push_back( Layout::Ptr(std::make_shared<Textfield>(Content(start), Bounds(0, 0, settings_width, 28))));
             ((Textfield*)children.back().get())->set_font(Font(0.7f));
         }
         
@@ -1034,7 +1034,7 @@ void VideoOpener::select_file(const file::Path &p) {
         children.push_back( Layout::Ptr(std::make_shared<Checkbox>(Vec2(), "load results", false, gui::Font(0.7f))) );
         _load_results_checkbox = dynamic_cast<Checkbox*>(children.back().get());
     } else
-        children.push_back( Layout::Ptr(std::make_shared<Text>("No loadable results found.", Vec2(), Gray, gui::Font(0.7f, Style::Bold))) );
+        children.push_back( Layout::Ptr(std::make_shared<Text>("No loadable results found.", Gray, gui::Font(0.7f, Style::Bold))) );
     
     _extra->set_children(children);
     _extra->auto_size(Margin{5,0});
@@ -1070,8 +1070,8 @@ void VideoOpener::select_file(const file::Path &p) {
         
         _mini_bowl->auto_size(Margin{0, 0});
         
-        gui::derived_ptr<gui::Text> info_text = std::make_shared<gui::Text>("Selected", Vec2(), gui::White, gui::Font(0.9f, gui::Style::Bold));
-        _info_description = std::make_shared<gui::StaticText>(settings::htmlify(text), Vec2(), Size2(_screenshot_max_size.div(_file_chooser->graph()->scale()).width * 0.25, _screenshot_max_size.div(_file_chooser->graph()->scale()).height), gui::Font(0.7f));
+        gui::derived_ptr<gui::Text> info_text = std::make_shared<gui::Text>("Selected", gui::White, gui::Font(0.9f, gui::Style::Bold));
+        _info_description = std::make_shared<gui::StaticText>(settings::htmlify(text),  SizeLimit(_screenshot_max_size.div(_file_chooser->graph()->scale()).width * 0.25, _screenshot_max_size.div(_file_chooser->graph()->scale()).height), gui::Font(0.7f));
         //gui::derived_ptr<gui::Text> info_2 = std::make_shared<gui::Text>("Preview", Vec2(), gui::White, gui::Font(0.9f, gui::Style::Bold));
         
         _infos->set_children({

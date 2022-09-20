@@ -61,7 +61,7 @@ namespace gui {
         //advance_wrap(_background);
         
         Vec2 topleft = Vec2(5);
-        Vec2 zero = topleft + this->zero;
+        Loc zero = topleft + this->zero;
         
         auto &scale = _scale[_fish->identity().ID()];
         
@@ -84,7 +84,7 @@ namespace gui {
         const float fish_scale = scale.empty() ? 1 : (width() / average * weights);
         float angle = 0;
         
-        auto do_rotate = [&zero, &fish_scale, &midline, &outline](Vec2 pt, float angle) {
+        auto do_rotate = [&zero, &fish_scale, &midline, &outline](Vec2 pt, float angle) -> Loc {
             if(midline) {
                 pt -= midline->offset();
                 
@@ -119,18 +119,20 @@ namespace gui {
             
             // DRAW MIDLINE / SEGMENTS
             
-            add<Circle>(zero, 3, Green);
+            add<Circle>(zero, 3, LineClr{Green});
             add<Line>(zero, Vec2(zero.x + midline->len(), zero.y), White);
             
             std::vector<Vertex> midline_vertices;
             for (size_t i=0; i<midline_points.size(); i++) {
                 auto &pt = midline_points.at(i);
-                auto current = Vec2(pt.pos) * fish_scale + zero;
+                Loc current = Vec2(pt.pos) * fish_scale + zero;
                 
-                add<Circle>(current, 2, Color(0, 255, 255, 255));
+                add<Circle>(current, 2, LineClr(0, 255, 255, 255));
                 
                 if(pt.height && i > 0)
-                    add<Circle>(current, pt.height * fish_scale * 0.5, Color(0, 255, 255, 255));
+                    add<Circle>(current,
+                                Radius(pt.height * fish_scale * 0.5),
+                                LineClr(0, 255, 255, 255));
                 midline_vertices.push_back(Vertex(current, Color(0, 125, 225, 255)));
             }
             add<Vertices>(midline_vertices, PrimitiveType::LineStrip);
@@ -138,9 +140,9 @@ namespace gui {
             midline_vertices.clear();
             for (size_t i=0; i<midline->segments().size(); i++) {
                 auto pt = midline->segments().at(i);
-                auto current = Vec2(pt.pos) * fish_scale + zero;
+                Loc current = Vec2(pt.pos) * fish_scale + zero;
                 
-                add<Circle>(current, 1, White);
+                add<Circle>(current, 1, LineClr{White});
                 midline_vertices.push_back(Vertex(current, Color(225, 125, 0, 255)));
             }
             add<Vertices>(midline_vertices, PrimitiveType::LineStrip);
@@ -152,11 +154,11 @@ namespace gui {
             
             if(midline->tail_index() != -1) {
                 if((size_t)midline->tail_index() < outline.size())
-                    add<Circle>(do_rotate(outline.at(midline->tail_index()), angle), 10, Blue);
+                    add<Circle>(do_rotate(outline.at(midline->tail_index()), angle), 10, LineClr{Blue});
             }
             if(midline->head_index() != -1) {
                 if((size_t)midline->head_index() < outline.size())
-                    add<Circle>(do_rotate(outline.at(midline->head_index()), angle), 10, Red);
+                    add<Circle>(do_rotate(outline.at(midline->head_index()), angle), 10, LineClr{Red});
             }
         }
         
@@ -212,9 +214,9 @@ namespace gui {
             clr =  negative_clr * (1.f - percent) + positive_clr * percent;
             
             if(i == 0)
-                add<Circle>(pt, 5, Red, Cyan);
+                add<Circle>(Loc(pt), 5, LineClr{Red}, FillClr{Cyan});
             else
-                add<Circle>(pt, 2, clr.alpha(0.8 * 255), clr.alpha(0.6 * 255));
+                add<Circle>(Loc(pt), 2, LineClr{clr.alpha(0.8 * 255)}, FillClr{clr.alpha(0.6 * 255)});
         }
         
         auto pt = do_rotate(outline.front(), angle);
@@ -230,8 +232,8 @@ namespace gui {
                 ss << "no midline";
             
             //midline_points.back().pos.y; //"segments: " << midline->segments().size();
-            add<Text>(ss.str(), Vec2(10, 10) + topleft, gui::Color(0, 255, 255, 255), 0.75);
-            add<Text>(Meta::toStr(_fish->blob(_frameIndex)->bounds().size()), Vec2(10,30) + topleft, DarkCyan, Font(0.75));
+            add<Text>(ss.str(), Loc(Vec2(10, 10) + topleft), gui::Color(0, 255, 255, 255), Font(0.75));
+            add<Text>(Meta::toStr(_fish->blob(_frameIndex)->bounds().size()), Loc(Vec2(10,30) + topleft), DarkCyan, Font(0.75));
         }
         
         end();

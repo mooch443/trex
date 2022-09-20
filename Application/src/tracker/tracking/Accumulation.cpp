@@ -1887,10 +1887,7 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
     }
     
     if(!_textarea) {
-        _textarea = std::make_shared<StaticText>("", Vec2());
-        _textarea->set_max_size(Size2(700, 180));
-        _textarea->set_base_text_color(Color(150,150,150,255));
-        _textarea->set_background(Transparent, Transparent);
+        _textarea = std::make_shared<StaticText>(SizeLimit{700,180}, TextClr(150,150,150,255));
     }
     
     if(!text.empty())
@@ -1947,7 +1944,7 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
         if(!_dots)
             _dots = std::make_shared<Entangled>();
         _dots->update([&](Entangled& e) {
-            Vec2 offset;
+            Loc offset;
             float previous = accepted_uniqueness();
             size_t i=0;
             const Font font(0.6f, Align::Center);
@@ -1968,9 +1965,9 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
                     continue;
                 }
                 
-                e.add<Circle>(offset, 5, color, color.alpha(50));
-                auto text = e.add<Text>(Meta::toStr(i), offset + Vec2(0, Base::default_line_spacing(font) + 2), White, font);
-                text = e.add<Text>(Meta::toStr(int(d * 10000) / 100.0)+"%", offset + Vec2(0, Base::default_line_spacing(font) * 2 + 4), White, font);
+                e.add<Circle>(offset, 5, LineClr{color}, FillClr{color.alpha(50)});
+                auto text = e.add<Text>(Meta::toStr(i), Loc(offset + Vec2(0, Base::default_line_spacing(font) + 2)), White, font);
+                text = e.add<Text>(Meta::toStr(int(d * 10000) / 100.0)+"%", Loc(offset + Vec2(0, Base::default_line_spacing(font) * 2 + 4)), White, font);
                 offset += Vec2(max(12, text->width() + 10), 0);
                 
                 ++i;

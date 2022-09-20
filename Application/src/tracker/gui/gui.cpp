@@ -147,7 +147,7 @@ struct PrivateData {
     
     struct Footer {
         Dropdown _settings_dropdown = Dropdown(Bounds(0, 0, 200, 33), GlobalSettings::map().keys());
-        Textfield _value_input = Textfield("", Bounds(0, 0, 300, 33));
+        Textfield _value_input = Textfield(Bounds(0, 0, 300, 33));
     } _footer;
 
     std::mutex _analyis_mutex;
@@ -163,10 +163,10 @@ struct PrivateData {
 
     PrivateData(pv::File& video) 
         : _video_source(& video ), 
-          _cache(& _gui, _video_source ),
-          _info_card([](Frame_t frame) {
+        _info_card([](Frame_t frame) {
             GUI::reanalyse_from(frame);
-          })
+        }),
+        _cache(& _gui, _video_source )
     { }
 };
 
@@ -1043,7 +1043,7 @@ void GUI::draw(DrawStructure &base) {
      */
     if(_info_visible) {
         static Timer info_timer;
-        if(info_timer.elapsed() > 5 || PD(info).txt().empty()) {
+        if(info_timer.elapsed() > 5 || PD(info).text().empty()) {
             PD(info).set_txt(info(false));
             info_timer.reset();
         }
@@ -1177,7 +1177,7 @@ void GUI::draw_grid(gui::DrawStructure &base) {
             
             sign.update([custom, &font](Entangled& base){
                 std::string str = "grid"+Meta::toStr(*custom->_point);
-                base.add<Text>(str, Vec2(5,5), White, font);
+                base.add<Text>(str, Loc(5,5), font);
             });
             
             base.wrap_object(sign);
@@ -2314,9 +2314,9 @@ void GUI::draw_footer(DrawStructure& base) {
     auto && [bg_offset, max_w] = Timeline::timeline_offsets(best_base());
     
     static HorizontalLayout status_layout({}, Vec2(), Bounds(10,0,0,0));
-    static Text gpu_status("", Vec2(), White, Font(0.7)), python_status("", Vec2(), Red, Font(0.7));
-    static Text additional_status("", Vec2(), White, Font(0.7));
-    static Text mouse_status("", Vec2(), White.alpha(200), Font(0.7));
+    static Text gpu_status(Font(0.7)), python_status(Red, Font(0.7));
+    static Text additional_status(Font(0.7));
+    static Text mouse_status(White.alpha(200), Font(0.7));
     
 #define SITEM(NAME) DirectSettingsItem<globals::Cache::Variables:: NAME>
     static List options_dropdown(Bounds(0, 0, 150, 33 + 2), "display", {
@@ -2585,7 +2585,7 @@ void GUI::update_recognition_rect() {
             auto it = PD(tracking)._include_shapes.find(rect);
             if(it == PD(tracking)._include_shapes.end()) {
                 if(rect.size() == 2) {
-                    auto ptr = std::make_shared<Rect>(Bounds(rect[0], rect[1] - rect[0]), Green.alpha(25), Green.alpha(100));
+                    auto ptr = std::make_shared<Rect>(Bounds(rect[0], rect[1] - rect[0]), FillClr{Green.alpha(25)}, LineClr{Green.alpha(100)});
                     //ptr->set_clickable(true);
                     PD(tracking)._include_shapes[rect] = ptr;
                     
@@ -2621,7 +2621,7 @@ void GUI::update_recognition_rect() {
             auto it = PD(tracking)._ignore_shapes.find(rect);
             if(it == PD(tracking)._ignore_shapes.end()) {
                 if(rect.size() == 2) {
-                    auto ptr = std::make_shared<Rect>(Bounds(rect[0], rect[1] - rect[0]), Red.alpha(25), Red.alpha(100));
+                    auto ptr = std::make_shared<Rect>(Bounds(rect[0], rect[1] - rect[0]), FillClr{Red.alpha(25)}, LineClr{Red.alpha(100)});
                     //ptr->set_clickable(true);
                     PD(tracking)._ignore_shapes[rect] = ptr;
                     
@@ -2756,12 +2756,14 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
         }
         
         if(PD(timeline)->visible()) {
+            Scale scale = PD(gui).scale().reciprocal();
+            
             for(auto && [rect, ptr] : PD(tracking)._include_shapes) {
                 base.wrap_object(*ptr);
                 
                 if(ptr->hovered()) {
                     const Font font(0.85 / (1 - ((1 - PD(cache).zoom_level()) * 0.5)), Align::VerticalCenter);
-                    base.text("allowing "+Meta::toStr(rect), ptr->pos() + Vec2(5, Base::default_line_spacing(font) + 5), White, font, PD(gui).scale().reciprocal());
+                    base.text("allowing "+Meta::toStr(rect), Loc(ptr->pos() + Vec2(5, Base::default_line_spacing(font) + 5)), font, scale);
                 }
             }
             
@@ -2770,7 +2772,7 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
                 
                 if(ptr->hovered()) {
                     const Font font(0.85 / (1 - ((1 - PD(cache).zoom_level()) * 0.5)), Align::VerticalCenter);
-                    base.text("excluding "+Meta::toStr(rect), ptr->pos() + Vec2(5, Base::default_line_spacing(font) + 5), White, font, PD(gui).scale().reciprocal());
+                    base.text("excluding "+Meta::toStr(rect), Loc(ptr->pos() + Vec2(5, Base::default_line_spacing(font) + 5)), font, scale);
                 }
             }
         }
@@ -2877,7 +2879,7 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
 #ifndef NDEBUG
     if(draw_blobs_separately)
     {
-        base.rect(Bounds(0, 0, 100, 100), Red);
+        base.rect(Bounds(0, 0, 100, 100), FillClr{Red});
     }
 #endif
     

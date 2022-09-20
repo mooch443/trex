@@ -99,7 +99,7 @@ Cell::Cell() :
     _button_layout(std::make_shared<HorizontalLayout>()),
     _selected(false),
     _image(std::make_shared<ExternalImage>(Image::Make(50,50,1))),
-    _text(std::make_shared<StaticText>("", Vec2(), Vec2(-1), Font(0.5))),
+    _text(std::make_shared<StaticText>(Font(0.5))),
     _cat_border(std::make_shared<Rect>(Bounds(50,50))),
     _block(std::make_shared<Entangled>([this](Entangled& e){
         /**
@@ -522,8 +522,7 @@ void Interface::init(DrawStructure& base) {
         stext = Layout::Make<StaticText>(
             "<h2>Categorizing types of individuals</h2>"
             "Below, an assortment of randomly chosen clips is shown. They are compiled automatically to (hopefully) only contain samples belonging to the same category. Choose clips that best represent the categories you have defined before (<str>" + Meta::toStr(DataStore::label_names()) + "</str>) and assign them by clicking the respective button. But be careful - with them being automatically collected, some of the clips may contain images from multiple categories. It is recommended to <b>Skip</b> these clips, lest risking to confuse the poor network. Regularly, when enough new samples have been collected (and for all categories), they are sent to said network for a training step. Each training step, depending on clip quality, should improve the prediction accuracy (see below).",
-            Vec2(),
-            Vec2(base.width() * 0.75 * base.scale().x, -1), Font(0.7)
+            SizeLimit(base.width() * 0.75 * base.scale().x, -1), Font(0.7)
             );
 
         layout.add_child(stext);
@@ -641,8 +640,8 @@ void Interface::draw(DrawStructure& base) {
                     }
 
                     }, "Please enter the categories (comma-separated), e.g.:\n<i>W,S</i> for categories <str>W</str> and <str>S</str>.", "Categorize", "Okay", "Cancel");
-
-                textfield = Layout::Make<Textfield>("W,S", Bounds(Size2(d->layout().width() * 0.75, 33)));
+                
+                textfield = Layout::Make<Textfield>(Content("W,S"), Bounds(Size2(d->layout().width() * 0.75, 33)));
                 textfield->set_size(Size2(d->layout().width() * 0.75, 33));
                 d->set_custom_element(textfield);
                 d->layout().Layout::update_layout();
@@ -652,7 +651,7 @@ void Interface::draw(DrawStructure& base) {
     }
 
     using namespace gui;
-    static Rect rect(Bounds(0, 0, 0, 0), Black.alpha(125));
+    static Rect rect(Bounds(0, 0, 0, 0), FillClr{Black.alpha(125)});
 
     auto window = (GUI::instance() && GUI::instance()->base() ? (GUI::instance()->base()->window_dimensions().div(base.scale())) : Size2(base.width(), base.height())) * gui::interface_scale();
     auto center = window * 0.5;

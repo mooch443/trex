@@ -91,7 +91,7 @@ void LabeledCheckbox::update() {
 
 LabeledTextField::LabeledTextField(const std::string& name)
     : LabeledField(name),
-      _text_field(std::make_shared<gui::Textfield>("", Bounds(0, 0, default_element_width, 28))),
+      _text_field(std::make_shared<gui::Textfield>(Bounds(0, 0, default_element_width, 28))),
       _ref(GlobalSettings::map()[name])
 {
     _text_field->set_placeholder(name);
@@ -185,7 +185,7 @@ void draw(Frame_t frame, DrawStructure& graph) {
     static bool first = true;
     
     auto& cache = GUICache::instance();
-    Vec2 offset(5);
+    Loc offset(5);
     
     PPFrame pp;
     pp.set_index(frame);
@@ -200,14 +200,14 @@ void draw(Frame_t frame, DrawStructure& graph) {
     
     auto size = graph.dialog_window_size();
     
-    static StaticText text("Select individuals to preview their images using the settings shown below. Adjusting these settings here will affect <b>visual identification</b>, <b>categorization</b> and <b>tracklet images</b>.\n\nTry to keep images as small as possible, while still capturing all important details.", offset, Vec2(240, -1), Font(0.65));
+    static StaticText text("Select individuals to preview their images using the settings shown below. Adjusting these settings here will affect <b>visual identification</b>, <b>categorization</b> and <b>tracklet images</b>.\n\nTry to keep images as small as possible, while still capturing all important details.", Loc(offset), SizeLimit(240, -1), Font(0.65));
     static Button button("x", Bounds(5, 5, 25, 25));
     button.set_scale(graph.scale().reciprocal());
     offset.x += button.local_bounds().width + 10;
     
     preview.update([&](Entangled& e) {
         ExternalImage *ptr{nullptr};
-        auto bds = e.add<Text>("Image settings", offset, White.alpha(200), Font(0.75, Style::Bold), graph.scale().reciprocal())->local_bounds();
+        auto bds = e.add<Text>("Image settings", offset, White.alpha(200), Font(0.75, Style::Bold), Scale(graph.scale().reciprocal()))->local_bounds();
         
         offset.y += bds.height + 10;
         offset.x = 5;
@@ -248,7 +248,7 @@ void draw(Frame_t frame, DrawStructure& graph) {
             
             auto scale = graph.scale().reciprocal().mul(200.0 / image->cols, 200.0 / image->rows);
             ptr = e.add<ExternalImage>(std::move(image), offset, scale);
-            e.add<Text>(fish->identity().name(), offset + Vec2(5, 2), White.alpha(200), Font(0.5), graph.scale().reciprocal());
+            e.add<Text>(fish->identity().name(), Loc(offset + Vec2(5, 2)), White.alpha(200), Font(0.5), Scale(graph.scale().reciprocal()));
             
             offset.x += ptr->local_bounds().width + 5;
             if(offset.x >= size.width * 0.25) {
@@ -278,10 +278,10 @@ void draw(Frame_t frame, DrawStructure& graph) {
         preview.set_origin(Vec2(0.5, 0));
         preview.set_clickable(true);
         preview.set_draggable();
-        preview.set_background(Black.alpha(150), Red.alpha(25));
+        preview.set_background(DarkCyan.exposure(0.5).alpha(100), Red.alpha(50));
         
         text.set_clickable(false);
-        text.set_background(Black.alpha(125));
+        text.set_background(Black.alpha(5), Transparent);
         
         button.on_click([](auto){
             SETTING(gui_show_individual_preview) = false;

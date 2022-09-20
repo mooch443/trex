@@ -47,11 +47,11 @@ namespace gui {
 
     struct Interface {
         HorizontalLayout _title_layout{ {}, Vec2(20, 20), Bounds(0, 0, 17, 0) };
-        Text _status_text{ "", Vec2(), White, 0.8f }, 
-             _status_text2{ "", Vec2(), White, 0.8f }, 
-             _status_text3{"", Vec2(), White, 0.8f };
-        Text _raw_text{ "[RAW]", Vec2(), Black, Font(0.8f, Style::Bold) }, 
-             _auto_text{ "", Vec2(), Black, Font(0.8f, Style::Bold) };
+        Text _status_text{ Font(0.8f) },
+             _status_text2{ Font(0.8f) },
+             _status_text3{ Font(0.8f) };
+        Text _raw_text{ "[RAW]", Black, Font(0.8f, Style::Bold) },
+             _auto_text{Black, Font(0.8f, Style::Bold) };
         Button _pause{ "pause", Bounds(0, 0, 100, 27) };
         Timeline* _ptr;
 
@@ -176,29 +176,29 @@ namespace gui {
             }
 
             if (GUI_SETTINGS(gui_mode) == mode_t::blobs && _ptr->bar()) {
-                base.rect(-offset, Size2(max_w, bar_height + y), Red.alpha(75));
+                base.rect(Bounds(-offset, Size2(max_w, bar_height + y)), FillClr{Red.alpha(75)});
                 in_layout.insert(in_layout.begin(), &_raw_text);
             }
 
             if (GUI_SETTINGS(auto_categorize)) {
-                base.rect(-offset, Size2(max_w, bar_height + y), Purple.alpha(75));
+                base.rect(Bounds(-offset, Size2(max_w, bar_height + y)), FillClr{Purple.alpha(75)});
                 _auto_text.set_txt("[auto_categorize]");
                 in_layout.insert(in_layout.begin(), &_auto_text);
 
             }
             else if (GUI_SETTINGS(auto_train)) {
-                base.rect(-offset, Size2(max_w, bar_height + y), Red.alpha(75));
+                base.rect(Bounds(-offset, Size2(max_w, bar_height + y)), FillClr{Red.alpha(75)});
                 _auto_text.set_txt("[auto_train]");
                 in_layout.insert(in_layout.begin(), &_auto_text);
 
             }
             else if (GUI_SETTINGS(auto_apply)) {
-                base.rect(-offset, Size2(max_w, bar_height + y), Red.alpha(75));
+                base.rect(Bounds(-offset, Size2(max_w, bar_height + y)), FillClr{Red.alpha(75)});
                 _auto_text.set_txt("[auto_apply]");
                 in_layout.insert(in_layout.begin(), &_auto_text);
             }
             else if (GUI_SETTINGS(auto_quit)) {
-                base.rect(-offset, Size2(max_w, bar_height + y), Red.alpha(75));
+                base.rect(Bounds(-offset, Size2(max_w, bar_height + y)), FillClr{Red.alpha(75)});
                 _auto_text.set_txt("[auto_quit]");
                 in_layout.insert(in_layout.begin(), &_auto_text);
             }
@@ -210,10 +210,10 @@ namespace gui {
 
             gui::Color red_bar_clr(250, 250, 250, uchar(GUI_SETTINGS(gui_timeline_alpha) * (_bar && _bar->hovered() ? 1.f : 0.8f)));
 
-            base.rect(pos, Vec2(max_w, bar_height), White.alpha(175));
+            base.rect(Bounds(pos, Size2(max_w, bar_height)), FillClr{White.alpha(175)});
 
             float percent = float(tracker_endframe.load().get()) / _frame_info->video_length;
-            base.rect(pos, Size2(max_w * percent, bar_height), red_bar_clr);
+            base.rect(Bounds(pos, Size2(max_w * percent, bar_height)), FillClr{red_bar_clr});
 
             std::unique_lock info_lock(Timeline::_frame_info_mutex);
             if (_bar && use_scale.y > 0) {
@@ -233,7 +233,7 @@ namespace gui {
                     }
                 }
 
-                base.add_object(new Text(Meta::toStr(tracker_endframe.load()), pos + Vec2(max_w * tracker_endframe.load().get() / float(_frame_info->video_length) + 5, bar_height * 0.5f), Black, Font(0.5), Vec2(1), Vec2(0, 0.5)));
+                base.add_object(new Text(Meta::toStr(tracker_endframe.load()), Loc(pos + Vec2(max_w * tracker_endframe.load().get() / float(_frame_info->video_length) + 5, bar_height * 0.5f)), Black, Font(0.5), Origin(0, 0.5)));
 
                 // display hover sign with frame number
                 if (_ptr->_mOverFrame.valid()) {
@@ -254,8 +254,8 @@ namespace gui {
 
                         pp -= offset;
 
-                        base.rect(pp - dims * 0.5f - Vec2(5, 2), dims + Vec2(10, 4), Black.alpha(125));
-                        base.text(t, pp, gui::White, Font(0.7f, Align::Center));
+                        base.rect(Bounds(pp - dims * 0.5f - Vec2(5, 2), dims + Vec2(10, 4)), FillClr{Black.alpha(125)});
+                        base.text(t, Loc(pp), Font(0.7f, Align::Center));
                     }
                 }
             }
@@ -263,19 +263,20 @@ namespace gui {
             if (_frame_info->analysis_range.start != 0_f) {
                 auto start_pos = pos;
                 auto end_pos = Vec2(max_w / float(_frame_info->video_length) * _frame_info->analysis_range.start.get(), bar_height);
-                base.rect(start_pos, end_pos, Gray);
+                base.rect(Bounds(start_pos, end_pos), FillClr{Gray});
             }
             if (uint64_t(_frame_info->analysis_range.end.get()) <= _frame_info->video_length) {
                 auto start_pos = pos + Vec2(max_w / float(_frame_info->video_length) * _frame_info->analysis_range.end.get(), 0);
                 auto end_pos = Vec2(max_w, bar_height);
-                base.rect(start_pos, end_pos, Gray);
+                base.rect(Bounds(start_pos, end_pos), FillClr{Gray});
             }
 
             // current position indicator
             auto current_pos = Vec2(max_w / float(_frame_info->video_length) * _frame_info->frameIndex.load().get(), y) - offset;
-            base.rect(current_pos - Vec2(2),
-                Size2(5, bar_height + 4),
-                Black.alpha(255), White.alpha(255));
+            base.rect(Bounds(current_pos - Vec2(2),
+                             Size2(5, bar_height + 4)),
+                      FillClr{Black.alpha(255)},
+                      LineClr{White.alpha(255)});
             //base.rect(current_pos - Vec2(2, 1), Vec2(5, 2), DarkCyan, Black);
             //base.rect(current_pos + Vec2(-2, bar_height + 3), Vec2(5, 2), DarkCyan, Black);
         }

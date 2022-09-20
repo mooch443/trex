@@ -907,7 +907,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
 #ifndef NDEBUG
                                 Vec2 offset = full.blob->bounds().pos() - reduced.blob->bounds().pos();
                                 
-                                auto outline = data.fish->outline(frame);
+                                /*auto outline = data.fish->outline(frame);
                                 if(outline) {
                                     auto points = outline->uncompress();
                                     for(auto pt : points) {
@@ -915,7 +915,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                                         pt += -offset;
                                         cv::circle(image, pt, 1, gui::Green);
                                     }
-                                }
+                                }*/
 #endif
                                 Vec2 center_offset = ((reduced.blob->bounds().pos() + reduced.blob->bounds().size() * 0.5) - (full.blob->bounds().pos() + full.blob->bounds().size() * 0.5));
 #ifndef NDEBUG

@@ -166,20 +166,20 @@ namespace gui {
                 {
                     double_identities.insert(max_id);
                 }
+                
+                identities_found.insert(max_id);
             }
-            
-            identities_found.insert(max_id);
         }
         
         std::map<Idx_t, std::tuple<float, float>> fish_offset;
         float y = 10, max_w = 0;
         Font font(0.75);
         
-        y += add<Text>("Identities", Vec2(10, y), White, Font(0.8f, Style::Bold))->height();
+        y += add<Text>("Identities", Loc(10, y), White, Font(0.8f, Style::Bold))->height();
         y += 10;
         
         for(auto && [id, tup] : _cache) {
-            auto text = add<Text>(_names.at(id)+": ", Vec2(10, y), White, Font(font.size, Style::Bold));
+            auto text = add<Text>(_names.at(id)+": ", Loc(10, y), White, Font(font.size, Style::Bold));
             auto && [samples, max_id, max_p] = max_identity.at(id);
             
             Color color = White.alpha(200);
@@ -190,9 +190,9 @@ namespace gui {
             
             Drawable *secondary;
             if(max_id.valid())
-                secondary = add<Text>(Meta::toStr(max_id)+" ("+Meta::toStr(max_p)+", "+Meta::toStr(samples)+" samples)", text->pos() + Vec2(text->width(), 0), color, font);
+                secondary = add<Text>(Meta::toStr(max_id)+" ("+Meta::toStr(max_p)+", "+Meta::toStr(samples)+" samples)", Loc(text->pos() + Vec2(text->width(), 0)), color, font);
             else
-                secondary = add<Text>("N/A ("+Meta::toStr(samples)+" samples)", text->pos() + Vec2(text->width(), 0), DarkCyan.exposureHSL(1.5).alpha(200), font);
+                secondary = add<Text>("N/A ("+Meta::toStr(samples)+" samples)", Loc(text->pos() + Vec2(text->width(), 0)), DarkCyan.exposureHSL(1.5).alpha(200), font);
             
             fish_offset[id] = { y, text->height() };
             
@@ -224,9 +224,9 @@ namespace gui {
                     << " outline: <number>" << long_t(data.outline_len) << "</number>+-<number>" << long_t(data.outline_std) << "</number>";
                 
                 if(index >= _texts.size()) {
-                    _texts.push_back(std::make_shared<StaticText>("", Vec2()));
+                    _texts.push_back(std::make_shared<StaticText>());
                     _texts.back()->set_background(Transparent, Transparent);
-                    _texts.back()->set_margins(Bounds());
+                    _texts.back()->set_margins(Margins());
                     _texts.back()->set_clickable(false);
                 }
                 
@@ -248,11 +248,11 @@ namespace gui {
         };
         
         if(_last_current_frames.start.valid() && !_meta_current.empty()) {
-            h = add<Text>("Current segment "+Meta::toStr(_last_current_frames)+" ("+Meta::toStr(_current_quality)+")", Vec2(x, 10), White, Font(0.8f, Style::Bold))->height();
+            h = add<Text>("Current segment "+Meta::toStr(_last_current_frames)+" ("+Meta::toStr(_current_quality)+")", Loc(x, 10), White, Font(0.8f, Style::Bold))->height();
             display_dataset(_meta_current, 0);
             
             if(!_meta.empty()) {
-                h = add<Text>("Best segment "+Meta::toStr(_last_consecutive_frames)+" ("+Meta::toStr(_quality)+")", Vec2(x, 10 + y + 5), White, Font(0.8f, Style::Bold))->height();
+                h = add<Text>("Best segment "+Meta::toStr(_last_consecutive_frames)+" ("+Meta::toStr(_quality)+")", Loc(x, 10 + y + 5), White, Font(0.8f, Style::Bold))->height();
             
                 float cy = y + 5 + 10 + 10 + h;
                 
@@ -261,14 +261,14 @@ namespace gui {
                 
                 for(auto && [id, offsets] : fish_offset) {
                     //auto [offy, h] = offsets;
-                    cy += add<Text>(_names.at(id), Vec2(x - 20, cy), White, Font(font.size, Style::Bold, Align::Right))->height();
+                    cy += add<Text>(_names.at(id), Loc(x - 20, cy), White, Font(font.size, Style::Bold, Align::Right))->height();
                 }
             
                 display_dataset(_meta, y + 5);
             }
             
         } else if(!_meta.empty()) {
-            h = add<Text>("Best segment "+Meta::toStr(_last_consecutive_frames)+" ("+Meta::toStr(_quality)+")", Vec2(x, 10), White, Font(0.8f, Style::Bold))->height();
+            h = add<Text>("Best segment "+Meta::toStr(_last_consecutive_frames)+" ("+Meta::toStr(_quality)+")", Loc(x, 10), White, Font(0.8f, Style::Bold))->height();
             display_dataset(_meta, 0);
         }
         

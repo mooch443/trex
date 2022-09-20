@@ -532,7 +532,7 @@ void VisualField::show(gui::DrawStructure &base) {
         }
         
         crosses.emplace_back(eye.pos, eye.clr);
-        base.circle(eye.pos, 3, White.alpha(125));
+        base.circle(Loc(eye.pos), 3, LineClr{White.alpha(125)});
         //if(&eye == &_eyes[0])
         auto poly = new gui::Polygon(crosses);
         //poly->set_fill_clr(Transparent);

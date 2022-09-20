@@ -266,8 +266,8 @@ void WorkProgress::update(gui::DrawStructure &base, gui::Section *section) {
     }
     
     auto && [bg_offset, max_w] = Timeline::timeline_offsets(GUI::instance()->best_base());
-    static Rect static_background(Bounds(0, 0, max_w, GUI::background_image().rows), Black.alpha(150));
-    static StaticText static_desc("description", Vec2(), Size2(-1), Font(0.7, Align::Center));
+    static Rect static_background(Bounds(0, 0, max_w, GUI::background_image().rows), FillClr{Black.alpha(150)});
+    static StaticText static_desc("description", Font(0.7, Align::Center));
     //static StaticText static_additional("", Vec2(), Size2(-1), Font(0.7, Align::Center));
     static Button static_button("abort", Bounds(0, 0, 100, 35));
     static Button custom_static_button("custom", Bounds(0, 0, 100, 35));
@@ -305,7 +305,7 @@ void WorkProgress::update(gui::DrawStructure &base, gui::Section *section) {
     work_progress.update([&](Entangled& base){
         const float margin = 5;
         
-        auto text = base.add<Text>(_item, offset, Color(0, 150, 225, 255), Font(0.8, Style::Bold), Vec2(1), Vec2(0.5, 0));
+        auto text = base.add<Text>(_item, Loc(offset), Color(0, 150, 225, 255), Font(0.8, Style::Bold), Origin(0.5, 0));
         offset.y += text->height() + margin;
         width = max(width, text->width());
         
@@ -349,8 +349,8 @@ void WorkProgress::update(gui::DrawStructure &base, gui::Section *section) {
             //Vec2 bar_offset(- bar_size.x * 0.5, size.y - bar_size.y - 10 - size.y * 0.5);
             Size2 bar_size(width, 30);
             
-            base.add<Rect>(Bounds(Vec2(0, offset.y), bar_size), White.alpha(100), Black, Vec2(1), Vec2(0.5, 0));
-            auto bar = base.add<Rect>(Bounds(Vec2(1, 1 + offset.y), Size2(bar_size.width * saturate(_percent.load(), 0.f, 1.f) - 2, bar_size.height - 2)), White.alpha(180), White, Vec2(1), Vec2(0.5, 0));
+            base.add<Rect>(Bounds(Vec2(0, offset.y), bar_size), FillClr{White.alpha(100)}, LineClr{Black}, Origin(0.5, 0));
+            auto bar = base.add<Rect>(Bounds(Vec2(1, 1 + offset.y), Size2(bar_size.width * saturate(_percent.load(), 0.f, 1.f) - 2, bar_size.height - 2)), FillClr{White.alpha(180)}, LineClr{White}, Origin(0.5, 0));
             offset += Vec2(0, bar->height() + margin);
             width = max(width, bar->width());
         }

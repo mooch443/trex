@@ -232,7 +232,7 @@ void GUI::draw(gui::DrawStructure &base) {
             }
         }
 
-        auto scale = guard._section->scale().mul(base.scale()).reciprocal();
+        Scale scale = guard._section->scale().mul(base.scale()).reciprocal();
 
         Color text_color(255, 255, 255, 255);
         if (_image && _image->cols > 20 && _image->rows > 20) {
@@ -336,7 +336,7 @@ void GUI::draw(gui::DrawStructure &base) {
                     pv::Blob blob(*m, *_frame->pixels().at(i), _frame->flags().at(i));
                     auto pos = blob.bounds().pos();
                     auto clr = wheel.next();
-                    base.rect(pos + offset, blob.bounds().size(), Transparent, clr.alpha(150));
+                    base.rect(Bounds(pos + offset, blob.bounds().size()), FillClr{Transparent}, LineClr{clr.alpha(150)});
                     
                     //! only display images if there arent too many of them.
                     if(_frame->mask().size() < 100) {
@@ -358,13 +358,13 @@ void GUI::draw(gui::DrawStructure &base) {
                         base.image(pos + offset, std::move(image), Vec2(1.0), clr.alpha(150));
                     }
                     
-                    base.text(Meta::toStr(i), pos + offset, Yellow, 0.5, scale);
+                    base.text(Meta::toStr(i), Loc(pos + offset), Yellow, Font(0.5), scale);
                 }
             }
 
             if (!_grabber.is_recording()) {
-                base.text("waiting for commands", Vec2(_size.width / 2, _size.height / 2), Red, Font(0.8, Align::Center), scale);
-                base.rect(Vec2(8, 14), Vec2(7, 7), White.alpha(125), Black.alpha(125));
+                base.text("waiting for commands", Loc(_size.width / 2, _size.height / 2), Red, Font(0.8, Align::Center), scale);
+                base.rect(Bounds(Vec2(8, 14), Size2(7, 7)), FillClr{White.alpha(125)}, LineClr{Black.alpha(125)});
             }
             else {
                 const float speed = 0.5;
@@ -386,12 +386,12 @@ void GUI::draw(gui::DrawStructure &base) {
 
                 float alpha = min(0.8f, max(0.25f, _record_alpha));
                 if (_grabber.is_paused()) {
-                    base.rect(Vec2(8, 14).mul(scale), Vec2(2, 7).mul(scale), White.alpha(alpha * 255), Black.alpha(alpha * 255));
-                    base.rect(Vec2(12, 14).mul(scale), Vec2(2, 7).mul(scale), White.alpha(255 * alpha), Black.alpha(255 * alpha));
+                    base.rect(Bounds(Vec2(8, 14).mul(scale), Vec2(2, 7).mul(scale)), FillClr{White.alpha(alpha * 255)}, LineClr{Black.alpha(alpha * 255)});
+                    base.rect(Bounds(Vec2(12, 14).mul(scale), Vec2(2, 7).mul(scale)), FillClr{White.alpha(255 * alpha)}, LineClr{Black.alpha(255 * alpha)});
 
                 }
                 else {
-                    base.circle(Vec2(13, 18).mul(scale), 5, White.alpha(255 * alpha), text_color.alpha(255 * alpha), scale, Vec2(0.5));
+                    base.circle(Loc(Vec2(13, 18).mul(scale)), Radius{5}, LineClr{White.alpha(255 * alpha)}, FillClr{text_color.alpha(255 * alpha)}, scale, Origin(0.5));
                 }
             }
 
@@ -421,10 +421,10 @@ void GUI::draw(gui::DrawStructure &base) {
                     base.wrap_object(*background);
                 }
 
-                base.text("generating average (" + std::to_string(_grabber.average_samples()) + "/" + std::to_string(SETTING(average_samples).value<uint32_t>()) + ")", Vec2(_size.width / 2, _size.height / 2), Red, Font(0.8f, Align::Center), base.scale().reciprocal());
+                base.text("generating average (" + std::to_string(_grabber.average_samples()) + "/" + std::to_string(SETTING(average_samples).value<uint32_t>()) + ")", Loc(_size.width / 2, _size.height / 2), Red, Font(0.8f, Align::Center), scale);
             }
             else {
-                base.text("waiting for frame...", Vec2(_size.width / 2, _size.height / 2), Red, Font(0.8f, Align::Center), base.scale().reciprocal());
+                base.text("waiting for frame...", Loc(_size.width / 2, _size.height / 2), Red, Font(0.8f, Align::Center), scale);
             }
         }
 
@@ -432,9 +432,9 @@ void GUI::draw(gui::DrawStructure &base) {
             auto shadowed_text = [&](Vec2 pos, const std::string& text, Color color, float font_size = 0.75)
             {
                 // shadow
-                base.text(text, (pos + Vec2(1, 1)).mul(scale), Black, Font(font_size, Align::VerticalCenter), scale);
+                base.text(text, Loc((pos + Vec2(1, 1)).mul(scale)), Black, Font(font_size, Align::VerticalCenter), scale);
                 // text
-                return base.text(text, pos.mul(scale), color, Font(font_size, Align::VerticalCenter), scale)->width();
+                return base.text(text, Loc(pos.mul(scale)), color, Font(font_size, Align::VerticalCenter), scale)->width();
             };
 
             auto frame = _grabber.last_index().load();
@@ -510,7 +510,7 @@ void GUI::draw(gui::DrawStructure &base) {
     base.draw_log_messages(Bounds(Vec2(0, 85).mul(scale* gui::interface_scale()), dim - Size2(10, 85).mul(scale * gui::interface_scale())));
 }
 
-void GUI::draw_tracking(gui::DrawStructure &base, const Vec2& scale) {
+void GUI::draw_tracking(gui::DrawStructure &base, const attr::Scale& scale) {
     using namespace gui;
     
     if(!_grabber.tracker_instance())
@@ -602,13 +602,13 @@ void GUI::draw_tracking(gui::DrawStructure &base, const Vec2& scale) {
                         continue;
                     
                     //auto p = bounds.pos() + bounds.size() * 0.5;
-                    auto p = basic->centroid.pos<Units::PX_AND_SECONDS>();
+                    Loc p = basic->centroid.pos<Units::PX_AND_SECONDS>();
                     positions.push_back(p);
 
                     //! if this is the last frame, also add the outline to the drawing
                     if (frame == fish->end_frame()) {
                         auto bounds = basic->blob.calculate_bounds();
-                        base.circle(p, 10, fish->identity().color());
+                        base.circle(p, 10, LineClr{fish->identity().color()});
                         
                         auto posture_index = seg->posture_stuff(frame);
                         if (posture_index != -1) {
@@ -621,9 +621,9 @@ void GUI::draw_tracking(gui::DrawStructure &base, const Vec2& scale) {
 
                             // check if we actually have a tail index
                             if (gui_show_midline && _cached_midline && _cached_midline->tail_index() != -1) {
-                                base.circle(points.at(_cached_midline->tail_index()) + bounds.pos(), 5, Blue.alpha(max_color * 0.3));
+                                base.circle(Loc(points.at(_cached_midline->tail_index()) + bounds.pos()), 5, LineClr{Blue.alpha(max_color * 0.3)});
                                 if (_cached_midline->head_index() != -1)
-                                    base.circle(points.at(_cached_midline->head_index()) + bounds.pos(), 5, Red.alpha(max_color * 0.3));
+                                    base.circle(Loc(points.at(_cached_midline->head_index()) + bounds.pos()), 5, LineClr{Red.alpha(max_color * 0.3)});
                             }
 
                             //float right_side = outline->tail_index() + 1;
@@ -656,15 +656,15 @@ void GUI::draw_tracking(gui::DrawStructure &base, const Vec2& scale) {
                 auto alpha = saturate(200.f * (1 - percent), 0, 255);
                 
                 base.line(positions, 1, color.alpha(alpha));
-                base.text(Meta::toStr(code.best_id) + " (" + dec<2>(code.p).toStr() + ")", positions.back() + Vec2(10, 0), color.alpha(alpha), is_end ? Font(0.5, Style::Bold) : Font(0.5), scale);
+                base.text(Meta::toStr(code.best_id) + " (" + dec<2>(code.p).toStr() + ")", Loc(positions.back() + Vec2(10, 0)), color.alpha(alpha), is_end ? Font(0.5, Style::Bold) : Font(0.5), scale);
             }
         }
         
-        Vec2 pos(_grabber.average().cols + 100, 120);
+        Loc pos(_grabber.average().cols + 100, 120);
         for (auto& [k, tup] : speeds) {
             //auto w =
             base.text(Meta::toStr(k) + ":", pos, Color(150, 150, 150, 255), Font(0.5, Style::Bold), scale);//->local_bounds().width;
-            base.text(Meta::toStr(std::get<0>(tup) / std::get<1>(tup)) + "cm/s", pos + Vec2(70, 0), White, Font(0.5), scale);
+            base.text(Meta::toStr(std::get<0>(tup) / std::get<1>(tup)) + "cm/s", Loc(pos + Vec2(70, 0)), White, Font(0.5), scale);
             pos += Vec2(0, 50);
         }
         

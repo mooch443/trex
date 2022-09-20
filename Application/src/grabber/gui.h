@@ -8,12 +8,15 @@
 #include <gui/DrawStructure.h>
 #include <gui/DrawHTMLBase.h>
 #include <gui/DrawSFBase.h>
+#include <gui/ControlsAttributes.h>
 
 namespace gui {
 class ExternalImage;
 }
 
 namespace grab {
+using namespace ::gui;
+
 class GUI {
 public:
     static const std::map<std::string, std::string> setting_keys;
@@ -41,22 +44,22 @@ protected:
     float _pulse = 0;
     Timer pulse_timer;
     
-    GETTER_NCONST(gui::DrawStructure, gui)
-    gui::Base* _sf_base = nullptr;
+    GETTER_NCONST(DrawStructure, gui)
+    Base* _sf_base = nullptr;
     std::unique_ptr<pv::Frame> _frame, _noise;
     Image::UPtr _image;
-    gui::ExternalImage *background = nullptr, *noise_image = nullptr;
-
-    gui::HTMLBase _html_base;
+    ExternalImage *background = nullptr, *noise_image = nullptr;
+    
+    HTMLBase _html_base;
     
 public:
     GUI(FrameGrabber& grabber);
     ~GUI();
-    void event(const gui::Event& e);
-    static void static_event(const gui::Event& e);
-    void key_event(const gui::Event& e);
+    void event(const Event& e);
+    static void static_event(const Event& e);
+    void key_event(const Event& e);
     
-    void set_base(gui::Base*);
+    void set_base(Base*);
     static GUI* instance();
     
 #if WITH_MHD
@@ -67,8 +70,8 @@ public:
     
     void set_redraw();
     bool terminated() const;
-    void draw(gui::DrawStructure& base);
-    void draw_tracking(gui::DrawStructure& base, const Vec2& scale);
+    void draw(DrawStructure& base);
+    void draw_tracking(DrawStructure& base, const attr::Scale& scale);
     std::string info_text() const;
     void update_loop();
     
@@ -79,3 +82,4 @@ private:
 }
 
 #endif
+

@@ -49,7 +49,7 @@ namespace gui {
         if(!cache.recognition_updated) {
             obj.update([&] (Entangled& base) {
                 std::vector<float> outputs;
-                base.add<Text>("recognition summary", Vec2(obj.width() * 0.5f, margin + (title_height - margin) * 0.5f), White, title_font);
+                base.add<Text>("recognition summary", Loc(obj.width() * 0.5f, margin + (title_height - margin) * 0.5f), White, title_font);
                 
                 size_t counter = 0, j = 0;
                 std::map<Idx_t, size_t> fdx_to_idx;
@@ -61,12 +61,10 @@ namespace gui {
                     auto fish = cache.individuals.at(id);
                     
                     float maxp = 0;
-                    long_t idx = -1;
                     
                     for(auto && [fdx, p] : fish->average_recognition()) {
                         if(p > maxp) {
                             maxp = p;
-                            idx = fdx;
                         }
                         
                         auto it = fdx_to_idx.find(fdx);
@@ -101,7 +99,7 @@ namespace gui {
                 auto pos = Vec2(margin + sidebar_width, margin + title_height);
                 auto bounds = Bounds(pos, image->bounds().size());
                 base.add<ExternalImage>(std::move(image), pos);
-                base.add<Rect>(bounds, Transparent, White.alpha(200));
+                base.add<Rect>(bounds, FillClr{Transparent}, LineClr{White.alpha(200)});
                 
                 // draw vertical bar (active fish)
                 pos = Vec2(margin) + Vec2(sidebar_width - 10 / interface_scale, bar_width * 0.5f - Base::default_line_spacing(font) * 0.5f + title_height);
@@ -109,14 +107,14 @@ namespace gui {
                 size_t row = 0;
                 for(auto id : sorted) {
                     auto fish = cache.individuals.at(id);
-                    base.add<Text>(fish->identity().name(), pos + Vec2(0, bar_width) * row, White, side_font);
+                    base.add<Text>(fish->identity().name(), Loc(pos + Vec2(0, bar_width) * row), White, side_font);
                     ++row;
                 }
                 
                 // draw horizontal bar (matched fish from network)
                 pos = Vec2(margin) + Vec2(sidebar_width + bar_width * 0.5f, bounds.height + margin + Base::default_line_spacing(font) * 0.5f + title_height);
                 for(size_t idx = 0; idx < output_size; ++idx) {
-                    base.add<Text>(Meta::toStr(idx), pos, White, bottom_font);
+                    base.add<Text>(Meta::toStr(idx), Loc(pos), White, bottom_font);
                     pos += Vec2(bar_width, 0);
                 }
             });

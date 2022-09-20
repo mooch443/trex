@@ -200,11 +200,12 @@ void draw_blob_view(const DisplayParameters& parm)
             
             constexpr size_t maximum_number_texts = 1000;
             if(parm.cache.processed_frame.blobs().size() >= maximum_number_texts) {
-                Vec2 pos(10, GUI::timeline().bar()->global_bounds().height + GUI::timeline().bar()->global_bounds().y + 10);
+                Loc pos(10, GUI::timeline().bar()->global_bounds().height + GUI::timeline().bar()->global_bounds().y + 10);
                 auto text = "Hiding some blob texts because of too many blobs ("+Meta::toStr(parm.cache.processed_frame.blobs().size())+").";
                 
-                base.rect(Bounds(pos, Base::text_dimensions(text, s, Font(0.5)) + Vec2(2, 2)), Black.alpha(125), Transparent,  base.scale().reciprocal());
-                base.text(text, pos + Vec2(2), White, Font(0.5), base.scale().reciprocal());
+                Scale scale = base.scale().reciprocal();
+                base.rect(Bounds(pos, Base::text_dimensions(text, s, Font(0.5)) + Vec2(2, 2)), FillClr{Black.alpha(125)}, LineClr{Transparent}, scale);
+                base.text(text, Loc(pos + Vec2(2)), White, Font(0.5), scale);
             }
             
             static std::unordered_map<pv::bid, std::tuple<bool, std::unique_ptr<Circle>, std::unique_ptr<Label>>> _blob_labels;
@@ -349,7 +350,7 @@ void draw_blob_view(const DisplayParameters& parm)
                 circ->set_pos(blob->center());
                 circ->set_scale(parm.scale.reciprocal());
                 
-                e.add<Rect>(blob->bounds(), Transparent, White.alpha(100));
+                e.add<Rect>(blob->bounds(), FillClr{Transparent}, LineClr{White.alpha(100)});
                 e.advance_wrap(*circ);
                 
                 if(d > 0 && real_size > 0) {
@@ -513,7 +514,7 @@ void draw_blob_view(const DisplayParameters& parm)
             auto &grid = parm.cache.processed_frame.blob_grid().get_grid();
             for(auto &set : grid) {
                 for(auto &pixel : set) {
-                    parm.graph.circle(Vec2(pixel.x, pixel.y), 1, Transparent, colors.find(pixel.v) != colors.end() ? colors.at(pixel.v) : Color(255, 0, 255, 255));
+                    parm.graph.circle(Loc(pixel.x, pixel.y), 1, LineClr{Transparent}, FillClr{colors.find(pixel.v) != colors.end() ? colors.at(pixel.v) : Color(255, 0, 255, 255)});
                 }
             }
         });
@@ -696,11 +697,11 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
             s->set_pos(bowl->pos());
             
             const Font font(0.75);
-            Vec2 sca = base.scale().reciprocal().mul(s->scale().reciprocal());
+            Scale sca = base.scale().reciprocal().mul(s->scale().reciprocal());
 
             Vec2 top_left(FLT_MAX, FLT_MAX);
             Vec2 bottom_right(0, 0);
-            float a = 0;
+            Rotation a = 0;
             
             for(auto &boundary : _current_boundary) {
                 if(boundary.size() > 2) {
@@ -728,27 +729,27 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                     a = atan2(v);
                     base.text(
                         Meta::toStr(D)+" px", 
-                        Vec2(boundary[1] - boundary[0]) * 0.5 + boundary[0] + v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525), 
-                        Cyan.alpha(200), 
-                        font, 
-                        sca, 
-                        Vec2(0.5),
-                        a);
-                    
-                    base.text(
-                        Meta::toStr(D * SETTING(cm_per_pixel).value<float>())+" cm", 
-                        Vec2(boundary[1] - boundary[0]) * 0.5 + boundary[0] - v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525), 
+                        Loc(Vec2(boundary[1] - boundary[0]) * 0.5 + boundary[0] + v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525)),
                         Cyan.alpha(200), 
                         font, 
                         sca,
-                        Vec2(0.5), 
-                        a);
+                        Origin(0.5),
+                        Rotation(a));
+                    
+                    base.text(
+                        Meta::toStr(D * SETTING(cm_per_pixel).value<float>())+" cm", 
+                        Loc(Vec2(boundary[1] - boundary[0]) * 0.5 + boundary[0] - v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525)),
+                        Cyan.alpha(200), 
+                        font, 
+                        sca,
+                        Origin(0.5),
+                        Rotation(a));
                 }
                 
                 Font f = font;
                 f.align = Align::Left;
                 for(auto &pt : boundary) {
-                    base.circle(pt, 5, Cyan.alpha(125), Transparent, sca);
+                    base.circle(Loc(pt), 5, LineClr{Cyan.alpha(125)}, sca);
                     //base.text(Meta::toStr(pt), pt + Vec2(7 * f.size, 0), White.alpha(200), f, sca);
                     
                     if(pt.x < top_left.x) top_left.x = pt.x;

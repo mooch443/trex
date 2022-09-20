@@ -252,8 +252,7 @@ bool Tracker::LockGuard::locked() const {
 bool Tracker::LockGuard::init(uint32_t timeout_ms)
 {
     assert(Tracker::instance());
-    assert(!purpose.empty());
-    
+    assert(!_purpose.empty());
     
     auto my_id = std::this_thread::get_id();
     

@@ -523,15 +523,15 @@ public:
                     for(auto && [name, size] : overall.sizes) {
                         auto color = wheel.next();
                         float h = float((size - mi) / float(ma - mi)) * bars.height;
-                        base.add<Rect>(Bounds(x + margin, margin + bars.height - h, bars.width - margin * 2, h), color);
+                        base.add<Rect>(Bounds(x + margin, margin + bars.height - h, bars.width - margin * 2, h), FillClr{color});
                         auto text = elements.at(i);
                         auto pos = Vec2(x + bars.width * 0.5f, margin + bars.height + margin);
                         if(!text) {
-                            text = std::make_shared<StaticText>(utils::trim(utils::find_replace(name, "_", " ")) + "\n<ref>" + Meta::toStr(FileSize{size})+"</ref>", pos, Vec2(bars.width, 20));
+                            text = std::make_shared<StaticText>(utils::trim(utils::find_replace(name, "_", " ")) + "\n<ref>" + Meta::toStr(FileSize{size})+"</ref>", Loc(pos), SizeLimit(bars.width, 20));
                             elements.at(i) = text;
                             text->set_origin(Vec2(0.5, 0));
                             text->set_background(Transparent, Transparent);
-                            text->set_margins(Bounds());
+                            text->set_margins(Margins());
                             
                             auto it = overall.details.find(name);
                             if(it != overall.details.end()) {
@@ -584,7 +584,7 @@ public:
                     }
                     
                     auto str = Meta::toStr(FileSize{overall.bytes});
-                    base.add<Text>(str, Vec2(10, 10), White, Font(0.75));
+                    base.add<Text>(str, Loc(10, 10), White, Font(0.75));
                     
                 });
                 

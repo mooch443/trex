@@ -9,14 +9,15 @@
 #include <file/DataLocation.h>
 
 namespace gui {
-    constexpr float radius = 100;
-    constexpr Color inner_color = White.alpha(200), outer_color = White.alpha(200);
+    constexpr Radius radius = 100;
+    constexpr FillClr inner_color = White.alpha(200);
+    constexpr LineClr outer_color = White.alpha(200);
     
     CropWindow::CropWindow(FrameGrabber& grabber) : circles({
-        std::make_shared<Circle>(Vec2(0), radius, outer_color, inner_color),
-        std::make_shared<Circle>(Vec2(grabber.original_average().cols, 0), radius, outer_color, inner_color),
-        std::make_shared<Circle>(Vec2(grabber.original_average().cols, grabber.original_average().rows), radius, outer_color, inner_color),
-        std::make_shared<Circle>(Vec2(0, grabber.original_average().rows), radius, outer_color, inner_color)
+        std::make_shared<Circle>(Radius{radius}, outer_color, inner_color),
+        std::make_shared<Circle>(Loc(grabber.original_average().cols, 0), radius, outer_color, inner_color),
+        std::make_shared<Circle>(Loc(grabber.original_average().cols, grabber.original_average().rows), radius, outer_color, inner_color),
+        std::make_shared<Circle>(Loc(0, grabber.original_average().rows), radius, outer_color, inner_color)
     })
     {
         std::string source = utils::lowercase(SETTING(video_source).value<std::string>());
@@ -42,7 +43,7 @@ namespace gui {
             file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"Icon64.png")
         });
         
-        _rect = std::make_shared<Rect>(Bounds(), Cyan.alpha(125));
+        _rect = std::make_shared<Rect>(FillClr{Cyan.alpha(125)});
         
         Button okay("apply >", Bounds(_video_size * 0.5, Size2(150, 50)));
         okay.set_origin(Vec2(0.5));

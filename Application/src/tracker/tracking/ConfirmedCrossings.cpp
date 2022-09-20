@@ -24,7 +24,7 @@ void ConfirmedCrossings::draw(gui::DrawStructure & base, Frame_t frame) {
     
     using namespace gui;
     if(!_text) {
-        _text = std::make_shared<StaticText>("", Vec2(200));
+        _text = std::make_shared<StaticText>(Loc(200));
         _text->set_clickable(true);
         _text->set_draggable();
     }

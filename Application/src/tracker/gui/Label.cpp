@@ -7,7 +7,7 @@
 namespace gui {
 
 Label::Label(const std::string& text, const Bounds& source, const Vec2& center)
-    : _text(std::make_shared<StaticText>(text, Vec2())), _source(source), _center(center)
+    : _text(std::make_shared<StaticText>(text)), _source(source), _center(center)
 {
     _text->set_background(Transparent, Transparent);
     _text->set_origin(Vec2(0.5, 1));
@@ -16,7 +16,7 @@ Label::Label(const std::string& text, const Bounds& source, const Vec2& center)
 }
 
 void Label::set_data(const std::string &text, const Bounds &source, const Vec2 &center) {
-    if(text != _text->txt()) {
+    if(text != _text->text()) {
         _text->set_txt(text);
     }
     _source = source;
