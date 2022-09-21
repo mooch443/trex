@@ -119,7 +119,7 @@ namespace gui {
             
             // DRAW MIDLINE / SEGMENTS
             
-            add<Circle>(zero, 3, LineClr{Green});
+            add<Circle>(zero, Radius{3}, LineClr{Green});
             add<Line>(zero, Vec2(zero.x + midline->len(), zero.y), White);
             
             std::vector<Vertex> midline_vertices;
@@ -127,7 +127,7 @@ namespace gui {
                 auto &pt = midline_points.at(i);
                 Loc current = Vec2(pt.pos) * fish_scale + zero;
                 
-                add<Circle>(current, 2, LineClr(0, 255, 255, 255));
+                add<Circle>(current, Radius{2}, LineClr(0, 255, 255, 255));
                 
                 if(pt.height && i > 0)
                     add<Circle>(current,
@@ -142,7 +142,7 @@ namespace gui {
                 auto pt = midline->segments().at(i);
                 Loc current = Vec2(pt.pos) * fish_scale + zero;
                 
-                add<Circle>(current, 1, LineClr{White});
+                add<Circle>(current, Radius{1}, LineClr{White});
                 midline_vertices.push_back(Vertex(current, Color(225, 125, 0, 255)));
             }
             add<Vertices>(midline_vertices, PrimitiveType::LineStrip);
@@ -154,11 +154,11 @@ namespace gui {
             
             if(midline->tail_index() != -1) {
                 if((size_t)midline->tail_index() < outline.size())
-                    add<Circle>(do_rotate(outline.at(midline->tail_index()), angle), 10, LineClr{Blue});
+                    add<Circle>(do_rotate(outline.at(midline->tail_index()), angle), Radius{10}, LineClr{Blue});
             }
             if(midline->head_index() != -1) {
                 if((size_t)midline->head_index() < outline.size())
-                    add<Circle>(do_rotate(outline.at(midline->head_index()), angle), 10, LineClr{Red});
+                    add<Circle>(do_rotate(outline.at(midline->head_index()), angle), Radius{10}, LineClr{Red});
             }
         }
         
@@ -193,30 +193,24 @@ namespace gui {
             outline_vertices.push_back(Vertex(pt, outline_clr));
             
             Color clr;
-            float mi, mx;
             auto c = outline.size() > 3 ? Outline::calculate_curvature(curvature_range, outline, i) : 0;
             float percent = 0.f;
             
             if(c < 0) {
                 clr = negative_clr;
-                mi = n_mi;
-                mx = n_mx;
                 percent = (c + n_mx) / (n_mx+p_mx);
                 
             } else {
                 clr = positive_clr;
-                mi = p_mi;
-                mx = p_mx;
-                
                 percent = (c + n_mx) / (n_mx+p_mx);
             }
             
             clr =  negative_clr * (1.f - percent) + positive_clr * percent;
             
             if(i == 0)
-                add<Circle>(Loc(pt), 5, LineClr{Red}, FillClr{Cyan});
+                add<Circle>(Loc(pt), Radius{5}, LineClr{Red}, FillClr{Cyan});
             else
-                add<Circle>(Loc(pt), 2, LineClr{clr.alpha(0.8 * 255)}, FillClr{clr.alpha(0.6 * 255)});
+                add<Circle>(Loc(pt), Radius{2}, LineClr{clr.alpha(0.8 * 255)}, FillClr{clr.alpha(0.6 * 255)});
         }
         
         auto pt = do_rotate(outline.front(), angle);

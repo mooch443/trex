@@ -393,7 +393,7 @@ Fish::~Fish() {
 
                 // check if we actually have a tail index
                 if (GUIOPTION(gui_show_midline) && _cached_midline && _cached_midline->tail_index() != -1)
-                    window.add<Circle>(Loc(points.at(_cached_midline->tail_index())), 2, LineClr{Blue.alpha(max_color * 0.3f)});
+                    window.add<Circle>(Loc(points.at(_cached_midline->tail_index())), Radius{2}, LineClr{Blue.alpha(max_color * 0.3f)});
 
                 //float right_side = outline->tail_index() + 1;
                 //float left_side = points.size() - outline->tail_index();
@@ -443,7 +443,7 @@ Fish::~Fish() {
                 //window.vertices(line);
 
                 if (head) {
-                    window.add<Circle>(Loc(head->pos<Units::PX_AND_SECONDS>() + offset), 3, LineClr{Red.alpha(max_color)});
+                    window.add<Circle>(Loc(head->pos<Units::PX_AND_SECONDS>() + offset), Radius{3}, LineClr{Red.alpha(max_color)});
                 }
             }
             });
@@ -489,13 +489,13 @@ Fish::~Fish() {
                     _next_frame_cache = _obj.cache_for_frame(_frame + 1_f, next_time);
                 auto estimated = _next_frame_cache.estimated_px + offset;
             
-                _view.add<Circle>(Loc(c_pos), 2, LineClr{White.alpha(max_color)});
+                _view.add<Circle>(Loc(c_pos), Radius{2}, LineClr{White.alpha(max_color)});
                     //auto &fcache = cache.processed_frame.cached_individuals.at(_obj.identity().ID());
                     //auto estimated = cache.estimated_px + offset;
                     //float tdelta = next_time - current_time;
                     //float tdelta = fcache.local_tdelta;
                 _view.add<Line>(c_pos, estimated, clr);
-                _view.add<Circle>(Loc(estimated), 2, LineClr{Transparent}, FillClr{clr});
+                _view.add<Circle>(Loc(estimated), Radius{2}, LineClr{Transparent}, FillClr{clr});
                 
                     //const float max_d = FAST_SETTINGS(track_max_speed) * tdelta / FAST_SETTINGS(cm_per_pixel);
                     //window.circle(estimated, max_d * 0.5, Red.alpha(100));
@@ -574,11 +574,11 @@ Fish::~Fish() {
                     auto eye_scale = max(0.5, _obj.midline_length() / 90);
                     for (auto& eye : eyes) {
                         eye.pos += ph.direction;
-                        _view.add<Circle>(Loc(eye.pos + offset), 5 * eye_scale, LineClr{Black.alpha(200)}, FillClr{White.alpha(125)});
-                        auto c = _view.add<Circle>(Loc(eye.pos + Vec2(2.5).mul(d * eye_scale) + offset), 3 * eye_scale, LineClr{Transparent}, FillClr{Black.alpha(200)});
+                        _view.add<Circle>(Loc(eye.pos + offset), Radius(5 * eye_scale), LineClr{Black.alpha(200)}, FillClr{White.alpha(125)});
+                        auto c = _view.add<Circle>(Loc(eye.pos + Vec2(2.5).mul(d * eye_scale) + offset), Radius(3 * eye_scale), LineClr{Transparent}, FillClr{Black.alpha(200)});
                         c->set_scale(Vec2(1, ph.blinking ? h : 1));
                         c->set_rotation(atan2(ph.direction) + RADIANS(90));//posture->head->angle() + RADIANS(90));
-                        _view.add<Circle>(Loc(eye.pos + Vec2(2.5).mul(d * eye_scale) + Vec2(2 * eye_scale).mul(sun_direction) + offset), sqrt(eye_scale), LineClr{Transparent}, FillClr{White.alpha(200 * c->scale().min())});
+                        _view.add<Circle>(Loc(eye.pos + Vec2(2.5).mul(d * eye_scale) + Vec2(2 * eye_scale).mul(sun_direction) + offset), Radius(sqrt(eye_scale)), LineClr{Transparent}, FillClr{White.alpha(200 * c->scale().min())});
                     }
                 }
             }
@@ -755,7 +755,7 @@ Fish::~Fish() {
                 Loc pos(cmn::cos(angle), -cmn::sin(angle));
                 pos = pos * radius + c_pos;
             
-                _view.add<Circle>(pos, 3, LineClr{circle_clr});
+                _view.add<Circle>(pos, Radius{3}, LineClr{circle_clr});
                 _view.add<Line>(c_pos, pos, circle_clr);
             
                 if(FAST_SETTINGS(posture_direction_smoothing)) {
@@ -1132,7 +1132,7 @@ Fish::~Fish() {
         if(Tracker::instance()->border().in_recognition_bounds(_fish_pos)) {
             if(!_recognition_circle) {
                 // is inside bounds, but we didnt know that yet! start animation
-                _recognition_circle = std::make_shared<Circle>(1, LineClr{Transparent}, FillClr{Cyan.alpha(50)});
+                _recognition_circle = std::make_shared<Circle>(Radius{1}, LineClr{Transparent}, FillClr{Cyan.alpha(50)});
             }
             
             auto ts = GUICache::instance().dt();
@@ -1161,14 +1161,23 @@ Fish::~Fish() {
 void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
     if(GUIOPTION(gui_highlight_categories)) {
         if(_avg_cat != -1) {
-            e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5), _view.size().length(), LineClr{Transparent}, FillClr{ColorWheel(_avg_cat).next().alpha(75)});
+            e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5),
+                          Radius{_view.size().length()},
+                          LineClr{Transparent},
+                          FillClr{ColorWheel(_avg_cat).next().alpha(75)});
         } else {
-            e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5), _view.size().length(), LineClr{Transparent}, FillClr{Purple.alpha(15)});
+            e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5),
+                          Radius{_view.size().length()},
+                          LineClr{Transparent},
+                          FillClr{Purple.alpha(15)});
         }
     }
     
     if(GUIOPTION(gui_show_match_modes)) {
-        e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5), _view.size().length(), LineClr{Transparent}, FillClr{ColorWheel(_match_mode).next().alpha(50)});
+        e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5),
+                      Radius{_view.size().length()},
+                      LineClr{Transparent},
+                      FillClr{ColorWheel(_match_mode).next().alpha(50)});
     }
     
     //auto bdx = blob->blob_id();
@@ -1176,7 +1185,10 @@ void Fish::label(Base* base, Drawable* bowl, Entangled &e) {
         uint32_t i=0;
         for(auto &clique : GUICache::instance()._cliques) {
             if(clique.fishs.contains(_obj.identity().ID())) {
-                e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5), _view.size().length(), LineClr{Transparent}, FillClr{ColorWheel(i).next().alpha(50)});
+                e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5),
+                              Radius{_view.size().length()},
+                              LineClr{Transparent},
+                              FillClr{ColorWheel(i).next().alpha(50)});
                 break;
             }
             ++i;

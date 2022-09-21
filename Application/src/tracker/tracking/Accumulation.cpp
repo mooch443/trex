@@ -1965,7 +1965,7 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
                     continue;
                 }
                 
-                e.add<Circle>(offset, 5, LineClr{color}, FillClr{color.alpha(50)});
+                e.add<Circle>(offset, Radius{5}, LineClr{color}, FillClr{color.alpha(50)});
                 auto text = e.add<Text>(Meta::toStr(i), Loc(offset + Vec2(0, Base::default_line_spacing(font) + 2)), White, font);
                 text = e.add<Text>(Meta::toStr(int(d * 10000) / 100.0)+"%", Loc(offset + Vec2(0, Base::default_line_spacing(font) * 2 + 4)), White, font);
                 offset += Vec2(max(12, text->width() + 10), 0);

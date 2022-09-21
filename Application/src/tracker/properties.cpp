@@ -256,7 +256,10 @@ void async_main(void*) {
 									drawfish->update(ptr, s, e, graph);
 								}
 								//print("\t", fish->identity().name(), " has frame ", index, " at ", basic->centroid.pos<Units::PX_AND_SECONDS>());
-                                graph.circle(Loc(basic->centroid.pos<Units::PX_AND_SECONDS>()), 5, LineClr{fish->identity().color()}, FillClr{fish->identity().color().alpha(150)});
+                                graph.circle(Loc(basic->centroid.pos<Units::PX_AND_SECONDS>()),
+                                             Radius{5},
+                                             LineClr{fish->identity().color()},
+                                             FillClr{fish->identity().color().alpha(150)});
 							}
 						}
 					});

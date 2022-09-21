@@ -514,7 +514,14 @@ void draw_blob_view(const DisplayParameters& parm)
             auto &grid = parm.cache.processed_frame.blob_grid().get_grid();
             for(auto &set : grid) {
                 for(auto &pixel : set) {
-                    parm.graph.circle(Loc(pixel.x, pixel.y), 1, LineClr{Transparent}, FillClr{colors.find(pixel.v) != colors.end() ? colors.at(pixel.v) : Color(255, 0, 255, 255)});
+                    parm.graph.circle(Loc(pixel.x, pixel.y),
+                                      Radius{1},
+                                      LineClr{Transparent},
+                                      FillClr{
+                        colors.find(pixel.v) != colors.end()
+                            ? colors.at(pixel.v)
+                            : Color(255, 0, 255, 255)
+                    });
                 }
             }
         });
@@ -749,7 +756,7 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                 Font f = font;
                 f.align = Align::Left;
                 for(auto &pt : boundary) {
-                    base.circle(Loc(pt), 5, LineClr{Cyan.alpha(125)}, sca);
+                    base.circle(Loc(pt), Radius{5}, LineClr{Cyan.alpha(125)}, sca);
                     //base.text(Meta::toStr(pt), pt + Vec2(7 * f.size, 0), White.alpha(200), f, sca);
                     
                     if(pt.x < top_left.x) top_left.x = pt.x;

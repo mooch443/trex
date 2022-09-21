@@ -608,7 +608,7 @@ void GUI::draw_tracking(gui::DrawStructure &base, const attr::Scale& scale) {
                     //! if this is the last frame, also add the outline to the drawing
                     if (frame == fish->end_frame()) {
                         auto bounds = basic->blob.calculate_bounds();
-                        base.circle(p, 10, LineClr{fish->identity().color()});
+                        base.circle(p, Radius{10}, LineClr{fish->identity().color()});
                         
                         auto posture_index = seg->posture_stuff(frame);
                         if (posture_index != -1) {
@@ -621,9 +621,9 @@ void GUI::draw_tracking(gui::DrawStructure &base, const attr::Scale& scale) {
 
                             // check if we actually have a tail index
                             if (gui_show_midline && _cached_midline && _cached_midline->tail_index() != -1) {
-                                base.circle(Loc(points.at(_cached_midline->tail_index()) + bounds.pos()), 5, LineClr{Blue.alpha(max_color * 0.3)});
+                                base.circle(Loc(points.at(_cached_midline->tail_index()) + bounds.pos()), Radius{5}, LineClr{Blue.alpha(max_color * 0.3)});
                                 if (_cached_midline->head_index() != -1)
-                                    base.circle(Loc(points.at(_cached_midline->head_index()) + bounds.pos()), 5, LineClr{Red.alpha(max_color * 0.3)});
+                                    base.circle(Loc(points.at(_cached_midline->head_index()) + bounds.pos()), Radius{5}, LineClr{Red.alpha(max_color * 0.3)});
                             }
 
                             //float right_side = outline->tail_index() + 1;
