@@ -8,6 +8,7 @@
 #include <video/VideoSource.h>
 #include <gui/types/Dropdown.h>
 #include <gui/types/Tooltip.h>
+#include <gui/types/SettingsTooltip.h>
 
 namespace gui {
 
@@ -160,6 +161,7 @@ public:
     std::string _output_prefix;
     std::vector<std::string> _settings_to_show;
     file::Path _selected;
+    SettingsTooltip _settings_tooltip;
     
 public:
     VideoOpener();

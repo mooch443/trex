@@ -6,6 +6,7 @@
 #include <gui/types/Textfield.h>
 #include <gui/types/Dropdown.h>
 #include <gui/types/Checkbox.h>
+#include <gui/types/SettingsTooltip.h>
 
 namespace gui {
 namespace meta {
@@ -161,7 +162,7 @@ using namespace default_config;
 
 std::map<std::string, std::unique_ptr<meta::LabeledField>> fields;
 VerticalLayout layout;
-
+SettingsTooltip tooltip;
 
 void draw(Frame_t frame, DrawStructure& graph) {
     if(!SETTING(gui_show_individual_preview)) {
@@ -291,6 +292,17 @@ void draw(Frame_t frame, DrawStructure& graph) {
     }
     
     graph.wrap_object(preview);
+    
+    for(auto &[k, f] : fields) {
+        if(f->representative()
+           && f->representative()->hovered())
+        {
+            tooltip.set_other(f->representative());
+            tooltip.set_parameter(k);
+            graph.wrap_object(tooltip);
+            break;
+        }
+    }
 }
 
 }

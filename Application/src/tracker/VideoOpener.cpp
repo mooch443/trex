@@ -464,19 +464,11 @@ VideoOpener::VideoOpener()
         }
         
         if(found && ref) {
-            auto str = "<h3>"+name+"</h3>";
-            
-            str += "type: " +settings::htmlify(ref->get().type_name()) + "\n";
-            if(GlobalSettings::defaults().has(name)) {
-                auto ref = GlobalSettings::defaults().operator[](name);
-                str += "default: " +settings::htmlify(ref.get().valueString()) + "\n";
-            }
-            if(gui::temp_docs.find(name) != gui::temp_docs.end())
-                str += "\n" + settings::htmlify(gui::temp_docs[name]);
-            
-            _file_chooser->set_tooltip(0, found, str);
+            _settings_tooltip.set_parameter(name);
+            _settings_tooltip.set_other(found);
+            _file_chooser->graph()->wrap_object(_settings_tooltip);
         } else
-            _file_chooser->set_tooltip(0, nullptr, "");
+            _settings_tooltip.set_other(nullptr);
 
         
         std::lock_guard guard(_video_mutex);

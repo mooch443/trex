@@ -42,6 +42,7 @@
 
 #include <pv.h>
 #include <file/DataLocation.h>
+#include <gui/types/SettingsTooltip.h>
 
 #if WIN32
 #include <Shellapi.h>
@@ -2341,7 +2342,7 @@ void GUI::draw_footer(DrawStructure& base) {
     });
 #undef SITEM
     
-    static Tooltip tooltip(&PD(footer)._settings_dropdown, 400);
+    static SettingsTooltip tooltip(&PD(footer)._settings_dropdown);
     
     std::vector<Layout::Ptr> objects = { &options_dropdown, &PD(footer)._settings_dropdown};
     static HorizontalLayout layout(objects, Vec2());
@@ -2442,28 +2443,7 @@ void GUI::draw_footer(DrawStructure& base) {
         if(name.empty())
             name = PD(footer)._settings_dropdown.selected_item().name();
         if(!name.empty()) {
-            auto str = "<h3>"+name+"</h3>";
-            auto access = GlobalSettings::access_level(name);
-            if(access > AccessLevelType::PUBLIC) {
-                str += " <i>("+std::string(access.name());
-                if(!GlobalSettings::defaults().has(name))
-                    str += ", non-default";
-                str += ")</i>\n";
-                
-            } else if(!GlobalSettings::defaults().has(name))
-                str += "<i>(non-default)</i>\n";
-            
-            auto ref = GlobalSettings::get(name);
-            str += "type: " +settings::htmlify(ref.get().type_name()) + "\n";
-            if(GlobalSettings::defaults().has(name)) {
-                auto ref = GlobalSettings::defaults().operator[](name);
-                str += "default: " +settings::htmlify(ref.get().valueString()) + "\n";
-            }
-            if(GlobalSettings::has_doc(name))
-                str += "\n" + settings::htmlify(GlobalSettings::doc(name));
-            
-            tooltip.set_scale(base.scale().reciprocal());
-            tooltip.set_text(str);
+            tooltip.set_parameter(name);
             PD(gui).wrap_object(tooltip);
         }
     }
