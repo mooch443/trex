@@ -125,7 +125,7 @@ namespace default_config {
         CONFIG("equalize_histogram", false, "Equalizes the histogram of the image before thresholding and background subtraction.");
         CONFIG("quit_after_average", false, "If set to true, this will terminate the program directly after generating (or loading) a background average image.", STARTUP);
         CONFIG("averaging_method", averaging_method_t::mode, "Determines the way in which the background samples are combined. The background generated in the process will be used to subtract background from foreground objects during conversion.");
-        CONFIG("average_samples", uint32_t(100), "Number of samples taken to generate an average image. Usually fewer are necessary for `averaging_method`s max, and min.");
+        CONFIG("average_samples", uint32_t(100), "Number of samples taken to generate an average image. Usually fewer are necessary for `averaging_method`'s max, and min.");
         CONFIG("reset_average", false, "If set to true, the average will be regenerated using the live stream of images (video or camera).");
         CONFIG("solid_background_color", uchar(255), "A greyscale value in case `enable_difference` is set to false - TGrabs will automatically generate a background image with the given color.");
         CONFIG("video_size", Size2(-1,-1), "Is set to the dimensions of the resulting image.", SYSTEM);
@@ -139,7 +139,7 @@ namespace default_config {
         CONFIG("tags_size_range", Range<double>(0.08,2), "The minimum and maximum area accepted as a (square) physical tag on the individuals.");
         CONFIG("tags_equalize_hist", false, "Apply a histogram equalization before applying a threshold. Mostly this should not be necessary due to using adaptive thresholds anyway.");
         CONFIG("tags_threshold", int(-5), "Threshold passed on to cv::adaptiveThreshold, lower numbers (below zero) are equivalent to higher thresholds / removing more of the pixels of objects and shrinking them. Positive numbers may invert the image/mask.");
-        CONFIG("tags_save_predictions", false, "Save images of tags, sorted into folders labelled according to network predictions (i.e. 'tag 22') to '`output_dir`/tags_`filename`/<individual>.<frame>/*'. ");
+        CONFIG("tags_save_predictions", false, "Save images of tags, sorted into folders labelled according to network predictions (i.e. 'tag 22') to '`output_dir` / `tags_` `filename` / `<individual>.<frame>` / `*`'. ");
         CONFIG("tags_num_sides", Range<int>(3,7), "The number of sides of the tag (e.g. should be 4 if it is a rectangle).");
         CONFIG("tags_approximation", 0.025f, "Higher values (up to 1.0) will lead to coarser approximation of the rectangle/tag shapes.");
         CONFIG("tags_enable", false, "(beta) If enabled, TGrabs will search for (black) square shapes with white insides (and other stuff inside them) - like QRCodes or similar tags. These can then be recognized using a pre-trained machine learning network (see `tags_recognize`), and/or exported to PNG files using `tags_save_predictions`.");

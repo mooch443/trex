@@ -23,7 +23,7 @@ TGrabs parameters
 
 	If available, please provide the approximate length of the video in minutes here, so that the encoding strategy can be chosen intelligently. If set to 0, infinity is assumed. This setting is overwritten by ``stop_after_minutes``.
 
-	.. seealso:: :func:`stop_after_minutes`, 
+	.. seealso:: :func:`stop_after_minutes`
 
 
 .. function:: average_samples(uint)
@@ -31,9 +31,9 @@ TGrabs parameters
 	**default value:** 100
 
 
-	Number of samples taken to generate an average image. Usually fewer are necessary for ``averaging_method``s max, and min.
+	Number of samples taken to generate an average image. Usually fewer are necessary for ``averaging_method``'s max, and min.
 
-	.. seealso:: :func:`averaging_method`, 
+	.. seealso:: :func:`averaging_method`
 
 
 .. function:: averaging_method(averaging_method_t)
@@ -94,7 +94,7 @@ TGrabs parameters
 
 	Size of the dilation/erosion filters for if ``use_closing`` is enabled.
 
-	.. seealso:: :func:`use_closing`, 
+	.. seealso:: :func:`use_closing`
 
 
 .. function:: color_channel(uchar)
@@ -149,7 +149,7 @@ TGrabs parameters
 
 	When enabled, live tracking will be executed for every frame received. Frames will be sent to the 'closed_loop.py' script - see this script for more information. Sets ``enable_live_tracking`` to true. Allows the tracker to skip frames by default, in order to catch up to the video.
 
-	.. seealso:: :func:`enable_live_tracking`, 
+	.. seealso:: :func:`enable_live_tracking`
 
 
 .. function:: enable_difference(bool)
@@ -159,7 +159,7 @@ TGrabs parameters
 
 	Enables background subtraction. If disabled, ``threshold`` will be applied to the raw greyscale values instead of difference values.
 
-	.. seealso:: :func:`threshold`, 
+	.. seealso:: :func:`threshold`
 
 
 .. function:: enable_live_tracking(bool)
@@ -196,7 +196,7 @@ TGrabs parameters
 
 	If set to true, live tracking will always overwrite a settings file with ``filename``.settings in the output folder.
 
-	.. seealso:: :func:`filename`, 
+	.. seealso:: :func:`filename`
 
 
 .. function:: image_adjust(bool)
@@ -206,7 +206,7 @@ TGrabs parameters
 
 	Converts the image to floating-point (temporarily) and performs f(x,y) * ``image_contrast_increase`` + ``image_brightness_increase`` plus, if enabled, squares the image (``image_square_brightness``).
 
-	.. seealso:: :func:`image_contrast_increase`, :func:`image_brightness_increase`, :func:`image_square_brightness`, 
+	.. seealso:: :func:`image_contrast_increase`, :func:`image_brightness_increase`, :func:`image_square_brightness`
 
 
 .. function:: image_brightness_increase(float)
@@ -216,7 +216,7 @@ TGrabs parameters
 
 	Value that is added to the preprocessed image before applying the threshold (see ``image_adjust``). The neutral value is 0 here.
 
-	.. seealso:: :func:`image_adjust`, 
+	.. seealso:: :func:`image_adjust`
 
 
 .. function:: image_contrast_increase(float)
@@ -226,7 +226,7 @@ TGrabs parameters
 
 	Value that is multiplied to the preprocessed image before applying the threshold (see ``image_adjust``). The neutral value is 1 here.
 
-	.. seealso:: :func:`image_adjust`, 
+	.. seealso:: :func:`image_adjust`
 
 
 .. function:: image_square_brightness(bool)
@@ -371,7 +371,7 @@ TGrabs parameters
 
 	A greyscale value in case ``enable_difference`` is set to false - TGrabs will automatically generate a background image with the given color.
 
-	.. seealso:: :func:`enable_difference`, 
+	.. seealso:: :func:`enable_difference`
 
 
 .. function:: stop_after_minutes(uint)
@@ -390,7 +390,7 @@ TGrabs parameters
 
 	Custom override of how many bytes of system RAM the program is allowed to fill. If ``approximate_length_minutes`` or ``stop_after_minutes`` are set, this might help to increase the resulting RAW video footage frame_rate.
 
-	.. seealso:: :func:`approximate_length_minutes`, :func:`stop_after_minutes`, 
+	.. seealso:: :func:`approximate_length_minutes`, :func:`stop_after_minutes`
 
 
 .. function:: tags_approximation(float)
@@ -418,7 +418,7 @@ TGrabs parameters
 
 	(beta) If enabled, TGrabs will search for (black) square shapes with white insides (and other stuff inside them) - like QRCodes or similar tags. These can then be recognized using a pre-trained machine learning network (see ``tags_recognize``), and/or exported to PNG files using ``tags_save_predictions``.
 
-	.. seealso:: :func:`tags_recognize`, :func:`tags_save_predictions`, 
+	.. seealso:: :func:`tags_recognize`, :func:`tags_save_predictions`
 
 
 .. function:: tags_equalize_hist(bool)
@@ -444,7 +444,7 @@ TGrabs parameters
 	**default value:** "tag_recognition_network.h5"
 
 
-	The pretrained model used to recognize QRcodes/tags according to `<https://github.com/jgraving/pinpoint/blob/2d7f6803b38f52acb28facd12bd106754cad89bd/barcodes/old_barcodes_py2/4x4_4bit/master_list.pdf>`_. Path to a pretrained network .h5 file that takes 32x32px images of tags and returns a (N, 122) shaped tensor with 1-hot encoding.
+	The pretrained model used to recognize QRcodes/tags according to `https://github.com/jgravi[...]/master_list.pdf <https://github.com/jgraving/pinpoint/blob/2d7f6803b38f52acb28facd12bd106754cad89bd/barcodes/old_barcodes_py2/4x4_4bit/master_list.pdf>`_. Path to a pretrained network .h5 file that takes 32x32px images of tags and returns a (N, 122) shaped tensor with 1-hot encoding.
 
 
 
@@ -464,7 +464,7 @@ TGrabs parameters
 
 	(beta) Apply an existing machine learning network to turn images of tags into tag ids (numbers, e.g. 1-122). Be sure to set ``tags_model_path`` along-side this.
 
-	.. seealso:: :func:`tags_model_path`, 
+	.. seealso:: :func:`tags_model_path`
 
 
 .. function:: tags_save_predictions(bool)
@@ -472,9 +472,9 @@ TGrabs parameters
 	**default value:** false
 
 
-	Save images of tags, sorted into folders labelled according to network predictions (i.e. 'tag 22') to '``output_dir``/tags_``filename``/<individual>.<frame>/*'. 
+	Save images of tags, sorted into folders labelled according to network predictions (i.e. 'tag 22') to '``output_dir`` / ``tags_`` ``filename`` / ``<individual>.<frame>`` / ``*``'. 
 
-	.. seealso:: :func:`output_dir`, :func:`filename`, 
+	.. seealso:: :func:`output_dir`, :func:`filename`
 
 
 .. function:: tags_saved_only(bool)
@@ -520,7 +520,7 @@ TGrabs parameters
 
 	Defines, which test image will be used if ``video_source`` is set to 'test_image'.
 
-	.. seealso:: :func:`video_source`, 
+	.. seealso:: :func:`video_source`
 
 
 .. function:: tgrabs_use_threads(bool)
@@ -566,7 +566,7 @@ TGrabs parameters
 
 	Toggles the attempt to close weird blobs using dilation/erosion with ``closing_size`` sized filters.
 
-	.. seealso:: :func:`closing_size`, 
+	.. seealso:: :func:`closing_size`
 
 
 .. function:: video_conversion_range(pair<int,int>)
