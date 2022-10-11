@@ -43,7 +43,7 @@ There are two ways to get your own version of |trex|:
 * creating a local conda channel, and installing from there
 * running CMake/build manually with customized options
 
-Both are obviously similar in result, but there *are* differences (the local channel is essentially a script for the manual procedure, with some caveats). For example, the conda build is limited to certain compiler and OS-SDK versions -- which is something that you may want to change in order to enable certain optimizations. We start out here by describing the more automated way using conda, followed by a description of how to do everything manually.
+Both are obviously similar in result, but there *are* differences (the local channel is essentially a script for the manual procedure, with some caveats). For example, the conda build is limited to certain compiler and OS-SDK versions -- which is something that you may want to change in order to enable certain optimizations. There is also no straight-forward way to add options like enabling Pylon support, for which you'd have to go the manual way described after the next section. We start out here by describing the more rigid (but more automated) way using conda, followed by a description of how to do everything manually.
 
 Local conda channel
 ===================
@@ -78,27 +78,31 @@ Compiling manually
 
 First, make sure that you fulfill the platform-specific requirements:
 
-* **Windows**: Please make sure you have Visual Studio installed on your computer. It can be downloaded for free from https://visualstudio.microsoft.com. We have tested Visual Studio versions 2017 and 2019. We are using the Anaconda PowerShell here in our examples.
-* **MacOS**: Make sure you have Xcode and the Xcode compiler tools installed. They can be downloaded for free from the App Store (Xcode includes the compiler tools). We used macOS 10.15 and Xcode 11.5.
-* **Linux**: You should have build-essential installed, as well as ``g++ >=8`` or a different compiler with full C++17 support.
+* **Windows**: Please make sure you have Visual Studio installed on your computer. It can be downloaded for free from https://visualstudio.microsoft.com. We have tested Visual Studio versions 2019 up to 2022. We are using the Anaconda PowerShell here in our examples.
+* **MacOS**: Make sure you have Xcode and the Xcode compiler tools installed. They can be downloaded for free from the App Store (Xcode includes the compiler tools). We used ``macOS >=10.15`` and ``Xcode >=11.5``.
+* **Linux**: You should have build-essential installed, as well as ``g++ >=9.3`` or a different compiler with full C++20 support.
 
 As well as the general requirements:
 
-* **Python**: We use version ``>= 3.7``.
-* **CMake**: Version ``>= 3.18``.
+* **Python**: We use version ``>= 3.7,<4``.
+* **CMake**: Version ``>= 3.22``.
 
 .. NOTE::
 	We will be using Anaconda here. However, it is not *required* to use Anaconda when compiling |trex| -- it is just a straight-forward way to obtain dependencies. In case you do not want to use Anaconda, please make sure that all mentioned dependencies are installed in a way that can be detected by CMake. You may also add necessary paths to the CMake command-line, such as ``-DOpenCV_DIR=/path/to/opencv`` and use switches to compile certain libraries (such as OpenCV) statically with |trex|.
 
 The easiest way to ensure that all requirements are met, is by using conda to create a new environment::
 
-	conda create -n tracking cmake ffmpeg tensorflow=2 cxx-compiler c-compiler mesa-libgl-devel-cos6-x86_64 libxdamage-devel-cos6-x86_64 libxi-devel-cos6-x86_64 libxxf86vm-cos6-x86_64 libselinux-devel-cos6-x86_64 libuuid-devel-cos6-x86_64 mesa-libgl-devel-cos6-x86_64
+	# Windows
+	conda create -n trex git cmake ffmpeg tensorflow=2
+	
+	# Linux
+	conda create -n trex git cmake ffmpeg tensorflow=2 cxx-compiler c-compiler mesa-libgl-devel-cos6-x86_64 libxdamage-devel-cos6-x86_64 libxi-devel-cos6-x86_64 libxxf86vm-cos6-x86_64 libselinux-devel-cos6-x86_64 libuuid-devel-cos6-x86_64 mesa-libgl-devel-cos6-x86_64
 
 If your GPU is supported by TensorFlow, you can modify the above line by appending ``-gpu`` to ``tensorflow`` to get ``tensorflow-gpu=2``.
 	
 Next, switch to the conda environment using::
 
-	conda activate tracking
+	conda activate trex
 
 You can now clone the repository and change your directory to a build folder::
 

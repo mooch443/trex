@@ -4321,7 +4321,9 @@ void GUI::generate_training_data(std::future<void>&& initialized, GUI::GUIType t
                                 
                             // TODO: MISSING
                             //Tracker::recognition()->check_last_prediction_accuracy();
-                                
+                            if(!instance())
+                                return;
+                            
                             std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
                             instance()->auto_correct(GUI::GUIType::TEXT, true);
                         });

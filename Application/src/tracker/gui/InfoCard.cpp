@@ -184,15 +184,15 @@ void InfoCard::update() {
         add<Text>(" (inactive)", Loc(text->pos() + Vec2(text->width(), 0)), Gray.alpha(clr.a), Font(0.9f, Style::Bold));
     }
     
-    auto &segments = _shadow->segments;
     segment_texts.clear();
     
     auto add_segments = [txt = text, this
 #if DEBUG_ORIENTATION
                          ,fish
 #endif
-                         ](bool display_hints, const std::vector<ShadowSegment>& segments, float offx) {
-        auto text = add<Text>(Meta::toStr(segments.size())+" segments", Loc(txt->pos() + Vec2(offx, Base::default_line_spacing(txt->font()))), White, Font(0.8f));
+                         ](bool display_hints, const std::vector<ShadowSegment>& segments, float offx)
+    {
+        auto text = add<Text>(Meta::toStr(segments.size())+" segments "+Meta::toStr(offx)+" "+Meta::toStr(Base::default_line_spacing(txt->font())), Loc(txt->pos() + Vec2(offx, Base::default_line_spacing(txt->font()))), White, Font(0.8f));
         
 #if DEBUG_ORIENTATION
         auto reason = fish->why_orientation(frameNr);

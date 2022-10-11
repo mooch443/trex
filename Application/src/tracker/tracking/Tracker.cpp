@@ -891,6 +891,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         
         auto check_blob = [&tags_dont_track, &track_ignore, &track_include, &result, &cm_sqr](const pv::BlobPtr& b)
         {
+            // TODO: magic numbers
             if(b->pixels()->size() * cm_sqr > result->fish_size.max_range().end * 100)
                 b->force_set_recount(result->threshold);
             else
@@ -919,8 +920,6 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         };
 
         for(; it != end; ++it) {
-            ptrs.clear();
-            
             auto &b = *it;
             
             if(!check_blob(b))
@@ -928,7 +927,6 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
             
             float recount = b->recount(-1);
             
-            // TODO: magic numbers
             //! If the size is appropriately big, try to split the blob using the minimum of threshold and
             //  posture_threshold. Using the minimum ensures that the thresholds dont depend on each other
             //  as the threshold used here will reduce the number of available pixels for posture analysis
@@ -955,9 +953,6 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
             
             //! actually add the blob(s) to the filtered/filtered_out arrays
             for(auto& ptr : ptrs) {
-                //if(!result->fish_size.close_to_maximum_of_one( ptr->pixels()->size() * cm_sqr, 100))
-                //    ptr->force_set_recount(result->threshold);
-                //recount = ptr->recount(result->threshold, *result->background);
                 recount = ptr->recount(-1);
 
                 if(result->fish_size.in_range_of_one(recount)) {
@@ -991,11 +986,9 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                 } else
                     big_blobs.push_back(ptr);
             }
+            
+            ptrs.clear();
         }
-        
-        /*if(!big_blobs.empty()) {
-            print("Frame ", result->frame_index,": ",big_blobs.size()," big blobs");
-        }*/
         
         for(auto &blob : filtered)
             blob->calculate_moments();
@@ -1039,7 +1032,11 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
         size_t needed_threads = min(maximal_threads / (size_t)FAST_SETTINGS(blobs_per_thread), available_threads);
         std::shared_lock guard(Categorize::DataStore::range_mutex());
         
-        if (maximal_threads > 1 && needed_threads > 1 && available_threads > 1 && pool) {
+        if (maximal_threads > 1
+            && needed_threads > 1
+            && available_threads > 1
+            && pool)
+        {
             size_t used_threads = min(needed_threads, available_threads);
             size_t last = num_blobs % used_threads;
             size_t per_thread = (num_blobs - last) / used_threads;

@@ -779,7 +779,7 @@ Label::Ptr DataStore::_label_unsafe(Frame_t idx, const pv::CompressedBlob* blob)
 }
 
 void Work::add_training_sample(const Sample::Ptr& sample) {
-    {
+    if(sample) {
         std::lock_guard guard(DataStore::mutex());
         _labels[sample->_assigned_label].push_back(sample);
         Work::_number_labels = _labels.size();

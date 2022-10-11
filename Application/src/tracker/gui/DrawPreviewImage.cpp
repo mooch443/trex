@@ -22,7 +22,7 @@ struct LabeledField {
         : _text(std::make_shared<gui::Text>(name))
           //_joint(std::make_shared<gui::HorizontalLayout>(std::vector<Layout::Ptr>{_text, _text_field}))
     {
-        _text->set_font(Font(0.6f));
+        _text->set_font(Font(0.6f, Style::Bold));
         _text->set_color(White);
     }
     
