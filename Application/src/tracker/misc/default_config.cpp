@@ -476,6 +476,7 @@ file::Path conda_environment_path() {
         CONFIG("web_time_threshold", float(0.050), "Maximum refresh rate in seconds for the web interface.");
         
         CONFIG("correct_illegal_lines", false, "In older versions of the software, blobs can be constructed in 'illegal' ways, meaning the lines might be overlapping. If the software is printing warnings about it, this should probably be enabled (makes it slower).");
+        CONFIG("evaluate_thresholds", false, "This option, if enabled, previews the effects of all possible thresholds when applied to the given video. These are shown as a graph in a separate window. Can be used to debug parameters instead of try-and-error. Might take a few minutes to finish calculating.", STARTUP);
         
         auto output_graphs = std::vector<std::pair<std::string, std::vector<std::string>>>
         {

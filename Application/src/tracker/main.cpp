@@ -864,15 +864,15 @@ int main(int argc, char** argv)
         
         float start_threshold = 5;
         float end_threshold = 230;
-        float threshold_step = (end_threshold - 20 - start_threshold) / narrow_cast<float>(values.size());
+        float threshold_step = (end_threshold - start_threshold) / narrow_cast<float>(values.size()) + 0.5;
         
         GenericThreadPool pool(cmn::hardware_concurrency(), "evaluate_thresholds");
         std::mutex sync;
         
         size_t added_frames = 0, processed_frames = 0;
         
-        auto range = arange<size_t>(0, video.length()-1);
-        distribute_vector([&](auto, auto start, auto end, auto){
+        auto range = arange<size_t>(0, video.length()-1, size_t(float(video.length()) / 1000.f));
+        distribute_vector([&](auto i, auto start, auto end, auto){
             pv::Frame frame;
             for(auto it = start; it != end; ++it) {
                 frame.clear();
@@ -882,7 +882,6 @@ int main(int argc, char** argv)
                 size_t j = 0;
                 for(float threshold = start_threshold; threshold <= end_threshold; threshold += threshold_step, ++j)
                 {
-                    
                     float pixel_average = 0, pixel_samples = 0;
                     float number = 0;
                     
@@ -923,6 +922,8 @@ int main(int argc, char** argv)
                         medians.at(j).addNumber(narrow_cast<int>(number));
                     }
                 }
+                
+                assert(j <= values.size());
             }
             
             std::lock_guard<std::mutex> guard(sync);
