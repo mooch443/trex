@@ -397,7 +397,7 @@ void draw_blob_view(const DisplayParameters& parm)
                     if(!contains(copy[GUI::frame()], clicked_blob_id)) {
                         copy[GUI::frame()].insert(clicked_blob_id);
                     }
-                    GUI::work().add_queue("", [copy](){
+                    WorkProgress::add_queue("", [copy](){
                         SETTING(manual_splits) = copy;
                     });
                 } else {

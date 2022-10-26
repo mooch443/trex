@@ -116,7 +116,7 @@ struct ScreenRecorder::Data {
         }
     }
     
-    void stop_recording(Base* base, DrawStructure* graph, WorkProgress* progress) {
+    void stop_recording(Base* base, DrawStructure* graph) {
         if(!_recording)
             return;
             
@@ -128,13 +128,13 @@ struct ScreenRecorder::Data {
             _recording_capture = NULL;
             
             file::Path ffmpeg = SETTING(ffmpeg_path);
-            if(!ffmpeg.empty() && progress && graph) {
+            if(!ffmpeg.empty() && graph) {
                 file::Path save_path = _recording_path.replace_extension("mov");
                 std::string cmd = ffmpeg.str()+" -i \""+_recording_path.str()+"\" -vcodec h264 -pix_fmt yuv420p -crf 15 -y \""+save_path.str()+"\"";
                 
-                graph->dialog([save_path, cmd, progress](Dialog::Result result){
+                graph->dialog([save_path, cmd](Dialog::Result result){
                     if(result == Dialog::OKAY) {
-                        progress->add_queue("converting video...", [cmd=cmd, save_path=save_path](){
+                        WorkProgress::add_queue("converting video...", [cmd=cmd, save_path=save_path](){
                             print("Running ",cmd,"..");
                             if(system(cmd.c_str()) == 0)
                                 print("Saved video at ", save_path.str(),".");
@@ -291,8 +291,8 @@ void ScreenRecorder::start_recording(Base*base, Frame_t frame) {
     _data->start_recording(base, frame);
 }
 
-void ScreenRecorder::stop_recording(Base *base, DrawStructure *graph, WorkProgress* progress) {
-    _data->stop_recording(base, graph, progress);
+void ScreenRecorder::stop_recording(Base *base, DrawStructure *graph) {
+    _data->stop_recording(base, graph);
 }
 
 void ScreenRecorder::set_frame(cmn::Frame_t frame) {

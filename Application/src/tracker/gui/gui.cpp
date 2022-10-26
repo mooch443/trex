@@ -276,11 +276,14 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
     _direction_change(false), _play_direction(1),
     _base(NULL),
     _blob_thread_pool(cmn::hardware_concurrency(), "GUI::blob_thread_pool", [](std::exception_ptr e) {
-        GUI::work().add_queue("", [e](){
+        WorkProgress::add_queue("", [e](){
             try {
                 std::rethrow_exception(e);
             } catch(const std::exception& ex) {
-                GUI::instance()->gui().dialog("An error occurred in the blob thread pool:\n<i>"+std::string(ex.what())+"</i>", "Error");
+                if(GUI::instance())
+                    GUI::instance()->gui().dialog("An error occurred in the blob thread pool:\n<i>"+std::string(ex.what())+"</i>", "Error");
+                else
+                    FormatExcept("An error occurred in the blob thread pool: ", std::string(ex.what()));
             }
         });
     }),
@@ -341,7 +344,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
         if(!GUI::instance())
             return;
         
-        this->work().add_queue("", [this, name, &value](){
+        WorkProgress::add_queue("", [this, name, &value](){
             if(!GUI::instance())
                 return;
             
@@ -384,7 +387,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
         
             if((name == "track_threshold" || name == "grid_points" || name == "recognition_shapes" || name == "grid_points_scaling" || name == "recognition_border_shrink_percent" || name == "recognition_border" || name == "recognition_coeff" || name == "recognition_border_size_rescale") && Tracker::instance())
             {
-                this->work().add_queue("updating border", [this, name](){
+                WorkProgress::add_queue("updating border", [this, name](){
                     if(name == "recognition_coeff" || name == "recognition_border_shrink_percent" || name == "recognition_border_size_rescale" || name == "recognition_border") {
                         PD(tracker).border().clear();
                     }
@@ -485,7 +488,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
                         first_run = false;
                     compare = matches;
                     
-                    this->work().add_queue("updating with new manual matches...", [matches](){
+                    WorkProgress::add_queue("updating with new manual matches...", [matches](){
                         //Tracker::LockGuard tracker_lock;
                         auto first_change = Tracker::instance()->update_with_manual_matches(matches);
                         reanalyse_from(first_change, true);
@@ -529,8 +532,6 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
         });
     };
     
-    PDP(work_progress) = new WorkProgress;
-    
     GlobalSettings::map().register_callback(callback, changed);
     changed(sprite::Map::Signal::NONE, GlobalSettings::map(), "manual_matches", SETTING(manual_matches).get());
     changed(sprite::Map::Signal::NONE, GlobalSettings::map(), "manual_splits", SETTING(manual_splits).get());
@@ -558,7 +559,7 @@ GUI::GUI(pv::File& video_source, const Image& average, Tracker& tracker)
     if (py::python_available()) {
         track::PythonIntegration::set_display_function([](const std::string& name, const cv::Mat& image)
         {
-            GUI::work().set_image(name, Image::Make(image));
+            WorkProgress::set_image(name, Image::Make(image));
         });
     }
 #endif
@@ -591,7 +592,7 @@ GUI::~GUI() {
     
     if(_private_data->_recorder.recording()) {
         std::lock_guard<std::recursive_mutex> guard(_private_data->_gui.lock());
-        _private_data->_recorder.stop_recording(nullptr, nullptr, nullptr);
+        _private_data->_recorder.stop_recording(nullptr, nullptr);
     }
 
     delete _private_data;
@@ -629,12 +630,6 @@ gui::DrawStructure& GUI::gui() {
 
 gui::FrameInfo& GUI::frameinfo() {
     return instance()->_frameinfo;
-}
-
-WorkProgress& GUI::work() {
-    if (!instance())
-        throw U_EXCEPTION("No instance.");
-    return PD(work_progress);
 }
 
 void GUI::run(bool r) {
@@ -860,7 +855,7 @@ void GUI::start_recording() {
 }
 
 void GUI::stop_recording() {
-    PD(recorder).stop_recording(instance()->base(), &gui(), &work());
+    PD(recorder).stop_recording(instance()->base(), &gui());
 }
 
 void GUI::trigger_redraw() {
@@ -1063,7 +1058,7 @@ void GUI::draw(DrawStructure &base) {
      * -----------------------------
      */
     base.section("loading", [](DrawStructure& base, auto section) {
-        GUI::work().update(base, section);
+        WorkProgress::update(base, section);
     });
 }
 
@@ -1109,7 +1104,7 @@ void GUI::reanalyse_from(Frame_t frame, bool in_thread) {
     };
     
     if(in_thread)
-        GUI::work().add_queue("calculating", fn);
+        WorkProgress::add_queue("calculating", fn);
     else
         fn();
 }
@@ -1873,7 +1868,7 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                 if(!running) {
                     running = true;
                     
-                    work().add_queue("generate images", [&]()
+                    WorkProgress::add_queue("generate images", [&]()
                     {
                         auto && [data, images, image_map] = Accumulation::generate_discrimination_data();
                         auto && [u, umap, uq] = Accumulation::calculate_uniqueness(false, images, image_map);
@@ -2127,7 +2122,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
         }
 #if !COMMONS_NO_PYTHON
         else if(settings_dropdown.text() == "print_uniqueness") {
-            work().add_queue("discrimination", [](){
+            WorkProgress::add_queue("discrimination", [](){
                 auto && [data, images, map] = Accumulation::generate_discrimination_data();
                 auto && [unique, unique_map, up] = Accumulation::calculate_uniqueness(false, images, map);
                 
@@ -2160,7 +2155,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
             ol.print();
             
         } else if(settings_dropdown.text() == "heatmap") {
-            this->work().add_queue("generating heatmap", [](){
+            WorkProgress::add_queue("generating heatmap", [](){
                 Tracker::LockGuard guard(ro_t{}, "settings_dropdown.text() heatmap");
                 
                 cv::Mat map(PD(video_source).header().resolution.height, PD(video_source).header().resolution.width, CV_8UC4);
@@ -2184,7 +2179,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
                     }
                     
                     ++count;
-                    work().set_percent(count / float(Tracker::instance()->individuals().size()));
+                    WorkProgress::set_percent(count / float(Tracker::instance()->individuals().size()));
                 }
                 
                 auto mval = *std::max_element(grid.begin(), grid.end());
@@ -2702,14 +2697,33 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
     
     const auto mode = GUI_SETTINGS(gui_mode);
     const auto draw_blobs = GUI_SETTINGS(gui_show_blobs) || mode != gui::mode_t::tracking;
-    //const double coverage = double(PD(cache)._num_pixels) / double(collection->source()->rows * collection->source()->cols);
-#if defined(TREX_ENABLE_EXPERIMENTAL_BLUR) && defined(__APPLE__) && TREX_METAL_AVAILABLE
-    const bool draw_blobs_separately =
-    (!GUI_SETTINGS(gui_blur_enabled) || !std::is_same<MetalImpl, default_impl_t>::value || GUI_SETTINGS(gui_mode) != gui::mode_t::blobs) && coverage < 0.002 && draw_blobs;
+    //const double coverage = double(PD(cache)._num_pixels) / double(PD(collection)->source()->rows * PD(collection)->source()->cols);
+#if defined(TREX_ENABLE_EXPERIMENTAL_BLUR) && defined(__APPLE__) && COMMONS_METAL_AVAILABLE
+    const bool draw_blobs_separately = SETTING(gui_draw_blobs_separately) || GUI_SETTINGS(gui_blur_enabled);//(GUI_SETTINGS(gui_blur_enabled) || coverage < 0.002);
+    //(!GUI_SETTINGS(gui_blur_enabled) || !std::is_same<MetalImpl, default_impl_t>::value || GUI_SETTINGS(gui_mode) != gui::mode_t::blobs) && coverage < 0.002 && draw_blobs;
 #else
     const bool draw_blobs_separately = false;//coverage < 0.002 && draw_blobs;
 #endif
     bool redraw_blobs = PD(cache).raw_blobs_dirty();
+    
+    /*struct FPS {
+        double fps = 0, samples = 0, ratio = 0;
+    };
+    static std::map<bool, FPS> playback;
+    auto &play = playback[draw_blobs_separately];
+    play.fps += PD(tdelta_gui);
+    ++play.samples;
+    play.ratio += coverage;
+    
+    SETTING(gui_draw_blobs_separately) = !SETTING(gui_draw_blobs_separately).value<bool>();
+    
+    if(int(play.samples) % 500 == 0)
+    {
+        print("playback(together): ", 1.0 / (playback[false].fps / playback[false].samples), " at average coverage ", playback[false].ratio / playback[false].samples);
+        print("playback(separate): ", 1.0 / (playback[true].fps / playback[true].samples) , " at average coverage ", playback[true].ratio / playback[true].samples);
+        print("---");
+        playback[false].fps = playback[false].samples = playback[true].fps = playback[true].samples = 0;
+    }*/
     
     
     base.section("fishbowl", [&](DrawStructure &base, Section* section) {
@@ -2784,10 +2798,10 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
                     //if(blob_fish.find(b->blob_id()) == blob_fish.end())
                     {
 #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
-#if defined(__APPLE__) && TREX_METAL_AVAILABLE
+#if defined(__APPLE__) && COMMONS_METAL_AVAILABLE
                         if(GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)
                         {
-                            ptr->tag(Effects::blur);
+                            ptr->ptr->tag(Effects::blur);
                         }
 #endif
 #endif
@@ -2798,10 +2812,10 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
             } else {
                 for(auto &[b, ptr] : PD(cache).display_blobs) {
 #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
-#if defined(__APPLE__) && TREX_METAL_AVAILABLE
+#if defined(__APPLE__) && COMMONS_METAL_AVAILABLE
                     if(GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)
                     {
-                        e->untag(Effects::blur);
+                        ptr->ptr->untag(Effects::blur);
                     }
 #endif
 #endif
@@ -2816,6 +2830,12 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
         }
     });
     
+    /**
+     * Drawing all blobs separately is deemed inefficient.
+     * (if most of the screen is covered with individuals,
+     * it's usually better to draw them on one image and
+     * then draw that instead).
+     */
     if(!draw_blobs_separately && draw_blobs) {
         if(redraw_blobs) {
             auto mat = PD(collection)->source()->get();
@@ -2826,17 +2846,20 @@ void GUI::draw_raw(gui::DrawStructure &base, Frame_t) {
                 
             }, _blob_thread_pool, (int*)PD(collection)->source()->data(), (int*)PD(collection)->source()->data() + PD(collection)->source()->cols * PD(collection)->source()->rows);
             
-            distribute_vector([&mat](auto, auto start, auto end, auto){
+            const auto image = Bounds(Size2(mat));
+            
+            distribute_vector([&mat, &image](auto, auto start, auto end, auto){
                 for(auto it = start; it != end; ++it) {
                     auto& e = *it;
                     auto input = e.second->ptr->source()->get();
                     auto &bounds = e.second->ptr->bounds();
-                    if(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width < mat.cols && bounds.y + bounds.height < mat.rows) {
+                    
+                    if(image.contains(bounds)) {
                         assert(input.channels() == 2);
                         assert(mat.channels() == 4);
                         
-                        for (int y = bounds.y; y < bounds.y + bounds.height; ++y) {
-                            for (int x = bounds.x; x < bounds.x + bounds.width; ++x) {
+                        for (int y = bounds.y; y < bounds.y + bounds.height && y - image.y < image.height; ++y) {
+                            for (int x = bounds.x; x < bounds.x + bounds.width && x - image.x < image.width; ++x) {
                                 auto inp = Color(input.template at<cv::Vec2b>(y - bounds.y, x - bounds.x));
                                 if(inp.a > 0)
                                     mat.at<cv::Vec4b>(y, x) = inp;
@@ -2946,7 +2969,7 @@ void GUI::confirm_terminate() {
     
     terminate_visible = true;
     
-    work().add_queue("", [ptr = &terminate_visible](){
+    WorkProgress::add_queue("", [ptr = &terminate_visible](){
         std::lock_guard<std::recursive_mutex> lock_guard(PD(gui).lock());
         PD(gui).dialog([ptr = ptr](Dialog::Result result) {
             if(result == Dialog::Result::OKAY) {
@@ -2968,7 +2991,7 @@ void GUI::update_backups() {
 }
 
 void GUI::start_backup() {
-    work().add_queue("", [](){
+    WorkProgress::add_queue("", [](){
         print("Writing backup of settings...");
         GUI::write_config(true, TEXT, "backup");
     });
@@ -3146,7 +3169,7 @@ void GUI::key_event(const gui::Event &event) {
                 PD(analysis).set_paused(!PD(analysis).paused());
             };
             
-            work().add_queue(PD(analysis).paused() ? "Unpausing..." : "Pausing...", fn);
+            WorkProgress::add_queue(PD(analysis).paused() ? "Unpausing..." : "Pausing...", fn);
             break;
         }
             
@@ -3227,7 +3250,7 @@ void GUI::key_event(const gui::Event &event) {
             break;
             
         case Codes::S:
-            work().add_queue("Saving to "+(std::string)GUI_SETTINGS(output_format).name()+" ...", [this]() { export_tracks(); });
+            WorkProgress::add_queue("Saving to "+(std::string)GUI_SETTINGS(output_format).name()+" ...", [this]() { export_tracks(); });
             break;
             
         case Codes::T:
@@ -3295,7 +3318,7 @@ void GUI::key_event(const gui::Event &event) {
         }
             
         case Codes::K: {
-            work().add_queue("", [this](){
+            WorkProgress::add_queue("", [this](){
                 bool before = PD(analysis).is_paused();
                 PD(analysis).set_paused(true).get();
                 
@@ -3312,7 +3335,7 @@ void GUI::key_event(const gui::Event &event) {
                 }*/
                 
                 Tracker::instance()->check_segments_identities(false, Tracker::IdentitySource::MachineLearning, [](auto){}, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
-                    this->work().add_queue(t, fn, b);
+                    WorkProgress::add_queue(t, fn, b);
                 }, frame());
                 
                 if(!before)
@@ -3339,7 +3362,7 @@ void GUI::key_event(const gui::Event &event) {
                         throw U_EXCEPTION("Cannot create folder ",fishdata.str()," for saving fishdata.");
                 
                 try {
-                    results.save_events((fishdata / SETTING(filename).value<file::Path>().filename()).str() + "_events", [](float percent) { work().set_percent(percent); });
+                    results.save_events((fishdata / SETTING(filename).value<file::Path>().filename()).str() + "_events", [](float percent) { WorkProgress::set_percent(percent); });
                 } catch(const UtilsException& e) {
                     
                 }
@@ -3350,7 +3373,7 @@ void GUI::key_event(const gui::Event &event) {
                     PD(analysis).set_paused(false).get();
             };
             
-            work().add_queue("Saving events...", fn);
+            WorkProgress::add_queue("Saving events...", fn);
             
             break;
         }
@@ -3384,7 +3407,7 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
             if(r == Dialog::ABORT)
                 return;
             
-            this->work().add_queue("checking identities...", [this, r, tags_available](){
+            WorkProgress::add_queue("checking identities...", [this, r, tags_available](){
                 if(r == Dialog::OKAY) {
                     std::lock_guard<std::recursive_mutex> lock_guard(PD(gui).lock());
                     PD(tracking_callbacks).push([](){
@@ -3392,8 +3415,8 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
                     });
                 }
                 
-                Tracker::instance()->check_segments_identities(r != Dialog::SECOND, tags_available && r == Dialog::THIRD ? Tracker::IdentitySource::QRCodes : Tracker::IdentitySource::MachineLearning, [](float x) { work().set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
-                    this->work().add_queue(t, fn, b);
+                Tracker::instance()->check_segments_identities(r != Dialog::SECOND, tags_available && r == Dialog::THIRD ? Tracker::IdentitySource::QRCodes : Tracker::IdentitySource::MachineLearning, [](float x) { WorkProgress::set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
+                    WorkProgress::add_queue(t, fn, b);
                 });
                 
                 std::lock_guard<std::recursive_mutex> lock_guard(PD(gui).lock());
@@ -3403,9 +3426,9 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
             
         }, tags_available ? message_both : message_only_ml, "Auto-correct", tags_available ? "Apply visual identification" : "Apply and retrack", "Cancel", "Review VI", tags_available ? "Apply tags" : "");
     } else {
-        this->work().add_queue("checking identities...", [this, force_correct](){
-            Tracker::instance()->check_segments_identities(force_correct, Tracker::IdentitySource::MachineLearning, [](float x) { work().set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
-                this->work().add_queue(t, [fn](){
+        WorkProgress::add_queue("checking identities...", [this, force_correct](){
+            Tracker::instance()->check_segments_identities(force_correct, Tracker::IdentitySource::MachineLearning, [](float x) { WorkProgress::set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
+                WorkProgress::add_queue(t, [fn](){
                     {
                         std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
                         PD(tracking_callbacks).push([](){
@@ -3445,9 +3468,9 @@ void GUI::save_state(GUI::GUIType type, bool force_overwrite) {
         
         try {
             Output::TrackingResults results(PD(tracker));
-            results.save([](const std::string& title, float x, const std::string& description){ work().set_progress(title, x, description); }, *file);
+            results.save([](const std::string& title, float x, const std::string& description){ WorkProgress::set_progress(title, x, description); }, *file);
         } catch(const UtilsException&e) {
-            work().add_queue("", [e](){
+            WorkProgress::add_queue("", [e](){
                 GUI::instance()->gui().dialog([](Dialog::Result){}, "Something went wrong saving the program state. Maybe no write permissions? Check out this message, too:\n<i>"+std::string(e.what())+"</i>", "Error");
             });
             
@@ -3464,10 +3487,10 @@ void GUI::save_state(GUI::GUIType type, bool force_overwrite) {
             print("The file ",file->str()," already exists. To overwrite this setting, add the keyword 'force'.");
             save_state_visible = false;
         } else {
-            this->work().add_queue("", [file, fn, ptr = &save_state_visible](){
+            WorkProgress::add_queue("", [file, fn, ptr = &save_state_visible](){
                 PD(gui).dialog([file, fn, ptr = ptr](Dialog::Result result) {
                     if(result == Dialog::Result::OKAY) {
-                        work().add_queue("Saving results...", fn);
+                        WorkProgress::add_queue("Saving results...", fn);
                     } else if(result == Dialog::Result::SECOND) {
                         do {
                             if(file->remove_filename().empty()) {
@@ -3479,7 +3502,7 @@ void GUI::save_state(GUI::GUIType type, bool force_overwrite) {
                         auto expected = Output::TrackingResults::expected_filename();
                         if(expected.move_to(*file)) {
                             *file = expected;
-                            work().add_queue("Saving backup...", fn);
+                            WorkProgress::add_queue("Saving backup...", fn);
                         //if(std::rename(expected.str().c_str(), file->str().c_str()) == 0) {
 //                          *file = expected;
 //                            work().add_queue("Saving backup...", fn);
@@ -3495,7 +3518,7 @@ void GUI::save_state(GUI::GUIType type, bool force_overwrite) {
         }
         
     } else
-        work().add_queue("Saving results...", fn);
+        WorkProgress::add_queue("Saving results...", fn);
 }
 
 void GUI::auto_quit() {
@@ -3612,15 +3635,15 @@ void GUI::auto_train() {
             
             return;
         }
-            
+        
         std::lock_guard<std::recursive_mutex> lock(instance()->gui().lock());
-        instance()->work().add_queue("checking identities...", [](){
+        WorkProgress::add_queue("checking identities...", [](){
             Tracker::instance()->check_segments_identities(
                 true,
                 Tracker::IdentitySource::QRCodes,
-                [](float x) { work().set_percent(x); },
+                [](float x) { WorkProgress::set_percent(x); },
                 [](const std::string&t, const std::function<void()>& fn, const std::string&b) {
-                    instance()->work().add_queue(t, fn, b);
+                    WorkProgress::add_queue(t, fn, b);
                 }
             );
             
@@ -3669,10 +3692,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
         
         try {
             auto header = results.load([](const std::string& title, float value, const std::string& desc) {
-                if(GUI::instance()) {
-                    work().set_progress(title, value, desc);
-                    //work().set_item_abortable(true);
-                }
+                WorkProgress::set_progress(title, value, desc);
             }, from);
             
             if(header.version <= Output::ResultsFormat::Versions::V_33
@@ -3719,8 +3739,8 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                 
                 if(found * 2 <= N && N > 0) {
                     print("fixing...");
-                    work().set_item("Fixing old blob_ids...");
-                    work().set_description("This is necessary because you are loading an <b>old</b> .results file with <b>visual identification data</b> and, since the format of blob_ids has changed, we would otherwise be unable to associate the objects with said visual identification info.\n<i>If you want to avoid this step, please use the older TRex version to load the file or let this run and overwrite the old .results file (so you don't have to wait again). Be careful, however, as information might not transfer over perfectly.</i>\n");
+                    WorkProgress::set_item("Fixing old blob_ids...");
+                    WorkProgress::set_description("This is necessary because you are loading an <b>old</b> .results file with <b>visual identification data</b> and, since the format of blob_ids has changed, we would otherwise be unable to associate the objects with said visual identification info.\n<i>If you want to avoid this step, please use the older TRex version to load the file or let this run and overwrite the old .results file (so you don't have to wait again). Be careful, however, as information might not transfer over perfectly.</i>\n");
                     auto old_id_from_position = [](Vec2 center) {
                         return (uint32_t)( uint32_t((center.x))<<16 | uint32_t((center.y)) );
                     };
@@ -3838,7 +3858,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                         ++i;
                         if(i % uint64_t(N * 0.1) == 0) {
                             print("Correcting old-format pv::bid: ", dec<2>(double(i) / double(N) * 100), "%");
-                            work().set_percent(double(i) / double(N));
+                            WorkProgress::set_percent(double(i) / double(N));
                         }
                     }
                     
@@ -3866,7 +3886,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                     focus_group = config["gui_focus_group"].value<std::vector<Idx_t>>();
                 
                 if(GUI::instance()) {
-                    GUI::work().add_queue("", [f = Frame_t(header.gui_frame), focus_group](){
+                    WorkProgress::add_queue("", [f = Frame_t(header.gui_frame), focus_group](){
                         SETTING(gui_frame) = f;
                         SETTING(gui_focus_group) = focus_group;
                     });
@@ -3879,12 +3899,11 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                 SETTING(analysis_range) = std::pair<long_t, long_t>(header.analysis_range.start, header.analysis_range.end);
             }
             
-            GUI::instance()->work().add_queue("", [](){
+            WorkProgress::add_queue("", [](){
                 Tracker::instance()->check_segments_identities(false, Tracker::IdentitySource::MachineLearning, [](float ) { },
                 [](const std::string&t, const std::function<void()>& fn, const std::string&b)
                 {
-                    if(GUI::instance())
-                        GUI::instance()->work().add_queue(t, fn, b);
+                    WorkProgress::add_queue(t, fn, b);
                 });
             });
             
@@ -3892,7 +3911,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
             FormatExcept("Cannot load results. Crashed with exception: ", e.what());
             
             if(GUI::instance()) {
-                work().add_queue("", [e, from](){
+                WorkProgress::add_queue("", [e, from](){
                     GUI::instance()->gui().dialog([](Dialog::Result){}, "Cannot load results from '"+from.str()+"'. Loading crashed with this message:\n<i>"+std::string(e.what())+"</i>", "Error");
                 });
             
@@ -3946,14 +3965,14 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
     if(type == GRAPHICAL) {
         PD(gui).dialog([ptr = &state_visible, fn](Dialog::Result result) {
             if(result == Dialog::Result::OKAY) {
-                work().add_queue("Loading results...", fn, PD(video_source).filename().str());
+                WorkProgress::add_queue("Loading results...", fn, PD(video_source).filename().str());
             } else {
                 *ptr = false;
             }
             
         }, "Are you sure you want to load results?\nThis will discard any unsaved changes.", "Load results", "Yes", "Cancel");
     } else {
-        work().add_queue("Loading results...", fn, PD(video_source).filename().str());
+        WorkProgress::add_queue("Loading results...", fn, PD(video_source).filename().str());
     }
 }
 
@@ -3975,19 +3994,19 @@ void GUI::save_visual_fields() {
     
     if(selected) {
         auto path = fishdata / (filename + "_visual_field_"+selected->identity().name());
-        work().set_progress("generating visual field", 0, path.str());
-        selected->save_visual_field(path.str(), Range<Frame_t>({},{}), [](float percent, const std::string& title){ GUI::work().set_progress(title, percent); }, false);
+        WorkProgress::set_progress("generating visual field", 0, path.str());
+        selected->save_visual_field(path.str(), Range<Frame_t>({},{}), [](float percent, const std::string& title){ WorkProgress::set_progress(title, percent); }, false);
         
     } else {
         std::atomic_size_t counter = 0;
-        work().set_percent(0);
+        WorkProgress::set_percent(0);
         auto &individuals = Tracker::individuals();
         
         auto worker = [&counter, fishdata, filename, &individuals](Individual* fish){
             auto path = fishdata / (filename + "_visual_field_"+fish->identity().name());
-            work().set_progress("generating visual fields", -1, path.str());
+            WorkProgress::set_progress("generating visual fields", -1, path.str());
             
-            fish->save_visual_field(path.str(), Range<Frame_t>({},{}), [&](float, const std::string& title){ GUI::work().set_progress(title, (counter + 0) / float(individuals.size())); }, false);
+            fish->save_visual_field(path.str(), Range<Frame_t>({},{}), [&](float, const std::string& title){ WorkProgress::set_progress(title, (counter + 0) / float(individuals.size())); }, false);
             
             ++counter;
         };
@@ -4154,7 +4173,7 @@ void GUI::training_data_dialog(GUIType type, bool force_load, std::function<void
         //return;
     }
     
-    this->work().add_queue("initializing python...", [this, type, force_load, callback]()
+    WorkProgress::add_queue("initializing python...", [this, type, force_load, callback]()
     {
         auto task = std::async(std::launch::async, [](){
             cmn::set_thread_name("async::ensure_started");
@@ -4230,8 +4249,8 @@ void GUI::generate_training_data(std::future<void>&& initialized, GUI::GUIType t
     auto fn = [&](TrainingMode::Class load) -> bool {
         std::vector<Rangel> trained;
 
-        work().set_progress("training network", 0);
-        work().set_item_abortable(true);
+        WorkProgress::set_progress("training network", 0);
+        WorkProgress::set_item_abortable(true);
 
         try {
             Accumulation acc(load);
@@ -4250,7 +4269,7 @@ void GUI::generate_training_data(std::future<void>&& initialized, GUI::GUIType t
             if (SETTING(auto_train_on_startup))
                 throw U_EXCEPTION("The training process failed. Please check whether you are in the right python environment and check previous error messages.");
 
-            if (!SETTING(nowindow))
+            if (!SETTING(nowindow) && GUI::instance())
                 GUI::instance()->gui().dialog("The training process failed. Please check whether you are in the right python environment and check out this error message:\n\n<i>" + escape_html(error.what()) + "</i>", "Error");
             FormatError("The training process failed. Please check whether you are in the right python environment and check previous error messages.");
             return false;
@@ -4271,7 +4290,7 @@ void GUI::generate_training_data(std::future<void>&& initialized, GUI::GUIType t
     
     if(type == GUIType::GRAPHICAL) {
         PD(gui).dialog([fn, avail](Dialog::Result result) {
-            work().add_queue("training network", [fn, result, avail = avail]() {
+            WorkProgress::add_queue("training network", [fn, result, avail = avail]() {
                 try {
                     TrainingMode::Class mode;
                     if(avail) {
@@ -4369,7 +4388,7 @@ void GUI::generate_training_data(std::future<void>&& initialized, GUI::GUIType t
 
 void GUI::generate_training_data_faces(const file::Path& path) {
     Tracker::LockGuard guard(ro_t{}, "GUI::generate_training_data_faces");
-    work().set_item("Generating data...");
+    WorkProgress::set_item("Generating data...");
     
     auto ranges = frameinfo().global_segment_order;
     auto range = ranges.empty() ? Range<Frame_t>({},{}) : ranges.front();
@@ -4407,7 +4426,7 @@ void GUI::generate_training_data_faces(const file::Path& path) {
             continue;
         }
         
-        work().set_percent((i - range.start).get() / (float)(range.end - range.start).get());
+        WorkProgress::set_percent((i - range.start).get() / (float)(range.end - range.start).get());
         
         auto active = i == PD(tracker).start_frame() ? Tracker::set_of_individuals_t() : Tracker::active_individuals(i - 1_f);
         PD(video_source).read_frame(frame.frame(), i.get());

@@ -265,8 +265,8 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                    // added_frames += counter % print_step_size;
                     
                     if(GUI::instance()) {
-                        GUI::instance()->work().set_percent(overall_percent / all_percents.size() * (output_posture_data ? 0.5f : 1.0f));
-                        overall_percent = GUI::instance()->work().percent();
+                        WorkProgress::set_percent(overall_percent / all_percents.size() * (output_posture_data ? 0.5f : 1.0f));
+                        overall_percent = WorkProgress::percent();
                     } else
                         overall_percent = overall_percent / (float)all_percents.size() * (output_posture_data ? 0.5f : 1.0f);
                 }
@@ -767,8 +767,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
         
         // if there are representative tracklet images, save them...
         if(!waiting_pixels.empty()) {
-            if(GUI::instance())
-                GUI::instance()->work().set_item("saving tracklet images...");
+            WorkProgress::set_item("saving tracklet images...");
             
             std::vector<uchar> all_images, single_images, split_masks;
             std::vector<long_t> all_ranges, single_frames, single_ids, split_frames, split_ids;
@@ -988,8 +987,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                 auto step = size_t(waiting_pixels.size() * 0.1);
                 if(!waiting_pixels.empty() && step > 0 && index % step == 0) {
                     print("[tracklet_images] Frame ",index,"/",waiting_pixels.size(), " (", dec<2>(FAST_SETTINGS(track_max_individuals) == 0 ? float(vec.size()) : float(vec.size()) / float((float)FAST_SETTINGS(track_max_individuals) + 0.0001) * 100),"% identities / frame)");
-                    if(GUI::instance())
-                        GUI::instance()->work().set_percent(index / float(waiting_pixels.size()));
+                    WorkProgress::set_percent(index / float(waiting_pixels.size()));
                 }
             }
             

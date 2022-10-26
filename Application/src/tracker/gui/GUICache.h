@@ -50,7 +50,8 @@ namespace gui {
         (default_config::output_format_t::Class, output_format),
         (uchar, gui_timeline_alpha),
         (bool, gui_happy_mode),
-        (bool, auto_categorize)
+        (bool, auto_categorize),
+        (bool, gui_blur_enabled)
     )
     }
 

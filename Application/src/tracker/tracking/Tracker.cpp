@@ -609,7 +609,11 @@ void Tracker::analysis_state(AnalysisState pause) {
         Match::PairingGraph::prepare_shutdown();
 #if !COMMONS_NO_PYTHON
         Accumulation::on_terminate();
-        py::deinit().get();
+        try {
+            py::deinit().get();
+        } catch(...) {
+            FormatWarning("Exception during py::deinit().");
+        }
 #endif
     }
 

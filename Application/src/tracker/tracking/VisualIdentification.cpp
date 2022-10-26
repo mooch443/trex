@@ -370,7 +370,7 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
     std::promise<bool> promise;
     future = promise.get_future();
     
-    py::schedule(PackagedTask{
+    auto schedule = py::schedule(PackagedTask{
         ._network = &_network,
         ._task = PromisedTask([
             promise = std::move(promise),
@@ -554,6 +554,11 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
     });
 
     try {
+        //! check this future first, to catch first-level-exceptions.
+        //! otherwise, the custom promise (moved to the callback) might
+        //! already be destroyed!
+        schedule.get();
+        
         if (!future.valid())
             throw U_EXCEPTION("Future is invalid.");
 

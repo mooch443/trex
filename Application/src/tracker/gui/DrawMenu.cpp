@@ -181,6 +181,8 @@ public:
             
         }, [this](auto, const List::Item& item) {
             auto gPtr = GUI::instance();
+            if(!gPtr)
+                return;
             
             switch((Actions)item.ID()) {
                 case LOAD:
@@ -189,13 +191,17 @@ public:
                     
 #if !COMMONS_NO_PYTHON
                 case CHECK_UPDATE: {
-                    gPtr->work().add_queue("", []() {
-                        auto status = CheckUpdates::perform(false).get();
+                    gui::WorkProgress::add_queue("", []() {
+                        CheckUpdates::VersionStatus status = CheckUpdates::VersionStatus::NONE;
+                        try {
+                            status = CheckUpdates::perform(false).get();
+                        } catch(...) { }
+                        
                         if(status == CheckUpdates::VersionStatus::OLD || status == CheckUpdates::VersionStatus::ALREADY_ASKED)
                             CheckUpdates::display_update_dialog();
-                        else if(status == CheckUpdates::VersionStatus::NEWEST)
+                        else if(GUI::instance() && status == CheckUpdates::VersionStatus::NEWEST)
                             GUI::instance()->gui().dialog("You own the newest available version (<nr>"+CheckUpdates::newest_version()+"</nr>).");
-                        else
+                        else if(GUI::instance())
                             GUI::instance()->gui().dialog("There was an error checking for the newest version:\n\n<str>"+CheckUpdates::last_error()+"</str>\n\nPlease check your internet connection and try again. This also happens if you're checking for versions too often, or if GitHub changed their API (in which case you should probably update).", "Error");
                     });
                     
@@ -204,7 +210,7 @@ public:
 #endif
                     
                 case LOAD_SETTINGS:
-                    gPtr->work().add_queue("", [gPtr](){
+                    gui::WorkProgress::add_queue("", [gPtr](){
                         gPtr->gui().dialog([](Dialog::Result result) {
                             if(result == Dialog::SECOND) {
                                 // load from results
@@ -247,14 +253,14 @@ public:
                     break;
                     
                 case EXPORT_VF:
-                    gPtr->work().add_queue("saving visual fields...", [](){
+                    gui::WorkProgress::add_queue("saving visual fields...", [](){
                         GUI::instance()->save_visual_fields();
                     });
                     break;
                     
 #if !COMMONS_NO_PYTHON
                 case CATEGORIZE:
-                    gPtr->work().add_queue("", [](){
+                    gui::WorkProgress::add_queue("", [](){
                         Categorize::show();
                     });
                     break;

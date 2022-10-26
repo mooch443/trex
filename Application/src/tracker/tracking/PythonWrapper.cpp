@@ -108,13 +108,8 @@ void update(std::promise<void>&& init_promise) {
                     
                     item._task();
                     
-                } catch(const std::exception& e) {
-                    FormatExcept("[task] Setting network to active failed: ", e.what());
-                    guard.lock();
-                    throw;
-                    
                 } catch(...) {
-                    FormatExcept("[task] Setting network to active failed.");
+                    item._task.promise.set_exception(std::current_exception());
                     guard.lock();
                     throw;
                 }
@@ -127,7 +122,7 @@ void update(std::promise<void>&& init_promise) {
         }
         
         _initialized = false;
-        _terminate = false;
+        //_terminate = false;
         _exit_promise.set_value();
         
     } catch(...) {
@@ -144,6 +139,19 @@ std::shared_future<void> init() {
         
     } else if(python_initializing()) {
         assert(_init_future.valid());
+        return _init_future;
+    }
+    
+    if(Python::_terminate) {
+        std::promise<void> init_promise;
+        _init_future = init_promise.get_future().share();
+        
+        try {
+            throw SoftException("Python is terminating. Cannot initialize.");
+        } catch(...) {
+            init_promise.set_exception(std::current_exception());
+        }
+        
         return _init_future;
     }
     
@@ -275,6 +283,18 @@ std::future<void> deinit() {
 
 std::future<void> schedule(PackagedTask && task, Flag flag) {
     auto future = task._task.get_future();
+    auto init_future = init();
+    if(_terminate)
+    {
+        try {
+            init_future.get();
+            throw SoftException("Cannot schedule a task on a stopped queue.");
+        } catch(...) {
+            task._task.promise.set_exception(std::current_exception());
+        }
+        
+        return future;
+    }
     
     if(flag != Flag::FORCE_ASYNC && py::is_correct_thread_id()) {
         try {
@@ -296,7 +316,6 @@ std::future<void> schedule(PackagedTask && task, Flag flag) {
         _queue_update.notify_one();
     }
     
-    init();
     return future;
 }
 

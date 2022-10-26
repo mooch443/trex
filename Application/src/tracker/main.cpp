@@ -1069,11 +1069,11 @@ int main(int argc, char** argv)
     print("BasicStuff:",sizeof(BasicStuff)," pv::Blob:",sizeof(pv::Blob)," Compressed:", sizeof(pv::CompressedBlob));
     print("Midline:",sizeof(Midline)," MinimalOutline:",sizeof(MinimalOutline));
     
-    GUI *tmp = new GUI(video, tracker.average(), tracker);
-    std::unique_lock<std::recursive_mutex> gui_lock(tmp->gui().lock());
+    GUI *gui_instance = new GUI(video, tracker.average(), tracker);
+    std::unique_lock<std::recursive_mutex> gui_lock(gui_instance->gui().lock());
     
     //try {
-    GUI &gui = *tmp;
+    GUI &gui = *gui_instance;
     gui.frameinfo().video_length = video.length() > 0 ? (video.length() - 1) : 0;
     
     if(!SETTING(gui_connectivity_matrix_file).value<file::Path>().empty()) {
@@ -1200,9 +1200,9 @@ int main(int argc, char** argv)
                             print(dec<2>(percent),"% ", str.c_str());
                             print_timer.reset();
                         }
-                    }
+                    } 
 
-                    if(tmp)
+                    if(gui_instance)
                         gui.frameinfo().current_fps = narrow_cast<int>(frames_sec);
                 }
 
@@ -1284,7 +1284,7 @@ int main(int argc, char** argv)
             if(analysis->paused() != pause) {
                 print("Adding to queue...");
                 
-                gui.work().add_queue("pausing", [&analysis, pause](){
+                gui::WorkProgress::add_queue("pausing", [&analysis, pause](){
                     if(analysis->paused() != pause) {
                         analysis->set_paused(pause);
                         print("Paused.");
@@ -1328,7 +1328,7 @@ int main(int argc, char** argv)
             
             // explicitly set gui_frame if present in command-line
             if(cmd.settings_keys().find("gui_frame") != cmd.settings_keys().end()) {
-                gui.work().add_queue("", [&](){
+                gui::WorkProgress::add_queue("", [&](){
                     SETTING(gui_frame) = Meta::fromStr<Frame_t>(cmd.settings_keys().at("gui_frame"));
                 });
             }
@@ -1453,7 +1453,7 @@ int main(int argc, char** argv)
                 std::getline(std::cin, cmd);
             }
             
-            gui.work().add_queue("", [&before, &analysis, cmd, &gui](){
+            gui::WorkProgress::add_queue("", [&before, &analysis, cmd, &gui](){
                 bool executed = false;
                 
                 if(!utils::contains(cmd, "=") || utils::beginsWith(cmd, "python")) {
@@ -1479,7 +1479,7 @@ int main(int argc, char** argv)
                         print(gui.info(false));
                     }
                     else if(command == "retrieve_matches") {
-                        GUI::work().add_queue("retrieving matches", [](){
+                        gui::WorkProgress::add_queue("retrieving matches", [](){
                             Settings::manual_matches_t manual_matches;
                             {
                                 Tracker::LockGuard guard(ro_t{}, "retrieving matches");
@@ -1620,7 +1620,7 @@ int main(int argc, char** argv)
         if(please_stop_analysis && !already_pausing) {
             already_pausing = true;
             please_stop_analysis = false;
-            gui.work().add_queue("pausing", [&](){
+            gui::WorkProgress::add_queue("pausing", [&](){
                 analysis->set_paused(true).get();
                 already_pausing = false;
                 GUI::tracking_finished();
@@ -1707,9 +1707,8 @@ int main(int argc, char** argv)
 #endif
     
     {
-        std::lock_guard<std::mutex> lock(data_mutex);
-        delete tmp;
-        tmp = nullptr;
+        delete gui_instance;
+        gui_instance = nullptr;
     }
     if(imgui_base)
         delete imgui_base;

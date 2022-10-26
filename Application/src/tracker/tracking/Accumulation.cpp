@@ -249,13 +249,15 @@ void Accumulation::unsetup() {
 }
 
 void Accumulation::setup() {
+    using namespace gui;
+    
     try {
         _network = py::VINetwork::instance().get();
         _network->set_skip_button([](){
-            return GUI::instance() && GUI::work().item_custom_triggered();
+            return WorkProgress::item_custom_triggered();
         });
         _network->set_abort_training([](){
-            return SETTING(terminate_training).value<bool>() || (GUI::instance() && GUI::work().item_aborted());
+            return SETTING(terminate_training).value<bool>() || (WorkProgress::item_aborted());
         });
         
     } catch(const std::future_error& error) {
@@ -348,7 +350,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
     
     if(data.empty()) {
         Tracker::LockGuard guard(ro_t{}, "Accumulation::generate_training_data");
-        GUI::work().set_progress("generating images", 0);
+        gui::WorkProgress::set_progress("generating images", 0);
         
         std::map<Idx_t, std::set<std::shared_ptr<SegmentInformation>>> segments;
         auto coverage = generate_individuals_per_frame(range, &data, &segments);
@@ -381,7 +383,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
             }
         }
         
-        data.generate("acc"+Meta::toStr(_accumulation_step)+" "+Meta::toStr(range), *GUI::instance()->video_source(), coverage, [](float percent) { GUI::work().set_progress("", percent); }, _generated_data.get());
+        data.generate("acc"+Meta::toStr(_accumulation_step)+" "+Meta::toStr(range), *GUI::instance()->video_source(), coverage, [](float percent) { gui::WorkProgress::set_progress("", percent); }, _generated_data.get());
     } /*else {
         auto str = Meta::toStr(data);
         print("Dont need to generate images for ",str,".");
@@ -555,7 +557,7 @@ void Accumulation::update_coverage(const TrainingData &data) {
     }
     
     if(GUI::instance())
-        GUI::work().update_additional([this](gui::Entangled& e) {
+        gui::WorkProgress::update_additional([this](gui::Entangled& e) {
             std::lock_guard<std::mutex> guard(_current_assignment_lock);
             if(!_current_accumulation || _current_accumulation != this)
                 return;
@@ -570,9 +572,7 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Fram
     {
         Tracker::LockGuard guard(ro_t{}, "Accumulation::discriminate");
         gui::WorkInstance generating_images("generating images");
-        if (GUI::instance())
-            GUI::work().set_progress("generating images", 0);
-        else throw U_EXCEPTION("No instance.");
+        gui::WorkProgress::set_progress("generating images", 0);
         
         print("Generating discrimination data.");
         
@@ -612,7 +612,7 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Fram
             }
         }
         
-        if(!data->generate("generate_discrimination_data"+Meta::toStr((uint64_t)data.get()), *GUI::instance()->video_source(), disc_individuals_per_frame, [](float percent) { GUI::work().set_progress("", percent); }, source ? source.get() : nullptr))
+        if(!data->generate("generate_discrimination_data"+Meta::toStr((uint64_t)data.get()), *GUI::instance()->video_source(), disc_individuals_per_frame, [](float percent) { gui::WorkProgress::set_progress("", percent); }, source ? source.get() : nullptr))
         {
             FormatWarning("Couldnt generate proper training data (see previous warning messages).");
             return {nullptr, {}, {}};
@@ -731,6 +731,8 @@ Accumulation::Accumulation(TrainingMode::Class mode) : _mode(mode), _accumulatio
 }
 
 Accumulation::~Accumulation() {
+    if(!GUI::instance())
+        return;
     std::lock_guard lock(GUI::instance()->gui().lock());
     _textarea = nullptr;
     _graph = nullptr;
@@ -797,7 +799,7 @@ bool Accumulation::start() {
     
     {
         Tracker::LockGuard guard(ro_t{}, "GUI::generate_training_data");
-        GUI::work().set_progress("generating images", 0);
+        gui::WorkProgress::set_progress("generating images", 0);
         
         DebugCallback("Generating initial training dataset [%d-%d] (%d) in memory.", _initial_range.start, _initial_range.end, _initial_range.length());
         
@@ -809,7 +811,7 @@ bool Accumulation::start() {
         
         individuals_per_frame = generate_individuals_per_frame(_initial_range, _collected_data.get(), nullptr);
         
-        if(!_collected_data->generate("initial_acc"+Meta::toStr(_accumulation_step)+" "+Meta::toStr(_initial_range), *GUI::instance()->video_source(), individuals_per_frame, [](float percent) { GUI::work().set_progress("", percent); }, NULL)) {
+        if(!_collected_data->generate("initial_acc"+Meta::toStr(_accumulation_step)+" "+Meta::toStr(_initial_range), *GUI::instance()->video_source(), individuals_per_frame, [](float percent) { gui::WorkProgress::set_progress("", percent); }, NULL)) {
             if(SETTING(auto_train_on_startup)) {
                 throw U_EXCEPTION("Couldnt generate proper training data (see previous warning messages).");
             } else
@@ -925,9 +927,9 @@ bool Accumulation::start() {
         
         py::VINetwork::add_percent_callback("Accumulation", [](float p, const std::string& desc) {
             if(p != -1)
-                GUI::work().set_percent(p);
+                gui::WorkProgress::set_percent(p);
             if(!desc.empty())
-                GUI::work().set_description(settings::htmlify(desc));
+                gui::WorkProgress::set_description(settings::htmlify(desc));
         });
         
         try {
@@ -958,8 +960,7 @@ bool Accumulation::start() {
     }
     
     // we can skip each step after the first
-    if(GUI::instance())
-        GUI::work().set_custom_button("skip this");
+    gui::WorkProgress::set_custom_button("skip this");
     
     _trained.push_back(_initial_range);
     auto it = std::find(ranges.begin(), ranges.end(), _initial_range);
@@ -1256,9 +1257,9 @@ bool Accumulation::start() {
                     auto str = format<FormatterType::NONE>("Adding range ", range, " failed (uniqueness would have been ", p, " vs. ", best_uniqueness, ").");
                     print(str.c_str());
                     
-                    if(GUI::work().item_custom_triggered()) {
+                    if(gui::WorkProgress::item_custom_triggered()) {
                         end_a_step(Result(FrameRange(range), acc, AccumulationStatus::Failed, AccumulationReason::Skipped, str));
-                        GUI::work().reset_custom_item();
+                        gui::WorkProgress::reset_custom_item();
                     } else
                         end_a_step(Result(FrameRange(range), acc, AccumulationStatus::Failed, AccumulationReason::TrainingFailed, str));
                     
@@ -1289,10 +1290,10 @@ bool Accumulation::start() {
             
             update_coverage(*_collected_data);
             
-            if(!GUI::instance() || (GUI::work().item_aborted() || GUI::work().item_custom_triggered()))
+            if(gui::WorkProgress::item_aborted() || gui::WorkProgress::item_custom_triggered())
             {
                 print("Work item has been aborted - skipping accumulation.");
-                return GUI::instance() && GUI::work().item_custom_triggered(); // otherwise, stop iterating
+                return gui::WorkProgress::item_custom_triggered(); // otherwise, stop iterating
             }
             
             std::map<Idx_t, int64_t> sizes;
@@ -1485,7 +1486,7 @@ bool Accumulation::start() {
         
     }
     
-    if((GUI::instance() && !GUI::work().item_aborted() && !GUI::work().item_custom_triggered()) && SETTING(gpu_accumulation_enable_final_step))
+    if((GUI::instance() && !gui::WorkProgress::item_aborted() && !gui::WorkProgress::item_custom_triggered()) && SETTING(gpu_accumulation_enable_final_step))
     {
         std::map<Idx_t, size_t> images_per_class;
         size_t overall_images = 0;
@@ -1739,7 +1740,7 @@ bool Accumulation::start() {
     }
     
     // GUI::work().item_custom_triggered() could be set, but we accept the training nonetheless if it worked so far. its just skipping one specific step
-    if(!GUI::work().item_aborted() && !uniqueness_history().empty()) {
+    if(!gui::WorkProgress::item_aborted() && !uniqueness_history().empty()) {
         elevate_task(apply_network);
     }
     
@@ -1821,7 +1822,7 @@ void Accumulation::end_a_step(Result reason) {
     }
     
     if(GUI::instance())
-        GUI::work().update_additional([this, text](gui::Entangled& e) {
+        gui::WorkProgress::update_additional([this, text](gui::Entangled& e) {
             std::lock_guard<std::mutex> guard(_current_assignment_lock);
             if(!_current_accumulation || _current_accumulation != this)
                 return;

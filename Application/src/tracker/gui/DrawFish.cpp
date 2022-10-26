@@ -14,6 +14,10 @@
 //#include <gui.h>
 #include <misc/IdentifiedTag.h>
 
+#if defined(__APPLE__) && defined(TREX_ENABLE_EXPERIMENTAL_BLUR)
+#include <gui.h>
+#endif
+
 using namespace track;
 
 namespace gui {
@@ -254,15 +258,15 @@ Fish::~Fish() {
 
 
 #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
-#if defined(__APPLE__) && TREX_METAL_AVAILABLE
+#if defined(__APPLE__) && COMMONS_METAL_AVAILABLE
         if (GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)
         {
-            if (!is_selected) tag(Effects::blur);
-            else untag(Effects::blur);
+            if (!is_selected) _view.tag(Effects::blur);
+            else _view.untag(Effects::blur);
 
             if (is_selected && GUI::instance() && GUI::instance()->base()) {
-                ((MetalImpl*)((IMGUIBase*)GUI::instance()->base())->platform().get())->center[0] = global_bounds().x / float(GUI::instance()->base()->window_dimensions().width) / gui::interface_scale() * window.scale().x;
-                ((MetalImpl*)((IMGUIBase*)GUI::instance()->base())->platform().get())->center[1] = global_bounds().y / float(GUI::instance()->base()->window_dimensions().height) / gui::interface_scale() * window.scale().y;
+                ((MetalImpl*)((IMGUIBase*)GUI::instance()->base())->platform().get())->center[0] = _view.global_bounds().x / float(GUI::instance()->base()->window_dimensions().width) / gui::interface_scale() * graph.scale().x;
+                ((MetalImpl*)((IMGUIBase*)GUI::instance()->base())->platform().get())->center[1] = _view.global_bounds().y / float(GUI::instance()->base()->window_dimensions().height) / gui::interface_scale() * graph.scale().y;
             }
         }
 #endif
@@ -286,7 +290,7 @@ Fish::~Fish() {
                 _polygon->set_scale(scaling * 0.25 + 1);
 
     #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
-    #if defined(__APPLE__) && TREX_METAL_AVAILABLE
+    #if defined(__APPLE__) && COMMONS_METAL_AVAILABLE
                 if(GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)
                 {
                     if(is_selected)_polygon->tag(Effects::blur);
@@ -298,17 +302,18 @@ Fish::~Fish() {
         }
 
 #ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
-#if defined(__APPLE__) && TREX_METAL_AVAILABLE
+#if defined(__APPLE__) && COMMONS_METAL_AVAILABLE
         auto it = cache.fish_selected_blobs.find(_obj.identity().ID());
         if (it != cache.fish_selected_blobs.end()) {
             for (auto& [b, ptr] : cache.display_blobs) {
                 if (b->blob_id() == it->second) {
-                    ptr->set_pos(Vec2());
-                    if (GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)
+                    //ptr->ptr->set_pos(Vec2());
+                    if (GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value
+                        && is_selected)
                     {
-                        ptr->untag(Effects::blur);
+                        ptr->ptr->untag(Effects::blur);
                     }
-                    window.wrap_object(*ptr);
+                    //_view.advance_wrap(*ptr->ptr);
                     break;
                 }
             }
@@ -1298,6 +1303,16 @@ void Fish::shadow(DrawStructure &window) {
             _polygon->set_origin(Vec2(0.5));
         }
         
+#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
+#if defined(__APPLE__) && COMMONS_METAL_AVAILABLE
+        if (GUI_SETTINGS(gui_blur_enabled) && std::is_same<MetalImpl, default_impl_t>::value)
+        {
+            auto is_selected = GUICache::instance().is_selected(_obj.identity().ID());
+            if (!is_selected) _polygon->tag(Effects::blur);
+            else _polygon->untag(Effects::blur);
+        }
+#endif
+#endif
         window.wrap_object(*_polygon);
     }
 }

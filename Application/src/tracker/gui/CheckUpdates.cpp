@@ -243,15 +243,15 @@ std::future<VersionStatus> perform(bool manually_triggered) {
     auto future = promise->get_future();
     
     if(manually_triggered && !GUI_SETTINGS(nowindow) && GUI::instance()) {
-        GUI::work().add_queue("Initializing python...", [](){
+        gui::WorkProgress::add_queue("Initializing python...", [](){
             py::init().get();
         });
         
     } else {
-        if(GUI::instance() && GUI::work().is_this_in_queue()) {
-            GUI::work().set_item("Initializing python...");
+        if(gui::WorkProgress::is_this_in_queue()) {
+            gui::WorkProgress::set_item("Initializing python...");
             py::init().get();
-            GUI::work().set_item("");
+            gui::WorkProgress::set_item("");
         } else {
             py::init();
         }

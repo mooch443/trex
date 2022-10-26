@@ -90,7 +90,6 @@ public:
     ~GUI();
 
     static bool recording();
-    static gui::WorkProgress& work();
     static ConnectedTasks* analysis();
     static void set_analysis(ConnectedTasks*);
     static gui::FrameInfo& frameinfo();
