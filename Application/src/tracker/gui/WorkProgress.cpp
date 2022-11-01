@@ -48,20 +48,32 @@ std::map<std::string, std::unique_ptr<ExternalImage>> _gui_images;
 ITaskbarList3* ptbl = NULL;
 #endif
 
-auto check(auto && fn) -> std::invoke_result_t<decltype(fn)> {
-    using R = std::invoke_result_t<decltype(fn)>;
+template <typename ... Args>
+constexpr bool return_void(void(Args ...)) { return true; }
+
+template <typename R, typename ... Args>
+constexpr bool return_void(R(Args ...)) { return false; }
+
+template<typename F>
+    requires (!std::same_as<std::invoke_result_t<F>, void>)
+auto check(F && fn) -> std::invoke_result_t<F> {
+    using R = std::invoke_result_t<F>;
     std::promise<R> promise;
     auto f = promise.get_future();
-    
     WorkProgress::instance();
-    
-    if constexpr(_clean_same<R, void>) {
-        fn();
-        promise.set_value();
-    } else {
-        promise.set_value(fn());
-        return f.get();
-    }
+    promise.set_value(fn());
+    return f.get();
+}
+
+template<typename F>
+    requires std::same_as<std::invoke_result_t<F>, void>
+auto check(F&& fn) -> std::invoke_result_t<F> {
+    using R = std::invoke_result_t<F>;
+    std::promise<R> promise;
+    auto f = promise.get_future();
+    WorkProgress::instance();
+    fn();
+    promise.set_value();
 }
 
 }
