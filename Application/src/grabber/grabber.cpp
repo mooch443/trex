@@ -2097,6 +2097,14 @@ Queue::Code FrameGrabber::process_image(Image_t& current) {
         task->current = Image::Make(current, current.index());
     }
 
+    if(current.mask()) {
+        if(task->mask) {
+            task->mask->set(std::move(*current.mask()));
+        } else {
+            task->mask = Image::Make(*current.mask(), current.index());
+        }
+    }
+
     if(enable_threads) {
         {
             std::unique_lock<std::mutex> guard(to_pool_mutex);
