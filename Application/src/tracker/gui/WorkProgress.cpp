@@ -58,9 +58,10 @@ auto check(auto && fn) -> std::invoke_result_t<decltype(fn)> {
     if constexpr(_clean_same<R, void>) {
         fn();
         promise.set_value();
-    } else
+    } else {
         promise.set_value(fn());
-    return f.get();
+        return f.get();
+    }
 }
 
 }

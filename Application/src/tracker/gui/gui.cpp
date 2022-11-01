@@ -3956,7 +3956,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
             SETTING(terminate) = true;
         }
         
-        if(!before || (!finished && SETTING(auto_quit)))
+        if(GUI::instance() && (!before || (!finished && SETTING(auto_quit))))
             PD(analysis).set_paused(false).get();
         
         *ptr = false;
