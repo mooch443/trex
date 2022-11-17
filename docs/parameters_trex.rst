@@ -419,6 +419,15 @@ TRex parameters
 
 
 
+.. function:: evaluate_thresholds(bool)
+
+	**default value:** false
+
+
+	This option, if enabled, previews the effects of all possible thresholds when applied to the given video. These are shown as a graph in a separate window. Can be used to debug parameters instead of try-and-error. Might take a few minutes to finish calculating.
+
+
+
 .. function:: event_min_peak_offset(float)
 
 	**default value:** 0.15
@@ -625,6 +634,15 @@ TRex parameters
 
 
 
+.. function:: gui_blur_enabled(bool)
+
+	**default value:** false
+
+
+	MacOS supports a blur filter that can be applied to make unselected individuals look more interesting. Purely a visual effect. Does nothing on other operating systems.
+
+
+
 .. function:: gui_connectivity_matrix(map<int,array<float>>)
 
 	**default value:** {}
@@ -641,6 +659,16 @@ TRex parameters
 
 	Path to connectivity table. Expected structure is a csv table with columns [frame | #(track_max_individuals^2) values] and frames in y-direction.
 
+
+
+.. function:: gui_draw_blobs_separately(bool)
+
+	**default value:** false
+
+
+	Draw blobs separately. If false, blobs will be drawn on a single full-screen texture and displayed. The second option may be better on some computers (not supported if ``gui_blur_enabled`` is set to true).
+
+	.. seealso:: :func:`gui_blur_enabled`
 
 
 .. function:: gui_draw_only_filtered_out(bool)
@@ -905,7 +933,7 @@ TRex parameters
 
 .. function:: gui_show_individual_preview(bool)
 
-	**default value:** true
+	**default value:** false
 
 
 	Shows preview images for all selected individuals as they would be processed during network training, based on settings like ``individual_image_size``, ``individual_image_scale`` and ``individual_image_normalization``.
@@ -1778,7 +1806,7 @@ TRex parameters
 
 .. function:: python_path(path)
 
-	**default value:** "/Users/tristan/miniforge3/envs/trex2/bin/python3.10"
+	**default value:** "/Users/tristan/miniforge3/envs/trex/bin/python3.10"
 
 
 	Path to the python home folder. If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.
@@ -2158,7 +2186,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1.9-76-g8511578"
+	**default value:** "v1.1.9-89-g1e80eae"
 
 
 	Current application version.

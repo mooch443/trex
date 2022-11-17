@@ -17,10 +17,11 @@ if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.12.0")
     include(FetchContent)
 endif()
 
-set(MACOSX_BUNDLE_GUI_IDENTIFIER "com.tristan.tracker")
+set(MACOSX_BUNDLE_GUI_IDENTIFIER "com.trexing.trex")
 set(CMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM "tristan")
 set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED "NO")
 set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "")
+set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
 set(CMAKE_XCODE_ATTRIBUTE_GCC_INCREASE_PRECOMPILED_HEADER_SHARING "YES")
 set(CMAKE_XCODE_ATTRIBUTE_GCC_PRECOMPILE_PREFIX_HEADER "YES")
 
@@ -175,7 +176,8 @@ endif()
 
 #if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
 if(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
-    #set(C_SANITIZE_OPTIONS "-fsanitize=thread,signed-integer-overflow,null,alignment,undefined,bounds -fno-sanitize-recover=null -fsanitize-trap=alignment,undefined,signed-integer-overflow")
+    # -fsanitize-trap=,signed-integer-overflow
+    #set(C_SANITIZE_OPTIONS "-fsanitize=thread,null,alignment,undefined,bounds -fno-sanitize-recover=null,alignment,undefined,bounds,signed-integer-overflow")
     set(C_SANITIZE_OPTIONS "")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=return-stack-address")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g ${C_SANITIZE_OPTIONS}")
