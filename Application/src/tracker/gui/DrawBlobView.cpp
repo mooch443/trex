@@ -386,7 +386,7 @@ void draw_blob_view(const DisplayParameters& parm)
             list->on_open([list=list.get()](bool opened) {
                 if(!opened) {
                     //list->set_items({});
-                    _clicked_blob_id = -1;
+                    _clicked_blob_id = pv::bid::invalid;
                     GUI::set_redraw();
                 }
             });
@@ -483,7 +483,7 @@ void draw_blob_view(const DisplayParameters& parm)
             
         } else {
             print("Cannot find clicked blob id ",_clicked_blob_id.load(),".");
-            _clicked_blob_id = -1;
+            _clicked_blob_id = pv::bid::invalid;
         }
         
     } else if(_clicked_blob_id.load().valid())
@@ -518,8 +518,8 @@ void draw_blob_view(const DisplayParameters& parm)
                                       Radius{1},
                                       LineClr{Transparent},
                                       FillClr{
-                        colors.find(pixel.v) != colors.end()
-                            ? colors.at(pixel.v)
+                        colors.find(uint32_t(pixel.v)) != colors.end()
+                            ? colors.at(uint32_t(pixel.v))
                             : Color(255, 0, 255, 255)
                     });
                 }

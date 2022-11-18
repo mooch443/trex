@@ -114,7 +114,7 @@ void panic(const char *fmt, ...) {
     char buf[50];
     va_list argptr;
     va_start(argptr, fmt);
-    vsprintf(buf, fmt, argptr);
+    vsnprintf(buf, sizeof(buf), fmt, argptr);
     va_end(argptr);
     fprintf(stderr, "%s", buf);
     exit(-1);
@@ -872,7 +872,7 @@ int main(int argc, char** argv)
         size_t added_frames = 0, processed_frames = 0;
         
         auto range = arange<size_t>(0, video.length()-1, size_t(float(video.length()) / 1000.f));
-        distribute_vector([&](auto i, auto start, auto end, auto){
+        distribute_vector([&](auto, auto start, auto end, auto){
             pv::Frame frame;
             for(auto it = start; it != end; ++it) {
                 frame.clear();
@@ -1053,7 +1053,7 @@ int main(int argc, char** argv)
     Library::Init();
     DebugHeader("STARTING PROGRAM");
     
-    cmn::Blob blob;
+    pv::Blob blob;
     auto copy = blob.properties();
     print("BasicStuff<",sizeof(track::BasicStuff),"> ",
           "PostureStuff<",sizeof(track::PostureStuff),"> ",
@@ -1270,7 +1270,7 @@ int main(int argc, char** argv)
 #endif
     
     auto callback = "TRex::main";
-    GlobalSettings::map().register_callback(callback, [&analysis, &gui, callback](sprite::Map::Signal signal, sprite::Map& map, const std::string& key, const sprite::PropertyType& value)
+    GlobalSettings::map().register_callback(callback, [&analysis, callback](sprite::Map::Signal signal, sprite::Map& map, const std::string& key, const sprite::PropertyType& value)
     {
         if(signal == sprite::Map::Signal::EXIT) {
             map.unregister_callback(callback);

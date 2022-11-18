@@ -240,7 +240,7 @@ Range<Frame_t> FrameGrabber::processing_range() const {
     //! We either start where the conversion_range starts, or at 0 (for all things).
     static const Frame_t conversion_range_start =
         (_video && GRAB_SETTINGS(video_conversion_range).first != -1)
-        ? Frame_t(min(_video->length() - 1, (uint64_t)GRAB_SETTINGS(video_conversion_range).first))
+        ? Frame_t(min(_video->length() - 1, (uint32_t)GRAB_SETTINGS(video_conversion_range).first))
         : Frame_t(0);
 
     //! We end for videos when the conversion range has been reached, or their length, and
@@ -1170,7 +1170,7 @@ void FrameGrabber::update_tracker_queue() {
 #if !COMMONS_NO_PYTHON
 #define CL_HAS_FEATURE(NAME) (selected_features.find(CLFeature:: NAME) != selected_features.end())
                 auto& active = tracker->active_individuals(frame);
-                _tracker_current_individuals = active.size();
+                _tracker_current_individuals = narrow_cast<uint32_t>(active.size());
 
                 if(GRAB_SETTINGS(enable_closed_loop)) {
                     std::map<long_t, std::shared_ptr<track::VisualField>> visual_fields;

@@ -531,7 +531,7 @@ void GUI::draw_tracking(gui::DrawStructure &base, const attr::Scale& scale) {
 
 #if !COMMONS_NO_PYTHON
         ska::bytell_hash_map<int64_t, std::tuple<float, float>> speeds;
-        const int64_t displayed_range = FAST_SETTINGS(frame_rate) * 5;
+        const auto displayed_range = FAST_SETTINGS(frame_rate) * 5;
 
         const Frame_t min_display_frame = Frame_t(max(0, Tracker::end_frame().get() - displayed_range));
 #endif
@@ -565,7 +565,7 @@ void GUI::draw_tracking(gui::DrawStructure &base, const attr::Scale& scale) {
                 
                 if (code.best_id != -1) {
                     speeds_ptr = &speeds[code.best_id];
-                    color = ColorWheel(code.best_id).next();
+                    color = ColorWheel(uint32_t(code.best_id)).next();
                 } else {
                     color = fish->identity().color();
                 }

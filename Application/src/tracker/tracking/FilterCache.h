@@ -2,7 +2,7 @@
 
 #include <commons.pc.h>
 #include <misc/Image.h>
-#include <misc/PVBlob.h>
+#include <misc/bid.h>
 #include <gui/Transform.h>
 #include <tracker/misc/default_config.h>
 #include <misc/frame_t.h>

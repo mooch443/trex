@@ -29,6 +29,7 @@ struct InfoCard::ShadowIndividual {
     std::string recognition_str;
     
     std::vector<ShadowSegment> segments, rec_segments;
+    bool has_vi_predictions{false};
 };
 
 
@@ -83,6 +84,7 @@ void InfoCard::update() {
             auto it = Tracker::individuals().find(_shadow->fdx);
             if(it != Tracker::individuals().end()) {
                 auto fish = it->second;
+                _shadow->has_vi_predictions = Tracker::instance()->has_vi_predictions();
                 _shadow->identity = fish->identity();
                 _shadow->has_frame = fish->has(_shadow->frame);
                 _shadow->is_automatic_match = fish->is_automatic_match(_shadow->frame);
@@ -178,7 +180,8 @@ void InfoCard::update() {
     
     //auto layout = std::make_shared<VerticalLayout>(Vec2(10, 10));
     add<Text>(_shadow->identity.name(), Loc(11,11), White.alpha(clr.a * 0.7f), Font(0.9f, Style::Bold));
-    auto text = add<Text>(_shadow->identity.name(), Loc(10, 10), clr, Font(0.9f, Style::Bold));
+    const auto font = Font(0.9f, Style::Bold);
+    auto text = add<Text>(_shadow->identity.name(), Loc(10, 10), clr, font);
     
     if(!_shadow->has_frame) {
         add<Text>(" (inactive)", Loc(text->pos() + Vec2(text->width(), 0)), Gray.alpha(clr.a), Font(0.9f, Style::Bold));
@@ -186,13 +189,13 @@ void InfoCard::update() {
     
     segment_texts.clear();
     
-    auto add_segments = [txt = text, this
+    auto add_segments = [&font, this
 #if DEBUG_ORIENTATION
                          ,fish
 #endif
                          ](bool display_hints, const std::vector<ShadowSegment>& segments, float offx)
     {
-        auto text = add<Text>(Meta::toStr(segments.size())+" segments "+Meta::toStr(offx)+" "+Meta::toStr(Base::default_line_spacing(txt->font())), Loc(txt->pos() + Vec2(offx, Base::default_line_spacing(txt->font()))), White, Font(0.8f));
+        auto text = add<Text>(Meta::toStr(segments.size())+" segments", Loc(Vec2(10, 10) + Vec2(offx, Base::default_line_spacing(font))), White, Font(0.8f));
         
 #if DEBUG_ORIENTATION
         auto reason = fish->why_orientation(frameNr);
@@ -277,7 +280,8 @@ void InfoCard::update() {
     };
     
     add_segments(true, _shadow->segments, 0);
-    add_segments(false, _shadow->rec_segments, 200);
+    if(_shadow->has_vi_predictions)
+        add_segments(false, _shadow->rec_segments, 200);
     
     static bool first = true;
     

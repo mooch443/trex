@@ -90,11 +90,11 @@ void VINetwork::setup(bool force) {
     
     auto result = py::check_module("learn_static");
     if(result || force || py::is_none("classes", "learn_static")) {
-        size_t N = FAST_SETTINGS(track_max_individuals) ? (size_t)FAST_SETTINGS(track_max_individuals) : 1u;
-        std::vector<int32_t> ids;
+        uint32_t N = FAST_SETTINGS(track_max_individuals) ? FAST_SETTINGS(track_max_individuals) : 1u;
+        std::vector<uint32_t> ids;
         ids.resize(N);
         
-        for(size_t i=0; i<N; ++i)
+        for(uint32_t i=0; i<N; ++i)
             ids[i] = i;
         
         uint64_t batch_size = ids.size(); // compute the next highest power of 2 of 32-bit v

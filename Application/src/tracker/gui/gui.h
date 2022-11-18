@@ -7,7 +7,7 @@
 #include <gui/Timeline.h>
 #include <gui/colors.h>
 #include <gui/DrawStructure.h>
-#include <misc/PVBlob.h>
+#include <misc/bid.h>
 #include <misc/ThreadPool.h>
 #include <gui/DrawBase.h>
 

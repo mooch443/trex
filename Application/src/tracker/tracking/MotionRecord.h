@@ -7,6 +7,7 @@
 
 namespace track {
 
+using namespace cmn;
 class Individual;
 
 class PairDistance {

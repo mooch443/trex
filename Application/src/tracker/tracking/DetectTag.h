@@ -1,7 +1,7 @@
 #pragma once
 
 #include <misc/Image.h>
-#include <misc/PVBlob.h>
+#include <misc/bid.h>
 #include <misc/ranges.h>
 
 namespace track {

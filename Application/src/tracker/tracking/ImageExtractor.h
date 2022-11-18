@@ -2,7 +2,7 @@
 
 #include <misc/idx_t.h>
 #include <misc/frame_t.h>
-#include <misc/PVBlob.h>
+#include <misc/bid.h>
 #include <tracking/Stuffs.h>
 #include <misc/vec2.h>
 #include <tracker/misc/default_config.h>

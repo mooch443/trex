@@ -2111,7 +2111,7 @@ void GUI::selected_setting(long_t index, const std::string& name, Textfield& tex
         else if(settings_dropdown.text() == "free_fish") {
             std::set<long_t> free_fish, inactive;
             for(auto && [fdx, fish] : PD(cache).individuals) {
-                if(PD(cache).fish_selected_blobs.find(fdx) == PD(cache).fish_selected_blobs.end() || PD(cache).fish_selected_blobs.at(fdx) == -1) {
+                if(PD(cache).fish_selected_blobs.find(fdx) == PD(cache).fish_selected_blobs.end() || !PD(cache).fish_selected_blobs.at(fdx).valid()) {
                     free_fish.insert(fdx);
                 }
                 if(PD(cache).active_ids.find(fdx) == PD(cache).active_ids.end())
@@ -3793,6 +3793,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                             auto r = proximity.query(center, 1);
                             if(r.size() == 1) {
                                 auto obj = std::get<1>(*r.begin());
+                                assert(obj >= 0);
                                 /*auto ptr = std::find_if(blobs.begin(), blobs.end(), [obj](auto &b){
                                     return obj == (uint32_t)b->blob_id();
                                 });*/
@@ -3804,7 +3805,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                                     //auto unpack = ptr->second->unpack();
                                     //print("Found ", center, " as ", obj, " vs. ", id, "(", old_id_from_blob(*unpack) ," / ", *unpack ,")");
                                 }*/
-                                    tmp[obj] = ps;
+                                    tmp[uint32_t(obj)] = ps;
                                     ++all_found;
                                 
                             } else {

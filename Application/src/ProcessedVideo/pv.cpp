@@ -884,13 +884,13 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         frame.read_from(*this, (long_t)frame_to_read);
     }
 #ifdef USE_GPU_MAT
-    void File::frame(uint64_t frameIndex, gpuMat &output, cmn::source_location loc) {
+    void File::frame(uint64_t frameIndex, gpuMat &output, cmn::source_location) {
         cv::Mat local;
         frame_optional_background(frameIndex, local, true);
         local.copyTo(output);
     }
 #endif
-    void File::frame(uint64_t frameIndex, cv::Mat &output, cmn::source_location loc) {
+    void File::frame(uint64_t frameIndex, cv::Mat &output, cmn::source_location) {
         frame_optional_background(frameIndex, output, true);
     }
     

@@ -92,10 +92,10 @@ namespace pv {
         GETTER(uint16_t, n)
         GETTER_SETTER(float, loading_time)
         
-        GETTER_NCONST(std::vector<std::unique_ptr<std::vector<HorizontalLine>>>, mask)
-        GETTER_NCONST(std::vector<std::unique_ptr<std::vector<uchar>>>, pixels)
+        GETTER_NCONST(std::vector<blob::line_ptr_t>, mask)
+        GETTER_NCONST(std::vector<blob::pixel_ptr_t>, pixels)
         GETTER_NCONST(std::vector<uint8_t>, flags)
-        GETTER(std::vector<std::shared_ptr<pv::Blob>>, blobs)
+        GETTER(std::vector<pv::BlobPtr>, blobs)
         
     public:
         //! Initialize copy
@@ -124,8 +124,8 @@ namespace pv {
         
         void add_object(const std::vector<HorizontalLine>& mask, const cv::Mat& full_image, uint8_t flags);
         std::unique_ptr<pv::Blob> blob_at(size_t i) const;
-        std::vector<std::shared_ptr<pv::Blob>>& get_blobs();
-        const std::vector<std::shared_ptr<pv::Blob>>& get_blobs() const;
+        std::vector<pv::BlobPtr>& get_blobs();
+        const std::vector<pv::BlobPtr>& get_blobs() const;
         
         /**
          * Adds a new object to this frame.
@@ -319,7 +319,7 @@ namespace pv {
          * ### GENERICVIDEO INTERFACE ###
          **/
         const cv::Size& size() const override { return _header.resolution; }
-        uint64_t length() const override { return _header.num_frames; }
+        uint32_t length() const override { return _header.num_frames; }
         void frame(uint64_t frameIndex, cv::Mat& output, cmn::source_location loc = cmn::source_location::current()) override;
 #ifdef USE_GPU_MAT
         void frame(uint64_t frameIndex, gpuMat& output, cmn::source_location loc = cmn::source_location::current()) override;

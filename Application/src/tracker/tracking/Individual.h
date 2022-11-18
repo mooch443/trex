@@ -351,7 +351,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         
         //void save_posture(Frame_t frameIndex, Image::Ptr greyscale, Vec2 previous_direction);
         void save_posture(const BasicStuff& ptr, Frame_t frameIndex);
-        Vec2 weighted_centroid(const Blob& blob, const std::vector<uchar>& pixels);
+        Vec2 weighted_centroid(const pv::Blob& blob, const std::vector<uchar>& pixels);
         
         long_t thresholded_size(Frame_t frameIndex) const;
         

@@ -131,6 +131,10 @@ CREATE_STRUCT(Settings,
         const auto& vi_predictions() const {
             return _vi_predictions;
         }
+        bool has_vi_predictions() const {
+            return !_vi_predictions.empty();
+        }
+        
         void set_vi_data(const decltype(_vi_predictions)& predictions);
         void predicted(Frame_t, pv::bid, std::vector<float>&&);
         const std::vector<float>& get_prediction(Frame_t, pv::bid) const;
@@ -514,7 +518,7 @@ CREATE_STRUCT(Settings,
             }
         };
         
-        std::vector<pv::BlobPtr> split_big(const BlobReceiver&, const std::vector<std::shared_ptr<pv::Blob>>& big_blobs, const robin_hood::unordered_map<pv::bid, split_expectation> &expect, bool discard_small = false, std::ostream *out = NULL, GenericThreadPool* pool = nullptr);
+        std::vector<pv::BlobPtr> split_big(const BlobReceiver&, const std::vector<pv::BlobPtr>& big_blobs, const robin_hood::unordered_map<pv::bid, split_expectation> &expect, bool discard_small = false, std::ostream *out = NULL, GenericThreadPool* pool = nullptr);
         
         static void prefilter(const std::shared_ptr<PrefilterBlobs>&, std::vector<pv::BlobPtr>::const_iterator it, std::vector<pv::BlobPtr>::const_iterator end);
         

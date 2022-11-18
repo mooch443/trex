@@ -721,6 +721,7 @@ bool PythonIntegration::is_none(const std::string& name, const std::string &m) {
 IMPL_VARIABLE(const std::vector<Image::Ptr>&)
 IMPL_VARIABLE(const std::vector<Image::UPtr>&)
 IMPL_VARIABLE_SHAPE(long_t)
+IMPL_VARIABLE_SHAPE(uint32_t)
 IMPL_VARIABLE_SHAPE(float)
 IMPL_VARIABLE(float)
 IMPL_VARIABLE(long_t)

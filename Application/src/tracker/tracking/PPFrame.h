@@ -2,7 +2,7 @@
 
 #include <types.h>
 #include <pv.h>
-#include <misc/PVBlob.h>
+#include <misc/bid.h>
 #include <misc/idx_t.h>
 #include <tracking/IndividualCache.h>
 

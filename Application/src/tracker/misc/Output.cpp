@@ -206,7 +206,7 @@ void Output::ResultsFormat::read_blob(Data& ref, pv::CompressedBlob& blob) const
         ref.read<uint16_t>(id);
     }
     
-    bool split = false, tried_to_split = false;
+    bool split = false;
     uint8_t byte = 0;
     if(_header.version >= Output::ResultsFormat::Versions::V_20) {
         ref.read<uint8_t>(byte);
@@ -217,8 +217,6 @@ void Output::ResultsFormat::read_blob(Data& ref, pv::CompressedBlob& blob) const
     if(_header.version >= Output::ResultsFormat::Versions::V_26) {
         if((byte & 0x2) != 0)
             ref.read<data_long_t>(parent_id);
-        if((byte & 0x4) != 0)
-            tried_to_split = true;
         
     } else if(split
               && _header.version >= Output::ResultsFormat::Versions::V_22
@@ -245,7 +243,11 @@ void Output::ResultsFormat::read_blob(Data& ref, pv::CompressedBlob& blob) const
     blob.status_byte = byte;
     blob.start_y = start_y;
     blob.reset_id();
-    blob.parent_id = pv::bid(parent_id);
+    
+    if(parent_id < 0)
+        blob.parent_id = pv::bid::invalid;
+    else
+        blob.parent_id = pv::bid(uint32_t(parent_id));
 }
 
 template<>

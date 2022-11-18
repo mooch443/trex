@@ -146,7 +146,7 @@ std::map<Idx_t, float> Tracker::prediction2map(const std::vector<float>& pred) {
         std::map<Idx_t, pv::bid> blob_for_fish;
         
         for(auto && [fdx, bff] : _automatically_assigned_ranges) {
-            blob_for_fish[fdx] = -1;
+            blob_for_fish[fdx] = pv::bid::invalid;
             
             for(auto & assign : bff) {
                 if(assign.range.contains(frame)) {
@@ -1270,7 +1270,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
             {
                 struct FishAssignments {
                     Idx_t fdx;
-                    std::vector<int64_t> blobs;
+                    std::vector<pv::bid> blobs;
                     std::vector<float> distances;
                     Vec2 last_pos;
                 };
@@ -1279,7 +1279,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                 };
 
                 std::vector<FishAssignments> fish_assignments(N);
-                ska::bytell_hash_map<int64_t, BlobAssignments> blob_assignments;
+                ska::bytell_hash_map<pv::bid, BlobAssignments> blob_assignments;
 
                 auto it = active_individuals.begin();
                 std::advance(it, start);
@@ -1350,12 +1350,12 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                         map.last_pos = last_pos.x == -1 ? cache.estimated_px : last_pos;
 
                         for(auto && [d, bdx] : set) {
-                            if(!frame.find_bdx(bdx))
+                            if(!frame.find_bdx(uint32_t(bdx)))
                                 continue;
                             
-                            map.blobs.push_back(bdx);
+                            map.blobs.push_back(uint32_t(bdx));
                             map.distances.push_back(d);
-                            blob_assignments[bdx].idxs.insert(fdx);
+                            blob_assignments[uint32_t(bdx)].idxs.insert(fdx);
                         }
                     }
                     
@@ -1367,7 +1367,7 @@ bool operator<(Frame_t frame, const FrameProperties& props) {
                     fish_mappings[fdx].insert(std::make_move_iterator(blobs.begin()), std::make_move_iterator(blobs.end()));
                     auto N = blobs.size();
                     for(size_t i=0; i<N; ++i)
-                        paired[fdx][pv::bid(blobs[i])] = distances[i];
+                        paired[fdx][blobs[i]] = distances[i];
                     last_positions[fdx] = last_pos;
                 }
                 for (auto& [bdx, assign] : blob_assignments) {
@@ -2314,7 +2314,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     // blob ids will not be < 0, as they have been inserted into the
                     // grid before directly from the file. so we can assume (uint32_t)
                     for(auto fdx: fdxs)
-                        assign_blobs[pv::bid(std::get<1>(*list.begin()))].push_back({fdx, pos, bdx});
+                        assign_blobs[uint32_t(std::get<1>(*list.begin()))].push_back({fdx, pos, bdx});
                 }
             }
             
@@ -3929,7 +3929,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         
         print("After removing frames: ", gui::CacheObject::memory());
         print("posture: ", Midline::saved_midlines());
-        print("all blobs: ", Blob::all_blobs());
+        print("all blobs: ", pv::Blob::all_blobs());
         print("Range: ", start_frame(),"-",end_frame());
     }
 

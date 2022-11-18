@@ -2529,7 +2529,7 @@ void Individual::save_posture(const BasicStuff& stuff, Frame_t frameIndex) {//Im
 	}
 }
 
-Vec2 Individual::weighted_centroid(const Blob& blob, const std::vector<uchar>& pixels) {
+Vec2 Individual::weighted_centroid(const pv::Blob& blob, const std::vector<uchar>& pixels) {
     // calculate midline centroid
     Vec2 centroid_point(0, 0);
     float weights = 0;

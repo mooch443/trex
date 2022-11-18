@@ -810,7 +810,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                     
                     if(full.blob == nullptr) {
                         FormatExcept("Cannot find ", data.blob->blob_id());
-                        print("reduced: ", reduced.blob ? reduced.blob->blob_id() : 0," full: ",full.blob ? full.blob->blob_id() : 0);
+                        print("reduced: ", reduced.blob ? reduced.blob->blob_id() : pv::bid()," full: ",full.blob ? full.blob->blob_id() : pv::bid());
                     }
                     
                     if(!reduced.blob && full.blob)
