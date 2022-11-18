@@ -83,26 +83,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 string( TOUPPER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE )
 set_property(GLOBAL PROPERTY DEBUG_CONFIGURATIONS "Debug;DEBUG;")
 
-if(APPLE)
-    if(CMAKE_OSX_DEPLOYMENT_TARGET AND NOT ${CMAKE_OSX_DEPLOYMENT_TARGET} MATCHES "")
-        message(STATUS "Found OSX deployment target: '${CMAKE_OSX_DEPLOYMENT_TARGET}'")
-        set(TREX_MACOS_VERSION ${CMAKE_OSX_DEPLOYMENT_TARGET})
-    else()
-        message(STATUS "Need to detect OSX version.")
-        if(NOT CMAKE_OSX_SYSROOT)
-            message(FATAL_ERROR "No OSX sysroot was set.")
-        else()
-            get_filename_component(osx_dir ${CMAKE_OSX_SYSROOT} NAME)
-            string(REPLACE ".sdk" "" osx_dir ${osx_dir})
-            string(REPLACE "MacOSX" "" osx_dir ${osx_dir})
-            message(STATUS "OSX Target: ${osx_dir}")
-            set(TREX_MACOS_VERSION ${osx_dir})
-        endif()
-    endif()
-endif()
-
-
-
 set(CMAKE_DEBUG_POSTFIX -d)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
