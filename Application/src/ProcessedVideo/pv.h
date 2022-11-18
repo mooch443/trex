@@ -225,7 +225,7 @@ namespace pv {
 
     struct TaskSentinel;
     
-    class File : public DataFormat, public GenericVideo {
+    class File : public cmn::DataFormat, public cmn::GenericVideo {
     protected:
         std::mutex _lock;
         Header _header;
