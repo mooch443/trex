@@ -54,6 +54,15 @@ uint64_t memory_selector(MemoryStats& stats, const std::unordered_set<T, Q>& obj
 }
 
 template <typename T>
+uint64_t memory_selector(MemoryStats& stats, const UnorderedVectorSet<T>& obj, const std::string& name) {
+    uint64_t bytes = 0;//sizeof(std::set<T>);
+    for(auto && v : obj) {
+        bytes += stats.get_memory_size(v, name);
+    }
+    return bytes;
+}
+
+template <typename T>
 uint64_t memory_selector(MemoryStats& stats, const ska::bytell_hash_set<T>& obj, const std::string& name) {
     uint64_t bytes = 0;//sizeof(std::set<T>);
     for(auto && v : obj) {

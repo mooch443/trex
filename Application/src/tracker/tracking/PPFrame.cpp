@@ -25,11 +25,16 @@ PPFrame::PPFrame()
 { }
 
 const IndividualCache* PPFrame::cached(Idx_t id) const {
-    auto it = std::find(_individual_cache.begin(), _individual_cache.end(), id);
-    if(it != _individual_cache.end()) {
-        return &(*it);
-    }
+    auto it = _individual_cache.find(id);
+    if(it != _individual_cache.end())
+        return &it->second;
     return nullptr;
+}
+
+void PPFrame::set_cache(Idx_t id, IndividualCache&& cache) {
+    static std::mutex mutex;
+    std::unique_lock guard(mutex);
+    _individual_cache[id] = std::move(cache);
 }
 
 bool PPFrame::_add_to_map(const pv::BlobPtr &blob) {

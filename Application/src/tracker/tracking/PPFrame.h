@@ -32,10 +32,16 @@ private:
     GETTER_I(size_t, num_pixels, 0)
     GETTER_I(size_t, pixel_samples, 0)
     
-    GETTER_NCONST(std::vector<IndividualCache>, individual_cache)
+    using cache_map_t = robin_hood::unordered_flat_map<Idx_t, IndividualCache>;
+    GETTER_NCONST(cache_map_t, individual_cache)
     
 public:
     const IndividualCache* cached(Idx_t) const;
+    void init_cache(const auto& individuals) {
+        _individual_cache.clear();
+        _individual_cache.reserve(individuals.size());
+    }
+    void set_cache(Idx_t, IndividualCache&&);
     
     //std::map<Idx_t, IndividualCache> cached_individuals;
     ska::bytell_hash_map<pv::bid, UnorderedVectorSet<Idx_t>> clique_for_blob;

@@ -37,6 +37,23 @@ namespace track {
         IndividualStatus() : prev(nullptr), current(nullptr) {}
     };
 
+struct split_expectation {
+    size_t number;
+    bool allow_less_than;
+    std::vector<Vec2> centers;
+    
+    split_expectation(size_t number = 0, bool allow_less_than = false)
+        : number(number), allow_less_than(allow_less_than)
+    { }
+    
+    std::string toStr() const {
+        return "{"+std::to_string(number)+","+(allow_less_than ? "true" : "false")+","+Meta::toStr(centers) + "}";
+    }
+    static std::string class_name() {
+        return "split_expectation";
+    }
+};
+
 using mmatches_t = std::map<Frame_t, std::map<Idx_t, pv::bid>>;
 using msplits_t = std::map<Frame_t, std::set<pv::bid>>;
 using inames_t = std::map<uint32_t, std::string>;
@@ -113,7 +130,7 @@ CREATE_STRUCT(Settings,
     public:
         static Tracker* instance();
         //using set_of_individuals_t = ska::bytell_hash_set<Individual*>;
-        using set_of_individuals_t = std::unordered_set<Individual*>;
+        using set_of_individuals_t = UnorderedVectorSet<Individual*>;
 
         std::map<Idx_t, pv::bid> automatically_assigned(Frame_t frame);
         
@@ -148,9 +165,6 @@ CREATE_STRUCT(Settings,
     protected:
         Image::Ptr _average;
         GETTER_SETTER(cv::Mat, mask)
-        
-        GETTER(std::atomic<float>, midline_errors_frame)
-        uint32_t _current_midline_errors, _overall_midline_errors;
         
         //! All the individuals that have been detected and are being maintained
         ska::bytell_hash_map<Idx_t, Individual*> _individuals;
@@ -231,7 +245,18 @@ CREATE_STRUCT(Settings,
         
         std::mutex _statistics_mutex;
         std::map<Frame_t, Statistics> _statistics;
-        Frame_t _approximative_enabled_in_frame;
+        
+        struct SecondsPerFrame {
+            double _seconds_per_frame, _frames_sampled;
+            void add(double seconds, double num_individuals) {
+                _seconds_per_frame += seconds / num_individuals;
+                _frames_sampled++;
+            }
+        };
+        inline static std::atomic<SecondsPerFrame> _time_samples;
+        
+    public:
+        static double average_seconds_per_individual();
         
         GETTER(std::deque<Range<Frame_t>>, consecutive)
         std::set<Idx_t, std::function<bool(Idx_t,Idx_t)>> _inactive_individuals;
@@ -305,7 +330,6 @@ CREATE_STRUCT(Settings,
             
             throw U_EXCEPTION("Frame out of bounds.");
         }
-        static uint32_t overall_midline_errors() { return instance()->_overall_midline_errors; }
         static Range<Frame_t> analysis_range() {
             const auto [start, end] = FAST_SETTINGS(analysis_range);
             const long_t video_length = narrow_cast<long_t>(FAST_SETTINGS(video_length))-1;
@@ -355,10 +379,6 @@ CREATE_STRUCT(Settings,
         
     protected:
         friend class track::Posture;
-        static void increase_midline_errors() {
-            ++instance()->_current_midline_errors;
-            ++instance()->_overall_midline_errors;
-        }
         
         void update_consecutive(const set_of_individuals_t& active, Frame_t frameIndex, bool update_dataset = false);
         void update_warnings(Frame_t frameIndex, double time, long_t number_fish, long_t n_found, long_t n_prev, const FrameProperties *props, const FrameProperties *prev_props, const set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators);
@@ -367,29 +387,14 @@ CREATE_STRUCT(Settings,
         static void filter_blobs(PPFrame& frame, GenericThreadPool *pool);
         void history_split(PPFrame& frame, const Tracker::set_of_individuals_t& active_individuals, std::ostream* out = NULL, GenericThreadPool* pool = NULL);
         
-        struct split_expectation {
-            size_t number;
-            bool allow_less_than;
-            std::vector<Vec2> centers;
-            
-            split_expectation(size_t number = 0, bool allow_less_than = false)
-                : number(number), allow_less_than(allow_less_than)
-            { }
-            
-            std::string toStr() const {
-                return "{"+std::to_string(number)+","+(allow_less_than ? "true" : "false")+","+Meta::toStr(centers) + "}";
-            }
-            static std::string class_name() {
-                return "split_expectation";
-            }
-        };
         
         //static void changed_setting(const sprite::Map&, const std::string& key, const sprite::PropertyType& value);
         size_t found_individuals_frame(Frame_t frameIndex) const;
         void generate_pairdistances(Frame_t frameIndex);
         void check_save_tags(Frame_t frameIndex, const ska::bytell_hash_map<pv::bid, Individual*>&, const std::vector<tags::blob_pixel>&, const std::vector<tags::blob_pixel>&, const file::Path&);
         
-        Individual* create_individual(Idx_t ID, set_of_individuals_t& active_individuals);
+        friend struct TrackingSettings;
+        static Individual* create_individual(Idx_t ID, set_of_individuals_t& active_individuals);
         
         struct PrefilterBlobs {
             std::vector<pv::BlobPtr> filtered;

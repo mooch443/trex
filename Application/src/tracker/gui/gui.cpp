@@ -4097,7 +4097,6 @@ std::string GUI::info(bool escape) {
     str.append("\n\n<h1>Tracking</h1>");
     //str.append("\n<b>frames where the number of individuals changed</b>: "+std::to_string(PD(tracker).changed_frames().size()-1));
     
-    str.append("<b>midline-errors:</b> "+std::to_string(Tracker::overall_midline_errors()));
     str.append("\n<b>max-curvature:</b> "+std::to_string(Outline::max_curvature()));
     str.append("\n<b>average max-curvature:</b> "+std::to_string(Outline::average_curvature()));
     

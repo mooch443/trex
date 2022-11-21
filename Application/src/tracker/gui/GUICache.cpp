@@ -264,7 +264,7 @@ namespace gui {
             
             if(FAST_SETTINGS(track_max_individuals) == 0) {
                 for(auto fish : active) {
-                    if(!_registered_callback.count(fish)) {
+                    if(!_registered_callback.contains(fish)) {
                         fish->register_delete_callback((void*)12341337, delete_callback);
                         _registered_callback.insert(fish);
                     }

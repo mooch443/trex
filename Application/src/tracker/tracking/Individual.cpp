@@ -1036,8 +1036,9 @@ void Individual::LocalCache::add(const PostureStuff& stuff) {
     }
 }
 
-int64_t Individual::add(const FrameProperties* props, Frame_t frameIndex, const PPFrame& frame, const pv::BlobPtr& blob, prob_t current_prob, default_config::matching_mode_t::Class match_mode)
+int64_t Individual::add(const FrameProperties* props, const PPFrame& frame, const pv::BlobPtr& blob, prob_t current_prob, default_config::matching_mode_t::Class match_mode)
 {
+    const auto frameIndex = frame.index();
     if (has(frameIndex))
         return -1;
     
