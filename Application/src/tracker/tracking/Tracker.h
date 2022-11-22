@@ -399,7 +399,7 @@ CREATE_STRUCT(Settings,
         void generate_pairdistances(Frame_t frameIndex);
         void check_save_tags(Frame_t frameIndex, const ska::bytell_hash_map<pv::bid, Individual*>&, const std::vector<tags::blob_pixel>&, const std::vector<tags::blob_pixel>&, const file::Path&);
         
-        friend struct TrackingSettings;
+        friend struct TrackingHelper;
         static Individual* create_individual(Idx_t ID, set_of_individuals_t& active_individuals);
         
         struct PrefilterBlobs {
