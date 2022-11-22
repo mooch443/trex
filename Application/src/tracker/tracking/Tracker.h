@@ -21,21 +21,22 @@ namespace Output {
 namespace mem { struct TrackerMemoryStats; }
 
 namespace track {
-    class Posture;
-    class TrainingData;
-    class FOI;
-    //struct fdx_t;
-    struct SplitData;
 
-    struct ro_t {};
-    struct w_t {};
+class Posture;
+class TrainingData;
+class FOI;
+//struct fdx_t;
+struct SplitData;
+
+struct ro_t {};
+struct w_t {};
+
+struct IndividualStatus {
+    const MotionRecord* prev;
+    const MotionRecord* current;
     
-    struct IndividualStatus {
-        const MotionRecord* prev;
-        const MotionRecord* current;
-        
-        IndividualStatus() : prev(nullptr), current(nullptr) {}
-    };
+    IndividualStatus() : prev(nullptr), current(nullptr) {}
+};
 
 struct split_expectation {
     size_t number;
@@ -131,8 +132,6 @@ CREATE_STRUCT(Settings,
         static Tracker* instance();
         //using set_of_individuals_t = ska::bytell_hash_set<Individual*>;
         using set_of_individuals_t = UnorderedVectorSet<Individual*>;
-
-        std::map<Idx_t, pv::bid> automatically_assigned(Frame_t frame);
         
     protected:
         friend class Output::TrackingResults;
@@ -360,7 +359,6 @@ CREATE_STRUCT(Settings,
         static void global_segment_order_changed();
         static void auto_calculate_parameters(pv::File& video, bool quiet = false);
         static void emergency_finish();
-        static void delete_automatic_assignments(Idx_t fish_id, const FrameRange& frame_range);
         
         static Match::PairedProbabilities calculate_paired_probabilities
                 (const PPFrame& frame,

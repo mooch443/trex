@@ -429,10 +429,11 @@ void GUI::draw(gui::DrawStructure &base) {
         }
 
         {
-            auto shadowed_text = [&](Vec2 pos, const std::string& text, Color color, float font_size = 0.75)
+            auto shadowed_text = [&](Vec2 pos, const std::string& text, Color color, float font_size = 0.75, bool shadow = true)
             {
                 // shadow
-                base.text(text, Loc((pos + Vec2(1, 1)).mul(scale)), Black, Font(font_size, Align::VerticalCenter), scale);
+                if(shadow)
+                    base.text(text, Loc((pos + Vec2(0.5, 0.5)).mul(scale)), Black, Font(font_size, Align::VerticalCenter), scale);
                 // text
                 return base.text(text, Loc(pos.mul(scale)), color, Font(font_size, Align::VerticalCenter), scale)->width();
             };
@@ -493,11 +494,14 @@ void GUI::draw(gui::DrawStructure &base) {
                     offset.y += 18;
                     darker = false;
                     continue;
+                    
+                } else if(offset.x > 25) {
+                    offset.x += base.line((offset + Vec2(0, 0.5)).mul(scale), (offset + Vec2(5, 0.5)).mul(scale), Gray, scale)->width() + 5;
                 }
                 
-                offset.x += shadowed_text(offset, values[i], darker ? text_color.exposure(0.9) : text_color, 0.5) + 5;
-                if(i + 1 < values.size())
-                    offset.x += base.line((offset + Vec2(0, 0.5)).mul(scale), (offset + Vec2(5, 0.5)).mul(scale), Gray, scale)->width() + 5;
+                offset.x += shadowed_text(offset, values[i], darker ? (text_color.r < 100 ? Color(70,70,70,255) : text_color.exposure(0.8)) :text_color, 0.5, false) + 5;
+                //if(i + 1 < values.size())
+                //    offset.x += base.line((offset + Vec2(0, 0.5)).mul(scale), (offset + Vec2(5, 0.5)).mul(scale), Gray, scale)->width() + 5;
                 darker = !darker;
             }
         }

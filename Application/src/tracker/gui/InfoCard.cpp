@@ -5,6 +5,7 @@
 #include <gui/types/Tooltip.h>
 #include <gui/GUICache.h>
 #include <gui/DrawBase.h>
+#include <tracking/AutomaticMatches.h>
 
 #include <misc/IdentifiedTag.h>
 
@@ -394,7 +395,7 @@ void InfoCard::update() {
                 Tracker::LockGuard guard(w_t{}, "InfoCard::update->delete->on_click");
                 if(!_shadow->current_range.empty()) {
                     print("Erasing automatic matches for fish ", _shadow->fdx," in range ", _shadow->current_range.start(),"-",_shadow->current_range.end());
-                    Tracker::delete_automatic_assignments(_shadow->fdx, _shadow->current_range);
+                    AutoAssign::delete_automatic_assignments(_shadow->fdx, _shadow->current_range);
                     _reanalyse(_shadow->frame);
                 }
             });
