@@ -19,7 +19,7 @@
 #include <tracking/VisualField.h>
 #include <file/DataLocation.h>
 
-#include <tracking/TrackingSettings.h>
+#include <tracking/TrackingHelper.h>
 #include <tracking/AutomaticMatches.h>
 
 #if !COMMONS_NO_PYTHON
@@ -39,6 +39,17 @@ namespace track {
 
     std::shared_ptr<std::ofstream> history_log;
     std::mutex log_mutex;
+
+    static std::string _last_thread = "<none>", _last_purpose = "";
+    static Timer _thread_holding_lock_timer;
+    static std::map<std::string, Timer> _last_printed_purpose;
+    static std::thread::id _writing_thread_id;
+
+    std::mutex thread_switch_mutex;
+    std::mutex _statistics_mutex;
+
+    static std::mutex read_mutex;
+    static std::unordered_set<std::thread::id> read_locks;
 
     template<typename... Args>
     inline void Log(std::ostream* out, Args... args) {
@@ -61,22 +72,6 @@ namespace track {
         return _instance;
     }
     
-    inline void analyse_posture_pack(Frame_t frameIndex, const std::vector<std::tuple<Individual*, const BasicStuff*>>& p) {
-        Timer t;
-        double collected = 0;
-        for(auto && [f, b] : p) {
-            t.reset();
-            f->save_posture(*b, frameIndex);
-            collected += t.elapsed();
-        }
-        
-        std::lock_guard<std::mutex> guard(Tracker::instance()->_statistics_mutex);
-        Tracker::instance()->_statistics[frameIndex].combined_posture_seconds += narrow_cast<float>(collected);
-    }
-    
-    //std::map<long_t, std::map<uint32_t, long_t>> automatically_assigned_blobs;
-
-
 void Tracker::predicted(Frame_t frame, pv::bid bdx, std::vector<float> && ps) {
     auto &ff = _vi_predictions[frame];
 #ifndef NDEBUG
@@ -116,15 +111,6 @@ std::map<Idx_t, float> Tracker::prediction2map(const std::vector<float>& pred) {
     return map;
 }
     
-static std::string _last_thread = "<none>", _last_purpose = "";
-static Timer _thread_holding_lock_timer;
-static std::map<std::string, Timer> _last_printed_purpose;
-static std::thread::id _writing_thread_id;
-
-std::mutex thread_switch_mutex;
-
-static std::mutex read_mutex;
-static std::unordered_set<std::thread::id> read_locks;
 
 Tracker::LockGuard::~LockGuard() {
     if(_write && _set_name) {
@@ -656,16 +642,14 @@ void Tracker::add(PPFrame &frame) {
     _statistics[frame.index()].adding_seconds = (float)overall_timer.elapsed();
     _statistics[frame.index()].loading_seconds = (float)frame.frame().loading_time();
     
-    auto samples = _time_samples.load();
-    samples.add(_statistics[frame.index()].adding_seconds, _statistics[frame.index()].number_fish);
-    _time_samples = samples;
+    _time_samples.add(_statistics[frame.index()].adding_seconds, _statistics[frame.index()].number_fish);
 }
 
 double Tracker::average_seconds_per_individual() {
-    auto samples = _time_samples.load();
-    if(samples._frames_sampled == 0)
+    std::lock_guard<std::mutex> lguard(_statistics_mutex);
+    if(_time_samples._frames_sampled == 0)
         return 0;
-    return samples._seconds_per_frame / samples._frames_sampled;
+    return _time_samples._seconds_per_frame / _time_samples._frames_sampled;
 }
 
 class PairProbability {
@@ -1958,7 +1942,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
     return paired_blobs;
 }
 
-void collect_matching_cliques(TrackingSettings& s, GenericThreadPool& thread_pool) {
+void collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thread_pool) {
     using namespace default_config;
     
     struct IndexClique {
@@ -2317,7 +2301,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
     static Timing timing("Tracker::add(frameIndex,PPFrame)", 10);
     TakeTiming assign(timing);
     
-    TrackingSettings s(frame, _added_frames);
+    TrackingHelper s(frame, _added_frames);
     
     // see if there are manually fixed matches for this frame
     s.apply_manual_matches(_individuals);
@@ -2590,7 +2574,8 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
     
     
     Timer posture_timer;
-    s.process_postures();
+    
+    const auto combined_posture_seconds = s.process_postures();
     const auto posture_seconds = posture_timer.elapsed();
     
     Output::Library::frame_changed(frameIndex);
@@ -2599,7 +2584,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
         update_consecutive(_active_individuals, frameIndex, true);
     }
     
-    _max_individuals = cmn::max(_max_individuals, s.assigned_count);
+    _max_individuals = cmn::max(_max_individuals.load(), s.assigned_count);
     _active_individuals_frame[frameIndex] = _active_individuals;
     _added_frames.back()->active_individuals = narrow_cast<long_t>(s.assigned_count);
     
@@ -2697,6 +2682,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
     std::lock_guard<std::mutex> guard(_statistics_mutex);
     _statistics[frameIndex].number_fish = s.assigned_count;
     _statistics[frameIndex].posture_seconds = posture_seconds;
+    _statistics[frameIndex].combined_posture_seconds = combined_posture_seconds;
 }
 
 void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators)
@@ -2992,8 +2978,8 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         _individual_add_iterator_map.clear();
         _segment_map_known_capacity.clear();
         
-        if(TrackingSettings::_approximative_enabled_in_frame >= frameIndex)
-            TrackingSettings::_approximative_enabled_in_frame.invalidate();
+        if(TrackingHelper::_approximative_enabled_in_frame >= frameIndex)
+            TrackingHelper::_approximative_enabled_in_frame.invalidate();
         
         print("Removing frames after and including ", frameIndex);
         

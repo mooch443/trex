@@ -1549,7 +1549,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             _tracker._active_individuals_frame[frame] = active;
             _tracker._active_individuals = active;
             
-            _tracker._max_individuals = max(_tracker._max_individuals, active.size());
+            _tracker._max_individuals = max(_tracker._max_individuals.load(), active.size());
         }
         
         _tracker._inactive_individuals.clear();

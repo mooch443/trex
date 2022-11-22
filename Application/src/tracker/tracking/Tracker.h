@@ -183,7 +183,13 @@ CREATE_STRUCT(Settings,
         
         std::atomic<Frame_t> _startFrame{ Frame_t() };
         std::atomic<Frame_t> _endFrame{ Frame_t() };
-        uint64_t _max_individuals;
+        
+        std::atomic<uint64_t> _max_individuals;
+        
+    public:
+        static uint64_t max_individuals() { return instance()->_max_individuals.load(); }
+        
+    protected:
         //GETTER_PTR(LuminanceGrid*, grid)
         GETTER_PTR(StaticBackground*, background)
         
@@ -242,7 +248,7 @@ CREATE_STRUCT(Settings,
             }
         };
         
-        std::mutex _statistics_mutex;
+        
         std::map<Frame_t, Statistics> _statistics;
         
         struct SecondsPerFrame {
@@ -252,7 +258,9 @@ CREATE_STRUCT(Settings,
                 _frames_sampled++;
             }
         };
-        inline static std::atomic<SecondsPerFrame> _time_samples;
+        
+    private:
+        inline static SecondsPerFrame _time_samples;
         
     public:
         static double average_seconds_per_individual();

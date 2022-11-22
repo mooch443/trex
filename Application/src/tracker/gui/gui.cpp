@@ -1851,6 +1851,28 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
             individuals_graph.set_scale(base.scale().reciprocal());
         }
         
+        if(SETTING(gui_show_processing_time)) {
+            static Graph individuals_graph(Bounds(50, 100, 500, 300), "Processing time");
+            if(individuals_graph.x_range().end == FLT_MAX || individuals_graph.x_range().end != PD(cache).tracked_frames.end.get()) {
+                //const auto track_max_individuals = FAST_SETTINGS(track_max_individuals);
+                const float ymax = Tracker::max_individuals() * Tracker::average_seconds_per_individual() * 1000 * 3;
+                individuals_graph.set_ranges(Rangef(PD(cache).tracked_frames.start.get(), PD(cache).tracked_frames.end.get()), Rangef(0, ymax));
+                if(individuals_graph.empty()) {
+                    individuals_graph.add_function(Graph::Function("ms/frame", Graph::Type::DISCRETE, [&](float x) -> float {
+                        auto it = PD(cache)._statistics.find(Frame_t(x));
+                        if(it != PD(cache)._statistics.end()) {
+                            return it->second.adding_seconds * 1000;
+                        }
+                        return gui::Graph::invalid();
+                    }));
+                }
+                individuals_graph.set_draggable();
+            }
+            individuals_graph.set_zero(frameNr.get());
+            base.wrap_object(individuals_graph);
+            individuals_graph.set_scale(base.scale().reciprocal());
+        }
+        
         DrawPreviewImage::draw(frameNr, base);
         
 #if !COMMONS_NO_PYTHON

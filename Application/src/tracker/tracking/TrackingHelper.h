@@ -8,7 +8,7 @@
 namespace track {
 
 
-struct TrackingSettings {// transfer the blobs and calculate the necessary properties
+struct TrackingHelper {// transfer the blobs and calculate the necessary properties
     // (also filter for blob size)
     //std::vector<Blob*> blobs;
     //const float track_max_reassign_time = FAST_SETTINGS(track_max_reassign_time);
@@ -51,7 +51,7 @@ struct TrackingSettings {// transfer the blobs and calculate the necessary prope
     Match::PairedProbabilities paired;
     default_config::matching_mode_t::Class match_mode{default_config::matching_mode_t::automatic};
     
-    TrackingSettings(PPFrame& frame, const std::vector<std::unique_ptr<FrameProperties>>& added_frames);
+    TrackingHelper(PPFrame& frame, const std::vector<std::unique_ptr<FrameProperties>>& added_frames);
     
     void assign_blob_individual(Individual* fish, const pv::BlobPtr& blob, default_config::matching_mode_t::Class match_mode);
     
@@ -62,7 +62,7 @@ struct TrackingSettings {// transfer the blobs and calculate the necessary prope
     
     void apply_matching();
     
-    void process_postures();
+    double process_postures();
 };
 
 }

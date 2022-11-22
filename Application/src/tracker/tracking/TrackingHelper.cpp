@@ -1,4 +1,4 @@
-#include "TrackingSettings.h"
+#include "TrackingHelper.h"
 #include <tracking/Tracker.h>
 #include <tracker/misc/default_config.h>
 #include <misc/pretty.h>
@@ -12,7 +12,7 @@ inline auto& blob_grid() {
     return grid;
 }
 
-TrackingSettings::TrackingSettings(PPFrame& frame, const std::vector<std::unique_ptr<FrameProperties>>& added_frames)
+TrackingHelper::TrackingHelper(PPFrame& frame, const std::vector<std::unique_ptr<FrameProperties>>& added_frames)
       :
         do_posture(FAST_SETTINGS(calculate_posture)),
         save_tags(!FAST_SETTINGS(tags_path).empty()),
@@ -68,7 +68,7 @@ TrackingSettings::TrackingSettings(PPFrame& frame, const std::vector<std::unique
                     : FAST_SETTINGS(match_mode);
 }
 
-void TrackingSettings::assign_blob_individual(Individual* fish, const pv::BlobPtr& blob, default_config::matching_mode_t::Class match_mode)
+void TrackingHelper::assign_blob_individual(Individual* fish, const pv::BlobPtr& blob, default_config::matching_mode_t::Class match_mode)
 {
     // transfer ownership of blob to individual
     // delete the copied objects from the original array.
@@ -146,7 +146,7 @@ void TrackingSettings::assign_blob_individual(Individual* fish, const pv::BlobPt
     ++assigned_count;
 }
 
-void TrackingSettings::apply_manual_matches(typename std::invoke_result_t<decltype(Tracker::individuals)> individuals)
+void TrackingHelper::apply_manual_matches(typename std::invoke_result_t<decltype(Tracker::individuals)> individuals)
 {
     const auto frameIndex = frame.index();
     
@@ -361,7 +361,7 @@ void TrackingSettings::apply_manual_matches(typename std::invoke_result_t<declty
 }
 
 
-void TrackingSettings::apply_automatic_matches() {
+void TrackingHelper::apply_automatic_matches() {
     const auto frameIndex = frame.index();
     auto &individuals = Tracker::individuals();
     
@@ -389,7 +389,7 @@ void TrackingSettings::apply_automatic_matches() {
     }
 }
 
-void TrackingSettings::apply_matching() {
+void TrackingHelper::apply_matching() {
     // calculate optimal permutation of blob assignments
     static Timing perm_timing("PairingGraph", 30);
     TakeTiming take(perm_timing);
@@ -520,11 +520,14 @@ void TrackingSettings::apply_matching() {
 }
 
 
-void TrackingSettings::process_postures() {
+double TrackingHelper::process_postures() {
     const auto frameIndex = frame.index();
     
     static Timing timing("Tracker::need_postures", 30);
     TakeTiming take(timing);
+    
+    double combined_posture_seconds = 0;
+    static std::mutex _statistics_mutex;
     
     if(do_posture && !need_postures.empty()) {
         static std::vector<std::tuple<Individual*, BasicStuff*>> all;
@@ -534,7 +537,7 @@ void TrackingSettings::process_postures() {
             need_postures.pop();
         }
         
-        distribute_vector([frameIndex](auto, auto start, auto end, auto){
+        distribute_vector([frameIndex, &combined_posture_seconds](auto, auto start, auto end, auto){
             Timer t;
             double collected = 0;
             
@@ -549,14 +552,16 @@ void TrackingSettings::process_postures() {
                 collected += t.elapsed();
             }
             
-            std::lock_guard<std::mutex> guard(Tracker::instance()->_statistics_mutex);
-            Tracker::instance()->_statistics[frameIndex].combined_posture_seconds += narrow_cast<float>(collected);
+            std::lock_guard guard((_statistics_mutex));
+            combined_posture_seconds += narrow_cast<float>(collected);
             
         }, Tracker::instance()->thread_pool(), all.begin(), all.end());
         
         all.clear();
         assert(need_postures.empty());
     }
+    
+    return combined_posture_seconds;
 }
 
 }
