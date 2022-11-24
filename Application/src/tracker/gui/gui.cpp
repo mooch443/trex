@@ -3815,7 +3815,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                             auto r = proximity.query(center, 1);
                             if(r.size() == 1) {
                                 auto obj = std::get<1>(*r.begin());
-                                assert(obj >= 0);
+                                assert(obj.valid());
                                 /*auto ptr = std::find_if(blobs.begin(), blobs.end(), [obj](auto &b){
                                     return obj == (uint32_t)b->blob_id();
                                 });*/

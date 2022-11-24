@@ -2,6 +2,8 @@
 #include <tracking/Tracker.h>
 
 namespace track {
+    static bool enable_absolute_difference = true;
+
     static inline int absolute_diff(int source, int value) {
         return abs(source - value);
     }
@@ -15,15 +17,17 @@ namespace track {
         _name = "StaticBackground"+Meta::toStr((uint64_t)this);
         _callback = _name.c_str();
         
-        GlobalSettings::map().register_callback(_callback, [this](sprite::Map::Signal signal, sprite::Map&map, auto& name, auto&){
+        GlobalSettings::map().register_callback(_callback, [this](sprite::Map::Signal signal, sprite::Map&map, auto& name, auto&v){
             if(signal == sprite::Map::Signal::EXIT) {
                 map.unregister_callback(_callback);
                 _callback = nullptr;
                 return;
             }
             
-            if(name == "enable_absolute_difference")
+            if(name == "enable_absolute_difference") {
+                enable_absolute_difference = v.template value<bool>();
                 this->update_callback();
+            }
         });
         
         update_callback();
@@ -39,7 +43,7 @@ namespace track {
         if(!SETTING(quiet))
             print("Updating static background difference method.");
 #endif
-        if(!Tracker::instance() || FAST_SETTINGS(enable_absolute_difference)) {
+        if(!Tracker::instance() || enable_absolute_difference) {
             _diff = &absolute_diff;
         } else {
             _diff = &signed_diff;
@@ -69,7 +73,8 @@ namespace track {
         auto end = values + ptr_safe_t(x1) - ptr_safe_t(x0) + 1;
         ptr_safe_t count = 0;
         
-        if(Tracker::instance() && !FAST_SETTINGS(enable_absolute_difference))
+        if(!enable_absolute_difference
+           && Tracker::instance())
         {
             if(ptr_grid) {
                 for (; values != end; ++ptr_grid, ++ptr_image, ++values)

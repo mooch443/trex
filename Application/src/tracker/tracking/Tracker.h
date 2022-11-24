@@ -368,13 +368,6 @@ CREATE_STRUCT(Settings,
         static void auto_calculate_parameters(pv::File& video, bool quiet = false);
         static void emergency_finish();
         
-        static Match::PairedProbabilities calculate_paired_probabilities
-                (const PPFrame& frame,
-                 const Tracker::set_of_individuals_t& active_individuals,
-                 const ska::bytell_hash_map<Individual*, bool>& fish_assigned,
-                 const ska::bytell_hash_map<pv::Blob*, bool>& blob_assigned,
-                 //std::unordered_map<pv::Blob*, pv::BlobPtr>& ptr2ptr,
-                 GenericThreadPool* pool);
         static std::vector<Clique> generate_cliques(const Match::PairedProbabilities& paired);
         
         enum class AnalysisState {

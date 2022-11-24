@@ -8,17 +8,26 @@
 namespace track {
 
 
-struct TrackingHelper {// transfer the blobs and calculate the necessary properties
-    // (also filter for blob size)
-    //std::vector<Blob*> blobs;
-    //const float track_max_reassign_time = FAST_SETTINGS(track_max_reassign_time);
-    
+struct TrackingHelper {
+private:
+    /**
+     * Parameter values that are cached specifically for use in the add()
+     * function / helper class.
+     */
     const bool do_posture{false};
+public:
     const bool save_tags{false};
+private:
     const uint32_t number_fish;
     const Frame_t approximation_delay_time;
+    
+public:
     inline static Frame_t _approximative_enabled_in_frame;
     
+    bool blob_assigned(const pv::BlobPtr&) const;
+    bool fish_assigned(Individual*) const;
+    
+public:
     PPFrame& frame;
     
     // ------------------------------------
@@ -26,9 +35,13 @@ struct TrackingHelper {// transfer the blobs and calculate the necessary propert
     // ------------------------------------
     std::queue<std::tuple<Individual*, BasicStuff*>> need_postures;
     
-    ska::bytell_hash_map<pv::Blob*, bool> blob_assigned;
-    ska::bytell_hash_map<Individual*, bool> fish_assigned;
+private:
+    robin_hood::unordered_flat_set<pv::Blob*> _blob_assigned;
+    robin_hood::unordered_flat_set<Individual*> _fish_assigned;
+    //ska::bytell_hash_map<pv::Blob*, bool> _blob_assigned;
+    //ska::bytell_hash_map<Individual*, bool> _fish_assigned;
     
+public:
     size_t assigned_count = 0;
     
     std::vector<tags::blob_pixel> tagged_fish, noise;
@@ -42,10 +55,12 @@ struct TrackingHelper {// transfer the blobs and calculate the necessary propert
     // collect all the currently active individuals
     set_of_individuals_t active_individuals;
     
+    //! current frame properties (e.g. time)
+    //! as well as previous frame
     const FrameProperties* props = nullptr;
     const FrameProperties* prev_props = nullptr;
     
-    double time{0};
+    
     bool frame_uses_approximate{false};
     
     Match::PairedProbabilities paired;

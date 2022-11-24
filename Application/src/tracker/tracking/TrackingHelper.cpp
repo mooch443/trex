@@ -12,17 +12,24 @@ inline auto& blob_grid() {
     return grid;
 }
 
+bool TrackingHelper::blob_assigned(const pv::BlobPtr& blob) const {
+    return _blob_assigned.contains(blob.get());
+}
+
+bool TrackingHelper::fish_assigned(Individual* fish) const {
+    return _fish_assigned.contains(fish);
+}
+
 TrackingHelper::TrackingHelper(PPFrame& frame, const std::vector<std::unique_ptr<FrameProperties>>& added_frames)
       :
         do_posture(FAST_SETTINGS(calculate_posture)),
         save_tags(!FAST_SETTINGS(tags_path).empty()),
         number_fish((uint32_t)FAST_SETTINGS(track_max_individuals)),
         approximation_delay_time(Frame_t(max(1, FAST_SETTINGS(frame_rate) * 0.25))),
-        frame(frame),
-        time(double(frame.frame().timestamp()) / double(1000*1000))
+        frame(frame)
 {
     const BlobSizeRange minmax = FAST_SETTINGS(blob_size_ranges);
-    
+    double time(double(frame.frame().timestamp()) / double(1000*1000));
     props = Tracker::add_next_frame(FrameProperties(frame.index(), time, frame.frame().timestamp()));
     
     {
@@ -43,9 +50,12 @@ TrackingHelper::TrackingHelper(PPFrame& frame, const std::vector<std::unique_ptr
         }
     }
     
-    //blobs = frame.blobs;
-    for(auto &blob: frame.blobs())
-        blob_assigned[blob.get()] = false;
+    _blob_assigned.clear();
+    /*for(auto &blob: frame.blobs()) {
+        auto it = _blob_assigned.find(blob.get());
+        
+    }
+        _blob_assigned[blob.get()] = false;*/
     
     //! TODO: Can probably reuse frame.blob_grid here, but need to add noise() as well
     blob_grid().clear();
@@ -118,8 +128,10 @@ void TrackingHelper::assign_blob_individual(Individual* fish, const pv::BlobPtr&
     }
     
     auto &basic = fish->basic_stuff()[size_t(index)];
-    fish_assigned[fish] = true;
-    blob_assigned[blob.get()] = true;
+    _fish_assigned.insert(fish);
+    _blob_assigned.insert(blob.get());
+    //_fish_assigned[fish] = true;
+    //_blob_assigned[blob.get()] = true;
     
     if(save_tags) {
         if(!blob->split()){
@@ -185,18 +197,18 @@ void TrackingHelper::apply_manual_matches(typename std::invoke_result_t<decltype
                 }
                 
                 if(actually_assign.count(bdx) > 0) {
-                    FormatError("(fixed matches) Trying to assign blob ",(uint32_t)bdx," twice in frame ",frameIndex," (fish ",fdx," and ",actually_assign.at(bdx),").");
+                    FormatError("(fixed matches) Trying to assign blob ",bdx," twice in frame ",frameIndex," (fish ",fdx," and ",actually_assign.at(bdx),").");
                     double_find[bdx].insert(fdx);
                     
-                } else if(blob_assigned[blob.get()]) {
+                } else if(blob_assigned(blob)) {
                     FormatError("(fixed matches, blob_assigned) Trying to assign blob ", bdx," twice in frame ", frameIndex," (fish ",fdx,").");
                     // TODO: remove assignment from the other fish as well and add it to cannot_find
                     double_find[bdx].insert(fdx);
                     
-                } else if(fish_assigned[fish]) {
+                } else if(fish_assigned(fish)) {
                     FormatError("Trying to assign fish ", fish->identity().ID()," twice in frame ",frameIndex,".");
                 } else {
-                    actually_assign[(uint32_t)blob->blob_id()] = fdx;
+                    actually_assign[blob->blob_id()] = fdx;
                 }
                 
             } else {
@@ -212,7 +224,7 @@ void TrackingHelper::apply_manual_matches(typename std::invoke_result_t<decltype
                     continue;
                 }
                 
-                if(actually_assign.count((uint32_t)bdx) > 0) {
+                if(actually_assign.count(bdx) > 0) {
                     FormatError("(fixed matches) Trying to assign blob ",bdx," twice in frame ",frameIndex," (fish ",fdx," and ",actually_assign.at(bdx),").");
                     double_find[bdx].insert(fdx);
                 } else
@@ -341,9 +353,9 @@ void TrackingHelper::apply_manual_matches(typename std::invoke_result_t<decltype
             } else
                 fish = it->second;
             
-            if(blob_assigned[blob.get()]) {
+            if(blob_assigned(blob)) {
                 print("Trying to assign blob ",bdx," twice.");
-            } else if(fish_assigned[fish]) {
+            } else if(fish_assigned(fish)) {
                 print("Trying to assign fish ",fdx," twice.");
             } else {
                 fish->add_manual_match(frameIndex);
@@ -375,7 +387,11 @@ void TrackingHelper::apply_automatic_matches() {
             fish = individuals.at(fdx);
         
         pv::BlobPtr blob = frame.find_bdx((uint32_t)bdx);
-        if(fish && blob && !fish_assigned[fish] && !blob_assigned[blob.get()]) {
+        if(fish
+           && blob
+           && !fish_assigned(fish)
+           && !blob_assigned(blob))
+        {
             assign_blob_individual(fish, blob, default_config::matching_mode_t::benchmark);
             //frame.erase_anywhere(blob);
             fish->add_automatic_match(frameIndex);
@@ -383,7 +399,7 @@ void TrackingHelper::apply_automatic_matches() {
             
         } else {
 #ifndef NDEBUG
-            FormatError("frame ",frameIndex,": Automatic assignment cannot be executed with fdx ",fdx,"(",fish ? (fish_assigned[fish] ? "assigned" : "unassigned") : "no fish",") and bdx ",bdx,"(",blob ? (blob_assigned[blob.get()] ? "assigned" : "unassigned") : "no blob",")");
+            FormatError("frame ",frameIndex,": Automatic assignment cannot be executed with fdx ",fdx,"(",fish ? (fish_assigned(fish) ? "assigned" : "unassigned") : "no fish",") and bdx ",bdx,"(",blob ? (blob_assigned(blob)] ? "assigned" : "unassigned") : "no blob",")");
 #endif
         }
     }
