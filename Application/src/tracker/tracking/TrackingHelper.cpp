@@ -52,11 +52,11 @@ TrackingHelper::TrackingHelper(PPFrame& frame, const std::vector<std::unique_ptr
     
     for(auto &b : frame.blobs()) {
         //id_to_blob[b->blob_id()] = b;
-        blob_grid().insert(b->bounds().x + b->bounds().width * 0.5f, b->bounds().y + b->bounds().height * 0.5f, (uint32_t)b->blob_id());
+        blob_grid().insert(b->bounds().x + b->bounds().width * 0.5f, b->bounds().y + b->bounds().height * 0.5f, b->blob_id());
     }
     for(auto &b : frame.noise()) {
         //id_to_blob[b->blob_id()] = b;
-        blob_grid().insert(b->bounds().x + b->bounds().width * 0.5f, b->bounds().y + b->bounds().height * 0.5f, (uint32_t)b->blob_id());
+        blob_grid().insert(b->bounds().x + b->bounds().width * 0.5f, b->bounds().y + b->bounds().height * 0.5f, b->blob_id());
     }
     
     using namespace default_config;
@@ -275,13 +275,13 @@ void TrackingHelper::apply_manual_matches(typename std::invoke_result_t<decltype
                 // blob ids will not be < 0, as they have been inserted into the
                 // grid before directly from the file. so we can assume (uint32_t)
                 for(auto fdx: fdxs)
-                    assign_blobs[uint32_t(std::get<1>(*list.begin()))].push_back({fdx, pos, bdx});
+                    assign_blobs[std::get<1>(*list.begin())].push_back({fdx, pos, bdx});
             }
         }
         
         robin_hood::unordered_map<Idx_t, pv::bid> actual_assignments;
         
-        for(auto && [bdx, clique] : assign_blobs) {
+        for(const auto & [bdx, clique] : assign_blobs) {
             // have to split blob...
             auto &blob = frame.bdx_to_ptr(bdx);
             

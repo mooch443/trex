@@ -8,7 +8,6 @@
 #include <misc/cnpy_wrapper.h>
 #include <processing/CPULabeling.h>
 #include <misc/ReverseAdapter.h>
-#include <misc/ProximityGrid.h>
 #include <misc/default_settings.h>
 #include <misc/pretty.h>
 #include <tracking/DatasetQuality.h>
@@ -1277,12 +1276,12 @@ void Tracker::history_split(PPFrame &frame, const Tracker::set_of_individuals_t 
                         map.last_pos = last_pos.x == -1 ? cache.estimated_px : last_pos;
                         
                         for(auto && [d, bdx] : set) {
-                            if(!frame.find_bdx(uint32_t(bdx)))
+                            if(!frame.find_bdx(bdx))
                                 continue;
                             
-                            map.blobs.push_back(uint32_t(bdx));
+                            map.blobs.push_back(bdx);
                             map.distances.push_back(d);
-                            blob_assignments[uint32_t(bdx)].idxs.insert(fdx);
+                            blob_assignments[bdx].idxs.insert(fdx);
                         }
                     }
                     

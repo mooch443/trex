@@ -5,6 +5,7 @@
 #include <misc/bid.h>
 #include <misc/idx_t.h>
 #include <tracking/IndividualCache.h>
+#include <misc/ProximityGrid.h>
 
 namespace track {
 

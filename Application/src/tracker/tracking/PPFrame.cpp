@@ -9,13 +9,13 @@ namespace track {
 inline void insert_line(grid::ProximityGrid& grid, const HorizontalLine* ptr, pv::bid blob_id, ptr_safe_t step_size)
 {
     auto d = ptr_safe_t(ptr->x1) - ptr_safe_t(ptr->x0);
-    grid.insert(ptr->x0, ptr->y, (int64_t)blob_id);
-    grid.insert(ptr->x1, ptr->y, (int64_t)blob_id);
-    grid.insert(ptr->x0 + d * 0.5, ptr->y, (int64_t)blob_id);
+    grid.insert(ptr->x0, ptr->y, blob_id);
+    grid.insert(ptr->x1, ptr->y, blob_id);
+    grid.insert(ptr->x0 + d * 0.5, ptr->y, blob_id);
 
     if(d >= step_size * 2 && step_size >= 5) {
         for(auto x = ptr_safe_t(ptr->x0) + step_size; x <= ptr_safe_t(ptr->x1) - step_size; x += step_size) {
-            grid.insert(x, ptr->y, (int64_t)blob_id);
+            grid.insert(x, ptr->y, blob_id);
         }
     }
 }
@@ -81,7 +81,7 @@ void PPFrame::_remove_from_map(pv::bid bdx) {
     }
     print(removals," removals");*/
     if(bdx.valid())
-        _blob_grid.erase((int64_t)bdx);
+        _blob_grid.erase(bdx);
 }
 
 void PPFrame::_assume_not_finalized(const char* file, int line) {

@@ -518,8 +518,8 @@ void draw_blob_view(const DisplayParameters& parm)
                                       Radius{1},
                                       LineClr{Transparent},
                                       FillClr{
-                        colors.find(uint32_t(pixel.v)) != colors.end()
-                            ? colors.at(uint32_t(pixel.v))
+                        colors.find(pixel.v) != colors.end()
+                            ? colors.at(pixel.v)
                             : Color(255, 0, 255, 255)
                     });
                 }

@@ -3793,7 +3793,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                                 auto bounds = b->calculate_bounds();
                                 auto center = bounds.pos() + bounds.size() * 0.5;
                                 blobs[b->blob_id()] = b;
-                                proximity.insert(center.x, center.y, (uint32_t)b->blob_id());
+                                proximity.insert(center.x, center.y, b->blob_id());
                             }
                         }
                         /*GUI::instance()->video_source()->read_frame(f, k.get());
@@ -3827,7 +3827,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                                     //auto unpack = ptr->second->unpack();
                                     //print("Found ", center, " as ", obj, " vs. ", id, "(", old_id_from_blob(*unpack) ," / ", *unpack ,")");
                                 }*/
-                                    tmp[uint32_t(obj)] = ps;
+                                    tmp[obj] = ps;
                                     ++all_found;
                                 
                             } else {
@@ -3839,7 +3839,8 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
                                         //print("Found blob close to ", center, " at ", c, ": ", *b);
                                         for(auto &fish : active) {
                                             auto b = fish->compressed_blob(k);
-                                            if(b && (b->blob_id() == pv::bid(id) || b->parent_id == pv::bid(id))) {
+                                            if(b && (b->blob_id() == bid || b->parent_id == bid))
+                                            {
                                                 //print("Equal IDS1 ", b->blob_id(), " and ", id);
                                                 tmp[b->blob_id()] = ps;
                                                 found = b;
