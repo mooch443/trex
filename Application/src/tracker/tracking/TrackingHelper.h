@@ -7,19 +7,10 @@
 
 namespace track {
 
+struct CachedSettings;
 
 struct TrackingHelper {
-private:
-    /**
-     * Parameter values that are cached specifically for use in the add()
-     * function / helper class.
-     */
-    const bool do_posture{false};
-public:
-    const bool save_tags{false};
-private:
-    const uint32_t number_fish;
-    const Frame_t approximation_delay_time;
+    const CachedSettings* cache;
     
 public:
     inline static Frame_t _approximative_enabled_in_frame;
@@ -28,6 +19,8 @@ public:
     bool fish_assigned(Individual*) const;
     
 public:
+    bool save_tags() const;
+    
     PPFrame& frame;
     
     // ------------------------------------
@@ -67,13 +60,12 @@ public:
     default_config::matching_mode_t::Class match_mode{default_config::matching_mode_t::automatic};
     
     TrackingHelper(PPFrame& frame, const std::vector<std::unique_ptr<FrameProperties>>& added_frames);
+    ~TrackingHelper();
     
     void assign_blob_individual(Individual* fish, const pv::BlobPtr& blob, default_config::matching_mode_t::Class match_mode);
     
     void apply_manual_matches(const ska::bytell_hash_map<Idx_t, Individual*>& individuals);
     void apply_automatic_matches();
-    
-    
     
     void apply_matching();
     

@@ -6,6 +6,12 @@
 
 namespace track {
 
+struct CachedSettings {
+    const bool do_posture{FAST_SETTINGS(calculate_posture)};
+    const bool save_tags{!FAST_SETTINGS(tags_path).empty()};
+    const uint32_t number_fish{(uint32_t)FAST_SETTINGS(track_max_individuals)};
+    const Frame_t approximation_delay_time{Frame_t(max(1, FAST_SETTINGS(frame_rate) * 0.25))};
+};
 
 inline auto& blob_grid() {
     static grid::ProximityGrid grid{Tracker::average().bounds().size()};
@@ -20,13 +26,16 @@ bool TrackingHelper::fish_assigned(Individual* fish) const {
     return _fish_assigned.contains(fish);
 }
 
+bool TrackingHelper::save_tags() const {
+    return cache->save_tags;
+}
+
+TrackingHelper::~TrackingHelper() {
+    delete cache;
+}
+
 TrackingHelper::TrackingHelper(PPFrame& frame, const std::vector<std::unique_ptr<FrameProperties>>& added_frames)
-      :
-        do_posture(FAST_SETTINGS(calculate_posture)),
-        save_tags(!FAST_SETTINGS(tags_path).empty()),
-        number_fish((uint32_t)FAST_SETTINGS(track_max_individuals)),
-        approximation_delay_time(Frame_t(max(1, FAST_SETTINGS(frame_rate) * 0.25))),
-        frame(frame)
+      : cache(new CachedSettings), frame(frame)
 {
     const BlobSizeRange minmax = FAST_SETTINGS(blob_size_ranges);
     double time(double(frame.frame().timestamp()) / double(1000*1000));
@@ -41,7 +50,7 @@ TrackingHelper::TrackingHelper(PPFrame& frame, const std::vector<std::unique_ptr
         }
     }
     
-    if(save_tags) {
+    if(save_tags()) {
         for(auto &blob : frame.noise()) {
             if(blob->recount(-1) <= minmax.max_range().start) {
                 pv::BlobPtr copy = std::make_shared<pv::Blob>(*blob);
@@ -71,7 +80,7 @@ TrackingHelper::TrackingHelper(PPFrame& frame, const std::vector<std::unique_ptr
     
     using namespace default_config;
     const auto frameIndex = frame.index();
-    frame_uses_approximate = (_approximative_enabled_in_frame.valid() && frameIndex - _approximative_enabled_in_frame < approximation_delay_time);
+    frame_uses_approximate = (_approximative_enabled_in_frame.valid() && frameIndex - _approximative_enabled_in_frame < cache->approximation_delay_time);
     
     match_mode = frame_uses_approximate
                     ? default_config::matching_mode_t::hungarian
@@ -133,7 +142,7 @@ void TrackingHelper::assign_blob_individual(Individual* fish, const pv::BlobPtr&
     //_fish_assigned[fish] = true;
     //_blob_assigned[blob.get()] = true;
     
-    if(save_tags) {
+    if(save_tags()) {
         if(!blob->split()){
             blob_fish_map[blob->blob_id()] = fish;
             if(blob->parent_id().valid())
@@ -149,7 +158,7 @@ void TrackingHelper::assign_blob_individual(Individual* fish, const pv::BlobPtr&
         }
     }
     
-    if (do_posture)
+    if (cache->do_posture)
         need_postures.push({fish, basic.get()});
     else {
         basic->pixels = nullptr;
@@ -531,7 +540,7 @@ void TrackingHelper::apply_matching() {
         
         _approximative_enabled_in_frame = frameIndex;
         
-        FOI::add(FOI(Range<Frame_t>(frameIndex, frameIndex + approximation_delay_time - 1_f), "apprx matching"));
+        FOI::add(FOI(Range<Frame_t>(frameIndex, frameIndex + cache->approximation_delay_time - 1_f), "apprx matching"));
     }
 }
 
@@ -545,7 +554,7 @@ double TrackingHelper::process_postures() {
     double combined_posture_seconds = 0;
     static std::mutex _statistics_mutex;
     
-    if(do_posture && !need_postures.empty()) {
+    if(cache->do_posture && !need_postures.empty()) {
         static std::vector<std::tuple<Individual*, BasicStuff*>> all;
         
         while(!need_postures.empty()) {

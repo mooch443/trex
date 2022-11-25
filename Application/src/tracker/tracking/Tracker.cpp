@@ -2555,12 +2555,18 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
     }
 #endif
     
-    if(s.save_tags) {
-       _thread_pool.enqueue([&](){
-            this->check_save_tags(frameIndex, s.blob_fish_map, s.tagged_fish, s.noise, FAST_SETTINGS(tags_path));
+    //! See if we are supposed to save tags (`tags_path` not empty),
+    //! and if so then enqueue check_save_tags on a thread pool.
+    std::future<void> tags_saver;
+    if(s.save_tags()) {
+        std::promise<void> promise;
+        tags_saver = promise.get_future();
+        
+       _thread_pool.enqueue([&, p = std::move(promise)]() mutable {
+           this->check_save_tags(frameIndex, s.blob_fish_map, s.tagged_fish, s.noise, FAST_SETTINGS(tags_path));
+           p.set_value();
         });
     }
-    
     
     Timer posture_timer;
     
@@ -2608,8 +2614,14 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
     update_warnings(frameIndex, s.frame.time, number_fish, n, prev, s.props, s.prev_props, _active_individuals, _individual_add_iterator_map);
     
 #if !COMMONS_NO_PYTHON
-    if (s.save_tags || !frame.tags().empty()) {
-        // find match between tags and individuals
+    //! Iterate through qrcodes in this frame and try to assign them
+    //! to the optimal individuals. These qrcodes can currently only
+    //! come from tgrabs directly.
+    if (!frame.tags().empty()) // <-- only added from tgrabs
+    {
+        //! calculate probabilities of assigning qrcodes / tags
+        //! to individuals based on position, similarly to how
+        //! blobs are assigned to individuals, too.
         Match::PairedProbabilities paired;
         const Match::prob_t p_threshold = FAST_SETTINGS(matching_probability_threshold);
 
@@ -2630,27 +2642,8 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
                 paired.add(fish, probs);
         }
 
-        /*for (auto& [fish, fdi] : s.paired.row_indexes()) {
-            if (!clique.fids.contains(fdi))
-                continue;
-
-            auto assigned = fish_assigned.find(fish);
-            if (assigned != fish_assigned.end() && assigned->second)
-                continue;
-
-            auto edges = s.paired.edges_for_row(fdi);
-
-            Match::pairing_map_t<Match::Blob_t, prob_t> probs;
-            for (auto& e : edges) {
-                auto blob = s.paired.col(e.cdx);
-                if (!blob_assigned.count(blob->get()) || !blob_assigned.at(blob->get()))
-                    probs[blob] = e.p;
-            }
-
-            if (!probs.empty())
-                paired.add(fish, probs);
-        }*/
-
+        //! use calculated probabilities to find optimal assignments
+        //! then add the qrcode to the matched individual
         Match::PairingGraph graph(*s.props, frameIndex, paired);
         try {
             auto& optimal = graph.get_optimal_pairing(false, default_config::matching_mode_t::hungarian);
@@ -2663,10 +2656,14 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
         catch (...) {
             FormatExcept("Exception during tags to individuals matching.");
         }
-        frame.tags().clear(); // is invalidated now
-        _thread_pool.wait();
+        
+        frame.tags().clear(); // is invalidated now, clear it
     }
 #endif
+    
+    //! wait for potentially enqueued tasks to save tags
+    if(s.save_tags())
+        tags_saver.wait();
     
     std::lock_guard<std::mutex> guard(_statistics_mutex);
     _statistics[frameIndex].number_fish = s.assigned_count;
