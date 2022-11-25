@@ -413,7 +413,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         friend class gui::Fish;
         friend struct SegmentInformation;
         
-        SegmentInformation* update_add_segment(const TrackingHelper& helper, const MotionRecord& current, Frame_t prev_frame, const pv::CompressedBlob* blob, Match::prob_t current_prob);
+        SegmentInformation* update_add_segment(const Frame_t frameIndex, const FrameProperties* props, const FrameProperties* prev_props, const MotionRecord& current, Frame_t prev_frame, const pv::CompressedBlob* blob, Match::prob_t current_prob);
         Midline::Ptr update_frame_with_posture(BasicStuff& basic, const decltype(Individual::_posture_stuff)::const_iterator& posture_it, const CacheHints* hints);
         //Vec2 add_current_velocity(Frame_t frameIndex, const MotionRecord* p);
     };

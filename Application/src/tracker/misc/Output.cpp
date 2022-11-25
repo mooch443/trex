@@ -438,7 +438,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         assert(fish->_endFrame < frameIndex);
         fish->_endFrame = frameIndex;
         
-        /*auto segment = fish->update_add_segment(
+        auto segment = fish->update_add_segment(
             frameIndex, Tracker::properties(data.stuff->frame), Tracker::properties(data.stuff->frame - 1_f),
             data.stuff->centroid,
             data.prev_frame,
@@ -446,7 +446,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             p
         );
         
-        segment->add_basic_at(frameIndex, (long_t)data.index);*/
+        segment->add_basic_at(frameIndex, (long_t)data.index);
         fish->_basic_stuff[data.index] = std::move(data.stuff);
     };
     

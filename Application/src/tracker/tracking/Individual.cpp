@@ -995,7 +995,7 @@ int64_t Individual::add(const TrackingHelper& helper, const pv::BlobPtr& blob, p
                             stuff->blob);//.p;
     }
     
-    auto segment = update_add_segment(helper, stuff->centroid, prev_frame, &stuff->blob, p);
+    auto segment = update_add_segment(frameIndex, helper.props, helper.prev_props, stuff->centroid, prev_frame, &stuff->blob, p);
     
     // add BasicStuff index to segment
     auto index = _basic_stuff.size();
@@ -1080,10 +1080,8 @@ T& operator |=(T &lhs, Enum rhs)
     return lhs;
 }
 
-SegmentInformation* Individual::update_add_segment(const TrackingHelper& helper, const MotionRecord& current, Frame_t prev_frame, const pv::CompressedBlob* blob, prob_t current_prob)
+SegmentInformation* Individual::update_add_segment(const Frame_t frameIndex, const FrameProperties* props, const FrameProperties* prev_props, const MotionRecord& current, Frame_t prev_frame, const pv::CompressedBlob* blob, prob_t current_prob)
 {
-    const auto frameIndex = helper.frame.index();
-    
     //! find a segment this (potentially) belongs to
     const std::shared_ptr<SegmentInformation>* segment = nullptr;
     if(!_frame_segments.empty()) {
@@ -1099,8 +1097,8 @@ SegmentInformation* Individual::update_add_segment(const TrackingHelper& helper,
     assert(Tracker::properties(frameIndex) == helper.props);
     assert(Tracker::properties(frameIndex - 1_f) == helper.prev_props);
     
-    double tdelta = helper.props && helper.prev_props
-        ? helper.props->time - helper.prev_props->time
+    double tdelta = props && prev_props
+        ? props->time - prev_props->time
         : 0;
     
     const auto track_trusted_probability = SLOW_SETTING(track_trusted_probability);
