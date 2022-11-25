@@ -18,12 +18,7 @@ namespace Match {
     
     //IMPLEMENT(PairingGraph::unused);
     //IMPLEMENT(PairingGraph::unused_mutex);
-    
-PairedProbabilities::PairedProbabilities() : _num_rows(0), _num_cols(0)
-{
-    
-}
-
+   
 PairedProbabilities::row_t::value_type PairedProbabilities::row(fish_index_t rdx) const {
     assert(rdx < n_rows());
     return _rows[(index_t)rdx];

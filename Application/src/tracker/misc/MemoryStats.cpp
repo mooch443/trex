@@ -72,6 +72,15 @@ uint64_t memory_selector(MemoryStats& stats, const ska::bytell_hash_set<T>& obj,
 }
 
 template <typename T>
+uint64_t memory_selector(MemoryStats& stats, const robin_hood::unordered_flat_set<T>& obj, const std::string& name) {
+    uint64_t bytes = 0;//sizeof(std::set<T>);
+    for(auto && v : obj) {
+        bytes += stats.get_memory_size(v, name);
+    }
+    return bytes;
+}
+
+template <typename T>
 uint64_t memory_selector(MemoryStats& stats, const std::vector<T>& obj, const std::string& name) {
     uint64_t bytes = 0;//sizeof(std::set<T>);
     for(auto && v : obj) {
@@ -94,7 +103,7 @@ uint64_t memory_selector(MemoryStats& stats, const std::deque<T>& obj, const std
 
 uint64_t memory_selector(MemoryStats& stats, const Individual::LocalCache& obj, const std::string& name) {
     uint64_t bytes = 0;//sizeof(std::set<T>);
-    bytes += memory_selector(stats, obj._current_velocities, name);
+    //bytes += memory_selector(stats, obj._current_velocities, name);
     bytes += memory_selector(stats, obj._v_samples, name);
     return bytes;
 }

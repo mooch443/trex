@@ -64,12 +64,70 @@ namespace track {
         *out << str << std::endl;
     }
     
-    Tracker* _instance = NULL;
-    std::vector<Range<Frame_t>> _global_segment_order;
+Range<Frame_t> _analysis_range;
 
-    Tracker* Tracker::instance() {
-        return _instance;
-    }
+void update_analysis_range() {
+    static std::once_flag f;
+    std::call_once(f, [&]() {
+#define DEF_CALLBACK(X) Settings::set_callback(Settings:: X , [](auto&, auto& value) { SLOW_SETTING( X ) = value.template value<Settings:: X##_t >(); print("Setting", #X, "=", SLOW_SETTING(X), " @ ", (int*)&SLOW_SETTING(X)); })
+        
+        //DEF_CALLBACK(frame_rate);
+        
+        Settings::set_callback(Settings::frame_rate , [](auto&, auto& value) {
+            auto &result = slow::frame_rate;
+            result = value.template value<Settings:: frame_rate_t >();
+            //print("Setting frame_rate = ", SLOW_SETTING(frame_rate), " @ ", (int*)&SLOW_SETTING(frame_rate), " vs ", (int*)&result);
+        });
+        
+        DEF_CALLBACK(track_max_speed);
+        DEF_CALLBACK(cm_per_pixel);
+        DEF_CALLBACK(track_threshold);
+        
+        DEF_CALLBACK(track_trusted_probability);
+        DEF_CALLBACK(huge_timestamp_ends_segment);
+        DEF_CALLBACK(huge_timestamp_seconds);
+        DEF_CALLBACK(track_end_segment_for_speed);
+        DEF_CALLBACK(track_segment_max_length);
+        
+        static const auto update_range = [](){
+            const auto video_length = narrow_cast<long_t>(SETTING(video_length).value<Settings::video_length_t>())-1;
+            //auto analysis_range = FAST_SETTINGS(analysis_range);
+            const auto analysis_range = SETTING(analysis_range).value<Settings::analysis_range_t>();
+            const auto& [start, end] = analysis_range;
+            
+            _analysis_range = Range<Frame_t>{
+                Frame_t(max(0, start)),
+                Frame_t(max(end > -1
+                            ? min(video_length, end)
+                            : video_length, max(0, start)))
+            };
+        };
+        
+        Settings::set_callback(Settings::analysis_range, [](auto&, auto& value) {
+            SLOW_SETTING(analysis_range) = value.template value<Settings::analysis_range_t>();
+            update_range();
+        });
+        
+        Settings::set_callback(Settings::video_length, [](auto&, auto&) {
+            update_range();
+        });
+        
+        for(auto &n : Settings :: names())
+            Settings::variable_changed(sprite::Map::Signal::NONE, cmn::GlobalSettings::map(), n, cmn::GlobalSettings::get(n).get());
+    });
+}
+
+const Range<Frame_t>& Tracker::analysis_range() {
+    return _analysis_range;
+}
+
+
+Tracker* _instance = NULL;
+std::vector<Range<Frame_t>> _global_segment_order;
+
+Tracker* Tracker::instance() {
+    return _instance;
+}
     
 void Tracker::predicted(Frame_t frame, pv::bid bdx, std::vector<float> && ps) {
     auto &ff = _vi_predictions[frame];
@@ -388,6 +446,8 @@ Tracker::Tracker()
             return a->end_frame() > b->end_frame() || (a->end_frame() == b->end_frame() && A > B);
         })
 {
+    update_analysis_range();
+    
     _instance = this;
     if(!SETTING(quiet))
         print("Initialized with ", _thread_pool.num_threads()," threads.");
@@ -615,6 +675,7 @@ void Tracker::add(PPFrame &frame) {
     LockGuard guard(w_t{}, "Tracker::add(PPFrame)");
     
     assert(frame.index().valid());
+    update_analysis_range();
     
     if (contains_sorted(_added_frames, frame.index())) {
         print("Frame ",frame.index()," already in tracker.");
@@ -808,7 +869,7 @@ void Tracker::prefilter(const std::shared_ptr<Tracker::PrefilterBlobs>& result, 
     static Timing timing("prefilter", 10);
     TakeTiming take(timing);
     
-    const float cm_sqr = SQR(FAST_SETTINGS(cm_per_pixel));
+    const float cm_sqr = SQR(SLOW_SETTING(cm_per_pixel));
     
     auto &big_blobs = result->big_blobs;
     auto &filtered  = result->filtered;
@@ -1027,7 +1088,7 @@ std::vector<pv::BlobPtr> Tracker::split_big(
     std::vector<pv::BlobPtr> result;
     const int threshold = FAST_SETTINGS(track_threshold);
     const BlobSizeRange fish_size = FAST_SETTINGS(blob_size_ranges);
-    const float cm_sq = SQR(FAST_SETTINGS(cm_per_pixel));
+    const float cm_sq = SQR(SLOW_SETTING(cm_per_pixel));
     const auto track_ignore = FAST_SETTINGS(track_ignore);
     const auto track_include = FAST_SETTINGS(track_include);
     
@@ -1092,7 +1153,9 @@ std::vector<pv::BlobPtr> Tracker::split_big(
                 std::vector<pv::BlobPtr> for_this_blob;
                 std::set<std::tuple<float, pv::bid, pv::BlobPtr>, std::greater<>> found;
                 for(auto &ptr : ret) {
-                    float recount = ptr->recount(0, *_background);
+                    auto recount = ptr->recount(threshold, *_background, true);
+                    //auto recount0 = ptr->recount(0, *_background, true);
+                    //assert(recount == recount0);
                     found.insert({recount, ptr->blob_id(), ptr});
                 }
                 
@@ -1157,7 +1220,7 @@ void Tracker::history_split(PPFrame &frame, const Tracker::set_of_individuals_t 
         auto props = properties(frame.index() - 1_f);
         tdelta = props ? (frame.time - props->time) : 0;
     }
-    const float max_d = FAST_SETTINGS(track_max_speed) * tdelta / FAST_SETTINGS(cm_per_pixel) * 0.5;
+    const float max_d = SLOW_SETTING(track_max_speed) * tdelta / SLOW_SETTING(cm_per_pixel) * 0.5;
 
     Log(out, "");
     Log(out, "------------------------");
@@ -1173,13 +1236,13 @@ void Tracker::history_split(PPFrame &frame, const Tracker::set_of_individuals_t 
     robin_hood::unordered_map<Idx_t, ska::bytell_hash_map<pv::bid, Match::prob_t>> paired;
     robin_hood::unordered_map<Idx_t, Vec2> last_positions;
 
-    const auto frame_limit = FAST_SETTINGS(frame_rate) * FAST_SETTINGS(track_max_reassign_time);
+    const auto frame_limit = SLOW_SETTING(frame_rate) * FAST_SETTINGS(track_max_reassign_time);
     const auto N = active_individuals.size();
 
     {
         const size_t num_threads = pool ? min(hardware_concurrency(), N / 200u) : 0;
         const auto space_limit = SQR(Individual::weird_distance() * 0.5);
-        const auto frame_rate = FAST_SETTINGS(frame_rate);
+        const auto frame_rate = SLOW_SETTING(frame_rate);
         const auto track_max_reassign_time = FAST_SETTINGS(track_max_reassign_time);
 
         CacheHints hints;
@@ -1451,12 +1514,6 @@ void Tracker::history_split(PPFrame &frame, const Tracker::set_of_individuals_t 
         }
         
         bool allow_less_than = false;
-        /*for(auto fdx : clique) {
-            if(_individuals.at(fdx)->recently_manually_matched(frame.index)) {
-                allow_less_than = true;
-                break;
-            }
-        }*/
         
         auto check_combinations =
             [&assign_blob, out](Idx_t c, decltype(probs_per_fish)::mapped_type& combinations, std::queue<Idx_t>& q)
@@ -2897,7 +2954,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
         for(auto fish : active) {
             //if(manual_identities.empty() || manual_identities.count(fish->identity().ID()))
             {
-                if(!fish->has(frameIndex) /*|| fish->centroid_weighted(frameIndex)->speed() >= FAST_SETTINGS(track_max_speed) * 0.25*/) {
+                if(!fish->has(frameIndex) /*|| fish->centroid_weighted(frameIndex)->speed() >= SLOW_SETTING(track_max_speed) * 0.25*/) {
                     all_good = false;
                     break;
                 }
@@ -3286,7 +3343,7 @@ void process_vi
         auto it = assigned_ranges.find(fdx);
         if (it != assigned_ranges.end()) {
             decltype(it->second.begin()) rit;
-            const Frame_t max_frames{ FAST_SETTINGS(frame_rate) * 15 };
+            const Frame_t max_frames{ SLOW_SETTING(frame_rate) * 15 };
 
             // skip some frame segments to find the next assigned id
             do {
@@ -3394,7 +3451,7 @@ void process_qr(Frame_t after_frame,
         auto it = assigned_ranges.find(fdx);
         if (it != assigned_ranges.end()) {
             decltype(it->second.begin()) rit;
-            const Frame_t max_frames{ FAST_SETTINGS(frame_rate) * 15 };
+            const Frame_t max_frames{ SLOW_SETTING(frame_rate) * 15 };
 
             // skip some frame segments to find the next assigned id
             do {
@@ -3622,7 +3679,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
             return 1.0/(1.0 + exp((0.5-x)*2.0*M_PI));
         };
         
-        const size_t n_lower_bound =  source == IdentitySource::QRCodes ? 2  : max(5, FAST_SETTINGS(frame_rate) * 0.1f);
+        const size_t n_lower_bound =  source == IdentitySource::QRCodes ? 2  : max(5, SLOW_SETTING(frame_rate) * 0.1f);
 
         auto collect_virtual_fish = [n_lower_bound, &virtual_fish, &assigned_ranges
 #ifdef TREX_DEBUG_IDENTITIES

@@ -1,8 +1,9 @@
 #include "MotionRecord.h"
 #include <misc/detail.h>
+#include <tracking/Tracker.h>
 
 namespace track {
-    
+
 void MotionRecord::init(const MotionRecord* previous, double time, const Vec2& pos, float angle)
 {
     _time = time;
@@ -16,16 +17,7 @@ void MotionRecord::flip(const MotionRecord* previous) {
 }
 
 float MotionRecord::cm_per_pixel() {
-    static float cm_per_pixel = SETTING(cm_per_pixel).value<float>();
-    static std::once_flag f;
-    std::call_once(f, [&]() {
-        GlobalSettings::map().register_callback("MotionRecord", [](sprite::Map::Signal, sprite::Map&, const std::string& key, const sprite::PropertyType& value) {
-            if (key == "cm_per_pixel") {
-                cm_per_pixel = value.value<float>();
-            }
-        });
-    });
-    return cm_per_pixel;
+    return SLOW_SETTING(cm_per_pixel);
 }
 
 };

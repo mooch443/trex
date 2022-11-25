@@ -10,7 +10,7 @@ struct CachedSettings {
     const bool do_posture{FAST_SETTINGS(calculate_posture)};
     const bool save_tags{!FAST_SETTINGS(tags_path).empty()};
     const uint32_t number_fish{(uint32_t)FAST_SETTINGS(track_max_individuals)};
-    const Frame_t approximation_delay_time{Frame_t(max(1, FAST_SETTINGS(frame_rate) * 0.25))};
+    const Frame_t approximation_delay_time{Frame_t(max(1, SLOW_SETTING(frame_rate) * 0.25))};
 };
 
 inline auto& blob_grid() {
@@ -128,7 +128,7 @@ void TrackingHelper::assign_blob_individual(Individual* fish, const pv::BlobPtr&
     if(!blob->moments().ready) {
         blob->calculate_moments();
     }
-    auto index = fish->add(props, frame, blob, -1, match_mode);
+    auto index = fish->add(*this, blob, -1);
     if(index == -1) {
 #ifndef NDEBUG
         FormatExcept("Was not able to assign individual ", fish->identity().ID()," with blob ", blob->blob_id()," in frame ", frame.index());
@@ -284,7 +284,7 @@ void TrackingHelper::apply_manual_matches(typename std::invoke_result_t<decltype
         } blaze(frame);
         
         std::map<pv::bid, std::vector<std::tuple<Idx_t, Vec2, pv::bid>>> assign_blobs;
-        const auto max_speed_px = FAST_SETTINGS(track_max_speed) / FAST_SETTINGS(cm_per_pixel);
+        const auto max_speed_px = SLOW_SETTING(track_max_speed) / SLOW_SETTING(cm_per_pixel);
         
         for(auto && [bdx, fdxs] : cannot_find) {
             assert(bdx.valid());
@@ -408,7 +408,7 @@ void TrackingHelper::apply_automatic_matches() {
             
         } else {
 #ifndef NDEBUG
-            FormatError("frame ",frameIndex,": Automatic assignment cannot be executed with fdx ",fdx,"(",fish ? (fish_assigned(fish) ? "assigned" : "unassigned") : "no fish",") and bdx ",bdx,"(",blob ? (blob_assigned(blob)] ? "assigned" : "unassigned") : "no blob",")");
+            FormatError("frame ",frameIndex,": Automatic assignment cannot be executed with fdx ",fdx,"(",fish ? (fish_assigned(fish) ? "assigned" : "unassigned") : "no fish",") and bdx ",bdx,"(",blob ? (blob_assigned(blob) ? "assigned" : "unassigned") : "no blob",")");
 #endif
         }
     }

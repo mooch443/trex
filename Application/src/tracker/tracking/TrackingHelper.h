@@ -43,7 +43,8 @@ public:
 #ifdef TREX_DEBUG_MATCHING
     std::vector<std::pair<Individual*, Match::Blob_t>> pairs;
 #endif
-    using set_of_individuals_t = UnorderedVectorSet<Individual*>;
+    //using set_of_individuals_t = UnorderedVectorSet<Individual*>;
+    using set_of_individuals_t = ska::bytell_hash_set<Individual*>;
     
     // collect all the currently active individuals
     set_of_individuals_t active_individuals;

@@ -1478,7 +1478,7 @@ int main(int argc, char** argv)
                     else if(command == "info") {
                         print(gui.info(false));
                     }
-                    else if(command == "retrieve_matches") {
+                    /*else if(command == "retrieve_matches") {
                         gui::WorkProgress::add_queue("retrieving matches", [](){
                             Settings::manual_matches_t manual_matches;
                             {
@@ -1511,7 +1511,7 @@ int main(int argc, char** argv)
                             
                             SETTING(manual_matches) = manual_matches;
                         });
-                    }
+                    }*/
                     else if(utils::beginsWith(command, "save_results")) {
                         gui.save_state(GUI::GUIType::TEXT, utils::endsWith(command, " force"));
                     }

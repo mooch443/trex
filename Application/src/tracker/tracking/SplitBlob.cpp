@@ -125,7 +125,7 @@ size_t SplitBlob::apply_threshold(int threshold, std::vector<pv::BlobPtr> &outpu
 }
 
 SplitBlob::Action SplitBlob::evaluate_result_single(std::vector<pv::BlobPtr> &result) {
-    float size = result.front()->num_pixels() * SQR(FAST_SETTINGS(cm_per_pixel));
+    float size = result.front()->num_pixels() * SQR(SLOW_SETTING(cm_per_pixel));
     // dont use fish that are too big
     if(size > fish_minmax.max_range().end)
         return REMOVE;

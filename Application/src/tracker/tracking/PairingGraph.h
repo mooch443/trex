@@ -132,8 +132,8 @@ namespace Match {
         GETTER(row_t, rows)
         GETTER(col_t, cols)
         
-        fish_index_t _num_rows;
-        blob_index_t _num_cols;
+        fish_index_t _num_rows{0};
+        blob_index_t _num_cols{0};
         
         std::vector<size_t> _offsets;
         std::vector<size_t> _degree;
@@ -148,7 +148,6 @@ namespace Match {
         //std::unordered_map<row_t::value_type, size_t> _fish_2_idx;
         
     public:
-        PairedProbabilities();
         const decltype(_row_index)& row_indexes() const { return _row_index;  }
         
         fish_index_t add(row_t::value_type, const pairing_map_t<col_t::value_type, prob_t>&);

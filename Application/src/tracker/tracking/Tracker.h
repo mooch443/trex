@@ -127,11 +127,31 @@ CREATE_STRUCT(Settings,
   (uint32_t, categories_min_sample_images)
 )
 
+#define DEF_SLOW_SETTINGS(X) inline static Settings:: X##_t X
+
+//! Parameters that are only saved once per frame
+struct slow {
+    DEF_SLOW_SETTINGS(frame_rate);
+    DEF_SLOW_SETTINGS(track_max_speed);
+    DEF_SLOW_SETTINGS(cm_per_pixel);
+    DEF_SLOW_SETTINGS(analysis_range);
+    DEF_SLOW_SETTINGS(track_threshold);
+    
+    DEF_SLOW_SETTINGS(track_trusted_probability);
+    DEF_SLOW_SETTINGS(huge_timestamp_ends_segment);
+    DEF_SLOW_SETTINGS(huge_timestamp_seconds);
+    DEF_SLOW_SETTINGS(track_end_segment_for_speed);
+    DEF_SLOW_SETTINGS(track_segment_max_length);
+};
+
+#undef DEF_SLOW_SETTINGS
+#define SLOW_SETTING(X) slow:: X
+
     class Tracker {
     public:
         static Tracker* instance();
-        //using set_of_individuals_t = ska::bytell_hash_set<Individual*>;
-        using set_of_individuals_t = UnorderedVectorSet<Individual*>;
+        using set_of_individuals_t = ska::bytell_hash_set<Individual*>;
+        //using set_of_individuals_t = UnorderedVectorSet<Individual*>;
         
     protected:
         friend class Output::TrackingResults;
@@ -337,11 +357,8 @@ CREATE_STRUCT(Settings,
             
             throw U_EXCEPTION("Frame out of bounds.");
         }
-        static Range<Frame_t> analysis_range() {
-            const auto [start, end] = FAST_SETTINGS(analysis_range);
-            const long_t video_length = narrow_cast<long_t>(FAST_SETTINGS(video_length))-1;
-            return Range<Frame_t>(Frame_t(max(0, start)), Frame_t(max(end > -1 ? min(video_length, end) : video_length, max(0, start))));
-        }
+        
+        static const Range<Frame_t>& analysis_range();
         
         void update_history_log();
         

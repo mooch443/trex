@@ -371,7 +371,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         }
     }
     
-    fish->_manually_matched.clear();
+    //fish->_manually_matched.clear();
     if(_header.version >= Output::ResultsFormat::Versions::V_15) {
         data_long_t tmp;
         uint64_t N;
@@ -379,7 +379,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         
         for (uint64_t i=0; i<N; ++i) {
             ref.read<data_long_t>(tmp);
-            fish->_manually_matched.insert(Frame_t(tmp));
+            //fish->_manually_matched.insert(Frame_t(tmp));
         }
     }
     
@@ -438,15 +438,15 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         assert(fish->_endFrame < frameIndex);
         fish->_endFrame = frameIndex;
         
-        auto segment = fish->update_add_segment(
-            frameIndex,
+        /*auto segment = fish->update_add_segment(
+            frameIndex, Tracker::properties(data.stuff->frame), Tracker::properties(data.stuff->frame - 1_f),
             data.stuff->centroid,
             data.prev_frame,
             &data.stuff->blob,
             p
         );
         
-        segment->add_basic_at(frameIndex, (long_t)data.index);
+        segment->add_basic_at(frameIndex, (long_t)data.index);*/
         fish->_basic_stuff[data.index] = std::move(data.stuff);
     };
     
@@ -909,9 +909,10 @@ uint64_t Data::write(const Individual& val) {
     pack.write<uint32_t>(ID);
     pack.write<std::string>(val.identity().raw_name());
     
-    pack.write<uint64_t>(val._manually_matched.size());
-    for (auto m : val._manually_matched)
-        pack.write<data_long_t>(m.get());
+    pack.write<uint64_t>(0);
+    //pack.write<uint64_t>(val._manually_matched.size());
+    //for (auto m : val._manually_matched)
+    //    pack.write<data_long_t>(m.get());
     
     // centroid based information
     pack.write<uint64_t>(val._basic_stuff.size());

@@ -42,24 +42,14 @@ bool PPFrame::_add_to_map(const pv::BlobPtr &blob) {
 #ifndef NDEBUG
         auto blob1 = _bdx_to_ptr.at(blob->blob_id());
         
-        print("Blob0 %u << 24 = %u (mask %u, max=%u)",
-              uint32_t(blob->bounds().x) & 0x00000FFF,
-              (uint32_t(blob->bounds().x) & 0x00000FFF) << 20,
-              (uint32_t(blob->lines()->front().y) & 0x00000FFF) << 8,
-              std::numeric_limits<uint32_t>::max());
+        print("Blob0 ", uint32_t(blob->bounds().x) & 0x00000FFF," << 24 = ", (uint32_t(blob->bounds().x) & 0x00000FFF) << 20," (mask ", (uint32_t(blob->lines()->front().y) & 0x00000FFF) << 8,", max=", std::numeric_limits<uint32_t>::max(),")");
         
-        print("Blob1 %u << 24 = %u (mask %u, max=%u)",
-              uint32_t(blob1->bounds().x) & 0x00000FFF,
-              (uint32_t(blob1->bounds().x) & 0x00000FFF) << 20,
-              (uint32_t(blob1->lines()->front().y) & 0x00000FFF) << 8,
-              std::numeric_limits<uint32_t>::max());
+        print("Blob1 ", uint32_t(blob1->bounds().x) & 0x00000FFF," << 24 = ", (uint32_t(blob1->bounds().x) & 0x00000FFF) << 20," (mask ", (uint32_t(blob1->lines()->front().y) & 0x00000FFF) << 8,", max=", std::numeric_limits<uint32_t>::max(),")");
         
         auto bid0 = pv::bid::from_blob(blob);
         auto bid1 = pv::bid::from_blob(_bdx_to_ptr.at(blob->blob_id()));
         
-        FormatExcept("Frame %d: Blob %u already in map (%d), at %f,%f bid=%u vs. %f,%f bid=%u", _index, blob->blob_id(), blob == _bdx_to_ptr.at(blob->blob_id()),
-               blob->bounds().x, blob->bounds().y, bid0,
-               _bdx_to_ptr.at(blob->blob_id())->bounds().x, _bdx_to_ptr.at(blob->blob_id())->bounds().y, bid1);
+        FormatExcept("Frame ", _index,": Blob ", blob->blob_id()," already in map (", blob == _bdx_to_ptr.at(blob->blob_id()),"), at ",blob->bounds().pos()," bid=", bid0," vs. ", _bdx_to_ptr.at(blob->blob_id())->bounds().pos()," bid=", bid1);
 #endif
         return false;
     }

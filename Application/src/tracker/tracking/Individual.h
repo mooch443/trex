@@ -27,7 +27,7 @@
 namespace gui { class Fish; }
 namespace cmn { class Data; }
 namespace Output { class ResultsFormat; class TrackingResults; }
-namespace track { class Individual; }
+namespace track { class Individual; struct TrackingHelper; }
 namespace mem { struct IndividualMemoryStats; }
 
 namespace track {
@@ -176,7 +176,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
     public:
         
     protected:
-        GETTER(std::set<Frame_t>, manually_matched)
+        //GETTER(std::set<Frame_t>, manually_matched)
         std::set<Frame_t> automatically_matched;
         std::mutex _delete_callback_mutex;
         
@@ -212,15 +212,15 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //  on a per-frame basis. They need to be regenerated when
         //  frames are removed.
         struct LocalCache {
-            robin_hood::unordered_map<Frame_t, Vec2> _current_velocities;
+            //ska::bytell_hash_map<Frame_t, Vec2> _current_velocities;
             Vec2 _current_velocity;
             std::vector<Vec2> _v_samples;
             
-            float _midline_length;
-            uint64_t _midline_samples;
+            float _midline_length{0};
+            uint64_t _midline_samples{0};
             
-            float _outline_size;
-            uint64_t _outline_samples;
+            float _outline_size{0};
+            uint64_t _outline_samples{0};
             
             void regenerate(Individual*);
             
@@ -230,12 +230,6 @@ constexpr std::array<const char*, 8> ReasonsNames {
         public:
             Vec2 add(Frame_t frame, const MotionRecord*);
             void add(const PostureStuff&);
-            
-            LocalCache()
-                : _midline_length(0), _midline_samples(0),
-                  _outline_size(0), _outline_samples(0)
-            {}
-            
         };
 
         struct QRCode {
@@ -301,7 +295,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         const decltype(_identity)& identity() const { return _identity; }
         decltype(_identity)& identity() { return _identity; }
         
-        int64_t add(const FrameProperties*, const PPFrame& frame, const pv::BlobPtr& blob, Match::prob_t current_prob, default_config::matching_mode_t::Class);
+        int64_t add(const TrackingHelper&, const pv::BlobPtr& blob, Match::prob_t current_prob);
         void remove_frame(Frame_t frameIndex);
         void register_delete_callback(void* ptr, const std::function<void(Individual*)>& lambda);
         void unregister_delete_callback(void* ptr);
@@ -419,7 +413,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         friend class gui::Fish;
         friend struct SegmentInformation;
         
-        std::shared_ptr<SegmentInformation> update_add_segment(Frame_t frameIndex, const MotionRecord& current, Frame_t prev_frame, const pv::CompressedBlob* blob, Match::prob_t current_prob);
+        SegmentInformation* update_add_segment(const TrackingHelper& helper, const MotionRecord& current, Frame_t prev_frame, const pv::CompressedBlob* blob, Match::prob_t current_prob);
         Midline::Ptr update_frame_with_posture(BasicStuff& basic, const decltype(Individual::_posture_stuff)::const_iterator& posture_it, const CacheHints* hints);
         //Vec2 add_current_velocity(Frame_t frameIndex, const MotionRecord* p);
     };
