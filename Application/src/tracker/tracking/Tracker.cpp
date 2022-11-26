@@ -71,14 +71,7 @@ void update_analysis_range() {
     std::call_once(f, [&]() {
 #define DEF_CALLBACK(X) Settings::set_callback(Settings:: X , [](auto&, auto& value) { SLOW_SETTING( X ) = value.template value<Settings:: X##_t >(); print("Setting", #X, "=", SLOW_SETTING(X), " @ ", (int*)&SLOW_SETTING(X)); })
         
-        //DEF_CALLBACK(frame_rate);
-        
-        Settings::set_callback(Settings::frame_rate , [](auto&, auto& value) {
-            auto &result = slow::frame_rate;
-            result = value.template value<Settings:: frame_rate_t >();
-            //print("Setting frame_rate = ", SLOW_SETTING(frame_rate), " @ ", (int*)&SLOW_SETTING(frame_rate), " vs ", (int*)&result);
-        });
-        
+        DEF_CALLBACK(frame_rate);
         DEF_CALLBACK(track_max_speed);
         DEF_CALLBACK(cm_per_pixel);
         DEF_CALLBACK(track_threshold);
@@ -1153,14 +1146,13 @@ std::vector<pv::BlobPtr> Tracker::split_big(
                 std::vector<pv::BlobPtr> for_this_blob;
                 std::set<std::tuple<float, pv::bid, pv::BlobPtr>, std::greater<>> found;
                 for(auto &ptr : ret) {
-                    auto recount = ptr->recount(threshold, *_background, true);
-                    //auto recount0 = ptr->recount(0, *_background, true);
-                    //assert(recount == recount0);
+                    auto recount = ptr->recount(0, *_background);
                     found.insert({recount, ptr->blob_id(), ptr});
                 }
                 
                 size_t counter = 0;
                 for(auto & [r, id, ptr] : found) {
+                    ptr->force_set_recount(threshold, ptr->raw_recount(-1));
                     ptr->add_offset(b->bounds().pos());
                     ptr->set_split(true, b);
 
