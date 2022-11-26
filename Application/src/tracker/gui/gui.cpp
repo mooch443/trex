@@ -3474,14 +3474,15 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
 }
 
 void GUI::save_state(GUI::GUIType type, bool force_overwrite) {
-    std::shared_ptr<file::Path> file = std::make_shared<file::Path>(Output::TrackingResults::expected_filename());
     static bool save_state_visible = false;
     if(save_state_visible)
         return;
     
     save_state_visible = true;
+    static file::Path file;
+    file = Output::TrackingResults::expected_filename();
     
-    auto fn = [file, ptr = &save_state_visible]() {
+    auto fn = []() {
         bool before = PD(analysis).is_paused();
         PD(analysis).set_paused(true).get();
         
@@ -3490,10 +3491,10 @@ void GUI::save_state(GUI::GUIType type, bool force_overwrite) {
         
         try {
             Output::TrackingResults results(PD(tracker));
-            results.save([](const std::string& title, float x, const std::string& description){ WorkProgress::set_progress(title, x, description); }, *file);
+            results.save([](const std::string& title, float x, const std::string& description){ WorkProgress::set_progress(title, x, description); }, file);
         } catch(const UtilsException&e) {
-            WorkProgress::add_queue("", [e](){
-                GUI::instance()->gui().dialog([](Dialog::Result){}, "Something went wrong saving the program state. Maybe no write permissions? Check out this message, too:\n<i>"+std::string(e.what())+"</i>", "Error");
+            WorkProgress::add_queue("", [e = std::string(e.what())]() {
+                GUI::instance()->gui().dialog([](Dialog::Result){}, "Something went wrong saving the program state. Maybe no write permissions? Check out this message, too:\n<i>"+e+"</i>", "Error");
             });
             
             FormatExcept("Something went wrong saving program state. Maybe no write permissions?"); }
@@ -3501,41 +3502,41 @@ void GUI::save_state(GUI::GUIType type, bool force_overwrite) {
         if(!before)
             PD(analysis).set_paused(false).get();
         
-        *ptr = false;
+        save_state_visible = false;
     };
     
-    if(file->exists() && !force_overwrite) {
+    if(file.exists() && !force_overwrite) {
         if(type != GUIType::GRAPHICAL) {
-            print("The file ",file->str()," already exists. To overwrite this setting, add the keyword 'force'.");
+            print("The file ",file.str()," already exists. To overwrite this setting, add the keyword 'force'.");
             save_state_visible = false;
         } else {
-            WorkProgress::add_queue("", [file, fn, ptr = &save_state_visible](){
-                PD(gui).dialog([file, fn, ptr = ptr](Dialog::Result result) {
+            WorkProgress::add_queue("", [fn](){
+                PD(gui).dialog([fn](Dialog::Result result) {
                     if(result == Dialog::Result::OKAY) {
                         WorkProgress::add_queue("Saving results...", fn);
                     } else if(result == Dialog::Result::SECOND) {
                         do {
-                            if(file->remove_filename().empty()) {
-                                *file = file::Path("backup_" + file->str());
+                            if(file.remove_filename().empty()) {
+                                file = file::Path("backup_" + file.str());
                             } else
-                                *file = file->remove_filename() / ("backup_" + (std::string)file->filename());
-                        } while(file->exists());
+                                file = file.remove_filename() / ("backup_" + (std::string)file.filename());
+                        } while(file.exists());
                         
                         auto expected = Output::TrackingResults::expected_filename();
-                        if(expected.move_to(*file)) {
-                            *file = expected;
+                        if(expected.move_to(file)) {
+                            file = expected;
                             WorkProgress::add_queue("Saving backup...", fn);
                         //if(std::rename(expected.str().c_str(), file->str().c_str()) == 0) {
 //                          *file = expected;
 //                            work().add_queue("Saving backup...", fn);
                         } else {
-                            FormatExcept("Cannot rename ",expected," to ",*file,".");
-                            *ptr = false;
+                            FormatExcept("Cannot rename ",expected," to ",file,".");
+                            save_state_visible = false;
                         }
                     } else
-                        *ptr = false;
+                        save_state_visible = false;
                     
-                }, "Overwrite tracking previous results at <i>"+file->str()+"</i>?", "Overwrite", "Yes", "Cancel", "Backup old one");
+                }, "Overwrite tracking previous results at <i>"+file.str()+"</i>?", "Overwrite", "Yes", "Cancel", "Backup old one");
             });
         }
         
@@ -3700,7 +3701,8 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
         return;
     
     state_visible = true;
-    auto fn = [&, ptr = &state_visible, from = from]() {
+
+    auto fn = [this, from]() {
         bool before = PD(analysis).is_paused();
         PD(analysis).set_paused(true).get();
         
@@ -3935,8 +3937,8 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
             FormatExcept("Cannot load results. Crashed with exception: ", e.what());
             
             if(GUI::instance()) {
-                WorkProgress::add_queue("", [e, from](){
-                    GUI::instance()->gui().dialog([](Dialog::Result){}, "Cannot load results from '"+from.str()+"'. Loading crashed with this message:\n<i>"+std::string(e.what())+"</i>", "Error");
+                WorkProgress::add_queue("", [e = std::string(e.what()), from]() {
+                    GUI::instance()->gui().dialog([](Dialog::Result){}, "Cannot load results from '"+from.str()+"'. Loading crashed with this message:\n<i>"+e+"</i>", "Error");
                 });
             
                 auto start = Tracker::start_frame();
@@ -3983,15 +3985,15 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
         if(GUI::instance() && (!before || (!finished && SETTING(auto_quit))))
             PD(analysis).set_paused(false).get();
         
-        *ptr = false;
+        state_visible = false;
     };
     
     if(type == GRAPHICAL) {
-        PD(gui).dialog([ptr = &state_visible, fn](Dialog::Result result) {
+        PD(gui).dialog([fn](Dialog::Result result) {
             if(result == Dialog::Result::OKAY) {
                 WorkProgress::add_queue("Loading results...", fn, PD(video_source).filename().str());
             } else {
-                *ptr = false;
+                state_visible = false;
             }
             
         }, "Are you sure you want to load results?\nThis will discard any unsaved changes.", "Load results", "Yes", "Cancel");

@@ -178,7 +178,7 @@ void draw_blob_view(const DisplayParameters& parm)
         //update_vector_elements(outer_images, outer_simple);
     }
     
-    parm.graph.section("blob_outers", [&, parm=parm](DrawStructure &base, auto s) {
+    parm.graph.section("blob_outers", [&, parm=parm](DrawStructure &base, Section* s) {
         if(parm.ptr && (parm.cache.is_animating(parm.ptr) || parm.cache.blobs_dirty())) {
             s->set_scale(parm.scale);
             s->set_pos(parm.offset);

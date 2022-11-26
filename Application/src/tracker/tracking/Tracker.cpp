@@ -2615,13 +2615,13 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
     //! See if we are supposed to save tags (`tags_path` not empty),
     //! and if so then enqueue check_save_tags on a thread pool.
     std::future<void> tags_saver;
+    __attribute__((optnone)) std::promise<void> promise;
     if(s.save_tags()) {
-        std::promise<void> promise;
         tags_saver = promise.get_future();
         
-       _thread_pool.enqueue([&, p = std::move(promise)]() mutable {
+       _thread_pool.enqueue([&]() {
            this->check_save_tags(frameIndex, s.blob_fish_map, s.tagged_fish, s.noise, FAST_SETTINGS(tags_path));
-           p.set_value();
+           promise.set_value();
         });
     }
     
