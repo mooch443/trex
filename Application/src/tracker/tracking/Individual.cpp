@@ -1094,8 +1094,8 @@ SegmentInformation* Individual::update_add_segment(const Frame_t frameIndex, con
         // else this frame does not actually belong within the found segment
     }
     
-    assert(Tracker::properties(frameIndex) == helper.props);
-    assert(Tracker::properties(frameIndex - 1_f) == helper.prev_props);
+    assert(Tracker::properties(frameIndex) == props);
+    assert(Tracker::properties(frameIndex - 1_f) == prev_props);
     
     double tdelta = props && prev_props
         ? props->time - prev_props->time
