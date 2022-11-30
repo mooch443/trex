@@ -1031,7 +1031,7 @@ bool Accumulation::start() {
                     if(distance < min_distance) min_distance = distance;
                     //distance = roundf((1 - SQR(average)) * 10) * 10;
                     
-                    range_distance = Frame_t(narrow_cast<int32_t>(next_pow2(sign_cast<uint64_t>(range_distance.get()))));
+                    range_distance = Frame_t(narrow_cast<int32_t>(next_pow2<uint64_t>(sign_cast<uint64_t>(range_distance.get()))));
                     
                     copied_sorted.insert({distance, range_distance, q, cached, range, extended_range, samples});
                 } else {

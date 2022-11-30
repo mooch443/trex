@@ -99,7 +99,7 @@ void VINetwork::setup(bool force) {
         
         uint64_t batch_size = ids.size(); // compute the next highest power of 2 of 32-bit v
         if(batch_size < 128)
-            batch_size = next_pow2(batch_size);
+            batch_size = next_pow2<uint64_t>(batch_size);
         else
             batch_size = 128;
         
