@@ -3493,8 +3493,9 @@ void GUI::save_state(GUI::GUIType type, bool force_overwrite) {
             Output::TrackingResults results(PD(tracker));
             results.save([](const std::string& title, float x, const std::string& description){ WorkProgress::set_progress(title, x, description); }, file);
         } catch(const UtilsException&e) {
-            WorkProgress::add_queue("", [e = std::string(e.what())]() {
-                GUI::instance()->gui().dialog([](Dialog::Result){}, "Something went wrong saving the program state. Maybe no write permissions? Check out this message, too:\n<i>"+e+"</i>", "Error");
+            auto what = std::string(e.what());
+            WorkProgress::add_queue("", [what]() {
+                GUI::instance()->gui().dialog([](Dialog::Result){}, "Something went wrong saving the program state. Maybe no write permissions? Check out this message, too:\n<i>"+what+"</i>", "Error");
             });
             
             FormatExcept("Something went wrong saving program state. Maybe no write permissions?"); }
@@ -3937,8 +3938,9 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
             FormatExcept("Cannot load results. Crashed with exception: ", e.what());
             
             if(GUI::instance()) {
-                WorkProgress::add_queue("", [e = std::string(e.what()), from]() {
-                    GUI::instance()->gui().dialog([](Dialog::Result){}, "Cannot load results from '"+from.str()+"'. Loading crashed with this message:\n<i>"+e+"</i>", "Error");
+                auto what = std::string(e.what());
+                WorkProgress::add_queue("", [what, from]() {
+                    GUI::instance()->gui().dialog([](Dialog::Result){}, "Cannot load results from '"+from.str()+"'. Loading crashed with this message:\n<i>"+what+"</i>", "Error");
                 });
             
                 auto start = Tracker::start_frame();
