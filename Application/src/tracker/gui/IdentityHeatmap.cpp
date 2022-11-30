@@ -841,10 +841,29 @@ void Leaf::clear() {
     _data.clear();
 }
 
+template <typename T>
+__attribute__((optnone)) constexpr T _next_pow2 (T n)
+{
+    if(n <= T{1}) return 1;
+    
+    static_assert(sizeof(T) <= 64, "Cannot use this for >64bit.");
+    T clz = 0;
+    if constexpr (sizeof(T) <= 32)
+        clz = __builtin_clzl(n-1); // unsigned long
+    else
+        clz = __builtin_clzll(n-1); // unsigned long long
+    print("clz=",clz, " n=",n, " => ", (CHAR_BIT * sizeof(T) - clz), " = ", T{1} << (CHAR_BIT * sizeof(T) - clz));
+    
+    return T{1} << (CHAR_BIT * sizeof(T) - clz);
+}
+
 void Grid::create(const Size2 &image_dimensions) {
     auto dim = sign_cast<uint32_t>(image_dimensions.max());
+    print(image_dimensions, " -> ", next_pow2(dim), " and ", dim, " vs ", next_pow2(1280), " ", Size2(1280,720).max());
+    auto smaller = _next_pow2(1280);
+    
     dim = (uint32_t)next_pow2(dim); // ensure that it is always divisible by two
-    print("Creating a grid of size ",dim,"x",dim," (for image of size ",image_dimensions.width,"x",image_dimensions.height,")");
+    print("Creating a grid of size ",dim,"x",dim," (for image of size ",image_dimensions.width,"x",image_dimensions.height,") ", smaller);
     
     if(_root) {
         _root->clear();
