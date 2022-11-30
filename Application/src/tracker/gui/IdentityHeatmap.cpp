@@ -852,7 +852,7 @@ __attribute__((optnone)) constexpr T _next_pow2 (T n)
         clz = __builtin_clzl(n-1); // unsigned long
     else
         clz = __builtin_clzll(n-1); // unsigned long long
-    print("clz=",clz, " n=",n, " => ", (CHAR_BIT * sizeof(T) - clz), " = ", T{1} << (CHAR_BIT * sizeof(T) - clz));
+    print("clz=",clz, " n=",n, " => ", CHAR_BIT * sizeof(T) - clz, " = ", T{1} << (CHAR_BIT * sizeof(T) - clz), " CHAR_BIT=", CHAR_BIT, " sizeof(T)=", sizeof(T), " - ", __builtin_clz(n-1));
     
     return T{1} << (CHAR_BIT * sizeof(T) - clz);
 }
