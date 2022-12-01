@@ -1484,8 +1484,8 @@ void Tracker::history_split(PPFrame &frame, const Tracker::set_of_individuals_t 
         }
         
         assert(bdx.valid());
-        frame.clique_for_blob[bdx] = clique;
-        frame.clique_second_order[bdx] = others;
+        //frame.clique_for_blob[bdx] = clique;
+        //frame.clique_second_order[bdx] = others;
         
         if(out) {
             Log(out, "\t\t", clique, " ", others);

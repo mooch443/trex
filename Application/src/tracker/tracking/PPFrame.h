@@ -33,7 +33,7 @@ private:
     GETTER_I(size_t, num_pixels, 0)
     GETTER_I(size_t, pixel_samples, 0)
     
-    using cache_map_t = robin_hood::unordered_flat_map<Idx_t, IndividualCache>;
+    using cache_map_t = robin_hood::unordered_node_map<Idx_t, IndividualCache>;
     GETTER_NCONST(cache_map_t, individual_cache)
     
 public:
@@ -45,8 +45,8 @@ public:
     void set_cache(Idx_t, IndividualCache&&);
     
     //std::map<Idx_t, IndividualCache> cached_individuals;
-    ska::bytell_hash_map<pv::bid, UnorderedVectorSet<Idx_t>> clique_for_blob;
-    ska::bytell_hash_map<pv::bid, UnorderedVectorSet<pv::bid>> clique_second_order;
+    //ska::bytell_hash_map<pv::bid, UnorderedVectorSet<Idx_t>> clique_for_blob;
+    //ska::bytell_hash_map<pv::bid, UnorderedVectorSet<pv::bid>> clique_second_order;
     UnorderedVectorSet<pv::bid> split_blobs;
     
 protected:

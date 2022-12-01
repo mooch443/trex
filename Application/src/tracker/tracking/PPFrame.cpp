@@ -303,8 +303,8 @@ void PPFrame::clear() {
     _individual_cache.clear();
     _blob_grid.clear();
     _original_blobs.clear();
-    clique_for_blob.clear();
-    clique_second_order.clear();
+    //clique_for_blob.clear();
+    //clique_second_order.clear();
     split_blobs.clear();
     _bdx_to_ptr.clear();
     _num_pixels = 0;
