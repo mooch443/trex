@@ -1569,8 +1569,8 @@ void Tracker::history_split(PPFrame &frame, const Tracker::set_of_individuals_t 
                 checks.push(c);
         }
         
-        UnorderedVectorSet<pv::bid> to_delete;
-        std::map<pv::bid, std::vector<Vec2>> centers;
+        //UnorderedVectorSet<pv::bid> to_delete;
+        //std::map<pv::bid, std::vector<Vec2>> centers;
         size_t counter = 0;
         if(out)
             Log(out, "Final assign blob:", assign_blob);
@@ -1613,7 +1613,7 @@ void Tracker::history_split(PPFrame &frame, const Tracker::set_of_individuals_t 
                             Log(out, "Increasing split number in ", *ptr, " to ", expect[max_id]);
                         } else
                             Log(out, "Cannot split blob ", max_id, " since it cannot be found.");
-
+ 
                         /*auto ptr = frame.erase_regular(max_id);
                         
                         if(ptr) {
@@ -1642,7 +1642,7 @@ void Tracker::history_split(PPFrame &frame, const Tracker::set_of_individuals_t 
             }
         }
         
-        distribute_vector([&](auto, auto start, auto end, auto){
+        /*distribute_vector([&](auto, auto start, auto end, auto){
             for(auto k = start; k != end; ++k) {
                 auto &blobs = k->second;
                 auto it = blobs.begin();
@@ -1653,7 +1653,7 @@ void Tracker::history_split(PPFrame &frame, const Tracker::set_of_individuals_t 
                         ++it;
                 }
             }
-        }, _thread_pool, paired.begin(), paired.end());
+        }, _thread_pool, paired.begin(), paired.end());*/
         
         if(out) {
             Log(out, "expect: ", expect);
