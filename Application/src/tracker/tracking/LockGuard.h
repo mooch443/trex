@@ -31,7 +31,4 @@ private:
     bool init(uint32_t timeout_ms);
 };
 
-
-static std::string thread_name_holding();
-
 }

@@ -19,10 +19,6 @@ static std::thread::id _writing_thread_id;
 
 std::mutex thread_switch_mutex;
 
-std::string thread_name_holding() {
-    return _last_thread;
-}
-
 LockGuard::~LockGuard() {
     if(_write && _set_name) {
         std::unique_lock tswitch(thread_switch_mutex);
