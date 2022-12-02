@@ -679,7 +679,7 @@ FrameGrabber::~FrameGrabber() {
         SETTING(terminate) = false; // TODO: otherwise, stuff might not get exported
         
         {
-            track::Tracker::LockGuard guard(track::w_t{}, "GUI::save_state");
+            track::LockGuard guard(track::w_t{}, "GUI::save_state");
             tracker->wait();
             
             if(!SETTING(auto_no_tracking_data))
@@ -1156,7 +1156,7 @@ void FrameGrabber::update_tracker_queue() {
             last_processed = copy->index();
             
             if(copy && tracker) {
-                track::Tracker::LockGuard guard(track::w_t{}, "update_tracker_queue");
+                track::LockGuard guard(track::w_t{}, "update_tracker_queue");
                 track::Tracker::preprocess_frame(*copy, {}, NULL, NULL, false);
                 tracker->add(*copy);
                 Frame_t frame{copy->frame().index()};

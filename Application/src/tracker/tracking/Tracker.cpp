@@ -34,21 +34,10 @@ namespace py = Python;
 //#define TREX_DEBUG_IDENTITIES
 
 namespace track {
-    auto *tracker_lock = new std::shared_timed_mutex;
-
     std::shared_ptr<std::ofstream> history_log;
     std::mutex log_mutex;
 
-    static std::string _last_thread = "<none>", _last_purpose = "";
-    static Timer _thread_holding_lock_timer;
-    static std::map<std::string, Timer> _last_printed_purpose;
-    static std::thread::id _writing_thread_id;
-
-    std::mutex thread_switch_mutex;
     std::mutex _statistics_mutex;
-
-    static std::mutex read_mutex;
-    static std::unordered_set<std::thread::id> read_locks;
 
     template<typename... Args>
     inline void Log(std::ostream* out, Args... args) {
@@ -160,201 +149,15 @@ std::map<Idx_t, float> Tracker::prediction2map(const std::vector<float>& pred) {
     }
     return map;
 }
-    
-
-Tracker::LockGuard::~LockGuard() {
-    if(_write && _set_name) {
-        std::unique_lock tswitch(thread_switch_mutex);
-        if(_timer.elapsed() >= 0.1) {
-            auto name = get_thread_name();
-            if(_last_printed_purpose.find(_purpose) == _last_printed_purpose.end() || _last_printed_purpose[_purpose].elapsed() >= 10) {
-                auto str = Meta::toStr(DurationUS{uint64_t(_timer.elapsed() * 1000 * 1000)});
-                print("thread ",name," held the lock for ",str.c_str()," with purpose ",_purpose.c_str());
-                _last_printed_purpose[_purpose].reset();
-            }
-        }
-        
-        _last_purpose = "";
-        _last_thread = "<none>";
-        _thread_holding_lock_timer.reset();
-    }
-    
-    _locked = false;
-        
-    if(_write) {
-        if(_owns_write) {
-            {
-                std::unique_lock tswitch(thread_switch_mutex);
-                //std::stringstream ss, ss1;
-                //ss << _writing_thread_id;
-                //ss1 << std::this_thread::get_id();
-                
-                //print("[TG] ",_purpose, " resets _writing_thread_id(old=", ss.str()," vs. mine=", ss1.str(),") write=", _write, " regain=", _regain_read, " owned=", _owns_write);
-                _writing_thread_id = std::thread::id();
-            }
-            
-            tracker_lock->unlock();
-            
-            if(_regain_read) {
-                //std::stringstream ss;
-                //ss << std::this_thread::get_id();
-                //print("[TG] ", _purpose, " reacquired shared_lock in thread ", ss.str(), " temporarily for write lock");
-                
-                tracker_lock->lock_shared();
-                
-                std::unique_lock rm(read_mutex);
-                read_locks.insert(std::this_thread::get_id());
-            }
-            
-        }
-    } else if(_owns_write) {
-        //std::stringstream ss;
-        //ss << std::this_thread::get_id();
-        //print("[TG] ", _purpose, " released shared_lock in thread ", ss.str());
-        
-        {
-            std::unique_lock rm(read_mutex);
-            read_locks.erase(std::this_thread::get_id());
-        }
-        
-        tracker_lock->unlock_shared();
-    }
-        
-}
-
-//Tracker::LockGuard::LockGuard(std::string purpose, uint32_t timeout_ms) : LockGuard(w_t{}, purpose, timeout_ms)
-//{ }
-
-Tracker::LockGuard::LockGuard(w_t, std::string purpose, uint32_t timeout_ms) : _write(true), _purpose(purpose)
-{
-    init(timeout_ms);
-}
-
-Tracker::LockGuard::LockGuard(ro_t, std::string purpose, uint32_t timeout_ms) : _write(false), _purpose(purpose)
-{
-    init(timeout_ms);
-}
-
-bool Tracker::LockGuard::locked() const {
-    //std::unique_lock tswitch(thread_switch_mutex);
-    return _locked;//(!_write && _writing_thread_id == std::thread::id())
-        //|| std::this_thread::get_id() == _writing_thread_id;
-}
-
-bool Tracker::LockGuard::init(uint32_t timeout_ms)
-{
-    assert(Tracker::instance());
-    assert(!_purpose.empty());
-    
-    auto my_id = std::this_thread::get_id();
-    
-    {
-        std::unique_lock tswitch(thread_switch_mutex);
-        if(my_id == _writing_thread_id) {
-            _locked = true;
-            //std::stringstream ss;
-            //ss << _writing_thread_id;
-            //print("[TG] ",_purpose, " already has writing lock at ", ss.str());
-            return true;
-        }
-    }
-    
-    if(!_write) {
-        std::unique_lock rm(read_mutex);
-        if(read_locks.contains(my_id)) {
-            //! we are already reading in this thread, dont
-            //! reacquire the lock
-            _locked = true;
-            return true;
-        }
-        
-    } else {
-        std::unique_lock rm(read_mutex);
-        if(read_locks.contains(my_id)) {
-            read_locks.erase(my_id);
-            tracker_lock->unlock_shared();
-            
-            //std::stringstream ss;
-            //ss << std::this_thread::get_id();
-            //print("[TG] ", _purpose, " released shared_lock in thread ", ss.str(), " temporarily for write lock");
-            
-            _regain_read = true;
-        }
-    }
-    
-    if(timeout_ms) {
-        auto duration = std::chrono::milliseconds(timeout_ms);
-        if(_write && !tracker_lock->try_lock_for(duration)) {
-            // did not get the write lock... :(
-            if(_regain_read) {
-                _regain_read = false;
-                //std::stringstream ss;
-                //ss << std::this_thread::get_id();
-                //print("[TG] ", _purpose, " reacquired shared_lock in thread ", ss.str(), " temporarily for write lock");
-                
-                tracker_lock->lock_shared();
-                
-                std::unique_lock rm(read_mutex);
-                read_locks.insert(my_id);
-            }
-            
-            return false;
-        } else if(!_write && !tracker_lock->try_lock_shared_for(duration)) {
-            return false;
-        }
-        
-    } else {
-        constexpr auto duration = std::chrono::milliseconds(10);
-        Timer timer, print_timer;
-        while(true) {
-            if((_write && tracker_lock->try_lock_for(duration))
-               || (!_write && tracker_lock->try_lock_shared_for(duration)))
-            {
-                // acquired the lock :)
-                break;
-                
-            } else if(timer.elapsed() > 60 && print_timer.elapsed() > 120) {
-                std::unique_lock tswitch(thread_switch_mutex);
-                auto name = _last_thread;
-                auto myname = get_thread_name();
-                FormatWarning("(",myname.c_str(),") Possible dead-lock with ",name," (",_last_purpose,") thread holding the lock for ",dec<2>(_thread_holding_lock_timer.elapsed()),"s (waiting for ",timer.elapsed(),"s, current purpose is ",_purpose,")");
-                print_timer.reset();
-            }
-        }
-    }
-    
-    _locked = true;
-    _owns_write = true;
-    
-    if(_write) {
-        
-        std::unique_lock tswitch(thread_switch_mutex);
-        _set_name = true;
-        _last_thread = get_thread_name();
-        _last_purpose = _purpose;
-        _thread_holding_lock_timer.reset();
-        _timer.reset();
-        
-        //std::stringstream ss, ss1;
-        //ss << my_id;
-        //ss1 << _writing_thread_id;
-        //print("[TG] ",_purpose," sets writing thread id ", ss.str(), " from ", ss1.str());
-        
-        _writing_thread_id = my_id;
-    } else {
-        //std::stringstream ss;
-        //ss << my_id;
-        //print("[TG] ",_purpose," acquire read lock in thread ", ss.str());
-        
-        std::unique_lock rm(read_mutex);
-        read_locks.insert(my_id);
-    }
-    
-    return true;
-}
 
 static CacheHints _properties_cache;
 static std::shared_mutex _properties_mutex;
+
+double Tracker::time_delta(Frame_t frame_1, Frame_t frame_2, const CacheHints* cache) {
+    auto props_1 = properties(frame_1, cache);
+    auto props_2 = properties(frame_2, cache);
+    return props_1 && props_2 ? abs(props_1->time - props_2->time) : (abs((frame_1 - frame_2).get()) / double(FAST_SETTINGS(frame_rate)));
+}
 
 const FrameProperties* Tracker::properties(Frame_t frameIndex, const CacheHints* hints) {
     if(!frameIndex.valid())
@@ -397,10 +200,6 @@ decltype(Tracker::_added_frames)::const_iterator Tracker::properties_iterator(Fr
     
     return frames.end();
 }
-
-    std::string Tracker::thread_name_holding() {
-        return _last_thread;
-    }
         
     void Tracker::print_memory() {
         LockGuard guard(ro_t{}, "print_memory");
@@ -527,7 +326,7 @@ Tracker::Tracker()
             }
             
             if(contains(Settings::names(), key)) {
-                Tracker::LockGuard guard(ro_t{}, "changed_settings");
+                LockGuard guard(ro_t{}, "changed_settings");
                 Settings :: variable_changed(signal, map, key, value);
             }
         };
@@ -735,7 +534,7 @@ public:
 };
 
 void Tracker::update_history_log() {
-    Tracker::LockGuard guard(ro_t{}, "update_history_log");
+    LockGuard guard(ro_t{}, "update_history_log");
     if(history_log == nullptr && !SETTING(history_matching_log).value<file::Path>().empty()) {
         history_log = std::make_shared<std::ofstream>();
         
@@ -791,7 +590,7 @@ void Tracker::update_history_log() {
     }
 }
 
-void Tracker::preprocess_frame(PPFrame& frame, const Tracker::set_of_individuals_t& active_individuals, GenericThreadPool* pool, std::ostream* out, bool do_history_split)
+void Tracker::preprocess_frame(PPFrame& frame, const set_of_individuals_t& active_individuals, GenericThreadPool* pool, std::ostream* out, bool do_history_split)
 {
     static std::once_flag flag;
     std::call_once(flag, [](){
@@ -823,7 +622,7 @@ void Tracker::preprocess_frame(PPFrame& frame, const Tracker::set_of_individuals
     frame.fill_proximity_grid();
     
     if(do_history_split) {
-        //Tracker::LockGuard guard("preprocess_frame");
+        //LockGuard guard("preprocess_frame");
         Tracker::instance()->history_split(frame, active_individuals, out, pool);
     }
 }
@@ -857,7 +656,7 @@ bool Tracker::blob_matches_shapes(const pv::BlobPtr & b, const std::vector<std::
     return false;
 }
 
-void Tracker::prefilter(const std::shared_ptr<Tracker::PrefilterBlobs>& result, std::vector<pv::BlobPtr>::const_iterator it, std::vector<pv::BlobPtr>::const_iterator end)
+void Tracker::prefilter(const std::shared_ptr<PrefilterBlobs>& result, std::vector<pv::BlobPtr>::const_iterator it, std::vector<pv::BlobPtr>::const_iterator end)
 {
     static Timing timing("prefilter", 10);
     TakeTiming take(timing);
@@ -1202,13 +1001,13 @@ std::vector<pv::BlobPtr> Tracker::split_big(
     return result;
 }
 
-void Tracker::history_split(PPFrame &frame, const Tracker::set_of_individuals_t &active_individuals, std::ostream* out, GenericThreadPool* pool) {
+void Tracker::history_split(PPFrame &frame, const set_of_individuals_t &active_individuals, std::ostream* out, GenericThreadPool* pool) {
     static Timing timing("history_split", 20);
     TakeTiming take(timing);
 
     float tdelta;
     {
-        Tracker::LockGuard guard(ro_t{}, "history_split#1");
+        LockGuard guard(ro_t{}, "history_split#1");
         auto props = properties(frame.index() - 1_f);
         tdelta = props ? (frame.time - props->time) : 0;
     }
@@ -1247,7 +1046,7 @@ void Tracker::history_split(PPFrame &frame, const Tracker::set_of_individuals_t 
         std::condition_variable variable;
         size_t count = 0;
 
-        auto fn = [&](const Tracker::set_of_individuals_t& active_individuals,
+        auto fn = [&](const set_of_individuals_t& active_individuals,
                       size_t start,
                       size_t N)
         {
@@ -1365,7 +1164,7 @@ void Tracker::history_split(PPFrame &frame, const Tracker::set_of_individuals_t 
         frame.init_cache(active_individuals);
         
         if(num_threads < 2 || !pool || N < num_threads) {
-            Tracker::LockGuard guard(ro_t{}, "history_split#2");
+            LockGuard guard(ro_t{}, "history_split#2");
             fn(active_individuals, 0, N);
             
         } else if(N) {
@@ -1373,7 +1172,7 @@ void Tracker::history_split(PPFrame &frame, const Tracker::set_of_individuals_t 
             size_t per_thread = (N - last) / num_threads;
             size_t i = 0;
 
-            Tracker::LockGuard guard(ro_t{}, "history_split#2");
+            LockGuard guard(ro_t{}, "history_split#2");
             for (; (i<=num_threads && last) || (!last && i<num_threads); ++i) {
                 size_t n = per_thread;
                 if(i == num_threads)
@@ -1694,7 +1493,7 @@ void Tracker::history_split(PPFrame &frame, const Tracker::set_of_individuals_t 
     frame.finalize();
 }
 
-Individual* Tracker::create_individual(Idx_t ID, Tracker::set_of_individuals_t& active_individuals) {
+Individual* Tracker::create_individual(Idx_t ID, set_of_individuals_t& active_individuals) {
     auto& individuals = instance()->_individuals;
     
     if(individuals.find(ID) != individuals.end())
@@ -2720,7 +2519,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
     _statistics[frameIndex].combined_posture_seconds = combined_posture_seconds;
 }
 
-void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators)
+void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators)
 {
     for(auto fish : active_individuals) {
         auto fit = individual_iterators.find(fish->identity().ID());
@@ -2755,7 +2554,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
     }
 }
             
-    void Tracker::update_warnings(Frame_t frameIndex, double time, long_t /*number_fish*/, long_t n_found, long_t n_prev, const FrameProperties *props, const FrameProperties *prev_props, const Tracker::set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators) {
+    void Tracker::update_warnings(Frame_t frameIndex, double time, long_t /*number_fish*/, long_t n_found, long_t n_prev, const FrameProperties *props, const FrameProperties *prev_props, const set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators) {
         std::map<std::string, std::set<FOI::fdx_t>> merge;
         
         if(n_found < n_prev-1) {
@@ -2939,7 +2738,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const Tracker::set_of_individu
             FOI::add(FOI(frameIndex, value, key));
     }
 
-    void Tracker::update_consecutive(const Tracker::set_of_individuals_t &active, Frame_t frameIndex, bool update_dataset) {
+    void Tracker::update_consecutive(const set_of_individuals_t &active, Frame_t frameIndex, bool update_dataset) {
         bool all_good = FAST_SETTINGS(track_max_individuals) == (uint32_t)active.size();
         
         //auto manual_identities = FAST_SETTINGS(manual_identities);
@@ -3971,7 +3770,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
                 //std::lock_guard<decltype(GUI::instance()->gui().lock())> guard(GUI::instance()->gui().lock());
                 
                 {
-                    Tracker::LockGuard guard(w_t{}, "check_segments_identities::auto_correct");
+                    LockGuard guard(w_t{}, "check_segments_identities::auto_correct");
                     Tracker::instance()->_remove_frames(!after_frame.valid() ? Tracker::analysis_range().start : after_frame);
                     for(auto && [fdx, fish] : instance()->individuals()) {
                         fish->clear_recognition();

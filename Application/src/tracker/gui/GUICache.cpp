@@ -361,7 +361,7 @@ namespace gui {
                 processed_frame.clear();
                 
                 if(frameIndex.valid()) {
-                    Tracker::set_of_individuals_t prev_active;
+                    set_of_individuals_t prev_active;
                     if(_tracker.properties(frameIndex - 1_f))
                         prev_active = _tracker.active_individuals(frameIndex - 1_f);
                     
@@ -583,7 +583,7 @@ namespace gui {
         checked_probs.insert(fdx);
         
         {
-            Tracker::LockGuard guard(ro_t{}, "GUICache::probs");
+            LockGuard guard(ro_t{}, "GUICache::probs");
             auto c = processed_frame.cached(fdx);
             if(c) {
                 for(auto& blob : processed_frame.blobs()) {

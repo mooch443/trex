@@ -13,6 +13,9 @@
 #include <misc/idx_t.h>
 #include <misc/create_struct.h>
 #include <tracker/misc/default_config.h>
+#include <tracking/TrackingSettings.h>
+#include <tracking/BlobReceiver.h>
+#include <tracking/LockGuard.h>
 
 namespace Output {
     class TrackingResults;
@@ -25,11 +28,7 @@ namespace track {
 class Posture;
 class TrainingData;
 class FOI;
-//struct fdx_t;
 struct SplitData;
-
-struct ro_t {};
-struct w_t {};
 
 struct IndividualStatus {
     const MotionRecord* prev;
@@ -55,104 +54,10 @@ struct split_expectation {
     }
 };
 
-using mmatches_t = std::map<Frame_t, std::map<Idx_t, pv::bid>>;
-using msplits_t = std::map<Frame_t, std::set<pv::bid>>;
-using inames_t = std::map<uint32_t, std::string>;
-using mapproved_t = std::map<long_t,long_t>;
-using analrange_t = std::pair<long_t,long_t>;
 
-CREATE_STRUCT(Settings,
-  (uint32_t, smooth_window),
-  (float, cm_per_pixel),
-  (int, frame_rate),
-  (float, track_max_reassign_time),
-  (float, speed_extrapolation),
-  (bool, calculate_posture),
-  (float, track_max_speed),
-  (bool, debug),
-  (BlobSizeRange, blob_size_ranges),
-  (int, track_threshold),
-  (int, track_threshold_2),
-  (Rangef, threshold_ratio_range),
-  (uint32_t, track_max_individuals),
-  (int, track_posture_threshold),
-  (uint8_t, outline_smooth_step),
-  (uint8_t, outline_smooth_samples),
-  (float, outline_resample),
-  (mmatches_t, manual_matches),
-  (msplits_t, manual_splits),
-  (uint32_t, midline_resolution),
-  (uint64_t, midline_samples),
-  (float, meta_mass_mg),
-  (inames_t, individual_names),
-  (float, midline_stiff_percentage),
-  (float, matching_probability_threshold),
-  (uint16_t, posture_direction_smoothing),
-  (file::Path, tags_path),
-  (std::vector<Vec2>, grid_points),
-  (std::vector<std::vector<Vec2>>, recognition_shapes),
-  (float, grid_points_scaling),
-  (std::vector<std::vector<Vec2>>, track_ignore),
-  (std::vector<std::vector<Vec2>>, track_include),
-  (bool, huge_timestamp_ends_segment),
-  (double, huge_timestamp_seconds),
-  (mapproved_t, manually_approved),
-  (float, track_speed_decay),
-  (bool, midline_invert),
-  (bool, track_time_probability_enabled),
-  (float, posture_head_percentage),
-  (bool, enable_absolute_difference),
-  (float, blobs_per_thread),
-  (std::string, individual_prefix),
-  (uint64_t, video_length),
-  (analrange_t, analysis_range),
-  (float, visual_field_eye_offset),
-  (float, visual_field_eye_separation),
-  (uint8_t, visual_field_history_smoothing),
-  (bool, track_end_segment_for_speed),
-  (default_config::matching_mode_t::Class, match_mode),
-  (bool, track_do_history_split),
-  (uint8_t, posture_closing_steps),
-  (uint8_t, posture_closing_size),
-  (float, individual_image_scale),
-  (bool, analysis_paused),
-  (float, track_trusted_probability),
-  (float, recognition_segment_add_factor),
-  (bool, output_interpolate_positions),
-  (bool, track_consistent_categories),
-  (std::vector<std::string>, categories_ordered),
-  (std::vector<std::string>, track_only_categories),
-  (float, track_segment_max_length),
-  (Size2, individual_image_size),
-  (uint32_t, categories_min_sample_images)
-)
-
-#define DEF_SLOW_SETTINGS(X) inline static Settings:: X##_t X
-
-//! Parameters that are only saved once per frame
-struct slow {
-    DEF_SLOW_SETTINGS(frame_rate);
-    DEF_SLOW_SETTINGS(track_max_speed);
-    DEF_SLOW_SETTINGS(cm_per_pixel);
-    DEF_SLOW_SETTINGS(analysis_range);
-    DEF_SLOW_SETTINGS(track_threshold);
-    
-    DEF_SLOW_SETTINGS(track_trusted_probability);
-    DEF_SLOW_SETTINGS(huge_timestamp_ends_segment);
-    DEF_SLOW_SETTINGS(huge_timestamp_seconds);
-    DEF_SLOW_SETTINGS(track_end_segment_for_speed);
-    DEF_SLOW_SETTINGS(track_segment_max_length);
-};
-
-#undef DEF_SLOW_SETTINGS
-#define SLOW_SETTING(X) slow:: X
-
-    class Tracker {
+class Tracker {
     public:
         static Tracker* instance();
-        using set_of_individuals_t = ska::bytell_hash_set<Individual*>;
-        //using set_of_individuals_t = UnorderedVectorSet<Individual*>;
-        
     protected:
         friend class Output::TrackingResults;
         friend struct mem::TrackerMemoryStats;
@@ -218,30 +123,6 @@ struct slow {
         std::vector<IndividualStatus> _warn_individual_status;
         
     public:
-        struct LockGuard {
-            
-            LockGuard(LockGuard&&) = delete;
-            LockGuard(const LockGuard&) = delete;
-            LockGuard& operator=(LockGuard&&) = delete;
-            LockGuard& operator=(const LockGuard&) = delete;
-            
-            bool _write{false}, _regain_read{false};
-            bool _locked{false}, _owns_write{false};
-            std::string _purpose;
-            Timer _timer;
-            bool _set_name{false};
-            bool locked() const;
-            
-            ~LockGuard();
-            LockGuard(ro_t, std::string purpose, uint32_t timeout_ms = 0);
-            LockGuard(w_t, std::string purpose, uint32_t timeout_ms = 0);
-            //LockGuard(std::string purpose, uint32_t timeout_ms = 0);
-            
-        private:
-            bool init(uint32_t timeout_ms);
-        };
-        
-        static std::string thread_name_holding();
         
     #define FAST_SETTINGS(NAME) track::Settings::copy<track::Settings:: NAME>()
         
@@ -318,11 +199,7 @@ struct slow {
         
         static decltype(_added_frames)::const_iterator properties_iterator(Frame_t frameIndex);
         static const FrameProperties* properties(Frame_t frameIndex, const CacheHints* cache = nullptr);
-        static double time_delta(Frame_t frame_1, Frame_t frame_2, const CacheHints* cache = nullptr) {
-            auto props_1 = properties(frame_1, cache);
-            auto props_2 = properties(frame_2, cache);
-            return props_1 && props_2 ? abs(props_1->time - props_2->time) : (abs((frame_1 - frame_2).get()) / double(FAST_SETTINGS(frame_rate)));
-        }
+        static double time_delta(Frame_t frame_1, Frame_t frame_2, const CacheHints* cache = nullptr);
         static const FrameProperties* add_next_frame(const FrameProperties&);
         static void clear_properties();
         
@@ -338,7 +215,7 @@ struct slow {
         static bool blob_matches_shapes(const pv::BlobPtr&, const std::vector<std::vector<Vec2>>&);
         
         // filters a given frames blobs for size and splits them if necessary
-        static void preprocess_frame(PPFrame &frame, const Tracker::set_of_individuals_t& active_individuals, GenericThreadPool* pool, std::ostream* = NULL, bool do_history_split = true);
+        static void preprocess_frame(PPFrame &frame, const set_of_individuals_t& active_individuals, GenericThreadPool* pool, std::ostream* = NULL, bool do_history_split = true);
         
         friend class VisualField;
         static const ska::bytell_hash_map<Idx_t, Individual*>& individuals() {
@@ -401,8 +278,7 @@ struct slow {
         
     private:
         static void filter_blobs(PPFrame& frame, GenericThreadPool *pool);
-        void history_split(PPFrame& frame, const Tracker::set_of_individuals_t& active_individuals, std::ostream* out = NULL, GenericThreadPool* pool = NULL);
-        
+        void history_split(PPFrame& frame, const set_of_individuals_t& active_individuals, std::ostream* out = NULL, GenericThreadPool* pool = NULL);
         
         //static void changed_setting(const sprite::Map&, const std::string& key, const sprite::PropertyType& value);
         size_t found_individuals_frame(Frame_t frameIndex) const;
@@ -411,133 +287,6 @@ struct slow {
         
         friend struct TrackingHelper;
         static Individual* create_individual(Idx_t ID, set_of_individuals_t& active_individuals);
-        
-        struct PrefilterBlobs {
-            std::vector<pv::BlobPtr> filtered;
-            std::vector<pv::BlobPtr> filtered_out;
-            std::vector<pv::BlobPtr> big_blobs;
-            //std::vector<pv::BlobPtr> additional;
-            
-            Frame_t frame_index;
-            BlobSizeRange fish_size;
-            const Background* background;
-            int threshold;
-            
-            size_t overall_pixels = 0;
-            size_t samples = 0;
-            
-            PrefilterBlobs(Frame_t index, int threshold, const BlobSizeRange& fish_size, const Background& background)
-            : frame_index(index), fish_size(fish_size), background(&background), threshold(threshold)
-            {
-                
-            }
-            
-            void commit(const pv::BlobPtr& b) {
-                overall_pixels += b->num_pixels();
-                ++samples;
-                filtered.push_back(b);
-            }
-            
-            void commit(const std::vector<pv::BlobPtr>& v) {
-                for(auto &b:v)
-                    overall_pixels += b->num_pixels();
-                samples += v.size();
-                filtered.insert(filtered.end(), v.begin(), v.end());
-            }
-            
-            void filter_out(const pv::BlobPtr& b) {
-                overall_pixels += b->num_pixels();
-                ++samples;
-                filtered_out.push_back(b);
-            }
-            
-            void filter_out(const std::vector<pv::BlobPtr>& v) {
-                for(auto &b:v)
-                    overall_pixels += b->num_pixels();
-                samples += v.size();
-                filtered_out.insert(filtered_out.end(), v.begin(), v.end());
-            }
-        };
-        
-        struct BlobReceiver {
-            const enum PPFrameType {
-                noise,
-                regular,
-                none
-            } _type = none;
-            
-            std::vector<pv::BlobPtr>* _base = nullptr;
-            PPFrame* _frame = nullptr;
-            Tracker::PrefilterBlobs *_prefilter = nullptr;
-            
-            BlobReceiver(Tracker::PrefilterBlobs& prefilter, PPFrameType type)
-                : _type(type), _prefilter(&prefilter)
-            { }
-            
-            BlobReceiver(PPFrame& frame, PPFrameType type)
-                : _type(type), _frame(&frame)
-            { }
-            
-            BlobReceiver(std::vector<pv::BlobPtr>& base)
-                : _base(&base)
-            { }
-            
-            void operator()(std::vector<pv::BlobPtr>&& v) const {
-                if(_base) {
-                    _base->insert(_base->end(), std::make_move_iterator(v.begin()), std::make_move_iterator(v.end()));
-                } else if(_prefilter) {
-                    switch(_type) {
-                        case noise:
-                            _prefilter->filter_out(std::move(v));
-                            break;
-                        case regular:
-                            _prefilter->commit(std::move(v));
-                            break;
-                        case none:
-                            break;
-                    }
-                } else {
-                    switch(_type) {
-                        case noise:
-                            _frame->add_noise(std::move(v));
-                            break;
-                        case regular:
-                            _frame->add_regular(std::move(v));
-                            break;
-                        case none:
-                            break;
-                    }
-                }
-            }
-            
-            void operator()(const pv::BlobPtr& b) const {
-                if(_base) {
-                    _base->insert(_base->end(), b);
-                } else if(_prefilter) {
-                    switch(_type) {
-                        case noise:
-                            _prefilter->filter_out(b);
-                            break;
-                        case regular:
-                            _prefilter->commit(b);
-                            break;
-                        case none:
-                            break;
-                    }
-                } else {
-                    switch(_type) {
-                        case noise:
-                            _frame->add_noise(b);
-                            break;
-                        case regular:
-                            _frame->add_regular(b);
-                            break;
-                        case none:
-                            break;
-                    }
-                }
-            }
-        };
         
         std::vector<pv::BlobPtr> split_big(const BlobReceiver&, const std::vector<pv::BlobPtr>& big_blobs, const robin_hood::unordered_map<pv::bid, split_expectation> &expect, bool discard_small = false, std::ostream *out = NULL, GenericThreadPool* pool = nullptr);
         

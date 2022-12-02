@@ -309,7 +309,7 @@ void TrackingHelper::apply_manual_matches(typename std::invoke_result_t<decltype
             robin_hood::unordered_map<pv::bid, split_expectation> expect;
             expect[bdx] = split_expectation(clique.size() == 1 ? 2 : clique.size(), false);
             
-            auto big_filtered = Tracker::instance()->split_big(Tracker::BlobReceiver(frame,  Tracker::BlobReceiver::noise), {blob}, expect);
+            auto big_filtered = Tracker::instance()->split_big(BlobReceiver(frame,  BlobReceiver::noise), {blob}, expect);
             if(!big_filtered.empty()) {
                 size_t found_perfect = 0;
                 for(auto & [fdx, pos, original_bdx] : clique) {

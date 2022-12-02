@@ -470,7 +470,7 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                     _status.busy = false;
                     
                     {
-                        Tracker::LockGuard guard(w_t{}, "train_internally");
+                        LockGuard guard(w_t{}, "train_internally");
                         for(auto && [fdx, fish] : Tracker::individuals())
                             fish->clear_recognition();
                     }

@@ -243,8 +243,9 @@ fish_index_t PairedProbabilities::add(
 }
 
 blob_index_t PairedProbabilities::add(col_t::value_type col) {
-    if(contains(_cols, col))
-        return _col_index.at(col); // already added this row
+    auto it = _col_index.find(col);
+    if(it != _col_index.end())//if(contains(_cols, col))
+        return it->second; // already added this row
     
     auto index = blob_index_t(_cols.size());
     _col_index[col] = index;
@@ -1088,7 +1089,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                 }
                 
                 Timer timer;
-                Tracker::set_of_individuals_t used_blobs;
+                set_of_individuals_t used_blobs;
                 
                 for(auto && [blob, edges] : _paired.col_edges()) {
                     prob_t max_p = 0;

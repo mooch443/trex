@@ -849,7 +849,7 @@ std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::share
 bool TrainingData::generate(const std::string& step_description, pv::File & video_file, std::map<Frame_t, std::set<Idx_t> > individuals_per_frame, const std::function<void(float)>& callback, const TrainingData* source) {
     auto frames = extract_keys(individuals_per_frame);
     
-    Tracker::LockGuard guard(ro_t{}, "generate_training_data");
+    LockGuard guard(ro_t{}, "generate_training_data");
     PPFrame video_frame;
     const Size2 output_size = SETTING(individual_image_size);
     const auto& custom_midline_lengths = filters();
@@ -1065,7 +1065,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
         
         auto active =
             frame == Tracker::start_frame()
-                ? Tracker::set_of_individuals_t()
+                ? set_of_individuals_t()
                 : Tracker::active_individuals(frame - 1_f);
         
         video_file.read_frame(video_frame.frame(), sign_cast<uint64_t>(frame.get()));

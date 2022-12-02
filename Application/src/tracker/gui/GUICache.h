@@ -118,10 +118,10 @@ namespace gui {
         std::map<Idx_t, std::shared_ptr<gui::Circle>> recognition_circles;
         std::map<Idx_t, Timer> recognition_timer;
         
-        Tracker::set_of_individuals_t _registered_callback;
+        set_of_individuals_t _registered_callback;
         
         std::map<Idx_t, pv::bid> fish_selected_blobs;
-        Tracker::set_of_individuals_t active;
+        set_of_individuals_t active;
         //std::vector<std::shared_ptr<gui::ExternalImage>> blob_images;
         std::vector<std::unique_ptr<SimpleBlob>> raw_blobs;
         std::unordered_map<pv::Blob*, SimpleBlob*> display_blobs;

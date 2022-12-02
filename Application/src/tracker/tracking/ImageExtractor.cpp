@@ -50,7 +50,7 @@ void ImageExtractor::filter_tasks() {
 void ImageExtractor::collect(selector_t&& selector) {
     //! we need a lock for this, since we're walking through all individuals
     //! maybe I can split this up later, but could be dangerous.
-    Tracker::LockGuard guard(ro_t{}, "ImageExtractor");
+    LockGuard guard(ro_t{}, "ImageExtractor");
     std::unique_ptr<std::shared_lock<std::shared_mutex>> query_guard;
     if(_settings.query_lock)
         query_guard = _settings.query_lock();
@@ -233,7 +233,7 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                 gui::Transform midline_transform;
                 
                 if(individual_image_normalization == default_config::individual_image_normalization_t::posture) {
-                    Tracker::LockGuard guard(ro_t{}, "normalization");
+                    LockGuard guard(ro_t{}, "normalization");
                     auto fish = Tracker::individuals().at(fdx);
                     if(fish) {
                         auto filter = constraints::local_midline_length(fish, range, false);

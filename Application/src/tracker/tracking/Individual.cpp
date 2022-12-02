@@ -2717,7 +2717,7 @@ const decltype(Individual::average_recognition_segment)::mapped_type Individual:
     auto it = average_processed_segment.find(segment_start);
     if(it == average_processed_segment.end()) {
         //! acquire write access
-        Tracker::LockGuard guard(w_t{}, "average_recognition_segment");
+        LockGuard guard(w_t{}, "average_recognition_segment");
         
         // average cannot be found for given segment. try to calculate it...
         auto sit = _recognition_segments.find(segment_start);
@@ -2853,7 +2853,7 @@ std::tuple<size_t, Idx_t, float> Individual::average_recognition_identity(Frame_
 }
 
 void Individual::add_custom_data(Frame_t frame, long_t id, void* ptr, std::function<void(void*)> fn_delete) {
-    Tracker::LockGuard guard(w_t{}, "add_custom_data");
+    LockGuard guard(w_t{}, "add_custom_data");
     auto it = _custom_data[frame].find(id);
     if(it != _custom_data[frame].end()) {
         FormatWarning("Custom data with id ", id," already present in frame ",frame,".");
@@ -2863,7 +2863,7 @@ void Individual::add_custom_data(Frame_t frame, long_t id, void* ptr, std::funct
 }
 
 void * Individual::custom_data(Frame_t frame, long_t id) const {
-    Tracker::LockGuard guard(ro_t{}, "custom_data");
+    LockGuard guard(ro_t{}, "custom_data");
     auto it = _custom_data.find(frame);
     if(it == _custom_data.end())
         return NULL;
@@ -2913,12 +2913,12 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
     eye_angle.reserve(len * 2);
     eye_pos.reserve(len * 2);
     
-    std::shared_ptr<Tracker::LockGuard> guard;
+    std::shared_ptr<LockGuard> guard;
     
     iterate_frames(range, [&](Frame_t frame, const std::shared_ptr<SegmentInformation> &, auto basic, auto posture) -> bool
     {
         if(blocking)
-            guard = std::make_shared<Tracker::LockGuard>(ro_t{}, "new VisualField");
+            guard = std::make_shared<LockGuard>(ro_t{}, "new VisualField");
         if(!posture || !posture->head)
             return true;
         

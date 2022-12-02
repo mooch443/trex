@@ -8,7 +8,7 @@ using namespace Output;
 using namespace track;
 
 bool Results::save_events(const Path &filename, std::function<void(float)> set_percent) const {
-    Tracker::LockGuard guard(w_t{}, "save_events");
+    LockGuard guard(w_t{}, "save_events");
     auto events = EventAnalysis::events();
     
     size_t overall_frames = 0;

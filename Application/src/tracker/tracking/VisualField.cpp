@@ -378,9 +378,9 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
     static Timing timing("visual field");
     TakeTiming take(timing);
     
-    std::shared_ptr<Tracker::LockGuard> guard;
+    std::shared_ptr<LockGuard> guard;
     if(blocking)
-        guard = std::make_shared<Tracker::LockGuard>(ro_t{}, "visual field");
+        guard = std::make_shared<LockGuard>(ro_t{}, "visual field");
     
     auto tracker = Tracker::instance();
     //if(!tracker->properties(_frame))
@@ -488,7 +488,7 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
 }
 
 void VisualField::show(gui::DrawStructure &base) {
-    Tracker::LockGuard guard(ro_t{}, "VisualField::show");
+    LockGuard guard(ro_t{}, "VisualField::show");
     
     auto tracker = Tracker::instance();
     if(!tracker->properties(_frame))

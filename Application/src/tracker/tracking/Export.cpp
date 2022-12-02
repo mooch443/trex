@@ -172,7 +172,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
     
     GenericThreadPool _blob_thread_pool(cmn::hardware_concurrency(), "export_pool");
     
-    Tracker::LockGuard guard(ro_t{}, "GUI::export_tracks");
+    LockGuard guard(ro_t{}, "GUI::export_tracks");
     tracker.wait();
     
     // save old values and remove all calculation/scaling options from output
@@ -784,7 +784,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                 {
                     static Timing timing("[tracklet_images] preprocess", 20);
                     TakeTiming take(timing);
-                    auto active = frame == Tracker::start_frame() ? Tracker::set_of_individuals_t() : Tracker::active_individuals(frame - 1_f);
+                    auto active = frame == Tracker::start_frame() ? set_of_individuals_t() : Tracker::active_individuals(frame - 1_f);
                     GUI::instance()->video_source()->read_frame(obj.frame(), sign_cast<uint64_t>(frame.get()));
                     Tracker::instance()->preprocess_frame(obj, active, &_blob_thread_pool);
                 }

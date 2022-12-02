@@ -92,7 +92,6 @@ void async_main(void*) {
 
 		std::atomic<double> fps{ 0.0 };
 
-		//Tracker::set_of_individuals_t active;
 		std::thread tracking([&]() {
 			set_thread_name("Tracking");
 			PPFrame frame;
@@ -126,7 +125,7 @@ void async_main(void*) {
 				frame.frame().set_timestamp(single.timestamp());
 				frame.set_index(index);
 
-                track::Tracker::LockGuard guard(track::w_t{}, "update_tracker_queue");
+                track::LockGuard guard(track::w_t{}, "update_tracker_queue");
 				if(frame.index() != Tracker::end_frame() + 1_f && (Tracker::end_frame().valid() || frame.index() == 0_f)) 
 				{
 					print("Reanalyse event ", frame.index(), " -> ", Tracker::end_frame());
@@ -195,7 +194,7 @@ void async_main(void*) {
 					return;
 				}
 
-				track::Tracker::LockGuard guard(track::ro_t{}, "update", 10);
+				track::LockGuard guard(track::ro_t{}, "update", 10);
 				if (!guard.locked()) {
 					s->reuse_objects();
 					return;

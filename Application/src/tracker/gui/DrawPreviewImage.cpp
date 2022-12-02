@@ -193,7 +193,7 @@ void draw(Frame_t frame, DrawStructure& graph) {
     GUI::video_source()->read_frame(pp.frame(), frame.get());
     Tracker::preprocess_frame(pp, {}, nullptr);
     
-    Tracker::LockGuard guard(ro_t{}, "DrawPreviewImage", 100);
+    LockGuard guard(ro_t{}, "DrawPreviewImage", 100);
     if(!guard.locked() && !first) {
         graph.wrap_object(preview);
         return;

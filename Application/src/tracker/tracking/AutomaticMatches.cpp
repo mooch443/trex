@@ -46,7 +46,7 @@ std::map<Idx_t, pv::bid> automatically_assigned(Frame_t frame) {
 }
 
 void delete_automatic_assignments(Idx_t fish_id, const FrameRange& frame_range) {
-    Tracker::LockGuard guard(w_t{}, "delete_automatic_assignments");
+    LockGuard guard(w_t{}, "delete_automatic_assignments");
     
     auto it = std::find(_automatically_assigned_ranges.begin(), _automatically_assigned_ranges.end(), fish_id);
     if(it == _automatically_assigned_ranges.end()) {

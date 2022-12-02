@@ -135,7 +135,7 @@ void apply_network() {
 #endif
                 const size_t N = py::VINetwork::number_classes();
                 
-                Tracker::LockGuard guard(w_t{}, "apply_weights");
+                LockGuard guard(w_t{}, "apply_weights");
                 for(size_t i=0; i<results.size(); ++i) {
                     auto start = probabilities.begin() + i * N;
                     auto end   = probabilities.begin() + (i + 1) * N;
@@ -280,7 +280,7 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
         TrainingData* data,
         std::map<Idx_t, std::set<std::shared_ptr<SegmentInformation>>>* coverage)
 {
-    Tracker::LockGuard guard(ro_t{}, "Accumulation::generate_individuals_per_frame");
+    LockGuard guard(ro_t{}, "Accumulation::generate_individuals_per_frame");
     std::map<Frame_t, std::set<Idx_t>> individuals_per_frame;
     const bool calculate_posture = FAST_SETTINGS(calculate_posture);
     
@@ -349,7 +349,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
    // data.set_normalized(SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>());
     
     if(data.empty()) {
-        Tracker::LockGuard guard(ro_t{}, "Accumulation::generate_training_data");
+        LockGuard guard(ro_t{}, "Accumulation::generate_training_data");
         gui::WorkProgress::set_progress("generating images", 0);
         
         std::map<Idx_t, std::set<std::shared_ptr<SegmentInformation>>> segments;
@@ -391,7 +391,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
     
     auto && [images, ids] = data.join_arrays();
     
-    Tracker::LockGuard guard(ro_t{}, "Accumulation::generate_training_data");
+    LockGuard guard(ro_t{}, "Accumulation::generate_training_data");
     auto averages = _network->paverages(ids, std::move(images));
     
     std::set<Idx_t> added_ids = extract_keys(averages);
@@ -570,7 +570,7 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Fram
     auto data = std::make_shared<TrainingData>();
     
     {
-        Tracker::LockGuard guard(ro_t{}, "Accumulation::discriminate");
+        LockGuard guard(ro_t{}, "Accumulation::discriminate");
         gui::WorkInstance generating_images("generating images");
         gui::WorkProgress::set_progress("generating images", 0);
         
@@ -798,7 +798,7 @@ bool Accumulation::start() {
     std::string reason_to_stop = "";
     
     {
-        Tracker::LockGuard guard(ro_t{}, "GUI::generate_training_data");
+        LockGuard guard(ro_t{}, "GUI::generate_training_data");
         gui::WorkProgress::set_progress("generating images", 0);
         
         DebugCallback("Generating initial training dataset [%d-%d] (%d) in memory.", _initial_range.start, _initial_range.end, _initial_range.length());
@@ -1599,7 +1599,7 @@ bool Accumulation::start() {
                 for(auto && [frame, ids] : frames_collected) {
                     auto active =
                         frame == Tracker::start_frame()
-                            ? Tracker::set_of_individuals_t()
+                            ? set_of_individuals_t()
                             : Tracker::active_individuals(frame - 1_f);
                     
                     video_file.read_frame(video_frame.frame(), sign_cast<uint64_t>(frame.get()));

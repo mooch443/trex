@@ -76,7 +76,7 @@ namespace track {
     }*/
     
     void Border::clear() {
-        //Tracker::LockGuard guard;
+        //LockGuard guard;
         std::lock_guard<std::mutex> guard(mutex);
         _vertices.clear();
         //x_range.clear();
@@ -449,7 +449,7 @@ namespace track {
         using namespace default_config;
         _type = SETTING(recognition_border).value<recognition_border_t::Class>();
         
-        //Tracker::LockGuard guard;
+        //LockGuard guard;
         std::lock_guard<std::mutex> guard(mutex);
         
         switch(_type) {

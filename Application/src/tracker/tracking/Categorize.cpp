@@ -259,7 +259,7 @@ Sample::Ptr DataStore::random_sample(Idx_t fid) {
     Individual *fish;
     
     {
-        Tracker::LockGuard guard(ro_t{}, "Categorize::random_sample");
+        LockGuard guard(ro_t{}, "Categorize::random_sample");
         auto iit = Tracker::instance()->individuals().find(fid);
         if (iit != Tracker::instance()->individuals().end()) {
             fish = iit->second;
@@ -287,7 +287,7 @@ Sample::Ptr DataStore::get_random() {
     
     std::set<Idx_t> individuals;
     {
-        Tracker::LockGuard guard(ro_t{}, "Categorize::random_sample");
+        LockGuard guard(ro_t{}, "Categorize::random_sample");
         individuals = extract_keys(Tracker::instance()->individuals());
     }
     
@@ -1016,7 +1016,7 @@ void start_applying() {
                     _ranged_labels.clear();
                 }
                 
-                Tracker::LockGuard guard(ro_t{}, "ranged_labels");
+                LockGuard guard(ro_t{}, "ranged_labels");
                 std::shared_lock label_guard(DataStore::cache_mutex());
                 
                 std::vector<float> sums(Work::_number_labels);
@@ -1568,7 +1568,7 @@ void Work::work_thread() {
         while (_generated_samples.size() < requested_samples() && !terminate()) {
             guard.unlock();
             try {
-                //Tracker::LockGuard g("get_random::loop");
+                //LockGuard g("get_random::loop");
                 sample = DataStore::get_random();
                 if (sample && sample->_images.size() < 1) {
                     sample = Sample::Invalid();
@@ -1856,9 +1856,9 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
         ptr = std::make_shared<PPFrame>();
         ++_create;
 
-        Tracker::set_of_individuals_t active;
+        set_of_individuals_t active;
         {
-            Tracker::LockGuard guard(ro_t{}, "Categorize::sample");
+            LockGuard guard(ro_t{}, "Categorize::sample");
             active = frame == Tracker::start_frame()
                 ? decltype(active)()
                 : Tracker::active_individuals(frame - 1_f);
@@ -2052,7 +2052,7 @@ Sample::Ptr DataStore::temporary(
     
     {
         {
-            Tracker::LockGuard guard(ro_t{}, "Categorize::sample");
+            LockGuard guard(ro_t{}, "Categorize::sample");
             range = segment->range;
             basic_index = segment->basic_index;
             frames.reserve(basic_index.size());
@@ -2182,7 +2182,7 @@ Sample::Ptr DataStore::temporary(
         FilterCache custom_len;
         
         {
-            Tracker::LockGuard guard(ro_t{}, "Categorize::sample");
+            LockGuard guard(ro_t{}, "Categorize::sample");
             basic = fish->basic_stuff().at(index).get();
             auto posture = fish->posture_stuff(frame);
             midline = posture ? fish->calculate_midline_for(*basic, *posture) : nullptr;
@@ -2197,7 +2197,7 @@ Sample::Ptr DataStore::temporary(
         auto blob = Tracker::find_blob_noisy(*ptr, basic->blob.blob_id(), basic->blob.parent_id, basic->blob.calculate_bounds());
         //auto it = fish->iterator_for(basic->frame);
         if (blob) { //&& it != fish->frame_segments().end()) {
-            //Tracker::LockGuard guard("Categorize::sample");
+            //LockGuard guard("Categorize::sample");
             
             auto [image, pos] =
                 constraints::diff_image(normalize,

@@ -1519,7 +1519,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         Frame_t frame;
         file.read<uint64_t>(L);
         for (uint64_t i=0; i<L; i++) {
-            Tracker::set_of_individuals_t active;
+            set_of_individuals_t active;
             
             file.read<data_long_t>(frameIndex);
             file.read<uint64_t>(n);
