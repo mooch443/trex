@@ -37,22 +37,6 @@ struct IndividualStatus {
     IndividualStatus() : prev(nullptr), current(nullptr) {}
 };
 
-struct split_expectation {
-    size_t number;
-    bool allow_less_than;
-    std::vector<Vec2> centers;
-    
-    split_expectation(size_t number = 0, bool allow_less_than = false)
-        : number(number), allow_less_than(allow_less_than)
-    { }
-    
-    std::string toStr() const {
-        return "{"+std::to_string(number)+","+(allow_less_than ? "true" : "false")+","+Meta::toStr(centers) + "}";
-    }
-    static std::string class_name() {
-        return "split_expectation";
-    }
-};
 
 
 class Tracker {
@@ -63,8 +47,11 @@ protected:
     friend class Output::TrackingResults;
     friend struct mem::TrackerMemoryStats;
     
-    GETTER_NCONST(GenericThreadPool, thread_pool)
+    GenericThreadPool _thread_pool;
+public:
+    static GenericThreadPool& thread_pool() { return instance()->_thread_pool; }
     
+protected:
     GETTER_NCONST(Border, border)
     
 protected:
@@ -114,8 +101,9 @@ public:
     static uint64_t max_individuals() { return instance()->_max_individuals.load(); }
     
 protected:
-    //GETTER_PTR(LuminanceGrid*, grid)
-    GETTER_PTR(StaticBackground*, background)
+    StaticBackground* _background{nullptr};
+public:
+    static StaticBackground* background() { return instance()->_background; }
     
     ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator> _individual_add_iterator_map;
     ska::bytell_hash_map<Idx_t, size_t> _segment_map_known_capacity;
@@ -210,7 +198,7 @@ public:
     static bool blob_matches_shapes(const pv::BlobPtr&, const std::vector<std::vector<Vec2>>&);
     
     // filters a given frames blobs for size and splits them if necessary
-    static void preprocess_frame(PPFrame &frame, const set_of_individuals_t& active_individuals, GenericThreadPool* pool, std::ostream* = NULL, bool do_history_split = true);
+    static void preprocess_frame(PPFrame &frame, const set_of_individuals_t& active_individuals, GenericThreadPool* pool, bool do_history_split = true);
     
     friend class VisualField;
     static const ska::bytell_hash_map<Idx_t, Individual*>& individuals();
@@ -255,7 +243,6 @@ protected:
     
 private:
     static void filter_blobs(PPFrame& frame, GenericThreadPool *pool);
-    void history_split(PPFrame& frame, const set_of_individuals_t& active_individuals, std::ostream* out = NULL, GenericThreadPool* pool = NULL);
     
     //static void changed_setting(const sprite::Map&, const std::string& key, const sprite::PropertyType& value);
     size_t found_individuals_frame(Frame_t frameIndex) const;
@@ -265,8 +252,10 @@ private:
     friend struct TrackingHelper;
     static Individual* create_individual(Idx_t ID, set_of_individuals_t& active_individuals);
     
-    std::vector<pv::BlobPtr> split_big(const BlobReceiver&, const std::vector<pv::BlobPtr>& big_blobs, const robin_hood::unordered_map<pv::bid, split_expectation> &expect, bool discard_small = false, std::ostream *out = NULL, GenericThreadPool* pool = nullptr);
+public:
+    static std::vector<pv::BlobPtr> split_big(const BlobReceiver&, const std::vector<pv::BlobPtr>& big_blobs, const robin_hood::unordered_map<pv::bid, split_expectation> &expect, bool discard_small = false, std::ostream *out = NULL, GenericThreadPool* pool = nullptr);
     
+private:
     static void prefilter(const std::shared_ptr<PrefilterBlobs>&, std::vector<pv::BlobPtr>::const_iterator it, std::vector<pv::BlobPtr>::const_iterator end);
     
     void update_iterator_maps(Frame_t frame, const set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators);

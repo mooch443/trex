@@ -1,6 +1,9 @@
 #pragma once
 
 #include <commons.pc.h>
+#include <misc/GlobalSettings.h>
+#include <file/Path.h>
+#include <tracker/misc/default_config.h>
 #include <misc/idx_t.h>
 #include <misc/bid.h>
 #include <misc/frame_t.h>
@@ -8,6 +11,7 @@
 #include <misc/BlobSizeRange.h>
 
 namespace track {
+using namespace cmn;
 class Individual;
 
 using mmatches_t = std::map<Frame_t, std::map<Idx_t, pv::bid>>;

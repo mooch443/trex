@@ -4,14 +4,58 @@
 #include <pv.h>
 #include <misc/bid.h>
 #include <misc/idx_t.h>
+#include <misc/vec2.h>
 #include <tracking/IndividualCache.h>
 #include <misc/ProximityGrid.h>
+#include <tracking/TrackingSettings.h>
+#include <misc/ThreadPool.h>
 
 namespace track {
+using namespace cmn;
+
+struct split_expectation {
+    size_t number;
+    bool allow_less_than;
+    std::vector<Vec2> centers;
+    
+    split_expectation(size_t number = 0, bool allow_less_than = false)
+        : number(number), allow_less_than(allow_less_than)
+    { }
+    
+    std::string toStr() const {
+        return "{"+std::to_string(number)+","+(allow_less_than ? "true" : "false")+","+Meta::toStr(centers) + "}";
+    }
+    static std::string class_name() {
+        return "split_expectation";
+    }
+};
 
 class PPFrame {
     GETTER_NCONST(pv::Frame, frame)
     GETTER_SETTER(Frame_t, index)
+    
+public:
+    robin_hood::unordered_map<long_t, std::set<pv::bid>> fish_mappings;
+    robin_hood::unordered_map<pv::bid, std::set<Idx_t>> blob_mappings;
+    robin_hood::unordered_map<Idx_t, ska::bytell_hash_map<pv::bid, Match::prob_t>> paired;
+    robin_hood::unordered_map<Idx_t, Vec2> last_positions;
+    
+    inline static std::shared_ptr<std::ofstream> history_log;
+    inline static std::mutex log_mutex;
+    
+    template<typename... Args>
+    static inline void Log(Args... args) {
+        if(!history_log)
+            return;
+        write_log(format<FormatterType::NONE>(args...));
+    }
+    
+    static void CloseLogs();
+    static void UpdateLogs();
+    
+private:
+    static void write_log(std::string str);
+    
 public:
     using cache_map_t = robin_hood::unordered_node_map<Idx_t, IndividualCache>;
     
@@ -39,16 +83,16 @@ private:
     
 public:
     const IndividualCache* cached(Idx_t) const;
-    void init_cache(const auto& individuals) {
-        _individual_cache.clear();
-        _individual_cache.reserve(individuals.size());
-    }
+    void init_cache(PPFrame& frame, const set_of_individuals_t &individuals, GenericThreadPool* pool);
+    
+private:
     void set_cache(Idx_t, IndividualCache&&);
     
     //std::map<Idx_t, IndividualCache> cached_individuals;
     //ska::bytell_hash_map<pv::bid, UnorderedVectorSet<Idx_t>> clique_for_blob;
     //ska::bytell_hash_map<pv::bid, UnorderedVectorSet<pv::bid>> clique_second_order;
-    UnorderedVectorSet<pv::bid> split_blobs;
+//public:
+//    UnorderedVectorSet<pv::bid> split_blobs;
     
 protected:
     ska::bytell_hash_map<pv::bid, pv::BlobPtr> _bdx_to_ptr;

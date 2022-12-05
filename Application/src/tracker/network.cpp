@@ -70,7 +70,7 @@ int main(int argc, char**argv) {
             
             video.read_frame(pp.frame(), i);
             pp.frame().set_index(i);
-            track::Tracker::preprocess_frame(pp, {}, NULL, NULL, false);
+            track::Tracker::preprocess_frame(pp, {}, NULL, false);
             //Tracker::preprocess_frame(pp, tracker.active_individuals(), nullptr);
             
             //LockGuard guard("tracking");

@@ -204,7 +204,7 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
             pp.set_index(index);
             try {
                 _video.read_frame(pp.frame(), index.get());
-                Tracker::preprocess_frame(pp, Tracker::active_individuals(index), NULL, NULL);
+                Tracker::preprocess_frame(pp, Tracker::active_individuals(index), NULL);
             } catch(const UtilsException& e) {
                 FormatExcept("[IE] Cannot preprocess frame ", index, ". ", e.what());
                 {

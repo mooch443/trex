@@ -1,8 +1,87 @@
 #include "PPFrame.h"
 #include <tracking/Tracker.h>
 #include <tracking/Categorize.h>
+#include <misc/default_settings.h>
+#include <file/DataLocation.h>
 
 namespace track {
+
+void PPFrame::UpdateLogs() {
+    if(history_log == nullptr && !SETTING(history_matching_log).value<file::Path>().empty()) {
+        history_log = std::make_shared<std::ofstream>();
+        
+        auto path = SETTING(history_matching_log).value<file::Path>();
+        if(!path.empty()) {
+            path = file::DataLocation::parse("output", path);
+            DebugCallback("Opening history_log at ", path, "...");
+            //!TODO: CHECK IF THIS WORKS
+            history_log->open(path.str(), std::ios_base::out | std::ios_base::binary);
+            if(history_log->is_open()) {
+                auto &ss = *history_log;
+                ss << "<html><head>";
+                ss << "<style>";
+                ss << "map{ \
+                display: table; \
+                width: 100%; \
+                } \
+                row { \
+                display: table-row; \
+                } \
+                row.header { \
+                background-color: #EEE; \
+                } \
+                key, value, doc { \
+                border: 1px solid #999999; \
+                display: table-cell; \
+                padding: 3px 10px; \
+                } \
+                row.readonly { color: gray; background-color: rgb(242, 242, 242); } \
+                doc { overflow-wrap: break-word; }\
+                value { overflow-wrap: break-word;max-width: 300px; }\
+                row.header { \
+                background-color: #EEE; \
+                font-weight: bold; \
+                } \
+                row.footer { \
+                background-color: #EEE; \
+                display: table-footer-group; \
+                font-weight: bold; \
+                } \
+                string { display:inline; color: red; font-style: italic; }    \
+                ref { display:inline; font-weight:bold; } ref:hover { color: gray; } \
+                number { display:inline; color: green; } \
+                keyword { display:inline; color: purple; } \
+                .body { \
+                display: table-row-group; \
+                }";
+                
+                ss <<"</style>";
+                ss <<"</head><body>";
+            }
+        }
+    }
+}
+
+void PPFrame::CloseLogs() {
+    std::lock_guard guard(log_mutex);
+    if(history_log != nullptr && history_log->is_open()) {
+        print("Closing history log.");
+        *history_log << "</body></html>";
+        history_log->flush();
+        history_log->close();
+    }
+    history_log = nullptr;
+}
+
+void PPFrame::write_log(std::string str) {
+    if(!history_log)
+        return;
+    
+    str = settings::htmlify(str) + "</br>";
+    
+    std::lock_guard guard(log_mutex);
+    *history_log << str << std::endl;
+}
 
 #define ASSUME_NOT_FINALIZED _assume_not_finalized( __FILE__ , __LINE__ )
 
@@ -31,7 +110,184 @@ const IndividualCache* PPFrame::cached(Idx_t id) const {
     return nullptr;
 }
 
+void PPFrame::init_cache(PPFrame& frame, const set_of_individuals_t &individuals, GenericThreadPool* pool)
+{
+    ASSUME_NOT_FINALIZED;
+    
+    _individual_cache.clear();
+    _individual_cache.reserve(individuals.size());
+    
+    float tdelta;
+    {
+        LockGuard guard(ro_t{}, "history_split#1");
+        auto props = Tracker::properties(frame.index() - 1_f);
+        tdelta = props ? (frame.time - props->time) : 0;
+    }
+    
+    const float max_d = SLOW_SETTING(track_max_speed) * tdelta / SLOW_SETTING(cm_per_pixel) * 0.5;
+    const auto frame_limit = SLOW_SETTING(frame_rate) * SLOW_SETTING(track_max_reassign_time);
+    const auto N = individuals.size();
+    
+    const size_t num_threads = pool ? min(hardware_concurrency(), N / 200u) : 0;
+    const auto space_limit = SQR(Individual::weird_distance() * 0.5);
+    const auto frame_rate = SLOW_SETTING(frame_rate);
+    const auto track_max_reassign_time = SLOW_SETTING(track_max_reassign_time);
+
+    CacheHints hints;
+    if(frame.index().valid() && frame.index() > Tracker::start_frame())
+        hints.push(frame.index() - 1_f, Tracker::properties(frame.index() - 1_f));
+    hints.push(frame.index(), Tracker::properties(frame.index()));
+
+    // mutex protecting count and global paired + fish_mappings/blob_mappings
+    std::mutex mutex;
+    std::condition_variable variable;
+    size_t count = 0;
+
+    auto fn = [&](const set_of_individuals_t& active_individuals,
+                  size_t start,
+                  size_t N)
+    {
+        struct FishAssignments {
+            Idx_t fdx;
+            std::vector<pv::bid> blobs;
+            std::vector<float> distances;
+            Vec2 last_pos;
+        };
+        struct BlobAssignments {
+            UnorderedVectorSet<Idx_t> idxs;
+        };
+
+        std::vector<FishAssignments> fish_assignments(N);
+        ska::bytell_hash_map<pv::bid, BlobAssignments> blob_assignments;
+        PPFrame::cache_map_t cache_map;
+
+        auto it = active_individuals.begin();
+        std::advance(it, start);
+        
+        //! go through individuals (for this pack/thread)
+        for(auto i = start; i < start + N; ++i, ++it) {
+            auto fish = *it;
+            
+            Vec2 last_pos(-1,-1);
+            Frame_t last_frame;
+            long_t last_L = -1;
+
+            // IndividualCache is in the same position as the indexes here
+            auto cache = fish->cache_for_frame(frame.index(), frame.time, &hints);
+            const auto time_limit = cache.previous_frame.get() - frame_limit; // dont allow too far to the past
+                
+            // does the current individual have the frame previous to the current frame?
+            //! try to find a frame thats close in time AND space to the current position
+            size_t counter = 0;
+            auto sit = fish->iterator_for(cache.previous_frame);
+            if (sit != fish->frame_segments().end() && (*sit)->contains(cache.previous_frame))
+            {
+                for (; sit != fish->frame_segments().end()
+                        && min((*sit)->end(), cache.previous_frame).get() >= time_limit
+                        && counter < frame_limit; // shouldnt this be the same as the previous?
+                    ++counter)
+                {
+                    const auto index = (*sit)->basic_stuff((*sit)->end());
+                    const auto pos = fish->basic_stuff().at(index)->centroid.pos<Units::DEFAULT>();
+
+                    if ((*sit)->length() > frame_rate * track_max_reassign_time * 0.25)
+                    {
+                        //! segment is long enough, we can stop. but only actually use it if its not too far away:
+                        if (last_pos.x == -1
+                            || sqdistance(pos, last_pos) < space_limit)
+                        {
+                            last_frame = min((*sit)->end(), cache.previous_frame);
+                            last_L = (last_frame - (*sit)->start()).get();
+                        }
+                        break;
+                    }
+
+                    last_pos = fish->basic_stuff().at((*sit)->basic_stuff((*sit)->start()))->centroid.pos<Units::DEFAULT>();
+
+                    if (sit != fish->frame_segments().begin())
+                        --sit;
+                    else
+                        break;
+                }
+            }
+            
+            if(last_frame.get() < time_limit) {
+                Log("\tNot processing fish ", fish->identity()," because its last measured frame is ", last_frame,", best segment length is ", last_L," and we are in frame ", frame.index(),".");
+                
+            } else {
+                auto set = frame.blob_grid().query(cache.estimated_px, max_d);
+                
+                if(!set.empty()) {
+                    auto fdx = fish->identity().ID();
+                    auto& map = fish_assignments[i - start];
+                    map.fdx = fdx;
+                    map.last_pos = last_pos.x == -1 ? cache.estimated_px : last_pos;
+                    
+                    for(auto && [d, bdx] : set) {
+                        if(!frame.find_bdx(bdx))
+                            continue;
+                        
+                        map.blobs.push_back(bdx);
+                        map.distances.push_back(d);
+                        blob_assignments[bdx].idxs.insert(fdx);
+                    }
+                }
+                
+                Log("\tFish ", fish->identity()," (", cache.estimated_px.x, ",", cache.estimated_px.y, ") proximity: ", set);
+            }
+            
+            cache_map[fish->identity().ID()] = std::move(cache);
+        }
+
+        std::unique_lock guard(mutex);
+        for(auto&& [fdx, cache] : cache_map)
+            frame.set_cache(fdx, std::move(cache));
+        
+        for (auto&& [fdx, blobs, distances, last_pos] : fish_assignments) {
+            fish_mappings[fdx].insert(std::make_move_iterator(blobs.begin()), std::make_move_iterator(blobs.end()));
+            auto N = blobs.size();
+            for(size_t i=0; i<N; ++i)
+                paired[fdx][blobs[i]] = distances[i];
+            last_positions[fdx] = last_pos;
+        }
+        for (auto& [bdx, assign] : blob_assignments) {
+            blob_mappings[bdx].insert(assign.idxs.begin(), assign.idxs.end());
+        }
+
+        ++count;
+        variable.notify_one();
+    };
+    
+    if(num_threads < 2 || !pool || N < num_threads) {
+        LockGuard guard(ro_t{}, "history_split#2");
+        fn(individuals, 0, N);
+        
+    } else if(N) {
+        size_t last = N % num_threads;
+        size_t per_thread = (N - last) / num_threads;
+        size_t i = 0;
+
+        LockGuard guard(ro_t{}, "history_split#2");
+        for (; (i<=num_threads && last) || (!last && i<num_threads); ++i) {
+            size_t n = per_thread;
+            if(i == num_threads)
+                n = last;
+            
+            pool->enqueue(fn,
+                          individuals,
+                          i * per_thread, n);
+        }
+        
+        std::unique_lock lock(mutex);
+        while (count < i)
+            variable.wait(lock);
+    }
+}
+
+
+
 void PPFrame::set_cache(Idx_t id, IndividualCache&& cache) {
+    ASSUME_NOT_FINALIZED;
     //static std::mutex mutex;
     //std::unique_lock guard(mutex);
    // mutex.lock();
@@ -307,11 +563,16 @@ void PPFrame::clear() {
     _original_blobs.clear();
     //clique_for_blob.clear();
     //clique_second_order.clear();
-    split_blobs.clear();
+    //split_blobs.clear();
     _bdx_to_ptr.clear();
     _num_pixels = 0;
     _pixel_samples = 0;
     //_tags.clear();
+    
+    fish_mappings.clear();
+    blob_mappings.clear();
+    paired.clear();
+    last_positions.clear();
 }
 
 void PPFrame::fill_proximity_grid() {

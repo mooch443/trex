@@ -1,8 +1,22 @@
 #pragma once
 
-#include <types.h>
-#include <tracking/Individual.h>
-#include <pv.h>
+#include <commons.pc.h>
+#include <tracking/TrackingSettings.h>
+#include <tracking/PPFrame.h>
+#include <misc/ThreadPool.h>
 
 namespace track {
+
+class HistorySplit {
+    UnorderedVectorSet<pv::bid> already_walked;
+    UnorderedVectorSet<pv::BlobPtr> big_blobs;
+    robin_hood::unordered_map<pv::bid, split_expectation> expect;
+    
+public:
+    HistorySplit(PPFrame& frame, const set_of_individuals_t& active = {}, GenericThreadPool* pool = nullptr);
+    
+private:
+    Settings::manual_splits_t::mapped_type apply_manual_matches(PPFrame& frame);
+};
+
 }

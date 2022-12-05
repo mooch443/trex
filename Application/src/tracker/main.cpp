@@ -1111,7 +1111,7 @@ int main(int argc, char** argv)
             Timer timer;
             video.read_frame(ptr->frame(), (size_t)idx.get());
             ptr->frame().set_index(idx.get());
-            Tracker::preprocess_frame(*ptr, {}, pool.num_threads() > 1 ? &pool : NULL, NULL, false);
+            Tracker::preprocess_frame(*ptr, {}, pool.num_threads() > 1 ? &pool : NULL, false);
 
             ptr->frame().set_loading_time(narrow_cast<float>(timer.elapsed()));
 

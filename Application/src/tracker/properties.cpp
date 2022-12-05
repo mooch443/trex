@@ -132,7 +132,7 @@ void async_main(void*) {
 					continue;
 				}
 
-				track::Tracker::preprocess_frame(frame, {}, NULL, NULL, false);
+				track::Tracker::preprocess_frame(frame, {}, NULL, false);
 				tracker.add(frame);
 				++samples;
 				time_per_frame += timer.elapsed();
