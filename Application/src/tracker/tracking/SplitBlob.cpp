@@ -275,7 +275,8 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
         return output.empty() ? 0 : (*output.begin())->pixels()->size();
     };
     
-    const auto fn = [&apply_watershed, &calculations, &blobs, &centers, presumed_nr, &first_size, &more_than_1_times, &best_matches, this](int threshold) {
+    const auto fn = [&apply_watershed, &calculations, &blobs, &centers, presumed_nr, &first_size, &more_than_1_times, &best_matches, this](int threshold)
+    {
         calculations++;
         
 #if DEBUG_ME
@@ -321,8 +322,8 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
             print("Found ", blobs.size()," blobs at threshold ", threshold," (expected ",presumed_nr,") with centers: ", centers);
 #endif
             
-            result.blobs = blobs;
-            best_matches[threshold] = result;
+            result.blobs = std::move(blobs);
+            best_matches[threshold] = std::move(result);
         }
 
         blobs.clear();
