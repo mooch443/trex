@@ -132,7 +132,7 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
         state.prev_raw = current;
         
         Vec2 pt0(frame.get() - 1, gui::Graph::is_invalid(prev) ? 0 : prev), pt1(frame.get(), offset);
-        state.current_energy.push_back(0.5f * FAST_SETTINGS(meta_mass_mg) * SQR(offset));
+        state.current_energy.push_back(0.5f * FAST_SETTING(meta_mass_mg) * SQR(offset));
         
         if(gui::Graph::is_invalid(offset)) {
             if(state.last_event_start.valid()) {
@@ -169,7 +169,7 @@ void update_settings(sprite::Map::Signal signal, sprite::Map &, const std::strin
             state.v_samples++;
         }
         
-        const Frame_t max_frames = Frame_t(roundf(max(5, 0.055f * FAST_SETTINGS(frame_rate))));
+        const Frame_t max_frames = Frame_t(roundf(max(5, 0.055f * FAST_SETTING(frame_rate))));
         if(state.last_threshold_reached.valid()
            && frame - state.last_threshold_reached <= max_frames)
         {

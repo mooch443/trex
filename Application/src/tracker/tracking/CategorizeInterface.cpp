@@ -195,7 +195,7 @@ void Cell::add(const Layout::Ptr& b) {
 
 void receive_prediction_results(const LearningTask& task) {
     std::lock_guard guard(Work::recv_mutex());
-    auto cats = FAST_SETTINGS(categories_ordered);
+    auto cats = FAST_SETTING(categories_ordered);
     task.sample->_probabilities.resize(cats.size());
     std::fill(task.sample->_probabilities.begin(), task.sample->_probabilities.end(), 0);
     
@@ -617,7 +617,7 @@ void Interface::draw(DrawStructure& base) {
             //DataStore::_labels.insert({Label::Make("X"), {}});
         }*/
 
-        if (FAST_SETTINGS(categories_ordered).empty()) {
+        if (FAST_SETTING(categories_ordered).empty()) {
             static bool asked = false;
             if (!asked) {
                 asked = true;

@@ -73,7 +73,7 @@ int main(int argc, char**argv) {
             track::Tracker::preprocess_frame(pp, {}, NULL, NULL, false);
             //Tracker::preprocess_frame(pp, tracker.active_individuals(), nullptr);
             
-            //Tracker::LockGuard guard("tracking");
+            //LockGuard guard("tracking");
             tracker.add(pp);
             
             s += timer.elapsed();

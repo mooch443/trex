@@ -429,10 +429,11 @@ void GUI::draw(gui::DrawStructure &base) {
         }
 
         {
-            auto shadowed_text = [&](Vec2 pos, const std::string& text, Color color, float font_size = 0.75)
+            auto shadowed_text = [&](Vec2 pos, const std::string& text, Color color, float font_size = 0.75, bool shadow = true)
             {
                 // shadow
-                base.text(text, Loc((pos + Vec2(1, 1)).mul(scale)), Black, Font(font_size, Align::VerticalCenter), scale);
+                if(shadow)
+                    base.text(text, Loc((pos + Vec2(0.5, 0.5)).mul(scale)), Black, Font(font_size, Align::VerticalCenter), scale);
                 // text
                 return base.text(text, Loc(pos.mul(scale)), color, Font(font_size, Align::VerticalCenter), scale)->width();
             };
@@ -493,11 +494,14 @@ void GUI::draw(gui::DrawStructure &base) {
                     offset.y += 18;
                     darker = false;
                     continue;
+                    
+                } else if(offset.x > 25) {
+                    offset.x += base.line((offset + Vec2(0, 0.5)).mul(scale), (offset + Vec2(5, 0.5)).mul(scale), Gray, scale)->width() + 5;
                 }
                 
-                offset.x += shadowed_text(offset, values[i], darker ? text_color.exposure(0.9) : text_color, 0.5) + 5;
-                if(i + 1 < values.size())
-                    offset.x += base.line((offset + Vec2(0, 0.5)).mul(scale), (offset + Vec2(5, 0.5)).mul(scale), Gray, scale)->width() + 5;
+                offset.x += shadowed_text(offset, values[i], darker ? (text_color.r < 100 ? Color(70,70,70,255) : text_color.exposure(0.8)) :text_color, 0.5, false) + 5;
+                //if(i + 1 < values.size())
+                //    offset.x += base.line((offset + Vec2(0, 0.5)).mul(scale), (offset + Vec2(5, 0.5)).mul(scale), Gray, scale)->width() + 5;
                 darker = !darker;
             }
         }
@@ -517,7 +521,7 @@ void GUI::draw_tracking(gui::DrawStructure &base, const attr::Scale& scale) {
         return;
     
     base.section("tracking", [this, &scale](gui::DrawStructure& base, Section* section) {
-        track::Tracker::LockGuard guard(ro_t{}, "drawing", 100);
+        track::LockGuard guard(ro_t{}, "drawing", 100);
         if (!guard.locked()) {
             section->reuse_objects();
             return;
@@ -531,7 +535,7 @@ void GUI::draw_tracking(gui::DrawStructure &base, const attr::Scale& scale) {
 
 #if !COMMONS_NO_PYTHON
         ska::bytell_hash_map<int64_t, std::tuple<float, float>> speeds;
-        const int64_t displayed_range = FAST_SETTINGS(frame_rate) * 5;
+        const auto displayed_range = FAST_SETTING(frame_rate) * 5;
 
         const Frame_t min_display_frame = Frame_t(max(0, Tracker::end_frame().get() - displayed_range));
 #endif
@@ -565,7 +569,7 @@ void GUI::draw_tracking(gui::DrawStructure &base, const attr::Scale& scale) {
                 
                 if (code.best_id != -1) {
                     speeds_ptr = &speeds[code.best_id];
-                    color = ColorWheel(code.best_id).next();
+                    color = ColorWheel(uint32_t(code.best_id)).next();
                 } else {
                     color = fish->identity().color();
                 }

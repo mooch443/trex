@@ -2,9 +2,10 @@
 
 #include <types.h>
 #include <pv.h>
-#include <misc/PVBlob.h>
+#include <misc/bid.h>
 #include <misc/idx_t.h>
 #include <tracking/IndividualCache.h>
+#include <misc/ProximityGrid.h>
 
 namespace track {
 
@@ -12,6 +13,8 @@ class PPFrame {
     GETTER_NCONST(pv::Frame, frame)
     GETTER_SETTER(Frame_t, index)
 public:
+    using cache_map_t = robin_hood::unordered_node_map<Idx_t, IndividualCache>;
+    
     //! Time in seconds
     double time;
     
@@ -32,14 +35,19 @@ private:
     GETTER_I(size_t, num_pixels, 0)
     GETTER_I(size_t, pixel_samples, 0)
     
-    GETTER_NCONST(std::vector<IndividualCache>, individual_cache)
+    GETTER_NCONST(cache_map_t, individual_cache)
     
 public:
     const IndividualCache* cached(Idx_t) const;
+    void init_cache(const auto& individuals) {
+        _individual_cache.clear();
+        _individual_cache.reserve(individuals.size());
+    }
+    void set_cache(Idx_t, IndividualCache&&);
     
     //std::map<Idx_t, IndividualCache> cached_individuals;
-    ska::bytell_hash_map<pv::bid, UnorderedVectorSet<Idx_t>> clique_for_blob;
-    ska::bytell_hash_map<pv::bid, UnorderedVectorSet<pv::bid>> clique_second_order;
+    //ska::bytell_hash_map<pv::bid, UnorderedVectorSet<Idx_t>> clique_for_blob;
+    //ska::bytell_hash_map<pv::bid, UnorderedVectorSet<pv::bid>> clique_second_order;
     UnorderedVectorSet<pv::bid> split_blobs;
     
 protected:

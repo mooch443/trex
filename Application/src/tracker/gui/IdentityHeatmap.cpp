@@ -441,7 +441,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
     
     {
         auto d = abs(current_frame - _frame);
-        const auto frame_range = _frame_context.valid() ? _frame_context : Frame_t(narrow_cast<Frame_t::number_t>(FAST_SETTINGS(video_length)));
+        const auto frame_range = _frame_context.valid() ? _frame_context : Frame_t(narrow_cast<Frame_t::number_t>(FAST_SETTING(video_length)));
         
         if(!_frame.valid() || _grid.empty() || (_frame_context.valid() && d >= _frame_context)) {
             // we cant use any frames from before
@@ -478,7 +478,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
         
         if(!updated.add_range.empty()) {
             data.clear();
-            data.reserve(frame_range.get() * 2u * max(1u, FAST_SETTINGS(track_max_individuals)));
+            data.reserve(frame_range.get() * 2u * max(1u, FAST_SETTING(track_max_individuals)));
             Individual::segment_map::const_iterator kit;
             
             auto &range = updated.add_range;
@@ -841,9 +841,11 @@ void Leaf::clear() {
     _data.clear();
 }
 
+
 void Grid::create(const Size2 &image_dimensions) {
     auto dim = sign_cast<uint32_t>(image_dimensions.max());
-    dim = (uint32_t)next_pow2(dim); // ensure that it is always divisible by two
+    print(image_dimensions, " -> ", next_pow2<uint32_t>(dim), " and ", dim, " vs ", next_pow2<uint32_t>(1280), " ", Size2(1280,720).max());
+    dim = next_pow2<uint32_t>(dim); // ensure that it is always divisible by two
     print("Creating a grid of size ",dim,"x",dim," (for image of size ",image_dimensions.width,"x",image_dimensions.height,")");
     
     if(_root) {
@@ -1381,7 +1383,7 @@ void Grid::fill(const std::vector<DataPoint> &data)
 #else
         static file::Path path("/Users/tristan/Desktop/visualization_cells_"+SETTING(filename).value<file::Path>().filename().to_string() + "_" + SETTING(output_prefix).value<std::string>() +".avi");
 #endif
-        static cv::VideoWriter writer(path.str(), cv::VideoWriter::fourcc('F','F','V','1'), FAST_SETTINGS(frame_rate), cv::Size(smaller.cols, smaller.rows), true);
+        static cv::VideoWriter writer(path.str(), cv::VideoWriter::fourcc('F','F','V','1'), FAST_SETTING(frame_rate), cv::Size(smaller.cols, smaller.rows), true);
         
         static cv::Mat to_write;
         smaller.copyTo(to_write);
@@ -1437,7 +1439,7 @@ void Region::clear() {
 void Grid::collect_cells(uint32_t grid_size, std::vector<Region *> &output) const {
     output.clear();
     
-    const uint32_t cell_size = next_pow2(grid_size);
+    const uint32_t cell_size = next_pow2<uint32_t>(grid_size);
     std::queue<Node::Ptr> q;
     q.push(_root);
     

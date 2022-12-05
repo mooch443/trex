@@ -149,7 +149,7 @@ public:
           [this](List*, const List::Item& item) {
               print(item.ID()," ",item.selected());
               if(!item.selected() && item.ID() >= 0) {
-                  GUI::instance()->add_manual_match(GUI::instance()->frameinfo().frameIndex, _list->selected_item() >= 0 ? Idx_t(_list->selected_item()) : Idx_t(), item.ID());
+                  GUI::instance()->add_manual_match(GUI::instance()->frameinfo().frameIndex, _list->selected_item() >= 0 ? Idx_t(_list->selected_item()) : Idx_t(), (uint32_t)item.ID());
               }
           }
         );
@@ -365,7 +365,7 @@ public:
             std::vector<std::shared_ptr<FishAndBlob>> fish_and_blob;
             if(Tracker::has_identities()) {
                 for(auto id : Tracker::identities()) {
-                    fish_and_blob.push_back(std::make_shared<FishAndBlob>(id, GUI::cache().fish_selected_blobs.count(id) ? GUI::cache().fish_selected_blobs.at(id) : -1));
+                    fish_and_blob.push_back(std::make_shared<FishAndBlob>(id, GUI::cache().fish_selected_blobs.count(id) ? GUI::cache().fish_selected_blobs.at(id) : pv::bid::invalid));
                 }
             } else {
                 for(auto id : GUI::cache().active_ids)
@@ -428,7 +428,7 @@ public:
                 
                 // generate blob items
                 std::map<pv::bid, std::shared_ptr<BlobID>> ordered;
-                std::vector<std::shared_ptr<BlobID>> blobs = {std::make_shared<BlobID>(-1)};
+                std::vector<std::shared_ptr<BlobID>> blobs = {std::make_shared<BlobID>(pv::bid::invalid)};
                 for(auto &v : GUI::cache().raw_blobs)
                     ordered[v->blob->blob_id()] = std::make_shared<BlobID>(v->blob->blob_id());
                 
@@ -468,7 +468,7 @@ public:
         }
         
         if((!overall.id.valid() || memory_timer.elapsed() > 10) && GUI::cache().tracked_frames.end != last_end_frame) {
-            Tracker::LockGuard guard(ro_t{}, "memory_stats", 100);
+            LockGuard guard(ro_t{}, "memory_stats", 100);
             if(guard.locked()) {
                 overall.clear();
                 last_end_frame = GUI::cache().tracked_frames.end;

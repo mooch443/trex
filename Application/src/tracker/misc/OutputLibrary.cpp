@@ -120,7 +120,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         _cache_func.clear();
         _default_cache->clear();
         
-        const float cm_per_px = FAST_SETTINGS(cm_per_pixel);
+        const float cm_per_px = FAST_SETTING(cm_per_pixel);
         static const float CENTER_X = SETTING(output_centered) ? SETTING(video_size).value<Size2>().width * 0.5f * cm_per_px : 0;
         static const float CENTER_Y = SETTING(output_centered) ?SETTING(video_size).value<Size2>().height * 0.5f * cm_per_px : 0;
         
@@ -158,7 +158,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
                     _cache_func.erase(r);
                 }
                 
-                for (uint32_t i=1; i<FAST_SETTINGS(midline_resolution); i++) {
+                for (uint32_t i=1; i<FAST_SETTING(midline_resolution); i++) {
                     Library::add("bone"+std::to_string(i), [i]
                      _LIBFNC({
                          // angular speed at current point
@@ -226,7 +226,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         
         _cache_func[Functions::X.name()] = LIBGLFNC( {
             if(!props) {
-                if(!FAST_SETTINGS(output_interpolate_positions))
+                if(!FAST_SETTING(output_interpolate_positions))
                     return gui::Graph::invalid();
                 
                 float percent;
@@ -244,7 +244,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         
         _cache_func[Functions::Y.name()] = LIBGLFNC( {
             if(!props) {
-                if(!FAST_SETTINGS(output_interpolate_positions))
+                if(!FAST_SETTING(output_interpolate_positions))
                     return gui::Graph::invalid();
                 
                 float percent;
@@ -271,7 +271,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         
         _cache_func[Functions::SPEED.name()] = LIBGLFNC( {
             if(!props) {
-                if(!FAST_SETTINGS(output_interpolate_positions))
+                if(!FAST_SETTING(output_interpolate_positions))
                     return gui::Graph::invalid();
                 
                 float percent;
@@ -294,7 +294,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             
             const bool normalize = SETTING(output_normalize_midline_data);
             
-            for(auto f = frame - Frame_t(smooth?FAST_SETTINGS(smooth_window):0); f<=frame+Frame_t(smooth?FAST_SETTINGS(smooth_window):0); ++f)
+            for(auto f = frame - Frame_t(smooth?FAST_SETTING(smooth_window):0); f<=frame+Frame_t(smooth?FAST_SETTING(smooth_window):0); ++f)
             {
                 auto midline = normalize ? fish->fixed_midline(frame) : fish->midline(frame);
                 if (!midline)
@@ -319,7 +319,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             float samples = 0;
             std::vector<float> all;
             
-            const Frame_t offset{100};//FAST_SETTINGS(frame_rate)*0.5;
+            const Frame_t offset{100};//FAST_SETTING(frame_rate)*0.5;
             for(auto i=frame - offset; i<=frame + offset; ++i)
             {
                 auto midline = fish->midline(i);
@@ -364,7 +364,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             
             long_t samples = 1;
             
-            for(auto f = frame-Frame_t(smooth?FAST_SETTINGS(smooth_window):0); f<=frame+Frame_t(smooth?FAST_SETTINGS(smooth_window):0); ++f)
+            for(auto f = frame-Frame_t(smooth?FAST_SETTING(smooth_window):0); f<=frame+Frame_t(smooth?FAST_SETTING(smooth_window):0); ++f)
             {
                 if(f != frame) {
                     float sample = EventAnalysis::midline_offset(info.fish, f);
@@ -418,7 +418,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             } else {
                 // rectangular tank
                 Size2 size = SETTING(video_size);
-                cv::Rect2f r(0, 0, size.width * FAST_SETTINGS(cm_per_pixel), size.height * FAST_SETTINGS(cm_per_pixel));
+                cv::Rect2f r(0, 0, size.width * FAST_SETTING(cm_per_pixel), size.height * FAST_SETTING(cm_per_pixel));
                 
                 auto pt = props->pos<Units::CM_AND_SECONDS>();
                 float d0 = min(cmn::abs(r.x - pt.x), cmn::abs(r.y - pt.y));
@@ -796,7 +796,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             auto midline = fish->midline(frame);
             
             if (midline) {
-                return length(midline->segments().at(1).pos - midline->segments().at(0).pos) * FAST_SETTINGS(cm_per_pixel);
+                return length(midline->segments().at(1).pos - midline->segments().at(0).pos) * FAST_SETTING(cm_per_pixel);
             }
             
             return gui::Graph::invalid();
@@ -856,7 +856,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             
             if (midline) {
                 auto blob = fish->blob(frame);
-                return (blob->bounds().pos().x + midline->offset().x) * FAST_SETTINGS(cm_per_pixel);
+                return (blob->bounds().pos().x + midline->offset().x) * FAST_SETTING(cm_per_pixel);
             }
             
             return gui::Graph::invalid();
@@ -867,7 +867,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             
             if (midline) {
                 auto blob = fish->blob(frame);
-                return (blob->bounds().pos().y + midline->offset().y) * FAST_SETTINGS(cm_per_pixel);
+                return (blob->bounds().pos().y + midline->offset().y) * FAST_SETTING(cm_per_pixel);
             }
             
             return gui::Graph::invalid();
@@ -958,7 +958,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             auto posture = fish->posture_stuff(frame);
             
             if (posture) {
-                return posture->midline_length; //* FAST_SETTINGS(cm_per_pixel);
+                return posture->midline_length; //* FAST_SETTING(cm_per_pixel);
             }
             
             return gui::Graph::invalid();
@@ -1343,7 +1343,7 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
         header.insert(header.end(), nheader.begin(), nheader.end());
         std::vector<Individual*> neighbors;
         
-        Tracker::LockGuard guard(ro_t{}, "save_focussed_on");
+        LockGuard guard(ro_t{}, "save_focussed_on");
         
         for (auto && [id, neighbor] : Tracker::individuals()) {
             if(neighbor != fish) {

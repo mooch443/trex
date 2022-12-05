@@ -2,7 +2,6 @@
 #include <misc/ProximityGrid.h>
 #include <misc/ranges.h>
 
-
 namespace track {
 namespace tags {
 

@@ -63,7 +63,7 @@ namespace gui {
             return;
         
         {
-            Tracker::LockGuard guard(ro_t{}, "DrawDataset::update",100);
+            LockGuard guard(ro_t{}, "DrawDataset::update",100);
             if(!guard.locked()) {
                 set_content_changed(true);
                 return;

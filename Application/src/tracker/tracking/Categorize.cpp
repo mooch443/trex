@@ -198,13 +198,13 @@ Sample::Sample(std::vector<Frame_t>&& frames,
 }
 
 std::vector<std::string> DataStore::label_names() {
-    return FAST_SETTINGS(categories_ordered);
+    return FAST_SETTING(categories_ordered);
 }
 
 void init_labels() {
     Work::_number_labels = 0;
     _labels.clear();
-    auto cats = FAST_SETTINGS(categories_ordered);
+    auto cats = FAST_SETTING(categories_ordered);
     for(size_t i=0; i<cats.size(); ++i) {
         _labels[Label::Make(cats.at(i), i)] = {};
     }
@@ -244,7 +244,7 @@ Label::Ptr DataStore::label(int ID) {
     if(ID == -1)
         return nullptr;
     
-    auto names = FAST_SETTINGS(categories_ordered);
+    auto names = FAST_SETTING(categories_ordered);
     if(/*ID >= 0 && */size_t(ID) < names.size()) {
         return label(names[ID].c_str());
     }
@@ -259,7 +259,7 @@ Sample::Ptr DataStore::random_sample(Idx_t fid) {
     Individual *fish;
     
     {
-        Tracker::LockGuard guard(ro_t{}, "Categorize::random_sample");
+        LockGuard guard(ro_t{}, "Categorize::random_sample");
         auto iit = Tracker::instance()->individuals().find(fid);
         if (iit != Tracker::instance()->individuals().end()) {
             fish = iit->second;
@@ -277,8 +277,8 @@ Sample::Ptr DataStore::random_sample(Idx_t fid) {
     if(!segment)
         return Sample::Invalid();
     
-    const auto max_len = FAST_SETTINGS(track_segment_max_length);
-    const auto min_len = uint32_t(max_len > 0 ? max(1, max_len * 0.1 * float(FAST_SETTINGS(frame_rate))) : FAST_SETTINGS(categories_min_sample_images));
+    const auto max_len = FAST_SETTING(track_segment_max_length);
+    const auto min_len = uint32_t(max_len > 0 ? max(1, max_len * 0.1 * float(FAST_SETTING(frame_rate))) : FAST_SETTING(categories_min_sample_images));
     return sample(segment, fish, 150u, min_len);
 }
 
@@ -287,7 +287,7 @@ Sample::Ptr DataStore::get_random() {
     
     std::set<Idx_t> individuals;
     {
-        Tracker::LockGuard guard(ro_t{}, "Categorize::random_sample");
+        LockGuard guard(ro_t{}, "Categorize::random_sample");
         individuals = extract_keys(Tracker::instance()->individuals());
     }
     
@@ -343,7 +343,7 @@ struct BlobLabel {
 std::vector<std::vector<BlobLabel>> _probability_cache; // frame - start_frame => index in this array
 
 auto& tracker_start_frame() {
-    static Frame_t start_frame = FAST_SETTINGS(analysis_range).first == -1 ? Frame_t(0) : Frame_t(FAST_SETTINGS(analysis_range).first);
+    static Frame_t start_frame = FAST_SETTING(analysis_range).first == -1 ? Frame_t(0) : Frame_t(FAST_SETTING(analysis_range).first);
     return start_frame;
 }
 
@@ -548,7 +548,7 @@ Label::Ptr DataStore::label_averaged(const Individual* fish, Frame_t frame) {
             size_t N = 0;
             
             {
-                auto names = FAST_SETTINGS(categories_ordered);
+                auto names = FAST_SETTING(categories_ordered);
                 for (size_t i=0; i<names.size(); ++i) {
                     label_id_to_index[i] = i;
                     index_to_label[i] = label(names[i].c_str());
@@ -643,7 +643,7 @@ Label::Ptr DataStore::_label_averaged_unsafe(const Individual* fish, Frame_t fra
                 if(*mit == 0)
                     return nullptr; // no samples
                 assert(i >= 0);
-                auto l = label(FAST_SETTINGS(categories_ordered).at(i).c_str());
+                auto l = label(FAST_SETTING(categories_ordered).at(i).c_str());
                 _averaged_probability_cache[fish->identity().ID()][kit->get()] = l;
                 return l;
             }
@@ -843,8 +843,8 @@ Sample::Ptr Work::front_sample() {
             
             if(sample != Sample::Invalid()
                && (sample->_images.empty()
-                   || sample->_images.front()->rows != FAST_SETTINGS(individual_image_size).height
-                   || sample->_images.front()->cols != FAST_SETTINGS(individual_image_size).width)
+                   || sample->_images.front()->rows != FAST_SETTING(individual_image_size).height
+                   || sample->_images.front()->cols != FAST_SETTING(individual_image_size).width)
                )
             {
                 sample = Sample::Invalid();
@@ -890,7 +890,7 @@ void start_applying() {
     using namespace extract;
     auto normalize = SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>();
     if(normalize == default_config::individual_image_normalization_t::posture
-       && !FAST_SETTINGS(calculate_posture))
+       && !FAST_SETTING(calculate_posture))
     {
         normalize = default_config::individual_image_normalization_t::moments;
     }
@@ -899,11 +899,11 @@ void start_applying() {
     extract::Settings settings{
         .flags = 0,//(uint32_t)Flag::RemoveSmallFrames,
         .max_size_bytes = uint64_t((double)SETTING(gpu_max_cache).value<float>() * 1000.0 * 1000.0 * 1000.0 / double(max_threads)),
-        .image_size = FAST_SETTINGS(individual_image_size),
+        .image_size = FAST_SETTING(individual_image_size),
         .num_threads = max_threads,
         .normalization = normalize,
         .item_step = 1u,
-        .segment_min_samples = FAST_SETTINGS(categories_min_sample_images),
+        .segment_min_samples = FAST_SETTING(categories_min_sample_images),
         .query_lock = [](){
             return std::make_unique<std::shared_lock<std::shared_mutex>>(DataStore::cache_mutex());
         }
@@ -943,9 +943,9 @@ void start_applying() {
                 {
                     // If the module had been unloaded, reload all variables
                     // relevant to training:
-                    const auto dims = FAST_SETTINGS(individual_image_size);
+                    const auto dims = FAST_SETTING(individual_image_size);
                     std::map<std::string, int> keys;
-                    auto cat = FAST_SETTINGS(categories_ordered);
+                    auto cat = FAST_SETTING(categories_ordered);
                     for(size_t i=0; i<cat.size(); ++i)
                         keys[cat[i]] = i;
                     
@@ -1016,7 +1016,7 @@ void start_applying() {
                     _ranged_labels.clear();
                 }
                 
-                Tracker::LockGuard guard(ro_t{}, "ranged_labels");
+                LockGuard guard(ro_t{}, "ranged_labels");
                 std::shared_lock label_guard(DataStore::cache_mutex());
                 
                 std::vector<float> sums(Work::_number_labels);
@@ -1104,9 +1104,9 @@ void Work::start_learning() {
         
         auto reset_variables = [](){
             print("Reset python functions and variables...");
-            const auto dims = FAST_SETTINGS(individual_image_size);
+            const auto dims = FAST_SETTING(individual_image_size);
             std::map<std::string, int> keys;
-            auto cat = FAST_SETTINGS(categories_ordered);
+            auto cat = FAST_SETTING(categories_ordered);
             for(size_t i=0; i<cat.size(); ++i)
                 keys[cat[i]] = i;
             
@@ -1153,7 +1153,7 @@ void Work::start_learning() {
         };
         
         Timer timer;
-        while(FAST_SETTINGS(categories_ordered).empty() && Work::_learning) {
+        while(FAST_SETTING(categories_ordered).empty() && Work::_learning) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             if(timer.elapsed() >= 1) {
                 FormatWarning("# Waiting for labels...");
@@ -1175,7 +1175,7 @@ void Work::start_learning() {
         
         std::unique_lock guard(Work::_learning_mutex);
         while(Work::_learning) {
-            const auto dims = FAST_SETTINGS(individual_image_size);
+            const auto dims = FAST_SETTING(individual_image_size);
             const auto gpu_max_sample_images = double(SETTING(gpu_max_sample_gb).value<float>()) * 1000.0 * 1000.0 * 1000.0 / double(sizeof(float)) * 0.5 / dims.width / dims.height;
             
             Work::_learning_variable.wait_for(guard, std::chrono::milliseconds(200));
@@ -1568,7 +1568,7 @@ void Work::work_thread() {
         while (_generated_samples.size() < requested_samples() && !terminate()) {
             guard.unlock();
             try {
-                //Tracker::LockGuard g("get_random::loop");
+                //LockGuard g("get_random::loop");
                 sample = DataStore::get_random();
                 if (sample && sample->_images.size() < 1) {
                     sample = Sample::Invalid();
@@ -1856,9 +1856,9 @@ std::shared_ptr<PPFrame> cache_pp_frame(const Frame_t& frame, const std::shared_
         ptr = std::make_shared<PPFrame>();
         ++_create;
 
-        Tracker::set_of_individuals_t active;
+        set_of_individuals_t active;
         {
-            Tracker::LockGuard guard(ro_t{}, "Categorize::sample");
+            LockGuard guard(ro_t{}, "Categorize::sample");
             active = frame == Tracker::start_frame()
                 ? decltype(active)()
                 : Tracker::active_individuals(frame - 1_f);
@@ -2052,7 +2052,7 @@ Sample::Ptr DataStore::temporary(
     
     {
         {
-            Tracker::LockGuard guard(ro_t{}, "Categorize::sample");
+            LockGuard guard(ro_t{}, "Categorize::sample");
             range = segment->range;
             basic_index = segment->basic_index;
             frames.reserve(basic_index.size());
@@ -2144,9 +2144,9 @@ Sample::Ptr DataStore::temporary(
     size_t non = 0, cont = 0;
 
     auto normalize = SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>();
-    if (normalize == default_config::individual_image_normalization_t::posture && !FAST_SETTINGS(calculate_posture))
+    if (normalize == default_config::individual_image_normalization_t::posture && !FAST_SETTING(calculate_posture))
         normalize = default_config::individual_image_normalization_t::moments;
-    const auto dims = FAST_SETTINGS(individual_image_size);
+    const auto dims = FAST_SETTING(individual_image_size);
 
     for(auto &[index, frame, ptr] : stuff_indexes) {
 
@@ -2182,7 +2182,7 @@ Sample::Ptr DataStore::temporary(
         FilterCache custom_len;
         
         {
-            Tracker::LockGuard guard(ro_t{}, "Categorize::sample");
+            LockGuard guard(ro_t{}, "Categorize::sample");
             basic = fish->basic_stuff().at(index).get();
             auto posture = fish->posture_stuff(frame);
             midline = posture ? fish->calculate_midline_for(*basic, *posture) : nullptr;
@@ -2197,7 +2197,7 @@ Sample::Ptr DataStore::temporary(
         auto blob = Tracker::find_blob_noisy(*ptr, basic->blob.blob_id(), basic->blob.parent_id, basic->blob.calculate_bounds());
         //auto it = fish->iterator_for(basic->frame);
         if (blob) { //&& it != fish->frame_segments().end()) {
-            //Tracker::LockGuard guard("Categorize::sample");
+            //LockGuard guard("Categorize::sample");
             
             auto [image, pos] =
                 constraints::diff_image(normalize,
@@ -2393,7 +2393,7 @@ void DataStore::write(file::DataFormat& data, int /*version*/) {
 
     {
         std::lock_guard guard(mutex());
-        auto cats = FAST_SETTINGS(categories_ordered);
+        auto cats = FAST_SETTING(categories_ordered);
         data.write<uint64_t>(cats.size()); // number of labels
 
         for (size_t i = 0; i < cats.size(); ++i) {

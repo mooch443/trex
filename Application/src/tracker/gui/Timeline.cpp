@@ -97,7 +97,7 @@ namespace gui {
 
             section._section->set_scale(use_scale);
 
-            if (FAST_SETTINGS(analysis_paused)) {
+            if (FAST_SETTING(analysis_paused)) {
                 _pause.set_txt("continue");
                 _pause.set_fill_clr(Color(25, 75, 25, GUI_SETTINGS(gui_timeline_alpha)));
             }
@@ -119,15 +119,15 @@ namespace gui {
                 if (_frame_info->up_to_this_frame != _frame_info->big_count)
                     number << ", " << _frame_info->up_to_this_frame << " known here";
 
-                if (_frame_info->current_count != FAST_SETTINGS(track_max_individuals))
+                if (_frame_info->current_count != FAST_SETTING(track_max_individuals))
                     number << " " << _frame_info->current_count << " this frame";
 
-                if (!FAST_SETTINGS(analysis_paused))
+                if (!FAST_SETTING(analysis_paused))
                     number << " (analysis: " << _frame_info->current_fps << " fps)";
                 else
                     number << " (analysis paused)";
 
-                DurationUS duration{ uint64_t((double(_frame_info->frameIndex.load().get()) / double(FAST_SETTINGS(frame_rate)))) * 1000u * 1000u };
+                DurationUS duration{ uint64_t((double(_frame_info->frameIndex.load().get()) / double(FAST_SETTING(frame_rate)))) * 1000u * 1000u };
                 number << " " << Meta::toStr(duration);
 
                 _status_text.set_txt(number.str());
@@ -560,7 +560,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
 
             std::unique_lock guard(_proximity_bar.mutex);
             auto individual_coverage = [](Frame_t frame) {
-                Tracker::LockGuard guard(ro_t{}, "Timeline::individual_coverage", 100);
+                LockGuard guard(ro_t{}, "Timeline::individual_coverage", 100);
                 float count = 0;
                 if(Tracker::properties(frame)) {
                     for(auto fish : Tracker::instance()->active_individuals(frame)) {
@@ -665,7 +665,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
             //! Update the cached data
             if(GUICache::exists() && Tracker::instance()) {
                 {
-                    Tracker::LockGuard guard(ro_t{}, "Timeline::update_thread", 100);
+                    LockGuard guard(ro_t{}, "Timeline::update_thread", 100);
                     if (guard.locked()) {
                         Timer timer;
 
@@ -694,8 +694,8 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                             _frame_info->global_segment_order = track::Tracker::global_segment_order();
 
                             if (Tracker::properties(_frame_info->frameIndex)) {
-                                for (auto& fish : _frame_info->frameIndex.load() >= tracker_startframe.load() && _frame_info->frameIndex.load() < tracker_endframe.load() ? Tracker::active_individuals(_frame_info->frameIndex) : Tracker::set_of_individuals_t{}) {
-                                    if ((int)fish->frame_count() < FAST_SETTINGS(frame_rate) * 3) {
+                                for (auto& fish : _frame_info->frameIndex.load() >= tracker_startframe.load() && _frame_info->frameIndex.load() < tracker_endframe.load() ? Tracker::active_individuals(_frame_info->frameIndex) : set_of_individuals_t{}) {
+                                    if ((int)fish->frame_count() < FAST_SETTING(frame_rate) * 3) {
                                         _frame_info->small_count++;
                                     }
                                     else
@@ -711,7 +711,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
                             }
                         }
 
-                        //if(FAST_SETTINGS(calculate_posture))
+                        //if(FAST_SETTING(calculate_posture))
                         //    changed = EventAnalysis::update_events(_frame_info->frameIndex < tracker_endframe ? Tracker::active_individuals(_frame_info->frameIndex) : std::set<Individual*>{});
 
                         // needs Tracker lock
@@ -721,12 +721,12 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
 
                         _update_thread_updated_once = true;
 
-                        if (timer.elapsed() > 0.1 && !FAST_SETTINGS(analysis_paused)) {
+                        if (timer.elapsed() > 0.1 && !FAST_SETTING(analysis_paused)) {
                             if (long_wait_time < std::chrono::seconds(30)) {
                                 long_wait_time = std::chrono::seconds(30);
                                 short_wait_time = std::chrono::seconds(30);
 
-                                if (!FAST_SETTINGS(analysis_paused))
+                                if (!FAST_SETTING(analysis_paused))
                                     FormatWarning("Throtteling some non-essential gui functions until analysis is over.");
                             }
 

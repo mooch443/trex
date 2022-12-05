@@ -135,7 +135,7 @@ void apply_network() {
 #endif
                 const size_t N = py::VINetwork::number_classes();
                 
-                Tracker::LockGuard guard(w_t{}, "apply_weights");
+                LockGuard guard(w_t{}, "apply_weights");
                 for(size_t i=0; i<results.size(); ++i) {
                     auto start = probabilities.begin() + i * N;
                     auto end   = probabilities.begin() + (i + 1) * N;
@@ -280,9 +280,9 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
         TrainingData* data,
         std::map<Idx_t, std::set<std::shared_ptr<SegmentInformation>>>* coverage)
 {
-    Tracker::LockGuard guard(ro_t{}, "Accumulation::generate_individuals_per_frame");
+    LockGuard guard(ro_t{}, "Accumulation::generate_individuals_per_frame");
     std::map<Frame_t, std::set<Idx_t>> individuals_per_frame;
-    const bool calculate_posture = FAST_SETTINGS(calculate_posture);
+    const bool calculate_posture = FAST_SETTING(calculate_posture);
     
     for(auto &[id, fish] : Tracker::individuals()) {
         if(!Tracker::identities().count(id)) {
@@ -345,11 +345,11 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
 }
 
 std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(const Range<Frame_t>& range, TrainingData& data, bool check_length, DatasetQuality::Quality quality) {
-    const float pure_chance = 1.f / float(FAST_SETTINGS(track_max_individuals));
+    const float pure_chance = 1.f / float(FAST_SETTING(track_max_individuals));
    // data.set_normalized(SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>());
     
     if(data.empty()) {
-        Tracker::LockGuard guard(ro_t{}, "Accumulation::generate_training_data");
+        LockGuard guard(ro_t{}, "Accumulation::generate_training_data");
         gui::WorkProgress::set_progress("generating images", 0);
         
         std::map<Idx_t, std::set<std::shared_ptr<SegmentInformation>>> segments;
@@ -391,7 +391,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
     
     auto && [images, ids] = data.join_arrays();
     
-    Tracker::LockGuard guard(ro_t{}, "Accumulation::generate_training_data");
+    LockGuard guard(ro_t{}, "Accumulation::generate_training_data");
     auto averages = _network->paverages(ids, std::move(images));
     
     std::set<Idx_t> added_ids = extract_keys(averages);
@@ -440,8 +440,8 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
         unique_ids.insert(pred_id);
     }
     
-    if(unique_ids.size() + 1 == FAST_SETTINGS(track_max_individuals)
-       && min_prob > pure_chance * FAST_SETTINGS(recognition_segment_add_factor))
+    if(unique_ids.size() + 1 == FAST_SETTING(track_max_individuals)
+       && min_prob > pure_chance * FAST_SETTING(recognition_segment_add_factor))
     {
         print("\tOnly one missing id in predicted ids. Guessing solution...");
         
@@ -485,20 +485,20 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
         unique_ids.insert(missing_predicted_id);
     }
     
-    if(unique_ids.size() == FAST_SETTINGS(track_max_individuals)
-       && min_prob > pure_chance * FAST_SETTINGS(recognition_segment_add_factor))
+    if(unique_ids.size() == FAST_SETTING(track_max_individuals)
+       && min_prob > pure_chance * FAST_SETTING(recognition_segment_add_factor))
     {
         print("\t[+] Dataset range (",range.start,"-",range.end,", ",quality,") is acceptable for training with assignments: ",max_indexes);
         
-    } else if(unique_ids.size() != FAST_SETTINGS(track_max_individuals)) {
+    } else if(unique_ids.size() != FAST_SETTING(track_max_individuals)) {
         auto str = format<FormatterType::NONE>("\t[-] Dataset range (", range,", ",quality,") does not predict unique ids.");
         end_a_step(Result(FrameRange(range), -1, AccumulationStatus::Cached, AccumulationReason::NoUniqueIDs, str));
         print(str.c_str());
         return {true, {}};
         
-    } else if(min_prob <= pure_chance * FAST_SETTINGS(recognition_segment_add_factor))
+    } else if(min_prob <= pure_chance * FAST_SETTING(recognition_segment_add_factor))
     {
-        auto str = format<FormatterType::NONE>("\t[-] Dataset range (", range,", ", quality,") minimal class-probability ", min_prob," is lower than ", pure_chance * FAST_SETTINGS(recognition_segment_add_factor),".");
+        auto str = format<FormatterType::NONE>("\t[-] Dataset range (", range,", ", quality,") minimal class-probability ", min_prob," is lower than ", pure_chance * FAST_SETTING(recognition_segment_add_factor),".");
         end_a_step(Result(FrameRange(range), -1, AccumulationStatus::Cached, AccumulationReason::ProbabilityTooLow, str));
         print(str.c_str());
         return {true, {}};
@@ -570,7 +570,7 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::Ptr>, std::map<Fram
     auto data = std::make_shared<TrainingData>();
     
     {
-        Tracker::LockGuard guard(ro_t{}, "Accumulation::discriminate");
+        LockGuard guard(ro_t{}, "Accumulation::discriminate");
         gui::WorkInstance generating_images("generating images");
         gui::WorkProgress::set_progress("generating images", 0);
         
@@ -644,7 +644,7 @@ std::tuple<float, ska::bytell_hash_map<Frame_t, float>, float> Accumulation::cal
     ska::bytell_hash_map<Idx_t, float> unique_percent_per_identity;
     ska::bytell_hash_map<Idx_t, float> per_identity_samples;
     
-    const size_t N = FAST_SETTINGS(track_max_individuals);
+    const size_t N = FAST_SETTING(track_max_individuals);
     
     for(auto && [frame, range] : map_indexes) {
         ska::bytell_hash_set<Idx_t> unique_ids;
@@ -707,9 +707,9 @@ std::tuple<float, ska::bytell_hash_map<Frame_t, float>, float> Accumulation::cal
         if(_current_accumulation) {
             auto _this = _current_accumulation;
             _this->_uniqueness_per_class.resize(0);
-            _this->_uniqueness_per_class.resize(FAST_SETTINGS(track_max_individuals));
+            _this->_uniqueness_per_class.resize(FAST_SETTING(track_max_individuals));
             for(auto && [id, ps] : unique_percent_per_identity) {
-                assert(id < FAST_SETTINGS(track_max_individuals));
+                assert(id < FAST_SETTING(track_max_individuals));
                 _this->_uniqueness_per_class[id] = per_identity_samples[id] > 0 ? ps / per_identity_samples[id] : 0;
             }
         }
@@ -723,7 +723,7 @@ std::tuple<float, ska::bytell_hash_map<Frame_t, float>, float> Accumulation::cal
 }
 
 float Accumulation::good_uniqueness() {
-    return max(0.8, (float(FAST_SETTINGS(track_max_individuals)) - 0.5f) / float(FAST_SETTINGS(track_max_individuals)));
+    return max(0.8, (float(FAST_SETTING(track_max_individuals)) - 0.5f) / float(FAST_SETTING(track_max_individuals)));
 }
 
 Accumulation::Accumulation(TrainingMode::Class mode) : _mode(mode), _accumulation_step(0), _counted_steps(0), _last_step(1337) {
@@ -798,7 +798,7 @@ bool Accumulation::start() {
     std::string reason_to_stop = "";
     
     {
-        Tracker::LockGuard guard(ro_t{}, "GUI::generate_training_data");
+        LockGuard guard(ro_t{}, "GUI::generate_training_data");
         gui::WorkProgress::set_progress("generating images", 0);
         
         DebugCallback("Generating initial training dataset [%d-%d] (%d) in memory.", _initial_range.start, _initial_range.end, _initial_range.length());
@@ -1031,7 +1031,7 @@ bool Accumulation::start() {
                     if(distance < min_distance) min_distance = distance;
                     //distance = roundf((1 - SQR(average)) * 10) * 10;
                     
-                    range_distance = Frame_t(narrow_cast<int32_t>(next_pow2(sign_cast<uint64_t>(range_distance.get()))));
+                    range_distance = Frame_t(narrow_cast<int32_t>(next_pow2<uint64_t>(sign_cast<uint64_t>(range_distance.get()))));
                     
                     copied_sorted.insert({distance, range_distance, q, cached, range, extended_range, samples});
                 } else {
@@ -1599,7 +1599,7 @@ bool Accumulation::start() {
                 for(auto && [frame, ids] : frames_collected) {
                     auto active =
                         frame == Tracker::start_frame()
-                            ? Tracker::set_of_individuals_t()
+                            ? set_of_individuals_t()
                             : Tracker::active_individuals(frame - 1_f);
                     
                     video_file.read_frame(video_frame.frame(), sign_cast<uint64_t>(frame.get()));
@@ -1882,7 +1882,7 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
             std::lock_guard<std::mutex> guard(_per_class_lock);
             return x>=0 && size_t(x) < _current_accumulation->_current_per_class.size() ? _current_accumulation->_current_per_class.at(size_t(x)) : gui::Graph::invalid();
         }, Cyan));
-        _graph->set_ranges(Rangef(0, float(FAST_SETTINGS(track_max_individuals))-1), Rangef(0, 1));
+        _graph->set_ranges(Rangef(0, float(FAST_SETTING(track_max_individuals))-1), Rangef(0, 1));
         _graph->set_background(Transparent, Transparent);
         _graph->set_margin(Vec2(10,2));
     }

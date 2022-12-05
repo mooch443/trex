@@ -240,7 +240,7 @@ Range<Frame_t> FrameGrabber::processing_range() const {
     //! We either start where the conversion_range starts, or at 0 (for all things).
     static const Frame_t conversion_range_start =
         (_video && GRAB_SETTINGS(video_conversion_range).first != -1)
-        ? Frame_t(min(_video->length() - 1, (uint64_t)GRAB_SETTINGS(video_conversion_range).first))
+        ? Frame_t(min(_video->length() - 1, (uint32_t)GRAB_SETTINGS(video_conversion_range).first))
         : Frame_t(0);
 
     //! We end for videos when the conversion range has been reached, or their length, and
@@ -679,9 +679,7 @@ FrameGrabber::~FrameGrabber() {
         SETTING(terminate) = false; // TODO: otherwise, stuff might not get exported
         
         {
-            track::Tracker::LockGuard guard(track::w_t{}, "GUI::save_state");
-            tracker->wait();
-            
+            track::LockGuard guard(track::w_t{}, "GUI::save_state");
             if(!SETTING(auto_no_tracking_data))
                 track::export_data(*tracker, -1, Range<Frame_t>());
             
@@ -1156,7 +1154,7 @@ void FrameGrabber::update_tracker_queue() {
             last_processed = copy->index();
             
             if(copy && tracker) {
-                track::Tracker::LockGuard guard(track::w_t{}, "update_tracker_queue");
+                track::LockGuard guard(track::w_t{}, "update_tracker_queue");
                 track::Tracker::preprocess_frame(*copy, {}, NULL, NULL, false);
                 tracker->add(*copy);
                 Frame_t frame{copy->frame().index()};
@@ -1170,7 +1168,7 @@ void FrameGrabber::update_tracker_queue() {
 #if !COMMONS_NO_PYTHON
 #define CL_HAS_FEATURE(NAME) (selected_features.find(CLFeature:: NAME) != selected_features.end())
                 auto& active = tracker->active_individuals(frame);
-                _tracker_current_individuals = active.size();
+                _tracker_current_individuals = narrow_cast<uint32_t>(active.size());
 
                 if(GRAB_SETTINGS(enable_closed_loop)) {
                     std::map<long_t, std::shared_ptr<track::VisualField>> visual_fields;
@@ -1257,10 +1255,10 @@ void FrameGrabber::update_tracker_queue() {
                             
                             for(auto id : ids) {
                                 auto it = midlines.find(id);
-                                if(it == midlines.end() || it->second->segments().size() != FAST_SETTINGS(midline_resolution))
+                                if(it == midlines.end() || it->second->segments().size() != FAST_SETTING(midline_resolution))
                                 {
                                     points.resize(0);
-                                    for(uint32_t i=0; i<FAST_SETTINGS(midline_resolution); ++i)
+                                    for(uint32_t i=0; i<FAST_SETTING(midline_resolution); ++i)
                                         points.push_back(gui::Graph::invalid());
                                     midline_points.insert(midline_points.end(), points.begin(), points.end());
                                     
@@ -1315,8 +1313,8 @@ void FrameGrabber::update_tracker_queue() {
                                     std::vector<size_t>{ number_fields, 2, track::VisualField::field_resolution },
                                     std::vector<size_t>{ 2 * track::VisualField::field_resolution * sizeof(float), track::VisualField::field_resolution * sizeof(float), sizeof(float) });
                             py::set_variable("midlines", midline_points, "closed_loop",
-                                             std::vector<size_t>{ min(number_midlines, ids.size()), FAST_SETTINGS(midline_resolution), 2 },
-                                std::vector<size_t>{ 2 * FAST_SETTINGS(midline_resolution) * sizeof(float), 2 * sizeof(float), sizeof(float) });
+                                             std::vector<size_t>{ min(number_midlines, ids.size()), FAST_SETTING(midline_resolution), 2 },
+                                std::vector<size_t>{ 2 * FAST_SETTING(midline_resolution) * sizeof(float), 2 * sizeof(float), sizeof(float) });
 
                             track::PythonIntegration::run("closed_loop", "update_tracking");
                         } catch(const SoftExceptionImpl& e) {

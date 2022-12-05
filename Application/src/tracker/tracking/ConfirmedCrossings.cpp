@@ -140,7 +140,7 @@ bool ConfirmedCrossings::next(FOIStatus& foi) {
                     Frame_t((Frame_t::number_t)status)
                 });
                 
-                const auto range = arange<long_t>(0, FAST_SETTINGS(track_max_individuals)-1);
+                const auto range = arange<long_t>(0, FAST_SETTING(track_max_individuals)-1);
                 for(auto id : range) {
                     if(foi.fdx().count(FOI::fdx_t(id)))
                         rows.push_back(1_f);
@@ -151,7 +151,7 @@ bool ConfirmedCrossings::next(FOIStatus& foi) {
             
             std::vector<size_t> shape{
                 _previous.size(),
-                size_t(3 + FAST_SETTINGS(track_max_individuals))
+                size_t(3 + FAST_SETTING(track_max_individuals))
             };
             
             assert(rows.size() == shape[0] * shape[1]);

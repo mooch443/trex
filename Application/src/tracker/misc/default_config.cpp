@@ -393,6 +393,7 @@ file::Path conda_environment_path() {
         //CONFIG("gui_show_manual_matches", true, "Show/hide manual matches in path.");
         CONFIG("gui_show_graph", false, "Show/hide the data time-series graph.");
         CONFIG("gui_show_number_individuals", false, "Show/hide the #individuals time-series graph.");
+        CONFIG("gui_show_processing_time", false, "Show/hide the ms/frame time-series graph.");
         CONFIG("gui_show_recognition_summary", false, "Show/hide confusion matrix (if network is loaded).");
         CONFIG("gui_show_dataset", false, "Show/hide detailed dataset information on-screen.");
         CONFIG("gui_show_recognition_bounds", true, "Shows what is contained within tht recognition boundary as a cyan background. (See `recognition_border` for details.)");

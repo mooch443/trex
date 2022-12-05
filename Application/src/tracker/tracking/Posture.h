@@ -4,7 +4,7 @@
 #include <types.h>
 
 #include "Outline.h"
-#include <misc/PVBlob.h>
+#include <misc/bid.h>
 
 //#define POSTURE_DEBUG
 namespace track {

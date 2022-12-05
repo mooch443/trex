@@ -2,7 +2,6 @@
 
 #include <gui/types/Entangled.h>
 #include <gui/types/Layout.h>
-#include <misc/ProximityGrid.h>
 #include <misc/Timer.h>
 #include <misc/OutputLibrary.h>
 #include <misc/ThreadPool.h>

@@ -125,7 +125,7 @@ size_t SplitBlob::apply_threshold(int threshold, std::vector<pv::BlobPtr> &outpu
 }
 
 SplitBlob::Action SplitBlob::evaluate_result_single(std::vector<pv::BlobPtr> &result) {
-    float size = result.front()->num_pixels() * SQR(FAST_SETTINGS(cm_per_pixel));
+    float size = result.front()->num_pixels() * SQR(SLOW_SETTING(cm_per_pixel));
     // dont use fish that are too big
     if(size > fish_minmax.max_range().end)
         return REMOVE;
@@ -275,7 +275,8 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
         return output.empty() ? 0 : (*output.begin())->pixels()->size();
     };
     
-    const auto fn = [&apply_watershed, &calculations, &blobs, &centers, presumed_nr, &first_size, &more_than_1_times, &best_matches, this](int threshold) {
+    const auto fn = [&apply_watershed, &calculations, &blobs, &centers, presumed_nr, &first_size, &more_than_1_times, &best_matches, this](int threshold)
+    {
         calculations++;
         
 #if DEBUG_ME
@@ -321,8 +322,8 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
             print("Found ", blobs.size()," blobs at threshold ", threshold," (expected ",presumed_nr,") with centers: ", centers);
 #endif
             
-            result.blobs = blobs;
-            best_matches[threshold] = result;
+            result.blobs = std::move(blobs);
+            best_matches[threshold] = std::move(result);
         }
 
         blobs.clear();

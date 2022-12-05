@@ -76,7 +76,7 @@ namespace track {
     }*/
     
     void Border::clear() {
-        //Tracker::LockGuard guard;
+        //LockGuard guard;
         std::lock_guard<std::mutex> guard(mutex);
         _vertices.clear();
         //x_range.clear();
@@ -107,7 +107,7 @@ namespace track {
                 return grid_cells[{uint16_t(pos.x), uint16_t(pos.y)}];
             };
             
-            const float sqcm = SQR(FAST_SETTINGS(cm_per_pixel));
+            const float sqcm = SQR(FAST_SETTING(cm_per_pixel));
             const float rescale = 1 - min(0.9, max(0, SETTING(recognition_border_size_rescale).value<float>()));
             
             print("Reading video...");
@@ -122,11 +122,11 @@ namespace track {
                     break;
                 
                 for(auto b : blobs) {
-                    auto pb = pixel::threshold_blob(b, FAST_SETTINGS(track_threshold), Tracker::instance()->background());
+                    auto pb = pixel::threshold_blob(b, FAST_SETTING(track_threshold), Tracker::instance()->background());
                     
                     for(auto b : pb) {
                         auto size = b->num_pixels() * sqcm;
-                        if(FAST_SETTINGS(blob_size_ranges).in_range_of_one(size, rescale)) {  //size >= min_size && size <= max_size) {
+                        if(FAST_SETTING(blob_size_ranges).in_range_of_one(size, rescale)) {  //size >= min_size && size <= max_size) {
                             for(auto &line : b->hor_lines()) {
                                 for(ushort x=line.x0; x<=line.x1; ++x) {
                                     auto pos = Vec2(x, line.y);//b->bounds().pos() + b->bounds().size() * 0.5;
@@ -206,7 +206,7 @@ namespace track {
                 x_range.resize(video.size().height);
                 y_range.resize(video.size().width);
                 
-                const float sqcm = SQR(FAST_SETTINGS(cm_per_pixel));
+                const float sqcm = SQR(FAST_SETTING(cm_per_pixel));
                 
                 std::vector<pv::BlobPtr> collection;
                 pv::Frame frame;
@@ -215,17 +215,17 @@ namespace track {
                     auto blobs = frame.get_blobs();
                     
                     for(auto b : blobs) {
-                        auto pb = pixel::threshold_blob(b, FAST_SETTINGS(track_threshold), Tracker::instance()->background());
+                        auto pb = pixel::threshold_blob(b, FAST_SETTING(track_threshold), Tracker::instance()->background());
                         
                         for(auto b : pb) {
                             auto size = b->num_pixels() * sqcm;
-                            if(FAST_SETTINGS(blob_size_ranges) .in_range_of_one(size, 0.5) ) //size >= min_size && size <= max_size)
+                            if(FAST_SETTING(blob_size_ranges) .in_range_of_one(size, 0.5) ) //size >= min_size && size <= max_size)
                                 collection.push_back(b);
                         }
                     }
                 }
                 
-                print("Collected ", collection.size()," blobs between sizes in ",FAST_SETTINGS(blob_size_ranges)," with scale 0.5");
+                print("Collected ", collection.size()," blobs between sizes in ",FAST_SETTING(blob_size_ranges)," with scale 0.5");
                 
                 std::vector<std::multiset<ushort>> xs;
                 std::vector<std::multiset<ushort>> ys;
@@ -449,7 +449,7 @@ namespace track {
         using namespace default_config;
         _type = SETTING(recognition_border).value<recognition_border_t::Class>();
         
-        //Tracker::LockGuard guard;
+        //LockGuard guard;
         std::lock_guard<std::mutex> guard(mutex);
         
         switch(_type) {
@@ -491,7 +491,7 @@ namespace track {
             }
                 
             case Type::shapes:
-                _vertices = FAST_SETTINGS(recognition_shapes);
+                _vertices = FAST_SETTING(recognition_shapes);
                 _min_distance = 1;
                 break;
             case Type::outline:
@@ -520,7 +520,7 @@ namespace track {
         if(_type == Type::grid) {
             float min_d = FLT_MAX;
             
-            for (auto &grid_pt : FAST_SETTINGS(grid_points)) {
+            for (auto &grid_pt : FAST_SETTING(grid_points)) {
                 float d = euclidean_distance(pt, grid_pt);
                 if(d < min_d)
                     min_d = d;
@@ -530,7 +530,7 @@ namespace track {
             
         } else if(_type == Type::shapes) {
             //Bounds r(Tracker::average());
-            auto r = FAST_SETTINGS(recognition_shapes);
+            auto r = FAST_SETTING(recognition_shapes);
             for(auto &shape : r) {
                 if(pnpoly(shape, pt))
                     return 1;

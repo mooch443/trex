@@ -1040,6 +1040,15 @@ TRex parameters
 
 
 
+.. function:: gui_show_processing_time(bool)
+
+	**default value:** false
+
+
+	Show/hide the ms/frame time-series graph.
+
+
+
 .. function:: gui_show_recognition_bounds(bool)
 
 	**default value:** true

@@ -182,7 +182,7 @@ void draw(Frame_t frame, DrawStructure& graph) {
     }
     
     const auto normalize = SETTING(individual_image_normalization).value<individual_image_normalization_t::Class>();
-    auto output_shape = FAST_SETTINGS(individual_image_size);
+    auto output_shape = FAST_SETTING(individual_image_size);
     static bool first = true;
     
     auto& cache = GUICache::instance();
@@ -193,7 +193,7 @@ void draw(Frame_t frame, DrawStructure& graph) {
     GUI::video_source()->read_frame(pp.frame(), frame.get());
     Tracker::preprocess_frame(pp, {}, nullptr);
     
-    Tracker::LockGuard guard(ro_t{}, "DrawPreviewImage", 100);
+    LockGuard guard(ro_t{}, "DrawPreviewImage", 100);
     if(!guard.locked() && !first) {
         graph.wrap_object(preview);
         return;

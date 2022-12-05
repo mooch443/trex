@@ -5,6 +5,7 @@
 #include <gui/types/Tooltip.h>
 #include <gui/GUICache.h>
 #include <gui/DrawBase.h>
+#include <tracking/AutomaticMatches.h>
 
 #include <misc/IdentifiedTag.h>
 
@@ -29,6 +30,7 @@ struct InfoCard::ShadowIndividual {
     std::string recognition_str;
     
     std::vector<ShadowSegment> segments, rec_segments;
+    bool has_vi_predictions{false};
 };
 
 
@@ -78,11 +80,12 @@ void InfoCard::update() {
     }
     
     if(_shadow->fdx.valid()) {
-        Tracker::LockGuard guard(ro_t{}, "InfoCard::update", 10);
+        LockGuard guard(ro_t{}, "InfoCard::update", 10);
         if(guard.locked()) {
             auto it = Tracker::individuals().find(_shadow->fdx);
             if(it != Tracker::individuals().end()) {
                 auto fish = it->second;
+                _shadow->has_vi_predictions = Tracker::instance()->has_vi_predictions();
                 _shadow->identity = fish->identity();
                 _shadow->has_frame = fish->has(_shadow->frame);
                 _shadow->is_automatic_match = fish->is_automatic_match(_shadow->frame);
@@ -178,7 +181,8 @@ void InfoCard::update() {
     
     //auto layout = std::make_shared<VerticalLayout>(Vec2(10, 10));
     add<Text>(_shadow->identity.name(), Loc(11,11), White.alpha(clr.a * 0.7f), Font(0.9f, Style::Bold));
-    auto text = add<Text>(_shadow->identity.name(), Loc(10, 10), clr, Font(0.9f, Style::Bold));
+    const auto font = Font(0.9f, Style::Bold);
+    auto text = add<Text>(_shadow->identity.name(), Loc(10, 10), clr, font);
     
     if(!_shadow->has_frame) {
         add<Text>(" (inactive)", Loc(text->pos() + Vec2(text->width(), 0)), Gray.alpha(clr.a), Font(0.9f, Style::Bold));
@@ -186,13 +190,13 @@ void InfoCard::update() {
     
     segment_texts.clear();
     
-    auto add_segments = [txt = text, this
+    auto add_segments = [&font, this
 #if DEBUG_ORIENTATION
                          ,fish
 #endif
                          ](bool display_hints, const std::vector<ShadowSegment>& segments, float offx)
     {
-        auto text = add<Text>(Meta::toStr(segments.size())+" segments "+Meta::toStr(offx)+" "+Meta::toStr(Base::default_line_spacing(txt->font())), Loc(txt->pos() + Vec2(offx, Base::default_line_spacing(txt->font()))), White, Font(0.8f));
+        auto text = add<Text>(Meta::toStr(segments.size())+" segments", Loc(Vec2(10, 10) + Vec2(offx, Base::default_line_spacing(font))), White, Font(0.8f));
         
 #if DEBUG_ORIENTATION
         auto reason = fish->why_orientation(frameNr);
@@ -277,7 +281,8 @@ void InfoCard::update() {
     };
     
     add_segments(true, _shadow->segments, 0);
-    add_segments(false, _shadow->rec_segments, 200);
+    if(_shadow->has_vi_predictions)
+        add_segments(false, _shadow->rec_segments, 200);
     
     static bool first = true;
     
@@ -286,7 +291,7 @@ void InfoCard::update() {
             auto & cache = GUICache::instance();
             auto next_frame = cache.frame_idx;
             if(cache.has_selection()) {
-                Tracker::LockGuard guard(ro_t{}, "InfoCard::update->prev->on_click");
+                LockGuard guard(ro_t{}, "InfoCard::update->prev->on_click");
                 auto segment = cache.primary_selection()->get_segment(next_frame);
                 
                 if(next_frame == segment.start())
@@ -306,7 +311,7 @@ void InfoCard::update() {
             auto & cache = GUICache::instance();
             auto next_frame = cache.frame_idx;
             if(cache.has_selection()) {
-                Tracker::LockGuard guard(ro_t{}, "InfoCard::update->next->on_click");
+                LockGuard guard(ro_t{}, "InfoCard::update->next->on_click");
                 auto segment = cache.primary_selection()->get_segment(next_frame);
                 if(segment.start().valid()) {
                     auto it = cache.primary_selection()->find_segment_with_start(segment.start());
@@ -387,10 +392,10 @@ void InfoCard::update() {
                 if(!_shadow->fdx.valid())
                     return;
                 
-                Tracker::LockGuard guard(w_t{}, "InfoCard::update->delete->on_click");
+                LockGuard guard(w_t{}, "InfoCard::update->delete->on_click");
                 if(!_shadow->current_range.empty()) {
                     print("Erasing automatic matches for fish ", _shadow->fdx," in range ", _shadow->current_range.start(),"-",_shadow->current_range.end());
-                    Tracker::delete_automatic_assignments(_shadow->fdx, _shadow->current_range);
+                    AutoAssign::delete_automatic_assignments(_shadow->fdx, _shadow->current_range);
                     _reanalyse(_shadow->frame);
                 }
             });

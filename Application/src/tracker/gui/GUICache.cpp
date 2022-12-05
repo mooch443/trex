@@ -176,7 +176,7 @@ namespace gui {
     }
     
     void GUICache::update_data(Frame_t frameIndex) {
-        const auto threshold = FAST_SETTINGS(track_threshold);
+        const auto threshold = FAST_SETTING(track_threshold);
         auto& _tracker = *Tracker::instance();
         auto& _gui = *_graph;
         _equalize_histograms = GUI_SETTINGS(gui_equalize_blob_histograms);
@@ -262,9 +262,9 @@ namespace gui {
                     _registered_callback.erase(cit);
             };
             
-            if(FAST_SETTINGS(track_max_individuals) == 0) {
+            if(FAST_SETTING(track_max_individuals) == 0) {
                 for(auto fish : active) {
-                    if(!_registered_callback.count(fish)) {
+                    if(!contains(_registered_callback,fish)) {
                         fish->register_delete_callback((void*)12341337, delete_callback);
                         _registered_callback.insert(fish);
                     }
@@ -361,7 +361,7 @@ namespace gui {
                 processed_frame.clear();
                 
                 if(frameIndex.valid()) {
-                    Tracker::set_of_individuals_t prev_active;
+                    set_of_individuals_t prev_active;
                     if(_tracker.properties(frameIndex - 1_f))
                         prev_active = _tracker.active_individuals(frameIndex - 1_f);
                     
@@ -447,7 +447,7 @@ namespace gui {
             for(auto &blob : processed_frame.noise()) {
                 blob->calculate_moments();
                 
-                if((nothing_to_zoom_on && blob->recount(-1) >= FAST_SETTINGS(blob_size_ranges).max_range().start)
+                if((nothing_to_zoom_on && blob->recount(-1) >= FAST_SETTING(blob_size_ranges).max_range().start)
                    || selected_blobs.find(blob->blob_id()) != selected_blobs.end())
                 {
                     min_vec = min(min_vec, blob->bounds().pos());
@@ -583,7 +583,7 @@ namespace gui {
         checked_probs.insert(fdx);
         
         {
-            Tracker::LockGuard guard(ro_t{}, "GUICache::probs");
+            LockGuard guard(ro_t{}, "GUICache::probs");
             auto c = processed_frame.cached(fdx);
             if(c) {
                 for(auto& blob : processed_frame.blobs()) {
@@ -592,7 +592,7 @@ namespace gui {
                         continue;
                     
                     auto p = individuals.at(fdx)->probability(processed_frame.label(blob), *c, frame_idx, blob);
-                    if(p/*.p*/ >= FAST_SETTINGS(matching_probability_threshold))
+                    if(p/*.p*/ >= FAST_SETTING(matching_probability_threshold))
                         probabilities[c->_idx][blob->blob_id()] = p;
                 }
             }
@@ -723,7 +723,7 @@ namespace gui {
         GUICache::instance().set_zoom_level(target_scale.x);
 
         static Timer timer;
-        auto e = recording ? GUICache::instance().dt() : timer.elapsed(); //PD(recording) ? (1 / float(FAST_SETTINGS(frame_rate))) : timer.elapsed();
+        auto e = recording ? GUICache::instance().dt() : timer.elapsed(); //PD(recording) ? (1 / float(FAST_SETTING(frame_rate))) : timer.elapsed();
         //e = PD(cache).dt();
 
         e = min(0.1, e);

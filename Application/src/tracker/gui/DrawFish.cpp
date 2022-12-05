@@ -206,8 +206,8 @@ Fish::~Fish() {
             if(color_source != "identity" && _blob) {
                 _library_y = Output::Library::get_with_modifiers(color_source, _info, _safe_frame);
                 if(!Graph::is_invalid(_library_y)) {
-                    if(color_source == "X") _library_y /= float(Tracker::average().cols) * FAST_SETTINGS(cm_per_pixel);
-                    else if(color_source == "Y") _library_y /= float(Tracker::average().rows) * FAST_SETTINGS(cm_per_pixel);
+                    if(color_source == "X") _library_y /= float(Tracker::average().cols) * FAST_SETTING(cm_per_pixel);
+                    else if(color_source == "Y") _library_y /= float(Tracker::average().rows) * FAST_SETTING(cm_per_pixel);
                 }
             }
         }
@@ -221,8 +221,8 @@ Fish::~Fish() {
     }*/
     
     void Fish::update(Base* base, Drawable* bowl, Entangled& parent, DrawStructure &graph) {
-        const int frame_rate = FAST_SETTINGS(frame_rate);
-        //const float track_max_reassign_time = FAST_SETTINGS(track_max_reassign_time);
+        const int frame_rate = FAST_SETTING(frame_rate);
+        //const float track_max_reassign_time = FAST_SETTING(track_max_reassign_time);
         const auto single_identity = GUIOPTION(gui_single_identity_color);
         //const auto properties = Tracker::properties(_idx);
         //const auto safe_properties = Tracker::properties(_safe_idx);
@@ -458,7 +458,7 @@ Fish::~Fish() {
             if (GUIOPTION(gui_show_paths))
                 paintPath(offset, _safe_frame, cmn::max(_obj.start_frame(), _safe_frame - 1000_f), base_color);
 
-            if (FAST_SETTINGS(track_max_individuals) > 0 && GUIOPTION(gui_show_boundary_crossings))
+            if (FAST_SETTING(track_max_individuals) > 0 && GUIOPTION(gui_show_boundary_crossings))
                 update_recognition_circle();
 
             if(panic_button) {
@@ -486,7 +486,7 @@ Fish::~Fish() {
             }
         
             auto ML = _obj.midline_length();
-            auto radius = (FAST_SETTINGS(calculate_posture) && ML != Graph::invalid() ? ML : _blob_bounds.size().max()) * 0.6;
+            auto radius = (FAST_SETTING(calculate_posture) && ML != Graph::invalid() ? ML : _blob_bounds.size().max()) * 0.6;
             if(GUIOPTION(gui_show_texts)) {
                 // DISPLAY NEXT POSITION (estimated position in _idx + 1)
                 //if(cache.processed_frame.cached_individuals.count(_obj.identity().ID())) {
@@ -502,11 +502,11 @@ Fish::~Fish() {
                 _view.add<Line>(c_pos, estimated, clr);
                 _view.add<Circle>(Loc(estimated), Radius{2}, LineClr{Transparent}, FillClr{clr});
                 
-                    //const float max_d = FAST_SETTINGS(track_max_speed) * tdelta / FAST_SETTINGS(cm_per_pixel);
+                    //const float max_d = FAST_SETTING(track_max_speed) * tdelta / FAST_SETTING(cm_per_pixel);
                     //window.circle(estimated, max_d * 0.5, Red.alpha(100));
                 //}
             
-                //window.circle(estimated, FAST_SETTINGS(track_max_speed) * tdelta, clr);
+                //window.circle(estimated, FAST_SETTING(track_max_speed) * tdelta, clr);
             }
         
             if(GUIOPTION(gui_happy_mode) && _cached_midline && _cached_outline && _posture_stuff && _posture_stuff->head) {
@@ -632,7 +632,7 @@ Fish::~Fish() {
                 
                     for(auto &b : GUICache::instance().processed_frame.blobs()) {
                         if(b->blob_id() == _blob->blob_id() || b->blob_id() == _blob->parent_id) {
-                            auto && [image_pos, image] = b->binary_image(*Tracker::instance()->background(), FAST_SETTINGS(track_threshold));
+                            auto && [image_pos, image] = b->binary_image(*Tracker::instance()->background(), FAST_SETTING(track_threshold));
                             auto && [dpos, difference] = b->difference_image(*Tracker::instance()->background(), 0);
                         
                             auto rgba = Image::Make(image->rows, image->cols, 4);
@@ -690,7 +690,7 @@ Fish::~Fish() {
 
                             auto ptr = mat.ptr(pos.y, pos.x);
                             auto p = _obj.probability(-1, *c, _frame, pos + 1 * 0.5, 1);
-                            if (p/*.p*/ < FAST_SETTINGS(matching_probability_threshold))
+                            if (p/*.p*/ < FAST_SETTING(matching_probability_threshold))
                                 return;
 
                             auto clr = Viridis::value(p).alpha(uint8_t(min(255, 255.f * p)));
@@ -763,7 +763,7 @@ Fish::~Fish() {
                 _view.add<Circle>(pos, Radius{3}, LineClr{circle_clr});
                 _view.add<Line>(c_pos, pos, circle_clr);
             
-                if(FAST_SETTINGS(posture_direction_smoothing)) {
+                if(FAST_SETTING(posture_direction_smoothing)) {
                     std::map<Frame_t, float> angles;
                     std::map<Frame_t, float> dangle, ddangle, interp;
                 
@@ -772,7 +772,7 @@ Fish::~Fish() {
                     float value = 0;
                     size_t count_ones = 0;
                 
-                    for (auto frame = _frame - Frame_t(FAST_SETTINGS(posture_direction_smoothing)); frame <= _frame + Frame_t(FAST_SETTINGS(posture_direction_smoothing)); ++frame)
+                    for (auto frame = _frame - Frame_t(FAST_SETTING(posture_direction_smoothing)); frame <= _frame + Frame_t(FAST_SETTING(posture_direction_smoothing)); ++frame)
                     {
                         auto midline = _obj.pp_midline(frame);
                         if(midline) {
@@ -880,7 +880,7 @@ Fish::~Fish() {
         from = _obj.start_frame();
         to = min(_obj.end_frame(), _frame);
         
-        float color_start = max(0, round(_frame.get() - FAST_SETTINGS(frame_rate) * GUIOPTION(gui_max_path_time)));
+        float color_start = max(0, round(_frame.get() - FAST_SETTING(frame_rate) * GUIOPTION(gui_max_path_time)));
         float color_end = max(color_start + 1, _frame.get());
         
         from = max(Frame_t(color_start), from);
@@ -891,7 +891,7 @@ Fish::~Fish() {
         
         _prev_frame_range = Range<Frame_t>(_obj.start_frame(), _obj.end_frame());
         
-        const float max_speed = FAST_SETTINGS(track_max_speed);
+        const float max_speed = FAST_SETTING(track_max_speed);
         const float thickness = GUIOPTION(gui_outline_thickness);
         
         auto first = frame_vertices.empty() ? Frame_t() : frame_vertices.begin()->frame;
@@ -985,7 +985,7 @@ Fish::~Fish() {
         auto inactive_clr = clr.saturation(0.5);
         Color use = clr;
         
-        const float max_distance = Individual::weird_distance() * 0.1 / FAST_SETTINGS(cm_per_pixel);
+        const float max_distance = Individual::weird_distance() * 0.1 / FAST_SETTING(cm_per_pixel);
         size_t paths_index = 0;
         _vertices.clear();
         _vertices.reserve(frame_vertices.size());
@@ -1095,8 +1095,8 @@ Fish::~Fish() {
                     events.push_back(new Text(Meta::toStr(_obj.identity().ID())+"="+Meta::toStr(blob ? blob->blob_id() : -1), pos, _obj.identity().color().alpha(fade * max_color), font, window.scale().reciprocal()));
                 }
                 
-                //float distance = euclidean_distance(pos * FAST_SETTINGS(cm_per_pixel), vertices.back().position() * FAST_SETTINGS(cm_per_pixel));
-                if(!vertices.empty() && (!prev_centroid || prev_centroid->time() - c->time() >= FAST_SETTINGS(track_max_reassign_time) * 0.5))
+                //float distance = euclidean_distance(pos * FAST_SETTING(cm_per_pixel), vertices.back().position() * FAST_SETTING(cm_per_pixel));
+                if(!vertices.empty() && (!prev_centroid || prev_centroid->time() - c->time() >= FAST_SETTING(track_max_reassign_time) * 0.5))
                 {
                     if(vertices.size() > 1)
                         window.line(vertices, 2.0f);

@@ -17,8 +17,8 @@ std::set<Range<Frame_t>> _previous_selected;
 std::set<Quality, std::greater<>> _sorted;
 
 void remove_segment(const Range<Frame_t>& range);
-bool calculate_segment(const Range<Frame_t>&, const uint64_t video_length, const Tracker::LockGuard&);
-Single evaluate_single(Idx_t id, Individual* fish, const Range<Frame_t>& consec, const Tracker::LockGuard& guard);
+bool calculate_segment(const Range<Frame_t>&, const uint64_t video_length, const LockGuard&);
+Single evaluate_single(Idx_t id, Individual* fish, const Range<Frame_t>& consec, const LockGuard& guard);
 
 std::string Single::toStr() const {
     return "{"+Meta::toStr(id)+","+Meta::toStr(distance_travelled)+" travelled,"+Meta::toStr(grid_cells_visited)+" cells visited}";
@@ -69,7 +69,7 @@ void remove_frames(Frame_t start) {
     _manually_selected = Range<Frame_t>({},{});
 }
 
-bool calculate_segment(const Range<Frame_t> &consec, const uint64_t video_length, const Tracker::LockGuard& guard) {
+bool calculate_segment(const Range<Frame_t> &consec, const uint64_t video_length, const LockGuard& guard) {
     if(consec.length().get() < 5) {
         return true; // skipping range because its too short, but send "ok" signal
     }
@@ -164,14 +164,14 @@ void remove_segment(const Range<Frame_t> &range) {
 }
 
 void update() {
-    Tracker::LockGuard guard(ro_t{}, "DatasetQuality::update");
-    if(FAST_SETTINGS(track_max_individuals) == 0
+    LockGuard guard(ro_t{}, "DatasetQuality::update");
+    if(FAST_SETTING(track_max_individuals) == 0
        || Tracker::instance()->consecutive().empty())
         return;
     
     auto video_length = Tracker::analysis_range().end.get();
     auto end_frame = Tracker::end_frame();
-    auto manual = FAST_SETTINGS(manually_approved);
+    auto manual = FAST_SETTING(manually_approved);
     bool changed = false;
     //Rangel longest(-1, -1);
     
@@ -248,7 +248,7 @@ bool has(const Range<Frame_t>& range) {
     return it != _cache.end() && !it->second.empty();
 }
 
-Single evaluate_single(Idx_t id, Individual* fish, const Range<Frame_t> &_consec, const Tracker::LockGuard&)
+Single evaluate_single(Idx_t id, Individual* fish, const Range<Frame_t> &_consec, const LockGuard&)
 {
     //assert(Tracker::individuals().find(id) != Tracker::individuals().end());
     
@@ -278,7 +278,7 @@ Single evaluate_single(Idx_t id, Individual* fish, const Range<Frame_t> &_consec
     long_t number_frames = 0;
     bool debug = false;
     
-    auto manually_approved = FAST_SETTINGS(manually_approved);
+    auto manually_approved = FAST_SETTING(manually_approved);
     if(manually_approved.find(_consec.start.get()) != manually_approved.end())
         debug = true;
     
@@ -396,7 +396,7 @@ Single evaluate_single(Idx_t id, Individual* fish, const Range<Frame_t> &_consec
                 orientations.insert(std::round(DEGREE(posture->midline_angle)));
             
             if(i > consec.start() && prev.x != FLT_MAX && pos != prev) {
-                auto L = ((pos - prev) * FAST_SETTINGS(cm_per_pixel)).length();
+                auto L = ((pos - prev) * FAST_SETTING(cm_per_pixel)).length();
                 travelled += L;
             }
             

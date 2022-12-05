@@ -347,7 +347,7 @@ void Outline::smooth() {
     const float range = OUTLINE_SETTING(outline_smooth_samples);
     
     if(L > range) {
-        const long_t step = FAST_SETTINGS(outline_smooth_step);
+        const long_t step = FAST_SETTING(outline_smooth_step);
         auto smooth = smooth_outline(_points, OUTLINE_SETTING(outline_smooth_samples), step);
         if(smooth)
             _points = smooth;
@@ -356,7 +356,7 @@ void Outline::smooth() {
         smoothed.reserve(_points->size());
         
         
-        const long_t step = FAST_SETTINGS(outline_smooth_step);
+        const long_t step = FAST_SETTING(outline_smooth_step);
         const float step_row = range * step;
         
         std::vector<float> weights;
@@ -676,7 +676,7 @@ std::tuple<long_t, long_t> Outline::offset_to_middle(const DebugInfo& info) {
             _tail_index = 0;
         }
         
-        if(FAST_SETTINGS(midline_invert))
+        if(FAST_SETTING(midline_invert))
             std::swap(_tail_index, _head_index);
         
         return {_tail_index, _head_index};
@@ -891,7 +891,7 @@ std::array<Vec2, 2> Midline::both_directions() const {
 
 float Midline::original_angle() const {
     auto direction = both_directions();
-    auto _needs_invert = !FAST_SETTINGS(midline_invert);
+    auto _needs_invert = !FAST_SETTING(midline_invert);
     auto current_index = _needs_invert ? 0 : 1;
     auto current_direction = direction[current_index];
     return atan2(current_direction);
@@ -908,7 +908,7 @@ void Midline::post_process(const MovementInformation &movement, DebugInfo info) 
     }
     
     auto direction = both_directions();
-    auto _needs_invert = !FAST_SETTINGS(midline_invert);
+    auto _needs_invert = !FAST_SETTING(midline_invert);
     auto current_index = _needs_invert ? 0 : 1;
     //auto current_direction = direction[current_index];
     //outline.original_angle() = atan2(current_direction);
@@ -1508,7 +1508,7 @@ long_t Outline::find_tail(const DebugInfo&) {
     
     long_t _tail_index = -1, _head_index = -1;
     
-    //if(!FAST_SETTINGS(midline_invert)) {
+    //if(!FAST_SETTING(midline_invert)) {
     if(_points->empty() || size() <= 3)
         return -1;
     
@@ -1563,7 +1563,7 @@ long_t Outline::find_tail(const DebugInfo&) {
         
         float idx = FLT_MAX;
         
-        auto compare = [invert = FAST_SETTINGS(midline_invert)](const Smaller::Area& A, const Smaller::Area& B) {
+        auto compare = [invert = FAST_SETTING(midline_invert)](const Smaller::Area& A, const Smaller::Area& B) {
             if(invert)
                 return Smaller::compare<true>(A, B);
             return Smaller::compare<false>(A, B);

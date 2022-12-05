@@ -206,7 +206,7 @@ void Output::ResultsFormat::read_blob(Data& ref, pv::CompressedBlob& blob) const
         ref.read<uint16_t>(id);
     }
     
-    bool split = false, tried_to_split = false;
+    bool split = false;
     uint8_t byte = 0;
     if(_header.version >= Output::ResultsFormat::Versions::V_20) {
         ref.read<uint8_t>(byte);
@@ -217,8 +217,6 @@ void Output::ResultsFormat::read_blob(Data& ref, pv::CompressedBlob& blob) const
     if(_header.version >= Output::ResultsFormat::Versions::V_26) {
         if((byte & 0x2) != 0)
             ref.read<data_long_t>(parent_id);
-        if((byte & 0x4) != 0)
-            tried_to_split = true;
         
     } else if(split
               && _header.version >= Output::ResultsFormat::Versions::V_22
@@ -245,7 +243,11 @@ void Output::ResultsFormat::read_blob(Data& ref, pv::CompressedBlob& blob) const
     blob.status_byte = byte;
     blob.start_y = start_y;
     blob.reset_id();
-    blob.parent_id = pv::bid(parent_id);
+    
+    if(parent_id < 0)
+        blob.parent_id = pv::bid::invalid;
+    else
+        blob.parent_id = pv::bid(uint32_t(parent_id));
 }
 
 template<>
@@ -363,13 +365,13 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         
         Identity id( Idx_t{ID} );
         if(name != id.raw_name() && !name.empty()) {
-            auto map = FAST_SETTINGS(individual_names);
+            auto map = FAST_SETTING(individual_names);
             map[ID] = name;
             SETTING(individual_names) = map;
         }
     }
     
-    fish->_manually_matched.clear();
+    //fish->_manually_matched.clear();
     if(_header.version >= Output::ResultsFormat::Versions::V_15) {
         data_long_t tmp;
         uint64_t N;
@@ -377,7 +379,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         
         for (uint64_t i=0; i<N; ++i) {
             ref.read<data_long_t>(tmp);
-            fish->_manually_matched.insert(Frame_t(tmp));
+            //fish->_manually_matched.insert(Frame_t(tmp));
         }
     }
     
@@ -414,11 +416,11 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     {
         const auto& frameIndex = data.stuff->frame;
         
-        const Match::prob_t p_threshold = FAST_SETTINGS(matching_probability_threshold);
+        const Match::prob_t p_threshold = FAST_SETTING(matching_probability_threshold);
         
 #if !COMMONS_NO_PYTHON
         auto label =
-            FAST_SETTINGS(track_consistent_categories)
+            FAST_SETTING(track_consistent_categories)
                 ? Categorize::DataStore::ranged_label(frameIndex, data.stuff->blob)
                 : nullptr;
 #else
@@ -437,7 +439,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         fish->_endFrame = frameIndex;
         
         auto segment = fish->update_add_segment(
-            frameIndex,
+            frameIndex, Tracker::properties(data.stuff->frame), Tracker::properties(data.stuff->frame - 1_f),
             data.stuff->centroid,
             data.prev_frame,
             &data.stuff->blob,
@@ -647,7 +649,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                 continue;
             }
             
-            if(FAST_SETTINGS(calculate_posture)) {
+            if(FAST_SETTING(calculate_posture)) {
                 // save values
                 auto stuff = std::make_unique<PostureStuff>();
                 
@@ -689,7 +691,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             if(check_analysis_range && (frame > analysis_range.end || frame < analysis_range.start))
                 continue;
             
-            if(FAST_SETTINGS(calculate_posture)) {
+            if(FAST_SETTING(calculate_posture)) {
                 // save values
                 auto stuff = std::make_unique<PostureStuff>();
                 
@@ -712,7 +714,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             if(check_analysis_range && (frame > analysis_range.end || frame < analysis_range.start))
                 continue;
             
-            if(FAST_SETTINGS(calculate_posture)) {
+            if(FAST_SETTING(calculate_posture)) {
                 //fish->posture_stuff(frameIndex);
                 PostureStuff* stuff = nullptr;
                 auto it = sorted.find(frame);
@@ -907,9 +909,10 @@ uint64_t Data::write(const Individual& val) {
     pack.write<uint32_t>(ID);
     pack.write<std::string>(val.identity().raw_name());
     
-    pack.write<uint64_t>(val._manually_matched.size());
-    for (auto m : val._manually_matched)
-        pack.write<data_long_t>(m.get());
+    pack.write<uint64_t>(0);
+    //pack.write<uint64_t>(val._manually_matched.size());
+    //for (auto m : val._manually_matched)
+    //    pack.write<data_long_t>(m.get());
     
     // centroid based information
     pack.write<uint64_t>(val._basic_stuff.size());
@@ -1169,12 +1172,12 @@ namespace Output {
         }
         
         write<Size2>(Tracker::average().bounds().size());
-        write<uint64_t>(FAST_SETTINGS(video_length));
+        write<uint64_t>(FAST_SETTING(video_length));
         
         uint64_t bytes = Tracker::average().cols * Tracker::average().rows;
         write_data(bytes, (const char*)Tracker::average().data());
         
-        auto [start, end] = FAST_SETTINGS(analysis_range);
+        auto [start, end] = FAST_SETTING(analysis_range);
         write<int64_t>(start);
         write<int64_t>(end);
         
@@ -1229,7 +1232,10 @@ namespace Output {
         return pack_size;
     }
     
-    void ResultsFormat::write_file(const std::vector<std::unique_ptr<track::FrameProperties>> &frames, const Tracker::active_individuals_t &active_individuals_frame, const ska::bytell_hash_map<Idx_t, Individual *> &individuals)
+    void ResultsFormat::write_file(
+        const std::vector<track::FrameProperties::Ptr> &frames,
+        const active_individuals_map_t &active_individuals_frame,
+        const ska::bytell_hash_map<Idx_t, Individual *> &individuals)
     {
         estimated_size = sizeof(uint64_t)*3
             + frames.size() * (sizeof(data_long_t)+sizeof(CompatibilityFrameProperties))
@@ -1339,7 +1345,7 @@ namespace Output {
     }
 
 void TrackingResults::update_fois(const std::function<void(const std::string&, float, const std::string&)>& update_progress) {
-    const auto number_fish = FAST_SETTINGS(track_max_individuals);
+    const auto number_fish = FAST_SETTING(track_max_individuals);
     data_long_t prev = 0;
     data_long_t n = 0;
     
@@ -1516,7 +1522,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         Frame_t frame;
         file.read<uint64_t>(L);
         for (uint64_t i=0; i<L; i++) {
-            Tracker::set_of_individuals_t active;
+            set_of_individuals_t active;
             
             file.read<data_long_t>(frameIndex);
             file.read<uint64_t>(n);
@@ -1547,7 +1553,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
             _tracker._active_individuals_frame[frame] = active;
             _tracker._active_individuals = active;
             
-            _tracker._max_individuals = max(_tracker._max_individuals, active.size());
+            _tracker._max_individuals = max(_tracker._max_individuals.load(), active.size());
         }
         
         _tracker._inactive_individuals.clear();

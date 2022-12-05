@@ -114,7 +114,7 @@ void panic(const char *fmt, ...) {
     char buf[50];
     va_list argptr;
     va_start(argptr, fmt);
-    vsprintf(buf, fmt, argptr);
+    vsnprintf(buf, sizeof(buf), fmt, argptr);
     va_end(argptr);
     fprintf(stderr, "%s", buf);
     exit(-1);
@@ -872,7 +872,7 @@ int main(int argc, char** argv)
         size_t added_frames = 0, processed_frames = 0;
         
         auto range = arange<size_t>(0, video.length()-1, size_t(float(video.length()) / 1000.f));
-        distribute_vector([&](auto i, auto start, auto end, auto){
+        distribute_vector([&](auto, auto start, auto end, auto){
             pv::Frame frame;
             for(auto it = start; it != end; ++it) {
                 frame.clear();
@@ -1023,14 +1023,14 @@ int main(int argc, char** argv)
     
     default_config::warn_deprecated("global", GlobalSettings::map());
     
-    if(FAST_SETTINGS(track_max_individuals) == 1
+    if(FAST_SETTING(track_max_individuals) == 1
        && SETTING(auto_apply))
     {
         FormatError("Cannot use a network on a single individual. Disabling auto_apply.");
         SETTING(auto_apply) = false;
     }
     
-    if(FAST_SETTINGS(track_max_individuals) == 1
+    if(FAST_SETTING(track_max_individuals) == 1
        && SETTING(auto_train))
     {
         FormatError("Cannot train a network on a single individual. Disabling auto_train.");
@@ -1053,7 +1053,7 @@ int main(int argc, char** argv)
     Library::Init();
     DebugHeader("STARTING PROGRAM");
     
-    cmn::Blob blob;
+    pv::Blob blob;
     auto copy = blob.properties();
     print("BasicStuff<",sizeof(track::BasicStuff),"> ",
           "PostureStuff<",sizeof(track::PostureStuff),"> ",
@@ -1127,7 +1127,7 @@ int main(int argc, char** argv)
             static Timing all_processing("Analysis::process()", 50);
             TakeTiming all(all_processing);
 
-            Tracker::LockGuard guard(w_t{}, "Analysis::process()");
+            LockGuard guard(w_t{}, "Analysis::process()");
             if(GUI_SETTINGS(terminate))
                 return false;
             
@@ -1175,10 +1175,10 @@ int main(int argc, char** argv)
                         DurationUS us{ uint64_t(max(0, (double)(range.end - ptr->index()).get() / double(/*frames_sec*/ frames_sec_average / frames_sec_samples ) * 1000 * 1000)) };
                         std::string str;
                         
-                        if(FAST_SETTINGS(analysis_range).first != -1 || FAST_SETTINGS(analysis_range).second != -1)
-                            str = format<FormatterType::NONE>("frame ", ptr->index(), "/", range.end,  "(",video.length(),") (", dec<2>(data_sec/1024.0), "MB/s @ ", dec<2>(frames_sec), "fps eta ", us, ")");
+                        if(FAST_SETTING(analysis_range).first != -1 || FAST_SETTING(analysis_range).second != -1)
+                            str = format<FormatterType::NONE>("frame ", ptr->index(), "/", range.end,  "(",video.length(),") (", dec<2>(data_sec/1024.0), "MB/s @ ", dec<2>(frames_sec), "fps eta ", us, ") ", dec<2>(Tracker::average_seconds_per_individual() * 1000 * 1000), "µs/individual");
                         else
-                            str = format<FormatterType::NONE>("frame ", ptr->index(), "/", range.end, " (", dec<2>(data_sec/1024.0), "MB/s @ ", dec<2>(frames_sec), "fps eta ", us, ")");
+                            str = format<FormatterType::NONE>("frame ", ptr->index(), "/", range.end, " (", dec<2>(data_sec/1024.0), "MB/s @ ", dec<2>(frames_sec), "fps eta ", us, ") ", dec<2>(Tracker::average_seconds_per_individual() * 1000 * 1000), "µs/individual");
 
                         {
                             // synchronize with debug messages
@@ -1236,8 +1236,8 @@ int main(int argc, char** argv)
             if(current < range.start)
                 currentID = range.start - 1_f;
             
-            if(FAST_SETTINGS(analysis_range).second != -1
-               && endframe >= Frame_t(FAST_SETTINGS(analysis_range).second)
+            if(FAST_SETTING(analysis_range).second != -1
+               && endframe >= Frame_t(FAST_SETTING(analysis_range).second)
                && !SETTING(terminate)
                && !please_stop_analysis)
             {
@@ -1270,7 +1270,7 @@ int main(int argc, char** argv)
 #endif
     
     auto callback = "TRex::main";
-    GlobalSettings::map().register_callback(callback, [&analysis, &gui, callback](sprite::Map::Signal signal, sprite::Map& map, const std::string& key, const sprite::PropertyType& value)
+    GlobalSettings::map().register_callback(callback, [&analysis, callback](sprite::Map::Signal signal, sprite::Map& map, const std::string& key, const sprite::PropertyType& value)
     {
         if(signal == sprite::Map::Signal::EXIT) {
             map.unregister_callback(callback);
@@ -1308,7 +1308,7 @@ int main(int argc, char** argv)
         return "{}";
     };
     
-    if(FAST_SETTINGS(analysis_paused) || load_results) {
+    if(FAST_SETTING(analysis_paused) || load_results) {
         analysis->set_paused(true).get();
         
         if(load_results) {
@@ -1445,7 +1445,7 @@ int main(int argc, char** argv)
                 before = analysis->is_paused();
                 analysis->set_paused(true).get();
                 
-                Tracker::LockGuard guard(w_t{}, "pause_stuff");
+                LockGuard guard(w_t{}, "pause_stuff");
             
                 print("Console opened.");
                 print("Please enter command below (type help for available commands):");
@@ -1478,11 +1478,11 @@ int main(int argc, char** argv)
                     else if(command == "info") {
                         print(gui.info(false));
                     }
-                    else if(command == "retrieve_matches") {
+                    /*else if(command == "retrieve_matches") {
                         gui::WorkProgress::add_queue("retrieving matches", [](){
                             Settings::manual_matches_t manual_matches;
                             {
-                                Tracker::LockGuard guard(ro_t{}, "retrieving matches");
+                                LockGuard guard(ro_t{}, "retrieving matches");
                                 
                                 for(auto && [id, fish] : Tracker::individuals()) {
                                     for(auto frame : fish->manually_matched()) {
@@ -1511,7 +1511,7 @@ int main(int argc, char** argv)
                             
                             SETTING(manual_matches) = manual_matches;
                         });
-                    }
+                    }*/
                     else if(utils::beginsWith(command, "save_results")) {
                         gui.save_state(GUI::GUIType::TEXT, utils::endsWith(command, " force"));
                     }
@@ -1546,7 +1546,7 @@ int main(int argc, char** argv)
                         SETTING(analysis_paused) = false;
                     }
                     else if(utils::lowercase(command) == "print_memory") {
-                        Tracker::LockGuard guard(ro_t{}, "print_memory");
+                        LockGuard guard(ro_t{}, "print_memory");
                         mem::IndividualMemoryStats overall;
                         for(auto && [fdx, fish] : Tracker::individuals()) {
                             mem::IndividualMemoryStats stats(fish);
@@ -1577,7 +1577,7 @@ int main(int argc, char** argv)
                         GUI::reanalyse_from(0_f, false);
                         SETTING(analysis_paused) = false;
                         /*{
-                            Tracker::LockGuard guard;
+                            LockGuard guard;
                             Tracker::instance()->remove_frames(0);
                         }
                         

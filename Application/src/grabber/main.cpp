@@ -74,7 +74,7 @@ void panic(const char *fmt, ...) {
     char buf[50];
     va_list argptr;
     va_start(argptr, fmt);
-    vsprintf(buf, fmt, argptr);
+    vsnprintf(buf, sizeof(buf), fmt, argptr);
     va_end(argptr);
     fprintf(stderr, "%s", buf);
     exit(1);
@@ -83,8 +83,7 @@ void panic(const char *fmt, ...) {
 #if !defined(WIN32) && !defined(__EMSCRIPTEN__)
 static void dumpstack(void) {
     void *array[20];
-    size_t size;
-    size = backtrace(array, 20);
+    auto size = backtrace(array, 20);
     backtrace_symbols_fd(array, size, STDERR_FILENO);
 }
 
@@ -291,7 +290,7 @@ int main(int argc, char** argv)
     init_signals();
     print("Starting Application...");
     
-    srand (time(NULL));
+    srand ((uint32_t)time(NULL));
         
     try {
         DebugHeader("LOADING DEFAULT SETTINGS");

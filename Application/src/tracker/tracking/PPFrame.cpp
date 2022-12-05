@@ -9,13 +9,13 @@ namespace track {
 inline void insert_line(grid::ProximityGrid& grid, const HorizontalLine* ptr, pv::bid blob_id, ptr_safe_t step_size)
 {
     auto d = ptr_safe_t(ptr->x1) - ptr_safe_t(ptr->x0);
-    grid.insert(ptr->x0, ptr->y, (int64_t)blob_id);
-    grid.insert(ptr->x1, ptr->y, (int64_t)blob_id);
-    grid.insert(ptr->x0 + d * 0.5, ptr->y, (int64_t)blob_id);
+    grid.insert(ptr->x0, ptr->y, blob_id);
+    grid.insert(ptr->x1, ptr->y, blob_id);
+    grid.insert(ptr->x0 + d * 0.5, ptr->y, blob_id);
 
     if(d >= step_size * 2 && step_size >= 5) {
         for(auto x = ptr_safe_t(ptr->x0) + step_size; x <= ptr_safe_t(ptr->x1) - step_size; x += step_size) {
-            grid.insert(x, ptr->y, (int64_t)blob_id);
+            grid.insert(x, ptr->y, blob_id);
         }
     }
 }
@@ -25,11 +25,18 @@ PPFrame::PPFrame()
 { }
 
 const IndividualCache* PPFrame::cached(Idx_t id) const {
-    auto it = std::find(_individual_cache.begin(), _individual_cache.end(), id);
-    if(it != _individual_cache.end()) {
-        return &(*it);
-    }
+    auto it = _individual_cache.find(id);
+    if(it != _individual_cache.end())
+        return &it->second;
     return nullptr;
+}
+
+void PPFrame::set_cache(Idx_t id, IndividualCache&& cache) {
+    //static std::mutex mutex;
+    //std::unique_lock guard(mutex);
+   // mutex.lock();
+    _individual_cache[id] = std::move(cache);
+    //mutex.unlock();
 }
 
 bool PPFrame::_add_to_map(const pv::BlobPtr &blob) {
@@ -37,24 +44,14 @@ bool PPFrame::_add_to_map(const pv::BlobPtr &blob) {
 #ifndef NDEBUG
         auto blob1 = _bdx_to_ptr.at(blob->blob_id());
         
-        print("Blob0 %u << 24 = %u (mask %u, max=%u)",
-              uint32_t(blob->bounds().x) & 0x00000FFF,
-              (uint32_t(blob->bounds().x) & 0x00000FFF) << 20,
-              (uint32_t(blob->lines()->front().y) & 0x00000FFF) << 8,
-              std::numeric_limits<uint32_t>::max());
+        print("Blob0 ", uint32_t(blob->bounds().x) & 0x00000FFF," << 24 = ", (uint32_t(blob->bounds().x) & 0x00000FFF) << 20," (mask ", (uint32_t(blob->lines()->front().y) & 0x00000FFF) << 8,", max=", std::numeric_limits<uint32_t>::max(),")");
         
-        print("Blob1 %u << 24 = %u (mask %u, max=%u)",
-              uint32_t(blob1->bounds().x) & 0x00000FFF,
-              (uint32_t(blob1->bounds().x) & 0x00000FFF) << 20,
-              (uint32_t(blob1->lines()->front().y) & 0x00000FFF) << 8,
-              std::numeric_limits<uint32_t>::max());
+        print("Blob1 ", uint32_t(blob1->bounds().x) & 0x00000FFF," << 24 = ", (uint32_t(blob1->bounds().x) & 0x00000FFF) << 20," (mask ", (uint32_t(blob1->lines()->front().y) & 0x00000FFF) << 8,", max=", std::numeric_limits<uint32_t>::max(),")");
         
         auto bid0 = pv::bid::from_blob(blob);
         auto bid1 = pv::bid::from_blob(_bdx_to_ptr.at(blob->blob_id()));
         
-        FormatExcept("Frame %d: Blob %u already in map (%d), at %f,%f bid=%u vs. %f,%f bid=%u", _index, blob->blob_id(), blob == _bdx_to_ptr.at(blob->blob_id()),
-               blob->bounds().x, blob->bounds().y, bid0,
-               _bdx_to_ptr.at(blob->blob_id())->bounds().x, _bdx_to_ptr.at(blob->blob_id())->bounds().y, bid1);
+        FormatExcept("Frame ", _index,": Blob ", blob->blob_id()," already in map (", blob == _bdx_to_ptr.at(blob->blob_id()),"), at ",blob->bounds().pos()," bid=", bid0," vs. ", _bdx_to_ptr.at(blob->blob_id())->bounds().pos()," bid=", bid1);
 #endif
         return false;
     }
@@ -76,7 +73,7 @@ void PPFrame::_remove_from_map(pv::bid bdx) {
     }
     print(removals," removals");*/
     if(bdx.valid())
-        _blob_grid.erase((int64_t)bdx);
+        _blob_grid.erase(bdx);
 }
 
 void PPFrame::_assume_not_finalized(const char* file, int line) {
@@ -308,8 +305,8 @@ void PPFrame::clear() {
     _individual_cache.clear();
     _blob_grid.clear();
     _original_blobs.clear();
-    clique_for_blob.clear();
-    clique_second_order.clear();
+    //clique_for_blob.clear();
+    //clique_second_order.clear();
     split_blobs.clear();
     _bdx_to_ptr.clear();
     _num_pixels = 0;

@@ -2,7 +2,7 @@
 
 #include <misc/vec2.h>
 #include <gui/Transform.h>
-#include <misc/PVBlob.h>
+#include <misc/bid.h>
 #include <misc/frame_t.h>
 
 namespace gui {
