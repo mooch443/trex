@@ -171,9 +171,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
     using namespace track::image;
     
     GenericThreadPool _blob_thread_pool(cmn::hardware_concurrency(), "export_pool");
-    
     LockGuard guard(ro_t{}, "GUI::export_tracks");
-    tracker.wait();
     
     // save old values and remove all calculation/scaling options from output
     auto previous_graphs = SETTING(output_graphs).value<Output::Library::graphs_type>();
@@ -190,7 +188,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
     auto auto_no_memory_stats = SETTING(auto_no_memory_stats).value<bool>();
     
     auto normalize = SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>();
-    if(!FAST_SETTINGS(calculate_posture) && normalize == default_config::individual_image_normalization_t::posture)
+    if(!FAST_SETTING(calculate_posture) && normalize == default_config::individual_image_normalization_t::posture)
         normalize = default_config::individual_image_normalization_t::moments;
     
     if(no_tracking_data) {
@@ -217,7 +215,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
         print("[exporting] Exporting range [", range.start,"-",range.end,"]");
     else
         print("[exporting] Exporting all frames (", tracker.number_frames(),")");
-    auto individual_prefix = FAST_SETTINGS(individual_prefix);
+    auto individual_prefix = FAST_SETTING(individual_prefix);
     print("[exporting] Writing data from `output_graphs` to ",fishdata / (filename+"_"+individual_prefix+"*."+output_format.name()));
     if(output_posture_data)
         print("[exporting] Writing posture data to ",posture_path);
@@ -349,7 +347,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                     }
                 }
                 
-                const file::Path tags_path = FAST_SETTINGS(tags_path);
+                const file::Path tags_path = FAST_SETTING(tags_path);
                 
                 for(auto &seg : fish->frame_segments()) {
                     //for(auto frameIndex = seg->start(); frameIndex <= seg->end(); ++frameIndex) {
@@ -520,7 +518,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                     std::vector<Vec2> midline_points, outline_points, midline_points_raw;
                     std::vector<Vec2> offsets;
                     std::vector<float> midline_angles, midline_cms, areas, midline_offsets;
-                    midline_points.reserve((size_t)fish_range.length().get() * 2 * FAST_SETTINGS(midline_resolution));
+                    midline_points.reserve((size_t)fish_range.length().get() * 2 * FAST_SETTING(midline_resolution));
                     midline_points_raw.reserve(midline_points.capacity());
                     midline_angles.reserve((size_t)fish_range.length().get());
                     midline_offsets.reserve((size_t)fish_range.length().get());
@@ -573,7 +571,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                             num_midline_points += midline->segments().size();
                             
                             midline_lengths.push_back(midline->segments().size());
-                            midline_cms.push_back(midline->len() * FAST_SETTINGS(cm_per_pixel));
+                            midline_cms.push_back(midline->len() * FAST_SETTING(cm_per_pixel));
                             areas.push_back(polygonArea(points));
                         }
                         
@@ -986,7 +984,7 @@ void export_data(Tracker& tracker, long_t fdx, const Range<Frame_t>& range) {
                 
                 auto step = size_t(waiting_pixels.size() * 0.1);
                 if(!waiting_pixels.empty() && step > 0 && index % step == 0) {
-                    print("[tracklet_images] Frame ",index,"/",waiting_pixels.size(), " (", dec<2>(FAST_SETTINGS(track_max_individuals) == 0 ? float(vec.size()) : float(vec.size()) / float((float)FAST_SETTINGS(track_max_individuals) + 0.0001) * 100),"% identities / frame)");
+                    print("[tracklet_images] Frame ",index,"/",waiting_pixels.size(), " (", dec<2>(FAST_SETTING(track_max_individuals) == 0 ? float(vec.size()) : float(vec.size()) / float((float)FAST_SETTING(track_max_individuals) + 0.0001) * 100),"% identities / frame)");
                     WorkProgress::set_percent(index / float(waiting_pixels.size()));
                 }
             }

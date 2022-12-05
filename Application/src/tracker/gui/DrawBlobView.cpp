@@ -73,11 +73,11 @@ public:
     
     auto &percentiles = PD(cache).pixel_value_percentiles;
     if(PD(cache)._equalize_histograms && !percentiles.empty()) {
-        auto && [pos, img] = blob->equalized_luminance_alpha_image(*Tracker::instance()->background(), FAST_SETTINGS(track_threshold), percentiles.front(), percentiles.back());
+        auto && [pos, img] = blob->equalized_luminance_alpha_image(*Tracker::instance()->background(), FAST_SETTING(track_threshold), percentiles.front(), percentiles.back());
         image_pos = pos;
         greyscale = std::move(img);
     } else {
-        auto && [pos, img] = blob->luminance_alpha_image(*Tracker::instance()->background(), FAST_SETTINGS(track_threshold));
+        auto && [pos, img] = blob->luminance_alpha_image(*Tracker::instance()->background(), FAST_SETTING(track_threshold));
         image_pos = pos;
         greyscale = std::move(img);
     }
@@ -219,7 +219,7 @@ void draw_blob_view(const DisplayParameters& parm)
             auto mp = section_transform.transformPoint(base.mouse_position());
             
             for (size_t i=0; i<parm.cache.processed_frame.noise().size(); i++) {
-                //if(parm.cache.processed_frame.noise().at(i)->recount(FAST_SETTINGS(track_threshold), *Tracker::instance()->background()) < FAST_SETTINGS(blob_size_ranges).max_range().start * 0.01)
+                //if(parm.cache.processed_frame.noise().at(i)->recount(FAST_SETTING(track_threshold), *Tracker::instance()->background()) < FAST_SETTING(blob_size_ranges).max_range().start * 0.01)
                    // continue;
                 
                 auto id = parm.cache.processed_frame.noise().at(i)->blob_id();
@@ -256,7 +256,7 @@ void draw_blob_view(const DisplayParameters& parm)
                     ++it;
             }
             
-            auto cats = FAST_SETTINGS(categories_ordered);
+            auto cats = FAST_SETTING(categories_ordered);
             
             auto draw_blob = [&, &parm=parm](Entangled&e, const pv::BlobPtr& blob, float real_size, bool active){
                 if(displayed >= maximum_number_texts && !active)
@@ -393,7 +393,7 @@ void draw_blob_view(const DisplayParameters& parm)
             list->on_select([parm](long_t, auto& item) {
                 pv::bid clicked_blob_id { (uint32_t)int64_t(item.custom()) };
                 if(item.ID() == 0) /* SPLIT */ {
-                    auto copy = FAST_SETTINGS(manual_splits);
+                    auto copy = FAST_SETTING(manual_splits);
                     if(!contains(copy[GUI::frame()], clicked_blob_id)) {
                         copy[GUI::frame()].insert(clicked_blob_id);
                     }
@@ -455,7 +455,7 @@ void draw_blob_view(const DisplayParameters& parm)
                     if(GUI::frame() > Tracker::start_frame() && c) {
                         d = (c->estimated_px - blob_pos).length();
                     }
-                    items.insert({d, Dropdown::TextItem(parm.cache.individuals.at(id)->identity().name() + (d != FLT_MAX ? (" ("+Meta::toStr(d * FAST_SETTINGS(cm_per_pixel))+"cm)") : ""), id + 1, parm.cache.individuals.at(id)->identity().name(), (void*)uint64_t(_clicked_blob_id.load()))});
+                    items.insert({d, Dropdown::TextItem(parm.cache.individuals.at(id)->identity().name() + (d != FLT_MAX ? (" ("+Meta::toStr(d * FAST_SETTING(cm_per_pixel))+"cm)") : ""), id + 1, parm.cache.individuals.at(id)->identity().name(), (void*)uint64_t(_clicked_blob_id.load()))});
                 }
             }
             

@@ -64,6 +64,7 @@ void update_analysis_range() {
         DEF_CALLBACK(track_max_speed);
         DEF_CALLBACK(cm_per_pixel);
         DEF_CALLBACK(track_threshold);
+        DEF_CALLBACK(track_max_reassign_time);
         
         DEF_CALLBACK(track_trusted_probability);
         DEF_CALLBACK(huge_timestamp_ends_segment);
@@ -73,7 +74,7 @@ void update_analysis_range() {
         
         static const auto update_range = [](){
             const auto video_length = narrow_cast<long_t>(SETTING(video_length).value<Settings::video_length_t>())-1;
-            //auto analysis_range = FAST_SETTINGS(analysis_range);
+            //auto analysis_range = FAST_SETTING(analysis_range);
             const auto analysis_range = SETTING(analysis_range).value<Settings::analysis_range_t>();
             const auto& [start, end] = analysis_range;
             
@@ -99,11 +100,29 @@ void update_analysis_range() {
     });
 }
 
+const ska::bytell_hash_map<Idx_t, Individual*>& Tracker::individuals() {
+    //LockGuard guard("individuals()");
+    return instance()->_individuals;
+}
+
+const set_of_individuals_t& Tracker::active_individuals() {
+    //LockGuard guard("active_individuals()");
+    return instance()->_active_individuals;
+}
+
+const set_of_individuals_t& Tracker::active_individuals(Frame_t frame) {
+    //LockGuard guard;
+    if(instance()->_active_individuals_frame.count(frame))
+        return instance()->_active_individuals_frame.at(frame);
+    
+    throw U_EXCEPTION("Frame out of bounds.");
+}
+
 const Range<Frame_t>& Tracker::analysis_range() {
     return _analysis_range;
 }
 
-
+GenericThreadPool recognition_pool(max(1u, cmn::hardware_concurrency()), "RecognitionPool");
 Tracker* _instance = NULL;
 std::vector<Range<Frame_t>> _global_segment_order;
 
@@ -156,7 +175,7 @@ static std::shared_mutex _properties_mutex;
 double Tracker::time_delta(Frame_t frame_1, Frame_t frame_2, const CacheHints* cache) {
     auto props_1 = properties(frame_1, cache);
     auto props_2 = properties(frame_2, cache);
-    return props_1 && props_2 ? abs(props_1->time - props_2->time) : (abs((frame_1 - frame_2).get()) / double(FAST_SETTINGS(frame_rate)));
+    return props_1 && props_2 ? abs(props_1->time - props_2->time) : (abs((frame_1 - frame_2).get()) / double(FAST_SETTING(frame_rate)));
 }
 
 const FrameProperties* Tracker::properties(Frame_t frameIndex, const CacheHints* hints) {
@@ -223,7 +242,6 @@ void Tracker::analysis_state(AnalysisState pause) {
 
 Tracker::Tracker()
       : _thread_pool(max(1u, cmn::hardware_concurrency()), "Tracker::thread_pool"),
-        recognition_pool(max(1u, cmn::hardware_concurrency()), "RecognitionPool"),
         _max_individuals(0),
         _background(NULL),
         _inactive_individuals([this](Idx_t A, Idx_t B){
@@ -290,7 +308,7 @@ Tracker::Tracker()
         static_assert(std::is_same<Settings::posture_direction_smoothing_t, uint16_t>::value, "posture_direction_smoothing assumed to be uint16_t.");
         size_t v = value.template value<uint16_t>();
         
-        if(v != FAST_SETTINGS(posture_direction_smoothing))
+        if(v != FAST_SETTING(posture_direction_smoothing))
         {
             auto worker = [key](){
                 {
@@ -428,8 +446,8 @@ Frame_t Tracker::update_with_manual_matches(const Settings::manual_matches_t& ma
     }
     
     //SETTING(manual_matches) = next;
-    //FAST_SETTINGS(manual_matches) = next;
-    //auto str = Meta::toStr(FAST_SETTINGS(manual_matches));
+    //FAST_SETTING(manual_matches) = next;
+    //auto str = Meta::toStr(FAST_SETTING(manual_matches));
     compare = next;
     
     return first_change;
@@ -463,7 +481,6 @@ void Tracker::add(PPFrame &frame) {
     static Timing timing("Tracker::add(PPFrame)", 10);
     TakeTiming take(timing);
     
-    Timer overall_timer;
     LockGuard guard(w_t{}, "Tracker::add(PPFrame)");
     
     assert(frame.index().valid());
@@ -487,14 +504,7 @@ void Tracker::add(PPFrame &frame) {
     if(start_frame().valid() && frame.index() < end_frame() + 1_f)
         throw UtilsException("Cannot add intermediate frames out of order.");
     
-    history_split(frame, _active_individuals, history_log != nullptr && history_log->is_open() ? history_log.get() : nullptr, &_thread_pool);
     add(frame.index(), frame);
-    
-    std::lock_guard<std::mutex> lguard(_statistics_mutex);
-    _statistics[frame.index()].adding_seconds = (float)overall_timer.elapsed();
-    _statistics[frame.index()].loading_seconds = (float)frame.frame().loading_time();
-    
-    _time_samples.add(_statistics[frame.index()].adding_seconds, _statistics[frame.index()].number_fish);
 }
 
 double Tracker::average_seconds_per_individual() {
@@ -666,11 +676,11 @@ void Tracker::prefilter(const std::shared_ptr<PrefilterBlobs>& result, std::vect
     auto &big_blobs = result->big_blobs;
     auto &filtered  = result->filtered;
 
-    const auto track_include = FAST_SETTINGS(track_include);
-    const auto track_ignore = FAST_SETTINGS(track_ignore);
+    const auto track_include = FAST_SETTING(track_include);
+    const auto track_ignore = FAST_SETTING(track_ignore);
     
     std::vector<pv::BlobPtr> ptrs;
-    auto only_allowed = FAST_SETTINGS(track_only_categories);
+    auto only_allowed = FAST_SETTING(track_only_categories);
     
     const auto tags_dont_track = SETTING(tags_dont_track).value<bool>();
     
@@ -741,12 +751,12 @@ void Tracker::prefilter(const std::shared_ptr<PrefilterBlobs>& result, std::vect
             recount = ptr->recount(-1);
 
             if(result->fish_size.in_range_of_one(recount)) {
-                if(FAST_SETTINGS(track_threshold_2) > 0) {
-                    auto second_count = ptr->recount(FAST_SETTINGS(track_threshold_2), *result->background);
+                if(FAST_SETTING(track_threshold_2) > 0) {
+                    auto second_count = ptr->recount(FAST_SETTING(track_threshold_2), *result->background);
                     
                     ptr->force_set_recount(result->threshold, recount / cm_sqr);
                     
-                    if(!(FAST_SETTINGS(threshold_ratio_range) * recount).contains(second_count)) {
+                    if(!(FAST_SETTING(threshold_ratio_range) * recount).contains(second_count)) {
                         result->filter_out(ptr);
                         continue;
                     }
@@ -808,13 +818,13 @@ void Tracker::filter_blobs(PPFrame& frame, GenericThreadPool *pool) {
     static Timing timing("filter_blobs", 20);
     TakeTiming take(timing);
     
-    const BlobSizeRange fish_size = FAST_SETTINGS(blob_size_ranges);
+    const BlobSizeRange fish_size = FAST_SETTING(blob_size_ranges);
     const uint32_t num_blobs = (uint32_t)frame.blobs().size();
-    const int threshold = FAST_SETTINGS(track_threshold);
+    const int threshold = FAST_SETTING(track_threshold);
     
     size_t available_threads = 1 + (pool ? pool->num_threads() : 0);
     size_t maximal_threads = frame.blobs().size();
-    size_t needed_threads = min(maximal_threads / (size_t)FAST_SETTINGS(blobs_per_thread), available_threads);
+    size_t needed_threads = min(maximal_threads / (size_t)FAST_SETTING(blobs_per_thread), available_threads);
     std::shared_lock guard(Categorize::DataStore::range_mutex());
     
     if (maximal_threads > 1
@@ -878,11 +888,11 @@ std::vector<pv::BlobPtr> Tracker::split_big(
     UNUSED(out);
     
     std::vector<pv::BlobPtr> result;
-    const int threshold = FAST_SETTINGS(track_threshold);
-    const BlobSizeRange fish_size = FAST_SETTINGS(blob_size_ranges);
+    const int threshold = FAST_SETTING(track_threshold);
+    const BlobSizeRange fish_size = FAST_SETTING(blob_size_ranges);
     const float cm_sq = SQR(SLOW_SETTING(cm_per_pixel));
-    const auto track_ignore = FAST_SETTINGS(track_ignore);
-    const auto track_include = FAST_SETTINGS(track_include);
+    const auto track_ignore = FAST_SETTING(track_ignore);
+    const auto track_include = FAST_SETTING(track_include);
     
     std::mutex thread_mutex;
     
@@ -1027,14 +1037,14 @@ void Tracker::history_split(PPFrame &frame, const set_of_individuals_t &active_i
     robin_hood::unordered_map<Idx_t, ska::bytell_hash_map<pv::bid, Match::prob_t>> paired;
     robin_hood::unordered_map<Idx_t, Vec2> last_positions;
 
-    const auto frame_limit = SLOW_SETTING(frame_rate) * FAST_SETTINGS(track_max_reassign_time);
+    const auto frame_limit = SLOW_SETTING(frame_rate) * SLOW_SETTING(track_max_reassign_time);
     const auto N = active_individuals.size();
 
     {
         const size_t num_threads = pool ? min(hardware_concurrency(), N / 200u) : 0;
         const auto space_limit = SQR(Individual::weird_distance() * 0.5);
         const auto frame_rate = SLOW_SETTING(frame_rate);
-        const auto track_max_reassign_time = FAST_SETTINGS(track_max_reassign_time);
+        const auto track_max_reassign_time = SLOW_SETTING(track_max_reassign_time);
 
         CacheHints hints;
         if(frame.index().valid() && frame.index() > Tracker::start_frame())
@@ -1062,6 +1072,7 @@ void Tracker::history_split(PPFrame &frame, const set_of_individuals_t &active_i
 
             std::vector<FishAssignments> fish_assignments(N);
             ska::bytell_hash_map<pv::bid, BlobAssignments> blob_assignments;
+            PPFrame::cache_map_t cache_map;
 
             auto it = active_individuals.begin();
             std::advance(it, start);
@@ -1121,10 +1132,6 @@ void Tracker::history_split(PPFrame &frame, const set_of_individuals_t &active_i
                     
                     if(!set.empty()) {
                         auto fdx = fish->identity().ID();
-                        
-                        //std::unique_lock guard(thread_mutex);
-                        //auto &map = fish_mappings[fdx];
-                        //auto &pair_map = paired[fdx];
                         auto& map = fish_assignments[i - start];
                         map.fdx = fdx;
                         map.last_pos = last_pos.x == -1 ? cache.estimated_px : last_pos;
@@ -1142,10 +1149,13 @@ void Tracker::history_split(PPFrame &frame, const set_of_individuals_t &active_i
                     Log(out, "\tFish ", fish->identity()," (", cache.estimated_px.x, ",", cache.estimated_px.y, ") proximity: ", set);
                 }
                 
-                frame.set_cache(fish->identity().ID(), std::move(cache));
+                cache_map[fish->identity().ID()] = std::move(cache);
             }
 
-            std::unique_lock lock(mutex);
+            std::unique_lock guard(mutex);
+            for(auto&& [fdx, cache] : cache_map)
+                frame.set_cache(fdx, std::move(cache));
+            
             for (auto&& [fdx, blobs, distances, last_pos] : fish_assignments) {
                 fish_mappings[fdx].insert(std::make_move_iterator(blobs.begin()), std::make_move_iterator(blobs.end()));
                 auto N = blobs.size();
@@ -1193,7 +1203,7 @@ void Tracker::history_split(PPFrame &frame, const set_of_individuals_t &active_i
     UnorderedVectorSet<pv::BlobPtr> big_blobs;
     robin_hood::unordered_map<pv::bid, split_expectation> expect;
     
-    auto manual_splits = FAST_SETTINGS(manual_splits);
+    auto manual_splits = FAST_SETTING(manual_splits);
     auto manual_splits_frame =
         (manual_splits.empty() || manual_splits.count(frame.index()) == 0)
             ? decltype(manual_splits)::mapped_type()
@@ -1240,7 +1250,7 @@ void Tracker::history_split(PPFrame &frame, const set_of_individuals_t &active_i
      * -------------------------------------------------------------------------------------
      */
 
-    if(!FAST_SETTINGS(track_do_history_split)) {
+    if(!FAST_SETTING(track_do_history_split)) {
         frame.finalize();
         return;
     }
@@ -1484,7 +1494,7 @@ void Tracker::history_split(PPFrame &frame, const set_of_individuals_t &active_i
         frame.add_regular(std::move(big_filtered));
     
     for(size_t i=0; i<frame.blobs().size(); ) {
-        if(!FAST_SETTINGS(blob_size_ranges).in_range_of_one(frame.blobs()[i]->recount(-1))) {
+        if(!FAST_SETTING(blob_size_ranges).in_range_of_one(frame.blobs()[i]->recount(-1))) {
             frame.move_to_noise(i);
         } else
             ++i;
@@ -1515,7 +1525,7 @@ Individual* Tracker::create_individual(Idx_t ID, set_of_individuals_t& active_in
 const FrameProperties* Tracker::add_next_frame(const FrameProperties & props) {
     auto &frames = instance()->frames();
     auto capacity = frames.capacity();
-    instance()->_added_frames.emplace_back(std::make_unique<FrameProperties>(props));
+    instance()->_added_frames.emplace_back(FrameProperties::Make(props));
     
     if(frames.capacity() != capacity) {
         std::unique_lock guard(_properties_mutex);
@@ -1538,7 +1548,7 @@ const FrameProperties* Tracker::add_next_frame(const FrameProperties & props) {
 }
 
 bool Tracker::has_identities() {
-    return FAST_SETTINGS(track_max_individuals) > 0;
+    return FAST_SETTING(track_max_individuals) > 0;
 }
 
 const std::set<Idx_t> Tracker::identities() {
@@ -1555,7 +1565,7 @@ const std::set<Idx_t> Tracker::identities() {
         //    set.insert(id);
         
         //if(set.empty()) {
-            for(Idx_t i = Idx_t(0); i < Idx_t(FAST_SETTINGS(track_max_individuals)); i = Idx_t(i._identity + 1)) {
+            for(Idx_t i = Idx_t(0); i < Idx_t(FAST_SETTING(track_max_individuals)); i = Idx_t(i._identity + 1)) {
                 set.insert(i);
             }
         //}
@@ -1609,7 +1619,7 @@ Match::PairedProbabilities calculate_paired_probabilities
         //unassigned_blobs.reserve(frame.blobs().size());
         
 #if !COMMONS_NO_PYTHON
-        const bool enable_labels = FAST_SETTINGS(track_consistent_categories) || !FAST_SETTINGS(track_only_categories).empty();
+        const bool enable_labels = FAST_SETTING(track_consistent_categories) || !FAST_SETTING(track_only_categories).empty();
         if(enable_labels) {
             for(size_t i=0; i<s.frame.blobs().size(); ++i) {//auto &p : frame.blobs) {
                 if(!s.blob_assigned(s.frame.blobs()[i])) {
@@ -1633,7 +1643,7 @@ Match::PairedProbabilities calculate_paired_probabilities
 
         const auto N_blobs = unassigned_blobs.size();
         const auto N_fish  = unassigned_individuals.size();
-        const auto matching_probability_threshold = FAST_SETTINGS(matching_probability_threshold);
+        const auto matching_probability_threshold = FAST_SETTING(matching_probability_threshold);
         
         auto work = [&](auto, auto start, auto end, auto N){
             size_t pid = 0;
@@ -1785,6 +1795,16 @@ Match::PairedProbabilities calculate_paired_probabilities
     return paired_blobs;
 }
 
+//! Collect groups of individuals that have to be matched together.
+//!
+//! A simplified version of this algorithm can be described as follows:
+//! if individuals are farther away from each other than `track_max_speed x dt`,
+//! then they are not part of the same matching problem and thus can be handled
+//! independently of each other.
+//!
+//! The only real difference here is that instead of distance, the probability
+//! is used (from `calculate_paired_probabilities`), which is the value actually
+//! used by the matching function.
 void collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thread_pool) {
     using namespace default_config;
     
@@ -1802,7 +1822,7 @@ void collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thread_pool)
     UnorderedVectorSet<Match::fish_index_t> all_individuals; // collect all relevant individuals
     std::vector<IndexClique> cliques; // collect all cliques
 
-    const auto p_threshold = FAST_SETTINGS(matching_probability_threshold);
+    const auto p_threshold = FAST_SETTING(matching_probability_threshold);
     auto N_cliques = cliques.size();
     std::vector<bool> to_merge(N_cliques);
     
@@ -2128,6 +2148,9 @@ void collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thread_pool)
  * Adding a frame that has been preprocessed previously in a different thread.
  */
 void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
+    static Timer overall_timer;
+    overall_timer.reset();
+    
     if (!start_frame().valid() || start_frame() > frameIndex) {
         _startFrame = frameIndex;
     }
@@ -2138,16 +2161,19 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
         _endFrame = frameIndex;
     }
     
-    static Timing timing("Tracker::add(frameIndex,PPFrame)", 10);
-    TakeTiming assign(timing);
+    //! Perform blob splitting based on recent history.
+    //! E.g.: We know there should be two individuals where we only
+    //! find one object -> split the object in order to try to split
+    //! the potentially overlapping individuals apart.
+    history_split(frame, _active_individuals, history_log != nullptr && history_log->is_open() ? history_log.get() : nullptr, &_thread_pool);
     
+    //! Initialize helper structure that encapsulates the substeps
+    //! of the Tracker::add method:
     TrackingHelper s(frame, _added_frames);
     
     // see if there are manually fixed matches for this frame
     s.apply_manual_matches(_individuals);
     s.apply_automatic_matches();
-    
-    const auto track_max_reassign_time = FAST_SETTINGS(track_max_reassign_time);
         
     for(auto fish: _active_individuals) {
         // jump over already assigned individuals
@@ -2158,7 +2184,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
             } else {
                 auto found_idx = fish->find_frame(frameIndex)->frame;
                 float tdelta = cmn::abs(frame.time - properties(found_idx)->time);
-                if (tdelta < track_max_reassign_time)
+                if (tdelta < SLOW_SETTING(track_max_reassign_time))
                     s.active_individuals.insert(fish);
             }
         }
@@ -2206,7 +2232,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
             unassigned_blobs.emplace_back(p);
     }
     
-    const auto number_fish = FAST_SETTINGS(track_max_individuals);
+    const auto number_fish = FAST_SETTING(track_max_individuals);
     if(!number_fish /*|| (number_fish && number_individuals < number_fish)*/) {
         // the number of individuals is limited
         // fallback to creating new individuals if the blobs cant be matched
@@ -2291,7 +2317,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
                         // dont reassign them directly!
                         // this would lead to a lot of jumping around. mostly these problems
                         // solve themselves after a few frames.
-                        if(frame.time - props->time >= track_max_reassign_time)
+                        if(frame.time - props->time >= SLOW_SETTING(track_max_reassign_time))
                             lost_individuals.push_back(fish);
                     }
                 }
@@ -2305,7 +2331,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
                 std::multiset<PairProbability> new_table;
                 std::map<Individual*, std::map<pv::BlobPtr, Match::prob_t>> new_pairings;
                 std::map<Individual*, Match::prob_t> max_probs;
-                const Match::prob_t p_threshold = FAST_SETTINGS(matching_probability_threshold);
+                const Match::prob_t p_threshold = FAST_SETTING(matching_probability_threshold);
                 
                 for (auto& fish : lost_individuals) {
                     if(fish->empty()) {
@@ -2345,7 +2371,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
                  
                     for (auto &p: optimal.pairings) {
                         if(p.second && !fish_assigned[p.first] && !blob_assigned[p.second.get()]) {
-                            assert(new_pairings.at(p.first).at(p.second) > FAST_SETTINGS(matching_probability_threshold));
+                            assert(new_pairings.at(p.first).at(p.second) > FAST_SETTING(matching_probability_threshold));
                             assign_blob_individual(frameIndex, frame, p.first, p.second);
                  
                             auto it = std::find(lost_individuals.begin(), lost_individuals.end(), p.first);
@@ -2411,7 +2437,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
         tags_saver = promise.get_future();
         
        _thread_pool.enqueue([&]() {
-           this->check_save_tags(frameIndex, s.blob_fish_map, s.tagged_fish, s.noise, FAST_SETTINGS(tags_path));
+           this->check_save_tags(frameIndex, s.blob_fish_map, s.tagged_fish, s.noise, FAST_SETTING(tags_path));
            promise.set_value();
         });
     }
@@ -2471,7 +2497,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
         //! to individuals based on position, similarly to how
         //! blobs are assigned to individuals, too.
         Match::PairedProbabilities paired;
-        const Match::prob_t p_threshold = FAST_SETTINGS(matching_probability_threshold);
+        const Match::prob_t p_threshold = FAST_SETTING(matching_probability_threshold);
 
         for (auto fish : s.active_individuals) {
             Match::pairing_map_t<Match::Blob_t, prob_t> probs;
@@ -2513,10 +2539,19 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
     if(s.save_tags())
         tags_saver.wait();
     
+    auto adding = (float)overall_timer.elapsed();
+    auto loading = (float)frame.frame().loading_time();
+    
     std::lock_guard<std::mutex> guard(_statistics_mutex);
-    _statistics[frameIndex].number_fish = s.assigned_count;
-    _statistics[frameIndex].posture_seconds = posture_seconds;
-    _statistics[frameIndex].combined_posture_seconds = combined_posture_seconds;
+    auto& entry = _statistics[frameIndex];
+    entry.number_fish = s.assigned_count;
+    entry.posture_seconds = posture_seconds;
+    entry.combined_posture_seconds = combined_posture_seconds;
+    
+    entry.adding_seconds = adding;
+    entry.loading_seconds = loading;
+    
+    _time_samples.add(adding, entry.number_fish);
 }
 
 void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators)
@@ -2562,7 +2597,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         }
         
         //if(!prev_props) prev_props = properties(frameIndex - 1);
-        if(prev_props && time - prev_props->time >= FAST_SETTINGS(huge_timestamp_seconds)) {
+        if(prev_props && time - prev_props->time >= FAST_SETTING(huge_timestamp_seconds)) {
             FOI::add(FOI(frameIndex, "huge time jump"));
             for(auto fish : active_individuals)
                 merge["correcting"].insert(FOI::fdx_t(fish->identity().ID()));
@@ -2739,9 +2774,9 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
     }
 
     void Tracker::update_consecutive(const set_of_individuals_t &active, Frame_t frameIndex, bool update_dataset) {
-        bool all_good = FAST_SETTINGS(track_max_individuals) == (uint32_t)active.size();
+        bool all_good = FAST_SETTING(track_max_individuals) == (uint32_t)active.size();
         
-        //auto manual_identities = FAST_SETTINGS(manual_identities);
+        //auto manual_identities = FAST_SETTING(manual_identities);
         for(auto fish : active) {
             //if(manual_identities.empty() || manual_identities.count(fish->identity().ID()))
             {
@@ -2806,7 +2841,6 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
 #endif
         
         LockGuard guard(w_t{}, "_remove_frames("+Meta::toStr(frameIndex)+")");
-        recognition_pool.wait();
         _thread_pool.wait();
         
         _individual_add_iterator_map.clear();
@@ -2958,10 +2992,6 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         return n;
     }
 
-    void Tracker::wait() {
-        recognition_pool.wait();
-    }
-
     void Tracker::global_segment_order_changed() {
         LockGuard guard(w_t{}, "Tracker::global_segment_order_changed");
         _global_segment_order.clear();
@@ -2972,7 +3002,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         if(_global_segment_order.empty()) {
             LockGuard guard(w_t{}, "Tracker::max_range()::write");
             std::set<Range<Frame_t>> manuals;
-            auto manually_approved = FAST_SETTINGS(manually_approved);
+            auto manually_approved = FAST_SETTING(manually_approved);
             for(auto && [from, to] : manually_approved)
                 manuals.insert(Range<Frame_t>(Frame_t(from), Frame_t(to)));
             
@@ -3065,8 +3095,6 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
     
     void Tracker::clear_segments_identities() {
         LockGuard guard(w_t{}, "clear_segments_identities");
-        
-        recognition_pool.wait();
         auto fid = FOI::to_id("split_up");
         if(fid != -1)
             FOI::remove_frames(Frame_t(0), fid);
@@ -3334,10 +3362,10 @@ void apply(
         Idx_t chosen_id;
 
         if (dnext < dprev) {
-            if (dprev < FAST_SETTINGS(track_max_speed) * 0.1)
+            if (dprev < FAST_SETTING(track_max_speed) * 0.1)
                 chosen_id = next_id;
         }
-        else if (dnext < FAST_SETTINGS(track_max_speed) * 0.1)
+        else if (dnext < FAST_SETTING(track_max_speed) * 0.1)
             chosen_id = prev_id;
 
         if (chosen_id.valid()) {
@@ -3423,7 +3451,6 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
 
         std::atomic<size_t> count{0u};
         
-        //recognition_pool.wait();
         auto fid = FOI::to_id("split_up");
         if(fid != -1)
             FOI::remove_frames(after_frame.valid() ? Frame_t(0) : after_frame, fid);
@@ -3601,7 +3628,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
             
         } else {
             //! When using other ML information (visual identification)...
-            assert(source == IdentitySource::MachineLearning);
+            assert(source == IdentitySource::VisualIdent);
             
             for(const auto & [fdx, fish] : _individuals) {
                 //! TODO: MISSING recalculate recognition for all segments
@@ -3756,7 +3783,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
                 process_qr(after_frame, fdx, fish, assigned_ranges, virtual_fish, _apply);
             
         } else {
-            assert(source == IdentitySource::MachineLearning);
+            assert(source == IdentitySource::VisualIdent);
             for(const auto &[fdx, fish] : _individuals)
                 process_vi(after_frame, fish->recognition_segments(), fdx, fish, assigned_ranges, virtual_fish, _apply);
         }
@@ -3810,7 +3837,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid pid
         if(pid.valid()) {
             blob = pp.find_bdx(pid);
             if(blob) {
-                auto blobs = pixel::threshold_blob(blob, FAST_SETTINGS(track_threshold), Tracker::instance()->background());
+                auto blobs = pixel::threshold_blob(blob, FAST_SETTING(track_threshold), Tracker::instance()->background());
                 
                 for(auto & sub : blobs) {
                     if(sub->blob_id() == bid) {
@@ -3825,7 +3852,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid pid
                     return nullptr;*/
                     /*int first_found = -1, last_found = -1;
                     
-                    for(int threshold = FAST_SETTINGS(track_threshold)+1; threshold<100; ++threshold) {
+                    for(int threshold = FAST_SETTING(track_threshold)+1; threshold<100; ++threshold) {
                         auto blobs = pixel::threshold_blob(b, threshold, Tracker::instance()->background());
                         
                         for(auto & sub : blobs) {
@@ -3844,7 +3871,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid pid
                     if(first_found != -1) {
                         print("Found blob ",bid," in parent ",pid," within thresholds [",first_found," - ",last_found,"]");
                     } else {
-                        //FormatWarning("Cannot find blob ",bid," in it, but can find the parent ",pid," in frame ",frame," (threshold=",FAST_SETTINGS(track_threshold),").");
+                        //FormatWarning("Cannot find blob ",bid," in it, but can find the parent ",pid," in frame ",frame," (threshold=",FAST_SETTING(track_threshold),").");
                     //}*/
                 //}
             }
@@ -3857,7 +3884,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid pid
             //}
             //auto str = Meta::toStr(sorted);
             
-            //Error("Cannot find blob %d (%.0f,%.0f) in frame %d with threshold=%d. (%S)", bid, bounds.x,bounds.y, frame, FAST_SETTINGS(track_threshold), &str);
+            //Error("Cannot find blob %d (%.0f,%.0f) in frame %d with threshold=%d. (%S)", bid, bounds.x,bounds.y, frame, FAST_SETTING(track_threshold), &str);
             return nullptr;
         }*/
         

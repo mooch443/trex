@@ -7,9 +7,9 @@
 namespace track {
 
 struct CachedSettings {
-    const bool do_posture{FAST_SETTINGS(calculate_posture)};
-    const bool save_tags{!FAST_SETTINGS(tags_path).empty()};
-    const uint32_t number_fish{(uint32_t)FAST_SETTINGS(track_max_individuals)};
+    const bool do_posture{FAST_SETTING(calculate_posture)};
+    const bool save_tags{!FAST_SETTING(tags_path).empty()};
+    const uint32_t number_fish{(uint32_t)FAST_SETTING(track_max_individuals)};
     const Frame_t approximation_delay_time{Frame_t(max(1, SLOW_SETTING(frame_rate) * 0.25))};
 };
 
@@ -34,10 +34,10 @@ TrackingHelper::~TrackingHelper() {
     delete cache;
 }
 
-TrackingHelper::TrackingHelper(PPFrame& frame, const std::vector<std::unique_ptr<FrameProperties>>& added_frames)
+TrackingHelper::TrackingHelper(PPFrame& frame, const std::vector<FrameProperties::Ptr>& added_frames)
       : cache(new CachedSettings), frame(frame)
 {
-    const BlobSizeRange minmax = FAST_SETTINGS(blob_size_ranges);
+    const BlobSizeRange minmax = FAST_SETTING(blob_size_ranges);
     double time(double(frame.frame().timestamp()) / double(1000*1000));
     props = Tracker::add_next_frame(FrameProperties(frame.index(), time, frame.frame().timestamp()));
     
@@ -84,7 +84,7 @@ TrackingHelper::TrackingHelper(PPFrame& frame, const std::vector<std::unique_ptr
     
     match_mode = frame_uses_approximate
                     ? default_config::matching_mode_t::hungarian
-                    : FAST_SETTINGS(match_mode);
+                    : FAST_SETTING(match_mode);
 }
 
 void TrackingHelper::assign_blob_individual(Individual* fish, const pv::BlobPtr& blob, default_config::matching_mode_t::Class match_mode)

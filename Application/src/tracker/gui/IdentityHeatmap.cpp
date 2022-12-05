@@ -441,7 +441,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
     
     {
         auto d = abs(current_frame - _frame);
-        const auto frame_range = _frame_context.valid() ? _frame_context : Frame_t(narrow_cast<Frame_t::number_t>(FAST_SETTINGS(video_length)));
+        const auto frame_range = _frame_context.valid() ? _frame_context : Frame_t(narrow_cast<Frame_t::number_t>(FAST_SETTING(video_length)));
         
         if(!_frame.valid() || _grid.empty() || (_frame_context.valid() && d >= _frame_context)) {
             // we cant use any frames from before
@@ -478,7 +478,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
         
         if(!updated.add_range.empty()) {
             data.clear();
-            data.reserve(frame_range.get() * 2u * max(1u, FAST_SETTINGS(track_max_individuals)));
+            data.reserve(frame_range.get() * 2u * max(1u, FAST_SETTING(track_max_individuals)));
             Individual::segment_map::const_iterator kit;
             
             auto &range = updated.add_range;
@@ -1383,7 +1383,7 @@ void Grid::fill(const std::vector<DataPoint> &data)
 #else
         static file::Path path("/Users/tristan/Desktop/visualization_cells_"+SETTING(filename).value<file::Path>().filename().to_string() + "_" + SETTING(output_prefix).value<std::string>() +".avi");
 #endif
-        static cv::VideoWriter writer(path.str(), cv::VideoWriter::fourcc('F','F','V','1'), FAST_SETTINGS(frame_rate), cv::Size(smaller.cols, smaller.rows), true);
+        static cv::VideoWriter writer(path.str(), cv::VideoWriter::fourcc('F','F','V','1'), FAST_SETTING(frame_rate), cv::Size(smaller.cols, smaller.rows), true);
         
         static cv::Mat to_write;
         smaller.copyTo(to_write);

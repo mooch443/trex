@@ -365,7 +365,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         
         Identity id( Idx_t{ID} );
         if(name != id.raw_name() && !name.empty()) {
-            auto map = FAST_SETTINGS(individual_names);
+            auto map = FAST_SETTING(individual_names);
             map[ID] = name;
             SETTING(individual_names) = map;
         }
@@ -416,11 +416,11 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     {
         const auto& frameIndex = data.stuff->frame;
         
-        const Match::prob_t p_threshold = FAST_SETTINGS(matching_probability_threshold);
+        const Match::prob_t p_threshold = FAST_SETTING(matching_probability_threshold);
         
 #if !COMMONS_NO_PYTHON
         auto label =
-            FAST_SETTINGS(track_consistent_categories)
+            FAST_SETTING(track_consistent_categories)
                 ? Categorize::DataStore::ranged_label(frameIndex, data.stuff->blob)
                 : nullptr;
 #else
@@ -649,7 +649,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                 continue;
             }
             
-            if(FAST_SETTINGS(calculate_posture)) {
+            if(FAST_SETTING(calculate_posture)) {
                 // save values
                 auto stuff = std::make_unique<PostureStuff>();
                 
@@ -691,7 +691,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             if(check_analysis_range && (frame > analysis_range.end || frame < analysis_range.start))
                 continue;
             
-            if(FAST_SETTINGS(calculate_posture)) {
+            if(FAST_SETTING(calculate_posture)) {
                 // save values
                 auto stuff = std::make_unique<PostureStuff>();
                 
@@ -714,7 +714,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             if(check_analysis_range && (frame > analysis_range.end || frame < analysis_range.start))
                 continue;
             
-            if(FAST_SETTINGS(calculate_posture)) {
+            if(FAST_SETTING(calculate_posture)) {
                 //fish->posture_stuff(frameIndex);
                 PostureStuff* stuff = nullptr;
                 auto it = sorted.find(frame);
@@ -1172,12 +1172,12 @@ namespace Output {
         }
         
         write<Size2>(Tracker::average().bounds().size());
-        write<uint64_t>(FAST_SETTINGS(video_length));
+        write<uint64_t>(FAST_SETTING(video_length));
         
         uint64_t bytes = Tracker::average().cols * Tracker::average().rows;
         write_data(bytes, (const char*)Tracker::average().data());
         
-        auto [start, end] = FAST_SETTINGS(analysis_range);
+        auto [start, end] = FAST_SETTING(analysis_range);
         write<int64_t>(start);
         write<int64_t>(end);
         
@@ -1232,7 +1232,10 @@ namespace Output {
         return pack_size;
     }
     
-    void ResultsFormat::write_file(const std::vector<std::unique_ptr<track::FrameProperties>> &frames, const Tracker::active_individuals_t &active_individuals_frame, const ska::bytell_hash_map<Idx_t, Individual *> &individuals)
+    void ResultsFormat::write_file(
+        const std::vector<track::FrameProperties::Ptr> &frames,
+        const active_individuals_map_t &active_individuals_frame,
+        const ska::bytell_hash_map<Idx_t, Individual *> &individuals)
     {
         estimated_size = sizeof(uint64_t)*3
             + frames.size() * (sizeof(data_long_t)+sizeof(CompatibilityFrameProperties))
@@ -1342,7 +1345,7 @@ namespace Output {
     }
 
 void TrackingResults::update_fois(const std::function<void(const std::string&, float, const std::string&)>& update_progress) {
-    const auto number_fish = FAST_SETTINGS(track_max_individuals);
+    const auto number_fish = FAST_SETTING(track_max_individuals);
     data_long_t prev = 0;
     data_long_t n = 0;
     

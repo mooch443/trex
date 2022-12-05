@@ -233,7 +233,7 @@ fish_index_t PairedProbabilities::add(
         _col_edges[col].push_back(rdx);
         if(p > maximum)
             maximum = p;
-        if(p > FAST_SETTINGS(matching_probability_threshold))
+        if(p > FAST_SETTING(matching_probability_threshold))
             ++degree;
     }
     _row_max_probs.push_back(maximum);
@@ -822,7 +822,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                     auto prev_props = Tracker::properties(frame()-1);
                     if(props && prev_props) {
                         auto tdelta = DurationUS{uint64_t(1000 * 1000 * (props->time - prev_props->time))};
-                        auto tdelta_soll = DurationUS{uint64_t(1000 * 1000 * 1.f / FAST_SETTINGS(frame_rate))};
+                        auto tdelta_soll = DurationUS{uint64_t(1000 * 1000 * 1.f / FAST_SETTING(frame_rate))};
                         auto str = "Too many combinations in frame %d (tdelta "+tdelta.to_string()+" and should be "+tdelta_soll.to_string()+").";
                         Warning(str.c_str(), frame());
                     } else {
@@ -838,7 +838,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
         
         
 #ifndef NDEBUG
-        if(FAST_SETTINGS(debug)) {
+        if(FAST_SETTING(debug)) {
             auto elapsed = timer.elapsed();
             
             std::ofstream file;
@@ -1029,7 +1029,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                     for (auto &e : _paired.edges_for_row(i)) {
                         assert(e.cdx.valid());
                         //auto blob_edges = _blob_edges.at(_blobs[b.blob_index]);
-                        if(e.p >= FAST_SETTINGS(matching_probability_threshold)) {
+                        if(e.p >= FAST_SETTING(matching_probability_threshold)) {
                             assert((Match::index_t)i < n);
                             assert(e.cdx < _paired.n_cols());
                             dist_matrix[(index_t)i][(index_t)e.cdx] = Hungarian_t(-(scaling * e.p + 0.5)); //! + 0.5 to ensure proper rounding
@@ -1400,7 +1400,7 @@ PairingGraph::~PairingGraph() {
     }
     
     bool PairingGraph::connected_to(Individual *o, Blob_t b) const {
-        return prob(o, b) > FAST_SETTINGS(matching_probability_threshold);
+        return prob(o, b) > FAST_SETTING(matching_probability_threshold);
     }
     
     /*void PairingGraph::add(Individual *o) {

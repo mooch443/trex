@@ -69,7 +69,7 @@ TrainingData::TrainingData(const MidlineFilters& filters)
     add_pointer(this);
     
     auto normalize = SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>();
-    if(!FAST_SETTINGS(calculate_posture) && normalize == default_config::individual_image_normalization_t::posture)
+    if(!FAST_SETTING(calculate_posture) && normalize == default_config::individual_image_normalization_t::posture)
         normalize = default_config::individual_image_normalization_t::moments;
     
     set_normalized(normalize);
@@ -998,7 +998,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
     
     size_t N_validation_images = 0, N_training_images = 0;
     size_t N_reused_images = 0;
-    const bool calculate_posture = FAST_SETTINGS(calculate_posture);
+    const bool calculate_posture = FAST_SETTING(calculate_posture);
     std::map<Idx_t, std::vector<std::tuple<Frame_t, Image::Ptr>>> individual_training_images;
     size_t failed_blobs = 0, found_blobs = 0;
     

@@ -32,9 +32,11 @@ const IndividualCache* PPFrame::cached(Idx_t id) const {
 }
 
 void PPFrame::set_cache(Idx_t id, IndividualCache&& cache) {
-    static std::mutex mutex;
-    std::unique_lock guard(mutex);
+    //static std::mutex mutex;
+    //std::unique_lock guard(mutex);
+   // mutex.lock();
     _individual_cache[id] = std::move(cache);
+    //mutex.unlock();
 }
 
 bool PPFrame::_add_to_map(const pv::BlobPtr &blob) {

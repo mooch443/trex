@@ -40,6 +40,14 @@ public:
 };
 
 struct FrameProperties {
+    using Ptr = std::unique_ptr<FrameProperties>;
+    
+    template<typename... Args>
+    static auto Make(Args... args) {
+        return std::make_unique<FrameProperties>(std::forward<Args>(args)...);
+    }
+    
+public:
     double time;
     timestamp_t org_timestamp;
     Frame_t frame;

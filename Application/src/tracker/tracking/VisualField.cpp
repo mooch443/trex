@@ -308,9 +308,9 @@ std::tuple<std::array<VisualField::eye, 2>, Vec2> VisualField::generate_eyes(Fra
         return pt;
     };
     
-    const auto visual_field_history_smoothing = FAST_SETTINGS(visual_field_history_smoothing);
-    size_t segment_index = midline->segments().size() * max(0.f, FAST_SETTINGS(visual_field_eye_offset));
-    double eye_separation = RADIANS(FAST_SETTINGS(visual_field_eye_separation));
+    const auto visual_field_history_smoothing = FAST_SETTING(visual_field_history_smoothing);
+    size_t segment_index = midline->segments().size() * max(0.f, FAST_SETTING(visual_field_eye_offset));
+    double eye_separation = RADIANS(FAST_SETTING(visual_field_eye_separation));
     auto &segment = midline->segments().at(segment_index);
     float angle = midline->angle() + M_PI;
         
@@ -410,7 +410,7 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
     std::tuple<float, float> p0;
     
     //! allow for a couple of frames look-back, in case individuals arent present in the current frame but have been previously
-    const Frame_t max_back_view = Frame_t(max(1, FAST_SETTINGS(track_max_reassign_time) * FAST_SETTINGS(frame_rate)));
+    const Frame_t max_back_view = Frame_t(max(1, FAST_SETTING(track_max_reassign_time) * FAST_SETTING(frame_rate)));
     
     //! iterate over all currently visible individuals
     //  for all individuals with outline...

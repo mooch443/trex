@@ -76,7 +76,7 @@ bool Results::save(const Path &filename) const {
 		CONTINUE_IF_UNFIT(fish);
 		
 		std::vector<std::string> header = {"frame"};
-		for (uint32_t i = 0; i < FAST_SETTINGS(midline_resolution); i++) {
+		for (uint32_t i = 0; i < FAST_SETTING(midline_resolution); i++) {
 			std::stringstream ss;
 			ss << "segment" << i;
 			header.push_back(ss.str());
@@ -114,7 +114,7 @@ bool Results::save(const Path &filename) const {
 				table.add(row);
 
 			} else {
-				for (uint32_t p = 0; p < FAST_SETTINGS(midline_resolution); p++) {
+				for (uint32_t p = 0; p < FAST_SETTING(midline_resolution); p++) {
 					row.add("");
 				}
 			}

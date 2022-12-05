@@ -220,7 +220,7 @@ namespace gui {
         if(hovered()) {
             std::stringstream ss;
             if(midline) {
-                ss << "length: " << midline->len() * FAST_SETTINGS(cm_per_pixel) << "cm (median " << _fish->midline_length() / 1.1f * FAST_SETTINGS(cm_per_pixel) << "cm) offset: "
+                ss << "length: " << midline->len() * FAST_SETTING(cm_per_pixel) << "cm (median " << _fish->midline_length() / 1.1f * FAST_SETTING(cm_per_pixel) << "cm) offset: "
                 << (midline->empty() ? 0 : DEGREE(atan2(midline->segments().back().pos.y, midline->segments().back().pos.x)));
             } else
                 ss << "no midline";
@@ -253,7 +253,7 @@ namespace gui {
         set_content_changed(true);
         
         // if this map gets too big (cached scale values), remove a few of them
-        if((uint32_t)_scale.size() > FAST_SETTINGS(track_max_individuals)) {
+        if((uint32_t)_scale.size() > FAST_SETTING(track_max_individuals)) {
             for (auto it = _scale.begin(); it != _scale.end();) {
                 if(!_fish || it->first != _fish->identity().ID()) {
                     it = _scale.erase(it);

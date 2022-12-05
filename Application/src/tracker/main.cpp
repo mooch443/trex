@@ -1023,14 +1023,14 @@ int main(int argc, char** argv)
     
     default_config::warn_deprecated("global", GlobalSettings::map());
     
-    if(FAST_SETTINGS(track_max_individuals) == 1
+    if(FAST_SETTING(track_max_individuals) == 1
        && SETTING(auto_apply))
     {
         FormatError("Cannot use a network on a single individual. Disabling auto_apply.");
         SETTING(auto_apply) = false;
     }
     
-    if(FAST_SETTINGS(track_max_individuals) == 1
+    if(FAST_SETTING(track_max_individuals) == 1
        && SETTING(auto_train))
     {
         FormatError("Cannot train a network on a single individual. Disabling auto_train.");
@@ -1175,7 +1175,7 @@ int main(int argc, char** argv)
                         DurationUS us{ uint64_t(max(0, (double)(range.end - ptr->index()).get() / double(/*frames_sec*/ frames_sec_average / frames_sec_samples ) * 1000 * 1000)) };
                         std::string str;
                         
-                        if(FAST_SETTINGS(analysis_range).first != -1 || FAST_SETTINGS(analysis_range).second != -1)
+                        if(FAST_SETTING(analysis_range).first != -1 || FAST_SETTING(analysis_range).second != -1)
                             str = format<FormatterType::NONE>("frame ", ptr->index(), "/", range.end,  "(",video.length(),") (", dec<2>(data_sec/1024.0), "MB/s @ ", dec<2>(frames_sec), "fps eta ", us, ") ", dec<2>(Tracker::average_seconds_per_individual() * 1000 * 1000), "µs/individual");
                         else
                             str = format<FormatterType::NONE>("frame ", ptr->index(), "/", range.end, " (", dec<2>(data_sec/1024.0), "MB/s @ ", dec<2>(frames_sec), "fps eta ", us, ") ", dec<2>(Tracker::average_seconds_per_individual() * 1000 * 1000), "µs/individual");
@@ -1236,8 +1236,8 @@ int main(int argc, char** argv)
             if(current < range.start)
                 currentID = range.start - 1_f;
             
-            if(FAST_SETTINGS(analysis_range).second != -1
-               && endframe >= Frame_t(FAST_SETTINGS(analysis_range).second)
+            if(FAST_SETTING(analysis_range).second != -1
+               && endframe >= Frame_t(FAST_SETTING(analysis_range).second)
                && !SETTING(terminate)
                && !please_stop_analysis)
             {
@@ -1308,7 +1308,7 @@ int main(int argc, char** argv)
         return "{}";
     };
     
-    if(FAST_SETTINGS(analysis_paused) || load_results) {
+    if(FAST_SETTING(analysis_paused) || load_results) {
         analysis->set_paused(true).get();
         
         if(load_results) {

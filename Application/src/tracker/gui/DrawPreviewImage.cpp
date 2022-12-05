@@ -182,7 +182,7 @@ void draw(Frame_t frame, DrawStructure& graph) {
     }
     
     const auto normalize = SETTING(individual_image_normalization).value<individual_image_normalization_t::Class>();
-    auto output_shape = FAST_SETTINGS(individual_image_size);
+    auto output_shape = FAST_SETTING(individual_image_size);
     static bool first = true;
     
     auto& cache = GUICache::instance();

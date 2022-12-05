@@ -62,7 +62,7 @@ std::string Identity::name() const {
             return it->second;
         }
     }
-    return FAST_SETTINGS(individual_prefix) + raw_name();
+    return FAST_SETTING(individual_prefix) + raw_name();
 }
 
 std::string Identity::raw_name() const {
@@ -504,7 +504,7 @@ Midline::Ptr Individual::fixed_midline(Frame_t frameIndex) const {
         return nullptr;
     
     MovementInformation movement;
-    if(FAST_SETTINGS(posture_direction_smoothing) > 1) {
+    if(FAST_SETTING(posture_direction_smoothing) > 1) {
         auto && [samples, hist, index, mov] = calculate_previous_vector(frameIndex);
         movement = mov;
     }
@@ -970,7 +970,7 @@ int64_t Individual::add(const TrackingHelper& helper, const pv::BlobPtr& blob, p
     stuff->blob = blob;
     stuff->pixels = blob;
     
-    //const auto ft = FAST_SETTINGS(track_threshold);
+    //const auto ft = FAST_SETTING(track_threshold);
     //assert(blob->last_recount_threshold() == ft);
     stuff->thresholded_size = blob->raw_recount(-1);//, *Tracker::instance()->background());
     
@@ -1164,11 +1164,11 @@ void Individual::clear_post_processing() {
 }
 
 void Individual::update_midlines(const CacheHints* hints) {
-    /*if(FAST_SETTINGS(posture_direction_smoothing) == 0) {
+    /*if(FAST_SETTING(posture_direction_smoothing) == 0) {
         update_frame_with_posture(frameIndex);
     }*/
     
-    const auto smooth_range = Frame_t(FAST_SETTINGS(posture_direction_smoothing));
+    const auto smooth_range = Frame_t(FAST_SETTING(posture_direction_smoothing));
     const auto video_length = Tracker::analysis_range().end;
     auto end_frame = Tracker::end_frame();
     
@@ -1248,7 +1248,7 @@ Midline::Ptr Individual::calculate_midline_for(const BasicStuff &basic, const Po
         MovementInformation movement;
         //movement.position = blob->bounds().pos();
         
-        if(FAST_SETTINGS(posture_direction_smoothing) > 1) {
+        if(FAST_SETTING(posture_direction_smoothing) > 1) {
             auto && [samples, hist, index, mov] = calculate_previous_vector(posture.frame);
             movement = mov;
         }
@@ -1294,7 +1294,7 @@ Midline::Ptr Individual::update_frame_with_posture(BasicStuff& basic, const decl
         if(!midline)
             return nullptr;
         
-        size_t head_index = cmn::min(midline->segments().size() - 1u, size_t(roundf(midline->segments().size() * FAST_SETTINGS(posture_head_percentage))));
+        size_t head_index = cmn::min(midline->segments().size() - 1u, size_t(roundf(midline->segments().size() * FAST_SETTING(posture_head_percentage))));
         auto pt = midline->segments().at(head_index).pos;
         
         float angle = midline->angle() + M_PI;
@@ -1549,10 +1549,10 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     cache.last_seen_px = Vec2(-FLT_MAX);
     cache.current_category = -1;
     cache.cm_per_pixel = SLOW_SETTING(cm_per_pixel);
-    cache.consistent_categories = FAST_SETTINGS(track_consistent_categories);
+    cache.consistent_categories = FAST_SETTING(track_consistent_categories);
     cache.track_max_speed_px = SLOW_SETTING(track_max_speed) / cache.cm_per_pixel;
     const auto frame_rate = SLOW_SETTING(frame_rate);
-    const auto track_max_reassign_time = FAST_SETTINGS(track_max_reassign_time);
+    const auto track_max_reassign_time = SLOW_SETTING(track_max_reassign_time);
     
     //auto segment = get_segment(frameIndex-1);
     if(it != _frame_segments.end()) {
@@ -1875,7 +1875,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
     prob_t speed = max(0.6f, sqrt(used_frames ? static_median(average_speed.begin(), average_speed.end()) : 0));
     
     //! \lambda
-    const float lambda = SQR(SQR(max(0, min(1, FAST_SETTINGS(track_speed_decay)))));
+    const float lambda = SQR(SQR(max(0, min(1, FAST_SETTING(track_speed_decay)))));
     
     //! \mean{\mathbf{d}_i}(t)
     Vec2 direction;
@@ -1913,7 +1913,7 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
         est += c->pos<Units::PX_AND_SECONDS>();
     
     auto h = c;
-    if(FAST_SETTINGS(calculate_posture)) {
+    if(FAST_SETTING(calculate_posture)) {
         if(pp_posture && pp_posture->centroid_posture)
             h = pp_posture->centroid_posture;
     }
@@ -1930,9 +1930,9 @@ IndividualCache Individual::cache_for_frame(Frame_t frameIndex, double time, con
 }
 
 prob_t Individual::time_probability(const IndividualCache& cache, size_t recent_number_samples) const {
-    if(!FAST_SETTINGS(track_time_probability_enabled))
+    if(!FAST_SETTING(track_time_probability_enabled))
         return 1;
-    if (cache.tdelta > FAST_SETTINGS(track_max_reassign_time))
+    if (cache.tdelta > SLOW_SETTING(track_max_reassign_time))
         return 0.0;
     
     if(cache.last_frame_manual)
@@ -1955,9 +1955,9 @@ prob_t Individual::time_probability(const IndividualCache& cache, size_t recent_
         \end{equation}
      */
     
-    float p = 1.0f - min(1.0f, max(0, (cache.tdelta - Tdelta) / FAST_SETTINGS(track_max_reassign_time)));
+    float p = 1.0f - min(1.0f, max(0, (cache.tdelta - Tdelta) / SLOW_SETTING(track_max_reassign_time)));
     if(cache.previous_frame >= Tracker::start_frame() + Frame_t(minimum_frames))
-        p *= min(1.f, float(recent_number_samples - 1) / minimum_frames + FAST_SETTINGS(matching_probability_threshold));
+        p *= min(1.f, float(recent_number_samples - 1) / minimum_frames + FAST_SETTING(matching_probability_threshold));
     
     return p * 0.75 + 0.25;
 }
@@ -2179,7 +2179,7 @@ const std::unique_ptr<BasicStuff>& Individual::find_frame(Frame_t frameIndex) co
 }
 
 std::tuple<std::vector<std::tuple<float, float>>, std::vector<float>, size_t, MovementInformation> Individual::calculate_previous_vector(Frame_t frameIndex) const {
-    const auto min_samples = Frame_t(FAST_SETTINGS(posture_direction_smoothing));
+    const auto min_samples = Frame_t(FAST_SETTING(posture_direction_smoothing));
     std::vector<float> tmp;
     std::vector<std::tuple<float, float>> samples;
     MovementInformation movement;
@@ -2375,7 +2375,7 @@ void Individual::save_posture(const BasicStuff& stuff, Frame_t frameIndex) {//Im
     
 	if(!ptr.outline_empty()) {
         const auto &midline = ptr.normalized_midline();
-		/*if(midline && midline->size() != FAST_SETTINGS(midline_resolution)) {
+		/*if(midline && midline->size() != FAST_SETTING(midline_resolution)) {
             FormatWarning("Posture error (",midline->size()," segments) in ",_identity.ID()," at frame ",frameIndex,".");
 		}*/
         
@@ -2392,10 +2392,10 @@ void Individual::save_posture(const BasicStuff& stuff, Frame_t frameIndex) {//Im
             stuff->outline = std::make_shared<MinimalOutline>(ptr.outline());
         
         if(midline && !midline->empty()) {
-            //if(!FAST_SETTINGS(midline_samples) || _midline_length.added() < FAST_SETTINGS(midline_samples))
+            //if(!FAST_SETTING(midline_samples) || _midline_length.added() < FAST_SETTING(midline_samples))
             //    _midline_length.addNumber(midline->len());
             
-            //if(!FAST_SETTINGS(midline_samples) || _outline_size.added() < FAST_SETTINGS(midline_samples))
+            //if(!FAST_SETTING(midline_samples) || _outline_size.added() < FAST_SETTING(midline_samples))
             //    _outline_size.addNumber(_outlines[frameIndex]->size());
             
             //auto copy = std::make_shared<Midline>(*midline);
@@ -2446,10 +2446,10 @@ bool Individual::evaluate_fitness() const {
 		return false;
 		
 	// check posture
-    if(FAST_SETTINGS(calculate_posture)) {
+    if(FAST_SETTING(calculate_posture)) {
 		for(auto i = start_frame(); i < end_frame(); ++i) {
             const auto m = midline(i);
-			if(m && m->size() != FAST_SETTINGS(midline_resolution))
+			if(m && m->size() != FAST_SETTING(midline_resolution))
 				return false;
 		}
 	}

@@ -165,13 +165,13 @@ void remove_segment(const Range<Frame_t> &range) {
 
 void update() {
     LockGuard guard(ro_t{}, "DatasetQuality::update");
-    if(FAST_SETTINGS(track_max_individuals) == 0
+    if(FAST_SETTING(track_max_individuals) == 0
        || Tracker::instance()->consecutive().empty())
         return;
     
     auto video_length = Tracker::analysis_range().end.get();
     auto end_frame = Tracker::end_frame();
-    auto manual = FAST_SETTINGS(manually_approved);
+    auto manual = FAST_SETTING(manually_approved);
     bool changed = false;
     //Rangel longest(-1, -1);
     
@@ -278,7 +278,7 @@ Single evaluate_single(Idx_t id, Individual* fish, const Range<Frame_t> &_consec
     long_t number_frames = 0;
     bool debug = false;
     
-    auto manually_approved = FAST_SETTINGS(manually_approved);
+    auto manually_approved = FAST_SETTING(manually_approved);
     if(manually_approved.find(_consec.start.get()) != manually_approved.end())
         debug = true;
     
@@ -396,7 +396,7 @@ Single evaluate_single(Idx_t id, Individual* fish, const Range<Frame_t> &_consec
                 orientations.insert(std::round(DEGREE(posture->midline_angle)));
             
             if(i > consec.start() && prev.x != FLT_MAX && pos != prev) {
-                auto L = ((pos - prev) * FAST_SETTINGS(cm_per_pixel)).length();
+                auto L = ((pos - prev) * FAST_SETTING(cm_per_pixel)).length();
                 travelled += L;
             }
             

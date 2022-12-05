@@ -225,7 +225,7 @@ namespace track {
 
     void Posture::calculate_posture(Frame_t frame, pv::BlobPtr blob)
     {
-        const int initial_threshold = FAST_SETTINGS(track_posture_threshold);
+        const int initial_threshold = FAST_SETTING(track_posture_threshold);
         int threshold = initial_threshold;
         
         // order the calculated points to make the outline
@@ -242,7 +242,7 @@ namespace track {
             // calculate outline points in (almost) random order based on
             // greyscale values, instead of just binary thresholding.
             //auto raw_outline = subpixel_threshold(greyscale, threshold);
-            thresholded_blob = pixel::threshold_get_biggest_blob(blob, threshold, Tracker::instance()->background(), FAST_SETTINGS(posture_closing_steps), FAST_SETTINGS(posture_closing_size));
+            thresholded_blob = pixel::threshold_get_biggest_blob(blob, threshold, Tracker::instance()->background(), FAST_SETTING(posture_closing_steps), FAST_SETTING(posture_closing_size));
             thresholded_blob->add_offset(-blob->bounds().pos());
 
             auto outlines = pixel::find_outer_points(thresholded_blob, threshold);
@@ -271,21 +271,21 @@ namespace track {
             //}
             
             //if(calculate_outline(raw_outline) > 0.9f) {
-                if(FAST_SETTINGS(outline_resample) != 0) {
-                    if(FAST_SETTINGS(outline_resample) >= 1)
-                        _outline.resample(FAST_SETTINGS(outline_resample));
+                if(FAST_SETTING(outline_resample) != 0) {
+                    if(FAST_SETTING(outline_resample) >= 1)
+                        _outline.resample(FAST_SETTING(outline_resample));
                     else
-                        _outline.resample(FAST_SETTINGS(outline_resample));
+                        _outline.resample(FAST_SETTING(outline_resample));
                 }
                 
                 std::pair<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
                 auto debug = gui_show_fish.first == blob->blob_id() && frame == gui_show_fish.second;
                 float confidence = calculate_midline(debug);
-                bool error = !_normalized_midline || (_normalized_midline->size() != FAST_SETTINGS(midline_resolution));
+                bool error = !_normalized_midline || (_normalized_midline->size() != FAST_SETTING(midline_resolution));
                 error = !_normalized_midline;
                 
                 auto norma = _normalized_midline ? _normalized_midline->normalize() : nullptr;
-                if(norma && norma->size() != FAST_SETTINGS(midline_resolution))
+                if(norma && norma->size() != FAST_SETTING(midline_resolution))
                     error = true;
                 
                 if(first_outline == nullptr) {
@@ -296,7 +296,7 @@ namespace track {
                 outline_point = selected;
                 
                 if(!error && confidence > 0.9f) {
-                    if(/* DISABLES CODE */ (false) && FAST_SETTINGS(debug)) /*&& threshold-initial_threshold > 0*/
+                    if(/* DISABLES CODE */ (false) && FAST_SETTING(debug)) /*&& threshold-initial_threshold > 0*/
                     {
                         printf("raw_outline=np.asarray([");
                         for (auto &a : *selected) {
@@ -304,13 +304,13 @@ namespace track {
                         }
                         printf("])\n");
 
-                        print("Frame ", frameIndex," rendered with threshold ", FAST_SETTINGS(track_posture_threshold),"+", threshold - FAST_SETTINGS(track_posture_threshold)," (", selected->size()," -> ", _outline.size()," points).");
+                        print("Frame ", frameIndex," rendered with threshold ", FAST_SETTING(track_posture_threshold),"+", threshold - FAST_SETTING(track_posture_threshold)," (", selected->size()," -> ", _outline.size()," points).");
                     }
                     
                     // found a good configuration! escape.
                     break;
                     
-                } else if(FAST_SETTINGS(debug)) {
+                } else if(FAST_SETTING(debug)) {
                     print("Error in outline (threshold ", threshold,") @",frameIndex," for ",fishID," ", error);
                 }
             }
@@ -319,7 +319,7 @@ namespace track {
             threshold += 2;
             
             if(threshold >= initial_threshold + 50) {
-                if(FAST_SETTINGS(debug)) {
+                if(FAST_SETTING(debug)) {
                     print("Outline failed (threshold ", threshold,") @", frameIndex," for ", fishID);
                 }
                 
@@ -431,7 +431,7 @@ namespace track {
         Vec2 direction(FLT_MAX, FLT_MAX);
         //float current_min_rawd = 0;
         
-        const float factor = FAST_SETTINGS(outline_resample) ? FAST_SETTINGS(outline_resample) : 1;//0.25;
+        const float factor = FAST_SETTING(outline_resample) ? FAST_SETTING(outline_resample) : 1;//0.25;
         
         const auto rdist_points = [&](const Vec2& A, const Vec2& B, float d) -> float {
             if(B == A)
@@ -624,7 +624,7 @@ namespace track {
                 
                 if((index <= L * 0.25 && abs(K) > 0.17) || (index > L * 0.25 && abs(K) > 0.4f)) {
                     Tracker::increase_midline_errors();
-                    //if(FAST_SETTINGS(debug))
+                    //if(FAST_SETTING(debug))
                     //if(index <= L * 0.25)
                     //return 0;
                     //break;

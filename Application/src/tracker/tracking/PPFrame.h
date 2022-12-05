@@ -13,6 +13,8 @@ class PPFrame {
     GETTER_NCONST(pv::Frame, frame)
     GETTER_SETTER(Frame_t, index)
 public:
+    using cache_map_t = robin_hood::unordered_node_map<Idx_t, IndividualCache>;
+    
     //! Time in seconds
     double time;
     
@@ -33,7 +35,6 @@ private:
     GETTER_I(size_t, num_pixels, 0)
     GETTER_I(size_t, pixel_samples, 0)
     
-    using cache_map_t = robin_hood::unordered_node_map<Idx_t, IndividualCache>;
     GETTER_NCONST(cache_map_t, individual_cache)
     
 public:

@@ -53,7 +53,7 @@ VINetwork::VINetwork()
 bool VINetwork::is_good(const track::BasicStuff *basic,
                         const track::PostureStuff *posture)
 {
-    return basic && (!FAST_SETTINGS(calculate_posture) || posture);
+    return basic && (!FAST_SETTING(calculate_posture) || posture);
 }
 
 VINetwork::Status VINetwork::status(){
@@ -90,7 +90,7 @@ void VINetwork::setup(bool force) {
     
     auto result = py::check_module("learn_static");
     if(result || force || py::is_none("classes", "learn_static")) {
-        uint32_t N = FAST_SETTINGS(track_max_individuals) ? FAST_SETTINGS(track_max_individuals) : 1u;
+        uint32_t N = FAST_SETTING(track_max_individuals) ? FAST_SETTING(track_max_individuals) : 1u;
         std::vector<uint32_t> ids;
         ids.resize(N);
         
@@ -585,7 +585,7 @@ std::vector<float> VINetwork::transform_results(
     std::vector<std::vector<float>> && values)
 {
     std::vector<float> probs;
-    const size_t M = FAST_SETTINGS(track_max_individuals);
+    const size_t M = FAST_SETTING(track_max_individuals);
     probs.resize(N * M);
     
     size_t i = 0;
@@ -606,7 +606,7 @@ std::set<Idx_t> VINetwork::classes() {
     std::set<Idx_t> identities;
     for(auto &[id, fish] : Tracker::individuals())
         identities.insert(id);
-    assert(FAST_SETTINGS(track_max_individuals) == identities.size());
+    assert(FAST_SETTING(track_max_individuals) == identities.size());
     return identities;
 }
 
@@ -621,7 +621,7 @@ size_t VINetwork::number_classes() {
 //auto str = Meta::toStr(values);
 
 auto time = timer.elapsed();
-print("[GPU] ",dec<2>(values.size() / float(FAST_SETTINGS(track_max_individuals))),"/",images.size()," values returned in ",dec<2>(time * 1000),"ms");
+print("[GPU] ",dec<2>(values.size() / float(FAST_SETTING(track_max_individuals))),"/",images.size()," values returned in ",dec<2>(time * 1000),"ms");
 
 this->stop_running();
 
@@ -629,7 +629,7 @@ this->stop_running();
     std::lock_guard<std::mutex> guard(_mutex);
     for(int64_t j=0; j<(int64_t)indexes.size(); ++j) {
         size_t i = narrow_cast<size_t>(indexes.at((size_t)j));
-        probs[data[i].frame][data[i].blob.blob.blob_id()] = std::vector<float>(values.begin() + j * FAST_SETTINGS(track_max_individuals), values.begin() + (j + 1) * FAST_SETTINGS(track_max_individuals));
+        probs[data[i].frame][data[i].blob.blob.blob_id()] = std::vector<float>(values.begin() + j * FAST_SETTING(track_max_individuals), values.begin() + (j + 1) * FAST_SETTING(track_max_individuals));
     }
 }
 */

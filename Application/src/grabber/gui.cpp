@@ -535,7 +535,7 @@ void GUI::draw_tracking(gui::DrawStructure &base, const attr::Scale& scale) {
 
 #if !COMMONS_NO_PYTHON
         ska::bytell_hash_map<int64_t, std::tuple<float, float>> speeds;
-        const auto displayed_range = FAST_SETTINGS(frame_rate) * 5;
+        const auto displayed_range = FAST_SETTING(frame_rate) * 5;
 
         const Frame_t min_display_frame = Frame_t(max(0, Tracker::end_frame().get() - displayed_range));
 #endif

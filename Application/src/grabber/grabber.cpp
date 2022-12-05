@@ -680,8 +680,6 @@ FrameGrabber::~FrameGrabber() {
         
         {
             track::LockGuard guard(track::w_t{}, "GUI::save_state");
-            tracker->wait();
-            
             if(!SETTING(auto_no_tracking_data))
                 track::export_data(*tracker, -1, Range<Frame_t>());
             
@@ -1257,10 +1255,10 @@ void FrameGrabber::update_tracker_queue() {
                             
                             for(auto id : ids) {
                                 auto it = midlines.find(id);
-                                if(it == midlines.end() || it->second->segments().size() != FAST_SETTINGS(midline_resolution))
+                                if(it == midlines.end() || it->second->segments().size() != FAST_SETTING(midline_resolution))
                                 {
                                     points.resize(0);
-                                    for(uint32_t i=0; i<FAST_SETTINGS(midline_resolution); ++i)
+                                    for(uint32_t i=0; i<FAST_SETTING(midline_resolution); ++i)
                                         points.push_back(gui::Graph::invalid());
                                     midline_points.insert(midline_points.end(), points.begin(), points.end());
                                     
@@ -1315,8 +1313,8 @@ void FrameGrabber::update_tracker_queue() {
                                     std::vector<size_t>{ number_fields, 2, track::VisualField::field_resolution },
                                     std::vector<size_t>{ 2 * track::VisualField::field_resolution * sizeof(float), track::VisualField::field_resolution * sizeof(float), sizeof(float) });
                             py::set_variable("midlines", midline_points, "closed_loop",
-                                             std::vector<size_t>{ min(number_midlines, ids.size()), FAST_SETTINGS(midline_resolution), 2 },
-                                std::vector<size_t>{ 2 * FAST_SETTINGS(midline_resolution) * sizeof(float), 2 * sizeof(float), sizeof(float) });
+                                             std::vector<size_t>{ min(number_midlines, ids.size()), FAST_SETTING(midline_resolution), 2 },
+                                std::vector<size_t>{ 2 * FAST_SETTING(midline_resolution) * sizeof(float), 2 * sizeof(float), sizeof(float) });
 
                             track::PythonIntegration::run("closed_loop", "update_tracking");
                         } catch(const SoftExceptionImpl& e) {

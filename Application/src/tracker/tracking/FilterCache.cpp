@@ -42,7 +42,7 @@ std::tuple<Image::UPtr, Vec2> normalize_image(
     assert(padded.isContinuous());
     
     auto size = Size2(padded.size());
-    auto scale = FAST_SETTINGS(individual_image_scale);
+    auto scale = FAST_SETTING(individual_image_scale);
     //Vec2 pos = size * 0.5 + Vec2(midline_length * 0.4);
     
     gui::Transform tr;
@@ -152,7 +152,7 @@ calculate_diff_image(pv::BlobPtr blob,
     imageFromLines(blob->hor_lines(), &mask, NULL, &image, blob->pixels().get(), 0, background, 0);
     image.copyTo(padded, mask);
     
-    auto scale = FAST_SETTINGS(individual_image_scale);
+    auto scale = FAST_SETTING(individual_image_scale);
     if(scale != 1)
         resize_image(padded, scale);
     

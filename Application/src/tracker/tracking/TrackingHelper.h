@@ -58,7 +58,7 @@ public:
     Match::PairedProbabilities paired;
     default_config::matching_mode_t::Class match_mode{default_config::matching_mode_t::automatic};
     
-    TrackingHelper(PPFrame& frame, const std::vector<std::unique_ptr<FrameProperties>>& added_frames);
+    TrackingHelper(PPFrame& frame, const std::vector<FrameProperties::Ptr>& added_frames);
     ~TrackingHelper();
     
     void assign_blob_individual(Individual* fish, const pv::BlobPtr& blob, default_config::matching_mode_t::Class match_mode);
