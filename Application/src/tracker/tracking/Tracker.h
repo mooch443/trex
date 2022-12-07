@@ -139,8 +139,10 @@ public:
     struct SecondsPerFrame {
         double _seconds_per_frame, _frames_sampled;
         void add(double seconds, double num_individuals) {
-            _seconds_per_frame += seconds / num_individuals;
-            _frames_sampled++;
+            if(num_individuals > 0) {
+                _seconds_per_frame += seconds / num_individuals;
+                _frames_sampled++;
+            }
         }
     };
     

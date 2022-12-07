@@ -10,6 +10,12 @@
 #include <tracking/TrackingSettings.h>
 #include <misc/ThreadPool.h>
 
+#ifndef NDEBUG
+#define TREX_ENABLE_HISTORY_LOGS true
+#else
+#define TREX_ENABLE_HISTORY_LOGS false
+#endif
+
 namespace track {
 using namespace cmn;
 
@@ -35,18 +41,24 @@ class PPFrame {
     GETTER_SETTER(Frame_t, index)
     
 public:
-    robin_hood::unordered_map<long_t, std::set<pv::bid>> fish_mappings;
+    //robin_hood::unordered_map<long_t, std::set<pv::bid>> fish_mappings;
     robin_hood::unordered_map<pv::bid, std::set<Idx_t>> blob_mappings;
     robin_hood::unordered_map<Idx_t, ska::bytell_hash_map<pv::bid, Match::prob_t>> paired;
     robin_hood::unordered_map<Idx_t, Vec2> last_positions;
     
+#if TREX_ENABLE_HISTORY_LOGS
     inline static std::shared_ptr<std::ofstream> history_log;
     inline static std::mutex log_mutex;
+#endif
     
     template<typename... Args>
     static inline void Log(Args... args) {
+#if TREX_ENABLE_HISTORY_LOGS
         if(!history_log)
             return;
+#else
+        return;
+#endif
         write_log(format<FormatterType::NONE>(args...));
     }
     

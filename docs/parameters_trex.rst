@@ -887,7 +887,7 @@ TRex parameters
 
 .. function:: gui_show_fish(pair<blob,frame>)
 
-	**default value:** [4294967295,-1]
+	**default value:** [null,-1]
 
 
 	Show debug output for {blob_id, fish_id}.
@@ -2195,7 +2195,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1.9-89-g1e80eae"
+	**default value:** "v1.1.9-124-g72d5b3f"
 
 
 	Current application version.

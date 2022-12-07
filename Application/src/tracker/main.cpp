@@ -1176,9 +1176,21 @@ int main(int argc, char** argv)
                         std::string str;
                         
                         if(FAST_SETTING(analysis_range).first != -1 || FAST_SETTING(analysis_range).second != -1)
-                            str = format<FormatterType::NONE>("frame ", ptr->index(), "/", range.end,  "(",video.length(),") (", dec<2>(data_sec/1024.0), "MB/s @ ", dec<2>(frames_sec), "fps eta ", us, ") ", dec<2>(Tracker::average_seconds_per_individual() * 1000 * 1000), "µs/individual");
+                            str = format<FormatterType::NONE>("frame ", ptr->index(), "/", range.end,  "(",video.length(),") (", dec<2>(data_sec/1024.0), "MB/s @ ", dec<2>(frames_sec), "fps eta ", us, ") ", dec<2>(Tracker::average_seconds_per_individual() * 1000 * 1000),
+#if defined(__APPLE__)
+                                                              "µs/individual"
+#else
+                                                              "mus/individual"
+#endif
+                                                              );
                         else
-                            str = format<FormatterType::NONE>("frame ", ptr->index(), "/", range.end, " (", dec<2>(data_sec/1024.0), "MB/s @ ", dec<2>(frames_sec), "fps eta ", us, ") ", dec<2>(Tracker::average_seconds_per_individual() * 1000 * 1000), "µs/individual");
+                            str = format<FormatterType::NONE>("frame ", ptr->index(), "/", range.end, " (", dec<2>(data_sec/1024.0), "MB/s @ ", dec<2>(frames_sec), "fps eta ", us, ") ", dec<2>(Tracker::average_seconds_per_individual() * 1000 * 1000),
+#if defined(__APPLE__)
+                                                              "µs/individual"
+#else
+                                                              "mus/individual"
+#endif
+                                                              );
 
                         {
                             // synchronize with debug messages

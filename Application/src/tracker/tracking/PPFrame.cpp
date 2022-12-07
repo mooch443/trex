@@ -7,6 +7,7 @@
 namespace track {
 
 void PPFrame::UpdateLogs() {
+#if TREX_ENABLE_HISTORY_LOGS
     if(history_log == nullptr && !SETTING(history_matching_log).value<file::Path>().empty()) {
         history_log = std::make_shared<std::ofstream>();
         
@@ -60,9 +61,11 @@ void PPFrame::UpdateLogs() {
             }
         }
     }
+#endif
 }
 
 void PPFrame::CloseLogs() {
+#if TREX_ENABLE_HISTORY_LOGS
     std::lock_guard guard(log_mutex);
     if(history_log != nullptr && history_log->is_open()) {
         print("Closing history log.");
@@ -71,9 +74,11 @@ void PPFrame::CloseLogs() {
         history_log->close();
     }
     history_log = nullptr;
+#endif
 }
 
 void PPFrame::write_log(std::string str) {
+#if TREX_ENABLE_HISTORY_LOGS
     if(!history_log)
         return;
     
@@ -81,6 +86,9 @@ void PPFrame::write_log(std::string str) {
     
     std::lock_guard guard(log_mutex);
     *history_log << str << std::endl;
+#else
+    UNUSED(str)
+#endif
 }
 
 #define ASSUME_NOT_FINALIZED _assume_not_finalized( __FILE__ , __LINE__ )
@@ -142,15 +150,16 @@ void PPFrame::init_cache(PPFrame& frame, const set_of_individuals_t &individuals
     std::mutex mutex;
     std::condition_variable variable;
     size_t count = 0;
+    const bool history_split = FAST_SETTING(track_do_history_split);
 
     auto fn = [&](const set_of_individuals_t& active_individuals,
                   size_t start,
                   size_t N)
     {
+        using DistanceToBdx = std::pair<pv::bid, float>;
         struct FishAssignments {
             Idx_t fdx;
-            std::vector<pv::bid> blobs;
-            std::vector<float> distances;
+            std::vector<DistanceToBdx> assign;
             Vec2 last_pos;
         };
         struct BlobAssignments {
@@ -173,7 +182,12 @@ void PPFrame::init_cache(PPFrame& frame, const set_of_individuals_t &individuals
             long_t last_L = -1;
 
             // IndividualCache is in the same position as the indexes here
-            auto cache = fish->cache_for_frame(frame.index(), frame.time, &hints);
+            auto &cache = cache_map[fish->identity().ID()];
+            cache = fish->cache_for_frame(frame.index(), frame.time, &hints);
+            
+            if(!history_split)
+                continue;
+            
             const auto time_limit = cache.previous_frame.get() - frame_limit; // dont allow too far to the past
                 
             // does the current individual have the frame previous to the current frame?
@@ -227,31 +241,30 @@ void PPFrame::init_cache(PPFrame& frame, const set_of_individuals_t &individuals
                         if(!frame.find_bdx(bdx))
                             continue;
                         
-                        map.blobs.push_back(bdx);
-                        map.distances.push_back(d);
+                        map.assign.push_back({bdx, d});
                         blob_assignments[bdx].idxs.insert(fdx);
                     }
                 }
                 
                 Log("\tFish ", fish->identity()," (", cache.estimated_px.x, ",", cache.estimated_px.y, ") proximity: ", set);
             }
-            
-            cache_map[fish->identity().ID()] = std::move(cache);
         }
 
         std::unique_lock guard(mutex);
         for(auto&& [fdx, cache] : cache_map)
             frame.set_cache(fdx, std::move(cache));
         
-        for (auto&& [fdx, blobs, distances, last_pos] : fish_assignments) {
-            fish_mappings[fdx].insert(std::make_move_iterator(blobs.begin()), std::make_move_iterator(blobs.end()));
-            auto N = blobs.size();
-            for(size_t i=0; i<N; ++i)
-                paired[fdx][blobs[i]] = distances[i];
-            last_positions[fdx] = last_pos;
-        }
-        for (auto& [bdx, assign] : blob_assignments) {
-            blob_mappings[bdx].insert(assign.idxs.begin(), assign.idxs.end());
+        if(history_split) {
+            for (auto&& [fdx, assign, last_pos] : fish_assignments) {
+                //fish_mappings[fdx].insert(std::make_move_iterator(blobs.begin()), std::make_move_iterator(blobs.end()));
+                auto N = assign.size();
+                for(size_t i=0; i<N; ++i)
+                    paired[fdx].insert(std::move(assign[i]));
+                last_positions[fdx] = last_pos;
+            }
+            for (auto& [bdx, assign] : blob_assignments) {
+                blob_mappings[bdx].insert(assign.idxs.begin(), assign.idxs.end());
+            }
         }
 
         ++count;
@@ -569,7 +582,7 @@ void PPFrame::clear() {
     _pixel_samples = 0;
     //_tags.clear();
     
-    fish_mappings.clear();
+    //fish_mappings.clear();
     blob_mappings.clear();
     paired.clear();
     last_positions.clear();
