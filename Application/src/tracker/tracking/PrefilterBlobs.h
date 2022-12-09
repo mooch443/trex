@@ -4,9 +4,11 @@
 #include <misc/PVBlob.h>
 #include <misc/frame_t.h>
 #include <misc/BlobSizeRange.h>
+#include <processing/CPULabeling.h>
 
 namespace cmn {
 class Background;
+
 }
 
 namespace track {
@@ -14,6 +16,8 @@ struct PrefilterBlobs {
     std::vector<pv::BlobPtr> filtered;
     std::vector<pv::BlobPtr> filtered_out;
     std::vector<pv::BlobPtr> big_blobs;
+    
+    CPULabeling::ListCache_t cache;
     
     Frame_t frame_index;
     BlobSizeRange fish_size;

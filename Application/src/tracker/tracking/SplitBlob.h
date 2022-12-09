@@ -8,6 +8,8 @@
 
 namespace track { class SplitBlob; }
 
+namespace cmn { namespace CPULabeling { struct ListCache_t; }}
+
 //! This class tries to find multiple blobs within a big blob.
 //  One blob represents one individual.
 class track::SplitBlob {
@@ -40,9 +42,10 @@ private:
     // parameters
     pv::BlobPtr _blob;
     std::vector<uchar> _diff_px;
+    CPULabeling::ListCache_t* _cache{nullptr};
     
 public:
-    SplitBlob(const Background& average, pv::BlobPtr blob);
+    SplitBlob(CPULabeling::ListCache_t* cache, const Background& average, pv::BlobPtr blob);
     
     /**
      * @param presumed_nr number of individuals to find

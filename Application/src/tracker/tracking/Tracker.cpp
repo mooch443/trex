@@ -654,7 +654,7 @@ void Tracker::prefilter(const std::shared_ptr<PrefilterBlobs>& result, std::vect
         //  as the threshold used here will reduce the number of available pixels for posture analysis
         //  or tracking respectively (pixels below used threshold will be removed).
         if(result->fish_size.close_to_minimum_of_one(recount, 0.5)) {
-            auto pblobs = pixel::threshold_blob(b, result->threshold, result->background);
+            auto pblobs = pixel::threshold_blob(result->cache, b, result->threshold, result->background);
             
             // only use blobs that split at least into 2 new blobs
             for(auto &add : pblobs) {
@@ -840,6 +840,7 @@ std::vector<pv::BlobPtr> Tracker::split_big(
     auto work = [&](auto, auto start, auto end, auto)
     {
         std::vector<pv::BlobPtr> noise, regular;
+        CPULabeling::ListCache_t cache;
         
         for(auto it = start; it != end; ++it) {
             auto &b = *it;
@@ -862,7 +863,7 @@ std::vector<pv::BlobPtr> Tracker::split_big(
                 continue;
             }
             
-            SplitBlob s(*background(), b);
+            SplitBlob s(&cache, *background(), b);
             std::vector<pv::BlobPtr> copy;
             auto ret = s.split(ex.number, ex.centers);
             

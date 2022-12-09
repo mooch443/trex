@@ -19,9 +19,10 @@ BlobSizeRange fish_minmax({Rangef(0.001,1000)});
 int posture_threshold = 15;
 auto blob_split_algorithm = blob_split_algorithm_t::threshold;
 
-SplitBlob::SplitBlob(const Background& average, pv::BlobPtr blob)
+SplitBlob::SplitBlob(CPULabeling::ListCache_t* cache, const Background& average, pv::BlobPtr blob)
     :   max_objects(0),
-        _blob(blob)
+        _blob(blob),
+        _cache(cache)
 {
     // generate greyscale and mask images
     //
@@ -89,7 +90,7 @@ size_t SplitBlob::apply_threshold(int threshold, std::vector<pv::BlobPtr> &outpu
         }
     }
     
-    output = pixel::threshold_blob(_blob, _diff_px, threshold);
+    output = pixel::threshold_blob(*_cache, _blob, _diff_px, threshold);
     
     for(auto &blob: output) {
         blob->add_offset(-_blob->bounds().pos());
@@ -239,7 +240,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
         img->get().copyTo(tmp, tmp);
 
         {
-            auto detections = CPULabeling::run(tmp);
+            auto detections = CPULabeling::run(tmp, *_cache);
             //print("Detections: ", detections.size());
 
             output.clear();

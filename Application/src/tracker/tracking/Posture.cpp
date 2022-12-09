@@ -333,7 +333,8 @@ namespace track {
         timing.conclude_measure();
         
         std::pair<pv::bid, Frame_t> gui_show_fish = SETTING(gui_show_fish);
-        if(gui_show_fish.first == blob->blob_id() && frame == gui_show_fish.second) {
+        if(gui_show_fish.first == blob->blob_id() && frame == gui_show_fish.second
+           && outline_point) {
             print(frame, " ", blob->blob_id(),": threshold ", threshold);
             auto blob = thresholded_blob;
             auto && [pos, image] = blob->image();
